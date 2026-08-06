@@ -57,7 +57,7 @@ const catchAsync = (fn: any) => (req: express.Request, res: express.Response, ne
 };
 
 app.set("trust proxy", 1);
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || "5000");
 const httpServer = createServer(app);
 
 // Securely configure CORS for production web domain and Capacitor mobile origins (iOS/Android)
