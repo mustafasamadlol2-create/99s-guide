@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sun / Moon Preview</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+    padding: 48px 24px;
+  }
+
+  .label {
+    font-size: 10px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  /* Mimic the hero greeting line exactly */
+  .greeting {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1.5rem;      /* roughly md: text-2xl */
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1;
+  }
+  .icon {
+    display: inline-block;
+    width: 2rem; height: 2rem;   /* md:w-8 md:h-8 */
+    font-size: 2rem;
+    line-height: 1;
+    vertical-align: middle;
+  }
+
+  .row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pair {
+    display: flex;
+    gap: 64px;
+    align-items: flex-start;
+  }
+
+  .divider {
+    width: 1px;
+    background: #1e293b;
+    align-self: stretch;
+  }
+
+  .note {
+    font-size: 12px;
+    color: #475569;
+    text-align: center;
+    max-width: 520px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<p class="label">Proposed icon pair · same rendering engine · same visual weight</p>
+
+<div class="pair">
+  <div class="row">
+    <p class="label">Morning &amp; Afternoon</p>
+    <div class="greeting">
+      Good Morning
+      <span class="icon">☀️</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="row">
+    <p class="label">Evening &amp; Night (unchanged)</p>
+    <div class="greeting">
+      Good Night
+      <span class="icon">🌙</span>
+    </div>
+  </div>
+</div>
+
+<p class="note">
+  Both rendered by the same native emoji engine at the same size — identical visual weight,
+  identical sharpness, identical rendering path. No custom SVG needed.
+</p>
+
+</body>
+</html>

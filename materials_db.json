@@ -1,0 +1,249 @@
+{
+  "subjects": [
+    {
+      "id": "ID",
+      "name": "Infection Diseases",
+      "nameAr": "",
+      "icon": "Virus",
+      "color": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "id_m1",
+          "subjectId": "ID",
+          "name": "Bacteriology",
+          "orderNumber": 1,
+          "lectures": []
+        },
+        {
+          "id": "id_m2",
+          "subjectId": "ID",
+          "name": "Parasitology",
+          "orderNumber": 2,
+          "lectures": []
+        },
+        {
+          "id": "id_m3",
+          "subjectId": "ID",
+          "name": "Virology",
+          "orderNumber": 3,
+          "lectures": []
+        },
+        {
+          "id": "id_m4",
+          "subjectId": "ID",
+          "name": "Mycology",
+          "orderNumber": 4,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "NT",
+      "name": "Nutrition",
+      "nameAr": "",
+      "icon": "Apple",
+      "color": "bg-purple-50 text-purple-700 border-purple-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "nt_m1",
+          "subjectId": "NT",
+          "name": "The Brainstem & Cranial Nerves",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "RM",
+      "name": "Research Methodology",
+      "nameAr": "",
+      "icon": "ClipboardList",
+      "color": "bg-sky-50 text-sky-700 border-sky-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "rm_m1",
+          "subjectId": "RM",
+          "name": "Epidemiological Study Designs",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "CA",
+      "name": "Clinical Attachment",
+      "nameAr": "",
+      "icon": "Hospital",
+      "color": "bg-rose-50 text-rose-700 border-rose-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "ca_m1",
+          "subjectId": "CA",
+          "name": "Valvular Heart Diseases",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "PHC",
+      "name": "Public Health Care",
+      "nameAr": "",
+      "icon": "Users",
+      "color": "bg-amber-50 text-amber-700 border-amber-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "phc_m1",
+          "subjectId": "PHC",
+          "name": "National Immunization Strategies",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "ImD",
+      "name": "Immune Disturbance",
+      "nameAr": "",
+      "icon": "ShieldPlus",
+      "color": "bg-blue-50 text-blue-700 border-blue-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "imd_m1",
+          "subjectId": "ImD",
+          "name": "Hypersensitivity States",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    },
+    {
+      "id": "SSC",
+      "name": "Student Selected Component",
+      "nameAr": "",
+      "icon": "PersonPresentation",
+      "color": "bg-neutral-50 text-neutral-700 border-neutral-200",
+      "description": "",
+      "modules": [
+        {
+          "id": "ssc_m1",
+          "subjectId": "SSC",
+          "name": "Wound Repair & Sutures",
+          "orderNumber": 1,
+          "lectures": []
+        }
+      ]
+    }
+  ],
+  "mcqs": [],
+  "flashcards": [
+    {
+      "id": "card_1784267135399",
+      "lectureId": "8beabaf8-3e22-4019-b72f-1be8736bba08",
+      "front": "Why is catalase an important virulence factor?  Answer:",
+      "back": "It breaks down H2O2 produced by neutrophils which enables the staphylococcus to overcome the immune system",
+      "frontText": "Why is catalase an important virulence factor?  Answer:",
+      "backText": "It breaks down H2O2 produced by neutrophils which enables the staphylococcus to overcome the immune system",
+      "clinicalConcept": "Why is catalase an important virulence factor?  Answer:",
+      "explanation": "It breaks down H2O2 produced by neutrophils which enables the staphylococcus to overcome the immune system"
+    },
+    {
+      "id": "card_1784267178745",
+      "lectureId": "8beabaf8-3e22-4019-b72f-1be8736bba08",
+      "front": "What is the mechanism through which Protein A disables our immune system?",
+      "back": "Protein A protects the bacteria from opsonization by binding to the Fc portion of antibodies",
+      "frontText": "What is the mechanism through which Protein A disables our immune system?",
+      "backText": "Protein A protects the bacteria from opsonization by binding to the Fc portion of antibodies",
+      "clinicalConcept": "What is the mechanism through which Protein A disables our immune system?",
+      "explanation": "Protein A protects the bacteria from opsonization by binding to the Fc portion of antibodies"
+    },
+    {
+      "id": "card_1784267194075",
+      "lectureId": "8beabaf8-3e22-4019-b72f-1be8736bba08",
+      "front": "Why is Staphylokinase considered an important virulent factor?  Answer:",
+      "back": "It enhances the spread of infection by digesting the fibrin coat which usually limits the spread",
+      "frontText": "Why is Staphylokinase considered an important virulent factor?  Answer:",
+      "backText": "It enhances the spread of infection by digesting the fibrin coat which usually limits the spread",
+      "clinicalConcept": "Why is Staphylokinase considered an important virulent factor?  Answer:",
+      "explanation": "It enhances the spread of infection by digesting the fibrin coat which usually limits the spread"
+    },
+    {
+      "id": "card_1784267209695",
+      "lectureId": "8beabaf8-3e22-4019-b72f-1be8736bba08",
+      "front": "What is the mechanism through which TSST causes Toxic shock syndrome?",
+      "back": "TSST is a superantigenic exotoxin, it binds to and activates T cells with no specificity to an antigen. This causes all activated T cells to secrete large amounts of interleukins resulting in a cytokine storm and shock",
+      "frontText": "What is the mechanism through which TSST causes Toxic shock syndrome?",
+      "backText": "TSST is a superantigenic exotoxin, it binds to and activates T cells with no specificity to an antigen. This causes all activated T cells to secrete large amounts of interleukins resulting in a cytokine storm and shock",
+      "clinicalConcept": "What is the mechanism through which TSST causes Toxic shock syndrome?",
+      "explanation": "TSST is a superantigenic exotoxin, it binds to and activates T cells with no specificity to an antigen. This causes all activated T cells to secrete large amounts of interleukins resulting in a cytokine storm and shock"
+    },
+    {
+      "id": "card_1784267227694",
+      "lectureId": "8beabaf8-3e22-4019-b72f-1be8736bba08",
+      "front": "Explain the development of antibiotic resistant S.aureus.",
+      "back": "Firstly, it developed a resistance to penicillin by acquiring a plasmid that codes for the production of B-lactamase, this was overcome by introducing B-lactamase resistant penicillin like nafcillin and methicillin.\nSecondly, some strains acquired resistance to these drugs (MRSA and VRSA) by changing a sequence of genes on a region of their chromosome (SCCmec) to give rise to 2 genes (mecA and mec C) that produce a low affinity penicillin binding protein (PBP2a), this was overcome by introducing vancomycin. \nLastly, these strains also acquired resistance to vancomycin through the van gene acquired from enterococci by plasmids \nThey are now treated by other classes of antibiotics like tetracyclines, erythromycin, aminoglycosides",
+      "frontText": "Explain the development of antibiotic resistant S.aureus.",
+      "backText": "Firstly, it developed a resistance to penicillin by acquiring a plasmid that codes for the production of B-lactamase, this was overcome by introducing B-lactamase resistant penicillin like nafcillin and methicillin.\nSecondly, some strains acquired resistance to these drugs (MRSA and VRSA) by changing a sequence of genes on a region of their chromosome (SCCmec) to give rise to 2 genes (mecA and mec C) that produce a low affinity penicillin binding protein (PBP2a), this was overcome by introducing vancomycin. \nLastly, these strains also acquired resistance to vancomycin through the van gene acquired from enterococci by plasmids \nThey are now treated by other classes of antibiotics like tetracyclines, erythromycin, aminoglycosides",
+      "clinicalConcept": "Explain the development of antibiotic resistant S.aureus.",
+      "explanation": "Firstly, it developed a resistance to penicillin by acquiring a plasmid that codes for the production of B-lactamase, this was overcome by introducing B-lactamase resistant penicillin like nafcillin and methicillin.\nSecondly, some strains acquired resistance to these drugs (MRSA and VRSA) by changing a sequence of genes on a region of their chromosome (SCCmec) to give rise to 2 genes (mecA and mec C) that produce a low affinity penicillin binding protein (PBP2a), this was overcome by introducing vancomycin. \nLastly, these strains also acquired resistance to vancomycin through the van gene acquired from enterococci by plasmids \nThey are now treated by other classes of antibiotics like tetracyclines, erythromycin, aminoglycosides"
+    },
+    {
+      "id": "card_1784284193271",
+      "lectureId": "7d493942-7a2c-4778-b727-016ec8d5517a",
+      "front": "svbsfbfsb",
+      "back": "dfbdzgfbdzgfbzd",
+      "frontText": "svbsfbfsb",
+      "backText": "dfbdzgfbdzgfbzd",
+      "clinicalConcept": "svbsfbfsb",
+      "explanation": "dfbdzgfbdzgfbzd"
+    },
+    {
+      "id": "card_1784285919119",
+      "lectureId": "af3d9785-57e0-4c4c-ace2-700391cef775",
+      "front": "bdhbaehrbh",
+      "back": "nbetdn",
+      "frontText": "bdhbaehrbh",
+      "backText": "nbetdn",
+      "clinicalConcept": "bdhbaehrbh",
+      "explanation": "nbetdn"
+    },
+    {
+      "id": "card_1784303968254",
+      "lectureId": "913eae81-da6e-40ed-b94d-800a1163a749",
+      "front": "bzrfbeb",
+      "back": "ebedzfbe",
+      "frontText": "bzrfbeb",
+      "backText": "ebedzfbe",
+      "clinicalConcept": "bzrfbeb",
+      "explanation": "ebedzfbe"
+    },
+    {
+      "id": "card_1784714786323",
+      "lectureId": "487ca272-972c-4ad4-94aa-48d218ae63d1",
+      "front": "fbzfnbd",
+      "back": "ndnz",
+      "frontText": "fbzfnbd",
+      "backText": "ndnz",
+      "clinicalConcept": "fbzfnbd",
+      "explanation": "ndnz"
+    },
+    {
+      "id": "card_1784728423051",
+      "lectureId": "d8da9813-23f7-4288-adb6-78b42c2b2913",
+      "front": "bfB",
+      "back": "sfbb",
+      "frontText": "bfB",
+      "backText": "sfbb",
+      "clinicalConcept": "bfB",
+      "explanation": "sfbb"
+    }
+  ],
+  "videos": [],
+  "calendarEvents": []
+} 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    
+    <title>99's Guide</title>
+    <!-- Self-hosted fonts — fully offline, no Google CDN dependency.
+         All woff2 files are bundled in public/fonts/ via fonts.css. -->
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <!-- Preload primary latin subsets for Inter (UI) and Cairo (Arabic UI).
+         These are the first font faces decoded on any page load regardless of language.
+         crossorigin is required for same-origin font preload to match the CSS fetch. -->
+    <link rel="preload" href="/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="high" />
+    <link rel="preload" href="/fonts/Cairo-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="high" />
+
+    <!-- PWA Web App Manifest & Branding -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-title" content="99's Guide" />
+    <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F8F9FC" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+    
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem("app_theme");
+          var isDark = saved === "dark" || (saved !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (isDark) {
+            document.documentElement.classList.add("dark");
+            document.documentElement.style.backgroundColor = "#111116";
+            document.body.style.backgroundColor = "#111116";
+          } else {
+            document.documentElement.style.backgroundColor = "#f5f1ec";
+            document.body.style.backgroundColor = "#f5f1ec";
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

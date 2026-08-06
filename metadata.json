@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Remix: Remix: 99\u0027s Guide",
+  "description": "The ultimate collaborative study companion, gamified library, and scheduler designed specifically for Batch 99 medical students at the University of Baghdad.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
