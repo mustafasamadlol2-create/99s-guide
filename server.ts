@@ -4162,86 +4162,73 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
       });
     }
 
-    // Render successful completion page sending message to parent frame
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Baghdad Med Sandbox Authenticated</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              background: #F8F9FC;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              margin: 0;
-            }
-            .card {
-              background: white;
-              padding: 2.5rem;
-              border-radius: 20px;
-              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-              border: 1px solid #E2E8F0;
-              text-align: center;
-              max-width: 400px;
-              width: 90%;
-            }
-            h2 { color: #1E2D4A; margin-top: 0; font-size: 1.5rem; }
-            p { color: #64748B; font-size: 0.875rem; line-height: 1.5; }
-            .badge {
-              display: inline-block;
-              background: #FEF3C7;
-              color: #D97706;
-              padding: 4px 12px;
-              border-radius: 12px;
-              font-size: 0.75rem;
-              font-weight: 600;
-              margin-bottom: 1rem;
-              text-transform: uppercase;
-              letter-spacing: 0.05em;
-            }
-            .btn {
-              background: #1E2D4A;
-              color: #FEF3C7;
-              border: none;
-              padding: 10px 24px;
-              font-weight: 600;
-              border-radius: 10px;
-              cursor: pointer;
-              font-size: 0.875rem;
-              transition: background 0.2s;
-            }
-            .btn:hover { background: #0F172A; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <span class="badge">Developer Sandbox mode</span>
-            <h2>Connection Verified</h2>
-            <p>Welcome back, <strong>${user.name}</strong> (${user.email}). Your medical batch profile is successfully linked.</p>
-            <p style="color: #94A3B8; font-size: 11px; margin-bottom: 1.5rem;">
-              Real token validation will run once you supply client keys in your environment variables.
-            </p>
-            <button class="btn" onclick="finishLogin()">Return to App</button>
-          </div>
-
-          <script>
-            function finishLogin() {
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', userId: '${user.id}', email: '${user.email}', token: '${token}' }, '*');
-                window.close();
-              } else {
-                window.location.href = '/';
-              }
-            }
-            // Auto complete in 1.5 seconds for absolute premium speed
-            setTimeout(finishLogin, 1500);
-          </script>
-        </body>
-      </html>
-    `);
+    // Auto-closing success page — no user action required.
+    // Sends OAUTH_AUTH_SUCCESS to the opener (popup path) then closes.
+    // On native Capacitor, window.opener is null; the polling path handles
+    // session completion via pendingOAuthSessions instead.
+    return res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Signing you in…</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      background:#F8F9FC;display:flex;align-items:center;justify-content:center;
+      height:100vh;
+    }
+    .card{
+      background:#fff;border:1px solid #E2E8F0;border-radius:20px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.06);
+      padding:2.5rem 2rem;text-align:center;max-width:380px;width:90%;
+      animation:up 0.28s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    .check{
+      width:56px;height:56px;border-radius:50%;background:#ECFDF5;
+      border:1.5px solid #A7F3D0;display:flex;align-items:center;
+      justify-content:center;margin:0 auto 1.25rem;
+    }
+    h2{color:#1E2D4A;font-size:1.2rem;font-weight:700;margin-bottom:.5rem;}
+    p{color:#64748B;font-size:.875rem;line-height:1.5;}
+    .closing{margin-top:1rem;font-size:.75rem;color:#94A3B8;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="check">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <path d="M5 13.5l5.5 5.5L21 8" stroke="#10B981" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2>Signed in successfully</h2>
+    <p>Welcome, <strong>${user.name}</strong>. Returning to the app…</p>
+    <p class="closing">This window will close automatically.</p>
+  </div>
+  <script>
+    (function () {
+      var payload = {
+        type: 'OAUTH_AUTH_SUCCESS',
+        userId: '${user.id}',
+        email: '${user.email}',
+        token: '${token}'
+      };
+      // Popup path: send to parent and close this window
+      if (window.opener && !window.opener.closed) {
+        try { window.opener.postMessage(payload, '*'); } catch(e){}
+        setTimeout(function(){ window.close(); }, 400);
+      } else {
+        // Fallback (e.g. mobile redirect flow): navigate back to app root.
+        // The polling mechanism in the app will pick up the session token.
+        window.location.replace('/');
+      }
+    })();
+  </script>
+</body>
+</html>`);
   } catch (error: any) {
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
       return res.status(403).send(OAuthService.buildDomainRejectionPage());

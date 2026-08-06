@@ -180,33 +180,53 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     if (msg) setShakeCount((c) => c + 1);
   }, []);
 
-  // ── Handle OAuth domain rejection from the popup window ──────────────────
-  // Listen for OAuth popup messages:
-  //   OAUTH_DOMAIN_REJECTED — email not from @comed.uobaghdad.edu.iq
-  //   OAUTH_CANCELLED       — user dismissed the Apple Sign-In sheet
+  // ── Handle OAuth popup messages ────────────────────────────────────────────
+  // OAUTH_DOMAIN_REJECTED — email not from the allowed institutional domain
+  // OAUTH_CANCELLED       — user dismissed the sign-in sheet
+  // OAUTH_AUTH_SUCCESS    — OAuth completed (postMessage path from popup)
   useEffect(() => {
     const handleOAuthMessage = (event: MessageEvent) => {
       const type = event.data?.type;
 
       if (type === "OAUTH_DOMAIN_REJECTED") {
-        showError(
+        // Stop any running poll
+        if (oauthPollRef.current !== null) {
+          clearInterval(oauthPollRef.current);
+          oauthPollRef.current = null;
+        }
+        const msg =
           (event.data.message as string | undefined) ??
-            "Access denied — only @comed.uobaghdad.edu.iq student emails are allowed.",
-        );
+          "Access denied — only @comed.uobaghdad.edu.iq student emails are allowed.";
+        showError(msg);
         setSocialState((s) => {
           const activeKey =
             Object.keys(s).find((k) => s[k] !== "idle") ?? "google";
-          setTimeout(
-            () => setSocialState((prev) => ({ ...prev, [activeKey]: "idle" })),
-            2800,
-          );
+          // Auto-clear error and reset button after 4.5 s
+          setTimeout(() => {
+            setSocialState((prev) => ({ ...prev, [activeKey]: "idle" }));
+            setError("");
+          }, 4500);
           return { ...s, [activeKey]: "error" };
         });
         return;
       }
 
+      if (type === "OAUTH_AUTH_SUCCESS") {
+        // Popup sent auth success — mark the active button as completed
+        setSocialState((s) => {
+          const activeKey = Object.keys(s).find((k) => s[k] === "loading");
+          if (!activeKey) return s;
+          return { ...s, [activeKey]: "success" };
+        });
+        return;
+      }
+
       if (type === "OAUTH_CANCELLED") {
-        // User closed the Apple sheet — quietly reset whichever button is active
+        // Stop any running poll and quietly reset whichever button is active
+        if (oauthPollRef.current !== null) {
+          clearInterval(oauthPollRef.current);
+          oauthPollRef.current = null;
+        }
         setSocialState((s) => {
           const activeKey = Object.keys(s).find((k) => s[k] !== "idle");
           if (!activeKey) return s;
@@ -458,7 +478,23 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const handleSocialLogin = async (provider: string) => {
     const key = provider.toLowerCase();
     setError("");
-    setSocialState(s => ({ ...s, [key]: "loading" }));
+
+    // ── Apple: not supported — show institutional-restriction notice ──────────
+    // Apple Sign-In requires developer credentials not yet configured.
+    // Rather than opening a broken flow, show the restriction message and return.
+    if (key === "apple") {
+      setSocialState(s => ({ ...s, apple: "error" }));
+      showError(
+        "Apple Sign-In is not available. Access is restricted to authorized " +
+        "Baghdad Medical College accounts (@comed.uobaghdad.edu.iq) only. " +
+        "Please sign in with your institutional email or Google.",
+      );
+      setTimeout(() => {
+        setSocialState(s => ({ ...s, apple: "idle" }));
+        setError("");
+      }, 4500);
+      return;
+    }
 
     // Stop any previous poll before starting a new one
     if (oauthPollRef.current !== null) {
@@ -466,60 +502,99 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       oauthPollRef.current = null;
     }
 
-    try {
-      const callbackPath = provider.toLowerCase();
+    setSocialState(s => ({ ...s, [key]: "loading" }));
 
-      // Server now computes the redirect URI from its own host, so we no longer
-      // need to pass redirectUri from the client. This fixes the
-      // capacitor://localhost rejection from Google and eliminates redirect_uri
-      // mismatches between the authorization request and the token exchange.
-      const res = await apiClient(`/api/auth/oauth-url?provider=${callbackPath}`);
+    // Flag flipped to true the moment OAuth succeeds — guards the popup-closed
+    // handler so it does not overwrite the success state.
+    let oauthCompleted = false;
+
+    // Called whenever OAuth fails / is abandoned (popup closed, timeout, etc.)
+    const onOAuthFailed = (msg?: string) => {
+      if (oauthCompleted) return;
+      if (oauthPollRef.current !== null) {
+        clearInterval(oauthPollRef.current);
+        oauthPollRef.current = null;
+      }
+      setSocialState(s => ({ ...s, [key]: "error" }));
+      showError(msg ?? "Sign-in was not completed. Please try again.");
+      setTimeout(() => {
+        setSocialState(s => ({ ...s, [key]: "idle" }));
+        setError("");
+      }, 3000);
+    };
+
+    try {
+      // Server computes the redirect URI from its own host — no env var needed.
+      const res = await apiClient(`/api/auth/oauth-url?provider=${key}`);
       if (!res.ok) throw new Error(`Failed to initialize ${provider} login session.`);
       const data = await res.json();
 
       const targetUrl = data.url ?? data.sandboxUrl;
       if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
 
-      // stateToken is the key used to poll for the completed session server-side
       const stateToken: string | undefined = data.stateToken;
 
-      setSocialState(s => ({ ...s, [key]: "success" }));
-      NativeBridge.openUrl(targetUrl, "oauth_popup");
-      setTimeout(() => setSocialState(s => ({ ...s, [key]: "idle" })), 2200);
+      // ── Open OAuth window ──────────────────────────────────────────────────
+      if (NativeBridge.isNativePlatform()) {
+        // Native (iOS / Android): Capacitor in-app browser — postMessage is
+        // unavailable, so the polling path below handles session completion.
+        Browser.open({ url: targetUrl, presentationStyle: "popover" }).catch(() => {
+          window.open(targetUrl, "_blank");
+        });
 
-      // ── Session polling (essential for native Capacitor) ──────────────────
-      // On native, @capacitor/browser opens an in-app browser view (not a
-      // popup), so window.opener is null and postMessage never reaches the app.
-      // We poll the server every 1.5 s until it confirms the session is ready.
-      // On web the popup's postMessage fires first; the poll fires shortly after
-      // with a 404 (session already consumed) and stops — no double handling.
-      if (stateToken) {
-        const MAX_POLL_MS = 3 * 60 * 1000; // 3 minutes
-        const POLL_INTERVAL_MS = 1500;
-        const startTime = Date.now();
-        let browserClosed = false;
-
-        // On native: when the user closes the browser without completing auth,
-        // give one final poll grace period then abort.
+        // When user closes the native browser without completing, show error
+        // after giving the final poll one last grace interval.
         let browserFinishedHandle: { remove: () => void } | null = null;
-        if (NativeBridge.isNativePlatform()) {
-          Browser.addListener("browserFinished", () => {
-            setTimeout(() => {
-              browserClosed = true;
-              if (oauthPollRef.current !== null) {
-                clearInterval(oauthPollRef.current);
-                oauthPollRef.current = null;
-              }
-              browserFinishedHandle?.remove();
-            }, POLL_INTERVAL_MS + 300);
-          }).then(h => { browserFinishedHandle = h; }).catch(() => {});
-        }
+        Browser.addListener("browserFinished", () => {
+          setTimeout(() => {
+            onOAuthFailed();
+            browserFinishedHandle?.remove();
+          }, 1800);
+        }).then(h => { browserFinishedHandle = h; }).catch(() => {});
+      } else {
+        // Web PWA: open a centred popup so the app stays visible in the
+        // background and the user never leaves the full-screen PWA experience.
+        const sw = window.screen.width  || 1280;
+        const sh = window.screen.height || 800;
+        const pw = Math.min(480, sw - 40);
+        const ph = Math.min(640, sh - 60);
+        const pl = Math.round((sw - pw) / 2);
+        const pt = Math.round((sh - ph) / 2);
+        const oauthPopup = window.open(
+          targetUrl,
+          "oauth_popup",
+          `width=${pw},height=${ph},left=${pl},top=${pt},` +
+          "toolbar=0,location=0,status=0,menubar=0,scrollbars=1,resizable=1",
+        );
+
+        // Poll for popup closure — fires onOAuthFailed when the user dismisses
+        // the window without completing sign-in.
+        const closedCheck = setInterval(() => {
+          try {
+            if (oauthPopup?.closed) {
+              clearInterval(closedCheck);
+              onOAuthFailed();
+            }
+          } catch { clearInterval(closedCheck); }
+        }, 600);
+        // Auto-cleanup after 3 min regardless
+        setTimeout(() => clearInterval(closedCheck), 3 * 60 * 1000);
+      }
+
+      // ── Session polling (essential for native; also catches web race) ──────
+      // On native, postMessage is unavailable, so we poll the server every
+      // 1.5 s. On web the popup's postMessage (handled in the effect above)
+      // fires first; polling then sees a 404 and stops — no double handling.
+      if (stateToken) {
+        const MAX_POLL_MS    = 3 * 60 * 1000;
+        const POLL_INTERVAL  = 1500;
+        const startTime      = Date.now();
 
         oauthPollRef.current = setInterval(async () => {
-          if (browserClosed || Date.now() - startTime > MAX_POLL_MS) {
+          if (Date.now() - startTime > MAX_POLL_MS) {
             clearInterval(oauthPollRef.current!);
             oauthPollRef.current = null;
-            browserFinishedHandle?.remove();
+            onOAuthFailed("Sign-in timed out. Please try again.");
             return;
           }
           try {
@@ -527,25 +602,26 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             if (pollRes.ok) {
               const pollData = await pollRes.json();
               if (pollData.success && pollData.token) {
+                oauthCompleted = true;
                 clearInterval(oauthPollRef.current!);
                 oauthPollRef.current = null;
-                browserFinishedHandle?.remove();
 
-                // On native, programmatically close the in-app browser
-                // (SFSafariViewController / Chrome Custom Tabs) so the user
-                // never has to tap "return to app" manually.
+                // Update button to success BEFORE dispatching navigation
+                setSocialState(s => ({ ...s, [key]: "success" }));
+
+                // On native: programmatically close the in-app browser so the
+                // user never has to tap "Return to app" manually.
                 if (NativeBridge.isNativePlatform()) {
                   Browser.close().catch(() => {});
                 }
 
-                // Dispatch as a window message — the existing App.tsx listener
-                // handles OAUTH_AUTH_SUCCESS to set the user session.
+                // App.tsx OAUTH_AUTH_SUCCESS listener sets the user session.
                 window.dispatchEvent(new MessageEvent("message", {
                   data: {
-                    type: "OAUTH_AUTH_SUCCESS",
-                    token: pollData.token,
+                    type:   "OAUTH_AUTH_SUCCESS",
+                    token:  pollData.token,
                     userId: pollData.userId,
-                    email: pollData.email,
+                    email:  pollData.email,
                   },
                   origin: window.location.origin,
                 }));
@@ -553,12 +629,15 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               // 404 → session not ready yet or already consumed — keep polling
             }
           } catch { /* network error — keep polling */ }
-        }, POLL_INTERVAL_MS);
+        }, POLL_INTERVAL);
       }
     } catch (err: any) {
       setSocialState(s => ({ ...s, [key]: "error" }));
       showError(err.message || "Social authentication error.");
-      setTimeout(() => setSocialState(s => ({ ...s, [key]: "idle" })), 2200);
+      setTimeout(() => {
+        setSocialState(s => ({ ...s, [key]: "idle" }));
+        setError("");
+      }, 2200);
     }
   };
 
