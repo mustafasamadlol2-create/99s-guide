@@ -9,19 +9,17 @@ import { dbMonitor } from "./dbMonitor.js";
 // over .env values.
 loadEnv({ override: false, quiet: true });
 
-// Only fall back to SUPABASE_DATABASE_URL or the .env value when the runtime
-// has not already provided DATABASE_URL (e.g. on a local machine without
-// Replit's managed PostgreSQL injection).
-if (!process.env.DATABASE_URL) {
-  if (process.env.SUPABASE_DATABASE_URL?.startsWith("postgres")) {
-    process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
-  } else {
-    // Parse .env into a temp object so we don't clobber anything already set.
-    const envFromFile: Record<string, string> = {};
-    loadEnv({ processEnv: envFromFile, quiet: true });
-    if (envFromFile.DATABASE_URL?.startsWith("postgres")) {
-      process.env.DATABASE_URL = envFromFile.DATABASE_URL;
-    }
+// SUPABASE_DATABASE_URL takes explicit priority — the user intentionally
+// configured an external database. Fall back to the Replit-injected
+// DATABASE_URL only when Supabase is not configured.
+if (process.env.SUPABASE_DATABASE_URL?.startsWith("postgres")) {
+  process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
+} else if (!process.env.DATABASE_URL) {
+  // No Supabase URL and no runtime injection — try .env as last resort.
+  const envFromFile: Record<string, string> = {};
+  loadEnv({ processEnv: envFromFile, quiet: true });
+  if (envFromFile.DATABASE_URL?.startsWith("postgres")) {
+    process.env.DATABASE_URL = envFromFile.DATABASE_URL;
   }
 }
 

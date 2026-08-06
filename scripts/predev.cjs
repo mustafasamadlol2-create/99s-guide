@@ -97,25 +97,23 @@ if (!fs.existsSync(ENV_PATH)) {
 try { require('dotenv').config({ path: ENV_PATH, override: false }); } catch (_) {}
 
 
-// Only set DATABASE_URL when the runtime has not already injected one
-// (e.g. Replit's managed PostgreSQL injects DATABASE_URL before this script runs).
-if (!process.env.DATABASE_URL) {
-  const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
-  const isValidUrl  = supabaseUrl && (supabaseUrl.startsWith('postgresql://') || supabaseUrl.startsWith('postgres://'));
-  if (isValidUrl) {
-    process.env.DATABASE_URL = supabaseUrl;
-  } else {
-    // Parse .env into a temp object so we can apply only the DB URL
-    // without clobbering other secrets already in process.env.
-    try {
-      const envFromFile = {};
-      require('dotenv').config({ path: ENV_PATH, processEnv: envFromFile });
-      const dbUrl = envFromFile.DATABASE_URL || '';
-      if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
-        process.env.DATABASE_URL = dbUrl;
-      }
-    } catch (_) {}
-  }
+// SUPABASE_DATABASE_URL takes explicit priority — the user intentionally
+// configured an external database. Fall back to the Replit-injected
+// DATABASE_URL only when Supabase is not configured.
+const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+const isValidSupabase = supabaseUrl && (supabaseUrl.startsWith('postgresql://') || supabaseUrl.startsWith('postgres://'));
+if (isValidSupabase) {
+  process.env.DATABASE_URL = supabaseUrl;
+} else if (!process.env.DATABASE_URL) {
+  // No Supabase URL and no runtime injection — try .env as last resort.
+  try {
+    const envFromFile = {};
+    require('dotenv').config({ path: ENV_PATH, processEnv: envFromFile });
+    const dbUrl = envFromFile.DATABASE_URL || '';
+    if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
+      process.env.DATABASE_URL = dbUrl;
+    }
+  } catch (_) {}
 }
 
 // ── Step 4: check whether setup is needed ─────────────────────────────────
