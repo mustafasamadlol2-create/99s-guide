@@ -1,6 +1,12 @@
 console.log("🚀 Starting 99's Guide backend...");
 import dotenv from "dotenv";
-dotenv.config({ override: true });
+// Use override:false so Replit-injected DATABASE_URL / secrets are preserved
+dotenv.config({ override: false });
+
+// Prisma needs DIRECT_URL; fall back to DATABASE_URL when not explicitly set
+if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
+  process.env.DIRECT_URL = process.env.DATABASE_URL;
+}
 
 if (!process.env.DATABASE_URL && !process.env.SUPABASE_DATABASE_URL) {
   console.warn("⚠️  DATABASE_URL is missing. Add your PostgreSQL connection string to .env, then restart.");
