@@ -97,31 +97,25 @@ if (!fs.existsSync(ENV_PATH)) {
 try { require('dotenv').config({ path: ENV_PATH, override: false }); } catch (_) {}
 
 
-const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
-const isValidUrl  = supabaseUrl && (supabaseUrl.startsWith('postgresql://') || supabaseUrl.startsWith('postgres://'));
-if (isValidUrl) {
-  process.env.DATABASE_URL = supabaseUrl;
-  process.env.DIRECT_URL   = supabaseUrl;
-} else {
-  // Parse .env into a temp object so we can apply only the DB URLs,
-  // without clobbering other secrets already in process.env.
-  try {
-    const envFromFile = {};
-    require('dotenv').config({ path: ENV_PATH, processEnv: envFromFile });
-    const dbUrl = envFromFile.DATABASE_URL || '';
-    const dirUrl = envFromFile.DIRECT_URL  || '';
-    if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
-      process.env.DATABASE_URL = dbUrl;
-    }
-    if (dirUrl.startsWith('postgresql://') || dirUrl.startsWith('postgres://')) {
-      process.env.DIRECT_URL = dirUrl;
-    }
-  } catch (_) {}
-}
-
-
-if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
-  process.env.DIRECT_URL = process.env.DATABASE_URL;
+// Only set DATABASE_URL when the runtime has not already injected one
+// (e.g. Replit's managed PostgreSQL injects DATABASE_URL before this script runs).
+if (!process.env.DATABASE_URL) {
+  const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+  const isValidUrl  = supabaseUrl && (supabaseUrl.startsWith('postgresql://') || supabaseUrl.startsWith('postgres://'));
+  if (isValidUrl) {
+    process.env.DATABASE_URL = supabaseUrl;
+  } else {
+    // Parse .env into a temp object so we can apply only the DB URL
+    // without clobbering other secrets already in process.env.
+    try {
+      const envFromFile = {};
+      require('dotenv').config({ path: ENV_PATH, processEnv: envFromFile });
+      const dbUrl = envFromFile.DATABASE_URL || '';
+      if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
+        process.env.DATABASE_URL = dbUrl;
+      }
+    } catch (_) {}
+  }
 }
 
 // ── Step 4: check whether setup is needed ─────────────────────────────────

@@ -4,31 +4,25 @@ import { dbMonitor } from "./dbMonitor.js";
 
 // ── Load .env before PrismaClient is instantiated ─────────────────────────────
 // prismaClient.ts is a static import of server.ts, so it is evaluated before
-// dotenv.config() runs in server.ts. We load it here too (idempotent) so that
-// DATABASE_URL is available when new PrismaClient() is called.
-loadEnv({ quiet: true });
+// dotenv.config() runs in server.ts. We load it here with override:false so
+// runtime-injected variables (e.g. Replit's DATABASE_URL) always take priority
+// over .env values.
+loadEnv({ override: false, quiet: true });
 
-
-if (process.env.SUPABASE_DATABASE_URL) {
-  process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
-  process.env.DIRECT_URL   = process.env.SUPABASE_DATABASE_URL;
-} else {
-  // Parse .env into a temp object (no override to process.env) so we can
-  // selectively apply only the DB connection strings.
-  const envFromFile: Record<string, string> = {};
-  loadEnv({ processEnv: envFromFile, quiet: true });
-  if (envFromFile.DATABASE_URL?.startsWith("postgres")) {
-    process.env.DATABASE_URL = envFromFile.DATABASE_URL;
+// Only fall back to SUPABASE_DATABASE_URL or the .env value when the runtime
+// has not already provided DATABASE_URL (e.g. on a local machine without
+// Replit's managed PostgreSQL injection).
+if (!process.env.DATABASE_URL) {
+  if (process.env.SUPABASE_DATABASE_URL?.startsWith("postgres")) {
+    process.env.DATABASE_URL = process.env.SUPABASE_DATABASE_URL;
+  } else {
+    // Parse .env into a temp object so we don't clobber anything already set.
+    const envFromFile: Record<string, string> = {};
+    loadEnv({ processEnv: envFromFile, quiet: true });
+    if (envFromFile.DATABASE_URL?.startsWith("postgres")) {
+      process.env.DATABASE_URL = envFromFile.DATABASE_URL;
+    }
   }
-  if (envFromFile.DIRECT_URL?.startsWith("postgres")) {
-    process.env.DIRECT_URL = envFromFile.DIRECT_URL;
-  }
-}
-
-// ── DIRECT_URL fallback ────────────────────────────────────────────────────────
-// Prisma schema uses directUrl for Supabase PgBouncer bypass.
-if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
-  process.env.DIRECT_URL = process.env.DATABASE_URL;
 }
 
 // ── Initialize Prisma Client ───────────────────────────────────────────────────
