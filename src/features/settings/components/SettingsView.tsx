@@ -242,7 +242,7 @@ const SettingsView = function SettingsView({
   return (
  <div
  id="settings_panel"
- className="space-y-4 animate-fadeIn pb-12 px-2 sm:px-0"
+  className="space-y-4 animate-fadeIn pb-[calc(5rem+env(safe-area-inset-bottom,0px))] px-2 sm:px-0"
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
  {/* 1. Account & System Preferences */}
@@ -522,7 +522,7 @@ const SettingsView = function SettingsView({
  aria-label={isRtl ? "إلغاء" : "Cancel"}
  type="button"
  onClick={cancelDelete}
- className="p-1 -mr-2 -mt-2 text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+  className="min-h-11 min-w-11 p-2 -mr-2 -mt-2 flex items-center justify-center text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
  >
  <X className="w-icon-md h-icon-md" />
  </button>

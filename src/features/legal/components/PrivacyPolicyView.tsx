@@ -7,7 +7,7 @@ interface PrivacyPolicyViewProps {
 
 const PrivacyPolicyView = ({ onBack }: PrivacyPolicyViewProps) => {
   return (
-    <div className="h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto pb-24">
+    <div className="h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-md border-b border-black/5 dark:border-white/[0.12] px-4 py-3 flex items-center shadow-sm">
         <button

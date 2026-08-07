@@ -106,7 +106,7 @@ const MonthDayCell = memo(function MonthDayCell({
  return (
  <div
  key={`day-${day}`}
- className={`group relative aspect-square w-full flex flex-col justify-start items-stretch text-left transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
+  className={`group relative min-h-[86px] sm:aspect-square w-full flex flex-col justify-start items-stretch text-left transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
  rounded-lg ${cellBgClass} ${cellBorderClass} ${ringClass}
  `}
  >
@@ -269,20 +269,20 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  return (
  <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label="Interactive monthly calendar" className="p-1 font-sans select-none">
  {/* Week Day Labels (iOS Minimalist Header style) */}
- <div className="grid grid-cols-7 gap-2 md:gap-3 text-center mb-4 text-xs font-semibold tracking-[0.1em] text-neutral-500 dark:text-[#EBEBF599] uppercase">
- <div>{isRtl ? "الأحد" : "Sun"}</div>
- <div>{isRtl ? "الاثنين" : "Mon"}</div>
- <div>{isRtl ? "الثلاثاء" : "Tue"}</div>
- <div>{isRtl ? "الأربعاء" : "Wed"}</div>
- <div>{isRtl ? "الخميس" : "Thu"}</div>
- <div>{isRtl ? "الجمعة" : "Fri"}</div>
- <div>{isRtl ? "السبت" : "Sat"}</div>
+  <div className="grid grid-cols-7 gap-1.5 md:gap-3 text-center mb-2 md:mb-4 text-[10px] md:text-xs font-semibold tracking-[0.08em] text-neutral-500 dark:text-[#EBEBF599] uppercase">
+  <div>{isRtl ? "الأحد" : "Sun"}</div>
+  <div>{isRtl ? "الاثنين" : "Mon"}</div>
+  <div>{isRtl ? "الثلاثاء" : "Tue"}</div>
+  <div>{isRtl ? "الأربعاء" : "Wed"}</div>
+  <div>{isRtl ? "الخميس" : "Thu"}</div>
+  <div>{isRtl ? "الجمعة" : "Fri"}</div>
+  <div>{isRtl ? "السبت" : "Sat"}</div>
  </div>
 
  {/* Grid Canvas - Distinct Floating Cards */}
  <div
  id="monthly_grid"
- className="grid grid-cols-7 gap-2 md:gap-3"
+  className="grid grid-cols-7 gap-1.5 md:gap-3"
  >
  {/* Empty padding slots matching start day of month */}
  {emptyPaddings.map((idx) => (

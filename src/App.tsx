@@ -3485,7 +3485,7 @@ export default function App() {
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
             paddingBottom: usePhoneLayout
-              ? "calc(100px + env(safe-area-inset-bottom, 16px))"
+              ? `calc(${isCompactHeight ? "61px" : "76px"} + env(safe-area-inset-bottom, 0px))`
               : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
         >
@@ -4090,18 +4090,16 @@ globalProgressStats.completedLecturesCount
           </div>
         </main>
 
-        {/* 3. iOS-Native Glassmorphism Tab Bar (Apple Full-Width) */}
+        {/* 3. iOS-Native Floating Glass Tab Bar */}
         <footer
           id="ios_native_tabbar_wrapper"
-          className={`fixed bottom-0 left-0 right-0 z-50 select-none transition duration-300 border-t border-black/5 dark:border-white/[0.12] bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm ${usePhoneLayout ? "block" : "hidden"}`}
+          className={`ios-floating-tabbar fixed z-50 select-none ${usePhoneLayout ? "block" : "hidden"}`}
         >
           <div
             id="ios_native_tabbar"
-            className="relative w-full px-2 transition duration-300"
+            className="liquid-glass-tabbar relative w-full px-2 transition duration-300"
             style={{
               height: isCompactHeight ? "49px" : "64px",
-              paddingBottom: "env(safe-area-inset-bottom, 0px)",
-              boxSizing: "content-box",
             }}
           >
             <div

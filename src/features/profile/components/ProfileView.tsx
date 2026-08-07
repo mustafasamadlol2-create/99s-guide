@@ -269,7 +269,7 @@ export const ProfileView = function ProfileView({
 
               <button
                 onClick={startEditing}
-                className="mt-6 flex items-center gap-1.5 text-[14px] text-blue-500 dark:text-blue-400 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-5 py-2 rounded-full transition duration-300"
+                 className="mt-6 min-h-11 flex items-center gap-1.5 text-[14px] text-blue-500 dark:text-blue-400 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-5 py-2.5 rounded-full transition duration-300"
               >
                 <Pencil className="w-3.5 h-3.5" />
                 <span>Edit Profile</span>

@@ -27,7 +27,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         onClick={() => onClick(id)}
         aria-label={label}
         aria-current={isActive ? "page" : undefined}
-        className="flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full"
+        className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full"
       >
         <div
           className={`relative flex items-center justify-center ${

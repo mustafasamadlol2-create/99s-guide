@@ -39,7 +39,7 @@ import { getEventIconInfo, PRIORITY, getEventPriority } from "../../../features/
 import { parseLocalDate, formatLocalDate, to12HourFormatStr } from "../../../core/utils/dateUtils";
 
 const agendaListVariants = {
- hidden: { opacity: 0 },
+  hidden: { opacity: 1 },
  show: {
  opacity: 1,
  transition: {
@@ -50,7 +50,7 @@ const agendaListVariants = {
 };
 
 const agendaItemVariants = {
- hidden: { opacity: 0, y: 12, scale: 0.98 },
+  hidden: { opacity: 1, y: 12, scale: 0.98 },
  show: {
  opacity: 1,
  y: 0,
@@ -65,7 +65,7 @@ const agendaItemVariants = {
 };
 
 const ribbonContainerVariants = {
- hidden: { opacity: 0 },
+  hidden: { opacity: 1 },
  show: {
  opacity: 1,
  transition: {
@@ -76,7 +76,7 @@ const ribbonContainerVariants = {
 };
 
 const ribbonItemVariants = {
- hidden: { opacity: 0, scale: 0.9, y: 4 },
+  hidden: { opacity: 1, scale: 0.9, y: 4 },
  show: {
  opacity: 1,
  scale: 1,
@@ -398,8 +398,8 @@ const CalendarView = memo(function CalendarView({
  
  const handleCopyTitle = (event: CalendarEvent) => {
  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(event.title);
- showToast(
- isRtl ? "📋 تم نسخ عنوان الحدث" : "📋 Copied event title to clipboard",
+  showToast(
+  isRtl ? "تم نسخ عنوان الحدث" : "Copied event title to clipboard",
  );
  };
 
@@ -415,10 +415,10 @@ const CalendarView = memo(function CalendarView({
  return e;
  });
  onUpdateEvents(updated);
- showToast(
- isRtl
- ? `👥 تم تغيير المجموعة المستهدفة إلى ${newGroup}`
- : `👥 Target cohort set to Group ${newGroup}`,
+  showToast(
+  isRtl
+  ? `تم تغيير المجموعة المستهدفة إلى ${newGroup}`
+  : `Target cohort set to Group ${newGroup}`,
  );
  }
  };
@@ -597,9 +597,9 @@ const CalendarView = memo(function CalendarView({
  </div>
  </div>
 
- <motion.div
+ {activeView === "week" && <motion.div
  key={`mobile-week-${currentYear}-${currentMonth}-${activeWeekDays[0]?.getDate()}`}
- initial={{ opacity: 0, x: isRtl ? 10 : -10 }}
+  initial={{ opacity: 1, x: isRtl ? 10 : -10 }}
  animate={{ opacity: 1, x: 0 }}
  exit={{ opacity: 0, x: isRtl ? -10 : 10 }}
  transition={{ duration: 0.2 }}
@@ -689,11 +689,21 @@ const CalendarView = memo(function CalendarView({
  </motion.button>
  );
  })}
- </motion.div>
+ </motion.div>}
+
+ {activeView === "month" && (
+ <div className="w-full touch-pan-y">
+   <CalendarMonthView isRtl={isRtl} emptyPaddings={emptyPaddings} calendarDays={calendarDays} getFormattedDate={getFormattedDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
  </div>
+ )}
+ {activeView === "day" && (
+ <div className="w-full">
+   <CalendarDayView selectedDate={selectedDate} selectedDateEvents={selectedDateEvents} setSelectedDate={setSelectedDate} events={processedEvents} dayTransition={dayTransition} hoursArray={hoursArray} eventDurations={eventDurations} HOUR_HEIGHT={HOUR_HEIGHT} timelineRef={timelineRef} setNewTaskTime={setNewTaskTime} setIsAddingTask={setIsAddingTask} handleSwipeStart={handleSwipeStart} handleSwipeMove={handleSwipeMove} handleSwipeEnd={handleSwipeEnd} setSwipeStartX={setSwipeStartX} swipeTranslateX={swipeTranslateX} parseTimeToMinutes={parseTimeToMinutes} />
+ </div>
+ )}
 
  {/* Vertical iOS-Style Agenda section */}
- <div className="space-y-4">
+ <div className={activeView === "week" ? "space-y-4" : "hidden"}>
  <div className="flex items-center justify-between px-1">
  <h3 className="text-body font-semibold text-neutral-850 dark:text-[var(--text-primary)]">
  {isRtl ? "أجندة اليوم" : "Agenda"}
@@ -850,7 +860,7 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key="month-view"
  style={{ gridArea: "1 / 1" }}
- initial={{ opacity: 0, x: -20 }}
+  initial={{ opacity: 1, x: -20 }}
  animate={{ opacity: 1, x: 0,  }}
  exit={{ opacity: 0, x: 20 }}
  transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
@@ -875,7 +885,7 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key="week-view"
  style={{ gridArea: "1 / 1" }}
- initial={{ opacity: 0, x: -20 }}
+  initial={{ opacity: 1, x: -20 }}
  animate={{ opacity: 1, x: 0,  }}
  exit={{ opacity: 0, x: 20 }}
  transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
@@ -899,7 +909,7 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key="day-view"
  style={{ gridArea: "1 / 1" }}
- initial={{ opacity: 0, x: -20 }}
+  initial={{ opacity: 1, x: -20 }}
  animate={{ opacity: 1, x: 0,  }}
  exit={{ opacity: 0, x: 20 }}
  transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}

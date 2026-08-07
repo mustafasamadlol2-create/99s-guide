@@ -364,7 +364,7 @@ export function useCalendar({
 
  const handleShare = () => {
  try {
- const shareText = `📆 Calendar Export [Selected: ${selectedDate}]`;
+  const shareText = `Calendar Export [Selected: ${selectedDate}]`;
  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(shareText);
  } catch (err) {
  

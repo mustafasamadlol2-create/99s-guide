@@ -123,7 +123,7 @@ const WeekDayCell = memo(function WeekDayCell({
     <button
       key={`week-day-${idx}`}
       onClick={handleDayClick}
-      className={`group relative py-3 px-1 min-h-[500px] rounded-xl text-left flex flex-col justify-start cursor-pointer transition duration-200 select-none z-0 
+       className={`group relative py-3 px-2 min-h-0 md:min-h-[460px] rounded-xl text-left flex flex-col justify-start cursor-pointer transition duration-200 select-none z-0 
       border ${cellBgClass} ${cellBorderClass} ${ringClass}
       `}
     >
@@ -149,7 +149,7 @@ const WeekDayCell = memo(function WeekDayCell({
 
       {/* Chronological events list with Apple Calendar timeline styling */}
       <div 
-        className="space-y-4 w-full flex-1 overflow-y-auto no-scrollbar pb-6 px-1.5 overscroll-y-contain relative z-0"
+        className="space-y-2 w-full flex-1 pb-3 px-0.5 relative z-0"
         style={{
           backgroundImage: `linear-gradient(to bottom, rgba(150, 150, 150, 0.15) 1px, transparent 1px)`,
           backgroundSize: `100% 48px`,
@@ -243,7 +243,7 @@ export const CalendarWeekView = memo(function CalendarWeekView({
  <div id="calendar_week_grid_deck" tabIndex={0} role="application" aria-label="Interactive weekly timeline" className="space-y-4">
  <div
  id="week_columns_container"
- className="grid grid-cols-7 gap-2"
+  className="grid grid-cols-1 md:grid-cols-7 gap-3 md:gap-2"
  >
  {activeWeekDays.map((dateObj, idx) => {
  const year = dateObj.getFullYear();

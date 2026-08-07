@@ -1014,7 +1014,7 @@ const HomeDashboard = memo(function HomeDashboard({
     if (h === "compact" && v === "compact") {
       // iPhone Landscape
       return {
-        heightClass: "h-[250px]",
+        heightClass: "min-h-[270px] h-auto",
         paddingClass: "px-4 py-6",
         brandClass: "text-caption-2 tracking-[0.25em]",
         titleClass: "text-title font-semibold ",
@@ -1027,8 +1027,8 @@ const HomeDashboard = memo(function HomeDashboard({
     } else if (h === "compact" && v === "regular") {
       // iPhone Portrait
       return {
-        heightClass: "h-[280px]",
-        paddingClass: "px-4 py-8",
+        heightClass: "min-h-[320px] h-auto",
+        paddingClass: "px-4 py-6",
         brandClass: "text-xs tracking-[0.3em]",
         titleClass: "text-2xl font-semibold ",
         subtitleClass: "text-subheadline opacity-80 font-medium",
@@ -1040,7 +1040,7 @@ const HomeDashboard = memo(function HomeDashboard({
     } else if (h === "regular" && v === "compact") {
       // Short / iPhone Plus Landscape
       return {
-        heightClass: "h-[260px]",
+        heightClass: "min-h-[280px] h-auto",
         paddingClass: "px-4 py-6",
         brandClass: "text-xs tracking-[0.3em]",
         titleClass: "text-2xl font-semibold ",

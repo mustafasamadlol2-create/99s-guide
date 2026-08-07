@@ -350,11 +350,11 @@ export const CalendarDayView = memo(function CalendarDayView({
  onPointerLeave={() => {
  setSwipeStartX(null);
  }}
- className="relative md:h-[600px] min-h-[400px] max-h-[70vh] overflow-y-auto overflow-x-clip border border-neutral-200 dark:border-white/[0.15] rounded-lg bg-neutral-50/50 dark:bg-[#000000] select-none touch-pan-y transition-colors shadow-elevation-1 p-4 overscroll-y-contain"
+      className="relative min-h-[240px] overflow-x-clip border border-neutral-200 dark:border-white/[0.15] rounded-lg bg-neutral-50/50 dark:bg-[#000000] select-none touch-pan-y transition-colors shadow-elevation-1 p-3 sm:p-4"
  style={{ contentVisibility: "auto" }}
  >
- <div
- className={`relative w-full min-h-full flex flex-col gap-4 origin-center ${
+  <div
+  className={`relative w-full flex flex-col gap-3 origin-center ${
  dayTransition === "left"
  ? "-translate-x-12 opacity-5 rotate-1 scale-[0.98]"
  : dayTransition === "right"
@@ -408,7 +408,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  eventClusters.map((cluster, i) => (
  <div key={`cluster-${i}`} className="flex items-stretch gap-3 relative">
  {/* Event Cards side-by-side */}
- <div className="flex-1 flex gap-2 overflow-x-auto snap-x hide-scrollbar overscroll-x-contain">
+  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
  {cluster.items.map((eventItem, j) => (
  <EventCard key={eventItem.event.id + '-' + j} eventItem={eventItem} isMulti={cluster.items.length > 1}
  />

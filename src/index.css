@@ -290,14 +290,14 @@
   --safe-area-right: env(safe-area-inset-right, 0px);
 
   /* Apple's Subtle Tonal Separation Background Layers (Light) */
-  --surface-primary: #fcfcfd;
-  --surface-secondary: #f5f5f7;
-  --surface-tertiary: #ebebf0;
-  --surface-elevated: #fefefe;
-  --surface-grouped: #f2f2f7;
-  --surface-sidebar: #f5f5f7;
-  --surface-card: #fcfcfd;
-  --surface-interactive: #eaeaeb;
+  --surface-primary: #fbfbfd;
+  --surface-secondary: #f2f2f7;
+  --surface-tertiary: #e5e5ea;
+  --surface-elevated: #ffffff;
+  --surface-grouped: #eef0f5;
+  --surface-sidebar: #f2f2f7;
+  --surface-card: #fbfbfd;
+  --surface-interactive: #e4e6eb;
 }
 
 .dark {
@@ -314,8 +314,8 @@
   --surface-interactive: var(--bg-surface-2);
 
   --text-primary: #FFFFFF;
-  --text-secondary: rgba(235, 235, 245, 0.6);
-  --text-muted: rgba(235, 235, 245, 0.3);
+  --text-secondary: rgba(235, 235, 245, 0.72);
+  --text-muted: rgba(235, 235, 245, 0.46);
 
   --shadow-elevation-0: none;
   --shadow-elevation-1: 0 1px 4px rgba(0,0,0,0.3);
@@ -1007,32 +1007,79 @@ textarea::placeholder {
 }
 
 .liquid-glass-tabbar {
-  background-color: rgba(252, 252, 255, 0.65) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: rgba(252, 252, 255, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
   transform: translateZ(0) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 22px !important;
   box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 -1px 8px rgba(0, 0, 0, 0.03) !important;
-  border-top: 0.5px solid rgba(0, 0, 0, 0.05) !important;
+    0 10px 28px rgba(31, 35, 43, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-tabbar {
-  background-color: rgba(20, 20, 22, 0.6) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: rgba(28, 28, 30, 0.78) !important;
+  backdrop-filter: blur(20px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15) !important;
   transform: translateZ(0) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 22px !important;
   box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 -1px 8px rgba(0, 0, 0, 0.3) !important;
-  border-top: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    0 10px 30px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
+}
+
+/* Detached iPhone navigation: the bar clears the home indicator instead of
+   painting a full-width strip behind it. */
+.ios-floating-tabbar {
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  animation: none;
+}
+
+.ios-floating-tabbar > #ios_native_tabbar {
+  pointer-events: auto;
+  max-width: 520px;
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.ios-floating-tabbar .grid {
+  column-gap: 4px;
+  padding: 3px 0;
+}
+
+.ios-tabbar-item {
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 16px;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.ios-tabbar-item[aria-current="page"] {
+  background-color: rgba(0, 122, 255, 0.1);
+}
+
+.dark .ios-tabbar-item[aria-current="page"] {
+  background-color: rgba(212, 175, 55, 0.14);
+}
+
+.ios-tabbar-item:active {
+  transform: scale(0.96);
+}
+
+@media (max-height: 520px) {
+  .ios-floating-tabbar {
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .liquid-glass-header {
@@ -1120,7 +1167,7 @@ textarea::placeholder {
 }
 
 .pb-safe-tabbar {
-  padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 /* Active touch feedback */
@@ -2146,7 +2193,7 @@ a, button, input, select, textarea, [role="button"], [role="tab"], .cursor-point
   .ios-sheet {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    background-color: #ffffff !important;
+    background-color: #f2f2f7 !important;
   }
   
   .dark .liquid-glass-thin,
@@ -2283,7 +2330,7 @@ input:-webkit-autofill:active {
      • the viewport fits the screen exactly so the pad is always visible.
    Fix: only the safe-area inset on mobile (<768px); full 6rem extra on md+.    */
 .auth-scroll-column {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem);
 }
 @media (min-width: 768px) {
   .auth-scroll-column {

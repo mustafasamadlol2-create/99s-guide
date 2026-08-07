@@ -141,15 +141,15 @@ export function CalendarHeader({
 
  return (
  <motion.div
- initial={{ opacity: 0, y: -10 }}
+  initial={{ opacity: 1, y: -10 }}
  animate={{ opacity: 1, y: 0 }}
  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
  id="calendar_header_bar"
- className="w-full flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 pb-2 pt-2 select-none"
+  className="w-full flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 pb-2 pt-2 select-none"
  >
  {/* Left section: Typography and Meta */}
- <div className="flex flex-col gap-4 w-full lg:w-auto">
- <div className="flex flex-col md:flex-row md:items-center gap-4">
+  <div className="flex flex-col gap-4 w-full lg:w-auto min-w-0">
+  <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
  <div className="flex items-center gap-3">
  {/* iOS Native Style Calendar App Icon - Larger in redesign */}
  <div className="w-16 h-16 rounded-xl bg-white dark:bg-[#2C2C2E] border border-neutral-200/80 dark:border-white/[0.15]/85 flex flex-col items-center overflow-hidden shadow-elevation-2 shrink-0 font-sans">
@@ -165,13 +165,13 @@ export function CalendarHeader({
  </div>
  </div>
 
- <div className="flex flex-col justify-center relative">
- <h1 className="text-large-title sm:text-large-title font-display font-semibold text-neutral-900 dark:text-white leading-none flex items-center gap-3">
+  <div className="flex flex-col justify-center relative min-w-0">
+  <h1 className="hidden md:flex text-large-title sm:text-large-title font-display font-semibold text-neutral-900 dark:text-white leading-none items-center gap-3">
  {isRtl ? "الجدول الدراسي" : "Schedule"}
  </h1>
 
                 {/* Academic Cohort Pill Row */}
-                <div className="flex flex-row flex-wrap gap-2 mt-3">
+                 <div className="flex flex-row flex-wrap gap-1.5 mt-3 max-w-full" role="group" aria-label={isRtl ? "المجموعات" : "Groups"}>
                   {["A", "B", "C", "D", "ALL"].map((group) => {
                     const isActive = studentGroup === group;
                     return (
@@ -179,7 +179,7 @@ export function CalendarHeader({
                         key={group}
                         type="button"
                         onClick={() => setStudentGroup(group)}
-                        className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
+                         className={`rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                           isActive
                             ? "bg-med-blue dark:bg-blue-600 text-white shadow-elevation-1"
                             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-white/[0.18]"
@@ -195,9 +195,9 @@ export function CalendarHeader({
                   })}
                 </div>
 
- <p className="text-body font-medium text-neutral-500 dark:text-[#EBEBF599] mt-2 flex items-center gap-2">
+  <p className="text-body font-medium text-neutral-500 dark:text-[#EBEBF599] mt-2 flex items-center gap-2 min-w-0">
  <Calendar className="w-icon-sm h-icon-sm opacity-70" />
- <span>
+  <span className="truncate">
  {getDayOfWeekName()}, {monthNames[currentMonth]} {currentYear}
  </span>
  </p>
@@ -206,32 +206,32 @@ export function CalendarHeader({
  </div>
 
  {/* Apple Style Stats Row - Scrollable horizontally on small screens */}
- <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 overscroll-x-contain">
- <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-3 py-2 rounded-lg shadow-elevation-1 shrink-0">
+  <div className="grid grid-cols-2 sm:flex sm:flex-wrap lg:flex-nowrap items-stretch gap-2 w-full lg:w-auto">
+  <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-2.5 py-2 rounded-lg shadow-elevation-1 min-w-0">
  <BookOpen className="w-icon-sm h-icon-sm text-med-blue" />
- <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599]">
+  <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599] truncate">
  {thisWeekLectures}{" "}
  {isRtl ? "محاضرات الأسبوع" : "Lectures this week"}
  </span>
  </div>
 
- <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-3 py-2 rounded-lg shadow-elevation-1 shrink-0">
+  <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-2.5 py-2 rounded-lg shadow-elevation-1 min-w-0">
  <CircleAlert className="w-icon-sm h-icon-sm text-med-error" />
- <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599]">
+  <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599] truncate">
  {thisWeekExams} {isRtl ? "امتحانات الشهر" : "Exams this month"}
  </span>
  </div>
 
- <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-3 py-2 rounded-lg shadow-elevation-1 shrink-0">
+  <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-2.5 py-2 rounded-lg shadow-elevation-1 min-w-0">
  <ClipboardCheck className="w-icon-sm h-icon-sm text-orange-500" />
- <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599]">
+  <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599] truncate">
  {thisWeekQuizzes} {isRtl ? "كويزات الأسبوع" : "Quizzes this week"}
  </span>
  </div>
 
- <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-3 py-2 rounded-lg shadow-elevation-1 shrink-0">
+  <div className="flex items-center gap-2 bg-white dark:bg-[var(--bg-surface-1)] border border-neutral-200/60 dark:border-white/[0.08] px-2.5 py-2 rounded-lg shadow-elevation-1 min-w-0">
  <CircleCheck className="w-icon-sm h-icon-sm text-emerald-500" />
- <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599]">
+  <span className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599] truncate">
  {todayLectures} {isRtl ? "محاضرات اليوم" : "Today's lectures"}
  </span>
  </div>
