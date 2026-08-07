@@ -491,6 +491,19 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // ── Social login ──
   const handleSocialLogin = async (provider: string) => {
     const key = provider.toLowerCase();
+
+    // ── Apple Sign-In: temporarily disabled for current release ───────────────
+    // The full OAuth flow below is preserved for future activation.
+    // Remove this block when Apple credentials are configured and ready.
+    if (key === "apple") {
+      showError(
+        "Apple Sign-In is not available yet — please use your " +
+        "@comed.uobaghdad.edu.iq university email and password to sign in.",
+      );
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     setError("");
 
     // Stop any previous poll / closed-check before starting a new OAuth attempt
