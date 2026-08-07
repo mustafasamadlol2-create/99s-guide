@@ -2023,11 +2023,18 @@ export default function App() {
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
         setIsInitializing(true);
         if (event.data.token) {
-          SecureStorage.set("auth_token", event.data.token);
+          // MUST await — apiClient reads auth_token immediately after this.
+          // Fire-and-forget was causing the /api/auth/me request to go out
+          // without the token, returning 401 and showing a false error.
+          await SecureStorage.set("auth_token", event.data.token);
         }
         try {
-          // Fetch `/api/auth/me` to retrieve the fully updated session
-          const response = await apiClient("/api/auth/me");
+          // Bypass in-memory deduplication cache: a prior unauthenticated
+          // /api/auth/me request might still be in the pendingRequests map.
+          const response = await apiClient("/api/auth/me", {
+            bypassCache: true,
+            silent: true,   // suppress app-api-error / app-session-expired events
+          });
           if (response.ok) {
             const data = await response.json();
             if (data.user) {

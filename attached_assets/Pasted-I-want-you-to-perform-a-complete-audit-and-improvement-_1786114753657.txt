@@ -1,0 +1,108 @@
+I want you to perform a complete audit and improvement of the application's authentication system.
+
+Do NOT only fix the visible bugs.
+
+Analyze the entire authentication flow and rebuild it where necessary while preserving existing backend functionality.
+
+Current Problems:
+
+1. Authentication behaves differently across Desktop, iPad, and iPhone.
+
+2. Continue with Google has inconsistent behavior.
+
+3. Continue with Apple has inconsistent behavior.
+
+4. OAuth windows do not behave correctly.
+
+Desired Behavior:
+
+When the user taps:
+
+Continue with Google
+
+or
+
+Continue with Apple
+
+The application should:
+
+- Stay visible in the background.
+- Present authentication using the appropriate OAuth browser/modal flow for the platform.
+- Keep the application fullscreen.
+- Never feel like leaving the application.
+
+For Continue with Apple:
+
+Currently:
+
+The university-only account warning appears correctly.
+
+However,
+
+after approximately 4–5 seconds,
+
+the authentication window closes unexpectedly before completing the proper flow.
+
+This must be fixed.
+
+The authentication flow must complete correctly.
+
+For Continue with Google:
+
+If the user cancels authentication:
+
+- Return cleanly to the application.
+- Display an appropriate authentication cancelled message.
+
+If authentication succeeds:
+
+The OAuth window should immediately close.
+
+The application should immediately recognize the authenticated session.
+
+The user should immediately enter the application.
+
+Current Bug:
+
+Authentication actually succeeds,
+
+but the application incorrectly displays an authentication error.
+
+Only after manually refreshing does the user become logged in.
+
+This indicates that the frontend authentication state is not synchronizing correctly after OAuth completion.
+
+This entire flow must be corrected.
+
+Security Improvements:
+
+Perform a professional security audit of the authentication system.
+
+Improve:
+
+- OAuth handling
+- Session management
+- Token validation
+- Refresh flow
+- Authentication state synchronization
+- Secure storage
+- Error handling
+- Edge cases
+- Expired sessions
+- Duplicate login attempts
+- Network interruptions
+- Race conditions
+
+Requirements:
+
+- Native-feeling authentication
+- Reliable across iPhone
+- Reliable across iPad
+- Reliable across Desktop
+- Reliable across Safari
+- Reliable across Chrome
+- Reliable across WebView
+
+Do not break existing functionality.
+
+Analyze the project first, identify all authentication issues, then implement the safest and most reliable solution following modern authentication best practices.

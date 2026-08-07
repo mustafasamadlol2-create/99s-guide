@@ -136,11 +136,17 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const modalRef          = useRef<HTMLDivElement>(null);
   const modalTriggerRef   = useRef<HTMLElement | null>(null);
   // OAuth session polling (for native Capacitor where postMessage is unavailable)
-  const oauthPollRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthPollRef          = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Shared flag — set true by EITHER the postMessage OR the polling path so the
+  // popup-closed check never fires onOAuthFailed after a successful sign-in.
+  const oauthCompletedRef     = useRef<boolean>(false);
+  // Ref to the popup-closed-check interval so polling success can clear it.
+  const popupClosedCheckRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up any running OAuth poll on unmount
   useEffect(() => () => {
     if (oauthPollRef.current !== null) clearInterval(oauthPollRef.current);
+    if (popupClosedCheckRef.current !== null) clearInterval(popupClosedCheckRef.current);
   }, []);
 
   const isValidEmail = useCallback((value: string) => {
@@ -212,7 +218,15 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
 
       if (type === "OAUTH_AUTH_SUCCESS") {
-        // Popup sent auth success — mark the active button as completed
+        // Popup (or polling dispatch) sent auth success.
+        // Set the shared ref immediately so the popup-closed interval cannot
+        // fire onOAuthFailed() after the popup self-closes post-postMessage.
+        oauthCompletedRef.current = true;
+        if (popupClosedCheckRef.current !== null) {
+          clearInterval(popupClosedCheckRef.current);
+          popupClosedCheckRef.current = null;
+        }
+        // Mark the active button as completed
         setSocialState((s) => {
           const activeKey = Object.keys(s).find((k) => s[k] === "loading");
           if (!activeKey) return s;
@@ -479,52 +493,39 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     const key = provider.toLowerCase();
     setError("");
 
-    // ── Apple: show domain-restriction notice popup (no red error box) ───────
-    // Apple Sign-In requires unconfigured developer credentials.
-    // Open a small centred popup with the same amber domain-restriction page
-    // that appears when an unauthorized Google account tries to sign in.
-    // The popup auto-closes after 4.5 s; no postMessage is sent back.
-    if (key === "apple") {
-      setSocialState(s => ({ ...s, apple: "error" }));
-      const sw = window.screen.width  || 1280;
-      const sh = window.screen.height || 800;
-      const pw = Math.min(440, sw - 40);
-      const ph = Math.min(520, sh - 60);
-      const pl = Math.round((sw - pw) / 2);
-      const pt = Math.round((sh - ph) / 2);
-      window.open(
-        "/auth/apple-notice",
-        "apple_notice",
-        `width=${pw},height=${ph},left=${pl},top=${pt},` +
-        "toolbar=0,location=0,status=0,menubar=0,scrollbars=0,resizable=0",
-      );
-      setTimeout(() => {
-        setSocialState(s => ({ ...s, apple: "idle" }));
-      }, 4500);
-      return;
-    }
-
-    // Stop any previous poll before starting a new one
+    // Stop any previous poll / closed-check before starting a new OAuth attempt
     if (oauthPollRef.current !== null) {
       clearInterval(oauthPollRef.current);
       oauthPollRef.current = null;
     }
+    if (popupClosedCheckRef.current !== null) {
+      clearInterval(popupClosedCheckRef.current);
+      popupClosedCheckRef.current = null;
+    }
+    // Reset the shared completion flag for this fresh attempt
+    oauthCompletedRef.current = false;
 
     setSocialState(s => ({ ...s, [key]: "loading" }));
 
-    // Flag flipped to true the moment OAuth succeeds — guards the popup-closed
-    // handler so it does not overwrite the success state.
+    // Local flag — set by the polling path; oauthCompletedRef is also set by
+    // the postMessage path so both branches guard onOAuthFailed correctly.
     let oauthCompleted = false;
 
     // Called whenever OAuth fails / is abandoned (popup closed, timeout, etc.)
     const onOAuthFailed = (msg?: string) => {
-      if (oauthCompleted) return;
+      // Guard: do not overwrite success state set by either the popup
+      // postMessage path (oauthCompletedRef) or the polling path (oauthCompleted)
+      if (oauthCompleted || oauthCompletedRef.current) return;
       if (oauthPollRef.current !== null) {
         clearInterval(oauthPollRef.current);
         oauthPollRef.current = null;
       }
+      if (popupClosedCheckRef.current !== null) {
+        clearInterval(popupClosedCheckRef.current);
+        popupClosedCheckRef.current = null;
+      }
       setSocialState(s => ({ ...s, [key]: "error" }));
-      showError(msg ?? "Sign-in was not completed. Please try again.");
+      showError(msg ?? "Sign-in was cancelled. Please try again.");
       setTimeout(() => {
         setSocialState(s => ({ ...s, [key]: "idle" }));
         setError("");
@@ -575,18 +576,34 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           "toolbar=0,location=0,status=0,menubar=0,scrollbars=1,resizable=1",
         );
 
-        // Poll for popup closure — fires onOAuthFailed when the user dismisses
-        // the window without completing sign-in.
-        const closedCheck = setInterval(() => {
+        // Poll for popup closure — fires onOAuthFailed only when the user
+        // genuinely dismisses the window without completing sign-in.
+        // IMPORTANT: the popup self-closes immediately after sending postMessage
+        // on success, so we must NOT fire onOAuthFailed the instant we see it
+        // closed. We add an 800 ms grace period and re-check the completion ref
+        // (set by the message handler) before treating the close as a failure.
+        popupClosedCheckRef.current = setInterval(() => {
           try {
             if (oauthPopup?.closed) {
-              clearInterval(closedCheck);
-              onOAuthFailed();
+              clearInterval(popupClosedCheckRef.current!);
+              popupClosedCheckRef.current = null;
+              // Grace period: allow the postMessage handler to run first
+              setTimeout(() => onOAuthFailed(), 800);
             }
-          } catch { clearInterval(closedCheck); }
-        }, 600);
+          } catch {
+            if (popupClosedCheckRef.current !== null) {
+              clearInterval(popupClosedCheckRef.current);
+              popupClosedCheckRef.current = null;
+            }
+          }
+        }, 500);
         // Auto-cleanup after 3 min regardless
-        setTimeout(() => clearInterval(closedCheck), 3 * 60 * 1000);
+        setTimeout(() => {
+          if (popupClosedCheckRef.current !== null) {
+            clearInterval(popupClosedCheckRef.current);
+            popupClosedCheckRef.current = null;
+          }
+        }, 3 * 60 * 1000);
       }
 
       // ── Session polling (essential for native; also catches web race) ──────
@@ -610,9 +627,19 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             if (pollRes.ok) {
               const pollData = await pollRes.json();
               if (pollData.success && pollData.token) {
+                // Mark completion via BOTH local var AND shared ref so the
+                // popup-closed check (oauthCompletedRef) and onOAuthFailed
+                // (oauthCompleted) both bail out correctly.
                 oauthCompleted = true;
+                oauthCompletedRef.current = true;
                 clearInterval(oauthPollRef.current!);
                 oauthPollRef.current = null;
+
+                // Also stop the popup-closed interval if still running
+                if (popupClosedCheckRef.current !== null) {
+                  clearInterval(popupClosedCheckRef.current);
+                  popupClosedCheckRef.current = null;
+                }
 
                 // Update button to success BEFORE dispatching navigation
                 setSocialState(s => ({ ...s, [key]: "success" }));
