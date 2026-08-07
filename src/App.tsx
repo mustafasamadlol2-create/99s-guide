@@ -224,7 +224,13 @@ export default function App() {
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("home"); // home | subjects | calendar | pomodoro | profile | settings
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    // Tablets (480–1179 px) start with the sidebar collapsed to keep content breathing room.
+    // Desktop starts expanded. SSR-safe guard included.
+    if (typeof window === "undefined") return false;
+    const w = window.innerWidth;
+    return w >= 480 && w < 1180;
+  });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [activeToast, setActiveToast] = useState<{
     id: string;
@@ -3142,10 +3148,31 @@ export default function App() {
   const isRegularWidth = device.horizontalSizeClass === "regular";
   const isCompactHeight = device.verticalSizeClass === "compact";
 
-  const isAsideCollapsed = isSidebarCollapsed;
+  // ── Three-tier layout discriminators ──────────────────────────────────────
+  // Phone   → bottom tab bar, full-width content, no sidebar
+  // Tablet  → icon rail (< 900 px) or collapsible sidebar (≥ 900 px)
+  // Desktop → full collapsible sidebar
+  const usePhoneLayout = device.isPhone;
+  const useRailNav     = device.railNav; // thin icon-only sidebar, no expand
+
+  // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
+  const isAsideCollapsed = isSidebarCollapsed || useRailNav;
+
+  // Auto-manage sidebar collapse when the device tier changes (e.g. window resize)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  React.useEffect(() => {
+    if (device.isTablet && !device.railNav) {
+      // Larger tablets: collapse by default but let user expand
+      setIsSidebarCollapsed(true);
+    } else if (device.isDesktop) {
+      // Desktop: expand by default
+      setIsSidebarCollapsed(false);
+    }
+    // railNav: width is fixed — no state change needed
+  }, [device.deviceType, device.railNav]);
   return (
     <div
-      className={`h-[100svh] max-h-[100svh] w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${isCompactWidth ? "" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden`}
+      className={`h-[100svh] max-h-[100svh] w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden`}
       style={{
         fontSize: `${textScale}rem`,
       }}
@@ -3167,10 +3194,10 @@ export default function App() {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${isCompactWidth ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-[100svh] max-h-[100svh] select-none z-30 justify-between overflow-hidden relative`}
+        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-[100svh] max-h-[100svh] select-none z-30 justify-between overflow-hidden relative`}
         style={{
-          width: isAsideCollapsed ? "78px" : "264px",
-          flexBasis: isAsideCollapsed ? "78px" : "264px",
+          width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
+          flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
           paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
         }}
@@ -3215,34 +3242,37 @@ export default function App() {
             </div>
 
             {/* Collapse / expand toggle — CSS-only transform, no spring/layout animation */}
-            <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              aria-label={isSidebarCollapsed
-                ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
-                : (language === "ar" ? "تصغير الشريط الجانبي" : "Collapse sidebar")}
-              title={isSidebarCollapsed
-                ? (language === "ar" ? "توسيع" : "Expand")
-                : (language === "ar" ? "تصغير" : "Collapse")}
-              className={[
-                "shrink-0 flex items-center justify-center rounded-lg",
-                "text-neutral-400 dark:text-[#EBEBF560]",
-                "hover:text-neutral-700 dark:hover:text-neutral-200",
-                "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
-                "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
-                "dark:focus-visible:ring-offset-neutral-950",
-                "transition-colors duration-200 ease-out",
-                 "sidebar-toggle",
-                device.isTablet ? "w-9 h-9" : "w-7 h-7",
-              ].join(" ")}
-            >
-               <span
-                 className={`sidebar-toggle-icon ${
-                   isAsideCollapsed ? "sidebar-toggle-icon-collapsed" : ""
-                 }`}
+            {/* Collapse/expand toggle — hidden for rail nav (always icon-only, no expand) */}
+            {!useRailNav && (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                aria-label={isSidebarCollapsed
+                  ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
+                  : (language === "ar" ? "تصغير الشريط الجانبي" : "Collapse sidebar")}
+                title={isSidebarCollapsed
+                  ? (language === "ar" ? "توسيع" : "Expand")
+                  : (language === "ar" ? "تصغير" : "Collapse")}
+                className={[
+                  "shrink-0 flex items-center justify-center rounded-lg",
+                  "text-neutral-400 dark:text-[#EBEBF560]",
+                  "hover:text-neutral-700 dark:hover:text-neutral-200",
+                  "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
+                  "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
+                  "dark:focus-visible:ring-offset-neutral-950",
+                  "transition-colors duration-200 ease-out",
+                  "sidebar-toggle",
+                  device.isTablet ? "w-9 h-9" : "w-7 h-7",
+                ].join(" ")}
               >
-                <ChevronLeft className={device.isTablet ? "w-[18px] h-[18px]" : "w-4 h-4"} />
-               </span>
-            </button>
+                <span
+                  className={`sidebar-toggle-icon ${
+                    isAsideCollapsed ? "sidebar-toggle-icon-collapsed" : ""
+                  }`}
+                >
+                  <ChevronLeft className={device.isTablet ? "w-[18px] h-[18px]" : "w-4 h-4"} />
+                </span>
+              </button>
+            )}
           </div>
           {/* Navigation */}
           <motion.nav
@@ -3385,16 +3415,10 @@ export default function App() {
         {/* 2. Main Content Canvas */}
         <main
           id="main-scroll-canvas"
-          className={`flex-1 w-full ${
-            isCompactWidth
-              ? "max-w-full"
-              : isRegularWidth
-                ? "max-w-full"
-                : "max-w-full"
-          } mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain`}
+          className={`flex-1 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
-            paddingBottom: isCompactWidth
+            paddingBottom: usePhoneLayout
               ? "calc(100px + env(safe-area-inset-bottom, 16px))"
               : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
@@ -4003,7 +4027,7 @@ globalProgressStats.completedLecturesCount
         {/* 3. iOS-Native Glassmorphism Tab Bar (Apple Full-Width) */}
         <footer
           id="ios_native_tabbar_wrapper"
-          className={`fixed bottom-0 left-0 right-0 z-50 select-none transition duration-300 border-t border-black/5 dark:border-white/[0.12] bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm ${isCompactWidth ? "block" : "hidden"}`}
+          className={`fixed bottom-0 left-0 right-0 z-50 select-none transition duration-300 border-t border-black/5 dark:border-white/[0.12] bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm ${usePhoneLayout ? "block" : "hidden"}`}
         >
           <div
             id="ios_native_tabbar"

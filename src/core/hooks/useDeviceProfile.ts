@@ -45,6 +45,12 @@ interface DeviceProfile {
   hasSidebarAlways: boolean; // tablets and desk have sidebar always open, phones collapsible or tabbar
   isLandscape: boolean;
   activeLayout: AppleLayoutType;
+  /** Slim icon-only navigation rail — used for small tablets (portrait iPad Mini / small Android tablets) */
+  railNav: boolean;
+  /** Sidebar width when expanded for this device tier */
+  sidebarExpandedWidth: string;
+  /** Sidebar width when collapsed for this device tier */
+  sidebarCollapsedWidth: string;
 }
 
 export function useDeviceProfile(): DeviceProfile {
@@ -254,6 +260,23 @@ export function useDeviceProfile(): DeviceProfile {
     // Sidebar visibility rule matching iOS SplitView system
     const hasSidebarAlways = horizontalSizeClass === "regular" && width >= 1024;
 
+    // Rail nav: slim icon-only sidebar for small tablets (portrait iPad Mini, small Android tablets).
+    // Tablets 480–899 px get a fixed 68 px icon rail; 900–1179 px get a collapsible sidebar.
+    const railNav = isTablet && width < 900;
+
+    // Per-tier sidebar widths so the sidebar can size itself without extra conditionals in the view.
+    let sidebarExpandedWidth = "264px";
+    let sidebarCollapsedWidth = "78px";
+    if (isTablet) {
+      sidebarExpandedWidth = "240px";
+      sidebarCollapsedWidth = "68px";
+    }
+    if (railNav) {
+      // Rail is always 68 px — there is no "expanded" state.
+      sidebarExpandedWidth = "68px";
+      sidebarCollapsedWidth = "68px";
+    }
+
     return {
       width,
       height,
@@ -278,6 +301,9 @@ export function useDeviceProfile(): DeviceProfile {
       hasSidebarAlways,
       isLandscape,
       activeLayout,
+      railNav,
+      sidebarExpandedWidth,
+      sidebarCollapsedWidth,
     };
   }, [width, height]);
 }
