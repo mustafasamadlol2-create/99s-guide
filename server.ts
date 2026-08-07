@@ -4205,7 +4205,13 @@ app.get("/api/auth/oauth-url", (req, res) => {
   // The flag is encoded into the OAuth state parameter as a "r:" prefix so
   // it survives the round-trip through the provider without an extra DB lookup.
   const isRedirectFlow = req.query.flow === "redirect";
-  const stateValue = isRedirectFlow ? `r:${stateToken}` : stateToken;
+  // In-app sheet flow (iOS installed PWA): the app stays alive underneath the
+  // iOS in-app browser sheet and polls /api/auth/oauth-session/:token. The
+  // callback must serve the success card WITHOUT redirecting back into the
+  // app (the sheet has a separate cookie jar — loading the app there shows a
+  // useless second copy that isn't signed in).
+  const isInappFlow = req.query.flow === "inapp";
+  const stateValue = isRedirectFlow ? `r:${stateToken}` : isInappFlow ? `i:${stateToken}` : stateToken;
 
   // Record this state token for one-time validation in the callback.
   // The callback deletes the entry on use — prevents CSRF, replay, and the
@@ -4582,8 +4588,11 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
   // the callback should redirect back to the app rather than serving popup HTML.
   const rawState = req.query.state as string | undefined;
   const isRedirectFlow = typeof rawState === "string" && rawState.startsWith("r:");
+  // iOS installed-PWA in-app sheet flow — serve success card, never redirect
+  // into the app (the sheet's cookie jar is separate from the installed app's).
+  const isInappFlow = typeof rawState === "string" && rawState.startsWith("i:");
   // Clean stateToken (strip the prefix so it matches what the client stored)
-  const stateToken = isRedirectFlow && rawState ? rawState.slice(2) : rawState;
+  const stateToken = (isRedirectFlow || isInappFlow) && rawState ? rawState.slice(2) : rawState;
 
   // Validate state token — CSRF protection and one-time-use enforcement.
   // An error from the provider (errorParam) may legitimately arrive without
@@ -4832,7 +4841,7 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
               </svg>
             </div>
             <p class="title">Signed in successfully</p>
-            <p class="sub">Returning to the app…</p>
+            <p class="sub">${isInappFlow ? "You can close this window and return to the app." : "Returning to the app…"}</p>
           </div>
           <script>
             (function () {
@@ -4862,12 +4871,18 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
               // so close() is still permitted).
               // The polling fallback in the app (pendingOAuthSessions) detects
               // the popup closing and fetches the token if postMessage was lost.
+              // In-app sheet flow (iOS installed PWA): the sheet cannot be
+              // closed by script and must NOT redirect to '/' — the app copy
+              // loaded in the sheet would not be signed in (separate cookie
+              // jar). The user closes the sheet manually; the installed app
+              // underneath has already received the session via polling.
+              var isInappFlow = ${JSON.stringify(isInappFlow)};
               setTimeout(function () {
                 try { window.close(); } catch (e) {}
                 // If close() was blocked (document still visible after 300 ms),
                 // redirect back to the app so the user isn't stranded.
                 setTimeout(function () {
-                  if (!document.hidden) { window.location.replace('/'); }
+                  if (!isInappFlow && !document.hidden) { window.location.replace('/'); }
                 }, 300);
               }, 1000);
             })();
@@ -4952,11 +4967,16 @@ app.post("/api/auth/login", catchAsync(async (req, res) => {
           await logModerationAction(prismaClient, { actionType: "BAN_EXPIRED", targetUserId: validatedUser.id, isSystemAction: true, metadata: { expiredAt: new Date().toISOString(), trigger: "login" } });
         }
       }
-      setCookieToken(res, validatedUser.id, validatedUser.email);
+      const token = setCookieToken(res, validatedUser.id, validatedUser.email);
       authMonitor.loginSuccess(validatedUser.id, req.ip);
       const fullData = await UserService.getFullUserData(validatedUser.id);
       // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
-      // The native Capacitor path reads the token from /api/auth/oauth-session (see that endpoint).
+      // Exception: clients that cannot rely on cookie persistence (iOS installed
+      // PWA, native shells) send X-Session-Delivery: bearer and receive the token
+      // for SecureStorage + Authorization-header use.
+      if (req.headers["x-session-delivery"] === "bearer") {
+        return res.json({ success: true, token, ...fullData });
+      }
       return res.json({ success: true, ...fullData });
     } catch (authError: any) {
       authMonitor.loginFailed(cleanEmail.substring(0, 3) + "***", req.ip, "invalid_credentials");
@@ -5032,10 +5052,14 @@ app.post("/api/auth/register", catchAsync(async (req, res) => {
         studentGroup: studentGroup
       });
 
-      setCookieToken(res, freshUser.id, freshUser.email);
+      const token = setCookieToken(res, freshUser.id, freshUser.email);
       authMonitor.registrationSuccess(freshUser.id, req.ip);
       const fullData = await UserService.getFullUserData(freshUser.id);
       // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
+      // Exception: X-Session-Delivery: bearer clients (iOS installed PWA) — see login.
+      if (req.headers["x-session-delivery"] === "bearer") {
+        return res.json({ success: true, token, ...fullData });
+      }
       return res.json({ success: true, ...fullData });
     } catch (regError: any) {
       authMonitor.registrationFailed(req.ip, regError.message || "unknown");
@@ -5105,8 +5129,12 @@ app.post("/api/auth/refresh", requireUser, catchAsync(async (req, res) => {
   try {
     const authUser = (req as any).user;
     // Issue refreshed cookie with extended 30-day lifetime
-    setCookieToken(res, authUser.id, authUser.email);
+    const token = setCookieToken(res, authUser.id, authUser.email);
     // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
+    // Exception: X-Session-Delivery: bearer clients (iOS installed PWA) — see login.
+    if (req.headers["x-session-delivery"] === "bearer") {
+      return res.json({ success: true, token, user: authUser });
+    }
     return res.json({ success: true, user: authUser });
   } catch (err) {
     return res.status(500).json({ error: "Internal Server Error" });

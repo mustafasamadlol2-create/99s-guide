@@ -1,4 +1,5 @@
 import { SecureStorage } from "../utils/secureStorage";
+import { isIosStandalonePwa } from "../utils/platform";
 import { getApiUrl } from "./api";
 import { NativeBridge } from "../../core/device/capacitor/nativeBridge";
 
@@ -148,6 +149,14 @@ export async function apiClient(
     // It also lets the server reject credential-bearing state-changing requests that
     // arrive without JavaScript (e.g. HTML form submissions, cross-origin redirects).
     mergedHeaders.set("X-Requested-With", "XMLHttpRequest");
+    // iOS installed-PWA: the standalone container does not reliably persist the
+    // httpOnly session cookie, so ask the server to also return the session
+    // token in auth responses (login/register/refresh). The token is stored in
+    // SecureStorage and sent via the Authorization header below — the server
+    // accepts either the cookie or the Bearer token.
+    if (isIosStandalonePwa()) {
+      mergedHeaders.set("X-Session-Delivery", "bearer");
+    }
     // Strictly prevent browser and proxy caching to guarantee latest data
     if (bypassCache) {
       mergedHeaders.set("Cache-Control", "no-cache");
