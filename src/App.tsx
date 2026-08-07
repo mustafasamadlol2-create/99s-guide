@@ -231,6 +231,18 @@ export default function App() {
     const w = window.innerWidth;
     return w >= 480 && w < 1180;
   });
+
+  // Auto-manage sidebar collapse when the device tier changes (e.g. browser resize).
+  // Must be top-level (before any early returns) to satisfy Rules of Hooks.
+  useEffect(() => {
+    if (device.isTablet && !device.railNav) {
+      setIsSidebarCollapsed(true);   // larger tablet: start collapsed, user can expand
+    } else if (device.isDesktop) {
+      setIsSidebarCollapsed(false);  // desktop: start expanded
+    }
+    // phone / railNav: no sidebar state to manage
+  }, [device.deviceType, device.railNav]);
+
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [activeToast, setActiveToast] = useState<{
     id: string;
@@ -3158,18 +3170,6 @@ export default function App() {
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
 
-  // Auto-manage sidebar collapse when the device tier changes (e.g. window resize)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  React.useEffect(() => {
-    if (device.isTablet && !device.railNav) {
-      // Larger tablets: collapse by default but let user expand
-      setIsSidebarCollapsed(true);
-    } else if (device.isDesktop) {
-      // Desktop: expand by default
-      setIsSidebarCollapsed(false);
-    }
-    // railNav: width is fixed — no state change needed
-  }, [device.deviceType, device.railNav]);
   return (
     <div
       className={`h-[100svh] max-h-[100svh] w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden`}
