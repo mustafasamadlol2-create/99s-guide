@@ -4327,7 +4327,7 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
 </html>`);
   } catch (error: any) {
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
-      return res.status(403).send(OAuthService.buildDomainRejectionPage());
+      return res.status(403).send(OAuthService.buildDomainRejectionPage(isSandboxRedirectFlow));
     }
     console.error("Sandbox authentication failure:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     return res.status(500).send(`<h3>Sandbox Auth Fault</h3><p>${error.message || error}</p>`);
@@ -4723,7 +4723,10 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
   } catch (error: any) {
     // Domain restriction violation — render styled denial page and notify parent
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
-      return res.status(403).send(OAuthService.buildDomainRejectionPage());
+      // Pass redirectOnClose=true so the page navigates to "/" instead of
+      // calling window.close() — which is blocked when the callback IS the
+      // main window (redirect flow) rather than a script-opened popup.
+      return res.status(403).send(OAuthService.buildDomainRejectionPage(isRedirectFlow));
     }
     console.error(`OAuth verification failure [${provider}]:`, error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     return res.status(500).send(`

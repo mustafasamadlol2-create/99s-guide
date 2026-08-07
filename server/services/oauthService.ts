@@ -160,7 +160,16 @@ export async function verifyAndUpsertOAuthUser(params: {
  *     parent app can surface the error inside the sign-in card.
  *   • Auto-closes the popup after 5 seconds.
  */
-export function buildDomainRejectionPage(): string {
+/**
+ * Renders the "Access Denied" card page shown when a non-institutional email
+ * attempts to sign in.
+ *
+ * @param redirectOnClose  When `true` the auto-close script navigates the
+ *   page back to "/" instead of calling `window.close()`.  Use this for the
+ *   redirect-based OAuth flow where the callback URL IS the main window — not
+ *   a popup — so `window.close()` is blocked by the browser.
+ */
+export function buildDomainRejectionPage(redirectOnClose = false): string {
   const message =
     `Access Denied: Only ${ALLOWED_DOMAIN} student emails are allowed ` +
     "to sign in to the Medical Education Portal.";
@@ -280,7 +289,9 @@ export function buildDomainRejectionPage(): string {
       <p>The account you used does not belong to this institution.<br>
          Please try again with your student email address.</p>
 
-      <p class="note">This window will close automatically&hellip;</p>
+      <p class="note">${redirectOnClose
+        ? "Returning you to the sign&#8209;in page&hellip;"
+        : "This window will close automatically&hellip;"}</p>
       <div class="progress"><div class="progress-bar"></div></div>
     </div>
 
@@ -290,13 +301,22 @@ export function buildDomainRejectionPage(): string {
           type: "OAUTH_DOMAIN_REJECTED",
           message: ${JSON.stringify(message)}
         };
+        // Notify the parent app window if this is running in a popup and the
+        // opener is still reachable (desktop Chrome / Firefox).
         try {
           if (window.opener && !window.opener.closed) {
             window.opener.postMessage(msg, "*");
           }
         } catch (e) { /* cross-origin guard */ }
+
+        // After the progress bar drains, dismiss the page.
+        // • Popup path  → window.close()  (browser allows this for script-opened windows)
+        // • Redirect path → navigate back to the app (window.close() is blocked on
+        //   pages that were not opened by window.open())
         setTimeout(function () {
-          try { window.close(); } catch (e) {}
+          ${redirectOnClose
+            ? "window.location.href = '/';"
+            : "try { window.close(); } catch (e) {}"}
         }, 5000);
       })();
     </script>
