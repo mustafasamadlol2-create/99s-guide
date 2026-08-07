@@ -2261,6 +2261,22 @@ input:-webkit-autofill:active {
  * overrides all colours. We use the CSS system keywords (ButtonText,
  * Highlight, HighlightText) so the browser applies the user's chosen palette.
  */
+/* ─── Auth scroll column — responsive bottom padding ───────────────────────────
+   The inner scroll column on auth screens uses paddingBottom to create breathing
+   room below the card.  On desktop 6rem looks intentional; on iPhone/iPad it
+   creates a visible flat-colour rectangle below the content because:
+     • the background gradient blobs don't extend into the padding zone, and
+     • the viewport fits the screen exactly so the pad is always visible.
+   Fix: only the safe-area inset on mobile (<768px); full 6rem extra on md+.    */
+.auth-scroll-column {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 768px) {
+  .auth-scroll-column {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+  }
+}
+
 @media (forced-colors: active) {
   /* Global focus ring — use the system Highlight colour so it is always visible */
   *:focus-visible {

@@ -107,10 +107,11 @@ export default function ResetPasswordScreen() {
       className="absolute inset-0 w-full overflow-y-auto overflow-x-hidden bg-gradient-to-b from-med-bg to-med-cream dark:from-neutral-950 dark:to-neutral-900 selection:bg-med-gold/20 ios-scrollable"
     >
       <div
-        className="min-h-full w-full flex flex-col justify-start items-center px-4 sm:px-6"
+        className="min-h-full w-full flex flex-col justify-start items-center px-4 sm:px-6 auth-scroll-column"
         style={{
-          paddingTop:    "calc(env(safe-area-inset-top) + 3rem)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 6rem)",
+          paddingTop: "calc(env(safe-area-inset-top) + 3rem)",
+          // paddingBottom: handled by .auth-scroll-column — env(safe-area-inset-bottom)
+          // on mobile, calc(safe-area + 6rem) on md+ (no blank rectangle on iPhone/iPad)
         }}
       >
         <div className="flex-grow shrink-0 min-h-[20px] max-h-[10vh]" />

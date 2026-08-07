@@ -710,11 +710,12 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       className="relative w-full h-full overflow-y-auto overflow-x-hidden bg-[#F8F9FC] dark:bg-[#1C1C1E] select-text ios-scrollable"
     >
       <div
-        className="relative min-h-[100dvh] w-full flex flex-col justify-start items-center px-4 sm:px-6 md:px-8"
+        className="relative min-h-[100dvh] w-full flex flex-col justify-start items-center px-4 sm:px-6 md:px-8 auth-scroll-column"
         style={{
-          zIndex:        1,
-          paddingTop:    "calc(env(safe-area-inset-top) + 2rem)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 6rem)",
+          zIndex:     1,
+          paddingTop: "calc(env(safe-area-inset-top) + 2rem)",
+          // paddingBottom: handled by .auth-scroll-column — env(safe-area-inset-bottom)
+          // on mobile, calc(safe-area + 6rem) on md+ (no blank rectangle on iPhone/iPad)
         }}
       >
         {/* Premium layered background — grows with the full scrollable auth content */}
