@@ -149,9 +149,10 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   // state updates after unmount.
   const oauthInFlightRef     = useRef(false);                                       // concurrent-call guard
   const resetTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);  // single tracked reset timer
-  const popupCleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);  // 3-min popup cleanup
-  const browserListenerRef   = useRef<{ remove: () => void } | null>(null);         // native browserFinished handle
-  const isMountedRef         = useRef(true);                                        // guards callbacks after unmount
+  const popupCleanupTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);  // retained for cleanup compat
+  const browserListenerRef      = useRef<{ remove: () => void } | null>(null);         // native browserFinished handle
+  const browserFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);  // 1.8s grace timer after browser close
+  const isMountedRef            = useRef(true);                                        // guards callbacks after unmount
 
   // Full cleanup on unmount — stops all intervals, cancels all timers,
   // removes the native browser-finished listener.
@@ -160,10 +161,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     return () => {
       isMountedRef.current = false;
       if (oauthPollRef.current         !== null) clearInterval(oauthPollRef.current);
-      if (popupClosedCheckRef.current  !== null) clearInterval(popupClosedCheckRef.current);
-      if (resetTimerRef.current        !== null) clearTimeout(resetTimerRef.current);
-      if (popupCleanupTimerRef.current !== null) clearTimeout(popupCleanupTimerRef.current);
-      if (browserListenerRef.current   !== null) { browserListenerRef.current.remove(); browserListenerRef.current = null; }
+      if (popupClosedCheckRef.current      !== null) clearInterval(popupClosedCheckRef.current);
+      if (resetTimerRef.current            !== null) clearTimeout(resetTimerRef.current);
+      if (popupCleanupTimerRef.current     !== null) clearTimeout(popupCleanupTimerRef.current);
+      if (browserFinishedTimerRef.current  !== null) clearTimeout(browserFinishedTimerRef.current);
+      if (browserListenerRef.current       !== null) { browserListenerRef.current.remove(); browserListenerRef.current = null; }
       oauthInFlightRef.current = false;
     };
   }, []);
@@ -632,7 +634,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
         // Store listener handle so it can be removed on success / failure / unmount.
         Browser.addListener("browserFinished", () => {
-          setTimeout(() => {
+          // Clear any stale grace timer from a previous attempt before starting
+          // a new one — prevents the old attempt's failure from clobbering a
+          // new attempt that started immediately after the browser closed.
+          if (browserFinishedTimerRef.current !== null) {
+            clearTimeout(browserFinishedTimerRef.current);
+          }
+          browserFinishedTimerRef.current = setTimeout(() => {
+            browserFinishedTimerRef.current = null;
             if (!isMountedRef.current) return;
             onOAuthFailed();
             if (browserListenerRef.current !== null) {
@@ -652,22 +661,33 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           const MAX_POLL_MS   = 3 * 60 * 1000;
           const POLL_INTERVAL = 1500;
           const startTime     = Date.now();
+          // Prevents overlapping polls when network latency exceeds the interval.
+          // Without this guard, multiple concurrent requests can each detect
+          // success and race to update state / close the browser.
+          let pollInFlight = false;
 
           oauthPollRef.current = setInterval(async () => {
-            if (Date.now() - startTime > MAX_POLL_MS) {
-              clearInterval(oauthPollRef.current!);
-              oauthPollRef.current = null;
-              onOAuthFailed("Sign-in timed out. Please try again.");
-              return;
-            }
+            if (pollInFlight) return; // skip — previous poll still in flight
+            pollInFlight = true;
             try {
+              if (Date.now() - startTime > MAX_POLL_MS) {
+                clearInterval(oauthPollRef.current!);
+                oauthPollRef.current = null;
+                onOAuthFailed("Sign-in timed out. Please try again.");
+                return;
+              }
               const pollRes = await apiClient(`/api/auth/oauth-session/${stateToken}`);
               if (pollRes.ok) {
                 const pollData = await pollRes.json();
                 if (pollData.success && pollData.token) {
+                  if (!isMountedRef.current) return; // component unmounted mid-poll
                   oauthCompletedRef.current = true;
                   clearInterval(oauthPollRef.current!);
                   oauthPollRef.current = null;
+                  if (browserFinishedTimerRef.current !== null) {
+                    clearTimeout(browserFinishedTimerRef.current);
+                    browserFinishedTimerRef.current = null;
+                  }
                   if (browserListenerRef.current !== null) {
                     browserListenerRef.current.remove();
                     browserListenerRef.current = null;
@@ -687,6 +707,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 }
               }
             } catch { /* network error — keep polling */ }
+            finally { pollInFlight = false; }
           }, POLL_INTERVAL);
         }
       } catch (err: any) {

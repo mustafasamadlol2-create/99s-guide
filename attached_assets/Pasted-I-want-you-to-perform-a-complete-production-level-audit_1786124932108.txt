@@ -1,0 +1,281 @@
+I want you to perform a complete production-level audit of the entire authentication experience and Progressive Web App (PWA) implementation.
+
+This is NOT a request to simply fix a few visible bugs.
+
+I want a comprehensive engineering review of every component related to authentication, security, frontend, backend, database communication, and PWA behavior.
+
+Before making changes:
+
+1. Analyze the complete architecture.
+2. Identify every weakness.
+3. Identify hidden bugs.
+4. Identify race conditions.
+5. Identify security vulnerabilities.
+6. Identify unnecessary code.
+7. Identify duplicated logic.
+8. Identify dead code.
+9. Identify performance bottlenecks.
+10. Identify platform-specific issues.
+11. Identify inconsistent behaviors.
+12. Identify possible future failure points.
+
+Only after completing the analysis should you begin implementing improvements.
+
+──────────────────────────────
+AUTHENTICATION AUDIT
+──────────────────────────────
+
+Perform a complete audit of every file related to:
+
+- Sign In
+- Sign Up
+- Google Authentication
+- Apple Authentication
+- OAuth flow
+- Session Management
+- Authentication Context
+- Authentication State
+- Protected Routes
+- User Persistence
+- Token Handling
+- Cookie Handling
+- Secure Storage
+- Logout Flow
+- Error Handling
+- Loading States
+- Retry Logic
+- Network Failures
+- Timeout Handling
+- Authentication Synchronization
+- Authentication Callbacks
+
+I want you to identify every hidden bug, even if it has not yet been reported.
+
+Do not only fix the known issues.
+
+Search for potential issues that could happen in production.
+
+──────────────────────────────
+SECURITY AUDIT
+──────────────────────────────
+
+Perform a professional security audit.
+
+Review:
+
+- Authentication flow
+- Authorization
+- Session validation
+- Token validation
+- Cookie security
+- CSRF protection
+- XSS protection
+- Input validation
+- API validation
+- Rate limiting
+- Sensitive data exposure
+- Secure storage
+- Error leakage
+- Authentication bypass possibilities
+- Replay attack prevention
+- Session fixation
+- Privilege escalation risks
+- Injection vulnerabilities
+- Client-side security
+- Server-side security
+
+Strengthen every security layer while preserving existing functionality.
+
+Do not introduce breaking changes.
+
+──────────────────────────────
+FRONTEND AUDIT
+──────────────────────────────
+
+Review every authentication-related frontend component.
+
+Search for:
+
+- unnecessary rerenders
+- duplicated logic
+- layout inconsistencies
+- UI glitches
+- React anti-patterns
+- state synchronization problems
+- memory leaks
+- event listener leaks
+- asynchronous issues
+- animation problems
+- hydration issues
+- rendering delays
+
+Improve performance wherever possible.
+
+──────────────────────────────
+BACKEND AUDIT
+──────────────────────────────
+
+Review all authentication APIs.
+
+Check:
+
+- API consistency
+- response validation
+- authentication middleware
+- authorization middleware
+- error responses
+- edge cases
+- timeout handling
+- database queries
+- unnecessary queries
+- inefficient logic
+- session validation
+- OAuth callbacks
+
+Optimize where appropriate without changing existing business logic.
+
+──────────────────────────────
+DATABASE AUDIT
+──────────────────────────────
+
+Review every authentication-related database interaction.
+
+Search for:
+
+- inefficient queries
+- missing indexes
+- duplicate queries
+- unnecessary writes
+- inconsistent reads
+- race conditions
+- transaction issues
+- integrity problems
+
+Optimize safely while preserving functionality.
+
+──────────────────────────────
+PWA AUDIT
+──────────────────────────────
+
+Perform a complete audit of the Progressive Web App implementation.
+
+The application must behave like a true native application.
+
+Review:
+
+- Service Worker
+- Manifest
+- Offline behavior
+- Cache strategy
+- Installability
+- Startup performance
+- Lifecycle events
+- Background updates
+- Navigation handling
+- Authentication persistence
+- Session restoration
+- Asset caching
+- API caching
+- Version updates
+
+Everything should comply with modern PWA best practices.
+
+──────────────────────────────
+iOS / iPadOS AUDIT
+──────────────────────────────
+
+This is one of the highest priorities.
+
+The current experience on:
+
+- iPhone
+- iPad
+- Safari
+- iPadOS PWA
+- iOS PWA
+
+is still noticeably less polished than Desktop.
+
+Perform a complete platform-specific audit.
+
+Review:
+
+- Safari compatibility
+- Safe Areas
+- Viewport handling
+- Keyboard behavior
+- Touch interactions
+- Gesture handling
+- Scroll performance
+- Rendering performance
+- Authentication flow
+- OAuth behavior
+- Window lifecycle
+- PWA lifecycle
+- Standalone mode
+- Orientation changes
+- Memory usage
+- Splash screen transitions
+- Startup behavior
+- Navigation
+- Back gestures
+- Input focus
+- Responsive layouts
+
+Eliminate every inconsistency.
+
+The experience should feel completely native on iPhone and iPad.
+
+──────────────────────────────
+CODE QUALITY
+──────────────────────────────
+
+Clean the codebase.
+
+Remove:
+
+- dead code
+- duplicated code
+- obsolete logic
+- unnecessary conditions
+- unnecessary state
+- unnecessary effects
+- unnecessary listeners
+- unnecessary imports
+- unused utilities
+
+Refactor only where necessary.
+
+Do NOT rewrite the project.
+
+Do NOT remove existing functionality.
+
+Do NOT change the application's business logic.
+
+Maintain full backward compatibility.
+
+──────────────────────────────
+FINAL GOAL
+──────────────────────────────
+
+After your analysis and improvements:
+
+- Authentication should be stable.
+- Authentication should be secure.
+- Authentication should be production-ready.
+- Google Sign-In should be reliable.
+- Apple Sign-In infrastructure should be clean and future-ready.
+- Sign In and Sign Up should work flawlessly.
+- Safari compatibility should be excellent.
+- iPhone compatibility should be excellent.
+- iPad compatibility should be excellent.
+- Desktop compatibility should remain excellent.
+- PWA quality should be production-grade.
+- Code quality should be significantly improved.
+- Performance should be optimized.
+- Security should be significantly strengthened.
+- The project should feel like a polished, native-quality application across all supported platforms.
+
+Think like a senior software architect, senior security engineer, senior React engineer, senior backend engineer, senior PWA engineer, and senior iOS web engineer.
+
+Do a full investigation first, then implement only high-confidence, production-quality improvements that preserve all existing functionality while eliminating hidden issues and improving the overall quality of the application.

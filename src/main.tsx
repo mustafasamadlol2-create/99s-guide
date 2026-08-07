@@ -129,11 +129,13 @@ const registerServiceWorker = () => {
       });
 
       // Handle seamless refresh when the new active service worker takes control
+      // When the new service worker takes control, reload to activate fresh assets.
+      // The `refreshing` guard prevents an infinite reload loop.
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (!refreshing) {
           refreshing = true;
-          // window.location.reload();
+          window.location.reload();
         }
       });
     } else {

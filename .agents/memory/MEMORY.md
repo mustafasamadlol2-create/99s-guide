@@ -1,0 +1,1 @@
+- [Auth & PWA production audit](auth-audit-findings.md) — critical security fixes applied; remaining known gaps documented inside
