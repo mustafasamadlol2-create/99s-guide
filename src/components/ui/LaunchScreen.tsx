@@ -47,20 +47,36 @@ import AppLogo from "./AppLogo";
    We read it once here and bake explicit pixel dimensions into S_WRAPPER so the
    splash screen is never affected by the ICB bug on any frame.                  */
 
-const _captureDims = (): { w: number; h: number } => {
-  if (typeof window === "undefined") return { w: 0, h: 0 };
+const _captureDims = (): { w: number; h: number; offsetTop: number; offsetLeft: number } => {
+  if (typeof window === "undefined") return { w: 0, h: 0, offsetTop: 0, offsetLeft: 0 };
 
   // 1. VisualViewport API — correct even while the ICB is still wrong.
   //    Available on Safari iOS 13+, Chrome 61+, Firefox 63+.
+  //
+  //    CRITICAL: also capture offsetTop / offsetLeft.
+  //    `position:fixed` elements are positioned in *layout-viewport* coordinates,
+  //    not visual-viewport coordinates.  On iPad Landscape in Safari the address
+  //    bar keeps the visual viewport offset from the top of the layout viewport
+  //    (visualViewport.offsetTop > 0).  If we set `top:0` but size the wrapper
+  //    to visualViewport.height, the wrapper starts above the visible area and
+  //    its flex-center lands above the screen's visual center → logo shifts up.
+  //    Setting `top: offsetTop` places the wrapper flush with the visual viewport,
+  //    so the logo is always centered in the area the user actually sees.
   const vvp = window.visualViewport;
   if (vvp && vvp.width > 1 && vvp.height > 1) {
-    return { w: Math.round(vvp.width), h: Math.round(vvp.height) };
+    return {
+      w:         Math.round(vvp.width),
+      h:         Math.round(vvp.height),
+      offsetTop: Math.round(vvp.offsetTop  ?? 0),
+      offsetLeft:Math.round(vvp.offsetLeft ?? 0),
+    };
   }
 
   // 2. screen.* + orientation angle.
   //    screen.width/height are physical screen metrics — immune to the ICB
   //    startup bug — but may not swap axes on older iOS (<15).  The orientation
   //    angle tells us which axis is which.
+  //    No offsetTop/offsetLeft available from screen.* — default to 0.
   try {
     const angle: number =
       typeof screen.orientation !== "undefined"
@@ -79,11 +95,13 @@ const _captureDims = (): { w: number; h: number } => {
       h: isLandscape
         ? Math.min(screen.width, screen.height)
         : Math.max(screen.width, screen.height),
+      offsetTop:  0,
+      offsetLeft: 0,
     };
   } catch { /* ignore */ }
 
   // 3. Last resort — may be wrong in landscape startup, but better than nothing.
-  return { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+  return { w: window.innerWidth || 0, h: window.innerHeight || 0, offsetTop: 0, offsetLeft: 0 };
 };
 
 /** Pixel dimensions of the visible screen at launch time. */
@@ -218,12 +236,18 @@ const _tagAnim = _rm
 // `perspective` creates a 3-D rendering context so every child with
 // translateZ(0) gets its own GPU layer before frame 1.
 // `contain: layout style paint` isolates splash calculations from the app tree.
+//
+// top / left use visualViewport.offsetTop / offsetLeft (captured in _dims) so
+// the wrapper is flush with the *visual* viewport, not the layout viewport.
+// On iPad Landscape in Safari the address bar makes offsetTop > 0; without this
+// correction the wrapper starts above the visible area and the logo appears
+// shifted upward by the height of the browser chrome.
 const S_WRAPPER: React.CSSProperties = {
   // Explicit pixel dimensions from visualViewport — immune to ICB startup bug.
   // Falls back to "100%" on SSR or if dims couldn't be read.
   position:                 "fixed",
-  top:                      0,
-  left:                     0,
+  top:                      _dims.h > 0 ? `${_dims.offsetTop}px` : 0,
+  left:                     _dims.w > 0 ? `${_dims.offsetLeft}px` : 0,
   width:                    _dims.w > 0 ? `${_dims.w}px` : "100%",
   height:                   _dims.h > 0 ? `${_dims.h}px` : "100%",
   zIndex:                   9999,
