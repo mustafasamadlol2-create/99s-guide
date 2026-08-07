@@ -34,6 +34,61 @@
 import React, { useEffect, useRef, memo } from "react";
 import AppLogo from "./AppLogo";
 
+/* ─── Actual viewport capture ──────────────────────────────────────────────────
+   Runs synchronously at module load — before React renders a single frame.
+   Why not just use `position:fixed; inset:0`?
+   On iOS Safari, the layout-viewport ICB (initial containing block) is
+   temporarily portrait-sized when the app launches directly in landscape.  Any
+   `position:fixed` element that sizes itself from `inset:0` inherits those
+   wrong portrait dimensions, gets its flex-center calculated in portrait space,
+   and then snaps one or two frames later → visible layout jump on iPad landscape.
+   `window.visualViewport` is immune to this: it always reflects the actual
+   visual screen the user sees, regardless of the ICB startup state.
+   We read it once here and bake explicit pixel dimensions into S_WRAPPER so the
+   splash screen is never affected by the ICB bug on any frame.                  */
+
+const _captureDims = (): { w: number; h: number } => {
+  if (typeof window === "undefined") return { w: 0, h: 0 };
+
+  // 1. VisualViewport API — correct even while the ICB is still wrong.
+  //    Available on Safari iOS 13+, Chrome 61+, Firefox 63+.
+  const vvp = window.visualViewport;
+  if (vvp && vvp.width > 1 && vvp.height > 1) {
+    return { w: Math.round(vvp.width), h: Math.round(vvp.height) };
+  }
+
+  // 2. screen.* + orientation angle.
+  //    screen.width/height are physical screen metrics — immune to the ICB
+  //    startup bug — but may not swap axes on older iOS (<15).  The orientation
+  //    angle tells us which axis is which.
+  try {
+    const angle: number =
+      typeof screen.orientation !== "undefined"
+        ? screen.orientation.angle
+        : typeof (window as any).orientation === "number"
+          ? Math.abs((window as any).orientation as number)
+          : 0;
+    const isLandscape =
+      angle === 90 ||
+      angle === 270 ||
+      (screen.width > 10 && screen.height > 10 && screen.width > screen.height);
+    return {
+      w: isLandscape
+        ? Math.max(screen.width, screen.height)
+        : Math.min(screen.width, screen.height),
+      h: isLandscape
+        ? Math.min(screen.width, screen.height)
+        : Math.max(screen.width, screen.height),
+    };
+  } catch { /* ignore */ }
+
+  // 3. Last resort — may be wrong in landscape startup, but better than nothing.
+  return { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+};
+
+/** Pixel dimensions of the visible screen at launch time. */
+const _dims = _captureDims();
+
 /* ─── CSS injection ────────────────────────────────────────────────────────────
    Runs synchronously at module load — before React renders a single frame —
    so the compositor already has the keyframe definitions when it paints frame 1.
@@ -156,14 +211,22 @@ const _tagAnim = _rm
    compositor layer immediately, so the animation starts on the GPU from
    frame 1 with no mid-flight layer-promotion stutter.                         */
 
-// Wrapper: `perspective` creates a 3-D rendering context.  Every child with
-// translateZ(0) is automatically promoted to its own GPU layer within this
-// context — the cheapest, most reliable way to guarantee compositor-driven
-// animation across iOS, macOS Safari, and Chrome.
-// `contain: layout style paint` isolates the launch screen from the rest of
-// the document so layout, style, and paint calculations for the underlying
-// app never interact with the splash — zero extra layout work per frame.
+// Wrapper: sized with explicit pixel dimensions captured from visualViewport at
+// module load, so the iOS Safari ICB startup bug (portrait dimensions reported
+// during landscape launch) never affects the splash screen's layout.
+// `inset-0` is intentionally NOT used — that would inherit from the ICB.
+// `perspective` creates a 3-D rendering context so every child with
+// translateZ(0) gets its own GPU layer before frame 1.
+// `contain: layout style paint` isolates splash calculations from the app tree.
 const S_WRAPPER: React.CSSProperties = {
+  // Explicit pixel dimensions from visualViewport — immune to ICB startup bug.
+  // Falls back to "100%" on SSR or if dims couldn't be read.
+  position:                 "fixed",
+  top:                      0,
+  left:                     0,
+  width:                    _dims.w > 0 ? `${_dims.w}px` : "100%",
+  height:                   _dims.h > 0 ? `${_dims.h}px` : "100%",
+  zIndex:                   9999,
   backgroundColor:          BG,
   perspective:              "1000px",
   WebkitPerspective:        "1000px",
@@ -404,7 +467,6 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
   return (
     <div
       ref={wrapperRef}
-      className="fixed inset-0 z-[9999]"
       aria-hidden="true"
       role="status"
       aria-label="Loading"
