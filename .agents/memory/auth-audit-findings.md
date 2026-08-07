@@ -3,6 +3,24 @@ name: Auth & PWA Production Audit
 description: Findings and fixes from the comprehensive authentication/security/PWA audit. Reference before touching auth, OAuth, cookies, JWT, or the sandbox callback.
 ---
 
+## OAuth popup architecture (as of Aug 2026)
+
+Three separate code paths depending on platform:
+
+| Platform | Mechanism |
+|---|---|
+| Native iOS/Android (Capacitor) | `Browser.open({ presentationStyle: "popover" })` → SFSafariViewController modal sheet + polling `pendingOAuthSessions` |
+| iOS web / Safari on iPhone/iPad | Full-page redirect flow (`?flow=redirect`). Callback sets first-party cookie, redirects to `/?oauth_done=1`. App.tsx reads this on startup. |
+| Desktop web (Chrome, Firefox, Safari macOS) | Pre-open `window.open("about:blank", ..., "popup=1")` synchronously inside user gesture → navigate to OAuth URL → postMessage success/rejection (fast path) OR popup.closed + poll `/api/auth/oauth-session/:stateToken` (Safari ITP fallback) |
+
+### Domain rejection flow
+- Server: `pendingOAuthSessions.set(stateToken, { rejected: true, ... })` when `OAUTH_DOMAIN_REJECTED` fires
+- Popup rejection page: countdown 4.5 s, then `window.close()`
+- App: postMessage `OAUTH_DOMAIN_REJECTED` (Chrome/Firefox) OR detect via polling `{ rejected: true }` (Safari ITP)
+- `/api/auth/oauth-session/:token` now returns `{ rejected: true }` when that flag is set
+
+### Critical security fixes applied (see below)
+
 ## Critical fixes applied
 
 ### Sandbox bypass (CLOSED)
@@ -28,7 +46,7 @@ All `jwt.verify()` calls now pass `{ algorithms: ["HS256"] }` — prevents algor
 `setCookieToken` + both `clearCookie` calls now include `path: "/"` to guarantee matching.
 
 ### Fetch timeouts (CLOSED)
-`AbortSignal.timeout(10_000)` added to all external OAuth provider fetch calls (Google token + userinfo, Facebook token + profile, Apple GET token exchange).
+`AbortSignal.timeout(10_000)` added to all external OAuth provider fetch calls (Google token + userinfo, Facebook token + profile, Apple GET + POST token exchange).
 
 ### Rate limiting (CLOSED)
 `/api/auth/oauth-url` and `/auth/callback` prefixes added to `authLimiter`.
@@ -54,10 +72,8 @@ Success branch now clears `browserFinishedTimerRef` before dispatching OAUTH_AUT
 
 ## Known remaining items (not fixed — architectural or OOscope)
 
-- No CSP header (Helmet CSP disabled server.ts:237) — needs careful policy design to avoid breaking inline scripts
+- No CSP header (Helmet CSP disabled server.ts) — needs careful policy design to avoid breaking inline scripts
 - Apple `jwt.decode` without signature validation — Apple requires public key verification; needs `apple-auth` library or JWKS fetch
 - No session revocation / jti — stolen JWTs valid until 30d expiry; password change does not invalidate tokens
 - Registration not transactional (user + welcome points) — failure leaves partial record; points failure is already swallowed
-- OAuth existing-user two-step update (role + lastActive) not in transaction — low risk
 - CORS whitelist includes `*.run.app` broadly — review if scope can be narrowed
-- ApiCache and ban-cache not cleared on logout — stale data served until TTL expires

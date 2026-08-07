@@ -332,6 +332,10 @@ app.use("/api/mottos", adminLimiter);
 // GET /api/auth/oauth-session/:token (5-minute TTL).
 const pendingOAuthSessions = new Map<string, {
   token: string; userId: string; email: string; expiresAt: number;
+  /** Set to true when domain restriction fires — lets the popup's closed-poll
+   *  path distinguish rejection from manual cancel even when Safari ITP
+   *  nullifies window.opener and blocks postMessage delivery. */
+  rejected?: true;
 }>();
 const _pendingOAuthCleanup = setInterval(() => {
   const now = Date.now();
@@ -4151,6 +4155,8 @@ app.get("/api/auth/oauth-session/:token", (req, res) => {
     return res.status(404).json({ pending: true });
   }
   pendingOAuthSessions.delete(token); // one-time use
+  // Domain rejection — popup's Safari ITP fallback polling path detects this.
+  if (session.rejected) return res.json({ rejected: true });
   return res.json({ success: true, token: session.token, userId: session.userId, email: session.email });
 });
 
@@ -4381,7 +4387,18 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
 </html>`);
   } catch (error: any) {
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
-      return res.status(403).send(OAuthService.buildDomainRejectionPage(isSandboxRedirectFlow));
+      // Record rejection so the popup's Safari-ITP fallback polling path can
+      // detect domain rejection (postMessage is blocked when window.opener is
+      // nullified by ITP after the cross-origin Google redirect).
+      if (sandboxStateToken) {
+        pendingOAuthSessions.set(sandboxStateToken, {
+          token: "", userId: "", email: "",
+          expiresAt: Date.now() + 5 * 60 * 1000,
+          rejected: true,
+        });
+      }
+      const appOrigin = `${req.protocol}://${req.get("host")}`;
+      return res.status(403).send(OAuthService.buildDomainRejectionPage(isSandboxRedirectFlow, appOrigin));
     }
     console.error("Sandbox authentication failure:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     // Return a generic message — never reflect error.message in HTML (XSS risk).
@@ -4398,13 +4415,17 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
 
   // User cancelled or Apple returned an error — close the popup silently
   if (errorParam || !code) {
+    const appleErrOrigin = JSON.stringify(`${req.protocol}://${req.get("host")}`);
     return res.send(`<!DOCTYPE html><html><body><script>
-      try {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage({ type: 'OAUTH_CANCELLED' }, '*');
-        }
-      } catch (e) {}
-      window.close();
+      (function(){
+        var appOrigin = ${appleErrOrigin};
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'OAUTH_CANCELLED' }, appOrigin);
+          }
+        } catch (e) {}
+        window.close();
+      })();
     </script></body></html>`);
   }
 
@@ -4455,6 +4476,7 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
         grant_type    : "authorization_code",
         redirect_uri  : redirectUri,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!tokenResponse.ok) {
@@ -4474,21 +4496,30 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
     const user  = await OAuthService.verifyAndUpsertOAuthUser({ email, name, avatar });
     const token = setCookieToken(res, user.id, user.email);
 
+    const appleSuccessOrigin = JSON.stringify(`${req.protocol}://${req.get("host")}`);
     return res.send(`<!DOCTYPE html><html><body><script>
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(
-          { type: 'OAUTH_AUTH_SUCCESS', userId: '${user.id}', email: '${user.email}', token: '${token}' },
-          '*'
-        );
+      (function(){
+        var payload = {
+          type:   'OAUTH_AUTH_SUCCESS',
+          userId: ${JSON.stringify(user.id)},
+          email:  ${JSON.stringify(user.email)},
+          token:  ${JSON.stringify(token)}
+        };
+        var appOrigin = ${appleSuccessOrigin};
+        if (window.opener && !window.opener.closed) {
+          try { window.opener.postMessage(payload, appOrigin); } catch(e){}
+        }
         window.close();
-      } else {
-        window.location.href = '/';
-      }
+        setTimeout(function(){
+          if (!document.hidden) window.location.href = '/';
+        }, 800);
+      })();
     </script></body></html>`);
 
   } catch (error: any) {
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
-      return res.status(403).send(OAuthService.buildDomainRejectionPage());
+      const appleAppOrigin = `${req.protocol}://${req.get("host")}`;
+      return res.status(403).send(OAuthService.buildDomainRejectionPage(false, appleAppOrigin));
     }
     logger.error("Apple OAuth POST callback error", (error instanceof Error ? error.message : String(error)).substring(0, 120));
     return res.status(500).send(`<h3>Apple Sign-In Error</h3><p>Authentication could not be completed.</p>
@@ -4801,17 +4832,20 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
   } catch (error: any) {
     // Domain restriction violation — render styled denial page and notify parent
     if ((error as any)?.code === "OAUTH_DOMAIN_REJECTED") {
-      // Pass redirectOnClose=true so the page navigates to "/" instead of
-      // calling window.close() — which is blocked when the callback IS the
-      // main window (redirect flow) rather than a script-opened popup.
-      return res.status(403).send(OAuthService.buildDomainRejectionPage(isRedirectFlow));
+      // Record rejection so the popup's Safari-ITP polling fallback can detect
+      // this was domain rejection, not a manual cancel.
+      if (stateToken) {
+        pendingOAuthSessions.set(stateToken, {
+          token: "", userId: "", email: "",
+          expiresAt: Date.now() + 5 * 60 * 1000,
+          rejected: true,
+        });
+      }
+      const appOrigin = `${req.protocol}://${req.get("host")}`;
+      return res.status(403).send(OAuthService.buildDomainRejectionPage(isRedirectFlow, appOrigin));
     }
     console.error(`OAuth verification failure [${provider}]:`, error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
-    return res.status(500).send(`
-      <h3>Verification Failure</h3>
-      <p>Error linking account of ${provider}: ${error.message || error}</p>
-      <button onclick="window.close()">Close and Try Again</button>
-    `);
+    return res.status(500).send('<h3>Verification Failure</h3><p>Authentication could not be completed. Please close this window and try again.</p>');
   }
 }));
 

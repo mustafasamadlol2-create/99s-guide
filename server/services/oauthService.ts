@@ -168,8 +168,12 @@ export async function verifyAndUpsertOAuthUser(params: {
  *   page back to "/" instead of calling `window.close()`.  Use this for the
  *   redirect-based OAuth flow where the callback URL IS the main window — not
  *   a popup — so `window.close()` is blocked by the browser.
+ * @param appOrigin  The app's own origin (e.g. "https://my.replit.dev").
+ *   Used as the `targetOrigin` in `window.opener.postMessage()` so we never
+ *   broadcast auth events to arbitrary origins.  Defaults to `"*"` if omitted
+ *   (safe here because the rejection message contains no credentials).
  */
-export function buildDomainRejectionPage(redirectOnClose = false): string {
+export function buildDomainRejectionPage(redirectOnClose = false, appOrigin = "*"): string {
   const message =
     `Access Denied: Only ${ALLOWED_DOMAIN} student emails are allowed ` +
     "to sign in to the Medical Education Portal.";
@@ -263,7 +267,7 @@ export function buildDomainRejectionPage(redirectOnClose = false): string {
         height: 100%;
         background: #F59E0B;
         border-radius: 99px;
-        animation: drain 5s linear forwards;
+        animation: drain 4.5s linear forwards;
         width: 100%;
       }
       @keyframes drain { from { width: 100%; } to { width: 0%; } }
@@ -303,13 +307,18 @@ export function buildDomainRejectionPage(redirectOnClose = false): string {
         };
         // Notify the parent app window if this is running in a popup and the
         // opener is still reachable (desktop Chrome / Firefox).
+        // On Safari ITP, window.opener is nullified after the cross-origin
+        // redirect through accounts.google.com, so postMessage may not fire —
+        // the parent falls back to polling /api/auth/oauth-session/:stateToken
+        // which returns { rejected: true } when domain restriction fires.
+        var targetOrigin = ${JSON.stringify(appOrigin)};
         try {
           if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(msg, "*");
+            window.opener.postMessage(msg, targetOrigin);
           }
         } catch (e) { /* cross-origin guard */ }
 
-        // After the progress bar drains, dismiss the page.
+        // After the progress bar drains (4.5 s), dismiss the page.
         // • Popup path  → window.close()  (browser allows this for script-opened windows)
         // • Redirect path → navigate back to the app (window.close() is blocked on
         //   pages that were not opened by window.open())
@@ -317,7 +326,7 @@ export function buildDomainRejectionPage(redirectOnClose = false): string {
           ${redirectOnClose
             ? "window.location.href = '/';"
             : "try { window.close(); } catch (e) {}"}
-        }, 5000);
+        }, 4500);
       })();
     </script>
   </body>

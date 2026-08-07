@@ -136,23 +136,21 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const modalRef          = useRef<HTMLDivElement>(null);
   const modalTriggerRef   = useRef<HTMLElement | null>(null);
   // OAuth session polling (for native Capacitor where postMessage is unavailable)
-  const oauthPollRef          = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthPollRef            = useRef<ReturnType<typeof setInterval> | null>(null);
   // Shared flag — set true by EITHER the postMessage OR the polling path so the
   // popup-closed check never fires onOAuthFailed after a successful sign-in.
-  const oauthCompletedRef     = useRef<boolean>(false);
-  // Ref to the popup-closed-check interval so polling success can clear it.
-  const popupClosedCheckRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthCompletedRef       = useRef<boolean>(false);
   // ── Reliability refs ────────────────────────────────────────────────────────
-  // These refs eliminate the six root-cause bugs that made social buttons
-  // unreliable on iPhone/iPad: concurrent calls, untracked reset timers,
-  // the iOS Safari popup-blocker race, leaked native listeners, and stale
-  // state updates after unmount.
-  const oauthInFlightRef     = useRef(false);                                       // concurrent-call guard
-  const resetTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);  // single tracked reset timer
+  const oauthInFlightRef        = useRef(false);                                       // concurrent-call guard
+  const resetTimerRef           = useRef<ReturnType<typeof setTimeout> | null>(null);  // single tracked reset timer
   const popupCleanupTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);  // retained for cleanup compat
   const browserListenerRef      = useRef<{ remove: () => void } | null>(null);         // native browserFinished handle
   const browserFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);  // 1.8s grace timer after browser close
   const isMountedRef            = useRef(true);                                        // guards callbacks after unmount
+  // ── Desktop popup refs (web, non-iOS) ───────────────────────────────────────
+  const oauthPopupRef              = useRef<Window | null>(null);                           // the popup window
+  const popupMessageListenerRef    = useRef<((e: MessageEvent) => void) | null>(null);      // message event handler
+  const popupClosedIntervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);   // popup.closed polling
 
   // Full cleanup on unmount — stops all intervals, cancels all timers,
   // removes the native browser-finished listener.
@@ -160,12 +158,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (oauthPollRef.current         !== null) clearInterval(oauthPollRef.current);
-      if (popupClosedCheckRef.current      !== null) clearInterval(popupClosedCheckRef.current);
+      if (oauthPollRef.current             !== null) clearInterval(oauthPollRef.current);
       if (resetTimerRef.current            !== null) clearTimeout(resetTimerRef.current);
       if (popupCleanupTimerRef.current     !== null) clearTimeout(popupCleanupTimerRef.current);
       if (browserFinishedTimerRef.current  !== null) clearTimeout(browserFinishedTimerRef.current);
       if (browserListenerRef.current       !== null) { browserListenerRef.current.remove(); browserListenerRef.current = null; }
+      if (popupClosedIntervalRef.current   !== null) clearInterval(popupClosedIntervalRef.current);
+      if (popupMessageListenerRef.current  !== null) window.removeEventListener("message", popupMessageListenerRef.current);
+      try { oauthPopupRef.current?.close(); } catch { /* ignore */ }
       oauthInFlightRef.current = false;
     };
   }, []);
@@ -718,50 +718,208 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
 
     } else {
-      // ── Web path: redirect-based OAuth flow ────────────────────────────────
-      // We navigate the ENTIRE current page to the OAuth provider.
-      // Popups are NOT used for the following reasons:
+      // ── Web path ────────────────────────────────────────────────────────────
       //
-      // 1. iOS Safari PWA: window.open() opens a NEW TAB in the system Mobile
-      //    Safari browser, not a popup within the PWA webview.  New browser
-      //    tabs cannot be closed by script (window.close() is blocked), so the
-      //    user is permanently stranded in Mobile Safari after auth completes.
+      // Strategy depends on the browser/platform:
       //
-      // 2. Safari ITP: after navigating through a cross-origin site
-      //    (accounts.google.com), Safari nullifies window.opener so postMessage
-      //    is never delivered to the app.  The "opener" model breaks entirely.
+      // iOS Safari (web, non-native):
+      //   window.open() opens a NEW TAB — not a popup — and window.close() is
+      //   blocked on tabs not opened by script.  Redirect the whole page instead.
       //
-      // 3. All browsers: the oauth-url fetch requires an `await`, which breaks
-      //    the synchronous user-gesture chain that popup blockers require.
-      //    Pre-opening "about:blank" is a workaround that is itself fragile.
-      //
-      // THE REDIRECT FLOW (this path):
-      // 1. The whole page navigates to the OAuth provider — no popup, no tab.
-      // 2. On success the callback sets a FIRST-PARTY cookie (ITP does not
-      //    restrict first-party cookies; this was the root cause of the silent
-      //    401 in the old popup path) and redirects to /?oauth_done=1.
-      // 3. The app loads at /?oauth_done=1.  The startup /api/auth/me call
-      //    finds the cookie and returns the user.  No postMessage or polling
-      //    is required.  App.tsx cleans the URL via history.replaceState.
-      // 4. On cancellation/error the callback redirects to /?oauth_error=REASON
-      //    so the app can surface a useful error message.
-      try {
-        const res = await apiClient(`/api/auth/oauth-url?provider=${key}&flow=redirect`);
-        if (!res.ok) throw new Error(`Failed to initialize ${provider} login session.`);
-        const data = await res.json();
-        const targetUrl = data.url ?? data.sandboxUrl;
-        if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
+      // Desktop Chrome / Firefox / Safari macOS:
+      //   Pre-open "about:blank" SYNCHRONOUSLY inside the user gesture so
+      //   popup blockers see it as trusted, then navigate it to the OAuth URL
+      //   after the async fetch resolves.  The popup closes itself on
+      //   success/rejection; the app learns the outcome via postMessage (fast
+      //   path) or popup.closed polling → /api/auth/oauth-session/:token
+      //   (Safari ITP fallback, because ITP nullifies window.opener after a
+      //   cross-origin navigation so postMessage may not reach the parent).
 
-        // Navigate the page to the OAuth provider.
-        // Nothing after this line runs in the current page context.
-        window.location.href = targetUrl;
-      } catch (err: any) {
-        // URL fetch failed (network / server error) before we could navigate.
-        // Release the lock so the user can tap again without refreshing.
-        oauthInFlightRef.current = false;
-        setSocialState(s => ({ ...s, [key]: "error" }));
-        showError(err.message || "Social authentication error.");
-        scheduleReset(key, 2200);
+      const isIosSafari = /iP(ad|hone|od)/.test(navigator.userAgent);
+
+      if (isIosSafari) {
+        // ── iOS Safari: full-page redirect flow ──────────────────────────────
+        // Cookie set by the callback is first-party (ITP-safe).
+        // App.tsx reads ?oauth_done=1 / ?oauth_error=… on return.
+        try {
+          const res = await apiClient(`/api/auth/oauth-url?provider=${key}&flow=redirect`);
+          if (!res.ok) throw new Error(`Failed to initialize ${provider} login session.`);
+          const data = await res.json();
+          const targetUrl = data.url ?? data.sandboxUrl;
+          if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
+          window.location.href = targetUrl;
+        } catch (err: any) {
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "error" }));
+          showError(err.message || "Social authentication error.");
+          scheduleReset(key, 2200);
+        }
+
+      } else {
+        // ── Desktop: popup window flow ────────────────────────────────────────
+        //
+        // Step 1 — open popup SYNCHRONOUSLY (inside user gesture) so browsers
+        //   don't block it.  We navigate it to "about:blank" for now and will
+        //   set its URL after the async fetch returns.
+        const sw = screen.availWidth  || screen.width;
+        const sh = screen.availHeight || screen.height;
+        const pw = 500, ph = 640;
+        const popupFeatures = [
+          `width=${pw}`, `height=${ph}`,
+          `top=${Math.round((sh - ph) / 2)}`,
+          `left=${Math.round((sw - pw) / 2)}`,
+          "popup=1", "scrollbars=yes", "resizable=yes",
+        ].join(",");
+        const popup = window.open("about:blank", `oauth_${key}_${Date.now()}`, popupFeatures);
+
+        if (!popup) {
+          // Popup was blocked — fall back to the redirect flow instead of failing.
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "error" }));
+          showError(
+            "Your browser blocked the sign-in popup. " +
+            "Please allow popups for this site, or try refreshing.",
+          );
+          scheduleReset(key, 4500);
+          return;
+        }
+
+        oauthPopupRef.current = popup;
+
+        // ── helpers ──────────────────────────────────────────────────────────
+        const cleanupPopupListeners = () => {
+          if (popupClosedIntervalRef.current !== null) {
+            clearInterval(popupClosedIntervalRef.current);
+            popupClosedIntervalRef.current = null;
+          }
+          if (popupMessageListenerRef.current !== null) {
+            window.removeEventListener("message", popupMessageListenerRef.current);
+            popupMessageListenerRef.current = null;
+          }
+          oauthPopupRef.current = null;
+        };
+
+        const onPopupSuccess = (token: string, userId: string, email: string) => {
+          if (!isMountedRef.current || oauthCompletedRef.current) return;
+          oauthCompletedRef.current = true;
+          cleanupPopupListeners();
+          try { popup.close(); } catch { /* ignore */ }
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "success" }));
+          // Re-use the same OAUTH_AUTH_SUCCESS event that App.tsx already listens for.
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "OAUTH_AUTH_SUCCESS", token, userId, email },
+            origin: window.location.origin,
+          }));
+        };
+
+        const onPopupFailed = (msg?: string) => {
+          if (!isMountedRef.current || oauthCompletedRef.current) return;
+          cleanupPopupListeners();
+          try { popup.close(); } catch { /* ignore */ }
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "error" }));
+          showError(msg ?? "Sign-in was cancelled. Please try again.");
+          scheduleReset(key, 3000);
+        };
+
+        const onDomainRejected = (msg?: string) => {
+          if (!isMountedRef.current || oauthCompletedRef.current) return;
+          // Mark completed so popup.closed poll doesn't override this.
+          oauthCompletedRef.current = true;
+          cleanupPopupListeners();
+          // Popup self-closes after 4.5 s — no need to force-close it.
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "error" }));
+          showError(
+            msg ??
+            "Access denied: only @comed.uobaghdad.edu.iq accounts can sign in.",
+          );
+          scheduleReset(key, 6000);
+        };
+
+        // ── Step 2 — fetch OAuth URL async (popup is already open) ───────────
+        let stateToken: string | undefined;
+        try {
+          const res = await apiClient(`/api/auth/oauth-url?provider=${key}`);
+          if (!res.ok) throw new Error(`Failed to initialize ${provider} login session.`);
+          const data = await res.json();
+          const targetUrl = data.url ?? data.sandboxUrl;
+          if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
+          stateToken = data.stateToken as string | undefined;
+
+          // Navigate the already-open popup to the OAuth provider.
+          popup.location.href = targetUrl;
+        } catch (err: any) {
+          try { popup.close(); } catch { /* ignore */ }
+          oauthPopupRef.current = null;
+          oauthInFlightRef.current = false;
+          setSocialState(s => ({ ...s, [key]: "error" }));
+          showError(err.message || "Social authentication error.");
+          scheduleReset(key, 2200);
+          return;
+        }
+
+        // ── Step 3 — postMessage listener ─────────────────────────────────────
+        // Chrome / Firefox / Safari (desktop, no ITP on same-origin callbacks):
+        // the success/rejection page posts a message the moment it loads.
+        const messageHandler = (e: MessageEvent) => {
+          // Only accept messages from our own origin.
+          if (e.origin !== window.location.origin) return;
+          const msg = e.data as { type?: string; token?: string; userId?: string; email?: string; message?: string };
+          if (msg?.type === "OAUTH_AUTH_SUCCESS") {
+            onPopupSuccess(msg.token ?? "", msg.userId ?? "", msg.email ?? "");
+          } else if (msg?.type === "OAUTH_DOMAIN_REJECTED") {
+            onDomainRejected(msg.message);
+          }
+        };
+        window.addEventListener("message", messageHandler);
+        popupMessageListenerRef.current = messageHandler;
+
+        // ── Step 4 — popup.closed polling (Safari ITP fallback) ───────────────
+        // Safari ITP nullifies window.opener after the popup navigates through
+        // accounts.google.com (cross-origin), so postMessage may never arrive.
+        // When we detect the popup is closed without a prior postMessage, we
+        // poll the session API to find out what happened:
+        //   • { success: true, token }  → login (ITP Safari success path)
+        //   • { rejected: true }        → domain rejection
+        //   • { pending: true } / 404   → user closed popup manually
+        popupClosedIntervalRef.current = setInterval(async () => {
+          let isClosed = false;
+          try { isClosed = popup.closed; } catch { isClosed = true; }
+          if (!isClosed) return;
+
+          // Popup is now closed.
+          cleanupPopupListeners();
+          if (oauthCompletedRef.current) return; // already handled by postMessage
+
+          if (!stateToken) {
+            onPopupFailed("Sign-in was cancelled. Please try again.");
+            return;
+          }
+
+          // Ask the server what happened during this auth attempt.
+          try {
+            const pollRes = await apiClient(`/api/auth/oauth-session/${stateToken}`);
+            if (pollRes.ok) {
+              const pollData = await pollRes.json() as {
+                success?: boolean; token?: string; userId?: string; email?: string;
+                rejected?: boolean; pending?: boolean;
+              };
+              if (pollData.success && pollData.token) {
+                onPopupSuccess(pollData.token, pollData.userId ?? "", pollData.email ?? "");
+                return;
+              }
+              if (pollData.rejected) {
+                onDomainRejected();
+                return;
+              }
+            }
+          } catch { /* network error — treat as manual cancel */ }
+
+          // Session not found → user closed popup before completing.
+          onPopupFailed("Sign-in was cancelled. Please try again.");
+        }, 500);
       }
     }
   };
