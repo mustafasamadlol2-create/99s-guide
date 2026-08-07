@@ -1,1 +1,2 @@
 - [Auth & PWA production audit](auth-audit-findings.md) — critical security fixes applied; remaining known gaps documented inside
+- [Google OAuth setup](google-oauth-setup.md) — real Google sign-in enabled; only @comed.uobaghdad.edu.iq emails allowed; redirect URI tied to Replit dev domain
