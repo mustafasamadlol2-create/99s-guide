@@ -4362,7 +4362,7 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
     </div>
     <h2>Signed in successfully</h2>
     <p>Welcome, <strong>${escapeHtml(user.name)}</strong>. Returning to the app…</p>
-    <p class="closing">This window will close automatically.</p>
+    <p class="closing">This window will close in a moment…</p>
   </div>
   <script>
     (function () {
@@ -4375,12 +4375,30 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
       };
       // Pin postMessage to the app origin — never use '*' with auth tokens.
       var appOrigin = ${JSON.stringify(`${req.protocol}://${req.get("host")}`)};
-      if (window.opener && !window.opener.closed) {
-        try { window.opener.postMessage(payload, appOrigin); } catch(e){}
-        setTimeout(function(){ window.close(); }, 400);
-      } else {
-        window.location.replace('/');
-      }
+
+      // ── Send postMessage IMMEDIATELY (before any delay) ────────────────────
+      // This lets the app start processing the login while the success card is
+      // still visible.  The 1-second delay below is purely so the user can see
+      // that sign-in succeeded before the window disappears.
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, appOrigin);
+        }
+      } catch(e){}
+
+      // ── Close after 1 second ───────────────────────────────────────────────
+      // window.close() is reliable for any window opened by window.open().
+      // On Safari ITP, window.opener may be null but window.close() still
+      // works (the popup was opened by script, not by the user navigating).
+      // If for any reason close() is blocked, fall back to navigating home.
+      setTimeout(function () {
+        try { window.close(); } catch(e){}
+        // If close() didn't work (document still visible after 200 ms),
+        // redirect back to the app so the user isn't stranded.
+        setTimeout(function () {
+          if (!document.hidden) { window.location.replace('/'); }
+        }, 200);
+      }, 1000);
     })();
   </script>
 </body>
@@ -4766,22 +4784,29 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
             }
             .card {
               text-align: center; padding: 2.5rem 2rem;
+              animation: up 0.28s cubic-bezier(.22,1,.36,1) both;
             }
-            .spinner {
-              width: 36px; height: 36px; border: 3px solid #E2E8F0;
-              border-top-color: #1E2D4A; border-radius: 50%;
-              animation: spin 0.8s linear infinite; margin: 0 auto 1.25rem;
+            @keyframes up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+            .check-wrap {
+              width: 56px; height: 56px; border-radius: 50%;
+              background: #ECFDF5; border: 1.5px solid #A7F3D0;
+              display: flex; align-items: center; justify-content: center;
+              margin: 0 auto 1.25rem;
             }
-            @keyframes spin { to { transform: rotate(360deg); } }
-            .title { font-size: 1rem; font-weight: 600; color: #1E2D4A; }
-            .sub   { font-size: 0.8125rem; color: #64748B; margin-top: 0.375rem; }
+            .title { font-size: 1rem; font-weight: 700; color: #1E2D4A; }
+            .sub   { font-size: 0.8125rem; color: #64748B; margin-top: 0.4rem; }
           </style>
         </head>
         <body>
           <div class="card">
-            <div class="spinner"></div>
-            <p class="title">Signing you in…</p>
-            <p class="sub">Returning to the app automatically.</p>
+            <div class="check-wrap">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M5 14.5l6 6L23 8" stroke="#10B981" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <p class="title">Signed in successfully</p>
+            <p class="sub">Returning to the app…</p>
           </div>
           <script>
             (function () {
@@ -4795,34 +4820,30 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
               // Pin postMessage to the app origin — never broadcast auth tokens with '*'.
               var appOrigin = ${JSON.stringify(`${req.protocol}://${req.get("host")}`)};
 
-              // Popup path: notify the parent app window when opener is
-              // available (Chrome, Firefox, non-ITP Safari on desktop).
-              if (window.opener && !window.opener.closed) {
-                try { window.opener.postMessage(payload, appOrigin); } catch (e) {}
-              }
-
-              // ── Unconditional self-close ──────────────────────────────────
-              // window.close() is allowed for any window originally opened by
-              // window.open() — even on Safari ITP where window.opener is
-              // nullified after the popup navigates through accounts.google.com.
-              // The polling fallback in the app (pendingOAuthSessions) handles
-              // the session regardless of whether postMessage was delivered.
-              window.close();
-
-              // Safety net: if close() was blocked (rare, e.g. a window that
-              // wasn't opened by script), show a manual close prompt instead
-              // of navigating away. Triggered 800 ms after close() to give it
-              // time to take effect; document.hidden = true means it already
-              // closed successfully.
-              setTimeout(function () {
-                if (!document.hidden) {
-                  document.body.innerHTML =
-                    '<div style="font-family:-apple-system,sans-serif;text-align:center;padding:3rem 2rem;color:#1E2D4A">' +
-                    '<p style="font-size:1.1rem;font-weight:600;margin-bottom:.5rem">Signed in successfully</p>' +
-                    '<p style="color:#64748B;font-size:.875rem">You can close this window and return to the app.</p>' +
-                    '</div>';
+              // ── Send postMessage IMMEDIATELY ─────────────────────────────────
+              // The app starts processing the login right away while the
+              // 1-second success card is still visible.
+              try {
+                if (window.opener && !window.opener.closed) {
+                  window.opener.postMessage(payload, appOrigin);
                 }
-              }, 800);
+              } catch (e) {}
+
+              // ── Close after 1 second ───────────────────────────────────────
+              // window.close() works reliably for any window opened by
+              // window.open() — including Safari ITP contexts where
+              // window.opener is nullified (the popup WAS opened by script,
+              // so close() is still permitted).
+              // The polling fallback in the app (pendingOAuthSessions) detects
+              // the popup closing and fetches the token if postMessage was lost.
+              setTimeout(function () {
+                try { window.close(); } catch (e) {}
+                // If close() was blocked (document still visible after 300 ms),
+                // redirect back to the app so the user isn't stranded.
+                setTimeout(function () {
+                  if (!document.hidden) { window.location.replace('/'); }
+                }, 300);
+              }, 1000);
             })();
           </script>
         </body>

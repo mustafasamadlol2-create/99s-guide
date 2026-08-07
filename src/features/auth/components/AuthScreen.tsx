@@ -694,7 +694,9 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   }
                   oauthInFlightRef.current = false;
                   setSocialState(s => ({ ...s, [key]: "success" }));
-                  Browser.close().catch(() => {});
+                  // Delay Browser.close() by 1 second so the in-app browser's
+                  // success card is visible before the sheet dismisses.
+                  setTimeout(() => { Browser.close().catch(() => {}); }, 1000);
                   window.dispatchEvent(new MessageEvent("message", {
                     data: {
                       type:   "OAUTH_AUTH_SUCCESS",
@@ -803,7 +805,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           if (!isMountedRef.current || oauthCompletedRef.current) return;
           oauthCompletedRef.current = true;
           cleanupPopupListeners();
-          try { popup.close(); } catch { /* ignore */ }
+          // The popup page sends postMessage immediately and shows a 1-second
+          // success card before calling window.close() itself.
+          // We give it up to 1.5 s to self-close, then force-close as a safety
+          // net — this way the user always sees the success message.
+          setTimeout(() => { try { popup.close(); } catch { /* ignore */ } }, 1500);
           oauthInFlightRef.current = false;
           setSocialState(s => ({ ...s, [key]: "success" }));
           // Re-use the same OAUTH_AUTH_SUCCESS event that App.tsx already listens for.
