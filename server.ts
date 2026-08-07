@@ -4133,6 +4133,13 @@ app.get("/api/auth/oauth-url", (req, res) => {
   // One-time state token: CSRF protection + native session polling key
   const stateToken = crypto.randomUUID();
 
+  // Web redirect flow: client sends ?flow=redirect when it wants the callback
+  // to redirect back to the app instead of serving the popup close HTML.
+  // The flag is encoded into the OAuth state parameter as a "r:" prefix so
+  // it survives the round-trip through the provider without an extra DB lookup.
+  const isRedirectFlow = req.query.flow === "redirect";
+  const stateValue = isRedirectFlow ? `r:${stateToken}` : stateToken;
+
   // Google OAuth 2.0 URL Construct
   if (provider === "google") {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -4143,7 +4150,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=google&name=Google%20Student&email=google@uob.edu.iq&state=${stateToken}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=google&name=Google%20Student&email=google@uob.edu.iq&state=${stateValue}`,
         message: "Google OAuth is ready, but Client ID is not configured yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
       });
@@ -4155,7 +4162,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       response_type: "code",
       scope: "openid email profile",
       prompt: "select_account",
-      state: stateToken,
+      state: stateValue,
     });
     return res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, stateToken });
   }
@@ -4169,7 +4176,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=facebook&name=Facebook%20Student&email=facebook@uob.edu.iq&state=${stateToken}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=facebook&name=Facebook%20Student&email=facebook@uob.edu.iq&state=${stateValue}`,
         message: "Facebook OAuth is ready, but App ID is not configured yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET"]
       });
@@ -4196,7 +4203,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=apple&name=Apple%20Student&email=apple@uob.edu.iq&state=${stateToken}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=apple&name=Apple%20Student&email=apple@uob.edu.iq&state=${stateValue}`,
         message: "Apple Sign-In is ready, but configuration variables are not set yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["APPLE_CLIENT_ID", "APPLE_PRIVATE_KEY", "APPLE_TEAM_ID", "APPLE_KEY_ID"]
       });
@@ -4222,8 +4229,12 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
   const name = (req.query.name as string || "OAuth Student");
   const email = (req.query.email as string || "student@uob.edu.iq");
 
-  // Parse state token for native polling
-  const sandboxStateToken = req.query.state as string | undefined;
+  // Parse state token and redirect-flow flag (same "r:" convention as real callback)
+  const rawSandboxState = req.query.state as string | undefined;
+  const isSandboxRedirectFlow = typeof rawSandboxState === "string" && rawSandboxState.startsWith("r:");
+  const sandboxStateToken = isSandboxRedirectFlow && rawSandboxState
+    ? rawSandboxState.slice(2)
+    : rawSandboxState;
 
   try {
     // Apply the same domain restriction and role policy as real OAuth.
@@ -4240,6 +4251,11 @@ app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
         email: user.email,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
+    }
+
+    // Redirect flow: cookie is in first-party context, redirect back to app.
+    if (isSandboxRedirectFlow) {
+      return res.redirect("/?oauth_done=1");
     }
 
     // Auto-closing success page — no user action required.
@@ -4431,7 +4447,20 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
   const code = req.query.code as string;
   const errorParam = req.query.error || req.query.error_description;
 
+  // Parse the redirect-flow flag encoded in the state parameter by the client.
+  // Web (non-native) clients prefix the stateToken with "r:" to signal that
+  // the callback should redirect back to the app rather than serving popup HTML.
+  const rawState = req.query.state as string | undefined;
+  const isRedirectFlow = typeof rawState === "string" && rawState.startsWith("r:");
+  // Clean stateToken (strip the prefix so it matches what the client stored)
+  const stateToken = isRedirectFlow && rawState ? rawState.slice(2) : rawState;
+
   if (errorParam) {
+    if (isRedirectFlow) {
+      // Redirect back to the app with the error encoded in the query string.
+      // App.tsx reads this on startup and surfaces a user-friendly message.
+      return res.redirect(`/?oauth_error=${encodeURIComponent(String(errorParam))}`);
+    }
     return res.status(400).send(`
       <h3>OAuth Error Event</h3>
       <p>Error returned from ${provider}: ${errorParam}</p>
@@ -4440,6 +4469,9 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
   }
 
   if (!code) {
+    if (isRedirectFlow) {
+      return res.redirect(`/?oauth_error=${encodeURIComponent("Authorization code missing")}`);
+    }
     return res.status(400).send(`<h3>Authorization Missing</h3><p>OAuth exchange did not provide a verification code.</p>`);
   }
 
@@ -4593,8 +4625,8 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
 
     const token = setCookieToken(res, user.id, user.email);
 
-    // Store session for native Capacitor polling (state token generated in /api/auth/oauth-url)
-    const stateToken = req.query.state as string | undefined;
+    // Store session for native Capacitor polling.
+    // stateToken was already parsed/cleaned near the top of this handler.
     if (stateToken) {
       pendingOAuthSessions.set(stateToken, {
         token,
@@ -4602,6 +4634,15 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
         email: user.email,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
+    }
+
+    // ── Redirect flow (web non-native) ────────────────────────────────────────
+    // The cookie set above is in the first-party browsing context (the entire
+    // page navigated here — no popup, no third-party context).  ITP does not
+    // restrict first-party cookies, so the startup /api/auth/me call in the
+    // app will find it immediately after the redirect lands.
+    if (isRedirectFlow) {
+      return res.redirect("/?oauth_done=1");
     }
 
     return res.send(`

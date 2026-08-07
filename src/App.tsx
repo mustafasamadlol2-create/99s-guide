@@ -2112,6 +2112,36 @@ export default function App() {
        
   }, []);
 
+  // ── OAuth redirect-flow completion handler ──────────────────────────────────
+  // When the web OAuth flow completes, the server redirects back to
+  // /?oauth_done=1 (success) or /?oauth_error=REASON (error/cancel).
+  // The startup /api/auth/me call above already handles session restoration
+  // via the first-party cookie set by the callback.  This effect only needs
+  // to clean the URL and surface errors for the cancelled/rejected case.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthDone  = params.get("oauth_done");
+    const oauthError = params.get("oauth_error");
+
+    if (!oauthDone && !oauthError) return;
+
+    // Remove the oauth params so they don't persist through navigation or
+    // share links.  Use replaceState so the browser back-button behaviour
+    // is natural (pressing back goes to wherever the user came from, not
+    // to a stale /?oauth_done=1 URL).
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (oauthError) {
+      // Dispatch as a window event so the AuthScreen (if mounted) can show
+      // the message in its own error UI.
+      window.dispatchEvent(
+        new CustomEvent("oauth-redirect-error", {
+          detail: decodeURIComponent(oauthError),
+        }),
+      );
+    }
+  }, []);
+
   // --- Capacitor & Apple HIG Integrations ---
 
   // 1. Splash Screen Concealer + launch screen signal.
