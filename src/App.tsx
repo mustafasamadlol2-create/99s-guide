@@ -3167,12 +3167,12 @@ export default function App() {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${isCompactWidth ? "hidden" : "flex"} shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-[100svh] max-h-[100svh] select-none z-30 justify-between overflow-hidden relative transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]`}
+        className={`${isCompactWidth ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-[100svh] max-h-[100svh] select-none z-30 justify-between overflow-hidden relative`}
         style={{
           width: isAsideCollapsed ? "78px" : "264px",
+          flexBasis: isAsideCollapsed ? "78px" : "264px",
           paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
           paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
-          
         }}
         onKeyDown={handleSidebarKeyDown}
       >
@@ -3188,13 +3188,10 @@ export default function App() {
 
         <div className={`flex flex-col min-h-0 flex-1 relative z-10 ${isAsideCollapsed ? "px-1" : "px-3"}`}>
           {/* Logo & Brand header — switches between row (expanded) and column (collapsed) */}
-          <motion.div
-            className="flex pt-2 pb-5"
-            animate={isAsideCollapsed
-              ? { flexDirection: "column", alignItems: "center", gap: "10px", paddingLeft: 0, paddingRight: 0 }
-              : { flexDirection: "row", alignItems: "center", gap: "10px", paddingLeft: "6px", paddingRight: "6px" }
-            }
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          <div
+            className={`sidebar-header flex pt-2 pb-5 ${
+              isAsideCollapsed ? "sidebar-header-collapsed" : "sidebar-header-expanded"
+            }`}
           >
             {/* id used by LaunchScreen for FLIP shared-element transition */}
             <div id="sidebar-app-logo" style={{ display: "inline-flex", flexShrink: 0 }}>
@@ -3202,14 +3199,10 @@ export default function App() {
             </div>
 
             {/* Brand text — fades + collapses horizontally when sidebar shrinks */}
-            <motion.div
-              className="flex flex-col justify-center min-w-0"
-              animate={isAsideCollapsed
-                ? { opacity: 0, width: 0, flexGrow: 0 }
-                : { opacity: 1, width: "auto", flexGrow: 1 }
-              }
-              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              style={{ overflow: "hidden" }}
+            <div
+              className={`sidebar-brand flex flex-col justify-center min-w-0 ${
+                isAsideCollapsed ? "sidebar-brand-collapsed" : "sidebar-brand-expanded"
+              }`}
             >
               <h2 className="text-[13.5px] font-semibold text-neutral-900 dark:text-white leading-none tracking-[-0.3px] truncate antialiased">
                 {"99's Guide"}
@@ -3219,10 +3212,10 @@ export default function App() {
                   ? "مساحة العمل الأكاديمية"
                   : "Academic Workspace"}
               </p>
-            </motion.div>
+            </div>
 
-            {/* Collapse / expand toggle — always visible, rotates chevron */}
-            <motion.button
+            {/* Collapse / expand toggle — CSS-only transform, no spring/layout animation */}
+            <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               aria-label={isSidebarCollapsed
                 ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
@@ -3238,20 +3231,19 @@ export default function App() {
                 "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
                 "dark:focus-visible:ring-offset-neutral-950",
                 "transition-colors duration-200 ease-out",
+                 "sidebar-toggle",
                 device.isTablet ? "w-9 h-9" : "w-7 h-7",
               ].join(" ")}
-              whileTap={{ scale: 0.85, opacity: 0.7 }}
-              transition={{ type: "spring", stiffness: 500, damping: 28 }}
             >
-              <motion.div
-                animate={{ rotate: isAsideCollapsed ? 180 : 0 }}
-                transition={{ type: "spring", stiffness: 320, damping: 28 }}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+               <span
+                 className={`sidebar-toggle-icon ${
+                   isAsideCollapsed ? "sidebar-toggle-icon-collapsed" : ""
+                 }`}
               >
                 <ChevronLeft className={device.isTablet ? "w-[18px] h-[18px]" : "w-4 h-4"} />
-              </motion.div>
-            </motion.button>
-          </motion.div>
+               </span>
+            </button>
+          </div>
           {/* Navigation */}
           <motion.nav
             aria-label={language === "ar" ? "التنقل الرئيسي" : "Main Navigation"}
@@ -3389,7 +3381,7 @@ export default function App() {
         </div>
       </aside>
       {/* Main Content Workspace wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 h-[100svh] max-h-[100svh] overflow-hidden relative transition duration-300">
+       <div className="flex-1 flex flex-col min-w-0 h-[100svh] max-h-[100svh] overflow-hidden relative">
         {/* 2. Main Content Canvas */}
         <main
           id="main-scroll-canvas"
