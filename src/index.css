@@ -1464,13 +1464,23 @@ input:active,
 }
 
 .ios-staggered-card {
-  opacity: 0;
-  pointer-events: none; /* Disable pointer events before and during animation */
-  animation: iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  
+  /* CRITICAL: base state must be VISIBLE (opacity 1), not opacity 0.
+     Previously the base was `opacity: 0` + `animation ... forwards`, which
+     made visibility depend entirely on the one-shot entrance animation
+     completing.  Tab pages are kept in the DOM and hidden with display:none;
+     Safari/iPadOS cancels animations inside display:none subtrees and often
+     fails to restart them (or re-apply the forwards fill) when the subtree
+     is shown again — leaving every card permanently invisible until a
+     resize forced a style recalc.
+     With `backwards` fill the 0% keyframe (opacity 0, pointer-events none)
+     covers the stagger delay on a fresh run, and if the animation is ever
+     cancelled or fails to re-run the element safely rests at its natural,
+     fully visible state. */
+  animation: iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) backwards;
+
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  
+
   -webkit-tap-highlight-color: transparent;
 }
 
