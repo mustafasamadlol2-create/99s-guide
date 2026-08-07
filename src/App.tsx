@@ -3310,7 +3310,7 @@ export default function App() {
             {/* Collapse / expand toggle — CSS-only transform, no spring/layout animation */}
             {/* Collapse/expand toggle — hidden for rail nav (always icon-only, no expand) */}
             {!useRailNav && (
-              <button
+              <motion.button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 aria-label={isSidebarCollapsed
                   ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
@@ -3325,10 +3325,17 @@ export default function App() {
                   "hover:bg-black/[0.06] dark:hover:bg-white/[0.08]",
                   "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
                   "dark:focus-visible:ring-offset-neutral-950",
-                  "transition-colors duration-200 ease-out",
                   "sidebar-toggle",
                   device.isTablet ? "w-9 h-9" : "w-7 h-7",
                 ].join(" ")}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.80 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 28,
+                  mass: 0.8,
+                }}
               >
                 <span
                   className={`sidebar-toggle-icon ${
@@ -3337,7 +3344,7 @@ export default function App() {
                 >
                   <ChevronLeft className={device.isTablet ? "w-[18px] h-[18px]" : "w-4 h-4"} />
                 </span>
-              </button>
+              </motion.button>
             )}
           </div>
           {/* Navigation */}

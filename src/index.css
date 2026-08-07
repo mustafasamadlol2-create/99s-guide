@@ -256,26 +256,78 @@
 .sidebar-toggle {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  /* Smooth background colour on hover/focus — compositor-friendly */
+  transition: background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-/* Chevron rotation: transform is compositor-only — stays smooth on iOS. */
+/* Ripple glow layer — fades in on hover via the ::before pseudo */
+.sidebar-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(99,102,241,0.18) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.sidebar-toggle:hover::before {
+  opacity: 1;
+  transform: scale(1.15);
+}
+.dark .sidebar-toggle::before {
+  background: radial-gradient(circle at center, rgba(255,255,255,0.12) 0%, transparent 70%);
+}
+
+/* Chevron rotation: spring-like overshoot cubic-bezier makes it feel physical.
+   translate3d + rotate keeps everything on the GPU compositor. */
 .sidebar-toggle-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translate3d(0, 0, 0) rotate(0deg);
-  transition: transform 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* Base: pointing left (expanded) */
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  /* cubic-bezier(0.34, 1.56, 0.64, 1) → subtle spring overshoot, feels native */
+  transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .sidebar-toggle-icon-collapsed {
-  transform: translate3d(0, 0, 0) rotate(180deg);
+  /* Pointing right (collapsed) — 180° rotation with spring overshoot */
+  transform: translate3d(0, 0, 0) rotate(180deg) scale(1);
+}
+
+/* Sidebar shell: smooth width glide when expanding/collapsing.
+   will-change: width tells WebKit to promote this element ahead of time.
+   380ms with a fast-out-slow-in curve mirrors iOS panel animations. */
+.sidebar-shell {
+  transition: width 340ms cubic-bezier(0.4, 0, 0.2, 1),
+              flex-basis 340ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+/* Brand text: timed to land just as the sidebar width settles */
+.sidebar-brand {
+  overflow: hidden;
+  transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1) 60ms,
+              transform 280ms cubic-bezier(0.34, 1.2, 0.64, 1) 40ms;
+  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-brand,
-  .sidebar-toggle-icon {
-    transition-duration: 1ms;
+  .sidebar-toggle-icon,
+  .sidebar-toggle,
+  .sidebar-toggle::before,
+  .sidebar-shell {
+    transition-duration: 1ms !important;
   }
 }
 
