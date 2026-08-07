@@ -108,6 +108,13 @@ const SAFETY_MS    = 8_000;
 const EXIT_DUR     =  460;
 const EXIT_EASE    = "cubic-bezier(0.4,0,1,1)"; // ease-in: decisive exit
 
+type TimerHandle = ReturnType<typeof setTimeout>;
+
+// Unlike Date.now(), performance.now() is monotonic and is not affected by
+// system-clock changes while the launch screen is visible.
+const getMonotonicTime = () =>
+  typeof performance !== "undefined" ? performance.now() : Date.now();
+
 /* ─── Theme (captured once at module load) ─────────────────────────────────── */
 
 const _dark = typeof document !== "undefined"
@@ -233,12 +240,36 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
   const wrapperRef    = useRef<HTMLDivElement>(null);
   const exitCalledRef = useRef(false);
   const isReadyRef    = useRef(false);
-  const startRef      = useRef(Date.now());
+  const exitScheduledRef = useRef(false);
+  const startRef      = useRef(getMonotonicTime());
+  const exitCheckTimerRef = useRef<TimerHandle | null>(null);
+  const exitTimerRef = useRef<TimerHandle | null>(null);
+  const exitAnimationRef = useRef<Animation | null>(null);
+  const exitFrameRef = useRef<number | null>(null);
+  const exitFrame2Ref = useRef<number | null>(null);
   // Ref keeps the callback fresh without re-running the effect.
   const onDoneRef     = useRef(onDone);
   onDoneRef.current   = onDone;
 
   useEffect(() => {
+    function clearPendingExitWork() {
+      if (exitCheckTimerRef.current !== null) {
+        clearTimeout(exitCheckTimerRef.current);
+        exitCheckTimerRef.current = null;
+      }
+      if (exitTimerRef.current !== null) {
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
+      }
+      if (exitFrameRef.current !== null) {
+        cancelAnimationFrame(exitFrameRef.current);
+        exitFrameRef.current = null;
+      }
+      if (exitFrame2Ref.current !== null) {
+        cancelAnimationFrame(exitFrame2Ref.current);
+        exitFrame2Ref.current = null;
+      }
+    }
 
     /* doExit ──────────────────────────────────────────────────────────────────
        One WAAPI call animates opacity + transform in the same keyframe array.
@@ -250,6 +281,8 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
     function doExit() {
       if (exitCalledRef.current) return;
       exitCalledRef.current = true;
+      exitScheduledRef.current = true;
+      clearPendingExitWork();
 
       const el = wrapperRef.current;
       if (!el) { onDoneRef.current(); return; }
@@ -270,8 +303,12 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
             composite: "replace",
           } as KeyframeAnimationOptions,
         );
+        exitAnimationRef.current = anim;
         // Commit final state in case the browser silently drops fill:"forwards".
-        anim.onfinish = () => { el.style.opacity = "0"; };
+        anim.onfinish = () => {
+          exitAnimationRef.current = null;
+          el.style.opacity = "0";
+        };
       } catch {
         // Fallback: CSS transition (no scale on reduced-motion or old WebKit).
         el.style.transition = `opacity ${dur}ms ease-in, transform ${dur}ms ease-in`;
@@ -279,7 +316,10 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
         if (!_rm) el.style.transform = "scale(1.05) translateZ(0)";
       }
 
-      setTimeout(() => onDoneRef.current(), dur);
+      exitTimerRef.current = setTimeout(() => {
+        exitTimerRef.current = null;
+        onDoneRef.current();
+      }, dur);
     }
 
     /* maybeExit ───────────────────────────────────────────────────────────────
@@ -287,10 +327,29 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
        doExit.  The double rAF guarantees the app content beneath the splash
        has been composited before the fade begins — no single-frame white gap.  */
     function maybeExit() {
-      if (!isReadyRef.current) return;
-      const remaining = MIN_SHOW_MS - (Date.now() - startRef.current);
-      if (remaining > 0) { setTimeout(maybeExit, remaining); return; }
-      requestAnimationFrame(() => requestAnimationFrame(doExit));
+      if (
+        !isReadyRef.current ||
+        exitCalledRef.current ||
+        exitScheduledRef.current
+      ) return;
+
+      const remaining = MIN_SHOW_MS - (getMonotonicTime() - startRef.current);
+      if (remaining > 0) {
+        exitCheckTimerRef.current = setTimeout(() => {
+          exitCheckTimerRef.current = null;
+          maybeExit();
+        }, remaining);
+        return;
+      }
+
+      exitScheduledRef.current = true;
+      exitFrameRef.current = requestAnimationFrame(() => {
+        exitFrameRef.current = null;
+        exitFrame2Ref.current = requestAnimationFrame(() => {
+          exitFrame2Ref.current = null;
+          doExit();
+        });
+      });
     }
 
     /* Listeners ───────────────────────────────────────────────────────────── */
@@ -320,7 +379,7 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
       if (
         document.visibilityState === "visible" &&
         !exitCalledRef.current &&
-        Date.now() - startRef.current >= MIN_SHOW_MS
+        getMonotonicTime() - startRef.current >= MIN_SHOW_MS
       ) doExit();
     }
     document.addEventListener("visibilitychange", onVisibility);
@@ -330,6 +389,9 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisibility);
       clearTimeout(safetyTimer);
+      clearPendingExitWork();
+      exitAnimationRef.current?.cancel();
+      exitAnimationRef.current = null;
     };
   }, []); // empty deps — every mutable value lives in a ref
 
