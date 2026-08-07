@@ -3171,7 +3171,7 @@ export default function App() {
     return (
       <Suspense
         fallback={
-          <div className="h-[100svh] w-full flex flex-col flex items-center justify-center bg-[#F8F9FC] dark:bg-[#000000]">
+          <div className="h-full w-full flex flex-col flex items-center justify-center bg-[#F8F9FC] dark:bg-[#000000]">
             <DashboardSkeleton />
           </div>
         }
@@ -3184,7 +3184,7 @@ export default function App() {
   if (bannedInfo) {
     return (
       <Suspense fallback={
-        <div className="min-h-[100svh] w-full bg-[#0a0a0b] flex items-center justify-center">
+        <div className="min-h-full w-full bg-[#0a0a0b] flex items-center justify-center">
           <DashboardSkeleton />
         </div>
       }>
@@ -3202,11 +3202,11 @@ export default function App() {
   if (!currentUser) {
     return (
       <div 
-        className="h-[100svh] w-full flex flex-col bg-[#F8F9FC] dark:bg-[#000000] selection:bg-med-gold/20 relative"
+        className="h-full w-full flex flex-col bg-[#F8F9FC] dark:bg-[#000000] selection:bg-med-gold/20 relative"
       >
         <Suspense
           fallback={
-            <div className="h-[100svh] w-full flex flex-col flex items-center justify-center bg-[#F8F9FC] dark:bg-[#000000]">
+            <div className="h-full w-full flex flex-col flex items-center justify-center bg-[#F8F9FC] dark:bg-[#000000]">
               <DashboardSkeleton />
             </div>
           }
@@ -3238,7 +3238,7 @@ export default function App() {
 
   return (
     <div
-      className={`h-[100svh] max-h-[100svh] w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden`}
+      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden`}
       style={{
         fontSize: `${textScale}rem`,
       }}
@@ -3260,7 +3260,7 @@ export default function App() {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-[100svh] max-h-[100svh] select-none z-30 justify-between overflow-hidden relative`}
+        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
         style={{
           width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
@@ -3477,7 +3477,7 @@ export default function App() {
         </div>
       </aside>
       {/* Main Content Workspace wrapper */}
-       <div className="flex-1 flex flex-col min-w-0 h-[100svh] max-h-[100svh] overflow-hidden relative">
+       <div className="flex-1 flex flex-col min-w-0 h-full max-h-full overflow-hidden relative">
         {/* 2. Main Content Canvas */}
         <main
           id="main-scroll-canvas"

@@ -480,6 +480,10 @@ body,
   left: 0;
   right: 0;
   bottom: 0;
+  /* Prevent any gap from exposing the browser's default (black) background.
+     Uses the same surface-grouped token as body so it matches the app theme
+     in both light (#f2f2f7) and dark (#000000) mode. */
+  background-color: var(--surface-grouped) !important;
 
   /* Strict overscroll control to prevent system rubber-banding and pull-to-refresh bounces */
   overscroll-behavior: none !important;
