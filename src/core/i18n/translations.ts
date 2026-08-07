@@ -77,7 +77,7 @@ const translations = {
     atTime: "at",
     openSchedule: "Open Schedule",
     dashboardRefreshed: "Dashboard Refreshed",
-    dailyMotto: "DAILY MOTTO",
+    dailyMotto: "TODAY'S MESSAGE",
     medSchool: "Med School",
     stage3: "Stage 3",
     batch99: "Batch 99",

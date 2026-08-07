@@ -261,7 +261,7 @@ export const ProfileView = function ProfileView({
                 )}
               </h1>
               <p className="text-[15px] text-neutral-500 dark:text-[#EBEBF599] mt-1 font-medium">
-                Medical Student
+                99
               </p>
               <p className="text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mt-0.5 font-mono">
                 {user.email}
@@ -342,7 +342,7 @@ export const ProfileView = function ProfileView({
  <SettingsItem Icon={Award}
  iconBg="bg-med-gold"
  title="Batch"
- value="Medical Student"
+ value="99"
  />
  <SettingsItem Icon={UserIcon}
  iconBg="bg-blue-500"

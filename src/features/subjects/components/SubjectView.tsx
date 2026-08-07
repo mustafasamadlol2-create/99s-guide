@@ -59,7 +59,6 @@ import { Language } from "../../../core/i18n/translations";
 import { motion, AnimatePresence } from "motion/react";
 import { useIsTouchDevice } from "../../../core/hooks/useIsTouchDevice";
 import { useDeviceProfile } from "../../../core/hooks/useDeviceProfile";
-import { usePullToRefresh } from "../../../core/hooks/usePullToRefresh";
 import { LectureListItem } from "../../../features/lectures/components/LectureListItem";
 import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 import { ContextMenu } from "../../../components/ui/ContextMenu";
@@ -241,10 +240,6 @@ export const SubjectView = function SubjectView({
     );
   }, [isRtl, showHapticToast]);
 
-  const { pullY, isRefreshing, containerRef } = usePullToRefresh({
-    onRefresh: handlePullRefresh,
-    triggerHeight: 75,
-  });
 
   // States representing current drill down level
   const [activeSubSubject, setActiveSubSubject] = useState<string | null>(
@@ -696,24 +691,7 @@ export const SubjectView = function SubjectView({
   }), []);
 
   return (
-    <div
-      ref={containerRef}
-      className="space-y-section pb-12 pr-1 relative"
-      style={{ transform: `translate3d(0, ${pullY}px, 0)`, transition: pullY === 0 ? "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)" : "none" }}
-    >
-      {/* Embedded rotating iOS spinner that reveals itself when pulling from top boundary */}
-      {pullY > 10 && (
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 z-[60] pointer-events-none">
-          <div
-            className={`w-icon-lg h-icon-lg border-[2.5px] border-neutral-400 dark:border-neutral-500 border-t-transparent rounded-full ${isRefreshing ? "animate-spin" : ""}`}
-            style={{
-              transform: isRefreshing ? undefined : `rotate(${pullY * 4}deg)`,
-              opacity: Math.min(1, pullY / 60),
-            }}
-          />
-        </div>
-      )}
-
+    <div className="space-y-section pb-12 pr-1 relative">
       {/* Apple-style Large Navigation Header */}
       <div className="mb-8 pt-3">
         <div className="flex items-center gap-1 mb-4 -ml-2">

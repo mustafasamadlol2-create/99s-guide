@@ -44,7 +44,7 @@ export default function UserRoleManagement({
 
  // Protected accounts whose roles can never be changed by anyone
  const PROTECTED_OWNER_EMAILS = [
-   "mostafa.samad24001@comed.uobaghdad.edu.iq",
+   "mostafa.yasir24001@comed.uobaghdad.edu.iq",
  ];
 
  // Whether the currently logged-in user has Primary Owner privileges

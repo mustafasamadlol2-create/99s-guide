@@ -26,7 +26,6 @@ import {
   Lecture,
 } from "../../../core/types";
 import { useIsTouchDevice } from "../../../core/hooks/useIsTouchDevice";
-import { usePullToRefresh } from "../../../core/hooks/usePullToRefresh";
 import { HapticFeedback } from "../../../core/device/haptic";
 import { useDeviceProfile } from "../../../core/hooks/useDeviceProfile";
 import { getEventIconInfo } from "../../../features/calendar/components/EventIcon";
@@ -856,22 +855,6 @@ const HomeDashboard = memo(function HomeDashboard({
     }, 2800);
   };
 
-  const handlePullRefresh = useCallback(async () => {
-    await fetchMottos();
-    if (!isMountedRef.current) return;
-    showHapticToast(
-      t("dashboardRefreshed"),
-      isRtl
-        ? "تمت مزامنة بيانات الحضور، لوحة الإعلانات، وأهدافك اليومية بنجاح."
-        : "Attendance rates, bulletin updates, and clinical objectives successfully synced.",
-    );
-  }, [fetchMottos, isRtl, t]);
-
-  const { pullY, isRefreshing, containerRef } = usePullToRefresh({
-    onRefresh: handlePullRefresh,
-    triggerHeight: 75,
-  });
-
     const progressMap = useMemo(() => {
     const map = new Map<string, UserProgress>();
     progress.forEach((p) => map.set(p.lectureId, p));
@@ -1106,24 +1089,7 @@ const HomeDashboard = memo(function HomeDashboard({
   }, [device]);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{ transform: `translate3d(0, ${pullY}px, 0)`, transition: pullY === 0 ? "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)" : "none" }}
-    >
-      {/* Embedded rotating iOS spinner that reveals itself when pulling from top boundary */}
-      {pullY > 10 && (
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 z-[60] pointer-events-none">
-          <div
-            className={`w-icon-lg h-icon-lg border-[2.5px] border-neutral-400 dark:border-neutral-500 border-t-transparent rounded-full ${isRefreshing ? "animate-spin" : ""}`}
-            style={{
-              transform: isRefreshing ? undefined : `rotate(${pullY * 4}deg)`,
-              opacity: Math.min(1, pullY / 60),
-            }}
-          />
-        </div>
-      )}
-
+    <div className="relative">
       <motion.div
         initial={{ opacity: 1 }}
         animate={{ opacity: 1 }}
