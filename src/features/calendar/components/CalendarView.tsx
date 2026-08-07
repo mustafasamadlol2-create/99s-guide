@@ -689,6 +689,8 @@ const CalendarView = memo(function CalendarView({
  </motion.button>
  );
  })}
+ </motion.div>
+ </div>
  </motion.div>}
 
  {activeView === "month" && (
@@ -750,7 +752,6 @@ const CalendarView = memo(function CalendarView({
  )}
  </motion.div>
  </div>
- </motion.div>
  </div>
 
  {/* TABLET / DESKTOP ARCHITECTURE (iPad/Mac Grid Perspective) */}
