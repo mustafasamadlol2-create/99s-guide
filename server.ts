@@ -4637,17 +4637,43 @@ app.get(["/auth/callback/:provider", "/auth/callback/:provider/"], catchAsync(as
             <p class="sub">Returning to the app automatically.</p>
           </div>
           <script>
-            // Web popup path: notify opener and self-close.
-            if (window.opener && !window.opener.closed) {
-              window.opener.postMessage(
-                { type: 'OAUTH_AUTH_SUCCESS', userId: '${user.id}', email: '${user.email}', token: '${token}' },
-                '*'
-              );
+            (function () {
+              var payload = {
+                type: 'OAUTH_AUTH_SUCCESS',
+                userId: '${user.id}',
+                email: '${user.email}',
+                token: '${token}'
+              };
+
+              // Popup path: notify the parent app window when opener is
+              // available (Chrome, Firefox, non-ITP Safari on desktop).
+              if (window.opener && !window.opener.closed) {
+                try { window.opener.postMessage(payload, '*'); } catch (e) {}
+              }
+
+              // ── Unconditional self-close ──────────────────────────────────
+              // window.close() is allowed for any window originally opened by
+              // window.open() — even on Safari ITP where window.opener is
+              // nullified after the popup navigates through accounts.google.com.
+              // The polling fallback in the app (pendingOAuthSessions) handles
+              // the session regardless of whether postMessage was delivered.
               window.close();
-            }
-            // Native Capacitor path: session is stored server-side.
-            // The app detects it via polling and calls Browser.close()
-            // automatically — no user action required.
+
+              // Safety net: if close() was blocked (rare, e.g. a window that
+              // wasn't opened by script), show a manual close prompt instead
+              // of navigating away. Triggered 800 ms after close() to give it
+              // time to take effect; document.hidden = true means it already
+              // closed successfully.
+              setTimeout(function () {
+                if (!document.hidden) {
+                  document.body.innerHTML =
+                    '<div style="font-family:-apple-system,sans-serif;text-align:center;padding:3rem 2rem;color:#1E2D4A">' +
+                    '<p style="font-size:1.1rem;font-weight:600;margin-bottom:.5rem">Signed in successfully</p>' +
+                    '<p style="color:#64748B;font-size:.875rem">You can close this window and return to the app.</p>' +
+                    '</div>';
+                }
+              }, 800);
+            })();
           </script>
         </body>
       </html>

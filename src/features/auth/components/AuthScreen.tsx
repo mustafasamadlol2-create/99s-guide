@@ -789,10 +789,18 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 // Update button to success BEFORE dispatching navigation
                 setSocialState(s => ({ ...s, [key]: "success" }));
 
-                // On native: programmatically close the in-app browser so the
-                // user never has to tap "Return to app" manually.
+                // Close the OAuth window regardless of platform:
+                // • Native: close the Capacitor in-app browser so the user
+                //   never has to tap "Return to app" manually.
+                // • Web popup: close the popup from the opener (main window)
+                //   to handle Safari ITP, where window.opener is nullified
+                //   after the popup navigates through a cross-origin site
+                //   (e.g. accounts.google.com). On Safari the callback page
+                //   cannot self-close reliably, so the main window must do it.
                 if (NativeBridge.isNativePlatform()) {
                   Browser.close().catch(() => {});
+                } else if (oauthPopup && !oauthPopup.closed) {
+                  try { oauthPopup.close(); } catch (_) {}
                 }
 
                 // App.tsx OAUTH_AUTH_SUCCESS listener sets the user session.

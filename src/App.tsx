@@ -2025,19 +2025,43 @@ export default function App() {
       }
 
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        const oauthToken: string | undefined = event.data.token;
         setIsInitializing(true);
-        if (event.data.token) {
-          // MUST await — apiClient reads auth_token immediately after this.
-          // Fire-and-forget was causing the /api/auth/me request to go out
-          // without the token, returning 401 and showing a false error.
-          await SecureStorage.set("auth_token", event.data.token);
+        if (oauthToken) {
+          // Persist token for all subsequent apiClient calls.
+          // Awaited so the Capacitor Preferences write is durable before
+          // the next SecureStorage.get() fires inside apiClient below.
+          await SecureStorage.set("auth_token", oauthToken);
         }
         try {
+          // ── Safari ITP guard ─────────────────────────────────────────────
+          // On iOS/iPadOS Safari, cookies set inside the OAuth popup (which
+          // navigated through a cross-origin site like accounts.google.com)
+          // are stored in a partitioned context that the main window's fetch
+          // cannot access within the same session.  The `SecureStorage.set`
+          // above writes to Capacitor Preferences (localStorage on web), but
+          // the async `Preferences.get` inside apiClient may return null if
+          // the write hasn't propagated through Capacitor's web layer.
+          //
+          // Fix: pass the OAuth token directly in the Authorization header so
+          // the server can authenticate via Bearer regardless of cookie/storage
+          // state.  This is safe — the same JWT is both the cookie and the
+          // token, so the server accepts either authentication path.
+          //
+          // Also note: `silent: true` suppresses `app-api-error` but NOT
+          // `app-session-expired`.  Passing an explicit token guarantees a 200
+          // response, preventing the session-expired event from firing during
+          // a valid OAuth completion and racing with state updates.
+          const authHeaders: Record<string, string> = oauthToken
+            ? { Authorization: `Bearer ${oauthToken}` }
+            : {};
+
           // Bypass in-memory deduplication cache: a prior unauthenticated
           // /api/auth/me request might still be in the pendingRequests map.
           const response = await apiClient("/api/auth/me", {
             bypassCache: true,
-            silent: true,   // suppress app-api-error / app-session-expired events
+            silent: true,
+            headers: authHeaders,
           });
           if (response.ok) {
             const data = await response.json();
