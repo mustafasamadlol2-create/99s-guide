@@ -4150,7 +4150,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=google&name=Google%20Student&email=google@uob.edu.iq&state=${stateValue}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=google&name=Google%20Student&email=google@comed.uobaghdad.edu.iq&state=${stateValue}`,
         message: "Google OAuth is ready, but Client ID is not configured yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
       });
@@ -4176,7 +4176,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=facebook&name=Facebook%20Student&email=facebook@uob.edu.iq&state=${stateValue}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=facebook&name=Facebook%20Student&email=facebook@comed.uobaghdad.edu.iq&state=${stateValue}`,
         message: "Facebook OAuth is ready, but App ID is not configured yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET"]
       });
@@ -4203,7 +4203,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
       return res.json({
         url: null,
         stateToken,
-        sandboxUrl: `/auth/callback/sandbox?provider=apple&name=Apple%20Student&email=apple@uob.edu.iq&state=${stateValue}`,
+        sandboxUrl: `/auth/callback/sandbox?provider=apple&name=Apple%20Student&email=apple@comed.uobaghdad.edu.iq&state=${stateValue}`,
         message: "Apple Sign-In is ready, but configuration variables are not set yet in your environment. Falling back to secure Developer Sandbox.",
         requiredVars: ["APPLE_CLIENT_ID", "APPLE_PRIVATE_KEY", "APPLE_TEAM_ID", "APPLE_KEY_ID"]
       });
@@ -4227,7 +4227,7 @@ app.get("/api/auth/oauth-url", (req, res) => {
 app.get("/auth/callback/sandbox", catchAsync(async (req, res) => {
   const provider = (req.query.provider as string || "Google");
   const name = (req.query.name as string || "OAuth Student");
-  const email = (req.query.email as string || "student@uob.edu.iq");
+  const email = (req.query.email as string || "student@comed.uobaghdad.edu.iq");
 
   // Parse state token and redirect-flow flag (same "r:" convention as real callback)
   const rawSandboxState = req.query.state as string | undefined;
