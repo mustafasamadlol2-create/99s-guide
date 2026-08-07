@@ -12,6 +12,9 @@
          crossorigin is required for same-origin font preload to match the CSS fetch. -->
     <link rel="preload" href="/fonts/Inter-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="high" />
     <link rel="preload" href="/fonts/Cairo-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="high" />
+    <!-- Preload the app icon used by the launch screen so the logo appears
+         on the very first frame — no blank square while the image loads. -->
+    <link rel="preload" href="/app_icon.jpg" as="image" fetchpriority="high" />
 
     <!-- PWA Web App Manifest & Branding -->
     <link rel="manifest" href="/manifest.json" />
@@ -30,7 +33,11 @@
     
   </head>
   <body>
-    <div id="root"></div>
+    <!-- #root fills the viewport. overflow:hidden prevents the native pull-to-
+         refresh and overscroll-bounce from revealing content underneath the
+         LaunchScreen on iOS Safari and Chrome Android during startup.
+         The app manages its own scroll inside dedicated overflow containers. -->
+    <div id="root" style="position:fixed;inset:0;overflow:hidden;"></div>
     <script>
       (function() {
         try {

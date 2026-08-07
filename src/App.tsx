@@ -1921,7 +1921,11 @@ export default function App() {
     // Attempt secure automatic session restoration from httpOnly cookie JWT
     const restoreSession = async () => {
       try {
-        const response = await apiClient("/api/auth/me");
+        const response = await apiClient("/api/auth/me", {
+          timeoutMs: 6000,  // fail fast on startup; default 15s × 3 retries = 45 s
+          retries:   0,     // no retry — local-cache fallback handles offline
+          silent:    true,  // don't fire app-api-error during initialization
+        });
         if (response.ok) {
           const data = await response.json();
           if (data.user) {
@@ -2086,8 +2090,13 @@ export default function App() {
 
   // --- Capacitor & Apple HIG Integrations ---
 
-  // 1. Splash Screen Concealer + launch screen signal
-  useEffect(() => {
+  // 1. Splash Screen Concealer + launch screen signal.
+  // useLayoutEffect fires synchronously after React commits the DOM — before
+  // the browser paints the new frame.  This means app-ready reaches the
+  // LaunchScreen in the same commit cycle that the initialized app content
+  // is stamped into the DOM, so there is zero extra frame of latency between
+  // "initialization done" and "splash begins to exit".
+  useLayoutEffect(() => {
     if (!isInitializing) {
       NativeBridge.hideSplashScreen().catch(() => {});
       // Signal the web launch screen to begin its exit transition.
@@ -2098,7 +2107,7 @@ export default function App() {
         new CustomEvent("app-ready", { detail: { hasSidebar } }),
       );
     }
-  }, [isInitializing]);  
+  }, [isInitializing]);
 
   // 2. Automated Idle Preloading (Routes & Warm API Cache Prefetching)
   useEffect(() => {
@@ -3084,23 +3093,19 @@ export default function App() {
     [language, currentUser],
   );
 
-  // --- Auth screen validation guard ---
+  // --- Initialization guard ---
+  // The LaunchScreen (z-index 9999) fully covers the app during startup.
+  // Return a stable background that exactly matches the splash screen color so
+  // there is no color flash if the two ever diverge in timing (e.g. bfcache
+  // restore, safety-timer exit, or very fast local-cache restore).
+  // Never show a skeleton / debug text here — it's always hidden by the launch
+  // screen and would flash through if exposed before the real UI is ready.
   if (isInitializing) {
     return (
-      <div className="min-h-[100svh] bg-[#F8F9FC] dark:bg-[#000000] text-[#1E2D4A] dark:text-white">
-        <div className="max-w-4xl mx-auto pt-16 px-4">
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <h1 className="text-title font-display font-medium text-neutral-800 dark:text-white uppercase flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-med-gold animate-pulse" />
-              Restoring Medical Database...
-            </h1>
-            <p className="text-caption font-mono text-neutral-500 dark:text-[#EBEBF599]">
-              ESTABLISHING LOCAL SYNERGY & OFFLINE PRE-CACHES
-            </p>
-          </div>
-          <DashboardSkeleton />
-        </div>
-      </div>
+      <div
+        className="fixed inset-0 bg-[#F5F1EC] dark:bg-[#111116]"
+        aria-hidden="true"
+      />
     );
   }
 

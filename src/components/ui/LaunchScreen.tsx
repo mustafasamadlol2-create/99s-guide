@@ -160,12 +160,17 @@ const _tagAnim = _rm
 // translateZ(0) is automatically promoted to its own GPU layer within this
 // context — the cheapest, most reliable way to guarantee compositor-driven
 // animation across iOS, macOS Safari, and Chrome.
+// `contain: layout style paint` isolates the launch screen from the rest of
+// the document so layout, style, and paint calculations for the underlying
+// app never interact with the splash — zero extra layout work per frame.
 const S_WRAPPER: React.CSSProperties = {
   backgroundColor:          BG,
   perspective:              "1000px",
   WebkitPerspective:        "1000px",
   willChange:               "transform, opacity",
   transformOrigin:          "50% 50%",
+  contain:                  "layout style paint",
+  WebkitOverflowScrolling:  "touch",
 };
 
 const S_GLOW: React.CSSProperties = {
