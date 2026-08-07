@@ -1,9 +1,15 @@
 import { getPrisma } from "./prismaClient.js";
+import crypto from "node:crypto";
 
+/**
+ * Public user record — deliberately excludes password_hash, reset_token, and
+ * reset_token_expires.  Those fields are managed exclusively through the
+ * dedicated methods below (getPasswordHash, storeResetToken, etc.) so they
+ * can never be accidentally serialised into an API response.
+ */
 export interface UserRecord {
   id: string;
   email: string;
-  password_hash: string;
   role: "admin" | "user" | "owner";
   name?: string;
   avatar?: string;
@@ -16,8 +22,27 @@ export interface UserRecord {
   lastActive?: string;
   created_at?: string;
   studentGroup?: string;
-  reset_token?: string;
-  reset_token_expires?: string;
+  accountStatus?: 'active' | 'banned';
+  isOnline?: boolean;
+}
+
+/** Input type for createUser — includes the password hash that must never appear in UserRecord. */
+interface CreateUserInput {
+  id: string;
+  email: string;
+  passwordHash?: string | null;
+  role?: "admin" | "user" | "owner";
+  name?: string;
+  avatar?: string | null;
+  avatarUrl?: string;
+  totalPoints?: number;
+  level?: string;
+  levelBadge?: string;
+  streakDays?: number;
+  totalTimeSpent?: number;
+  lastActive?: string;
+  created_at?: string;
+  studentGroup?: string;
   accountStatus?: 'active' | 'banned';
   isOnline?: boolean;
 }
@@ -52,9 +77,6 @@ interface CalendarEventRecord {
 }
 
 export class UserService {
-  // Temporary memory storage for passcodes/reset tokens to avoid schema changes
-  static resetTokens = new Map<string, { token: string; expires: string }>();
-
   // Callbacks for real-time socket events
   static onUpdate?: (user: any) => void;
   static onCreate?: (user: any) => void;
@@ -85,11 +107,9 @@ export class UserService {
         }).catch(err => console.error("Failed to auto-update owner role in findByEmail:", err));
       }
 
-      const resetInfo = UserService.resetTokens.get(u.id);
       return {
         id: u.id,
         email: u.email,
-        password_hash: u.passwordHash || "",
         role: (role === "admin" || role === "owner" ? role : "user") as "admin" | "user" | "owner",
         name: u.name || "",
         avatar: u.avatar || "",
@@ -104,10 +124,8 @@ export class UserService {
         accountStatus: u.accountStatus && u.accountStatus.toLowerCase() === "banned" ? "banned" : "active",
         isOnline: u.isOnline,
         studentGroup: u.studentGroup || "A",
-        reset_token: resetInfo ? resetInfo.token : undefined,
-        reset_token_expires: resetInfo ? resetInfo.expires : undefined
       };
-    } catch (err) { console.error("findById error:", err);
+    } catch (err) { console.error("findByEmail error:", err);
       return null;
     }
   }
@@ -137,11 +155,9 @@ export class UserService {
         }).catch(err => console.error("Failed to auto-update owner role in findById:", err));
       }
 
-      const resetInfo = UserService.resetTokens.get(u.id);
       return {
         id: u.id,
         email: u.email,
-        password_hash: u.passwordHash || "",
         role: (role === "admin" || role === "owner" ? role : "user") as "admin" | "user" | "owner",
         name: u.name || "",
         avatar: u.avatar || "",
@@ -156,16 +172,14 @@ export class UserService {
         accountStatus: u.accountStatus && u.accountStatus.toLowerCase() === "banned" ? "banned" : "active",
         isOnline: u.isOnline,
         studentGroup: u.studentGroup || "A",
-        reset_token: resetInfo ? resetInfo.token : undefined,
-        reset_token_expires: resetInfo ? resetInfo.expires : undefined
       };
     } catch (err) { console.error("findById error:", err);
       return null;
     }
   }
 
-  // Create new user (expects password_hash already hashed by AuthService)
-  static async createUser(user: Omit<UserRecord, "created_at"> & { created_at?: string }): Promise<UserRecord> {
+  // Create new user (expects passwordHash already hashed by AuthService)
+  static async createUser(user: CreateUserInput): Promise<UserRecord> {
     const client = getPrisma();
     const cleanEmail = user.email.trim().toLowerCase();
     
@@ -173,7 +187,7 @@ export class UserService {
       data: {
         id: user.id,
         email: cleanEmail,
-        passwordHash: user.password_hash,
+        passwordHash: user.passwordHash ?? null,
         role: user.role || "user",
         name: user.name || cleanEmail.split("@")[0],
         avatar: user.avatarUrl || user.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=150&q=80",
@@ -191,17 +205,9 @@ export class UserService {
       }
     });
 
-    if (user.reset_token !== undefined) {
-      UserService.resetTokens.set(u.id, {
-        token: user.reset_token || "",
-        expires: user.reset_token_expires || ""
-      });
-    }
-
     const createdUserRecord = {
       id: u.id,
       email: u.email,
-      password_hash: u.passwordHash || "",
       role: (u.role === "admin" || u.role === "owner" ? u.role : "user") as "admin" | "user" | "owner",
       name: u.name || "",
       avatar: u.avatar || "",
@@ -215,8 +221,6 @@ export class UserService {
       created_at: u.createdAt ? u.createdAt.toISOString() : new Date().toISOString(),
       accountStatus: (u.accountStatus && u.accountStatus.toLowerCase() === "banned" ? "banned" : "active") as "active" | "banned",
       isOnline: u.isOnline,
-      reset_token: user.reset_token,
-      reset_token_expires: user.reset_token_expires
     };
 
     setTimeout(() => {
@@ -235,7 +239,6 @@ export class UserService {
     const client = getPrisma();
     const updateData: any = {};
     if (user.email !== undefined) updateData.email = user.email.trim().toLowerCase();
-    if (user.password_hash !== undefined) updateData.passwordHash = user.password_hash;
     if (user.role !== undefined) updateData.role = user.role;
     if (user.name !== undefined) updateData.name = user.name;
     if (user.avatar !== undefined || user.avatarUrl !== undefined) {
@@ -260,21 +263,9 @@ export class UserService {
       data: updateData
     });
 
-    if (user.reset_token !== undefined) {
-      if (!user.reset_token) {
-        UserService.resetTokens.delete(user.id);
-      } else {
-        UserService.resetTokens.set(user.id, {
-          token: user.reset_token,
-          expires: user.reset_token_expires || ""
-        });
-      }
-    }
-
     const updatedUserRecord = {
       id: u.id,
       email: u.email,
-      password_hash: u.passwordHash || "",
       role: (u.role === "admin" || u.role === "owner" ? u.role : "user") as "admin" | "user" | "owner",
       name: u.name || "",
       avatar: u.avatar || "",
@@ -311,8 +302,6 @@ export class UserService {
         client.user.delete({ where: { id: userId } })
       ]);
 
-      UserService.resetTokens.delete(userId);
-
       setTimeout(() => {
         try {
           UserService.onDelete?.(userId);
@@ -328,7 +317,7 @@ export class UserService {
   }
 
   // Fetch all users with basic metrics
-  static async listAllUsers(includeSensitive = false): Promise<any[]> {
+  static async listAllUsers(): Promise<any[]> {
     const client = getPrisma();
     const allUsers = await client.user.findMany({
       take: 1000,
@@ -343,7 +332,6 @@ export class UserService {
       const completedLectCount = progressList.filter((p: any) => p.pdfCompleted === true).length;
       const completedQuizzesCount = progressList.filter((p: any) => p.quizCompleted === true).length;
 
-      const resetInfo = UserService.resetTokens.get(u.id);
       const mapped = {
         id: u.id,
         name: u.name || "",
@@ -374,11 +362,6 @@ export class UserService {
         }))
       };
 
-      if (includeSensitive) {
-        (mapped as any).password_hash = u.passwordHash || "";
-        (mapped as any).reset_token = resetInfo ? resetInfo.token : undefined;
-        (mapped as any).reset_token_expires = resetInfo ? resetInfo.expires : undefined;
-      }
       list.push(mapped);
     }
 
@@ -530,6 +513,67 @@ export class UserService {
     } catch (err) { console.error("findById error:", err);
       // Ignore if does not exist
     }
+  }
+
+  // ── Auth-only methods — password hash is NEVER part of UserRecord ────────────
+
+  /** Returns the bcrypt hash stored for a user, or null if the account has no password (OAuth-only). */
+  static async getPasswordHash(userId: string): Promise<string | null> {
+    const client = getPrisma();
+    const row = await client.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    return row?.passwordHash ?? null;
+  }
+
+  /** Directly sets a bcrypt password hash (used after password reset). */
+  static async setPasswordHash(userId: string, hash: string): Promise<void> {
+    const client = getPrisma();
+    await client.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+  }
+
+  // ── Password reset token management (DB-persisted, SHA-256 hashed) ──────────
+
+  private static hashResetToken(plaintext: string): string {
+    return crypto.createHash("sha256").update(plaintext).digest("hex");
+  }
+
+  /**
+   * Stores a new password-reset token in the database.
+   * Previous unused tokens for the same user are deleted first (one active token per user).
+   * The plaintext token is hashed with SHA-256 before storage — the DB never sees the raw token.
+   */
+  static async storeResetToken(userId: string, plaintextToken: string, expiresAt: Date): Promise<void> {
+    const client = getPrisma();
+    const tokenHash = UserService.hashResetToken(plaintextToken);
+    // Invalidate any previous unused tokens for this user
+    await client.passwordResetToken.deleteMany({ where: { userId, usedAt: null } });
+    await client.passwordResetToken.create({ data: { userId, tokenHash, expiresAt } });
+  }
+
+  /**
+   * Verifies and atomically consumes a reset token, then updates the password.
+   * Returns `true` on success, `false` if the token is missing, expired, or already used.
+   * The entire operation runs in a DB transaction to prevent race conditions.
+   */
+  static async verifyAndConsumeResetToken(
+    userId: string,
+    plaintextToken: string,
+    newPasswordHash: string,
+  ): Promise<boolean> {
+    const client = getPrisma();
+    const tokenHash = UserService.hashResetToken(plaintextToken);
+
+    const record = await client.passwordResetToken.findFirst({
+      where: { userId, tokenHash, usedAt: null },
+    });
+    if (!record) return false;
+    if (record.expiresAt < new Date()) return false;
+
+    // Mark token used and update password in a single atomic transaction
+    await client.$transaction([
+      client.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      client.user.update({ where: { id: userId }, data: { passwordHash: newPasswordHash } }),
+    ]);
+    return true;
   }
 
   // Get full client-side view object for syncing

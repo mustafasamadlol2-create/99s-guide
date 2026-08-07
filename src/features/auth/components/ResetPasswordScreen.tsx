@@ -286,7 +286,8 @@ export default function ResetPasswordScreen() {
                       spellCheck={false}
                       autoCapitalize="none"
                       autoCorrect="off"
-                      placeholder="At least 6 characters"
+                      maxLength={128}
+                      placeholder="6–128 characters"
                       onChange={(e) => setPassword(e.target.value)}
                       icon={<Lock className="w-icon-sm h-icon-sm" />}
                       motionVariants={FIELD_V as any}
@@ -306,6 +307,7 @@ export default function ResetPasswordScreen() {
                       spellCheck={false}
                       autoCapitalize="none"
                       autoCorrect="off"
+                      maxLength={128}
                       placeholder="Re-enter password"
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       icon={<Lock className="w-icon-sm h-icon-sm" />}

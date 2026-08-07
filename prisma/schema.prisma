@@ -45,6 +45,7 @@ model User {
   bansReceived                  UserBan[]            @relation("BansReceived")
   moderationActionsGiven        ModerationHistory[]  @relation("HistoryByAdmin")
   moderationActionsReceived     ModerationHistory[]  @relation("HistoryForTarget")
+  passwordResetTokens           PasswordResetToken[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -341,6 +342,18 @@ model Report {
   @@index([commentId])
   @@index([status])
   @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
 }
 
 model ModerationHistory {

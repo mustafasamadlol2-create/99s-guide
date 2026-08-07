@@ -310,6 +310,8 @@ app.use("/api/auth/otp", authLimiter);
 // state-token farming and callback replay / brute-force attempts.
 app.use("/api/auth/oauth-url", authLimiter);
 app.use("/auth/callback", authLimiter);
+// Protect the native Capacitor polling endpoint against brute-force enumeration.
+app.use("/api/auth/oauth-session", authLimiter);
 
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -324,6 +326,30 @@ app.use("/api/roster", adminLimiter);
 app.use("/api/admin", adminLimiter);
 app.use("/api/users/role", adminLimiter);
 app.use("/api/mottos", adminLimiter);
+
+// ── CSRF protection via custom request header ─────────────────────────────────
+// Requires X-Requested-With on every non-safe API request.
+// Safe methods (GET/HEAD/OPTIONS) are exempt — they don't mutate state.
+// OAuth provider callbacks live under /auth/ (not /api/), so they're also exempt.
+//
+// Why this works:
+//   1. HTML form submissions and cross-origin redirected POSTs cannot set custom
+//      headers, so they will always be rejected here.
+//   2. Cross-origin XHR/fetch that does include the header must first pass a CORS
+//      preflight.  In production, our CORS whitelist rejects non-approved origins,
+//      so the preflight fails and the browser never sends the credentialed request.
+//   3. All apiClient calls (frontend) now set this header automatically.
+//   4. The native Capacitor polling path (GET /api/auth/oauth-session/:token) is
+//      a GET, so it is exempt.  The token response there is the intentional
+//      carve-out for native — no cookie is available in Capacitor's WebView.
+function requireXRequestedWith(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+  if (!req.headers["x-requested-with"]) {
+    return res.status(403).json({ error: "Forbidden: missing X-Requested-With header." });
+  }
+  next();
+}
+app.use("/api/", requireXRequestedWith);
 
 
 // ── Pending OAuth sessions (native Capacitor polling mechanism) ──────────────
@@ -810,11 +836,11 @@ async function initializeSystem() {
       // Use ADMIN_INITIAL_PASSWORD env var; fall back to a random secret that
       // forces the owner to use the password-reset flow on first login.
       const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD || crypto.randomBytes(20).toString("hex");
-      const password_hash = await AuthService.hashPassword(initialAdminPassword);
+      const passwordHash = await AuthService.hashPassword(initialAdminPassword);
       await UserService.createUser({
         id: "admin_ss70",
         email: adminEmail,
-        password_hash,
+        passwordHash,
         role: "owner",
         name: "Academic Board Owner",
         avatar: "",
@@ -4926,10 +4952,12 @@ app.post("/api/auth/login", catchAsync(async (req, res) => {
           await logModerationAction(prismaClient, { actionType: "BAN_EXPIRED", targetUserId: validatedUser.id, isSystemAction: true, metadata: { expiredAt: new Date().toISOString(), trigger: "login" } });
         }
       }
-      const token = setCookieToken(res, validatedUser.id, validatedUser.email);
+      setCookieToken(res, validatedUser.id, validatedUser.email);
       authMonitor.loginSuccess(validatedUser.id, req.ip);
       const fullData = await UserService.getFullUserData(validatedUser.id);
-      return res.json({ success: true, token, ...fullData });
+      // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
+      // The native Capacitor path reads the token from /api/auth/oauth-session (see that endpoint).
+      return res.json({ success: true, ...fullData });
     } catch (authError: any) {
       authMonitor.loginFailed(cleanEmail.substring(0, 3) + "***", req.ip, "invalid_credentials");
       return res.status(401).json({ error: "Invalid email or password." });
@@ -5004,10 +5032,11 @@ app.post("/api/auth/register", catchAsync(async (req, res) => {
         studentGroup: studentGroup
       });
 
-      const token = setCookieToken(res, freshUser.id, freshUser.email);
+      setCookieToken(res, freshUser.id, freshUser.email);
       authMonitor.registrationSuccess(freshUser.id, req.ip);
       const fullData = await UserService.getFullUserData(freshUser.id);
-      return res.json({ success: true, token, ...fullData });
+      // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
+      return res.json({ success: true, ...fullData });
     } catch (regError: any) {
       authMonitor.registrationFailed(req.ip, regError.message || "unknown");
       return res.status(400).json({ error: regError.message || "Registration failed." });
@@ -5041,6 +5070,19 @@ app.post("/api/auth/self-delete", requireUser, catchAsync(async (req: any, res) 
     if (req.user.email?.toLowerCase().trim() === "ss70eng1@gmail.com") {
       return res.status(403).json({ error: "Forbidden: Primary Academic Owner cannot be deleted." });
     }
+
+    // Re-authentication required: prevents session-theft and CSRF from silently
+    // deleting an account even when both protections are in place.
+    const { currentPassword } = req.body;
+    if (!currentPassword || typeof currentPassword !== "string") {
+      return res.status(400).json({ error: "Current password is required to delete your account." });
+    }
+    try {
+      await AuthService.authenticateUser(req.user.email, currentPassword);
+    } catch {
+      return res.status(401).json({ error: "Incorrect password. Account deletion cancelled." });
+    }
+
     const success = await UserService.deleteUser(userId);
     if (!success) {
       return res.status(404).json({ error: "User record not found in central database." });
@@ -5063,8 +5105,9 @@ app.post("/api/auth/refresh", requireUser, catchAsync(async (req, res) => {
   try {
     const authUser = (req as any).user;
     // Issue refreshed cookie with extended 30-day lifetime
-    const token = setCookieToken(res, authUser.id, authUser.email);
-    return res.json({ success: true, token, user: authUser });
+    setCookieToken(res, authUser.id, authUser.email);
+    // Token intentionally omitted from JSON — session is carried by httpOnly cookie only.
+    return res.json({ success: true, user: authUser });
   } catch (err) {
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -5097,18 +5140,19 @@ app.post("/api/auth/forgot-password", catchAsync(async (req, res) => {
 
     // Generate secure reset token
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins expiration
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiration
 
-    // Save token coordinates to the student's node
-    await UserService.updateUser({
-      id: user.id,
-      reset_token: token,
-      reset_token_expires: expires
-    });
+    // Persist the token (SHA-256 hashed) to the database — survives server restarts
+    await UserService.storeResetToken(user.id, token, expiresAt);
 
-    // Formulate the recovery link
-    const clientOrigin = req.get("origin") || `${req.protocol}://${req.get("host")}`;
-    const resetLink = `${clientOrigin}/reset-password?token=${token}&email=${encodeURIComponent(cleanEmail)}`;
+    // Build the reset URL from APP_URL env var so it cannot be poisoned via
+    // a spoofed Origin/Host header from a misconfigured reverse proxy.
+    const appBaseUrl = process.env.APP_URL?.replace(/\/$/, "") || (() => {
+      logger.warn("AUTH", "APP_URL env var is not set; falling back to request host for reset link. " +
+        "Set APP_URL to the canonical production URL to prevent host-header poisoning.");
+      return `https://${req.get("host")}`;
+    })();
+    const resetLink = `${appBaseUrl}/reset-password?token=${token}&email=${encodeURIComponent(cleanEmail)}`;
 
     
     // Call raw SMTP delivery
@@ -5137,56 +5181,44 @@ app.post("/api/auth/forgot-password", catchAsync(async (req, res) => {
 
 // Reset Password: Exchange secure token for a fresh hashed password
 app.post("/api/auth/reset-password", catchAsync(async (req, res) => {
+  // Generic error used for ALL failure cases — prevents user-enumeration attacks.
+  // An attacker cannot distinguish "email not found", "token expired", or "token invalid"
+  // from each other via this endpoint.
+  const GENERIC_FAIL = "Reset link is invalid or has expired. Please request a new one.";
+
   try {
     const { email, token, password } = req.body;
     if (!email || typeof email !== "string" || !token || typeof token !== "string" || !password || typeof password !== "string") {
-      return res.status(400).json({ error: "Missing or invalid parameters: email, authorization token, or new credentials." });
+      return res.status(400).json({ error: "Missing or invalid parameters." });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "New password must be at least 6 characters long." });
     }
+    // Mirror the same max-length cap enforced during registration to prevent bcrypt DoS.
+    if (password.length > 128) {
+      return res.status(400).json({ error: "Password must be under 128 characters." });
+    }
 
     const cleanEmail = email.trim().toLowerCase();
     if (!validateEmail(cleanEmail)) {
-      return res.status(400).json({ error: "Invalid academic email format." });
+      return res.status(400).json({ error: GENERIC_FAIL });
     }
 
     const user = await UserService.findByEmail(cleanEmail);
-
     if (!user) {
-      return res.status(400).json({ error: "No student matching that academic address exists in this node." });
+      // Indistinguishable from token-invalid so an attacker cannot enumerate emails.
+      return res.status(400).json({ error: GENERIC_FAIL });
     }
 
-    // Timing-safe comparison prevents timing attacks that could reveal whether
-    // a given reset token exists in the system via response-time differences.
-    const storedToken  = user.reset_token  ?? "";
-    const suppliedToken = typeof token === "string" ? token : "";
-    const lengthMatch  = storedToken.length === suppliedToken.length;
-    const tokenValid   = lengthMatch && storedToken.length > 0 &&
-      crypto.timingSafeEqual(Buffer.from(storedToken), Buffer.from(suppliedToken));
-    if (!tokenValid) {
-      return res.status(400).json({ error: "The provided reset token is invalid or has already been used." });
+    // Hash the new password and atomically verify + consume the token in one DB transaction.
+    // verifyAndConsumeResetToken returns false for missing, expired, or already-used tokens.
+    const newPasswordHash = await AuthService.hashPassword(password);
+    const ok = await UserService.verifyAndConsumeResetToken(user.id, token, newPasswordHash);
+    if (!ok) {
+      return res.status(400).json({ error: GENERIC_FAIL });
     }
 
-    // Check expiration securely
-    const expiresDate = user.reset_token_expires ? new Date(user.reset_token_expires) : null;
-    if (!expiresDate || expiresDate.getTime() < Date.now()) {
-      return res.status(400).json({ error: "The reset authorization token has expired (15-minute time limit)." });
-    }
-
-    // Hash the new password using central AuthService
-    const password_hash = await AuthService.hashPassword(password);
-
-    // Update the record: change password and wipe the token for single-use guarantee
-    await UserService.updateUser({
-      id: user.id,
-      password_hash,
-      reset_token: "",
-      reset_token_expires: ""
-    });
-
-
-    return res.json({ success: true, message: "Your academic password has been successfully updated." });
+    return res.json({ success: true, message: "Your password has been successfully updated." });
   } catch (error: any) {
     console.error("Reset password API fault:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     res.status(500).json({ error: "Internal Server Error" });
@@ -5320,7 +5352,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     if (!existing) {
       // Create user context immediately in SQL relational database
       const safePassword = user?.password || "123456";
-      const password_hash = await AuthService.hashPassword(safePassword);
+      const passwordHash = await AuthService.hashPassword(safePassword);
       
       const parsedPoints = Number(user?.totalPoints || 10);
       const safePoints = (!isNaN(parsedPoints) && parsedPoints >= 0) ? parsedPoints : 10;
@@ -5328,7 +5360,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       existing = await UserService.createUser({
         id: userId,
         email: (user?.email || `student_${Date.now()}@uob.edu.iq`).toLowerCase().trim(),
-        password_hash,
+        passwordHash,
         role: user?.isAdmin ? "admin" : "user",
         name: user?.name || "Student 99",
         avatar: user?.avatar,
@@ -5765,7 +5797,7 @@ app.get("/api/progress/:userId/:materialId", requireUser, catchAsync(async (req,
 // GET full list of all students for the admin roster panel (excluding sensitive fields)
 app.get("/api/roster", requireOwner, catchAsync(async (req, res) => {
   try {
-    const list = await UserService.listAllUsers(false);
+    const list = await UserService.listAllUsers();
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: "Internal Server Error" });

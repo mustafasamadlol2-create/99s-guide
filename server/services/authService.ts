@@ -40,15 +40,14 @@ export class AuthService {
     if (!data.password) {
       throw new Error("A password is required to register an account.");
     }
-    const passwordToHash = data.password;
-    const password_hash = await AuthService.hashPassword(passwordToHash);
+    const passwordHash = await AuthService.hashPassword(data.password);
 
     // UUIDs prevent concurrent sign-ups from generating the same ID.
     const userId = `usr_${randomUUID()}`;
     const newUser = await UserService.createUser({
       id: userId,
       email: cleanEmail,
-      password_hash,
+      passwordHash,
       role: role || "user",
       name: name || cleanEmail.split("@")[0].replace(".", " "),
       studentGroup: data.studentGroup || "A",
@@ -87,15 +86,19 @@ export class AuthService {
       throw new Error("Incorrect email address or candidate credentials.");
     }
 
-    // If password exists, perform secure hash matching
-    if (password) {
-      const match = await AuthService.verifyPassword(password, user.password_hash);
-      if (!match) {
-        throw new Error("Incorrect password or security credentials.");
-      }
-    } else {
-      // If we require password strictly, throw error
+    if (!password) {
       throw new Error("Password verification is required.");
+    }
+
+    // Fetch the password hash directly from DB — it is never included in UserRecord
+    const hash = await UserService.getPasswordHash(user.id);
+    if (!hash) {
+      // OAuth-only account — no password set
+      throw new Error("Incorrect password or security credentials.");
+    }
+    const match = await AuthService.verifyPassword(password, hash);
+    if (!match) {
+      throw new Error("Incorrect password or security credentials.");
     }
 
     // Refresh last active timestamp

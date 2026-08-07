@@ -290,9 +290,9 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         // Set the shared ref immediately so the popup-closed interval cannot
         // fire onOAuthFailed() after the popup self-closes post-postMessage.
         oauthCompletedRef.current = true;
-        if (popupClosedCheckRef.current !== null) {
-          clearInterval(popupClosedCheckRef.current);
-          popupClosedCheckRef.current = null;
+        if (popupClosedIntervalRef.current !== null) {
+          clearInterval(popupClosedIntervalRef.current);
+          popupClosedIntervalRef.current = null;
         }
         // Mark the active button as completed
         setSocialState((s) => {
@@ -1462,6 +1462,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                             value={password}
                             required
                             autoFocus
+                            maxLength={128}
                             autoComplete="new-password"
                             dir="ltr"
                             placeholder="At least 6 characters"
@@ -1479,6 +1480,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                             id="register-confirm-password-input"
                             value={confirmPassword}
                             required
+                            maxLength={128}
                             autoComplete="new-password"
                             dir="ltr"
                             spellCheck={false}
@@ -1733,6 +1735,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       required
+                      maxLength={128}
                       autoComplete="current-password"
                       autoCapitalize="none"
                       autoCorrect="off"

@@ -143,6 +143,11 @@ export async function apiClient(
   
     const mergedHeaders = new Headers(headers);
     mergedHeaders.set("Accept", "application/json");
+    // CSRF protection: this custom header triggers a CORS preflight for cross-origin
+    // requests, which the server rejects for non-whitelisted origins in production.
+    // It also lets the server reject credential-bearing state-changing requests that
+    // arrive without JavaScript (e.g. HTML form submissions, cross-origin redirects).
+    mergedHeaders.set("X-Requested-With", "XMLHttpRequest");
     // Strictly prevent browser and proxy caching to guarantee latest data
     if (bypassCache) {
       mergedHeaders.set("Cache-Control", "no-cache");
