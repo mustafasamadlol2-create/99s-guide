@@ -479,19 +479,27 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     const key = provider.toLowerCase();
     setError("");
 
-    // ── Apple: not supported — show institutional-restriction notice ──────────
-    // Apple Sign-In requires developer credentials not yet configured.
-    // Rather than opening a broken flow, show the restriction message and return.
+    // ── Apple: show domain-restriction notice popup (no red error box) ───────
+    // Apple Sign-In requires unconfigured developer credentials.
+    // Open a small centred popup with the same amber domain-restriction page
+    // that appears when an unauthorized Google account tries to sign in.
+    // The popup auto-closes after 4.5 s; no postMessage is sent back.
     if (key === "apple") {
       setSocialState(s => ({ ...s, apple: "error" }));
-      showError(
-        "Apple Sign-In is not available. Access is restricted to authorized " +
-        "Baghdad Medical College accounts (@comed.uobaghdad.edu.iq) only. " +
-        "Please sign in with your institutional email or Google.",
+      const sw = window.screen.width  || 1280;
+      const sh = window.screen.height || 800;
+      const pw = Math.min(440, sw - 40);
+      const ph = Math.min(520, sh - 60);
+      const pl = Math.round((sw - pw) / 2);
+      const pt = Math.round((sh - ph) / 2);
+      window.open(
+        "/auth/apple-notice",
+        "apple_notice",
+        `width=${pw},height=${ph},left=${pl},top=${pt},` +
+        "toolbar=0,location=0,status=0,menubar=0,scrollbars=0,resizable=0",
       );
       setTimeout(() => {
         setSocialState(s => ({ ...s, apple: "idle" }));
-        setError("");
       }, 4500);
       return;
     }

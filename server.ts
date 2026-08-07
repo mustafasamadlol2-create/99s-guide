@@ -4025,6 +4025,86 @@ app.get("/api/auth/me", catchAsync(async (req, res) => {
 
 // --- Real OAuth Integration Endpoints ---
 
+// ── Apple Sign-In restriction notice page ────────────────────────────────────
+// Opened as a small popup when the Apple button is clicked.
+// Displays the same amber domain-restriction styling used for Google domain
+// rejections, but does NOT send any postMessage back — the AuthScreen button
+// state is managed entirely by the frontend timer.
+app.get("/auth/apple-notice", (_req, res) => {
+  const domain = "@comed.uobaghdad.edu.iq";
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Access Restricted — Baghdad Medical Portal</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      background:linear-gradient(135deg,#FFF8F0 0%,#FEF3C7 100%);
+      min-height:100vh;display:flex;align-items:center;
+      justify-content:center;padding:1.5rem;
+    }
+    .card{
+      background:#fff;border:1.5px solid #FED7AA;border-radius:20px;
+      box-shadow:0 8px 32px rgba(0,0,0,0.08),0 2px 8px rgba(0,0,0,0.04);
+      padding:2.5rem 2rem;text-align:center;max-width:420px;width:100%;
+      animation:slideUp 0.3s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes slideUp{
+      from{opacity:0;transform:translateY(16px) scale(0.97)}
+      to{opacity:1;transform:translateY(0) scale(1)}
+    }
+    .icon-wrap{
+      width:64px;height:64px;border-radius:50%;background:#FEF3C7;
+      border:1.5px solid #FDE68A;display:flex;align-items:center;
+      justify-content:center;margin:0 auto 1.25rem;
+    }
+    .icon-wrap svg{width:30px;height:30px}
+    h2{font-size:1.2rem;font-weight:700;color:#92400E;margin-bottom:.6rem;letter-spacing:-.02em}
+    p{font-size:.875rem;color:#78350F;line-height:1.65;margin-bottom:.75rem}
+    .domain-chip{
+      display:inline-block;background:#FEF9C3;border:1px solid #FDE68A;
+      color:#92400E;padding:5px 14px;border-radius:99px;
+      font-family:"SF Mono","Fira Code",Consolas,monospace;
+      font-size:.82rem;font-weight:600;margin:.25rem 0 1rem;
+    }
+    .note{font-size:.75rem;color:#A16207;margin-top:1rem;opacity:.85}
+    .progress{width:100%;height:3px;background:#FEF3C7;border-radius:99px;overflow:hidden;margin-top:1.5rem}
+    .progress-bar{
+      height:100%;background:#F59E0B;border-radius:99px;
+      animation:drain 4.5s linear forwards;width:100%;
+    }
+    @keyframes drain{from{width:100%}to{width:0%}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+      </svg>
+    </div>
+    <h2>Access Restricted</h2>
+    <p>This Medical Portal is restricted to Baghdad University<br>College of Medicine students only.</p>
+    <p>Please sign in with your official university email:</p>
+    <span class="domain-chip">${domain}</span>
+    <p>Apple Sign-In is not available for this portal.<br>
+       Use your institutional email or Continue with Google.</p>
+    <p class="note">This window will close automatically&hellip;</p>
+    <div class="progress"><div class="progress-bar"></div></div>
+  </div>
+  <script>
+    setTimeout(function(){ try{ window.close(); }catch(e){} }, 4500);
+  </script>
+</body>
+</html>`);
+});
+
 // ── Consume a pending OAuth session (one-time, for native Capacitor polling) ──
 // The frontend polls this after opening the OAuth browser on native platforms
 // where window.opener / postMessage is unavailable.

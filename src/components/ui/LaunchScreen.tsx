@@ -53,17 +53,34 @@ if (typeof document !== "undefined") {
                animation-timing-function:cubic-bezier(0.4,0.0,0.6,1); }
         100% { opacity:1; transform:scale(1.00) translateZ(0); }
       }
+      @-webkit-keyframes ls-logo-in {
+        0%   { opacity:0; -webkit-transform:scale(0.92) translateZ(0); }
+        65%  { opacity:1; -webkit-transform:scale(1.03) translateZ(0); }
+        100% { opacity:1; -webkit-transform:scale(1.00) translateZ(0); }
+      }
       @keyframes ls-logo-breathe {
         from { transform:scale(1)    translateZ(0); }
         to   { transform:scale(1.05) translateZ(0); }
+      }
+      @-webkit-keyframes ls-logo-breathe {
+        from { -webkit-transform:scale(1)    translateZ(0); }
+        to   { -webkit-transform:scale(1.05) translateZ(0); }
       }
       @keyframes ls-slogan-in {
         from { opacity:0; transform:translateY(10px) translateZ(0); }
         to   { opacity:1; transform:translateY(0)    translateZ(0); }
       }
+      @-webkit-keyframes ls-slogan-in {
+        from { opacity:0; -webkit-transform:translateY(10px) translateZ(0); }
+        to   { opacity:1; -webkit-transform:translateY(0)    translateZ(0); }
+      }
       @keyframes ls-glow-expand {
         from { transform:scale(1)   translateZ(0); opacity:0.5; }
         to   { transform:scale(1.4) translateZ(0); opacity:1;   }
+      }
+      @-webkit-keyframes ls-glow-expand {
+        from { -webkit-transform:scale(1)   translateZ(0); opacity:0.5; }
+        to   { -webkit-transform:scale(1.4) translateZ(0); opacity:1;   }
       }
       .ls-slogan {
         font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Inter",sans-serif;
@@ -72,6 +89,7 @@ if (typeof document !== "undefined") {
         letter-spacing:0.20em;
         text-transform:uppercase;
         user-select:none;
+        -webkit-user-select:none;
         line-height:1.2;
       }
       @media (min-width:640px)  { .ls-slogan { font-size:15px; } }
@@ -130,7 +148,7 @@ const _rm = typeof window !== "undefined"
 
 const _theme = _isDark ? THEME.dark : THEME.light;
 
-// ─── Animation strings — built once ──────────────────────────────────────────
+// ─── Animation strings — built once (with -webkit- prefixes for iOS) ─────────
 
 const _logoAnim = _rm
   ? "ls-logo-in 280ms ease 0ms both"
@@ -146,6 +164,10 @@ const _sloganAnim = _rm
 const _glowAnim = _isDark && !_rm
   ? `ls-glow-expand ${GLOW_DUR}ms ease-in-out ${SLOGAN_DELAY}ms forwards`
   : "none";
+
+// Maximum time to wait for app-ready before forcing exit (safety net for
+// slow networks, JS errors, or iOS WKWebView rendering delays).
+const SAFETY_TIMEOUT_MS = 8_000;
 
 // ─── Frozen style objects — allocated once, never recreated on render ─────────
 //
@@ -255,10 +277,19 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
 
       const exitDur = _rm ? 150 : 420;
 
-      wrapper.animate(
-        [{ opacity: "1" }, { opacity: "0" }],
-        { duration: exitDur, easing: "cubic-bezier(0.4,0,0.6,1)", fill: "forwards" },
-      );
+      // WAAPI opacity fade — compositor-only, no layout thrash.
+      // Fallback for browsers/WKWebView versions with limited WAAPI support:
+      // set the style directly so fill:"forwards" never leaves opacity stuck.
+      try {
+        const anim = wrapper.animate(
+          [{ opacity: "1" }, { opacity: "0" }],
+          { duration: exitDur, easing: "cubic-bezier(0.4,0,0.6,1)", fill: "forwards" },
+        );
+        anim.onfinish = () => { wrapper.style.opacity = "0"; };
+      } catch {
+        wrapper.style.transition = `opacity ${exitDur}ms cubic-bezier(0.4,0,0.6,1)`;
+        wrapper.style.opacity = "0";
+      }
 
       setTimeout(() => onDoneRef.current(), exitDur);
     }
@@ -277,7 +308,47 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
     }
 
     document.addEventListener("app-ready", handler);
-    return () => document.removeEventListener("app-ready", handler);
+
+    // ── Safety timeout ────────────────────────────────────────────────────────
+    // If app-ready never fires (slow network, JS error, iOS WKWebView stall),
+    // force the splash out so the user is never permanently stuck.
+    const safetyTimer = setTimeout(() => {
+      isReadyRef.current = true; // treat as ready
+      doExit();
+    }, SAFETY_TIMEOUT_MS);
+
+    // ── bfcache (back-forward cache) — iOS Safari / iPad PWA ─────────────────
+    // When iOS restores a page from bfcache (app was backgrounded and resumed),
+    // JS state is preserved but paused timers may fire late or be skipped.
+    // A pageshow with persisted:true means we resumed from bfcache; if the
+    // splash is still visible, immediately dismiss it — it would be stale.
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted && !exitCalledRef.current) {
+        doExit();
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+
+    // ── visibilitychange guard — iOS app switcher resume ─────────────────────
+    // On some iOS PWA configs, returning from the app switcher fires
+    // visibilitychange (hidden → visible) without a pageshow event.
+    // If the splash is somehow still showing at that point, dismiss it.
+    function onVisibility() {
+      if (document.visibilityState === "visible" && !exitCalledRef.current) {
+        const elapsed = Date.now() - startRef.current;
+        if (elapsed >= MIN_SHOW_MS) {
+          doExit();
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      document.removeEventListener("app-ready", handler);
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibility);
+      clearTimeout(safetyTimer);
+    };
   }, []); // stable — all mutable state is in refs
 
   // ── Render ─────────────────────────────────────────────────────────────────
