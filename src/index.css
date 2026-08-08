@@ -2458,13 +2458,20 @@ input:-webkit-autofill:active {
 }
 
 @keyframes hero-aurora {
-  0%   { transform: translate(-50%,-50%) rotate(0deg);   opacity: 0.045; }
-  50%  { transform: translate(-50%,-50%) rotate(180deg); opacity: 0.08; }
-  100% { transform: translate(-50%,-50%) rotate(360deg); opacity: 0.045; }
+  /* translate(-50%,-50%) lives in the element's base inline style (HomeDashboard.tsx).
+     Keyframes only animate `rotate` (CSS individual transform) so the two never conflict.
+     Previously the translate was only in keyframes — on iOS Safari the brief pre-keyframe
+     frame on display:none→block showed the element un-translated, causing the colour-shift
+     bug. The individual `rotate` property composes additively with the base `transform`. */
+  0%   { rotate: 0deg;   opacity: 0.045; }
+  50%  { rotate: 180deg; opacity: 0.08; }
+  100% { rotate: 360deg; opacity: 0.045; }
 }
-/* Aurora element — GPU-accelerated to avoid repaints on low-end devices */
+/* Aurora element — backface-visibility keeps GPU compositing stable.
+   will-change removed: the animation is 28 s / low-frequency; a permanent compositing
+   hint here created a nested GPU layer that was torn down and rebuilt on every
+   display:none→block cycle, amplifying the iOS Safari brightness-glitch on tab return. */
 .hero-aurora-layer {
-  will-change: transform;
   backface-visibility: hidden;
 }
 

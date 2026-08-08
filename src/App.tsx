@@ -3593,11 +3593,13 @@ export default function App() {
               style={{ display: activeTab === "home" ? "block" : "none" }}
               className="w-full"
             >
-              <motion.div
-                initial={false}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                style={{ willChange: "transform, opacity" }}
+              {/* Plain div replaces the no-op motion.div that was here.
+                  The previous wrapper had animate={{ opacity:1, scale:1 }} with initial={false}
+                  — it never animated to different values, so it was a permanent no-op.
+                  Its willChange:"transform,opacity" created a persistent GPU compositing layer
+                  for the entire home tab that was destroyed + rebuilt on every display:none→block
+                  cycle, amplifying the iOS Safari Hero brightness-glitch on tab return. */}
+              <div
                 className="w-full"
               >
                 <AnimatePresence mode="wait">
@@ -3733,7 +3735,7 @@ export default function App() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.div>
+              </div>
             </div>
 
             {/* Tab 2: Library (Subjects) */}

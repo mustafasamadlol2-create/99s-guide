@@ -542,11 +542,19 @@ const HeroBanner = memo(({
         {/* L2: ambient glow + slow aurora sweep */}
         <div className="absolute inset-0 z-[1]">
           <AmbientGlow isRtl={isRtl} />
-          {/* Aurora — slow rotating conic gradient, start angle shifts with time of day */}
+          {/* Aurora — slow rotating conic gradient, start angle shifts with time of day.
+               CRITICAL: transform: translate(-50%,-50%) MUST be in the base inline style,
+               NOT only in the keyframe. On iOS Safari, when display:none→block restores the
+               compositing layer there is a brief pre-keyframe frame where no transform is
+               applied; without the base translate the element's top-left corner snaps to the
+               hero's center-point, covering only the bottom-right quadrant and causing the
+               visible brightness/colour-shift bug. The keyframe now only animates `rotate`
+               (CSS individual transform property) which composes with the base translate. */}
           <div
             aria-hidden="true"
             className="hero-aurora-layer absolute top-1/2 left-1/2 w-[220%] h-[220%] pointer-events-none"
             style={{
+              transform: "translate(-50%, -50%)",
               background: `conic-gradient(from ${auroraStartDeg}deg, transparent 0deg, rgba(30,58,110,0.52) 60deg, transparent 120deg, rgba(180,120,30,0.26) 200deg, transparent 280deg)`,
               animation: "hero-aurora 28s linear infinite",
             }}
