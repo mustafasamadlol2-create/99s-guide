@@ -812,6 +812,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             popupMessageListenerRef.current = null;
           }
           oauthPopupRef.current = null;
+          // Clear any pending stateToken stored for PWA cold-start recovery.
+          // This is intentionally in cleanupPopupListeners (called by every
+          // outcome path: success, failure, domain-reject, manual cancel) so
+          // the key is removed once the in-page popup flow has concluded.
+          localStorage.removeItem("_oauth_pending_token");
         };
 
         const onPopupSuccess = (token: string, userId: string, email: string) => {
@@ -866,6 +871,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           const targetUrl = data.url ?? data.sandboxUrl;
           if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
           stateToken = data.stateToken as string | undefined;
+
+          // Persist stateToken for cold-start recovery: if iOS kills the PWA
+          // while the popup is still open, App.tsx's startup effect can query
+          // /api/auth/oauth-session/:token and recover the completed session.
+          // cleanupPopupListeners() (called by every outcome path) removes it.
+          if (stateToken) {
+            localStorage.setItem("_oauth_pending_token", stateToken);
+          }
 
           // Navigate the already-open popup to the OAuth provider.
           popup.location.href = targetUrl;

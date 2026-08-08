@@ -2026,7 +2026,11 @@ export default function App() {
 
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
         const oauthToken: string | undefined = event.data.token;
-        setIsInitializing(true);
+        // Do NOT call setIsInitializing(true) here — showing the full launch
+        // screen during a popup OAuth completion is jarring (the user is still
+        // on the auth screen, which should transition smoothly to the dashboard
+        // once setCurrentUser fires).  The loading state is only needed on cold
+        // starts, not for in-session auth completions.
         if (oauthToken) {
           // Persist token for all subsequent apiClient calls.
           // Awaited so the Capacitor Preferences write is durable before
@@ -2101,8 +2105,6 @@ export default function App() {
           }
         } catch (err) {
           
-        } finally {
-          setIsInitializing(false);
         }
       }
     };
@@ -2111,6 +2113,56 @@ export default function App() {
     return () => window.removeEventListener("message", handleOAuthSuccess);
        
   }, []);
+
+  // ── iOS PWA cold-start OAuth recovery ──────────────────────────────────────
+  // If the PWA was killed by iOS in background while an OAuth popup was open,
+  // the popup.closed polling stops — and the session is never delivered.
+  // AuthScreen stores the stateToken in localStorage before navigating the
+  // popup; this effect runs once after initialisation and, if the user is not
+  // yet logged in, queries the server's pendingOAuthSessions entry (valid for
+  // 5 min) to recover the completed token without the user having to re-auth.
+  useEffect(() => {
+    if (isInitializing || currentUser) return;
+    const pendingToken = localStorage.getItem("_oauth_pending_token");
+    if (!pendingToken) return;
+    // Remove immediately — prevents a second attempt if state re-triggers this
+    // effect before the async work finishes (e.g. setCurrentUser re-render).
+    localStorage.removeItem("_oauth_pending_token");
+
+    (async () => {
+      try {
+        const res = await apiClient(`/api/auth/oauth-session/${pendingToken}`, {
+          silent: true,
+          retries: 0,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.token) return;
+
+        await SecureStorage.set("auth_token", data.token);
+        const meRes = await apiClient("/api/auth/me", {
+          bypassCache: true,
+          silent: true,
+          headers: { Authorization: `Bearer ${data.token}` },
+        });
+        if (!meRes.ok) return;
+        const meData = await meRes.json();
+        if (!meData.user) return;
+
+        setCurrentUser(meData.user);
+        SecureStorage.set("logged_user", JSON.stringify(meData.user));
+        if (meData.progress) {
+          setProgressDb(meData.progress);
+          localStorage.setItem("progress_db", JSON.stringify(meData.progress));
+        }
+        if (meData.pointsLogs) {
+          setPointsLogDb(meData.pointsLogs);
+          localStorage.setItem("points_log", JSON.stringify(meData.pointsLogs));
+        }
+      } catch { /* network failure — silent */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitializing, currentUser]);
 
   // ── OAuth redirect-flow completion handler ──────────────────────────────────
   // When the web OAuth flow completes, the server redirects back to
