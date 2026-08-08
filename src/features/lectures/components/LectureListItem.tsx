@@ -92,8 +92,8 @@ interface LectureListItemProps {
  </div>
  </div>
 
- <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 mt-1 relative z-10">
- <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 -mb-1 scrollbar-hide overscroll-x-contain">
+ <div className="flex flex-nowrap items-center justify-between gap-3 mt-2 relative z-10">
+ <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 -mb-1 scrollbar-hide overscroll-x-contain min-w-0 flex-1">
  <motion.button 
   type="button"
   whileTap={{ scale: 0.94 }}

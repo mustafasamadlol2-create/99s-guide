@@ -3594,8 +3594,10 @@ export default function App() {
             //   → 34 px home-indicator device:        103 px, nav top 83 px → 20 px gap ✓
             paddingBottom: usePhoneLayout
               ? isCompactHeight
-                ? "max(81px, calc(69px + env(safe-area-inset-bottom, 0px)))"
-                : "max(96px, calc(84px + env(safe-area-inset-bottom, 0px)))"
+                // compact (49 px bar, 8 px floor): 49+8=57 px bar top + 44 px breathing = 101 px
+                ? "max(101px, calc(89px + env(safe-area-inset-bottom, 0px)))"
+                // normal  (64 px bar, 12 px floor): 64+12=76 px bar top + 44 px breathing = 120 px
+                : "max(120px, calc(108px + env(safe-area-inset-bottom, 0px)))"
               : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
         >

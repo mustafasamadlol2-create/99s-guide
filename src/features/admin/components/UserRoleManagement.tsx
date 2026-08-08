@@ -320,13 +320,13 @@ try {
  return (
  <div
  key={user.id}
- className={`group flex items-center justify-between p-[12px_16px] transition-colors hover:bg-neutral-50 dark:hover:bg-[var(--bg-surface-2)] ${
+ className={`group flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 sm:p-[12px_16px] transition-colors hover:bg-neutral-50 dark:hover:bg-[var(--bg-surface-2)] ${
  !isLast ? "border-b border-white/5 dark:border-[rgba(255,255,255,0.05)]" : ""
  }`}
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
- {/* Left: User Avatar & Info */}
- <div className="flex items-center gap-3 w-1/3 min-w-[200px]">
+ {/* Left: Avatar + Name + Email */}
+ <div className="flex items-center gap-3 sm:w-1/3 sm:min-w-[200px] min-w-0 flex-1">
 <div className="relative shrink-0">
                         <UserAvatar
                           name={user.name || user.email}
@@ -342,7 +342,7 @@ try {
  />
  </span>
  </div>
- <div className="flex flex-col min-w-0">
+ <div className="flex flex-col min-w-0 flex-1">
  <div className="text-sm font-semibold text-[var(--text-primary)] truncate flex items-center gap-2">
  {user.name}
  {isSelf && (
@@ -355,10 +355,29 @@ try {
  {user.email}
  </div>
  </div>
+ {/* Mobile role badge — inline with name, hidden on sm+ */}
+ <div className="sm:hidden shrink-0 ml-auto">
+ {user.role === "owner" ? (
+ <div className="flex items-center gap-1 bg-amber-50 dark:bg-med-gold/10 px-2 py-0.5 rounded-full border border-amber-100 dark:border-amber-500/20">
+ <span className="w-1.5 h-1.5 rounded-full bg-med-gold"></span>
+ <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 uppercase">Owner</span>
+ </div>
+ ) : user.role === "admin" ? (
+ <div className="flex items-center gap-1 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-100 dark:border-purple-500/20">
+ <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+ <span className="text-[10px] font-medium text-purple-700 dark:text-purple-400 uppercase">Admin</span>
+ </div>
+ ) : (
+ <div className="flex items-center gap-1 bg-blue-50 dark:bg-med-blue/10 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
+ <span className="w-1.5 h-1.5 rounded-full bg-med-blue"></span>
+ <span className="text-[10px] font-medium text-blue-700 dark:text-blue-400 uppercase">Student</span>
+ </div>
+ )}
+ </div>
  </div>
 
- {/* Center: Status / Role Pill */}
- <div className="flex-1 flex justify-center min-w-[100px]">
+ {/* Center: Role Pill — desktop only; mobile shows it inline */}
+ <div className="hidden sm:flex flex-1 justify-center min-w-[100px]">
  {user.role === "owner" ? (
  <div className="flex items-center gap-2 bg-amber-50 dark:bg-med-gold/10 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-500/20">
  <span className="w-2 h-2 rounded-full bg-med-gold"></span>
@@ -383,8 +402,8 @@ try {
  )}
  </div>
 
- {/* Right: Action Buttons */}
- <div className="w-1/3 flex justify-end min-w-[150px]">
+ {/* Right/Bottom: Action Buttons */}
+ <div className="flex sm:w-1/3 sm:justify-end sm:min-w-[150px] justify-start flex-wrap gap-1">
  {isPrimaryOwner ? (
  // Protected Primary Owner accounts — no actions ever
  <span className="text-xs text-neutral-500 dark:text-[#EBEBF599] font-mono italic opacity-60">

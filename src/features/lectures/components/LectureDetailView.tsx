@@ -1377,7 +1377,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <motion.div
     layout
     transition={{ type: "spring", stiffness: 500, damping: 40, mass: 1 }}
-    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-neutral-850 rounded-lg shadow-elevation-1 overflow-hidden min-h-[450px] flex flex-col relative will-change-[height]"
+    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-neutral-850 rounded-lg shadow-elevation-1 overflow-hidden min-h-[200px] flex flex-col relative will-change-[height]"
   >
   <AnimatePresence mode="popLayout" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
@@ -1658,7 +1658,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  ) : !quizSubmitted ? (
  // Quiz Active State (One question per screen as requested)
- <div className="space-y-section flex-1 flex flex-col justify-between">
+ <div className="flex flex-col">
  <div className="space-y-4">
  {/* Subject and progress metrics */}
  <div className="flex justify-between items-center text-caption text-neutral-500 dark:text-[#EBEBF599]">
@@ -1723,7 +1723,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
  {/* Actions Row */}
- <div className="border-t border-med-cream pt-6 mt-6 flex justify-between items-center flex-wrap gap-2 dark:border-white/[0.12]">
+ <div className="border-t border-med-cream pt-4 mt-5 flex justify-between items-center flex-wrap gap-2 dark:border-white/[0.12]">
  <div className="flex gap-2">
  <button
  type="button"

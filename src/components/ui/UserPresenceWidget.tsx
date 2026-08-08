@@ -210,11 +210,11 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  initial={{ opacity: 0, y: 5 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: -5 }}
- className="flex items-center p-2 hover:bg-neutral-50/80 dark:hover:bg-white/[0.12] rounded-lg transition duration-200 cursor-default group"
+ className="flex flex-col p-3 hover:bg-neutral-50/80 dark:hover:bg-white/[0.12] rounded-lg transition duration-200 cursor-default group gap-1"
  >
- <div className="flex items-center gap-3 min-w-0 flex-1">
- {/* Avatar with online indicator */}
- <div className="relative shrink-0 flex-shrink-0">
+ {/* Row 1: avatar + name + role + status */}
+ <div className="flex items-center gap-2 min-w-0">
+ <div className="relative shrink-0">
  <UserAvatar
  name={u.name || u.email.split("@")[0]}
  avatarUrl={u.avatarUrl || u.avatar || ""}
@@ -224,12 +224,9 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  <span className={`w-2 h-2 rounded-full ${u.isOnline ? "bg-emerald-500 animate-pulse" : "bg-neutral-400 dark:bg-neutral-600"}`} />
  </span>
  </div>
-
- <div className="flex items-center gap-2 min-w-0 flex-1">
- <span className="text-sm font-semibold text-neutral-800 dark:text-white truncate shrink-0 max-w-[120px]">
+ <span className="text-sm font-semibold text-neutral-800 dark:text-white truncate min-w-0 flex-1">
  {u.name || u.email.split("@")[0]}
  </span>
-
  {u.role === "owner" ? (
  <div className="flex items-center gap-1 bg-amber-50 dark:bg-med-gold/10 px-2 py-0.5 rounded-full border border-amber-100 dark:border-amber-500/20 shrink-0">
  <span className="w-1.5 h-1.5 rounded-full bg-med-gold"></span>
@@ -246,24 +243,21 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  <span className="text-[10px] font-medium text-blue-700 dark:text-blue-400 uppercase leading-none">Student</span>
  </div>
  )}
-
- <span className="text-xs text-neutral-500 dark:text-[#EBEBF599] font-mono truncate min-w-[50px] pr-2">
- {u.email}
- </span>
-
  {u.isOnline ? (
- <span className="shrink-0 text-caption-2 font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-1 rounded-sm uppercase ml-auto">
+ <span className="shrink-0 text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-sm uppercase">
  Active
  </span>
  ) : (
- <span className="shrink-0 text-caption-2 font-semibold text-neutral-500 bg-neutral-100 dark:bg-[#2C2C2E] dark:text-[#EBEBF599] px-2 py-1 rounded-sm uppercase ml-auto">
+ <span className="shrink-0 text-[10px] font-semibold text-neutral-500 bg-neutral-100 dark:bg-[#2C2C2E] dark:text-[#EBEBF599] px-2 py-0.5 rounded-sm uppercase">
  Away
  </span>
  )}
  </div>
- </div>
-
- {/* Mute button — visible on row hover */}
+ {/* Row 2: email + Mute/Ban actions */}
+ <div className="flex items-center gap-2 pl-10 min-w-0">
+ <span className="text-xs text-neutral-500 dark:text-[#EBEBF599] font-mono truncate min-w-0 flex-1">
+ {u.email}
+ </span>
  {canBan && !mutedIds.has(u.id) && (
  <button
  onClick={() => setMuteTarget({
@@ -273,21 +267,17 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  avatarUrl: u.avatarUrl || u.avatar,
  })}
  title="Mute user"
- className="ml-2 shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-500 dark:text-[#EBEBF599] hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 border border-transparent hover:border-amber-200 dark:hover:border-amber-500/30 transition-all duration-150 cursor-pointer"
+ className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-500 dark:text-[#EBEBF599] hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 border border-neutral-200/60 dark:border-white/[0.12] hover:border-amber-200 dark:hover:border-amber-500/30 transition-all duration-150 cursor-pointer"
  >
  <MicOff className="w-3 h-3" />
  Mute
  </button>
  )}
-
- {/* Muted indicator */}
  {canBan && mutedIds.has(u.id) && (
- <span className="ml-2 shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold text-amber-500 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+ <span className="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold text-amber-500 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
  Muted
  </span>
  )}
-
- {/* Ban button — visible on row hover */}
  {canBan && !bannedIds.has(u.id) && (
  <button
  onClick={() => setBanTarget({
@@ -297,19 +287,18 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  avatarUrl: u.avatarUrl || u.avatar,
  })}
  title="Ban user"
- className="ml-2 shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-500 dark:text-[#EBEBF599] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-150 cursor-pointer"
+ className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-500 dark:text-[#EBEBF599] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 border border-neutral-200/60 dark:border-white/[0.12] hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-150 cursor-pointer"
  >
  <ShieldOff className="w-3 h-3" />
  Ban
  </button>
  )}
-
- {/* Banned indicator */}
  {canBan && bannedIds.has(u.id) && (
- <span className="ml-2 shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-400 dark:text-neutral-600 border border-neutral-200 dark:border-white/[0.08]">
+ <span className="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold text-neutral-400 dark:text-neutral-600 border border-neutral-200 dark:border-white/[0.08]">
  Banned
  </span>
  )}
+ </div>
  </motion.div>
  );
  })}
