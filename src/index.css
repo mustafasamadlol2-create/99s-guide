@@ -253,53 +253,50 @@
   transform: translate3d(-8px, 0, 0);
 }
 
+/* iOS/Swift-style sidebar toggle button.
+   UIButton.plain equivalent: background fill on press (:active), no scale,
+   no glow, no spring. Only compositor-safe properties transition.
+   -webkit-tap-highlight-color removed in favour of the :active fill so the
+   browser's built-in blue flash doesn't compete on iOS Safari. */
 .sidebar-toggle {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  /* Smooth background colour on hover/focus — compositor-friendly */
-  transition: background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
+  /* Background colour only — 120 ms ease-out matches iOS touchDown latency */
+  transition: background-color 120ms ease-out;
 }
 
-/* Ripple glow layer — fades in on hover via the ::before pseudo */
-.sidebar-toggle::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at center, rgba(99,102,241,0.15) 0%, transparent 70%);
-  opacity: 0;
-  transform: scale(0.7);
-  transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
-              transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
+/* iOS press highlight: appears on :active (touchStart) and clears on release.
+   Equivalent to UIButton highlighted-state backgroundColor.
+   No ::before pseudo, no radial glow — removed entirely. */
+.sidebar-toggle:active {
+  background-color: rgba(0, 0, 0, 0.08);
 }
-.sidebar-toggle:hover::before {
-  opacity: 1;
-  transform: scale(1.1);
+.dark .sidebar-toggle:active {
+  background-color: rgba(255, 255, 255, 0.10);
 }
-.dark .sidebar-toggle::before {
-  background: radial-gradient(circle at center, rgba(255,255,255,0.10) 0%, transparent 70%);
+.sidebar-toggle:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+.dark .sidebar-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.07);
 }
 
-/* Chevron rotation: fast deceleration curve feels physically precise without
-   sluggish overshoot. translate3d+rotate stays fully GPU-compositor on Safari. */
+/* Chevron icon rotation — CSS transition only, no Framer Motion, no will-change.
+   180 ms with cubic-bezier(0.32, 0.72, 0, 1): this is Safari's own internal
+   sidebar-disclosure timing — instant takeoff, precise landing, zero overshoot.
+   No scale, no spring physics, no compositing-layer promotion at rest. */
 .sidebar-toggle-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translate3d(0, 0, 0) rotate(0deg);
-  /* 220ms with expo-out feel: instant start, crisp landing, no perceived wait */
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+  transform: rotate(0deg);
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
 .sidebar-toggle-icon-collapsed {
-  transform: translate3d(0, 0, 0) rotate(180deg);
+  transform: rotate(180deg);
 }
 
 /* Sidebar shell: expo-out width glide — feels instant at the start, settles
