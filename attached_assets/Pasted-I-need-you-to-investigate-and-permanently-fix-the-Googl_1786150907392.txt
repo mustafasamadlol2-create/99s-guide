@@ -1,0 +1,265 @@
+I need you to investigate and permanently fix the Google Sign-In flow specifically on iPhone/mobile.
+
+IMPORTANT:
+This is a production authentication issue.
+
+Do NOT treat this as a simple UI problem.
+Do NOT add arbitrary delays or force page reloads.
+I want you to identify the actual root cause of the mobile authentication/navigation problem.
+
+==================================================
+CURRENT BEHAVIOR
+==================================================
+
+The application has a "Continue with Google" authentication flow.
+
+On desktop/laptop, MacBook, and iPad:
+
+1. User taps "Continue with Google".
+2. Google authentication opens correctly.
+3. User completes authentication successfully.
+4. A success message/success screen appears.
+5. The success state is supposed to remain visible for approximately 1 second.
+6. It should then automatically close/dismiss without any manual interaction.
+7. The authentication flow should finish.
+8. The user should automatically return to the application.
+9. The application should recognize the authenticated user.
+10. The user should be taken back to the appropriate application page/home interface.
+
+This works correctly on:
+- Laptop/Desktop
+- MacBook
+- iPad
+
+BUT on iPhone/mobile, the behavior is broken.
+
+==================================================
+IPHONE PROBLEM #1
+==================================================
+
+On iPhone, after Google authentication succeeds, the success screen/window does NOT reliably close automatically.
+
+The user may be forced to interact with the screen manually.
+
+This is NOT the intended behavior.
+
+Expected behavior:
+
+Google authentication succeeds
+→ success state appears
+→ approximately 1 second
+→ authentication window/modal/flow automatically closes
+→ control returns to the application
+→ authentication state is detected
+→ user is logged in
+→ application navigates to the correct page
+
+No manual "close" interaction should be required.
+
+==================================================
+IPHONE PROBLEM #2
+==================================================
+
+There is also an intermittent authentication-state problem.
+
+Sometimes after a successful login, the application appears to log the user out or does not correctly preserve the authenticated session.
+
+This must be investigated as a REAL authentication/session-state issue.
+
+Do NOT simply hide the logout symptom.
+
+==================================================
+INVESTIGATE THE ENTIRE AUTHENTICATION FLOW
+==================================================
+
+Inspect the complete flow from:
+
+Continue with Google
+→ Google OAuth
+→ callback
+→ token/code exchange
+→ backend authentication
+→ session creation
+→ cookie/token storage
+→ frontend authentication state
+→ /auth/me or equivalent session verification
+→ application initialization
+→ navigation
+→ authenticated state
+
+Determine exactly where the iPhone flow differs from desktop/iPad.
+
+==================================================
+CHECK FOR IOS-SPECIFIC ISSUES
+==================================================
+
+Investigate:
+
+- Safari behavior
+- iOS WebView behavior
+- Capacitor behavior if applicable
+- popup/window behavior
+- window.open()
+- window.close()
+- OAuth redirect behavior
+- same-origin restrictions
+- cross-origin restrictions
+- third-party cookie restrictions
+- SameSite cookie configuration
+- Secure cookies
+- HttpOnly cookies
+- credential inclusion
+- localStorage
+- sessionStorage
+- cookie persistence
+- OAuth callback timing
+- visibilitychange
+- focus/blur events
+- pageshow
+- pagehide
+- beforeunload
+- storage events
+- browser history
+- redirect URI
+- authentication polling
+- postMessage
+- opener relationships
+- popup blockers
+- Safari private browsing behavior
+
+Do not assume which mechanism is responsible.
+
+Inspect the actual implementation first.
+
+==================================================
+SUCCESS SCREEN / AUTO-CLOSE
+==================================================
+
+Find the actual component responsible for the Google success state.
+
+Determine:
+
+- how the success state is triggered
+- how it detects successful authentication
+- how it starts the 1-second timer
+- how it closes
+- how it communicates completion to the parent application
+- whether the timer is cleaned up correctly
+- whether the component unmounts before the timer executes
+- whether iOS Safari prevents window.close()
+- whether the success page is actually a popup, redirect page, modal, or embedded view
+
+The correct solution must be compatible with the actual architecture.
+
+Do NOT simply add:
+
+setTimeout(() => window.close(), 1000)
+
+unless you have verified that this is appropriate for the actual OAuth mechanism.
+
+If iOS cannot close a window because of browser security restrictions, implement the correct architecture for returning control to the parent application rather than repeatedly forcing window.close().
+
+==================================================
+SESSION PERSISTENCE
+==================================================
+
+Investigate why the user can sometimes appear to be logged out after successful authentication.
+
+Check for race conditions such as:
+
+Authentication succeeds
+→ frontend immediately navigates
+→ auth state has not yet been persisted
+→ /auth/me runs too early
+→ returns unauthenticated
+→ application resets auth state
+→ user appears logged out
+
+Also check:
+
+- token persistence timing
+- cookie availability
+- session initialization
+- auth context initialization
+- React state initialization
+- auth state race conditions
+- duplicate auth requests
+- logout handlers accidentally triggered
+- stale auth state
+- authentication state being overwritten by an initial unauthenticated state
+
+==================================================
+IMPORTANT REQUIREMENTS
+==================================================
+
+DO NOT:
+
+- change the Google OAuth provider unnecessarily
+- change backend authentication architecture without evidence
+- disable security protections
+- remove Secure/HttpOnly/SameSite protections just to make it work
+- store sensitive tokens insecurely
+- use page reloads as a workaround
+- force window.location.reload()
+- add arbitrary long delays
+- create an iPhone-only fake login state
+- assume that a successful UI message means authentication succeeded
+
+The authenticated session must be genuinely established.
+
+==================================================
+REGRESSION REQUIREMENTS
+==================================================
+
+After fixing the issue, test:
+
+Desktop:
+Continue with Google → success → automatic completion → logged in
+
+MacBook:
+same
+
+iPad:
+same
+
+iPhone:
+same
+
+Test repeatedly, not just once.
+
+Test:
+
+1. Fresh unauthenticated session.
+2. Google login.
+3. Successful authentication.
+4. Return to application.
+5. Refresh application.
+6. Navigate between pages.
+7. Return to Welcome.
+8. Close/reopen the application.
+9. Verify the user remains authenticated according to the intended session policy.
+10. Log out.
+11. Log in again.
+
+The user must never be incorrectly logged out because of a race condition or mobile-specific authentication problem.
+
+==================================================
+FINAL REPORT
+==================================================
+
+After fixing it, tell me:
+
+1. Exact root cause.
+2. Why it only/primarily affected iPhone.
+3. Why desktop and iPad worked.
+4. How the OAuth flow actually works in this application.
+5. How the success screen now closes/returns control.
+6. How session persistence was fixed.
+7. Files modified.
+8. Security implications.
+9. Tests performed on iPhone, iPad, and desktop.
+10. Confirmation that no fake authentication or insecure workaround was introduced.
+
+Do not stop at making the button appear to work.
+
+The complete Google authentication lifecycle must be reliable on iPhone.

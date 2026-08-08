@@ -740,96 +740,19 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
       const isIosSafari = isIosDevice();
 
-      if (isIosSafari && isStandalonePwa()) {
-        // ── iOS installed PWA: in-app sheet + polling flow ───────────────────
-        // In standalone mode, navigating to an external URL opens iOS's in-app
-        // browser SHEET while this page stays alive underneath. The sheet has
-        // a SEPARATE cookie jar — cookies set by the OAuth callback there
-        // never reach this installed app. So the session is delivered exactly
-        // like the native Capacitor path: the server parks it under the state
-        // token and we poll /api/auth/oauth-session/:stateToken from here.
-        // flow=inapp tells the callback to show a "close this window" success
-        // card instead of redirecting the sheet back into the app.
-        try {
-          const res = await apiClient(`/api/auth/oauth-url?provider=${key}&flow=inapp`);
-          if (!res.ok) throw new Error(`Failed to initialize ${provider} login session.`);
-          const data = await res.json();
-          const targetUrl = data.url ?? data.sandboxUrl;
-          if (!targetUrl) throw new Error(`Authentication URL was not returned for ${provider}.`);
-          const stateToken: string | undefined = data.stateToken;
-          if (!stateToken) throw new Error("Sign-in session token was not returned.");
+      // ── Standalone-PWA note ───────────────────────────────────────────────
+      // Previously the installed PWA (home-screen) used window.location.href
+      // to open the OAuth URL, which opens Safari.app as an EXTERNAL browser.
+      // window.close() cannot close a page the user navigated to themselves
+      // (only script-opened windows), so the success screen was permanently
+      // stranded.  The fix: let standalone PWA fall through to the popup path
+      // below.  window.open() opens a new Safari tab that CAN be closed by
+      // window.close(), window.opener is preserved so postMessage works, and
+      // token delivery via Bearer header sidesteps the separate-cookie-jar
+      // issue entirely.  The redirect flow is still used for regular iPhone
+      // Safari (non-standalone) because that has no reliable popup support.
 
-          // Opens the iOS in-app browser sheet; this page keeps running.
-          window.location.href = targetUrl;
-
-          const failPwaOAuth = (msg?: string) => {
-            if (!isMountedRef.current) return;
-            if (oauthCompletedRef.current) return;
-            if (oauthPollRef.current !== null) {
-              clearInterval(oauthPollRef.current);
-              oauthPollRef.current = null;
-            }
-            oauthInFlightRef.current = false;
-            setSocialState(s => ({ ...s, [key]: "error" }));
-            showError(msg ?? "Sign-in was cancelled. Please try again.");
-            scheduleReset(key, 3000);
-          };
-
-          const MAX_POLL_MS   = 3 * 60 * 1000;
-          const POLL_INTERVAL = 1500;
-          const startTime     = Date.now();
-          let pollInFlight = false;
-
-          oauthPollRef.current = setInterval(async () => {
-            if (pollInFlight) return;
-            pollInFlight = true;
-            try {
-              if (Date.now() - startTime > MAX_POLL_MS) {
-                failPwaOAuth("Sign-in timed out. Please try again.");
-                return;
-              }
-              const pollRes = await apiClient(`/api/auth/oauth-session/${stateToken}`);
-              if (pollRes.ok) {
-                const pollData = await pollRes.json();
-                if (pollData.rejected) {
-                  failPwaOAuth(
-                    "Access denied: only Baghdad University Medical College emails are allowed to sign in.",
-                  );
-                  return;
-                }
-                if (pollData.success && pollData.token) {
-                  if (!isMountedRef.current) return;
-                  oauthCompletedRef.current = true;
-                  clearInterval(oauthPollRef.current!);
-                  oauthPollRef.current = null;
-                  oauthInFlightRef.current = false;
-                  setSocialState(s => ({ ...s, [key]: "success" }));
-                  // Same delivery mechanism as the native path: App.tsx's
-                  // message handler stores the token in SecureStorage and
-                  // authenticates /api/auth/me with the Bearer header —
-                  // completely independent of the sheet's cookie jar.
-                  window.dispatchEvent(new MessageEvent("message", {
-                    data: {
-                      type:   "OAUTH_AUTH_SUCCESS",
-                      token:  pollData.token,
-                      userId: pollData.userId,
-                      email:  pollData.email,
-                    },
-                    origin: window.location.origin,
-                  }));
-                }
-              }
-            } catch { /* network error — keep polling */ }
-            finally { pollInFlight = false; }
-          }, POLL_INTERVAL);
-        } catch (err: any) {
-          oauthInFlightRef.current = false;
-          setSocialState(s => ({ ...s, [key]: "error" }));
-          showError(err.message || "Social authentication error.");
-          scheduleReset(key, 2200);
-        }
-
-      } else if (isIosSafari) {
+      if (isIosSafari && !isStandalonePwa()) {
         // ── iOS Safari (browser tab): full-page redirect flow ────────────────
         // Cookie set by the callback is first-party (ITP-safe).
         // App.tsx reads ?oauth_done=1 / ?oauth_error=… on return.

@@ -2115,9 +2115,19 @@ export default function App() {
   // ── OAuth redirect-flow completion handler ──────────────────────────────────
   // When the web OAuth flow completes, the server redirects back to
   // /?oauth_done=1 (success) or /?oauth_error=REASON (error/cancel).
-  // The startup /api/auth/me call above already handles session restoration
-  // via the first-party cookie set by the callback.  This effect only needs
-  // to clean the URL and surface errors for the cancelled/rejected case.
+  //
+  // The startup restoreSession() above fires concurrently and relies on the
+  // httpOnly cookie set by the callback.  In most cases it succeeds.
+  // But if Supabase is slow on a cold start (1–2 s responses are normal in
+  // this deployment), restoreSession()'s 6 s timeout + 0 retries can expire
+  // before the first /api/auth/me round-trip completes, and the fallback to
+  // local SecureStorage cache finds nothing (first-ever login) — the user
+  // appears logged out even though the cookie is valid.
+  //
+  // Fix: when we see oauth_done=1, issue a dedicated re-check with a longer
+  // timeout and retries.  It is idempotent — if restoreSession() already
+  // set currentUser, this call just returns the same data and the setState
+  // is a no-op.  If restoreSession() failed, this call rescues the session.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthDone  = params.get("oauth_done");
@@ -2139,6 +2149,31 @@ export default function App() {
           detail: decodeURIComponent(oauthError),
         }),
       );
+    }
+
+    if (oauthDone) {
+      // Best-effort insurance re-check.  Does NOT touch isInitializing so it
+      // cannot race with the startup flow's setIsInitializing(false) call.
+      // setState is safe to call even if restoreSession() already set the
+      // same values — React bails out of re-renders when state is identical.
+      apiClient("/api/auth/me", {
+        bypassCache: true,
+        silent: true,
+        timeoutMs: 15000,
+        retries: 2,
+      }).then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.user) return;
+        setCurrentUser(data.user);
+        if (data.progress)    setProgressDb(data.progress);
+        if (data.pointsLogs)  setPointsLogDb(data.pointsLogs);
+        SecureStorage.set("logged_user", JSON.stringify(data.user));
+        if (data.progress)
+          localStorage.setItem("progress_db", JSON.stringify(data.progress));
+        if (data.pointsLogs)
+          localStorage.setItem("points_log", JSON.stringify(data.pointsLogs));
+      }).catch(() => { /* network error — startup call already handled fallback */ });
     }
   }, []);
 
