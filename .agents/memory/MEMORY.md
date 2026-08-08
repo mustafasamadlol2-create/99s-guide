@@ -1,4 +1,0 @@
-- [Auth & PWA production audit](auth-audit-findings.md) — critical security fixes applied; remaining known gaps documented inside
-- [Google OAuth setup](google-oauth-setup.md) — real Google sign-in enabled; only @comed.uobaghdad.edu.iq emails allowed; redirect URI tied to Replit dev domain
-- [iOS installed-PWA auth](ios-pwa-auth.md) — iPhone home-screen PWA needs Bearer delivery + in-app-sheet OAuth polling; cookies/redirect flow break there
-- [Safari hidden-tab animations](safari-hidden-tab-animations.md) — never gate visibility on a one-shot animation; display:none tabs + Safari leave elements stuck at opacity:0; use visible base + backwards fill
