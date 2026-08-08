@@ -3526,8 +3526,30 @@ export default function App() {
           className={`flex-1 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
+            // ── Floating-nav clearance ─────────────────────────────────────────
+            // The floating bar sits at: bottom = max(12px, safe-area-inset-bottom)
+            // and its content height is 64 px (normal) or 49 px (compact).
+            // Old formula: calc(navH + safe-area) → gives 0 px breathing room on
+            // devices with no home indicator (safe-area = 0, bottom floor = 12 px).
+            //
+            // Correct formula mirrors the nav's own max() floor:
+            //   navH + max(12px, safe-area) + 20px breathing
+            // Written as a nested max() so it works across all iOS versions:
+            //   max(navH+32px,  calc(navH+20px + safe-area-inset-bottom))
+            //
+            // Breakdown for normal (64 px nav):
+            //   max(96px, calc(84px + env(safe-area-inset-bottom, 0px)))
+            //   → no safe-area device (floor 12px):  96 px, nav top 76 px → 20 px gap ✓
+            //   → 34 px home-indicator device:        118 px, nav top 98 px → 20 px gap ✓
+            //
+            // Breakdown for compact (49 px nav):
+            //   max(81px, calc(69px + env(safe-area-inset-bottom, 0px)))
+            //   → no safe-area device (floor 12px):  81 px, nav top 61 px → 20 px gap ✓
+            //   → 34 px home-indicator device:        103 px, nav top 83 px → 20 px gap ✓
             paddingBottom: usePhoneLayout
-              ? `calc(${isCompactHeight ? "61px" : "76px"} + env(safe-area-inset-bottom, 0px))`
+              ? isCompactHeight
+                ? "max(81px, calc(69px + env(safe-area-inset-bottom, 0px)))"
+                : "max(96px, calc(84px + env(safe-area-inset-bottom, 0px)))"
               : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
         >

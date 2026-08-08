@@ -1,0 +1,239 @@
+I need you to permanently fix the mobile content layout around the application's Floating Bottom Navigation Bar.
+
+This issue affects the entire application on iPhone/mobile.
+
+IMPORTANT:
+Do NOT fix individual pages one by one with random padding values.
+
+I want a GLOBAL layout solution.
+
+==================================================
+CURRENT PROBLEM
+==================================================
+
+The application has a floating bottom navigation bar on iPhone/mobile.
+
+The bar is positioned near the bottom of the screen.
+
+However, many pages do not reserve enough space for it.
+
+As a result, when the user scrolls to the bottom:
+
+- buttons can be hidden behind the floating bar
+- cards can be partially covered
+- controls can become inaccessible
+- the final content can sit underneath the navigation bar
+- the user cannot comfortably reach the actual end of the page
+
+This is unacceptable.
+
+==================================================
+EXPECTED BEHAVIOR
+==================================================
+
+EVERY scrollable page in the application must automatically reserve enough bottom space for the Floating Bottom Navigation Bar.
+
+The page should behave like:
+
+CONTENT
+↓
+CONTENT
+↓
+CONTENT
+↓
+CONTENT
+↓
+[additional bottom breathing room]
+↓
+Floating Navigation Bar area
+
+When the user reaches the absolute bottom of the page:
+
+- the final button must be completely visible
+- the final card must be completely visible
+- the final text must be completely visible
+- no interactive element may be underneath the navigation bar
+
+There should be intentional visual breathing room below the last content.
+
+==================================================
+GLOBAL SOLUTION
+==================================================
+
+Find the application's shared layout/root/page-shell architecture.
+
+Implement a reusable global mechanism for bottom navigation spacing.
+
+Do NOT duplicate arbitrary values across dozens of pages.
+
+The solution should work automatically for:
+
+- Welcome
+- Dashboard
+- Subjects
+- Lectures
+- Schedule
+- Calendar
+- Profile
+- Settings
+- Search
+- Forms
+- Modals where appropriate
+- Any future page using the common application layout
+
+If appropriate, introduce a shared CSS variable or layout utility such as:
+
+--mobile-bottom-navigation-space
+
+But determine the correct implementation based on the existing architecture.
+
+==================================================
+SAFE AREA
+==================================================
+
+The spacing MUST account for iOS safe-area behavior.
+
+Investigate:
+
+env(safe-area-inset-bottom)
+
+The effective bottom spacing should account for:
+
+1. Floating navigation bar height
+2. Gap between content and navigation bar
+3. iPhone Home Indicator safe area
+
+Do not create a black strip.
+
+Do not make the content unnecessarily tall.
+
+Do not make the bottom spacing excessive.
+
+==================================================
+RESPONSIVE BEHAVIOR
+==================================================
+
+The bottom-navigation spacing should apply only where appropriate.
+
+For example:
+
+iPhone/mobile:
+Floating Bottom Navigation → reserve space
+
+iPad:
+Use the correct iPad navigation architecture → do not blindly apply mobile spacing
+
+Desktop:
+Do not add unnecessary mobile bottom padding
+
+If the application has different navigation modes, integrate the spacing with the actual navigation mode rather than device width alone.
+
+==================================================
+SCROLLING
+==================================================
+
+Audit the application's scrolling architecture.
+
+Check for:
+
+- body overflow
+- html overflow
+- root container overflow
+- nested scroll containers
+- overflow-y
+- height: 100vh
+- height: 100dvh
+- position: fixed
+- position: absolute
+- sticky elements
+- bottom navigation
+- safe-area inset
+- page shell
+- scroll containers
+
+Make sure the correct container is actually scrollable.
+
+The bottom spacing must be inside the scrollable content area.
+
+IMPORTANT:
+
+If the padding is added outside the scroll container, it may not solve the problem.
+
+Verify that the user can physically scroll past the final content.
+
+==================================================
+DYNAMIC NAVIGATION HEIGHT
+==================================================
+
+If the Floating Navigation Bar has a dynamic height, do not assume a fragile hardcoded value.
+
+Use the application's actual dimensions and CSS architecture.
+
+If appropriate, use a CSS custom property for the navigation height.
+
+The layout should remain correct if:
+
+- text size changes
+- safe-area changes
+- orientation changes
+- navigation items change
+- device size changes
+
+==================================================
+TESTING
+==================================================
+
+Test every major page.
+
+For each page:
+
+1. Open page.
+2. Scroll to bottom.
+3. Confirm final content is visible.
+4. Confirm final button is fully clickable.
+5. Confirm no content is hidden behind the floating bar.
+6. Confirm there is reasonable bottom breathing room.
+
+Test on:
+
+- small iPhone
+- large iPhone
+- iPhone with Home Indicator
+- iPhone Portrait
+- iPhone Landscape if mobile navigation remains active
+
+Also verify:
+
+- Dark Mode
+- Light Mode
+
+==================================================
+IMPORTANT
+==================================================
+
+Do NOT:
+
+- add 200px/300px arbitrary padding everywhere
+- add page-specific hacks
+- disable scrolling
+- move the navigation bar simply to hide the problem
+- make the bar opaque just to hide overlapping content
+- modify backend functionality
+- redesign unrelated pages
+
+Fix the shared layout architecture.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Tell me:
+
+1. Root cause.
+2. Why content was being hidden.
+3. Which shared layout/component controls the problem.
+4. Exact global solution.
+5. Files modified.
+6. How safe-area handling was implemented.
+7. Which pages were tested.
+8. Confirmation that final content is accessible on all mobile pages.
