@@ -1,0 +1,260 @@
+I need you to completely fix and redesign the RESPONSIVE LAYOUT behavior of the Console page for mobile devices.
+
+IMPORTANT:
+The Console must work properly in BOTH:
+
+- Portrait orientation
+- Landscape orientation
+
+The current layout appears to be optimized primarily for landscape/mobile-width assumptions, which makes the portrait experience poorly organized.
+
+I do NOT want a landscape-only design.
+
+I want one responsive Console interface that intelligently adapts to both orientations.
+
+==================================================
+CURRENT PROBLEM
+==================================================
+
+The Console page currently has a layout that does not adapt properly when the phone is held vertically.
+
+Elements such as:
+
+- controls
+- buttons
+- panels
+- toolbars
+- cards
+- content sections
+- navigation
+- action buttons
+- input areas
+
+can become poorly arranged or compressed.
+
+The layout should be intentionally designed for a narrow portrait viewport AND a wider landscape viewport.
+
+==================================================
+PORTRAIT REQUIREMENTS
+==================================================
+
+On iPhone Portrait:
+
+- content must fit the screen naturally
+- no unnecessary horizontal scrolling
+- buttons must remain accessible
+- controls should wrap/reorganize intelligently
+- important actions should remain prominent
+- cards/panels should stack when necessary
+- text must not be clipped
+- controls must not overlap
+- toolbar items must not disappear
+- touch targets must remain comfortable
+
+Do NOT simply shrink everything.
+
+Reorganize the layout where appropriate.
+
+==================================================
+LANDSCAPE REQUIREMENTS
+==================================================
+
+On iPhone Landscape:
+
+Take advantage of the additional horizontal space.
+
+Where appropriate:
+
+- use columns
+- place related controls horizontally
+- use available width efficiently
+- avoid excessive vertical scrolling
+- maintain readable content
+- preserve touch usability
+
+Portrait and Landscape should feel like two intelligently adapted layouts of the same Console, not the same fixed layout squeezed into different dimensions.
+
+==================================================
+RESPONSIVE BREAKPOINTS
+==================================================
+
+Inspect the existing breakpoint strategy.
+
+Do not blindly rely only on:
+
+max-width: 768px
+
+or generic desktop/mobile breakpoints.
+
+Consider:
+
+- viewport width
+- viewport height
+- orientation
+- available content area
+- iPhone safe areas
+- iPad dimensions
+
+Use media queries/orientation queries only where they actually improve the layout.
+
+==================================================
+CHECK THE ENTIRE CONSOLE
+==================================================
+
+Audit every Console component:
+
+- header
+- toolbar
+- tabs
+- controls
+- buttons
+- cards
+- panels
+- input fields
+- output areas
+- status indicators
+- action areas
+- bottom navigation interaction
+- scrolling
+- modals
+- dropdowns
+
+Find any fixed widths/heights that break on portrait.
+
+Search for:
+
+- width: fixed values
+- min-width
+- height: fixed values
+- 100vh
+- 100vw
+- absolute positioning
+- transform positioning
+- overflow hidden
+- nowrap
+- hardcoded margins
+- hardcoded padding
+- desktop assumptions
+
+==================================================
+SCROLLING
+==================================================
+
+The Console must remain fully usable vertically.
+
+On Portrait:
+
+the user must be able to scroll through ALL content.
+
+On Landscape:
+
+the user must also be able to access ALL content.
+
+No button should disappear below the viewport.
+
+No content should be trapped inside a container.
+
+No nested scroll area should prevent normal page scrolling unless intentionally required.
+
+==================================================
+IPHONE SAFE AREA
+==================================================
+
+Account for:
+
+- top safe area
+- bottom safe area
+- Home Indicator
+- Floating Bottom Navigation Bar
+
+Do not allow the mobile navigation to cover Console controls.
+
+==================================================
+VISUAL CONSISTENCY
+==================================================
+
+Do not redesign the Console into a completely different product.
+
+Preserve:
+
+- branding
+- existing colors
+- functionality
+- terminology
+- components
+
+Improve:
+
+- layout
+- responsiveness
+- spacing
+- hierarchy
+- usability
+- touch interaction
+
+==================================================
+TESTING
+==================================================
+
+Test Console in:
+
+1. iPhone Portrait
+2. iPhone Landscape
+3. iPad Portrait
+4. iPad Landscape
+5. Desktop
+
+Test:
+
+- scrolling
+- all buttons
+- all controls
+- inputs
+- tabs
+- panels
+- navigation
+- modals
+- floating navigation
+- dark mode
+- light mode
+
+Rotate:
+
+Portrait → Landscape
+Landscape → Portrait
+
+The layout must recover correctly after rotation.
+
+==================================================
+IMPORTANT
+==================================================
+
+Do NOT:
+
+- force landscape orientation
+- force portrait orientation
+- hide content in portrait
+- solve the issue with excessive zoom-out
+- use arbitrary transforms
+- create separate duplicated Console implementations
+- break desktop
+- remove functionality
+
+Fix the responsive architecture of the existing Console.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Provide:
+
+1. Root cause.
+2. Why portrait was broken.
+3. Why landscape behaved differently.
+4. Responsive changes made.
+5. Files modified.
+6. Breakpoints/orientation logic used.
+7. Scrolling fixes.
+8. Safe-area fixes.
+9. Testing performed.
+10. Confirmation that Portrait and Landscape are both fully usable.
