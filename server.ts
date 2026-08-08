@@ -856,6 +856,18 @@ async function initializeSystem() {
       if (existingAdmin.role !== "owner") {
         await UserService.updateUser({ id: existingAdmin.id, role: "owner" });
       }
+      // If ADMIN_INITIAL_PASSWORD is explicitly set (e.g. after a production
+      // deployment where the account was seeded with an unknown random password),
+      // sync the hash so the owner can log in with that known password.
+      if (process.env.ADMIN_INITIAL_PASSWORD) {
+        const syncedHash = await AuthService.hashPassword(process.env.ADMIN_INITIAL_PASSWORD);
+        const prismaClient = getPrisma();
+        await prismaClient.user.update({
+          where: { id: existingAdmin.id },
+          data: { passwordHash: syncedHash },
+        }).catch((err: unknown) => console.error("[Admin] Failed to sync owner password hash:", err));
+        console.log("[Admin] Owner password hash synced from ADMIN_INITIAL_PASSWORD.");
+      }
     }
 
     // Ensure materials catalogs are pre-loaded
