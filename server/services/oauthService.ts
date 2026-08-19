@@ -2,21 +2,27 @@
  * OAuthService — Domain restriction and role assignment for OAuth providers.
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
- * │  Business rules — single source of truth                                │
+ * │  Business rules — single source of truth                               │
  * │                                                                         │
- * │  1. ACCESS GATE: An email is permitted if it satisfies ANY of:          │
+ * │  1. ACCESS GATE: An email is permitted if it satisfies ANY of:         │
  * │       a) Its domain ends with @comed.uobaghdad.edu.iq, OR              │
- * │       b) It is an exact address listed in ALLOWED_REVIEWER_EMAILS       │
- * │          (operator-vetted allowlist — e.g. App Store review accounts). │
- * │     All other addresses are rejected before the DB is ever touched.     │
+ * │       b) It is an exact address listed in the reviewer allowlist.      │
  * │                                                                         │
- * │  2. ROLE ASSIGNMENT:                                                     │
+ * │     The App Store review account is explicitly allowed:                │
+ * │       mustafasamadnm@gmail.com                                          │
+ * │                                                                         │
+ * │     Additional reviewer accounts can also be configured through        │
+ * │     ALLOWED_REVIEWER_EMAILS.                                            │
+ * │                                                                         │
+ * │     All other addresses are rejected before the DB is touched.         │
+ * │                                                                         │
+ * │  2. ROLE ASSIGNMENT:                                                    │
  * │     • New OAuth accounts are always regular users.                      │
- * │     • Existing database roles are preserved and authoritative.           │
+ * │     • Existing database roles are preserved and authoritative.         │
  * └─────────────────────────────────────────────────────────────────────────┘
  *
  * Import and call `verifyAndUpsertOAuthUser()` from every OAuth route
- * (real providers AND the developer sandbox) so these rules apply uniformly.
+ * so these rules apply uniformly.
  */
 
 import { randomUUID } from "node:crypto";
@@ -25,52 +31,79 @@ import { AuthService } from "./authService.js";
 
 // ─── Policy constants ─────────────────────────────────────────────────────────
 
-/** The only email domain permitted to authenticate. */
+/** The institutional email domain normally permitted to authenticate. */
 export const ALLOWED_DOMAIN = "@comed.uobaghdad.edu.iq" as const;
 
 /**
- * Operator-vetted exact email addresses permitted to authenticate in addition
- * to the institutional domain — for example App Store review accounts.
- * Configured via the comma-separated `ALLOWED_REVIEWER_EMAILS` environment
- * variable. Disabled entirely when unset. This is NOT a wildcard or an
- * "anyone" bypass: only the exact addresses listed are accepted.
+ * Exact reviewer accounts permanently allowed in addition to the university
+ * domain.
+ *
+ * This is an exact-match allowlist. It does NOT allow arbitrary Gmail users.
  */
-const REVIEWER_EMAILS: ReadonlySet<string> = new Set(
-  (process.env.ALLOWED_REVIEWER_EMAILS || "")
+const BUILT_IN_REVIEWER_EMAILS = [
+  "mustafasamadnm@gmail.com",
+] as const;
+
+/**
+ * Final reviewer allowlist.
+ *
+ * Includes:
+ * 1. Built-in explicitly approved reviewer accounts.
+ * 2. Any additional comma-separated accounts configured through:
+ *    ALLOWED_REVIEWER_EMAILS
+ */
+const REVIEWER_EMAILS: ReadonlySet<string> = new Set([
+  ...BUILT_IN_REVIEWER_EMAILS.map((email) =>
+    email.trim().toLowerCase(),
+  ),
+
+  ...(process.env.ALLOWED_REVIEWER_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
-    .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)),
-);
+    .filter((email) =>
+      /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
+    ),
+]);
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
 /**
- * Returns `true` only when the email ends with the exact ALLOWED_DOMAIN suffix.
- * Uses a suffix match rather than `includes` so that a crafted email like
- * `attacker@evil.com@comed.uobaghdad.edu.iq.example.com` cannot bypass the check.
+ * Returns true only when the email ends with the exact institutional domain.
  */
 export function isAllowedDomain(email: string): boolean {
-  return email.toLowerCase().endsWith(ALLOWED_DOMAIN);
+  return email
+    .trim()
+    .toLowerCase()
+    .endsWith(ALLOWED_DOMAIN);
 }
 
 /**
- * Returns `true` when the email is on the operator-configured reviewer
- * allowlist (`ALLOWED_REVIEWER_EMAILS`). Exact match only.
+ * Returns true only when the exact normalized email address exists in the
+ * reviewer allowlist.
  */
 export function isReviewerEmail(email: string): boolean {
-  return REVIEWER_EMAILS.has(email.trim().toLowerCase());
+  return REVIEWER_EMAILS.has(
+    email.trim().toLowerCase(),
+  );
 }
 
 /**
- * Returns `true` when the email is permitted to authenticate.
+ * Returns true when the account may authenticate.
  *
- * An email is permitted if its domain ends with ALLOWED_DOMAIN
- * (@comed.uobaghdad.edu.iq) or it is an exact address on the
- * ALLOWED_REVIEWER_EMAILS allowlist.
+ * Allowed:
+ * - @comed.uobaghdad.edu.iq accounts
+ * - exact reviewer accounts
+ *
+ * Rejected:
+ * - every other email address
  */
 export function isAllowedEmail(email: string): boolean {
   const clean = email.trim().toLowerCase();
-  return isAllowedDomain(clean) || isReviewerEmail(clean);
+
+  return (
+    isAllowedDomain(clean) ||
+    isReviewerEmail(clean)
+  );
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -79,8 +112,7 @@ export function isAllowedEmail(email: string): boolean {
  * Verify domain restriction, determine role, then find-or-create the user.
  *
  * @throws An error with `.code === "OAUTH_DOMAIN_REJECTED"` when the email
- *         domain is not on the allow-list.  Callers should catch this specific
- *         code and render the denial page rather than a generic 500.
+ * is not permitted.
  */
 export async function verifyAndUpsertOAuthUser(params: {
   email: string;
@@ -89,73 +121,166 @@ export async function verifyAndUpsertOAuthUser(params: {
   allowAnyEmail?: boolean;
   appleName?: string;
 }): Promise<UserRecord> {
-  const cleanEmail = params.email.trim().toLowerCase();
+  const cleanEmail = params.email
+    .trim()
+    .toLowerCase();
 
-  // ── 1. Access gate — reject before any DB operation ─────────────────────
-  // Passes institutional domain members AND operator-approved reviewer emails.
-  // When allowAnyEmail is true (Apple Sign-In only), the domain check is
-  // bypassed because Apple accounts use personal emails (gmail, icloud, etc.).
-  // This flag is ONLY set server-side inside verified Apple callback paths —
-  // never from a client-supplied parameter.
-  if (!params.allowAnyEmail && !isAllowedEmail(cleanEmail)) {
+  // ── 1. Access gate ────────────────────────────────────────────────────────
+  //
+  // Google:
+  // - institutional domain is allowed
+  // - exact reviewer email is allowed
+  //
+  // Apple:
+  // allowAnyEmail can be enabled only by trusted server-side Apple callback
+  // code because Apple may return private relay/personal addresses.
+  //
+  // Never accept allowAnyEmail from an untrusted client request.
+
+  if (
+    !params.allowAnyEmail &&
+    !isAllowedEmail(cleanEmail)
+  ) {
     const err = new Error(
       "Access Denied: Only Baghdad University Medical College emails " +
         `(${ALLOWED_DOMAIN}) are allowed to sign in.`,
     );
+
     (err as any).code = "OAUTH_DOMAIN_REJECTED";
+
     throw err;
   }
 
-  // ── 2. Look up existing user. Database role is authoritative. ─────────────
-  let user = await UserService.findByEmail(cleanEmail);
+  // ── 2. Existing user lookup ───────────────────────────────────────────────
+
+  let user = await UserService.findByEmail(
+    cleanEmail,
+  );
 
   if (user) {
-    // A successful provider assertion is itself ownership verification for
-    // this institutional address, including an account created by password flow.
-    await UserService.markEmailVerified(user.id);
+    /**
+     * A successful OAuth provider assertion proves ownership of the email.
+     */
+    await UserService.markEmailVerified(
+      user.id,
+    );
 
-    // Apple only provides the user's real name during the first authorization.
-    // On subsequent logins, Apple does not send the name again. If the stored
-    // name is still a generic fallback (e.g. "Apple Student"), upgrade it to
-    // the real name from the email prefix — but NEVER overwrite a real name.
-    if (params.allowAnyEmail && params.appleName) {
-      const fallbackNames = ["apple student", "apple user"];
-      const currentName = (user.name || "").trim().toLowerCase();
-      if (fallbackNames.includes(currentName)) {
-        await UserService.updateUser({ id: user.id, name: params.appleName.trim() });
-        user.name = params.appleName.trim();
+    /**
+     * Apple only provides the real user name during the first authorization.
+     *
+     * If the currently stored name is still one of our generic fallback names,
+     * upgrade it when Apple supplies a better name.
+     */
+    if (
+      params.allowAnyEmail &&
+      params.appleName
+    ) {
+      const fallbackNames = [
+        "apple student",
+        "apple user",
+      ];
+
+      const currentName = (
+        user.name || ""
+      )
+        .trim()
+        .toLowerCase();
+
+      if (
+        fallbackNames.includes(
+          currentName,
+        )
+      ) {
+        const appleName =
+          params.appleName.trim();
+
+        await UserService.updateUser({
+          id: user.id,
+          name: appleName,
+        });
+
+        user.name = appleName;
       }
     }
 
     await UserService.updateUser({
       id: user.id,
-      lastActive: new Date().toISOString(),
+      lastActive:
+        new Date().toISOString(),
     });
-    return { ...user, emailVerified: true };
+
+    return {
+      ...user,
+      emailVerified: true,
+    };
   }
 
-  // ── 3. First login — new OAuth accounts are regular users. ────────────────
-  // A cryptographically random password is set so the account can never be
-  // brute-forced via the email/password flow; the user only signs in via OAuth.
+  // ── 3. First OAuth login ──────────────────────────────────────────────────
+  //
+  // New OAuth accounts are always created as regular users.
+  //
+  // They start as PENDING_PROFILE so that the frontend displays the profile
+  // completion screen:
+  //
+  //   avatar
+  //   full name
+  //   academic group
+  //   signature
+  //
+  // After profile completion, the account becomes ACTIVE.
+
   try {
-    user = await AuthService.registerUser({
-      email: cleanEmail,
-      name:
-        (params.allowAnyEmail ? (params.appleName || "").trim() : "") ||
-        params.name.trim() ||
-        cleanEmail.split("@")[0].replace(/[._-]+/g, " "),
-      password: `oauth_secure_${randomUUID()}`,
-      role: "user",
-      emailVerified: true,
-      accountStatus: "PENDING_PROFILE",
-    });
+    user =
+      await AuthService.registerUser({
+        email: cleanEmail,
+
+        name:
+          (
+            params.allowAnyEmail
+              ? (
+                  params.appleName ||
+                  ""
+                ).trim()
+              : ""
+          ) ||
+          params.name.trim() ||
+          cleanEmail
+            .split("@")[0]
+            .replace(
+              /[._-]+/g,
+              " ",
+            ),
+
+        /**
+         * OAuth users never use this password.
+         *
+         * A cryptographically random value prevents the OAuth-created account
+         * from being authenticated through the legacy password flow.
+         */
+        password:
+          `oauth_secure_${randomUUID()}`,
+
+        role: "user",
+
+        emailVerified: true,
+
+        accountStatus:
+          "PENDING_PROFILE",
+      });
   } catch (err: any) {
-    // The account may already exist but findByEmail missed it (a transient
-    // DB error) or a concurrent first-login created it between the lookup
-    // above and this write. Re-fetch instead of surfacing a 500 — the email
-    // already passed the domain gate, so returning the existing account is
-    // safe and keeps OAuth sign-in working across DB hiccups.
-    const existing = await UserService.findByEmail(cleanEmail);
+    /**
+     * Protection against a race condition:
+     *
+     * Another OAuth request may have created the same account between our
+     * findByEmail() call and registerUser().
+     *
+     * Re-fetch the user before treating the operation as a failure.
+     */
+    const existing =
+      await UserService.findByEmail(
+        cleanEmail,
+      );
+
     if (existing) {
       user = existing;
     } else {
@@ -163,10 +288,16 @@ export async function verifyAndUpsertOAuthUser(params: {
     }
   }
 
-  // Attach the provider profile photo when available.
+  // ── 4. Provider avatar ────────────────────────────────────────────────────
+
   if (params.avatar) {
-    await UserService.updateUser({ id: user.id, avatar: params.avatar });
-    user.avatar = params.avatar;
+    await UserService.updateUser({
+      id: user.id,
+      avatar: params.avatar,
+    });
+
+    user.avatar =
+      params.avatar;
   }
 
   return user;
@@ -175,27 +306,23 @@ export async function verifyAndUpsertOAuthUser(params: {
 // ─── Styled denial page ───────────────────────────────────────────────────────
 
 /**
- * Returns a fully self-contained HTML page shown inside the OAuth popup when
- * the domain restriction fires.  The page:
- *   • Explains the restriction clearly with the required domain name.
- *   • Posts `{ type: "OAUTH_DOMAIN_REJECTED", message }` to the opener so the
- *     parent app can surface the error inside the sign-in card.
- *   • Auto-closes the popup after 5 seconds.
- */
-/**
- * Renders the "Access Denied" card page shown when a non-institutional email
- * attempts to sign in.
+ * Returns a fully self-contained HTML page shown inside the OAuth flow when
+ * an unauthorized email attempts to sign in.
  *
- * @param redirectOnClose  When `true` the auto-close script navigates the
- *   page back to "/" instead of calling `window.close()`.  Use this for the
- *   redirect-based OAuth flow where the callback URL IS the main window — not
- *   a popup — so `window.close()` is blocked by the browser.
- * @param appOrigin  The app's own origin (e.g. "https://my.replit.dev").
- *   Used as the `targetOrigin` in `window.opener.postMessage()` so we never
- *   broadcast auth events to arbitrary origins.  Defaults to `"*"` if omitted
- *   (safe here because the rejection message contains no credentials).
+ * @param redirectOnClose
+ * When true, redirect back to the app instead of calling window.close().
+ *
+ * @param appOrigin
+ * App origin used as postMessage targetOrigin.
+ *
+ * @param scriptNonce
+ * CSP nonce for the inline script.
  */
-export function buildDomainRejectionPage(redirectOnClose = false, appOrigin = "*", scriptNonce = ""): string {
+export function buildDomainRejectionPage(
+  redirectOnClose = false,
+  appOrigin = "*",
+  scriptNonce = "",
+): string {
   const message =
     `Access Denied: Only ${ALLOWED_DOMAIN} student emails are allowed ` +
     "to sign in to the Medical Education Portal.";
@@ -204,121 +331,323 @@ export function buildDomainRejectionPage(redirectOnClose = false, appOrigin = "*
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access Denied — Baghdad Medical Portal</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <title>
+      Access Denied — Baghdad Medical Portal
+    </title>
+
     <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Helvetica, Arial, sans-serif;
-        background: linear-gradient(135deg, #FFF8F0 0%, #FEF3C7 100%);
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+
+        background:
+          linear-gradient(
+            135deg,
+            #FFF8F0 0%,
+            #FEF3C7 100%
+          );
+
         min-height: 100vh;
+
         display: flex;
         align-items: center;
         justify-content: center;
+
         padding: 1.5rem;
       }
+
       .card {
         background: #FFFFFF;
-        border: 1.5px solid #FED7AA;
+
+        border:
+          1.5px solid #FED7AA;
+
         border-radius: 20px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-        padding: 2.5rem 2rem;
+
+        box-shadow:
+          0 8px 32px rgba(0,0,0,0.08),
+          0 2px 8px rgba(0,0,0,0.04);
+
+        padding:
+          2.5rem 2rem;
+
         text-align: center;
+
         max-width: 420px;
         width: 100%;
-        animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+        animation:
+          slideUp
+          0.3s
+          cubic-bezier(
+            0.22,
+            1,
+            0.36,
+            1
+          )
+          both;
       }
+
       @keyframes slideUp {
-        from { opacity: 0; transform: translateY(16px) scale(0.97); }
-        to   { opacity: 1; transform: translateY(0)   scale(1); }
+        from {
+          opacity: 0;
+          transform:
+            translateY(16px)
+            scale(0.97);
+        }
+
+        to {
+          opacity: 1;
+          transform:
+            translateY(0)
+            scale(1);
+        }
       }
+
       .icon-wrap {
         width: 64px;
         height: 64px;
+
         border-radius: 50%;
+
         background: #FEF3C7;
-        border: 1.5px solid #FDE68A;
+
+        border:
+          1.5px solid #FDE68A;
+
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 1.25rem;
+
+        margin:
+          0 auto
+          1.25rem;
       }
-      .icon-wrap svg { width: 30px; height: 30px; }
+
+      .icon-wrap svg {
+        width: 30px;
+        height: 30px;
+      }
+
       h2 {
         font-size: 1.2rem;
+
         font-weight: 700;
+
         color: #92400E;
+
         margin-bottom: 0.6rem;
-        letter-spacing: -0.02em;
+
+        letter-spacing:
+          -0.02em;
       }
+
       p {
         font-size: 0.875rem;
+
         color: #78350F;
+
         line-height: 1.65;
-        margin-bottom: 0.75rem;
+
+        margin-bottom:
+          0.75rem;
       }
+
       .domain-chip {
-        display: inline-block;
-        background: #FEF9C3;
-        border: 1px solid #FDE68A;
-        color: #92400E;
-        padding: 5px 14px;
-        border-radius: 99px;
-        font-family: "SF Mono", "Fira Code", Consolas, monospace;
-        font-size: 0.82rem;
-        font-weight: 600;
-        margin: 0.25rem 0 1rem;
-        letter-spacing: 0.01em;
+        display:
+          inline-block;
+
+        background:
+          #FEF9C3;
+
+        border:
+          1px solid #FDE68A;
+
+        color:
+          #92400E;
+
+        padding:
+          5px 14px;
+
+        border-radius:
+          99px;
+
+        font-family:
+          "SF Mono",
+          "Fira Code",
+          Consolas,
+          monospace;
+
+        font-size:
+          0.82rem;
+
+        font-weight:
+          600;
+
+        margin:
+          0.25rem
+          0
+          1rem;
+
+        letter-spacing:
+          0.01em;
       }
+
       .note {
-        font-size: 0.75rem;
-        color: #A16207;
-        margin-top: 1rem;
-        opacity: 0.85;
+        font-size:
+          0.75rem;
+
+        color:
+          #A16207;
+
+        margin-top:
+          1rem;
+
+        opacity:
+          0.85;
       }
+
       .progress {
-        width: 100%;
-        height: 3px;
-        background: #FEF3C7;
-        border-radius: 99px;
-        overflow: hidden;
-        margin-top: 1.5rem;
+        width:
+          100%;
+
+        height:
+          3px;
+
+        background:
+          #FEF3C7;
+
+        border-radius:
+          99px;
+
+        overflow:
+          hidden;
+
+        margin-top:
+          1.5rem;
       }
+
       .progress-bar {
-        height: 100%;
-        background: #F59E0B;
-        border-radius: 99px;
-        animation: drain 4.5s linear forwards;
-        width: 100%;
+        height:
+          100%;
+
+        background:
+          #F59E0B;
+
+        border-radius:
+          99px;
+
+        animation:
+          drain
+          4.5s
+          linear
+          forwards;
+
+        width:
+          100%;
       }
-      @keyframes drain { from { width: 100%; } to { width: 0%; } }
+
+      @keyframes drain {
+        from {
+          width: 100%;
+        }
+
+        to {
+          width: 0%;
+        }
+      }
     </style>
   </head>
+
   <body>
     <div class="card">
+
       <div class="icon-wrap">
-        <!-- Shield-X icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <line x1="9" y1="9" x2="15" y2="15"/>
-          <line x1="15" y1="9" x2="9" y2="15"/>
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#D97706"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+          />
+
+          <line
+            x1="9"
+            y1="9"
+            x2="15"
+            y2="15"
+          />
+
+          <line
+            x1="15"
+            y1="9"
+            x2="9"
+            y2="15"
+          />
         </svg>
+
       </div>
 
-      <h2>Access Denied</h2>
-      <p>This Medical Portal is restricted to Baghdad University<br>College of Medicine students only.</p>
-      <p>Please sign in with your official university email:</p>
-      <span class="domain-chip">${ALLOWED_DOMAIN}</span>
+      <h2>
+        Access Denied
+      </h2>
 
-      <p>The account you used does not belong to this institution.<br>
-         Please try again with your student email address.</p>
+      <p>
+        This Medical Portal is restricted to Baghdad University
+        <br />
+        College of Medicine students only.
+      </p>
 
-      <p class="note">${redirectOnClose
-        ? "Returning you to the sign&#8209;in page&hellip;"
-        : "This window will close automatically&hellip;"}</p>
-      <div class="progress"><div class="progress-bar"></div></div>
+      <p>
+        Please sign in with your official university email:
+      </p>
+
+      <span class="domain-chip">
+        ${ALLOWED_DOMAIN}
+      </span>
+
+      <p>
+        The account you used does not belong to this institution.
+        <br />
+        Please try again with your student email address.
+      </p>
+
+      <p class="note">
+        ${
+          redirectOnClose
+            ? "Returning you to the sign&#8209;in page&hellip;"
+            : "This window will close automatically&hellip;"
+        }
+      </p>
+
+      <div class="progress">
+        <div class="progress-bar"></div>
+      </div>
+
     </div>
 
     <script nonce="${scriptNonce}">
@@ -327,30 +656,42 @@ export function buildDomainRejectionPage(redirectOnClose = false, appOrigin = "*
           type: "OAUTH_DOMAIN_REJECTED",
           message: ${JSON.stringify(message)}
         };
-        // Notify the parent app window if this is running in a popup and the
-        // opener is still reachable (desktop Chrome / Firefox).
-        // On Safari ITP, window.opener is nullified after the cross-origin
-        // redirect through accounts.google.com, so postMessage may not fire —
-        // the parent falls back to polling /api/auth/oauth-session/:stateToken
-        // which returns { rejected: true } when domain restriction fires.
-        var targetOrigin = ${JSON.stringify(appOrigin)};
-        try {
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage(msg, targetOrigin);
-          }
-        } catch (e) { /* cross-origin guard */ }
 
-        // After the progress bar drains (4.5 s), dismiss the page.
-        // • Popup path  → window.close()  (browser allows this for script-opened windows)
-        // • Redirect path → navigate back to the app (window.close() is blocked on
-        //   pages that were not opened by window.open())
-        setTimeout(function () {
-          ${redirectOnClose
-             ? "window.location.href = " + JSON.stringify(appOrigin.replace(/\/$/, "") + "/?oauth_error=domain_rejected") + ";"
-            : "try { window.close(); } catch (e) {}"}
-        }, 4500);
+        var targetOrigin =
+          ${JSON.stringify(appOrigin)};
+
+        try {
+          if (
+            window.opener &&
+            !window.opener.closed
+          ) {
+            window.opener.postMessage(
+              msg,
+              targetOrigin
+            );
+          }
+        } catch (e) {
+          /* cross-origin guard */
+        }
+
+        setTimeout(
+          function () {
+            ${
+              redirectOnClose
+                ? "window.location.href = " +
+                  JSON.stringify(
+                    appOrigin.replace(/\/$/, "") +
+                      "/?oauth_error=domain_rejected",
+                  ) +
+                  ";"
+                : "try { window.close(); } catch (e) {}"
+            }
+          },
+          4500
+        );
       })();
     </script>
+
   </body>
 </html>`;
 }
