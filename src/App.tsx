@@ -409,40 +409,10 @@ export default function App() {
        setIsActive(active);
        if (active && currentUserRef.current) {
         refreshAcademicDataRef.current?.(false);
-
-        // Force viewport re-measurement after background→foreground transition.
-        //
-        // ROOT CAUSE: iOS WKWebView can momentarily report a stale/narrow
-        // layout viewport during the app-switcher animation.  Reading
-        // innerWidth before the native layer has fully settled stores wrong
-        // dimensions in React state.
-        //
-        // FIX: Force a synchronous style recalculation by reading a layout
-        // property (offsetHeight).  This blocks until the browser has applied
-        // the current viewport frame, ensuring subsequent reads of innerWidth/
-        // innerHeight reflect the real screen dimensions.  Then dispatch resize
-        // so all listeners (useDeviceProfile etc.) pick up the correct values.
-        requestAnimationFrame(() => {
-          // Reading offsetHeight forces a synchronous layout reflow — the
-          // browser must compute the current viewport before returning.
-          void document.documentElement.offsetHeight;
-          window.dispatchEvent(new Event("resize"));
-        });
        }
     });
 
-    // Backup: some iOS WKWebView versions fire visibilitychange more reliably
-    // than the Capacitor lifecycle callback.  If the page becomes visible
-    // again, force a style recalc + resize dispatch (same logic as above).
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && currentUserRef.current) {
-        requestAnimationFrame(() => {
-          void document.documentElement.offsetHeight;
-          window.dispatchEvent(new Event("resize"));
-        });
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+
 
     const unbindKeyboard = NativeBridge.listenToKeyboard((state) => {
       setKeyboardState(state);
@@ -452,7 +422,6 @@ export default function App() {
       unbindNetwork();
       unbindLifecycle();
       unbindKeyboard();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
        
   }, []);
