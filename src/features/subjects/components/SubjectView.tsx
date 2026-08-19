@@ -364,8 +364,8 @@ export const SubjectView = function SubjectView({
       let list = DEPARTMENTS.map((dept) => {
         if (dept.id === "Microbiology") {
           return {
-            id: "Biochemistery" as any,
-            name: "Biochemistery",
+            id: "Biochemistry" as any,
+            name: "Biochemistry",
             nameAr: "الكيمياء الحيوية السريرية",
             icon: FlaskConical,
             badge: "BIOC",
