@@ -3331,17 +3331,39 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const handleSignOut = useCallback(async () => {
-    oauthSessionCompletionRef.current = null;
-    try {
-      await apiClient("/api/auth/logout", { method: "POST", silent: true });
-    } catch (err) {
-      
-    }
-    await Promise.all([SecureStorage.remove("auth_token"), SecureStorage.remove("logged_user")]);
+  const signOutInFlightRef = useRef(false);
+
+const handleSignOut = useCallback(async () => {
+  // Prevent duplicate taps on iPhone/iPad while logout cleanup is running.
+  if (signOutInFlightRef.current) return;
+  signOutInFlightRef.current = true;
+
+  oauthSessionCompletionRef.current = null;
+
+  // Start server-side logout immediately, but NEVER block the UI waiting for it.
+  // This fixes the iOS/iPadOS issue where Sign Out appeared to require
+  // multiple taps while the network request was still pending.
+  void apiClient("/api/auth/logout", {
+    method: "POST",
+    silent: true,
+    timeoutMs: 5000,
+  }).catch(() => {});
+
+  // Change UI/session state immediately on the FIRST tap.
+  setAuthState("UNAUTHENTICATED");
+  setCurrentUser(null);
+  setProfileDropdownOpen(false);
+  setNotifications([]);
+
+  try {
+    await Promise.all([
+      SecureStorage.remove("auth_token"),
+      SecureStorage.remove("logged_user"),
+    ]);
+
     clearApiCache();
     CacheManager.invalidate();
-    // Clear all user-associated offline caches so no PII persists post-logout
+
     localStorage.removeItem("progress_db");
     localStorage.removeItem("points_log");
     localStorage.removeItem("calendar_events");
@@ -3350,20 +3372,27 @@ export default function App() {
     localStorage.removeItem("offline_mutations_queue");
     localStorage.removeItem("offline_dlq");
     localStorage.removeItem("app_notifications_v1");
-    setNotifications([]);
-    // Clear IndexedDB caches (Apple Guideline 5.1.1(v) — no user data persists post-logout)
-    IDBManager.removeItem("subjects_cache").catch(() => {});
-    IDBManager.removeItem("db_lectures_list_cache").catch(() => {});
-    indexedDB.deleteDatabase("BaghdadMedicalOfflineDB_v2");
+
+    // Best-effort IndexedDB cleanup must not delay or prevent visible logout.
+    void IDBManager.removeItem("subjects_cache").catch(() => {});
+    void IDBManager.removeItem("db_lectures_list_cache").catch(() => {});
+
+    try {
+      indexedDB.deleteDatabase("BaghdadMedicalOfflineDB_v2");
+    } catch {}
+
     const accountId = getActiveAccountId();
     setActiveAccountId(null);
-    await clearAccountData(accountId);
-    await OfflineEngine.clearAccountStorage();
-    setAuthState("UNAUTHENTICATED");
-    setCurrentUser(null);
-    setProfileDropdownOpen(false);
-       
-  }, []);
+
+    // Remaining account cleanup can finish after the UI has already logged out.
+    await Promise.allSettled([
+      clearAccountData(accountId),
+      OfflineEngine.clearAccountStorage(),
+    ]);
+  } finally {
+    signOutInFlightRef.current = false;
+  }
+}, []);
 
   const handleForceLocalReset = useCallback(async () => {
     oauthSessionCompletionRef.current = null;
