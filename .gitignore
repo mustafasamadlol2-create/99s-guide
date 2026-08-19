@@ -1,0 +1,33 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Environment variables — copy .env.example and fill in your credentials
+.env
+.env.*
+!.env.example
+
+# SQLite dev database (not used in production)
+prisma/dev.db
+prisma/*.db
+
+# Uploaded files — not committed, served at runtime
+uploads/*
+!uploads/.gitkeep
+
+# Zip archives
+*.zip
+
+# Runtime logs and device tokens may contain operational/user data
+server-log.txt
+device_tokens.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
