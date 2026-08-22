@@ -13,54 +13,112 @@ type ViteImportMeta = ImportMeta & {
 };
 
 /**
- * Automatically switches the API base URL from relative paths (on web)
- * to absolute paths (when running within Capacitor native environments).
+ * API URL resolution rules:
+ *
+ * 1. Local web development:
+ *    Use relative API paths so requests reach the local Express/Vite server.
+ *
+ * 2. Production PWA/Web:
+ *    Use VITE_API_BASE_URL so requests go directly to the production backend
+ *    instead of being sent to the static Cloudflare frontend origin.
+ *
+ * 3. Capacitor native:
+ *    Preserve the existing native behavior and use the production API URL.
  */
-// Production fallback: the SPA is served from a static host (Cloudflare), so
-// relative API calls would hit that host and receive HTML instead of JSON.
-// Unless VITE_API_BASE_URL is provided at build time, production builds always
-// target the Render backend so REST, socket.io, and /uploads reach the real API.
+
 const PRODUCTION_API_BASE_URL = "";
 
 export const getApiBaseUrl = (): string => {
   const metaEnv = (import.meta as ViteImportMeta).env;
-  // Development always uses the local Express/Vite server. A production URL
-  // in .env must not redirect local sign-in requests to a remote backend.
-  let baseUrl = metaEnv?.DEV
-    ? ""
-    : metaEnv?.VITE_API_BASE_URL?.trim() || PRODUCTION_API_BASE_URL;
 
+  const configuredProductionUrl =
+    metaEnv?.VITE_API_BASE_URL?.trim() || PRODUCTION_API_BASE_URL;
+
+  /*
+   * CAPACITOR / NATIVE
+   *
+   * Keep the existing native behavior intact.
+   */
   if (Capacitor.isNativePlatform()) {
-    if (!baseUrl && metaEnv?.DEV && typeof window !== "undefined") {
+    let nativeBaseUrl = metaEnv?.DEV ? "" : configuredProductionUrl;
+
+    if (
+      !nativeBaseUrl &&
+      metaEnv?.DEV &&
+      typeof window !== "undefined"
+    ) {
       const origin = window.location.origin;
-      if (origin.startsWith("http://") || origin.startsWith("https://")) {
-        baseUrl = origin;
+
+      if (
+        origin.startsWith("http://") ||
+        origin.startsWith("https://")
+      ) {
+        nativeBaseUrl = origin;
       }
     }
+
+    if (
+      nativeBaseUrl === "" ||
+      nativeBaseUrl.startsWith("/")
+    ) {
+      return "";
+    }
+
+    return nativeBaseUrl.replace(/\/+$/, "");
   }
 
-  if (!Capacitor.isNativePlatform() && typeof window !== "undefined") {
-    baseUrl = "";
-  }
-
-  if (baseUrl === "" || baseUrl.startsWith("/")) {
+  /*
+   * WEB / PWA
+   *
+   * Development continues using relative URLs so the local Vite/Express
+   * environment works exactly as before.
+   */
+  if (metaEnv?.DEV) {
     return "";
   }
-  return baseUrl.replace(/\/+$/, "");
+
+  /*
+   * Production PWA must use the real backend URL.
+   *
+   * Without this, /api/... requests are sent to the Cloudflare frontend
+   * origin instead of the Render backend.
+   */
+  if (
+    configuredProductionUrl === "" ||
+    configuredProductionUrl.startsWith("/")
+  ) {
+    return "";
+  }
+
+  return configuredProductionUrl.replace(/\/+$/, "");
 };
 
 /**
  * Utility to format and resolve fully-qualified API URLs.
- * Handles duplicate slash reduction dynamically.
  *
- * @param path Relative API path, e.g., "/api/auth/me"
+ * Example:
+ *   getApiUrl("/api/auth/me")
+ *
+ * Development web:
+ *   /api/auth/me
+ *
+ * Production PWA / Capacitor:
+ *   https://nine9s-guide.onrender.com/api/auth/me
  */
 export const getApiUrl = (path: string): string => {
   const base = getApiBaseUrl();
-  if (!base) return path;
 
-  const cleanBase = base.endsWith("/") ? base.slice(0, -1) : base;
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  if (!base) {
+    return path;
+  }
+
+  const cleanBase = base.endsWith("/")
+    ? base.slice(0, -1)
+    : base;
+
+  const cleanPath = path.startsWith("/")
+    ? path
+    : `/${path}`;
 
   return `${cleanBase}${cleanPath}`;
 };
