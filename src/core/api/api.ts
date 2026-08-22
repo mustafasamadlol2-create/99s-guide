@@ -8,26 +8,31 @@ import { Capacitor } from "@capacitor/core";
 type ViteImportMeta = ImportMeta & {
   env?: {
     DEV?: boolean;
+    PROD?: boolean;
     VITE_API_BASE_URL?: string;
   };
 };
 
 /**
- * API URL resolution rules:
+ * Canonical production backend.
  *
- * 1. Local web development:
- *    Use relative API paths so requests reach the local Express/Vite server.
- *
- * 2. Production PWA/Web:
- *    Use VITE_API_BASE_URL so requests go directly to the production backend
- *    instead of being sent to the static Cloudflare frontend origin.
- *
- * 3. Capacitor native:
- *    Preserve the existing native behavior and use the production API URL.
+ * This acts as a safe fallback when VITE_API_BASE_URL is not injected
+ * by the production hosting/build environment.
  */
+const PRODUCTION_API_BASE_URL = "https://nine9s-guide.onrender.com";
 
-const PRODUCTION_API_BASE_URL = "";
-
+/**
+ * Resolve the API base URL without mixing native and web behavior.
+ *
+ * Local web development:
+ *   relative /api/... URLs
+ *
+ * Production PWA:
+ *   https://nine9s-guide.onrender.com/api/...
+ *
+ * Capacitor native production:
+ *   https://nine9s-guide.onrender.com/api/...
+ */
 export const getApiBaseUrl = (): string => {
   const metaEnv = (import.meta as ViteImportMeta).env;
 
@@ -35,74 +40,71 @@ export const getApiBaseUrl = (): string => {
     metaEnv?.VITE_API_BASE_URL?.trim() || PRODUCTION_API_BASE_URL;
 
   /*
-   * CAPACITOR / NATIVE
+   * NATIVE CAPACITOR
    *
-   * Keep the existing native behavior intact.
+   * Preserve the existing native behavior.
+   * Production native continues using exactly the same Render backend.
    */
   if (Capacitor.isNativePlatform()) {
-    let nativeBaseUrl = metaEnv?.DEV ? "" : configuredProductionUrl;
+    if (metaEnv?.DEV) {
+      /*
+       * Native development fallback.
+       *
+       * Preserve the previous behavior if a normal HTTP(S) origin
+       * is deliberately being used during development.
+       */
+      if (typeof window !== "undefined") {
+        const origin = window.location.origin;
 
-    if (
-      !nativeBaseUrl &&
-      metaEnv?.DEV &&
-      typeof window !== "undefined"
-    ) {
-      const origin = window.location.origin;
-
-      if (
-        origin.startsWith("http://") ||
-        origin.startsWith("https://")
-      ) {
-        nativeBaseUrl = origin;
+        if (
+          origin.startsWith("http://") ||
+          origin.startsWith("https://")
+        ) {
+          return origin.replace(/\/+$/, "");
+        }
       }
+
+      /*
+       * capacitor://localhost must never be used as the API server.
+       * Fall back to the configured production backend.
+       */
+      return configuredProductionUrl.replace(/\/+$/, "");
     }
 
-    if (
-      nativeBaseUrl === "" ||
-      nativeBaseUrl.startsWith("/")
-    ) {
-      return "";
-    }
-
-    return nativeBaseUrl.replace(/\/+$/, "");
+    return configuredProductionUrl.replace(/\/+$/, "");
   }
 
   /*
-   * WEB / PWA
+   * WEB / PWA DEVELOPMENT
    *
-   * Development continues using relative URLs so the local Vite/Express
-   * environment works exactly as before.
+   * Keep local development relative so the existing local
+   * Express/Vite proxy/server continues working.
    */
   if (metaEnv?.DEV) {
     return "";
   }
 
   /*
-   * Production PWA must use the real backend URL.
+   * PRODUCTION PWA
    *
-   * Without this, /api/... requests are sent to the Cloudflare frontend
-   * origin instead of the Render backend.
+   * Never send /api requests to the Cloudflare SPA origin.
+   * Always target the real production backend.
    */
-  if (
-    configuredProductionUrl === "" ||
-    configuredProductionUrl.startsWith("/")
-  ) {
-    return "";
-  }
-
   return configuredProductionUrl.replace(/\/+$/, "");
 };
 
 /**
- * Utility to format and resolve fully-qualified API URLs.
+ * Convert a relative API path into the correct runtime URL.
  *
- * Example:
- *   getApiUrl("/api/auth/me")
+ * Examples:
  *
  * Development web:
  *   /api/auth/me
  *
- * Production PWA / Capacitor:
+ * Production PWA:
+ *   https://nine9s-guide.onrender.com/api/auth/me
+ *
+ * Capacitor production:
  *   https://nine9s-guide.onrender.com/api/auth/me
  */
 export const getApiUrl = (path: string): string => {
