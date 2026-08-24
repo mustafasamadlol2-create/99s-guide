@@ -1,13 +1,28 @@
 import React from "react";
 import type { SubjectId } from "../../../core/types";
 
-import idBg from "../assets/subject-backgrounds/teal_microbial_world_in_motion.png";
-import ntBg from "../assets/subject-backgrounds/purple_molecular_superfood_still_life.png";
-import rmBg from "../assets/subject-backgrounds/cinematic_blue_data_analytics_workspace.png";
-import caBg from "../assets/subject-backgrounds/cinematic_red_tinted_hospital_care.png";
-import phcBg from "../assets/subject-backgrounds/global_health_network_in_golden_light.png";
-import imdBg from "../assets/subject-backgrounds/microscopic_purple_immune_cell_landscape.png";
-import sscBg from "../assets/subject-backgrounds/pathways_to_scientific_discovery.png";
+const idBg = new URL("../assets/subject-backgrounds/teal_microbial_world_in_motion.webp", import.meta.url).href;
+const ntBg = new URL("../assets/subject-backgrounds/purple_molecular_superfood_still_life.webp", import.meta.url).href;
+const rmBg = new URL("../assets/subject-backgrounds/cinematic_blue_data_analytics_workspace.webp", import.meta.url).href;
+const caBg = new URL("../assets/subject-backgrounds/cinematic_red_tinted_hospital_care.webp", import.meta.url).href;
+const phcBg = new URL("../assets/subject-backgrounds/global_health_network_in_golden_light.webp", import.meta.url).href;
+const imdBg = new URL("../assets/subject-backgrounds/microscopic_purple_immune_cell_landscape.webp", import.meta.url).href;
+const sscBg = new URL("../assets/subject-backgrounds/pathways_to_scientific_discovery.webp", import.meta.url).href;
+
+const preloadArtworkUrls = [idBg, ntBg, rmBg, caBg, phcBg, imdBg, sscBg];
+
+if (typeof document !== "undefined") {
+  for (const href of preloadArtworkUrls) {
+    if (!document.head.querySelector(`link[data-flashcard-artwork="${href}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = href;
+      link.setAttribute("data-flashcard-artwork", href);
+      document.head.appendChild(link);
+    }
+  }
+}
 
 interface SubjectFlashcardArtworkProps {
   subjectId?: SubjectId | string;
@@ -76,6 +91,9 @@ export function SubjectFlashcardArtwork({
           alt=""
           className="w-full h-full object-cover select-none"
           style={{ objectPosition: artwork.objectPosition || "center" }}
+          loading="eager"
+          decoding="sync"
+          fetchPriority="high"
           draggable={false}
         />
 

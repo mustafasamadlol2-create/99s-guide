@@ -1560,7 +1560,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  <motion.button
  type="button"
- whileTap={{ scale: 0.95 }}
+ whileTap={{ scale: 0.985 }}
+ transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
  onClick={() => {
  setActiveTab(tab.id as any);
  }}
@@ -1570,12 +1571,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <motion.div
  layoutId="activeLectureTabPill"
  className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg -z-10"
- transition={{
- type: "spring",
- stiffness: 400,
- damping: 40,
- mass: 1,
- }}
+ transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
  />
  )}
  <span
@@ -1600,18 +1596,17 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
    {/* 2. Workspace View Tabs Rendering */}
   <motion.div
-    transition={{ type: "spring", stiffness: 500, damping: 40, mass: 1 }}
-    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[200px] flex flex-col relative"
+    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none]"
   >
-  <AnimatePresence mode="popLayout" initial={false}>
+  <AnimatePresence mode="wait" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
   key="pdf"
-  initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
-  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+  initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+  transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1701,10 +1696,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "notes" && (
  <motion.div
   key="notes"
-  initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
-  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+  initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+  transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1796,10 +1791,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "mcqs" && (
  <motion.div
  key="mcqs"
-initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+ transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
  className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  {filteredQuizQuestions.length === 0 ? (
@@ -2119,10 +2114,10 @@ initial={{ opacity: 0, scale: 0.98 }}
  {activeTab === "flashcards" && (
  <motion.div
  key="flashcards"
-initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+ transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
  className="flex-1 flex flex-col justify-between w-full"
  >
  {(() => {
@@ -2158,161 +2153,141 @@ initial={{ opacity: 0, scale: 0.98 }}
     })(); 
 
   if (deckFinished) {
-    const studyTimeMinutes = Math.max(1, Math.round((Date.now() - sessionStartRef.current) / 60000));
     const totalReviewed = baseCards.length;
     const easyCards = baseCards.filter((c) => cardStats[c.id] === "easy");
     const hardCards = baseCards.filter((c) => cardStats[c.id] === "hard");
     const mediumCards = baseCards.filter((c) => cardStats[c.id] === "medium");
-    
+
+    const repeatButtons = [
+      {
+        key: "hard" as const,
+        count: hardCards.length,
+        label: isRtl ? "تكرار البطاقات الصعبة" : "Repeat Hard cards",
+        activeClass: "border-rose-500/25 bg-rose-500/10 text-rose-400",
+        dotClass: "bg-rose-500",
+      },
+      {
+        key: "medium" as const,
+        count: mediumCards.length,
+        label: isRtl ? "تكرار البطاقات المتوسطة" : "Repeat Medium cards",
+        activeClass: "border-amber-500/25 bg-amber-500/10 text-amber-400",
+        dotClass: "bg-amber-500",
+      },
+      {
+        key: "easy" as const,
+        count: easyCards.length,
+        label: isRtl ? "تكرار البطاقات السهلة" : "Repeat Easy cards",
+        activeClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
+        dotClass: "bg-emerald-500",
+      },
+    ];
+
     return (
-      <div
-        className="p-4 sm:p-8 space-y-section flex-1 flex flex-col justify-center items-center animate-fadeIn w-full"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.985 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.992 }}
+        transition={{ duration: 0.34, ease: [0.23, 1, 0.32, 1] }}
+        className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 w-full"
         style={{ direction: isRtl ? "rtl" : "ltr" }}
       >
-        <div className="max-w-[400px] w-full space-y-8">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-              className="w-16 h-16 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center shadow-sm border border-emerald-500/20"
+        <div className="w-full max-w-[460px] space-y-5 sm:space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, delay: 0.03, ease: [0.23, 1, 0.32, 1] }}
+            className="flex flex-col items-center gap-3 text-center"
+          >
+            <div
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center border shadow-[0_12px_32px_rgba(16,185,129,0.12)]"
+              style={{ backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`, borderColor: `rgba(${flashcardTheme.rgb}, 0.22)`, color: flashcardTheme.accent }}
             >
-              <CheckCircle className="w-8 h-8" />
-            </motion.div>
+              <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8" />
+            </div>
             <div className="space-y-1">
-              <h3 className="text-xl font-sans font-semibold tracking-tight text-neutral-900 dark:text-white">
+              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
                 {isRtl ? "اكتملت الجلسة" : "Session Complete"}
               </h3>
               <p className="text-sm text-neutral-500 dark:text-[#EBEBF599]">
                 {isRtl ? "عمل رائع! لقد راجعت جميع البطاقات." : "Great work! You've reviewed all cards."}
               </p>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Premium Session Summary */}
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1, duration: 0.4 }}
-            className="bg-white dark:bg-[#1C1C1E] border border-black/5 dark:border-white/[0.08] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.2)] space-y-5"
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
+            className="rounded-[24px] border border-black/[0.06] dark:border-white/[0.08] bg-white/90 dark:bg-[#1C1C1E] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl space-y-5"
           >
-            <div className="grid grid-cols-2 divide-x divide-neutral-100 dark:divide-neutral-800 text-center">
+            <div className="grid grid-cols-2 divide-x divide-neutral-100 dark:divide-white/[0.08] text-center">
               <div className="flex flex-col items-center">
-                <span className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">{totalReviewed}</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{isRtl ? "بطاقات" : "Cards"}</span>
+                <span className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white">{totalReviewed}</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">{isRtl ? "بطاقات" : "Cards"}</span>
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-2xl font-semibold tracking-tight text-emerald-500">100%</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{isRtl ? "إكمال" : "Done"}</span>
+                <span className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: flashcardTheme.accent }}>100%</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">{isRtl ? "إكمال" : "Done"}</span>
               </div>
             </div>
 
             <div className="pt-4 border-t border-neutral-100 dark:border-white/[0.08]">
-              <div className="flex gap-1 h-1.5 rounded-full overflow-hidden mb-3">
-                {hardCards.length > 0 && <div style={{ width: `${(hardCards.length / totalReviewed) * 100}%` }} className="bg-rose-500"></div>}
-                {mediumCards.length > 0 && <div style={{ width: `${(mediumCards.length / totalReviewed) * 100}%` }} className="bg-amber-500"></div>}
-                {easyCards.length > 0 && <div style={{ width: `${(easyCards.length / totalReviewed) * 100}%` }} className="bg-emerald-500"></div>}
-                {hardCards.length === 0 && mediumCards.length === 0 && easyCards.length === 0 && <div className="w-full h-full bg-emerald-500"></div>}
+              <div className="flex gap-1 h-1.5 rounded-full overflow-hidden mb-3 bg-neutral-100 dark:bg-white/[0.06]">
+                {hardCards.length > 0 && <div style={{ width: `${(hardCards.length / totalReviewed) * 100}%` }} className="bg-rose-500" />}
+                {mediumCards.length > 0 && <div style={{ width: `${(mediumCards.length / totalReviewed) * 100}%` }} className="bg-amber-500" />}
+                {easyCards.length > 0 && <div style={{ width: `${(easyCards.length / totalReviewed) * 100}%` }} className="bg-emerald-500" />}
+                {hardCards.length === 0 && mediumCards.length === 0 && easyCards.length === 0 && <div className="w-full h-full bg-emerald-500" />}
               </div>
               <div className="flex justify-between px-1 text-[11px] font-semibold tracking-wide">
-                <span className="text-rose-500 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div> {hardCards.length} {isRtl ? "صعب" : "Hard"}</span>
-                <span className="text-amber-500 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> {mediumCards.length} {isRtl ? "متوسط" : "Med"}</span>
-                <span className="text-emerald-500 flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> {easyCards.length} {isRtl ? "سهل" : "Easy"}</span>
+                <span className="text-rose-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{hardCards.length} {isRtl ? "صعب" : "Hard"}</span>
+                <span className="text-amber-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{mediumCards.length} {isRtl ? "متوسط" : "Med"}</span>
+                <span className="text-emerald-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{easyCards.length} {isRtl ? "سهل" : "Easy"}</span>
               </div>
             </div>
           </motion.div>
 
-          <div className="space-y-3 pt-2 text-left w-full">
-            {/* Repeat Hard Only Button (Red) */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (hardCards.length > 0) {
-                  setRepeatFilter("hard");
-                  setCurrentCardIndex(0);
-                  setIsFlipped(false);
-                  setDeckFinished(false);
-                }
-              }}
-              disabled={hardCards.length === 0}
-              className={`w-full py-3.5 px-4 rounded-xl text-[13px] font-semibold transition-all duration-300 flex items-center justify-between border ${
-                hardCards.length > 0
-                  ? "bg-rose-50/50 dark:bg-rose-500/10 hover:bg-rose-50 dark:hover:bg-rose-500/20 border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 cursor-pointer shadow-sm"
-                  : "bg-neutral-50/50 dark:bg-neutral-900/30 border-neutral-200/50 dark:border-white/[0.06] text-neutral-500 dark:text-neutral-600 opacity-60 cursor-not-allowed"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${hardCards.length > 0 ? "bg-rose-500" : "bg-neutral-300 dark:bg-neutral-700"}`} />
-                {isRtl ? "تكرار البطاقات الصعبة" : "Repeat Hard cards"}
-              </span>
-              {hardCards.length > 0 && (
-                <span className="bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-md font-mono text-[11px] font-bold">
-                  {hardCards.length}
-                </span>
-              )}
-            </motion.button>
-
-            {/* Repeat Medium Only Button (Yellow) */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (mediumCards.length > 0) {
-                  setRepeatFilter("medium");
-                  setCurrentCardIndex(0);
-                  setIsFlipped(false);
-                  setDeckFinished(false);
-                }
-              }}
-              disabled={mediumCards.length === 0}
-              className={`w-full py-3.5 px-4 rounded-xl text-[13px] font-semibold transition-all duration-300 flex items-center justify-between border ${
-                mediumCards.length > 0
-                  ? "bg-amber-50/50 dark:bg-amber-500/10 hover:bg-amber-50 dark:hover:bg-amber-500/20 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 cursor-pointer shadow-sm"
-                  : "bg-neutral-50/50 dark:bg-neutral-900/30 border-neutral-200/50 dark:border-white/[0.06] text-neutral-500 dark:text-neutral-600 opacity-60 cursor-not-allowed"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${mediumCards.length > 0 ? "bg-amber-500" : "bg-neutral-300 dark:bg-neutral-700"}`} />
-                {isRtl ? "تكرار البطاقات المتوسطة" : "Repeat Medium cards"}
-              </span>
-              {mediumCards.length > 0 && (
-                <span className="bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-md font-mono text-[11px] font-bold">
-                  {mediumCards.length}
-                </span>
-              )}
-            </motion.button>
-
-            {/* Repeat Easy Only Button (Green/Emerald) */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (easyCards.length > 0) {
-                  setRepeatFilter("easy");
-                  setCurrentCardIndex(0);
-                  setIsFlipped(false);
-                  setDeckFinished(false);
-                }
-              }}
-              disabled={easyCards.length === 0}
-              className={`w-full py-3.5 px-4 rounded-xl text-[13px] font-semibold transition-all duration-300 flex items-center justify-between border ${
-                easyCards.length > 0
-                  ? "bg-emerald-50/50 dark:bg-emerald-500/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 cursor-pointer shadow-sm"
-                  : "bg-neutral-50/50 dark:bg-neutral-900/30 border-neutral-200/50 dark:border-white/[0.06] text-neutral-500 dark:text-neutral-600 opacity-60 cursor-not-allowed"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${easyCards.length > 0 ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"}`} />
-                {isRtl ? "تكرار البطاقات السهلة" : "Repeat Easy cards"}
-              </span>
-              {easyCards.length > 0 && (
-                <span className="bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-0.5 rounded-md font-mono text-[11px] font-bold">
-                  {easyCards.length}
-                </span>
-              )}
-            </motion.button>
-          </div>
-
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, delay: 0.13, ease: [0.23, 1, 0.32, 1] }}
+            className="space-y-2.5"
+          >
+            {repeatButtons.map((item) => {
+              const enabled = item.count > 0;
+              return (
+                <motion.button
+                  key={item.key}
+                  whileTap={enabled ? { scale: 0.985 } : undefined}
+                  transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                  onClick={() => {
+                    if (!enabled) return;
+                    setRepeatFilter(item.key);
+                    setCurrentCardIndex(0);
+                    setIsFlipped(false);
+                    setDeckFinished(false);
+                  }}
+                  disabled={!enabled}
+                  className={`w-full min-h-12 py-3 px-4 rounded-2xl text-[13px] font-semibold flex items-center justify-between border transition-colors duration-200 ${
+                    enabled
+                      ? `${item.activeClass} cursor-pointer`
+                      : "bg-neutral-50/50 dark:bg-neutral-900/30 border-neutral-200/50 dark:border-white/[0.06] text-neutral-400 dark:text-neutral-600 opacity-60 cursor-not-allowed"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full ${enabled ? item.dotClass : "bg-neutral-300 dark:bg-neutral-700"}`} />
+                    {item.label}
+                  </span>
+                  {enabled && (
+                    <span className="min-w-7 text-center bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 rounded-lg font-mono text-[11px] font-bold">
+                      {item.count}
+                    </span>
+                  )}
+                </motion.button>
+              );
+            })}
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -2328,7 +2303,7 @@ initial={{ opacity: 0, scale: 0.98 }}
         <div
           onClick={() => setIsFlipped(!isFlipped)}
           style={flashcardThemeVars}
-          className={`relative w-full max-w-[1020px] mx-auto min-h-[470px] sm:min-h-[540px] lg:min-h-[580px] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
+          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
               ? "bg-[#151619] border-white/[0.09] text-white shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
               : "bg-[#151619] border-white/[0.09] text-white shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
@@ -2348,7 +2323,7 @@ initial={{ opacity: 0, scale: 0.98 }}
             </div>
           </div>
 
-          <div className="relative z-10 flex h-full min-h-[470px] sm:min-h-[540px] lg:min-h-[580px] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
+          <div className="relative z-10 flex h-full h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
             <AnimatePresence mode="wait" initial={false}>
               {!isFlipped ? (
                 <motion.div
@@ -2389,7 +2364,7 @@ initial={{ opacity: 0, scale: 0.98 }}
                   </div>
 
                   <div className="flex-1 flex items-center justify-center py-8 sm:py-10">
-                    <h3 className="max-w-[700px] text-[2rem] sm:text-[2.7rem] lg:text-[3.35rem] font-semibold tracking-[-0.03em] text-center text-balance text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
+                    <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
                       {activeCards[currentCardIndex]?.front}
                     </h3>
                   </div>
@@ -2434,8 +2409,8 @@ initial={{ opacity: 0, scale: 0.98 }}
                     </div>
                   </div>
 
-                  <div className="flex-1 flex flex-col items-center justify-center py-6 sm:py-8">
-                    <div className="max-w-[700px] text-lg sm:text-[1.65rem] lg:text-[1.9rem] font-medium text-center text-white/92 leading-[1.65] text-balance">
+                  <div className="flex-1 flex flex-col items-center justify-center py-4 sm:py-5 overflow-y-auto overscroll-contain">
+                    <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-white/92 leading-[1.65] text-balance">
                       {activeCards[currentCardIndex]?.back}
                     </div>
                   </div>
@@ -2447,7 +2422,7 @@ initial={{ opacity: 0, scale: 0.98 }}
 
         <div
           aria-hidden={!isFlipped}
-          className={`min-h-[144px] sm:min-h-[156px] space-y-3 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
+          className={`min-h-[118px] sm:min-h-[126px] space-y-2.5 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
         >
           <p className="text-xs font-bold tracking-[0.16em] text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
             {isRtl ? "كيف كان مستوى تذكّرك للمفهوم؟" : "How easily did you recall this?"}
@@ -2537,10 +2512,10 @@ initial={{ opacity: 0, scale: 0.98 }}
  {activeTab === "videos" && (
  <motion.div
  key="videos"
-initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+ transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  <div className="space-y-4">
@@ -2577,10 +2552,10 @@ initial={{ opacity: 0, scale: 0.98 }}
  {activeTab === "qa" && (
  <motion.div
  key="qa"
-initial={{ opacity: 0, scale: 0.98 }}
-  animate={{ opacity: 1, scale: 1 }}
-  exit={{ opacity: 0, scale: 0.98 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+ transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
