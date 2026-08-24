@@ -47,8 +47,6 @@ export const VideoCard = ({
   const [shouldLoadDuration, setShouldLoadDuration] = useState(false);
   const cardRef = useRef<HTMLButtonElement | null>(null);
 
-  // Avoid creating hidden YouTube players for cards that the user has not even
-  // scrolled near. This preserves the duration UI while eliminating off-screen work.
   useEffect(() => {
     if (!videoId) return;
     const node = cardRef.current;
@@ -157,46 +155,46 @@ export const VideoCard = ({
       ref={cardRef}
       type="button"
       onClick={handleVideoPress}
-      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.10] rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 p-3 gap-4 cursor-pointer text-left appearance-none"
+      className="group flex w-full flex-row items-center gap-4 rounded-2xl border border-neutral-200/80 bg-white p-3 text-left shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:shadow-md dark:border-white/[0.08] dark:bg-[#17181B] dark:shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
       aria-label={`Watch ${video?.title || "YouTube video"}`}
     >
-      <span className="video-thumb relative w-32 shrink-0 aspect-video bg-neutral-100 dark:bg-[#2C2C2E] rounded-lg overflow-hidden border border-black/[0.04] dark:border-white/[0.06]">
+      <span className="video-thumb relative w-32 shrink-0 aspect-video overflow-hidden rounded-xl border border-black/[0.04] bg-neutral-100 dark:border-white/[0.06] dark:bg-[#232428]">
         {videoId ? (
           <img
             loading="lazy"
             decoding="async"
             src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
             alt={video?.title || "YouTube video"}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
           />
         ) : (
-          <span className="w-full h-full flex items-center justify-center">
-            <PlayCircle className="w-8 h-8 text-neutral-400" />
+          <span className="flex h-full w-full items-center justify-center">
+            <PlayCircle className="h-8 w-8 text-neutral-400" />
           </span>
         )}
 
-        <span className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition pointer-events-none" />
+        <span className="pointer-events-none absolute inset-0 bg-black/10 transition group-hover:bg-black/0" />
 
         {realDuration !== null && (
-          <span className="absolute bottom-1 right-1 bg-black/80 backdrop-blur-sm text-white text-[10px] font-mono px-1.5 py-0.5 rounded-md font-medium pointer-events-none">
+          <span className="pointer-events-none absolute bottom-1 right-1 rounded-md bg-black/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-sm">
             {formatDuration(realDuration)}
           </span>
         )}
       </span>
 
-      <span className="flex-1 min-w-0 py-1 text-left">
-        <span className="block text-sm font-semibold text-neutral-900 dark:text-white transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
+      <span className="min-w-0 flex-1 py-1 text-left">
+        <span className="block max-w-full whitespace-normal break-words text-sm font-semibold leading-snug text-neutral-900 transition-colors [overflow-wrap:anywhere] dark:text-white">
           {video?.title}
         </span>
 
         {video?.description && (
-          <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 mb-2 leading-relaxed">
+          <span className="mt-0.5 mb-2 block text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
             {video.description}
           </span>
         )}
 
-        <span className="inline-flex items-center justify-center px-4 py-1.5 bg-red-600 group-hover:bg-red-700 group-active:bg-red-800 text-white text-xs font-semibold rounded-full transition pointer-events-none">
-          <PlayCircle className="w-3.5 h-3.5 mr-1.5" />
+        <span className="pointer-events-none inline-flex items-center justify-center rounded-full bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition group-hover:bg-red-700 group-active:bg-red-800">
+          <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
           Watch
         </span>
       </span>

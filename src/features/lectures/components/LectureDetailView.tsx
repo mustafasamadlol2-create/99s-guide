@@ -2317,202 +2317,218 @@ initial={{ opacity: 0, scale: 0.98 }}
   }
 
  return (
- <div className="p-6 space-y-section flex-1 flex flex-col justify-between">
- <div className="space-y-4 max-w-4xl mx-auto w-full text-center">
+ <div className="p-4 sm:p-6 lg:p-8 flex-1 flex flex-col justify-between">
+ <div className="space-y-5 sm:space-y-6 max-w-[1120px] mx-auto w-full text-center">
         {repeatFilter && (repeatFilter === "hard" || repeatFilter === "medium" || repeatFilter === "easy") && (
           <span className="text-caption font-semibold font-mono text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100 uppercase inline-block mb-1">
             {repeatFilter === "hard" ? (isRtl ? "مراجعة البطاقات الصعبة فقط 🛑" : "Reviewing Hard concepts only 🛑") : repeatFilter === "medium" ? (isRtl ? "مراجعة البطاقات المتوسطة فقط ⚠️" : "Reviewing Medium concepts only ⚠️") : (isRtl ? "مراجعة البطاقات السهلة فقط ✅" : "Reviewing Easy concepts only ✅")}
           </span>
         )}
-        {/* FLIP CARD CONTAINER */}
- <div
- onClick={() => setIsFlipped(!isFlipped)}
- style={flashcardThemeVars}
- className={`relative w-full max-w-[860px] mx-auto min-h-[410px] sm:min-h-[460px] rounded-[26px] border px-7 sm:px-10 py-7 sm:py-8 flex flex-col justify-between items-center cursor-pointer select-none antialiased overflow-hidden ${
- isFlipped
- ? "bg-[#222225] dark:bg-[#222225] border-black/[0.08] dark:border-white/[0.10] text-white shadow-[0_22px_55px_rgba(0,0,0,0.26)]"
- : "bg-[#FCFCFD] dark:bg-[#222225] border-black/[0.07] dark:border-white/[0.10] text-neutral-800 dark:text-white shadow-[0_20px_48px_rgba(0,0,0,0.12)] dark:shadow-[0_22px_55px_rgba(0,0,0,0.26)]"
- }`}
- >
-  <div className="pointer-events-none absolute inset-0 overflow-hidden">
-    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.38)] to-transparent" />
-    <div className="absolute inset-y-0 right-0 w-[46%] bg-gradient-to-l from-[rgba(var(--flashcard-accent-rgb),0.055)] to-transparent dark:from-[rgba(var(--flashcard-accent-rgb),0.065)]" />
-    <SubjectFlashcardArtwork
-      subjectId={lecture.subjectId}
-      rgb={flashcardTheme.rgb}
-      className="absolute right-0 top-1/2 -translate-y-1/2 w-[42%] min-w-[270px] max-w-[390px] opacity-80 dark:opacity-85"
-    />
-    <div className="absolute left-8 right-8 bottom-20 h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent dark:via-white/[0.06]" />
-  </div>
- <AnimatePresence mode="wait" initial={false}>
- {!isFlipped ? (
-            <motion.div
-              key="flashcard-question"
-              initial={{ opacity: 0, y: 7, filter: "blur(3px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -5, filter: "blur(2px)" }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="relative z-10 w-full min-h-[calc(410px-56px)] sm:min-h-[calc(460px-64px)] flex flex-col justify-between items-center"
-            >
-              <div className="relative z-10 w-full flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center border" style={{ backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`, borderColor: `rgba(${flashcardTheme.rgb}, 0.22)` }}>
-                    <FlashcardSubjectIcon className="w-4.5 h-4.5" style={{ color: flashcardTheme.accent }} />
-                  </div>
-                  <span className="text-xs font-bold tracking-wider uppercase" style={{ color: flashcardTheme.accent }}>
-                    {isRtl ? "مفهوم طبي سريري" : "CLINICAL CONCEPT"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 sm:w-24 h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden relative">
-                    <motion.div
-                      className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
-                      style={{ backgroundColor: flashcardTheme.accent }}
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                    />
-                  </div>
-                  <div className="text-xs font-medium font-mono text-neutral-500 dark:text-[#EBEBF599]">
-                    {currentCardIndex + 1}/{activeCards.length}
-                  </div>
-                </div>
-              </div>
 
-              <div className="relative z-10 flex-1 flex items-center justify-center w-full py-7">
-                <h3 className="max-w-2xl text-3xl sm:text-[2.65rem] lg:text-[3rem] font-semibold tracking-tight text-center text-balance text-neutral-900 dark:text-white leading-[1.18]">
-                  {activeCards[currentCardIndex]?.front}
-                </h3>
-              </div>
+        <div
+          onClick={() => setIsFlipped(!isFlipped)}
+          style={flashcardThemeVars}
+          className={`relative w-full max-w-[1020px] mx-auto min-h-[470px] sm:min-h-[540px] lg:min-h-[580px] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
+            isFlipped
+              ? "bg-[#151619] border-white/[0.09] text-white shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
+              : "bg-[#151619] border-white/[0.09] text-white shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
+          }`}
+        >
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.02),_transparent_52%)]" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.45)] to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+            <div className="absolute left-0 top-0 h-full w-full bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_22%,transparent_78%,rgba(255,255,255,0.015))]" />
+            <div className="absolute inset-y-0 right-0 w-[46%] min-w-[260px] max-w-[460px] opacity-95">
+              <SubjectFlashcardArtwork
+                subjectId={lecture.subjectId}
+                rgb={flashcardTheme.rgb}
+                className="absolute inset-0"
+              />
+            </div>
+          </div>
 
-              <div className="relative z-10 w-full flex flex-col items-center gap-3 pb-1">
-                <Activity className="w-5 h-5" style={{ color: flashcardTheme.accent }} />
-                <p className="text-xs sm:text-sm font-medium text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider">
-                  {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
-                </p>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="flashcard-explanation"
-              initial={{ opacity: 0, y: 7, filter: "blur(3px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -5, filter: "blur(2px)" }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="relative z-10 w-full min-h-[calc(410px-56px)] sm:min-h-[calc(460px-64px)] flex flex-col justify-between items-center"
-            >
-              <div className="w-full flex justify-between items-center">
-                <span className="text-xs font-bold tracking-wider uppercase" style={{ color: flashcardTheme.accent }}>
-                  {isRtl ? "تفسير علمي" : "EXPLANATION"}
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 sm:w-24 h-1.5 bg-white/10 rounded-full overflow-hidden relative">
-                    <motion.div
-                      className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
-                      style={{ backgroundColor: flashcardTheme.accent }}
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                    />
-                  </div>
-                  <div className="text-xs font-medium font-mono text-white/50">
-                    {currentCardIndex + 1}/{activeCards.length}
-                  </div>
-                </div>
-              </div>
+          <div className="relative z-10 flex h-full min-h-[470px] sm:min-h-[540px] lg:min-h-[580px] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
+            <AnimatePresence mode="wait" initial={false}>
+              {!isFlipped ? (
+                <motion.div
+                  key="flashcard-question"
+                  initial={{ opacity: 0, scale: 0.985 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.992 }}
+                  transition={{ duration: 0.34, ease: [0.23, 1, 0.32, 1] }}
+                  className="absolute inset-0 z-10 flex flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full border backdrop-blur-sm"
+                        style={{ backgroundColor: `rgba(${flashcardTheme.rgb}, 0.12)`, borderColor: `rgba(${flashcardTheme.rgb}, 0.26)` }}
+                      >
+                        <FlashcardSubjectIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5" style={{ color: flashcardTheme.accent }} />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-bold tracking-[0.18em] uppercase" style={{ color: flashcardTheme.accent }}>
+                        {isRtl ? "مفهوم طبي سريري" : "CLINICAL CONCEPT"}
+                      </span>
+                    </div>
 
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center w-full py-5">
-                <div className="max-w-2xl text-lg sm:text-2xl font-medium text-center text-neutral-100 leading-[1.55] text-balance">
-                  {activeCards[currentCardIndex]?.back}
-                </div>
-              </div>
-            </motion.div>
-          )}
- </AnimatePresence>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-white/10 overflow-hidden relative">
+                        <motion.div
+                          className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
+                          style={{ backgroundColor: flashcardTheme.accent }}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
+                          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        />
+                      </div>
+                      <div className="text-xs sm:text-sm font-medium font-mono text-white/65">
+                        {currentCardIndex + 1}/{activeCards.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex items-center justify-center py-8 sm:py-10">
+                    <h3 className="max-w-[700px] text-[2rem] sm:text-[2.7rem] lg:text-[3.35rem] font-semibold tracking-[-0.03em] text-center text-balance text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
+                      {activeCards[currentCardIndex]?.front}
+                    </h3>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-3 pb-2 sm:pb-3">
+                    <div className="flex items-center gap-4 w-full max-w-[360px]">
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/12 to-white/5" />
+                      <Activity className="w-5 h-5" style={{ color: flashcardTheme.accent }} />
+                      <div className="h-px flex-1 bg-gradient-to-l from-transparent via-white/12 to-white/5" />
+                    </div>
+                    <p className="text-[11px] sm:text-sm font-medium text-white/58 uppercase tracking-[0.16em]">
+                      {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="flashcard-explanation"
+                  initial={{ opacity: 0, scale: 0.985 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.992 }}
+                  transition={{ duration: 0.34, ease: [0.23, 1, 0.32, 1] }}
+                  className="absolute inset-0 z-10 flex flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[11px] sm:text-xs font-bold tracking-[0.18em] uppercase" style={{ color: flashcardTheme.accent }}>
+                      {isRtl ? "تفسير علمي" : "EXPLANATION"}
+                    </span>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-white/10 overflow-hidden relative">
+                        <motion.div
+                          className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
+                          style={{ backgroundColor: flashcardTheme.accent }}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
+                          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        />
+                      </div>
+                      <div className="text-xs sm:text-sm font-medium font-mono text-white/65">
+                        {currentCardIndex + 1}/{activeCards.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col items-center justify-center py-6 sm:py-8">
+                    <div className="max-w-[700px] text-lg sm:text-[1.65rem] lg:text-[1.9rem] font-medium text-center text-white/92 leading-[1.65] text-balance">
+                      {activeCards[currentCardIndex]?.back}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
- {/* Repetition rating buttons — space is always reserved to keep the entire page perfectly stable when the card flips */}
- <div
- aria-hidden={!isFlipped}
- className={`mt-6 min-h-[142px] space-y-3 antialiased transition-opacity duration-150 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
- >
- <p className="text-xs font-bold tracking-wider text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
-                {isRtl
-                  ? "كيف كان مستوى تذكّرك للمفهوم؟"
-                  : "How easily did you recall this?"}
-              </p>
-              <div 
-                role="group" 
-                aria-label="Rate your recall"
-                className="grid grid-cols-3 gap-2 bg-neutral-100/80 dark:bg-neutral-800/50 p-1.5 rounded-2xl border border-black/5 dark:border-white/[0.08] backdrop-blur-sm shadow-inner w-full sm:max-w-md mx-auto"
-              >
-                <motion.button
-                  onClick={() => {
-                    handleCardRate("hard");
-                  }}
-                  className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-300 focus:outline-none"
-                  aria-label="Hard"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-rose-50/50 to-rose-100/50 dark:from-rose-500/10 dark:to-rose-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
-                  <div className="relative z-10 w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform duration-300">
-                    <Brain className="w-5 h-5" />
-                  </div>
-                  <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-rose-600 dark:text-rose-400">
-                    <span>{isRtl ? "صعب" : "Hard"}</span>
-                    <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-rose-600/30 dark:border-rose-400/30 text-[10px] opacity-70">1</span>
-                  </div>
-                </motion.button>
-                
-                <motion.button
-                  onClick={() => {
-                    handleCardRate("medium");
-                  }}
-                  className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-amber-200 dark:hover:border-amber-500/30 transition-all duration-300 focus:outline-none"
-                  aria-label="Medium"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-amber-50/50 to-amber-100/50 dark:from-amber-500/10 dark:to-amber-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
-                  <div className="relative z-10 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform duration-300">
-                    <Gauge className="w-5 h-5" />
-                  </div>
-                  <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
-                    <span>{isRtl ? "متوسط" : "Medium"}</span>
-                    <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-amber-600/30 dark:border-amber-400/30 text-[10px] opacity-70">2</span>
-                  </div>
-                </motion.button>
-                
-                <motion.button
-                  onClick={() => {
-                    handleCardRate("easy");
-                  }}
-                  className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-all duration-300 focus:outline-none"
-                  aria-label="Easy"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/50 to-emerald-100/50 dark:from-emerald-500/10 dark:to-emerald-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
-                  <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300">
-                    <Zap className="w-5 h-5" />
-                  </div>
-                  <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
-                    <span>{isRtl ? "سهل" : "Easy"}</span>
-                    <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-emerald-600/30 dark:border-emerald-400/30 text-[10px] opacity-70">3</span>
-                  </div>
-                </motion.button>
+        <div
+          aria-hidden={!isFlipped}
+          className={`min-h-[144px] sm:min-h-[156px] space-y-3 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
+        >
+          <p className="text-xs font-bold tracking-[0.16em] text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
+            {isRtl ? "كيف كان مستوى تذكّرك للمفهوم؟" : "How easily did you recall this?"}
+          </p>
+          <div
+            role="group"
+            aria-label="Rate your recall"
+            className="grid grid-cols-3 gap-2 bg-neutral-100/80 dark:bg-neutral-800/50 p-1.5 rounded-2xl border border-black/5 dark:border-white/[0.08] backdrop-blur-sm shadow-inner w-full sm:max-w-md mx-auto"
+          >
+            <motion.button
+              whileTap={{ scale: 0.985 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => {
+                handleCardRate("hard");
+              }}
+              className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-300 focus:outline-none"
+              aria-label="Hard"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-rose-50/50 to-rose-100/50 dark:from-rose-500/10 dark:to-rose-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
+              <div className="relative z-10 w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform duration-300">
+                <Brain className="w-5 h-5" />
               </div>
-            </div>
- </div>
+              <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-rose-600 dark:text-rose-400">
+                <span>{isRtl ? "صعب" : "Hard"}</span>
+                <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-rose-600/30 dark:border-rose-400/30 text-[10px] opacity-70">1</span>
+              </div>
+            </motion.button>
 
- {/* Paging */}
- <div className="border-t border-neutral-100 pt-5 mt-5 flex justify-between items-center text-caption dark:border-white/[0.12]">
- <span className="text-neutral-550 font-semibold font-mono text-caption">
- Card {currentCardIndex + 1} of {activeCards.length}
- </span>
- {progress.flashcardsCompleted && (
- <span className="text-caption font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 border border-emerald-100/50">
- ✓ {isRtl ? "مكتمل" : "Completed"}
- </span>
- )}
- </div>
- </div>
- );
+            <motion.button
+              whileTap={{ scale: 0.985 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => {
+                handleCardRate("medium");
+              }}
+              className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-amber-200 dark:hover:border-amber-500/30 transition-all duration-300 focus:outline-none"
+              aria-label="Medium"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-amber-50/50 to-amber-100/50 dark:from-amber-500/10 dark:to-amber-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
+              <div className="relative z-10 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform duration-300">
+                <Gauge className="w-5 h-5" />
+              </div>
+              <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
+                <span>{isRtl ? "متوسط" : "Medium"}</span>
+                <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-amber-600/30 dark:border-amber-400/30 text-[10px] opacity-70">2</span>
+              </div>
+            </motion.button>
+
+            <motion.button
+              whileTap={{ scale: 0.985 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => {
+                handleCardRate("easy");
+              }}
+              className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-all duration-300 focus:outline-none"
+              aria-label="Easy"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/50 to-emerald-100/50 dark:from-emerald-500/10 dark:to-emerald-500/5 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
+              <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div className="relative z-10 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
+                <span>{isRtl ? "سهل" : "Easy"}</span>
+                <span className="hidden sm:inline-flex items-center justify-center w-4 h-4 rounded border border-emerald-600/30 dark:border-emerald-400/30 text-[10px] opacity-70">3</span>
+              </div>
+            </motion.button>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-100 pt-5 mt-5 flex justify-between items-center text-caption dark:border-white/[0.12]">
+        <span className="text-neutral-550 font-semibold font-mono text-caption">
+          Card {currentCardIndex + 1} of {activeCards.length}
+        </span>
+        {progress.flashcardsCompleted && (
+          <span className="text-caption font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 border border-emerald-100/50">
+            ✓ {isRtl ? "مكتمل" : "Completed"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
  })()}
  </motion.div>
  )}
