@@ -1,0 +1,39 @@
+/**
+ * Platform detection helpers — single source of truth for iOS / PWA checks.
+ *
+ * iPhone/iPod always match the UA regex. Modern iPad Safari may report a
+ * "Macintosh" UA (desktop mode), so touch-capable MacIntel devices are treated
+ * as iPadOS as well.
+ */
+
+/** True on iPhone / iPod / legacy iPad (mobile-UA Safari). */
+export function isIosDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iP(ad|hone|od)/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/** True when running as an installed (home-screen / standalone) PWA. */
+export function isStandalonePwa(): boolean {
+  if (typeof navigator !== "undefined" && (navigator as any).standalone === true) return true;
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)").matches
+  );
+}
+
+/**
+ * True when running as an installed PWA on an iOS device.
+ *
+ * This container has unreliable cookie behavior:
+ *  - External navigations open an in-app browser sheet with a SEPARATE
+ *    cookie jar — cookies set there never reach the installed app.
+ *  - The httpOnly session cookie itself is not dependably persisted.
+ *
+ * Auth flows must therefore use Bearer-token delivery in this environment
+ * (the server supports both cookie and Authorization-header sessions).
+ */
+export function isIosStandalonePwa(): boolean {
+  return isIosDevice() && isStandalonePwa();
+}

@@ -1,0 +1,3235 @@
+@import "tailwindcss";
+
+
+
+@theme {
+
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "SF Compact", "Inter", "Cairo", system-ui, sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Space Grotesk", "Cairo", sans-serif;
+  --font-mono: "SF Mono", "SFProMono-Regular", "JetBrains Mono", monospace;
+
+  /* Centralized Apple-Quality Design Tokens */
+
+  /* Spacing */
+  --spacing-page-margin: 16px;
+  --spacing-section: 24px;
+  --spacing-card-padding: 24px;
+  --spacing-sidebar: 280px;
+  --spacing-header: 64px;
+  --spacing-floating-nav: 64px;
+
+  /* Corner Radius */
+  --radius-card: 16px;
+  --radius-button: 9999px;
+  --radius-badge: 9999px;
+  --radius-input: 16px;
+  --radius-modal: 24px;
+
+  /* Sizing (Heights/Avatars/Icons) */
+  --spacing-btn: 48px;
+  --spacing-input: 48px;
+  --spacing-avatar-sm: 32px;
+  --spacing-avatar-md: 40px;
+  --spacing-avatar-lg: 48px;
+  --spacing-icon-sm: 16px;
+  --spacing-icon-md: 20px;
+  --spacing-icon-lg: 24px;
+  --spacing-icon-xl: 32px;
+
+  /* Blur */
+  --blur-glass: 20px;
+  --blur-overlay: 40px;
+
+  /* Opacity */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.8;
+  --opacity-ghost: 0.05;
+
+  /* Animation & Spring Curves */
+  --animate-duration-fast: 120ms;
+  --animate-duration-normal: 220ms;
+  --animate-duration-slow: 350ms;
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-timing-function: var(--ease-apple);
+
+  /* Elevation & Shadows - Premium Unified System */
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.02); /* Subtle cards, default states */
+  --shadow-elevation-2: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.03); /* Hovered cards, dropdowns */
+  --shadow-elevation-3: 0 8px 32px rgba(0, 0, 0, 0.10), 0 4px 16px rgba(0, 0, 0, 0.05); /* Modals, floating elements */
+  
+  /* Borders */
+  --border-width-default: 1px;
+  --border-width-thick: 2px;
+
+  /* Grid & Breakpoints (Apple standards) */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px; /* iPad Mini */
+  --breakpoint-lg: 1024px; /* iPad Pro */
+  --breakpoint-xl: 1280px; /* Mac */
+  --spacing-grid-gap: 20px;
+
+  /* Apple Typography Hierarchy - HIG Standardized */
+  /* Large Title - 34px / 41px / 0.37px / Regular */
+  --text-large-title: 2.125rem;
+  --text-large-title--line-height: 2.5625rem;
+  --text-large-title--letter-spacing: 0.37px;
+
+  /* Title 1 - 28px / 34px / 0.36px / Regular */
+  --text-title-1: 1.75rem;
+  --text-title-1--line-height: 2.125rem;
+  --text-title-1--letter-spacing: 0.36px;
+
+  /* Title 2 - 22px / 28px / 0.35px / Regular */
+  --text-title-2: 1.375rem;
+  --text-title-2--line-height: 1.75rem;
+  --text-title-2--letter-spacing: 0.35px;
+
+  /* Title 3 - 20px / 25px / 0.38px / Regular */
+  --text-title-3: 1.25rem;
+  --text-title-3--line-height: 1.5625rem;
+  --text-title-3--letter-spacing: 0.38px;
+
+  /* Headline - 17px / 22px / -0.41px / Semibold */
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.375rem;
+  --text-headline--letter-spacing: -0.41px;
+
+  /* Body - 17px / 22px / -0.41px / Regular */
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.375rem;
+  --text-body--letter-spacing: -0.41px;
+
+  /* Callout - 16px / 21px / -0.32px / Regular */
+  --text-callout: 1rem;
+  --text-callout--line-height: 1.3125rem;
+  --text-callout--letter-spacing: -0.32px;
+
+  /* Subhead - 15px / 20px / -0.24px / Regular */
+  --text-subhead: 0.9375rem;
+  --text-subhead--line-height: 1.25rem;
+  --text-subhead--letter-spacing: -0.24px;
+
+  /* Footnote - 13px / 18px / -0.08px / Regular */
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: 1.125rem;
+  --text-footnote--letter-spacing: -0.08px;
+
+  /* Caption 1 - 12px / 16px / 0px / Regular */
+  --text-caption-1: 0.75rem;
+  --text-caption-1--line-height: 1rem;
+  --text-caption-1--letter-spacing: 0rem;
+
+  /* Caption 2 - 11px / 13px / 0.06px / Regular */
+  --text-caption-2: 0.6875rem;
+  --text-caption-2--line-height: 0.8125rem;
+  --text-caption-2--letter-spacing: 0.06px;
+
+  /* Map Tailwind standard text sizes to Apple Hierarchy */
+  --text-xs: var(--text-caption-1);
+  --text-xs--line-height: var(--text-caption-1--line-height);
+  --text-xs--letter-spacing: var(--text-caption-1--letter-spacing);
+
+  --text-sm: var(--text-subhead);
+  --text-sm--line-height: var(--text-subhead--line-height);
+  --text-sm--letter-spacing: var(--text-subhead--letter-spacing);
+
+  --text-base: var(--text-body);
+  --text-base--line-height: var(--text-body--line-height);
+  --text-base--letter-spacing: var(--text-body--letter-spacing);
+
+  --text-lg: var(--text-title-3);
+  --text-lg--line-height: var(--text-title-3--line-height);
+  --text-lg--letter-spacing: var(--text-title-3--letter-spacing);
+
+  --text-xl: var(--text-title-2);
+  --text-xl--line-height: var(--text-title-2--line-height);
+  --text-xl--letter-spacing: var(--text-title-2--letter-spacing);
+
+  --text-2xl: var(--text-title-1);
+  --text-2xl--line-height: var(--text-title-1--line-height);
+  --text-2xl--letter-spacing: var(--text-title-1--letter-spacing);
+
+  --text-3xl: var(--text-large-title);
+  --text-3xl--line-height: var(--text-large-title--line-height);
+  --text-3xl--letter-spacing: var(--text-large-title--letter-spacing);
+
+  /* Tonal Surface Layers */
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-tertiary: var(--surface-tertiary);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-grouped: var(--surface-grouped);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-surface-card: var(--surface-card);
+  --color-surface-interactive: var(--surface-interactive);
+
+  /* Custom palette matching the sleek modern task list layout */
+  --color-med-bg: #f2f2f7; /* Soft cool light blue-ish white */
+  --color-med-cream: #e5e5ea; /* Elegant light gray-blue */
+  --color-med-beige: #d1d1d6; /* Clean modern slate border */
+  --color-med-sand: #8e8e93; /* Slate-grey accent */
+  --color-med-bone: #f2f2f7; /* Soft lavender-white bone */
+
+  /* Primary branding color matching task list navy */
+  --color-med-blue: #007aff; /* Deep premium tasks navy */
+  --color-med-teal: #30b0c7; /* Teal */
+  --color-med-gold: #ff9500; /* Task list high priority orange-amber */
+  --color-med-dark: #1c1c1e; /* Primary dark text slate matching screen text */
+  --color-med-muted: #8e8e93; /* Calm gray text */
+  --color-med-success: #34c759; /* Success green */
+  --color-med-error: #ff3b30; /* Task list alert/overdue red */
+  --color-med-warning: #ff9500; /* Warning orange-gold */
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom variant for dark mode in Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+/* ─── Sidebar collapse motion ───────────────────────────────────────────────
+   The shell is isolated so its contents do not repaint the whole workspace.
+   Desktop keeps the existing width glide; touch tablets snap layout width and
+   animate only compositor-safe contents because Safari recalculates the hero
+   and main canvas on every width-transition frame.                         */
+.sidebar-shell {
+  flex: 0 0 auto;
+  contain: layout paint style;
+  /* Force a dedicated compositing layer so surrounding content repaints are
+     isolated from the sidebar and do not trigger full-page redraws.        */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.sidebar-header {
+  min-height: 56px;
+}
+
+.sidebar-header-expanded {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.sidebar-header-collapsed {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Brand text: only GPU-composited properties animate.
+   max-width is NOT transitioned (layout reflow → jank on iOS).
+   The wrapper snaps width instantly; opacity + transform carry the visual. */
+.sidebar-brand {
+  overflow: hidden;
+  transition: opacity 120ms ease-out,
+              transform 140ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: opacity, transform;
+}
+
+.sidebar-brand-expanded {
+  flex: 1 1 auto;
+  max-width: 180px;   /* instant snap — no max-width transition */
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.sidebar-brand-collapsed {
+  flex: 0 0 0;
+  max-width: 0;       /* instant snap */
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(-8px, 0, 0);
+}
+
+/* iOS/Swift-style sidebar toggle button.
+   UIButton.plain equivalent: background fill on press (:active), no scale,
+   no glow, no spring. Only compositor-safe properties transition.
+   -webkit-tap-highlight-color removed in favour of the :active fill so the
+   browser's built-in blue flash doesn't compete on iOS Safari. */
+.sidebar-toggle {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Background colour only — 120 ms ease-out matches iOS touchDown latency */
+  transition: background-color 120ms ease-out;
+}
+
+/* iOS press highlight: appears on :active (touchStart) and clears on release.
+   Equivalent to UIButton highlighted-state backgroundColor.
+   No ::before pseudo, no radial glow — removed entirely. */
+.sidebar-toggle:active {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+.dark .sidebar-toggle:active {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .dark .sidebar-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+  }
+}
+
+/* Chevron icon rotation — CSS transition only, no Framer Motion, no will-change.
+   180 ms with cubic-bezier(0.32, 0.72, 0, 1): this is Safari's own internal
+   sidebar-disclosure timing — instant takeoff, precise landing, zero overshoot.
+   No scale, no spring physics, no compositing-layer promotion at rest. */
+.sidebar-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(0deg);
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.sidebar-toggle-icon-collapsed {
+  transform: rotate(180deg);
+}
+
+/* Desktop / pointer-based layouts keep the original width glide. */
+.sidebar-shell {
+  transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              flex-basis 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* iPad / touch-tablet path: no layout animation, no permanent width hint.
+   Width changes once, then the small inner transitions finish the gesture. */
+@media (hover: none) and (pointer: coarse) and (min-width: 900px) {
+  .sidebar-shell {
+    transition: none;
+    will-change: auto;
+  }
+
+  .sidebar-brand {
+    transition: opacity 120ms ease-out,
+                transform 120ms ease-out;
+    will-change: opacity, transform;
+  }
+
+  .sidebar-toggle-icon {
+    transition: transform 140ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-brand,
+  .sidebar-toggle-icon,
+  .sidebar-toggle,
+  .sidebar-toggle::before,
+  .sidebar-shell {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* Apple HIG Exact Utility Classes */
+
+
+/* iOS Safe Area adaptive layout utilities */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --mobile-nav-height: 64px;
+  --mobile-nav-offset: max(12px, var(--safe-area-bottom));
+  --mobile-nav-gap: 16px;
+
+  /* Apple's Subtle Tonal Separation Background Layers (Light) */
+  --surface-primary: #fbfbfd;
+  --surface-secondary: #f2f2f7;
+  --surface-tertiary: #e5e5ea;
+  --surface-elevated: #ffffff;
+  --surface-grouped: #eef0f5;
+  --surface-sidebar: #f2f2f7;
+  --surface-card: #fbfbfd;
+  --surface-interactive: #e4e6eb;
+}
+
+.dark {
+  --bg-base: #000000;
+  --bg-surface-1: #1C1C1E;
+  --bg-surface-2: #2C2C2E;
+  --surface-primary: var(--bg-base);
+  --surface-secondary: var(--bg-surface-1);
+  --surface-tertiary: #2C2C2E;
+  --surface-elevated: var(--bg-surface-1);
+  --surface-grouped: var(--bg-base);
+  --surface-sidebar: var(--bg-surface-1);
+  --surface-card: var(--bg-surface-1);
+  --surface-interactive: var(--bg-surface-2);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(235, 235, 245, 0.72);
+  --text-muted: rgba(235, 235, 245, 0.46);
+
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 1px 4px rgba(0,0,0,0.3);
+  --shadow-elevation-2: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-elevation-3: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.dark [class*="shadow-"],
+.dark .ios-widget,
+.dark .edge-light,
+.dark .card-glow-subtle,
+.dark .nav-edge-light,
+
+.dark .macos-interactive:active
+{
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+  box-shadow: none !important;
+}
+
+.dark body {
+  box-shadow: none !important;
+}
+
+.dark *:focus-visible {
+  box-shadow: 0 0 0 2.5px rgba(0, 122, 255, 0.4) !important;
+}
+
+.dark .bg-\[var\(--bg-surface-1\)\] {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  transform: translateZ(0) !important;
+  transform: translateZ(0) !important;
+  background-color: rgba(28, 28, 30, 0.85) !important; /* #1A1D24 with slight transparency for blur */
+}
+
+@utility text-title {
+  font-size: var(--text-title-1);
+  line-height: var(--text-title-1--line-height);
+  letter-spacing: var(--text-title-1--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-title2 {
+  font-size: var(--text-title-2);
+  line-height: var(--text-title-2--line-height);
+  letter-spacing: var(--text-title-2--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-title3 {
+  font-size: var(--text-title-3);
+  line-height: var(--text-title-3--line-height);
+  letter-spacing: var(--text-title-3--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-caption {
+  font-size: var(--text-caption-1);
+  line-height: var(--text-caption-1--line-height);
+  letter-spacing: var(--text-caption-1--letter-spacing);
+  font-weight: 400;
+}
+
+/* Apple HIG text-style utilities — explicit @utility blocks ensure correct
+   font-weight baseline regardless of inherited weight.                       */
+
+@utility text-headline {
+  font-size: var(--text-headline);
+  line-height: var(--text-headline--line-height);
+  letter-spacing: var(--text-headline--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-body {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-callout {
+  font-size: var(--text-callout);
+  line-height: var(--text-callout--line-height);
+  letter-spacing: var(--text-callout--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-subhead {
+  font-size: var(--text-subhead);
+  line-height: var(--text-subhead--line-height);
+  letter-spacing: var(--text-subhead--letter-spacing);
+  font-weight: 400;
+}
+
+@utility text-footnote {
+  font-size: var(--text-footnote);
+  line-height: var(--text-footnote--line-height);
+  letter-spacing: var(--text-footnote--letter-spacing);
+  font-weight: 400;
+}
+
+/* Secondary label — Apple's "Secondary Label" semantic style.
+   15px / −0.24px / regular weight / secondary gray.                         */
+@utility text-secondary-label {
+  font-size: var(--text-subhead);
+  line-height: var(--text-subhead--line-height);
+  letter-spacing: var(--text-subhead--letter-spacing);
+  font-weight: 400;
+  color: #8e8e93; /* med-muted / iOS secondary label (light) */
+}
+
+/* Base resets & custom scrollbars if needed */
+*:focus {
+  outline: none;
+}
+*:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 2px;
+}
+
+/* --- NATIVE MOBILE APP RESET & DEPLOYMENT STYLING --- */
+
+/* 1. Global Touch & Tap Behavior Resets */
+body {
+  /* Eliminate the semi-transparent grey tap overlay/highlight on iOS and Android */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+  -webkit-tap-highlight-color: transparent !important;
+
+  /* Disable default drag previews where possible */
+  -webkit-user-drag: none;
+}
+
+/* 2. Interactive Element Touch-Action Optimization */
+a,
+button,
+input,
+select,
+textarea,
+[role="button"],
+[role="tab"],
+.cursor-pointer {
+  /* Disable double-tap-to-zoom and instantly fire click events without 300ms delay */
+  touch-action: manipulation !important;
+}
+
+/* Document open buttons — native-like tap on iOS, no hover/press/transition effects. */
+.document-open-button {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.document-open-button,
+.document-open-button:hover,
+.document-open-button:active,
+.document-open-button:focus {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.document-open-button:active {
+  opacity: 0.85 !important;
+}
+
+.document-open-button .lucide,
+.document-open-button:active .lucide {
+  transform: none !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* 3. Global Text Selection Control for Native App Feel */
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  /* position:fixed + inset:0 fills the viewport without depending on
+     viewport-relative units (vw/dvh).  Using width:100vw alongside
+     inset:0 is a CSS-spec trap: when both width and right are set on a
+     positioned element, width wins — so right:0 is silently ignored and
+     the element's width is locked to whatever 100vw resolves to.  After
+     background→foreground, iOS WKWebView can momentarily report a stale
+     layout viewport, causing 100vw to resolve to a narrow value and
+     compressing the entire app to the left.  Removing the explicit width
+     lets position:fixed resolve dimensions from the viewport directly. */
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Prevent any gap from exposing the browser's default (black) background.
+     Uses the same surface-grouped token as body so it matches the app theme
+     in both light (#f2f2f7) and dark (#000000) mode. */
+  background-color: var(--surface-grouped) !important;
+
+  /* Strict overscroll control to prevent system rubber-banding and pull-to-refresh bounces */
+  overscroll-behavior: none !important;
+  overscroll-behavior-y: none !important;
+  overscroll-behavior-x: none !important;
+
+  /* Eliminate 300ms tap delay on the root — all taps fire immediately */
+  touch-action: manipulation !important;
+
+  /* Force premium retina anti-aliasing text optimization */
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-text-size-adjust: 100% !important;
+
+  /* Disable context menu preview bubbles (long press callouts on links/images) */
+  -webkit-touch-callout: none !important;
+
+  /* Disable selection on the main layout wrapper */
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+#root {
+  margin: 0 !important;
+  padding: 0 !important;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--surface-grouped) !important;
+  overscroll-behavior: none !important;
+  touch-action: manipulation !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* 4. Selective Text Selection (Allow ONLY in input/editing controls and marked text segments) */
+input,
+textarea,
+[contenteditable="true"],
+.selectable-text,
+.selectable-content {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Ensure absolute non-selectability on buttons, tabs, navigations and active layouts */
+nav,
+button,
+footer,
+header,
+aside,
+img,
+a,
+.select-none {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* 5. Image Context Menu and Callout Defenses */
+img {
+  /* Prevents dragging ghost frames and long-press save menu in Safari */
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* 5. Production WebKit iOS GPU Acceleration Layers */
+/* Move scroll containers, sidebars, and fixed overlays into their own GPU compositing layers */
+.ios-router-container,
+.ios-page,
+.ios-sheet,
+.gpu-accelerate,
+.ios-scrollable,
+#ios_native_tabbar_wrapper,
+#main-sidebar {
+  /* Force hardware acceleration and composite layer separation on key structural viewports only */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000;
+  -webkit-perspective: 1000;
+  
+}
+
+/* Overwrite and style custom Safari-slim macOS scrollbars inside the nested scrolls */
+.ios-scrollable::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+.ios-scrollable::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.ios-scrollable,
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto,
+.scroll-smooth {
+}
+
+.ios-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12) !important;
+  border-radius: 999px !important;
+}
+.dark .ios-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+.ios-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22) !important;
+}
+.dark .ios-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+body {
+  background-color: var(
+    --surface-grouped
+  ); /* iOS Light Gray Grouped Background */
+  color: #1c1c1e; /* iOS System Dark Gray text */
+  font-family: var(--font-sans);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.ios-scrollable {
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important; /* Prevent body double scrolling & parent bounce overflows */
+  scroll-behavior: auto !important; /* Match iOS instant tab scroll switching, avoid slow ease animations */
+}
+
+/* Enable momentum scrolling globally on all scrollable elements for native iOS feel */
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-x-auto,
+.overflow-x-scroll,
+[class*="overflow-y-auto"],
+[class*="overflow-y-scroll"],
+[class*="overflow-x-auto"],
+[class*="overflow-x-scroll"] {
+  /* Hardware-accelerated momentum scrolling — identical to native UIScrollView physics */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Proper overscroll behavior to prevent viewport bouncing and parent container chaining */
+.overflow-y-auto,
+.overflow-y-scroll,
+[class*="overflow-y-auto"],
+[class*="overflow-y-scroll"] {
+  overscroll-behavior-y: contain !important;
+}
+.overflow-x-auto,
+.overflow-x-scroll,
+[class*="overflow-x-auto"],
+[class*="overflow-x-scroll"] {
+  overscroll-behavior-x: contain !important;
+}
+
+/* Explicit smooth scrolling helper that overrides any reset auto scrolls */
+.scroll-smooth {
+  scroll-behavior: smooth !important;
+}
+
+/* Hide scrollbar helpers across all engines */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar,
+.scrollbar-none,
+.hide-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* High-performance CSS-driven virtualization for large medical lists without JS library bloat */
+.ios-list-item-virtualized {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px; /* Tells browser approximately how tall each medical lecture item card is */
+}
+
+
+
+
+
+
+
+.bg-med-bg,
+.bg-gray-50,
+.bg-slate-50,
+.bg-\[\#\] {
+  background-color: var(
+    --surface-grouped
+  ) !important; /* iOS Light Gray Grouped Background */
+}
+
+.dark body {
+  background-color: var(--surface-grouped) !important;
+  color: #ffffff !important;
+}
+
+.dark .bg-med-bg,
+.dark .bg-gray-50,
+.dark .bg-slate-50,
+.dark .bg-\[\#\] {
+  background-color: var(--surface-grouped) !important;
+}
+
+/* iOS Card Shapes: Elevate card design in dark mode (independent visual structures from light mode) */
+/* (Removed aggressive !important overrides that broke Tailwind dark classes on cards) */
+
+/* Standard Gray Elements in Dark Mode */
+.dark .bg-gray-100,
+.dark .bg-neutral-150,
+.dark .bg-neutral-200,
+.dark .bg-med-cream,
+.dark .bg-\[\#\],
+.dark .bg-\[\#\] {
+  background-color: var(
+    --surface-secondary
+  ) !important; /* iOS Secondary Elevated dark gray (System Gray 5) */
+  border-color: #3a3a3c !important;
+}
+
+/* Hover/Active standard items must not look blue or light */
+@media (hover: hover) and (pointer: fine) {
+  .dark .hover\:bg-neutral-50:hover,
+  .dark .hover\:bg-neutral-100:hover,
+  .dark .hover\:bg-neutral-200:hover,
+  .dark .hover\:bg-gray-50:hover,
+  .dark .hover\:bg-gray-100:hover,
+  .dark .dark\:hover\:bg-neutral-50:hover,
+  .dark .dark\:hover\:bg-neutral-100:hover,
+  .dark .dark\:hover\:bg-neutral-200:hover {
+    background-color: var(--bg-surface-2) !important; /* Cohesive Elevation-based Hover Gray */
+    color: #ffffff !important;
+  }
+}
+
+/* Contrast Protection: Prevent texts from washing out */
+.dark .text-neutral-900,
+.dark .text-neutral-800,
+.dark .text-neutral-700,
+.dark .text-black,
+.dark .dark\:text-black,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark [class*="text-neutral-900"],
+.dark [class*="text-neutral-800"],
+.dark [class*="text-gray-900"] {
+  color: #ffffff !important; /* Pure legible white */
+}
+
+.dark .text-neutral-500,
+.dark .text-\[\#\],
+.dark .text-neutral-400,
+.dark .text-gray-500,
+.dark .text-gray-400,
+.dark .dark\:text-neutral-400,
+.dark [class*="text-neutral-500"],
+.dark [class*="text-neutral-400"] {
+  color: #8e8e93 !important; /* iOS label gray */
+}
+
+/* iOS Royal Gold Accent Palette Definitions */
+.dark .text-med-gold,
+.dark .text-med-gold,
+.dark .text-med-gold,
+.dark .text-yellow-500,
+.dark .text-\[\#\],
+.dark .text-\[\#\],
+.dark .text-med-gold {
+  color: #d4af37 !important; /* iOS Matte Royal Gold */
+  font-weight: 700 !important;
+}
+
+/* Gold background blocks & badges must use pitch black text so words never disappear */
+.dark .bg-med-gold,
+.dark .bg-med-gold,
+.dark .bg-yellow-500,
+.dark .bg-\[\#\],
+.dark .bg-\[\#\],
+.dark .bg-med-gold {
+  background-color: #d4af37 !important;
+  color: #000000 !important;
+}
+
+.dark .bg-med-gold *,
+.dark .bg-med-gold *,
+.dark .bg-yellow-500 *,
+.dark .bg-\[\#\] *,
+.dark .bg-\[\#\] *,
+.dark .bg-med-gold body {
+  color: #000000 !important;
+}
+
+/* Thin elevated borders */
+.dark .border-med-beige,
+.dark .border-neutral-100,
+.dark .border-neutral-150,
+.dark .border-neutral-200,
+.dark .border-gray-150,
+.dark .border-gray-200,
+.dark .dark\:border-neutral-800 {
+  border-color: #2c2c2e !important;
+}
+
+/* Elements that should stay slightly visible or dark background input fields */
+input,
+select,
+textarea {
+  background-color: var(--surface-secondary);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #1c1c1e;
+  border-radius: var(--radius-input);
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 16px !important; /* Must be 16px to prevent iOS auto-zoom */
+  outline: none;
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* -webkit-appearance: none; */
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  background-color: var(--surface-primary);
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #8e8e93;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: var(--surface-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  background-color: var(--surface-primary);
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #8e8e93;
+}
+
+/* Print Styling Sheet */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  header,
+  footer,
+  nav,
+  button,
+  .no-print,
+  .actions,
+  .print-hidden {
+    display: none !important;
+  }
+
+  #calendar_viewport,
+  .printable-calendar {
+    display: block !important;
+    width: 100% !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .grid,
+  .grid-cols-7,
+  .grid-cols-3 {
+    display: grid !important;
+  }
+
+  /* Make sure borders are printed */
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border-color: #ccc !important;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-med-beige);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-med-sand);
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2d3644;
+}
+
+.liquid-glass-thin {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transform: translateZ(0) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+  border: 0.5px solid rgba(0, 0, 0, 0.04) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+.dark .liquid-glass-thin {
+  background-color: rgba(30, 30, 32, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transform: translateZ(0) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.03) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.liquid-glass-regular {
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  transform: translateZ(0) !important;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.7) !important;
+  border: 0.5px solid rgba(0, 0, 0, 0.05) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+.dark .liquid-glass-regular {
+  background-color: rgba(34, 34, 36, 0.55) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  transform: translateZ(0) !important;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.05) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.liquid-glass-thick {
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  transform: translateZ(0) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  border: 0.5px solid rgba(0, 0, 0, 0.06) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+.dark .liquid-glass-thick {
+  background-color: rgba(28, 28, 30, 0.7) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  transform: translateZ(0) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.liquid-glass-tabbar {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(32px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.5) !important;
+  transform: translateZ(0) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 26px !important;
+  box-shadow:
+    0 16px 36px -4px rgba(0, 0, 0, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+.dark .liquid-glass-tabbar {
+  background-color: rgba(18, 18, 20, 0.45) !important;
+  backdrop-filter: blur(32px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.2) !important;
+  transform: translateZ(0) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 26px !important;
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Floating mobile navigation. It remains fixed to the viewport so it stays
+   visible, but its visual box is detached from the edges of the application.
+   The matching scroll inset below is owned by the main content container. */
+.ios-floating-tabbar {
+  left: 12px;
+  right: 12px;
+  bottom: var(--mobile-nav-offset);
+  height: var(--mobile-nav-height);
+  box-sizing: border-box;
+  background: transparent;
+  pointer-events: none;
+  animation: none;
+}
+
+.ios-floating-tabbar-compact,
+.ios-main-scroll-compact {
+  --mobile-nav-height: 49px;
+  --mobile-nav-offset: max(8px, var(--safe-area-bottom));
+}
+
+.ios-floating-tabbar > #ios_native_tabbar {
+  pointer-events: auto;
+  max-width: 520px;
+  height: var(--mobile-nav-height);
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.ios-floating-tabbar .grid {
+  column-gap: 4px;
+  padding: 3px 0;
+}
+
+/* Global scroll clearance for the fixed floating navigation. This space stays
+   inside the main application surface and lets the final content scroll fully
+   above the bar without enlarging the bar or creating a viewport spacer. */
+.ios-main-scroll {
+  padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap)) !important;
+  scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap));
+}
+
+.ios-tabbar-item {
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 16px;
+  transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.ios-tabbar-item-legacy {
+  background-color: rgba(0, 122, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.dark .ios-tabbar-item-legacy {
+  background-color: rgba(212, 175, 55, 0.14);
+}
+
+.ios-tabbar-item-legacy:active {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-tabbar-item {
+    transition: background-color 0ms ease;
+  }
+  .ios-tabbar-item-legacy {
+    transform: scale(1);
+  }
+}
+
+.liquid-glass-header {
+  background-color: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  transform: translateZ(0) !important;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+.dark .liquid-glass-header {
+  background-color: rgba(24, 24, 26, 0.65) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  transform: translateZ(0) !important;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+/* iOS Smooth Widgets Squircles and Shadows */
+.ios-widget {
+  border-radius: 24px !important;
+  box-shadow:
+    0 4px 20px -2px rgba(0, 0, 0, 0.05),
+    0 2px 8px -1px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  background-color: var(--surface-primary);
+}
+
+.dark .ios-widget {
+  border-radius: 24px !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background-color: var(--surface-card);
+}
+
+/* iOS Sheet style */
+.ios-sheet {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  transform: translateZ(0) !important;
+  border-radius: 24px 24px 0 0 !important;
+  box-shadow:
+    0 -8px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.dark .ios-sheet {
+  background-color: rgba(28, 28, 30, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  transform: translateZ(0) !important;
+  border-radius: 24px 24px 0 0 !important;
+  box-shadow:
+    0 -8px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Safe Area Inset paddings */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top) !important;
+}
+
+.pb-safe-tabbar {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Active touch feedback */
+.ios-active:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.ios-clickable {
+  transition: opacity 0.15s ease-out !important;
+}
+
+.ios-clickable:active {
+  opacity: 0.6 !important;
+}
+
+/* Custom visual depth container backgrounds */
+.ios-grouped-system {
+  background-color: var(--surface-grouped) !important;
+}
+
+.dark .ios-grouped-system {
+  background-color: var(--surface-grouped) !important;
+}
+
+/* --- DEVICE-AWARE CUSTOM INTERACTIVE SYSTEMS (macOS, iPad OS, iOS Desktop vs. Touch Devices) --- */
+
+/* macOS & Desktop with True Hover/Mouse interaction */
+@media (hover: hover) {
+  /* Enhance cursor pointer feedbacks with smooth Apple Spring-like easing curves */
+  .macos-interactive,
+  button,
+  a,
+  .subject-card,
+  [role="button"] {
+    cursor: pointer;
+    transition:
+      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      filter 0.15s ease,
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+
+  /* Modern soft-lift hovering with tiny spring scale-up and sleek focus borders */
+  .macos-interactive:hover {
+    transform: scale(1.02) translateY(-1px);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.08),
+      0 8px 16px -6px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Deep iOS-style press down when clicked/active */
+  .macos-interactive:active {
+    transform: scale(0.97) translateY(0);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+  }
+
+  /* Accent focus rings on Sidebar button focus */
+  .macos-focus-ring:focus-visible {
+    outline: 2px solid var(--color-med-blue);
+    outline-offset: 2px;
+  }
+}
+
+/* iOS/Android Mobile Devices & Dynamic Touch Screens without actual hover cursors */
+@media (hover: none) {
+  /* Prevent 'sticky' hover states (hover focus indicators getting stuck after tapping) */
+  .hover\:bg-white:hover,
+  .hover\:bg-med-blue:hover,
+  .hover\:bg-neutral-200\/50:hover,
+  .hover\:bg-neutral-850:hover,
+  .hover\:text-med-blue:hover,
+  .hover\:text-med-gold:hover,
+  .hover\:text-neutral-700:hover,
+  .hover\:scale-105:hover,
+  .group:hover .group-hover\:rotate-12 {
+    /* Safe fallback configuration to cancel persistent CSS-hover changes on mobile */
+    transform: none;
+    transition: none;
+  }
+
+
+
+  /* iOS system wide no highlight on taps */
+  body {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+}
+
+/* Style scrollbars dynamically: hidden on mobile touch devices, elegant and draggable of thin gray on desktop PC views */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+  body {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+  }
+}
+
+@media (min-width: 768px) {
+  /* Restore thin elegant scrollbars for PC views */
+  ::-webkit-scrollbar {
+    display: block !important;
+    width: 8px !important;
+    height: 8px !important;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.02) !important;
+    border-radius: 9999px !important;
+  }
+  .dark ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.01) !important;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15) !important;
+    border-radius: 9999px !important;
+    border: 2px solid transparent !important;
+    background-clip: padding-box !important;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3) !important;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35) !important;
+  }
+  body {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(142, 142, 147, 0.3) transparent !important;
+    -ms-overflow-style: auto !important;
+  }
+}
+
+/* System-wide native iOS outline focus removal */
+button,
+input,
+select,
+textarea,
+[role="button"],
+[tabindex] {
+  outline: none !important;
+}
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+[role="button"]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #007aff !important;
+  outline-offset: 1px !important;
+}
+
+/* --- Tactile Native Buttons & Gesture Interactions --- */
+
+/* 1. iOS Native Tactile Button (.btn-native) */
+.btn-native {
+  position: relative;
+  /* Will-change hints to the browser that transform/opacity will animate */
+  
+  /* Smooth transition back to normal on release */
+  transition:
+    transform 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.22s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.btn-native:active {
+  /* Scale down slightly and reduce opacity instantly upon pressing */
+  transform: scale(0.96);
+  opacity: 0.82;
+  /* Instant response with 0s transition for maximum physical response feel */
+  transition:
+    transform 0s,
+    opacity 0s;
+}
+
+/* 2. Android Material Touch Ripple (.btn-ripple) */
+.btn-ripple {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Ripple Span Element (generated dynamically via JS) */
+.btn-ripple .ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background-color: rgba(255, 255, 255, 0.3);
+  /* Use hardware accelerated transform and opacity */
+  pointer-events: none;
+  
+  animation: ripple-animation 0.45s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+/* Dark mode ripple modifier if the button is light/transparent */
+.btn-ripple-dark .ripple-effect {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+@keyframes ripple-animation {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* --- SAFE AREA INSETS (Notch/Home Indicator Compatibility) --- */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+/* Safe area padding utilities */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px) !important;
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px) !important;
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px) !important;
+}
+
+/* Safe area margin utilities */
+.mt-safe {
+  margin-top: env(safe-area-inset-top, 0px) !important;
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+.ml-safe {
+  margin-left: env(safe-area-inset-left, 0px) !important;
+}
+.mr-safe {
+  margin-right: env(safe-area-inset-right, 0px) !important;
+}
+
+/* Combined safe area axis spaces */
+.py-safe {
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+.px-safe {
+  padding-left: env(safe-area-inset-left, 0px) !important;
+  padding-right: env(safe-area-inset-right, 0px) !important;
+}
+
+/* --- HARDWARE-ACCELERATED GPU COMPOSITING & ANTI-LAYOUT-THRASHING --- */
+
+/* 1. GPU Compositing Core Layer Promotion */
+.gpu-accelerate,
+.gpu-composite {
+  /* Force modern webkit / blink engines to instantiate an independent GPU render layer */
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  perspective: 1000px !important;
+  -webkit-perspective: 1000px !important;
+
+  /* Hint to browser for permanent layer rendering if necessary, though dynamic helper is preferred */
+  
+}
+
+/* 2. Strict Composite-Only Transition Policies */
+/* These utilities guarantee transitions remain inside the composite stage (omitting Layout & Paint triggers) */
+.transition-composite {
+  transition-property: transform, opacity !important;
+}
+
+/* Snappy and fluid mobile duration curves calibrated to replicate Apple UI Springs and Google Material Fluid */
+.duration-native-snappy {
+  transition-duration: 120ms !important;
+  transition-timing-function: cubic-bezier(
+    0.16,
+    1,
+    0.3,
+    1
+  ) !important; /* snappier ease-out */
+}
+
+.duration-native-fluid {
+  transition-duration: 200ms !important;
+  transition-timing-function: cubic-bezier(
+    0.25,
+    1,
+    0.5,
+    1
+  ) !important; /* ultra-smooth cinematic ease-out */
+}
+
+/* 3. Global Anti-Layout-Thrashing Safeguard Reset */
+/* Prevents performance degradation during fast user interaction by discouraging layout-breaking hover/active transitions.
+   Animating geometry (e.g. width, height, top, margin, padding) triggers a full pipeline recalculation: 
+   Layout -> Paint -> Composite. Restricting these ensures smooth 60-120fps operation. */
+a:hover,
+a:active,
+button:hover,
+button:active,
+input:hover,
+input:active,
+[role="button"]:hover,
+[role="button"]:active {
+  /* Restrict active transition triggers to compositing and harmless repaint properties only */
+  transition-property:
+    transform, opacity, background-color, border-color, box-shadow, filter !important;
+}
+
+/* --- High-performance Staggered Smooth Depth Fade-In Animation for iOS/Safari --- */
+@keyframes iosSmoothDepthFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateZ(0);
+    pointer-events: none;
+  }
+  99% {
+    pointer-events: none;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+    pointer-events: auto;
+  }
+}
+
+.ios-staggered-card {
+  /* CRITICAL: base state must be VISIBLE (opacity 1), not opacity 0.
+     Previously the base was `opacity: 0` + `animation ... forwards`, which
+     made visibility depend entirely on the one-shot entrance animation
+     completing.  Tab pages are kept in the DOM and hidden with display:none;
+     Safari/iPadOS cancels animations inside display:none subtrees and often
+     fails to restart them (or re-apply the forwards fill) when the subtree
+     is shown again — leaving every card permanently invisible until a
+     resize forced a style recalc.
+     With `backwards` fill the 0% keyframe (opacity 0, pointer-events none)
+     covers the stagger delay on a fresh run, and if the animation is ever
+     cancelled or fails to re-run the element safely rests at its natural,
+     fully visible state. */
+  animation: iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) backwards;
+
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure hover/active states do not interfere with the entrance transform before completion */
+.ios-staggered-card:hover {
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-staggered-card:active {
+  -webkit-tap-highlight-color: transparent;
+  transform: scale(0.97) !important;
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Multi-card delay loop using CSS child selectors to create an elegant staggered entrance (up to 24 items with 0.05s increments) */
+.ios-staggered-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.ios-staggered-card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.ios-staggered-card:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.ios-staggered-card:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.ios-staggered-card:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.ios-staggered-card:nth-child(6) {
+  animation-delay: 0.3s;
+}
+.ios-staggered-card:nth-child(7) {
+  animation-delay: 0.35s;
+}
+.ios-staggered-card:nth-child(8) {
+  animation-delay: 0.4s;
+}
+.ios-staggered-card:nth-child(9) {
+  animation-delay: 0.45s;
+}
+.ios-staggered-card:nth-child(10) {
+  animation-delay: 0.5s;
+}
+.ios-staggered-card:nth-child(11) {
+  animation-delay: 0.55s;
+}
+.ios-staggered-card:nth-child(12) {
+  animation-delay: 0.6s;
+}
+.ios-staggered-card:nth-child(13) {
+  animation-delay: 0.65s;
+}
+.ios-staggered-card:nth-child(14) {
+  animation-delay: 0.7s;
+}
+.ios-staggered-card:nth-child(15) {
+  animation-delay: 0.75s;
+}
+.ios-staggered-card:nth-child(16) {
+  animation-delay: 0.8s;
+}
+.ios-staggered-card:nth-child(17) {
+  animation-delay: 0.85s;
+}
+.ios-staggered-card:nth-child(18) {
+  animation-delay: 0.9s;
+}
+.ios-staggered-card:nth-child(19) {
+  animation-delay: 0.95s;
+}
+.ios-staggered-card:nth-child(20) {
+  animation-delay: 1s;
+}
+.ios-staggered-card:nth-child(21) {
+  animation-delay: 1.05s;
+}
+
+/* Subject-details view: sibling cards are sized purely by CSS (grid stretch +
+   the single min-h-[160px] floor — nothing measured in JS) and enter together.
+   The global 0.05s-per-card nth-child stagger makes a whole grid of sibling
+   cards animate sequentially (up to 1s+ of delay); on the subject page we want
+   the siblings to appear in parallel, so collapse the delay to 0. */
+.subject-view-root .ios-staggered-card {
+  animation-delay: 0s !important;
+}
+/* --- iOS NAVIGATION ROUTER (UINavigationController Replicate) --- */
+
+/* iOS Page Router Container */
+.ios-router-container {
+  position: relative;
+  width: 100%;
+  height: 100dvh !important;
+  overflow: hidden;
+  background-color: #000; /* Prevent white flashes during transition */
+}
+@layer components {
+  /* Premium Native Interaction States (Global) */
+  button:active,
+  a:active,
+  [role="button"]:active {
+    transform: scale(0.96);
+    opacity: 0.85;
+    transition: transform 0.05s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.05s ease;
+  }
+
+  button:disabled,
+  a[aria-disabled="true"],
+  button[disabled],
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    transform: scale(1) !important;
+    pointer-events: none !important;
+    filter: grayscale(0.2);
+  }
+
+  /* Semantic Typography Hierarchy */
+  .typography-section-title {
+    font-size: var(--text-title-2);
+    line-height: var(--text-title-2--line-height);
+    letter-spacing: var(--text-title-2--letter-spacing);
+    font-weight: 600;
+  }
+
+  .typography-card-title {
+    font-size: var(--text-headline);
+    line-height: var(--text-headline--line-height);
+    letter-spacing: var(--text-headline--letter-spacing);
+    font-weight: 600;
+  }
+
+  .typography-label {
+    font-size: var(--text-subhead);
+    line-height: var(--text-subhead--line-height);
+    letter-spacing: var(--text-subhead--letter-spacing);
+    font-weight: 500;
+  }
+
+  .typography-badge {
+    font-size: var(--text-caption-1);
+    line-height: var(--text-caption-1--line-height);
+    letter-spacing: var(--text-caption-1--letter-spacing);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .typography-caption {
+    font-size: var(--text-caption-1);
+    line-height: var(--text-caption-1--line-height);
+    letter-spacing: var(--text-caption-1--letter-spacing);
+    font-weight: 400;
+    color: var(--color-med-muted);
+  }
+
+  /* SF Symbols Icon System Normalization */
+  .lucide {
+    /* Normalize stroke width to Apple's default weight (similar to SF Symbols Regular) */
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    /* Optical alignment: prevent icon squishing inside flex containers */
+    flex-shrink: 0;
+    /* Keep stroke width consistent even if icon size is modified */
+    vector-effect: non-scaling-stroke;
+    /* Interactive animation transition */
+    transition:
+      transform 0.25s cubic-bezier(0.25, 1, 0.5, 1),
+      opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1),
+      stroke 0.25s ease,
+      fill 0.25s ease;
+  }
+
+  /* Interactive States (Hover & Press) */
+  /* Target interactive parents to animate child icons */
+  button:hover .lucide,
+  a:hover .lucide,
+  .cursor-pointer:hover .lucide {
+    transform: scale(1.08); /* Subtle pop */
+  }
+
+  button:active .lucide,
+  a:active .lucide,
+  .cursor-pointer:active .lucide,
+  .btn-native:active .lucide {
+    transform: scale(0.92); /* Deeper compression on press */
+    opacity: 0.7;
+  }
+
+  /* Disabled State */
+  button:disabled .lucide,
+  button[disabled] .lucide,
+  .opacity-50 .lucide {
+    opacity: 0.4;
+    transform: none; /* Cancel interaction */
+  }
+
+  /* Apple-style Accent Colors */
+  .lucide-accent-blue {
+    stroke: #007aff;
+  }
+  .lucide-accent-green {
+    stroke: #34c759;
+  }
+  .lucide-accent-red {
+    stroke: #ff3b30;
+  }
+  .lucide-accent-orange {
+    stroke: #ff9500;
+  }
+  .lucide-accent-purple {
+    stroke: #af52de;
+  }
+
+  /* Loading States */
+  .lucide-loader,
+  .lucide-loader-2,
+  .lucide-refresh-cw {
+    animation: sf-spin 1.2s linear infinite;
+  }
+
+  @keyframes sf-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Standardized Circle Sizes & Padding for Icon Buttons */
+  .sf-icon-circle-sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .sf-icon-circle-md {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .sf-icon-circle-lg {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+  }
+}
+
+/* Mask is fully active when page is behind another without animating */
+.ios-mask-active {
+  opacity: 1;
+}
+
+/* --- Ambient Lighting System (Apple VisionOS / macOS inspired) --- */
+
+/* Soft Radial Backgrounds (Applies a very subtle, low opacity radial glow) */
+.ambient-glow-blue {
+  background: radial-gradient(
+    circle at 50% -20%,
+    rgba(0, 122, 255, 0.08) 0%,
+    transparent 60%
+  );
+}
+.dark .ambient-glow-blue {
+  background: var(--bg-surface-1);
+}
+
+.ambient-glow-purple {
+  background: radial-gradient(
+    circle at 50% -20%,
+    rgba(175, 82, 222, 0.06) 0%,
+    transparent 60%
+  );
+}
+.dark .ambient-glow-purple {
+  background: var(--bg-surface-1);
+}
+
+.ambient-glow-emerald {
+  background: radial-gradient(
+    circle at 50% -20%,
+    rgba(52, 199, 89, 0.06) 0%,
+    transparent 60%
+  );
+}
+.dark .ambient-glow-emerald {
+  background: var(--bg-surface-1);
+}
+
+/* Edge Lighting (Subtle inner top border light for cards) */
+.edge-light {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.8),
+    0 4px 14px -2px rgba(0, 0, 0, 0.03);
+}
+.dark .edge-light {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 4px 14px -2px rgba(0, 0, 0, 0.2);
+}
+
+/* Card Glow (Extremely subtle outer glow for active/hero cards) */
+.card-glow-subtle {
+  box-shadow:
+    0 4px 20px -2px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+    0 8px 30px -4px rgba(0, 122, 255, 0.04);
+}
+.dark .card-glow-subtle {
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 8px 30px -4px rgba(10, 132, 255, 0.05);
+}
+
+/* Navigation Lighting (Subtle top edge light for tab bars / bottom headers) */
+.nav-edge-light {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.8),
+    0 -1px 8px rgba(0, 0, 0, 0.02);
+}
+.dark .nav-edge-light {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 -1px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Hero Lighting (For main dashboard area) */
+.hero-lighting {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45vh;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.7) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.dark .hero-lighting {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 100%
+  );
+}
+
+/* Apple Squircle Approximations */
+@supports (border-radius: max(0px, min(8px, calc((100vw - 4px) * 9999)))) {
+  .rounded-lg { border-radius: 12px; }
+  .rounded-xl { border-radius: 16px; }
+    .rounded-3xl { border-radius: 24px; }
+  .rounded-\[32px\] { border-radius: 32px; }
+}
+
+
+@utility h-btn {
+  height: var(--spacing-btn);
+}
+@utility w-btn {
+  width: var(--spacing-btn);
+}
+@utility min-h-btn {
+  min-height: var(--spacing-btn);
+}
+@utility min-w-btn {
+  min-width: var(--spacing-btn);
+}
+
+
+.dark {
+  --shadow-elevation-0: none;
+  /* Dark mode shadows are generally non-existent or very subtle, or use a harsh drop shadow. Let's make them slightly stronger for contrast but subtle */
+  --shadow-elevation-1: 0 2px 10px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-elevation-2: 0 4px 16px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.2);
+  --shadow-elevation-3: 0 12px 48px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+
+/* --- Production Performance Optimizations --- */
+/* Hardware Acceleration for 120Hz smooth animations */
+.gpu-accelerate {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Scroll containment for preventing layout thrashing */
+.ios-scrollable {
+  overscroll-behavior-y: contain;
+  transform: translateZ(0);
+}
+
+/* Prevent repaints on common animated elements */
+.prevent-repaint {
+  
+  transform: translateZ(0);
+}
+
+/* List virtualization alternative using content-visibility */
+.virtualized-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+}
+
+/* Isolate stacking contexts for intensive elements */
+.isolate-layer {
+  contain: paint layout;
+}
+
+/* Optimize image rendering */
+img {
+  content-visibility: auto;
+}
+
+
+/* --- SAFARI COMPATIBILITY AUDIT FIXES --- */
+
+/* 1. Viewport & 100dvh bugs */
+@supports (-webkit-touch-callout: none) {
+  .min-h-screen, .min-h-\[100dvh\] {
+    min-height: 100dvh !important;
+  }
+  .h-screen, .h-\[100dvh\] {
+    height: 100dvh !important;
+  }
+  .max-h-\[100dvh\] {
+    max-height: 100dvh !important;
+  }
+}
+
+/* 2. Sticky Positioning for Safari */
+.sticky {
+  position: -webkit-sticky !important;
+  position: sticky !important;
+}
+
+/* 3. Gesture & Overscroll Behaviors */
+body, html {
+  /* Prevent swipe to go back triggering on horizontal scrolls inside the app */
+  overscroll-behavior-x: none !important;
+  overscroll-behavior-y: none !important;
+}
+
+/* 4. Font Rendering & GPU */
+body {
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+.ios-scrollable {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  /* Avoid using will-change globally as it can exceed GPU memory limit,
+     but good for specific scroll containers. */
+}
+
+/* 5. Safe Area Overrides for iOS 11.0-11.2 (constant instead of env) */
+@supports not (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe { padding-bottom: constant(safe-area-inset-bottom) !important; }
+  .pt-safe { padding-top: constant(safe-area-inset-top) !important; }
+  .pl-safe { padding-left: constant(safe-area-inset-left) !important; }
+  .pr-safe { padding-right: constant(safe-area-inset-right) !important; }
+}
+
+/* 6. Fix for iOS Safari bottom navigation bar hiding content */
+.pb-safe-tabbar {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 80px) !important;
+}
+
+/* 7. Ensure smooth scrolling momentum */
+.overflow-y-auto, .overflow-x-auto, .scroll-smooth {
+}
+
+/* 8. Prevent user selection on iOS elements to avoid gesture conflicts */
+a, button, [role="button"], [role="tab"] {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Smooth Liquid Optimizations */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.liquid-glass-tabbar {
+  transform: translateZ(0); /* Hardware accelerate the tabbar to prevent lag */
+}
+input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="number"], input[type="tel"], input[type="url"], textarea, select { -webkit-appearance: none; appearance: none; font-size: 16px; }
+
+/* --- Fluid Water-like Motion Utilities --- */
+.spring-fluid {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition-duration: 350ms;
+}
+
+.spring-bounce {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition-duration: 300ms;
+}
+
+.spring-soft {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 300ms;
+}
+
+/* Rubber band effect for scroll edges */
+.rubber-band-scroll {
+  overscroll-behavior-y: auto;
+}
+
+/* Fluid tap highlight for iOS */
+* {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Fluid text selection */
+::selection {
+  background-color: rgba(0, 122, 255, 0.3);
+  color: inherit;
+}
+
+/* Enhance global touch feedback for buttons */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, background-color 0.2s ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* Fluid button press effect */
+.btn-fluid:active, .card-fluid:active {
+  transform: scale(0.95);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-fluid, .card-fluid {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Hide scrollbar for Safari for cleaner look */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent; /* make scrollbar transparent */
+}
+
+/* Safe area padding utilities for iOS and Capacitor */
+.p-safe {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+.mt-safe {
+  margin-top: env(safe-area-inset-top);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+.min-h-safe {
+  min-height: calc(100dvh + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+}
+
+/* Public legal pages are rendered outside the authenticated scroll canvas. */
+.legal-page-scroll {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+}
+
+.legal-page-public .legal-page-header {
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px)) !important;
+  padding-left: max(1rem, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(1rem, env(safe-area-inset-right, 0px)) !important;
+}
+
+.legal-page-public .legal-page-content {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(1rem, env(safe-area-inset-right, 0px)) !important;
+}
+
+/* Phone-only responsiveness layer. App.tsx adds mobile-phone-layout only for
+   the phone profile, including landscape phones; tablet and desktop layouts do
+   not match these selectors. */
+.mobile-phone-layout .ios-floating-tabbar {
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+
+.mobile-phone-layout #main-scroll-canvas {
+  padding-inline-start: max(12px, env(safe-area-inset-left, 0px));
+  padding-inline-end: max(12px, env(safe-area-inset-right, 0px));
+}
+
+.mobile-phone-layout .mobile-bottom-action {
+  inset-inline-start: max(12px, env(safe-area-inset-left, 0px));
+  inset-inline-end: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap)) !important;
+}
+
+.mobile-phone-layout .mobile-bottom-action > button {
+  min-height: 44px;
+  max-width: 100%;
+}
+
+.mobile-phone-layout .mobile-dialog-shell {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-phone-layout .mobile-dialog-panel {
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  overflow-y: auto;
+}
+
+.mobile-phone-layout #settings_panel .group > div.flex {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.mobile-phone-layout #settings_panel .group > div.flex > div:nth-child(2) {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.mobile-phone-layout .lecture-qa-question-header,
+.mobile-phone-layout .lecture-qa-answer-header {
+  flex-wrap: wrap;
+}
+
+.mobile-phone-layout .lecture-qa-author,
+.mobile-phone-layout .lecture-qa-actions {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mobile-phone-layout .lecture-qa-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mobile-phone-layout .lecture-qa-reply {
+  flex-wrap: wrap;
+}
+
+.mobile-phone-layout .lecture-qa-reply input {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+@media (max-width: 380px) {
+  .mobile-phone-layout .lecture-qa-reply button {
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+}
+
+.mobile-phone-layout .calendar-event-count-label {
+  display: none;
+}
+
+/* Week View — phone-only: fill viewport, horizontal scroll, safe-area clear */
+.mobile-phone-layout #week_columns_container {
+  height: calc(100dvh - 220px);
+  min-height: 300px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Clear bottom safe area + floating tab bar */
+  padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap) + 8px);
+}
+
+/* Day cells: fill available height on phone so they aren't short cards */
+.mobile-phone-layout #week_columns_container > button {
+  min-height: 0;
+  flex: 0 0 calc(50% - 6px);
+}
+
+/* Landscape phones: shorter header gives more room to the calendar */
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-phone-layout #week_columns_container {
+    height: calc(100dvh - 160px);
+    min-height: 200px;
+  }
+}
+
+/* Sonner renders outside the App tree, so keep bottom-center toasts above the
+   phone navigation using the same shared inset. */
+@media (max-width: 479px), (orientation: landscape) and (max-height: 479px) and (max-width: 959px) {
+  [data-sonner-toaster][data-y-position="bottom"] {
+    bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap)) !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-phone-layout #main-scroll-canvas {
+    padding-top: max(8px, env(safe-area-inset-top, 0px)) !important;
+  }
+
+  .mobile-phone-layout .mobile-dialog-panel {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 8px);
+  }
+}
+
+/* ─── Phone-only polish layer: tap targets, overlays, short-viewport fixes ── */
+
+/* Suspension screen: scroll vertically so content stays reachable in
+   landscape / short viewports (the parent centers it inside the canvas). */
+.mobile-phone-layout .suspension-shell {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  justify-content: flex-start;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Raise full-screen/panel overlays above the floating tab bar (z-50). */
+.mobile-phone-layout .mobile-overlay-top {
+  z-index: 70;
+}
+
+/* Lecture detail: header stacks on all phones (incl. landscape), tab bar is
+   a reachable full-width strip, QA actions get 44px tap targets. */
+.mobile-phone-layout .lecture-detail-header {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mobile-phone-layout .lecture-tabbar {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.mobile-phone-layout .lecture-detail-back {
+  min-height: 44px;
+}
+
+/* ─── iPad / iPadOS touch layer ────────────────────────────────────────────
+   App.tsx adds `ipad-layout` only when device.isTablet, so these selectors
+   never match iPhone (mobile-phone-layout) or MacBook/desktop layouts. They
+   make the tablet feel touch-first: ≥40–44px tap targets, a single row of
+   equal quiz actions, Library-matched home columns, and wider modals. */
+
+/* Canvas: touch-friendly bottom inset (non-phone inline padding is 24px). */
+.ipad-layout #main-scroll-canvas {
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* View roots: the canvas already reserves bottom space — drop the utility
+   pb-12/pb-24 dead zone on each scrollable iPad root. */
+.ipad-layout .home-body-wrap,
+.ipad-layout .subject-view-root,
+.ipad-layout .lecture-detail-view,
+.ipad-layout .bulletin-root,
+.ipad-layout .cal-view-root,
+.ipad-layout .cc-view-root,
+.ipad-layout .profile-view-root,
+.ipad-layout .settings-view-root {
+  padding-bottom: 0 !important;
+}
+
+/* Lecture detail: reachable back button and full-touch-height tab strip. */
+.ipad-layout .lecture-detail-back {
+  min-height: 44px;
+}
+
+.ipad-layout .lecture-tabbar {
+  min-height: 44px;
+}
+
+/* MCQ quiz (lecture detail): collapse Previous / Reveal Hint / Next into one
+   uniform row of equal buttons on iPad. */
+.ipad-layout .quiz-actions-row {
+  flex-wrap: nowrap;
+}
+
+.ipad-layout .quiz-actions-group {
+  display: contents;
+}
+
+.ipad-layout .quiz-nav-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.ipad-layout .quiz-nav-btn-next {
+  min-width: 0;
+}
+
+.ipad-layout .quiz-option {
+  min-height: 52px;
+}
+
+/* Q&A: 44px icon tap targets. */
+.ipad-layout .lecture-qa-actions button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.ipad-layout .lecture-qa-reply button {
+  min-height: 44px;
+}
+
+/* Subjects: reachable back button and breadcrumb taps. */
+.ipad-layout .subject-back {
+  min-height: 44px;
+}
+
+.ipad-layout .subject-breadcrumbs button {
+  min-height: 40px;
+}
+
+.ipad-layout .lecture-list-chips button {
+  min-height: 44px;
+}
+
+/* Home: upcoming event alert wraps and keeps a comfortable button. */
+.ipad-layout .home-event-alert {
+  flex-wrap: wrap;
+}
+
+.ipad-layout .home-event-alert > button {
+  min-height: 44px;
+  padding-inline: 14px;
+}
+
+/* Home subject grid: match the Library tab density exactly (md:2 → lg:3 → xl:4)
+   instead of the always-3-column md:grid-cols-3 used on desktop. */
+.ipad-layout .home-subject-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+  .ipad-layout .home-subject-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .ipad-layout .home-subject-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Segmented controls: 44px on iPad. */
+.ipad-layout .calendar-segment,
+.ipad-layout .bulletin-segment,
+.ipad-layout .settings-segment {
+  height: 44px;
+}
+
+/* Bulletin: comfortable icon buttons and category chips. */
+.ipad-layout .bulletin-icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.ipad-layout .bulletin-chip {
+  height: 40px;
+}
+
+/* Command palette: 44px rows and an always-visible chevron (no hover on touch). */
+.ipad-layout .cp-result-item {
+  min-height: 44px;
+}
+
+.ipad-layout .cp-item-chevron {
+  opacity: 1 !important;
+}
+
+.ipad-layout .cp-clear-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Edit event: reachable back button and event-type chips. */
+.ipad-layout .ece-back-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.ipad-layout .ece-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Modals & alerts: breathe a little on tablet screens. */
+.ipad-layout .mobile-dialog-panel {
+  max-width: 30rem;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
+  overflow-y: auto;
+}
+
+.ipad-layout .ios-alert-panel {
+  max-width: 320px;
+}
+
+/* Reading comfort: slightly larger captions inside the lecture view. */
+.ipad-layout .lecture-detail-view .text-caption {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* MCQ quiz (lecture detail): on phones collapse the three action buttons
+   (Previous / Reveal Hint / Next) into one uniform row of equal buttons, and
+   pad the quiz panel so the floating tab bar never covers them. */
+.mobile-phone-layout .quiz-tab-panel {
+  padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap) + 12px);
+}
+
+.mobile-phone-layout .quiz-actions-row {
+  flex-wrap: nowrap;
+}
+
+.mobile-phone-layout .quiz-actions-group {
+  display: contents;
+}
+
+.mobile-phone-layout .quiz-nav-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 40px;
+  padding: 0 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.mobile-phone-layout .quiz-nav-btn-next {
+  min-width: 0;
+}
+
+@media (max-width: 359px) {
+  .mobile-phone-layout .quiz-nav-btn {
+    font-size: 11px;
+    padding-inline: 4px;
+  }
+
+  .mobile-phone-layout .quiz-nav-btn-icon {
+    display: none;
+  }
+}
+
+.mobile-phone-layout .lecture-qa-actions button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.mobile-phone-layout .lecture-qa-reply button {
+  min-height: 44px;
+}
+
+.mobile-phone-layout .video-thumb {
+  width: 96px;
+}
+
+.mobile-phone-layout .lecture-list-chips button {
+  min-height: 40px;
+}
+
+/* Subjects: reachable back button and breadcrumb taps */
+.mobile-phone-layout .subject-back {
+  min-height: 44px;
+}
+
+.mobile-phone-layout .subject-breadcrumbs button {
+  min-height: 40px;
+}
+
+/* Home: two-column subject grid on phones, hero greeting never overflows */
+.mobile-phone-layout .home-subject-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mobile-phone-layout .home-hero-greeting {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Home: the phone scroll inset already clears the floating bar — drop the extra
+   pb-12 so the dashboard doesn't end in ~48px of dead space. */
+.mobile-phone-layout .home-body-wrap {
+  padding-bottom: 0;
+}
+
+/* Home hero: the device-profile min-heights (320px portrait / 270px landscape)
+   are taller than the hero content, wasting vertical space on phones. */
+.mobile-phone-layout .home-hero-banner {
+  min-height: 280px;
+}
+
+@media (max-width: 380px) {
+  .mobile-phone-layout .home-hero-banner {
+    min-height: 260px;
+  }
+}
+
+/* Landscape phones (short viewports): keep the hero compact so search/schedule
+   and the subjects grid stay within reach. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-phone-layout .home-hero-banner {
+    min-height: 220px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}
+
+/* Home subject cards: compact inside the 2-column phone grid (14px padding,
+   slightly shorter min-height, one-step-smaller title so names wrap less). */
+.mobile-phone-layout .home-subject-grid > * {
+  min-height: 150px;
+  padding: 14px;
+}
+
+.mobile-phone-layout .home-subject-grid h3 {
+  font-size: 1rem;
+}
+
+/* Upcoming event alert: allow wrap so long titles/descriptions never overflow
+   the small phone width; button keeps a comfortable tap target. */
+.mobile-phone-layout .home-event-alert {
+  flex-wrap: wrap;
+}
+
+.mobile-phone-layout .home-event-alert > button {
+  min-height: 44px;
+  padding-inline: 14px;
+}
+
+/* Segmented controls: comfortable 40px height on phones */
+.mobile-phone-layout .calendar-segment,
+.mobile-phone-layout .bulletin-segment {
+  height: 40px;
+}
+
+/* Admin / moderation: wrap long editor rows, let pagination breathe */
+.mobile-phone-layout .mod-history-pagination {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.mobile-phone-layout .duration-editor-row {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.mobile-phone-layout .duration-editor-row > * {
+  min-width: 0;
+}
+
+/* Remove doubled bottom padding on phone-only lists (canvas reserves it) */
+.mobile-phone-layout .bulletin-root {
+  padding-bottom: 0 !important;
+}
+
+/* iOS Liquid Water-like scrolling for containers */
+.scroll-container {
+  overflow-y: auto;
+  overscroll-behavior-y: contain; /* Prevents pull-to-refresh on body while scrolling */
+}
+
+body {
+  /* Stop the whole page from rubber-banding in Safari/Capacitor */
+  overscroll-behavior: none;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Fast click / Disable double tap to zoom on interactive elements */
+a, button, input, select, textarea, [role="button"], [role="tab"], .cursor-pointer {
+  touch-action: manipulation;
+}
+
+/* Hide scrollbar completely to make it feel like a native scroll view */
+.ios-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+/* Additional performance boosters */
+.hardware-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  content-visibility: auto;
+}
+
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 100px;
+}
+
+/* Performance Optimizations for Main Scroll Canvas
+   NOTE: no `will-change: scroll-position`. A permanent compositing hint here pins
+   a GPU layer for the ENTIRE scroll canvas, which is destroyed + rebuilt on every
+   display:none→block tab switch. On iOS Safari the rebuilt layer intermittently
+   paints the Hero's layered gradients with a corrupted first frame (colours mixed,
+   elements in a wrong visual state) until a later repaint — exactly the family of
+   bug fixed for the home-tab wrapper and the hero aurora. translateZ(0) stays:
+   it makes the canvas the containing block so fixed-position toasts inside tabs
+   keep working; per-item content-visibility rules cover list performance. */
+#main-scroll-canvas {
+  /* content-visibility:auto was removed: it causes the browser to cache and
+     reuse stale rendering data across WKWebView background→foreground
+     transitions, producing a visible layout glitch (compressed left side).
+     The per-item content-visibility rules inside the scrollable lists still
+     provide the performance benefit for long lists. */
+  transform: translateZ(0);
+}
+
+/* Accessibility: Reduce Transparency fallback */
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass-thin,
+  .liquid-glass-regular,
+  .liquid-glass-thick,
+  .liquid-glass-tabbar,
+  .liquid-glass-header,
+  .ios-sheet {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: #f2f2f7 !important;
+  }
+  
+  .dark .liquid-glass-thin,
+  .dark .liquid-glass-regular,
+  .dark .liquid-glass-thick,
+  .dark .liquid-glass-tabbar,
+  .dark .liquid-glass-header,
+  .dark .ios-sheet {
+    background-color: #1c1c1e !important;
+  }
+}
+
+/* Mobile GPU optimization: reduce blur on always-visible fixed elements.
+   The tabbar and header are constantly composited together on screen.
+   Lowering their blur radius from 20px/16px to 12px on touch devices
+   reduces GPU compositing cost while preserving the glass effect. */
+@media (hover: none) and (pointer: coarse) {
+  .liquid-glass-tabbar {
+    backdrop-filter: blur(12px) saturate(1.1) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+  }
+  .dark .liquid-glass-tabbar {
+    backdrop-filter: blur(12px) saturate(1.1) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+  }
+  .liquid-glass-header {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  .dark .liquid-glass-header {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+}
+
+/* iOS scrolling optimization */
+.scroll-smooth-ios {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AnimatedField — 10-state input system support styles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Autofill detection via CSS animation events.
+ * The component listens for animationstart events named "af-detect-start" /
+ * "af-detect-cancel" to know when the browser fills or clears the field.
+ * Duration must be > 0 so the event fires; 1ms is imperceptible.
+ */
+@keyframes af-detect-start  { from { opacity: 1; } to { opacity: 1; } }
+@keyframes af-detect-cancel { from { opacity: 1; } to { opacity: 1; } }
+
+input:-webkit-autofill {
+  animation-name: af-detect-start;
+  animation-duration: 1ms;
+  animation-fill-mode: both;
+}
+input:not(:-webkit-autofill) {
+  animation-name: af-detect-cancel;
+  animation-duration: 1ms;
+  animation-fill-mode: both;
+}
+
+/*
+ * Override the browser's default yellow autofill background.
+ * We show our own amber tint via a React overlay div so we can animate it.
+ * The large inset box-shadow trick overrides the UA stylesheet without
+ * touching background-color (which browsers ignore on autofilled inputs).
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(255, 249, 234, 1) inset !important;
+  -webkit-text-fill-color: #1c1c1e !important;
+  transition: background-color 9999s ease 0s, color 9999s ease 0s;
+  caret-color: #1c1c1e;
+}
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(50, 46, 28, 1) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+}
+
+/*
+ * Invalid-entry shake — fired programmatically by adding / removing this
+ * class on the wrapper div when transitioning into the "invalid" state.
+ * Uses cubic-bezier(0.36, 0.07, 0.19, 0.97) — the classic spring shake.
+ */
+@keyframes af-shake {
+  0%,  100% { transform: translateX(0);    }
+  14%        { transform: translateX(-7px); }
+  28%        { transform: translateX(6px);  }
+  42%        { transform: translateX(-5px); }
+  57%        { transform: translateX(4px);  }
+  71%        { transform: translateX(-2px); }
+  85%        { transform: translateX(2px);  }
+}
+.af-shake {
+  animation: af-shake 0.44s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/*
+ * Loading state — subtle border pulse on the wrapper.
+ * Applied automatically when effectiveState === "loading".
+ */
+@keyframes af-pulse-border {
+  0%, 100% { opacity: 1;    }
+  50%       { opacity: 0.55; }
+}
+.af-loading-pulse {
+  animation: af-pulse-border 1.4s ease-in-out infinite;
+}
+
+/*
+ * Reduce motion — disable all AnimatedField animations for users who
+ * prefer reduced motion (the component also zeroes spring durations via
+ * useReducedMotion, but these CSS classes act as a safety net).
+ */
+@media (prefers-reduced-motion: reduce) {
+  .af-shake,
+  .af-loading-pulse {
+    animation: none !important;
+  }
+
+  /* Tailwind's animate-spin (used by Spinner components) */
+  .animate-spin {
+    animation: none !important;
+  }
+
+  /* Kill all CSS transitions and animations globally as a safety net */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * High Contrast / Forced Colors (Windows High Contrast Mode)
+ * Ensure focus indicators and interactive states remain visible when the OS
+ * overrides all colours. We use the CSS system keywords (ButtonText,
+ * Highlight, HighlightText) so the browser applies the user's chosen palette.
+ */
+/* ─── Auth scroll column — responsive bottom padding ───────────────────────────
+   The inner scroll column on auth screens uses paddingBottom to create breathing
+   room below the card.  On desktop 6rem looks intentional; on iPhone/iPad it
+   creates a visible flat-colour rectangle below the content because:
+     • the background gradient blobs don't extend into the padding zone, and
+     • the viewport fits the screen exactly so the pad is always visible.
+   Fix: only the safe-area inset on mobile (<768px); full 6rem extra on md+.    */
+.auth-scroll-column {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4rem);
+}
+@media (min-width: 768px) {
+  .auth-scroll-column {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+  }
+}
+
+@media (forced-colors: active) {
+  /* Global focus ring — use the system Highlight colour so it is always visible */
+  *:focus-visible {
+    outline: 3px solid Highlight !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+  }
+
+  /* Auth card / modal border */
+  #auth-card,
+  [role="dialog"] {
+    border: 2px solid ButtonText !important;
+  }
+
+  /* Error alert — use system colours so the red box is not lost */
+  [role="alert"] {
+    border: 2px solid ButtonText !important;
+    forced-color-adjust: none;
+    background-color: Canvas !important;
+    color: ButtonText !important;
+  }
+
+  /* Primary action buttons */
+  button[type="submit"],
+  #auth-submit-btn,
+  #send-recovery-btn,
+  #registration-next-btn {
+    border: 2px solid ButtonText !important;
+    forced-color-adjust: none;
+  }
+
+  /* Social button borders */
+  #auth-google-btn {
+    border: 2px solid ButtonText !important;
+  }
+
+  /* Animated field wrapper border must be visible */
+  .af-shake,
+  input,
+  select {
+    border: 2px solid ButtonText !important;
+    forced-color-adjust: none;
+  }
+
+  /* Progress step dots */
+  [role="group"] .rounded-full {
+    border: 2px solid ButtonText !important;
+  }
+
+  /* Suppress decorative background animations that can confuse HC rendering */
+  [aria-hidden="true"] canvas,
+  [aria-hidden="true"] svg:not([focusable]) {
+    display: none;
+  }
+}
+
+/* ─── Hero Banner animations ─────────────────────────────────────────────── */
+@keyframes wave {
+  0%   { transform: rotate(  0deg); }
+  10%  { transform: rotate( 14deg); }
+  20%  { transform: rotate( -8deg); }
+  30%  { transform: rotate( 14deg); }
+  40%  { transform: rotate( -4deg); }
+  50%  { transform: rotate( 10deg); }
+  60%  { transform: rotate(  0deg); }
+  100% { transform: rotate(  0deg); }
+}
+
+@keyframes hero-aurora {
+  /* translate(-50%,-50%) lives in the element's base inline style (HomeDashboard.tsx).
+     Keyframes only animate `rotate` (CSS individual transform) so the two never conflict.
+     Previously the translate was only in keyframes — on iOS Safari the brief pre-keyframe
+     frame on display:none→block showed the element un-translated, causing the colour-shift
+     bug. The individual `rotate` property composes additively with the base `transform`. */
+  0%   { rotate: 0deg;   opacity: 0.045; }
+  50%  { rotate: 180deg; opacity: 0.08; }
+  100% { rotate: 360deg; opacity: 0.045; }
+}
+/* Aurora element — backface-visibility keeps GPU compositing stable.
+   will-change removed: the animation is 28 s / low-frequency; a permanent compositing
+   hint here created a nested GPU layer that was torn down and rebuilt on every
+   display:none→block cycle, amplifying the iOS Safari brightness-glitch on tab return. */
+.hero-aurora-layer {
+  backface-visibility: hidden;
+}
+
+/* Sidebar collapse/expand window (App.tsx toggles `.sidebar-animating` on the
+   app root while the sidebar animates): pause the home hero's continuous CSS
+   animations so the width re-layout does not compete with them — this is the
+   jank on the welcome page. `animation-play-state` only affects animations that
+   are actually running, so hover-triggered ones stay untouched. */
+.sidebar-animating .hero-aurora-layer,
+.sidebar-animating .badge-shimmer-sweep,
+.sidebar-animating .hero-ring-pulse,
+.sidebar-animating .hero-dot-ping {
+  animation-play-state: paused;
+}
+
+@keyframes badge-shimmer {
+  0%   { transform: translateX(-120%) skewX(-20deg); }
+  100% { transform: translateX(320%)  skewX(-20deg); }
+}
+
+.badge-shimmer-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, rgba(212,175,55,0.28), rgba(255,240,160,0.18), rgba(212,175,55,0.28), transparent);
+  pointer-events: none;
+}
+
+@keyframes hero-achieve-pulse {
+  0%   { box-shadow: 0 0  0px 0px rgba(212,175,55,0.00); border-color: rgba(255,255,255,0.06); }
+  30%  { box-shadow: 0 0 28px 4px rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.50); }
+  100% { box-shadow: 0 0  0px 0px rgba(212,175,55,0.00); border-color: rgba(255,255,255,0.06); }
+}
+.hero-achieve-pulse {
+  animation: hero-achieve-pulse 2.2s ease-out forwards;
+}
+
+/* Progress ring outer pulse */
+@keyframes hero-ring-pulse {
+  0%   { box-shadow: 0 0  0px 0px rgba(212,175,55,0.00); }
+  50%  { box-shadow: 0 0 20px 4px rgba(212,175,55,0.12); }
+  100% { box-shadow: 0 0  0px 0px rgba(212,175,55,0.00); }
+}
+.hero-ring-pulse {
+  animation: hero-ring-pulse 4s ease-in-out 1.5s infinite;
+}
+
+/* Pill live-dot ping */
+@keyframes hero-dot-ping {
+  0%, 100% { transform: scale(1);   opacity: 0.8; }
+  50%       { transform: scale(1.9); opacity: 0;   }
+}
+.hero-dot-ping {
+  animation: hero-dot-ping 2.4s cubic-bezier(0.22,1,0.36,1) infinite;
+}
+/* iPhone bottom safe area - adds empty space at bottom to prevent content from extending behind home indicator */
+/* iPhone bottom safe area - adds empty space at bottom to prevent content from extending behind home indicator */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: var(--spacing-floating-nav);
+  }
+}
+
+/* User requested to hide the container boundary in dark mode */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-scroll-canvas:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Desktop Only: Elegant hover effects for dark mode macos-interactive */
+@media (hover: hover) and (pointer: fine) {
+  .dark .macos-interactive:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 16px -6px rgba(0, 0, 0, 0.3) !important;
+  }
+  .dark .macos-interactive:active {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+/* Desktop Only: Advanced Hover & Pointer Interactions */
+@media (hover: hover) and (pointer: fine) {
+  /* Removed hover effects from cards entirely as requested */
+  
+  /* Make sidebar items slightly pop and slide on hover */
+  .sidebar-item-hover-effect {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+  }
+  .sidebar-item-hover-effect:hover {
+    transform: translateX(4px);
+    background-color: var(--bg-surface-2) !important;
+  }
+  .dark .sidebar-item-hover-effect:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+
+  /* Focus states for physical keyboard navigation */
+  *:focus-visible {
+    outline: 2px solid #007AFF !important;
+    outline-offset: 2px !important;
+    transition: outline 0.1s ease;
+  }
+
+  /* Desktop scale animation for buttons */
+  button.macos-interactive:active {
+    transform: scale(0.95);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Button hovers */
+  .button-hover-effect {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
+  }
+  .button-hover-effect:hover {
+    transform: translateY(-1px) scale(1.02);
+    filter: brightness(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+  }
+  .dark .button-hover-effect:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+  }
+  .button-hover-effect:active {
+    transform: translateY(1px) scale(0.96);
+  }
+}
+
+@keyframes gold-nebula-float {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  33% { transform: translate(4%, -6%) scale(1.1); opacity: 1; }
+  66% { transform: translate(-2%, -3%) scale(0.95); opacity: 0.7; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+}
+
+.animate-gold-nebula {
+  animation: gold-nebula-float 20s ease-in-out infinite;
+}
+
+@keyframes blue-nebula-float {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  33% { transform: translate(-3%, 4%) scale(1.05); opacity: 1; }
+  66% { transform: translate(2%, 2%) scale(0.95); opacity: 0.7; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+}
+
+.animate-blue-nebula {
+  animation: blue-nebula-float 24s ease-in-out infinite reverse;
+}

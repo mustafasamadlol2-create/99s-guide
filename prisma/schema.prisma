@@ -1,0 +1,449 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                        String                   @id @default(uuid())
+  email                     String                   @unique
+  profileEmail              String?
+  passwordHash              String?
+  name                      String?
+  avatar                    String?                  @default("")
+  avatarUrl                 String?                  @default("")
+  signature                 String?                  @default("")
+  role                      String                   @default("user")
+  isOnline                  Boolean                  @default(false)
+  lastActive                DateTime                 @default(now())
+  lastSeen                  DateTime                 @default(now())
+  socketId                  String?
+  deviceToken               String?
+  accountStatus             String                   @default("ACTIVE")
+  isPrimaryOwner            Boolean                  @default(false)
+  emailVerified             Boolean                  @default(true)
+  sessionVersion            Int                      @default(0)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  studentGroup              String                   @default("A")
+  totalPoints               Int                      @default(0)
+  level                     String                   @default("Rising (Resident)")
+  levelBadge                String                   @default("👶")
+  streakDays                Int                      @default(0)
+  totalTimeSpent            Int                      @default(0)
+  preferences               Json?                    @default("{\"theme\": \"system\", \"language\": \"en\", \"pushAlerts\": true}")
+  calendarEvents            CalendarEvent[]
+  flashcardProgresses       FlashcardProgress[]
+  lectureProgresses         LectureProgress[]
+  pointsLogs                PointsLog[]
+  userProgresses            UserProgress[]
+  qaQuestions               QaQuestion[]             @relation("QaQuestions")
+  qaAnswers                 QaAnswer[]               @relation("QaAnswers")
+  blocksMade                UserBlock[]              @relation("BlocksMade")
+  blocksReceived            UserBlock[]              @relation("BlocksReceived")
+  reportsMade               Report[]                 @relation("ReportsMade")
+  reportsReceived           Report[]                 @relation("ReportsReceived")
+  mutesReceived             UserMute[]               @relation("MutesReceived")
+  bansReceived              UserBan[]                @relation("BansReceived")
+  moderationActionsGiven    ModerationHistory[]      @relation("HistoryByAdmin")
+  moderationActionsReceived ModerationHistory[]      @relation("HistoryForTarget")
+  passwordResetTokens       PasswordResetToken[]
+  emailVerificationTokens   EmailVerificationToken[]
+  oauthIdentities           OAuthIdentity[]          @relation
+  qaVotes                   QaVote[]
+
+  @@index([role])
+  @@index([isOnline, lastActive])
+  @@index([studentGroup])
+  @@index([name])
+  @@index([createdAt])
+  @@index([accountStatus])
+  @@index([isPrimaryOwner])
+}
+
+model Lecture {
+  id                String            @id @default(uuid())
+  name              String
+  mainSubject       String
+  subSubject        String?
+  trackMode         String
+  department        String?
+  createdAt         DateTime          @default(now())
+  flashcards        Flashcard[]
+  lectureProgresses LectureProgress[]
+  materials         Material[]
+  mcqs              Mcq[]
+
+  @@index([name])
+  @@index([mainSubject])
+}
+
+model Material {
+  id             String         @id @default(uuid())
+  title          String
+  type           String
+  fileUrlOrLink  String
+  lectureId      String
+  createdAt      DateTime       @default(now())
+  fileData       Bytes?
+  storagePath    String?
+  lecture        Lecture        @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  userProgresses UserProgress[]
+
+  @@index([lectureId])
+  @@index([title])
+  @@index([storagePath])
+}
+
+model Mcq {
+  id            String   @id @default(uuid())
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  hint          String?
+  explanation   String?
+  sourceType    String   @default("ai")
+  sourceRef     String   @default("")
+  difficulty    String   @default("Medium")
+  lectureId     String
+  createdAt     DateTime @default(now())
+  lecture       Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([lectureId])
+  @@index([question])
+}
+
+model Flashcard {
+  id                  String              @id @default(uuid())
+  clinicalConcept     String
+  explanation         String
+  lectureId           String
+  createdAt           DateTime            @default(now())
+  lecture             Lecture             @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  flashcardProgresses FlashcardProgress[]
+
+  @@index([lectureId])
+  @@index([clinicalConcept])
+}
+
+model CalendarEvent {
+  id            String   @id @default(uuid())
+  userId        String?
+  title         String
+  eventType     String
+  startDateTime DateTime
+  endDateTime   DateTime
+  targetGroups  String   @default("ALL")
+  description   String?
+  subjectId     String?
+  lectureId     String?
+  room          String?
+  doctor        String?
+  notes         String?
+  isPinned      Boolean  @default(false)
+  isCompleted   Boolean  @default(false)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([startDateTime])
+  @@index([endDateTime])
+  @@index([userId])
+  @@index([eventType])
+  @@index([targetGroups])
+}
+
+model PointsLog {
+  id        String   @id @default(uuid())
+  userId    String
+  points    Int
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SmartNotification {
+  id     String   @id @default(uuid())
+  title  String
+  body   String
+  type   String   @default("system")
+  sentAt DateTime @default(now())
+  read   Boolean  @default(false)
+
+  @@index([read, sentAt])
+  @@index([type])
+}
+
+model LectureProgress {
+  userId              String
+  lectureId           String
+  pdfCompleted        Boolean  @default(false)
+  notesCompleted      Boolean  @default(false)
+  videoCompleted      Boolean  @default(false)
+  flashcardsCompleted Boolean  @default(false)
+  quizCompleted       Boolean  @default(false)
+  quizScore           Int?
+  lastAccessed        DateTime @default(now())
+  lecture             Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, lectureId])
+  @@index([lectureId])
+}
+
+model UserProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  materialId  String
+  hasViewed   Boolean  @default(false)
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  material    Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId])
+  @@index([materialId])
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  title        String
+  message      String
+  isSystem     Boolean  @default(true)
+  targetUserId String?
+  targetGroup  String? // null = everyone; "A"/"B"/"C"/"D" = that group only
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetUserId])
+  @@index([targetGroup])
+}
+
+model FlashcardProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  flashcardId String
+  status      String    @default("medium")
+  updatedAt   DateTime  @updatedAt
+  flashcard   Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flashcardId])
+  @@index([userId])
+}
+
+model DailyMotto {
+  id         String   @id @default(uuid())
+  message    String
+  isActive   Boolean  @default(true)
+  isFeatured Boolean  @default(false)
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime
+}
+
+model QaQuestion {
+  id        String     @id @default(uuid())
+  lectureId String
+  userId    String
+  content   String
+  upvotes   Int        @default(0)
+  isDeleted Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation("QaQuestions", fields: [userId], references: [id], onDelete: Cascade)
+  answers   QaAnswer[]
+
+  @@index([lectureId])
+  @@index([userId])
+}
+
+model QaAnswer {
+  id         String     @id @default(uuid())
+  questionId String
+  userId     String
+  content    String
+  upvotes    Int        @default(0)
+  isBest     Boolean    @default(false)
+  isDeleted  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation("QaAnswers", fields: [userId], references: [id], onDelete: Cascade)
+  question   QaQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([userId])
+}
+
+model QaVote {
+  id         String   @id @default(uuid())
+  userId     String
+  targetId   String
+  targetType String
+  value      Int
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+model UserBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+model UserMute {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  reason      String
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  isPermanent Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  user        User      @relation("MutesReceived", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([endTime])
+}
+
+model UserBan {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  reason      String
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  isPermanent Boolean   @default(false)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  user        User      @relation("BansReceived", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([endTime])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reportedUserId String
+  lectureId      String?
+  commentId      String
+  commentType    String
+  commentContent String
+  reason         String
+  description    String?
+  status         String   @default("Pending")
+  createdAt      DateTime @default(now())
+  reporter       User     @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser   User     @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, commentId])
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([commentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model OAuthIdentity {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  provider        String
+  providerSubject String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([provider])
+  @@index([providerSubject])
+}
+
+model ModerationHistory {
+  id             String    @id @default(cuid())
+  actionType     String
+  adminId        String?
+  targetUserId   String?
+  commentId      String?
+  questionId     String?
+  answerId       String?
+  replyId        String?
+  lectureId      String?
+  reportId       String?
+  reason         String?
+  notes          String?
+  oldStatus      String?
+  newStatus      String?
+  duration       Int?
+  isPermanent    Boolean   @default(false)
+  isSystemAction Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  revokedBy      String?
+  metadata       Json?
+
+  admin      User? @relation("HistoryByAdmin", fields: [adminId], references: [id])
+  targetUser User? @relation("HistoryForTarget", fields: [targetUserId], references: [id])
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@index([reportId])
+  @@index([lectureId])
+  @@index([questionId])
+  @@index([answerId])
+  @@index([isSystemAction])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
