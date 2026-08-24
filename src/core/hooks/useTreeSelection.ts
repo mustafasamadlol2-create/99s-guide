@@ -83,7 +83,7 @@ const treeConfig: Record<SubjectId, TreeSubject> = {
     },
   },
   SSC: {
-    name: "Students Selected Components",
+    name: "Student Selected Component",
     subSubjects: null,
     tracks: ["Theory", "TBL"],
     departments: {

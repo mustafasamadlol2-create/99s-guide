@@ -53,6 +53,7 @@ import {
   Copy,
   ExternalLink,
   Bookmark,
+  Medal,
 } from "lucide-react";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { Language } from "../../../core/i18n/translations";
@@ -102,6 +103,17 @@ const SUB_SUBJECT_MAP: Record<SubjectId, string[]> = {
   PHC: [],
   ImD: [],
   SSC: [],
+};
+
+// Official Phase 3 credit hours. Displayed only on each subject's root page.
+const SUBJECT_CREDITS: Record<SubjectId, number> = {
+  ID: 11,
+  CA: 10,
+  RM: 5,
+  NT: 4,
+  PHC: 4,
+  ImD: 2,
+  SSC: 1,
 };
 
 const mapDbLectureToFrontend = (dbL: any, index: number): Lecture => ({
@@ -251,7 +263,7 @@ export const SubjectView = function SubjectView({
       CA: { en: "Clinical Attachment", ar: "التشريح والتدريب السريري" },
       PHC: { en: "Public Health Care", ar: "الرعاية الصحية الأولية والوقائية" },
       ImD: { en: "Immune Disturbances", ar: "علم المناعة السريرية والأمراض" },
-      SSC: { en: "Students Selected Components", ar: "المهارات الجراحية والدعم الحياتي" },
+      SSC: { en: "Student Selected Component", ar: "المهارات الجراحية والدعم الحياتي" },
     };
     const activeItem = items[subjId];
     if (activeItem) return isRtl ? activeItem.ar : activeItem.en;
@@ -284,6 +296,16 @@ export const SubjectView = function SubjectView({
       return null;
     },
   );
+
+  // Root page = the first screen shown immediately after opening a main subject.
+  // ID has a real sub-subject level; the other subjects start directly at
+  // their Theory/Practical (or TBL) selector. Credit must disappear deeper.
+  const isSubjectRootPage =
+    activeTrack === null &&
+    activeDepartment === null &&
+    (subject.id === "ID" ? activeSubSubject === null : activeSubSubject !== null);
+
+  const subjectCredit = SUBJECT_CREDITS[subject.id];
 
   useEffect(() => {
     if (deepLinkedLecture) {
@@ -809,6 +831,30 @@ export const SubjectView = function SubjectView({
           </div>
         </div>
       </div>
+
+      {isSubjectRootPage && subjectCredit !== undefined && (
+        <div
+          className="flex items-center justify-center gap-3 sm:gap-4 py-3 sm:py-4 select-none"
+          aria-label={`Credit: ${subjectCredit}`}
+        >
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.35)]" />
+            <span className="h-px w-10 sm:w-16 bg-gradient-to-r from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10" />
+          </div>
+
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+            <Medal className="w-5 h-5 stroke-[1.8]" aria-hidden="true" />
+            <span className="text-[15px] sm:text-base font-semibold tracking-[-0.01em] antialiased">
+              Credit : {subjectCredit}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            <span className="h-px w-10 sm:w-16 bg-gradient-to-l from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.35)]" />
+          </div>
+        </div>
+      )}
 
       {/* Advanced Animated Navigation Panels */}
       <>

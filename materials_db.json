@@ -2,7 +2,7 @@
   "subjects": [
     {
       "id": "ID",
-      "name": "Infection Diseases",
+      "name": "Infectious Diseases",
       "nameAr": "",
       "icon": "Virus",
       "color": "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -108,7 +108,7 @@
     },
     {
       "id": "ImD",
-      "name": "Immune Disturbance",
+      "name": "Immune Disturbances",
       "nameAr": "",
       "icon": "ShieldPlus",
       "color": "bg-blue-50 text-blue-700 border-blue-200",

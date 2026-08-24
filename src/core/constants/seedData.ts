@@ -17,7 +17,7 @@ import {
 export const subjects: Subject[] = [
   {
     id: "ID",
-    name: "Infection Diseases",
+    name: "Infectious Diseases",
     nameAr: "",
     icon: "Virus",
     color: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -140,7 +140,7 @@ export const subjects: Subject[] = [
   },
   {
     id: "SSC",
-    name: "Students Selected Components",
+    name: "Student Selected Component",
     nameAr: "",
     icon: "PersonPresentation",
     color: "bg-neutral-50 text-neutral-700 border-neutral-200",
