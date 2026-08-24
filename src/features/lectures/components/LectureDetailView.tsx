@@ -2302,11 +2302,15 @@ initial={{ opacity: 0, y: 8 }}
 
         <motion.div
           onClick={() => setIsFlipped(!isFlipped)}
-          style={{ ...flashcardThemeVars, transformPerspective: 1200 }}
-          whileHover={{ y: -3, rotateX: 0.35, rotateY: -0.22 }}
-          whileTap={{ y: -1, scale: 0.998 }}
-          transition={{ type: "spring", stiffness: 300, damping: 28, mass: 0.7 }}
-          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 transform-gpu will-change-transform ${
+          style={flashcardThemeVars}
+          initial={false}
+          animate={
+            isFlipped
+              ? { y: [0, 3, 0], scale: [1, 0.996, 1], rotateZ: [0, -0.08, 0] }
+              : { y: [0, 3, 0], scale: [1, 0.996, 1], rotateZ: [0, 0.08, 0] }
+          }
+          transition={{ duration: 0.32, ease: [0.23, 1, 0.32, 1], times: [0, 0.42, 1] }}
+          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 transform-gpu ${
             isFlipped
               ? "bg-[#151619] border-white/[0.09] text-white shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
               : "bg-[#151619] border-white/[0.09] text-white shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
