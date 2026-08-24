@@ -1596,17 +1596,21 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
    {/* 2. Workspace View Tabs Rendering */}
   <motion.div
-    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none]"
+    layout="size"
+    layoutDependency={activeTab}
+    transition={{ layout: { duration: 0.42, ease: [0.23, 1, 0.32, 1] } }}
+    style={{ transformOrigin: "top center" }}
+    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
   >
   <AnimatePresence mode="wait" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
   key="pdf"
-  initial={{ opacity: 0, y: 8 }}
+  initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
-  transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1696,10 +1700,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "notes" && (
  <motion.div
   key="notes"
-  initial={{ opacity: 0, y: 8 }}
+  initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
-  transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1791,10 +1795,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "mcqs" && (
  <motion.div
  key="mcqs"
-initial={{ opacity: 0, y: 8 }}
+initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
- transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  {filteredQuizQuestions.length === 0 ? (
@@ -2114,10 +2118,10 @@ initial={{ opacity: 0, y: 8 }}
  {activeTab === "flashcards" && (
  <motion.div
  key="flashcards"
-initial={{ opacity: 0, y: 8 }}
+initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
- transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="flex-1 flex flex-col justify-between w-full"
  >
  {(() => {
@@ -2300,17 +2304,10 @@ initial={{ opacity: 0, y: 8 }}
           </span>
         )}
 
-        <motion.div
+        <div
           onClick={() => setIsFlipped(!isFlipped)}
           style={flashcardThemeVars}
-          initial={false}
-          animate={
-            isFlipped
-              ? { y: [0, 3, 0], scale: [1, 0.996, 1], rotateZ: [0, -0.08, 0] }
-              : { y: [0, 3, 0], scale: [1, 0.996, 1], rotateZ: [0, 0.08, 0] }
-          }
-          transition={{ duration: 0.32, ease: [0.23, 1, 0.32, 1], times: [0, 0.42, 1] }}
-          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 transform-gpu ${
+          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
               ? "bg-[#151619] border-white/[0.09] text-white shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
               : "bg-[#151619] border-white/[0.09] text-white shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
@@ -2425,7 +2422,7 @@ initial={{ opacity: 0, y: 8 }}
               )}
             </AnimatePresence>
           </div>
-        </motion.div>
+        </div>
 
         <div
           aria-hidden={!isFlipped}
@@ -2519,10 +2516,10 @@ initial={{ opacity: 0, y: 8 }}
  {activeTab === "videos" && (
  <motion.div
  key="videos"
-initial={{ opacity: 0, y: 8 }}
+initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
- transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  <div className="space-y-4">
@@ -2559,10 +2556,10 @@ initial={{ opacity: 0, y: 8 }}
  {activeTab === "qa" && (
  <motion.div
  key="qa"
-initial={{ opacity: 0, y: 8 }}
+initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -4 }}
- transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+  exit={{ opacity: 0, y: -2 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >

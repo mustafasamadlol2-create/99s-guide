@@ -280,10 +280,8 @@ export function CalendarHeader({
  layoutId="activeCalendarSegmentApple"
  className="absolute inset-0 bg-white dark:bg-[#636366] rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-black/5 dark:border-black/20 -z-10"
  transition={{
- type: "spring",
- stiffness: 400,
- damping: 40,
- mass: 1,
+ duration: 0.3,
+ ease: [0.23, 1, 0.32, 1],
  }}
  />
  )}

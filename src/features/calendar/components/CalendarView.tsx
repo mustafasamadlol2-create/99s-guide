@@ -623,22 +623,26 @@ const CalendarView = memo(function CalendarView({
  </div>
 
  {/* View Switcher Container */}
- <div
- className="w-full pt-1 grid min-w-0"
+ <motion.div
+ layout="size"
+ layoutDependency={activeView}
+ transition={{ layout: { duration: 0.42, ease: [0.23, 1, 0.32, 1] } }}
+ className="w-full pt-1 grid min-w-0 overflow-hidden"
  style={{
  fontFamily:
  '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+ transformOrigin: "top center",
  }}
  >
- <AnimatePresence mode="wait">
+ <AnimatePresence mode="wait" initial={false}>
  {activeView === "month" && (
  <motion.div
  key="month-view"
  style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -20 }}
- animate={{ opacity: 1, x: 0,  }}
- exit={{ opacity: 0, x: 20 }}
- transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+  initial={{ opacity: 0, x: -6 }}
+ animate={{ opacity: 1, x: 0 }}
+ exit={{ opacity: 0, x: 6 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full min-w-0 touch-pan-y"
  onTouchStart={(e) => setSwipeStartX(e.targetTouches[0].clientX)}
  onTouchEnd={(e) => {
@@ -660,10 +664,10 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key="week-view"
  style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -20 }}
- animate={{ opacity: 1, x: 0,  }}
- exit={{ opacity: 0, x: 20 }}
- transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+  initial={{ opacity: 0, x: -6 }}
+ animate={{ opacity: 1, x: 0 }}
+ exit={{ opacity: 0, x: 6 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full min-w-0 touch-pan-x"
  >
  <CalendarWeekView isRtl={isRtl} activeWeekDays={activeWeekDays} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
@@ -673,17 +677,17 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key="day-view"
  style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -20 }}
- animate={{ opacity: 1, x: 0,  }}
- exit={{ opacity: 0, x: 20 }}
- transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+  initial={{ opacity: 0, x: -6 }}
+ animate={{ opacity: 1, x: 0 }}
+ exit={{ opacity: 0, x: 6 }}
+ transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full"
  >
  <CalendarDayView selectedDate={selectedDate} selectedDateEvents={selectedDateEvents} setSelectedDate={setSelectedDate} events={processedEvents} dayTransition={dayTransition} hoursArray={hoursArray} eventDurations={eventDurations} HOUR_HEIGHT={HOUR_HEIGHT} timelineRef={timelineRef} setNewTaskTime={setNewTaskTime} setIsAddingTask={setIsAddingTask} handleSwipeStart={handleSwipeStart} handleSwipeMove={handleSwipeMove} handleSwipeEnd={handleSwipeEnd} setSwipeStartX={setSwipeStartX} swipeTranslateX={swipeTranslateX} parseTimeToMinutes={parseTimeToMinutes} />
  </motion.div>
  )}
  </AnimatePresence>
- </div>
+ </motion.div>
  </div>
 
  {/* Floating Apple-Style Context Menu */}
