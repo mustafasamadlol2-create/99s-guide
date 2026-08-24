@@ -56,6 +56,7 @@ import { getApiBaseUrl } from "../../../core/api/api";
 import { showiOSAlert } from "../../../core/device/alert";
 import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
+import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -2335,13 +2336,24 @@ initial={{ opacity: 0, scale: 0.98 }}
  >
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.38)] to-transparent" />
-    <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-56 h-56 sm:w-64 sm:h-64 rounded-full" style={{ background: `radial-gradient(circle, rgba(${flashcardTheme.rgb}, 0.10) 0%, rgba(${flashcardTheme.rgb}, 0.035) 48%, transparent 72%)` }} />
-    <div className="absolute right-7 sm:right-10 top-1/2 -translate-y-1/2 w-32 h-32 sm:w-40 sm:h-40 rounded-full border" style={{ borderColor: `rgba(${flashcardTheme.rgb}, 0.08)` }} />
-    <FlashcardSubjectIcon className="absolute right-11 sm:right-14 top-1/2 -translate-y-1/2 w-24 h-24 sm:w-32 sm:h-32" style={{ color: `rgba(${flashcardTheme.rgb}, 0.075)` }} />
+    <div className="absolute inset-y-0 right-0 w-[46%] bg-gradient-to-l from-[rgba(var(--flashcard-accent-rgb),0.055)] to-transparent dark:from-[rgba(var(--flashcard-accent-rgb),0.065)]" />
+    <SubjectFlashcardArtwork
+      subjectId={lecture.subjectId}
+      rgb={flashcardTheme.rgb}
+      className="absolute right-0 top-1/2 -translate-y-1/2 w-[42%] min-w-[270px] max-w-[390px] opacity-80 dark:opacity-85"
+    />
     <div className="absolute left-8 right-8 bottom-20 h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent dark:via-white/[0.06]" />
   </div>
+ <AnimatePresence mode="wait" initial={false}>
  {!isFlipped ? (
-            <>
+            <motion.div
+              key="flashcard-question"
+              initial={{ opacity: 0, y: 7, filter: "blur(3px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -5, filter: "blur(2px)" }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 w-full min-h-[calc(410px-56px)] sm:min-h-[calc(460px-64px)] flex flex-col justify-between items-center"
+            >
               <div className="relative z-10 w-full flex justify-between items-center">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center border" style={{ backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`, borderColor: `rgba(${flashcardTheme.rgb}, 0.22)` }}>
@@ -2379,10 +2391,17 @@ initial={{ opacity: 0, scale: 0.98 }}
                   {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
                 </p>
               </div>
-            </>
+            </motion.div>
           ) : (
-            <>
-              <div className="relative z-10 w-full flex justify-between items-center">
+            <motion.div
+              key="flashcard-explanation"
+              initial={{ opacity: 0, y: 7, filter: "blur(3px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -5, filter: "blur(2px)" }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 w-full min-h-[calc(410px-56px)] sm:min-h-[calc(460px-64px)] flex flex-col justify-between items-center"
+            >
+              <div className="w-full flex justify-between items-center">
                 <span className="text-xs font-bold tracking-wider uppercase" style={{ color: flashcardTheme.accent }}>
                   {isRtl ? "تفسير علمي" : "EXPLANATION"}
                 </span>
@@ -2407,8 +2426,9 @@ initial={{ opacity: 0, scale: 0.98 }}
                   {activeCards[currentCardIndex]?.back}
                 </div>
               </div>
-            </>
+            </motion.div>
           )}
+ </AnimatePresence>
         </div>
 
  {/* Repetition rating buttons — space is always reserved to keep the entire page perfectly stable when the card flips */}
