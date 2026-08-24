@@ -116,6 +116,56 @@ const SUBJECT_CREDITS: Record<SubjectId, number> = {
   SSC: 1,
 };
 
+const SUBJECT_CREDIT_COLORS: Record<SubjectId, {
+  dot: string;
+  lineLeft: string;
+  lineRight: string;
+  text: string;
+}> = {
+  ID: {
+    dot: "bg-emerald-500/80 dark:bg-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.35)]",
+    lineLeft: "bg-gradient-to-r from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10",
+    lineRight: "bg-gradient-to-l from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+  },
+  NT: {
+    dot: "bg-violet-500/80 dark:bg-violet-300/80 shadow-[0_0_8px_rgba(139,92,246,0.35)]",
+    lineLeft: "bg-gradient-to-r from-violet-500/70 to-violet-400/15 dark:from-violet-300/65 dark:to-violet-300/10",
+    lineRight: "bg-gradient-to-l from-violet-500/70 to-violet-400/15 dark:from-violet-300/65 dark:to-violet-300/10",
+    text: "text-violet-700 dark:text-violet-300",
+  },
+  RM: {
+    dot: "bg-sky-500/80 dark:bg-sky-300/80 shadow-[0_0_8px_rgba(14,165,233,0.35)]",
+    lineLeft: "bg-gradient-to-r from-sky-500/70 to-sky-400/15 dark:from-sky-300/65 dark:to-sky-300/10",
+    lineRight: "bg-gradient-to-l from-sky-500/70 to-sky-400/15 dark:from-sky-300/65 dark:to-sky-300/10",
+    text: "text-sky-700 dark:text-sky-300",
+  },
+  CA: {
+    dot: "bg-rose-500/80 dark:bg-rose-300/80 shadow-[0_0_8px_rgba(244,63,94,0.35)]",
+    lineLeft: "bg-gradient-to-r from-rose-500/70 to-rose-400/15 dark:from-rose-300/65 dark:to-rose-300/10",
+    lineRight: "bg-gradient-to-l from-rose-500/70 to-rose-400/15 dark:from-rose-300/65 dark:to-rose-300/10",
+    text: "text-rose-700 dark:text-rose-300",
+  },
+  PHC: {
+    dot: "bg-amber-500/80 dark:bg-amber-300/80 shadow-[0_0_8px_rgba(245,158,11,0.35)]",
+    lineLeft: "bg-gradient-to-r from-amber-500/70 to-amber-400/15 dark:from-amber-300/65 dark:to-amber-300/10",
+    lineRight: "bg-gradient-to-l from-amber-500/70 to-amber-400/15 dark:from-amber-300/65 dark:to-amber-300/10",
+    text: "text-amber-700 dark:text-amber-300",
+  },
+  ImD: {
+    dot: "bg-indigo-500/80 dark:bg-indigo-300/80 shadow-[0_0_8px_rgba(99,102,241,0.35)]",
+    lineLeft: "bg-gradient-to-r from-indigo-500/70 to-indigo-400/15 dark:from-indigo-300/65 dark:to-indigo-300/10",
+    lineRight: "bg-gradient-to-l from-indigo-500/70 to-indigo-400/15 dark:from-indigo-300/65 dark:to-indigo-300/10",
+    text: "text-indigo-700 dark:text-indigo-300",
+  },
+  SSC: {
+    dot: "bg-slate-500/75 dark:bg-slate-300/75 shadow-[0_0_8px_rgba(100,116,139,0.30)]",
+    lineLeft: "bg-gradient-to-r from-slate-500/65 to-slate-400/10 dark:from-slate-300/55 dark:to-slate-300/10",
+    lineRight: "bg-gradient-to-l from-slate-500/65 to-slate-400/10 dark:from-slate-300/55 dark:to-slate-300/10",
+    text: "text-slate-700 dark:text-slate-300",
+  },
+};
+
 const mapDbLectureToFrontend = (dbL: any, index: number): Lecture => ({
   id: dbL.id,
   moduleId: dbL.mainSubject + "_" + (dbL.subSubject || "general"),
@@ -306,6 +356,7 @@ export const SubjectView = function SubjectView({
     (subject.id === "ID" ? activeSubSubject === null : activeSubSubject !== null);
 
   const subjectCredit = SUBJECT_CREDITS[subject.id];
+  const subjectCreditColors = SUBJECT_CREDIT_COLORS[subject.id];
 
   useEffect(() => {
     if (deepLinkedLecture) {
@@ -838,11 +889,11 @@ export const SubjectView = function SubjectView({
           aria-label={`Credit: ${subjectCredit}`}
         >
           <div className="flex items-center gap-1.5" aria-hidden="true">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.35)]" />
-            <span className="h-px w-10 sm:w-16 bg-gradient-to-r from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10" />
+            <span className={`w-1.5 h-1.5 rounded-full ${subjectCreditColors.dot}`} />
+            <span className={`h-px w-10 sm:w-16 ${subjectCreditColors.lineLeft}`} />
           </div>
 
-          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+          <div className={`flex items-center gap-2 ${subjectCreditColors.text}`}>
             <Medal className="w-5 h-5 stroke-[1.8]" aria-hidden="true" />
             <span className="text-[15px] sm:text-base font-semibold tracking-[-0.01em] antialiased">
               Credit : {subjectCredit}
@@ -850,8 +901,8 @@ export const SubjectView = function SubjectView({
           </div>
 
           <div className="flex items-center gap-1.5" aria-hidden="true">
-            <span className="h-px w-10 sm:w-16 bg-gradient-to-l from-emerald-500/70 to-emerald-400/15 dark:from-emerald-300/65 dark:to-emerald-300/10" />
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-300/80 shadow-[0_0_8px_rgba(16,185,129,0.35)]" />
+            <span className={`h-px w-10 sm:w-16 ${subjectCreditColors.lineRight}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${subjectCreditColors.dot}`} />
           </div>
         </div>
       )}
