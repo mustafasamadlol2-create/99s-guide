@@ -157,10 +157,10 @@ export const VideoCard = ({
       ref={cardRef}
       type="button"
       onClick={handleVideoPress}
-      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.12] rounded-xl shadow-sm hover:shadow-md transition p-3 gap-4 cursor-pointer text-left appearance-none"
+      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.10] rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 p-3 gap-4 cursor-pointer text-left appearance-none"
       aria-label={`Watch ${video?.title || "YouTube video"}`}
     >
-      <span className="video-thumb relative w-32 shrink-0 aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden">
+      <span className="video-thumb relative w-32 shrink-0 aspect-video bg-neutral-100 dark:bg-[#2C2C2E] rounded-lg overflow-hidden border border-black/[0.04] dark:border-white/[0.06]">
         {videoId ? (
           <img
             loading="lazy"
@@ -185,7 +185,7 @@ export const VideoCard = ({
       </span>
 
       <span className="flex-1 min-w-0 py-1 text-left">
-        <span className="block text-sm font-semibold text-neutral-900 dark:text-white group-hover:text-red-600 transition leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
+        <span className="block text-sm font-semibold text-neutral-900 dark:text-white transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
           {video?.title}
         </span>
 

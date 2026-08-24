@@ -54,8 +54,8 @@ import { mcqs, flashcards, videos, initialQuestions } from "../../../core/consta
 import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 import { getApiBaseUrl } from "../../../core/api/api";
 import { showiOSAlert } from "../../../core/device/alert";
-import { HapticFeedback } from "../../../core/device/haptic";
 import { VideoCard } from "./VideoCard";
+import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -135,6 +135,19 @@ const resolveExternalPdfUrl = async (rawUrl: string | undefined, materialId?: st
 };
 
 
+const getFlashcardTheme = (subjectId?: string) => {
+  const themes = {
+    ID: { accent: "#14B8A6", rgb: "20,184,166" },
+    NT: { accent: "#8B5CF6", rgb: "139,92,246" },
+    RM: { accent: "#38BDF8", rgb: "56,189,248" },
+    CA: { accent: "#FB7185", rgb: "251,113,133" },
+    PHC: { accent: "#F59E0B", rgb: "245,158,11" },
+    ImD: { accent: "#818CF8", rgb: "129,140,248" },
+    SSC: { accent: "#94A3B8", rgb: "148,163,184" },
+    DEFAULT: { accent: "#3B82F6", rgb: "59,130,246" },
+  } as const;
+  return themes[(subjectId as keyof typeof themes) || "DEFAULT"] || themes.DEFAULT;
+};
 
 export const LectureDetailView = function LectureDetailView({
  lecture,
@@ -175,6 +188,13 @@ export const LectureDetailView = function LectureDetailView({
   }, [lecture.id, lecture.isDatabaseLecture]);
 
   const isRtl = language === "ar";
+  const flashcardTheme = useMemo(() => getFlashcardTheme(lecture.subjectId), [lecture.subjectId]);
+  const flashcardIconInfo = useMemo(() => getSubjectIconInfo(lecture.subjectId), [lecture.subjectId]);
+  const FlashcardSubjectIcon = flashcardIconInfo.icon;
+  const flashcardThemeVars = useMemo(() => ({
+    "--flashcard-accent": flashcardTheme.accent,
+    "--flashcard-accent-rgb": flashcardTheme.rgb,
+  } as React.CSSProperties), [flashcardTheme]);
   const isNativeIOS =
     NativeBridge.isNativePlatform() && NativeBridge.getPlatformName() === "ios";
   const [activeTab, setActiveTab] = useState<
@@ -808,19 +828,16 @@ export const LectureDetailView = function LectureDetailView({
       } else if (e.key === "1") {
         if (isFlipped) {
           e.preventDefault();
-          if (window.navigator.vibrate) window.navigator.vibrate(50);
           handleCardRate("hard");
         }
       } else if (e.key === "2") {
         if (isFlipped) {
           e.preventDefault();
-          if (window.navigator.vibrate) window.navigator.vibrate(50);
           handleCardRate("medium");
         }
       } else if (e.key === "3") {
         if (isFlipped) {
           e.preventDefault();
-          if (window.navigator.vibrate) window.navigator.vibrate(50);
           handleCardRate("easy");
         }
       } else if (e.key === "ArrowLeft") {
@@ -2300,42 +2317,45 @@ initial={{ opacity: 0, scale: 0.98 }}
 
  return (
  <div className="p-6 space-y-section flex-1 flex flex-col justify-between">
- <div className="space-y-4 max-w-lg mx-auto w-full text-center">
+ <div className="space-y-4 max-w-4xl mx-auto w-full text-center">
         {repeatFilter && (repeatFilter === "hard" || repeatFilter === "medium" || repeatFilter === "easy") && (
           <span className="text-caption font-semibold font-mono text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100 uppercase inline-block mb-1">
             {repeatFilter === "hard" ? (isRtl ? "مراجعة البطاقات الصعبة فقط 🛑" : "Reviewing Hard concepts only 🛑") : repeatFilter === "medium" ? (isRtl ? "مراجعة البطاقات المتوسطة فقط ⚠️" : "Reviewing Medium concepts only ⚠️") : (isRtl ? "مراجعة البطاقات السهلة فقط ✅" : "Reviewing Easy concepts only ✅")}
           </span>
         )}
         {/* FLIP CARD CONTAINER */}
-
- {/* FLIP CARD CONTAINER */}
- <motion.div
+ <div
  onClick={() => setIsFlipped(!isFlipped)}
- whileHover={{
- y: -3,
- }}
- whileTap={{ scale: 0.98 }}
- transition={{
- type: "spring",
- stiffness: 400,
- damping: 40,
- }}
- className={`relative w-full min-h-[240px] rounded-xl shadow-elevation-1 border p-6 flex flex-col justify-between items-center cursor-pointer select-none transition duration-300 antialiased ${
+ style={flashcardThemeVars}
+ className={`relative w-full max-w-[860px] mx-auto min-h-[410px] sm:min-h-[460px] rounded-[26px] border px-7 sm:px-10 py-7 sm:py-8 flex flex-col justify-between items-center cursor-pointer select-none antialiased overflow-hidden ${
  isFlipped
- ? "bg-[#1C1C1E] border-white/10 text-white shadow-elevation-1"
- : "bg-gradient-to-b from-[#FFFFFF] to-[#FAFAFA] dark:from-[#2C2C2E] dark:to-[#242426] border-black/[0.06] dark:border-white/[0.06] text-neutral-800 dark:text-white shadow-elevation-1"
+ ? "bg-[#222225] dark:bg-[#222225] border-black/[0.08] dark:border-white/[0.10] text-white shadow-[0_22px_55px_rgba(0,0,0,0.26)]"
+ : "bg-[#FCFCFD] dark:bg-[#222225] border-black/[0.07] dark:border-white/[0.10] text-neutral-800 dark:text-white shadow-[0_20px_48px_rgba(0,0,0,0.12)] dark:shadow-[0_22px_55px_rgba(0,0,0,0.26)]"
  }`}
  >
+  <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.38)] to-transparent" />
+    <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-56 h-56 sm:w-64 sm:h-64 rounded-full" style={{ background: `radial-gradient(circle, rgba(${flashcardTheme.rgb}, 0.10) 0%, rgba(${flashcardTheme.rgb}, 0.035) 48%, transparent 72%)` }} />
+    <div className="absolute right-7 sm:right-10 top-1/2 -translate-y-1/2 w-32 h-32 sm:w-40 sm:h-40 rounded-full border" style={{ borderColor: `rgba(${flashcardTheme.rgb}, 0.08)` }} />
+    <FlashcardSubjectIcon className="absolute right-11 sm:right-14 top-1/2 -translate-y-1/2 w-24 h-24 sm:w-32 sm:h-32" style={{ color: `rgba(${flashcardTheme.rgb}, 0.075)` }} />
+    <div className="absolute left-8 right-8 bottom-20 h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent dark:via-white/[0.06]" />
+  </div>
  {!isFlipped ? (
             <>
-              <div className="w-full flex justify-between items-center">
-                <span className="text-xs font-bold tracking-wider uppercase text-neutral-500 dark:text-[#EBEBF599]">
-                  {isRtl ? "مفهوم طبي سريري" : "CLINICAL CONCEPT"}
-                </span>
+              <div className="relative z-10 w-full flex justify-between items-center">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center border" style={{ backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`, borderColor: `rgba(${flashcardTheme.rgb}, 0.22)` }}>
+                    <FlashcardSubjectIcon className="w-4.5 h-4.5" style={{ color: flashcardTheme.accent }} />
+                  </div>
+                  <span className="text-xs font-bold tracking-wider uppercase" style={{ color: flashcardTheme.accent }}>
+                    {isRtl ? "مفهوم طبي سريري" : "CLINICAL CONCEPT"}
+                  </span>
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="w-16 sm:w-24 h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden relative">
-                    <motion.div 
-                      className="absolute top-0 left-0 h-full w-full bg-neutral-400 dark:bg-neutral-500 origin-left"
+                    <motion.div
+                      className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
+                      style={{ backgroundColor: flashcardTheme.accent }}
                       initial={{ scaleX: 0 }}
                       animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
@@ -2347,28 +2367,30 @@ initial={{ opacity: 0, scale: 0.98 }}
                 </div>
               </div>
 
-              <div className="flex-1 flex items-center justify-center w-full py-6">
-                <h3 className="text-2xl sm:text-3xl font-medium tracking-tight text-center text-balance text-neutral-800 dark:text-neutral-100 leading-tight">
+              <div className="relative z-10 flex-1 flex items-center justify-center w-full py-7">
+                <h3 className="max-w-2xl text-3xl sm:text-[2.65rem] lg:text-[3rem] font-semibold tracking-tight text-center text-balance text-neutral-900 dark:text-white leading-[1.18]">
                   {activeCards[currentCardIndex]?.front}
                 </h3>
               </div>
 
-              <div className="w-full flex justify-center items-end pb-1 opacity-60">
-                <p className="text-xs font-medium text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-widest">
+              <div className="relative z-10 w-full flex flex-col items-center gap-3 pb-1">
+                <Activity className="w-5 h-5" style={{ color: flashcardTheme.accent }} />
+                <p className="text-xs sm:text-sm font-medium text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider">
                   {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
                 </p>
               </div>
             </>
           ) : (
             <>
-              <div className="w-full flex justify-between items-center">
-                <span className="text-xs font-bold tracking-wider uppercase text-neutral-500 dark:text-neutral-300">
+              <div className="relative z-10 w-full flex justify-between items-center">
+                <span className="text-xs font-bold tracking-wider uppercase" style={{ color: flashcardTheme.accent }}>
                   {isRtl ? "تفسير علمي" : "EXPLANATION"}
                 </span>
                 <div className="flex items-center gap-3">
                   <div className="w-16 sm:w-24 h-1.5 bg-white/10 rounded-full overflow-hidden relative">
-                    <motion.div 
-                      className="absolute top-0 left-0 h-full w-full bg-white/40 origin-left"
+                    <motion.div
+                      className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
+                      style={{ backgroundColor: flashcardTheme.accent }}
                       initial={{ scaleX: 0 }}
                       animate={{ scaleX: (currentCardIndex + 1) / activeCards.length }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
@@ -2380,26 +2402,19 @@ initial={{ opacity: 0, scale: 0.98 }}
                 </div>
               </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center w-full py-4 space-y-4">
-                <div className="text-base sm:text-lg font-medium text-center text-neutral-200 leading-relaxed max-w-lg text-balance">
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center w-full py-5">
+                <div className="max-w-2xl text-lg sm:text-2xl font-medium text-center text-neutral-100 leading-[1.55] text-balance">
                   {activeCards[currentCardIndex]?.back}
                 </div>
               </div>
             </>
           )}
-        </motion.div>
+        </div>
 
- {/* Repetition rating buttons */}
- {isFlipped && (
- <motion.div
- initial={{ opacity: 0, y: 10, scale: 0.98 }}
- animate={{ opacity: 1, y: 0, scale: 1 }}
- transition={{
- type: "spring",
- stiffness: 400,
- damping: 40,
- }}
- className="mt-6 space-y-3 antialiased"
+ {/* Repetition rating buttons — space is always reserved to keep the entire page perfectly stable when the card flips */}
+ <div
+ aria-hidden={!isFlipped}
+ className={`mt-6 min-h-[142px] space-y-3 antialiased transition-opacity duration-150 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
  >
  <p className="text-xs font-bold tracking-wider text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
                 {isRtl
@@ -2412,10 +2427,7 @@ initial={{ opacity: 0, scale: 0.98 }}
                 className="grid grid-cols-3 gap-2 bg-neutral-100/80 dark:bg-neutral-800/50 p-1.5 rounded-2xl border border-black/5 dark:border-white/[0.08] backdrop-blur-sm shadow-inner w-full sm:max-w-md mx-auto"
               >
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
                   onClick={() => {
-                    if (window.navigator.vibrate) window.navigator.vibrate(50);
                     handleCardRate("hard");
                   }}
                   className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-300 focus:outline-none"
@@ -2432,10 +2444,7 @@ initial={{ opacity: 0, scale: 0.98 }}
                 </motion.button>
                 
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
                   onClick={() => {
-                    if (window.navigator.vibrate) window.navigator.vibrate(50);
                     handleCardRate("medium");
                   }}
                   className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-amber-200 dark:hover:border-amber-500/30 transition-all duration-300 focus:outline-none"
@@ -2452,10 +2461,7 @@ initial={{ opacity: 0, scale: 0.98 }}
                 </motion.button>
                 
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
                   onClick={() => {
-                    if (window.navigator.vibrate) window.navigator.vibrate(50);
                     handleCardRate("easy");
                   }}
                   className="group relative flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-xl bg-white dark:bg-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.08] hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-all duration-300 focus:outline-none"
@@ -2471,8 +2477,7 @@ initial={{ opacity: 0, scale: 0.98 }}
                   </div>
                 </motion.button>
               </div>
-            </motion.div>
- )}
+            </div>
  </div>
 
  {/* Paging */}
