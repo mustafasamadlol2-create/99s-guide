@@ -1,4 +1,4 @@
-import React, { memo, type ComponentType } from "react";
+import React, { memo, useLayoutEffect, useRef, type ComponentType } from "react";
 import {
   BookOpen,
   CheckSquare2,
@@ -265,10 +265,10 @@ function AssessmentCard({ item }: { item: AssessmentItem }) {
 
   return (
     <div
-      className="relative flex min-h-[132px] min-w-0 items-center gap-4 overflow-hidden rounded-[18px] border px-5 py-5 sm:min-h-[146px] sm:flex-col sm:justify-center sm:text-center"
+      className="relative flex min-h-[124px] min-w-0 items-center gap-4 overflow-hidden rounded-[20px] border px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] dark:shadow-none sm:min-h-[146px] sm:rounded-[18px] sm:px-5 sm:py-5 sm:flex-col sm:justify-center sm:text-center"
       style={{ borderColor: `rgba(${tone.rgb},0.25)` }}
     >
-      <div className="absolute inset-0 bg-white dark:bg-[#111317]" />
+      <div className="absolute inset-0 bg-[#FCFDFE] dark:bg-[#111317] sm:bg-white" />
       <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, rgba(${tone.rgb},0.14), rgba(${tone.rgb},0.025) 62%)` }} />
       <span
         className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border"
@@ -288,21 +288,50 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
   const config = MODULE_DETAILS[subject.id];
   const iconInfo = getSubjectIconInfo(subject.id);
   const SubjectIcon = iconInfo.icon;
+  const rootRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof window === "undefined") return;
+
+    // Module details are rendered inside the existing app shell rather than on a
+    // dedicated browser route. Reset the actual scrolling container synchronously
+    // so a module always opens from its header instead of inheriting the scroll
+    // position from the Modules grid (especially visible on iPhone/iPad).
+    let parent: HTMLElement | null = root.parentElement;
+    while (parent) {
+      const { overflowY } = window.getComputedStyle(parent);
+      const isScrollable = /(auto|scroll|overlay)/.test(overflowY) && parent.scrollHeight > parent.clientHeight + 1;
+      if (isScrollable) {
+        parent.scrollTop = 0;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+
+    const scrollingElement = document.scrollingElement;
+    if (scrollingElement) scrollingElement.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [subject.id]);
 
   return (
-    <section className="w-full pb-8 pt-2" aria-label={`${config.title} module overview`}>
+    <section
+      ref={rootRef}
+      className="w-full bg-[#F5F7FA] px-2 pb-6 pt-3 dark:bg-transparent sm:bg-transparent sm:px-0 sm:pb-8 sm:pt-2"
+      aria-label={`${config.title} module overview`}
+    >
       <button
         type="button"
         onClick={onBack}
-        className="mb-5 inline-flex items-center gap-1.5 rounded-lg px-1 py-1 text-[15px] font-medium text-[#0A84FF] active:opacity-60"
+        className="mb-4 inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-2 py-1.5 text-[15px] font-medium text-[#0A84FF] shadow-[0_1px_0_rgba(15,23,42,0.04)] active:opacity-60 dark:bg-transparent dark:shadow-none sm:mb-5 sm:bg-transparent sm:px-1 sm:py-1 sm:shadow-none"
       >
         <ChevronLeft className="h-5 w-5" />
         {language === "ar" ? "رجوع" : "Back"}
       </button>
 
-      <header className="mb-6 flex items-center gap-4">
+      <header className="mb-5 flex items-center gap-3 px-1 sm:mb-6 sm:gap-4 sm:px-0">
         <div
-          className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] border"
+          className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[17px] border shadow-[0_8px_22px_rgba(15,23,42,0.05)] dark:shadow-none sm:h-[58px] sm:w-[58px] sm:rounded-[18px]"
           style={{
             color: config.accent,
             borderColor: `rgba(${config.accentRgb},0.32)`,
@@ -314,16 +343,17 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
         </div>
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">{subject.id} Module</div>
-          <h1 className="mt-1 break-words text-[31px] font-display font-semibold leading-[1.05] tracking-[-0.03em] text-neutral-950 dark:text-white sm:text-[38px]">
+          <h1 className="mt-1 break-words text-[28px] font-display font-semibold leading-[1.08] tracking-[-0.03em] text-neutral-950 dark:text-white sm:text-[38px] sm:leading-[1.05]">
             {config.title}
           </h1>
         </div>
       </header>
 
-      <div className="space-y-4 sm:space-y-5">
-        <section className="overflow-hidden rounded-[24px] border border-black/[0.07] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.035)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none">
+      <div className="space-y-3.5 sm:space-y-5">
+        <section className="relative overflow-hidden rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] shadow-[0_12px_30px_rgba(15,23,42,0.07)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
+          <div className="pointer-events-none absolute inset-0 dark:hidden sm:hidden" style={{ background: `radial-gradient(circle at 90% 0%, rgba(${config.accentRgb},0.075), transparent 42%)` }} />
           <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_0.88fr]">
-            <div className="p-5 sm:p-7 lg:p-8" dir="rtl">
+            <div className="relative p-[18px] sm:p-7 lg:p-8" dir="rtl">
               <SectionHeading icon={BookOpen} title="مقدمة الموديول" accent={config.accent} accentRgb={config.accentRgb} />
               <div className="space-y-4 text-right text-[14px] font-medium leading-[1.95] text-neutral-600 dark:text-[#D4D4D8] sm:text-[15px]">
                 {config.intro.map((paragraph, index) => (
@@ -332,7 +362,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
               </div>
             </div>
 
-            <div className="relative min-h-[260px] overflow-hidden border-t border-black/[0.06] bg-neutral-100 lg:min-h-full lg:border-l lg:border-t-0 dark:border-white/[0.07] dark:bg-[#101215]">
+            <div className="relative min-h-[230px] overflow-hidden border-t border-black/[0.05] bg-[#E9EEF3] lg:min-h-full lg:border-l lg:border-t-0 dark:border-white/[0.07] dark:bg-[#101215] sm:min-h-[260px]">
               <img
                 src={config.image}
                 alt={`${config.title} module`}
@@ -353,15 +383,15 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-black/[0.07] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.035)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:p-5">
+        <section className="rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-5 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
           <SectionHeading icon={Clock3} title="تقسيم الدرجات" accent={config.accent} accentRgb={config.accentRgb} />
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             {config.assessments.map((item) => <AssessmentCard key={item.label} item={item} />)}
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
-          <section className="relative overflow-hidden rounded-[24px] border border-black/[0.07] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.035)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:p-6" dir="rtl">
+        <div className="grid grid-cols-1 gap-3.5 sm:gap-5 lg:grid-cols-2">
+          <section className="relative overflow-hidden rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-6 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]" dir="rtl">
             <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 90% 120%, rgba(${config.accentRgb},0.11), transparent 38%)` }} />
             <div className="relative">
               <SectionHeading icon={Target} title="الهدف النهائي" accent={config.accent} accentRgb={config.accentRgb} />
@@ -369,7 +399,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
             </div>
           </section>
 
-          <section className="relative overflow-hidden rounded-[24px] border border-black/[0.07] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.035)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:p-6">
+          <section className="relative overflow-hidden rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-6 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
             <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(135deg, rgba(${config.accentRgb},0.10), transparent 54%)` }} />
             <div className="relative">
               <SectionHeading icon={Clock3} title="Learning Hours" accent={config.accent} accentRgb={config.accentRgb} />
