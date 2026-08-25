@@ -16,6 +16,12 @@ interface SmoothAutoHeightProps {
    * The next dependency change still animates from the last stable height.
    */
   settleToAuto?: boolean;
+  /**
+   * For tab switches: animate to one measured target only, then release to auto.
+   * ResizeObserver changes during the short transition are ignored so complex
+   * panels (MCQ/flashcards) cannot stretch the animation into a slow chain.
+   */
+  singlePassOnDependencyChange?: boolean;
 }
 
 /**
@@ -33,6 +39,7 @@ export function SmoothAutoHeight({
   minMeasuredHeight = 24,
   includeOverflowInMeasurement = false,
   settleToAuto = false,
+  singlePassOnDependencyChange = false,
 }: SmoothAutoHeightProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -57,12 +64,17 @@ export function SmoothAutoHeight({
     if (!node || !shell) return;
 
     let measureFrame = 0;
+    let settleTimer: number | null = null;
+    let transitionFrame: number | null = null;
+    let secondTransitionFrame: number | null = null;
+    let dependencyChanged = previousDependencyRef.current !== dependency;
+    previousDependencyRef.current = dependency;
 
-    const clearSettleTimer = () => {
-      if (settleTimerRef.current != null) {
-        window.clearTimeout(settleTimerRef.current);
-        settleTimerRef.current = null;
-      }
+    const clearTimers = () => {
+      cancelAnimationFrame(measureFrame);
+      if (transitionFrame != null) cancelAnimationFrame(transitionFrame);
+      if (secondTransitionFrame != null) cancelAnimationFrame(secondTransitionFrame);
+      if (settleTimer != null) window.clearTimeout(settleTimer);
     };
 
     const readIntrinsicHeight = () => {
@@ -73,159 +85,109 @@ export function SmoothAutoHeight({
       return Math.ceil(measured);
     };
 
-    const rememberStableHeight = () => {
-      const measured = readIntrinsicHeight();
-      if (measured >= minMeasuredHeight) {
-        lastStableHeightRef.current = measured;
-      }
+    const commitStable = (measured: number) => {
+      if (measured < minMeasuredHeight) return;
+      lastStableHeightRef.current = measured;
+      setHasMeasured(true);
     };
 
-    const settleHeightToAuto = () => {
-      if (!settleToAuto) return;
-      clearSettleTimer();
-      settleTimerRef.current = window.setTimeout(() => {
-        isAnimatingRef.current = false;
-        setHeight(null);
-        requestAnimationFrame(rememberStableHeight);
-      }, durationMs + 80);
+    const releaseToAuto = () => {
+      isAnimatingRef.current = false;
+      setHeight(null);
+      requestAnimationFrame(() => {
+        const finalHeight = readIntrinsicHeight();
+        if (finalHeight >= minMeasuredHeight) lastStableHeightRef.current = finalHeight;
+      });
     };
 
-    const animateTo = (targetHeight: number) => {
+    const animateOnceTo = (targetHeight: number) => {
       if (targetHeight < minMeasuredHeight) return;
+      const currentHeight = Math.ceil(shell.getBoundingClientRect().height);
 
-      if (reducedMotionRef.current) {
-        lastStableHeightRef.current = targetHeight;
+      if (reducedMotionRef.current || Math.abs(targetHeight - currentHeight) <= 1) {
+        commitStable(targetHeight);
         setHeight(settleToAuto ? null : targetHeight);
-        setHasMeasured(true);
         return;
       }
-
-      if (!settleToAuto) {
-        setHeight((previous) => (previous === targetHeight ? previous : targetHeight));
-        lastStableHeightRef.current = targetHeight;
-        setHasMeasured(true);
-        return;
-      }
-
-      const currentShellHeight = Math.ceil(shell.getBoundingClientRect().height);
-      const fromHeight = isAnimatingRef.current
-        ? currentShellHeight
-        : lastStableHeightRef.current && lastStableHeightRef.current >= minMeasuredHeight
-          ? lastStableHeightRef.current
-          : currentShellHeight;
 
       isAnimatingRef.current = true;
       setHasMeasured(true);
-      setHeight(fromHeight);
-
-      // Force the starting height to be committed before moving to the target.
+      setHeight(currentHeight);
       void shell.offsetHeight;
 
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = requestAnimationFrame(() => {
+      transitionFrame = requestAnimationFrame(() => {
+        secondTransitionFrame = requestAnimationFrame(() => {
           setHeight(targetHeight);
           lastStableHeightRef.current = targetHeight;
-          settleHeightToAuto();
+          if (settleToAuto) {
+            settleTimer = window.setTimeout(releaseToAuto, durationMs + 20);
+          }
         });
       });
     };
 
-    const dependencyChanged = previousDependencyRef.current !== dependency;
-    previousDependencyRef.current = dependency;
-    let dependencyTransitionPending = dependencyChanged;
-
-    const measure = () => {
+    const measureAfterPaint = (animate: boolean) => {
       cancelAnimationFrame(measureFrame);
       measureFrame = requestAnimationFrame(() => {
-        const nextHeight = readIntrinsicHeight();
-        if (nextHeight < minMeasuredHeight) return;
-
-        if (settleToAuto) {
-          if (dependencyTransitionPending || isAnimatingRef.current) {
-            dependencyTransitionPending = false;
-            animateTo(nextHeight);
-          } else {
-            // While settled at auto, let normal document flow handle live
-            // changes. We only remember the true size for the next tab swap.
-            lastStableHeightRef.current = nextHeight;
-            setHeight(null);
-            setHasMeasured(true);
-          }
-          return;
+        const measured = readIntrinsicHeight();
+        if (measured < minMeasuredHeight) return;
+        if (animate) animateOnceTo(measured);
+        else {
+          commitStable(measured);
+          if (!settleToAuto) setHeight(measured);
         }
-
-        animateTo(nextHeight);
       });
     };
 
-    // Initial measure. For settleToAuto consumers we keep natural flow on the
-    // first paint; subsequent dependency changes animate between true heights.
     if (lastStableHeightRef.current == null) {
-      const initialHeight = readIntrinsicHeight();
-      if (initialHeight >= minMeasuredHeight) {
-        lastStableHeightRef.current = initialHeight;
-        setHasMeasured(true);
-        if (!settleToAuto) setHeight(initialHeight);
+      const initial = readIntrinsicHeight();
+      if (initial >= minMeasuredHeight) {
+        commitStable(initial);
+        if (!settleToAuto) setHeight(initial);
       }
+    } else if (dependencyChanged) {
+      // One dependency change = one target measurement + one short transition.
+      // This is intentionally single-pass for complex tab content such as MCQ.
+      measureAfterPaint(true);
     } else {
-      measure();
+      measureAfterPaint(false);
     }
 
     const resizeObserver =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
-            // A new tab can finish mounting after its exit animation, images can
-            // decode later, and async content can arrive after the first frame.
-            // Re-measure every genuine content-size change and retarget the
-            // active height animation instead of freezing an early measurement.
-            const nextHeight = readIntrinsicHeight();
-            if (nextHeight < minMeasuredHeight) return;
+            const measured = readIntrinsicHeight();
+            if (measured < minMeasuredHeight) return;
 
-            if (settleToAuto) {
-              if (isAnimatingRef.current) {
-                animateTo(nextHeight);
-              } else {
-                lastStableHeightRef.current = nextHeight;
-              }
-            } else {
-              animateTo(nextHeight);
+            if (singlePassOnDependencyChange && isAnimatingRef.current) {
+              // Ignore intermediate child-by-child MCQ/Anki layout changes during
+              // the short tab transition. Once released to auto, natural flow
+              // handles any remaining async growth instantly and correctly.
+              return;
             }
+
+            commitStable(measured);
+            if (!settleToAuto) setHeight(measured);
           })
         : null;
 
     resizeObserver?.observe(node);
 
-    const mutationObserver =
-      typeof MutationObserver !== "undefined"
-        ? new MutationObserver(() => {
-            // ResizeObserver is the primary source of truth. MutationObserver
-            // catches transitions where a subtree is swapped but its first
-            // measured box is temporarily the same size.
-            measure();
-          })
-        : null;
-
-    mutationObserver?.observe(node, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-
-    // Images may decode after the incoming tab is already mounted. Capture
-    // those events without forcing every consumer to manage image preload state.
+    // If an image finishes later, natural auto height handles it after the
+    // transition. We only cache the resulting stable height for the next swap.
     const images = Array.from(node.querySelectorAll("img"));
-    const onAssetLoad = () => measure();
+    const onAssetLoad = () => {
+      if (isAnimatingRef.current && singlePassOnDependencyChange) return;
+      const measured = readIntrinsicHeight();
+      if (measured >= minMeasuredHeight) commitStable(measured);
+    };
     images.forEach((image) => {
       if (!image.complete) image.addEventListener("load", onAssetLoad, { once: true });
     });
 
     return () => {
-      cancelAnimationFrame(measureFrame);
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      clearSettleTimer();
+      clearTimers();
       resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
       images.forEach((image) => image.removeEventListener("load", onAssetLoad));
     };
   }, [
@@ -234,6 +196,7 @@ export function SmoothAutoHeight({
     includeOverflowInMeasurement,
     minMeasuredHeight,
     settleToAuto,
+    singlePassOnDependencyChange,
   ]);
 
   return (

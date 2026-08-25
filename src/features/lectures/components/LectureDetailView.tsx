@@ -218,6 +218,18 @@ export const LectureDetailView = function LectureDetailView({
   const getMainScrollCanvas = useCallback(() =>
     document.getElementById("main-scroll-canvas") as HTMLElement | null, []);
 
+  // Prevent the page width/header/tabbar from shifting when a tall tab causes
+  // the main scroll canvas to gain or lose a vertical scrollbar.
+  useLayoutEffect(() => {
+    const canvas = getMainScrollCanvas();
+    if (!canvas) return;
+    const previousGutter = canvas.style.scrollbarGutter;
+    canvas.style.scrollbarGutter = "stable";
+    return () => {
+      canvas.style.scrollbarGutter = previousGutter;
+    };
+  }, [getMainScrollCanvas]);
+
   const getLectureTabScrollKey = useCallback((tab: string) =>
     `lecture_scroll_${lecture.id}_${tab}`, [lecture.id]);
 
@@ -300,7 +312,7 @@ export const LectureDetailView = function LectureDetailView({
     });
     // Re-apply once the auto-height transition has settled so a shrinking or
     // expanding tab cannot leave the viewport at an unintended offset.
-    settleTimer = setTimeout(restore, 240);
+    settleTimer = setTimeout(restore, 190);
 
     return () => {
       cancelAnimationFrame(frame1);
@@ -1639,7 +1651,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
  {/* Global tab shortcuts inside header */}
-  <div className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-auto sm:min-w-[420px] shrink-0 antialiased">
+  <div className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden">
  {[
  { id: "pdf", label: "PDF" },
  { id: "notes", label: "Notes" },
@@ -1661,22 +1673,22 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  <motion.button
  type="button"
- whileTap={{ scale: 0.985 }}
- transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[200ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[120ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
  >
  {isActive && (
  <motion.div
- layoutId="activeLectureTabPill"
+ initial={{ opacity: 0.6 }}
+ animate={{ opacity: 1 }}
  className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg -z-10"
- transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
  />
  )}
  <span
- className={`relative text-center whitespace-nowrap transition-colors duration-[200ms] ${
+ className={`relative text-center whitespace-nowrap transition-colors duration-[120ms] ${
  isActive
  ? "text-black dark:text-[var(--text-primary)] font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:text-white dark:hover:text-neutral-200"
@@ -1698,9 +1710,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={200}
+    durationMs={160}
     includeOverflowInMeasurement
     settleToAuto
+    singlePassOnDependencyChange
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
     contentClassName="relative w-full min-h-[clamp(430px,58svh,650px)]"
@@ -1710,10 +1723,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "pdf" && (
  <motion.div
   key="pdf"
-  initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
-  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  exit={{ opacity: 0 }}
+  transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1803,10 +1816,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "notes" && (
  <motion.div
   key="notes"
-  initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
-  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  exit={{ opacity: 0 }}
+  transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
