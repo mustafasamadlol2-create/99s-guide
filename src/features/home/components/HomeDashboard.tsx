@@ -507,57 +507,36 @@ const UpcomingEventAlert = memo(({ nextEvent, isRtl, onNavigateTab, t }: { nextE
 });
 
 
-// Premium native-style Hero motion.
-// Keep this transform/opacity-only: filter/blur animations can cause expensive
-// compositing churn in WKWebView/Safari when the Welcome tab is restored.
-// The motion intentionally avoids large directional slides; elements settle into
-// place with tiny depth changes, closer to native iOS presentation than a classic
-// staggered “PowerPoint” entrance.
-const HERO_EASE = [0.16, 1, 0.3, 1] as const;
-const HERO_FADE_EASE = [0.25, 0.1, 0.25, 1] as const;
+// iOS-safe premium Hero motion.
+// WKWebView/Safari can briefly re-rasterize text and large composited layers when
+// scale/transform animations are used on nested hero content. Keep entrance motion
+// opacity-only and let timing/stagger create the depth instead.
+const HERO_FADE_EASE = [0.22, 0.61, 0.36, 1] as const;
 
 const heroContainerVariants: Variants = {
   hidden: {
     opacity: 1,
-    transition: { staggerChildren: 0.018, staggerDirection: -1 },
+    transition: { staggerChildren: 0.014, staggerDirection: -1 },
   },
   visible: {
     opacity: 1,
-    transition: { delayChildren: 0.018, staggerChildren: 0.042 },
+    transition: { delayChildren: 0.018, staggerChildren: 0.038 },
   },
 };
 
 const heroItemVariant: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 3,
-    scale: 0.982,
-    transition: { duration: 0.14, ease: [0.4, 0, 1, 1] },
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      opacity: { duration: 0.24, ease: HERO_FADE_EASE },
-      y: { duration: 0.44, ease: HERO_EASE },
-      scale: { duration: 0.48, ease: HERO_EASE },
-    },
+    transition: { duration: 0.26, ease: HERO_FADE_EASE },
   },
 };
 
 const heroBadgeVariant: Variants = {
-  hidden: {
-    opacity: 0,
-    scale: 0.965,
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    scale: 1,
-    transition: {
-      opacity: { duration: 0.2, ease: HERO_FADE_EASE },
-      scale: { duration: 0.46, ease: HERO_EASE },
-    },
+    transition: { duration: 0.24, ease: HERO_FADE_EASE },
   },
 };
 
@@ -565,62 +544,31 @@ const heroGreetingGroupVariant: Variants = {
   hidden: { opacity: 1 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.055 },
+    transition: { staggerChildren: 0.045 },
   },
 };
 
 const heroGreetingLineVariant: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 2,
-    scale: 0.985,
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      opacity: { duration: 0.24, ease: HERO_FADE_EASE },
-      y: { duration: 0.48, ease: HERO_EASE },
-      scale: { duration: 0.5, ease: HERO_EASE },
-    },
+    transition: { duration: 0.28, ease: HERO_FADE_EASE },
   },
 };
 
 const heroMessageVariant: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 2,
-    scale: 0.992,
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      opacity: { duration: 0.26, ease: HERO_FADE_EASE },
-      y: { duration: 0.42, ease: HERO_EASE },
-      scale: { duration: 0.46, ease: HERO_EASE },
-    },
+    transition: { duration: 0.3, ease: HERO_FADE_EASE },
   },
 };
 
 const heroPillVariant = (i: number): Variants => ({
-  hidden: {
-    opacity: 0,
-    y: 1,
-    scale: 0.955,
-  },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      delay: i * 0.012,
-      opacity: { duration: 0.2, ease: HERO_FADE_EASE },
-      y: { duration: 0.42, ease: HERO_EASE },
-      scale: { duration: 0.46, ease: HERO_EASE },
-    },
+    transition: { delay: i * 0.012, duration: 0.24, ease: HERO_FADE_EASE },
   },
 });
 
@@ -630,6 +578,13 @@ const HeroBanner = memo(({
   nextEvent, onNavigateTab, isWide,
 }: HeroBannerProps) => {
   const shouldReduceMotion = useReducedMotion();
+  const isIOSLike = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const classicIOS = /iPad|iPhone|iPod/i.test(ua);
+    const modernIPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return classicIOS || modernIPadOS;
+  }, []);
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
@@ -694,7 +649,9 @@ const HeroBanner = memo(({
             style={{
               transform: "translate(-50%, -50%)",
               background: `conic-gradient(from ${auroraStartDeg}deg, transparent 0deg, rgba(30,58,110,0.52) 60deg, transparent 120deg, rgba(180,120,30,0.26) 200deg, transparent 280deg)`,
-              animation: "hero-aurora 28s linear infinite",
+              animation: isIOSLike || shouldReduceMotion ? "none" : "hero-aurora 28s linear infinite",
+              WebkitBackfaceVisibility: "hidden",
+              backfaceVisibility: "hidden",
             }}
           />
         </div>
@@ -724,7 +681,6 @@ const HeroBanner = memo(({
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
         variants={heroContainerVariants}
-        style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
         initial={shouldReduceMotion ? "visible" : "hidden"}
         animate={shouldReduceMotion ? "visible" : (isActive ? "visible" : "hidden")}
       >
@@ -752,7 +708,6 @@ const HeroBanner = memo(({
               <motion.h2
                 variants={heroGreetingGroupVariant}
                 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}
-                style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
               >
                 <motion.span
                   variants={heroGreetingLineVariant}
@@ -821,13 +776,13 @@ const HeroBanner = memo(({
                 </div>
                 {/* Dynamic min-height so long mottos are never clipped */}
                 <div className="relative flex items-start" style={{ minHeight: "2.8rem" }}>
-                  <AnimatePresence mode="popLayout" initial={false}>
+                  <AnimatePresence mode="wait" initial={false}>
                     <motion.p
                       key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={{ opacity: 0, scale: 0.992 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.996 }}
-                      transition={{ duration: 0.28, ease: HERO_EASE }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.24, ease: HERO_FADE_EASE }}
                       className={`${layout.subtitleClass} text-white/85 font-medium leading-snug md:leading-normal break-words antialiased max-w-[560px] absolute top-0 w-full`}
                     >
                       {smartSubtitle.text}
