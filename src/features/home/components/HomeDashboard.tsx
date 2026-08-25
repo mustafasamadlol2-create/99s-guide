@@ -512,17 +512,45 @@ const UpcomingEventAlert = memo(({ nextEvent, isRtl, onNavigateTab, t }: { nextE
 // compositing filter layer on every hero item; on iOS Safari the layers are torn
 // down + rebuilt on each display:none→block tab switch, intermittently painting
 // the hero's gradients/text with a corrupted first frame. Pure opacity/y only.
+const HERO_EASE = [0.23, 1, 0.32, 1] as const;
+
 const heroContainerVariants: Variants = {
-  hidden: { opacity: 1 },
-  visible: { opacity: 1 },
+  hidden: {
+    opacity: 1,
+    transition: { staggerChildren: 0.025, staggerDirection: -1 },
+  },
+  visible: {
+    opacity: 1,
+    transition: { delayChildren: 0.035, staggerChildren: 0.065 },
+  },
 };
 const heroItemVariant: Variants = {
-  hidden: { opacity: 1, y: 0 },
-  visible: { opacity: 1, y: 0 },
+  hidden: {
+    opacity: 0,
+    y: 10,
+    scale: 0.994,
+    transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.42, ease: HERO_EASE },
+  },
 };
 const heroPillVariant = (i: number): Variants => ({
-  hidden: { opacity: 1, y: 0 },
-  visible: { opacity: 1, y: 0 },
+  hidden: {
+    opacity: 0,
+    y: 7,
+    scale: 0.992,
+    transition: { duration: 0.14, ease: [0.4, 0, 1, 1] },
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.34, delay: i * 0.018, ease: HERO_EASE },
+  },
 });
 
 const HeroBanner = memo(({
@@ -530,6 +558,7 @@ const HeroBanner = memo(({
   mottoIndex, layout, t,
   nextEvent, onNavigateTab, isWide,
 }: HeroBannerProps) => {
+  const shouldReduceMotion = useReducedMotion();
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
@@ -624,8 +653,8 @@ const HeroBanner = memo(({
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
         variants={heroContainerVariants}
-        initial="hidden"
-        animate="visible"
+        initial={shouldReduceMotion ? "visible" : "hidden"}
+        animate={shouldReduceMotion ? "visible" : (isActive ? "visible" : "hidden")}
       >
         {/* Left column — text */}
         <div className={`flex flex-col min-w-0 overflow-hidden ${isWide ? "flex-1" : ""} ${layout.gapClass}`}>
@@ -639,8 +668,7 @@ const HeroBanner = memo(({
             </motion.div>
 
             {/* Greeting + name */}
-            <motion.div
-              variants={heroItemVariant}
+            <div
               className={`home-hero-greeting ${layout.stackGapClass} ${isWide ? "max-w-[85%]" : "max-w-[80%] md:max-w-[72%]"} min-w-[260px] relative mt-1 md:mt-2`}
             >
               <div
@@ -649,7 +677,10 @@ const HeroBanner = memo(({
                   from-[#0A1633]/30 via-[#050B1A]/10 to-transparent
                   pointer-events-none rounded-[100%] z-0`}
               />
-              <h2 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}>
+              <motion.h2
+                variants={heroItemVariant}
+                className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}
+              >
                 <span className="font-normal text-white/75 mb-0 md:mb-0.5" style={{ fontSize: "0.65em" }}>
                   {smartGreeting.greeting}
                 </span>
@@ -690,11 +721,12 @@ const HeroBanner = memo(({
                     )}
                   </span>
                 </span>
-              </h2>
+              </motion.h2>
 
               {/* Motto block — only rendered when a motto is available (no wasted space when empty) */}
               {smartSubtitle && (
-              <div
+              <motion.div
+                variants={heroItemVariant}
                 role="region"
                 aria-label={t("dailyMotto")}
                 aria-live="polite"
@@ -725,16 +757,16 @@ const HeroBanner = memo(({
                     </motion.p>
                   </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
               )}
 
               {/* Countdown below motto on narrow layouts */}
               {!isWide && nextEvent && (
-                <div className="mt-1">
+                <motion.div variants={heroItemVariant} className="mt-1">
                   <ExamCountdown nextEvent={nextEvent} />
-                </div>
+                </motion.div>
               )}
-            </motion.div>
+            </div>
           </div>
 
           {/* Pills — decorative identity badges */}

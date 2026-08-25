@@ -38,6 +38,32 @@ const MODULE_META: Record<SubjectId, {
   SSC: { credits: 2, hours: 6, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
 };
 
+const MODULE_IMAGE_URLS = Array.from(
+  new Set(Object.values(MODULE_META).map((meta) => meta.image)),
+);
+
+let moduleImagePreloadStarted = false;
+
+function preloadModuleImages() {
+  if (moduleImagePreloadStarted || typeof window === "undefined") return;
+  moduleImagePreloadStarted = true;
+
+  for (const src of MODULE_IMAGE_URLS) {
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    image.src = src;
+    // Decode eagerly when supported so the first paint does not wait for a
+    // later navigation/repaint cycle on Safari/WKWebView.
+    void image.decode?.().catch(() => undefined);
+  }
+}
+
+// This file is itself route-preloaded. Starting artwork fetches at module
+// evaluation means the images are already in the browser cache before the
+// user opens Modules whenever possible.
+preloadModuleImages();
+
 function MetricCard({ icon: Icon, value, label, tone }: {
   icon: React.ComponentType<{ className?: string }>;
   value: React.ReactNode;
@@ -146,8 +172,9 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                 <img
                   src={meta.image}
                   alt=""
-                  loading={index < 4 ? "eager" : "lazy"}
+                  loading="eager"
                   decoding="async"
+                  fetchPriority="high"
                   className="h-full w-full object-cover"
                   draggable={false}
                 />

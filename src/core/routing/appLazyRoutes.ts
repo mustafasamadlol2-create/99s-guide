@@ -23,6 +23,12 @@ ProfileCompletionScreen.preload();
 HomeDashboard.preload();
 
 export const ModulesView = lazyWithPreload(() => import("../../features/modules/components/ModulesView"));
+
+// Modules artwork is small and visually prominent. Preload the route immediately
+// after the critical auth/home routes so its seven local images can start warming
+// the browser cache before the user opens the page (especially important on iOS).
+ModulesView.preload();
+
 export const ModulePlaceholderView = lazyWithPreload(() => import("../../features/modules/components/ModulePlaceholderView"));
 export const SubjectView = lazyWithPreload(() => import("../../features/subjects/components/SubjectView"));
 export const LectureDetailView = lazyWithPreload(() => import("../../features/lectures/components/LectureDetailView"));
