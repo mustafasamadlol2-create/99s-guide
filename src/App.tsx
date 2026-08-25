@@ -22,6 +22,7 @@ import { NativeBridge } from "./core/device/capacitor/nativeBridge";
 import {
   Home,
   BookOpen,
+  Layers3,
   Calendar as CalIcon,
   User as UserIcon,
   Bell,
@@ -3933,7 +3934,7 @@ const handleSignOut = useCallback(async () => {
       },
       {
         id: "subjects",
-        icon: BookOpen,
+        icon: Layers3,
         label: language === "ar" ? "الموديولات" : "Modules",
       },
       {
@@ -3998,7 +3999,7 @@ const handleSignOut = useCallback(async () => {
       },
       {
         id: "subjects",
-        icon: BookOpen,
+        icon: Layers3,
         label: language === "ar" ? "الموديولات" : "Modules",
       },
       {

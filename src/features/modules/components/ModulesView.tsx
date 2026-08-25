@@ -125,15 +125,15 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                 </h2>
 
                 <div className="mt-3 grid grid-cols-3 border-y border-black/[0.07] py-3.5 dark:border-white/[0.08]">
-                  <div className="pr-3">
+                  <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Credits</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.credits}</div>
                   </div>
-                  <div className="border-x border-black/[0.07] px-3 dark:border-white/[0.08]">
+                  <div className="flex min-w-0 flex-col items-center justify-center border-x border-black/[0.07] px-2 text-center dark:border-white/[0.08]">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Lectures</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{lectures}</div>
                   </div>
-                  <div className="pl-3 text-right">
+                  <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Hours</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.hours}</div>
                   </div>
