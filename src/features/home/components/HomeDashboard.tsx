@@ -507,49 +507,120 @@ const UpcomingEventAlert = memo(({ nextEvent, isRtl, onNavigateTab, t }: { nextE
 });
 
 
-// Stagger variants shared by HeroBanner children
-// NOTE: no `filter` here. A permanent no-op `filter: blur(0px)` used to force a
-// compositing filter layer on every hero item; on iOS Safari the layers are torn
-// down + rebuilt on each display:none→block tab switch, intermittently painting
-// the hero's gradients/text with a corrupted first frame. Pure opacity/y only.
-const HERO_EASE = [0.23, 1, 0.32, 1] as const;
+// Premium native-style Hero motion.
+// Keep this transform/opacity-only: filter/blur animations can cause expensive
+// compositing churn in WKWebView/Safari when the Welcome tab is restored.
+// The motion intentionally avoids large directional slides; elements settle into
+// place with tiny depth changes, closer to native iOS presentation than a classic
+// staggered “PowerPoint” entrance.
+const HERO_EASE = [0.16, 1, 0.3, 1] as const;
+const HERO_FADE_EASE = [0.25, 0.1, 0.25, 1] as const;
 
 const heroContainerVariants: Variants = {
   hidden: {
     opacity: 1,
-    transition: { staggerChildren: 0.025, staggerDirection: -1 },
+    transition: { staggerChildren: 0.018, staggerDirection: -1 },
   },
   visible: {
     opacity: 1,
-    transition: { delayChildren: 0.035, staggerChildren: 0.065 },
+    transition: { delayChildren: 0.018, staggerChildren: 0.042 },
   },
 };
+
 const heroItemVariant: Variants = {
   hidden: {
     opacity: 0,
-    y: 10,
-    scale: 0.994,
-    transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.42, ease: HERO_EASE },
-  },
-};
-const heroPillVariant = (i: number): Variants => ({
-  hidden: {
-    opacity: 0,
-    y: 7,
-    scale: 0.992,
+    y: 3,
+    scale: 0.982,
     transition: { duration: 0.14, ease: [0.4, 0, 1, 1] },
   },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.34, delay: i * 0.018, ease: HERO_EASE },
+    transition: {
+      opacity: { duration: 0.24, ease: HERO_FADE_EASE },
+      y: { duration: 0.44, ease: HERO_EASE },
+      scale: { duration: 0.48, ease: HERO_EASE },
+    },
+  },
+};
+
+const heroBadgeVariant: Variants = {
+  hidden: {
+    opacity: 0,
+    scale: 0.965,
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      opacity: { duration: 0.2, ease: HERO_FADE_EASE },
+      scale: { duration: 0.46, ease: HERO_EASE },
+    },
+  },
+};
+
+const heroGreetingGroupVariant: Variants = {
+  hidden: { opacity: 1 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.055 },
+  },
+};
+
+const heroGreetingLineVariant: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 2,
+    scale: 0.985,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      opacity: { duration: 0.24, ease: HERO_FADE_EASE },
+      y: { duration: 0.48, ease: HERO_EASE },
+      scale: { duration: 0.5, ease: HERO_EASE },
+    },
+  },
+};
+
+const heroMessageVariant: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 2,
+    scale: 0.992,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      opacity: { duration: 0.26, ease: HERO_FADE_EASE },
+      y: { duration: 0.42, ease: HERO_EASE },
+      scale: { duration: 0.46, ease: HERO_EASE },
+    },
+  },
+};
+
+const heroPillVariant = (i: number): Variants => ({
+  hidden: {
+    opacity: 0,
+    y: 1,
+    scale: 0.955,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.012,
+      opacity: { duration: 0.2, ease: HERO_FADE_EASE },
+      y: { duration: 0.42, ease: HERO_EASE },
+      scale: { duration: 0.46, ease: HERO_EASE },
+    },
   },
 });
 
@@ -653,6 +724,7 @@ const HeroBanner = memo(({
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
         variants={heroContainerVariants}
+        style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
         initial={shouldReduceMotion ? "visible" : "hidden"}
         animate={shouldReduceMotion ? "visible" : (isActive ? "visible" : "hidden")}
       >
@@ -661,7 +733,7 @@ const HeroBanner = memo(({
 
           <div className="flex flex-col relative z-10">
             {/* Badge row */}
-            <motion.div variants={heroItemVariant} className="flex flex-wrap items-center justify-between gap-2 select-none">
+            <motion.div variants={heroBadgeVariant} className="flex flex-wrap items-center justify-between gap-2 select-none">
               <UniversityBadge layout={layout} isRtl={isRtl} t={t} />
               {/* Countdown inline with badge on wide screens */}
               {isWide && nextEvent && <ExamCountdown nextEvent={nextEvent} />}
@@ -678,13 +750,18 @@ const HeroBanner = memo(({
                   pointer-events-none rounded-[100%] z-0`}
               />
               <motion.h2
-                variants={heroItemVariant}
+                variants={heroGreetingGroupVariant}
                 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}
+                style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
               >
-                <span className="font-normal text-white/75 mb-0 md:mb-0.5" style={{ fontSize: "0.65em" }}>
+                <motion.span
+                  variants={heroGreetingLineVariant}
+                  className="font-normal text-white/75 mb-0 md:mb-0.5"
+                  style={{ fontSize: "0.65em" }}
+                >
                   {smartGreeting.greeting}
-                </span>
-                <span className="font-semibold text-white">
+                </motion.span>
+                <motion.span variants={heroGreetingLineVariant} className="font-semibold text-white">
                   {user?.name ? smartGreeting.name : ""}
                   <span
                     className="inline-block ml-1 md:ml-2 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 xl:w-9 xl:h-9 text-2xl sm:text-3xl md:text-4xl xl:text-[2.25rem] leading-none select-none drop-shadow-sm"
@@ -720,13 +797,13 @@ const HeroBanner = memo(({
                       "🌙"
                     )}
                   </span>
-                </span>
+                </motion.span>
               </motion.h2>
 
               {/* Motto block — only rendered when a motto is available (no wasted space when empty) */}
               {smartSubtitle && (
               <motion.div
-                variants={heroItemVariant}
+                variants={heroMessageVariant}
                 role="region"
                 aria-label={t("dailyMotto")}
                 aria-live="polite"
@@ -747,10 +824,10 @@ const HeroBanner = memo(({
                   <AnimatePresence mode="popLayout" initial={false}>
                     <motion.p
                       key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={{ opacity: 1, y: 0 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                      initial={{ opacity: 0, scale: 0.992 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.996 }}
+                      transition={{ duration: 0.28, ease: HERO_EASE }}
                       className={`${layout.subtitleClass} text-white/85 font-medium leading-snug md:leading-normal break-words antialiased max-w-[560px] absolute top-0 w-full`}
                     >
                       {smartSubtitle.text}
