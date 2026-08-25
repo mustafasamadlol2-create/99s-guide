@@ -29,40 +29,14 @@ const MODULE_META: Record<SubjectId, {
   accentRgb: string;
   surfaceClass: string;
 }> = {
-  ID: { credits: 5, hours: 15, image: infectiousDiseasesImage, accent: "#34D399", accentRgb: "52,211,153", surfaceClass: "bg-[#F0FBF7] dark:bg-[#11241F]" },
-  NT: { credits: 3, hours: 9, image: nutritionImage, accent: "#A78BFA", accentRgb: "167,139,250", surfaceClass: "bg-[#F7F3FF] dark:bg-[#211D2B]" },
-  RM: { credits: 3, hours: 9, image: researchMethodologyImage, accent: "#7DD3FC", accentRgb: "125,211,252", surfaceClass: "bg-[#F1FAFE] dark:bg-[#17252B]" },
-  CA: { credits: 4, hours: 12, image: clinicalAttachmentImage, accent: "#FDA4AF", accentRgb: "253,164,175", surfaceClass: "bg-[#FFF4F5] dark:bg-[#2B1D21]" },
-  PHC: { credits: 2, hours: 6, image: publicHealthCareImage, accent: "#F6C76F", accentRgb: "246,199,111", surfaceClass: "bg-[#FFF9EB] dark:bg-[#282217]" },
-  ImD: { credits: 3, hours: 9, image: immuneDisturbancesImage, accent: "#A5B4FC", accentRgb: "165,180,252", surfaceClass: "bg-[#F4F5FF] dark:bg-[#20212D]" },
-  SSC: { credits: 2, hours: 6, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
+  ID: { credits: 11, hours: 187, image: infectiousDiseasesImage, accent: "#34D399", accentRgb: "52,211,153", surfaceClass: "bg-[#F0FBF7] dark:bg-[#11241F]" },
+  NT: { credits: 4, hours: 62, image: nutritionImage, accent: "#A78BFA", accentRgb: "167,139,250", surfaceClass: "bg-[#F7F3FF] dark:bg-[#211D2B]" },
+  RM: { credits: 5, hours: 76, image: researchMethodologyImage, accent: "#7DD3FC", accentRgb: "125,211,252", surfaceClass: "bg-[#F1FAFE] dark:bg-[#17252B]" },
+  CA: { credits: 10, hours: 264, image: clinicalAttachmentImage, accent: "#FDA4AF", accentRgb: "253,164,175", surfaceClass: "bg-[#FFF4F5] dark:bg-[#2B1D21]" },
+  PHC: { credits: 4, hours: 59, image: publicHealthCareImage, accent: "#F6C76F", accentRgb: "246,199,111", surfaceClass: "bg-[#FFF9EB] dark:bg-[#282217]" },
+  ImD: { credits: 2, hours: 34, image: immuneDisturbancesImage, accent: "#A5B4FC", accentRgb: "165,180,252", surfaceClass: "bg-[#F4F5FF] dark:bg-[#20212D]" },
+  SSC: { credits: 1, hours: 30, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
 };
-
-const MODULE_IMAGE_URLS = Array.from(
-  new Set(Object.values(MODULE_META).map((meta) => meta.image)),
-);
-
-let moduleImagePreloadStarted = false;
-
-function preloadModuleImages() {
-  if (moduleImagePreloadStarted || typeof window === "undefined") return;
-  moduleImagePreloadStarted = true;
-
-  for (const src of MODULE_IMAGE_URLS) {
-    const image = new Image();
-    image.decoding = "async";
-    image.fetchPriority = "high";
-    image.src = src;
-    // Decode eagerly when supported so the first paint does not wait for a
-    // later navigation/repaint cycle on Safari/WKWebView.
-    void image.decode?.().catch(() => undefined);
-  }
-}
-
-// This file is itself route-preloaded. Starting artwork fetches at module
-// evaluation means the images are already in the browser cache before the
-// user opens Modules whenever possible.
-preloadModuleImages();
 
 function MetricCard({ icon: Icon, value, label, tone }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -146,7 +120,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
           <MetricCard
             icon={GraduationCap}
             value={30}
-            label={language === "ar" ? "ساعات الكريديت" : "Credit Hours"}
+            label={language === "ar" ? "الكريديت" : "Credit"}
             tone="emerald"
           />
         </div>
@@ -165,16 +139,15 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
               key={subject.id}
               type="button"
               onClick={() => onSelectModule(subject.id)}
-              className="relative isolate flex min-h-[372px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
+              className="relative isolate flex min-h-[348px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
               aria-label={`${subject.name} module`}
             >
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
                 <img
                   src={meta.image}
                   alt=""
-                  loading="eager"
+                  loading={index < 4 ? "eager" : "lazy"}
                   decoding="async"
-                  fetchPriority="high"
                   className="h-full w-full object-cover"
                   draggable={false}
                 />
@@ -193,14 +166,14 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
               </div>
 
               <div
-                className={`flex flex-1 flex-col px-[18px] pb-[18px] pt-4 ${meta.surfaceClass}`}
+                className={`flex flex-1 flex-col px-[18px] pb-[15px] pt-3 ${meta.surfaceClass}`}
                 style={{ backgroundImage: `linear-gradient(180deg, rgba(${meta.accentRgb},0.045), transparent 48%)` }}
               >
-                <h2 className="min-h-[56px] text-[19px] font-semibold leading-[1.22] tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[20px]">
+                <h2 className="text-[19px] font-semibold leading-[1.22] tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[20px]">
                   {subject.name}
                 </h2>
 
-                <div className="mt-3 grid grid-cols-3 border-y border-black/[0.07] py-3.5 dark:border-white/[0.08]">
+                <div className="mt-2 grid grid-cols-3 border-y border-black/[0.07] py-3 dark:border-white/[0.08]">
                   <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Credits</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.credits}</div>
@@ -215,8 +188,8 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                   </div>
                 </div>
 
-                <div className="mt-auto pt-4">
-                  <div className="mb-2.5 flex items-center justify-between">
+                <div className="mt-auto pt-3">
+                  <div className="mb-2 flex items-center justify-between">
                     <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? "Completed" : "In progress"}</span>
                     <span
                       className="flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold"
