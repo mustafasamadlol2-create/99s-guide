@@ -38,17 +38,51 @@ const MODULE_META: Record<SubjectId, {
   SSC: { credits: 2, hours: 6, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
 };
 
-function MetricChip({ icon: Icon, value, label }: {
+function MetricCard({ icon: Icon, value, label, tone }: {
   icon: React.ComponentType<{ className?: string }>;
   value: React.ReactNode;
   label: string;
+  tone: "violet" | "blue" | "emerald";
 }) {
+  const tones = {
+    violet: {
+      icon: "text-violet-600 dark:text-violet-300",
+      iconSurface: "bg-violet-50 border-violet-100 dark:bg-violet-500/12 dark:border-violet-400/15",
+      glow: "shadow-[0_8px_24px_rgba(139,92,246,0.08)] dark:shadow-[0_8px_26px_rgba(139,92,246,0.08)]",
+    },
+    blue: {
+      icon: "text-sky-600 dark:text-sky-300",
+      iconSurface: "bg-sky-50 border-sky-100 dark:bg-sky-500/12 dark:border-sky-400/15",
+      glow: "shadow-[0_8px_24px_rgba(14,165,233,0.08)] dark:shadow-[0_8px_26px_rgba(14,165,233,0.08)]",
+    },
+    emerald: {
+      icon: "text-emerald-600 dark:text-emerald-300",
+      iconSurface: "bg-emerald-50 border-emerald-100 dark:bg-emerald-500/12 dark:border-emerald-400/15",
+      glow: "shadow-[0_8px_24px_rgba(16,185,129,0.08)] dark:shadow-[0_8px_26px_rgba(16,185,129,0.08)]",
+    },
+  } as const;
+
+  const selectedTone = tones[tone];
+
   return (
-    <div className="inline-flex items-center gap-2.5 rounded-xl border border-black/[0.045] bg-neutral-100/90 px-4 py-2.5 shadow-sm dark:border-white/[0.07] dark:bg-[#1C1C1E] dark:shadow-none">
-      <Icon className="h-4 w-4 text-neutral-500 dark:text-[#EBEBF599]" />
-      <span className="text-[13px] font-medium text-neutral-700 dark:text-[#EBEBF599]">
-        <strong className="font-semibold text-neutral-950 dark:text-white">{value}</strong>{" "}{label}
-      </span>
+    <div
+      className={`flex min-h-[72px] min-w-[164px] items-center gap-3.5 rounded-[16px] border border-black/[0.055] bg-white px-3.5 py-3 dark:border-white/[0.07] dark:bg-[#15161A] ${selectedTone.glow}`}
+    >
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border ${selectedTone.iconSurface}`}
+        aria-hidden="true"
+      >
+        <Icon className={`h-[19px] w-[19px] ${selectedTone.icon}`} />
+      </div>
+
+      <div className="min-w-0 text-left">
+        <div className="text-[17px] font-semibold leading-none tracking-[-0.02em] text-neutral-950 dark:text-white">
+          {value}
+        </div>
+        <div className="mt-1.5 whitespace-nowrap text-[11px] font-medium leading-none text-neutral-500 dark:text-[#EBEBF599]">
+          {label}
+        </div>
+      </div>
     </div>
   );
 }
@@ -71,9 +105,24 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <MetricChip icon={Database} value={orderedSubjects.length} label={language === "ar" ? "موديولات" : "Modules"} />
-          <MetricChip icon={BookOpen} value={totalLectures} label={language === "ar" ? "محاضرة" : "Lectures"} />
-          <MetricChip icon={GraduationCap} value={30} label={language === "ar" ? "ساعة كريديت" : "Credit Hours"} />
+          <MetricCard
+            icon={Database}
+            value={orderedSubjects.length}
+            label={language === "ar" ? "الموديولات" : "Modules"}
+            tone="violet"
+          />
+          <MetricCard
+            icon={BookOpen}
+            value={totalLectures}
+            label={language === "ar" ? "إجمالي المحاضرات" : "Total Lectures"}
+            tone="blue"
+          />
+          <MetricCard
+            icon={GraduationCap}
+            value={30}
+            label={language === "ar" ? "ساعات الكريديت" : "Credit Hours"}
+            tone="emerald"
+          />
         </div>
       </header>
 
@@ -90,7 +139,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
               key={subject.id}
               type="button"
               onClick={() => onSelectModule(subject.id)}
-              className="group relative isolate flex min-h-[372px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)] active:translate-y-0 dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
+              className="relative isolate flex min-h-[372px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
               aria-label={`${subject.name} module`}
             >
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
@@ -99,7 +148,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                   alt=""
                   loading={index < 4 ? "eager" : "lazy"}
                   decoding="async"
-                  className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]"
+                  className="h-full w-full object-cover"
                   draggable={false}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
@@ -139,19 +188,35 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                   </div>
                 </div>
 
-                <div className="mt-auto flex items-center justify-between pt-4">
-                  <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? "Completed" : "In progress"}</span>
-                  <span
-                    className="flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold"
-                    style={{
-                      color: meta.accent,
-                      borderColor: `rgba(${meta.accentRgb},0.20)`,
-                      backgroundColor: `rgba(${meta.accentRgb},0.08)`,
-                      boxShadow: `inset 0 0 0 3px rgba(${meta.accentRgb},0.06)`,
-                    }}
+                <div className="mt-auto pt-4">
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? "Completed" : "In progress"}</span>
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold"
+                      style={{
+                        color: meta.accent,
+                        borderColor: `rgba(${meta.accentRgb},0.20)`,
+                        backgroundColor: `rgba(${meta.accentRgb},0.08)`,
+                        boxShadow: `inset 0 0 0 3px rgba(${meta.accentRgb},0.06)`,
+                      }}
+                    >
+                      {progress}%
+                    </span>
+                  </div>
+
+                  <div
+                    className="h-1.5 w-full overflow-hidden rounded-full"
+                    style={{ backgroundColor: `rgba(${meta.accentRgb},0.12)` }}
+                    aria-hidden="true"
                   >
-                    {progress}%
-                  </span>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, progress))}%`,
+                        backgroundColor: meta.accent,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </button>
