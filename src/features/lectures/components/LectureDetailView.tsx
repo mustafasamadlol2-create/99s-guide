@@ -2684,7 +2684,9 @@ initial={{ opacity: 0, y: 3 }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  <div className="space-y-4">
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ <div
+ className={`grid grid-cols-1 gap-5 ${getRelevantVideos().length > 1 ? "xl:grid-cols-2" : "w-full max-w-[1100px]"}`}
+>
  {getRelevantVideos().length === 0 ? (
  <div className="col-span-1 sm:col-span-2 flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
  <div className="relative mb-6">
