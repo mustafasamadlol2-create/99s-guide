@@ -1823,18 +1823,49 @@ initial={{ opacity: 0, y: 3 }}
  <div className="flex flex-col">
  <div className="space-y-4">
  {/* Subject and progress metrics */}
- <div className="flex justify-between items-center text-caption text-neutral-500 dark:text-[#EBEBF599]">
- <span className="font-semibold text-med-blue uppercase font-mono bg-blue-50 px-3 py-1 rounded-sm border border-blue-100 dark:bg-[#2C2C2E]">
+ <div className="flex justify-between items-center text-caption text-neutral-500 dark:text-[#EBEBF599]" style={flashcardThemeVars}>
+ <span
+   className="font-semibold uppercase font-mono px-3 py-1.5 rounded-full border"
+   style={{
+     color: flashcardTheme.accent,
+     backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`,
+     borderColor: `rgba(${flashcardTheme.rgb}, 0.24)`,
+   }}
+ >
  Question {currentQuestionIndex + 1} of{" "}
  {filteredQuizQuestions.length}
  </span>
  </div>
 
- {/* Question Box */}
- <div className="p-5 sm:p-6 bg-neutral-55 border border-neutral-200 dark:border-white/[0.12] dark:bg-[#1C1C1E] rounded-md shadow-elevation-1 font-medium">
- <h3 className="text-caption sm:text-body font-sans text-neutral-805 dark:text-white font-semibold">
- {filteredQuizQuestions[currentQuestionIndex].question}
- </h3>
+ {/* Subject-aware Question Card */}
+ <div
+   className="relative overflow-hidden rounded-[22px] sm:rounded-[26px] border border-black/[0.06] dark:border-white/[0.09] bg-white dark:bg-[#17181B] shadow-[0_10px_28px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.22)] min-h-[132px] sm:min-h-[150px]"
+   style={flashcardThemeVars}
+ >
+   <div className="pointer-events-none absolute inset-0">
+     <div className="absolute inset-y-0 right-0 w-[42%] min-w-[220px] opacity-75 dark:opacity-85">
+       <SubjectFlashcardArtwork
+         subjectId={lecture.subjectId}
+         rgb={flashcardTheme.rgb}
+         className="absolute inset-0"
+       />
+     </div>
+     <div className="absolute inset-0 bg-gradient-to-r from-white via-white/96 to-white/70 dark:from-[#17181B] dark:via-[#17181B]/96 dark:to-[#17181B]/72" />
+     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.42)] to-transparent" />
+   </div>
+   <div className="relative z-10 px-5 py-6 sm:px-7 sm:py-7 flex items-center min-h-[132px] sm:min-h-[150px]">
+     <div className="max-w-[82%]">
+       <div className="mb-3 flex items-center gap-2">
+         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: flashcardTheme.accent }} />
+         <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: flashcardTheme.accent }}>
+           {isRtl ? "سؤال سريري" : "MCQ CONCEPT"}
+         </span>
+       </div>
+       <h3 className="text-base sm:text-lg lg:text-xl font-sans text-neutral-900 dark:text-white font-semibold leading-relaxed">
+         {filteredQuizQuestions[currentQuestionIndex].question}
+       </h3>
+     </div>
+   </div>
  </div>
 
  {/* Options Radio Grid */}
@@ -1860,18 +1891,24 @@ initial={{ opacity: 0, y: 3 }}
  .id]: optionKey,
  });
  }}
- className={`quiz-option w-full p-4 text-left text-caption rounded-lg border transition flex items-center gap-3 cursor-pointer ${
+ className={`quiz-option w-full p-4 sm:p-4.5 text-left text-caption rounded-xl border transition-[background-color,border-color,box-shadow,transform] duration-200 flex items-center gap-3 cursor-pointer ${
  isSelected
- ? "bg-blue-50/70 border-blue-500 text-blue-900 dark:text-blue-300 font-semibold shadow-elevation-1 dark:bg-blue-900/30 dark:border-blue-500/50"
- : "bg-white border-med-beige/60 hover:bg-neutral-50/50 text-neutral-700 dark:bg-[#1C1C1E] dark:border-white/[0.12] dark:text-[var(--text-secondary)]"
+ ? "font-semibold shadow-[0_8px_22px_rgba(0,0,0,0.06)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.20)]"
+ : "bg-white border-black/[0.07] hover:bg-neutral-50/60 text-neutral-700 dark:bg-[#1C1C1E] dark:border-white/[0.10] dark:text-[var(--text-secondary)]"
  }`}
+ style={isSelected ? {
+   backgroundColor: `rgba(${flashcardTheme.rgb}, 0.11)`,
+   borderColor: `rgba(${flashcardTheme.rgb}, 0.55)`,
+   color: flashcardTheme.accent,
+ } : undefined}
  >
  <span
  className={`w-icon-lg h-icon-lg rounded-lg text-caption font-semibold font-mono flex items-center justify-center shrink-0 border ${
  isSelected
- ? "bg-med-blue text-white border-blue-600"
+ ? "text-white"
  : "bg-neutral-50 border-neutral-200 text-neutral-500 dark:bg-[#2C2C2E] dark:border-white/[0.15]"
  }`}
+ style={isSelected ? { backgroundColor: flashcardTheme.accent, borderColor: flashcardTheme.accent } : undefined}
  >
  {optionKey}
  </span>
@@ -1931,7 +1968,13 @@ initial={{ opacity: 0, y: 3 }}
  handleQuizSubmit();
  }
  }}
- className="quiz-nav-btn quiz-nav-btn-next px-5 py-2 text-caption bg-[#007AFF] hover:bg-[#007AFF]/90 text-white font-semibold rounded-full shadow-elevation-1 min-w-[124px] cursor-pointer transition duration-155"
+ className="quiz-nav-btn quiz-nav-btn-next h-btn px-6 py-2 text-caption font-semibold rounded-md border min-w-[124px] cursor-pointer transition-[background-color,border-color,color,box-shadow] duration-200"
+ style={{
+   color: flashcardTheme.accent,
+   backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`,
+   borderColor: `rgba(${flashcardTheme.rgb}, 0.30)`,
+   boxShadow: `0 1px 2px rgba(${flashcardTheme.rgb}, 0.08)`,
+ }}
  >
  {currentQuestionIndex === filteredQuizQuestions.length - 1
  ? isRtl
