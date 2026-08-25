@@ -300,7 +300,7 @@ export const LectureDetailView = function LectureDetailView({
     });
     // Re-apply once the auto-height transition has settled so a shrinking or
     // expanding tab cannot leave the viewport at an unintended offset.
-    settleTimer = setTimeout(restore, 440);
+    settleTimer = setTimeout(restore, 240);
 
     return () => {
       cancelAnimationFrame(frame1);
@@ -1666,17 +1666,17 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[250ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[200ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
  >
  {isActive && (
  <motion.div
  layoutId="activeLectureTabPill"
  className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg -z-10"
- transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
  />
  )}
  <span
- className={`relative text-center whitespace-nowrap transition-colors duration-[250ms] ${
+ className={`relative text-center whitespace-nowrap transition-colors duration-[200ms] ${
  isActive
  ? "text-black dark:text-[var(--text-primary)] font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:text-white dark:hover:text-neutral-200"
@@ -1698,14 +1698,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={190}
+    durationMs={200}
     includeOverflowInMeasurement
     settleToAuto
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
-    contentClassName="w-full min-h-[clamp(430px,58svh,650px)]"
+    contentClassName="relative w-full min-h-[clamp(430px,58svh,650px)]"
   >
-  <AnimatePresence mode="wait" initial={false}>
+  <AnimatePresence mode="popLayout" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
@@ -1713,7 +1713,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
-  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1806,7 +1806,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
-  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1901,7 +1901,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  {filteredQuizQuestions.length === 0 ? (
@@ -2265,7 +2265,7 @@ initial={{ opacity: 0, y: 3 }}
 initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="flex-1 flex flex-col justify-between w-full"
  >
  {(() => {
@@ -2680,7 +2680,7 @@ initial={{ opacity: 0, y: 3 }}
 initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  <div className="space-y-4">
@@ -2722,7 +2722,7 @@ initial={{ opacity: 0, y: 3 }}
 initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
