@@ -105,10 +105,16 @@ const WeekDayCell = memo(function WeekDayCell({
   if (isToday) {
     badgeClass = "text-[#ff3b30] font-semibold font-sans transition duration-300 ease-[var(--ease-apple)] transform group-hover:scale-105";
     dayNameClass = "text-[#ff3b30] font-semibold";
-    if (isDaySelected) ringClass = "ring-2 ring-[#ff3b30]/40 z-10 shadow-sm bg-[#ff3b30]/[0.08] dark:bg-[#ff3b30]/[0.15]";
-    else if (dayEvents.length === 0) {
+
+    // Keep Today's outline fully inside the day cell. An outer ring can be
+    // clipped by the horizontal week scroller, most noticeably along the top.
+    cellBorderClass = "border-[#ff3b30]/55 dark:border-[#ff453a]/45";
+
+    if (isDaySelected) {
+      ringClass = "ring-1 ring-inset ring-[#ff3b30]/35 dark:ring-[#ff453a]/30 z-10 shadow-sm bg-[#ff3b30]/[0.08] dark:bg-[#ff3b30]/[0.15]";
+    } else if (dayEvents.length === 0) {
       cellBgClass = "bg-[#ff3b30]/[0.04] dark:bg-[#ff3b30]/[0.06]";
-      ringClass = "hover:shadow-sm hover:bg-[#ff3b30]/[0.08] dark:hover:bg-[#ff3b30]/[0.1]";
+      ringClass = "ring-1 ring-inset ring-[#ff3b30]/20 dark:ring-[#ff453a]/20 hover:shadow-sm hover:bg-[#ff3b30]/[0.08] dark:hover:bg-[#ff3b30]/[0.1]";
     }
   } else if (isDaySelected && dayEvents.length === 0) {
     badgeClass = "text-neutral-900 dark:text-white font-semibold font-sans";

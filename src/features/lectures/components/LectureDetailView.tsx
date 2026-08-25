@@ -1698,7 +1698,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={420}
+    durationMs={190}
     includeOverflowInMeasurement
     settleToAuto
     style={{ transformOrigin: "top center" }}
@@ -2300,6 +2300,20 @@ initial={{ opacity: 0, y: 3 }}
       return baseCards;
     })(); 
 
+    const currentFlashcard = activeCards[currentCardIndex];
+    const currentFlashcardTextLength = Math.max(
+      String(currentFlashcard?.front ?? "").length,
+      String(currentFlashcard?.back ?? "").length,
+    );
+    const flashcardBodyTypography =
+      currentFlashcardTextLength > 700
+        ? "text-[clamp(0.92rem,1.2vw,1.08rem)] leading-[1.5]"
+        : currentFlashcardTextLength > 480
+          ? "text-[clamp(0.98rem,1.4vw,1.2rem)] leading-[1.54]"
+          : currentFlashcardTextLength > 300
+            ? "text-[clamp(1.03rem,1.6vw,1.34rem)] leading-[1.58]"
+            : "text-[clamp(1.08rem,1.95vw,1.62rem)] leading-[1.62]";
+
   if (deckFinished) {
     const totalReviewed = baseCards.length;
     const easyCards = baseCards.filter((c) => cardStats[c.id] === "easy");
@@ -2511,9 +2525,9 @@ initial={{ opacity: 0, y: 3 }}
                   </div>
 
                   <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
-                    <div className="w-full max-w-[760px] max-h-[clamp(300px,52svh,500px)] overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
-                      <h3 className="text-[clamp(1.65rem,3.05vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
-                        {activeCards[currentCardIndex]?.front}
+                    <div className="w-full max-w-[820px] px-1">
+                      <h3 className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-neutral-900 dark:text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)]`}>
+                        {currentFlashcard?.front}
                       </h3>
                     </div>
                   </div>
@@ -2559,9 +2573,9 @@ initial={{ opacity: 0, y: 3 }}
                   </div>
 
                   <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
-                    <div className="w-full max-w-[760px] max-h-[clamp(320px,56svh,540px)] overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
-                      <div className="text-[clamp(1.08rem,1.95vw,1.62rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.62] text-balance">
-                        {activeCards[currentCardIndex]?.back}
+                    <div className="w-full max-w-[820px] px-1">
+                      <div className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-neutral-800 dark:text-white/92`}>
+                        {currentFlashcard?.back}
                       </div>
                     </div>
                   </div>
