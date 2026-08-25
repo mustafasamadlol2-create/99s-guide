@@ -1699,9 +1699,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <SmoothAutoHeight
     dependency={activeTab}
     durationMs={420}
+    includeOverflowInMeasurement
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
-    contentClassName="w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
+    contentClassName="w-full min-h-[clamp(430px,58svh,650px)]"
   >
   <AnimatePresence mode="wait" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
@@ -2468,7 +2469,7 @@ initial={{ opacity: 0, y: 3 }}
             <div className="absolute inset-0 bg-white/[0.16] dark:bg-black/[0.12]" />
           </div>
 
-          <div className="relative z-10 flex h-full h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
+          <div className="relative z-10 flex h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
             <AnimatePresence mode="wait" initial={false}>
               {!isFlipped ? (
                 <motion.div
@@ -2508,10 +2509,12 @@ initial={{ opacity: 0, y: 3 }}
                     </div>
                   </div>
 
-                  <div className="flex-1 flex items-center justify-center py-8 sm:py-10">
-                    <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
-                      {activeCards[currentCardIndex]?.front}
-                    </h3>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+                    <div className="min-h-full flex items-center justify-center py-6 sm:py-8">
+                      <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
+                        {activeCards[currentCardIndex]?.front}
+                      </h3>
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center gap-3 pb-2 sm:pb-3">
@@ -2554,9 +2557,11 @@ initial={{ opacity: 0, y: 3 }}
                     </div>
                   </div>
 
-                  <div className="flex-1 flex flex-col items-center justify-center py-4 sm:py-5 overflow-y-auto overscroll-contain">
-                    <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.65] text-balance">
-                      {activeCards[currentCardIndex]?.back}
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+                    <div className="min-h-full flex items-center justify-center py-4 sm:py-5">
+                      <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.65] text-balance">
+                        {activeCards[currentCardIndex]?.back}
+                      </div>
                     </div>
                   </div>
                 </motion.div>

@@ -8,6 +8,7 @@ interface SmoothAutoHeightProps {
   style?: React.CSSProperties;
   durationMs?: number;
   minMeasuredHeight?: number;
+  includeOverflowInMeasurement?: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ export function SmoothAutoHeight({
   style,
   durationMs = 380,
   minMeasuredHeight = 24,
+  includeOverflowInMeasurement = false,
 }: SmoothAutoHeightProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
@@ -43,7 +45,17 @@ export function SmoothAutoHeight({
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+        const renderedHeight = node.getBoundingClientRect().height;
+        // Lecture tabs can legitimately contain children that extend beyond the
+        // current border-box while the outer height is transitioning. Opting into
+        // scrollHeight makes the shell follow the true intrinsic content height
+        // instead of clipping controls at the bottom. Other consumers keep the
+        // original border-box measurement behavior.
+        const nextHeight = Math.ceil(
+          includeOverflowInMeasurement
+            ? Math.max(renderedHeight, node.scrollHeight)
+            : renderedHeight,
+        );
         // AnimatePresence can briefly leave an empty frame between outgoing
         // and incoming content. Ignore that transient zero-height state.
         if (nextHeight < minMeasuredHeight) return;
@@ -61,7 +73,7 @@ export function SmoothAutoHeight({
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [dependency, minMeasuredHeight]);
+  }, [dependency, includeOverflowInMeasurement, minMeasuredHeight]);
 
   return (
     <div
