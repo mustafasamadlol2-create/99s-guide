@@ -1,11 +1,9 @@
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { safeJsonParse } from "./core/utils/safeJson";
 import { SecureStorage } from "./core/utils/secureStorage";
-import { getLectureProgressStats } from "./core/utils/progressUtils";
 import { HapticFeedback } from "./core/device/haptic";
 import { apiClient, clearApiCache } from "./core/api/apiClient";
 import { getApiBaseUrl } from "./core/api/api";
-import { getSubjectIconInfo } from "./core/utils/subjectIcons";
 import { getUniqueSubjectLectures, countUniqueSubjectLectures } from "./core/utils/subjectLectureCounts";
 import { formatToBaghdadISO, dayjs } from "./core/utils/timezone";
 import AppLogo from "./components/ui/AppLogo";
@@ -13,7 +11,6 @@ import { CommandPalette, SearchResultItem } from "./components/ui/CommandPalette
 import IOSAlert from "./core/layout/iOSAlert";
 import { showiOSAlert } from "./core/device/alert";
 import { Language, useTranslation } from "./core/i18n/translations";
-import { SwipeableSubjectButton } from "./features/subjects/components/SwipeableSubjectButton";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
 import { IDBManager } from "./core/utils/indexedDB";
 import { DataSyncManager } from "./core/offline/DataSyncManager";
@@ -21,7 +18,6 @@ import { CacheManager, CACHE_TTL } from "./core/cache/CacheManager";
 import { accountStorageKey, clearAccountData, getActiveAccountId, setActiveAccountId } from "./core/storage/accountData";
 import { useDeviceProfile } from "./core/hooks/useDeviceProfile";
 import { useUserPreferences } from "./core/hooks/useUserPreferences";
-import { useIsTouchDevice } from "./core/hooks/useIsTouchDevice";
 import { NativeBridge } from "./core/device/capacitor/nativeBridge";
 import {
   Home,
@@ -35,8 +31,6 @@ import {
   Settings,
   Database,
   X,
-  CircleCheck,
-  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useSwipeBack } from "./core/hooks/useSwipeBack";
@@ -80,6 +74,8 @@ import {
   ProfileCompletionScreen,
   ResetPasswordScreen,
   HomeDashboard,
+  ModulesView,
+  ModulePlaceholderView,
   SubjectView,
   LectureDetailView,
   CalendarView,
@@ -130,7 +126,6 @@ type AuthState = "INITIALIZING" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ER
 
 export default function App() {
   const device = useDeviceProfile();
-  const isTouchDevice = useIsTouchDevice();
   const shouldReduceMotion = useReducedMotion();
 
   // --- Core Session States ---
@@ -1133,6 +1128,9 @@ export default function App() {
   const [activeSubjectId, setActiveSubjectId] = useState<SubjectId | null>(
     null,
   );
+  // Modules is an independent top-level academic surface. It intentionally
+  // does not reuse SubjectView; each card opens its own module placeholder.
+  const [activeModuleId, setActiveModuleId] = useState<SubjectId | null>(null);
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
   const [activeLectureTab, setActiveLectureTab] = useState<
     "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
@@ -1163,10 +1161,6 @@ export default function App() {
       {} as Record<string, number>,
     );
   }, [subjects, dbLectures]);
-
-  const totalLectureCount = useMemo(() => {
-    return Object.values(subjectLectureCounts).reduce((a: number, b: number) => a + b, 0);
-  }, [subjectLectureCounts]);
 
   const globalSearchData = useMemo(() => {
     const results: SearchResultItem[] = [];
@@ -1463,13 +1457,15 @@ export default function App() {
         } else {
           setActiveSubjectId(null);
         }
+      } else if (activeModuleId !== null) {
+        setActiveModuleId(null);
       }
     },
-    isEnabled: activeLecture !== null || activeSubjectId !== null,
+    isEnabled: activeLecture !== null || activeSubjectId !== null || activeModuleId !== null,
     onSwipeMove: (dx) => {
       if (activeLecture !== null) {
         setLectureSwipeX(dx);
-      } else if (activeSubjectId !== null) {
+      } else if (activeSubjectId !== null || activeModuleId !== null) {
         setSubjectSwipeX(dx);
       }
     },
@@ -1479,7 +1475,7 @@ export default function App() {
           setIsReleasingLecture(true);
           setLectureSwipeX(0);
           setTimeout(() => setIsReleasingLecture(false), 300);
-        } else if (activeSubjectId !== null) {
+        } else if (activeSubjectId !== null || activeModuleId !== null) {
           setIsReleasingSubject(true);
           setSubjectSwipeX(0);
           setTimeout(() => setIsReleasingSubject(false), 300);
@@ -1579,11 +1575,13 @@ export default function App() {
       }
       if (id === "subjects") {
         if (prev === "subjects") {
+          setActiveModuleId(null);
           setActiveSubjectId(null);
           setActiveLecture(null);
         }
         return "subjects";
       }
+      setActiveModuleId(null);
       setActiveLecture(null);
       setActiveSubjectId(null);
       return id;
@@ -1690,6 +1688,12 @@ export default function App() {
     };
        
   }, []);
+
+  useEffect(() => {
+    if (activeSubjectId !== null && activeModuleId !== null) {
+      setActiveModuleId(null);
+    }
+  }, [activeSubjectId, activeModuleId]);
 
   const subjectProgressMetrics = useMemo(() => {
     const metrics = new Map<string, { totalTasks: number, completedTasks: number, progressPercentage: number }>();
@@ -2898,6 +2902,8 @@ export default function App() {
             currentUser.role === "owner" ||
             (currentUser as any).isAdmin);
         const routesToPreload = [
+          ModulesView,
+          ModulePlaceholderView,
           SubjectView,
           CalendarView,
           ProfileView,
@@ -2933,11 +2939,11 @@ export default function App() {
         ) {
           const title = target.getAttribute("title") || "";
           const text = target.textContent || "";
-          const isLibrary =
-            title.includes("Library") ||
-            title.includes("المكتبة") ||
-            text.includes("Library") ||
-            text.includes("المكتبة");
+          const isModules =
+            title.includes("Modules") ||
+            title.includes("الموديولات") ||
+            text.includes("Modules") ||
+            text.includes("الموديولات");
           const isSchedule =
             title.includes("Schedule") ||
             title.includes("الجدول") ||
@@ -2959,8 +2965,8 @@ export default function App() {
             text.includes("Settings") ||
             text.includes("الإعدادات");
 
-          if (isLibrary) {
-            SubjectView.preload?.();
+          if (isModules) {
+            ModulesView.preload?.();
           } else if (isSchedule) {
             CalendarView.preload?.();
           } else if (isProfile) {
@@ -3918,10 +3924,6 @@ const handleSignOut = useCallback(async () => {
     setActiveLecture(foundLecture);
   }, [globalSearchData, dbLectures, pushNavigationStack, resolveCanonicalLecture]);
 
-  const globalProgressStats = useMemo(() => {
-    return getLectureProgressStats(dbLectures, progressDb);
-  }, [dbLectures, progressDb]);
-
   const sidebarMainItems = useMemo(
     () => [
       {
@@ -3932,7 +3934,7 @@ const handleSignOut = useCallback(async () => {
       {
         id: "subjects",
         icon: BookOpen,
-        label: language === "ar" ? "المكتبة" : "Library",
+        label: language === "ar" ? "الموديولات" : "Modules",
       },
       {
         id: "calendar",
@@ -3997,7 +3999,7 @@ const handleSignOut = useCallback(async () => {
       {
         id: "subjects",
         icon: BookOpen,
-        label: language === "ar" ? "المكتبة" : "Library",
+        label: language === "ar" ? "الموديولات" : "Modules",
       },
       {
         id: "calendar",
@@ -4465,7 +4467,7 @@ const handleSignOut = useCallback(async () => {
           }}
         >
           {/* iOS Native Large Title (Scrolls with Content) */}
-          {((activeTab === "subjects" && activeSubjectId === null) ||
+          {((activeTab === "subjects" && activeSubjectId === null && activeModuleId === null) ||
             ["calendar", "control-center", "profile", "settings"].includes(
               activeTab,
             )) && (
@@ -4491,8 +4493,8 @@ const handleSignOut = useCallback(async () => {
                 <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
                   {activeTab === "subjects"
                     ? language === "ar"
-                      ? "المكتبة"
-                      : "Library"
+                      ? "الموديولات"
+                      : "Modules"
                     : activeTab === "calendar"
                       ? language === "ar"
                         ? "الجدول والامتحانات"
@@ -4668,198 +4670,125 @@ const handleSignOut = useCallback(async () => {
               </div>
             </div>
 
-            {/* Tab 2: Library (Subjects) */}
+            {/* Tab 2: Modules */}
             <div
-              
               style={{ display: activeTab === "subjects" ? "block" : "none" }}
               className="w-full"
             >
               <div className="w-full">
-                  {activeSubjectId === null ? (
-                    <div
-                      key="subjects-grid-outer"
-                      className="space-y-8"
-                    >
-                      {/* Premium Apple HIG Library Header */}
-                      <div className="flex flex-col gap-5 pt-4 pb-6">
-                        <div className="flex flex-col gap-3">
-                          <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
-                            Medical Library
-                          </h1>
-                          <p className="text-subhead font-medium text-neutral-500 dark:text-[#EBEBF599] max-w-lg">
-                            Explore your medical subjects and continue learning
-                            where you left off.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3 mt-1">
-                          <div className="flex items-center gap-3 bg-neutral-100 dark:bg-[#1C1C1E] px-4 py-2 rounded-lg ring-1 ring-black/[0.04] dark:ring-white/10">
-                            <Database className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599]" />
-                            <span className="text-footnote font-medium text-neutral-700 dark:text-[#EBEBF599]">
-                              <span className="font-semibold text-neutral-900 dark:text-white">
-                                {subjects.length}
-                              </span>{" "}
-                              Subjects
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 bg-neutral-100 dark:bg-[#1C1C1E] px-4 py-2 rounded-lg ring-1 ring-black/[0.04] dark:ring-white/10">
-                            <BookOpen className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599]" />
-                            <span className="text-footnote font-medium text-neutral-700 dark:text-[#EBEBF599]">
-                              <span className="font-semibold text-neutral-900 dark:text-white">
-                                {totalLectureCount}
-                              </span>{" "}
-                              Lectures
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 bg-neutral-100 dark:bg-[#1C1C1E] px-4 py-2 rounded-lg ring-1 ring-black/[0.04] dark:ring-white/10">
-                            <CircleCheck className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599]" />
-                            <span className="text-footnote font-medium text-neutral-700 dark:text-[#EBEBF599]">
-                              <span className="font-semibold text-neutral-900 dark:text-white">
-                                {
-globalProgressStats.completedLecturesCount
-                                }
-                              </span>{" "}
-                              Completed
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 bg-neutral-100 dark:bg-[#1C1C1E] px-4 py-2 rounded-lg ring-1 ring-black/[0.04] dark:ring-white/10">
-                            <TrendingUp className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599]" />
-                            <span className="text-footnote font-medium text-neutral-700 dark:text-[#EBEBF599]">
-                              <span className="font-semibold text-neutral-900 dark:text-white">
-                                {(
-                                  Object.values(
-                                    subjectLectureCounts,
-                                  ) as number[]
-                                ).reduce((a: number, b: number) => a + b, 0) > 0
-                                  ? globalProgressStats.overallCompletionPercentage
-                                  : 0}
-                                %
-                              </span>{" "}
-                              Progress
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
+                {activeModuleId !== null ? (
+                  <div
+                    className="w-full"
+                    style={{
+                      transform: `translate3d(${subjectSwipeX}px, 0, 0)`,
+                      transition: isReleasingSubject
+                        ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
+                        : "none",
+                      willChange: "transform",
+                    }}
+                  >
+                    <Suspense fallback={iOSLoadingFallback}>
+                      <ErrorBoundary>
+                        <ModulePlaceholderView
+                          subject={subjects.find((subject) => subject.id === activeModuleId) || subjects[0]}
+                          onBack={() => setActiveModuleId(null)}
+                          language={language}
+                        />
+                      </ErrorBoundary>
+                    </Suspense>
+                  </div>
+                ) : activeSubjectId === null ? (
+                  <Suspense fallback={iOSLoadingFallback}>
+                    <ErrorBoundary>
+                      <ModulesView
+                        subjects={subjects}
+                        lectureCounts={subjectLectureCounts}
+                        progressBySubject={subjectProgressMetrics}
+                        onSelectModule={(subjectId) => {
+                          setActiveLecture(null);
+                          setActiveModuleId(subjectId);
+                        }}
+                        language={language}
+                      />
+                    </ErrorBoundary>
+                  </Suspense>
+                ) : (
+                  /* Legacy SubjectView remains available only for search/deep links.
+                     It is no longer the visible Modules-page navigation path. */
+                  <div
+                    key="subject-details-wrapper"
+                    className="relative overflow-hidden w-full"
+                    style={{ transform: `translate3d(${subjectSwipeX}px, 0, 0)` }}
+                  >
+                    <div className="w-full grid grid-cols-1 grid-rows-1 relative">
                       <div
-                        key={`subjects-grid-${activeTab}`}
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                        style={
-                          {
-                            WebkitOverflowScrolling: "touch",
-                            isolation: "isolate",
-                          } as any
-                        }
+                        style={{
+                          gridArea: "1 / 1 / 2 / 2",
+                          pointerEvents: activeLecture === null ? "auto" : "none",
+                        }}
+                        className="w-full"
                       >
-                        {subjects.map((subItem, index) => {
-                          const lCount = subjectLectureCounts[subItem.id] || 0;
-                          const iconInfo = getSubjectIconInfo(subItem.id);
-                          const IconComponent = iconInfo.icon;
-
-                          // Use precalculated progress metrics
-                          const metrics = subjectProgressMetrics.get(subItem.id);
-                          const progressPct = metrics ? metrics.progressPercentage : 0;
-
-                          return (
-                            <SwipeableSubjectButton
-                              key={subItem.id}
-                              subject={subItem}
-                              lecturesCount={lCount}
-                              iconInfo={iconInfo}
-                              IconComponent={IconComponent}
-                              onSelectSubject={setActiveSubjectId}
-                              isRtl={language === "ar"}
-                              isTouchDevice={isTouchDevice}
-                              index={index}
-                              progressPct={progressPct}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      key="subject-details-wrapper"
-                      className="relative overflow-hidden w-full"
-                      style={{
-                        transform: `translate3d(${subjectSwipeX}px, 0, 0)`,
-                      }}
-                    >
-                      <div className="w-full grid grid-cols-1 grid-rows-1 relative">
-                        {/* Smooth state-driven preservation of SubjectView without unmounting (keeps states and scroll) */}
-                        <div
-                          style={{
-                            gridArea: "1 / 1 / 2 / 2",
-                            pointerEvents:
-                              activeLecture === null ? "auto" : "none",
-                          }}
-                          className="w-full"
-                        >
-                          <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
+                        <Suspense fallback={iOSLoadingFallback}>
+                          <ErrorBoundary>
                             <SubjectView
                               key={activeSubjectId}
-                              subject={subjects.find(
-                                (s) => s.id === activeSubjectId,
-                              ) || subjects[0]}
+                              subject={subjects.find((s) => s.id === activeSubjectId) || subjects[0]}
                               progress={progressDb}
                               dbLectures={dbLectures}
                               deepLinkedLecture={activeLecture}
                               onBack={handleBackSubject}
-                              onSelectLecture={(lect, tab) => { if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveLecture(lect); }}
+                              onSelectLecture={(lect, tab) => {
+                                if (tab) setActiveLectureTab(tab);
+                                else setActiveLectureTab("pdf");
+                                setActiveLecture(lect);
+                              }}
                               language={language}
                               calendarEvents={calendarEventsDb}
                             />
                           </ErrorBoundary>
-</Suspense>
-                        </div>
-
-                        <>
-                          {activeLecture !== null && (
-                            <motion.div
-                              key="lecture-detail"
-                              style={{
-                                gridArea: "1 / 1 / 2 / 2",
-                                zIndex: 10,
-                                boxShadow:
-                                  "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
-                                overflow: "hidden",
-                                transform: `translate3d(${lectureSwipeX}px, 0, 0)`,
-                                transition: isReleasingLecture
-                                  ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
-                                  : "none",
-                                willChange: "transform, opacity",
-                              }}
-                              initial={{ opacity: 1 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                              className="w-full bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
-                            >
-                              <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
-                                <LectureDetailView
-                                  lecture={activeLecture}
-                                  progress={activeLectureProgress}
-                                  onUpdateProgress={handleUpdateLectureProgress}
-                                  onAddPoints={handleAddPoints}
-                                  onBack={handleBackLecture}
-                                  currentUser={activeLectureUser}
-                                  language={language}
-                                  calendarEvents={calendarEventsDb}
-                                  initialTab={activeLectureTab}
-                                />
-                              </ErrorBoundary>
-</Suspense>
-                            </motion.div>
-                          )}
-                        </>
+                        </Suspense>
                       </div>
+
+                      {activeLecture !== null && (
+                        <motion.div
+                          key="lecture-detail"
+                          style={{
+                            gridArea: "1 / 1 / 2 / 2",
+                            zIndex: 10,
+                            boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
+                            overflow: "hidden",
+                            transform: `translate3d(${lectureSwipeX}px, 0, 0)`,
+                            transition: isReleasingLecture
+                              ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
+                              : "none",
+                            willChange: "transform, opacity",
+                          }}
+                          initial={{ opacity: 1 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+                          className="w-full bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                        >
+                          <Suspense fallback={iOSLoadingFallback}>
+                            <ErrorBoundary>
+                              <LectureDetailView
+                                lecture={activeLecture}
+                                progress={activeLectureProgress}
+                                onUpdateProgress={handleUpdateLectureProgress}
+                                onAddPoints={handleAddPoints}
+                                onBack={handleBackLecture}
+                                currentUser={activeLectureUser}
+                                language={language}
+                                calendarEvents={calendarEventsDb}
+                                initialTab={activeLectureTab}
+                              />
+                            </ErrorBoundary>
+                          </Suspense>
+                        </motion.div>
+                      )}
                     </div>
-                  )}
+                  </div>
+                )}
               </div>
             </div>
 

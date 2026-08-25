@@ -22,6 +22,8 @@ AuthScreen.preload();
 ProfileCompletionScreen.preload();
 HomeDashboard.preload();
 
+export const ModulesView = lazyWithPreload(() => import("../../features/modules/components/ModulesView"));
+export const ModulePlaceholderView = lazyWithPreload(() => import("../../features/modules/components/ModulePlaceholderView"));
 export const SubjectView = lazyWithPreload(() => import("../../features/subjects/components/SubjectView"));
 export const LectureDetailView = lazyWithPreload(() => import("../../features/lectures/components/LectureDetailView"));
 export const CalendarView = lazyWithPreload(() => import("../../features/calendar/components/CalendarView"));

@@ -8,7 +8,7 @@ export type Language = "en" | "ar";
 const translations = {
   en: {
     // Nav Bar
-    library: "Library",
+    library: "Modules",
     schedule: "Timetable & Calendar",
     focusZone: "Focus Zone",
     settings: "Settings",
@@ -184,7 +184,7 @@ const translations = {
   },
   ar: {
     // Nav Bar
-    library: "المكتبة الأكاديمية",
+    library: "الموديولات",
     schedule: "الجدول والتقويم الدراسي",
     focusZone: "مؤقت التركيز الفائق",
     settings: "الإعدادات",
