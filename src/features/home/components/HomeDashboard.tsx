@@ -507,69 +507,22 @@ const UpcomingEventAlert = memo(({ nextEvent, isRtl, onNavigateTab, t }: { nextE
 });
 
 
-// iOS-safe premium Hero motion.
-// WKWebView/Safari can briefly re-rasterize text and large composited layers when
-// scale/transform animations are used on nested hero content. Keep entrance motion
-// opacity-only and let timing/stagger create the depth instead.
-const HERO_FADE_EASE = [0.22, 0.61, 0.36, 1] as const;
-
+// Stagger variants shared by HeroBanner children
+// NOTE: no `filter` here. A permanent no-op `filter: blur(0px)` used to force a
+// compositing filter layer on every hero item; on iOS Safari the layers are torn
+// down + rebuilt on each display:none→block tab switch, intermittently painting
+// the hero's gradients/text with a corrupted first frame. Pure opacity/y only.
 const heroContainerVariants: Variants = {
-  hidden: {
-    opacity: 1,
-    transition: { staggerChildren: 0.014, staggerDirection: -1 },
-  },
-  visible: {
-    opacity: 1,
-    transition: { delayChildren: 0.018, staggerChildren: 0.038 },
-  },
-};
-
-const heroItemVariant: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.26, ease: HERO_FADE_EASE },
-  },
-};
-
-const heroBadgeVariant: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.24, ease: HERO_FADE_EASE },
-  },
-};
-
-const heroGreetingGroupVariant: Variants = {
   hidden: { opacity: 1 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.045 },
-  },
+  visible: { opacity: 1 },
 };
-
-const heroGreetingLineVariant: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.28, ease: HERO_FADE_EASE },
-  },
+const heroItemVariant: Variants = {
+  hidden: { opacity: 1, y: 0 },
+  visible: { opacity: 1, y: 0 },
 };
-
-const heroMessageVariant: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.3, ease: HERO_FADE_EASE },
-  },
-};
-
 const heroPillVariant = (i: number): Variants => ({
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { delay: i * 0.012, duration: 0.24, ease: HERO_FADE_EASE },
-  },
+  hidden: { opacity: 1, y: 0 },
+  visible: { opacity: 1, y: 0 },
 });
 
 const HeroBanner = memo(({
@@ -577,14 +530,6 @@ const HeroBanner = memo(({
   mottoIndex, layout, t,
   nextEvent, onNavigateTab, isWide,
 }: HeroBannerProps) => {
-  const shouldReduceMotion = useReducedMotion();
-  const isIOSLike = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    const ua = navigator.userAgent || "";
-    const classicIOS = /iPad|iPhone|iPod/i.test(ua);
-    const modernIPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    return classicIOS || modernIPadOS;
-  }, []);
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
@@ -649,9 +594,7 @@ const HeroBanner = memo(({
             style={{
               transform: "translate(-50%, -50%)",
               background: `conic-gradient(from ${auroraStartDeg}deg, transparent 0deg, rgba(30,58,110,0.52) 60deg, transparent 120deg, rgba(180,120,30,0.26) 200deg, transparent 280deg)`,
-              animation: isIOSLike || shouldReduceMotion ? "none" : "hero-aurora 28s linear infinite",
-              WebkitBackfaceVisibility: "hidden",
-              backfaceVisibility: "hidden",
+              animation: "hero-aurora 28s linear infinite",
             }}
           />
         </div>
@@ -681,22 +624,23 @@ const HeroBanner = memo(({
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
         variants={heroContainerVariants}
-        initial={shouldReduceMotion ? "visible" : "hidden"}
-        animate={shouldReduceMotion ? "visible" : (isActive ? "visible" : "hidden")}
+        initial="hidden"
+        animate="visible"
       >
         {/* Left column — text */}
         <div className={`flex flex-col min-w-0 overflow-hidden ${isWide ? "flex-1" : ""} ${layout.gapClass}`}>
 
           <div className="flex flex-col relative z-10">
             {/* Badge row */}
-            <motion.div variants={heroBadgeVariant} className="flex flex-wrap items-center justify-between gap-2 select-none">
+            <motion.div variants={heroItemVariant} className="flex flex-wrap items-center justify-between gap-2 select-none">
               <UniversityBadge layout={layout} isRtl={isRtl} t={t} />
               {/* Countdown inline with badge on wide screens */}
               {isWide && nextEvent && <ExamCountdown nextEvent={nextEvent} />}
             </motion.div>
 
             {/* Greeting + name */}
-            <div
+            <motion.div
+              variants={heroItemVariant}
               className={`home-hero-greeting ${layout.stackGapClass} ${isWide ? "max-w-[85%]" : "max-w-[80%] md:max-w-[72%]"} min-w-[260px] relative mt-1 md:mt-2`}
             >
               <div
@@ -705,18 +649,11 @@ const HeroBanner = memo(({
                   from-[#0A1633]/30 via-[#050B1A]/10 to-transparent
                   pointer-events-none rounded-[100%] z-0`}
               />
-              <motion.h2
-                variants={heroGreetingGroupVariant}
-                className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}
-              >
-                <motion.span
-                  variants={heroGreetingLineVariant}
-                  className="font-normal text-white/75 mb-0 md:mb-0.5"
-                  style={{ fontSize: "0.65em" }}
-                >
+              <h2 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}>
+                <span className="font-normal text-white/75 mb-0 md:mb-0.5" style={{ fontSize: "0.65em" }}>
                   {smartGreeting.greeting}
-                </motion.span>
-                <motion.span variants={heroGreetingLineVariant} className="font-semibold text-white">
+                </span>
+                <span className="font-semibold text-white">
                   {user?.name ? smartGreeting.name : ""}
                   <span
                     className="inline-block ml-1 md:ml-2 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 xl:w-9 xl:h-9 text-2xl sm:text-3xl md:text-4xl xl:text-[2.25rem] leading-none select-none drop-shadow-sm"
@@ -752,13 +689,12 @@ const HeroBanner = memo(({
                       "🌙"
                     )}
                   </span>
-                </motion.span>
-              </motion.h2>
+                </span>
+              </h2>
 
               {/* Motto block — only rendered when a motto is available (no wasted space when empty) */}
               {smartSubtitle && (
-              <motion.div
-                variants={heroMessageVariant}
+              <div
                 role="region"
                 aria-label={t("dailyMotto")}
                 aria-live="polite"
@@ -776,29 +712,29 @@ const HeroBanner = memo(({
                 </div>
                 {/* Dynamic min-height so long mottos are never clipped */}
                 <div className="relative flex items-start" style={{ minHeight: "2.8rem" }}>
-                  <AnimatePresence mode="wait" initial={false}>
+                  <AnimatePresence mode="popLayout" initial={false}>
                     <motion.p
                       key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.24, ease: HERO_FADE_EASE }}
+                      initial={{ opacity: 1, y: 0 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                       className={`${layout.subtitleClass} text-white/85 font-medium leading-snug md:leading-normal break-words antialiased max-w-[560px] absolute top-0 w-full`}
                     >
                       {smartSubtitle.text}
                     </motion.p>
                   </AnimatePresence>
                 </div>
-              </motion.div>
+              </div>
               )}
 
               {/* Countdown below motto on narrow layouts */}
               {!isWide && nextEvent && (
-                <motion.div variants={heroItemVariant} className="mt-1">
+                <div className="mt-1">
                   <ExamCountdown nextEvent={nextEvent} />
-                </motion.div>
+                </div>
               )}
-            </div>
+            </motion.div>
           </div>
 
           {/* Pills — decorative identity badges */}
