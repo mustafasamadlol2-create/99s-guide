@@ -1700,6 +1700,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     dependency={activeTab}
     durationMs={420}
     includeOverflowInMeasurement
+    settleToAuto
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
     contentClassName="w-full min-h-[clamp(430px,58svh,650px)]"
@@ -2450,7 +2451,7 @@ initial={{ opacity: 0, y: 3 }}
         <div
           onClick={() => setIsFlipped(!isFlipped)}
           style={flashcardThemeVars}
-          className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
+          className={`relative w-full max-w-[980px] mx-auto min-h-[clamp(360px,46svh,420px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
               ? "bg-white border-black/[0.07] text-neutral-900 shadow-[0_24px_62px_rgba(15,23,42,0.12)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
               : "bg-white border-black/[0.07] text-neutral-900 shadow-[0_20px_54px_rgba(15,23,42,0.10)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
@@ -2469,7 +2470,7 @@ initial={{ opacity: 0, y: 3 }}
             <div className="absolute inset-0 bg-white/[0.16] dark:bg-black/[0.12]" />
           </div>
 
-          <div className="relative z-10 flex h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
+          <div className="relative z-10 w-full">
             <AnimatePresence mode="wait" initial={false}>
               {!isFlipped ? (
                 <motion.div
@@ -2478,7 +2479,7 @@ initial={{ opacity: 0, y: 3 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.992 }}
                   transition={{ duration: 0.34, ease: [0.23, 1, 0.32, 1] }}
-                  className="absolute inset-0 z-10 flex flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
+                  className="relative z-10 flex min-h-[clamp(360px,46svh,420px)] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -2509,15 +2510,15 @@ initial={{ opacity: 0, y: 3 }}
                     </div>
                   </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-                    <div className="min-h-full flex items-center justify-center py-6 sm:py-8">
-                      <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
+                  <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
+                    <div className="w-full max-w-[760px] max-h-[clamp(300px,52svh,500px)] overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
+                      <h3 className="text-[clamp(1.65rem,3.05vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
                         {activeCards[currentCardIndex]?.front}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center gap-3 pb-2 sm:pb-3">
+                  <div className="mt-auto flex flex-col items-center gap-3 pt-3 pb-1 sm:pt-4 sm:pb-2">
                     <div className="flex items-center gap-4 w-full max-w-[360px]">
                       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-black/[0.10] to-black/[0.04] dark:via-white/12 dark:to-white/5" />
                       <Activity className="w-5 h-5" style={{ color: flashcardTheme.accent }} />
@@ -2535,7 +2536,7 @@ initial={{ opacity: 0, y: 3 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.992 }}
                   transition={{ duration: 0.34, ease: [0.23, 1, 0.32, 1] }}
-                  className="absolute inset-0 z-10 flex flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
+                  className="relative z-10 flex min-h-[clamp(360px,46svh,420px)] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[11px] sm:text-xs font-bold tracking-[0.18em] uppercase" style={{ color: flashcardTheme.accent }}>
@@ -2557,9 +2558,9 @@ initial={{ opacity: 0, y: 3 }}
                     </div>
                   </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
-                    <div className="min-h-full flex items-center justify-center py-4 sm:py-5">
-                      <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.65] text-balance">
+                  <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
+                    <div className="w-full max-w-[760px] max-h-[clamp(320px,56svh,540px)] overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">
+                      <div className="text-[clamp(1.08rem,1.95vw,1.62rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.62] text-balance">
                         {activeCards[currentCardIndex]?.back}
                       </div>
                     </div>
@@ -2572,7 +2573,7 @@ initial={{ opacity: 0, y: 3 }}
 
         <div
           aria-hidden={!isFlipped}
-          className={`min-h-[118px] sm:min-h-[126px] space-y-2.5 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
+          className={`min-h-[110px] sm:min-h-[118px] pt-2 sm:pt-3 space-y-2 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
         >
           <p className="text-xs font-bold tracking-[0.16em] text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
             {isRtl ? "كيف كان مستوى تذكّرك للمفهوم؟" : "How easily did you recall this?"}
