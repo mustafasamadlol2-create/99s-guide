@@ -1843,14 +1843,12 @@ initial={{ opacity: 0, y: 3 }}
    style={flashcardThemeVars}
  >
    <div className="pointer-events-none absolute inset-0">
-     <div className="absolute inset-y-0 right-0 w-[42%] min-w-[220px] opacity-75 dark:opacity-85">
-       <SubjectFlashcardArtwork
-         subjectId={lecture.subjectId}
-         rgb={flashcardTheme.rgb}
-         className="absolute inset-0"
-       />
-     </div>
-     <div className="absolute inset-0 bg-gradient-to-r from-white via-white/96 to-white/70 dark:from-[#17181B] dark:via-[#17181B]/96 dark:to-[#17181B]/72" />
+     <SubjectFlashcardArtwork
+       subjectId={lecture.subjectId}
+       rgb={flashcardTheme.rgb}
+       className="absolute inset-0 opacity-70 dark:opacity-80"
+     />
+     <div className="absolute inset-0 bg-white/[0.18] dark:bg-black/[0.12]" />
      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.42)] to-transparent" />
    </div>
    <div className="relative z-10 px-5 py-6 sm:px-7 sm:py-7 flex items-center min-h-[132px] sm:min-h-[150px]">
@@ -2352,22 +2350,21 @@ initial={{ opacity: 0, y: 3 }}
           style={flashcardThemeVars}
           className={`relative w-full max-w-[980px] mx-auto h-[clamp(320px,42svh,390px)] sm:h-[clamp(340px,43svh,405px)] lg:h-[clamp(350px,44svh,415px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
-              ? "bg-[#151619] border-white/[0.09] text-white shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
-              : "bg-[#151619] border-white/[0.09] text-white shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
+              ? "bg-white border-black/[0.07] text-neutral-900 shadow-[0_24px_62px_rgba(15,23,42,0.12)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
+              : "bg-white border-black/[0.07] text-neutral-900 shadow-[0_20px_54px_rgba(15,23,42,0.10)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_24px_65px_rgba(0,0,0,0.32)]"
           }`}
         >
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.02),_transparent_52%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.30),_transparent_52%)] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.02),_transparent_52%)]" />
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.45)] to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
-            <div className="absolute left-0 top-0 h-full w-full bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_22%,transparent_78%,rgba(255,255,255,0.015))]" />
-            <div className="absolute inset-y-0 right-0 w-[46%] min-w-[260px] max-w-[460px] opacity-95">
-              <SubjectFlashcardArtwork
-                subjectId={lecture.subjectId}
-                rgb={flashcardTheme.rgb}
-                className="absolute inset-0"
-              />
-            </div>
+            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-black/[0.06] dark:via-white/[0.08] to-transparent" />
+            <div className="absolute left-0 top-0 h-full w-full bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent_22%,transparent_78%,rgba(15,23,42,0.03))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_22%,transparent_78%,rgba(255,255,255,0.015))]" />
+            <SubjectFlashcardArtwork
+              subjectId={lecture.subjectId}
+              rgb={flashcardTheme.rgb}
+              className="absolute inset-0 opacity-75 dark:opacity-90"
+            />
+            <div className="absolute inset-0 bg-white/[0.16] dark:bg-black/[0.12]" />
           </div>
 
           <div className="relative z-10 flex h-full h-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-8">
@@ -2395,7 +2392,7 @@ initial={{ opacity: 0, y: 3 }}
                     </div>
 
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-white/10 overflow-hidden relative">
+                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-black/[0.08] dark:bg-white/10 overflow-hidden relative">
                         <motion.div
                           className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
                           style={{ backgroundColor: flashcardTheme.accent }}
@@ -2404,25 +2401,25 @@ initial={{ opacity: 0, y: 3 }}
                           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                         />
                       </div>
-                      <div className="text-xs sm:text-sm font-medium font-mono text-white/65">
+                      <div className="text-xs sm:text-sm font-medium font-mono text-neutral-500 dark:text-white/65">
                         {currentCardIndex + 1}/{activeCards.length}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex-1 flex items-center justify-center py-8 sm:py-10">
-                    <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
+                    <h3 className="max-w-[700px] text-[clamp(1.75rem,3.2vw,3rem)] font-semibold tracking-[-0.03em] text-center text-balance text-neutral-900 dark:text-white leading-[1.14] drop-shadow-[0_2px_6px_rgba(0,0,0,0.22)]">
                       {activeCards[currentCardIndex]?.front}
                     </h3>
                   </div>
 
                   <div className="flex flex-col items-center gap-3 pb-2 sm:pb-3">
                     <div className="flex items-center gap-4 w-full max-w-[360px]">
-                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/12 to-white/5" />
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-black/[0.10] to-black/[0.04] dark:via-white/12 dark:to-white/5" />
                       <Activity className="w-5 h-5" style={{ color: flashcardTheme.accent }} />
-                      <div className="h-px flex-1 bg-gradient-to-l from-transparent via-white/12 to-white/5" />
+                      <div className="h-px flex-1 bg-gradient-to-l from-transparent via-black/[0.10] to-black/[0.04] dark:via-white/12 dark:to-white/5" />
                     </div>
-                    <p className="text-[11px] sm:text-sm font-medium text-white/58 uppercase tracking-[0.16em]">
+                    <p className="text-[11px] sm:text-sm font-medium text-neutral-500 dark:text-white/58 uppercase tracking-[0.16em]">
                       {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
                     </p>
                   </div>
@@ -2441,7 +2438,7 @@ initial={{ opacity: 0, y: 3 }}
                       {isRtl ? "تفسير علمي" : "EXPLANATION"}
                     </span>
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-white/10 overflow-hidden relative">
+                      <div className="w-20 sm:w-28 lg:w-32 h-1.5 rounded-full bg-black/[0.08] dark:bg-white/10 overflow-hidden relative">
                         <motion.div
                           className="absolute top-0 left-0 h-full w-full origin-left rounded-full"
                           style={{ backgroundColor: flashcardTheme.accent }}
@@ -2450,14 +2447,14 @@ initial={{ opacity: 0, y: 3 }}
                           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                         />
                       </div>
-                      <div className="text-xs sm:text-sm font-medium font-mono text-white/65">
+                      <div className="text-xs sm:text-sm font-medium font-mono text-neutral-500 dark:text-white/65">
                         {currentCardIndex + 1}/{activeCards.length}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex-1 flex flex-col items-center justify-center py-4 sm:py-5 overflow-y-auto overscroll-contain">
-                    <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-white/92 leading-[1.65] text-balance">
+                    <div className="max-w-[700px] text-[clamp(1.1rem,2vw,1.65rem)] font-medium text-center text-neutral-800 dark:text-white/92 leading-[1.65] text-balance">
                       {activeCards[currentCardIndex]?.back}
                     </div>
                   </div>
