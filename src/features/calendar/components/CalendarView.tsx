@@ -31,6 +31,7 @@ import {
 
 import { useCalendar } from "../hooks/useCalendar";
 import { CalendarHeader } from "./CalendarHeader";
+import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { CalendarMonthView } from "./CalendarMonthView";
 import { CalendarWeekView } from "./CalendarWeekView";
 import { CalendarDayView } from "./CalendarDayView";
@@ -349,6 +350,96 @@ const CalendarView = memo(function CalendarView({
  language,
  });
 
+ // Keep independent scroll positions for Month / Week / Day, like native
+ // tab views. Switching views no longer destroys the user's reading position.
+ const calendarViewScrollPositionsRef = useRef<Record<string, number>>({});
+ const pendingCalendarScrollRef = useRef<number | null>(null);
+
+ const getMainScrollCanvas = React.useCallback(() =>
+ document.getElementById("main-scroll-canvas") as HTMLElement | null, []);
+
+ const getCalendarScrollKey = React.useCallback((view: string) =>
+ `calendar_scroll_${view}`, []);
+
+ const saveCalendarViewScroll = React.useCallback((view = activeView) => {
+ const canvas = getMainScrollCanvas();
+ if (!canvas) return;
+ const position = canvas.scrollTop;
+ calendarViewScrollPositionsRef.current[view] = position;
+ try {
+ sessionStorage.setItem(getCalendarScrollKey(view), String(position));
+ } catch {}
+ }, [activeView, getCalendarScrollKey, getMainScrollCanvas]);
+
+ const handleCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
+ if (nextView === activeView) return;
+
+ const canvas = getMainScrollCanvas();
+ const currentPosition = canvas?.scrollTop ?? 0;
+ saveCalendarViewScroll(activeView);
+
+ let nextPosition = calendarViewScrollPositionsRef.current[nextView];
+ if (nextPosition == null) {
+ try {
+ const stored = sessionStorage.getItem(getCalendarScrollKey(nextView));
+ if (stored != null) nextPosition = Number(stored);
+ } catch {}
+ }
+
+ pendingCalendarScrollRef.current = Number.isFinite(nextPosition)
+ ? nextPosition
+ : currentPosition;
+ setActiveView(nextView);
+ }, [activeView, getCalendarScrollKey, getMainScrollCanvas, saveCalendarViewScroll, setActiveView]);
+
+ useEffect(() => {
+ const canvas = getMainScrollCanvas();
+ if (!canvas) return;
+
+ let frame = 0;
+ const onScroll = () => {
+ cancelAnimationFrame(frame);
+ frame = requestAnimationFrame(() => saveCalendarViewScroll(activeView));
+ };
+ canvas.addEventListener("scroll", onScroll, { passive: true });
+ return () => {
+ cancelAnimationFrame(frame);
+ canvas.removeEventListener("scroll", onScroll);
+ };
+ }, [activeView, getMainScrollCanvas, saveCalendarViewScroll]);
+
+ React.useLayoutEffect(() => {
+ const requested = pendingCalendarScrollRef.current;
+ if (requested == null) return;
+ pendingCalendarScrollRef.current = null;
+
+ let frame1 = 0;
+ let frame2 = 0;
+ let settleTimer: ReturnType<typeof setTimeout> | null = null;
+ let hasAppliedRestore = false;
+ let lastAppliedPosition = 0;
+ const restore = () => {
+ const canvas = getMainScrollCanvas();
+ if (!canvas) return;
+ if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
+ const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+ const nextPosition = Math.min(Math.max(0, requested), maxScroll);
+ canvas.scrollTop = nextPosition;
+ lastAppliedPosition = nextPosition;
+ hasAppliedRestore = true;
+ };
+
+ frame1 = requestAnimationFrame(() => {
+ frame2 = requestAnimationFrame(restore);
+ });
+ settleTimer = setTimeout(restore, 440);
+ return () => {
+ cancelAnimationFrame(frame1);
+ cancelAnimationFrame(frame2);
+ if (settleTimer) clearTimeout(settleTimer);
+ };
+ }, [activeView, getMainScrollCanvas]);
+
  useEffect(() => {
  const handleKeyDown = (e: KeyboardEvent) => {
  if (
@@ -532,7 +623,7 @@ const CalendarView = memo(function CalendarView({
  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
  }}
  >
- <CalendarHeader t={t} isRtl={isRtl} activeView={activeView} setActiveView={setActiveView} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
+ <CalendarHeader t={t} isRtl={isRtl} activeView={activeView} setActiveView={handleCalendarViewChange} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <div
  id="left_middle_deck"
@@ -623,11 +714,11 @@ const CalendarView = memo(function CalendarView({
  </div>
 
  {/* View Switcher Container */}
- <motion.div
- layout="size"
- layoutDependency={activeView}
- transition={{ layout: { duration: 0.42, ease: [0.23, 1, 0.32, 1] } }}
- className="w-full pt-1 grid min-w-0 overflow-hidden"
+ <SmoothAutoHeight
+ dependency={activeView}
+ durationMs={420}
+ className="w-full pt-1 min-w-0 overflow-hidden [overflow-anchor:none]"
+ contentClassName="grid w-full min-w-0"
  style={{
  fontFamily:
  '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
@@ -687,7 +778,7 @@ const CalendarView = memo(function CalendarView({
  </motion.div>
  )}
  </AnimatePresence>
- </motion.div>
+ </SmoothAutoHeight>
  </div>
 
  {/* Floating Apple-Style Context Menu */}

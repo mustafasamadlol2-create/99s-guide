@@ -1787,7 +1787,10 @@ export default function App() {
     }
   }, [subjects, dbLectures]);
 
-  // --- Tab-Level Scroll Memory Controller with Session Storage Restoration (Apple Human Interface Guidelines) ---
+  // --- Native-like Scroll Memory Controller ---------------------------------
+  // The app uses one persistent scroll canvas. Preserve an independent scroll
+  // position for every navigation path so moving between pages behaves like a
+  // native navigation stack instead of remounting a web page at scrollTop=0.
   const getNavigationPath = useCallback(() => {
     let path = "/" + activeTab;
     if (activeTab === "home") {
@@ -1814,40 +1817,121 @@ export default function App() {
     activeLecture,
   ]);
 
-  const prevNavigationPathRef = useRef<string>(getNavigationPath());
+  const navigationPath = getNavigationPath();
+  const prevNavigationPathRef = useRef<string>(navigationPath);
+  const inMemoryScrollPositionsRef = useRef<Record<string, number>>({});
+  const isRestoringGlobalScrollRef = useRef(false);
 
-  // Handle capturing scroll top values on scroll and storing them securely in sessionStorage
+  const storeScrollPosition = useCallback((path: string, position: number) => {
+    const safePosition = Math.max(0, Math.round(position));
+    inMemoryScrollPositionsRef.current[path] = safePosition;
+    try {
+      sessionStorage.setItem(`scroll_pos_${path}`, String(safePosition));
+    } catch {}
+  }, []);
+
+  const readScrollPosition = useCallback((path: string): number | null => {
+    const memoryValue = inMemoryScrollPositionsRef.current[path];
+    if (Number.isFinite(memoryValue)) return memoryValue;
+    try {
+      const stored = sessionStorage.getItem(`scroll_pos_${path}`);
+      if (stored == null) return null;
+      const parsed = Number(stored);
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     const canvas = document.getElementById("main-scroll-canvas");
     if (!canvas) return;
 
-    let ticking = false;
+    // Prevent browser/PWA history restoration from fighting the app's own
+    // persistent scroll canvas restoration.
+    const previousRestoration = "scrollRestoration" in window.history
+      ? window.history.scrollRestoration
+      : null;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+
+    let frame = 0;
     const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const currentPath = prevNavigationPathRef.current;
-          const scrollTop = canvas.scrollTop;
-          try {
-            sessionStorage.setItem(
-              `scroll_pos_${currentPath}`,
-              scrollTop.toString(),
-            );
-          } catch (e) {
-            // Ignore
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
+      if (isRestoringGlobalScrollRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        storeScrollPosition(prevNavigationPathRef.current, canvas.scrollTop);
+      });
     };
 
-    // canvas.addEventListener("scroll", handleScroll, { passive: true });
+    const handlePageHide = () => {
+      storeScrollPosition(prevNavigationPathRef.current, canvas.scrollTop);
+    };
+
+    canvas.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("pagehide", handlePageHide);
 
     return () => {
-      // canvas.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(frame);
+      storeScrollPosition(prevNavigationPathRef.current, canvas.scrollTop);
+      canvas.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("pagehide", handlePageHide);
+      if (previousRestoration && "scrollRestoration" in window.history) {
+        window.history.scrollRestoration = previousRestoration;
+      }
     };
-       
-  }, []);
+  }, [storeScrollPosition]);
+
+  useLayoutEffect(() => {
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (!canvas) return;
+
+    const previousPath = prevNavigationPathRef.current;
+    if (previousPath === navigationPath) return;
+
+    // The scroll listener continuously captured the outgoing page before this
+    // render. Do not overwrite it here after the new, potentially shorter,
+    // page has already been mounted and clamped by the browser.
+    prevNavigationPathRef.current = navigationPath;
+
+    const requested = readScrollPosition(navigationPath) ?? 0;
+    isRestoringGlobalScrollRef.current = true;
+
+    let frame1 = 0;
+    let frame2 = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    let hasAppliedRestore = false;
+    let lastAppliedPosition = 0;
+    const restore = () => {
+      if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
+      const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      const nextPosition = Math.min(Math.max(0, requested), maxScroll);
+      canvas.scrollTop = nextPosition;
+      lastAppliedPosition = nextPosition;
+      hasAppliedRestore = true;
+    };
+
+    frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(restore);
+    });
+
+    // Some views finish their auto-height/content transition after the first
+    // two frames. Reapply once after settling so returning to a page lands at
+    // the exact saved position rather than a browser-clamped intermediate one.
+    settleTimer = setTimeout(() => {
+      restore();
+      isRestoringGlobalScrollRef.current = false;
+    }, 460);
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      cancelAnimationFrame(frame2);
+      if (settleTimer) clearTimeout(settleTimer);
+      isRestoringGlobalScrollRef.current = false;
+    };
+  }, [navigationPath, readScrollPosition]);
 
   const fetchMaterials = async (bypassCache = false) => {
     if (!currentUserRef.current) return;

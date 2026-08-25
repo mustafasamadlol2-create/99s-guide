@@ -57,6 +57,7 @@ import { showiOSAlert } from "../../../core/device/alert";
 import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
+import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -207,6 +208,106 @@ export const LectureDetailView = function LectureDetailView({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, lecture.id]);
+
+  // Preserve the outer app scroll position independently for every lecture tab.
+  // This makes returning to a previously visited tab feel like a native view
+  // instead of remounting a web page at the top.
+  const lectureTabScrollPositionsRef = useRef<Record<string, number>>({});
+  const pendingLectureTabScrollRef = useRef<number | null>(null);
+
+  const getMainScrollCanvas = useCallback(() =>
+    document.getElementById("main-scroll-canvas") as HTMLElement | null, []);
+
+  const getLectureTabScrollKey = useCallback((tab: string) =>
+    `lecture_scroll_${lecture.id}_${tab}`, [lecture.id]);
+
+  const saveLectureTabScroll = useCallback((tab = activeTab) => {
+    const canvas = getMainScrollCanvas();
+    if (!canvas) return;
+    const position = canvas.scrollTop;
+    lectureTabScrollPositionsRef.current[tab] = position;
+    try {
+      sessionStorage.setItem(getLectureTabScrollKey(tab), String(position));
+    } catch {}
+  }, [activeTab, getLectureTabScrollKey, getMainScrollCanvas]);
+
+  const handleLectureTabChange = useCallback((nextTab: typeof activeTab) => {
+    if (nextTab === activeTab) return;
+
+    const canvas = getMainScrollCanvas();
+    const currentPosition = canvas?.scrollTop ?? 0;
+    saveLectureTabScroll(activeTab);
+
+    let nextPosition = lectureTabScrollPositionsRef.current[nextTab];
+    if (nextPosition == null) {
+      try {
+        const stored = sessionStorage.getItem(getLectureTabScrollKey(nextTab));
+        if (stored != null) nextPosition = Number(stored);
+      } catch {}
+    }
+
+    // First visit keeps the same viewport anchor. Returning to a visited tab
+    // restores that tab's exact previous position.
+    pendingLectureTabScrollRef.current = Number.isFinite(nextPosition)
+      ? nextPosition
+      : currentPosition;
+    setActiveTab(nextTab);
+  }, [activeTab, getLectureTabScrollKey, getMainScrollCanvas, saveLectureTabScroll]);
+
+  useEffect(() => {
+    const canvas = getMainScrollCanvas();
+    if (!canvas) return;
+
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => saveLectureTabScroll(activeTab));
+    };
+
+    canvas.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      canvas.removeEventListener("scroll", onScroll);
+    };
+  }, [activeTab, getMainScrollCanvas, saveLectureTabScroll]);
+
+  useLayoutEffect(() => {
+    const requested = pendingLectureTabScrollRef.current;
+    if (requested == null) return;
+    pendingLectureTabScrollRef.current = null;
+
+    let frame1 = 0;
+    let frame2 = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    let hasAppliedRestore = false;
+    let lastAppliedPosition = 0;
+    const restore = () => {
+      const canvas = getMainScrollCanvas();
+      if (!canvas) return;
+      // If the user has intentionally scrolled after the first restore, never
+      // snap them back when the content-height animation finishes.
+      if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
+      const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      const nextPosition = Math.min(Math.max(0, requested), maxScroll);
+      canvas.scrollTop = nextPosition;
+      lastAppliedPosition = nextPosition;
+      hasAppliedRestore = true;
+    };
+
+    frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(restore);
+    });
+    // Re-apply once the auto-height transition has settled so a shrinking or
+    // expanding tab cannot leave the viewport at an unintended offset.
+    settleTimer = setTimeout(restore, 440);
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      cancelAnimationFrame(frame2);
+      if (settleTimer) clearTimeout(settleTimer);
+    };
+  }, [activeTab, getMainScrollCanvas]);
 
  const [customFlashcards, setCustomFlashcards] = useState<any[]>([]);
  const [postMuteError, setPostMuteError] = useState<string | null>(null);
@@ -1563,7 +1664,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  whileTap={{ scale: 0.985 }}
  transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
  onClick={() => {
- setActiveTab(tab.id as any);
+ handleLectureTabChange(tab.id as typeof activeTab);
  }}
  className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[250ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
  >
@@ -1595,12 +1696,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
    {/* 2. Workspace View Tabs Rendering */}
-  <motion.div
-    layout="size"
-    layoutDependency={activeTab}
-    transition={{ layout: { duration: 0.42, ease: [0.23, 1, 0.32, 1] } }}
+  <SmoothAutoHeight
+    dependency={activeTab}
+    durationMs={420}
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
+    contentClassName="w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
   >
   <AnimatePresence mode="wait" initial={false}>
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
@@ -3267,7 +3368,7 @@ initial={{ opacity: 0, y: 3 }}
       setShowGuidelines(false);
     }}
   />
-  </motion.div>
+  </SmoothAutoHeight>
   </div>
   );
 };
