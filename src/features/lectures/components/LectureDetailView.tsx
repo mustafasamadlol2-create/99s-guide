@@ -1718,7 +1718,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
     contentClassName="relative w-full min-h-[clamp(430px,58svh,650px)]"
   >
-  <AnimatePresence mode="popLayout" initial={false}>
+  {/* Important: do not keep the outgoing tab mounted while measuring height.
+      Each incoming tab already has its own short fade animation. Rendering only
+      the active panel ensures SmoothAutoHeight measures the new panel on the
+      first committed frame, preventing the long → short "double resize" glitch. */}
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
@@ -3378,8 +3381,6 @@ initial={{ opacity: 0, y: 3 }}
  </div>
    </motion.div>
   )}
-  </AnimatePresence>
-
 
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}
