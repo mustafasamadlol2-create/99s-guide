@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 import { BookOpen, Database, GraduationCap } from "lucide-react";
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
@@ -37,6 +37,59 @@ const MODULE_META: Record<SubjectId, {
   ImD: { credits: 2, hours: 34, image: immuneDisturbancesImage, accent: "#A5B4FC", accentRgb: "165,180,252", surfaceClass: "bg-[#F4F5FF] dark:bg-[#20212D]" },
   SSC: { credits: 1, hours: 30, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
 };
+
+const MODULE_ARTWORK_URLS = Object.values(MODULE_META).map((meta) => meta.image);
+
+// Warm all seven local module images as soon as the Modules chunk is evaluated.
+// They are small, highly visible assets, so eager warming is preferable to lazy
+// loading here (especially in iOS PWA / WKWebView where off-screen image fetches
+// can occasionally be deferred longer than expected).
+if (typeof window !== "undefined") {
+  MODULE_ARTWORK_URLS.forEach((src) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = src;
+  });
+}
+
+function ResilientModuleImage({ src, accentRgb }: { src: string; accentRgb: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setAttempt(0);
+    setLoaded(false);
+  }, [src]);
+
+  const retrySrc =
+    attempt === 0
+      ? src
+      : `${src}${src.includes("?") ? "&" : "?"}module-artwork-retry=${attempt}`;
+
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        background: `linear-gradient(135deg, rgba(${accentRgb},0.16), rgba(${accentRgb},0.04))`,
+      }}
+      aria-hidden="true"
+    >
+      <img
+        src={retrySrc}
+        alt=""
+        loading="eager"
+        decoding="async"
+        className={`h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setLoaded(false);
+          setAttempt((current) => (current < 4 ? current + 1 : current));
+        }}
+      />
+    </div>
+  );
+}
 
 function MetricCard({ icon: Icon, value, label, tone }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -91,6 +144,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const orderedSubjects = MODULE_ORDER.map((id) => subjectById.get(id)).filter((subject): subject is Subject => Boolean(subject));
   const totalLectures = orderedSubjects.reduce((sum, subject) => sum + (lectureCounts[subject.id] || 0), 0);
+  const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_META[subject.id].credits, 0);
 
   return (
     <section className="w-full pb-8" aria-label={language === "ar" ? "الموديولات" : "Modules"}>
@@ -119,7 +173,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
           />
           <MetricCard
             icon={GraduationCap}
-            value={30}
+            value={totalCredits}
             label={language === "ar" ? "الكريديت" : "Credit"}
             tone="emerald"
           />
@@ -127,7 +181,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
       </header>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {orderedSubjects.map((subject, index) => {
+        {orderedSubjects.map((subject) => {
           const meta = MODULE_META[subject.id];
           const iconInfo = getSubjectIconInfo(subject.id);
           const Icon = iconInfo.icon;
@@ -143,14 +197,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
               aria-label={`${subject.name} module`}
             >
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-                <img
-                  src={meta.image}
-                  alt=""
-                  loading={index < 4 ? "eager" : "lazy"}
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                  draggable={false}
-                />
+                <ResilientModuleImage src={meta.image} accentRgb={meta.accentRgb} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
                 <div
                   className="absolute left-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl"
