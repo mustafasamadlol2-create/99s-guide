@@ -12,7 +12,6 @@ import App from "./App.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LaunchScreen } from "./components/ui/LaunchScreen";
 import "./index.css";
-import "./theme/indigoDarkTheme.css";
 import { HapticFeedback } from "./core/device/haptic";
 
 // Note: dark/light class and pre-paint background are applied by the inline

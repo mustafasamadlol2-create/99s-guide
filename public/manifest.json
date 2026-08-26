@@ -7,18 +7,12 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": [
-    "standalone",
-    "minimal-ui"
-  ],
-  "background_color": "#06152F",
-  "theme_color": "#071831",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#000000",
+  "theme_color": "#0B0F17",
   "orientation": "portrait",
   "prefer_related_applications": false,
-  "categories": [
-    "education",
-    "medical"
-  ],
+  "categories": ["education", "medical"],
   "icons": [
     {
       "src": "/logo-light.png",
