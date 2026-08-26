@@ -3,7 +3,33 @@ import { BookOpen, Database, GraduationCap } from "lucide-react";
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 
-import { MODULE_ORDER, MODULE_VISUALS, preloadModuleArtwork } from "../moduleVisuals";
+import { MODULE_ORDER, MODULE_VISUALS, isModuleArtworkReady, preloadModuleArtwork } from "../moduleVisuals";
+
+const decodedModuleArtwork = new Set<string>();
+
+function warmSingleModuleArtwork(src: string): Promise<void> {
+  if (typeof window === "undefined" || decodedModuleArtwork.has(src) || isModuleArtworkReady(src)) {
+    decodedModuleArtwork.add(src);
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const image = new Image();
+    image.decoding = "sync";
+    image.loading = "eager";
+    image.setAttribute("fetchpriority", "high");
+    const finish = async () => {
+      try {
+        if (typeof image.decode === "function") await image.decode();
+      } catch {}
+      decodedModuleArtwork.add(src);
+      resolve();
+    };
+    image.onload = () => void finish();
+    image.onerror = () => resolve();
+    image.src = src;
+    if (image.complete && image.naturalWidth > 0) void finish();
+  });
+}
 
 interface ModulesViewProps {
   subjects: Subject[];
@@ -23,11 +49,28 @@ function ResilientModuleImage({
   accentRgb: string;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => decodedModuleArtwork.has(src) || isModuleArtworkReady(src));
+  // The inline preview is intentionally not painted on module cards anymore.
+  // It was the source of the visibly blurred first paint on iPhone/iPad.
+  // Keep the prop because the same shared visual identity still uses it on detail pages.
+  void placeholder;
 
   useEffect(() => {
+    let cancelled = false;
     setAttempt(0);
+
+    if (decodedModuleArtwork.has(src) || isModuleArtworkReady(src)) {
+      decodedModuleArtwork.add(src);
+      setLoaded(true);
+      return () => { cancelled = true; };
+    }
+
     setLoaded(false);
+    void warmSingleModuleArtwork(src).then(() => {
+      if (!cancelled && decodedModuleArtwork.has(src)) setLoaded(true);
+    });
+
+    return () => { cancelled = true; };
   }, [src]);
 
   const retrySrc =
@@ -38,30 +81,27 @@ function ResilientModuleImage({
   return (
     <div
       className="absolute inset-0 overflow-hidden"
-      style={{
-        backgroundColor: `rgba(${accentRgb},0.10)`,
-        backgroundImage: `url(${JSON.stringify(placeholder)})`,
-        backgroundPosition: "center",
-        backgroundSize: "cover",
-      }}
+      style={{ backgroundColor: `rgba(${accentRgb},0.10)` }}
       aria-hidden="true"
     >
-      {/*
-        The inline preview is the exact same artwork at tiny resolution.
-        It is available synchronously with the JS bundle, so the image area can
-        never render as an empty/black block on the first app visit.
-      */}
-      <div className={`absolute inset-[-3px] scale-[1.02] transition-opacity duration-100 ${loaded ? "opacity-0" : "opacity-100"}`} style={{ backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }} />
-
       <img
+        ref={(node) => {
+          if (node?.complete && node.naturalWidth > 0) {
+            decodedModuleArtwork.add(src);
+            if (!loaded) setLoaded(true);
+          }
+        }}
         src={retrySrc}
         alt=""
         loading="eager"
-        decoding="async"
+        decoding="sync"
         fetchPriority="high"
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-75 ${loaded ? "opacity-100" : "opacity-0"}`}
         draggable={false}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => {
+          decodedModuleArtwork.add(src);
+          setLoaded(true);
+        }}
         onError={() => {
           setLoaded(false);
           setAttempt((current) => (current < 4 ? current + 1 : current));
@@ -99,20 +139,20 @@ function MetricCard({ icon: Icon, value, label, tone }: {
 
   return (
     <div
-      className={`flex min-h-[72px] min-w-[164px] items-center gap-3.5 rounded-[16px] border border-black/[0.055] bg-white px-3.5 py-3 dark:border-white/[0.07] dark:bg-[#15161A] ${selectedTone.glow}`}
+      className={`flex min-h-[64px] min-w-0 items-center gap-1.5 rounded-[14px] border border-black/[0.055] bg-white px-1.5 py-2.5 dark:border-white/[0.07] dark:bg-[#15161A] sm:min-h-[72px] sm:min-w-[164px] sm:gap-3.5 sm:rounded-[16px] sm:px-3.5 sm:py-3 ${selectedTone.glow}`}
     >
       <div
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border ${selectedTone.iconSurface}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border sm:h-11 sm:w-11 sm:rounded-[12px] ${selectedTone.iconSurface}`}
         aria-hidden="true"
       >
-        <Icon className={`h-[19px] w-[19px] ${selectedTone.icon}`} />
+        <Icon className={`h-[15px] w-[15px] sm:h-[19px] sm:w-[19px] ${selectedTone.icon}`} />
       </div>
 
       <div className="min-w-0 text-left">
-        <div className="text-[17px] font-semibold leading-none tracking-[-0.02em] text-neutral-950 dark:text-white">
+        <div className="text-[15px] font-semibold leading-none tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[17px]">
           {value}
         </div>
-        <div className="mt-1.5 whitespace-nowrap text-[11px] font-medium leading-none text-neutral-500 dark:text-[#EBEBF599]">
+        <div className="mt-1 whitespace-nowrap text-[8.5px] font-medium leading-none tracking-[-0.02em] text-neutral-500 dark:text-[#EBEBF599] sm:mt-1.5 sm:text-[11px] sm:tracking-normal">
           {label}
         </div>
       </div>
@@ -144,7 +184,7 @@ export const ModulesView = memo(function ModulesView({ subjects, progressBySubje
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-3 items-stretch gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           <MetricCard
             icon={Database}
             value={orderedSubjects.length}

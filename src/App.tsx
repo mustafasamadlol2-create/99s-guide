@@ -70,6 +70,7 @@ import {
 import { subjects as seedSubjects, initialCalendarEvents } from "./core/constants/seedData";
 import { DashboardSkeleton } from "./components/ui/Skeleton";
 import { navigateInApp } from "./core/routing/clientNavigation";
+import { preloadModuleArtwork } from "./features/modules/moduleVisuals";
 import {
   AuthScreen,
   ProfileCompletionScreen,
@@ -91,6 +92,13 @@ import {
   EditCalendarEvent,
   AppleEmailSelectionScreen,
 } from "./core/routing/appLazyRoutes";
+
+// Warm and decode all seven module artworks as soon as the main app bundle evaluates.
+// This runs before the user can navigate to Modules, so WKWebView does not first-paint
+// the low-resolution preview and then wait for a module-detail visit to decode the image.
+if (typeof window !== "undefined") {
+  void preloadModuleArtwork();
+}
 
 // Reusable Apple-Quality Fallback Skeleton (Apple Human Interface Guidelines)
 const iOSLoadingFallback = <DashboardSkeleton />;
@@ -333,33 +341,81 @@ export default function App() {
     keyboardHeight: number;
   }>({ isOpen: false, keyboardHeight: 0 });
 
+  // iOS/iPadOS foreground restoration guard.
+  //
+  // When WKWebView returns from the app switcher it can briefly expose the
+  // intermediate app-card viewport while the native zoom animation is still
+  // finishing. Updating React/device layout or refreshing server data during
+  // that tiny window makes the UI visibly reflow like a website. Keep the
+  // existing screen untouched until the native surface has settled.
+  const lifecycleActiveRef = useRef(true);
+  const resumeSettlingRef = useRef(false);
+
   useEffect(() => {
     // Initialize edge-to-edge / full-screen native UI first — must run before
     // any status-bar style calls so the overlay flag is set on Android.
     NativeBridge.initializeFullScreen();
 
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    const RESUME_SETTLE_MS = 360;
+
+    const clearResumeTimer = () => {
+      if (resumeTimer) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+    };
+
     const unbindNetwork = NativeBridge.onNetworkChange((online) => {
       setIsOnline(online);
-      if (online) {
-        // Re-sync or refresh cache when coming back online
+
+      // Never kick a data refresh while the native app-switcher transition is
+      // still restoring the WebView. The normal active-state effect below will
+      // refresh once, after the UI is stable.
+      if (
+        online &&
+        lifecycleActiveRef.current &&
+        !resumeSettlingRef.current
+      ) {
         refreshAcademicDataRef.current?.(true);
       }
     });
 
     const unbindLifecycle = NativeBridge.addAppLifecycleListener((active) => {
-       setIsActive(active);
-       if (active && currentUserRef.current) {
-        refreshAcademicDataRef.current?.(false);
-       }
+      clearResumeTimer();
+      lifecycleActiveRef.current = active;
+
+      if (!active) {
+        resumeSettlingRef.current = false;
+        // Tell responsive hooks to ignore the app-switcher card viewport.
+        window.dispatchEvent(new Event("99s-app-background"));
+        setIsActive(false);
+        return;
+      }
+
+      // Freeze responsive measurements immediately on foreground. Do NOT force
+      // a synthetic resize/reflow here: doing so is exactly what exposes the
+      // transient WKWebView dimensions in the UI.
+      resumeSettlingRef.current = true;
+      window.dispatchEvent(new Event("99s-app-resume"));
+
+      resumeTimer = setTimeout(() => {
+        resumeTimer = null;
+        resumeSettlingRef.current = false;
+        setIsActive(true);
+        window.dispatchEvent(new Event("99s-app-resume-settled"));
+        // No direct refresh here. The existing [currentUser, isActive] effect
+        // performs one normal refresh after isActive becomes true, avoiding a
+        // duplicate foreground burst and the visible repaint it caused.
+      }, RESUME_SETTLE_MS);
     });
-
-
 
     const unbindKeyboard = NativeBridge.listenToKeyboard((state) => {
       setKeyboardState(state);
     });
 
     return () => {
+      clearResumeTimer();
       unbindNetwork();
       unbindLifecycle();
       unbindKeyboard();

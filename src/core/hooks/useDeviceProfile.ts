@@ -63,63 +63,183 @@ export function useDeviceProfile(): DeviceProfile {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let timeoutId: NodeJS.Timeout;
+
+    // WKWebView/iPadOS resume behavior:
+    // while the app-switcher card expands back to full screen, resize and
+    // visualViewport.resize can report several transient dimensions. Committing
+    // those values to React changes tablet/desktop size classes for a frame and
+    // produces the visible "web page resize/refresh" shown on resume.
+    //
+    // The rule here is simple:
+    //   1) never measure while backgrounded;
+    //   2) freeze the last committed profile during foreground restoration;
+    //   3) after the native animation settles, commit only a stable viewport;
+    //   4) ignore visualViewport height-only changes (keyboard/chrome noise).
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let raf1 = 0;
+    let raf2 = 0;
+    let isSuspended = document.visibilityState === "hidden";
+    let resumeGuardUntil = 0;
+    let lastCommitted = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+
+    const NORMAL_DEBOUNCE_MS = 80;
+    const RESUME_GUARD_MS = 360;
+    const STABILITY_RETRY_MS = 80;
+
+    const cancelPendingMeasurement = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      raf1 = 0;
+      raf2 = 0;
+    };
+
+    const readLayoutViewport = () => ({
+      width: Math.max(1, Math.round(window.innerWidth)),
+      height: Math.max(1, Math.round(window.innerHeight)),
+    });
+
+    const commitSize = (next: { width: number; height: number }) => {
+      lastCommitted = next;
+      setWindowSize((prev) =>
+        prev.width === next.width && prev.height === next.height ? prev : next,
+      );
+    };
+
+    const measureWhenStable = () => {
+      timeoutId = null;
+      if (isSuspended || document.visibilityState === "hidden") return;
+
+      const remainingGuard = resumeGuardUntil - performance.now();
+      if (remainingGuard > 0) {
+        timeoutId = setTimeout(
+          measureWhenStable,
+          Math.ceil(remainingGuard) + 24,
+        );
+        return;
+      }
+
+      const first = readLayoutViewport();
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          const second = readLayoutViewport();
+          const stable =
+            Math.abs(first.width - second.width) <= 1 &&
+            Math.abs(first.height - second.height) <= 1;
+
+          if (!stable) {
+            timeoutId = setTimeout(measureWhenStable, STABILITY_RETRY_MS);
+            return;
+          }
+
+          commitSize(second);
+        });
+      });
+    };
+
+    const scheduleMeasurement = (delay = NORMAL_DEBOUNCE_MS) => {
+      if (isSuspended || document.visibilityState === "hidden") return;
+      cancelPendingMeasurement();
+
+      const guardDelay = Math.max(0, resumeGuardUntil - performance.now());
+      timeoutId = setTimeout(
+        measureWhenStable,
+        Math.max(delay, Math.ceil(guardDelay) + (guardDelay > 0 ? 24 : 0)),
+      );
+    };
+
+    const beginResumeGuard = () => {
+      isSuspended = false;
+      cancelPendingMeasurement();
+      resumeGuardUntil = performance.now() + RESUME_GUARD_MS;
+      timeoutId = setTimeout(measureWhenStable, RESUME_GUARD_MS + 24);
+    };
 
     const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        // Force synchronous layout reflow before reading dimensions.
-        // After background→foreground, iOS WKWebView may report stale
-        // innerWidth/innerHeight.  Reading offsetHeight forces the browser
-        // to apply the current viewport frame first.
-        void document.documentElement.offsetHeight;
-        setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-      }, 50); // Debounce by 50ms to prevent thrashing
+      scheduleMeasurement();
     };
 
-    // visualViewport.resize fires more reliably than window.resize on iOS
-    // WKWebView when returning from background or when keyboard changes.
     const handleVisualViewportResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        void document.documentElement.offsetHeight;
-        setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-      }, 50);
+      // visualViewport emits repeatedly for the software keyboard and for the
+      // app-switcher animation. A height-only change must never reclassify the
+      // whole application. Width changes are still accepted for iPad Split View.
+      const candidate = readLayoutViewport();
+      if (Math.abs(candidate.width - lastCommitted.width) <= 1) return;
+      scheduleMeasurement();
     };
 
-    // orientationchange fires on device rotation — window.resize may be delayed
     const handleOrientationChange = () => {
-      clearTimeout(timeoutId);
-      // Longer delay to let WKWebView settle after rotation
-      timeoutId = setTimeout(() => {
-        setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-      }, 150);
+      if (isSuspended) return;
+      cancelPendingMeasurement();
+      // Rotation is a real layout change, but iOS needs a short settle window.
+      resumeGuardUntil = performance.now() + 220;
+      timeoutId = setTimeout(measureWhenStable, 244);
     };
 
-    // pageshow with persisted=true fires on bfcache restore (iOS Safari/PWA)
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-        }, 100);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        isSuspended = true;
+        cancelPendingMeasurement();
+        return;
       }
+      beginResumeGuard();
+    };
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) beginResumeGuard();
+    };
+
+    // Native App.tsx dispatches these even on WKWebView versions where
+    // document.visibilitychange is delayed or absent.
+    const handleNativeBackground = () => {
+      isSuspended = true;
+      cancelPendingMeasurement();
+    };
+    const handleNativeResume = () => beginResumeGuard();
+    const handleNativeResumeSettled = () => {
+      isSuspended = false;
+      resumeGuardUntil = 0;
+      scheduleMeasurement(0);
     };
 
     window.addEventListener("resize", handleResize, { passive: true });
-    window.addEventListener("orientationchange", handleOrientationChange, { passive: true });
+    window.addEventListener("orientationchange", handleOrientationChange, {
+      passive: true,
+    });
     window.addEventListener("pageshow", handlePageShow, { passive: true } as any);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("99s-app-background", handleNativeBackground);
+    window.addEventListener("99s-app-resume", handleNativeResume);
+    window.addEventListener(
+      "99s-app-resume-settled",
+      handleNativeResumeSettled,
+    );
 
     const vvp = window.visualViewport;
     if (vvp) {
-      vvp.addEventListener("resize", handleVisualViewportResize, { passive: true });
+      vvp.addEventListener("resize", handleVisualViewportResize, {
+        passive: true,
+      });
     }
 
     return () => {
-      clearTimeout(timeoutId);
+      cancelPendingMeasurement();
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("orientationchange", handleOrientationChange);
       window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("99s-app-background", handleNativeBackground);
+      window.removeEventListener("99s-app-resume", handleNativeResume);
+      window.removeEventListener(
+        "99s-app-resume-settled",
+        handleNativeResumeSettled,
+      );
       if (vvp) {
         vvp.removeEventListener("resize", handleVisualViewportResize);
       }
