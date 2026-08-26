@@ -105,8 +105,15 @@ export default memo(function InteractiveAvatar({
         const result = await CapExternalOpener.pickProfilePhoto();
         setNativePhotoResult(result);
       } catch (error) {
-        console.error("[ProfilePhoto] Native photo picker failed", error);
-        setImageError("Failed to open the photo library. Please try again.");
+        // Defensive fallback: if the native bundle on the device is older than
+        // the JavaScript bundle (or the native picker rejects for any reason),
+        // fall back to WebKit's file picker instead of leaving the user blocked.
+        // The normal/updated iOS path never reaches this fallback.
+        console.error("[ProfilePhoto] Native photo picker failed; using WebKit fallback", error);
+        setImageError(null);
+        requestAnimationFrame(() => {
+          fileInputRef.current?.click();
+        });
       } finally {
         setIsReadingImage(false);
       }

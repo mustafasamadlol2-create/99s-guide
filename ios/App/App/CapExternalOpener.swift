@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import PhotosUI
 
 @objc(CapExternalOpener)
 public final class CapExternalOpener:
@@ -7,6 +8,7 @@ public final class CapExternalOpener:
     CAPBridgedPlugin,
     UIDocumentInteractionControllerDelegate,
     UIImagePickerControllerDelegate,
+    PHPickerViewControllerDelegate,
     UINavigationControllerDelegate
 {
     public let identifier = "CapExternalOpener"
@@ -33,23 +35,27 @@ public final class CapExternalOpener:
     // The active avatar picker call. Only one picker may exist at a time.
     private var profilePhotoCall: CAPPluginCall?
     private weak var profilePhotoPicker: UIImagePickerController?
+    private weak var profileLibraryPicker: PHPickerViewController?
 
     // Represents the currently-authoritative PDF operation.
     // Old async callbacks are ignored once a newer operation begins.
     private var currentOperationID: UUID?
 
     @objc public func pickProfilePhoto(_ call: CAPPluginCall) {
-        presentProfilePhotoPicker(call, sourceType: .photoLibrary)
+        presentProfilePhotoLibrary(call)
     }
 
     @objc public func takeProfilePhoto(_ call: CAPPluginCall) {
-        presentProfilePhotoPicker(call, sourceType: .camera)
+        presentProfileCamera(call)
     }
 
-    private func presentProfilePhotoPicker(
-        _ call: CAPPluginCall,
-        sourceType: UIImagePickerController.SourceType
-    ) {
+    // MARK: - Profile photo library
+
+    /// Uses PHPicker rather than UIImagePickerController for the photo library.
+    /// PHPicker is Apple's modern picker and does not require broad Photo Library
+    /// permission merely to let the user select a single image. It also avoids the
+    /// WKWebView preview/confirmation step because selection stays fully native.
+    private func presentProfilePhotoLibrary(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else {
                 call.reject("profile_photo_picker_unavailable")
@@ -61,42 +67,116 @@ public final class CapExternalOpener:
                 return
             }
 
-            guard UIImagePickerController.isSourceTypeAvailable(sourceType) else {
-                call.reject(sourceType == .camera ? "camera_unavailable" : "photo_library_unavailable")
+            guard let bridgeController = self.bridge?.viewController else {
+                call.reject("profile_photo_presenter_unavailable")
                 return
             }
 
-            guard let presenter = self.bridge?.viewController else {
+            var configuration = PHPickerConfiguration()
+            configuration.filter = .images
+            configuration.selectionLimit = 1
+
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.delegate = self
+            picker.modalPresentationStyle = .pageSheet
+
+            self.profilePhotoCall = call
+            self.profileLibraryPicker = picker
+
+            let presenter = self.topMostPresenter(from: bridgeController)
+            presenter.present(picker, animated: true)
+        }
+    }
+
+    public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        let call = profilePhotoCall
+        profilePhotoCall = nil
+        profileLibraryPicker = nil
+
+        guard let result = results.first else {
+            picker.dismiss(animated: true) {
+                call?.resolve(["cancelled": true])
+            }
+            return
+        }
+
+        let provider = result.itemProvider
+        guard provider.canLoadObject(ofClass: UIImage.self) else {
+            picker.dismiss(animated: true) {
+                call?.reject("profile_photo_missing_image")
+            }
+            return
+        }
+
+        // Dismiss immediately after selection, then process the image in the
+        // background so the next visible screen is the app-owned crop editor.
+        picker.dismiss(animated: true) { [weak self] in
+            guard let self = self else {
+                call?.reject("profile_photo_picker_unavailable")
+                return
+            }
+
+            provider.loadObject(ofClass: UIImage.self) { object, error in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        NSLog("[ProfilePhoto] PHPicker load failed: %@", error.localizedDescription)
+                        call?.reject("profile_photo_load_failed", error.localizedDescription, error)
+                    }
+                    return
+                }
+
+                guard let image = object as? UIImage else {
+                    DispatchQueue.main.async {
+                        call?.reject("profile_photo_missing_image")
+                    }
+                    return
+                }
+
+                self.resolveProfilePhoto(image, call: call)
+            }
+        }
+    }
+
+    // MARK: - Profile camera
+
+    private func presentProfileCamera(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else {
+                call.reject("profile_photo_picker_unavailable")
+                return
+            }
+
+            guard self.profilePhotoCall == nil else {
+                call.reject("profile_photo_picker_busy")
+                return
+            }
+
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                call.reject("camera_unavailable")
+                return
+            }
+
+            guard Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") != nil else {
+                call.reject("camera_usage_description_missing")
+                return
+            }
+
+            guard let bridgeController = self.bridge?.viewController else {
                 call.reject("profile_photo_presenter_unavailable")
                 return
             }
 
             let picker = UIImagePickerController()
-            picker.sourceType = sourceType
+            picker.sourceType = .camera
             picker.mediaTypes = ["public.image"]
             picker.allowsEditing = false
             picker.delegate = self
-
-            // Photo Library on iPad is most natural as a popover. The camera
-            // remains full screen on iPhone/iPad so framing is predictable.
-            if sourceType == .photoLibrary && UIDevice.current.userInterfaceIdiom == .pad {
-                picker.modalPresentationStyle = .popover
-                if let popover = picker.popoverPresentationController {
-                    popover.sourceView = presenter.view
-                    popover.sourceRect = CGRect(
-                        x: presenter.view.bounds.midX,
-                        y: presenter.view.bounds.midY,
-                        width: 1,
-                        height: 1
-                    )
-                    popover.permittedArrowDirections = []
-                }
-            } else {
-                picker.modalPresentationStyle = .fullScreen
-            }
+            picker.modalPresentationStyle = .fullScreen
 
             self.profilePhotoCall = call
             self.profilePhotoPicker = picker
+
+            let presenter = self.topMostPresenter(from: bridgeController)
             presenter.present(picker, animated: true)
         }
     }
@@ -126,25 +206,47 @@ public final class CapExternalOpener:
             return
         }
 
-        // Dismiss the Apple picker immediately. Image processing happens after
-        // dismissal so the user lands directly back in the app-owned crop editor.
-        picker.dismiss(animated: true) {
-            DispatchQueue.global(qos: .userInitiated).async {
-                guard let dataUrl = self.profilePhotoDataURL(from: image) else {
-                    DispatchQueue.main.async {
-                        call?.reject("profile_photo_processing_failed")
-                    }
-                    return
-                }
+        picker.dismiss(animated: true) { [weak self] in
+            self?.resolveProfilePhoto(image, call: call)
+        }
+    }
 
+    private func resolveProfilePhoto(_ image: UIImage, call: CAPPluginCall?) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
                 DispatchQueue.main.async {
-                    call?.resolve([
-                        "cancelled": false,
-                        "dataUrl": dataUrl,
-                    ])
+                    call?.reject("profile_photo_picker_unavailable")
                 }
+                return
+            }
+
+            guard let dataUrl = self.profilePhotoDataURL(from: image) else {
+                DispatchQueue.main.async {
+                    call?.reject("profile_photo_processing_failed")
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                call?.resolve([
+                    "cancelled": false,
+                    "dataUrl": dataUrl,
+                ])
             }
         }
+    }
+
+    private func topMostPresenter(from root: UIViewController) -> UIViewController {
+        if let presented = root.presentedViewController {
+            return topMostPresenter(from: presented)
+        }
+        if let navigation = root as? UINavigationController, let visible = navigation.visibleViewController {
+            return topMostPresenter(from: visible)
+        }
+        if let tab = root as? UITabBarController, let selected = tab.selectedViewController {
+            return topMostPresenter(from: selected)
+        }
+        return root
     }
 
     private func profilePhotoDataURL(from image: UIImage) -> String? {
