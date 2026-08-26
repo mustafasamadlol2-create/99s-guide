@@ -32,6 +32,18 @@ export interface CapExternalOpenerPlugin {
   }): Promise<{
     ok: boolean;
   }>;
+
+  /**
+   * Native iOS single-photo picker used by the profile avatar flow.
+   *
+   * Unlike a WebKit <input type="file">, this returns immediately after
+   * the user selects one photo and therefore avoids WebKit's extra preview /
+   * confirmation screen. A cancellation resolves normally instead of throwing.
+   */
+  pickProfilePhoto(): Promise<{
+    cancelled: boolean;
+    dataUrl?: string;
+  }>;
 }
 
 const CapExternalOpener =

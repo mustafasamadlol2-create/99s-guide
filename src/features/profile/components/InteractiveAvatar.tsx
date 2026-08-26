@@ -1,8 +1,10 @@
 import React, { memo, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Camera } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { fileToDataUrl } from "../../../core/utils/imageUtils";
 import AvatarCropEditor from "./AvatarCropEditor";
+import CapExternalOpener from "../../../core/device/capacitor/externalOpener";
 
 interface InteractiveAvatarProps {
   avatarUrl: string;
@@ -66,8 +68,36 @@ export default memo(function InteractiveAvatar({
     if (file) void openCropEditorForFile(file);
   };
 
-  const triggerUploadClick = () => {
+  const triggerUploadClick = async () => {
     if (!isEditable || isReadingImage) return;
+
+    // Native iOS uses a small native UIImagePickerController bridge instead of
+    // the WKWebView <input type="file"> picker. This intentionally removes the
+    // extra Apple/WebKit preview-confirmation screen seen on iPhone and avoids
+    // the blank preview panel seen on iPad. The next app-owned screen is the
+    // existing Adjust Photo crop/zoom editor.
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
+      setImageError(null);
+      setIsReadingImage(true);
+      try {
+        const result = await CapExternalOpener.pickProfilePhoto();
+        if (result.cancelled) return;
+
+        const source = result.dataUrl;
+        if (!source || !source.startsWith("data:image/")) {
+          throw new Error("Invalid native photo result");
+        }
+        setPendingCropSource(source);
+      } catch (error) {
+        console.error("[ProfilePhoto] Native photo picker failed", error);
+        setImageError("Failed to open the photo library. Please try again.");
+      } finally {
+        setIsReadingImage(false);
+      }
+      return;
+    }
+
+    // PWA / desktop / non-iOS native fallback.
     fileInputRef.current?.click();
   };
 
@@ -121,7 +151,7 @@ export default memo(function InteractiveAvatar({
           onDrop={onDrop}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          onClick={triggerUploadClick}
+          onClick={() => void triggerUploadClick()}
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}

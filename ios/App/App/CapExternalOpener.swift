@@ -5,7 +5,9 @@ import Capacitor
 public final class CapExternalOpener:
     CAPPlugin,
     CAPBridgedPlugin,
-    UIDocumentInteractionControllerDelegate
+    UIDocumentInteractionControllerDelegate,
+    UIImagePickerControllerDelegate,
+    UINavigationControllerDelegate
 {
     public let identifier = "CapExternalOpener"
     public let jsName = "CapExternalOpener"
@@ -15,14 +17,154 @@ public final class CapExternalOpener:
             name: "openPdf",
             returnType: CAPPluginReturnPromise
         ),
+        CAPPluginMethod(
+            name: "pickProfilePhoto",
+            returnType: CAPPluginReturnPromise
+        ),
     ]
 
     // Keep the preview controller alive strongly for the whole presentation.
     private var documentController: UIDocumentInteractionController?
 
+    // The active avatar picker call. Only one picker may exist at a time.
+    private var profilePhotoCall: CAPPluginCall?
+    private weak var profilePhotoPicker: UIImagePickerController?
+
     // Represents the currently-authoritative PDF operation.
     // Old async callbacks are ignored once a newer operation begins.
     private var currentOperationID: UUID?
+
+    @objc public func pickProfilePhoto(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else {
+                call.reject("profile_photo_picker_unavailable")
+                return
+            }
+
+            guard self.profilePhotoCall == nil else {
+                call.reject("profile_photo_picker_busy")
+                return
+            }
+
+            guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
+                call.reject("photo_library_unavailable")
+                return
+            }
+
+            guard let presenter = self.bridge?.viewController else {
+                call.reject("profile_photo_presenter_unavailable")
+                return
+            }
+
+            let picker = UIImagePickerController()
+            picker.sourceType = .photoLibrary
+            picker.mediaTypes = ["public.image"]
+            picker.allowsEditing = false
+            picker.delegate = self
+
+            // On iPad, use a native popover anchored to the app itself. Unlike
+            // WKWebView's file-input flow, selecting a photo calls the delegate
+            // directly; there is no WebKit preview/confirmation page in between.
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                picker.modalPresentationStyle = .popover
+                if let popover = picker.popoverPresentationController {
+                    popover.sourceView = presenter.view
+                    popover.sourceRect = CGRect(
+                        x: presenter.view.bounds.midX,
+                        y: presenter.view.bounds.midY,
+                        width: 1,
+                        height: 1
+                    )
+                    popover.permittedArrowDirections = []
+                }
+            } else {
+                picker.modalPresentationStyle = .fullScreen
+            }
+
+            self.profilePhotoCall = call
+            self.profilePhotoPicker = picker
+            presenter.present(picker, animated: true)
+        }
+    }
+
+    public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        let call = profilePhotoCall
+        profilePhotoCall = nil
+        profilePhotoPicker = nil
+
+        picker.dismiss(animated: true) {
+            call?.resolve(["cancelled": true])
+        }
+    }
+
+    public func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    ) {
+        let call = profilePhotoCall
+        profilePhotoCall = nil
+        profilePhotoPicker = nil
+
+        guard let image = info[.originalImage] as? UIImage else {
+            picker.dismiss(animated: true) {
+                call?.reject("profile_photo_missing_image")
+            }
+            return
+        }
+
+        // Dismiss the Apple picker immediately. Image processing happens after
+        // dismissal so the user lands directly back in the app-owned crop editor.
+        picker.dismiss(animated: true) {
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let dataUrl = self.profilePhotoDataURL(from: image) else {
+                    DispatchQueue.main.async {
+                        call?.reject("profile_photo_processing_failed")
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    call?.resolve([
+                        "cancelled": false,
+                        "dataUrl": dataUrl,
+                    ])
+                }
+            }
+        }
+    }
+
+    private func profilePhotoDataURL(from image: UIImage) -> String? {
+        // Avatar cropping does not need the full multi-megapixel source. Keeping
+        // the longest side at <= 2048 px dramatically reduces bridge payload and
+        // memory use while preserving far more detail than the final 400x400 crop.
+        let maxDimension: CGFloat = 2048
+        let sourceSize = image.size
+        guard sourceSize.width > 0, sourceSize.height > 0 else { return nil }
+
+        let scale = min(
+            1,
+            maxDimension / max(sourceSize.width, sourceSize.height)
+        )
+        let targetSize = CGSize(
+            width: max(1, floor(sourceSize.width * scale)),
+            height: max(1, floor(sourceSize.height * scale))
+        )
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        let normalizedImage = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+
+        guard let jpeg = normalizedImage.jpegData(compressionQuality: 0.90) else {
+            return nil
+        }
+
+        return "data:image/jpeg;base64," + jpeg.base64EncodedString()
+    }
 
     @objc public func openPdf(_ call: CAPPluginCall) {
         guard
