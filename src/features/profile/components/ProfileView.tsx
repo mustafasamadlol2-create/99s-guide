@@ -404,7 +404,7 @@ export const ProfileView = function ProfileView({
  <SettingsItem Icon={GraduationCap}
  iconBg="bg-indigo-500"
  title="Institution"
- value="Medical University"
+ value="Baghdad University"
  />
  <SettingsItem Icon={Book}
  iconBg="bg-med-blue"

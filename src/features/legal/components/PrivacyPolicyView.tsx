@@ -75,7 +75,7 @@ const PrivacyPolicyView = ({ onBack }: PrivacyPolicyViewProps) => {
 
           <h2 className="text-xl font-bold text-neutral-900 dark:text-white pt-2">User Rights & Contact</h2>
           <p>
-            You have the right to access, rectify, or erase your personal data at any time. For privacy-related inquiries, please contact our data protection officer at mostafa.samad24001@comed.uobaghdad.edu.iq.
+            You have the right to access, rectify, or erase your personal data at any time. For privacy-related inquiries, please contact our data protection officer at mostafa.yasir24001@comed.uobaghdad.edu.iq.
           </p>
         </section>
       </div>

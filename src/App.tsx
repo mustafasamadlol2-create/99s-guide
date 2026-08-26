@@ -3909,26 +3909,25 @@ const handleSignOut = useCallback(async () => {
   }, [dbLectures]);
 
   const handleSearchSelect = useCallback(async (result: SearchResultItem) => {
-    // Close search palette immediately.
+    // Search belongs to the Welcome experience. Selecting a search result must
+    // never activate the independent Modules surface in the sidebar.
     setIsCommandPaletteOpen(false);
 
-    // ── Step 1: Determine target tab from result type ────────────────
     const tabToOpen: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa" =
       result.type === "notes" ? "notes" :
       result.type === "video" ? "videos" :
       result.type === "mcq" ? "mcqs" :
       result.type === "flashcard" ? "flashcards" : "pdf";
 
-    // ── Step 2: Resolve the canonical lecture (single source of truth) ──
     let foundLecture: Lecture | null = null;
     const rawResult = result.raw as any;
 
-    // For seeded lecture results: the raw field already contains the complete Lecture.
+    // Seeded lecture results already carry the complete Lecture object.
     if (result.type === "lecture" && rawResult?.title && rawResult?.id && !result.id.startsWith("db-")) {
       foundLecture = rawResult as Lecture;
     }
 
-    // For seeded non-lecture results (video, mcq, etc.): resolve from globalSearchData.
+    // Seeded material results resolve through the matching lecture result.
     if (!foundLecture && result.lectureId && !result.id.startsWith("db-")) {
       const match = globalSearchData.find(
         (item) => item.lectureId === result.lectureId && item.type === "lecture",
@@ -3938,54 +3937,38 @@ const handleSignOut = useCallback(async () => {
       }
     }
 
-    // For all DB results: always resolve canonical from the authoritative source.
+    // DB-backed results always resolve from the authoritative lecture source.
     if (!foundLecture && result.lectureId) {
       foundLecture = await resolveCanonicalLecture(result.lectureId);
     }
 
+    const targetSubjectId = (result.subjectId || foundLecture?.subjectId) as SubjectId | undefined;
+
+    // Keep normal Back navigation intact, but route the search hit through the
+    // Welcome hierarchy instead of the old Library/Modules hierarchy.
+    pushNavigationStack();
+
+    setActiveSubjectId(null);
+    setActiveLecture(null);
+    setActiveModuleId(null);
+    setActiveTab("home");
+
     if (!foundLecture) {
-      // Cannot resolve — fall back to showing the subject list.
-      setActiveHomeSubjectId(null);
+      // Subject-only/unresolved results stay on Welcome. If the search backend
+      // supplied a subject id, open that subject; otherwise remain on dashboard.
+      setActiveHomeSubjectId(targetSubjectId ?? null);
       setActiveHomeLecture(null);
       setLectureDetailSource(null);
-      setActiveLecture(null);
-      setActiveSubjectId(result.subjectId as SubjectId);
-      setActiveTab("subjects");
       return;
     }
 
-    // ── Step 3: Snapshot current state for Back navigation ────────────
-    // Push the pre-search state so the first Back restores where we were.
-    pushNavigationStack();
-
-    // ── Step 4: Reconstruct the canonical manual navigation path ──────
-    // Search is a shortcut into the Library → Subject → Lecture hierarchy.
-    // Push intermediate states so Back walks the real path, not a fake route.
-
-    // For lecture-type results, push the Subject-level state (Back from
-    // lecture should show the subject's lecture list).
-    if (result.type === "lecture") {
-      navigationStackRef.current.push({
-        activeTab: "subjects",
-        activeSubjectId: (result.subjectId || foundLecture.subjectId) as SubjectId,
-        activeLecture: null,
-        activeLectureTab: tabToOpen,
-        activeHomeSubjectId: null,
-        activeHomeLecture: null,
-        lectureDetailSource: null,
-      });
-    }
-
-    // ── Step 5: Set final navigation state atomically ─────────────────
-    // Clear home state — Search always navigates through Library.
-    setActiveHomeSubjectId(null);
-    setActiveHomeLecture(null);
-    setLectureDetailSource(null);
-    setActiveTab("subjects");
-    setActiveSubjectId((result.subjectId || foundLecture.subjectId) as SubjectId);
+    // A search result behaves like a direct lecture open from Welcome. This
+    // keeps Welcome highlighted in both sidebar and mobile navigation.
+    setActiveHomeSubjectId(targetSubjectId ?? foundLecture.subjectId);
     setActiveLectureTab(tabToOpen);
-    setActiveLecture(foundLecture);
-  }, [globalSearchData, dbLectures, pushNavigationStack, resolveCanonicalLecture]);
+    setLectureDetailSource("dashboard");
+    setActiveHomeLecture(foundLecture);
+  }, [globalSearchData, pushNavigationStack, resolveCanonicalLecture]);
 
   const sidebarMainItems = useMemo(
     () => [
