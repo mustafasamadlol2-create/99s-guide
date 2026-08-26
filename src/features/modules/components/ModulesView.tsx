@@ -3,21 +3,25 @@ import { BookOpen, Database, GraduationCap } from "lucide-react";
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 
-import { MODULE_ARTWORK_URLS, MODULE_ORDER, MODULE_VISUALS } from "../moduleVisuals";
+import { MODULE_ORDER, MODULE_VISUALS, preloadModuleArtwork } from "../moduleVisuals";
 
-// Warm all seven local module images as soon as the Modules chunk is evaluated.
-// They are small, highly visible assets, so eager warming is preferable to lazy
-// loading here (especially in iOS PWA / WKWebView where off-screen image fetches
-// can occasionally be deferred longer than expected).
-if (typeof window !== "undefined") {
-  MODULE_ARTWORK_URLS.forEach((src) => {
-    const image = new Image();
-    image.decoding = "async";
-    image.src = src;
-  });
+interface ModulesViewProps {
+  subjects: Subject[];
+  lectureCounts: Record<string, number>;
+  progressBySubject: Map<string, { totalTasks: number; completedTasks: number; progressPercentage: number }>;
+  onSelectModule: (subjectId: SubjectId) => void;
+  language: "en" | "ar";
 }
 
-function ResilientModuleImage({ src, accentRgb }: { src: string; accentRgb: string }) {
+function ResilientModuleImage({
+  src,
+  placeholder,
+  accentRgb,
+}: {
+  src: string;
+  placeholder: string;
+  accentRgb: string;
+}) {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -33,18 +37,29 @@ function ResilientModuleImage({ src, accentRgb }: { src: string; accentRgb: stri
 
   return (
     <div
-      className="absolute inset-0"
+      className="absolute inset-0 overflow-hidden"
       style={{
-        background: `linear-gradient(135deg, rgba(${accentRgb},0.16), rgba(${accentRgb},0.04))`,
+        backgroundColor: `rgba(${accentRgb},0.10)`,
+        backgroundImage: `url(${JSON.stringify(placeholder)})`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
       }}
       aria-hidden="true"
     >
+      {/*
+        The inline preview is the exact same artwork at tiny resolution.
+        It is available synchronously with the JS bundle, so the image area can
+        never render as an empty/black block on the first app visit.
+      */}
+      <div className={`absolute inset-[-3px] scale-[1.02] transition-opacity duration-100 ${loaded ? "opacity-0" : "opacity-100"}`} style={{ backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }} />
+
       <img
         src={retrySrc}
         alt=""
         loading="eager"
         decoding="async"
-        className={`h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        fetchPriority="high"
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
         draggable={false}
         onLoad={() => setLoaded(true)}
         onError={() => {
@@ -106,6 +121,10 @@ function MetricCard({ icon: Icon, value, label, tone }: {
 }
 
 export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, progressBySubject, onSelectModule, language }: ModulesViewProps) {
+  useEffect(() => {
+    void preloadModuleArtwork();
+  }, []);
+
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const orderedSubjects = MODULE_ORDER.map((id) => subjectById.get(id)).filter((subject): subject is Subject => Boolean(subject));
   const totalLectures = orderedSubjects.reduce((sum, subject) => sum + (lectureCounts[subject.id] || 0), 0);
@@ -162,7 +181,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
               aria-label={`${subject.name} module`}
             >
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-                <ResilientModuleImage src={meta.image} accentRgb={meta.accentRgb} />
+                <ResilientModuleImage src={meta.image} placeholder={meta.placeholder} accentRgb={meta.accentRgb} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
                 <div
                   className="absolute left-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl"

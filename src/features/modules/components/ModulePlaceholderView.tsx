@@ -41,6 +41,7 @@ interface LearningHourItem {
 interface ModuleDetailConfig {
   title: string;
   image: string;
+  placeholder: string;
   accent: string;
   accentRgb: string;
   intro: string[];
@@ -49,9 +50,9 @@ interface ModuleDetailConfig {
   finalGoal: string;
 }
 
-function moduleIdentity(subjectId: SubjectId): Pick<ModuleDetailConfig, "image" | "accent" | "accentRgb"> {
-  const { image, accent, accentRgb } = MODULE_VISUALS[subjectId];
-  return { image, accent, accentRgb };
+function moduleIdentity(subjectId: SubjectId): Pick<ModuleDetailConfig, "image" | "placeholder" | "accent" | "accentRgb"> {
+  const { image, placeholder, accent, accentRgb } = MODULE_VISUALS[subjectId];
+  return { image, placeholder, accent, accentRgb };
 }
 
 const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
@@ -348,10 +349,17 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
               </div>
             </div>
 
-            <div className="relative min-h-[230px] overflow-hidden border-t border-black/[0.05] bg-[#E9EEF3] lg:min-h-full lg:border-l lg:border-t-0 dark:border-white/[0.07] dark:bg-[#101215] sm:min-h-[260px]">
+            <div
+              className="relative min-h-[230px] overflow-hidden border-t border-black/[0.05] bg-[#E9EEF3] lg:min-h-full lg:border-l lg:border-t-0 dark:border-white/[0.07] dark:bg-[#101215] sm:min-h-[260px]"
+              style={{
+                backgroundImage: `url(${JSON.stringify(config.placeholder)})`,
+                backgroundPosition: "center",
+                backgroundSize: "cover",
+              }}
+            >
               <img
                 src={config.image}
-                alt={`${config.title} module`}
+                alt=""
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
