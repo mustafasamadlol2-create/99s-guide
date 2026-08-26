@@ -221,7 +221,16 @@ export const CommandPalette = memo(function CommandPalette({
  };
 
  const handleKeyDown = (e: React.KeyboardEvent) => {
+ // Empty/whitespace-only search must never navigate to a recent or arbitrary item.
+ // Recent searches remain clickable, but Enter is intentionally a no-op until
+ // the user has entered an actual search query.
+ if (e.key === "Enter" && !value.trim()) {
+ e.preventDefault();
+ return;
+ }
+
  if (e.key === "Enter" && activeList.length > 0) {
+ e.preventDefault();
  handleSelect(activeList[selectedIndex]);
  } else if (e.key === "Escape") {
  onClose();

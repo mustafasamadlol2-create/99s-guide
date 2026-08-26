@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { useReliableLegalScroll } from "../useReliableLegalScroll";
 import { ChevronLeft, ShieldCheck } from "lucide-react";
 
 interface PrivacyPolicyViewProps {
@@ -6,8 +7,14 @@ interface PrivacyPolicyViewProps {
 }
 
 const PrivacyPolicyView = ({ onBack }: PrivacyPolicyViewProps) => {
+  const scrollRef = useReliableLegalScroll();
+
   return (
-    <div className="legal-page-scroll h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="legal-page-scroll h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto"
+      style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain", touchAction: "pan-y" }}
+    >
       {/* Header */}
       <div className="legal-page-header sticky top-0 z-40 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-md border-b border-black/5 dark:border-white/[0.12] px-4 py-3 flex items-center shadow-sm">
         <button
@@ -75,7 +82,7 @@ const PrivacyPolicyView = ({ onBack }: PrivacyPolicyViewProps) => {
 
           <h2 className="text-xl font-bold text-neutral-900 dark:text-white pt-2">User Rights & Contact</h2>
           <p>
-            You have the right to access, rectify, or erase your personal data at any time. For privacy-related inquiries, please contact our data protection officer at mostafa.yasir24001@comed.uobaghdad.edu.iq.
+            You have the right to access, rectify, or erase your personal data at any time. For privacy-related inquiries, please contact our data protection officer at 99sguide.support@gmail.com.
           </p>
         </section>
       </div>

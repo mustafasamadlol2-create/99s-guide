@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { useReliableLegalScroll } from "../useReliableLegalScroll";
 import { ChevronLeft, AlertTriangle } from "lucide-react";
 
 interface MedicalDisclaimerViewProps {
@@ -6,8 +7,14 @@ interface MedicalDisclaimerViewProps {
 }
 
 const MedicalDisclaimerView = ({ onBack }: MedicalDisclaimerViewProps) => {
+  const scrollRef = useReliableLegalScroll();
+
   return (
-    <div className="legal-page-scroll h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="legal-page-scroll h-full w-full bg-[#F8F9FC] dark:bg-[#000000] overflow-y-auto"
+      style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain", touchAction: "pan-y" }}
+    >
       {/* Header */}
       <div className="legal-page-header sticky top-0 z-40 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-md border-b border-black/5 dark:border-white/[0.12] px-4 py-3 flex items-center shadow-sm">
         <button
