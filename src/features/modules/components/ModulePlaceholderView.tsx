@@ -1,6 +1,7 @@
 import React, { memo, useLayoutEffect, useRef, type ComponentType } from "react";
 import {
   BookOpen,
+  ChartPie,
   CheckSquare2,
   ChevronLeft,
   ClipboardCheck,
@@ -378,7 +379,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
         </section>
 
         <section className="rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-5 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
-          <SectionHeading icon={Clock3} title="تقسيم الدرجات" accent={config.accent} accentRgb={config.accentRgb} />
+          <SectionHeading icon={ChartPie} title="تقسيم الدرجات" accent={config.accent} accentRgb={config.accentRgb} />
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
             {config.assessments.map((item) => <AssessmentCard key={item.label} item={item} />)}
           </div>

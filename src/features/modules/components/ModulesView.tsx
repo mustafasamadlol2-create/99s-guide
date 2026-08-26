@@ -120,14 +120,16 @@ function MetricCard({ icon: Icon, value, label, tone }: {
   );
 }
 
-export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, progressBySubject, onSelectModule, language }: ModulesViewProps) {
+export const ModulesView = memo(function ModulesView({ subjects, progressBySubject, onSelectModule, language }: ModulesViewProps) {
   useEffect(() => {
     void preloadModuleArtwork();
   }, []);
 
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const orderedSubjects = MODULE_ORDER.map((id) => subjectById.get(id)).filter((subject): subject is Subject => Boolean(subject));
-  const totalLectures = orderedSubjects.reduce((sum, subject) => sum + (lectureCounts[subject.id] || 0), 0);
+  // Lecture totals are intentionally unspecified for now. They are display-only values
+  // on the Modules page and are not derived from the app lecture database.
+  const displayedLectureCount = "-";
   const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_VISUALS[subject.id].credits, 0);
 
   return (
@@ -151,7 +153,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
           />
           <MetricCard
             icon={BookOpen}
-            value={totalLectures}
+            value={displayedLectureCount}
             label={language === "ar" ? "إجمالي المحاضرات" : "Total Lectures"}
             tone="blue"
           />
@@ -169,7 +171,6 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
           const meta = MODULE_VISUALS[subject.id];
           const iconInfo = getSubjectIconInfo(subject.id);
           const Icon = iconInfo.icon;
-          const lectures = lectureCounts[subject.id] || 0;
           const progress = progressBySubject.get(subject.id)?.progressPercentage || 0;
 
           return (
@@ -211,7 +212,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
                   </div>
                   <div className="flex min-w-0 flex-col items-center justify-center border-x border-black/[0.07] px-2 text-center dark:border-white/[0.08]">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Lectures</div>
-                    <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{lectures}</div>
+                    <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{displayedLectureCount}</div>
                   </div>
                   <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
                     <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Hours</div>
