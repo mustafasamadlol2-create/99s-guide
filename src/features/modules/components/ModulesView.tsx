@@ -3,42 +3,7 @@ import { BookOpen, Database, GraduationCap } from "lucide-react";
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 
-import clinicalAttachmentImage from "../assets/clinical-attachment.webp";
-import immuneDisturbancesImage from "../assets/immune-disturbances.webp";
-import infectiousDiseasesImage from "../assets/infectious-diseases.webp";
-import nutritionImage from "../assets/nutrition.webp";
-import publicHealthCareImage from "../assets/public-health-care.webp";
-import researchMethodologyImage from "../assets/research-methodology.webp";
-import studentSelectedComponentImage from "../assets/student-selected-component.webp";
-
-interface ModulesViewProps {
-  subjects: Subject[];
-  lectureCounts: Record<string, number>;
-  progressBySubject: Map<string, { totalTasks: number; completedTasks: number; progressPercentage: number }>;
-  onSelectModule: (subjectId: SubjectId) => void;
-  language: "en" | "ar";
-}
-
-const MODULE_ORDER: SubjectId[] = ["PHC", "RM", "CA", "SSC", "ImD", "ID", "NT"];
-
-const MODULE_META: Record<SubjectId, {
-  credits: number;
-  hours: number;
-  image: string;
-  accent: string;
-  accentRgb: string;
-  surfaceClass: string;
-}> = {
-  ID: { credits: 11, hours: 187, image: infectiousDiseasesImage, accent: "#34D399", accentRgb: "52,211,153", surfaceClass: "bg-[#F0FBF7] dark:bg-[#11241F]" },
-  NT: { credits: 4, hours: 62, image: nutritionImage, accent: "#A78BFA", accentRgb: "167,139,250", surfaceClass: "bg-[#F7F3FF] dark:bg-[#211D2B]" },
-  RM: { credits: 5, hours: 76, image: researchMethodologyImage, accent: "#7DD3FC", accentRgb: "125,211,252", surfaceClass: "bg-[#F1FAFE] dark:bg-[#17252B]" },
-  CA: { credits: 10, hours: 264, image: clinicalAttachmentImage, accent: "#FDA4AF", accentRgb: "253,164,175", surfaceClass: "bg-[#FFF4F5] dark:bg-[#2B1D21]" },
-  PHC: { credits: 4, hours: 59, image: publicHealthCareImage, accent: "#F6C76F", accentRgb: "246,199,111", surfaceClass: "bg-[#FFF9EB] dark:bg-[#282217]" },
-  ImD: { credits: 2, hours: 34, image: immuneDisturbancesImage, accent: "#A5B4FC", accentRgb: "165,180,252", surfaceClass: "bg-[#F4F5FF] dark:bg-[#20212D]" },
-  SSC: { credits: 1, hours: 30, image: studentSelectedComponentImage, accent: "#D1D5DB", accentRgb: "209,213,219", surfaceClass: "bg-[#F7F7F8] dark:bg-[#202124]" },
-};
-
-const MODULE_ARTWORK_URLS = Object.values(MODULE_META).map((meta) => meta.image);
+import { MODULE_ARTWORK_URLS, MODULE_ORDER, MODULE_VISUALS } from "../moduleVisuals";
 
 // Warm all seven local module images as soon as the Modules chunk is evaluated.
 // They are small, highly visible assets, so eager warming is preferable to lazy
@@ -144,7 +109,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const orderedSubjects = MODULE_ORDER.map((id) => subjectById.get(id)).filter((subject): subject is Subject => Boolean(subject));
   const totalLectures = orderedSubjects.reduce((sum, subject) => sum + (lectureCounts[subject.id] || 0), 0);
-  const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_META[subject.id].credits, 0);
+  const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_VISUALS[subject.id].credits, 0);
 
   return (
     <section className="w-full pb-8" aria-label={language === "ar" ? "الموديولات" : "Modules"}>
@@ -182,7 +147,7 @@ export const ModulesView = memo(function ModulesView({ subjects, lectureCounts, 
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {orderedSubjects.map((subject) => {
-          const meta = MODULE_META[subject.id];
+          const meta = MODULE_VISUALS[subject.id];
           const iconInfo = getSubjectIconInfo(subject.id);
           const Icon = iconInfo.icon;
           const lectures = lectureCounts[subject.id] || 0;

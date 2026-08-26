@@ -14,13 +14,7 @@ import {
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 
-import clinicalAttachmentImage from "../assets/detail/clinical-attachment-detail.webp";
-import immuneDisturbancesImage from "../assets/detail/immune-disturbances-detail.webp";
-import infectiousDiseasesImage from "../assets/detail/infectious-diseases-detail.webp";
-import nutritionImage from "../assets/detail/nutrition-detail.webp";
-import publicHealthCareImage from "../assets/detail/public-health-care-detail.webp";
-import researchMethodologyImage from "../assets/detail/research-methodology-detail.webp";
-import studentSelectedComponentsImage from "../assets/detail/student-selected-components-detail.webp";
+import { MODULE_VISUALS } from "../moduleVisuals";
 
 interface ModulePlaceholderViewProps {
   subject: Subject;
@@ -55,12 +49,15 @@ interface ModuleDetailConfig {
   finalGoal: string;
 }
 
+function moduleIdentity(subjectId: SubjectId): Pick<ModuleDetailConfig, "image" | "accent" | "accentRgb"> {
+  const { image, accent, accentRgb } = MODULE_VISUALS[subjectId];
+  return { image, accent, accentRgb };
+}
+
 const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   CA: {
     title: "Clinical Attachment",
-    image: clinicalAttachmentImage,
-    accent: "#FB7185",
-    accentRgb: "251,113,133",
+    ...moduleIdentity("CA"),
     intro: [
       "يُعد Clinical Attachments Module (CA) من أهم موديولات السنة الثالثة، لأنه يمثل الانتقال الفعلي من الدراسة النظرية إلى التطبيق السريري والتعامل المباشر مع المرضى. يهدف الموديول إلى تطوير قدرة الطالب على التعامل مع المريض بصورة مهنية ومنظمة، بدءاً من أخذ History بشكل صحيح، مروراً بإجراء Physical Examination، ووصولاً إلى تكوين تصور سريري أولي عن حالة المريض.",
       "خلال هذا الموديول، يبدأ الطالب بتطبيق المهارات التي تعلمها في السنوات السابقة داخل بيئة سريرية حقيقية، خصوصاً في أقسام Medicine وSurgery. كما يتدرب على كيفية التواصل مع المرضى وعائلاتهم، واحترام خصوصيتهم، وتطبيق مبادئ Medical Ethics أثناء التعامل معهم.",
@@ -86,9 +83,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   ID: {
     title: "Infectious Diseases",
-    image: infectiousDiseasesImage,
-    accent: "#2DD4BF",
-    accentRgb: "45,212,191",
+    ...moduleIdentity("ID"),
     intro: [
       "يركز Infectious Diseases Module (ID) على دراسة الأمراض الناتجة عن العدوى وفهمها من منظور متكامل يجمع بين الجانب Microbiological والجانب السريري. يتعلم الطالب كيفية التعرف على أهم الـ Microorganisms المسببة للأمراض، وفهم كيفية انتقالها إلى الإنسان والآليات التي تؤدي من خلالها إلى حدوث المرض.",
       "يتناول الموديول العلاقة بين العامل المسبب والـ Host، مع دراسة الـ Pathogenesis والتغيرات التي تحدث داخل الجسم نتيجة العدوى، بالإضافة إلى التعرف على أهم Clinical Manifestations والعلامات والأعراض التي قد تظهر على المرضى.",
@@ -110,9 +105,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   RM: {
     title: "Research Methodology",
-    image: researchMethodologyImage,
-    accent: "#38BDF8",
-    accentRgb: "56,189,248",
+    ...moduleIdentity("RM"),
     intro: [
       "يهدف Research Methodology Module (RM) إلى تعريف طالب الطب بالأسس العلمية التي يعتمد عليها إجراء Medical Research، وإعطائه المعرفة والمهارات الأولية التي يحتاجها حتى يتمكن من قراءة الأبحاث العلمية وفهمها والمشاركة في إعداد وتنفيذ Research Project.",
       "يتعلم الطالب خلال الموديول كيفية التفكير بطريقة علمية ومنظمة عند التعامل مع مشكلة أو سؤال طبي، وكيفية تحديد Research Question وصياغة أهداف البحث، واختيار الطريقة المناسبة لدراسة المشكلة وجمع المعلومات والبيانات المتعلقة بها.",
@@ -133,9 +126,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   NT: {
     title: "Nutrition",
-    image: nutritionImage,
-    accent: "#A3E635",
-    accentRgb: "163,230,53",
+    ...moduleIdentity("NT"),
     intro: [
       "يركز Nutrition, Water & Electrolytes Imbalance Module (NT) على فهم العلاقة بين التغذية وصحة الإنسان، إضافةً إلى دراسة التوازن الطبيعي للسوائل والـ Electrolytes داخل الجسم والاضطرابات التي تحدث عند اختلال هذا التوازن.",
       "يبدأ الموديول بدراسة Nutrition والـ Essential Nutrients ودور كل منها في الحفاظ على وظائف الجسم الطبيعية، ثم ينتقل إلى دراسة الاضطرابات الناتجة عن نقص أو زيادة بعض العناصر الغذائية وتأثيرها على صحة الإنسان.",
@@ -159,9 +150,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   ImD: {
     title: "Immune Disturbances",
-    image: immuneDisturbancesImage,
-    accent: "#A78BFA",
-    accentRgb: "167,139,250",
+    ...moduleIdentity("ImD"),
     intro: [
       "يتناول Immune Disturbances Module (ImD) الاضطرابات والحالات المرضية الناتجة عن خلل في عمل الجهاز المناعي، ويساعد الطالب على فهم كيفية استجابة الجهاز المناعي للمرض وكيف يمكن أن تتحول هذه الاستجابة إلى سبب للمرض بدلاً من أن تكون وسيلة للحماية.",
       "يبدأ الموديول بدراسة Inflammation، مع التمييز بين Acute وChronic Inflammation وفهم الآليات الأساسية التي تؤدي إلى حدوثهما وتأثيرهما على الأنسجة.",
@@ -183,9 +172,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   PHC: {
     title: "Public Health Care",
-    image: publicHealthCareImage,
-    accent: "#FBBF24",
-    accentRgb: "251,191,36",
+    ...moduleIdentity("PHC"),
     intro: [
       "يركز Primary Health Care Module (PHC) على مفهوم الرعاية الصحية الأولية ودورها في الحفاظ على صحة الفرد والمجتمع، مع توسيع نظرة طالب الطب من علاج المرض فقط إلى الوقاية منه وتعزيز الصحة وتقليل عوامل الخطورة.",
       "يتعرف الطالب على المبادئ الأساسية للـ Primary Health Care وكيفية تقديم الرعاية الصحية على مستوى المجتمع، إضافةً إلى فهم دور الطبيب في الوقاية والكشف المبكر عن الأمراض ومتابعة المرضى بصورة مستمرة.",
@@ -209,9 +196,7 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
   SSC: {
     title: "Student Selected Components",
-    image: studentSelectedComponentsImage,
-    accent: "#C084FC",
-    accentRgb: "192,132,252",
+    ...moduleIdentity("SSC"),
     intro: [
       "يمثل Student Selected Components (SSC-3) جزءاً مختلفاً عن الموديولات التقليدية، لأنه يعطي الطالب مساحة أكبر للتعلم المستقل واختيار نشاط أو موضوع علمي والعمل عليه بصورة أكثر استقلالية.",
       "يهدف هذا الجزء إلى تطوير مهارات الطالب في Self-Directed Learning والبحث عن المعلومات من مصادر مختلفة، وتنظيمها وتحويلها إلى عمل أو تقرير علمي منظم.",
@@ -323,7 +308,8 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
       <button
         type="button"
         onClick={onBack}
-        className="mb-4 inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-2 py-1.5 text-[15px] font-medium text-[#0A84FF] shadow-[0_1px_0_rgba(15,23,42,0.04)] active:opacity-60 dark:bg-transparent dark:shadow-none sm:mb-5 sm:bg-transparent sm:px-1 sm:py-1 sm:shadow-none"
+        className="mb-4 inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-2 py-1.5 text-[15px] font-medium shadow-[0_1px_0_rgba(15,23,42,0.04)] active:opacity-60 dark:bg-transparent dark:shadow-none sm:mb-5 sm:bg-transparent sm:px-1 sm:py-1 sm:shadow-none"
+        style={{ color: config.accent }}
       >
         <ChevronLeft className="h-5 w-5" />
         {language === "ar" ? "رجوع" : "Back"}
