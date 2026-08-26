@@ -1,0 +1,171 @@
+/*
+ * 99's Guide — Indigo / Navy Dark Theme
+ * --------------------------------------
+ * A centralized dark-mode skin anchored to the app logo (#052050).
+ * This file is deliberately loaded AFTER index.css so it can restyle the
+ * existing dark utilities without rewriting every screen/component.
+ * Light mode is intentionally untouched.
+ */
+
+.dark {
+  color-scheme: dark;
+
+  /* Core canvas */
+  --bg-base: #06152f;
+  --bg-surface-1: #0b2140;
+  --bg-surface-2: #132f55;
+
+  /* Existing app surface tokens */
+  --surface-primary: #06152f;
+  --surface-secondary: #0b2140;
+  --surface-tertiary: #132f55;
+  --surface-elevated: #10284b;
+  --surface-grouped: #06152f;
+  --surface-sidebar: #081b37;
+  --surface-card: #0b2140;
+  --surface-interactive: #16355d;
+
+  /* Text stays highly legible against the new navy surfaces */
+  --text-primary: #f8fbff;
+  --text-secondary: rgba(225, 235, 250, 0.76);
+  --text-muted: rgba(202, 217, 241, 0.50);
+
+  /* Brand-aligned dark-mode elevation */
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 8px 24px rgba(0, 8, 28, 0.22);
+  --shadow-elevation-2: 0 14px 38px rgba(0, 8, 28, 0.28);
+  --shadow-elevation-3: 0 22px 54px rgba(0, 8, 28, 0.34);
+}
+
+/* App canvas — subtle indigo depth, never pure black. */
+html.dark,
+.dark body,
+.dark #root {
+  background-color: #06152f !important;
+  background-image:
+    radial-gradient(circle at 12% -8%, rgba(48, 91, 166, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 6%, rgba(37, 72, 139, 0.10), transparent 30%),
+    linear-gradient(180deg, #071831 0%, #06152f 46%, #051229 100%) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Convert the legacy iOS black/graphite dark palette to the new navy scale.
+   Attribute selectors intentionally match Tailwind class tokens already used
+   throughout the app, so every existing screen inherits the new theme while
+   preserving component behavior and subject-specific accent colors.
+   ------------------------------------------------------------------------- */
+
+/* Base black */
+.dark [class*="dark:bg-[#000000]"],
+.dark [class~="dark:bg-black"],
+.dark [class*="dark:bg-neutral-950"] {
+  background-color: #06152f !important;
+}
+
+/* Primary card / sidebar graphite */
+.dark [class*="dark:bg-[#1C1C1E]"],
+.dark [class*="dark:bg-[#1c1c1e]"],
+.dark [class*="dark:bg-[#111113]"],
+.dark [class*="dark:bg-[#151516]"],
+.dark [class*="dark:bg-[#151619]"],
+.dark [class*="dark:bg-[#17181B]"],
+.dark [class*="dark:bg-neutral-900"],
+.dark [class*="dark:bg-neutral-850"] {
+  background-color: #0b2140 !important;
+}
+
+/* Secondary / interactive graphite */
+.dark [class*="dark:bg-[#2C2C2E]"],
+.dark [class*="dark:bg-[#3A3A3C]"],
+.dark [class*="dark:bg-neutral-800"] {
+  background-color: #132f55 !important;
+}
+
+.dark [class*="dark:bg-[#636366]"],
+.dark [class*="dark:bg-neutral-700"] {
+  background-color: #1a3d68 !important;
+}
+
+.dark [class*="dark:bg-neutral-600"] {
+  background-color: #28507c !important;
+}
+
+/* Gradient utility that previously started from graphite. */
+.dark [class*="dark:from-[#222630]"] {
+  --tw-gradient-from: #10284b var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(16 40 75 / 0) var(--tw-gradient-to-position) !important;
+}
+
+/* Borders move from neutral gray to cool indigo-blue separation. */
+.dark [class*="dark:border-[#1C1C1E]"],
+.dark [class*="dark:border-[#1c1c1e]"],
+.dark [class*="dark:border-[#1E1E24]"],
+.dark [class*="dark:border-[#2C2C2E]"],
+.dark [class*="dark:border-[#333333]"],
+.dark [class~="dark:border-black"],
+.dark [class*="dark:border-neutral-950"],
+.dark [class*="dark:border-neutral-900"],
+.dark [class*="dark:border-neutral-850"],
+.dark [class*="dark:border-neutral-800"],
+.dark [class*="dark:border-neutral-700"] {
+  border-color: rgba(129, 164, 218, 0.17) !important;
+}
+
+.dark [class*="dark:border-neutral-600"] {
+  border-color: rgba(146, 180, 231, 0.24) !important;
+}
+
+/* The existing token-backed glass surface gets the same navy treatment. */
+.dark .bg-\[var\(--bg-surface-1\)\] {
+  background-color: rgba(11, 33, 64, 0.88) !important;
+  border-color: rgba(139, 172, 224, 0.15) !important;
+  backdrop-filter: blur(18px) saturate(132%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(132%) !important;
+}
+
+/* Sidebar gets a restrained logo-inspired gradient. */
+.dark .sidebar-shell {
+  background:
+    linear-gradient(180deg, rgba(13, 38, 74, 0.98) 0%, rgba(8, 27, 55, 0.98) 58%, rgba(6, 21, 47, 0.99) 100%) !important;
+  border-right-color: rgba(135, 169, 220, 0.14) !important;
+  box-shadow: 14px 0 34px rgba(1, 9, 28, 0.18) !important;
+}
+
+/* Give elevated dark surfaces subtle native-style separation rather than
+   flat black blocks. This intentionally avoids transforms/layout changes. */
+.dark .ios-widget,
+.dark .edge-light,
+.dark .card-glow-subtle {
+  box-shadow:
+    inset 0 1px 0 rgba(174, 200, 240, 0.055),
+    0 12px 32px rgba(1, 9, 28, 0.15) !important;
+}
+
+/* Focus ring follows the cool-blue/indigo family. */
+.dark *:focus-visible {
+  box-shadow: 0 0 0 2.5px rgba(83, 145, 255, 0.44) !important;
+}
+
+/* Scrollbars (desktop/PWA) blend into the new dark canvas. */
+.dark * {
+  scrollbar-color: rgba(102, 142, 202, 0.34) rgba(6, 21, 47, 0.42);
+}
+
+.dark *::-webkit-scrollbar-track {
+  background: rgba(6, 21, 47, 0.42);
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: rgba(102, 142, 202, 0.34);
+  border-color: rgba(6, 21, 47, 0.78);
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 161, 218, 0.48);
+}
+
+/* Selection is cool blue instead of gray/black. */
+.dark ::selection {
+  background: rgba(68, 128, 230, 0.32);
+  color: #ffffff;
+}
