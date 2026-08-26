@@ -235,7 +235,7 @@ export default function AvatarCropEditor({
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 18, opacity: 0, scale: 0.985 }}
         transition={{ type: "spring", stiffness: 420, damping: 36, mass: 0.9 }}
-        className="w-full rounded-t-[28px] border border-black/[0.06] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-4 shadow-2xl dark:border-white/[0.08] dark:bg-[#161619] sm:max-w-[430px] sm:rounded-[28px] sm:p-6"
+        className="w-full rounded-t-[28px] border border-black/[0.06] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-4 shadow-2xl dark:border-white/[0.08] dark:bg-[#161619] sm:max-w-[500px] sm:rounded-[28px] sm:p-6 lg:max-w-[560px] lg:p-7"
       >
         <div className="mb-5 flex items-center justify-between">
           <button
@@ -261,7 +261,7 @@ export default function AvatarCropEditor({
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-[320px] px-2">
+        <div className="mx-auto w-full max-w-[320px] px-2 sm:max-w-[360px] lg:max-w-[400px]">
           <div
             ref={previewRef}
             className="relative aspect-square w-full cursor-grab overflow-hidden rounded-full bg-neutral-200 shadow-[0_16px_50px_rgba(0,0,0,0.16)] ring-1 ring-black/10 active:cursor-grabbing dark:bg-neutral-900 dark:ring-white/10"

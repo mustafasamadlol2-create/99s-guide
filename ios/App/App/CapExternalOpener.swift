@@ -21,6 +21,10 @@ public final class CapExternalOpener:
             name: "pickProfilePhoto",
             returnType: CAPPluginReturnPromise
         ),
+        CAPPluginMethod(
+            name: "takeProfilePhoto",
+            returnType: CAPPluginReturnPromise
+        ),
     ]
 
     // Keep the preview controller alive strongly for the whole presentation.
@@ -35,6 +39,17 @@ public final class CapExternalOpener:
     private var currentOperationID: UUID?
 
     @objc public func pickProfilePhoto(_ call: CAPPluginCall) {
+        presentProfilePhotoPicker(call, sourceType: .photoLibrary)
+    }
+
+    @objc public func takeProfilePhoto(_ call: CAPPluginCall) {
+        presentProfilePhotoPicker(call, sourceType: .camera)
+    }
+
+    private func presentProfilePhotoPicker(
+        _ call: CAPPluginCall,
+        sourceType: UIImagePickerController.SourceType
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else {
                 call.reject("profile_photo_picker_unavailable")
@@ -46,8 +61,8 @@ public final class CapExternalOpener:
                 return
             }
 
-            guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
-                call.reject("photo_library_unavailable")
+            guard UIImagePickerController.isSourceTypeAvailable(sourceType) else {
+                call.reject(sourceType == .camera ? "camera_unavailable" : "photo_library_unavailable")
                 return
             }
 
@@ -57,15 +72,14 @@ public final class CapExternalOpener:
             }
 
             let picker = UIImagePickerController()
-            picker.sourceType = .photoLibrary
+            picker.sourceType = sourceType
             picker.mediaTypes = ["public.image"]
             picker.allowsEditing = false
             picker.delegate = self
 
-            // On iPad, use a native popover anchored to the app itself. Unlike
-            // WKWebView's file-input flow, selecting a photo calls the delegate
-            // directly; there is no WebKit preview/confirmation page in between.
-            if UIDevice.current.userInterfaceIdiom == .pad {
+            // Photo Library on iPad is most natural as a popover. The camera
+            // remains full screen on iPhone/iPad so framing is predictable.
+            if sourceType == .photoLibrary && UIDevice.current.userInterfaceIdiom == .pad {
                 picker.modalPresentationStyle = .popover
                 if let popover = picker.popoverPresentationController {
                     popover.sourceView = presenter.view

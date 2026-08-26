@@ -44,6 +44,12 @@ export interface CapExternalOpenerPlugin {
     cancelled: boolean;
     dataUrl?: string;
   }>;
+
+  /** Native iOS camera capture used by the profile avatar action menu. */
+  takeProfilePhoto(): Promise<{
+    cancelled: boolean;
+    dataUrl?: string;
+  }>;
 }
 
 const CapExternalOpener =
