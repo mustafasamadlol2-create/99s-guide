@@ -249,20 +249,23 @@ export class UserService {
   }
 
   // Update simple user metadata/metrics
-  static async updateUser(user: Partial<UserRecord> & { id: string }): Promise<void> {
+  static async updateUser(user: Partial<UserRecord> & { id: string; clearAvatar?: boolean }): Promise<void> {
     const client = getPrisma();
     const updateData: any = {};
     if (user.email !== undefined) updateData.email = user.email.trim().toLowerCase();
     if (user.profileEmail !== undefined) updateData.profileEmail = user.profileEmail ? user.profileEmail.trim().toLowerCase() : null;
     if (user.role !== undefined) updateData.role = user.role;
     if (user.name !== undefined) updateData.name = user.name;
-    if (user.avatar !== undefined || user.avatarUrl !== undefined) {
+    if (user.clearAvatar === true) {
+      // Explicit authenticated deletion intent. Keep the defensive empty-string
+      // protection below for every other update path (socket/sync/stale clients).
+      updateData.avatar = "";
+      updateData.avatarUrl = "";
+    } else if (user.avatar !== undefined || user.avatarUrl !== undefined) {
       const img = user.avatarUrl || user.avatar;
       // DEFENSIVE: Only write avatar if it is a meaningful non-empty value.
-      // Empty string "" must not overwrite a valid existing avatar — this prevents
-      // accidental clears from presence sync, stale client state, or incomplete payloads.
-      // Legitimate avatar deletion should explicitly pass a sentinel or go through
-      // the authenticated profile-update endpoint with explicit user intent.
+      // Empty string "" must not overwrite a valid existing avatar unless the
+      // caller explicitly sets clearAvatar above.
       if (img !== undefined && img !== null && img !== "") {
         updateData.avatar = img;
         updateData.avatarUrl = img;

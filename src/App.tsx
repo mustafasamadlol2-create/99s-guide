@@ -3287,6 +3287,8 @@ export default function App() {
   const handleUpdateProfile = useCallback(
     async (newName: string, newEmail: string, newAvatar: string, newGroup?: string, newSignature?: string) => {
       if (!currentUser) return;
+      const previousAvatar = String(currentUser.avatar || currentUser.avatarUrl || "").trim();
+      const removeAvatar = newAvatar.trim() === "" && previousAvatar !== "";
       const updatedUser = {
         ...currentUser,
         name: newName,
@@ -3306,6 +3308,7 @@ export default function App() {
           email: newEmail,
           avatar: newAvatar,
           avatarUrl: newAvatar,
+          removeAvatar,
           studentGroup: newGroup
         };
         if (newSignature !== undefined) payload.signature = newSignature;
@@ -3320,8 +3323,10 @@ export default function App() {
           if (data.success && data.user) {
             const mergedUser = {
               ...data.user,
-              avatar: data.user.avatar || newAvatar,
-              avatarUrl: data.user.avatarUrl || data.user.avatar || newAvatar,
+              // Respect an explicit empty avatar returned after deletion. Using || here
+              // would incorrectly resurrect the previous/local image.
+              avatar: removeAvatar ? "" : (data.user.avatar ?? newAvatar),
+              avatarUrl: removeAvatar ? "" : (data.user.avatarUrl ?? data.user.avatar ?? newAvatar),
               signature: data.user.signature !== undefined ? data.user.signature : (newSignature !== undefined ? newSignature : currentUser.signature),
             };
             setCurrentUser(mergedUser);
@@ -3342,6 +3347,7 @@ export default function App() {
           name: newName,
           email: newEmail,
           avatar: newAvatar,
+          removeAvatar,
           studentGroup: newGroup,
         };
         if (newSignature !== undefined) offlinePayload.signature = newSignature;

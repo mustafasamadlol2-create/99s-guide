@@ -26,6 +26,7 @@ import {
   UserX,
   Flag,
   Settings,
+  Trash2,
 } from "lucide-react";
 
 interface ProfileViewProps {
@@ -173,6 +174,14 @@ export const ProfileView = function ProfileView({
  const [editSignature, setEditSignature] = useState(user.signature || "");
  const [isSigning, setIsSigning] = useState(false);
 
+ const hasCustomEditAvatar = useMemo(() => Boolean(
+   editAvatar &&
+   editAvatar.trim() !== "" &&
+   !editAvatar.includes("unsplash.com") &&
+   !editAvatar.includes("/icon.svg") &&
+   !editAvatar.includes("mock")
+ ), [editAvatar]);
+
  // Synchronize local edit states
  useEffect(() => {
    if (!isEditing) {
@@ -259,6 +268,19 @@ export const ProfileView = function ProfileView({
           onAvatarChange={handleAvatarChange}
           isEditable={true}
         />
+
+        {isEditing && hasCustomEditAvatar && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => setEditAvatar("")}
+            className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-red-500/15 bg-red-500/[0.07] px-4 text-[13px] font-semibold text-red-500 transition-colors active:bg-red-500/[0.12] dark:border-red-400/15 dark:bg-red-400/[0.08] dark:text-red-400"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Remove Photo
+          </motion.button>
+        )}
 
         {!isEditing ? (
           <AnimatePresence>

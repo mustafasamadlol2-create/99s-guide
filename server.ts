@@ -7426,8 +7426,11 @@ app.post("/api/auth/complete-profile", requireUser, catchAsync(async (req: any, 
 // Update peer profile card details
 app.post("/api/auth/update-profile", requireUser, catchAsync(async (req, res) => {
   try {
-    const { userId, name, email, avatar, studentGroup, signature } = req.body;
+    const { userId, name, email, avatar, studentGroup, signature, removeAvatar } = req.body;
     if (!userId) return res.status(400).json({ error: "User context ID is required." });
+    if (removeAvatar !== undefined && typeof removeAvatar !== "boolean") {
+      return res.status(400).json({ error: "removeAvatar must be a boolean." });
+    }
 
     if (studentGroup && !["A", "B", "C", "D"].includes(studentGroup)) {
       return res.status(400).json({ error: "Invalid academic group. Allowed values: A, B, C, D" });
@@ -7488,7 +7491,8 @@ app.post("/api/auth/update-profile", requireUser, catchAsync(async (req, res) =>
       id: userId,
       name: name?.trim(),
       email: cleanEmail,
-      avatar,
+      avatar: removeAvatar === true ? undefined : avatar,
+      clearAvatar: removeAvatar === true,
       studentGroup: (authUser.id === userId || authUser.role === "admin" || authUser.role === "owner") ? studentGroup : undefined,
       signature
     });
