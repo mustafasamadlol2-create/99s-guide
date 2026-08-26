@@ -26,6 +26,16 @@ export default function AvatarCropEditor({
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
   const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const touchDragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
+  const touchPinchStartRef = useRef<{
+    distance: number;
+    zoom: number;
+    centerX: number;
+    centerY: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const offsetRef = useRef({ x: 0, y: 0 });
 
   const [previewSize, setPreviewSize] = useState(0);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
@@ -104,13 +114,37 @@ export default function AvatarCropEditor({
     [previewSize, renderedSize.height, renderedSize.width],
   );
 
+  const clampOffsetForZoom = useCallback(
+    (next: { x: number; y: number }, targetZoom: number) => {
+      if (!previewSize) return next;
+      const width = naturalSize.width * baseScale * targetZoom;
+      const height = naturalSize.height * baseScale * targetZoom;
+      const maxX = Math.max(0, (width - previewSize) / 2);
+      const maxY = Math.max(0, (height - previewSize) / 2);
+      return {
+        x: clamp(next.x, -maxX, maxX),
+        y: clamp(next.y, -maxY, maxY),
+      };
+    },
+    [baseScale, naturalSize.height, naturalSize.width, previewSize],
+  );
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
   useEffect(() => {
     setOffset((current) => clampOffset(current));
   }, [clampOffset]);
 
-  const updateZoom = useCallback((nextZoom: number) => {
-    setZoom(clamp(nextZoom, MIN_ZOOM, MAX_ZOOM));
-  }, []);
+  const updateZoom = useCallback(
+    (nextZoom: number) => {
+      const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+      setZoom(clampedZoom);
+      setOffset((current) => clampOffsetForZoom(current, clampedZoom));
+    },
+    [clampOffsetForZoom],
+  );
 
   const pointerDistance = () => {
     const points = Array.from(pointersRef.current.values()) as Array<{ x: number; y: number }>;
@@ -119,6 +153,11 @@ export default function AvatarCropEditor({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // iPhone/iPad WKWebView is more reliable with native TouchEvents. Avoid
+    // processing the same finger twice when WebKit also emits PointerEvents.
+    if (event.pointerType === "touch") return;
+
+    event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -126,8 +165,8 @@ export default function AvatarCropEditor({
       dragStartRef.current = {
         x: event.clientX,
         y: event.clientY,
-        offsetX: offset.x,
-        offsetY: offset.y,
+        offsetX: offsetRef.current.x,
+        offsetY: offsetRef.current.y,
       };
     } else if (pointersRef.current.size === 2) {
       pinchStartRef.current = { distance: pointerDistance(), zoom };
@@ -135,7 +174,10 @@ export default function AvatarCropEditor({
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") return;
     if (!pointersRef.current.has(event.pointerId)) return;
+
+    event.preventDefault();
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (pointersRef.current.size >= 2 && pinchStartRef.current) {
@@ -158,6 +200,8 @@ export default function AvatarCropEditor({
   };
 
   const finishPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") return;
+
     pointersRef.current.delete(event.pointerId);
     pinchStartRef.current = null;
 
@@ -166,9 +210,115 @@ export default function AvatarCropEditor({
       dragStartRef.current = {
         x: remaining.x,
         y: remaining.y,
-        offsetX: offset.x,
-        offsetY: offset.y,
+        offsetX: offsetRef.current.x,
+        offsetY: offsetRef.current.y,
       };
+    }
+  };
+
+  const touchDistance = (first: React.Touch, second: React.Touch) =>
+    Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+
+  const touchCenter = (first: React.Touch, second: React.Touch) => ({
+    x: (first.clientX + second.clientX) / 2,
+    y: (first.clientY + second.clientY) / 2,
+  });
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      touchPinchStartRef.current = null;
+      touchDragStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        offsetX: offsetRef.current.x,
+        offsetY: offsetRef.current.y,
+      };
+      return;
+    }
+
+    if (event.touches.length >= 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const center = touchCenter(first, second);
+      touchPinchStartRef.current = {
+        distance: touchDistance(first, second),
+        zoom,
+        centerX: center.x,
+        centerY: center.y,
+        offsetX: offsetRef.current.x,
+        offsetY: offsetRef.current.y,
+      };
+    }
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    if (event.touches.length >= 2 && touchPinchStartRef.current) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const start = touchPinchStartRef.current;
+      const distance = touchDistance(first, second);
+      if (distance <= 0 || start.distance <= 0) return;
+
+      const nextZoom = clamp(start.zoom * (distance / start.distance), MIN_ZOOM, MAX_ZOOM);
+      const scaleRatio = nextZoom / start.zoom;
+      const rect = previewRef.current?.getBoundingClientRect();
+      const center = touchCenter(first, second);
+
+      if (rect) {
+        const startCenterX = start.centerX - rect.left - previewSize / 2;
+        const startCenterY = start.centerY - rect.top - previewSize / 2;
+        const currentCenterX = center.x - rect.left - previewSize / 2;
+        const currentCenterY = center.y - rect.top - previewSize / 2;
+
+        const nextOffset = clampOffsetForZoom(
+          {
+            x: currentCenterX - (startCenterX - start.offsetX) * scaleRatio,
+            y: currentCenterY - (startCenterY - start.offsetY) * scaleRatio,
+          },
+          nextZoom,
+        );
+        offsetRef.current = nextOffset;
+        setOffset(nextOffset);
+      }
+
+      setZoom(nextZoom);
+      return;
+    }
+
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      const start = touchDragStartRef.current;
+      const nextOffset = clampOffset({
+        x: start.offsetX + touch.clientX - start.x,
+        y: start.offsetY + touch.clientY - start.y,
+      });
+      offsetRef.current = nextOffset;
+      setOffset(nextOffset);
+    }
+  };
+
+  const finishTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      touchPinchStartRef.current = null;
+      touchDragStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        offsetX: offsetRef.current.x,
+        offsetY: offsetRef.current.y,
+      };
+      return;
+    }
+
+    if (event.touches.length === 0) {
+      touchPinchStartRef.current = null;
     }
   };
 
@@ -235,7 +385,7 @@ export default function AvatarCropEditor({
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 18, opacity: 0, scale: 0.985 }}
         transition={{ type: "spring", stiffness: 420, damping: 36, mass: 0.9 }}
-        className="w-full rounded-t-[28px] border border-black/[0.06] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-4 shadow-2xl dark:border-white/[0.08] dark:bg-[#161619] sm:max-w-[500px] sm:rounded-[28px] sm:p-6 lg:max-w-[560px] lg:p-7"
+        className="w-full rounded-t-[28px] border border-black/[0.06] bg-white px-5 pb-[calc(18px+env(safe-area-inset-bottom))] pt-4 shadow-2xl dark:border-white/[0.08] dark:bg-[#161619] sm:max-w-[430px] sm:rounded-[28px] sm:p-6"
       >
         <div className="mb-5 flex items-center justify-between">
           <button
@@ -261,15 +411,25 @@ export default function AvatarCropEditor({
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-[320px] px-2 sm:max-w-[360px] lg:max-w-[400px]">
+        <div className="mx-auto w-full max-w-[320px] px-2">
           <div
             ref={previewRef}
             className="relative aspect-square w-full cursor-grab overflow-hidden rounded-full bg-neutral-200 shadow-[0_16px_50px_rgba(0,0,0,0.16)] ring-1 ring-black/10 active:cursor-grabbing dark:bg-neutral-900 dark:ring-white/10"
-            style={{ touchAction: "none" }}
+            style={{
+              touchAction: "none",
+              overscrollBehavior: "contain",
+              WebkitUserSelect: "none",
+              WebkitTouchCallout: "none",
+            }}
+            onContextMenu={(event) => event.preventDefault()}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={finishPointer}
             onPointerCancel={finishPointer}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={finishTouch}
+            onTouchCancel={finishTouch}
           >
             {naturalSize.width > 0 && previewSize > 0 && (
               <img
@@ -320,7 +480,7 @@ export default function AvatarCropEditor({
 
           <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">
             <Move className="h-3.5 w-3.5" />
-            <span>Drag to reposition · Pinch or use slider to zoom</span>
+            <span>Drag in any direction to reposition · Pinch or use slider to zoom</span>
           </div>
         </div>
 
