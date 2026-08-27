@@ -410,7 +410,7 @@ const UniversityBadge = ({
 }) => (
   <div
     className="home-hero-university-badge relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#0D1826]/60 to-[#09111D]/40 border border-[#D4AF37]/28 shadow-[0_1px_8px_rgba(0,0,0,0.4)] w-fit transition-all duration-300 hover:bg-[#0D1826]/70 hover:border-[#D4AF37]/50 hover:shadow-[0_0_14px_rgba(212,175,55,0.15)] overflow-hidden group"
-    style={{ transform: isPhone ? "translate3d(0, -20px, 0)" : undefined }}
+    style={{ transform: isPhone ? "translate3d(0, -14px, 0)" : undefined }}
   >
     <div className="badge-shimmer-sweep" aria-hidden="true" />
     <picture>
