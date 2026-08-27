@@ -4331,7 +4331,7 @@ const handleSignOut = useCallback(async () => {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell shrink-0 flex-col bg-[#F7F7F8] dark:bg-[#1C1C1E] border-r border-black/[0.05] dark:border-white/[0.08] h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
+        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell sidebar-premium-surface shrink-0 flex-col border-r h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
         style={{
           width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
@@ -4340,8 +4340,8 @@ const handleSignOut = useCallback(async () => {
         }}
         onKeyDown={handleSidebarKeyDown}
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 to-transparent dark:from-[#222630]/40 dark:to-transparent z-[-2] pointer-events-none" />
-        <div className="absolute top-0 left-0 right-0 h-[50vh] bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.9),transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.04),transparent_70%)] z-[-1] pointer-events-none" />
+        <div className="sidebar-ambient-wash absolute inset-0 z-[-2] pointer-events-none" />
+        <div className="sidebar-ambient-radial absolute top-0 left-0 right-0 h-[50vh] z-[-1] pointer-events-none" />
         <div
           className="absolute inset-0 opacity-[0.015] dark:opacity-[0.03] z-[-1] pointer-events-none "
           style={{
@@ -4421,7 +4421,7 @@ const handleSignOut = useCallback(async () => {
             animate="visible"
             variants={{
               hidden: {},
-              visible: { transition: { staggerChildren: 0.045, delayChildren: 0.04 } },
+              visible: { transition: { staggerChildren: 0.035, delayChildren: 0.025 } },
             }}
           >
             {sidebarMainItems.map((item) => (
@@ -4484,17 +4484,13 @@ const handleSignOut = useCallback(async () => {
             className={`flex items-center ${
               isAsideCollapsed
                 ? "justify-center flex-col gap-3"
-                : `${device.isTablet ? "px-3 py-2.5" : "px-2.5 py-2"} justify-between rounded-xl
-                   bg-neutral-100/50 dark:bg-white/[0.04]
-                   border border-black/[0.04] dark:border-white/[0.07]
-                   hover:bg-neutral-100/90 dark:hover:bg-white/[0.08]
-                   transition-colors duration-200 ease-out`
+                : `${device.isTablet ? "px-3 py-2.5" : "px-2.5 py-2"} sidebar-profile-card justify-between rounded-2xl`
             }`}
           >
             {/* Avatar + name */}
             <button
               onClick={() => handleSidebarTabClick("profile")}
-              className={`flex items-center ${"gap-3.5"} cursor-pointer outline-none
+              className={`sidebar-profile-button flex items-center ${"gap-3.5"} cursor-pointer outline-none
                 focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2
                 dark:focus-visible:ring-offset-neutral-950 min-w-0 group rounded-lg
                 active:scale-[0.97] active:opacity-80 transition-transform duration-75
@@ -4502,7 +4498,7 @@ const handleSignOut = useCallback(async () => {
               title={currentUser.name}
               aria-label={`${language === "ar" ? "الملف الشخصي لـ" : "Profile for"} ${currentUser.name}`}
             >
-              <div className="relative shrink-0 group-hover:scale-105 transition-transform duration-200 ease-out">
+              <div className="sidebar-profile-avatar relative shrink-0 transition-transform duration-200 ease-out">
                 <UserAvatar
                   name={currentUser.name}
                   avatarUrl={currentUser.avatar}
@@ -4526,7 +4522,7 @@ const handleSignOut = useCallback(async () => {
             {/* Sign-out button */}
             <motion.button
               onClick={handleSignOut}
-              className={`rounded-lg flex items-center justify-center shrink-0 outline-none
+              className={`sidebar-signout-button rounded-xl flex items-center justify-center shrink-0 outline-none
                 text-neutral-400 dark:text-[#EBEBF560]
                 hover:text-rose-500 dark:hover:text-rose-400
                 hover:bg-rose-50/70 dark:hover:bg-rose-500/10
@@ -4536,9 +4532,9 @@ const handleSignOut = useCallback(async () => {
                 ${isAsideCollapsed ? "w-11 h-11 bg-neutral-100/70 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.07]" : "w-11 h-11"}`}
               title={language === "ar" ? "تسجيل الخروج" : "Sign Out"}
               aria-label={language === "ar" ? "تسجيل الخروج" : "Sign Out"}
-              whileHover={{ scale: 1.1, rotate: -15 }}
-              whileTap={{ scale: 0.88, opacity: 0.7 }}
-              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+              whileHover={{ scale: 1.025 }}
+              whileTap={{ scale: 0.94, opacity: 0.78 }}
+              transition={{ type: "spring", stiffness: 360, damping: 31, mass: 0.68 }}
             >
               <LogOut className={device.isTablet ? "w-[18px] h-[18px]" : "w-[15px] h-[15px]"} />
             </motion.button>

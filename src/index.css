@@ -3730,3 +3730,268 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   height: 44px;
   flex-basis: 44px;
 }
+
+/* ========================================================================== 
+   PREMIUM FIXED SIDEBAR — iOS floating-nav motion language, sidebar geometry
+   --------------------------------------------------------------------------
+   Tablet/iPad/Desktop only by structure: the sidebar is never rendered on the
+   phone layout. This intentionally does NOT add floating/scroll-collapse
+   behavior. The rail/sidebar remains a fixed full-height navigation surface.
+   ========================================================================== */
+
+.sidebar-premium-surface {
+  background: rgba(247, 247, 249, 0.82) !important;
+  border-right-color: rgba(60, 60, 67, 0.10) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(1.35);
+  backdrop-filter: blur(30px) saturate(1.35);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.72),
+    8px 0 28px -24px rgba(0, 0, 0, 0.22);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.dark .sidebar-premium-surface {
+  background: rgba(24, 24, 27, 0.84) !important;
+  border-right-color: rgba(255, 255, 255, 0.09) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(1.18);
+  backdrop-filter: blur(30px) saturate(1.18);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.035),
+    10px 0 34px -26px rgba(0, 0, 0, 0.72);
+}
+
+.sidebar-ambient-wash {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(255, 255, 255, 0.16) 32%,
+    rgba(255, 255, 255, 0) 72%
+  );
+}
+
+.dark .sidebar-ambient-wash {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.035) 0%,
+    rgba(255, 255, 255, 0.012) 34%,
+    rgba(255, 255, 255, 0) 72%
+  );
+}
+
+.sidebar-ambient-radial {
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.18) 42%,
+    transparent 72%
+  );
+}
+
+.dark .sidebar-ambient-radial {
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(72, 103, 170, 0.055) 0%,
+    rgba(255, 255, 255, 0.018) 42%,
+    transparent 72%
+  );
+}
+
+/* Match the mobile bar's quick response + long, controlled landing. The width
+   changes only when the user explicitly presses the sidebar toggle. */
+.sidebar-shell {
+  transition:
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 220ms ease-out,
+    border-color 220ms ease-out !important;
+}
+
+.sidebar-brand {
+  transition:
+    opacity 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+.sidebar-toggle {
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  background: rgba(118, 118, 128, 0.08);
+  transition:
+    background-color 160ms ease-out,
+    border-color 180ms ease-out,
+    color 180ms ease-out,
+    box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+.dark .sidebar-toggle {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(118, 118, 128, 0.12);
+}
+
+.sidebar-toggle:active {
+  background: rgba(118, 118, 128, 0.18) !important;
+}
+
+.dark .sidebar-toggle:active {
+  background: rgba(118, 118, 128, 0.24) !important;
+}
+
+.sidebar-toggle-icon {
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+.sidebar-nav-item-wrap {
+  position: relative;
+}
+
+.sidebar-nav-item {
+  -webkit-tap-highlight-color: transparent;
+  transform: translate3d(0, 0, 0);
+  transition:
+    color 220ms ease-out,
+    background-color 180ms ease-out,
+    opacity 180ms ease-out;
+}
+
+.sidebar-active-indicator {
+  inset: 3px 4px;
+  border-radius: 14px;
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.sidebar-active-indicator-neutral {
+  background: rgba(60, 60, 67, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.50);
+}
+
+.dark .sidebar-active-indicator {
+  box-shadow:
+    0 1px 8px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+}
+
+.dark .sidebar-active-indicator-neutral {
+  background: rgba(255, 255, 255, 0.125);
+  border-color: rgba(255, 255, 255, 0.075);
+}
+
+.sidebar-nav-hover-surface {
+  inset: 3px 4px;
+  border-radius: 14px;
+  opacity: 0;
+  background: rgba(118, 118, 128, 0.075);
+  transition: opacity 150ms ease-out, background-color 150ms ease-out;
+}
+
+.dark .sidebar-nav-hover-surface {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.sidebar-nav-icon {
+  transition:
+    color 240ms ease-out,
+    opacity 200ms ease-out,
+    stroke-width 220ms ease-out;
+}
+
+.sidebar-nav-label {
+  transition: color 240ms ease-out, opacity 200ms ease-out;
+}
+
+.sidebar-profile-card {
+  background: rgba(118, 118, 128, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow:
+    0 1px 7px rgba(0, 0, 0, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.50);
+  transition:
+    background-color 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dark .sidebar-profile-card {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow:
+    0 1px 8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.sidebar-profile-button,
+.sidebar-profile-avatar,
+.sidebar-signout-button {
+  transition:
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 160ms ease-out,
+    background-color 160ms ease-out,
+    color 160ms ease-out !important;
+}
+
+/* Pointer devices get a quiet iOS/macOS hover response. No sideways motion,
+   no floating effect, and no scroll-dependent behavior. */
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-nav-item:hover .sidebar-nav-hover-surface {
+    opacity: 1;
+  }
+
+  .sidebar-nav-item[aria-current="page"]:hover .sidebar-nav-hover-surface {
+    opacity: 0;
+  }
+
+  .sidebar-toggle:hover {
+    background: rgba(118, 118, 128, 0.12);
+    border-color: rgba(60, 60, 67, 0.12);
+  }
+
+  .dark .sidebar-toggle:hover {
+    background: rgba(118, 118, 128, 0.18);
+    border-color: rgba(255, 255, 255, 0.10);
+  }
+
+  .sidebar-profile-card:hover {
+    background: rgba(118, 118, 128, 0.105);
+  }
+
+  .dark .sidebar-profile-card:hover {
+    background: rgba(255, 255, 255, 0.075);
+  }
+
+  .sidebar-profile-button:hover .sidebar-profile-avatar {
+    transform: scale(1.025);
+  }
+}
+
+/* Keep touch-tablet collapse geometry stable: only explicit toggle changes the
+   width. Touching/scrolling the page never expands or shrinks the sidebar. */
+@media (hover: none) and (pointer: coarse) and (min-width: 900px) {
+  .sidebar-shell {
+    transition:
+      width 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      flex-basis 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      background-color 180ms ease-out,
+      border-color 180ms ease-out !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-shell,
+  .sidebar-brand,
+  .sidebar-toggle,
+  .sidebar-toggle-icon,
+  .sidebar-nav-item,
+  .sidebar-nav-icon,
+  .sidebar-nav-label,
+  .sidebar-nav-hover-surface,
+  .sidebar-profile-card,
+  .sidebar-profile-button,
+  .sidebar-profile-avatar,
+  .sidebar-signout-button {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+}

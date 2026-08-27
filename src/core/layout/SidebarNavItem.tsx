@@ -15,13 +15,29 @@ export interface SidebarNavItemProps {
   isTablet?: boolean;
 }
 
+// Same motion language as the iPhone floating tab bar: immediate response,
+// soft landing, and no elastic overshoot. The sidebar itself remains fixed.
 const itemVariants = {
-  hidden: { opacity: 0, x: -6 },
+  hidden: { opacity: 0, y: 4 },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: { type: "spring" as const, stiffness: 400, damping: 32 },
+    y: 0,
+    transition: { type: "spring" as const, stiffness: 330, damping: 31, mass: 0.7 },
   },
+};
+
+const indicatorTransition = {
+  type: "spring" as const,
+  stiffness: 360,
+  damping: 31,
+  mass: 0.72,
+};
+
+const contentTransition = {
+  type: "spring" as const,
+  stiffness: 360,
+  damping: 31,
+  mass: 0.68,
 };
 
 export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
@@ -36,119 +52,111 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
     bgClass,
     iconBadge,
     rightBadge,
-    isTablet,
   }) {
     const hasCustomColor = !!colorClass;
     const hasCustomBg = !!bgClass;
 
     const iconColorClass = isActive
       ? hasCustomColor
-        ? ""                                    // inherits from button's colorClass
+        ? ""
         : "text-neutral-900 dark:text-white"
       : hasCustomColor
-        ? `${colorClass} opacity-70 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-300";
+        ? `${colorClass} opacity-75 group-hover:opacity-100`
+        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-200";
 
     const labelColorClass = isActive
       ? hasCustomColor
-        ? ""                                    // inherits from button's colorClass
+        ? ""
         : "text-neutral-900 dark:text-white"
       : hasCustomColor
-        ? `${colorClass} opacity-70 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] opacity-80 group-hover:opacity-100";
+        ? `${colorClass} opacity-75 group-hover:opacity-100`
+        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-200";
 
     return (
-      <motion.div variants={itemVariants}>
-        <button
+      <motion.div variants={itemVariants} className="sidebar-nav-item-wrap">
+        <motion.button
           onClick={() => onClick(id)}
           aria-label={label}
           aria-current={isActive ? "page" : undefined}
           title={label}
           className={[
-            // layout
-            "relative flex items-center w-full border-none outline-none cursor-pointer",
-            "z-0 antialiased rounded-xl group",
-            "gap-4 min-h-[60px]",
-            isAsideCollapsed
-              ? "justify-center p-1"
-              : "px-4 py-2 text-left",
-            // focus ring
+            "sidebar-nav-item relative flex items-center w-full border-none outline-none cursor-pointer",
+            "z-0 antialiased rounded-2xl group min-h-[56px]",
+            isAsideCollapsed ? "justify-center p-1" : "gap-3.5 px-3.5 py-1.5 text-left",
             "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
             "dark:focus-visible:ring-offset-neutral-950",
-            // active/inactive text color
             isActive
               ? `font-semibold ${hasCustomColor ? colorClass : "text-neutral-900 dark:text-white"}`
               : "font-medium",
-            // subtle press feedback via CSS active state
-            "active:scale-[0.965] active:opacity-[0.88]",
-            "transition-transform duration-[80ms] ease-out",
-            "macos-interactive sidebar-item-hover-effect",
           ].filter(Boolean).join(" ")}
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          whileTap={{ scale: 0.965, opacity: 0.9 }}
+          transition={{ type: "spring", stiffness: 420, damping: 32, mass: 0.62 }}
         >
-          {/* ── Animated sliding active background (shared layoutId → smooth pill slide) */}
+          {/* Shared moving glass pill — mirrors the mobile active indicator. */}
           {isActive && (
             <motion.div
               layoutId="sidebar-active-pill"
               className={[
-                "absolute inset-0 rounded-xl",
-                hasCustomBg ? bgClass : "bg-neutral-200/80 dark:bg-white/[0.12]",
+                "sidebar-active-indicator absolute pointer-events-none",
+                hasCustomBg ? bgClass : "sidebar-active-indicator-neutral",
               ].filter(Boolean).join(" ")}
               initial={false}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              transition={indicatorTransition}
             />
           )}
 
-          {/* ── Hover surface (inactive only) */}
+          {/* Inactive hover/touch surface. */}
           {!isActive && (
-            <span
-              aria-hidden="true"
-              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100
-                         bg-neutral-100/70 dark:bg-white/[0.05]
-                         transition-opacity duration-150 ease-out"
-            />
+            <span aria-hidden="true" className="sidebar-nav-hover-surface absolute pointer-events-none" />
           )}
 
-
-          {/* ── Icon */}
-          <div
-            className={`relative shrink-0 flex items-center justify-center z-10
-              ${"w-11 h-11"}`}
-          >
+          <div className="relative shrink-0 flex items-center justify-center z-10 w-11 h-11">
             <motion.div
-              animate={{ scale: isActive ? 1.08 : 1 }}
-              transition={{ type: "spring", stiffness: 420, damping: 22 }}
+              animate={{
+                y: isActive ? -1 : 0,
+                scale: isActive ? 1.045 : 1,
+              }}
+              transition={contentTransition}
               className="flex items-center justify-center"
             >
               <Icon
                 className={[
-                  "w-[26px] h-[26px]",
-                  "transition-colors duration-200",
+                  "w-[25px] h-[25px] sidebar-nav-icon",
                   iconColorClass,
                 ].filter(Boolean).join(" ")}
+                strokeWidth={isActive ? 2.35 : 1.85}
               />
             </motion.div>
             {iconBadge}
           </div>
 
-          {/* ── Label */}
           {!isAsideCollapsed && (
-            <span
+            <motion.span
+              animate={{
+                opacity: isActive ? 1 : 0.82,
+                y: isActive ? -0.5 : 0,
+              }}
+              transition={contentTransition}
               className={[
-                "relative z-10 flex-1 truncate leading-none",
-                "text-[17px]",
-                "transition-opacity duration-150",
+                "relative z-10 flex-1 truncate leading-none text-[16px] sidebar-nav-label",
                 labelColorClass,
               ].filter(Boolean).join(" ")}
             >
               {label}
-            </span>
+            </motion.span>
           )}
 
-          {/* ── Right badge */}
           {!isAsideCollapsed && rightBadge && (
-            <div className="relative z-10 shrink-0">{rightBadge}</div>
+            <motion.div
+              animate={{ opacity: isActive ? 1 : 0.8, scale: isActive ? 1 : 0.98 }}
+              transition={contentTransition}
+              className="relative z-10 shrink-0"
+            >
+              {rightBadge}
+            </motion.div>
           )}
-        </button>
+        </motion.button>
       </motion.div>
     );
   },
