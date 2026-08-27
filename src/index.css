@@ -2953,6 +2953,19 @@ button:not(:disabled):active,
   }
 }
 
+/* Phone portrait: the approved 252px hero frame stays exactly the same size.
+   Scale the complete foreground as one visual unit so every child — badge,
+   greeting, name/emoji, motto, icons, pills, and the gaps between them — keeps
+   the same relative geometry while fitting cleanly inside the smaller frame.
+   Scaling the group (instead of individually retuning margins) prevents the
+   top badge and bottom pills from being clipped and keeps PWA/Capacitor in sync. */
+@media (orientation: portrait) {
+  .mobile-phone-layout .home-hero-foreground {
+    transform: scale(0.84);
+    transform-origin: center center;
+  }
+}
+
 /* Landscape phones (short viewports): keep the hero compact so search/schedule
    and the subjects grid stay within reach. */
 @media (orientation: landscape) and (max-height: 520px) {

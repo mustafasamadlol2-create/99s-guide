@@ -626,7 +626,7 @@ const HeroBanner = memo(({
       {/* ── Foreground ────────────────────────────────────────────────────── */}
       <motion.div
         className={[
-          "relative z-[3] h-full",
+          "home-hero-foreground relative z-[3] h-full",
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
         variants={heroContainerVariants}
