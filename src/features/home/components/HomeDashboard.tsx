@@ -745,7 +745,7 @@ const HeroBanner = memo(({
           </div>
 
           {/* Pills — decorative identity badges */}
-          <ul role="list" aria-label="Student identity" className="flex items-center gap-1.5 relative z-10 list-none p-0 m-0">
+          <ul role="list" aria-label="Student identity" className="home-hero-pills flex items-center gap-1.5 relative z-10 list-none p-0 m-0">
             {/* MED SCHOOL — gold accent with live dot */}
             <motion.li
               role="listitem"
