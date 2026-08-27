@@ -73,9 +73,51 @@ interface LectureDetailViewProps {
  muteStatus?: { isMuted: boolean; isPermanent: boolean; endTime: string | null; reason: string | null } | null;
 }
 
-const resolveExternalPdfUrl = async (rawUrl: string | undefined, materialId?: string): Promise<string> => {
+type ResolvedPdfUrlCacheEntry = {
+  url: string;
+  expiresAt: number;
+};
+
+// User-scoped in-memory viewer URL cache. This keeps repeated taps instant while
+// preventing a signed URL from one logged-in account being reused by another.
+const resolvedPdfUrlCache = new Map<string, ResolvedPdfUrlCacheEntry>();
+const preconnectedPdfOrigins = new Set<string>();
+const PDF_URL_CACHE_SAFETY_MS = 30_000;
+
+const preconnectToPdfHost = (rawUrl: string) => {
+  if (typeof document === "undefined") return;
+  try {
+    const origin = new URL(rawUrl).origin;
+    if (preconnectedPdfOrigins.has(origin)) return;
+
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+    preconnectedPdfOrigins.add(origin);
+  } catch (_) {
+    // Performance hint only; never block PDF opening on preconnect support.
+  }
+};
+
+const resolveExternalPdfUrl = async (
+  rawUrl: string | undefined,
+  materialId?: string,
+  userCacheScope = "anonymous",
+): Promise<string> => {
   let freshUrl = rawUrl || "";
-  
+  const cacheKey = materialId ? `${userCacheScope}:material:${materialId}` : "";
+
+  if (cacheKey) {
+    const cached = resolvedPdfUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt - PDF_URL_CACHE_SAFETY_MS > Date.now()) {
+      preconnectToPdfHost(cached.url);
+      return cached.url;
+    }
+    resolvedPdfUrlCache.delete(cacheKey);
+  }
+
   if (!freshUrl && materialId) {
     freshUrl = `/api/materials/pdf/${encodeURIComponent(materialId)}`;
   } else if (!freshUrl) {
@@ -111,15 +153,29 @@ const resolveExternalPdfUrl = async (rawUrl: string | undefined, materialId?: st
       pathParts[2] === "pdf"
         ? decodeURIComponent(pathParts[3] || "").replace(/\.pdf$/i, "")
         : undefined;
-    if (
-      (urlMaterialId || materialId)
-    ) {
+
+    if (urlMaterialId || materialId) {
       const targetMaterialId = urlMaterialId || materialId;
       if (!targetMaterialId) return cleanLink;
+
+      const targetCacheKey = `${userCacheScope}:material:${targetMaterialId}`;
+      const cached = resolvedPdfUrlCache.get(targetCacheKey);
+      if (cached && cached.expiresAt - PDF_URL_CACHE_SAFETY_MS > Date.now()) {
+        preconnectToPdfHost(cached.url);
+        return cached.url;
+      }
+
       const response = await apiClient(
         `/api/materials/pdf/${encodeURIComponent(targetMaterialId)}/external-url`,
-        { silent: true, bypassCache: true },
+        {
+          silent: true,
+          retries: 1,
+          retryDelayMs: 250,
+          timeoutMs: 8_000,
+          requestKey: `pdf-viewer:${userCacheScope}`,
+        },
       );
+
       if (response.ok) {
         const data = await response.json();
         if (typeof data?.url === "string" && data.url) {
@@ -127,12 +183,21 @@ const resolveExternalPdfUrl = async (rawUrl: string | undefined, materialId?: st
           if (resolvedUrl.startsWith("/")) {
             resolvedUrl = (getApiBaseUrl() || window.location.origin) + resolvedUrl;
           }
+
+          const serverExpiresAt = Number(data?.expiresAt);
+          const expiresAt = Number.isFinite(serverExpiresAt)
+            ? serverExpiresAt
+            : Date.now() + 4 * 60_000;
+
+          resolvedPdfUrlCache.set(targetCacheKey, { url: resolvedUrl, expiresAt });
+          preconnectToPdfHost(resolvedUrl);
           return resolvedUrl;
         }
       }
     }
   } catch (_) {}
 
+  preconnectToPdfHost(cleanLink);
   return cleanLink;
 };
 
@@ -208,6 +273,43 @@ export const LectureDetailView = function LectureDetailView({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, lecture.id]);
+
+  // Prepare only the visible document tab. This mints/caches the signed viewer
+  // URL and warms the Storage connection before the user taps, without
+  // downloading the PDF in the background or wasting mobile data.
+  useEffect(() => {
+    if (activeTab !== "pdf" && activeTab !== "notes") return;
+
+    const materials = detailedLecture.materials || lecture.materials || [];
+    const targetType = activeTab === "pdf" ? "PDF" : "NOTE";
+    const materialId = materials.find(
+      (material: any) => String(material?.type || "").toUpperCase() === targetType,
+    )?.id;
+    const rawUrl = activeTab === "pdf" ? lecture.pdfUrl : lecture.notesPdfUrl;
+
+    if (!materialId && !rawUrl) return;
+
+    const timer = window.setTimeout(() => {
+      void resolveExternalPdfUrl(
+        rawUrl || "",
+        materialId,
+        currentUser.id || currentUser.email,
+      ).catch(() => {
+        // Best-effort warm-up; the tap handler remains authoritative.
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeTab,
+    detailedLecture.materials,
+    lecture.id,
+    lecture.materials,
+    lecture.notesPdfUrl,
+    lecture.pdfUrl,
+    currentUser.id,
+    currentUser.email,
+  ]);
 
   // Preserve the outer app scroll position independently for every lecture tab.
   // This makes returning to a previously visited tab feel like a native view
@@ -497,7 +599,7 @@ export const LectureDetailView = function LectureDetailView({
     try {
       const pdfMaterialId = (detailedLecture.materials || lecture.materials || [])
         .find((material: any) => material.type.toUpperCase() === "PDF")?.id;
-      const cleanLink = await resolveExternalPdfUrl(lecture.pdfUrl, pdfMaterialId);
+      const cleanLink = await resolveExternalPdfUrl(lecture.pdfUrl, pdfMaterialId, currentUser.id || currentUser.email);
       await NativeBridge.openPdfUrl(cleanLink, popupWindow);
 
       localStorage.setItem(
@@ -548,7 +650,7 @@ export const LectureDetailView = function LectureDetailView({
     try {
       const notesMaterialId = (detailedLecture.materials || lecture.materials || [])
         .find((material: any) => material.type.toUpperCase() === "NOTE")?.id;
-      const cleanLink = await resolveExternalPdfUrl(lecture.notesPdfUrl || "", notesMaterialId);
+      const cleanLink = await resolveExternalPdfUrl(lecture.notesPdfUrl || "", notesMaterialId, currentUser.id || currentUser.email);
       await NativeBridge.openPdfUrl(cleanLink, popupWindow);
 
       localStorage.setItem(

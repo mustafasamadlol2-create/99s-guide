@@ -20,6 +20,8 @@ interface ApiClientOptions extends RequestInit {
   silent?: boolean;
   bypassCache?: boolean;
   ttl?: number;
+  /** Optional caller-owned namespace for in-flight request deduplication. */
+  requestKey?: string;
 }
 
 interface ApiErrorBody {
@@ -137,8 +139,12 @@ export async function apiClient(
   const method = (options.method || "GET").toUpperCase();
   const isApiCall = url.includes("/api/") || url.startsWith("api/");
   const isGet = method === "GET";
+  const isSensitivePdfViewerUrl =
+    /\/api\/materials\/pdf\/[^/?#]+\/external-url(?:[?#]|$)/.test(url);
 
-  if (isApiCall && isGet && !options.bypassCache) {
+  // Signed viewer URLs are user-authorized capabilities. Never store them in
+  // the generic URL-only cache, which could survive an in-app account switch.
+  if (isApiCall && isGet && !options.bypassCache && !isSensitivePdfViewerUrl) {
     const cached = ApiCache.get(url);
     if (cached) return cached;
   }
@@ -148,8 +154,7 @@ export async function apiClient(
       ? options.body
       : JSON.stringify(options.body)
     : "";
-  const isPdfExternalUrl = /\/api\/materials\/pdf\/[^/?#]+\/external-url(?:[?#]|$)/.test(url);
-  const cacheKey = `${method}|${url}|${JSON.stringify(options.headers || {})}|${bodyStr}|bypass:${options.bypassCache ?? false}${isPdfExternalUrl ? `|t=${Date.now()}` : ""}`;
+  const cacheKey = `${method}|${url}|${JSON.stringify(options.headers || {})}|${bodyStr}|bypass:${options.bypassCache ?? false}|request:${options.requestKey || ""}`;
 
   if (isGet && pendingRequests.has(cacheKey)) {
     const pending = pendingRequests.get(cacheKey)!;
@@ -171,6 +176,7 @@ export async function apiClient(
       silent = false,
       bypassCache,
       ttl,
+      requestKey,
       headers,
       ...fetchOptions
     } = options;
@@ -278,7 +284,7 @@ export async function apiClient(
           });
         }
 
-        if (isApiCall && isGet && !bypassCache) {
+        if (isApiCall && isGet && !bypassCache && !isSensitivePdfViewerUrl) {
           const contentType = response.headers.get("content-type");
           if (contentType?.includes("application/json")) {
             const cacheTtl = ttl || getEndpointTtl(url);

@@ -32,7 +32,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         aria-current={isActive ? "page" : undefined}
         className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full outline-none"
         style={{ WebkitTapHighlightColor: "transparent" }}
-        whileTap={{ scale: 0.92 }}
+        whileTap={{ scale: 0.965 }}
       >
         {/* Active Background Pill (Shared Layout Animation) */}
         {isActive && (
@@ -42,9 +42,9 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             initial={false}
             transition={{
               type: "spring",
-              stiffness: 450,
-              damping: 32,
-              mass: 0.8
+              stiffness: 360,
+              damping: 31,
+              mass: 0.72
             }}
           />
         )}
@@ -56,10 +56,10 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         >
           <motion.div
              animate={{ 
-               y: isActive && !isCompactHeight && isEngaged ? -2 : 0,
-               scale: isActive ? (isEngaged ? 1.05 : 1.02) : 1
+               y: isActive && !isCompactHeight && isEngaged ? -1.5 : 0,
+               scale: isActive ? (isEngaged ? 1.045 : 1.015) : 1
              }}
-             transition={{ type: "spring", stiffness: 450, damping: 30 }}
+             transition={{ type: "spring", stiffness: 360, damping: 31, mass: 0.68 }}
           >
             <Icon
               className="w-icon-lg h-icon-lg"
@@ -74,7 +74,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             height: !isCompactHeight && isEngaged ? "auto" : 0,
             marginTop: !isCompactHeight && isEngaged ? 2 : 0
           }}
-          transition={{ type: "spring", stiffness: 450, damping: 30 }}
+          transition={{ type: "spring", stiffness: 330, damping: 31, mass: 0.7 }}
           className={`relative z-10 overflow-hidden font-sans select-none transition-colors duration-300 ${isCompactHeight ? "hidden" : "block"} ${
             isActive
               ? `${activeColorClass} font-semibold text-[10.5px]`

@@ -1404,6 +1404,7 @@ export default function App() {
   // the user interacts with or scrolls the content. This is visual-only; the
   // main scroll inset remains fixed so no page/hero layout can jump.
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
+  const phoneTabBarScrollGuardUntilRef = useRef(0);
   useEffect(() => {
     if (!device.isPhone) {
       setIsPhoneTabBarEngaged(true);
@@ -1413,13 +1414,21 @@ export default function App() {
     const handlePointerDown = (event: PointerEvent) => {
       const wrapper = document.getElementById("ios_native_tabbar_wrapper");
       if (wrapper?.contains(event.target as Node)) {
+        // Ignore route/layout-generated scroll events for a fraction of a second
+        // after a tab-bar touch so the expansion can settle smoothly. Real
+        // content interaction still collapses immediately via pointerdown.
+        phoneTabBarScrollGuardUntilRef.current = performance.now() + 220;
         setIsPhoneTabBarEngaged(true);
       } else {
+        phoneTabBarScrollGuardUntilRef.current = 0;
         setIsPhoneTabBarEngaged(false);
       }
     };
 
-    const handleScroll = () => setIsPhoneTabBarEngaged(false);
+    const handleScroll = () => {
+      if (performance.now() < phoneTabBarScrollGuardUntilRef.current) return;
+      setIsPhoneTabBarEngaged(false);
+    };
     const canvas = document.getElementById("main-scroll-canvas");
 
     document.addEventListener("pointerdown", handlePointerDown, { capture: true });
@@ -4288,11 +4297,10 @@ const handleSignOut = useCallback(async () => {
   // Desktop → full collapsible sidebar
   const usePhoneLayout = device.isPhone;
   const useRailNav     = device.railNav; // thin icon-only sidebar, no expand
-  const showPhoneWelcomeSearch =
-    usePhoneLayout &&
-    activeTab === "home" &&
-    activeHomeSubjectId === null &&
-    activeHomeLecture === null;
+  // The circular Search control is a permanent member of the iPhone floating
+  // navigation cluster. It stays available across Home, Modules, Schedule,
+  // Profile, Console, and nested phone views; tablet/desktop remain unchanged.
+  const showPhoneFloatingSearch = usePhoneLayout;
 
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
@@ -5104,7 +5112,7 @@ const handleSignOut = useCallback(async () => {
           </div>
         </main>
 
-        {/* 3. iOS-Native Floating Glass Tab Bar + Welcome-only Search */}
+        {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer
           id="ios_native_tabbar_wrapper"
           className={`ios-floating-tabbar fixed z-50 select-none ${
@@ -5112,7 +5120,7 @@ const handleSignOut = useCallback(async () => {
           } ${
             isPhoneTabBarEngaged ? "ios-tabbar-engaged" : "ios-tabbar-resting"
           } ${
-            showPhoneWelcomeSearch ? "ios-floating-tabbar-with-search" : ""
+            showPhoneFloatingSearch ? "ios-floating-tabbar-with-search" : ""
           } ${usePhoneLayout ? "block" : "hidden"}`}
         >
           <div className="ios-floating-tabbar-cluster">
@@ -5140,23 +5148,23 @@ const handleSignOut = useCallback(async () => {
             </div>
 
             <AnimatePresence initial={false}>
-              {showPhoneWelcomeSearch && (
+              {showPhoneFloatingSearch && (
                 <motion.button
-                  key="welcome-floating-search"
+                  key="phone-floating-search"
                   type="button"
                   className="ios-floating-search-button liquid-glass-tabbar"
                   aria-label={language === "ar" ? "بحث" : "Search"}
                   title={language === "ar" ? "بحث" : "Search"}
-                  initial={{ opacity: 0, scale: 0.82, x: 8 }}
+                  initial={{ opacity: 0, scale: 0.94, x: 6 }}
                   animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.82, x: 8 }}
+                  exit={{ opacity: 0, scale: 0.94, x: 6 }}
                   onClick={() => {
                     setIsPhoneTabBarEngaged(true);
                     void HapticFeedback.selection();
                     setIsCommandPaletteOpen(true);
                   }}
-                  whileTap={{ scale: 0.94 }}
-                  transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.65 }}
+                  whileTap={{ scale: 0.965 }}
+                  transition={{ type: "spring", stiffness: 390, damping: 30, mass: 0.7 }}
                 >
                   <Search aria-hidden="true" />
                 </motion.button>

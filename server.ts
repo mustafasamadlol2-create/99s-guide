@@ -2181,16 +2181,18 @@ app.post("/api/materials/video", requireAdmin, catchAsync(async (req, res) => {
 }));
 
 
-// Mint a short-lived, material-scoped URL for external PDF viewers. The viewer
-// cannot send the app's bearer header, so the normal authenticated request
-// hands it a narrowly scoped token instead of exposing the session token.
+// Mint a short-lived, material-scoped URL for external PDF viewers. Storage-
+// backed materials receive a direct private signed object URL; legacy materials
+// receive the existing scoped backend token. The real app session is never
+// exposed to the external viewer.
 app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsync(async (req, res) => {
   try {
     const materialId = normalizePdfMaterialId(req.params.id);
     const prismaClient = getPrisma();
     const material = await prismaClient.material.findUnique({
       where: { id: materialId },
-      select: { type: true },
+      // Never select the large fileData blob on this latency-sensitive path.
+      select: { type: true, storagePath: true },
     });
 
     if (!material || !["PDF", "NOTE"].includes(String(material.type || "").toUpperCase())) {
@@ -2198,6 +2200,32 @@ app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsy
     }
 
     const user = (req as any).user;
+
+    // Fast path for Storage-backed PDFs/Notes. Authorization is completed here,
+    // then the viewer receives a short-lived private Storage capability URL.
+    // This removes a second Render request, a second auth/DB lookup, and the
+    // backend->Storage redirect from every normal PDF open.
+    if (material.storagePath) {
+      const signedUrl = await createSupabaseSignedUrl(material.storagePath, 300);
+
+      console.log("[PDF-FAST SERVER] direct Storage URL minted", {
+        userId: user.id,
+        materialId,
+        storageBacked: true,
+      });
+
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({
+        url: signedUrl,
+        delivery: "storage-direct",
+        // Deliberately shorter than the actual 5-minute signature lifetime so
+        // clients never reuse a URL near its expiry boundary.
+        expiresAt: Date.now() + 240_000,
+      });
+    }
+
+    // Legacy fallback for old DB/local-file materials. Keep the existing
+    // material-scoped token so the user's real session token is never exposed.
     const downloadToken = createPdfDownloadToken(
       {
         userId: user.id,
@@ -2209,14 +2237,18 @@ app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsy
     );
 
     const externalPdfUrl = `/api/materials/pdf/${encodeURIComponent(materialId)}?download_token=${encodeURIComponent(downloadToken)}`;
-    console.log("[PDF-SECURE SERVER] external URL minted", {
+    console.log("[PDF-SECURE SERVER] legacy external URL minted", {
       userId: user.id,
       materialId,
       tokenGenerated: Boolean(downloadToken),
     });
 
-    res.setHeader("Cache-Control", "no-store");
-    return res.json({ url: externalPdfUrl });
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      url: externalPdfUrl,
+      delivery: "backend-scoped",
+      expiresAt: Date.now() + 240_000,
+    });
   } catch (error) {
     console.error("Error creating external PDF URL:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     return res.status(500).json({ error: "Internal Server Error" });

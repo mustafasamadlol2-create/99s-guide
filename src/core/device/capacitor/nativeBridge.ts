@@ -571,21 +571,28 @@ class NativeBridgeManager {
     });
 
     if (this.isNative) {
+      // iOS/Android browser PDF renderers can start painting the first page while
+      // the network stream is still arriving. Prefer that path for every
+      // authorized PDF URL instead of waiting for the native plugin to download
+      // the entire file before presenting anything. The native downloader stays
+      // as a compatibility fallback if the streaming viewer cannot open.
+      try {
+        await Browser.open({ url: safeUrl, presentationStyle: "fullscreen" });
+        console.log("[PDF-FAST] streaming PDF viewer opened");
+        return;
+      } catch (streamingError) {
+        console.warn(
+          "[PDF-FAST] streaming viewer failed; falling back to native preview",
+          streamingError,
+        );
+      }
+
       try {
         await CapExternalOpener.openPdf({ url: safeUrl });
-        console.log("[PDF-FINAL] CapExternalOpener.openPdf succeeded");
+        console.log("[PDF-FINAL] CapExternalOpener.openPdf fallback succeeded");
         return;
       } catch (error) {
-        console.error("[PDF-FINAL] CapExternalOpener.openPdf FAILED", error);
-        
-        try {
-          // Fallback to in-app browser or system browser
-          await Browser.open({ url: safeUrl, presentationStyle: 'fullscreen' });
-          return;
-        } catch (browserError) {
-          console.error("[PDF-FINAL] Browser fallback FAILED", browserError);
-        }
-
+        console.error("[PDF-FINAL] CapExternalOpener.openPdf fallback FAILED", error);
         if (webWindow) webWindow.close();
         throw new Error("pdf_native_open_failed", { cause: error });
       }

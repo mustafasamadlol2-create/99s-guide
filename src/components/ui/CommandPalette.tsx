@@ -370,19 +370,21 @@ export const CommandPalette = memo(function CommandPalette({
  }
 
  return (
- <AnimatePresence>
+ <AnimatePresence initial={false}>
  {isOpen && (
- <div
+ <motion.div
+   key="global-command-palette"
+   initial={{ opacity: 0 }}
+   animate={{ opacity: 1 }}
+   exit={{ opacity: 0 }}
+   transition={{ duration: mobilePresentation ? 0.20 : 0.18, ease: [0.32, 0.72, 0, 1] }}
    className={`fixed inset-0 z-[140] flex justify-center ${
      mobilePresentation
        ? "items-end px-0"
        : "items-start pt-[15vh] px-4"
    }`}
  >
- <motion.div
- initial={{ opacity: 0 }}
- animate={{ opacity: 1 }}
- exit={{ opacity: 0 }}
+ <div
  onClick={onClose}
  className={`absolute inset-0 ${
    mobilePresentation
@@ -391,14 +393,14 @@ export const CommandPalette = memo(function CommandPalette({
  }`}
  />
  <motion.div
- initial={mobilePresentation ? { opacity: 0, y: 36, scale: 0.985 } : { opacity: 0, scale: 0.95, y: -20 }}
- animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={mobilePresentation ? { opacity: 0, y: 30, scale: 0.99 } : { opacity: 0, scale: 0.95, y: -20 }}
+ initial={mobilePresentation ? { y: 22, scale: 0.992 } : { opacity: 0, scale: 0.95, y: -20 }}
+ animate={mobilePresentation ? { scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+ exit={mobilePresentation ? { y: 18, scale: 0.995 } : { opacity: 0, scale: 0.95, y: -20 }}
  transition={{
  type: "spring",
- stiffness: mobilePresentation ? 460 : 400,
- damping: mobilePresentation ? 42 : 40,
- mass: mobilePresentation ? 0.82 : 1,
+ stiffness: mobilePresentation ? 340 : 400,
+ damping: mobilePresentation ? 34 : 40,
+ mass: mobilePresentation ? 0.72 : 1,
  }}
  role="dialog" aria-modal="true" aria-label="Command Palette"
  className={
@@ -518,7 +520,7 @@ export const CommandPalette = memo(function CommandPalette({
         )}
       </div>
     </motion.div>
-  </div>
+  </motion.div>
 )}
 </AnimatePresence>
 );
