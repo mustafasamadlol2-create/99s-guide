@@ -7,6 +7,7 @@ export interface TabBarItemProps {
   label: string;
   isActive: boolean;
   isCompactHeight: boolean;
+  isEngaged?: boolean;
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
@@ -19,6 +20,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     label,
     isActive,
     isCompactHeight,
+    isEngaged = true,
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
@@ -36,7 +38,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         {isActive && (
           <motion.div
             layoutId="ios_mobile_tab_indicator"
-            className="absolute inset-y-1.5 inset-x-1.5 bg-black/[0.04] dark:bg-white/[0.08] rounded-xl pointer-events-none"
+            className="ios-tabbar-active-indicator absolute rounded-xl pointer-events-none"
             initial={false}
             transition={{
               type: "spring",
@@ -54,8 +56,8 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         >
           <motion.div
              animate={{ 
-               y: isActive && !isCompactHeight ? -2 : 0,
-               scale: isActive ? 1.05 : 1
+               y: isActive && !isCompactHeight && isEngaged ? -2 : 0,
+               scale: isActive ? (isEngaged ? 1.05 : 1.02) : 1
              }}
              transition={{ type: "spring", stiffness: 450, damping: 30 }}
           >
@@ -67,11 +69,13 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         </div>
         <motion.span
           animate={{ 
-            opacity: isActive ? 1 : 0.8,
-            y: isActive ? -1 : 0
+            opacity: !isCompactHeight && isEngaged ? (isActive ? 1 : 0.8) : 0,
+            y: !isCompactHeight && isEngaged ? (isActive ? -1 : 0) : 4,
+            height: !isCompactHeight && isEngaged ? "auto" : 0,
+            marginTop: !isCompactHeight && isEngaged ? 2 : 0
           }}
           transition={{ type: "spring", stiffness: 450, damping: 30 }}
-          className={`relative z-10 mt-[2px] font-sans select-none transition-colors duration-300 ${isCompactHeight ? "hidden" : "block"} ${
+          className={`relative z-10 overflow-hidden font-sans select-none transition-colors duration-300 ${isCompactHeight ? "hidden" : "block"} ${
             isActive
               ? `${activeColorClass} font-semibold text-[10.5px]`
               : "text-neutral-500 dark:text-[#EBEBF599] font-medium text-[10.5px]"

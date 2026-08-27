@@ -5170,55 +5170,70 @@ function normalizePdfMaterialId(rawId: string): string {
 // PDF viewers opened outside the app cannot send the app's bearer header. They
 // may use only the short-lived, material-scoped token issued by the URL route.
 function requirePdfUser(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const normalSessionToken = getRequestToken(req);
+  const downloadToken =
+    typeof req.query.download_token === "string" ? req.query.download_token : "";
+  const materialId = normalizePdfMaterialId(req.params.id);
 
-  // Normal in-app requests may authenticate with the user's real session token.
+  // IMPORTANT: an explicit, material-scoped download token always takes
+  // precedence over ambient browser cookies. External Safari/Chrome viewers can
+  // carry an old Render-domain auth cookie from a different or deleted account.
+  // The previous order checked that cookie first and ignored the freshly minted
+  // download_token, producing an account-specific "Student account not found"
+  // even though the app had just authorized the correct user.
+  if (downloadToken) {
+    const claims = verifyPdfDownloadToken(downloadToken, materialId, JWT_SECRET);
+
+    // Fail closed: if a scoped token was explicitly supplied, never silently
+    // fall back to an unrelated ambient session cookie.
+    if (!claims) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    // A pdf-download token is deliberately handled here instead of being copied
+    // into Authorization and passed to requireUser. It is scoped to one material
+    // and must never become a general-purpose API bearer token.
+    void (async () => {
+      try {
+        const user = await getAuthenticatedUser(claims.userId);
+        if (!user) {
+          console.log("401 PDF TOKEN USER NOT FOUND");
+          return res.status(401).json({ error: "Access denied. Student account not found." });
+        }
+        if ((claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
+          return res.status(401).json({ error: "Access denied. Session is no longer valid." });
+        }
+        if (user.emailVerified === false) {
+          return res.status(403).json({
+            verificationRequired: true,
+            error: "Please verify your institutional email before continuing.",
+          });
+        }
+        if (await isUserCurrentlyBanned(user)) {
+          return res.status(403).json({ error: "Access denied. Your student account has been suspended." });
+        }
+
+        (req as any).user = user;
+        (req as any).pdfDownloadClaims = claims;
+        next();
+      } catch (error) {
+        logger.warn(
+          "[PDF Access]",
+          `Scoped download-token verification failed for material ${materialId}: ${error instanceof Error ? error.message.substring(0, 80) : "unknown"}`,
+        );
+        return res.status(401).json({ error: "Authentication required." });
+      }
+    })();
+    return;
+  }
+
+  // In-app PDF requests that do not use an external viewer may still
+  // authenticate normally with the user's application session.
+  const normalSessionToken = getRequestToken(req);
   if (normalSessionToken) {
     return requireUser(req, res, next);
   }
 
-  const downloadToken =
-    typeof req.query.download_token === "string" ? req.query.download_token : "";
-  const materialId = normalizePdfMaterialId(req.params.id);
-  const claims = verifyPdfDownloadToken(downloadToken, materialId, JWT_SECRET);
-
-  if (!claims) {
-    return res.status(401).json({ error: "Authentication required." });
-  }
-
-  // A pdf-download token is deliberately handled here instead of being copied
-  // into Authorization and passed to requireUser. It is scoped to one material
-  // and must never become a general-purpose API bearer token.
-  void (async () => {
-    try {
-      const user = await getAuthenticatedUser(claims.userId);
-      if (!user) {
-        console.log("401 NOT FOUND"); return res.status(401).json({ error: "Access denied. Student account not found." });
-      }
-      if ((claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
-        return res.status(401).json({ error: "Access denied. Session is no longer valid." });
-      }
-      if (user.emailVerified === false) {
-        return res.status(403).json({
-          verificationRequired: true,
-          error: "Please verify your institutional email before continuing.",
-        });
-      }
-      if (await isUserCurrentlyBanned(user)) {
-        return res.status(403).json({ error: "Access denied. Your student account has been suspended." });
-      }
-
-      (req as any).user = user;
-      (req as any).pdfDownloadClaims = claims;
-      next();
-    } catch (error) {
-      logger.warn(
-        "[PDF Access]",
-        `Scoped download-token verification failed for material ${materialId}: ${error instanceof Error ? error.message.substring(0, 80) : "unknown"}`,
-      );
-      return res.status(401).json({ error: "Authentication required." });
-    }
-  })();
+  return res.status(401).json({ error: "Authentication required." });
 }
 
 // Middleware to verify if the student has a valid logged-in session (user or admin)

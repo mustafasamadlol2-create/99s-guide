@@ -1172,24 +1172,26 @@ const HomeDashboard = memo(function HomeDashboard({
             {nextEvent && <UpcomingEventAlert nextEvent={nextEvent} isRtl={isRtl} onNavigateTab={onNavigateTab} t={t} />}
 
             {/* 3. Global Inline Search & Quick Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-              <div
-                className="w-full relative z-30"
-                style={{
-                  animation:
-                    "iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.05s backwards",
-                  WebkitBackfaceVisibility: "hidden",
-                  backfaceVisibility: "hidden",
-                }}
-              >
-                <CommandPalette
-                  isOpen={true}
-                  onClose={() => {}}
-                  inline={true}
-                  data={globalSearchData}
-                  onSelectResult={onSearchSelect}
-                />
-              </div>
+            <div className={`grid grid-cols-1 ${device.isPhone ? "" : "sm:grid-cols-2"} gap-3 items-start`}>
+              {!device.isPhone && (
+                <div
+                  className="w-full relative z-30"
+                  style={{
+                    animation:
+                      "iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.05s backwards",
+                    WebkitBackfaceVisibility: "hidden",
+                    backfaceVisibility: "hidden",
+                  }}
+                >
+                  <CommandPalette
+                    isOpen={true}
+                    onClose={() => {}}
+                    inline={true}
+                    data={globalSearchData}
+                    onSelectResult={onSearchSelect}
+                  />
+                </div>
+              )}
 
               {/* Card 2: Today / Daily Schedule & Tasks */}
               <button

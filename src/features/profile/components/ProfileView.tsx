@@ -173,6 +173,14 @@ export const ProfileView = function ProfileView({
  const [editSignature, setEditSignature] = useState(user.signature || "");
  const [isSigning, setIsSigning] = useState(false);
 
+ // Keep the compact profile label tied to the user's Academic Group (A-D),
+ // not the fixed Batch value. Normalize defensively in case persisted data
+ // ever contains a prefixed value such as "Group D".
+ const academicGroupLabel = useMemo(() => {
+   const rawGroup = String(user.studentGroup || "A").trim();
+   return rawGroup.replace(/^Group\s+/i, "").toUpperCase() || "A";
+ }, [user.studentGroup]);
+
 
  // Synchronize local edit states
  useEffect(() => {
@@ -287,8 +295,11 @@ export const ProfileView = function ProfileView({
                   <UserIcon className="w-5 h-5 text-neutral-500 drop-shadow-sm" />
                 )}
               </h1>
-              <p className="text-[15px] text-neutral-500 dark:text-[#EBEBF599] mt-1 font-medium">
-                99
+              <p
+                className="text-[15px] text-neutral-500 dark:text-[#EBEBF599] mt-1 font-medium"
+                aria-label={`Academic Group ${academicGroupLabel}`}
+              >
+                {academicGroupLabel}
               </p>
               <p className="text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mt-0.5 font-mono">
                 {(user as any).profileEmail || user.email}
@@ -407,7 +418,7 @@ export const ProfileView = function ProfileView({
  <SettingsItem Icon={UserIcon}
  iconBg="bg-blue-500"
  title="Academic Group"
- value={`Group ${user.studentGroup || "A"}`}
+ value={`Group ${academicGroupLabel}`}
  />
   </SettingsGroup>
 

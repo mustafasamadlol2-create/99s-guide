@@ -31,6 +31,7 @@ import {
   LogOut,
   Settings,
   Database,
+  Search,
   X,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -1397,6 +1398,38 @@ export default function App() {
   const [activeHomeLecture, setActiveHomeLecture] = useState<Lecture | null>(
     null,
   );
+
+  // iPhone floating navigation mirrors iOS adaptive controls: the bar expands
+  // while it is being used, then returns to a compact resting footprint when
+  // the user interacts with or scrolls the content. This is visual-only; the
+  // main scroll inset remains fixed so no page/hero layout can jump.
+  const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
+  useEffect(() => {
+    if (!device.isPhone) {
+      setIsPhoneTabBarEngaged(true);
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const wrapper = document.getElementById("ios_native_tabbar_wrapper");
+      if (wrapper?.contains(event.target as Node)) {
+        setIsPhoneTabBarEngaged(true);
+      } else {
+        setIsPhoneTabBarEngaged(false);
+      }
+    };
+
+    const handleScroll = () => setIsPhoneTabBarEngaged(false);
+    const canvas = document.getElementById("main-scroll-canvas");
+
+    document.addEventListener("pointerdown", handlePointerDown, { capture: true });
+    canvas?.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, { capture: true });
+      canvas?.removeEventListener("scroll", handleScroll);
+    };
+  }, [device.isPhone]);
 
   // Track whether the detail view was opened directly from Home Dashboard or via nested SubjectView
   const [lectureDetailSource, setLectureDetailSource] = useState<
@@ -4060,7 +4093,7 @@ const handleSignOut = useCallback(async () => {
               id: "control-center",
               icon: Database,
               label: language === "ar" ? "التحكم" : "Console",
-              activeColorClass: "text-amber-500 dark:text-amber-400",
+              activeColorClass: "text-yellow-500 dark:text-yellow-400",
             },
           ]
         : []),
@@ -4255,6 +4288,11 @@ const handleSignOut = useCallback(async () => {
   // Desktop → full collapsible sidebar
   const usePhoneLayout = device.isPhone;
   const useRailNav     = device.railNav; // thin icon-only sidebar, no expand
+  const showPhoneWelcomeSearch =
+    usePhoneLayout &&
+    activeTab === "home" &&
+    activeHomeSubjectId === null &&
+    activeHomeLecture === null;
 
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
@@ -4271,6 +4309,8 @@ const handleSignOut = useCallback(async () => {
         onClose={() => setIsCommandPaletteOpen(false)}
         data={globalSearchData}
         onSelectResult={handleSearchSelect}
+        mobilePresentation={usePhoneLayout}
+        cancelLabel={language === "ar" ? "إلغاء" : "Cancel"}
       />
       {!isOnline && (
         <div className="absolute top-0 left-0 right-0 bg-red-500/90 backdrop-blur-sm text-white text-xs py-1.5 text-center z-[100] font-medium" style={{ paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))' }}>
@@ -5064,34 +5104,64 @@ const handleSignOut = useCallback(async () => {
           </div>
         </main>
 
-        {/* 3. iOS-Native Floating Glass Tab Bar */}
+        {/* 3. iOS-Native Floating Glass Tab Bar + Welcome-only Search */}
         <footer
           id="ios_native_tabbar_wrapper"
-           className={`ios-floating-tabbar fixed z-50 select-none ${isCompactHeight ? "ios-floating-tabbar-compact" : ""} ${usePhoneLayout ? "block" : "hidden"}`}
+          className={`ios-floating-tabbar fixed z-50 select-none ${
+            isCompactHeight ? "ios-floating-tabbar-compact" : ""
+          } ${
+            isPhoneTabBarEngaged ? "ios-tabbar-engaged" : "ios-tabbar-resting"
+          } ${
+            showPhoneWelcomeSearch ? "ios-floating-tabbar-with-search" : ""
+          } ${usePhoneLayout ? "block" : "hidden"}`}
         >
-          <div
-            id="ios_native_tabbar"
-            className="liquid-glass-tabbar relative w-full px-2 transition duration-300"
-            style={{
-              height: isCompactHeight ? "49px" : "64px",
-            }}
-          >
+          <div className="ios-floating-tabbar-cluster">
             <div
-              className={`grid ${currentUser?.isAdmin || currentUser?.role === "admin" || currentUser?.role === "owner" ? "grid-cols-5" : "grid-cols-4"} h-full text-center items-center relative z-0 max-w-md mx-auto`}
+              id="ios_native_tabbar"
+              className="liquid-glass-tabbar relative px-2"
             >
-              {bottomTabBarItems.map((item) => (
-                <TabBarItem
-                  key={item.id}
-                  id={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  isActive={activeTab === item.id}
-                  isCompactHeight={isCompactHeight}
-                  activeColorClass={item.activeColorClass}
-                  onClick={handleSidebarTabClick}
-                />
-              ))}
+              <div
+                className={`grid ${currentUser?.isAdmin || currentUser?.role === "admin" || currentUser?.role === "owner" ? "grid-cols-5" : "grid-cols-4"} h-full text-center items-center relative z-0 max-w-md mx-auto`}
+              >
+                {bottomTabBarItems.map((item) => (
+                  <TabBarItem
+                    key={item.id}
+                    id={item.id}
+                    icon={item.icon}
+                    label={item.label}
+                    isActive={activeTab === item.id}
+                    isCompactHeight={isCompactHeight}
+                    isEngaged={isPhoneTabBarEngaged}
+                    activeColorClass={item.activeColorClass}
+                    onClick={handleSidebarTabClick}
+                  />
+                ))}
+              </div>
             </div>
+
+            <AnimatePresence initial={false}>
+              {showPhoneWelcomeSearch && (
+                <motion.button
+                  key="welcome-floating-search"
+                  type="button"
+                  className="ios-floating-search-button liquid-glass-tabbar"
+                  aria-label={language === "ar" ? "بحث" : "Search"}
+                  title={language === "ar" ? "بحث" : "Search"}
+                  initial={{ opacity: 0, scale: 0.82, x: 8 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.82, x: 8 }}
+                  onClick={() => {
+                    setIsPhoneTabBarEngaged(true);
+                    void HapticFeedback.selection();
+                    setIsCommandPaletteOpen(true);
+                  }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.65 }}
+                >
+                  <Search aria-hidden="true" />
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
         </footer>
       </div>{" "}

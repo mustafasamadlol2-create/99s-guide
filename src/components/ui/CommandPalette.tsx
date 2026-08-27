@@ -46,6 +46,8 @@ interface CommandPaletteProps {
  data?: SearchResultItem[];
  onSelectResult?: (result: SearchResultItem) => void;
  inline?: boolean;
+ mobilePresentation?: boolean;
+ cancelLabel?: string;
 }
 
 const TYPE_ICONS: Record<SearchResultType, any> = {
@@ -76,6 +78,8 @@ export const CommandPalette = memo(function CommandPalette({
  data = [],
  onSelectResult,
  inline = false,
+ mobilePresentation = false,
+ cancelLabel = "Cancel",
 }: CommandPaletteProps) {
  const [value, setValue] = useState("");
  const [recentSearches, setRecentSearches] = useState<SearchResultItem[]>([]);
@@ -226,6 +230,7 @@ export const CommandPalette = memo(function CommandPalette({
  // the user has entered an actual search query.
  if (e.key === "Enter" && !value.trim()) {
  e.preventDefault();
+ e.stopPropagation();
  return;
  }
 
@@ -301,7 +306,11 @@ export const CommandPalette = memo(function CommandPalette({
  </div>
   <input aria-label="Search subjects and lectures"
  ref={inputRef}
- type="text"
+ type="search"
+ enterKeyHint="search"
+ autoComplete="off"
+ autoCorrect="off"
+ spellCheck={false}
  value={value}
  onChange={(e) => setValue(e.target.value)}
  onKeyDown={handleKeyDown}
@@ -363,55 +372,92 @@ export const CommandPalette = memo(function CommandPalette({
  return (
  <AnimatePresence>
  {isOpen && (
- <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4">
+ <div
+   className={`fixed inset-0 z-[140] flex justify-center ${
+     mobilePresentation
+       ? "items-end px-0"
+       : "items-start pt-[15vh] px-4"
+   }`}
+ >
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
  onClick={onClose}
- className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+ className={`absolute inset-0 ${
+   mobilePresentation
+     ? "bg-black/20 backdrop-blur-[2px]"
+     : "bg-black/40 backdrop-blur-sm"
+ }`}
  />
  <motion.div
- initial={{ opacity: 0, scale: 0.95, y: -20 }}
+ initial={mobilePresentation ? { opacity: 0, y: 36, scale: 0.985 } : { opacity: 0, scale: 0.95, y: -20 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: -20 }}
+ exit={mobilePresentation ? { opacity: 0, y: 30, scale: 0.99 } : { opacity: 0, scale: 0.95, y: -20 }}
  transition={{
  type: "spring",
- stiffness: 400,
- damping: 40,
- mass: 1,
+ stiffness: mobilePresentation ? 460 : 400,
+ damping: mobilePresentation ? 42 : 40,
+ mass: mobilePresentation ? 0.82 : 1,
  }}
  role="dialog" aria-modal="true" aria-label="Command Palette"
-            className="relative w-full max-w-2xl bg-[#ffffff]/90 dark:bg-[var(--bg-surface-1)]/90 backdrop-blur-3xl rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border border-white/20 dark:border-white/[0.12] overflow-hidden flex flex-col max-h-[60vh]"
+ className={
+   mobilePresentation
+     ? "cp-mobile-search-sheet relative w-full bg-[#F7F7F8]/96 dark:bg-[#111113]/96 backdrop-blur-3xl border border-white/30 dark:border-white/[0.10] overflow-hidden flex flex-col max-h-[78dvh]"
+     : "relative w-full max-w-2xl bg-[#ffffff]/90 dark:bg-[var(--bg-surface-1)]/90 backdrop-blur-3xl rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border border-white/20 dark:border-white/[0.12] overflow-hidden flex flex-col max-h-[60vh]"
+ }
  >
- <div className="flex items-center px-4 py-3 border-b border-black/5 dark:border-white/[0.12] shrink-0">
- <Search className="w-icon-md h-icon-md text-neutral-500 dark:text-[#EBEBF599] mr-3" />
+ {mobilePresentation && <div className="cp-mobile-sheet-grabber" aria-hidden="true" />}
+ <div
+   className={
+     mobilePresentation
+       ? "cp-mobile-search-header flex items-center gap-2.5 px-3 pt-2 pb-3 shrink-0"
+       : "flex items-center px-4 py-3 border-b border-black/5 dark:border-white/[0.12] shrink-0"
+   }
+ >
+ <div className={mobilePresentation ? "cp-mobile-search-field flex items-center flex-1 min-w-0" : "contents"}>
+ <Search className={`${mobilePresentation ? "w-[20px] h-[20px] ml-3 mr-2" : "w-icon-md h-icon-md mr-3"} text-neutral-500 dark:text-[#EBEBF599] shrink-0`} />
   <input aria-label="Search subjects, lectures, and settings"
  ref={inputRef}
- type="text"
+ type="search"
+ enterKeyHint="search"
+ autoComplete="off"
+ autoCorrect="off"
+ spellCheck={false}
  value={value}
  onChange={(e) => setValue(e.target.value)}
  onKeyDown={handleKeyDown}
- placeholder="Search subjects, lectures, settings..."
- className="flex-1 bg-transparent text-base text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:text-[#EBEBF599]"
+ placeholder={mobilePresentation ? "Search" : "Search subjects, lectures, settings..."}
+ className={`${mobilePresentation ? "py-3 pr-1 text-[17px]" : "text-base"} flex-1 min-w-0 bg-transparent text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/35 outline-none`}
  />
- <div className="flex items-center gap-2">
  {value && (
  <button aria-label="Clear search"
- onClick={() => setValue("")}
- className="cp-clear-btn p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/[0.12] text-neutral-500 dark:text-[#EBEBF599] transition-colors mr-1"
+ onClick={() => { setValue(""); inputRef.current?.focus(); }}
+ className={`cp-clear-btn rounded-full text-neutral-500 dark:text-[#EBEBF599] transition-colors shrink-0 ${mobilePresentation ? "p-2 mr-1" : "p-1 mr-1 hover:bg-black/5 dark:hover:bg-white/[0.12]"}`}
  >
  <X className="w-icon-sm h-icon-sm" />
  </button>
  )}
- <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-[#EBEBF599] bg-neutral-100 dark:bg-white/[0.08] px-2 py-1 rounded-md">
- <Command className="w-3 h-3" />
- <span>K</span>
  </div>
- </div>
+ {mobilePresentation ? (
+   <button
+     type="button"
+     onClick={onClose}
+     className="cp-mobile-cancel shrink-0 px-1.5 py-2 text-[16px] font-medium text-[#007AFF] dark:text-[#0A84FF] active:opacity-60"
+   >
+     {cancelLabel}
+   </button>
+ ) : (
+   <div className="flex items-center gap-2">
+     <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-[#EBEBF599] bg-neutral-100 dark:bg-white/[0.08] px-2 py-1 rounded-md">
+       <Command className="w-3 h-3" />
+       <span>K</span>
+     </div>
+   </div>
+ )}
  </div>
 
- <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-y-contain" id="command-palette-results" role="listbox">
+ <div className={`flex-1 overflow-y-auto custom-scrollbar overscroll-y-contain ${mobilePresentation ? "cp-mobile-search-results" : ""}`} id="command-palette-results" role="listbox">
  {value && searchResults.length > 0 && !isLoading && (
  <div className="py-2">
  <div className="px-4 py-2">

@@ -528,12 +528,12 @@ textarea,
   touch-action: manipulation !important;
 }
 
-/* Document open buttons — native-like tap on iOS, no hover/press/transition effects. */
+/* Document open buttons: native-like tap on iOS, no hover/press/transition effects. */
 .document-open-button {
-  touch-action: manipulation !important;
-  -webkit-tap-highlight-color: transparent !important;
-  -webkit-user-select: none !important;
-  user-select: none !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .document-open-button,
@@ -546,11 +546,7 @@ textarea,
   opacity: 1 !important;
 }
 
-.document-open-button:active {
-  opacity: 0.85 !important;
-}
-
-.document-open-button .lucide,
+.document-open-button:hover .lucide,
 .document-open-button:active .lucide {
   transform: none !important;
   opacity: 1 !important;
@@ -1096,39 +1092,39 @@ textarea::placeholder {
 }
 
 .liquid-glass-tabbar {
-  background-color: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(32px) saturate(1.5) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(1.5) !important;
+  background-color: rgba(248, 248, 250, 0.72) !important;
+  backdrop-filter: blur(32px) saturate(1.45) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.45) !important;
   transform: translateZ(0) !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
   border-radius: 26px !important;
   box-shadow:
-    0 16px 36px -4px rgba(0, 0, 0, 0.12),
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+    0 12px 30px -6px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-tabbar {
-  background-color: rgba(18, 18, 20, 0.45) !important;
+  background-color: rgba(20, 20, 22, 0.76) !important;
   backdrop-filter: blur(32px) saturate(1.2) !important;
   -webkit-backdrop-filter: blur(32px) saturate(1.2) !important;
   transform: translateZ(0) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
   border-radius: 26px !important;
   box-shadow:
-    0 16px 40px -4px rgba(0, 0, 0, 0.6),
-    inset 0 1px 1px rgba(255, 255, 255, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+    0 14px 34px -8px rgba(0, 0, 0, 0.68),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 
-/* Floating mobile navigation. It remains fixed to the viewport so it stays
-   visible, but its visual box is detached from the edges of the application.
-   The matching scroll inset below is owned by the main content container. */
+/* Instagram/iOS-inspired adaptive floating mobile navigation. The reserved
+   scroll inset never changes: only the visual controls morph. This prevents
+   hero resizing, content jumps, and scroll-position shifts. */
 .ios-floating-tabbar {
   left: 12px;
   right: 12px;
@@ -1146,22 +1142,196 @@ textarea::placeholder {
   --mobile-nav-offset: max(8px, var(--safe-area-bottom));
 }
 
-.ios-floating-tabbar > #ios_native_tabbar {
+.ios-floating-tabbar-cluster {
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  width: min(100%, 430px);
+  height: 64px;
+  margin-inline: auto;
+  transition:
+    width 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar {
   pointer-events: auto;
-  max-width: 520px;
-  height: var(--mobile-nav-height);
+  width: min(100%, 430px);
+  max-width: 430px;
+  height: 64px;
   margin-inline: auto;
   overflow: hidden;
+  flex: 0 1 430px;
+  transition:
+    width 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    flex-basis 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 220ms ease-out,
+    box-shadow 260ms ease-out;
+}
+
+/* Resting state: compact visual footprint; underlying reserved space is fixed. */
+.ios-floating-tabbar.ios-tabbar-resting .ios-floating-tabbar-cluster {
+  width: min(86%, 356px);
+  height: 50px;
+}
+
+.ios-floating-tabbar.ios-tabbar-resting > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+  width: min(100%, 340px);
+  flex-basis: 340px;
+  height: 50px;
+  border-radius: 25px !important;
+}
+
+/* Engaged state: larger labelled touch surface while navigation is being used. */
+.ios-floating-tabbar.ios-tabbar-engaged .ios-floating-tabbar-cluster {
+  width: min(100%, 430px);
+  height: 64px;
+}
+
+.ios-floating-tabbar.ios-tabbar-engaged > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+  width: min(100%, 430px);
+  flex-basis: 430px;
+  height: 64px;
+  border-radius: 26px !important;
+}
+
+/* Welcome on iPhone: navigation capsule + a truly separate circular search
+   capsule, matching the iOS control pattern from the reference. */
+.ios-floating-tabbar-with-search .ios-floating-tabbar-cluster {
+  justify-content: stretch;
+}
+
+.ios-floating-tabbar-with-search > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-inline: 0;
+}
+
+.ios-floating-search-button {
+  pointer-events: auto;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px !important;
+  color: #111214;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    width 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    flex-basis 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 240ms ease-out,
+    background-color 220ms ease-out;
+}
+
+.dark .ios-floating-search-button {
+  color: #f5f5f7;
+}
+
+.ios-floating-search-button > svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.25;
+  transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1), height 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ios-floating-tabbar.ios-tabbar-resting.ios-floating-tabbar-with-search .ios-floating-tabbar-cluster {
+  width: min(92%, 378px);
+  height: 50px;
+  gap: 8px;
+}
+
+.ios-floating-tabbar.ios-tabbar-resting .ios-floating-search-button {
+  width: 50px;
+  height: 50px;
+  flex-basis: 50px;
+}
+
+.ios-floating-tabbar.ios-tabbar-resting .ios-floating-search-button > svg {
+  width: 24px;
+  height: 24px;
+}
+
+.ios-floating-tabbar.ios-tabbar-engaged.ios-floating-tabbar-with-search .ios-floating-tabbar-cluster {
+  width: min(100%, 430px);
+  gap: 10px;
+}
+
+.ios-floating-tabbar-compact .ios-floating-tabbar-cluster,
+.ios-floating-tabbar-compact.ios-tabbar-engaged .ios-floating-tabbar-cluster {
+  height: 49px;
+}
+
+.ios-floating-tabbar-compact > .ios-floating-tabbar-cluster > #ios_native_tabbar,
+.ios-floating-tabbar-compact.ios-tabbar-engaged > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+  height: 49px;
+  border-radius: 24px !important;
+}
+
+.ios-floating-tabbar-compact.ios-tabbar-resting .ios-floating-tabbar-cluster {
+  height: 44px;
+}
+
+.ios-floating-tabbar-compact.ios-tabbar-resting > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+  height: 44px;
+  border-radius: 22px !important;
+}
+
+.ios-floating-tabbar-compact .ios-floating-search-button {
+  width: 49px;
+  height: 49px;
+  flex-basis: 49px;
+}
+
+.ios-floating-tabbar-compact.ios-tabbar-resting .ios-floating-search-button {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
 }
 
 .ios-floating-tabbar .grid {
   column-gap: 4px;
   padding: 3px 0;
+  transition:
+    column-gap 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Global scroll clearance for the fixed floating navigation. This space stays
-   inside the main application surface and lets the final content scroll fully
-   above the bar without enlarging the bar or creating a viewport spacer. */
+.ios-floating-tabbar.ios-tabbar-resting .grid {
+  column-gap: 2px;
+  padding: 2px 0;
+}
+
+/* Active tab surface: neutral moving glass pill; semantic icon colours remain
+   controlled by each tab (including the yellow Console state). */
+.ios-tabbar-active-indicator {
+  inset: 4px 5px;
+  background: rgba(0, 0, 0, 0.065);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow:
+    0 1px 5px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.dark .ios-tabbar-active-indicator {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 7px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Global scroll clearance for the fixed floating navigation. */
 .ios-main-scroll {
   padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap)) !important;
   scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-offset) + var(--mobile-nav-gap));
@@ -1172,6 +1342,64 @@ textarea::placeholder {
   min-width: 44px;
   border-radius: 16px;
   transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+/* Native iPhone search presentation. It is used only by the phone command
+   palette entry point; tablet/desktop retain the existing command palette. */
+.cp-mobile-search-sheet {
+  border-radius: 28px 28px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -14px 42px rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  backdrop-filter: blur(28px) saturate(1.35);
+}
+
+.dark .cp-mobile-search-sheet {
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.62);
+}
+
+.cp-mobile-sheet-grabber {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  margin: 8px auto 2px;
+  background: rgba(60, 60, 67, 0.24);
+}
+
+.dark .cp-mobile-sheet-grabber {
+  background: rgba(235, 235, 245, 0.26);
+}
+
+.cp-mobile-search-field {
+  min-height: 48px;
+  border-radius: 15px;
+  background: rgba(118, 118, 128, 0.12);
+  box-shadow: inset 0 0 0 0.5px rgba(60, 60, 67, 0.08);
+}
+
+.dark .cp-mobile-search-field {
+  background: rgba(118, 118, 128, 0.22);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+
+.cp-mobile-search-field input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.cp-mobile-search-field input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}
+
+.cp-mobile-search-results {
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
+}
+
+.cp-mobile-search-results .cp-result-item {
+  min-height: 58px;
+  border-radius: 14px;
 }
 
 .ios-tabbar-item-legacy {
@@ -1188,6 +1416,12 @@ textarea::placeholder {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ios-floating-tabbar-cluster,
+  .ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar,
+  .ios-floating-search-button,
+  .ios-floating-tabbar .grid {
+    transition-duration: 1ms !important;
+  }
   .ios-tabbar-item {
     transition: background-color 0ms ease;
   }
@@ -2283,6 +2517,9 @@ button:not(:disabled):active,
 .mobile-phone-layout .ios-floating-tabbar {
   left: max(12px, env(safe-area-inset-left, 0px));
   right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex !important;
+  align-items: flex-end;
+  justify-content: center;
 }
 
 .mobile-phone-layout #main-scroll-canvas {
@@ -3232,4 +3469,94 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .animate-blue-nebula {
   animation: blue-nebula-float 24s ease-in-out infinite reverse;
+}
+
+/* ==========================================================================
+   DOCUMENT OPEN CONTROLS — iOS / iPadOS touch reliability hardening
+   --------------------------------------------------------------------------
+   These controls launch the existing PDF/Notes handlers. Keep their hit-test
+   surface stable inside WKWebView and allow vertical page scrolling to begin
+   from the button without allowing horizontal micro-movement to cancel a tap.
+   ========================================================================== */
+
+.document-open-button {
+  position: relative !important;
+  z-index: 20 !important;
+  isolation: isolate !important;
+  pointer-events: auto !important;
+
+  touch-action: manipulation !important;
+
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+
+  content-visibility: visible !important;
+  contain: none !important;
+}
+
+/* Decorative descendants must never become the touch target themselves. */
+.document-open-button > *,
+.document-open-button .lucide,
+.document-open-button svg,
+.document-open-button span,
+.document-open-button::before,
+.document-open-button::after {
+  pointer-events: none !important;
+}
+
+/* Override all later/global hover/active systems for these two document
+   launch controls. A changing transform during touch can make WKWebView
+   invalidate the original hit-test target. */
+.document-open-button:hover,
+.document-open-button:active,
+.document-open-button:focus,
+.document-open-button:focus-visible {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+/* Touch devices: preserve a generous, stable native-style hit target. */
+@media (hover: none), (pointer: coarse) {
+  .document-open-button {
+    min-height: 52px !important;
+  }
+}
+
+
+
+/* ==========================================================================
+   PHONE-ONLY WELCOME HERO + FLOATING TAB BAR POSITION TUNING
+   --------------------------------------------------------------------------
+   These selectors are intentionally scoped to `.mobile-phone-layout`.
+   iPad/tablet and Mac/desktop layouts remain completely unchanged.
+   ========================================================================== */
+
+/* Give the Baghdad Medical College badge a little more breathing room above
+   the greeting without changing the hero's overall dimensions or document flow. */
+.mobile-phone-layout .home-hero-university-badge {
+  transform: translate3d(0, -7px, 0);
+}
+
+/* Move the three identity pills slightly closer to the lower edge of the hero,
+   while keeping a comfortable visual inset from the rounded hero boundary. */
+.mobile-phone-layout .home-hero-pills {
+  transform: translate3d(0, 9px, 0);
+}
+
+/* Lower the floating phone tab bar slightly.  Keep it floating and preserve
+   the home-indicator safe zone, but reduce the oversized gap visible on iPhone. */
+.mobile-phone-layout .ios-floating-tabbar,
+.mobile-phone-layout .ios-main-scroll {
+  --mobile-nav-offset: max(4px, calc(var(--safe-area-bottom) - 8px));
 }
