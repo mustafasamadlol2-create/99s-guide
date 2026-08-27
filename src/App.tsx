@@ -273,7 +273,7 @@ export default function App() {
       return;
     }
     setIsSidebarAnimating(true);
-    const t = setTimeout(() => setIsSidebarAnimating(false), 320);
+    const t = setTimeout(() => setIsSidebarAnimating(false), 240);
     return () => clearTimeout(t);
   }, [isSidebarCollapsed]);
 
@@ -4331,7 +4331,7 @@ const handleSignOut = useCallback(async () => {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell sidebar-premium-surface shrink-0 flex-col border-r h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
+        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell sidebar-premium-surface ${isAsideCollapsed ? "sidebar-shell-collapsed" : "sidebar-shell-expanded"} shrink-0 flex-col border-r h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
         style={{
           width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
@@ -4350,7 +4350,7 @@ const handleSignOut = useCallback(async () => {
           }}
         />
 
-        <div className={`flex flex-col min-h-0 flex-1 relative z-10 ${isAsideCollapsed ? "px-1" : "px-3"}`}>
+        <div className={`sidebar-content-shell flex flex-col min-h-0 flex-1 relative z-10 ${isAsideCollapsed ? "px-1" : "px-3"}`}>
           {/* Logo & Brand header — switches between row (expanded) and column (collapsed) */}
           <div
             className={`sidebar-header flex pt-2 pb-5 ${
@@ -4385,13 +4385,14 @@ const handleSignOut = useCallback(async () => {
             {!useRailNav && (
               <button
                 type="button"
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
                 aria-label={isSidebarCollapsed
                   ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
                   : (language === "ar" ? "تصغير الشريط الجانبي" : "Collapse sidebar")}
                 title={isSidebarCollapsed
                   ? (language === "ar" ? "توسيع" : "Expand")
                   : (language === "ar" ? "تصغير" : "Collapse")}
+                aria-expanded={!isSidebarCollapsed}
                 className={[
                   "shrink-0 flex items-center justify-center rounded-lg",
                   "text-neutral-400 dark:text-[#EBEBF560]",
@@ -4413,16 +4414,10 @@ const handleSignOut = useCallback(async () => {
             )}
           </div>
           {/* Navigation */}
-          <motion.nav
+          <nav
             aria-label={language === "ar" ? "التنقل الرئيسي" : "Main Navigation"}
-            className={`flex flex-col ${device.isTablet ? "gap-2" : "gap-0.5"} overflow-y-auto min-h-0 flex-1 hide-scrollbar overscroll-y-contain`}
+            className={`sidebar-nav-list flex flex-col ${device.isTablet ? "gap-2" : "gap-0.5"} overflow-y-auto min-h-0 flex-1 hide-scrollbar overscroll-y-contain`}
             style={{ scrollbarWidth: "none" }}
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: {},
-              visible: { transition: { staggerChildren: 0.035, delayChildren: 0.025 } },
-            }}
           >
             {sidebarMainItems.map((item) => (
               <SidebarNavItem
@@ -4440,13 +4435,7 @@ const handleSignOut = useCallback(async () => {
             ))}
 
             {/* Section divider */}
-            <motion.div
-              className="flex items-center gap-2.5 px-1.5 mt-5 mb-2"
-              variants={{
-                hidden: { opacity: 0 },
-                visible: { opacity: 1, transition: { duration: 0.25, delay: 0.1 } },
-              }}
-            >
+            <div className="sidebar-section-divider flex items-center gap-2.5 px-1.5 mt-5 mb-2">
               <span className="flex-1 h-px bg-neutral-200/80 dark:bg-white/[0.07]" />
               {!isAsideCollapsed && (
                 <span className="text-[10px] font-semibold text-neutral-400 dark:text-[#EBEBF540] uppercase tracking-[0.1em] antialiased select-none">
@@ -4454,7 +4443,7 @@ const handleSignOut = useCallback(async () => {
                 </span>
               )}
               <span className="flex-1 h-px bg-neutral-200/80 dark:bg-white/[0.07]" />
-            </motion.div>
+            </div>
 
             {sidebarSystemItems.map((item) => (
               <SidebarNavItem
@@ -4472,7 +4461,7 @@ const handleSignOut = useCallback(async () => {
                 rightBadge={item.rightBadge}
               />
             ))}
-          </motion.nav>
+          </nav>
         </div>
 
         {/* User Profile Card — pinned to bottom */}

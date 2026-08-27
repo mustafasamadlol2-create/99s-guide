@@ -3745,40 +3745,41 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 }
 
 /* ========================================================================== 
-   PREMIUM FIXED SIDEBAR — iOS floating-nav motion language, sidebar geometry
+   PREMIUM FIXED SIDEBAR — stable iPad/macOS motion
    --------------------------------------------------------------------------
-   Tablet/iPad/Desktop only by structure: the sidebar is never rendered on the
-   phone layout. This intentionally does NOT add floating/scroll-collapse
-   behavior. The rail/sidebar remains a fixed full-height navigation surface.
+   The sidebar remains a fixed full-height rail. There is no scroll-driven
+   expansion. The motion here deliberately avoids shared-layout springs and,
+   on touch iPad, avoids animating width entirely: Safari/WKWebView must relayout
+   the entire main canvas for every width frame, which is what caused the jank.
    ========================================================================== */
 
 .sidebar-premium-surface {
-  background: rgba(247, 247, 249, 0.82) !important;
+  background: rgba(247, 247, 249, 0.88) !important;
   border-right-color: rgba(60, 60, 67, 0.10) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(1.35);
-  backdrop-filter: blur(30px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.22);
+  backdrop-filter: blur(22px) saturate(1.22);
   box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.72),
-    8px 0 28px -24px rgba(0, 0, 0, 0.22);
+    inset -1px 0 0 rgba(255, 255, 255, 0.66),
+    8px 0 24px -24px rgba(0, 0, 0, 0.18);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 
 .dark .sidebar-premium-surface {
-  background: rgba(24, 24, 27, 0.84) !important;
-  border-right-color: rgba(255, 255, 255, 0.09) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(1.18);
-  backdrop-filter: blur(30px) saturate(1.18);
+  background: rgba(24, 24, 27, 0.90) !important;
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  backdrop-filter: blur(20px) saturate(1.12);
   box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.035),
-    10px 0 34px -26px rgba(0, 0, 0, 0.72);
+    inset -1px 0 0 rgba(255, 255, 255, 0.03),
+    8px 0 28px -24px rgba(0, 0, 0, 0.58);
 }
 
 .sidebar-ambient-wash {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.58) 0%,
-    rgba(255, 255, 255, 0.16) 32%,
+    rgba(255, 255, 255, 0.48) 0%,
+    rgba(255, 255, 255, 0.12) 34%,
     rgba(255, 255, 255, 0) 72%
   );
 }
@@ -3786,8 +3787,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .dark .sidebar-ambient-wash {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.035) 0%,
-    rgba(255, 255, 255, 0.012) 34%,
+    rgba(255, 255, 255, 0.028) 0%,
+    rgba(255, 255, 255, 0.008) 34%,
     rgba(255, 255, 255, 0) 72%
   );
 }
@@ -3795,8 +3796,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .sidebar-ambient-radial {
   background: radial-gradient(
     ellipse at top left,
-    rgba(255, 255, 255, 0.72) 0%,
-    rgba(255, 255, 255, 0.18) 42%,
+    rgba(255, 255, 255, 0.60) 0%,
+    rgba(255, 255, 255, 0.12) 44%,
     transparent 72%
   );
 }
@@ -3804,53 +3805,66 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .dark .sidebar-ambient-radial {
   background: radial-gradient(
     ellipse at top left,
-    rgba(72, 103, 170, 0.055) 0%,
-    rgba(255, 255, 255, 0.018) 42%,
+    rgba(72, 103, 170, 0.04) 0%,
+    rgba(255, 255, 255, 0.012) 44%,
     transparent 72%
   );
 }
 
-/* Match the mobile bar's quick response + long, controlled landing. The width
-   changes only when the user explicitly presses the sidebar toggle. */
+/* Desktop/Mac: short native-style width glide. Avoid long spring-like width
+   animation because width/flex-basis are layout properties, not compositor-only. */
 .sidebar-shell {
   transition:
-    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    flex-basis 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 220ms ease-out,
-    border-color 220ms ease-out !important;
+    width 190ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 190ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  will-change: auto;
+}
+
+.sidebar-animating .sidebar-shell {
+  will-change: width, flex-basis;
+}
+
+.sidebar-content-shell {
+  transition: padding-left 150ms ease-out, padding-right 150ms ease-out;
 }
 
 .sidebar-brand {
   transition:
-    opacity 220ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+    opacity 130ms ease-out,
+    transform 150ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 .sidebar-toggle {
-  border: 1px solid rgba(60, 60, 67, 0.08);
-  background: rgba(118, 118, 128, 0.08);
+  border: 1px solid rgba(60, 60, 67, 0.075);
+  background: rgba(118, 118, 128, 0.075);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition:
-    background-color 160ms ease-out,
-    border-color 180ms ease-out,
-    color 180ms ease-out,
-    box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out !important;
 }
 
 .dark .sidebar-toggle {
-  border-color: rgba(255, 255, 255, 0.07);
-  background: rgba(118, 118, 128, 0.12);
+  border-color: rgba(255, 255, 255, 0.065);
+  background: rgba(118, 118, 128, 0.11);
 }
 
 .sidebar-toggle:active {
-  background: rgba(118, 118, 128, 0.18) !important;
+  background: rgba(118, 118, 128, 0.17) !important;
 }
 
 .dark .sidebar-toggle:active {
-  background: rgba(118, 118, 128, 0.24) !important;
+  background: rgba(118, 118, 128, 0.22) !important;
 }
 
 .sidebar-toggle-icon {
-  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  transform-origin: center;
+}
+
+.sidebar-nav-list {
+  contain: paint style;
 }
 
 .sidebar-nav-item-wrap {
@@ -3859,94 +3873,135 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .sidebar-nav-item {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transform: translate3d(0, 0, 0);
   transition:
-    color 220ms ease-out,
-    background-color 180ms ease-out,
-    opacity 180ms ease-out;
+    color 150ms ease-out,
+    opacity 120ms ease-out;
+}
+
+.sidebar-nav-item:active {
+  opacity: 0.78;
 }
 
 .sidebar-active-indicator {
   inset: 3px 4px;
   border-radius: 14px;
   box-shadow:
-    0 1px 6px rgba(0, 0, 0, 0.075),
-    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+    0 1px 5px rgba(0, 0, 0, 0.065),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transform-origin: center;
+  animation: sidebar-active-settle 170ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes sidebar-active-settle {
+  from {
+    opacity: 0.42;
+    transform: translate3d(0, 1px, 0) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 .sidebar-active-indicator-neutral {
-  background: rgba(60, 60, 67, 0.075);
-  border: 1px solid rgba(255, 255, 255, 0.50);
+  background: rgba(60, 60, 67, 0.072);
+  border: 1px solid rgba(255, 255, 255, 0.44);
 }
 
 .dark .sidebar-active-indicator {
   box-shadow:
-    0 1px 8px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+    0 1px 7px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .dark .sidebar-active-indicator-neutral {
-  background: rgba(255, 255, 255, 0.125);
-  border-color: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.115);
+  border-color: rgba(255, 255, 255, 0.065);
 }
 
 .sidebar-nav-hover-surface {
   inset: 3px 4px;
   border-radius: 14px;
   opacity: 0;
-  background: rgba(118, 118, 128, 0.075);
-  transition: opacity 150ms ease-out, background-color 150ms ease-out;
+  background: rgba(118, 118, 128, 0.065);
+  transition: opacity 110ms ease-out, background-color 110ms ease-out;
 }
 
 .dark .sidebar-nav-hover-surface {
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.048);
+}
+
+.sidebar-nav-icon-motion {
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: transform 170ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sidebar-nav-item-active .sidebar-nav-icon-motion {
+  transform: translate3d(0, -1px, 0) scale(1.035);
 }
 
 .sidebar-nav-icon {
   transition:
-    color 240ms ease-out,
-    opacity 200ms ease-out,
-    stroke-width 220ms ease-out;
+    color 150ms ease-out,
+    opacity 130ms ease-out,
+    stroke-width 150ms ease-out;
 }
 
 .sidebar-nav-label {
-  transition: color 240ms ease-out, opacity 200ms ease-out;
+  opacity: 0.84;
+  transform: translate3d(0, 0, 0);
+  transition:
+    color 150ms ease-out,
+    opacity 140ms ease-out,
+    transform 170ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sidebar-nav-item-active .sidebar-nav-label {
+  opacity: 1;
+  transform: translate3d(0, -0.5px, 0);
+}
+
+.sidebar-nav-right-badge {
+  transition: opacity 130ms ease-out, transform 150ms ease-out;
+}
+
+.sidebar-section-divider {
+  transition: opacity 130ms ease-out;
 }
 
 .sidebar-profile-card {
-  background: rgba(118, 118, 128, 0.075);
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  background: rgba(118, 118, 128, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.42);
   box-shadow:
-    0 1px 7px rgba(0, 0, 0, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 0.50);
+    0 1px 6px rgba(0, 0, 0, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.44);
   transition:
-    background-color 180ms ease-out,
-    border-color 180ms ease-out,
-    box-shadow 240ms cubic-bezier(0.32, 0.72, 0, 1);
+    background-color 140ms ease-out,
+    border-color 140ms ease-out;
 }
 
 .dark .sidebar-profile-card {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.065);
   box-shadow:
-    0 1px 8px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    0 1px 7px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .sidebar-profile-button,
 .sidebar-profile-avatar,
 .sidebar-signout-button {
   transition:
-    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 160ms ease-out,
-    background-color 160ms ease-out,
-    color 160ms ease-out !important;
+    opacity 120ms ease-out,
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    transform 150ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
-/* Pointer devices get a quiet iOS/macOS hover response. No sideways motion,
-   no floating effect, and no scroll-dependent behavior. */
 @media (hover: hover) and (pointer: fine) {
   .sidebar-nav-item:hover .sidebar-nav-hover-surface {
     opacity: 1;
@@ -3957,54 +4012,89 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   }
 
   .sidebar-toggle:hover {
-    background: rgba(118, 118, 128, 0.12);
-    border-color: rgba(60, 60, 67, 0.12);
+    background: rgba(118, 118, 128, 0.115);
+    border-color: rgba(60, 60, 67, 0.105);
   }
 
   .dark .sidebar-toggle:hover {
-    background: rgba(118, 118, 128, 0.18);
-    border-color: rgba(255, 255, 255, 0.10);
+    background: rgba(118, 118, 128, 0.165);
+    border-color: rgba(255, 255, 255, 0.09);
   }
 
   .sidebar-profile-card:hover {
-    background: rgba(118, 118, 128, 0.105);
+    background: rgba(118, 118, 128, 0.095);
   }
 
   .dark .sidebar-profile-card:hover {
-    background: rgba(255, 255, 255, 0.075);
+    background: rgba(255, 255, 255, 0.068);
   }
 
   .sidebar-profile-button:hover .sidebar-profile-avatar {
-    transform: scale(1.025);
+    transform: scale(1.018);
   }
 }
 
-/* Keep touch-tablet collapse geometry stable: only explicit toggle changes the
-   width. Touching/scrolling the page never expands or shrinks the sidebar. */
+/* iPad/tablet: width animation is intentionally disabled. Changing the sidebar
+   width forces the WKWebView's entire main canvas to relayout. Snapping the
+   geometry once, then animating only the chevron/active surfaces, is much
+   smoother and more iOS-native than 15–20 expensive width frames. The explicit
+   .ipad-layout rule keeps this stable even when an iPad has a trackpad attached. */
+.ipad-layout .sidebar-shell {
+  transition: none !important;
+  will-change: auto !important;
+}
+
+.ipad-layout .sidebar-content-shell {
+  transition: none !important;
+}
+
 @media (hover: none) and (pointer: coarse) and (min-width: 900px) {
   .sidebar-shell {
+    transition: none !important;
+    will-change: auto !important;
+  }
+
+  .sidebar-content-shell {
+    transition: none !important;
+  }
+
+  .sidebar-brand {
     transition:
-      width 260ms cubic-bezier(0.32, 0.72, 0, 1),
-      flex-basis 260ms cubic-bezier(0.32, 0.72, 0, 1),
-      background-color 180ms ease-out,
-      border-color 180ms ease-out !important;
+      opacity 110ms ease-out,
+      transform 120ms ease-out !important;
+  }
+
+  .sidebar-toggle-icon {
+    transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  }
+
+  .sidebar-active-indicator {
+    animation-duration: 145ms;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell,
+  .sidebar-content-shell,
   .sidebar-brand,
   .sidebar-toggle,
   .sidebar-toggle-icon,
   .sidebar-nav-item,
+  .sidebar-nav-icon-motion,
   .sidebar-nav-icon,
   .sidebar-nav-label,
   .sidebar-nav-hover-surface,
+  .sidebar-nav-right-badge,
+  .sidebar-section-divider,
   .sidebar-profile-card,
   .sidebar-profile-button,
   .sidebar-profile-avatar,
   .sidebar-signout-button {
     transition-duration: 1ms !important;
     transition-delay: 0ms !important;
+  }
+
+  .sidebar-active-indicator {
+    animation: none !important;
   }
 }
