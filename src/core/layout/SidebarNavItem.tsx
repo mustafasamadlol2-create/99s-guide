@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { motion } from "motion/react";
 
 export interface SidebarNavItemProps {
   id: string;
@@ -14,15 +15,15 @@ export interface SidebarNavItemProps {
   isTablet?: boolean;
 }
 
-/**
- * Sidebar navigation intentionally uses CSS-only, compositor-friendly motion.
- *
- * The previous shared-layout spring indicator looked attractive but forced
- * layout measurements while the sidebar width was changing. In Safari/WKWebView
- * (especially iPad) that competed with the main page reflow and made both tab
- * navigation and collapse/expand feel heavy. The active surface now settles
- * locally with opacity/transform only, while the sidebar remains a fixed rail.
- */
+const itemVariants = {
+  hidden: { opacity: 0, x: -6 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { type: "spring" as const, stiffness: 400, damping: 32 },
+  },
+};
+
 export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
   function SidebarNavItem({
     id,
@@ -35,112 +36,120 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
     bgClass,
     iconBadge,
     rightBadge,
+    isTablet,
   }) {
-    const hasCustomColor = Boolean(colorClass);
-    const hasCustomBg = Boolean(bgClass);
+    const hasCustomColor = !!colorClass;
+    const hasCustomBg = !!bgClass;
 
     const iconColorClass = isActive
       ? hasCustomColor
-        ? colorClass
+        ? ""                                    // inherits from button's colorClass
         : "text-neutral-900 dark:text-white"
       : hasCustomColor
-        ? `${colorClass} opacity-75 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-200";
+        ? `${colorClass} opacity-70 group-hover:opacity-100`
+        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-300";
 
     const labelColorClass = isActive
       ? hasCustomColor
-        ? colorClass
+        ? ""                                    // inherits from button's colorClass
         : "text-neutral-900 dark:text-white"
       : hasCustomColor
-        ? `${colorClass} opacity-75 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-200";
+        ? `${colorClass} opacity-70 group-hover:opacity-100`
+        : "text-neutral-500 dark:text-[#EBEBF599] opacity-80 group-hover:opacity-100";
 
     return (
-      <div className="sidebar-nav-item-wrap">
+      <motion.div variants={itemVariants}>
         <button
-          type="button"
           onClick={() => onClick(id)}
           aria-label={label}
           aria-current={isActive ? "page" : undefined}
           title={label}
           className={[
-            "sidebar-nav-item relative flex items-center w-full border-none outline-none cursor-pointer",
-            "z-0 antialiased rounded-2xl group min-h-[56px]",
+            // layout
+            "relative flex items-center w-full border-none outline-none cursor-pointer",
+            "z-0 antialiased rounded-xl group",
+            "gap-4 min-h-[60px]",
             isAsideCollapsed
-              ? "sidebar-nav-item-collapsed justify-center p-1"
-              : "sidebar-nav-item-expanded gap-3.5 px-3.5 py-1.5 text-left",
+              ? "justify-center p-1"
+              : "px-4 py-2 text-left",
+            // focus ring
             "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
             "dark:focus-visible:ring-offset-neutral-950",
+            // active/inactive text color
             isActive
-              ? `sidebar-nav-item-active font-semibold ${
-                  hasCustomColor ? colorClass : "text-neutral-900 dark:text-white"
-                }`
+              ? `font-semibold ${hasCustomColor ? colorClass : "text-neutral-900 dark:text-white"}`
               : "font-medium",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          style={{ WebkitTapHighlightColor: "transparent" }}
+            // subtle press feedback via CSS active state
+            "active:scale-[0.965] active:opacity-[0.88]",
+            "transition-transform duration-[80ms] ease-out",
+            "macos-interactive sidebar-item-hover-effect",
+          ].filter(Boolean).join(" ")}
         >
-          <span
-            aria-hidden="true"
-            className={[
-              "sidebar-active-indicator absolute pointer-events-none",
-              hasCustomBg ? bgClass : "sidebar-active-indicator-neutral",
-              isActive
-                ? "sidebar-active-indicator-visible"
-                : "sidebar-active-indicator-hidden",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+          {/* ── Animated sliding active background (shared layoutId → smooth pill slide) */}
+          {isActive && (
+            <motion.div
+              layoutId="sidebar-active-pill"
+              className={[
+                "absolute inset-0 rounded-xl",
+                hasCustomBg ? bgClass : "bg-neutral-200/80 dark:bg-white/[0.12]",
+              ].filter(Boolean).join(" ")}
+              initial={false}
+              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+            />
+          )}
+
+          {/* ── Hover surface (inactive only) */}
+          {!isActive && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100
+                         bg-neutral-100/70 dark:bg-white/[0.05]
+                         transition-opacity duration-150 ease-out"
+            />
+          )}
+
+
+          {/* ── Icon */}
+          <div
+            className={`relative shrink-0 flex items-center justify-center z-10
+              ${"w-11 h-11"}`}
           >
-            <span className="sidebar-active-indicator-sheen" />
-          </span>
-
-          <span
-            aria-hidden="true"
-            className={[
-              "sidebar-nav-hover-surface absolute pointer-events-none",
-              isActive ? "sidebar-nav-hover-surface-suppressed" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          />
-
-          <div className="sidebar-nav-icon-slot relative shrink-0 flex items-center justify-center z-10 w-11 h-11">
-            <div className="sidebar-nav-icon-motion flex items-center justify-center">
+            <motion.div
+              animate={{ scale: isActive ? 1.08 : 1 }}
+              transition={{ type: "spring", stiffness: 420, damping: 22 }}
+              className="flex items-center justify-center"
+            >
               <Icon
                 className={[
-                  "w-[25px] h-[25px] sidebar-nav-icon",
+                  "w-[26px] h-[26px]",
+                  "transition-colors duration-200",
                   iconColorClass,
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                strokeWidth={isActive ? 2.3 : 1.85}
+                ].filter(Boolean).join(" ")}
               />
-            </div>
+            </motion.div>
             {iconBadge}
           </div>
 
+          {/* ── Label */}
           {!isAsideCollapsed && (
             <span
               className={[
-                "relative z-10 flex-1 truncate leading-none text-[16px] sidebar-nav-label",
+                "relative z-10 flex-1 truncate leading-none",
+                "text-[17px]",
+                "transition-opacity duration-150",
                 labelColorClass,
-              ]
-                .filter(Boolean)
-                .join(" ")}
+              ].filter(Boolean).join(" ")}
             >
               {label}
             </span>
           )}
 
+          {/* ── Right badge */}
           {!isAsideCollapsed && rightBadge && (
-            <div className="sidebar-nav-right-badge relative z-10 shrink-0">
-              {rightBadge}
-            </div>
+            <div className="relative z-10 shrink-0">{rightBadge}</div>
           )}
         </button>
-      </div>
+      </motion.div>
     );
   },
 );
