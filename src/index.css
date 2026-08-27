@@ -2961,8 +2961,17 @@ button:not(:disabled):active,
    top badge and bottom pills from being clipped and keeps PWA/Capacitor in sync. */
 @media (orientation: portrait) {
   .mobile-phone-layout .home-hero-foreground {
-    transform: scale(0.84);
+    /* The outer hero stays 252px. Shrink the complete internal composition as
+       one unit so the old spacing/geometry is preserved while the translated
+       university badge and lower identity pills remain fully inside the frame. */
+    transform: scale(0.76);
     transform-origin: center center;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 380px) {
+  .mobile-phone-layout .home-hero-foreground {
+    transform: scale(0.73);
   }
 }
 
@@ -3876,35 +3885,71 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   touch-action: manipulation;
   transform: translate3d(0, 0, 0);
   transition:
-    color 150ms ease-out,
-    opacity 120ms ease-out;
+    color 190ms ease-out,
+    opacity 150ms ease-out,
+    background-color 190ms ease-out;
 }
 
 .sidebar-nav-item:active {
-  opacity: 0.78;
+  opacity: 0.88;
 }
 
+/* Keep every selection surface mounted. Switching tabs now cross-fades and
+   settles the old/new capsules instead of hard-unmounting one frame and
+   mounting another. Only opacity/transform animate, so iPad WKWebView stays
+   compositor-friendly and the sidebar collapse button remains completely
+   independent from these transitions. */
 .sidebar-active-indicator {
   inset: 3px 4px;
   border-radius: 14px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(-5px, 0, 0) scale(0.965);
+  transform-origin: center;
   box-shadow:
     0 1px 5px rgba(0, 0, 0, 0.065),
     inset 0 1px 0 rgba(255, 255, 255, 0.46);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  transform-origin: center;
-  animation: sidebar-active-settle 170ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  transition:
+    opacity 180ms ease-out,
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 220ms ease-out;
 }
 
-@keyframes sidebar-active-settle {
-  from {
-    opacity: 0.42;
-    transform: translate3d(0, 1px, 0) scale(0.975);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+.sidebar-active-indicator-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.sidebar-active-indicator-hidden {
+  opacity: 0;
+  transform: translate3d(5px, 0, 0) scale(0.972);
+}
+
+.sidebar-active-indicator-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-8px, 0, 0);
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.14) 42%,
+    rgba(255, 255, 255, 0.30) 50%,
+    rgba(255, 255, 255, 0.08) 58%,
+    transparent 100%
+  );
+  transition:
+    opacity 210ms ease-out 35ms,
+    transform 360ms cubic-bezier(0.32, 0.72, 0, 1) 25ms;
+}
+
+.sidebar-active-indicator-visible .sidebar-active-indicator-sheen {
+  opacity: 0.52;
+  transform: translate3d(0, 0, 0);
 }
 
 .sidebar-active-indicator-neutral {
@@ -3923,12 +3968,31 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   border-color: rgba(255, 255, 255, 0.065);
 }
 
+.dark .sidebar-active-indicator-sheen {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.035) 42%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.025) 58%,
+    transparent 100%
+  );
+}
+
 .sidebar-nav-hover-surface {
   inset: 3px 4px;
   border-radius: 14px;
   opacity: 0;
+  transform: scale(0.985);
   background: rgba(118, 118, 128, 0.065);
-  transition: opacity 110ms ease-out, background-color 110ms ease-out;
+  transition:
+    opacity 150ms ease-out,
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 150ms ease-out;
+}
+
+.sidebar-nav-hover-surface-suppressed {
+  opacity: 0 !important;
 }
 
 .dark .sidebar-nav-hover-surface {
@@ -3937,40 +4001,55 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .sidebar-nav-icon-motion {
   transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 170ms cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: center;
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .sidebar-nav-item-active .sidebar-nav-icon-motion {
-  transform: translate3d(0, -1px, 0) scale(1.035);
+  transform: translate3d(1px, -1px, 0) scale(1.055);
+}
+
+.sidebar-nav-item:active .sidebar-nav-icon-motion {
+  transform: translate3d(0, 0, 0) scale(0.945);
+  transition-duration: 110ms;
 }
 
 .sidebar-nav-icon {
   transition:
-    color 150ms ease-out,
-    opacity 130ms ease-out,
-    stroke-width 150ms ease-out;
+    color 190ms ease-out,
+    opacity 170ms ease-out,
+    stroke-width 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .sidebar-nav-label {
-  opacity: 0.84;
+  opacity: 0.80;
   transform: translate3d(0, 0, 0);
   transition:
-    color 150ms ease-out,
-    opacity 140ms ease-out,
-    transform 170ms cubic-bezier(0.32, 0.72, 0, 1);
+    color 190ms ease-out,
+    opacity 190ms ease-out,
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .sidebar-nav-item-active .sidebar-nav-label {
   opacity: 1;
-  transform: translate3d(0, -0.5px, 0);
+  transform: translate3d(2px, 0, 0);
 }
 
 .sidebar-nav-right-badge {
-  transition: opacity 130ms ease-out, transform 150ms ease-out;
+  opacity: 0.86;
+  transform: translate3d(0, 0, 0) scale(0.985);
+  transition:
+    opacity 180ms ease-out,
+    transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sidebar-nav-item-active .sidebar-nav-right-badge {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .sidebar-section-divider {
-  transition: opacity 130ms ease-out;
+  transition: opacity 180ms ease-out;
 }
 
 .sidebar-profile-card {
@@ -4005,6 +4084,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 @media (hover: hover) and (pointer: fine) {
   .sidebar-nav-item:hover .sidebar-nav-hover-surface {
     opacity: 1;
+    transform: scale(1);
   }
 
   .sidebar-nav-item[aria-current="page"]:hover .sidebar-nav-hover-surface {
@@ -4094,7 +4174,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     transition-delay: 0ms !important;
   }
 
-  .sidebar-active-indicator {
+  .sidebar-active-indicator,
+  .sidebar-active-indicator-sheen {
     animation: none !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
   }
 }

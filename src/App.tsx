@@ -1405,11 +1405,22 @@ export default function App() {
   // main scroll inset remains fixed so no page/hero layout can jump.
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
   const phoneTabBarScrollGuardUntilRef = useRef(0);
+  const phoneTabBarLastScrollTopRef = useRef(0);
+  const phoneTabBarScrollTravelRef = useRef(0);
+  const phoneTabBarScrollDirectionRef = useRef<"up" | "down" | null>(null);
   useEffect(() => {
     if (!device.isPhone) {
       setIsPhoneTabBarEngaged(true);
+      phoneTabBarLastScrollTopRef.current = 0;
+      phoneTabBarScrollTravelRef.current = 0;
+      phoneTabBarScrollDirectionRef.current = null;
       return;
     }
+
+    const canvas = document.getElementById("main-scroll-canvas");
+    phoneTabBarLastScrollTopRef.current = canvas?.scrollTop ?? 0;
+    phoneTabBarScrollTravelRef.current = 0;
+    phoneTabBarScrollDirectionRef.current = null;
 
     const handlePointerDown = (event: PointerEvent) => {
       const wrapper = document.getElementById("ios_native_tabbar_wrapper");
@@ -1426,10 +1437,40 @@ export default function App() {
     };
 
     const handleScroll = () => {
+      if (!canvas) return;
+
+      const nextScrollTop = Math.max(0, canvas.scrollTop);
+      const previousScrollTop = phoneTabBarLastScrollTopRef.current;
+      const delta = nextScrollTop - previousScrollTop;
+      phoneTabBarLastScrollTopRef.current = nextScrollTop;
+
+      // Always restore the larger touch target near the top of the page.
+      if (nextScrollTop <= 8) {
+        phoneTabBarScrollTravelRef.current = 0;
+        phoneTabBarScrollDirectionRef.current = "up";
+        setIsPhoneTabBarEngaged(true);
+        return;
+      }
+
       if (performance.now() < phoneTabBarScrollGuardUntilRef.current) return;
-      setIsPhoneTabBarEngaged(false);
+      if (Math.abs(delta) < 0.75) return;
+
+      const direction: "up" | "down" = delta < 0 ? "up" : "down";
+      if (phoneTabBarScrollDirectionRef.current !== direction) {
+        phoneTabBarScrollDirectionRef.current = direction;
+        phoneTabBarScrollTravelRef.current = 0;
+      }
+
+      phoneTabBarScrollTravelRef.current += Math.abs(delta);
+
+      // A small hysteresis threshold prevents tiny inertial/bounce movements from
+      // rapidly toggling the bar. Downward reading motion compacts the controls;
+      // scrolling back toward the hero restores the larger iOS-style touch target.
+      if (phoneTabBarScrollTravelRef.current >= 10) {
+        setIsPhoneTabBarEngaged(direction === "up");
+        phoneTabBarScrollTravelRef.current = 0;
+      }
     };
-    const canvas = document.getElementById("main-scroll-canvas");
 
     document.addEventListener("pointerdown", handlePointerDown, { capture: true });
     canvas?.addEventListener("scroll", handleScroll, { passive: true });

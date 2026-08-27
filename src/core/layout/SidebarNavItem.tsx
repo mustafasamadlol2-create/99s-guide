@@ -81,24 +81,30 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
             .join(" ")}
           style={{ WebkitTapHighlightColor: "transparent" }}
         >
-          {isActive && (
-            <span
-              aria-hidden="true"
-              className={[
-                "sidebar-active-indicator absolute pointer-events-none",
-                hasCustomBg ? bgClass : "sidebar-active-indicator-neutral",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            />
-          )}
+          <span
+            aria-hidden="true"
+            className={[
+              "sidebar-active-indicator absolute pointer-events-none",
+              hasCustomBg ? bgClass : "sidebar-active-indicator-neutral",
+              isActive
+                ? "sidebar-active-indicator-visible"
+                : "sidebar-active-indicator-hidden",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <span className="sidebar-active-indicator-sheen" />
+          </span>
 
-          {!isActive && (
-            <span
-              aria-hidden="true"
-              className="sidebar-nav-hover-surface absolute pointer-events-none"
-            />
-          )}
+          <span
+            aria-hidden="true"
+            className={[
+              "sidebar-nav-hover-surface absolute pointer-events-none",
+              isActive ? "sidebar-nav-hover-surface-suppressed" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          />
 
           <div className="sidebar-nav-icon-slot relative shrink-0 flex items-center justify-center z-10 w-11 h-11">
             <div className="sidebar-nav-icon-motion flex items-center justify-center">

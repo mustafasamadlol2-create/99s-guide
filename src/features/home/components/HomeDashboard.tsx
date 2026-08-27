@@ -634,7 +634,7 @@ const HeroBanner = memo(({
         animate="visible"
       >
         {/* Left column — text */}
-        <div className={`flex flex-col min-w-0 overflow-hidden ${isWide ? "flex-1" : ""} ${layout.gapClass}`}>
+        <div className={`flex flex-col min-w-0 ${isPhone ? "overflow-visible" : "overflow-hidden"} ${isWide ? "flex-1" : ""} ${layout.gapClass}`}>
 
           <div className="flex flex-col relative z-10">
             {/* Badge row */}
