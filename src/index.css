@@ -2934,15 +2934,22 @@ button:not(:disabled):active,
   padding-bottom: 0;
 }
 
-/* Home hero: the device-profile min-heights (320px portrait / 270px landscape)
-   are taller than the hero content, wasting vertical space on phones. */
+/* Home hero — phone portrait outer frame only.
+   Match the compact dimensions of the earlier approved hero while preserving
+   every current child position/spacing rule inside it.  Using an explicit
+   height here prevents platform-specific min-content expansion from making the
+   PWA and Capacitor hero different sizes. */
 .mobile-phone-layout .home-hero-banner {
-  min-height: 280px;
+  height: 252px;
+  min-height: 252px;
+  max-height: 252px;
 }
 
 @media (max-width: 380px) {
   .mobile-phone-layout .home-hero-banner {
-    min-height: 260px;
+    height: 252px;
+    min-height: 252px;
+    max-height: 252px;
   }
 }
 
@@ -2950,7 +2957,9 @@ button:not(:disabled):active,
    and the subjects grid stay within reach. */
 @media (orientation: landscape) and (max-height: 520px) {
   .mobile-phone-layout .home-hero-banner {
+    height: auto;
     min-height: 220px;
+    max-height: none;
     padding-top: 16px;
     padding-bottom: 16px;
   }
@@ -3556,15 +3565,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
    layout never jumps while the floating controls expand or collapse.
    ========================================================================== */
 
-/* Lift the university badge within the existing hero bounds, then preserve a
-   deliberate visual gap before the greeting. No hero height is changed. */
-.mobile-phone-layout .home-hero-university-badge {
-  transform: translate3d(0, -13px, 0);
-}
-
-.mobile-phone-layout .home-hero-greeting {
-  margin-top: 0.45rem !important;
-}
+/* The phone Welcome hero badge/greeting positioning is applied directly by
+   HomeDashboard from the shared device profile. This keeps PWA and Capacitor
+   visually identical instead of relying on a platform-specific CSS cascade. */
 
 /* Bring the entire floating cluster closer to the bottom edge while retaining
    a small iPhone home-indicator buffer. */

@@ -394,18 +394,24 @@ interface HeroBannerProps {
   nextEvent: CalendarEvent | null;
   onNavigateTab: (tab: string) => void;
   isWide: boolean;
+  isPhone: boolean;
 }
 
 const UniversityBadge = ({
   isRtl,
   layout,
   t,
+  isPhone,
 }: {
   isRtl: boolean;
   layout: HeroBannerLayout;
   t: (key: string) => string;
+  isPhone: boolean;
 }) => (
-  <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#0D1826]/60 to-[#09111D]/40 border border-[#D4AF37]/28 shadow-[0_1px_8px_rgba(0,0,0,0.4)] w-fit transition-all duration-300 hover:bg-[#0D1826]/70 hover:border-[#D4AF37]/50 hover:shadow-[0_0_14px_rgba(212,175,55,0.15)] overflow-hidden group">
+  <div
+    className="home-hero-university-badge relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#0D1826]/60 to-[#09111D]/40 border border-[#D4AF37]/28 shadow-[0_1px_8px_rgba(0,0,0,0.4)] w-fit transition-all duration-300 hover:bg-[#0D1826]/70 hover:border-[#D4AF37]/50 hover:shadow-[0_0_14px_rgba(212,175,55,0.15)] overflow-hidden group"
+    style={{ transform: isPhone ? "translate3d(0, -20px, 0)" : undefined }}
+  >
     <div className="badge-shimmer-sweep" aria-hidden="true" />
     <picture>
       <source srcSet="/baghdad-medical-college-logo.webp" type="image/webp" />
@@ -528,7 +534,7 @@ const heroPillVariant = (i: number): Variants => ({
 const HeroBanner = memo(({
   isActive, isRtl, smartGreeting, user, smartSubtitle, activeMottos,
   mottoIndex, layout, t,
-  nextEvent, onNavigateTab, isWide,
+  nextEvent, onNavigateTab, isWide, isPhone,
 }: HeroBannerProps) => {
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
@@ -633,7 +639,7 @@ const HeroBanner = memo(({
           <div className="flex flex-col relative z-10">
             {/* Badge row */}
             <motion.div variants={heroItemVariant} className="flex flex-wrap items-center justify-between gap-2 select-none">
-              <UniversityBadge layout={layout} isRtl={isRtl} t={t} />
+              <UniversityBadge layout={layout} isRtl={isRtl} t={t} isPhone={isPhone} />
               {/* Countdown inline with badge on wide screens */}
               {isWide && nextEvent && <ExamCountdown nextEvent={nextEvent} />}
             </motion.div>
@@ -642,6 +648,7 @@ const HeroBanner = memo(({
             <motion.div
               variants={heroItemVariant}
               className={`home-hero-greeting ${layout.stackGapClass} ${isWide ? "max-w-[85%]" : "max-w-[80%] md:max-w-[72%]"} min-w-[260px] relative mt-1 md:mt-2`}
+              style={{ marginTop: isPhone ? "0.45rem" : undefined }}
             >
               <div
                 className={`absolute top-[-10%] ${isRtl ? "right-[-5%]" : "left-[-5%]"} w-[115%] h-[80%]
@@ -1060,9 +1067,12 @@ const HomeDashboard = memo(function HomeDashboard({
         indicatorGap: "gap-3",
       };
     } else if (h === "compact" && v === "regular") {
-      // iPhone Portrait
+      // iPhone Portrait — lock only the hero outer frame to the compact
+      // dimensions used by the earlier phone design. Child spacing/content is
+      // intentionally left untouched so the current badge/greeting/pills
+      // tuning remains exactly as-is.
       return {
-        heightClass: "min-h-[290px] h-auto",
+        heightClass: "h-[252px] min-h-[252px] max-h-[252px]",
         paddingClass: "px-4 py-6",
         brandClass: "text-xs tracking-[0.3em]",
         titleClass: "text-2xl font-semibold ",
@@ -1166,6 +1176,7 @@ const HomeDashboard = memo(function HomeDashboard({
               nextEvent={nextEvent}
               onNavigateTab={onNavigateTab}
               isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
+              isPhone={device.isPhone}
             />
 
             {/* 2. Banner Notification alert */}
