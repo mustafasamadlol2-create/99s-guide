@@ -2961,17 +2961,29 @@ button:not(:disabled):active,
    top badge and bottom pills from being clipped and keeps PWA/Capacitor in sync. */
 @media (orientation: portrait) {
   .mobile-phone-layout .home-hero-foreground {
-    /* The outer hero stays 252px. Shrink the complete internal composition as
-       one unit so the old spacing/geometry is preserved while the translated
-       university badge and lower identity pills remain fully inside the frame. */
-    transform: scale(0.76);
+    /* Keep the approved 252px outer hero, but give the foreground a slightly
+       larger logical canvas before scaling it back into the frame.  This lets
+       the complete composition use almost the full hero area instead of
+       becoming a small island in the centre.  All children still scale as one
+       unit, so their relative spacing and geometry remain unchanged. */
+    --phone-hero-content-scale: 0.88;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 113.64%;
+    height: 113.64%;
+    translate: -50% -50%;
+    scale: var(--phone-hero-content-scale);
+    transform: none;
     transform-origin: center center;
   }
 }
 
 @media (orientation: portrait) and (max-width: 380px) {
   .mobile-phone-layout .home-hero-foreground {
-    transform: scale(0.73);
+    --phone-hero-content-scale: 0.85;
+    width: 117.65%;
+    height: 117.65%;
   }
 }
 

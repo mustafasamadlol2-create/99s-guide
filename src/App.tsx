@@ -1466,18 +1466,74 @@ export default function App() {
       // A small hysteresis threshold prevents tiny inertial/bounce movements from
       // rapidly toggling the bar. Downward reading motion compacts the controls;
       // scrolling back toward the hero restores the larger iOS-style touch target.
-      if (phoneTabBarScrollTravelRef.current >= 10) {
+      if (phoneTabBarScrollTravelRef.current >= 8) {
         setIsPhoneTabBarEngaged(direction === "up");
         phoneTabBarScrollTravelRef.current = 0;
       }
     };
 
+    // WKWebView can coalesce scroll events more aggressively than Safari/PWA.
+    // Track the physical touch gesture as a second, native-safe signal so the
+    // floating navigation expands immediately when the user swipes DOWN (which
+    // moves the page back UP toward the hero) even if no timely scroll event is
+    // delivered by Capacitor. This does not change layout or route behaviour.
+    let touchLastY: number | null = null;
+    let touchTravel = 0;
+    let touchDirection: "up" | "down" | null = null;
+    let touchStartedInBar = false;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const wrapper = document.getElementById("ios_native_tabbar_wrapper");
+      touchStartedInBar = !!wrapper?.contains(event.target as Node);
+      touchTravel = 0;
+      touchDirection = null;
+      touchLastY = event.touches.length === 1 ? event.touches[0].clientY : null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (touchStartedInBar || touchLastY === null || event.touches.length !== 1) return;
+
+      const nextY = event.touches[0].clientY;
+      const fingerDelta = nextY - touchLastY;
+      touchLastY = nextY;
+      if (Math.abs(fingerDelta) < 0.75) return;
+
+      // Finger moving down => content moves up toward the hero => EXPAND.
+      // Finger moving up   => content moves down for reading      => COMPACT.
+      const direction: "up" | "down" = fingerDelta > 0 ? "up" : "down";
+      if (touchDirection !== direction) {
+        touchDirection = direction;
+        touchTravel = 0;
+      }
+      touchTravel += Math.abs(fingerDelta);
+
+      if (touchTravel >= 8) {
+        setIsPhoneTabBarEngaged(direction === "up");
+        touchTravel = 0;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchLastY = null;
+      touchTravel = 0;
+      touchDirection = null;
+      touchStartedInBar = false;
+    };
+
     document.addEventListener("pointerdown", handlePointerDown, { capture: true });
     canvas?.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { capture: true, passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, { capture: true });
       canvas?.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("touchstart", handleTouchStart, { capture: true });
+      document.removeEventListener("touchmove", handleTouchMove, { capture: true });
+      document.removeEventListener("touchend", handleTouchEnd, { capture: true });
+      document.removeEventListener("touchcancel", handleTouchEnd, { capture: true });
     };
   }, [device.isPhone]);
 
