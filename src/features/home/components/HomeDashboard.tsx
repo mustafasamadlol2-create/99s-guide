@@ -19,6 +19,7 @@ import {
   useReducedMotion,
 } from "motion/react";
 import type { Variants } from "motion/react";
+import { Capacitor } from "@capacitor/core";
 import {
   Subject,
   SubjectId,
@@ -560,6 +561,51 @@ const HeroBanner = memo(({
     return 200;                                              // night — deep indigo
   }, [currentHour]);
 
+  /*
+   * Capacitor/WKWebView can expose a wider CSS layout viewport than the
+   * standalone PWA on the same iPhone. The hero is intentionally the only
+   * surface corrected here: everything else keeps its existing native layout.
+   *
+   * The approved PWA reference is based on a ~393px phone layout width. When
+   * WKWebView reports ~430–440px, the same 252 CSS-pixel hero and all of its
+   * children render physically ~10–12% smaller. Compensate only in native
+   * portrait by increasing the hero's CSS height and the complete foreground
+   * scale by the same ratio. The foreground's logical width/height is reduced
+   * reciprocally, so its final visual width remains exactly the hero width and
+   * every internal gap/translation stays proportional to the PWA composition.
+   */
+  const nativePhoneHeroCorrection = useMemo(() => {
+    if (!isPhone || !Capacitor.isNativePlatform() || typeof window === "undefined") return 1;
+    if (window.innerWidth >= window.innerHeight) return 1;
+
+    const PWA_REFERENCE_WIDTH = 393;
+    return Math.min(1.12, Math.max(1, window.innerWidth / PWA_REFERENCE_WIDTH));
+  }, [isPhone]);
+
+  const nativePhoneHeroStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (nativePhoneHeroCorrection <= 1.001) return undefined;
+    const correctedHeight = 252 * nativePhoneHeroCorrection;
+    return {
+      height: `${correctedHeight}px`,
+      minHeight: `${correctedHeight}px`,
+      maxHeight: `${correctedHeight}px`,
+    };
+  }, [nativePhoneHeroCorrection]);
+
+  const nativePhoneForegroundStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (nativePhoneHeroCorrection <= 1.001 || typeof window === "undefined") return undefined;
+
+    const baseScale = window.innerWidth <= 380 ? 0.87 : 0.90;
+    const correctedScale = baseScale * nativePhoneHeroCorrection;
+    const logicalPercent = 100 / correctedScale;
+
+    return {
+      width: `${logicalPercent}%`,
+      height: `${logicalPercent}%`,
+      scale: correctedScale,
+    };
+  }, [nativePhoneHeroCorrection]);
+
   return (
     <div
       className={[
@@ -568,6 +614,7 @@ const HeroBanner = memo(({
         "shadow-[0_4px_32px_rgba(0,0,0,0.55),0_1px_0_rgba(212,175,55,0.06)_inset] border flex flex-col justify-center group transition-[border-color,box-shadow] duration-500",
         "border-white/[0.07]",
       ].join(" ")}
+      style={nativePhoneHeroStyle}
     >
       {/* ── Background Layers ─────────────────────────────────────────────── */}
       <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
@@ -629,6 +676,7 @@ const HeroBanner = memo(({
           "home-hero-foreground relative z-[3] h-full",
           isWide ? "flex flex-row items-center justify-between gap-6" : `flex flex-col justify-center ${layout.gapClass}`,
         ].join(" ")}
+        style={nativePhoneForegroundStyle}
         variants={heroContainerVariants}
         initial="hidden"
         animate="visible"
