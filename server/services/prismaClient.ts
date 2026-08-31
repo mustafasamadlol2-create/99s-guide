@@ -43,23 +43,9 @@ if (process.env.NODE_ENV === "development" && process.env.ALLOW_REMOTE_DEV_DATAB
 
 const configuredDatabaseUrl = process.env.DATABASE_URL;
 
-// Supabase's session pooler on port 5432 has a small per-project client cap.
-// Use the transaction pooler for application queries so idle/reconnecting app
-// instances cannot exhaust that cap. Keep DIRECT_URL untouched for migrations.
-if (process.env.DATABASE_URL) {
-  try {
-    const runtimeUrl = new URL(process.env.DATABASE_URL);
-    if (runtimeUrl.hostname.endsWith("pooler.supabase.com") && runtimeUrl.port === "5432") {
-      runtimeUrl.port = "6543";
-      runtimeUrl.searchParams.set("pgbouncer", "true");
-      runtimeUrl.searchParams.set("connection_limit", "20");
-      runtimeUrl.searchParams.set("pool_timeout", "20");
-      process.env.DATABASE_URL = runtimeUrl.toString();
-    }
-  } catch {
-    // Leave non-standard database URLs unchanged; Prisma will report config errors.
-  }
-}
+// Preserve the configured Supabase connection URL exactly as provided.
+// For this persistent Render/Node backend, the Supavisor Session Pooler on
+// port 5432 should remain on 5432; do not rewrite it to Transaction Mode (6543).
 
 // DIRECT_URL (schema.prisma `directUrl`) is used by Prisma for transactions and
 // migrations while DATABASE_URL (the Supabase pooler) serves regular queries.
