@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "99s-content-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "99s-guide-content",
+      "database_id": "9f8fccbb-f75b-4375-b596-73ae550ecbbc"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "99s-guide-files"
+    }
+  ]
+}

@@ -3,13 +3,15 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig } from "vite";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig(() => {
   return {
     // Explicit base path — Capacitor serves assets from capacitor://localhost/ (iOS)
     // and http://localhost/ (Android). Keeping base as '/' ensures asset paths are
     // always absolute and never broken by a missing trailing slash.
     base: '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), cloudflare()],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "."),
