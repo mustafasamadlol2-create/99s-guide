@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-09-01T20:36:48.750Z",
+  "source": "Supabase PostgreSQL",
+  "target": "Cloudflare D1",
+  "outputFile": "C:\\Users\\Lenovo\\OneDrive\\Desktop\\Mustafa\\99s Guide\\99s-guide-storage-only(2)\\99s-guide-storage-only\\cloudflare-content-api\\content-import.sql",
+  "safety": {
+    "materialFileDataRows": 0,
+    "orphanMaterials": 0,
+    "orphanMcqs": 0,
+    "orphanFlashcards": 0,
+    "onlyGlobalCalendarEventsExported": true
+  },
+  "tables": {
+    "Lecture": {
+      "rows": 53,
+      "sha256": "5dd76d19db9b96d319d1a96005cea6425346eab4751d023c7d55813b8a766de9"
+    },
+    "Material": {
+      "rows": 115,
+      "sha256": "da0cf21de9d3a579cda11160d2c077ccd8c38279dc4d84eae84f6188ef67e697"
+    },
+    "Mcq": {
+      "rows": 100,
+      "sha256": "75354891e62564be99c343e02eaded56c3e3f873dbe9c47cff5be834dd5b57aa"
+    },
+    "Flashcard": {
+      "rows": 100,
+      "sha256": "e82b478ca9da27dc991a66df0fcb6e5eb78958cab9f6364525985a42eec88791"
+    },
+    "DailyMotto": {
+      "rows": 14,
+      "sha256": "e5c954219972c2c3d2fd2dc640f4a4286bd09ff7de55af8eb783a29bb9479216"
+    },
+    "CalendarEvent": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

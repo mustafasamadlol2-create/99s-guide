@@ -100,6 +100,310 @@ function fetchWithTimeout(
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
+// ── Cloudflare D1 content mirror (Stage 4E) ────────────────────────────────────
+//
+// Supabase/PostgreSQL remains the write authority during Stage 4. After a
+// successful academic-content mutation, the canonical row is mirrored to D1.
+// If the Worker is temporarily unavailable, the latest mutation for that row is
+// durably queued in the existing SystemSetting table and retried later.
+type ContentSyncEntity =
+  | "Lecture"
+  | "Material"
+  | "Mcq"
+  | "Flashcard"
+  | "DailyMotto"
+  | "CalendarEvent";
+
+type ContentSyncMutation = {
+  version: 1;
+  entity: ContentSyncEntity;
+  operation: "upsert" | "delete";
+  id: string;
+  data?: Record<string, unknown>;
+  occurredAt: string;
+};
+
+const CONTENT_SYNC_OUTBOX_PREFIX = "__content_sync_pending__:";
+const CONTENT_SYNC_BATCH_SIZE = 25;
+let contentSyncDrainTimer: ReturnType<typeof setTimeout> | null = null;
+let contentSyncDrainInFlight = false;
+
+function contentSyncOutboxKey(entity: ContentSyncEntity, id: string): string {
+  return `${CONTENT_SYNC_OUTBOX_PREFIX}${entity}:${id}`;
+}
+
+function getContentSyncConfig(): { workerBaseUrl: string; secret: string } | null {
+  const workerBaseUrl = process.env.CONTENT_WORKER_BASE_URL?.trim().replace(/\/+$/, "");
+  const secret = process.env.CONTENT_SYNC_SECRET?.trim();
+  if (!workerBaseUrl || !secret) return null;
+  return { workerBaseUrl, secret };
+}
+
+function toLectureContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    name: row.name,
+    mainSubject: row.mainSubject,
+    subSubject: row.subSubject ?? null,
+    trackMode: row.trackMode,
+    department: row.department ?? null,
+    createdAt: row.createdAt,
+  };
+}
+
+function toMaterialContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    title: row.title,
+    type: row.type,
+    fileUrlOrLink: row.fileUrlOrLink,
+    lectureId: row.lectureId,
+    createdAt: row.createdAt,
+    storagePath: row.storagePath ?? null,
+  };
+}
+
+function toMcqContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    question: row.question,
+    optionA: row.optionA,
+    optionB: row.optionB,
+    optionC: row.optionC,
+    optionD: row.optionD,
+    correctAnswer: row.correctAnswer,
+    hint: row.hint ?? null,
+    explanation: row.explanation ?? null,
+    sourceType: row.sourceType,
+    sourceRef: row.sourceRef,
+    difficulty: row.difficulty,
+    lectureId: row.lectureId,
+    createdAt: row.createdAt,
+  };
+}
+
+function toFlashcardContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    clinicalConcept: row.clinicalConcept,
+    explanation: row.explanation,
+    lectureId: row.lectureId,
+    createdAt: row.createdAt,
+  };
+}
+
+function toDailyMottoContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    message: row.message,
+    isActive: row.isActive,
+    isFeatured: row.isFeatured,
+    createdBy: row.createdBy ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toCalendarEventContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    userId: row.userId ?? null,
+    title: row.title,
+    eventType: row.eventType,
+    startDateTime: row.startDateTime,
+    endDateTime: row.endDateTime,
+    targetGroups: row.targetGroups,
+    description: row.description ?? null,
+    subjectId: row.subjectId ?? null,
+    lectureId: row.lectureId ?? null,
+    room: row.room ?? null,
+    doctor: row.doctor ?? null,
+    notes: row.notes ?? null,
+    isPinned: row.isPinned,
+    isCompleted: row.isCompleted,
+  };
+}
+
+function makeContentUpsert(
+  entity: ContentSyncEntity,
+  data: Record<string, unknown>,
+): ContentSyncMutation {
+  const id = typeof data.id === "string" ? data.id : "";
+  if (!id) throw new Error(`Content sync ${entity} upsert is missing id.`);
+  return { version: 1, entity, operation: "upsert", id, data, occurredAt: new Date().toISOString() };
+}
+
+function makeContentDelete(entity: ContentSyncEntity, id: string): ContentSyncMutation {
+  if (!id) throw new Error(`Content sync ${entity} delete is missing id.`);
+  return { version: 1, entity, operation: "delete", id, occurredAt: new Date().toISOString() };
+}
+
+async function postContentSyncMutation(
+  mutation: ContentSyncMutation,
+  timeoutMs = 3_000,
+): Promise<void> {
+  const config = getContentSyncConfig();
+  if (!config) throw new Error("CONTENT_WORKER_BASE_URL or CONTENT_SYNC_SECRET is not configured.");
+
+  const response = await fetchWithTimeout(
+    `${config.workerBaseUrl}/internal/content-sync`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Content-Sync-Secret": config.secret,
+      },
+      body: JSON.stringify(mutation),
+    },
+    timeoutMs,
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Content Worker sync failed with HTTP ${response.status}: ${body.slice(0, 180)}`);
+  }
+}
+
+async function persistContentSyncOutbox(mutation: ContentSyncMutation): Promise<void> {
+  const key = contentSyncOutboxKey(mutation.entity, mutation.id);
+  const now = new Date();
+  await getPrisma().systemSetting.upsert({
+    where: { key },
+    update: { value: JSON.stringify(mutation), updatedAt: now },
+    create: { key, value: JSON.stringify(mutation), updatedAt: now },
+  });
+}
+
+async function clearContentSyncOutbox(entity: ContentSyncEntity, id: string): Promise<void> {
+  await getPrisma().systemSetting.deleteMany({ where: { key: contentSyncOutboxKey(entity, id) } });
+}
+
+async function clearContentSyncOutboxMany(
+  entries: Array<{ entity: ContentSyncEntity; id: string }>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  await getPrisma().systemSetting.deleteMany({
+    where: {
+      key: { in: entries.map(({ entity, id }) => contentSyncOutboxKey(entity, id)) },
+    },
+  });
+}
+
+function scheduleContentSyncDrain(delayMs = 30_000): void {
+  if (contentSyncDrainTimer) return;
+  contentSyncDrainTimer = setTimeout(() => {
+    contentSyncDrainTimer = null;
+    void drainContentSyncOutbox();
+  }, delayMs);
+  if (typeof contentSyncDrainTimer.unref === "function") contentSyncDrainTimer.unref();
+}
+
+async function syncContentMutation(mutation: ContentSyncMutation): Promise<void> {
+  try {
+    await postContentSyncMutation(mutation);
+    try {
+      await clearContentSyncOutbox(mutation.entity, mutation.id);
+    } catch (clearError: any) {
+      logger.warn(
+        "[ContentSync]",
+        `D1 sync succeeded but stale outbox cleanup failed for ${mutation.entity}/${mutation.id}: ${clearError?.message ?? "unknown error"}`,
+      );
+    }
+  } catch (syncError: any) {
+    try {
+      await persistContentSyncOutbox(mutation);
+      logger.warn(
+        "[ContentSync]",
+        `D1 sync queued for ${mutation.entity}/${mutation.id}: ${syncError?.message ?? "unknown error"}`,
+      );
+      scheduleContentSyncDrain();
+    } catch (outboxError: any) {
+      logger.error(
+        "[ContentSync]",
+        `CRITICAL: failed to sync or queue ${mutation.entity}/${mutation.id}: ${outboxError?.message ?? "unknown error"}`,
+      );
+    }
+  }
+}
+
+async function syncContentUpsert(
+  entity: ContentSyncEntity,
+  data: Record<string, unknown>,
+): Promise<void> {
+  await syncContentMutation(makeContentUpsert(entity, data));
+}
+
+async function syncContentDelete(entity: ContentSyncEntity, id: string): Promise<void> {
+  await syncContentMutation(makeContentDelete(entity, id));
+}
+
+async function drainContentSyncOutbox(): Promise<void> {
+  if (contentSyncDrainInFlight || !getContentSyncConfig()) return;
+  contentSyncDrainInFlight = true;
+  let shouldRetryLater = false;
+
+  try {
+    const rows = await getPrisma().systemSetting.findMany({
+      where: { key: { startsWith: CONTENT_SYNC_OUTBOX_PREFIX } },
+      orderBy: { updatedAt: "asc" },
+      take: CONTENT_SYNC_BATCH_SIZE,
+      select: { key: true, value: true },
+    });
+
+    for (const row of rows) {
+      let mutation: ContentSyncMutation;
+      try {
+        mutation = JSON.parse(String(row.value || "")) as ContentSyncMutation;
+        if (
+          mutation?.version !== 1 ||
+          !mutation.id ||
+          !mutation.entity ||
+          !["upsert", "delete"].includes(mutation.operation)
+        ) {
+          throw new Error("Malformed content-sync outbox record.");
+        }
+      } catch (parseError: any) {
+        shouldRetryLater = true;
+        logger.error("[ContentSync]", `Malformed pending mutation ${row.key}: ${parseError?.message ?? "unknown error"}`);
+        continue;
+      }
+
+      try {
+        await postContentSyncMutation(mutation, 5_000);
+        await getPrisma().systemSetting.deleteMany({ where: { key: row.key } });
+      } catch (error: any) {
+        shouldRetryLater = true;
+        logger.warn(
+          "[ContentSync]",
+          `Pending D1 mutation still waiting (${mutation.entity}/${mutation.id}): ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
+    if (rows.length === CONTENT_SYNC_BATCH_SIZE) shouldRetryLater = true;
+  } catch (error: any) {
+    shouldRetryLater = true;
+    logger.warn("[ContentSync]", `Outbox drain failed: ${error?.message ?? "unknown error"}`);
+  } finally {
+    contentSyncDrainInFlight = false;
+  }
+
+  if (shouldRetryLater) scheduleContentSyncDrain(2 * 60_000);
+}
+
+if (getContentSyncConfig()) {
+  logger.info("[ContentSync]", "Cloudflare D1 content mirror is configured.");
+} else {
+  logger.warn(
+    "[ContentSync]",
+    "Cloudflare D1 content mirror is not configured yet. Future academic mutations will be queued in Supabase until CONTENT_WORKER_BASE_URL and CONTENT_SYNC_SECRET are set.",
+  );
+}
+
+// Recover pending durable mutations after a Render deploy/restart without
+// continuously polling Supabase while the queue is empty.
+scheduleContentSyncDrain(15_000);
+
 const app = express();
 
 const catchAsync = (fn: any) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -1710,6 +2014,8 @@ app.post("/api/flashcards", requireAdmin, catchAsync(async (req, res) => {
       backText: sqlCard.explanation,
     };
 
+    await syncContentUpsert("Flashcard", toFlashcardContentRow(sqlCard));
+
     invalidateMaterialsCache();
     io.to("authenticated").emit("materials_updated");
     res.status(201).json({
@@ -1813,6 +2119,8 @@ app.post("/api/lectures", requireAdmin, catchAsync(async (req, res) => {
       }
     });
 
+    await syncContentUpsert("Lecture", toLectureContentRow(lecture));
+
     invalidateMaterialsCache();
     io.to("authenticated").emit("lecture_created", lecture);
     res.status(201).json(lecture);
@@ -1864,9 +2172,11 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
     const lectureId = req.params.id;
     const prismaClient = getPrisma();
     
-    const materials = await prismaClient.material.findMany({
-      where: { lectureId }
-    });
+    // Keep these administrative reads sequential so a rare content deletion
+    // never opens multiple Supabase session-pool connections at once.
+    const materials = await prismaClient.material.findMany({ where: { lectureId } });
+    const childMcqs = await prismaClient.mcq.findMany({ where: { lectureId }, select: { id: true } });
+    const childFlashcards = await prismaClient.flashcard.findMany({ where: { lectureId }, select: { id: true } });
     
     for (const mat of materials) {
       if (mat.fileUrlOrLink && mat.fileUrlOrLink.startsWith("/uploads/materials/")) {
@@ -1890,7 +2200,20 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
         }
       }
     }
-    
+
+    // D1 cascades Lecture deletion to Material/Mcq/Flashcard. Remove stale
+    // queued child upserts so they cannot keep retrying after the parent is gone.
+    try {
+      await clearContentSyncOutboxMany([
+        ...materials.map((mat: any) => ({ entity: "Material" as ContentSyncEntity, id: mat.id })),
+        ...childMcqs.map((row: any) => ({ entity: "Mcq" as ContentSyncEntity, id: row.id })),
+        ...childFlashcards.map((row: any) => ({ entity: "Flashcard" as ContentSyncEntity, id: row.id })),
+      ]);
+    } catch (clearError: any) {
+      logger.warn("[ContentSync]", `Failed to clear child outbox entries for deleted lecture ${lectureId}: ${clearError?.message ?? "unknown error"}`);
+    }
+    await syncContentDelete("Lecture", lectureId);
+
     invalidateMaterialsCache();
     io.to("authenticated").emit("lecture_deleted", { lectureId });
     res.json({ success: true });
@@ -1930,6 +2253,10 @@ app.delete("/api/materials/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
     
+    // Idempotent mirror delete: even if the Supabase row was already absent,
+    // removing the same id from D1 is safe and converges stale replicas.
+    await syncContentDelete("Material", materialId);
+
     invalidateMaterialsCache();
     io.to("authenticated").emit("materials_updated");
     res.json({ success: true });
@@ -2032,7 +2359,7 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     const storagePath = buildMaterialStoragePath(lectureId, uniqueId);
     const replacedMaterials = await prismaClient.material.findMany({
       where: { lectureId, type },
-      select: { storagePath: true, fileUrlOrLink: true },
+      select: { id: true, storagePath: true, fileUrlOrLink: true },
     });
 
     try {
@@ -2089,6 +2416,16 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     if (req.file?.path) {
       try { await fs.unlink(req.file.path); } catch (e) {}
     }
+
+    // This route replaces the prior PDF/NOTE of the same lecture/type in one
+    // PostgreSQL transaction, so mirror both sides of that replacement.
+    for (const previous of replacedMaterials) {
+      if (previous.id !== material.id) {
+        await syncContentDelete("Material", previous.id);
+      }
+    }
+    await syncContentUpsert("Material", toMaterialContentRow(material));
+
     invalidateMaterialsCache();
 
     io.to("authenticated").emit("materials_updated");
@@ -2170,6 +2507,9 @@ app.post("/api/materials/video", requireAdmin, catchAsync(async (req, res) => {
       }
     });
 
+    await syncContentUpsert("Material", toMaterialContentRow(material));
+
+    
     invalidateMaterialsCache();
     io.to("authenticated").emit("materials_updated");
 
@@ -2414,6 +2754,9 @@ app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
       }
     });
 
+    await syncContentUpsert("Mcq", toMcqContentRow(mcq));
+
+    
     invalidateMaterialsCache();
     io.to("authenticated").emit("materials_updated");
 
@@ -4453,6 +4796,10 @@ app.delete("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res)
   if (result.count > 0 && io) {
     io.to("authenticated").emit("calendar_updated", { action: "delete", eventId });
   }
+  // D1 contains global calendar rows only. An idempotent delete is always safe:
+  // for a personal event there should be no D1 row, and for a missing source row
+  // it removes any stale replica.
+  await syncContentDelete("CalendarEvent", eventId);
   invalidateMaterialsCache();
 
   auditLog(req, "DELETE_CALENDAR_EVENT", eventId, "Success");
@@ -4556,6 +4903,9 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
           ...existingEvent,
           targetGroups: typeof existingEvent.targetGroups === "string" ? existingEvent.targetGroups.split(",").filter(Boolean) : (existingEvent.targetGroups || [])
         };
+        if (existingEvent.userId == null) {
+          await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(existingEvent));
+        }
         auditLog(req, "CREATE_CALENDAR_EVENT", existingEvent.id, "Idempotent (offline retry)");
         return res.status(201).json(parsedExistingEvent);
       }
@@ -4611,6 +4961,8 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
       ...savedEvent,
       targetGroups: typeof savedEvent.targetGroups === "string" ? savedEvent.targetGroups.split(",").filter(Boolean) : (savedEvent.targetGroups || [])
     };
+
+    await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(savedEvent));
 
     // Optional Notification Logic
     if (sendNotification) {
@@ -4747,6 +5099,14 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
         ? updatedEvent.targetGroups.split(",").filter(Boolean)
         : (updatedEvent.targetGroups || []),
     };
+
+    // Only global/admin events belong in D1. If an admin edits a personal row,
+    // ensure any stale D1 copy with the same id is removed instead.
+    if (updatedEvent.userId == null) {
+      await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(updatedEvent));
+    } else {
+      await syncContentDelete("CalendarEvent", updatedEvent.id);
+    }
 
     // Broadcast to all connected clients so everyone sees the change instantly
     if (io) {
@@ -8399,6 +8759,7 @@ app.post("/api/mottos", requireOwner, catchAsync(async (req, res) => {
     const motto = await prisma.dailyMotto.create({
       data: { message, isActive: isActive ?? true, createdBy: (req as any).user?.id },
     });
+    await syncContentUpsert("DailyMotto", toDailyMottoContentRow(motto));
     io.to("authenticated").emit("motto_updated");
     res.status(201).json({ motto });
   } catch (error) {
@@ -8414,6 +8775,7 @@ app.patch("/api/mottos/:id", requireOwner, catchAsync(async (req, res) => {
       where: { id: req.params.id },
       data: { message, isActive },
     });
+    await syncContentUpsert("DailyMotto", toDailyMottoContentRow(motto));
     io.to("authenticated").emit("motto_updated");
     res.json({ motto });
   } catch (error) {
@@ -8425,6 +8787,7 @@ app.patch("/api/mottos/:id", requireOwner, catchAsync(async (req, res) => {
 app.delete("/api/mottos/:id", requireOwner, catchAsync(async (req, res) => {
   try {
     await prisma.dailyMotto.delete({ where: { id: req.params.id } });
+    await syncContentDelete("DailyMotto", req.params.id);
     io.to("authenticated").emit("motto_updated");
     res.json({ success: true });
   } catch (error) {
