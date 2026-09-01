@@ -163,6 +163,12 @@ function contentD1CalendarReadsEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+
+function contentD1SearchReadsEnabled(): boolean {
+  const value = String(process.env.CONTENT_D1_SEARCH_READS_ENABLED || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 type ContentReadError = Error & { status?: number };
 
 async function fetchContentReadJson<T = unknown>(
@@ -537,6 +543,26 @@ if (contentD1CalendarReadsEnabled()) {
   logger.info(
     "[ContentRead]",
     "D1 global calendar reads are available but DISABLED. Current Supabase /api/calendar/events path is unchanged.",
+  );
+}
+
+
+if (contentD1SearchReadsEnabled()) {
+  if (getContentSyncConfig()) {
+    logger.info(
+      "[ContentRead]",
+      "D1 /api/search reads are ENABLED. Render authentication/validation remain in front; Supabase is automatic fallback.",
+    );
+  } else {
+    logger.warn(
+      "[ContentRead]",
+      "CONTENT_D1_SEARCH_READS_ENABLED is on but Content Worker configuration is missing. /api/search will fall back to Supabase.",
+    );
+  }
+} else {
+  logger.info(
+    "[ContentRead]",
+    "D1 /api/search reads are available but DISABLED. Current Supabase /api/search path is unchanged.",
   );
 }
 
@@ -3342,8 +3368,13 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
     if (req.query.q !== undefined && typeof req.query.q !== "string") {
       return res.status(400).json({ error: "Search query must be a string." });
     }
+
     const q = req.query.q as string | undefined;
     if (!q || q.trim() === "") {
+      res.setHeader(
+        "X-Content-Search-Read-Source",
+        contentD1SearchReadsEnabled() ? "d1-local-empty" : "supabase-local-empty",
+      );
       return res.json([]);
     }
 
@@ -3351,79 +3382,106 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
     if (query.length > 200) {
       return res.status(400).json({ error: "Search query is too long." });
     }
-    const prismaClient = getPrisma();
-    
-    // Check if running on postgres to apply mode: 'insensitive'
-    // database uses LIKE internally which is already case-insensitive, but throws if mode is provided.
-    const isPostgres = process.env.DATABASE_URL?.startsWith("postgres") || process.env.DATABASE_URL?.startsWith("postgresql");
-    const modeConfig = isPostgres ? { mode: 'insensitive' as const } : {};
 
     const keywordFilters = query.split(/\s+/).filter(w => w.length > 0);
     if (keywordFilters.length > 8) {
       return res.status(400).json({ error: "Search query contains too many terms." });
     }
 
-    // Concurrent parallel fetching for maximum performance
+    if (contentD1SearchReadsEnabled()) {
+      try {
+        const results = await fetchContentReadJson<any[]>(
+          `/search?q=${encodeURIComponent(query)}`,
+        );
+
+        if (!Array.isArray(results)) {
+          throw new Error("Content Worker search returned an invalid payload.");
+        }
+
+        res.setHeader("X-Content-Search-Read-Source", "d1");
+        return res.json(results);
+      } catch (error: any) {
+        logger.warn(
+          "[ContentRead]",
+          `D1 /api/search read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
+    const prismaClient = getPrisma();
+    const isPostgres =
+      process.env.DATABASE_URL?.startsWith("postgres") ||
+      process.env.DATABASE_URL?.startsWith("postgresql");
+    const modeConfig = isPostgres ? { mode: "insensitive" as const } : {};
+
     const [lectures, materials, mcqs, flashcards] = await Promise.all([
       prismaClient.lecture.findMany({
         where: {
           OR: keywordFilters.flatMap(kw => [
             { name: { contains: kw, ...modeConfig } },
-            { mainSubject: { contains: kw, ...modeConfig } }
-          ])
+            { mainSubject: { contains: kw, ...modeConfig } },
+          ]),
         },
         take: 10,
-        select: { id: true, name: true, mainSubject: true, subSubject: true }
+        select: { id: true, name: true, mainSubject: true, subSubject: true },
       }),
       prismaClient.material.findMany({
         where: {
-          OR: keywordFilters.map(kw => ({ title: { contains: kw, ...modeConfig } }))
+          OR: keywordFilters.map(kw => ({
+            title: { contains: kw, ...modeConfig },
+          })),
         },
         take: 10,
-        select: { id: true, title: true, type: true, lectureId: true }
+        select: { id: true, title: true, type: true, lectureId: true },
       }),
       prismaClient.mcq.findMany({
         where: {
-          OR: keywordFilters.map(kw => ({ question: { contains: kw, ...modeConfig } }))
+          OR: keywordFilters.map(kw => ({
+            question: { contains: kw, ...modeConfig },
+          })),
         },
         take: 10,
-        select: { id: true, question: true, lectureId: true }
+        select: { id: true, question: true, lectureId: true },
       }),
       prismaClient.flashcard.findMany({
         where: {
           OR: keywordFilters.flatMap(kw => [
             { clinicalConcept: { contains: kw, ...modeConfig } },
-            { explanation: { contains: kw, ...modeConfig } }
-          ])
+            { explanation: { contains: kw, ...modeConfig } },
+          ]),
         },
         take: 10,
-        select: { id: true, clinicalConcept: true, lectureId: true }
-      })
+        select: { id: true, clinicalConcept: true, lectureId: true },
+      }),
     ]);
 
-    // Combine results and remove duplicates (by ID + Type)
     const resultsMap = new Map<string, any>();
-
-    // Pre-populate subject map from lectures already fetched (they include mainSubject).
-    // Only query the DB for IDs belonging to materials/mcqs/flashcards not already known.
     const lectureToSubjectMap = new Map<string, string>();
     lectures.forEach((l: any) => lectureToSubjectMap.set(l.id, l.mainSubject));
 
     const unknownLectureIds = new Set<string>();
     let relatedLectures: Array<{ id: string; mainSubject: string }> = [];
-    materials.forEach((m: any) => { if (!lectureToSubjectMap.has(m.lectureId)) unknownLectureIds.add(m.lectureId); });
-    mcqs.forEach((m: any) => { if (!lectureToSubjectMap.has(m.lectureId)) unknownLectureIds.add(m.lectureId); });
-    flashcards.forEach((f: any) => { if (!lectureToSubjectMap.has(f.lectureId)) unknownLectureIds.add(f.lectureId); });
+
+    materials.forEach((m: any) => {
+      if (!lectureToSubjectMap.has(m.lectureId)) unknownLectureIds.add(m.lectureId);
+    });
+    mcqs.forEach((m: any) => {
+      if (!lectureToSubjectMap.has(m.lectureId)) unknownLectureIds.add(m.lectureId);
+    });
+    flashcards.forEach((f: any) => {
+      if (!lectureToSubjectMap.has(f.lectureId)) unknownLectureIds.add(f.lectureId);
+    });
 
     if (unknownLectureIds.size > 0) {
       relatedLectures = await prismaClient.lecture.findMany({
         where: { id: { in: Array.from(unknownLectureIds) } },
         select: { id: true, mainSubject: true },
       });
-      relatedLectures.forEach((l: any) => lectureToSubjectMap.set(l.id, l.mainSubject));
+      relatedLectures.forEach((l: any) =>
+        lectureToSubjectMap.set(l.id, l.mainSubject)
+      );
     }
 
-    // Map into SearchResultItem structure
     lectures.forEach((l: any) => {
       const key = `db-lecture-${l.id}`;
       if (!resultsMap.has(key)) {
@@ -3434,85 +3492,97 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
           type: "lecture",
           lectureId: l.id,
           subjectId: l.mainSubject,
-          raw: l
+          raw: l,
         });
       }
     });
 
     materials.forEach((m: any) => {
-      const typeMap: Record<string, string> = { "PDF": "pdf", "NOTE": "notes", "VIDEO": "video" };
+      const typeMap: Record<string, string> = {
+        PDF: "pdf",
+        NOTE: "notes",
+        VIDEO: "video",
+      };
       const type = typeMap[m.type] || "pdf";
-       const key = `db-${type}-${m.id}`;
+      const key = `db-${type}-${m.id}`;
+
       if (!resultsMap.has(key)) {
         resultsMap.set(key, {
           id: key,
-          title: `${m.title} (${type === 'video' ? 'Video' : type === 'notes' ? 'Notes' : 'PDF'})`,
+          title: `${m.title} (${type === "video" ? "Video" : type === "notes" ? "Notes" : "PDF"})`,
           subtitle: m.title,
-          type: type,
+          type,
           lectureId: m.lectureId,
           subjectId: lectureToSubjectMap.get(m.lectureId),
-          raw: m
+          raw: m,
         });
       }
     });
 
     mcqs.forEach((m: any) => {
-       const key = `db-mcq-${m.id}`;
+      const key = `db-mcq-${m.id}`;
       if (!resultsMap.has(key)) {
         resultsMap.set(key, {
           id: key,
           title: m.question,
-          subtitle: `Quiz Question`,
+          subtitle: "Quiz Question",
           type: "mcq",
           lectureId: m.lectureId,
           subjectId: lectureToSubjectMap.get(m.lectureId),
-          raw: m
+          raw: m,
         });
       }
     });
 
     flashcards.forEach((f: any) => {
-       const key = `db-flashcard-${f.id}`;
+      const key = `db-flashcard-${f.id}`;
       if (!resultsMap.has(key)) {
         resultsMap.set(key, {
           id: key,
           title: f.clinicalConcept,
-          subtitle: `Flashcard`,
+          subtitle: "Flashcard",
           type: "flashcard",
           lectureId: f.lectureId,
           subjectId: lectureToSubjectMap.get(f.lectureId),
-          raw: f
+          raw: f,
         });
       }
     });
 
-    // Also search subjects from JSON if possible, but they are in DB indirectly
-    // For exact match subjects:
     const subjectsSet = new Set([
       ...lectures.map((lecture: any) => lecture.mainSubject),
       ...relatedLectures.map(l => l.mainSubject),
     ]);
-    subjectsSet.forEach(s => {
-      if (s.toLowerCase().includes(query.toLowerCase())) {
-        const key = `subject-${s}`;
+
+    subjectsSet.forEach(subject => {
+      if (subject.toLowerCase().includes(query.toLowerCase())) {
+        const key = `subject-${subject}`;
         if (!resultsMap.has(key)) {
           resultsMap.set(key, {
             id: key,
-            title: s,
+            title: subject,
             subtitle: "Subject",
             type: "subject",
-            subjectId: s
+            subjectId: subject,
           });
         }
       }
     });
 
     const finalResults = Array.from(resultsMap.values());
-    res.json(finalResults);
 
+    res.setHeader(
+      "X-Content-Search-Read-Source",
+      contentD1SearchReadsEnabled() ? "supabase-fallback" : "supabase",
+    );
+
+    return res.json(finalResults);
   } catch (err: any) {
-    console.error("Search API Error:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(
+      "Search API Error:",
+      err instanceof Error ? err.message.substring(0, 50) : "Sanitized",
+    );
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
