@@ -145,6 +145,12 @@ function contentD1ReadsEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+
+function contentD1MaterialsReadsEnabled(): boolean {
+  const value = String(process.env.CONTENT_D1_MATERIALS_READS_ENABLED || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 type ContentReadError = Error & { status?: number };
 
 async function fetchContentReadJson<T = unknown>(
@@ -459,6 +465,26 @@ if (contentD1ReadsEnabled()) {
   logger.info(
     "[ContentRead]",
     "D1 lecture reads are available but DISABLED. Current Supabase lecture read path is unchanged.",
+  );
+}
+
+
+if (contentD1MaterialsReadsEnabled()) {
+  if (getContentSyncConfig()) {
+    logger.info(
+      "[ContentRead]",
+      "D1 /api/materials reads are ENABLED. Legacy materials_db.json merge and Supabase fallback remain active.",
+    );
+  } else {
+    logger.warn(
+      "[ContentRead]",
+      "CONTENT_D1_MATERIALS_READS_ENABLED is on but Content Worker configuration is missing. /api/materials will fall back to Supabase.",
+    );
+  }
+} else {
+  logger.info(
+    "[ContentRead]",
+    "D1 /api/materials reads are available but DISABLED. Current Supabase /api/materials read path is unchanged.",
   );
 }
 
@@ -2962,52 +2988,120 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
     const requestedScope = typeof req.query.scope === "string" ? req.query.scope : "full";
     const scope = requestedScope === "subjects" || requestedScope === "offline" ? requestedScope : "full";
     const forceRefresh = req.query.forceRefresh === "1" || req.get("cache-control") === "no-cache";
+
     // The legacy full response cache must never satisfy a scoped request: doing so
     // would defeat the payload reduction and waste bandwidth on every dashboard load.
     if (scope === "full" && materialsCache && materialsCache.group === currentUserGroup && !forceRefresh) {
+      res.setHeader("X-Content-Materials-Read-Source", "memory-cache");
       return res.json(materialsCache.data);
     }
+
+    // Presentation metadata and legacy compatibility rows stay in the local JSON.
+    // Relational rows can now come from D1 behind a separate feature flag.
     const materials = await readMaterialsDb();
-    const prismaClient = getPrisma();
     const needsSubjects = scope === "full" || scope === "subjects";
     const needsOfflineStudyData = scope === "full" || scope === "offline";
     const needsCalendar = scope === "full";
 
-    // Query only the relational datasets actually needed by the caller. The
-    // dashboard does not need thousands of MCQs/flashcards/events, while the
-    // offline synchronizer does not need the complete lecture/material tree.
-    const [dbLectures, dbMcqs, dbFlashcards, dbMaterials, dbEvents] = await Promise.all([
-      needsSubjects ? prismaClient.lecture.findMany({
-        take: 2000,
-        select: {
-          id: true,
-          name: true,
-          mainSubject: true,
-          subSubject: true,
-          trackMode: true,
-          department: true,
-          createdAt: true,
-          materials: { select: { id: true, title: true, type: true, fileUrlOrLink: true, lectureId: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      }) : Promise.resolve([]),
-      needsOfflineStudyData ? prismaClient.mcq.findMany({ take: 2000 }) : Promise.resolve([]),
-      needsOfflineStudyData ? prismaClient.flashcard.findMany({ take: 2000 }) : Promise.resolve([]),
-      needsSubjects ? prismaClient.material.findMany({ take: 2000, select: { id: true, title: true, type: true, fileUrlOrLink: true, lectureId: true } }) : Promise.resolve([]),
-      needsCalendar ? prismaClient.calendarEvent.findMany({ take: 2000, where: { userId: null } }) : Promise.resolve([])
-    ]);
+    let dbLectures: any[] = [];
+    let dbMcqs: any[] = [];
+    let dbFlashcards: any[] = [];
+    let dbMaterials: any[] = [];
+    let dbEvents: any[] = [];
+    let relationalReadSource: "d1" | "supabase" | "supabase-fallback" = "supabase";
+
+    if (contentD1MaterialsReadsEnabled()) {
+      try {
+        const d1Payload = await fetchContentReadJson<any>(
+          `/materials-data?scope=${encodeURIComponent(scope)}`,
+        );
+
+        if (!d1Payload || typeof d1Payload !== "object") {
+          throw new Error("Content Worker materials-data returned an invalid payload.");
+        }
+
+        const requireArray = (value: unknown, name: string): any[] => {
+          if (!Array.isArray(value)) {
+            throw new Error(`Content Worker materials-data.${name} is not an array.`);
+          }
+          return value;
+        };
+
+        dbLectures = requireArray(d1Payload.lectures, "lectures");
+        dbMcqs = requireArray(d1Payload.mcqs, "mcqs");
+        dbFlashcards = requireArray(d1Payload.flashcards, "flashcards");
+        dbMaterials = requireArray(d1Payload.materials, "materials");
+        dbEvents = requireArray(d1Payload.events, "events");
+
+        relationalReadSource = "d1";
+      } catch (error: any) {
+        relationalReadSource = "supabase-fallback";
+        logger.warn(
+          "[ContentRead]",
+          `D1 /api/materials read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
+    if (relationalReadSource !== "d1") {
+      const prismaClient = getPrisma();
+
+      // Query only the relational datasets actually needed by the caller. The
+      // dashboard does not need thousands of MCQs/flashcards/events, while the
+      // offline synchronizer does not need the complete lecture/material tree.
+      [dbLectures, dbMcqs, dbFlashcards, dbMaterials, dbEvents] = await Promise.all([
+        needsSubjects ? prismaClient.lecture.findMany({
+          take: 2000,
+          select: {
+            id: true,
+            name: true,
+            mainSubject: true,
+            subSubject: true,
+            trackMode: true,
+            department: true,
+            createdAt: true,
+            materials: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                fileUrlOrLink: true,
+                lectureId: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        }) : Promise.resolve([]),
+        needsOfflineStudyData ? prismaClient.mcq.findMany({ take: 2000 }) : Promise.resolve([]),
+        needsOfflineStudyData ? prismaClient.flashcard.findMany({ take: 2000 }) : Promise.resolve([]),
+        needsSubjects ? prismaClient.material.findMany({
+          take: 2000,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fileUrlOrLink: true,
+            lectureId: true,
+          },
+        }) : Promise.resolve([]),
+        needsCalendar ? prismaClient.calendarEvent.findMany({
+          take: 2000,
+          where: { userId: null },
+        }) : Promise.resolve([]),
+      ]);
+    }
 
     // Merge logic
     const mergedSubjects = JSON.parse(JSON.stringify(materials.subjects || []));
 
-    // JSON provides legacy subject/module presentation metadata; Prisma provides
-    // the authoritative lecture records. Add database-only lectures to that
-    // hierarchy so /api/materials cannot silently omit uploaded content.
+    // JSON provides legacy subject/module presentation metadata; relational
+    // storage provides the authoritative lecture records.
     for (const lecture of dbLectures as any[]) {
       let subject = mergedSubjects.find((s: any) =>
         String(s.id).toLowerCase() === String(lecture.mainSubject).toLowerCase() ||
         String(s.name).toLowerCase() === String(lecture.mainSubject).toLowerCase()
       );
+
       if (!subject) {
         subject = {
           id: lecture.mainSubject,
@@ -3020,9 +3114,13 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
         };
         mergedSubjects.push(subject);
       }
+
       subject.modules = Array.isArray(subject.modules) ? subject.modules : [];
       const moduleName = lecture.subSubject || "General";
-      let module = subject.modules.find((m: any) => String(m.name).toLowerCase() === String(moduleName).toLowerCase());
+      let module = subject.modules.find(
+        (m: any) => String(m.name).toLowerCase() === String(moduleName).toLowerCase()
+      );
+
       if (!module) {
         module = {
           id: `${subject.id}:${moduleName}`,
@@ -3033,71 +3131,87 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
         };
         subject.modules.push(module);
       }
+
       module.lectures = Array.isArray(module.lectures) ? module.lectures : [];
       const existingLecture = module.lectures.find((l: any) => l.id === lecture.id);
+
       if (!existingLecture) {
         module.lectures.push({
           ...lecture,
           title: lecture.name,
           type: "lecture",
-          pdfUrl: lecture.materials?.find((m: any) => m.type.toUpperCase() === "PDF")?.fileUrlOrLink || "",
-          notesPdfUrl: lecture.materials?.find((m: any) => m.type.toUpperCase() === "NOTE")?.fileUrlOrLink || "",
+          pdfUrl:
+            lecture.materials?.find((m: any) => String(m.type).toUpperCase() === "PDF")
+              ?.fileUrlOrLink || "",
+          notesPdfUrl:
+            lecture.materials?.find((m: any) => String(m.type).toUpperCase() === "NOTE")
+              ?.fileUrlOrLink || "",
         });
       }
     }
 
-    const mcqMap = new Map<string, any>((materials.mcqs || []).map((m: any) => [m.id, m]));
+    const mcqMap = new Map<string, any>(
+      (materials.mcqs || []).map((m: any) => [m.id, m])
+    );
+
     for (const mcq of dbMcqs) {
-      // SECURITY: the correct answer key must never travel to the client in the
-      // material payload. Grading happens server-side via POST /api/mcqs/submit.
+      // SECURITY: the correct answer key must never travel to the client.
       const { correctAnswer: _correctAnswer, ...safeMcq } = mcq;
       mcqMap.set(mcq.id, {
         ...safeMcq,
-        options: [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD].filter(Boolean)
+        options: [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD].filter(Boolean),
       });
     }
     const mergedMcqs = Array.from(mcqMap.values());
 
-    const flashcardMap = new Map<string, any>((materials.flashcards || []).map((f: any) => [f.id, f]));
+    const flashcardMap = new Map<string, any>(
+      (materials.flashcards || []).map((f: any) => [f.id, f])
+    );
+
     for (const f of dbFlashcards) {
       flashcardMap.set(f.id, {
         ...f,
         frontText: f.clinicalConcept,
         backText: f.explanation,
         front: f.clinicalConcept,
-        back: f.explanation
+        back: f.explanation,
       });
     }
     const mergedFlashcards = Array.from(flashcardMap.values());
 
     const mergedVideos = [...(materials.videos || [])];
+
     for (const m of dbMaterials) {
-      if (m.type.toLowerCase() === 'video' && !mergedVideos.some(v => v.id === m.id)) {
+      const type = String(m.type || "").toLowerCase();
+
+      if (type === "video" && !mergedVideos.some((v: any) => v.id === m.id)) {
         mergedVideos.push({
           id: m.id,
           title: m.title,
           url: m.fileUrlOrLink,
-          lectureId: m.lectureId
+          lectureId: m.lectureId,
         });
-      } else if (m.type.toLowerCase() === 'pdf' || m.type.toLowerCase() === 'note') {
-        // Inject into mergedSubjects
+      } else if (type === "pdf" || type === "note") {
         for (const subject of mergedSubjects) {
           for (const mod of subject.modules || []) {
             for (const lec of mod.lectures || []) {
-              if (lec.id === m.lectureId) {
-                // Strip stale localhost origins so URLs always work in production
-                let cleanUrl = m.fileUrlOrLink || "";
-                try {
-                  const parsed = new URL(cleanUrl);
-                  if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
-                    cleanUrl = parsed.pathname + parsed.search + parsed.hash;
-                  }
-                } catch (_) { /* already relative */ }
-                if (m.type.toLowerCase() === 'pdf') {
-                  lec.pdfUrl = cleanUrl;
-                } else if (m.type.toLowerCase() === 'note') {
-                  lec.notesPdfUrl = cleanUrl;
+              if (lec.id !== m.lectureId) continue;
+
+              // Strip stale localhost origins so URLs always work in production.
+              let cleanUrl = m.fileUrlOrLink || "";
+              try {
+                const parsed = new URL(cleanUrl);
+                if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+                  cleanUrl = parsed.pathname + parsed.search + parsed.hash;
                 }
+              } catch (_) {
+                // Already relative.
+              }
+
+              if (type === "pdf") {
+                lec.pdfUrl = cleanUrl;
+              } else {
+                lec.notesPdfUrl = cleanUrl;
               }
             }
           }
@@ -3106,11 +3220,17 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
     }
 
     const mergedEvents = [...(materials.calendarEvents || [])];
-    for (const e of dbEvents.filter((event: any) => eventVisibleToGroup(event.targetGroups, currentUserGroup))) {
-      if (!mergedEvents.some(ev => ev.id === e.id)) {
+
+    for (const e of dbEvents.filter(
+      (event: any) => eventVisibleToGroup(event.targetGroups, currentUserGroup)
+    )) {
+      if (!mergedEvents.some((ev: any) => ev.id === e.id)) {
         mergedEvents.push({
           ...e,
-          targetGroups: typeof e.targetGroups === "string" ? e.targetGroups.split(",").filter(Boolean) : (e.targetGroups || [])
+          targetGroups:
+            typeof e.targetGroups === "string"
+              ? e.targetGroups.split(",").filter(Boolean)
+              : (e.targetGroups || []),
         });
       }
     }
@@ -3122,7 +3242,7 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
       front: f.front || f.frontText || f.clinicalConcept || "",
       back: f.back || f.backText || f.explanation || "",
       clinicalConcept: f.clinicalConcept || f.front || f.frontText || "",
-      explanation: f.explanation || f.back || f.backText || ""
+      explanation: f.explanation || f.back || f.backText || "",
     }));
 
     // SECURITY: never ship the correct answer key in the material payload —
@@ -3137,20 +3257,30 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
       mcqs: sanitizedMcqs,
       flashcards: normalizedFlashcards,
       videos: mergedVideos,
-      calendarEvents: mergedEvents
+      calendarEvents: mergedEvents,
     };
+
+    res.setHeader("X-Content-Materials-Read-Source", relationalReadSource);
 
     if (scope === "subjects") {
       return res.json({ subjects: mergedSubjects });
     }
+
     if (scope === "offline") {
-      return res.json({ mcqs: sanitizedMcqs, flashcards: normalizedFlashcards });
+      return res.json({
+        mcqs: sanitizedMcqs,
+        flashcards: normalizedFlashcards,
+      });
     }
 
-    materialsCache = { group: String(currentUserGroup || "").trim().toUpperCase(), data: fullResponseData };
-    res.json(fullResponseData);
+    materialsCache = {
+      group: String(currentUserGroup || "").trim().toUpperCase(),
+      data: fullResponseData,
+    };
+
+    return res.json(fullResponseData);
   } catch (err) {
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
