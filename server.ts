@@ -151,6 +151,12 @@ function contentD1MaterialsReadsEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+
+function contentD1MottoReadsEnabled(): boolean {
+  const value = String(process.env.CONTENT_D1_MOTTO_READS_ENABLED || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 type ContentReadError = Error & { status?: number };
 
 async function fetchContentReadJson<T = unknown>(
@@ -485,6 +491,26 @@ if (contentD1MaterialsReadsEnabled()) {
   logger.info(
     "[ContentRead]",
     "D1 /api/materials reads are available but DISABLED. Current Supabase /api/materials read path is unchanged.",
+  );
+}
+
+
+if (contentD1MottoReadsEnabled()) {
+  if (getContentSyncConfig()) {
+    logger.info(
+      "[ContentRead]",
+      "D1 /api/mottos/active reads are ENABLED. Render authentication remains in front; Supabase is automatic fallback.",
+    );
+  } else {
+    logger.warn(
+      "[ContentRead]",
+      "CONTENT_D1_MOTTO_READS_ENABLED is on but Content Worker configuration is missing. /api/mottos/active will fall back to Supabase.",
+    );
+  }
+} else {
+  logger.info(
+    "[ContentRead]",
+    "D1 /api/mottos/active reads are available but DISABLED. Current Supabase active-motto read path is unchanged.",
   );
 }
 
@@ -8986,15 +9012,41 @@ app.patch("/api/users/role", requireOwner, catchAsync(async (req, res) => {
 // --- DAILY MOTTO ROUTES ---
 app.get("/api/mottos/active", requireUser, catchAsync(async (req, res) => {
   try {
+    if (contentD1MottoReadsEnabled()) {
+      try {
+        const payload = await fetchContentReadJson<any>("/mottos/active");
+
+        if (!payload || !Array.isArray(payload.mottos)) {
+          throw new Error("Content Worker active motto payload is invalid.");
+        }
+
+        res.setHeader("X-Content-Motto-Read-Source", "d1");
+        return res.json({ mottos: payload.mottos });
+      } catch (error: any) {
+        logger.warn(
+          "[ContentRead]",
+          `D1 /api/mottos/active read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
     const mottos = await prisma.dailyMotto.findMany({
       take: 100,
       where: { isActive: true },
       orderBy: { createdAt: "desc" },
     });
-    res.json({ mottos });
+
+    res.setHeader(
+      "X-Content-Motto-Read-Source",
+      contentD1MottoReadsEnabled() ? "supabase-fallback" : "supabase",
+    );
+    return res.json({ mottos });
   } catch (error) {
-    console.error("Fetch active mottos error:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(
+      "Fetch active mottos error:",
+      error instanceof Error ? error.message.substring(0, 50) : "Sanitized",
+    );
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
