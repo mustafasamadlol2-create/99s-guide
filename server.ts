@@ -139,6 +139,48 @@ function getContentSyncConfig(): { workerBaseUrl: string; secret: string } | nul
   return { workerBaseUrl, secret };
 }
 
+
+function contentD1ReadsEnabled(): boolean {
+  const value = String(process.env.CONTENT_D1_READS_ENABLED || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+type ContentReadError = Error & { status?: number };
+
+async function fetchContentReadJson<T = unknown>(
+  pathWithQuery: string,
+  timeoutMs = 3_000,
+): Promise<T> {
+  const config = getContentSyncConfig();
+  if (!config) {
+    throw new Error("CONTENT_WORKER_BASE_URL or CONTENT_SYNC_SECRET is not configured.");
+  }
+
+  const normalizedPath = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
+  const response = await fetchWithTimeout(
+    `${config.workerBaseUrl}/internal/content-read${normalizedPath}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Content-Sync-Secret": config.secret,
+      },
+    },
+    timeoutMs,
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    const error = new Error(
+      `Content Worker read failed with HTTP ${response.status}: ${body.slice(0, 180)}`,
+    ) as ContentReadError;
+    error.status = response.status;
+    throw error;
+  }
+
+  return await response.json() as T;
+}
+
 function toLectureContentRow(row: any): Record<string, unknown> {
   return {
     id: row.id,
@@ -397,6 +439,26 @@ if (getContentSyncConfig()) {
   logger.warn(
     "[ContentSync]",
     "Cloudflare D1 content mirror is not configured yet. Future academic mutations will be queued in Supabase until CONTENT_WORKER_BASE_URL and CONTENT_SYNC_SECRET are set.",
+  );
+}
+
+
+if (contentD1ReadsEnabled()) {
+  if (getContentSyncConfig()) {
+    logger.info(
+      "[ContentRead]",
+      "D1 lecture reads are ENABLED. Render authentication/API contracts remain in front; Supabase is automatic fallback.",
+    );
+  } else {
+    logger.warn(
+      "[ContentRead]",
+      "CONTENT_D1_READS_ENABLED is on but Content Worker configuration is missing. Lecture reads will fall back to Supabase.",
+    );
+  }
+} else {
+  logger.info(
+    "[ContentRead]",
+    "D1 lecture reads are available but DISABLED. Current Supabase lecture read path is unchanged.",
   );
 }
 
@@ -2037,19 +2099,20 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
 
     const where: any = {};
     const filters = ["mainSubject", "subSubject", "trackMode", "department"] as const;
+    const d1Params = new URLSearchParams();
 
     for (const field of filters) {
       const value = req.query[field];
       if (typeof value === "string" && value.trim()) {
-        where[field] = { equals: value.trim(), mode: "insensitive" };
+        const normalizedValue = value.trim();
+        where[field] = { equals: normalizedValue, mode: "insensitive" };
+        d1Params.set(field, normalizedValue);
       }
     }
 
     // IMPORTANT:
     // lecturesCache stores the unfiltered/global lecture list only.
-    // Never return that cache for a path-filtered request, otherwise the Admin
-    // material/MCQ/flashcard selectors receive every lecture in the app instead
-    // of only the lectures that belong to the selected academic tree branch.
+    // Never return that cache for a path-filtered request.
     const hasPathFilters = Object.keys(where).length > 0;
 
     if (
@@ -2058,11 +2121,39 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       lecturesCache &&
       lecturesCache.expiresAt > Date.now()
     ) {
+      res.setHeader("X-Content-Read-Source", "memory-cache");
       return res.json(lecturesCache.data);
     }
 
-    const prismaClient = getPrisma();
+    if (contentD1ReadsEnabled()) {
+      try {
+        const query = d1Params.toString();
+        const lectures = await fetchContentReadJson<any[]>(
+          `/lectures${query ? `?${query}` : ""}`,
+        );
 
+        if (!Array.isArray(lectures)) {
+          throw new Error("Content Worker lecture list returned an invalid payload.");
+        }
+
+        if (!hasPathFilters) {
+          lecturesCache = {
+            data: lectures,
+            expiresAt: Date.now() + 30_000,
+          };
+        }
+
+        res.setHeader("X-Content-Read-Source", "d1");
+        return res.json(lectures);
+      } catch (error: any) {
+        logger.warn(
+          "[ContentRead]",
+          `D1 lecture list read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
+    const prismaClient = getPrisma();
     const lectures = await prismaClient.lecture.findMany({
       where,
       include: {
@@ -2084,8 +2175,6 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // Cache only the global/unfiltered lecture list.
-    // Filtered branch results must remain specific to their query path.
     if (!hasPathFilters) {
       lecturesCache = {
         data: lectures,
@@ -2093,9 +2182,13 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       };
     }
 
-    res.json(lectures);
+    res.setHeader(
+      "X-Content-Read-Source",
+      contentD1ReadsEnabled() ? "supabase-fallback" : "supabase",
+    );
+    return res.json(lectures);
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
@@ -2132,14 +2225,41 @@ app.post("/api/lectures", requireAdmin, catchAsync(async (req, res) => {
 
 app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
   try {
+    if (contentD1ReadsEnabled()) {
+      try {
+        const lecture = await fetchContentReadJson<any>(
+          `/lectures/${encodeURIComponent(req.params.id)}`,
+        );
+
+        res.setHeader("X-Content-Read-Source", "d1");
+        return res.json(lecture);
+      } catch (error: any) {
+        // A 404 can occur briefly after a successful authoritative Supabase write
+        // if the D1 mirror is queued for retry. Falling back keeps the public API
+        // strongly correct while Stage 4's outbox repairs the replica.
+        logger.warn(
+          "[ContentRead]",
+          `D1 lecture detail read failed for ${req.params.id}; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
+      }
+    }
+
     const prismaClient = getPrisma();
     const lecture = await prismaClient.lecture.findUnique({
       where: { id: req.params.id },
       include: {
-        materials: { select: { id: true, title: true, type: true, fileUrlOrLink: true, lectureId: true, createdAt: true } },
+        materials: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fileUrlOrLink: true,
+            lectureId: true,
+            createdAt: true,
+          },
+        },
         // The correct answer key is intentionally withheld from the client;
-        // grading is performed server-side by POST /api/mcqs/submit so answers
-        // cannot be read from the material payload before submission.
+        // grading is performed server-side by POST /api/mcqs/submit.
         mcqs: {
           select: {
             id: true,
@@ -2158,12 +2278,20 @@ app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
           },
         },
         flashcards: true,
-      }
+      },
     });
-    if (!lecture) return res.status(404).json({ error: "Lecture not found" });
-    res.json(lecture);
+
+    if (!lecture) {
+      return res.status(404).json({ error: "Lecture not found" });
+    }
+
+    res.setHeader(
+      "X-Content-Read-Source",
+      contentD1ReadsEnabled() ? "supabase-fallback" : "supabase",
+    );
+    return res.json(lecture);
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
