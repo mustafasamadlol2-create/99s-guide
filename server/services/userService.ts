@@ -1,5 +1,10 @@
 import { getPrisma } from "./prismaClient.js";
 import crypto from "node:crypto";
+import {
+  deleteManagedAvatarByUrl,
+  isAvatarDataUrl,
+  uploadAvatarDataUrlToR2,
+} from "./supabaseStorage.js";
 
 /**
  * Public user record — deliberately excludes password_hash, reset_token, and
@@ -249,51 +254,177 @@ export class UserService {
   }
 
   // Update simple user metadata/metrics
-  static async updateUser(user: Partial<UserRecord> & { id: string; clearAvatar?: boolean }): Promise<void> {
+  static async updateUser(
+    user: Partial<UserRecord> & { id: string; clearAvatar?: boolean },
+  ): Promise<void> {
     const client = getPrisma();
     const updateData: any = {};
-    if (user.email !== undefined) updateData.email = user.email.trim().toLowerCase();
-    if (user.profileEmail !== undefined) updateData.profileEmail = user.profileEmail ? user.profileEmail.trim().toLowerCase() : null;
-    if (user.role !== undefined) updateData.role = user.role;
-    if (user.name !== undefined) updateData.name = user.name;
+
+    const avatarInputProvided =
+      user.avatar !== undefined || user.avatarUrl !== undefined;
+
+    const avatarMutationRequested =
+      user.clearAvatar === true || avatarInputProvided;
+
+    let previousAvatarUrl = "";
+    let newlyUploadedAvatarUrl: string | null = null;
+
+    // Read the old image only when this request is actually touching the avatar.
+    if (avatarMutationRequested) {
+      const currentAvatar = await client.user.findUnique({
+        where: { id: user.id },
+        select: {
+          avatar: true,
+          avatarUrl: true,
+        },
+      });
+
+      previousAvatarUrl =
+        currentAvatar?.avatarUrl || currentAvatar?.avatar || "";
+    }
+
+    if (user.email !== undefined) {
+      updateData.email = user.email.trim().toLowerCase();
+    }
+
+    if (user.profileEmail !== undefined) {
+      updateData.profileEmail = user.profileEmail
+        ? user.profileEmail.trim().toLowerCase()
+        : null;
+    }
+
+    if (user.role !== undefined) {
+      updateData.role = user.role;
+    }
+
+    if (user.name !== undefined) {
+      updateData.name = user.name;
+    }
+
+    // ---------------------------------------------------------
+    // AVATAR
+    // ---------------------------------------------------------
     if (user.clearAvatar === true) {
-      // Explicit authenticated deletion intent. Keep the defensive empty-string
-      // protection below for every other update path (socket/sync/stale clients).
       updateData.avatar = "";
       updateData.avatarUrl = "";
-    } else if (user.avatar !== undefined || user.avatarUrl !== undefined) {
-      const img = user.avatarUrl || user.avatar;
-      // DEFENSIVE: Only write avatar if it is a meaningful non-empty value.
-      // Empty string "" must not overwrite a valid existing avatar unless the
-      // caller explicitly sets clearAvatar above.
-      if (img !== undefined && img !== null && img !== "") {
-        updateData.avatar = img;
-        updateData.avatarUrl = img;
-      }
-    }
-    if (user.totalPoints !== undefined) updateData.totalPoints = user.totalPoints;
-    if (user.level !== undefined) updateData.level = user.level;
-    if (user.levelBadge !== undefined) updateData.levelBadge = user.levelBadge;
-    if (user.streakDays !== undefined) updateData.streakDays = user.streakDays;
-    if (user.studentGroup !== undefined) updateData.studentGroup = user.studentGroup;
-    if (user.totalTimeSpent !== undefined) updateData.totalTimeSpent = user.totalTimeSpent;
-    if (user.lastActive !== undefined) updateData.lastActive = new Date(user.lastActive);
-    if (user.accountStatus !== undefined) updateData.accountStatus = user.accountStatus === "banned" ? "BANNED" : user.accountStatus === "pending_profile" ? "PENDING_PROFILE" : user.accountStatus === "pending" ? "PENDING" : "ACTIVE";
-    if (user.isOnline !== undefined) updateData.isOnline = !!user.isOnline;
-    if (user.signature !== undefined) {
-      // Allow empty string "" — this is how the frontend explicitly clears a signature
-      // through the authenticated /api/auth/update-profile endpoint.
-      // Protection is already provided at the architectural level: socket presence
-      // updates no longer send profile fields, and /api/auth/sync does not send signature.
-      if (user.signature !== null) {
-        updateData.signature = user.signature;
+    } else if (avatarInputProvided) {
+      const incomingImage = user.avatarUrl || user.avatar;
+
+      if (
+        incomingImage !== undefined &&
+        incomingImage !== null &&
+        incomingImage !== ""
+      ) {
+        let finalAvatarUrl = incomingImage;
+
+        // Old App Store / PWA clients may still send Base64.
+        // Convert it server-side to R2 before touching PostgreSQL.
+        if (isAvatarDataUrl(incomingImage)) {
+          const uploaded = await uploadAvatarDataUrlToR2(
+            user.id,
+            incomingImage,
+          );
+
+          finalAvatarUrl = uploaded.url;
+          newlyUploadedAvatarUrl = uploaded.url;
+        }
+
+        // Keep both legacy fields synchronized for compatibility.
+        // They now contain a tiny URL instead of Base64 image bytes.
+        updateData.avatar = finalAvatarUrl;
+        updateData.avatarUrl = finalAvatarUrl;
       }
     }
 
-    const u = await client.user.update({
-      where: { id: user.id },
-      data: updateData
-    });
+    if (user.totalPoints !== undefined) {
+      updateData.totalPoints = user.totalPoints;
+    }
+
+    if (user.level !== undefined) {
+      updateData.level = user.level;
+    }
+
+    if (user.levelBadge !== undefined) {
+      updateData.levelBadge = user.levelBadge;
+    }
+
+    if (user.streakDays !== undefined) {
+      updateData.streakDays = user.streakDays;
+    }
+
+    if (user.studentGroup !== undefined) {
+      updateData.studentGroup = user.studentGroup;
+    }
+
+    if (user.totalTimeSpent !== undefined) {
+      updateData.totalTimeSpent = user.totalTimeSpent;
+    }
+
+    if (user.lastActive !== undefined) {
+      updateData.lastActive = new Date(user.lastActive);
+    }
+
+    if (user.accountStatus !== undefined) {
+      updateData.accountStatus =
+        user.accountStatus === "banned"
+          ? "BANNED"
+          : user.accountStatus === "pending_profile"
+            ? "PENDING_PROFILE"
+            : user.accountStatus === "pending"
+              ? "PENDING"
+              : "ACTIVE";
+    }
+
+    if (user.isOnline !== undefined) {
+      updateData.isOnline = !!user.isOnline;
+    }
+
+    if (user.signature !== undefined && user.signature !== null) {
+      updateData.signature = user.signature;
+    }
+
+    let u: any;
+
+    try {
+      u = await client.user.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+    } catch (error) {
+      // R2 succeeded but PostgreSQL failed: remove the newly-created object so
+      // we do not leave an orphan in the bucket.
+      if (
+        newlyUploadedAvatarUrl &&
+        newlyUploadedAvatarUrl !== previousAvatarUrl
+      ) {
+        try {
+          await deleteManagedAvatarByUrl(newlyUploadedAvatarUrl);
+        } catch {
+          // Best-effort cleanup only.
+        }
+      }
+
+      throw error;
+    }
+
+    const finalStoredAvatar = u.avatarUrl || u.avatar || "";
+
+    // PostgreSQL now safely references the new image. Only now may we remove
+    // the previous managed R2 avatar. External provider images are ignored by
+    // deleteManagedAvatarByUrl().
+    if (
+      previousAvatarUrl &&
+      previousAvatarUrl !== finalStoredAvatar
+    ) {
+      void deleteManagedAvatarByUrl(previousAvatarUrl).catch((error) => {
+        console.error(
+          "[AvatarCleanup]",
+          error instanceof Error
+            ? error.message.substring(0, 150)
+            : "Avatar cleanup failed",
+        );
+      });
+    }
 
     const updatedUserRecord = {
       id: u.id,
@@ -315,7 +446,7 @@ export class UserService {
       accountStatus: u.accountStatus && u.accountStatus.toLowerCase() === "banned" ? "banned" : u.accountStatus === "PENDING_PROFILE" ? "pending_profile" : u.accountStatus === "PENDING" ? "pending" : "active",
       isPrimaryOwner: u.isPrimaryOwner === true,
       emailVerified: u.emailVerified !== false,
-      isOnline: u.isOnline
+      isOnline: u.isOnline,
     };
 
     setTimeout(() => {

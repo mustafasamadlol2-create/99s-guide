@@ -5,6 +5,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import crypto from "node:crypto";
 
 const DEFAULT_BUCKET = "99s-guide-files";
 
@@ -81,6 +82,175 @@ function assertSafeStoragePath(storagePath: string): void {
 function storageErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message.slice(0, 300);
   return "Unknown storage error.";
+}
+
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+const AVATAR_MIME_TO_EXTENSION: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+function getAvatarPublicBaseUrl(): string {
+  return requireEnv("CONTENT_WORKER_BASE_URL").replace(/\/+$/, "");
+}
+
+export function isAvatarDataUrl(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^data:image\/(?:jpeg|png|webp);base64,/i.test(value)
+  );
+}
+
+function assertValidAvatarBytes(
+  fileData: Buffer,
+  mimeType: string,
+): void {
+  if (fileData.length === 0 || fileData.length > AVATAR_MAX_BYTES) {
+    throw new Error("Avatar image size is invalid.");
+  }
+
+  let valid = false;
+
+  if (mimeType === "image/jpeg") {
+    valid =
+      fileData.length >= 3 &&
+      fileData[0] === 0xff &&
+      fileData[1] === 0xd8 &&
+      fileData[2] === 0xff;
+  }
+
+  if (mimeType === "image/png") {
+    valid =
+      fileData.length >= 8 &&
+      fileData[0] === 0x89 &&
+      fileData[1] === 0x50 &&
+      fileData[2] === 0x4e &&
+      fileData[3] === 0x47;
+  }
+
+  if (mimeType === "image/webp") {
+    valid =
+      fileData.length >= 12 &&
+      fileData.subarray(0, 4).toString("ascii") === "RIFF" &&
+      fileData.subarray(8, 12).toString("ascii") === "WEBP";
+  }
+
+  if (!valid) {
+    throw new Error("Avatar image contents do not match its MIME type.");
+  }
+}
+
+export async function uploadAvatarDataUrlToR2(
+  userId: string,
+  dataUrl: string,
+): Promise<{ storagePath: string; url: string }> {
+  const match = dataUrl.match(
+    /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i,
+  );
+
+  if (!match) {
+    throw new Error("Unsupported avatar image format.");
+  }
+
+  const mimeType = match[1].toLowerCase();
+  const extension = AVATAR_MIME_TO_EXTENSION[mimeType];
+
+  if (!extension) {
+    throw new Error("Unsupported avatar MIME type.");
+  }
+
+  const fileData = Buffer.from(match[2], "base64");
+
+  assertValidAvatarBytes(fileData, mimeType);
+
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  if (!safeUserId) {
+    throw new Error("Invalid avatar user ID.");
+  }
+
+  // Content hash makes the URL deterministic.
+  // Same image => same key. New image => new URL.
+  const contentHash = crypto
+    .createHash("sha256")
+    .update(fileData)
+    .digest("hex")
+    .slice(0, 32);
+
+  const storagePath = `avatars/${safeUserId}/${contentHash}.${extension}`;
+
+  assertSafeStoragePath(storagePath);
+
+  const { client, bucket } = getR2Client();
+
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: storagePath,
+        Body: fileData,
+        ContentType: mimeType,
+        ContentDisposition: "inline",
+        CacheControl: "public, max-age=31536000, immutable",
+      }),
+    );
+  } catch (error) {
+    throw new Error(
+      `Cloudflare R2 avatar upload failed: ${storageErrorMessage(error)}`,
+    );
+  }
+
+  return {
+    storagePath,
+    url: `${getAvatarPublicBaseUrl()}/${storagePath}`,
+  };
+}
+
+export async function deleteManagedAvatarByUrl(
+  avatarUrl: string,
+): Promise<void> {
+  if (!avatarUrl) return;
+
+  let parsedUrl: URL;
+  let publicBase: URL;
+
+  try {
+    parsedUrl = new URL(avatarUrl);
+    publicBase = new URL(getAvatarPublicBaseUrl());
+  } catch {
+    return;
+  }
+
+  // Never delete external Google/Unsplash/etc. images.
+  if (parsedUrl.origin !== publicBase.origin) {
+    return;
+  }
+
+  const storagePath = decodeURIComponent(parsedUrl.pathname).replace(/^\/+/, "");
+
+  if (!storagePath.startsWith("avatars/")) {
+    return;
+  }
+
+  assertSafeStoragePath(storagePath);
+
+  const { client, bucket } = getR2Client();
+
+  try {
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: storagePath,
+      }),
+    );
+  } catch (error) {
+    throw new Error(
+      `Cloudflare R2 avatar delete failed: ${storageErrorMessage(error)}`,
+    );
+  }
 }
 
 export function buildMaterialStoragePath(lectureId: string, materialId: string): string {
