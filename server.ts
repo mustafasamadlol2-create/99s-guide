@@ -157,6 +157,12 @@ function contentD1MottoReadsEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+
+function contentD1CalendarReadsEnabled(): boolean {
+  const value = String(process.env.CONTENT_D1_CALENDAR_READS_ENABLED || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 type ContentReadError = Error & { status?: number };
 
 async function fetchContentReadJson<T = unknown>(
@@ -511,6 +517,26 @@ if (contentD1MottoReadsEnabled()) {
   logger.info(
     "[ContentRead]",
     "D1 /api/mottos/active reads are available but DISABLED. Current Supabase active-motto read path is unchanged.",
+  );
+}
+
+
+if (contentD1CalendarReadsEnabled()) {
+  if (getContentSyncConfig()) {
+    logger.info(
+      "[ContentRead]",
+      "D1 global calendar reads are ENABLED. Personal calendar rows remain Supabase-only; Supabase is automatic fallback.",
+    );
+  } else {
+    logger.warn(
+      "[ContentRead]",
+      "CONTENT_D1_CALENDAR_READS_ENABLED is on but Content Worker configuration is missing. /api/calendar/events will use Supabase.",
+    );
+  }
+} else {
+  logger.info(
+    "[ContentRead]",
+    "D1 global calendar reads are available but DISABLED. Current Supabase /api/calendar/events path is unchanged.",
   );
 }
 
@@ -5093,35 +5119,99 @@ app.delete("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res)
 app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-cache");
+
     const prismaClient = getPrisma();
     const userId = (req as any).user?.id;
     const currentUser = (req as any).user;
     const isPrivileged = currentUser?.role === "admin" || currentUser?.role === "owner";
-    
-    const events = await prismaClient.calendarEvent.findMany({
-      take: 1000,
-      where: {
-        OR: [
-          { userId: null },
-          { userId: userId }
-        ]
-      },
-      orderBy: {
-        startDateTime: "asc"
+
+    let events: any[] = [];
+    let readSource: "d1+supabase-personal" | "supabase" | "supabase-fallback" = "supabase";
+
+    if (contentD1CalendarReadsEnabled()) {
+      try {
+        // D1 stores GLOBAL rows only. Personal rows intentionally remain in
+        // Supabase, so the authenticated API merges both sources here.
+        const [globalPayload, personalEvents] = await Promise.all([
+          fetchContentReadJson<any>("/calendar/global"),
+          userId
+            ? prismaClient.calendarEvent.findMany({
+                take: 1000,
+                where: { userId },
+                orderBy: { startDateTime: "asc" },
+              })
+            : Promise.resolve([]),
+        ]);
+
+        if (!globalPayload || !Array.isArray(globalPayload.events)) {
+          throw new Error("Content Worker global calendar payload is invalid.");
+        }
+
+        // Reconstruct the existing Prisma contract:
+        // WHERE (userId IS NULL OR userId=currentUser)
+        // ORDER BY startDateTime ASC
+        // TAKE 1000
+        //
+        // Fetching up to 1000 globals + up to 1000 personal rows is sufficient
+        // to reconstruct the first 1000 rows of the merged ordered stream.
+        events = [...globalPayload.events, ...personalEvents]
+          .sort((a: any, b: any) => {
+            const aTime = new Date(a?.startDateTime).getTime();
+            const bTime = new Date(b?.startDateTime).getTime();
+
+            if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
+              return aTime - bTime;
+            }
+
+            return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+          })
+          .slice(0, 1000);
+
+        readSource = "d1+supabase-personal";
+      } catch (error: any) {
+        readSource = "supabase-fallback";
+        logger.warn(
+          "[ContentRead]",
+          `D1 global calendar read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+        );
       }
-    });
+    }
+
+    if (readSource !== "d1+supabase-personal") {
+      events = await prismaClient.calendarEvent.findMany({
+        take: 1000,
+        where: {
+          OR: [
+            { userId: null },
+            { userId: userId },
+          ],
+        },
+        orderBy: {
+          startDateTime: "asc",
+        },
+      });
+    }
 
     const parsedEvents = events
-      .filter(event => isPrivileged || event.userId !== null || eventVisibleToGroup(event.targetGroups, currentUser?.studentGroup))
-      .map(event => ({
+      .filter(
+        (event: any) =>
+          isPrivileged ||
+          event.userId !== null ||
+          eventVisibleToGroup(event.targetGroups, currentUser?.studentGroup),
+      )
+      .map((event: any) => ({
         ...event,
-        targetGroups: parseTargetGroups(event.targetGroups)
+        targetGroups: parseTargetGroups(event.targetGroups),
       }));
 
-    res.json(parsedEvents);
+    res.setHeader("X-Content-Calendar-Read-Source", readSource);
+    return res.json(parsedEvents);
   } catch (err: any) {
-    console.error("Failed to fetch calendar events:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(
+      "Failed to fetch calendar events:",
+      err instanceof Error ? err.message.substring(0, 50) : "Sanitized",
+    );
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
