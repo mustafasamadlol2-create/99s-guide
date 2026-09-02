@@ -1260,12 +1260,12 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
             initial={reduce ? false : "hidden"}
             animate="visible"
             transition={SP.snappy}
-            className="w-full bg-white dark:bg-black border border-[#E4E4E7] dark:border-[#333333] rounded-[32px] sm:rounded-[36px] md:rounded-[40px] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10)] overflow-hidden px-6 sm:px-10 md:px-12 pb-10 sm:pb-12 relative gpu-accelerate"
+            className="w-full bg-white dark:bg-black border border-[#E4E4E7] dark:border-[#333333] rounded-[32px] sm:rounded-[36px] md:rounded-[40px] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10)] overflow-hidden px-6 sm:px-10 md:px-12 pt-7 sm:pt-8 md:pt-9 pb-10 sm:pb-12 relative gpu-accelerate"
             style={{ willChange: "transform, opacity" }}
           >
 
             {/* ── Logo (spring scale 0.88 → 1) ── */}
-            <div className="mb-6 mt-2">
+            <div className="mb-6">
               <motion.div
                 variants={reduce ? undefined : LOGO_V}
                 initial={reduce ? false : "hidden"}
@@ -1279,7 +1279,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
 
               {/* ── Directional header slide ── */}
               <div className="relative overflow-hidden min-h-[62px] flex flex-col justify-center">
-                <AnimatePresence mode="wait" initial={false}>
+                <AnimatePresence mode="wait">
                   <motion.div
                     key={mode}
                     initial={reduce ? false : sv.enter}
@@ -1303,7 +1303,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
             <AuthErrorMessage error={error} shakeKey={shakeCount} className="mb-4" />
 
             {/* ── Directional content panels ── */}
-            <AnimatePresence mode="wait" initial={false}>
+            <AnimatePresence mode="wait">
 
               {/* ── Login success ────────────────────────────────────────────── */}
               {loginSuccess && (

@@ -375,42 +375,17 @@ async function handleInternalContentSync(request: Request, env: any): Promise<Re
   }
 
   try {
-    let mutationData: Record<string, unknown> | undefined;
-
-    if (operation === "upsert") {
+    if (operation === "delete") {
+      await deleteContentRow(env, entity as ContentEntity, id);
+    } else {
       if (!isRecord(payload.data)) {
         return jsonNoStore({ ok: false, error: "Upsert data is required." }, 400);
       }
       if (payload.data.id !== id) {
         return jsonNoStore({ ok: false, error: "Payload id mismatch." }, 400);
       }
-      mutationData = payload.data;
+      await upsertContentRow(env, entity as ContentEntity, payload.data);
     }
-
-    // Capture both the old and new parent lecture IDs before an upsert/delete.
-    // This prevents stale lecture-detail cache when a child is moved or removed.
-    const affectedLectureIds = await affectedLectureIdsForMutation(
-      env,
-      entity as ContentEntity,
-      id,
-      mutationData,
-    );
-
-    if (operation === "delete") {
-      await deleteContentRow(env, entity as ContentEntity, id);
-    } else {
-      await upsertContentRow(env, entity as ContentEntity, mutationData!);
-    }
-
-    // Cache invalidation is part of sync success. If Cache API deletion throws,
-    // this endpoint returns 500 so the existing Stage-4 outbox retries the same
-    // idempotent mutation and invalidation later.
-    const cacheInvalidation = await invalidateLocalSharedCacheAfterMutation(
-      new URL(request.url),
-      env,
-      entity as ContentEntity,
-      affectedLectureIds,
-    );
 
     return jsonNoStore({
       ok: true,
@@ -418,7 +393,6 @@ async function handleInternalContentSync(request: Request, env: any): Promise<Re
       operation,
       id,
       syncedAt: new Date().toISOString(),
-      cacheInvalidation,
     });
   } catch (error) {
     console.error("[ContentSync]", {
@@ -1112,26 +1086,6 @@ function sharedContentCacheTtlSeconds(url: URL): number {
   return 15;
 }
 
-
-function isSharedContentCacheEligible(url: URL): boolean {
-  // Search keys are unbounded and cannot be exhaustively enumerated on writes.
-  // Keep search on D1 but bypass this Cache API layer for freshness.
-  if (url.pathname === "/internal/content-read/search") return false;
-
-  // Filtered lecture-list keys are also open-ended. The unfiltered list is
-  // cacheable and can be deterministically invalidated after mutations.
-  if (url.pathname === "/internal/content-read/lectures") {
-    return !["mainSubject", "subSubject", "trackMode", "department"].some(
-      (key) => {
-        const value = url.searchParams.get(key);
-        return typeof value === "string" && value.trim().length > 0;
-      },
-    );
-  }
-
-  return true;
-}
-
 function canonicalSharedContentCacheUrl(url: URL): URL {
   const cacheUrl = new URL(url.origin);
   cacheUrl.pathname = `/__content-cache-v1${url.pathname}`;
@@ -1183,173 +1137,6 @@ function responseWithSharedCacheState(
   });
 }
 
-
-async function readExistingChildLectureId(
-  env: any,
-  entity: ContentEntity,
-  id: string,
-): Promise<string | null> {
-  if (!["Material", "Mcq", "Flashcard"].includes(entity)) return null;
-
-  const table = entity;
-  const row = await env.DB.prepare(
-    `SELECT "lectureId" FROM "${table}" WHERE "id" = ? LIMIT 1`,
-  ).bind(id).first();
-
-  return row && typeof row.lectureId === "string" ? row.lectureId : null;
-}
-
-async function affectedLectureIdsForMutation(
-  env: any,
-  entity: ContentEntity,
-  id: string,
-  data?: Record<string, unknown>,
-): Promise<string[]> {
-  const ids = new Set<string>();
-
-  if (entity === "Lecture") {
-    ids.add(id);
-  }
-
-  if (["Material", "Mcq", "Flashcard"].includes(entity)) {
-    const oldLectureId = await readExistingChildLectureId(env, entity, id);
-    if (oldLectureId) ids.add(oldLectureId);
-
-    if (data && typeof data.lectureId === "string" && data.lectureId) {
-      ids.add(data.lectureId);
-    }
-  }
-
-  return Array.from(ids);
-}
-
-function sharedReadUrl(origin: string, pathname: string, query?: Record<string, string>): URL {
-  const url = new URL(origin);
-  url.pathname = pathname;
-  url.search = "";
-
-  if (query) {
-    for (const [key, value] of Object.entries(query)) {
-      url.searchParams.set(key, value);
-    }
-  }
-
-  return url;
-}
-
-async function deleteSharedCacheEntryForReadUrl(url: URL): Promise<boolean> {
-  const canonical = canonicalSharedContentCacheUrl(url);
-  const key = new Request(canonical.toString(), { method: "GET" });
-  return caches.default.delete(key);
-}
-
-type LocalCacheInvalidationResult = {
-  enabled: boolean;
-  mode: "disabled" | "local-pop";
-  attempted: number;
-  deleted: number;
-  maxRemotePopStalenessSeconds: number;
-};
-
-async function invalidateLocalSharedCacheAfterMutation(
-  requestUrl: URL,
-  env: any,
-  entity: ContentEntity,
-  affectedLectureIds: string[],
-): Promise<LocalCacheInvalidationResult> {
-  if (!contentSharedCacheEnabled(env)) {
-    return {
-      enabled: false,
-      mode: "disabled",
-      attempted: 0,
-      deleted: 0,
-      maxRemotePopStalenessSeconds: 0,
-    };
-  }
-
-  const urls: URL[] = [];
-  const add = (url: URL) => urls.push(url);
-
-  const addLectureList = () =>
-    add(sharedReadUrl(requestUrl.origin, "/internal/content-read/lectures"));
-
-  const addAllMaterialsScopes = () => {
-    for (const scope of ["subjects", "offline", "full"]) {
-      add(
-        sharedReadUrl(
-          requestUrl.origin,
-          "/internal/content-read/materials-data",
-          { scope },
-        ),
-      );
-    }
-  };
-
-  switch (entity) {
-    case "Lecture":
-      addLectureList();
-      addAllMaterialsScopes();
-      break;
-
-    case "Material":
-    case "Mcq":
-    case "Flashcard":
-      // Lecture list contains child IDs/material metadata and /api/materials
-      // incorporates these relational datasets.
-      addLectureList();
-      addAllMaterialsScopes();
-      break;
-
-    case "DailyMotto":
-      add(sharedReadUrl(requestUrl.origin, "/internal/content-read/mottos/active"));
-      break;
-
-    case "CalendarEvent":
-      add(sharedReadUrl(requestUrl.origin, "/internal/content-read/calendar/global"));
-      // Full /api/materials includes global calendar events.
-      add(
-        sharedReadUrl(
-          requestUrl.origin,
-          "/internal/content-read/materials-data",
-          { scope: "full" },
-        ),
-      );
-      break;
-  }
-
-  for (const lectureId of affectedLectureIds) {
-    add(
-      sharedReadUrl(
-        requestUrl.origin,
-        `/internal/content-read/lectures/${encodeURIComponent(lectureId)}`,
-      ),
-    );
-  }
-
-  // De-duplicate exact canonical keys.
-  const unique = new Map<string, URL>();
-  for (const url of urls) {
-    const canonical = canonicalSharedContentCacheUrl(url);
-    unique.set(canonical.toString(), url);
-  }
-
-  const results = await Promise.all(
-    Array.from(unique.values()).map((url) =>
-      deleteSharedCacheEntryForReadUrl(url),
-    ),
-  );
-
-  return {
-    enabled: true,
-    mode: "local-pop",
-    attempted: results.length,
-    deleted: results.filter(Boolean).length,
-    // Cache API deletion is POP-local. Other POPs remain bounded by the
-    // deliberately short TTLs: 30s for lists/materials/calendar, 60s detail/motto.
-    maxRemotePopStalenessSeconds: 60,
-  };
-}
-
 async function withSharedContentCache(
   request: Request,
   env: any,
@@ -1360,10 +1147,6 @@ async function withSharedContentCache(
   // BEFORE this helper is entered. An unauthenticated caller can never read a
   // cached private internal response.
   if (!contentSharedCacheEnabled(env)) {
-    return responseWithSharedCacheState(await producer(), "BYPASS");
-  }
-
-  if (!isSharedContentCacheEligible(url)) {
     return responseWithSharedCacheState(await producer(), "BYPASS");
   }
 
