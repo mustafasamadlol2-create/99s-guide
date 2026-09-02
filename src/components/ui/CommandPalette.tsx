@@ -118,15 +118,21 @@ export const CommandPalette = memo(function CommandPalette({
  }, []);
 
  useEffect(() => {
- if (isOpen) {
+ if (!isOpen) return;
+
  setValue("");
  setSearchResults([]);
  setSelectedIndex(0);
+
  if (!inline) {
- setTimeout(() => inputRef.current?.focus(), 50);
+   // On iPhone, let the native-style sheet establish its final geometry before
+   // requesting focus. This prevents the keyboard from visually arriving ahead
+   // of the sheet and makes the whole presentation feel like one iOS transition.
+   const focusDelay = mobilePresentation ? 260 : 50;
+   const timer = window.setTimeout(() => inputRef.current?.focus(), focusDelay);
+   return () => window.clearTimeout(timer);
  }
- }
- }, [isOpen, inline]);
+ }, [isOpen, inline, mobilePresentation]);
 
  const saveRecentSearch = (item: SearchResultItem) => {
  try {
@@ -377,7 +383,7 @@ export const CommandPalette = memo(function CommandPalette({
    initial={{ opacity: 0 }}
    animate={{ opacity: 1 }}
    exit={{ opacity: 0 }}
-   transition={{ duration: mobilePresentation ? 0.20 : 0.18, ease: [0.32, 0.72, 0, 1] }}
+   transition={{ duration: mobilePresentation ? 0.30 : 0.18, ease: [0.32, 0.72, 0, 1] }}
    className={`fixed inset-0 z-[140] flex justify-center ${
      mobilePresentation
        ? "items-end px-0"
@@ -393,15 +399,12 @@ export const CommandPalette = memo(function CommandPalette({
  }`}
  />
  <motion.div
- initial={mobilePresentation ? { y: 22, scale: 0.992 } : { opacity: 0, scale: 0.95, y: -20 }}
- animate={mobilePresentation ? { scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
- exit={mobilePresentation ? { y: 18, scale: 0.995 } : { opacity: 0, scale: 0.95, y: -20 }}
- transition={{
- type: "spring",
- stiffness: mobilePresentation ? 340 : 400,
- damping: mobilePresentation ? 34 : 40,
- mass: mobilePresentation ? 0.72 : 1,
- }}
+ initial={mobilePresentation ? { opacity: 0.94, y: 30, scale: 0.985 } : { opacity: 0, scale: 0.95, y: -20 }}
+ animate={mobilePresentation ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+ exit={mobilePresentation ? { opacity: 0.96, y: 22, scale: 0.99 } : { opacity: 0, scale: 0.95, y: -20 }}
+ transition={mobilePresentation
+   ? { duration: 0.48, ease: [0.32, 0.72, 0, 1] }
+   : { type: "spring", stiffness: 400, damping: 40, mass: 1 }}
  role="dialog" aria-modal="true" aria-label="Command Palette"
  className={
    mobilePresentation

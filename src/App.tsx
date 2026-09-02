@@ -1399,10 +1399,11 @@ export default function App() {
     null,
   );
 
-  // iPhone floating navigation mirrors iOS adaptive controls: the bar expands
-  // while it is being used, then returns to a compact resting footprint when
-  // the user interacts with or scrolls the content. This is visual-only; the
-  // main scroll inset remains fixed so no page/hero layout can jump.
+  // iPhone floating navigation mirrors iOS adaptive controls. Its visual state
+  // is driven ONLY by real scroll direction. Tapping a tab must never resize the
+  // whole bar: route changes frequently reset scrollTop, and treating those
+  // programmatic resets as a user scroll is what made the other icons appear to
+  // vibrate during navigation.
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
   const phoneTabBarScrollGuardUntilRef = useRef(0);
   const phoneTabBarLastScrollTopRef = useRef(0);
@@ -1422,18 +1423,37 @@ export default function App() {
     phoneTabBarScrollTravelRef.current = 0;
     phoneTabBarScrollDirectionRef.current = null;
 
+    // A tab/search tap can cause the newly-rendered route to reset scrollTop.
+    // Ignore that synthetic scroll window so the shell itself stays perfectly
+    // still while only the selected control receives feedback.
+    const guardRouteScroll = (duration = 640) => {
+      phoneTabBarScrollGuardUntilRef.current = performance.now() + duration;
+      phoneTabBarScrollTravelRef.current = 0;
+      phoneTabBarScrollDirectionRef.current = null;
+    };
+
     const handlePointerDown = (event: PointerEvent) => {
       const wrapper = document.getElementById("ios_native_tabbar_wrapper");
       if (wrapper?.contains(event.target as Node)) {
-        // Ignore route/layout-generated scroll events for a fraction of a second
-        // after a tab-bar touch so the expansion can settle smoothly. Real
-        // content interaction still collapses immediately via pointerdown.
-        phoneTabBarScrollGuardUntilRef.current = performance.now() + 220;
-        setIsPhoneTabBarEngaged(true);
-      } else {
-        phoneTabBarScrollGuardUntilRef.current = 0;
-        setIsPhoneTabBarEngaged(false);
+        guardRouteScroll();
       }
+      // Deliberately do not compact/expand on pointer-down. The bar morphs only
+      // after an actual directional scroll gesture has crossed the threshold.
+    };
+
+    // While a finger is on the content we trust touch movement as the primary
+    // signal. WKWebView can deliver coalesced/late scroll events in the opposite
+    // order; allowing both signals to fight is what made reverse-direction
+    // gestures leave the bar stuck in its compact state.
+    let touchLastY: number | null = null;
+    let touchTravel = 0;
+    let touchDirection: "up" | "down" | null = null;
+    let touchStartedInBar = false;
+    let contentTouchActive = false;
+
+    const setBarForDirection = (direction: "up" | "down") => {
+      // page moving upward toward the hero => expanded; reading downward => compact
+      setIsPhoneTabBarEngaged(direction === "up");
     };
 
     const handleScroll = () => {
@@ -1444,7 +1464,15 @@ export default function App() {
       const delta = nextScrollTop - previousScrollTop;
       phoneTabBarLastScrollTopRef.current = nextScrollTop;
 
-      // Always restore the larger touch target near the top of the page.
+      // Route/layout-generated scroll events after a tab tap must never morph the
+      // navigation shell. Keep the last position synchronized, then simply exit.
+      if (performance.now() < phoneTabBarScrollGuardUntilRef.current) return;
+
+      // The touchmove path below is lower-latency and directionally reliable on
+      // WKWebView. Scroll events resume control after the finger is released so
+      // inertial motion still behaves naturally.
+      if (contentTouchActive) return;
+
       if (nextScrollTop <= 8) {
         phoneTabBarScrollTravelRef.current = 0;
         phoneTabBarScrollDirectionRef.current = "up";
@@ -1452,7 +1480,6 @@ export default function App() {
         return;
       }
 
-      if (performance.now() < phoneTabBarScrollGuardUntilRef.current) return;
       if (Math.abs(delta) < 0.75) return;
 
       const direction: "up" | "down" = delta < 0 ? "up" : "down";
@@ -1463,31 +1490,23 @@ export default function App() {
 
       phoneTabBarScrollTravelRef.current += Math.abs(delta);
 
-      // A small hysteresis threshold prevents tiny inertial/bounce movements from
-      // rapidly toggling the bar. Downward reading motion compacts the controls;
-      // scrolling back toward the hero restores the larger iOS-style touch target.
-      if (phoneTabBarScrollTravelRef.current >= 8) {
-        setIsPhoneTabBarEngaged(direction === "up");
+      // Enough hysteresis to reject iOS bounce noise, but short enough that a
+      // direction reversal inside the SAME finger gesture responds immediately.
+      if (phoneTabBarScrollTravelRef.current >= 7) {
+        setBarForDirection(direction);
         phoneTabBarScrollTravelRef.current = 0;
       }
     };
 
-    // WKWebView can coalesce scroll events more aggressively than Safari/PWA.
-    // Track the physical touch gesture as a second, native-safe signal so the
-    // floating navigation expands immediately when the user swipes DOWN (which
-    // moves the page back UP toward the hero) even if no timely scroll event is
-    // delivered by Capacitor. This does not change layout or route behaviour.
-    let touchLastY: number | null = null;
-    let touchTravel = 0;
-    let touchDirection: "up" | "down" | null = null;
-    let touchStartedInBar = false;
-
     const handleTouchStart = (event: TouchEvent) => {
       const wrapper = document.getElementById("ios_native_tabbar_wrapper");
       touchStartedInBar = !!wrapper?.contains(event.target as Node);
+      contentTouchActive = !touchStartedInBar && event.touches.length === 1;
       touchTravel = 0;
       touchDirection = null;
       touchLastY = event.touches.length === 1 ? event.touches[0].clientY : null;
+
+      if (touchStartedInBar) guardRouteScroll();
     };
 
     const handleTouchMove = (event: TouchEvent) => {
@@ -1496,7 +1515,7 @@ export default function App() {
       const nextY = event.touches[0].clientY;
       const fingerDelta = nextY - touchLastY;
       touchLastY = nextY;
-      if (Math.abs(fingerDelta) < 0.75) return;
+      if (Math.abs(fingerDelta) < 0.6) return;
 
       // Finger moving down => content moves up toward the hero => EXPAND.
       // Finger moving up   => content moves down for reading      => COMPACT.
@@ -1507,17 +1526,31 @@ export default function App() {
       }
       touchTravel += Math.abs(fingerDelta);
 
-      if (touchTravel >= 8) {
-        setIsPhoneTabBarEngaged(direction === "up");
+      if (touchTravel >= 7) {
+        setBarForDirection(direction);
         touchTravel = 0;
       }
     };
 
     const handleTouchEnd = () => {
+      const endedInBar = touchStartedInBar;
       touchLastY = null;
       touchTravel = 0;
       touchDirection = null;
       touchStartedInBar = false;
+      contentTouchActive = false;
+
+      // Re-synchronize the scroll baseline before inertia takes over. A tiny
+      // guard prevents the first coalesced WKWebView scroll packet from undoing
+      // the final direction chosen by the user's finger. A tab tap keeps the
+      // longer route-restoration guard because the scroll-memory controller can
+      // reapply a saved position again ~460 ms after the route changes.
+      if (canvas) phoneTabBarLastScrollTopRef.current = Math.max(0, canvas.scrollTop);
+      if (endedInBar) {
+        guardRouteScroll();
+      } else {
+        phoneTabBarScrollGuardUntilRef.current = performance.now() + 56;
+      }
     };
 
     document.addEventListener("pointerdown", handlePointerDown, { capture: true });
@@ -5241,7 +5274,6 @@ const handleSignOut = useCallback(async () => {
                   animate={{ opacity: 1, scale: 1, x: 0 }}
                   exit={{ opacity: 0, scale: 0.94, x: 6 }}
                   onClick={() => {
-                    setIsPhoneTabBarEngaged(true);
                     void HapticFeedback.selection();
                     setIsCommandPaletteOpen(true);
                   }}

@@ -41,8 +41,10 @@ const config: CapacitorConfig = {
       backgroundColor: "#000000",
     },
     Keyboard: {
-      // Native keyboard handling with automatic view resizing.
-      resize: KeyboardResize.Native,
+      // iOS native WebView resizing is intentionally disabled here. The app
+      // pre-resizes its own root on keyboardWillShow/keyboardWillHide, avoiding
+      // the WKWebView delay where the keyboard briefly covers the UI first.
+      resize: KeyboardResize.None,
       resizeOnFullScreen: true,
     },
     PushNotifications: {

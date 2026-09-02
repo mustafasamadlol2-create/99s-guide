@@ -42,9 +42,9 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             initial={false}
             transition={{
               type: "spring",
-              stiffness: 360,
-              damping: 31,
-              mass: 0.72
+              stiffness: 310,
+              damping: 34,
+              mass: 0.78
             }}
           />
         )}
@@ -55,11 +55,15 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
           }`}
         >
           <motion.div
-             animate={{ 
-               y: isActive && !isCompactHeight && isEngaged ? -1.5 : 0,
-               scale: isActive ? (isEngaged ? 1.045 : 1.015) : 1
-             }}
-             transition={{ type: "spring", stiffness: 360, damping: 31, mass: 0.68 }}
+             // Only the newly-selected item gets a tiny iOS-style confirmation.
+             // Deactivation is instantaneous, so sibling icons never wobble when
+             // the route changes or when the outer capsule changes size.
+             animate={isActive
+               ? { y: [0, -1.25, 0], scale: [1, 1.055, 1] }
+               : { y: 0, scale: 1 }}
+             transition={isActive
+               ? { duration: 0.34, ease: [0.32, 0.72, 0, 1] }
+               : { duration: 0 }}
           >
             <Icon
               className="w-icon-lg h-icon-lg"
@@ -74,7 +78,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             height: !isCompactHeight && isEngaged ? "auto" : 0,
             marginTop: !isCompactHeight && isEngaged ? 2 : 0
           }}
-          transition={{ type: "spring", stiffness: 330, damping: 31, mass: 0.7 }}
+          transition={{ duration: 0.38, ease: [0.32, 0.72, 0, 1] }}
           className={`relative z-10 overflow-hidden font-sans select-none transition-colors duration-300 ${isCompactHeight ? "hidden" : "block"} ${
             isActive
               ? `${activeColorClass} font-semibold text-[10.5px]`

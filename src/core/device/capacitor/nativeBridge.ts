@@ -44,9 +44,14 @@ class NativeBridgeManager {
   private deepLinkListeners: Set<DeepLinkHandler> = new Set();
   private onlineStatusListeners: Set<(isOnline: boolean) => void> = new Set();
   private keyboardListeners: Set<(state: KeyboardState) => void> = new Set();
+  private lastIOSKeyboardHeight = 300;
 
   constructor() {
     this.isNative = Capacitor.isNativePlatform();
+    if (typeof document !== "undefined" && this.isNative && Capacitor.getPlatform() === "ios") {
+      document.documentElement.classList.add("capacitor-ios");
+      document.documentElement.style.setProperty("--app-keyboard-inset", "0px");
+    }
     this.initializeWebNetworkListeners();
   }
 
@@ -182,6 +187,47 @@ class NativeBridgeManager {
   // 3. Native Keyboard Behavior & Spacing Insets
   // ==========================================
 
+  /**
+   * Capacitor's iOS native WebView resize is applied late in the system keyboard
+   * animation on some WKWebView/iOS versions. We instead drive a single CSS
+   * inset from keyboardWillShow/keyboardWillHide so React, fixed overlays and the
+   * main scroll canvas start adapting before the keyboard can cover them.
+   */
+  private applyIOSKeyboardInset(isOpen: boolean, keyboardHeight = 0): void {
+    if (!this.isNative || Capacitor.getPlatform() !== "ios" || typeof document === "undefined") return;
+
+    const safeHeight = isOpen
+      ? Math.max(0, Math.round(keyboardHeight || this.lastIOSKeyboardHeight))
+      : 0;
+
+    if (safeHeight > 0) this.lastIOSKeyboardHeight = safeHeight;
+
+    const root = document.documentElement;
+    root.style.setProperty("--app-keyboard-inset", `${safeHeight}px`);
+    root.classList.toggle("app-keyboard-open", safeHeight > 0);
+
+    if (safeHeight > 0) {
+      // Once the layout has begun shrinking, keep the actual focused control in
+      // the nearest visible scroll position. This applies globally to Search,
+      // Q&A composers, profile fields and every other editable control.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const active = document.activeElement as HTMLElement | null;
+          if (!active) return;
+          const tag = active.tagName;
+          const editable =
+            tag === "INPUT" ||
+            tag === "TEXTAREA" ||
+            active.isContentEditable;
+          if (!editable) return;
+          try {
+            active.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+          } catch (_) {}
+        });
+      });
+    }
+  }
+
   public listenToKeyboard(
     onUpdate: (state: KeyboardState) => void,
   ): () => void {
@@ -213,22 +259,43 @@ class NativeBridgeManager {
       const willShowPromise = Keyboard.addListener(
         "keyboardWillShow",
         (info: KeyboardInfo) => {
+          this.applyIOSKeyboardInset(true, info.keyboardHeight);
+          onUpdate({ isOpen: true, keyboardHeight: info.keyboardHeight });
+        },
+      );
+
+      const didShowPromise = Keyboard.addListener(
+        "keyboardDidShow",
+        (info: KeyboardInfo) => {
+          // Correct for keyboard/language/emoji height changes without waiting for
+          // another focus cycle. Setting the same value is a no-op.
+          this.applyIOSKeyboardInset(true, info.keyboardHeight);
           onUpdate({ isOpen: true, keyboardHeight: info.keyboardHeight });
         },
       );
 
       const willHidePromise = Keyboard.addListener("keyboardWillHide", () => {
+        this.applyIOSKeyboardInset(false);
+        onUpdate({ isOpen: false, keyboardHeight: 0 });
+      });
+
+      const didHidePromise = Keyboard.addListener("keyboardDidHide", () => {
+        this.applyIOSKeyboardInset(false);
         onUpdate({ isOpen: false, keyboardHeight: 0 });
       });
 
       return () => {
         this.keyboardListeners.delete(onUpdate);
         willShowPromise.then((h) => h.remove());
+        didShowPromise.then((h) => h.remove());
         willHidePromise.then((h) => h.remove());
+        didHidePromise.then((h) => h.remove());
+        this.applyIOSKeyboardInset(false);
       };
     } catch (err) {
       return () => {
         this.keyboardListeners.delete(onUpdate);
+        this.applyIOSKeyboardInset(false);
       };
     }
   }

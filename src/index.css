@@ -619,6 +619,29 @@ body {
   user-select: none !important;
 }
 
+/* iOS keyboard pre-layout ---------------------------------------------------
+   Capacitor's native WebView resize can land after the system keyboard has
+   already begun covering the page. On iOS we keep the native WebView full-size
+   and move the app's root bottom edge on keyboardWillShow instead. The root is
+   also the containing block for fixed descendants, so sheets, dialogs and the
+   floating navigation all respect exactly the same visible area. */
+:root {
+  --app-keyboard-inset: 0px;
+}
+
+html.capacitor-ios #root {
+  bottom: var(--app-keyboard-inset) !important;
+  transform: translateZ(0);
+  transition: bottom 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: bottom;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.capacitor-ios #root {
+    transition-duration: 1ms !important;
+  }
+}
+
 /* 4. Selective Text Selection (Allow ONLY in input/editing controls and marked text segments) */
 input,
 textarea,
@@ -3645,15 +3668,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   --mobile-nav-offset: max(6px, calc(var(--safe-area-bottom) - 20px));
 }
 
-/* iOS-like settling curve: quick response, long soft landing, no bounce. */
+/* iOS-like settling curve: responsive start, longer soft landing, no bounce.
+   The shell is GPU-isolated so scroll-driven morphs do not shake sibling icons. */
 .mobile-phone-layout .ios-floating-tabbar-cluster {
   transition:
-    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 380ms cubic-bezier(0.32, 0.72, 0, 1),
-    gap 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+    width 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 460ms cubic-bezier(0.16, 1, 0.3, 1),
+    gap 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: width, height, transform;
   transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged .ios-floating-tabbar-cluster {
@@ -3669,13 +3695,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar {
   transition:
-    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    flex-basis 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 380ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 220ms ease-out,
-    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1);
+    width 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    flex-basis 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 460ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 240ms ease-out,
+    box-shadow 380ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: width, height;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting > .ios-floating-tabbar-cluster > #ios_native_tabbar {
@@ -3685,12 +3714,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button {
   transition:
-    width 400ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 400ms cubic-bezier(0.32, 0.72, 0, 1),
-    flex-basis 400ms cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 220ms ease-out;
+    width 480ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 480ms cubic-bezier(0.16, 1, 0.3, 1),
+    flex-basis 480ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 240ms ease-out;
   will-change: width, height;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-floating-search-button {
@@ -3701,10 +3733,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button > svg {
   transition:
-    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 180ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 180ms ease-out;
+    width 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out;
   transform: translate3d(0, 0, 0) scale(1);
   transform-origin: center;
 }
@@ -3717,8 +3749,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 /* Smooth the internal spacing at the same cadence as the outer capsule. */
 .mobile-phone-layout .ios-floating-tabbar .grid {
   transition:
-    column-gap 340ms cubic-bezier(0.32, 0.72, 0, 1),
-    padding 340ms cubic-bezier(0.32, 0.72, 0, 1);
+    column-gap 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding 440ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Native-style search sheet rendering and focus response. Motion itself is
@@ -3733,8 +3765,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .cp-mobile-search-field {
   transition:
-    background-color 180ms ease-out,
-    box-shadow 180ms ease-out;
+    background-color 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .cp-mobile-search-field:focus-within {
