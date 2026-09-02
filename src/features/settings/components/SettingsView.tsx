@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, memo } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useTranslation, Language } from "../../../core/i18n/translations";
 import {
@@ -589,21 +590,36 @@ const SettingsView = function SettingsView({
  )}
  </AnimatePresence>
 
+ {typeof document !== "undefined" && createPortal(
  <AnimatePresence>
  {privacyModalInfo && (
- <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+ <div
+ className="fixed inset-0 z-[1000] flex min-h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-4"
+ style={{
+ paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+ paddingLeft: "max(1rem, env(safe-area-inset-left, 0px))",
+ paddingRight: "max(1rem, env(safe-area-inset-right, 0px))",
+ }}
+ role="dialog"
+ aria-modal="true"
+ aria-label={privacyModalInfo.title}
+ dir={isRtl ? "rtl" : "ltr"}
+ >
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
+ transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
  onClick={closePrivacyModal}
- className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
+ className="fixed inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
  />
  <motion.div
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
+ initial={{ opacity: 0, scale: 0.96, y: 14 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 10 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }} className="relative w-full max-w-sm bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
+ exit={{ opacity: 0, scale: 0.97, y: 8 }}
+ transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.9 }}
+ className="relative z-[1] w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
  >
  <div className="flex justify-between items-start mb-4">
  <h3 className="font-display font-semibold text-body text-neutral-900 dark:text-white">
@@ -631,7 +647,9 @@ const SettingsView = function SettingsView({
  </motion.div>
  </div>
  )}
- </AnimatePresence>
+ </AnimatePresence>,
+ document.body,
+ )}
  </div>
  );
 };
