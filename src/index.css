@@ -4260,3 +4260,135 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     transition-delay: 0ms !important;
   }
 }
+
+/* ========================================================================== 
+   iPHONE FLOATING TAB BAR — ZERO-JITTER INTERNAL GEOMETRY
+   --------------------------------------------------------------------------
+   The glass capsule may morph on scroll, but the five navigation slots are
+   anchored to a stable coordinate system. Icons/labels never participate in
+   width, height, spring, press-scale or shared-layout animations.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .mobile-phone-layout .ios-floating-tabbar-cluster {
+    position: relative;
+  }
+
+  /* Keep the cluster's vertical coordinate system constant. The glass child
+     can still shrink, but it settles against the same bottom edge. */
+  .mobile-phone-layout .ios-floating-tabbar:not(.ios-floating-tabbar-compact) .ios-floating-tabbar-cluster,
+  .mobile-phone-layout .ios-floating-tabbar:not(.ios-floating-tabbar-compact).ios-tabbar-resting .ios-floating-tabbar-cluster,
+  .mobile-phone-layout .ios-floating-tabbar:not(.ios-floating-tabbar-compact).ios-tabbar-engaged .ios-floating-tabbar-cluster {
+    height: 64px !important;
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-tabbar-cluster,
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-resting .ios-floating-tabbar-cluster,
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged .ios-floating-tabbar-cluster {
+    height: 49px !important;
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  /* Let the grid anchor to the cluster rather than to the morphing glass
+     element. This prevents horizontal/vertical icon drift while the capsule
+     changes dimensions. */
+  .mobile-phone-layout .ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar {
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar #ios_native_tabbar > .grid {
+    position: absolute !important;
+    left: 50% !important;
+    bottom: 0 !important;
+    width: min(86%, 340px) !important;
+    height: 51px !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 2px 0 !important;
+    column-gap: 2px !important;
+    transform: translate3d(-50%, 0, 0) !important;
+    transition: none !important;
+    will-change: auto !important;
+  }
+
+  /* With the separate Search control, preserve the exact expanded nav centre
+     (37px left of cluster centre) while the surrounding glass changes size. */
+  .mobile-phone-layout .ios-floating-tabbar-with-search #ios_native_tabbar > .grid {
+    left: calc(50% - 37px) !important;
+    width: min(76%, 321px) !important;
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar-compact #ios_native_tabbar > .grid {
+    height: 44px !important;
+  }
+
+  /* Absolutely no press/hover transform on navigation items or their Lucide
+     icons. Global button interaction rules are intentionally neutralized here. */
+  .mobile-phone-layout .ios-tabbar-item,
+  .mobile-phone-layout .ios-tabbar-item:hover,
+  .mobile-phone-layout .ios-tabbar-item:active {
+    height: 51px !important;
+    min-height: 51px !important;
+    transform: none !important;
+    opacity: 1 !important;
+    transition: color 180ms ease-out, background-color 180ms ease-out !important;
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-item,
+  .mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-item:hover,
+  .mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-item:active {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .mobile-phone-layout .ios-tabbar-item .lucide,
+  .mobile-phone-layout .ios-tabbar-item:hover .lucide,
+  .mobile-phone-layout .ios-tabbar-item:active .lucide {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: color 180ms ease-out, stroke 180ms ease-out !important;
+  }
+
+  .mobile-phone-layout .ios-tabbar-icon-slot {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    transform: none !important;
+    transition: color 180ms ease-out !important;
+  }
+
+  .mobile-phone-layout .ios-tabbar-label-slot {
+    display: block;
+    flex: 0 0 12px;
+    height: 12px;
+    margin-top: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 10.5px;
+    line-height: 12px;
+    font-weight: 500;
+    opacity: 1;
+    transform: none !important;
+    transition: color 180ms ease-out !important;
+  }
+
+  /* Landscape/very-short phone height keeps the pre-existing icon-only mode,
+     but the slot itself remains fixed and does not animate in/out. */
+  .mobile-phone-layout .ios-tabbar-label-compact-height {
+    display: none !important;
+  }
+
+  .mobile-phone-layout .ios-tabbar-active-indicator {
+    transform: none !important;
+    transition: opacity 160ms ease-out, background-color 160ms ease-out !important;
+  }
+
+  .mobile-phone-layout .ios-tabbar-active-indicator-visible {
+    opacity: 1;
+  }
+
+  .mobile-phone-layout .ios-tabbar-active-indicator-hidden {
+    opacity: 0;
+  }
+}
