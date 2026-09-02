@@ -34,15 +34,20 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full outline-none"
         style={{ WebkitTapHighlightColor: "transparent" }}
       >
-        {/* Keep the active surface absolute and local to its slot. Avoiding
-            shared-layout projection means a bar resize never re-projects the
-            indicator across sibling tabs. */}
+        {/* One shared glass selection surface gives the original premium
+            left/right travel between tabs. It animates only when selection
+            changes; the scroll-driven shell resize is handled independently. */}
         {isActive && (
           <motion.div
+            layoutId="ios_mobile_tab_indicator"
             className="ios-tabbar-active-indicator absolute rounded-xl pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.16, ease: [0.32, 0.72, 0, 1] }}
+            initial={false}
+            transition={{
+              type: "spring",
+              stiffness: 320,
+              damping: 35,
+              mass: 0.76,
+            }}
           />
         )}
 
@@ -51,23 +56,33 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             isActive ? activeColorClass : colorClass
           }`}
         >
-          {/* The icon never receives scale/y animation. It is allowed to move
-              only as part of the parent bar's continuous resize, eliminating
-              the vibration caused by overlapping item + shell transforms. */}
-          <Icon
-            className="w-icon-lg h-icon-lg"
-            strokeWidth={isActive ? 2.5 : 1.8}
-          />
+          <motion.div
+            className="ios-tabbar-icon-motion"
+            animate={
+              isActive
+                ? { y: [0, -1.15, 0], scale: [1, 1.045, 1] }
+                : { y: 0, scale: 1 }
+            }
+            transition={
+              isActive
+                ? { duration: 0.32, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0 }
+            }
+          >
+            <Icon
+              className="w-icon-lg h-icon-lg"
+              strokeWidth={isActive ? 2.5 : 1.8}
+            />
+          </motion.div>
         </div>
 
         <motion.span
-          // Keep a constant 12px layout slot in both engaged/resting states.
-          // Only opacity animates; height/margins do not collapse, so the icon
-          // is not repeatedly re-centered mid-resize.
+          // The label keeps a constant layout slot in both bar sizes. Only its
+          // opacity changes, so hiding text never re-centres the icon mid-resize.
           animate={{
             opacity: !isCompactHeight && isEngaged ? (isActive ? 1 : 0.8) : 0,
           }}
-          transition={{ duration: 0.34, ease: [0.32, 0.72, 0, 1] }}
+          transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
           className={`relative z-10 h-[12px] min-h-[12px] mt-0.5 leading-[12px] overflow-hidden font-sans select-none transition-colors duration-300 ${
             isCompactHeight ? "hidden" : "block"
           } ${

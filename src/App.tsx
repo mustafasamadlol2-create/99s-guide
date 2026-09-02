@@ -1399,19 +1399,23 @@ export default function App() {
     null,
   );
 
-  // iPhone floating navigation mirrors iOS adaptive controls. Its visual state
-  // is driven only by genuine user scroll direction. Route-restoration scrolls
-  // are ignored, while a real touch gesture immediately takes ownership.
+  // iPhone floating navigation: its size is controlled by exactly one signal —
+  // the direction of a REAL user-driven content scroll.
   //
-  // The direction detector intentionally uses touch movement while the finger
-  // is down and scrollTop deltas for momentum after release. Keeping those two
-  // phases separate avoids WKWebView's occasional coalesced scroll packets from
-  // fighting the live finger direction during fast flicks.
+  // scrollTop increasing  => scrolling DOWN  => compact bar
+  // scrollTop decreasing  => scrolling UP    => expanded bar
+  //
+  // Touch movement itself does not resize the bar. That distinction is
+  // important on iOS because a finger can wobble/reverse by a few pixels while
+  // the page is still moving in the original direction. Reading the clamped
+  // scroll position instead makes the result deterministic, while a tiny
+  // directional travel threshold filters rubber-band noise without delaying
+  // fast flicks (a fast flick crosses it in its first scroll event).
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
-  const phoneTabBarScrollGuardUntilRef = useRef(0);
   const phoneTabBarLastScrollTopRef = useRef(0);
   const phoneTabBarScrollTravelRef = useRef(0);
   const phoneTabBarScrollDirectionRef = useRef<"up" | "down" | null>(null);
+
   useEffect(() => {
     if (!device.isPhone) {
       setIsPhoneTabBarEngaged(true);
@@ -1422,72 +1426,76 @@ export default function App() {
     }
 
     const canvas = document.getElementById("main-scroll-canvas");
-    phoneTabBarLastScrollTopRef.current = canvas?.scrollTop ?? 0;
+    if (!canvas) return;
+
+    const getClampedScrollTop = () => {
+      const maxScrollTop = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      return Math.min(maxScrollTop, Math.max(0, canvas.scrollTop));
+    };
+
+    phoneTabBarLastScrollTopRef.current = getClampedScrollTop();
     phoneTabBarScrollTravelRef.current = 0;
     phoneTabBarScrollDirectionRef.current = null;
 
-    const guardRouteScroll = (duration = 640) => {
-      phoneTabBarScrollGuardUntilRef.current = performance.now() + duration;
+    let contentGestureActive = false;
+    let fingerIsDown = false;
+    let gestureStartScrollTop = phoneTabBarLastScrollTopRef.current;
+    let gestureAppliedDirection = false;
+    let momentumStopTimer: number | null = null;
+
+    const clearMomentumStopTimer = () => {
+      if (momentumStopTimer !== null) {
+        window.clearTimeout(momentumStopTimer);
+        momentumStopTimer = null;
+      }
+    };
+
+    const resetDirectionAccumulator = () => {
       phoneTabBarScrollTravelRef.current = 0;
       phoneTabBarScrollDirectionRef.current = null;
     };
 
-    const applyDirection = (direction: "up" | "down") => {
-      phoneTabBarScrollDirectionRef.current = direction;
-      phoneTabBarScrollTravelRef.current = 0;
+    const endUserScrollSession = () => {
+      if (fingerIsDown) return;
+      contentGestureActive = false;
+      resetDirectionAccumulator();
+      phoneTabBarLastScrollTopRef.current = getClampedScrollTop();
+      clearMomentumStopTimer();
+    };
+
+    const scheduleMomentumStop = () => {
+      clearMomentumStopTimer();
+      // Momentum emits scroll events continuously, so this timer is refreshed
+      // for every packet. Once iOS has been quiet for 180 ms, later route/layout
+      // scroll restoration is ignored and therefore cannot resize the bar.
+      momentumStopTimer = window.setTimeout(endUserScrollSession, 180);
+    };
+
+    const applyScrollDirection = (direction: "up" | "down") => {
       const shouldExpand = direction === "up";
       setIsPhoneTabBarEngaged((current) =>
         current === shouldExpand ? current : shouldExpand,
       );
     };
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const wrapper = document.getElementById("ios_native_tabbar_wrapper");
-      if (wrapper?.contains(event.target as Node)) {
-        guardRouteScroll();
-      }
-    };
-
-    let touchLastY: number | null = null;
-    let touchTravel = 0;
-    let touchDirection: "up" | "down" | null = null;
-    let touchStartedInBar = false;
-    let contentTouchActive = false;
-    let scrollRaf = 0;
-
-    const processScrollPosition = () => {
-      scrollRaf = 0;
-      if (!canvas) return;
-
-      const nextScrollTop = Math.max(0, canvas.scrollTop);
+    const handleScroll = () => {
+      const nextScrollTop = getClampedScrollTop();
       const previousScrollTop = phoneTabBarLastScrollTopRef.current;
       const delta = nextScrollTop - previousScrollTop;
       phoneTabBarLastScrollTopRef.current = nextScrollTop;
 
-      // A real content touch clears this guard in touchstart. Therefore anything
-      // that reaches this branch while guarded is a route/layout scroll reset.
-      if (performance.now() < phoneTabBarScrollGuardUntilRef.current) return;
+      // Only a content gesture (or its still-running inertial momentum) owns the
+      // adaptive bar. Navigation, focus restoration and programmatic scrollTop
+      // changes update the baseline above, but can never resize the control.
+      if (!contentGestureActive) return;
 
-      // While the finger is down, touchmove is the authoritative signal because
-      // WKWebView may deliver stale/coalesced scroll events around reversals.
-      // If a very fast flick produced no useful touchmove yet, one meaningful
-      // scroll delta is still allowed to establish the initial direction.
-      if (contentTouchActive) {
-        if (!touchDirection && Math.abs(delta) >= 2) {
-          touchDirection = delta < 0 ? "up" : "down";
-          applyDirection(touchDirection);
-        }
-        return;
-      }
+      if (!fingerIsDown) scheduleMomentumStop();
 
-      if (nextScrollTop <= 8) {
-        applyDirection("up");
-        return;
-      }
-
-      if (Math.abs(delta) < 0.75) return;
+      // Sub-pixel packets are normal in WKWebView and are not directional intent.
+      if (Math.abs(delta) < 0.8) return;
 
       const direction: "up" | "down" = delta < 0 ? "up" : "down";
+
       if (phoneTabBarScrollDirectionRef.current !== direction) {
         phoneTabBarScrollDirectionRef.current = direction;
         phoneTabBarScrollTravelRef.current = 0;
@@ -1495,113 +1503,82 @@ export default function App() {
 
       phoneTabBarScrollTravelRef.current += Math.abs(delta);
 
-      // Small hysteresis rejects elastic-bounce noise while still reacting to a
-      // fast flick in the very first scroll frame.
-      if (phoneTabBarScrollTravelRef.current >= 4) {
-        applyDirection(direction);
-      }
-    };
-
-    const handleScroll = () => {
-      if (!scrollRaf) {
-        scrollRaf = requestAnimationFrame(processScrollPosition);
+      // Six physical pixels gives a clean dead-band for iOS rubber-band noise.
+      // A normal/fast flick exceeds this on the first event, while a slow drag
+      // needs only a few pixels before the resize follows it.
+      if (phoneTabBarScrollTravelRef.current >= 6) {
+        applyScrollDirection(direction);
+        gestureAppliedDirection = true;
+        phoneTabBarScrollTravelRef.current = 0;
       }
     };
 
     const handleTouchStart = (event: TouchEvent) => {
       const wrapper = document.getElementById("ios_native_tabbar_wrapper");
-      touchStartedInBar = !!wrapper?.contains(event.target as Node);
-      contentTouchActive = !touchStartedInBar && event.touches.length === 1;
-      touchTravel = 0;
-      touchDirection = null;
-      touchLastY = event.touches.length === 1 ? event.touches[0].clientY : null;
+      const startedInFloatingControls = !!wrapper?.contains(event.target as Node);
 
-      if (touchStartedInBar) {
-        guardRouteScroll();
-        return;
-      }
+      clearMomentumStopTimer();
+      fingerIsDown = false;
+      contentGestureActive = false;
+      resetDirectionAccumulator();
+      phoneTabBarLastScrollTopRef.current = getClampedScrollTop();
+      gestureStartScrollTop = phoneTabBarLastScrollTopRef.current;
+      gestureAppliedDirection = false;
 
-      if (contentTouchActive) {
-        // User input must win immediately even if it starts directly after a
-        // navigation tap that installed a route-restoration guard.
-        phoneTabBarScrollGuardUntilRef.current = 0;
-        phoneTabBarScrollTravelRef.current = 0;
-        phoneTabBarScrollDirectionRef.current = null;
-        if (canvas) {
-          phoneTabBarLastScrollTopRef.current = Math.max(0, canvas.scrollTop);
-        }
-      }
-    };
+      if (startedInFloatingControls || event.touches.length !== 1) return;
 
-    const handleTouchMove = (event: TouchEvent) => {
-      if (
-        touchStartedInBar ||
-        touchLastY === null ||
-        event.touches.length !== 1
-      ) {
-        return;
-      }
-
-      const nextY = event.touches[0].clientY;
-      const fingerDelta = nextY - touchLastY;
-      touchLastY = nextY;
-
-      if (Math.abs(fingerDelta) < 0.45) return;
-
-      // Finger moving down => content moves toward the hero => EXPAND.
-      // Finger moving up   => content moves down for reading => COMPACT.
-      const direction: "up" | "down" = fingerDelta > 0 ? "up" : "down";
-
-      if (touchDirection !== direction) {
-        touchDirection = direction;
-        touchTravel = 0;
-      }
-
-      touchTravel += Math.abs(fingerDelta);
-
-      // 3px is enough to feel immediate on a quick flick, but still filters the
-      // tiny direction noise produced while a finger is stationary.
-      if (touchTravel >= 3) {
-        applyDirection(direction);
-        touchTravel = 0;
-      }
+      // From this point until scroll momentum ends, and only for this content
+      // gesture, scrollTop direction is allowed to resize the floating bar.
+      fingerIsDown = true;
+      contentGestureActive = true;
     };
 
     const handleTouchEnd = () => {
-      const endedInBar = touchStartedInBar;
+      if (!contentGestureActive) return;
 
-      touchLastY = null;
-      touchTravel = 0;
-      touchDirection = null;
-      touchStartedInBar = false;
-      contentTouchActive = false;
+      const endScrollTop = getClampedScrollTop();
 
-      if (canvas) {
-        phoneTabBarLastScrollTopRef.current = Math.max(0, canvas.scrollTop);
+      // WKWebView can occasionally coalesce an extremely quick flick so tightly
+      // that no useful scroll packet reached handleScroll before touchend.
+      // Fall back to the REAL scrollTop displacement of that gesture — never to
+      // finger direction — so even those flicks obey DOWN=compact / UP=expand.
+      if (!gestureAppliedDirection) {
+        const gestureDelta = endScrollTop - gestureStartScrollTop;
+        if (Math.abs(gestureDelta) >= 6) {
+          applyScrollDirection(gestureDelta < 0 ? "up" : "down");
+          gestureAppliedDirection = true;
+        }
       }
 
-      if (endedInBar) {
-        guardRouteScroll();
-      } else {
-        // Momentum must be free to continue driving the state immediately.
-        phoneTabBarScrollGuardUntilRef.current = 0;
-      }
+      fingerIsDown = false;
+      phoneTabBarLastScrollTopRef.current = endScrollTop;
+      scheduleMomentumStop();
+    };
+
+    const handleTouchCancel = () => {
+      fingerIsDown = false;
+      endUserScrollSession();
+    };
+
+    const handleScrollEnd = () => {
+      if (!fingerIsDown) endUserScrollSession();
     };
 
     const handleWheel = (event: WheelEvent) => {
+      // Keeps responsive/mobile emulation predictable without changing iPhone
+      // semantics. The two outcomes are still exactly DOWN=compact / UP=expand.
       if (Math.abs(event.deltaY) < 1) return;
-      phoneTabBarScrollGuardUntilRef.current = 0;
-      applyDirection(event.deltaY < 0 ? "up" : "down");
+      contentGestureActive = true;
+      fingerIsDown = false;
+      applyScrollDirection(event.deltaY < 0 ? "up" : "down");
+      scheduleMomentumStop();
+      phoneTabBarLastScrollTopRef.current = getClampedScrollTop();
     };
 
-    document.addEventListener("pointerdown", handlePointerDown, { capture: true });
-    canvas?.addEventListener("scroll", handleScroll, { passive: true });
-    canvas?.addEventListener("wheel", handleWheel, { passive: true });
+    canvas.addEventListener("scroll", handleScroll, { passive: true });
+    canvas.addEventListener("scrollend", handleScrollEnd, { passive: true });
+    canvas.addEventListener("wheel", handleWheel, { passive: true });
     document.addEventListener("touchstart", handleTouchStart, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchmove", handleTouchMove, {
       capture: true,
       passive: true,
     });
@@ -1609,28 +1586,23 @@ export default function App() {
       capture: true,
       passive: true,
     });
-    document.addEventListener("touchcancel", handleTouchEnd, {
+    document.addEventListener("touchcancel", handleTouchCancel, {
       capture: true,
       passive: true,
     });
 
     return () => {
-      if (scrollRaf) cancelAnimationFrame(scrollRaf);
-      document.removeEventListener("pointerdown", handlePointerDown, {
-        capture: true,
-      });
-      canvas?.removeEventListener("scroll", handleScroll);
-      canvas?.removeEventListener("wheel", handleWheel);
+      clearMomentumStopTimer();
+      canvas.removeEventListener("scroll", handleScroll);
+      canvas.removeEventListener("scrollend", handleScrollEnd);
+      canvas.removeEventListener("wheel", handleWheel);
       document.removeEventListener("touchstart", handleTouchStart, {
-        capture: true,
-      });
-      document.removeEventListener("touchmove", handleTouchMove, {
         capture: true,
       });
       document.removeEventListener("touchend", handleTouchEnd, {
         capture: true,
       });
-      document.removeEventListener("touchcancel", handleTouchEnd, {
+      document.removeEventListener("touchcancel", handleTouchCancel, {
         capture: true,
       });
     };

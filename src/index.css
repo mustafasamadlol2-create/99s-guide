@@ -3668,15 +3668,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   --mobile-nav-offset: max(6px, calc(var(--safe-area-bottom) - 20px));
 }
 
-/* iOS-like resize: every geometric part uses the exact same timing curve.
-   Previously width/height/gap settled at different moments and the label was
-   also collapsing its own height, which created the visible micro-vibration.
-   Keep the original geometry, but make it one synchronized morph. */
+/* iPhone adaptive resize.
+   Only the capsule geometry morphs; the internal grid keeps one stable spacing
+   model throughout the transition. This avoids re-laying out the five tab
+   columns at a second cadence while the glass shell is already resizing. */
 .mobile-phone-layout .ios-floating-tabbar-cluster {
   transition:
-    width 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    gap 440ms cubic-bezier(0.16, 1, 0.3, 1);
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 360ms cubic-bezier(0.32, 0.72, 0, 1);
   will-change: width, height;
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
@@ -3686,17 +3685,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-floating-tabbar-cluster {
   width: min(92%, 380px);
   height: 51px;
-  gap: 8px;
+  /* Keep the nav/search separation constant while the outer width morphs. */
+  gap: 10px;
 }
 
 .mobile-phone-layout .ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar {
   transition:
-    width 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    flex-basis 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 240ms ease-out,
-    box-shadow 440ms cubic-bezier(0.16, 1, 0.3, 1);
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 220ms ease-out,
+    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1);
   will-change: width, height;
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
@@ -3710,11 +3710,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button {
   transition:
-    width 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    flex-basis 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 240ms ease-out;
+    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 220ms ease-out;
   will-change: width, height;
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
@@ -3729,8 +3729,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button > svg {
   transition:
-    width 400ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 320ms cubic-bezier(0.32, 0.72, 0, 1),
     transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
     opacity 200ms ease-out;
   transform: translate3d(0, 0, 0) scale(1);
@@ -3742,23 +3742,47 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   opacity: 0.72;
 }
 
-/* Internal spacing follows the same single cadence as the outer capsule. */
-.mobile-phone-layout .ios-floating-tabbar .grid {
-  transition:
-    column-gap 440ms cubic-bezier(0.16, 1, 0.3, 1),
-    padding 440ms cubic-bezier(0.16, 1, 0.3, 1);
+/* Keep the grid geometry identical in expanded and compact states. The width of
+   the glass capsule is the only horizontal resize, so icons travel on one
+   continuous interpolation instead of being nudged again by gap/padding. */
+.mobile-phone-layout .ios-floating-tabbar .grid,
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .grid {
+  column-gap: 4px;
+  padding: 3px 0;
+  transition: none;
 }
 
-/* The tab content must not introduce a second transform during shell resize.
-   Press/selection feedback is colour/surface only; the original flex geometry
-   remains untouched, so the bar keeps the exact pre-fix placement. */
+/* iPhone has no hover interaction. Global desktop icon rules scale every
+   button:hover/button:active .lucide; Safari can keep that state after a tap,
+   which looked like a random vibration in the floating bar. Neutralize those
+   rules ONLY for the phone tab items. The selected tab still gets its explicit
+   Motion animation from TabBarItem.tsx. */
 .mobile-phone-layout .ios-tabbar-item,
-.mobile-phone-layout .ios-tabbar-item:active {
+.mobile-phone-layout .ios-tabbar-item:hover,
+.mobile-phone-layout .ios-tabbar-item:active,
+.mobile-phone-layout .ios-tabbar-item:focus {
   transform: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  transition-property: color, opacity !important;
+}
+
+.mobile-phone-layout .ios-tabbar-item .lucide,
+.mobile-phone-layout .ios-tabbar-item:hover .lucide,
+.mobile-phone-layout .ios-tabbar-item:active .lucide,
+.mobile-phone-layout .ios-tabbar-item:focus .lucide {
+  transform: none !important;
+  opacity: 1 !important;
+  transition:
+    stroke 220ms ease,
+    color 220ms ease !important;
 }
 
 .mobile-phone-layout .ios-tabbar-item > div,
-.mobile-phone-layout .ios-tabbar-item > span {
+.mobile-phone-layout .ios-tabbar-item > span,
+.mobile-phone-layout .ios-tabbar-icon-motion {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
