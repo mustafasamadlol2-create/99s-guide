@@ -1399,232 +1399,85 @@ export default function App() {
     null,
   );
 
-  // iPhone floating navigation: scroll direction is the ONLY input that may
-  // change its visual size.
+  // iPhone floating navigation: ONLY real vertical movement of the persistent
+  // main scroll canvas may change the visual size of the floating navigation.
   //
-  // Actual content moves DOWN  -> compact / smaller floating bar
-  // Actual content moves UP    -> expanded / larger floating bar
+  // scrollTop increases (content moves down) -> compact / smaller bar
+  // scrollTop decreases (content moves up)   -> expanded / larger bar
   //
-  // The previous implementation gated resizing behind a short-lived
-  // `contentGestureActive` session. WKWebView can coalesce very fast flicks or
-  // continue momentum after that gate has ended, which made the bar appear
-  // completely unresponsive. This version observes the real scroll position
-  // directly and uses touch movement only as an iOS fast-flick fallback.
+  // No tab press, touch gesture by itself, horizontal swipe, wheel delta, route
+  // change, or any other interaction writes to this state. Keeping the source of
+  // truth this narrow makes the behavior deterministic on WKWebView.
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
+  const phoneTabBarLastScrollTopRef = useRef(0);
+  const phoneTabBarPendingExpandedRef = useRef<boolean | null>(null);
+  const phoneTabBarResizeFrameRef = useRef<number | null>(null);
+  const isRestoringGlobalScrollRef = useRef(false);
+
+  const handlePhoneTabBarVerticalScroll = useCallback(
+    (event: React.UIEvent<HTMLElement>) => {
+      if (!device.isPhone) return;
+
+      const canvas = event.currentTarget;
+      const maxScrollTop = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      const nextScrollTop = Math.min(
+        maxScrollTop,
+        Math.max(0, canvas.scrollTop),
+      );
+
+      // Route restoration is not a user scroll. Keep the baseline synchronized
+      // but never resize the floating bar because a page was restored.
+      if (isRestoringGlobalScrollRef.current) {
+        phoneTabBarLastScrollTopRef.current = nextScrollTop;
+        return;
+      }
+
+      const previousScrollTop = phoneTabBarLastScrollTopRef.current;
+      phoneTabBarLastScrollTopRef.current = nextScrollTop;
+
+      const deltaY = nextScrollTop - previousScrollTop;
+
+      // Ignore sub-pixel WebKit/rubber-band noise only. A normal or fast flick
+      // crosses this immediately, while horizontal scrolling leaves scrollTop
+      // unchanged and therefore can never affect the bar.
+      if (Math.abs(deltaY) < 0.75) return;
+
+      const shouldExpand = deltaY < 0;
+      phoneTabBarPendingExpandedRef.current = shouldExpand;
+
+      // Coalesce multiple scroll packets from the same display frame. The most
+      // recent direction wins, avoiding rapid React state churn during momentum
+      // scrolling while still reacting on the very next rendered frame.
+      if (phoneTabBarResizeFrameRef.current !== null) return;
+
+      phoneTabBarResizeFrameRef.current = requestAnimationFrame(() => {
+        phoneTabBarResizeFrameRef.current = null;
+        const pending = phoneTabBarPendingExpandedRef.current;
+        phoneTabBarPendingExpandedRef.current = null;
+        if (pending === null) return;
+
+        setIsPhoneTabBarEngaged((current) =>
+          current === pending ? current : pending,
+        );
+      });
+    },
+    [device.isPhone],
+  );
 
   useEffect(() => {
     if (!device.isPhone) {
       setIsPhoneTabBarEngaged(true);
-      return;
     }
 
-    const canvas = document.getElementById("main-scroll-canvas");
-    if (!canvas) return;
-
-    type ScrollDirection = "up" | "down";
-
-    const lastScrollTopByTarget = new WeakMap<EventTarget, number>();
-    let lastAppliedDirection: ScrollDirection | null = null;
-    let pendingDirection: ScrollDirection | null = null;
-    let pendingTravel = 0;
-    let touchScrollable: HTMLElement | null = null;
-    let lastTouchY: number | null = null;
-    let touchTravel = 0;
-    let touchDirection: ScrollDirection | null = null;
-
-    const maxScrollTop = (element: HTMLElement) =>
-      Math.max(0, element.scrollHeight - element.clientHeight);
-
-    const clampedScrollTop = (element: HTMLElement) =>
-      Math.min(maxScrollTop(element), Math.max(0, element.scrollTop));
-
-    const applyDirection = (direction: ScrollDirection) => {
-      if (lastAppliedDirection === direction) return;
-      lastAppliedDirection = direction;
-      const shouldExpand = direction === "up";
-      setIsPhoneTabBarEngaged((current) =>
-        current === shouldExpand ? current : shouldExpand,
-      );
-    };
-
-    const isVerticallyScrollable = (element: HTMLElement) => {
-      if (element.scrollHeight <= element.clientHeight + 1) return false;
-      const style = window.getComputedStyle(element);
-      return /(auto|scroll|overlay)/.test(style.overflowY);
-    };
-
-    const findScrollOwner = (target: EventTarget | null): HTMLElement => {
-      let node = target instanceof HTMLElement ? target : null;
-
-      while (node && node !== canvas) {
-        if (isVerticallyScrollable(node)) return node;
-        node = node.parentElement;
-      }
-
-      return canvas;
-    };
-
-    const seedScrollPosition = (element: HTMLElement) => {
-      lastScrollTopByTarget.set(element, clampedScrollTop(element));
-    };
-
-    // The primary path: infer direction from the real movement of whichever
-    // scrollable element inside the main canvas actually moved. A tiny 2px
-    // accumulated dead-band removes sub-pixel/rubber-band noise but is still
-    // crossed immediately by normal and fast iPhone flicks.
-    const processActualScroll = (element: HTMLElement) => {
-      const next = clampedScrollTop(element);
-      const previous = lastScrollTopByTarget.get(element);
-      lastScrollTopByTarget.set(element, next);
-
-      if (previous === undefined) return;
-
-      const delta = next - previous;
-      if (Math.abs(delta) < 0.35) return;
-
-      const direction: ScrollDirection = delta > 0 ? "down" : "up";
-
-      if (pendingDirection !== direction) {
-        pendingDirection = direction;
-        pendingTravel = 0;
-      }
-
-      pendingTravel += Math.abs(delta);
-      if (pendingTravel >= 2) {
-        applyDirection(direction);
-        pendingTravel = 0;
-      }
-    };
-
-    const handleCanvasScroll = () => processActualScroll(canvas);
-
-    // Some screens contain their own vertical scroller. Element scroll events
-    // do not bubble, so capture them at document level as well. The direct
-    // canvas listener above remains the guaranteed path for the main page.
-    const handleCapturedScroll = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement) || target === canvas) return;
-      if (!canvas.contains(target) || !isVerticallyScrollable(target)) return;
-      processActualScroll(target);
-    };
-
-    const canMoveInDirection = (
-      element: HTMLElement,
-      direction: ScrollDirection,
-    ) => {
-      const top = clampedScrollTop(element);
-      const max = maxScrollTop(element);
-      if (direction === "down") return top < max - 0.5;
-      return top > 0.5;
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) return;
-
-      const wrapper = document.getElementById("ios_native_tabbar_wrapper");
-      if (wrapper?.contains(event.target as Node)) {
-        touchScrollable = null;
-        lastTouchY = null;
-        return;
-      }
-
-      touchScrollable = findScrollOwner(event.target);
-      seedScrollPosition(touchScrollable);
-      lastTouchY = event.touches[0].clientY;
-      touchTravel = 0;
-      touchDirection = null;
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!touchScrollable || lastTouchY === null || event.touches.length !== 1) {
-        return;
-      }
-
-      const y = event.touches[0].clientY;
-      const fingerDelta = y - lastTouchY;
-      lastTouchY = y;
-
-      if (Math.abs(fingerDelta) < 0.5) return;
-
-      // Finger moving upward means the content is being scrolled downward.
-      const direction: ScrollDirection = fingerDelta < 0 ? "down" : "up";
-
-      if (touchDirection !== direction) {
-        touchDirection = direction;
-        touchTravel = 0;
-      }
-
-      touchTravel += Math.abs(fingerDelta);
-
-      // WKWebView may merge a very fast flick into only one late scroll packet.
-      // Once the finger has clearly moved and the content CAN move that way,
-      // update the bar immediately. Real scroll events continue to own the
-      // state afterwards, so momentum and direction reversals remain correct.
-      if (
-        touchTravel >= 4 &&
-        canMoveInDirection(touchScrollable, direction)
-      ) {
-        applyDirection(direction);
-        touchTravel = 0;
-      }
-    };
-
-    const clearTouchTracking = () => {
-      if (touchScrollable) seedScrollPosition(touchScrollable);
-      touchScrollable = null;
-      lastTouchY = null;
-      touchTravel = 0;
-      touchDirection = null;
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) < 0.5) return;
-      applyDirection(event.deltaY > 0 ? "down" : "up");
-    };
-
-    seedScrollPosition(canvas);
-
-    canvas.addEventListener("scroll", handleCanvasScroll, { passive: true });
-    document.addEventListener("scroll", handleCapturedScroll, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchstart", handleTouchStart, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchmove", handleTouchMove, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchend", clearTouchTracking, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchcancel", clearTouchTracking, {
-      capture: true,
-      passive: true,
-    });
-    canvas.addEventListener("wheel", handleWheel, { passive: true });
+    // A new phone/desktop layout starts with a fresh scroll baseline.
+    phoneTabBarLastScrollTopRef.current = 0;
 
     return () => {
-      canvas.removeEventListener("scroll", handleCanvasScroll);
-      document.removeEventListener("scroll", handleCapturedScroll, {
-        capture: true,
-      });
-      document.removeEventListener("touchstart", handleTouchStart, {
-        capture: true,
-      });
-      document.removeEventListener("touchmove", handleTouchMove, {
-        capture: true,
-      });
-      document.removeEventListener("touchend", clearTouchTracking, {
-        capture: true,
-      });
-      document.removeEventListener("touchcancel", clearTouchTracking, {
-        capture: true,
-      });
-      canvas.removeEventListener("wheel", handleWheel);
+      if (phoneTabBarResizeFrameRef.current !== null) {
+        cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
+        phoneTabBarResizeFrameRef.current = null;
+      }
+      phoneTabBarPendingExpandedRef.current = null;
     };
   }, [device.isPhone]);
 
@@ -2111,7 +1964,6 @@ export default function App() {
   const navigationPath = getNavigationPath();
   const prevNavigationPathRef = useRef<string>(navigationPath);
   const inMemoryScrollPositionsRef = useRef<Record<string, number>>({});
-  const isRestoringGlobalScrollRef = useRef(false);
 
   const storeScrollPosition = useCallback((path: string, position: number) => {
     const safePosition = Math.max(0, Math.round(position));
@@ -2199,6 +2051,7 @@ export default function App() {
       if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
       const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
       const nextPosition = Math.min(Math.max(0, requested), maxScroll);
+      phoneTabBarLastScrollTopRef.current = nextPosition;
       canvas.scrollTop = nextPosition;
       lastAppliedPosition = nextPosition;
       hasAppliedRestore = true;
@@ -4723,6 +4576,7 @@ const handleSignOut = useCallback(async () => {
         {/* 2. Main Content Canvas */}
         <main
           id="main-scroll-canvas"
+            onScroll={handlePhoneTabBarVerticalScroll}
             className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain ${usePhoneLayout ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
