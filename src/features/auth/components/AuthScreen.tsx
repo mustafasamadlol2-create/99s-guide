@@ -1227,12 +1227,35 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
     ? {}
     : { whileHover: { scale: 1.015 }, whileTap: { scale: 0.985 }, transition: SP.tap };
 
+  // Slower, Apple-like entrance choreography used when the auth screen mounts
+  // (including when returning from Legal / Support pages). Keep micro-interactions
+  // snappy; only the page entrance is deliberately more cinematic.
+  const premiumEase: [number, number, number, number] = [0.16, 1, 0.3, 1];
+  const premiumPageEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.42, ease: premiumEase };
+  const premiumCardEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.88, ease: premiumEase };
+  const premiumLogoEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.78, delay: 0.10, ease: premiumEase };
+  const premiumHeaderEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.72, delay: 0.18, ease: premiumEase };
+  const premiumContentEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.78, delay: 0.26, ease: premiumEase };
+  const premiumFooterEntrance = reduce
+    ? { duration: 0 }
+    : { type: "tween" as const, duration: 0.72, delay: 0.48, ease: premiumEase };
+
   return (
     <motion.div
       id="auth-screen-container"
       initial={reduce ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.1 }}
+      transition={premiumPageEntrance}
       className="relative w-full h-full overflow-y-auto overflow-x-hidden bg-[#F8F9FC] dark:bg-[#1C1C1E] select-text ios-scrollable"
     >
       <div
@@ -1259,7 +1282,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
             variants={reduce ? undefined : CARD_V}
             initial={reduce ? false : "hidden"}
             animate="visible"
-            transition={SP.snappy}
+            transition={premiumCardEntrance}
             className="w-full bg-white dark:bg-black border border-[#E4E4E7] dark:border-[#333333] rounded-[32px] sm:rounded-[36px] md:rounded-[40px] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10)] overflow-hidden px-6 sm:px-10 md:px-12 pt-7 sm:pt-8 md:pt-9 pb-10 sm:pb-12 relative gpu-accelerate"
             style={{ willChange: "transform, opacity" }}
           >
@@ -1270,7 +1293,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                 variants={reduce ? undefined : LOGO_V}
                 initial={reduce ? false : "hidden"}
                 animate="visible"
-                transition={SP.logo}
+                transition={premiumLogoEntrance}
                 className="mb-4"
                 style={{ willChange: "transform, opacity" }}
               >
@@ -1285,7 +1308,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                     initial={reduce ? false : sv.enter}
                     animate={sv.center}
                     exit={sv.exit}
-                    transition={SP.gentle}
+                    transition={premiumHeaderEntrance}
                     className="text-center"
                   >
                     <h2 className="text-title font-display font-semibold text-neutral-800 dark:text-white">
@@ -2041,7 +2064,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   initial={reduce ? false : sv.enter}
                   animate={sv.center}
                   exit={sv.exit}
-                  transition={SP.gentle}
+                  transition={premiumContentEntrance}
                   onSubmit={handleAuthSubmit}
                 >
                   <motion.div
@@ -2244,7 +2267,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
             id="auth-privacy-footer"
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...SP.gentle, delay: 0.35 }}
+            transition={premiumFooterEntrance}
             className="mt-8 text-center max-w-xs text-caption text-med-muted dark:text-[#EBEBF599] p-3 bg-white/40 dark:bg-[#1C1C1E]/30 border border-med-beige/40 dark:border-white/[0.05] rounded-md select-none"
           >
             <div className="flex items-center justify-center gap-1.5 font-semibold mb-1">
