@@ -25,16 +25,13 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
   }) => {
-    const labelSizeClass =
-      id === "profile" && label === "My Profile" ? "text-[10px]" : "text-[10.5px]";
-
     return (
       <button
         type="button"
         onClick={() => onClick(id)}
         aria-label={label}
         aria-current={isActive ? "page" : undefined}
-        className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full min-w-0 outline-none"
+        className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full outline-none"
         style={{ WebkitTapHighlightColor: "transparent" }}
       >
         {/* One shared glass selection surface gives the original premium
@@ -86,12 +83,12 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             opacity: !isCompactHeight && isEngaged ? (isActive ? 1 : 0.8) : 0,
           }}
           transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
-          className={`relative z-10 h-[12px] min-h-[12px] max-w-full mt-0.5 leading-[12px] overflow-hidden whitespace-nowrap font-sans select-none transition-colors duration-300 ${
+          className={`relative z-10 h-[12px] min-h-[12px] mt-0.5 leading-[12px] overflow-hidden font-sans select-none transition-colors duration-300 ${
             isCompactHeight ? "hidden" : "block"
           } ${
             isActive
-              ? `${activeColorClass} font-semibold ${labelSizeClass}`
-              : `text-neutral-500 dark:text-[#EBEBF599] font-medium ${labelSizeClass}`
+              ? `${activeColorClass} font-semibold text-[10.5px]`
+              : "text-neutral-500 dark:text-[#EBEBF599] font-medium text-[10.5px]"
           }`}
         >
           {label}
