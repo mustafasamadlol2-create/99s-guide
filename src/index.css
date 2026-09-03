@@ -3701,6 +3701,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  /* Keep the expensive width/height relayout local to the glass capsule. */
+  contain: layout;
 }
 
 .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting > .ios-floating-tabbar-cluster > #ios_native_tabbar {
@@ -3750,6 +3752,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   column-gap: 4px;
   padding: 3px 0;
   transition: none;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* iPhone has no hover interaction. Global desktop icon rules scale every
@@ -3785,6 +3790,24 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .mobile-phone-layout .ios-tabbar-icon-motion {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+/* Scroll-resize must never restart the per-tab Motion animation. Labels fade
+   from the parent state instead, so the five memoized tab items stay visually
+   stable while the glass shell changes size. */
+.mobile-phone-layout .ios-tabbar-label {
+  opacity: 0.8;
+  transition:
+    opacity 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    color 220ms ease !important;
+}
+
+.mobile-phone-layout .ios-tabbar-item[aria-current="page"] .ios-tabbar-label {
+  opacity: 1;
+}
+
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-tabbar-label {
+  opacity: 0;
 }
 
 /* Native-style search sheet rendering and focus response. Motion itself is

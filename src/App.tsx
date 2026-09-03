@@ -5166,7 +5166,6 @@ const handleSignOut = useCallback(async () => {
                     label={item.label}
                     isActive={activeTab === item.id}
                     isCompactHeight={isCompactHeight}
-                    isEngaged={isPhoneTabBarEngaged}
                     activeColorClass={item.activeColorClass}
                     onClick={handleSidebarTabClick}
                   />

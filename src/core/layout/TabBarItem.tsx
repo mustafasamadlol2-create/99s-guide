@@ -7,7 +7,6 @@ export interface TabBarItemProps {
   label: string;
   isActive: boolean;
   isCompactHeight: boolean;
-  isEngaged?: boolean;
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
@@ -20,7 +19,6 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     label,
     isActive,
     isCompactHeight,
-    isEngaged = true,
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
@@ -76,14 +74,11 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
           </motion.div>
         </div>
 
-        <motion.span
-          // The label keeps a constant layout slot in both bar sizes. Only its
-          // opacity changes, so hiding text never re-centres the icon mid-resize.
-          animate={{
-            opacity: !isCompactHeight && isEngaged ? (isActive ? 1 : 0.8) : 0,
-          }}
-          transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
-          className={`relative z-10 h-[12px] min-h-[12px] mt-0.5 leading-[12px] overflow-hidden whitespace-nowrap font-sans select-none transition-colors duration-300 ${
+        <span
+          // Scroll-driven visibility is controlled by the parent bar class in
+          // CSS. Keeping it out of Motion means a resize never re-triggers the
+          // tab icon animation or causes per-item React animation work.
+          className={`ios-tabbar-label relative z-10 h-[12px] min-h-[12px] mt-0.5 leading-[12px] overflow-hidden whitespace-nowrap font-sans select-none transition-colors duration-300 ${
             isCompactHeight ? "hidden" : "block"
           } ${
             isActive
@@ -92,7 +87,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
           }`}
         >
           {label}
-        </motion.span>
+        </span>
       </button>
     );
   },
