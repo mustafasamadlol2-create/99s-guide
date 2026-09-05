@@ -536,6 +536,7 @@ const HeroBanner = memo(({
   mottoIndex, layout, t,
   nextEvent, onNavigateTab, isWide, isPhone,
 }: HeroBannerProps) => {
+  const reduceMotion = useReducedMotion();
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
@@ -592,6 +593,10 @@ const HeroBanner = memo(({
         {/* L2: ambient glow + slow aurora sweep */}
         <div className="absolute inset-0 z-[1]">
           <AmbientGlow isRtl={isRtl} />
+          {/* Premium gold motes — a very subtle parallax shimmer around the university badge.
+              This stays independent from the white StarField so the gold warmth feels alive
+              without turning the hero into a busy particle effect. */}
+          <div className="hero-gold-motes" aria-hidden="true" />
           {/* Aurora — slow rotating conic gradient, start angle shifts with time of day.
                CRITICAL: transform: translate(-50%,-50%) MUST be in the base inline style,
                NOT only in the keyframe. On iOS Safari, when display:none→block restores the
@@ -725,13 +730,21 @@ const HeroBanner = memo(({
                 </div>
                 {/* Dynamic min-height so long mottos are never clipped */}
                 <div className="relative flex items-start" style={{ minHeight: "2.8rem" }}>
-                  <AnimatePresence mode="popLayout" initial={false}>
+                  <AnimatePresence mode="sync" initial={false}>
                     <motion.p
                       key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={{ opacity: 1, y: 0 }}
+                      initial={reduceMotion ? false : { opacity: 0, y: 11 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -9 }}
+                      transition={
+                        reduceMotion
+                          ? { duration: 0.16, ease: "linear" }
+                          : { duration: 0.62, ease: [0.22, 1, 0.36, 1] }
+                      }
+                      style={{
+                        transformOrigin: isRtl ? "right center" : "left center",
+                        willChange: reduceMotion ? undefined : "transform, opacity",
+                      }}
                       className={`${layout.subtitleClass} text-white/85 font-medium leading-snug md:leading-normal break-words antialiased max-w-[560px] absolute top-0 w-full`}
                     >
                       {smartSubtitle.text}
