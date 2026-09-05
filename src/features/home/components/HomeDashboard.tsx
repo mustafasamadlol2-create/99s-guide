@@ -15,7 +15,6 @@ import React, {
 } from "react";
 import {
   motion,
-  AnimatePresence,
   useReducedMotion,
 } from "motion/react";
 import type { Variants } from "motion/react";
@@ -387,8 +386,6 @@ interface HeroBannerProps {
   smartGreeting: { greeting: string; name: string };
   user: { id?: string; name: string; email: string; totalPoints: number; level: string; levelBadge: string; streakDays: number; signature?: string | null };
   smartSubtitle: { text: string } | null;
-  activeMottos: Array<{ id: string; message: string }>;
-  mottoIndex: number | null;
   layout: HeroBannerLayout;
   t: (key: string) => string;
   nextEvent: CalendarEvent | null;
@@ -532,11 +529,77 @@ const heroPillVariant = (i: number): Variants => ({
 });
 
 const HeroBanner = memo(({
-  isActive, isRtl, smartGreeting, user, smartSubtitle, activeMottos,
-  mottoIndex, layout, t,
+  isActive, isRtl, smartGreeting, user, smartSubtitle,
+  layout, t,
   nextEvent, onNavigateTab, isWide, isPhone,
 }: HeroBannerProps) => {
   const reduceMotion = useReducedMotion();
+
+  // Today's Message transition is intentionally driven by one persistent DOM node.
+  // iOS/WKWebView can leave a one-frame glyph remnant when two composited text layers
+  // overlap during AnimatePresence exit/enter. We therefore fade the old text fully
+  // to transparent first, swap the string while it is invisible, then animate the
+  // same node back in. There is never an outgoing text layer left behind to ghost.
+  const [renderedMotto, setRenderedMotto] = useState(() => smartSubtitle?.text ?? "");
+  const [mottoTransitionPhase, setMottoTransitionPhase] = useState<
+    "idle" | "fade-out" | "pre-enter"
+  >("idle");
+  const renderedMottoRef = useRef(renderedMotto);
+  const mottoTransitionRunRef = useRef(0);
+
+  useEffect(() => {
+    const nextText = smartSubtitle?.text ?? "";
+
+    if (!nextText) {
+      mottoTransitionRunRef.current += 1;
+      renderedMottoRef.current = "";
+      setRenderedMotto("");
+      setMottoTransitionPhase("idle");
+      return;
+    }
+
+    if (nextText === renderedMottoRef.current) return;
+
+    const runId = ++mottoTransitionRunRef.current;
+
+    if (reduceMotion) {
+      renderedMottoRef.current = nextText;
+      setRenderedMotto(nextText);
+      setMottoTransitionPhase("idle");
+      return;
+    }
+
+    // Phase 1: fade the OLD text to a true zero-opacity state without translating
+    // it through the clipping boundary. This is the key part of the iOS fix.
+    setMottoTransitionPhase("fade-out");
+
+    let raf1 = 0;
+    let raf2 = 0;
+    const swapTimer = window.setTimeout(() => {
+      if (mottoTransitionRunRef.current !== runId) return;
+
+      // Phase 2: swap while fully invisible and with transitions disabled.
+      renderedMottoRef.current = nextText;
+      setRenderedMotto(nextText);
+      setMottoTransitionPhase("pre-enter");
+
+      // Two frames force WebKit to commit the invisible replacement before the
+      // entrance transition starts, preventing stale raster/text cache artefacts.
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => {
+          if (mottoTransitionRunRef.current === runId) {
+            setMottoTransitionPhase("idle");
+          }
+        });
+      });
+    }, 190);
+
+    return () => {
+      window.clearTimeout(swapTimer);
+      if (raf1) window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
+  }, [smartSubtitle?.text, reduceMotion]);
 
   // ── Time-aware nebula colour — updates every hour so long sessions stay accurate
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
@@ -729,99 +792,61 @@ const HeroBanner = memo(({
                   <span className="w-1 h-1 rounded-full bg-[#D4AF37]/55 inline-block" />
                   {t("dailyMotto")}
                 </div>
-                {/* Premium cinematic message change: the outgoing line lifts away while
-                    the incoming line glides in with a restrained gold light sweep. */}
+                {/* Premium message change with a single persistent text layer.
+                    The outgoing string fully disappears before the next string is
+                    committed, which eliminates the post-animation glyph artefact on iOS. */}
                 <div
                   className="home-motto-stage relative flex items-start overflow-hidden"
-                  style={{ minHeight: "2.8rem", perspective: "760px" }}
+                  style={{ minHeight: "2.8rem", perspective: "760px", isolation: "isolate" }}
                 >
-                  <AnimatePresence mode="sync" initial={false}>
-                    <motion.div
-                      key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={
+                  <div
+                    className="home-motto-motion absolute inset-x-0 top-0 max-w-[560px]"
+                    style={{
+                      opacity: mottoTransitionPhase === "idle" ? 1 : 0,
+                      transform:
+                        mottoTransitionPhase === "pre-enter"
+                          ? `translate3d(${isRtl ? "-4px" : "4px"}, 14px, 0) scale(0.988)`
+                          : "translate3d(0, 0, 0) scale(1)",
+                      transition:
                         reduceMotion
-                          ? false
-                          : {
-                              opacity: 0,
-                              y: 18,
-                              x: isRtl ? -5 : 5,
-                              scale: 0.985,
-                              rotateX: -2.5,
-                            }
-                      }
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                        x: 0,
-                        scale: 1,
-                        rotateX: 0,
-                      }}
-                      exit={
-                        reduceMotion
-                          ? { opacity: 0 }
-                          : {
-                              // Fade the outgoing motto fully before it reaches the
-                              // clipped top edge. On iOS/WKWebView the previous
-                              // rotateX + upward travel could leave the bottoms of
-                              // glyphs visible as a thin dotted/ghost line after the
-                              // transition. Keep the cinematic lift, but make the
-                              // visual exit finish early and stay purely 2D.
-                              opacity: 0,
-                              y: -9,
-                              x: isRtl ? 2 : -2,
-                              scale: 0.996,
-                              rotateX: 0,
-                              transition: {
-                                opacity: { duration: 0.18, ease: [0.4, 0, 1, 1] },
-                                y: { duration: 0.42, ease: [0.4, 0, 0.2, 1] },
-                                x: { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
-                                scale: { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
-                                rotateX: { duration: 0.1 },
-                              },
-                            }
-                      }
-                      transition={
-                        reduceMotion
-                          ? { duration: 0.16, ease: "linear" }
-                          : {
-                              opacity: { duration: 0.56, ease: [0.16, 1, 0.3, 1] },
-                              y: { duration: 0.88, ease: [0.16, 1, 0.3, 1] },
-                              x: { duration: 0.78, ease: [0.16, 1, 0.3, 1] },
-                              scale: { duration: 0.92, ease: [0.16, 1, 0.3, 1] },
-                              rotateX: { duration: 0.84, ease: [0.16, 1, 0.3, 1] },
-                            }
-                      }
-                      style={{
-                        transformOrigin: isRtl ? "right center" : "left center",
-                        willChange: reduceMotion ? undefined : "transform, opacity",
-                      }}
-                      className="home-motto-motion absolute inset-x-0 top-0 max-w-[560px]"
+                          ? "none"
+                          : mottoTransitionPhase === "fade-out"
+                            ? "opacity 170ms linear"
+                            : mottoTransitionPhase === "pre-enter"
+                              ? "none"
+                              : "opacity 460ms cubic-bezier(0.16,1,0.3,1), transform 760ms cubic-bezier(0.16,1,0.3,1)",
+                      transformOrigin: isRtl ? "right center" : "left center",
+                      willChange: mottoTransitionPhase === "idle" ? "auto" : "opacity, transform",
+                      WebkitBackfaceVisibility: "hidden",
+                      backfaceVisibility: "hidden",
+                      contain: "paint",
+                    }}
+                  >
+                    {!reduceMotion && mottoTransitionPhase === "idle" && (
+                      <motion.span
+                        key={renderedMotto}
+                        aria-hidden="true"
+                        className="home-motto-reveal-sheen"
+                        initial={{ opacity: 0, x: isRtl ? "115%" : "-115%", scaleX: 0.72 }}
+                        animate={{
+                          opacity: [0, 0.72, 0],
+                          x: isRtl ? ["115%", "10%", "-125%"] : ["-115%", "10%", "125%"],
+                          scaleX: [0.72, 1, 0.84],
+                        }}
+                        transition={{
+                          duration: 1.05,
+                          times: [0, 0.44, 1],
+                          ease: [0.16, 1, 0.3, 1],
+                          delay: 0.04,
+                        }}
+                      />
+                    )}
+                    <p
+                      className={`${layout.subtitleClass} home-motto-text relative z-[1] text-white/90 font-medium leading-snug md:leading-normal break-words antialiased w-full`}
                     >
-                      {!reduceMotion && (
-                        <motion.span
-                          aria-hidden="true"
-                          className="home-motto-reveal-sheen"
-                          initial={{ opacity: 0, x: isRtl ? "115%" : "-115%", scaleX: 0.72 }}
-                          animate={{
-                            opacity: [0, 0.72, 0],
-                            x: isRtl ? ["115%", "10%", "-125%"] : ["-115%", "10%", "125%"],
-                            scaleX: [0.72, 1, 0.84],
-                          }}
-                          transition={{
-                            duration: 1.05,
-                            times: [0, 0.44, 1],
-                            ease: [0.16, 1, 0.3, 1],
-                            delay: 0.06,
-                          }}
-                        />
-                      )}
-                      <p
-                        className={`${layout.subtitleClass} home-motto-text relative z-[1] text-white/90 font-medium leading-snug md:leading-normal break-words antialiased w-full`}
-                      >
-                        {smartSubtitle.text}
-                      </p>
-                    </motion.div>
-                  </AnimatePresence>
+                      {renderedMotto}
+                    </p>
+                  </div>
                 </div>
               </div>
               )}
@@ -1260,8 +1285,6 @@ const HomeDashboard = memo(function HomeDashboard({
               smartGreeting={smartGreeting}
               user={user}
               smartSubtitle={smartSubtitle}
-              activeMottos={activeMottos}
-              mottoIndex={mottoIndex}
               layout={layout}
               t={t}
               nextEvent={nextEvent}
