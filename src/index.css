@@ -3668,14 +3668,22 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   --mobile-nav-offset: max(6px, calc(var(--safe-area-bottom) - 20px));
 }
 
+/* One shared resize clock for the entire phone navigation. Keeping the shell,
+   Search capsule and compositor-only icon layer on the exact same curve makes
+   the scroll morph read as one continuous, liquid iOS-style movement. */
+.mobile-phone-layout .ios-floating-tabbar {
+  --ios-nav-resize-duration: 430ms;
+  --ios-nav-resize-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* iPhone adaptive resize.
    Only the capsule geometry morphs; the internal grid keeps one stable spacing
    model throughout the transition. This avoids re-laying out the five tab
    columns at a second cadence while the glass shell is already resizing. */
 .mobile-phone-layout .ios-floating-tabbar-cluster {
   transition:
-    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 360ms cubic-bezier(0.32, 0.72, 0, 1);
+    width var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    height var(--ios-nav-resize-duration) var(--ios-nav-resize-ease);
   will-change: width, height;
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
@@ -3691,12 +3699,12 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-tabbar > .ios-floating-tabbar-cluster > #ios_native_tabbar {
   transition:
-    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 220ms ease-out,
-    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1);
+    width var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    flex-basis var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    height var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    border-radius var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    background-color 240ms ease-out,
+    box-shadow 360ms var(--ios-nav-resize-ease);
   will-change: width, height;
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
@@ -3712,11 +3720,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button {
   transition:
-    width 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    flex-basis 360ms cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1),
-    background-color 220ms ease-out;
+    width var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    height var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    flex-basis var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    box-shadow 360ms var(--ios-nav-resize-ease),
+    background-color 240ms ease-out;
   will-change: width, height;
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
@@ -3731,8 +3739,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 
 .mobile-phone-layout .ios-floating-search-button > svg {
   transition:
-    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 380ms var(--ios-nav-resize-ease),
+    height 380ms var(--ios-nav-resize-ease),
     transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
     opacity 200ms ease-out;
   transform: translate3d(0, 0, 0) scale(1);
@@ -3755,6 +3763,27 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+/* Active glass surface sizing only. The shared Motion layoutId/spring that
+   moves this surface between Welcome / Modules / Schedule / Console / Profile
+   is intentionally untouched. These state-specific insets simply give the
+   selected icon (and its label when expanded) more even breathing room. */
+.mobile-phone-layout .ios-tabbar-active-indicator {
+  inset: 3px 2px;
+  transition:
+    top var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    right var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    bottom var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
+    left var(--ios-nav-resize-duration) var(--ios-nav-resize-ease);
+}
+
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-tabbar-active-indicator {
+  inset: 2px 3px;
+}
+
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged .ios-tabbar-active-indicator {
+  inset: 3px 2px;
 }
 
 /* --------------------------------------------------------------------------
@@ -3809,7 +3838,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   align-items: center;
   justify-content: center;
   transform: translate3d(0, 0, 0);
-  transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform var(--ios-nav-resize-duration) var(--ios-nav-resize-ease);
   will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
