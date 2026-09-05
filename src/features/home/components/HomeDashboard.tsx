@@ -597,6 +597,7 @@ const HeroBanner = memo(({
               This stays independent from the white StarField so the gold warmth feels alive
               without turning the hero into a busy particle effect. */}
           <div className="hero-gold-motes" aria-hidden="true" />
+          <div className="hero-gold-current" aria-hidden="true" />
           {/* Aurora — slow rotating conic gradient, start angle shifts with time of day.
                CRITICAL: transform: translate(-50%,-50%) MUST be in the base inline style,
                NOT only in the keyframe. On iOS Safari, when display:none→block restores the
@@ -728,27 +729,85 @@ const HeroBanner = memo(({
                   <span className="w-1 h-1 rounded-full bg-[#D4AF37]/55 inline-block" />
                   {t("dailyMotto")}
                 </div>
-                {/* Dynamic min-height so long mottos are never clipped */}
-                <div className="relative flex items-start" style={{ minHeight: "2.8rem" }}>
+                {/* Premium cinematic message change: the outgoing line lifts away while
+                    the incoming line glides in with a restrained gold light sweep. */}
+                <div
+                  className="home-motto-stage relative flex items-start overflow-hidden"
+                  style={{ minHeight: "2.8rem", perspective: "760px" }}
+                >
                   <AnimatePresence mode="sync" initial={false}>
-                    <motion.p
+                    <motion.div
                       key={activeMottos.length > 0 && mottoIndex !== null ? (activeMottos[mottoIndex]?.id ?? "default-subtitle") : "default-subtitle"}
-                      initial={reduceMotion ? false : { opacity: 0, y: 11 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -9 }}
+                      initial={
+                        reduceMotion
+                          ? false
+                          : {
+                              opacity: 0,
+                              y: 18,
+                              x: isRtl ? -5 : 5,
+                              scale: 0.985,
+                              rotateX: -2.5,
+                            }
+                      }
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        x: 0,
+                        scale: 1,
+                        rotateX: 0,
+                      }}
+                      exit={
+                        reduceMotion
+                          ? { opacity: 0 }
+                          : {
+                              opacity: 0,
+                              y: -15,
+                              x: isRtl ? 3 : -3,
+                              scale: 0.992,
+                              rotateX: 2,
+                            }
+                      }
                       transition={
                         reduceMotion
                           ? { duration: 0.16, ease: "linear" }
-                          : { duration: 0.62, ease: [0.22, 1, 0.36, 1] }
+                          : {
+                              opacity: { duration: 0.56, ease: [0.16, 1, 0.3, 1] },
+                              y: { duration: 0.88, ease: [0.16, 1, 0.3, 1] },
+                              x: { duration: 0.78, ease: [0.16, 1, 0.3, 1] },
+                              scale: { duration: 0.92, ease: [0.16, 1, 0.3, 1] },
+                              rotateX: { duration: 0.84, ease: [0.16, 1, 0.3, 1] },
+                            }
                       }
                       style={{
                         transformOrigin: isRtl ? "right center" : "left center",
                         willChange: reduceMotion ? undefined : "transform, opacity",
                       }}
-                      className={`${layout.subtitleClass} text-white/85 font-medium leading-snug md:leading-normal break-words antialiased max-w-[560px] absolute top-0 w-full`}
+                      className="home-motto-motion absolute inset-x-0 top-0 max-w-[560px]"
                     >
-                      {smartSubtitle.text}
-                    </motion.p>
+                      {!reduceMotion && (
+                        <motion.span
+                          aria-hidden="true"
+                          className="home-motto-reveal-sheen"
+                          initial={{ opacity: 0, x: isRtl ? "115%" : "-115%", scaleX: 0.72 }}
+                          animate={{
+                            opacity: [0, 0.72, 0],
+                            x: isRtl ? ["115%", "10%", "-125%"] : ["-115%", "10%", "125%"],
+                            scaleX: [0.72, 1, 0.84],
+                          }}
+                          transition={{
+                            duration: 1.05,
+                            times: [0, 0.44, 1],
+                            ease: [0.16, 1, 0.3, 1],
+                            delay: 0.06,
+                          }}
+                        />
+                      )}
+                      <p
+                        className={`${layout.subtitleClass} home-motto-text relative z-[1] text-white/90 font-medium leading-snug md:leading-normal break-words antialiased w-full`}
+                      >
+                        {smartSubtitle.text}
+                      </p>
+                    </motion.div>
                   </AnimatePresence>
                 </div>
               </div>

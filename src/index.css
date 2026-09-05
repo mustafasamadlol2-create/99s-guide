@@ -4662,3 +4662,252 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     opacity: 0.18;
   }
 }
+
+/* ==========================================================================\n   HOME HERO — cinematic motto + richer gold atmosphere (premium pass)\n   --------------------------------------------------------------------------\n   This pass intentionally builds on the existing hero motion rather than\n   replacing it. All movement is transform/opacity based so iOS WKWebView can\n   keep the layers composited without layout churn.\n   ========================================================================== */
+
+/* A narrow travelling light that is mounted only for the new motto. It gives
+   the message change a deliberate editorial reveal without looking like a
+   generic subtitle transition. */
+.home-motto-stage {
+  isolation: isolate;
+  contain: paint;
+}
+
+.home-motto-motion {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.home-motto-reveal-sheen {
+  position: absolute;
+  z-index: 0;
+  top: -18%;
+  bottom: -20%;
+  left: 8%;
+  width: 38%;
+  border-radius: 999px;
+  pointer-events: none;
+  transform-origin: center;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 175, 55, 0.03) 16%,
+    rgba(245, 214, 117, 0.19) 47%,
+    rgba(255, 244, 200, 0.12) 58%,
+    transparent 100%
+  );
+  box-shadow: 0 0 22px rgba(212, 175, 55, 0.08);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.home-motto-text {
+  text-shadow:
+    0 1px 12px rgba(0, 0, 0, 0.36),
+    0 0 18px rgba(255, 255, 255, 0.025);
+}
+
+/* Stronger but still elegant gold field. The two repeating particle planes
+   now have more depth and contrast, while remaining concentrated around the
+   university badge instead of covering the full hero. */
+.home-hero-banner .hero-gold-motes {
+  opacity: 0.56;
+  -webkit-mask-image: radial-gradient(
+    ellipse 92% 72% at 21% 9%,
+    #000 0%,
+    rgba(0,0,0,0.96) 34%,
+    rgba(0,0,0,0.62) 64%,
+    rgba(0,0,0,0.22) 82%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 92% 72% at 21% 9%,
+    #000 0%,
+    rgba(0,0,0,0.96) 34%,
+    rgba(0,0,0,0.62) 64%,
+    rgba(0,0,0,0.22) 82%,
+    transparent 100%
+  );
+}
+
+.home-hero-banner .hero-gold-motes::before {
+  background-image:
+    radial-gradient(circle, rgba(255, 241, 190, 0.92) 0 0.85px, transparent 1.55px),
+    radial-gradient(circle, rgba(230, 190, 73, 0.68) 0 0.78px, transparent 1.45px),
+    radial-gradient(circle, rgba(255, 222, 126, 0.52) 0 0.62px, transparent 1.25px),
+    radial-gradient(circle, rgba(255, 248, 217, 0.36) 0 0.52px, transparent 1.1px);
+  background-size: 71px 61px, 113px 89px, 157px 127px, 211px 173px;
+  background-position: 7px 13px, 51px 29px, 102px 66px, 149px 21px;
+  animation: hero-gold-motes-drift-a-premium 13.5s cubic-bezier(0.37, 0, 0.2, 1) infinite alternate;
+}
+
+.home-hero-banner .hero-gold-motes::after {
+  opacity: 0.82;
+  background-image:
+    radial-gradient(circle, rgba(244, 196, 72, 0.86) 0 1px, transparent 1.75px),
+    radial-gradient(circle, rgba(255, 233, 159, 0.56) 0 0.72px, transparent 1.4px),
+    radial-gradient(circle, rgba(212, 175, 55, 0.42) 0 0.55px, transparent 1.2px);
+  background-size: 131px 107px, 187px 149px, 257px 193px;
+  background-position: 23px 3px, 84px 49px, 133px 91px;
+  animation: hero-gold-motes-drift-b-premium 18.5s cubic-bezier(0.37, 0, 0.2, 1) infinite alternate;
+}
+
+@keyframes hero-gold-motes-drift-a-premium {
+  0%   { transform: translate3d(-2.1%,  1.8%, 0) scale(0.995); opacity: 0.68; }
+  34%  { transform: translate3d( 1.1%, -1.7%, 0) scale(1.012); opacity: 1; }
+  68%  { transform: translate3d( 3.7%, -0.3%, 0) scale(1.004); opacity: 0.84; }
+  100% { transform: translate3d( 5.1%, -2.1%, 0) scale(1.018); opacity: 0.72; }
+}
+
+@keyframes hero-gold-motes-drift-b-premium {
+  0%   { transform: translate3d( 2.4%, -1.5%, 0) scale(1.01); opacity: 0.54; }
+  38%  { transform: translate3d(-1.9%,  2.2%, 0) scale(0.996); opacity: 0.96; }
+  72%  { transform: translate3d(-4.4%,  0.6%, 0) scale(1.018); opacity: 0.72; }
+  100% { transform: translate3d(-2.2%,  2.8%, 0) scale(1.006); opacity: 0.62; }
+}
+
+/* A second, slower gold "current" supplies the premium depth that a simple
+   particle field cannot. It behaves like a moving pocket of warm light behind
+   the badge, not a flat static gold gradient. */
+.home-hero-banner .hero-gold-current {
+  position: absolute;
+  z-index: 1;
+  inset: -22%;
+  pointer-events: none;
+  opacity: 0.78;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(ellipse 23% 18% at 15% 16%, rgba(255, 224, 132, 0.17) 0%, rgba(212, 175, 55, 0.07) 44%, transparent 73%),
+    radial-gradient(ellipse 30% 20% at 34% 7%, rgba(212, 175, 55, 0.13) 0%, rgba(212, 175, 55, 0.045) 46%, transparent 76%),
+    radial-gradient(ellipse 20% 14% at 8% 31%, rgba(255, 241, 192, 0.09) 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 66% at 17% 11%, #000 0%, rgba(0,0,0,0.88) 54%, transparent 100%);
+  mask-image: radial-gradient(ellipse 75% 66% at 17% 11%, #000 0%, rgba(0,0,0,0.88) 54%, transparent 100%);
+  animation: hero-gold-current-flow 10.8s cubic-bezier(0.45, 0, 0.2, 1) infinite alternate;
+  will-change: transform, opacity;
+}
+
+.home-hero-banner .hero-gold-current::before,
+.home-hero-banner .hero-gold-current::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255, 239, 180, 0.56) 0 1px, rgba(212, 175, 55, 0.18) 1.8px, transparent 5px);
+  box-shadow: 0 0 13px rgba(212, 175, 55, 0.16);
+}
+
+.home-hero-banner .hero-gold-current::before {
+  width: 10px;
+  height: 10px;
+  top: 23%;
+  left: 20%;
+  animation: hero-gold-orbit-a 8.4s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+.home-hero-banner .hero-gold-current::after {
+  width: 8px;
+  height: 8px;
+  top: 17%;
+  left: 37%;
+  opacity: 0.74;
+  animation: hero-gold-orbit-b 11.2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes hero-gold-current-flow {
+  0%   { transform: translate3d(-3%,  2%, 0) scale(0.98); opacity: 0.62; }
+  44%  { transform: translate3d( 2%, -1%, 0) scale(1.035); opacity: 0.92; }
+  100% { transform: translate3d( 6%,  1%, 0) scale(1.01); opacity: 0.72; }
+}
+
+@keyframes hero-gold-orbit-a {
+  0%, 100% { transform: translate3d(-2px, 5px, 0) scale(0.72); opacity: 0.18; }
+  22%      { transform: translate3d(18px, -8px, 0) scale(1.05); opacity: 0.82; }
+  52%      { transform: translate3d(41px, 4px, 0) scale(0.82); opacity: 0.42; }
+  76%      { transform: translate3d(24px, 15px, 0) scale(1.12); opacity: 0.70; }
+}
+
+@keyframes hero-gold-orbit-b {
+  0%, 100% { transform: translate3d(8px, -4px, 0) scale(0.7); opacity: 0.16; }
+  30%      { transform: translate3d(-22px, 9px, 0) scale(1); opacity: 0.68; }
+  61%      { transform: translate3d(-43px, -5px, 0) scale(0.84); opacity: 0.34; }
+  83%      { transform: translate3d(-17px, 16px, 0) scale(1.08); opacity: 0.62; }
+}
+
+/* Badge shimmer is deliberately more visible and more frequent now, but the
+   sweep still spends most of its cycle resting so it reads as premium rather
+   than continuously flashing. */
+.home-hero-university-badge .badge-shimmer-sweep {
+  background: linear-gradient(
+    96deg,
+    transparent 0%,
+    rgba(212, 175, 55, 0.06) 28%,
+    rgba(255, 235, 158, 0.34) 45%,
+    rgba(255, 249, 220, 0.54) 51%,
+    rgba(212, 175, 55, 0.22) 59%,
+    transparent 76%
+  );
+  animation: hero-badge-gold-breathe-premium 7.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes hero-badge-gold-breathe-premium {
+  0%, 12% {
+    transform: translate3d(-140%, 0, 0) skewX(-18deg);
+    opacity: 0;
+  }
+  19% { opacity: 0.34; }
+  31% { opacity: 0.76; }
+  43% {
+    transform: translate3d(295%, 0, 0) skewX(-18deg);
+    opacity: 0.22;
+  }
+  49%, 100% {
+    transform: translate3d(325%, 0, 0) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+.home-hero-university-badge::before {
+  width: 74%;
+  height: 220%;
+  top: -60%;
+  left: -28%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 229, 145, 0.28) 0%,
+    rgba(212, 175, 55, 0.13) 38%,
+    rgba(212, 175, 55, 0.045) 58%,
+    transparent 76%
+  );
+  opacity: 0.82;
+  animation: hero-badge-ambient-drift-premium 8.8s cubic-bezier(0.45, 0, 0.2, 1) infinite alternate;
+}
+
+@keyframes hero-badge-ambient-drift-premium {
+  0%   { transform: translate3d(-8%,  2%, 0) scale(0.94); opacity: 0.54; }
+  46%  { transform: translate3d(58%, -1%, 0) scale(1.08); opacity: 0.94; }
+  100% { transform: translate3d(118%, 1%, 0) scale(1.01); opacity: 0.62; }
+}
+
+.sidebar-animating .hero-gold-current {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-banner .hero-gold-motes::before,
+  .home-hero-banner .hero-gold-motes::after,
+  .home-hero-banner .hero-gold-current,
+  .home-hero-banner .hero-gold-current::before,
+  .home-hero-banner .hero-gold-current::after,
+  .home-hero-university-badge .badge-shimmer-sweep,
+  .home-hero-university-badge::before {
+    animation: none !important;
+  }
+
+  .home-hero-banner .hero-gold-motes { opacity: 0.24; }
+  .home-hero-banner .hero-gold-current { opacity: 0.30; }
+  .home-motto-reveal-sheen { display: none; }
+}
