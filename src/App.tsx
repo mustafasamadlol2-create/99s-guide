@@ -5196,6 +5196,47 @@ const handleSignOut = useCallback(async () => {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Composite-only icon layer. The real tab buttons, labels and active
+              glass indicator stay in their original layout; only the SVG glyphs
+              are mirrored here so scroll-driven resize can move them with a
+              single GPU transform instead of re-rasterizing them through CSS
+              Grid on every width/height frame. */}
+          <div
+            className={`ios-floating-tabbar-icon-layer ${
+              currentUser?.isAdmin || currentUser?.role === "admin" || currentUser?.role === "owner"
+                ? "ios-floating-tabbar-icon-layer-5"
+                : "ios-floating-tabbar-icon-layer-4"
+            }`}
+            aria-hidden="true"
+          >
+            <div className="ios-floating-tabbar-icon-grid">
+              {bottomTabBarItems.map((item) => {
+                const Icon = item.icon;
+                const isActiveItem = activeTab === item.id;
+
+                return (
+                  <div key={`stable-icon-${item.id}`} className="ios-floating-tabbar-icon-slot">
+                    <span
+                      className={`ios-floating-tabbar-icon-glyph ${
+                        isActiveItem ? "ios-floating-tabbar-icon-glyph-active" : ""
+                      } ${
+                        isActiveItem
+                          ? (item.activeColorClass ?? "text-med-blue dark:text-blue-400")
+                          : "text-neutral-500 dark:text-[#EBEBF599]"
+                      }`}
+                    >
+                      <Icon
+                        className="w-icon-lg h-icon-lg"
+                        strokeWidth={isActiveItem ? 2.5 : 1.8}
+                      />
+                    </span>
+                    <span className="ios-floating-tabbar-icon-label-spacer" />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </footer>
       </div>{" "}
       {/* Closing Main Content Workspace wrapper */}

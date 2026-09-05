@@ -3757,6 +3757,148 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   backface-visibility: hidden;
 }
 
+/* --------------------------------------------------------------------------
+   ZERO-VIBRATION TAB ICON COMPOSITING
+   --------------------------------------------------------------------------
+   The glass shell and the original tab buttons keep their approved geometry,
+   labels and shared active-indicator animation. Only the SVG glyph paint is
+   moved to this fixed overlay. The overlay starts at the exact portrait
+   resting-state icon geometry. When the bar expands, each slot moves to the
+   exact engaged center using compositor-only translate3d with the SAME 360ms
+   curve as the shell. No icon participates in width/height/grid relayout, so
+   WKWebView has no sub-pixel SVG re-raster loop to shimmer left/right/up/down.
+   -------------------------------------------------------------------------- */
+.mobile-phone-layout .ios-floating-tabbar-icon-layer {
+  position: absolute;
+  z-index: 4;
+  left: calc(50% - 30.5px);
+  bottom: 0;
+  width: calc(min(92%, 380px) - 77px);
+  height: 51px;
+  pointer-events: none;
+  transform: translate3d(-50%, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  contain: layout paint style;
+  isolation: isolate;
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: 4px;
+  padding: 3px 0;
+  box-sizing: border-box;
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-slot {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, 0, 0);
+  transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transform: translate3d(0, 0, 0);
+  transform-origin: center;
+  transition: color 300ms ease;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Preserve the original 12px label lane in the icon-only mirror so the glyph
+   has the exact same vertical center as the real TabBarItem. */
+.mobile-phone-layout .ios-floating-tabbar-icon-label-spacer {
+  display: block;
+  flex: 0 0 12px;
+  width: 1px;
+  height: 12px;
+  margin-top: 2px;
+  visibility: hidden;
+}
+
+/* The original icon keeps its layout footprint (so labels/indicator do not
+   change at all) but is not painted. */
+.mobile-phone-layout .ios-tabbar-item .ios-tabbar-icon-motion {
+  visibility: hidden !important;
+}
+
+/* 5-tab portrait geometry. Deltas are the exact difference between the current
+   engaged and resting Grid centers. Because every shell dimension uses the
+   same easing/duration, these GPU translations stay centered over the original
+   tab columns for the entire resize, not merely at the two endpoints. */
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(1) {
+  transform: translate3d(calc(-3.2vw - 0.532px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(2) {
+  transform: translate3d(calc(-1.6vw - 3.516px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(3) {
+  transform: translate3d(-6.5px, -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(4) {
+  transform: translate3d(calc(1.6vw - 9.484px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(5) {
+  transform: translate3d(calc(3.2vw - 12.468px), -6.5px, 0);
+}
+
+/* 4-tab portrait geometry. */
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(1) {
+  transform: translate3d(calc(-3vw - 0.905px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(2) {
+  transform: translate3d(calc(-1vw - 4.635px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(3) {
+  transform: translate3d(calc(1vw - 8.365px), -6.5px, 0);
+}
+.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(4) {
+  transform: translate3d(calc(3vw - 12.095px), -6.5px, 0);
+}
+
+/* Recreate the already-approved active-icon micro motion only when a tab
+   actually becomes active. Parent scroll-resize never restarts this keyframe. */
+@keyframes ios-floating-tab-icon-select {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  48% { transform: translate3d(0, -1.15px, 0) scale(1.045); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.mobile-phone-layout .ios-floating-tabbar-icon-glyph-active {
+  animation: ios-floating-tab-icon-select 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* iPhone has no hover interaction. Global desktop icon rules scale every
    button:hover/button:active .lucide; Safari can keep that state after a tap,
    which looked like a random vibration in the floating bar. Neutralize those
@@ -3850,8 +3992,63 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   .mobile-phone-layout .ios-floating-search-button,
   .mobile-phone-layout .ios-floating-search-button > svg,
   .mobile-phone-layout .ios-floating-tabbar .grid,
+  .mobile-phone-layout .ios-floating-tabbar-icon-slot,
   .cp-mobile-search-field {
     transition-duration: 1ms !important;
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar-icon-glyph-active {
+    animation: none !important;
+  }
+}
+
+/* Compact-height/landscape keeps the same no-relayout icon path. The base
+   layer mirrors the 44px resting shell. On wide landscape phones both shell
+   widths hit their existing 380/430px caps, so fixed pixel deltas exactly match
+   the original centers. */
+.mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-tabbar-icon-layer {
+  left: calc(50% - 27px);
+  width: calc(min(92%, 380px) - 70px);
+  height: 44px;
+}
+
+@media (min-width: 454px) {
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(1) {
+    transform: translate3d(-20.5px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(2) {
+    transform: translate3d(-11.5px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(3) {
+    transform: translate3d(-2.5px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(4) {
+    transform: translate3d(6.5px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(5) {
+    transform: translate3d(15.5px, -2.5px, 0);
+  }
+
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(1) {
+    transform: translate3d(-19.375px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(2) {
+    transform: translate3d(-8.125px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(3) {
+    transform: translate3d(3.125px, -2.5px, 0);
+  }
+  .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(4) {
+    transform: translate3d(14.375px, -2.5px, 0);
   }
 }
 
