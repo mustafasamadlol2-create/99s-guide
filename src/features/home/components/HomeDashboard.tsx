@@ -760,11 +760,24 @@ const HeroBanner = memo(({
                         reduceMotion
                           ? { opacity: 0 }
                           : {
+                              // Fade the outgoing motto fully before it reaches the
+                              // clipped top edge. On iOS/WKWebView the previous
+                              // rotateX + upward travel could leave the bottoms of
+                              // glyphs visible as a thin dotted/ghost line after the
+                              // transition. Keep the cinematic lift, but make the
+                              // visual exit finish early and stay purely 2D.
                               opacity: 0,
-                              y: -15,
-                              x: isRtl ? 3 : -3,
-                              scale: 0.992,
-                              rotateX: 2,
+                              y: -9,
+                              x: isRtl ? 2 : -2,
+                              scale: 0.996,
+                              rotateX: 0,
+                              transition: {
+                                opacity: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+                                y: { duration: 0.42, ease: [0.4, 0, 0.2, 1] },
+                                x: { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
+                                scale: { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
+                                rotateX: { duration: 0.1 },
+                              },
                             }
                       }
                       transition={
