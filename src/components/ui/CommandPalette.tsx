@@ -374,23 +374,33 @@ export const CommandPalette = memo(function CommandPalette({
  {isOpen && (
  <motion.div
    key="global-command-palette"
-   initial={{ opacity: 0 }}
+   initial={mobilePresentation ? false : { opacity: 0 }}
    animate={{ opacity: 1 }}
-   exit={{ opacity: 0 }}
-   transition={{ duration: mobilePresentation ? 0.20 : 0.18, ease: [0.32, 0.72, 0, 1] }}
+   exit={mobilePresentation ? { opacity: 1 } : { opacity: 0 }}
+   transition={{ duration: mobilePresentation ? 0 : 0.18, ease: [0.32, 0.72, 0, 1] }}
    className={`fixed inset-0 z-[140] flex justify-center ${
      mobilePresentation
        ? "items-end px-0"
        : "items-start pt-[15vh] px-4"
    }`}
  >
- <div
+ <motion.div
  onClick={onClose}
+ initial={mobilePresentation ? { opacity: 1 } : false}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ transition={{ duration: mobilePresentation ? 0.16 : 0.18, ease: [0.32, 0.72, 0, 1] }}
  className={`absolute inset-0 ${
    mobilePresentation
      ? "bg-black/20 backdrop-blur-[2px]"
      : "bg-black/40 backdrop-blur-sm"
  }`}
+ style={mobilePresentation ? {
+   WebkitBackdropFilter: "blur(2px)",
+   backdropFilter: "blur(2px)",
+   willChange: "opacity, backdrop-filter",
+   transform: "translateZ(0)",
+ } : undefined}
  />
  <motion.div
  initial={mobilePresentation ? { y: 22, scale: 0.992 } : { opacity: 0, scale: 0.95, y: -20 }}

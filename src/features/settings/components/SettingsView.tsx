@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, memo } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useTranslation, Language } from "../../../core/i18n/translations";
 import {
@@ -498,21 +499,36 @@ const SettingsView = function SettingsView({
  </div>
  </div>
 
+ {typeof document !== "undefined" && createPortal(
  <AnimatePresence>
  {showDeletionConfirm && (
-  <div className="mobile-dialog-shell fixed inset-0 z-[100] flex items-center justify-center p-4">
+ <div
+ className="fixed inset-0 z-[1000] flex min-h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-4"
+ style={{
+ paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+ paddingLeft: "max(1rem, env(safe-area-inset-left, 0px))",
+ paddingRight: "max(1rem, env(safe-area-inset-right, 0px))",
+ }}
+ role="dialog"
+ aria-modal="true"
+ aria-label={isRtl ? "تأكيد حذف الحساب" : "Confirm Account Deletion"}
+ dir={isRtl ? "rtl" : "ltr"}
+ >
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
+ transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
  onClick={cancelDelete}
- className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
+ className="fixed inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
  />
  <motion.div
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
+ initial={{ opacity: 0, scale: 0.96, y: 14 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 10 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }} className="mobile-dialog-panel relative w-full max-w-sm bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
+ exit={{ opacity: 0, scale: 0.97, y: 8 }}
+ transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.9 }}
+ className="mobile-dialog-panel relative z-[1] w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
  >
  <div className="flex justify-between items-start mb-4">
  <h3 className="font-semibold text-base text-neutral-900 dark:text-white">
@@ -522,7 +538,7 @@ const SettingsView = function SettingsView({
  aria-label={isRtl ? "إلغاء" : "Cancel"}
  type="button"
  onClick={cancelDelete}
-  className="min-h-11 min-w-11 p-2 -mr-2 -mt-2 flex items-center justify-center text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+ className="min-h-11 min-w-11 p-2 -mr-2 -mt-2 flex items-center justify-center text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
  >
  <X className="w-icon-md h-icon-md" />
  </button>
@@ -545,13 +561,13 @@ const SettingsView = function SettingsView({
  
  <div>
  <input aria-label="Input field"
-  type="text"
-  value={deleteInput}
-  onChange={handleDeleteInputChange}
-  placeholder="DELETE"
-  autoComplete="off"
-  autoCapitalize="characters"
-  spellCheck={false}
+ type="text"
+ value={deleteInput}
+ onChange={handleDeleteInputChange}
+ placeholder="DELETE"
+ autoComplete="off"
+ autoCapitalize="characters"
+ spellCheck={false}
  disabled={isDeleting}
  className="w-full px-3 py-3 rounded-lg border border-neutral-300 dark:border-white/[0.15] bg-white dark:bg-[#1C1C1E] text-sm text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-shadow"
  />
@@ -567,14 +583,14 @@ const SettingsView = function SettingsView({
  type="button"
  disabled={isDeleting}
  onClick={cancelDelete}
- className="flex-1 px-4 py-3 bg-transparent border border-neutral-200 dark:border-white/[0.15] text-neutral-700 dark:text-[#EBEBF599] font-medium text-base rounded-lg hover:bg-neutral-50 dark:hover:bg-white/[0.12] transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1  disabled:opacity-50 disabled:pointer-events-none"
+ className="flex-1 px-4 py-3 bg-transparent border border-neutral-200 dark:border-white/[0.15] text-neutral-700 dark:text-[#EBEBF599] font-medium text-base rounded-lg hover:bg-neutral-50 dark:hover:bg-white/[0.12] transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1 disabled:opacity-50 disabled:pointer-events-none"
  >
  {isRtl ? "إلغاء" : "Cancel"}
  </button>
  <button
  type="submit"
-  disabled={isDeleting || deleteInput !== "DELETE"}
- className="flex-1 px-4 py-3 bg-red-50 dark:bg-med-error/10 hover:bg-red-100 dark:hover:bg-med-error/20 text-med-error dark:text-red-400 font-medium text-base rounded-lg transition duration-[180ms] ease-out hover:-translate-y-[1px] shadow-elevation-1 flex items-center justify-center gap-2  disabled:opacity-50 disabled:pointer-events-none"
+ disabled={isDeleting || deleteInput !== "DELETE"}
+ className="flex-1 px-4 py-3 bg-red-50 dark:bg-med-error/10 hover:bg-red-100 dark:hover:bg-med-error/20 text-med-error dark:text-red-400 font-medium text-base rounded-lg transition duration-[180ms] ease-out hover:-translate-y-[1px] shadow-elevation-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
  >
  {isDeleting && (
  <span className="w-icon-sm h-icon-sm border-2 border-red-500/30 border-t-red-600 rounded-full animate-spin shrink-0" />
@@ -587,23 +603,40 @@ const SettingsView = function SettingsView({
  </motion.div>
  </div>
  )}
- </AnimatePresence>
+ </AnimatePresence>,
+ document.body,
+ )}
 
+ {typeof document !== "undefined" && createPortal(
  <AnimatePresence>
  {privacyModalInfo && (
- <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+ <div
+ className="fixed inset-0 z-[1000] flex min-h-[100dvh] items-center justify-center overflow-y-auto overscroll-contain p-4"
+ style={{
+ paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+ paddingLeft: "max(1rem, env(safe-area-inset-left, 0px))",
+ paddingRight: "max(1rem, env(safe-area-inset-right, 0px))",
+ }}
+ role="dialog"
+ aria-modal="true"
+ aria-label={privacyModalInfo.title}
+ dir={isRtl ? "rtl" : "ltr"}
+ >
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
+ transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
  onClick={closePrivacyModal}
- className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
+ className="fixed inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"
  />
  <motion.div
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
+ initial={{ opacity: 0, scale: 0.96, y: 14 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 10 }}
- transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }} className="relative w-full max-w-sm bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
+ exit={{ opacity: 0, scale: 0.97, y: 8 }}
+ transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.9 }}
+ className="relative z-[1] w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
  >
  <div className="flex justify-between items-start mb-4">
  <h3 className="font-display font-semibold text-body text-neutral-900 dark:text-white">
@@ -631,7 +664,9 @@ const SettingsView = function SettingsView({
  </motion.div>
  </div>
  )}
- </AnimatePresence>
+ </AnimatePresence>,
+ document.body,
+ )}
  </div>
  );
 };
