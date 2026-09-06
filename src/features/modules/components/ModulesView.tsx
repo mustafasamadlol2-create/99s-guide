@@ -1,0 +1,302 @@
+import React, { memo, useEffect, useState } from "react";
+import { BookOpen, Database, GraduationCap } from "lucide-react";
+import type { Subject, SubjectId } from "../../../core/types";
+import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
+
+import { MODULE_ORDER, MODULE_VISUALS, isModuleArtworkReady, preloadModuleArtwork } from "../moduleVisuals";
+
+const decodedModuleArtwork = new Set<string>();
+
+function warmSingleModuleArtwork(src: string): Promise<void> {
+  if (typeof window === "undefined" || decodedModuleArtwork.has(src) || isModuleArtworkReady(src)) {
+    decodedModuleArtwork.add(src);
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const image = new Image();
+    image.decoding = "sync";
+    image.loading = "eager";
+    image.setAttribute("fetchpriority", "high");
+    const finish = async () => {
+      try {
+        if (typeof image.decode === "function") await image.decode();
+      } catch {}
+      decodedModuleArtwork.add(src);
+      resolve();
+    };
+    image.onload = () => void finish();
+    image.onerror = () => resolve();
+    image.src = src;
+    if (image.complete && image.naturalWidth > 0) void finish();
+  });
+}
+
+interface ModulesViewProps {
+  subjects: Subject[];
+  lectureCounts: Record<string, number>;
+  progressBySubject: Map<string, { totalTasks: number; completedTasks: number; progressPercentage: number }>;
+  onSelectModule: (subjectId: SubjectId) => void;
+  language: "en" | "ar";
+}
+
+function ResilientModuleImage({
+  src,
+  placeholder,
+  accentRgb,
+}: {
+  src: string;
+  placeholder: string;
+  accentRgb: string;
+}) {
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(() => decodedModuleArtwork.has(src) || isModuleArtworkReady(src));
+  // The inline preview is intentionally not painted on module cards anymore.
+  // It was the source of the visibly blurred first paint on iPhone/iPad.
+  // Keep the prop because the same shared visual identity still uses it on detail pages.
+  void placeholder;
+
+  useEffect(() => {
+    let cancelled = false;
+    setAttempt(0);
+
+    if (decodedModuleArtwork.has(src) || isModuleArtworkReady(src)) {
+      decodedModuleArtwork.add(src);
+      setLoaded(true);
+      return () => { cancelled = true; };
+    }
+
+    setLoaded(false);
+    void warmSingleModuleArtwork(src).then(() => {
+      if (!cancelled && decodedModuleArtwork.has(src)) setLoaded(true);
+    });
+
+    return () => { cancelled = true; };
+  }, [src]);
+
+  const retrySrc =
+    attempt === 0
+      ? src
+      : `${src}${src.includes("?") ? "&" : "?"}module-artwork-retry=${attempt}`;
+
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden"
+      style={{ backgroundColor: `rgba(${accentRgb},0.10)` }}
+      aria-hidden="true"
+    >
+      <img
+        ref={(node) => {
+          if (node?.complete && node.naturalWidth > 0) {
+            decodedModuleArtwork.add(src);
+            if (!loaded) setLoaded(true);
+          }
+        }}
+        src={retrySrc}
+        alt=""
+        loading="eager"
+        decoding="sync"
+        fetchPriority="high"
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-75 ${loaded ? "opacity-100" : "opacity-0"}`}
+        draggable={false}
+        onLoad={() => {
+          decodedModuleArtwork.add(src);
+          setLoaded(true);
+        }}
+        onError={() => {
+          setLoaded(false);
+          setAttempt((current) => (current < 4 ? current + 1 : current));
+        }}
+      />
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, value, label, tone }: {
+  icon: React.ComponentType<{ className?: string }>;
+  value: React.ReactNode;
+  label: string;
+  tone: "violet" | "blue" | "emerald";
+}) {
+  const tones = {
+    violet: {
+      icon: "text-violet-600 dark:text-violet-300",
+      iconSurface: "bg-violet-50 border-violet-100 dark:bg-violet-500/12 dark:border-violet-400/15",
+      glow: "shadow-[0_8px_24px_rgba(139,92,246,0.08)] dark:shadow-[0_8px_26px_rgba(139,92,246,0.08)]",
+    },
+    blue: {
+      icon: "text-sky-600 dark:text-sky-300",
+      iconSurface: "bg-sky-50 border-sky-100 dark:bg-sky-500/12 dark:border-sky-400/15",
+      glow: "shadow-[0_8px_24px_rgba(14,165,233,0.08)] dark:shadow-[0_8px_26px_rgba(14,165,233,0.08)]",
+    },
+    emerald: {
+      icon: "text-emerald-600 dark:text-emerald-300",
+      iconSurface: "bg-emerald-50 border-emerald-100 dark:bg-emerald-500/12 dark:border-emerald-400/15",
+      glow: "shadow-[0_8px_24px_rgba(16,185,129,0.08)] dark:shadow-[0_8px_26px_rgba(16,185,129,0.08)]",
+    },
+  } as const;
+
+  const selectedTone = tones[tone];
+
+  return (
+    <div
+      className={`flex min-h-[64px] min-w-0 items-center gap-1.5 rounded-[14px] border border-black/[0.055] bg-white px-1.5 py-2.5 dark:border-white/[0.07] dark:bg-[#15161A] sm:min-h-[72px] sm:min-w-[164px] sm:gap-3.5 sm:rounded-[16px] sm:px-3.5 sm:py-3 ${selectedTone.glow}`}
+    >
+      <div
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border sm:h-11 sm:w-11 sm:rounded-[12px] ${selectedTone.iconSurface}`}
+        aria-hidden="true"
+      >
+        <Icon className={`h-[15px] w-[15px] sm:h-[19px] sm:w-[19px] ${selectedTone.icon}`} />
+      </div>
+
+      <div className="min-w-0 text-left">
+        <div className="text-[15px] font-semibold leading-none tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[17px]">
+          {value}
+        </div>
+        <div className="mt-1 whitespace-nowrap text-[8.5px] font-medium leading-none tracking-[-0.02em] text-neutral-500 dark:text-[#EBEBF599] sm:mt-1.5 sm:text-[11px] sm:tracking-normal">
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const ModulesView = memo(function ModulesView({ subjects, progressBySubject, onSelectModule, language }: ModulesViewProps) {
+  useEffect(() => {
+    void preloadModuleArtwork();
+  }, []);
+
+  const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+  const orderedSubjects = MODULE_ORDER.map((id) => subjectById.get(id)).filter((subject): subject is Subject => Boolean(subject));
+  // Lecture totals are intentionally unspecified for now. They are display-only values
+  // on the Modules page and are not derived from the app lecture database.
+  const displayedLectureCount = "-";
+  const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_VISUALS[subject.id].credits, 0);
+
+  return (
+    <section className="w-full pb-8" aria-label={language === "ar" ? "الموديولات" : "Modules"}>
+      <header className="flex flex-col gap-5 pt-4 pb-7">
+        <div className="flex flex-col gap-2.5">
+          <h1 className="hidden md:block text-large-title font-display font-semibold tracking-[-0.025em] text-neutral-950 dark:text-white">
+            {language === "ar" ? "الموديولات" : "Modules"}
+          </h1>
+          <p className="max-w-2xl text-subhead font-medium text-neutral-500 dark:text-[#EBEBF599]">
+            {language === "ar" ? "استعرض كل موديول مع الكريديت والمحاضرات والساعات الدراسية." : "Explore each module with its credits, lectures, and lecture hours."}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 items-stretch gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          <MetricCard
+            icon={Database}
+            value={orderedSubjects.length}
+            label={language === "ar" ? "الموديولات" : "Modules"}
+            tone="violet"
+          />
+          <MetricCard
+            icon={BookOpen}
+            value={displayedLectureCount}
+            label={language === "ar" ? "إجمالي المحاضرات" : "Total Lectures"}
+            tone="blue"
+          />
+          <MetricCard
+            icon={GraduationCap}
+            value={totalCredits}
+            label={language === "ar" ? "الكريديت" : "Credit"}
+            tone="emerald"
+          />
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {orderedSubjects.map((subject) => {
+          const meta = MODULE_VISUALS[subject.id];
+          const iconInfo = getSubjectIconInfo(subject.id);
+          const Icon = iconInfo.icon;
+          const progress = progressBySubject.get(subject.id)?.progressPercentage || 0;
+
+          return (
+            <button
+              key={subject.id}
+              type="button"
+              onClick={() => onSelectModule(subject.id)}
+              className="relative isolate flex min-h-[348px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
+              aria-label={`${subject.name} module`}
+            >
+              <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+                <ResilientModuleImage src={meta.image} placeholder={meta.placeholder} accentRgb={meta.accentRgb} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
+                <div
+                  className="absolute left-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl"
+                  style={{
+                    color: meta.accent,
+                    backgroundColor: `rgba(${meta.accentRgb},0.18)`,
+                    borderColor: `rgba(${meta.accentRgb},0.32)`,
+                    boxShadow: `0 8px 22px rgba(${meta.accentRgb},0.14)`,
+                  }}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div
+                className={`flex flex-1 flex-col px-[18px] pb-[15px] pt-3 ${meta.surfaceClass}`}
+                style={{ backgroundImage: `linear-gradient(180deg, rgba(${meta.accentRgb},0.045), transparent 48%)` }}
+              >
+                <h2 className="text-[19px] font-semibold leading-[1.22] tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[20px]">
+                  {subject.name}
+                </h2>
+
+                <div className="mt-2 grid grid-cols-3 border-y border-black/[0.07] py-3 dark:border-white/[0.08]">
+                  <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Credits</div>
+                    <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.credits}</div>
+                  </div>
+                  <div className="flex min-w-0 flex-col items-center justify-center border-x border-black/[0.07] px-2 text-center dark:border-white/[0.08]">
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Lectures</div>
+                    <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{displayedLectureCount}</div>
+                  </div>
+                  <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Hours</div>
+                    <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.hours}</div>
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? "Completed" : "In progress"}</span>
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold"
+                      style={{
+                        color: meta.accent,
+                        borderColor: `rgba(${meta.accentRgb},0.20)`,
+                        backgroundColor: `rgba(${meta.accentRgb},0.08)`,
+                        boxShadow: `inset 0 0 0 3px rgba(${meta.accentRgb},0.06)`,
+                      }}
+                    >
+                      {progress}%
+                    </span>
+                  </div>
+
+                  <div
+                    className="h-1.5 w-full overflow-hidden rounded-full"
+                    style={{ backgroundColor: `rgba(${meta.accentRgb},0.12)` }}
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, progress))}%`,
+                        backgroundColor: meta.accent,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+});
+
+export default ModulesView;
