@@ -4798,3 +4798,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   .home-hero-banner .hero-gold-motes { opacity: 0.24; }
   .home-hero-banner .hero-gold-current { opacity: 0.30; }
 }
+
+/* ========================================================================== 
+   PHASE 3 — iOS / iPadOS touch polish
+   --------------------------------------------------------------------------
+   Delayed UIKit-style press feedback is applied by main.tsx only after a
+   short stationary touch. Scrolls/drags cancel the state before it appears.
+   Opacity-only feedback keeps WKWebView hit-testing and compositing stable.
+   ========================================================================== */
+@media (hover: none) and (pointer: coarse) {
+  [data-ios-touch-pressed="true"] {
+    opacity: 0.72 !important;
+    transition: opacity 78ms ease-out !important;
+  }
+}

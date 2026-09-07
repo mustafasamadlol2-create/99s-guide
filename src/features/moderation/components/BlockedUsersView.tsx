@@ -3,9 +3,10 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, UserX, Loader2, AlertCircle } from "lucide-react";
+import { ChevronLeft, UserX, Loader2, AlertCircle, UserCheck } from "lucide-react";
 import { apiClient } from "../../../core/api/apiClient";
 import { UserAvatar } from "../../profile/components/UserAvatar";
+import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 
 interface BlockedUser {
   id: string;
@@ -114,41 +115,59 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`flex items-center gap-4 p-4 relative ${
-                  i < users.length - 1
-                    ? "after:content-[''] after:absolute after:bottom-0 after:left-16 after:right-4 after:h-[1px] after:bg-neutral-100 dark:after:bg-neutral-800/50"
-                    : ""
-                }`}
+                className="relative"
               >
-                <UserAvatar
-                  name={user.name}
-                  avatarUrl={user.avatarUrl || user.avatar}
-                  className="w-11 h-11 rounded-full border border-neutral-200 dark:border-white/[0.12] shrink-0 select-none pointer-events-none"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-semibold text-neutral-900 dark:text-white truncate">
-                    {user.name}
-                  </p>
-                  <p className="text-[13px] text-neutral-500 dark:text-[#EBEBF599] mt-0.5">
-                    Blocked on{" "}
-                    {new Date(user.blockedAt).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleUnblock(user.id)}
+                <SwipeActionItem
+                  keyId={`blocked-${user.id}`}
                   disabled={unblocking === user.id}
-                  className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-white/[0.12] bg-white dark:bg-[#2C2C2E] text-neutral-700 dark:text-[#EBEBF599] text-[13px] font-semibold hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                  className="rounded-none"
+                  actions={[
+                    {
+                      label: "Unblock",
+                      icon: <UserCheck className="w-5 h-5" />,
+                      bgClass: "bg-emerald-500 dark:bg-emerald-600",
+                      onClick: () => handleUnblock(user.id),
+                    },
+                  ]}
                 >
-                  {unblocking === user.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    "Unblock"
-                  )}
-                </button>
+                  <div
+                    className={`flex items-center gap-4 p-4 relative bg-white/60 dark:bg-[#1C1C1E]/40 ${
+                      i < users.length - 1
+                        ? "after:content-[''] after:absolute after:bottom-0 after:left-16 after:right-4 after:h-[1px] after:bg-neutral-100 dark:after:bg-neutral-800/50"
+                        : ""
+                    }`}
+                  >
+                    <UserAvatar
+                      name={user.name}
+                      avatarUrl={user.avatarUrl || user.avatar}
+                      className="w-11 h-11 rounded-full border border-neutral-200 dark:border-white/[0.12] shrink-0 select-none pointer-events-none"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-semibold text-neutral-900 dark:text-white truncate">
+                        {user.name}
+                      </p>
+                      <p className="text-[13px] text-neutral-500 dark:text-[#EBEBF599] mt-0.5">
+                        Blocked on{" "}
+                        {new Date(user.blockedAt).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleUnblock(user.id)}
+                      disabled={unblocking === user.id}
+                      className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-white/[0.12] bg-white dark:bg-[#2C2C2E] text-neutral-700 dark:text-[#EBEBF599] text-[13px] font-semibold hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                    >
+                      {unblocking === user.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        "Unblock"
+                      )}
+                    </button>
+                  </div>
+                </SwipeActionItem>
               </motion.div>
             ))}
           </AnimatePresence>

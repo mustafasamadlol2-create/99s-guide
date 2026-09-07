@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
 import { HapticFeedback } from "../device/haptic";
+import { NativeBridge } from "../device/capacitor/nativeBridge";
 import { isAppleTouchNavigationDevice } from "./useSwipeBack";
 
 const FORM_CONTROL_SELECTOR = [
@@ -510,4 +511,128 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   }, [isEnabled, reduceMotion, x]);
 
   return { surfaceRef, x, isInteracting, didDragRecently };
+}
+
+
+interface IOSKeyboardDragDismissOptions {
+  isEnabled?: boolean;
+  /** Finger travel before a downward scroll gesture dismisses the keyboard. */
+  threshold?: number;
+}
+
+const KEYBOARD_EDITABLE_SELECTOR = [
+  'input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])',
+  "textarea",
+  '[contenteditable="true"]',
+].join(",");
+
+/**
+ * iPhone/iPad-only keyboard dismissal that follows the user's normal scroll
+ * intent. When a text control owns focus and a downward drag begins outside
+ * that control, we hand dismissal to Capacitor's native Keyboard plugin. The
+ * page itself remains fully scrollable; this hook never preventDefault()s.
+ *
+ * It deliberately ignores drags that start inside the active editor so text
+ * selection, caret movement and textarea scrolling retain native behavior.
+ */
+export function useIOSKeyboardDragDismiss({
+  isEnabled = true,
+  threshold = 16,
+}: IOSKeyboardDragDismissOptions = {}): void {
+  const enabledRef = useRef(isEnabled);
+  const thresholdRef = useRef(threshold);
+
+  useEffect(() => {
+    enabledRef.current = isEnabled;
+    thresholdRef.current = threshold;
+  }, [isEnabled, threshold]);
+
+  useEffect(() => {
+    if (!isEnabled || !isAppleTouchNavigationDevice()) return;
+
+    let eligible = false;
+    let startX = 0;
+    let startY = 0;
+    let activeEditor: HTMLElement | null = null;
+
+    const reset = () => {
+      eligible = false;
+      activeEditor = null;
+    };
+
+    const resolveActiveEditor = (): HTMLElement | null => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return null;
+      return active.matches(KEYBOARD_EDITABLE_SELECTOR) ? active : null;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      reset();
+      if (!enabledRef.current || event.touches.length !== 1) return;
+
+      const editor = resolveActiveEditor();
+      if (!editor) return;
+
+      const target = event.target as Element | null;
+      if (!target) return;
+      if (target === editor || editor.contains(target)) return;
+      if (target.closest(KEYBOARD_EDITABLE_SELECTOR)) return;
+      if (target.closest('[data-keyboard-dismiss-disabled="true"]')) return;
+
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      activeEditor = editor;
+      eligible = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!eligible || !activeEditor || event.touches.length !== 1) return;
+
+      const touch = event.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      // A strong horizontal gesture belongs to navigation/pagers, not the
+      // keyboard. Upward scrolling also keeps the keyboard visible.
+      if (dy < -10 || (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 0.9)) {
+        reset();
+        return;
+      }
+
+      if (dy < thresholdRef.current || dy < Math.abs(dx) * 1.08) return;
+
+      const editor = activeEditor;
+      reset();
+
+      // Blur synchronously so WebKit releases the caret immediately; the
+      // native bridge then performs the platform keyboard's own slide-down.
+      editor.blur();
+      void NativeBridge.hideKeyboard();
+    };
+
+    document.addEventListener("touchstart", onTouchStart, {
+      passive: true,
+      capture: true,
+    });
+    document.addEventListener("touchmove", onTouchMove, {
+      passive: true,
+      capture: true,
+    });
+    document.addEventListener("touchend", reset, {
+      passive: true,
+      capture: true,
+    });
+    document.addEventListener("touchcancel", reset, {
+      passive: true,
+      capture: true,
+    });
+
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
+      document.removeEventListener("touchend", reset, true);
+      document.removeEventListener("touchcancel", reset, true);
+    };
+  }, [isEnabled]);
 }

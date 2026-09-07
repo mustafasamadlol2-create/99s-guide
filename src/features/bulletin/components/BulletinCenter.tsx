@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { AppNotification, Subject, Lecture } from "../../../core/types";
 import { nativeAlert } from "../../../core/device/alert";
+import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 
 interface BulletinCenterProps {
   isActive?: boolean;
@@ -309,6 +310,7 @@ export const BulletinCenter = function BulletinCenter({
                   </button>
                   <button
                     onClick={onClearAll}
+                    data-haptic="warning"
                     className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 dark:text-[#EBEBF599] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
                     title={isRtl ? "مسح الكل" : "Clear all"}
                   >
@@ -460,6 +462,26 @@ export const BulletinCenter = function BulletinCenter({
  key={notif.id}
  className="ios-list-item-virtualized relative overflow-hidden rounded-xl shadow-sm hover:shadow-md dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)] transition-shadow duration-normal"
  >
+ <SwipeActionItem
+ keyId={`bulletin-${notif.id}`}
+ direction={isRtl ? "rtl" : "ltr"}
+ className="rounded-xl"
+ actions={[
+ {
+ label: isRtl ? (notif.read ? "غير مقروء" : "مقروء") : (notif.read ? "Unread" : "Read"),
+ icon: <Check className="w-5 h-5" />,
+ bgClass: "bg-blue-500 dark:bg-blue-600",
+ onClick: () => handleMarkItemReadState(notif.id, !notif.read),
+ },
+ {
+ label: isRtl ? "حذف" : "Delete",
+ icon: <Trash2 className="w-5 h-5" />,
+ bgClass: "bg-red-500 dark:bg-red-600",
+ isDestructive: true,
+ onClick: () => handleDeleteItem(notif.id),
+ },
+ ]}
+ >
  <div
  className={`relative z-10 p-4 bg-white dark:bg-[#1C1C1E] border transition cursor-default select-none rounded-xl ${
  notif.read
@@ -538,6 +560,7 @@ export const BulletinCenter = function BulletinCenter({
                 </button>
                 <button
                   onClick={(e) => handleDeleteItem(notif.id, e)}
+                  data-haptic="warning"
                   className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded-md text-neutral-500 dark:text-[#EBEBF599] bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -547,6 +570,7 @@ export const BulletinCenter = function BulletinCenter({
  </div>
  </div>
  </div>
+ </SwipeActionItem>
  </motion.div>
  );
  }

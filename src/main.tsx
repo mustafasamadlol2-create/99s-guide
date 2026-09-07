@@ -13,6 +13,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LaunchScreen } from "./components/ui/LaunchScreen";
 import "./index.css";
 import { HapticFeedback } from "./core/device/haptic";
+import { isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
 
 // Note: dark/light class and pre-paint background are applied by the inline
 // script in index.html before any JS loads — no duplicate needed here.
@@ -208,6 +209,113 @@ document.addEventListener(
     passive: true,
   },
 );
+
+
+// ============================================================================
+// iOS / iPadOS delayed touch-down feedback
+// ============================================================================
+// UIKit delays row/button highlighting very slightly while it decides whether a
+// finger intends to tap or scroll. Reproducing that behavior avoids the web-like
+// instant flash on touchStart while still giving intentional taps a crisp press
+// state. This layer changes opacity only; it never changes layout/transform and
+// never runs on mouse/trackpad input.
+
+const TOUCH_FEEDBACK_SELECTOR = [
+  "button:not(:disabled)",
+  "a[href]",
+  '[role="button"]:not([aria-disabled="true"])',
+  '[role="tab"]:not([aria-disabled="true"])',
+  '[role="switch"]:not([aria-disabled="true"])',
+  '[role="menuitem"]:not([aria-disabled="true"])',
+  ".cursor-pointer",
+].join(",");
+
+const TOUCH_FEEDBACK_EXCLUDED_SELECTOR = [
+  '#ios_native_tabbar_wrapper',
+  '.document-open-button',
+  '[data-touch-feedback="none"]',
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable="true"]',
+].join(",");
+
+if (isAppleTouchNavigationDevice()) {
+  let candidate: HTMLElement | null = null;
+  let startX = 0;
+  let startY = 0;
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearPressTimer = () => {
+    if (pressTimer !== null) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
+
+  const clearPressedState = (tail = false) => {
+    clearPressTimer();
+    const node = candidate;
+    candidate = null;
+    if (!node) return;
+
+    const remove = () => node.removeAttribute("data-ios-touch-pressed");
+    if (tail && node.hasAttribute("data-ios-touch-pressed")) {
+      setTimeout(remove, 70);
+    } else {
+      remove();
+    }
+  };
+
+  document.addEventListener(
+    "touchstart",
+    (event) => {
+      clearPressedState(false);
+      if (event.touches.length !== 1) return;
+
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || target.closest(TOUCH_FEEDBACK_EXCLUDED_SELECTOR)) return;
+      const interactive = target.closest<HTMLElement>(TOUCH_FEEDBACK_SELECTOR);
+      if (!interactive) return;
+      if (interactive.closest(TOUCH_FEEDBACK_EXCLUDED_SELECTOR)) return;
+
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      candidate = interactive;
+
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        candidate?.setAttribute("data-ios-touch-pressed", "true");
+      }, 45);
+    },
+    { passive: true, capture: true },
+  );
+
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!candidate || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.hypot(dx, dy) > 9) clearPressedState(false);
+    },
+    { passive: true, capture: true },
+  );
+
+  document.addEventListener(
+    "touchend",
+    () => clearPressedState(true),
+    { passive: true, capture: true },
+  );
+
+  document.addEventListener(
+    "touchcancel",
+    () => clearPressedState(false),
+    { passive: true, capture: true },
+  );
+}
 
 // ============================================================================
 // Service Worker registration — Web only

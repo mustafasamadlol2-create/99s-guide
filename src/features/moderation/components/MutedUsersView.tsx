@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { MicOff, Loader2, AlertCircle, CheckCheck, RefreshCw, ChevronDown, Infinity as InfinityIcon, Clock, Bell } from "lucide-react";
 import { apiClient } from "../../../core/api/apiClient";
 import { UserAvatar } from "../../profile/components/UserAvatar";
+import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 
 interface MutedUser {
   id: string;
@@ -201,7 +202,21 @@ export const MutedUsersView: React.FC = () => {
             const isActing = actionLoading?.startsWith(user.userId);
             const isEditing = editingId === user.userId;
             return (
-              <div key={user.userId} className="bg-white dark:bg-[#1C1C1E] border border-neutral-200/50 dark:border-white/[0.08] rounded-xl p-4 space-y-3 shadow-sm">
+              <SwipeActionItem
+                key={user.userId}
+                keyId={`muted-${user.userId}`}
+                disabled={!!isActing || isEditing}
+                className="rounded-xl"
+                actions={[
+                  {
+                    label: "Unmute",
+                    icon: <CheckCheck className="w-5 h-5" />,
+                    bgClass: "bg-emerald-500 dark:bg-emerald-600",
+                    onClick: () => handleRemove(user.userId),
+                  },
+                ]}
+              >
+              <div className="bg-white dark:bg-[#1C1C1E] border border-neutral-200/50 dark:border-white/[0.08] rounded-xl p-4 space-y-3 shadow-sm">
                 {/* User row */}
                 <div className="flex items-center gap-3">
                   <UserAvatar name={user.name} avatarUrl={user.avatar} className="w-10 h-10 rounded-full border border-neutral-200 dark:border-white/[0.12] shrink-0" />
@@ -278,6 +293,7 @@ export const MutedUsersView: React.FC = () => {
                   )}
                 </div>
               </div>
+              </SwipeActionItem>
             );
           })}
         </div>

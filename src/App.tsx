@@ -35,7 +35,8 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
-import { useSwipeBack } from "./core/hooks/useSwipeBack";
+import { useSwipeBack, isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
+import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
 import { SidebarNavItem } from "./core/layout/SidebarNavItem";
 import { TabBarItem } from "./core/layout/TabBarItem";
@@ -137,6 +138,7 @@ type AuthState = "INITIALIZING" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ER
 export default function App() {
   const device = useDeviceProfile();
   const shouldReduceMotion = useReducedMotion();
+  useIOSKeyboardDragDismiss({ isEnabled: true });
 
   // --- Core Session States ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1701,12 +1703,51 @@ export default function App() {
   const targetHomeLectureIdRef = useRef<string | null>(null);
   const targetLectureIdRef = useRef<string | null>(null);
 
+  const scrollActiveRootToTop = useCallback(() => {
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (!canvas) return;
+
+    // This is an explicit user command, not route restoration. Keep the phone
+    // floating-bar scroll baseline synchronized so the bar does not briefly
+    // shrink again from stale scroll history while the smooth scroll runs.
+    isRestoringGlobalScrollRef.current = false;
+    phoneTabBarLastScrollTopRef.current = 0;
+    phoneTabBarPendingExpandedRef.current = null;
+    setIsPhoneTabBarEngaged(true);
+
+    canvas.scrollTo({
+      top: 0,
+      behavior: shouldReduceMotion ? "auto" : "smooth",
+    });
+  }, [shouldReduceMotion]);
+
   const handleSidebarTabClick = useCallback((id: string) => {
     if (id === "search") {
       setPreserveSearchSession(false);
       setIsCommandPaletteOpen(true);
       return;
     }
+
+    const isSameTab = activeTab === id;
+    const isAtRoot =
+      id === "home"
+        ? activeHomeSubjectId === null && activeHomeLecture === null
+        : id === "subjects"
+          ? activeModuleId === null && activeSubjectId === null && activeLecture === null
+          : id === "profile"
+            ? !isProfileSubViewOpen
+            : id === "control-center"
+              ? !controlCenterHasBackHistory
+              : true;
+
+    // Native tab-bar convention: tapping the already-selected root tab returns
+    // the persistent content canvas to the top. If that tab is currently in a
+    // drill-down state, the existing behavior wins first and returns to root.
+    if (isSameTab && isAtRoot && isAppleTouchNavigationDevice()) {
+      scrollActiveRootToTop();
+      return;
+    }
+
     // Clear navigation stack when switching main tabs — stale entries from
     // a previous context (e.g. Search) must not affect the new tab.
     clearNavigationStack();
@@ -1732,7 +1773,18 @@ export default function App() {
       return id;
     });
        
-  }, []);
+  }, [
+    activeTab,
+    activeHomeSubjectId,
+    activeHomeLecture,
+    activeModuleId,
+    activeSubjectId,
+    activeLecture,
+    isProfileSubViewOpen,
+    controlCenterHasBackHistory,
+    clearNavigationStack,
+    scrollActiveRootToTop,
+  ]);
 
   // Sync state variables -> URL hash (prevents page reloads, keeps standard state synchronization)
   useEffect(() => {
