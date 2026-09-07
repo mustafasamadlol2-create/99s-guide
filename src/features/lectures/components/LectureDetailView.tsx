@@ -270,11 +270,10 @@ export const LectureDetailView = function LectureDetailView({
   >(initialTab);
   const [tabTransitionDirection, setTabTransitionDirection] = useState<1 | -1>(1);
   const lectureTabTransitionEase = [0.22, 1, 0.36, 1] as const;
-  // One shared visual clock: 140ms outgoing + 240ms incoming = 380ms total.
-  // The segmented indicator and card height use the same 380ms envelope.
+  // Keep the segmented-control indicator relaxed, while the workspace panel
+  // itself settles slightly faster so the card resize never feels delayed.
   const lectureTabTransitionDuration = 0.38;
-  const lectureTabExitDuration = 0.14;
-  const lectureTabEnterDuration = 0.24;
+  const lectureTabEnterDuration = 0.20;
 
   // Search can replace the current lecture while this view remains mounted.
   // Keep the selected content tab synchronized with the new search result.
@@ -1792,17 +1791,18 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={380}
+    durationMs={320}
     transitionEasing="cubic-bezier(0.22, 1, 0.36, 1)"
     settleToAuto
     singlePassOnDependencyChange
+    usePreviousStableHeightOnDependencyChange
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
     contentClassName="relative isolate w-full min-h-[clamp(430px,58svh,650px)] bg-white dark:bg-[#1C1C1E]"
   >
-  {/* Sequential iOS-style content handoff. The persistent white card stays
-      mounted; the outgoing panel fully disappears before the incoming panel is
-      created, so text from two sections can never overlap. */}
+  {/* The card shell stays mounted while the selected panel is replaced in one
+      commit. This removes the blank handoff frame and lets SmoothAutoHeight
+      measure the real incoming panel before the browser paints it. */}
   <motion.div
     ref={lectureTabPager.surfaceRef}
     className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
@@ -1813,23 +1813,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       isolation: "isolate",
     }}
   >
-  <AnimatePresence initial={false} mode="wait" custom={tabTransitionDirection}>
     <motion.div
       key={`lecture-workspace-${activeTab}`}
       custom={tabTransitionDirection}
       initial={{
-        opacity: 0,
-        x: tabTransitionDirection * 8,
+        opacity: 0.985,
+        x: tabTransitionDirection * 4,
       }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{
-        opacity: 0,
-        x: tabTransitionDirection * -6,
-        transition: {
-          duration: lectureTabExitDuration,
-          ease: lectureTabTransitionEase,
-        },
-      }}
       transition={{
         duration: lectureTabEnterDuration,
         ease: lectureTabTransitionEase,
@@ -3484,7 +3475,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   )}
 
     </motion.div>
-  </AnimatePresence>
   </motion.div>
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}

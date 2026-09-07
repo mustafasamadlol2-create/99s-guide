@@ -754,6 +754,9 @@ export const SubjectView = function SubjectView({
     const source = hierarchyLayerRef.current;
     if (!source) return;
     const clone = sanitizeSnapshot(source.cloneNode(true) as HTMLElement);
+    const sourceBackground = window.getComputedStyle(source).backgroundColor;
+    if (sourceBackground) clone.style.backgroundColor = sourceBackground;
+    clone.style.opacity = "1";
     hierarchySnapshotStackRef.current.push(clone);
   }, [sanitizeSnapshot]);
 
@@ -880,13 +883,22 @@ export const SubjectView = function SubjectView({
     onSwipeBack: handleNavBack,
   });
 
-  const hierarchyUnderlayX = useTransform(
+  // Reveal only the part of the previous page that has actually been uncovered
+  // by the moving foreground. Clipping the underlay is deliberate: WKWebView can
+  // composite cloned descendants above a transformed sibling even when the live
+  // page has an opaque background, which is what produced the doubled titles and
+  // cards visible in the supplied recording. A hard reveal boundary makes the two
+  // navigation pages mutually exclusive on every frame.
+  const hierarchyUnderlayClipPath = useTransform(
     internalBackGesture.progress,
-    [0, 1],
-    [isRtl ? 18 : -18, 0],
+    (latest) => {
+      const progress = Math.max(0, Math.min(1, latest));
+      const hiddenPercent = (1 - progress) * 100;
+      return isRtl
+        ? `inset(0 0 0 ${hiddenPercent}%)`
+        : `inset(0 ${hiddenPercent}% 0 0)`;
+    },
   );
-  // Keep the previous page fully opaque at all times. Fading this layer was
-  // the source of text bleed/"double page" frames in WKWebView.
   const hierarchyUnderlayOpacity = 1;
 
   const lectureCountsBySubSubject = useMemo(() => {
@@ -921,14 +933,18 @@ export const SubjectView = function SubjectView({
       <motion.div
         ref={hierarchyUnderlayRef}
         aria-hidden="true"
-        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
         style={{
           visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
-          x: hierarchyUnderlayX,
+          x: 0,
           opacity: hierarchyUnderlayOpacity,
+          clipPath: hierarchyUnderlayClipPath,
+          WebkitClipPath: hierarchyUnderlayClipPath,
           isolation: "isolate",
           contain: "paint",
-          willChange: internalBackGesture.isInteracting ? "transform" : "auto",
+          WebkitBackfaceVisibility: "hidden",
+          backfaceVisibility: "hidden",
+          willChange: internalBackGesture.isInteracting ? "clip-path" : "auto",
         }}
       />
       <motion.div
@@ -939,6 +955,8 @@ export const SubjectView = function SubjectView({
           minHeight: "100%",
           isolation: "isolate",
           contain: "paint",
+          WebkitBackfaceVisibility: "hidden",
+          backfaceVisibility: "hidden",
           boxShadow: internalBackGesture.isInteracting
             ? (isRtl
                 ? "-18px 0 34px -24px rgba(0,0,0,0.30)"

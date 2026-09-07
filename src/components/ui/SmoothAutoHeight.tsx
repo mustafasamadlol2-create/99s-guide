@@ -7,6 +7,7 @@ interface SmoothAutoHeightProps {
   contentClassName?: string;
   style?: React.CSSProperties;
   durationMs?: number;
+  transitionEasing?: string;
   minMeasuredHeight?: number;
   includeOverflowInMeasurement?: boolean;
   /**
@@ -22,6 +23,13 @@ interface SmoothAutoHeightProps {
    * panels (MCQ/flashcards) cannot stretch the animation into a slow chain.
    */
   singlePassOnDependencyChange?: boolean;
+  /**
+   * Opt-in for tab/card swaps where the incoming panel is mounted immediately.
+   * The shell is pinned to the previous stable intrinsic height before paint,
+   * then animated to the newly measured panel height. Other callers retain the
+   * original measurement behavior.
+   */
+  usePreviousStableHeightOnDependencyChange?: boolean;
 }
 
 /**
@@ -36,10 +44,12 @@ export function SmoothAutoHeight({
   contentClassName = "",
   style,
   durationMs = 380,
+  transitionEasing = "cubic-bezier(0.23, 1, 0.32, 1)",
   minMeasuredHeight = 24,
   includeOverflowInMeasurement = false,
   settleToAuto = false,
   singlePassOnDependencyChange = false,
+  usePreviousStableHeightOnDependencyChange = false,
 }: SmoothAutoHeightProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -126,6 +136,38 @@ export function SmoothAutoHeight({
       });
     };
 
+    const animateFromPreviousStableHeight = (targetHeight: number) => {
+      if (targetHeight < minMeasuredHeight) return;
+      const previousHeight = lastStableHeightRef.current;
+      if (previousHeight == null) {
+        animateOnceTo(targetHeight);
+        return;
+      }
+
+      if (reducedMotionRef.current || Math.abs(targetHeight - previousHeight) <= 1) {
+        commitStable(targetHeight);
+        setHeight(settleToAuto ? null : targetHeight);
+        return;
+      }
+
+      isAnimatingRef.current = true;
+      setHasMeasured(true);
+
+      // useLayoutEffect runs before paint, so restoring the previous intrinsic
+      // height here prevents the incoming panel from flashing at its final size.
+      setHeight(previousHeight);
+
+      transitionFrame = requestAnimationFrame(() => {
+        secondTransitionFrame = requestAnimationFrame(() => {
+          setHeight(targetHeight);
+          lastStableHeightRef.current = targetHeight;
+          if (settleToAuto) {
+            settleTimer = window.setTimeout(releaseToAuto, durationMs + 20);
+          }
+        });
+      });
+    };
+
     const measureAfterPaint = (animate: boolean) => {
       cancelAnimationFrame(measureFrame);
       measureFrame = requestAnimationFrame(() => {
@@ -146,9 +188,14 @@ export function SmoothAutoHeight({
         if (!settleToAuto) setHeight(initial);
       }
     } else if (dependencyChanged) {
-      // One dependency change = one target measurement + one short transition.
-      // This is intentionally single-pass for complex tab content such as MCQ.
-      measureAfterPaint(true);
+      // Lecture-style card swaps can measure the already-mounted incoming panel
+      // immediately and animate from the cached previous height before paint.
+      // Other users (for example Calendar) retain the original post-paint path.
+      if (usePreviousStableHeightOnDependencyChange) {
+        animateFromPreviousStableHeight(readIntrinsicHeight());
+      } else {
+        measureAfterPaint(true);
+      }
     } else {
       measureAfterPaint(false);
     }
@@ -197,6 +244,7 @@ export function SmoothAutoHeight({
     minMeasuredHeight,
     settleToAuto,
     singlePassOnDependencyChange,
+    usePreviousStableHeightOnDependencyChange,
   ]);
 
   return (
@@ -208,7 +256,7 @@ export function SmoothAutoHeight({
         height: height == null ? undefined : `${height}px`,
         transition:
           hasMeasured && !reducedMotionRef.current
-            ? `height ${durationMs}ms cubic-bezier(0.23, 1, 0.32, 1)`
+            ? `height ${durationMs}ms ${transitionEasing}`
             : undefined,
       }}
     >
