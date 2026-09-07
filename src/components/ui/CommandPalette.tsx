@@ -388,8 +388,14 @@ export const CommandPalette = memo(function CommandPalette({
  onClick={onClose}
  initial={mobilePresentation ? { opacity: 1 } : false}
  animate={{ opacity: 1 }}
- exit={{ opacity: 0 }}
- transition={{ duration: mobilePresentation ? 0.16 : 0.18, ease: [0.32, 0.72, 0, 1] }}
+ exit={{
+   opacity: 0,
+   transition: {
+     duration: mobilePresentation ? 0.22 : 0.18,
+     ease: [0.32, 0.72, 0, 1],
+   },
+ }}
+ transition={{ duration: mobilePresentation ? 0 : 0.18, ease: [0.32, 0.72, 0, 1] }}
  className={`absolute inset-0 ${
    mobilePresentation
      ? "bg-black/20 backdrop-blur-[2px]"
@@ -405,7 +411,14 @@ export const CommandPalette = memo(function CommandPalette({
  <motion.div
  initial={mobilePresentation ? { y: 22, scale: 0.992 } : { opacity: 0, scale: 0.95, y: -20 }}
  animate={mobilePresentation ? { scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
- exit={mobilePresentation ? { y: 18, scale: 0.995 } : { opacity: 0, scale: 0.95, y: -20 }}
+ exit={mobilePresentation
+   ? {
+       y: 22,
+       scale: 0.996,
+       opacity: 0,
+       transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] },
+     }
+   : { opacity: 0, scale: 0.95, y: -20 }}
  transition={{
  type: "spring",
  stiffness: mobilePresentation ? 340 : 400,
