@@ -77,8 +77,8 @@ export function useSwipeBack({
   direction = "ltr",
   edgeWidth = 30,
   activationMode = "full",
-  commitProgress = 0.34,
-  velocityThreshold = 0.55,
+  commitProgress = 0.30,
+  velocityThreshold = 0.50,
   allowedStartSelector,
   onSwipeStart,
   onSwipeMove,
@@ -112,19 +112,18 @@ export function useSwipeBack({
   const velocityThresholdRef = useRef(velocityThreshold);
   const allowedStartSelectorRef = useRef(allowedStartSelector);
 
-  // Keep gesture configuration current during render rather than waiting for a
-  // post-paint effect. That removes a one-frame stale-owner window when users
-  // perform rapid consecutive Back swipes across navigation levels.
-  onSwipeBackRef.current = onSwipeBack;
-  onSwipeStartRef.current = onSwipeStart;
-  onSwipeMoveRef.current = onSwipeMove;
-  onSwipeEndRef.current = onSwipeEnd;
-  directionRef.current = direction;
-  edgeWidthRef.current = edgeWidth;
-  activationModeRef.current = activationMode;
-  commitProgressRef.current = commitProgress;
-  velocityThresholdRef.current = velocityThreshold;
-  allowedStartSelectorRef.current = allowedStartSelector;
+  useEffect(() => {
+    onSwipeBackRef.current = onSwipeBack;
+    onSwipeStartRef.current = onSwipeStart;
+    onSwipeMoveRef.current = onSwipeMove;
+    onSwipeEndRef.current = onSwipeEnd;
+    directionRef.current = direction;
+    edgeWidthRef.current = edgeWidth;
+    activationModeRef.current = activationMode;
+    commitProgressRef.current = commitProgress;
+    velocityThresholdRef.current = velocityThreshold;
+    allowedStartSelectorRef.current = allowedStartSelector;
+  });
 
   const triggerBack = useCallback(() => {
     if (triggerBackRef.current) {
@@ -295,6 +294,9 @@ export function useSwipeBack({
       const requiredStartSelector = allowedStartSelectorRef.current;
       const startsInsideRequiredRegion =
         !requiredStartSelector || Boolean(target?.closest?.(requiredStartSelector));
+
+      // Some sheets/dialogs remain mounted after they are visually closed.
+      // Only a genuinely visible modal should suppress navigation gestures.
       const modalIsOpen = Array.from(
         document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'),
       ).some((dialog) => {
@@ -339,29 +341,31 @@ export function useSwipeBack({
       const verticalDistance = Math.abs(touch.clientY - startYRef.current);
 
       if (!horizontalLockRef.current) {
-        // Do not permanently reject a swipe because of the first few noisy iOS
-        // touch samples. Wait until the user's intent is clear, then lock once
-        // horizontal movement wins. This removes the intermittent "nothing
-        // happens" starts without making vertical scrolling feel sticky.
+        // iOS often reports a few noisy diagonal samples immediately after the
+        // finger lands. Wait for clear intent instead of rejecting the gesture
+        // on those first pixels. Vertical scrolling still wins decisively.
         if (
-          verticalDistance >= 18 &&
-          verticalDistance > absoluteHorizontalDistance * 1.15
+          verticalDistance >= 20 &&
+          verticalDistance > absoluteHorizontalDistance * 1.20
         ) {
           resetTracking();
           return;
         }
 
-        // A short movement in the opposite direction is common when a finger
-        // lands. Only reject it once it is clearly intentional.
+        // Ignore a tiny opposite-direction wobble, but reject a deliberate
+        // horizontal gesture in the wrong direction once it is unambiguous.
         if (directionalDistance <= 0) {
-          if (absoluteHorizontalDistance >= 16 && absoluteHorizontalDistance > verticalDistance * 1.25) {
+          if (
+            absoluteHorizontalDistance >= 18 &&
+            absoluteHorizontalDistance > verticalDistance * 1.30
+          ) {
             resetTracking();
           }
           return;
         }
 
         if (distance < 5) return;
-        if (verticalDistance > distance * 0.88) return;
+        if (verticalDistance > distance * 0.92) return;
 
         horizontalLockRef.current = true;
         setIsInteracting(true);
