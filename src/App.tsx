@@ -1513,6 +1513,55 @@ export default function App() {
   const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
 
+  // Lightweight visual snapshot of the real Welcome page. We capture the DOM
+  // before drilling into a Home subject and use the clone only as a non-
+  // interactive underlay during the root swipe. This avoids mounting a second
+  // live HomeDashboard (and its effects/data work) while also preventing the
+  // browser's blank canvas from being exposed behind a moving SubjectView.
+  const homeDashboardSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const homeDashboardSnapshotRef = useRef<HTMLElement | null>(null);
+  const homeDashboardUnderlayHostRef = useRef<HTMLDivElement | null>(null);
+
+  const sanitizeHomeDashboardSnapshot = useCallback((snapshot: HTMLElement) => {
+    snapshot.removeAttribute("id");
+    snapshot.querySelectorAll<HTMLElement>("[id]").forEach((node) => node.removeAttribute("id"));
+    snapshot
+      .querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]")
+      .forEach((node) => {
+        node.setAttribute("tabindex", "-1");
+        node.setAttribute("aria-hidden", "true");
+      });
+    snapshot.setAttribute("aria-hidden", "true");
+    snapshot.style.pointerEvents = "none";
+    snapshot.style.userSelect = "none";
+    snapshot.style.transform = "none";
+    snapshot.style.willChange = "auto";
+    snapshot.style.position = "relative";
+    snapshot.style.width = "100%";
+    snapshot.style.minHeight = "100%";
+    snapshot.style.overflow = "hidden";
+    snapshot.style.isolation = "isolate";
+    snapshot.style.contain = "paint";
+    return snapshot;
+  }, []);
+
+  const captureHomeDashboardSnapshot = useCallback(() => {
+    const source = homeDashboardSurfaceRef.current;
+    if (!source) return;
+    const clone = sanitizeHomeDashboardSnapshot(source.cloneNode(true) as HTMLElement);
+    const sourceBackground = window.getComputedStyle(source).backgroundColor;
+    if (sourceBackground) clone.style.backgroundColor = sourceBackground;
+    clone.style.opacity = "1";
+    homeDashboardSnapshotRef.current = clone;
+  }, [sanitizeHomeDashboardSnapshot]);
+
+  const mountHomeDashboardSnapshot = useCallback(() => {
+    const host = homeDashboardUnderlayHostRef.current;
+    const snapshot = homeDashboardSnapshotRef.current;
+    if (!host || !snapshot) return;
+    host.replaceChildren(snapshot.cloneNode(true));
+  }, []);
+
   const pushNavigationStack = useCallback((options?: { returnToSearch?: boolean }) => {
     const entry: NavigationEntry = {
       activeTab,
@@ -1581,10 +1630,11 @@ export default function App() {
 
   const swipeDirection = isRtl ? "rtl" : "ltr";
 
-  // Home hierarchy: Welcome → Subject. This gesture remains dedicated to the
-  // subject root so nested SubjectView navigation can never compete with it.
+  // Home hierarchy: Welcome → Subject → Lecture. Search results also land here
+  // and pop back into the exact Search session that opened them.
   const homeBackGesture = useSwipeBack({
     direction: swipeDirection,
+    blockedStartSelector: '[data-subject-internal-back-active="true"]',
     isEnabled:
       activeTab === "home" &&
       !isCommandPaletteOpen &&
@@ -1599,6 +1649,20 @@ export default function App() {
     },
   });
 
+  const homeDashboardUnderlayClipPath = useTransform(
+    homeBackGesture.progress,
+    (latest) => {
+      const p = Math.max(0, Math.min(1, latest));
+      const hiddenPercent = (1 - p) * 100;
+      return isRtl
+        ? `inset(0 0 0 ${hiddenPercent}%)`
+        : `inset(0 ${hiddenPercent}% 0 0)`;
+    },
+  );
+
+  // Lecture Detail intentionally does not participate in page-level swipe-back:
+  // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
+  // tab paging. The visible Back button keeps the exact historical Back behavior.
   const handleHomeLectureBack = useCallback(() => {
     if (activeHomeLecture === null) return;
     if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
@@ -1608,9 +1672,8 @@ export default function App() {
     setLectureDetailSource(null);
   }, [activeHomeLecture, lectureDetailSource, restorePreviousNavigationEntry]);
 
-  // Lecture swipe-back is intentionally a separate recognizer. It can start
-  // only in the header strip, while PDF/Notes/MCQ/etc. keep their own horizontal
-  // pager untouched. The real SubjectView stays mounted underneath.
+  // Lecture Detail owns a separate Back recognizer restricted to the header.
+  // This keeps PDF/Notes/MCQ/etc. horizontal paging completely independent.
   const homeLectureBackGesture = useSwipeBack({
     direction: swipeDirection,
     isEnabled:
@@ -1621,10 +1684,22 @@ export default function App() {
     onSwipeBack: handleHomeLectureBack,
   });
 
+  const homeDashboardLectureUnderlayClipPath = useTransform(
+    homeLectureBackGesture.progress,
+    (latest) => {
+      const p = Math.max(0, Math.min(1, latest));
+      const hiddenPercent = (1 - p) * 100;
+      return isRtl
+        ? `inset(0 0 0 ${hiddenPercent}%)`
+        : `inset(0 ${hiddenPercent}% 0 0)`;
+    },
+  );
+
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
-  // search/deep-link Subject root.
+  // search/deep-link Subject → Lecture path.
   const subjectsBackGesture = useSwipeBack({
     direction: swipeDirection,
+    blockedStartSelector: '[data-subject-internal-back-active="true"]',
     isEnabled:
       activeTab === "subjects" &&
       !isCommandPaletteOpen &&
@@ -1687,20 +1762,6 @@ export default function App() {
     },
   });
 
-  // The Welcome underlay is clipped to the exact portion uncovered by the
-  // Subject foreground. This preserves the clean page separation on WKWebView
-  // while keeping the existing swipe timing and motion untouched.
-  const homeRootUnderlayClipPath = useTransform(
-    homeBackGesture.progress,
-    (latest) => {
-      const p = Math.max(0, Math.min(1, latest));
-      const hiddenPercent = (1 - p) * 100;
-      return isRtl
-        ? `inset(0 0 0 ${hiddenPercent}%)`
-        : `inset(0 ${hiddenPercent}% 0 0)`;
-    },
-  );
-
   // Parallax for the parent page that is already mounted below a Lecture.
   // Only transform/opacity are animated, keeping the interactive path GPU-only.
   const homeLectureUnderlayX = useTransform(
@@ -1717,14 +1778,20 @@ export default function App() {
   );
   const lectureUnderlayOpacity = 1;
 
+  useLayoutEffect(() => {
+    if (activeTab !== "home" || activeHomeSubjectId === null) return;
+    mountHomeDashboardSnapshot();
+  }, [activeTab, activeHomeSubjectId, mountHomeDashboardSnapshot]);
+
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
+    captureHomeDashboardSnapshot();
     setActiveHomeSubjectId(id);
     setActiveHomeLecture(null);
        
-  }, []);
+  }, [captureHomeDashboardSnapshot]);
 
-  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
+  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { captureHomeDashboardSnapshot(); setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, [captureHomeDashboardSnapshot]);
 
   const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
@@ -4754,6 +4821,7 @@ const handleSignOut = useCallback(async () => {
                 <>
                   {activeHomeSubjectId === null ? (
                     <motion.div
+                      ref={homeDashboardSurfaceRef}
                       key="home-dashboard"
                       initial={{ opacity: 1, x: 0 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -4787,44 +4855,29 @@ const handleSignOut = useCallback(async () => {
                       key="home-subject-details-stack"
                       className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
                     >
-                      {/* Keep the real Welcome dashboard mounted behind a Home subject.
-                          The foreground page is the only layer that moves, so a root Back
-                          gesture always reveals real content instead of the browser canvas. */}
                       <motion.div
+                        ref={homeDashboardUnderlayHostRef}
                         aria-hidden="true"
-                        tabIndex={-1}
-                        className="absolute inset-0 z-0 w-full min-h-full overflow-hidden pointer-events-none select-none bg-neutral-50 dark:bg-[#000000]"
+                        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
                         style={{
-                          clipPath: homeRootUnderlayClipPath,
-                          WebkitClipPath: homeRootUnderlayClipPath,
+                          clipPath:
+                            activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                              ? homeDashboardLectureUnderlayClipPath
+                              : homeDashboardUnderlayClipPath,
+                          WebkitClipPath:
+                            activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                              ? homeDashboardLectureUnderlayClipPath
+                              : homeDashboardUnderlayClipPath,
                           isolation: "isolate",
                           contain: "paint",
                           WebkitBackfaceVisibility: "hidden",
                           backfaceVisibility: "hidden",
-                          willChange: homeBackGesture.isInteracting ? "clip-path" : "auto",
+                          willChange:
+                            homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
+                              ? "clip-path"
+                              : "auto",
                         }}
-                      >
-                        <Suspense fallback={iOSLoadingFallback}>
-                          <ErrorBoundary>
-                            <HomeDashboard
-                              user={currentUser}
-                              subjects={subjects}
-                              dbLectures={dbLectures}
-                              calendarEvents={calendarEventsDb}
-                              progress={progressDb}
-                              globalSearchData={globalSearchData}
-                              onSearchSelect={handleSearchSelect}
-                              onSelectSubject={handleSelectHomeSubject}
-                              onSelectLecture={handleSelectHomeLecture}
-                              onNavigateTab={handleSidebarTabClick}
-                              onUpdateEvents={handleUpdateEvents}
-                              onAddEvent={handleAddNewEvent}
-                              language={language}
-                              isActive={false}
-                            />
-                          </ErrorBoundary>
-                        </Suspense>
-                      </motion.div>
+                      />
 
                       <motion.div
                         key="home-subject-details"
@@ -4832,85 +4885,93 @@ const handleSignOut = useCallback(async () => {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 1, scale: 1 }}
                         transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                        className="relative z-10 isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
+                        className={`relative z-10 isolate overflow-hidden w-full ${
+                          activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                            ? "bg-transparent"
+                            : "bg-neutral-50 dark:bg-[#000000]"
+                        }`}
                         style={{
                           x: activeHomeLecture === null ? homeBackGesture.x : 0,
                           willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                         }}
                       >
-                        <div className="w-full grid grid-cols-1 grid-rows-1 relative">
-                          {/* Smooth state-driven preservation of SubjectView without unmounting (keeps states and scroll) */}
-                          <motion.div
-                            style={{
-                              gridArea: "1 / 1 / 2 / 2",
-                              pointerEvents:
-                                activeHomeLecture === null ? "auto" : "none",
-                              x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
-                              opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
-                              willChange: homeLectureBackGesture.isInteracting ? "transform, opacity" : "auto",
-                            }}
-                            className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
-                          >
-                            <Suspense fallback={iOSLoadingFallback}>
+                      <div className="w-full grid grid-cols-1 grid-rows-1 relative">
+                        {/* Smooth state-driven preservation of SubjectView without unmounting (keeps states and scroll) */}
+                        <motion.div
+                          style={{
+                            gridArea: "1 / 1 / 2 / 2",
+                            pointerEvents:
+                              activeHomeLecture === null ? "auto" : "none",
+                            visibility:
+                              activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                                ? "hidden"
+                                : "visible",
+                            x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
+                            opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
+                            willChange: homeLectureBackGesture.isInteracting ? "transform, opacity" : "auto",
+                          }}
+                          className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
+                        >
+                          <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
-                              <SubjectView
-                                key={activeHomeSubjectId}
-                                subject={subjects.find(
-                                  (s) => s.id === activeHomeSubjectId,
-                                ) || subjects[0]}
-                                progress={progressDb}
-                                dbLectures={dbLectures}
-                                deepLinkedLecture={activeHomeLecture}
-                                onBack={homeBackGesture.triggerBack}
-                                onSelectLecture={handleSelectNestedLecture}
-                                isSwipeNavigationEnabled={activeHomeLecture === null}
-                                onInternalNavigationStateChange={setHomeSubjectHasInternalBack}
-                                language={language}
-                                calendarEvents={calendarEventsDb}
-                              />
-                            </ErrorBoundary>
+                            <SubjectView
+                              key={activeHomeSubjectId}
+                              subject={subjects.find(
+                                (s) => s.id === activeHomeSubjectId,
+                              ) || subjects[0]}
+                              progress={progressDb}
+                              dbLectures={dbLectures}
+                              deepLinkedLecture={activeHomeLecture}
+                              onBack={homeBackGesture.triggerBack}
+                              onSelectLecture={handleSelectNestedLecture}
+                              isSwipeNavigationEnabled={activeHomeLecture === null}
+                              onInternalNavigationStateChange={setHomeSubjectHasInternalBack}
+                              language={language}
+                              calendarEvents={calendarEventsDb}
+                            />
+                          </ErrorBoundary>
 </Suspense>
-                          </motion.div>
+                        </motion.div>
 
-                          <>
-                            {activeHomeLecture !== null && (
-                              <motion.div
-                                key="home-lecture-detail"
-                                style={{
-                                  gridArea: "1 / 1 / 2 / 2",
-                                  zIndex: 10,
-                                  boxShadow:
-                                    "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
-                                  overflow: "hidden",
-                                  x: homeLectureBackGesture.x,
-                                  willChange: homeLectureBackGesture.isInteracting ? "transform" : "auto",
-                                }}
-                                initial={{ opacity: 1 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 1 }}
-                                transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                                className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
-                              >
-                                <Suspense fallback={iOSLoadingFallback}>
+                        <>
+                          {activeHomeLecture !== null && (
+                            <motion.div
+                              key="home-lecture-detail"
+                              style={{
+                                gridArea: "1 / 1 / 2 / 2",
+                                zIndex: 10,
+                                boxShadow:
+                                  "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
+                                overflow: "hidden",
+                                x: homeLectureBackGesture.x,
+                                willChange: homeLectureBackGesture.isInteracting ? "transform" : "auto",
+                              }}
+                              initial={{ opacity: 1 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 1 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+                              className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                            >
+                              <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
-                                  <LectureDetailView
-                                    lecture={activeHomeLecture}
-                                    progress={activeHomeLectureProgress}
-                                    onUpdateProgress={
-                                      handleUpdateHomeLectureProgress
-                                    }
-                                    onAddPoints={handleAddPoints}
-                                    onBack={handleHomeLectureBack}
-                                    currentUser={activeLectureUser}
-                                    language={language}
-                                    initialTab={activeLectureTab}
-                                    calendarEvents={calendarEventsDb}
-                                  />
-                                </ErrorBoundary>
+                                <LectureDetailView
+                                  lecture={activeHomeLecture}
+                                  progress={activeHomeLectureProgress}
+                                  onUpdateProgress={
+                                    handleUpdateHomeLectureProgress
+                                  }
+                                  onAddPoints={handleAddPoints}
+                                  onBack={handleHomeLectureBack}
+                                  currentUser={activeLectureUser}
+                                  language={language}
+                                  initialTab={activeLectureTab}
+                                  calendarEvents={calendarEventsDb}
+                                />
+                              </ErrorBoundary>
 </Suspense>
-                              </motion.div>
-                            )}
-                          </>
+                            </motion.div>
+                          )}
+                        </>
                         </div>
                       </motion.div>
                     </div>

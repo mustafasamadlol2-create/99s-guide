@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
 import { HapticFeedback } from "../device/haptic";
 
@@ -19,6 +19,8 @@ interface UseSwipeBackOptions {
   velocityThreshold?: number;
   /** Optional selector that the initial touch target must be inside. */
   allowedStartSelector?: string;
+  /** Optional selector that vetoes this recognizer for the initial touch target. */
+  blockedStartSelector?: string;
   onSwipeStart?: () => void;
   onSwipeMove?: (signedOffset: number, progress: number) => void;
   onSwipeEnd?: (success: boolean) => void;
@@ -80,6 +82,7 @@ export function useSwipeBack({
   commitProgress = 0.30,
   velocityThreshold = 0.50,
   allowedStartSelector,
+  blockedStartSelector,
   onSwipeStart,
   onSwipeMove,
   onSwipeEnd,
@@ -97,9 +100,11 @@ export function useSwipeBack({
   const eligibleRef = useRef(false);
   const horizontalLockRef = useRef(false);
   const settlingRef = useRef(false);
+  const settlingSuccessRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const animationStopRef = useRef<(() => void) | null>(null);
   const triggerBackRef = useRef<(() => void) | null>(null);
+  const settlementEpochRef = useRef(0);
 
   const onSwipeBackRef = useRef(onSwipeBack);
   const onSwipeStartRef = useRef(onSwipeStart);
@@ -111,8 +116,9 @@ export function useSwipeBack({
   const commitProgressRef = useRef(commitProgress);
   const velocityThresholdRef = useRef(velocityThreshold);
   const allowedStartSelectorRef = useRef(allowedStartSelector);
+  const blockedStartSelectorRef = useRef(blockedStartSelector);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onSwipeBackRef.current = onSwipeBack;
     onSwipeStartRef.current = onSwipeStart;
     onSwipeMoveRef.current = onSwipeMove;
@@ -123,6 +129,7 @@ export function useSwipeBack({
     commitProgressRef.current = commitProgress;
     velocityThresholdRef.current = velocityThreshold;
     allowedStartSelectorRef.current = allowedStartSelector;
+    blockedStartSelectorRef.current = blockedStartSelector;
   });
 
   const triggerBack = useCallback(() => {
@@ -135,8 +142,20 @@ export function useSwipeBack({
     onSwipeBackRef.current();
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isEnabled || !isAppleTouchNavigationDevice()) {
+      // IMPORTANT: a successful swipe changes navigation state before the
+      // two-frame visual handoff finishes. That can disable this hook and run
+      // cleanup before the old completion callback gets a chance to clear the
+      // settling flag. If we leave it true, every later swipe and animated Back
+      // button on this same hook instance becomes permanently inert.
+      settlementEpochRef.current += 1;
+      settlingRef.current = false;
+      settlingSuccessRef.current = false;
+      eligibleRef.current = false;
+      horizontalLockRef.current = false;
+      velocityRef.current = 0;
+      triggerBackRef.current = null;
       x.set(0);
       progress.set(0);
       setIsInteracting(false);
@@ -171,6 +190,8 @@ export function useSwipeBack({
     const settleTo = (target: number, success: boolean, releaseVelocity = 0) => {
       stopAnimation();
       settlingRef.current = true;
+      settlingSuccessRef.current = success;
+      const settlementEpoch = ++settlementEpochRef.current;
 
       const targetProgress = success ? 1 : 0;
       const width = viewportWidth();
@@ -180,10 +201,12 @@ export function useSwipeBack({
         onSwipeMoveRef.current?.(latest, p);
       };
       const finish = () => {
+        if (settlementEpoch !== settlementEpochRef.current) return;
         progress.set(targetProgress);
 
         if (!success) {
           settlingRef.current = false;
+          settlingSuccessRef.current = false;
           onSwipeEndRef.current?.(false);
           setIsInteracting(false);
           return;
@@ -197,14 +220,20 @@ export function useSwipeBack({
         // destination; resetting x then becomes visually lossless instead of
         // producing the old white/reload-looking frame.
         onSwipeBackRef.current();
+        // Tell the owner immediately that navigation committed. Owners that
+        // hold a visual underlay can now schedule its removal after React paints
+        // the restored screen. Waiting until our own RAF chain used to lose this
+        // callback whenever navigation disabled the hook during the handoff.
+        onSwipeEndRef.current?.(true);
         rafRef.current = requestAnimationFrame(() => {
           rafRef.current = requestAnimationFrame(() => {
+            if (settlementEpoch !== settlementEpochRef.current) return;
             rafRef.current = null;
             x.set(0);
             progress.set(0);
             settlingRef.current = false;
+            settlingSuccessRef.current = false;
             setIsInteracting(false);
-            onSwipeEndRef.current?.(true);
           });
         });
       };
@@ -255,7 +284,15 @@ export function useSwipeBack({
     };
 
     triggerBackRef.current = () => {
-      if (settlingRef.current) return;
+      if (settlingRef.current) {
+        // A successful commit is already navigating; ignore duplicate taps.
+        // A cancelled spring, however, must never make Back/Home feel dead.
+        if (settlingSuccessRef.current) return;
+        settlementEpochRef.current += 1;
+        stopAnimation();
+        settlingRef.current = false;
+        settlingSuccessRef.current = false;
+      }
       resetTracking();
       x.set(0);
       progress.set(0);
@@ -265,7 +302,14 @@ export function useSwipeBack({
     };
 
     const handleTouchStart = (event: TouchEvent) => {
-      if (settlingRef.current || event.touches.length !== 1) return;
+      if (event.touches.length !== 1) return;
+      if (settlingRef.current) {
+        if (settlingSuccessRef.current) return;
+        settlementEpochRef.current += 1;
+        stopAnimation();
+        settlingRef.current = false;
+        settlingSuccessRef.current = false;
+      }
 
       const touch = event.touches[0];
       const width = viewportWidth();
@@ -294,6 +338,10 @@ export function useSwipeBack({
       const requiredStartSelector = allowedStartSelectorRef.current;
       const startsInsideRequiredRegion =
         !requiredStartSelector || Boolean(target?.closest?.(requiredStartSelector));
+      const recognizerBlockedSelector = blockedStartSelectorRef.current;
+      const blockedForThisRecognizer = Boolean(
+        recognizerBlockedSelector && target?.closest?.(recognizerBlockedSelector),
+      );
 
       // Some sheets/dialogs remain mounted after they are visually closed.
       // Only a genuinely visible modal should suppress navigation gestures.
@@ -310,7 +358,9 @@ export function useSwipeBack({
         );
       });
       const blocked =
-        modalIsOpen || Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
+        modalIsOpen ||
+        blockedForThisRecognizer ||
+        Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
 
       if (!startsInAllowedZone || !startsInsideRequiredRegion || blocked) {
         resetTracking();
@@ -341,19 +391,19 @@ export function useSwipeBack({
       const verticalDistance = Math.abs(touch.clientY - startYRef.current);
 
       if (!horizontalLockRef.current) {
-        // iOS often reports a few noisy diagonal samples immediately after the
-        // finger lands. Wait for clear intent instead of rejecting the gesture
-        // on those first pixels. Vertical scrolling still wins decisively.
+        // Wait for a clear intent before cancelling. WKWebView commonly emits
+        // a few diagonal/noisy samples immediately after touch-down; rejecting
+        // those made legitimate Back swipes feel random.
         if (
-          verticalDistance >= 20 &&
-          verticalDistance > absoluteHorizontalDistance * 1.20
+          verticalDistance >= 18 &&
+          verticalDistance > absoluteHorizontalDistance * 1.25
         ) {
           resetTracking();
           return;
         }
 
-        // Ignore a tiny opposite-direction wobble, but reject a deliberate
-        // horizontal gesture in the wrong direction once it is unambiguous.
+        // Tolerate a tiny opposite-direction wobble, but reject a deliberate
+        // horizontal gesture in the wrong direction once intent is obvious.
         if (directionalDistance <= 0) {
           if (
             absoluteHorizontalDistance >= 18 &&
@@ -364,8 +414,8 @@ export function useSwipeBack({
           return;
         }
 
-        if (distance < 5) return;
-        if (verticalDistance > distance * 0.92) return;
+        if (distance < 6) return;
+        if (verticalDistance > distance * 0.95) return;
 
         horizontalLockRef.current = true;
         setIsInteracting(true);
@@ -441,12 +491,21 @@ export function useSwipeBack({
     window.addEventListener("touchcancel", handleTouchCancel, { passive: true });
 
     return () => {
+      // Invalidate every pending animation/RAF callback from this effect before
+      // clearing refs. This is the core re-entrancy guarantee: after a route
+      // change, a new swipe can always start immediately and no stale completion
+      // callback can mutate the next page's gesture state.
+      settlementEpochRef.current += 1;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       stopAnimation();
       triggerBackRef.current = null;
       resetTracking();
+      settlingRef.current = false;
+      settlingSuccessRef.current = false;
       x.set(0);
       progress.set(0);
+      setIsInteracting(false);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);

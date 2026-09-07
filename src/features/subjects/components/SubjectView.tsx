@@ -7,6 +7,7 @@ import { apiClient } from "../../../core/api/apiClient";
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
@@ -856,7 +857,10 @@ export const SubjectView = function SubjectView({
     activeTrack !== null ||
     (subject.id === "ID" && activeSubSubject !== null);
 
-  useEffect(() => {
+  // Parent App uses this signal to decide whether it owns the page-level Back
+  // gesture. Publish it in a layout effect so parent/child recognizers cannot
+  // both stay active for a painted frame after an internal navigation change.
+  useLayoutEffect(() => {
     onInternalNavigationStateChange?.(hasInternalBack);
     return () => onInternalNavigationStateChange?.(false);
   }, [hasInternalBack, onInternalNavigationStateChange]);
@@ -929,7 +933,10 @@ export const SubjectView = function SubjectView({
   }), []);
 
   return (
-    <div className="subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000]">
+    <div
+      data-subject-internal-back-active={hasInternalBack ? "true" : "false"}
+      className="subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+    >
       <motion.div
         ref={hierarchyUnderlayRef}
         aria-hidden="true"
