@@ -258,6 +258,8 @@ interface HorizontalSwipePagerOptions {
   isRtl?: boolean;
   /** Controls that must retain their normal click/touch behavior. */
   blockedSelector?: string;
+  /** Keep a legacy edge reservation for pages where Back still owns the edge. */
+  reserveBackEdge?: boolean;
   commitDistance?: number;
   velocityThreshold?: number;
 }
@@ -270,8 +272,9 @@ export interface HorizontalSwipePagerGesture<T extends HTMLElement = HTMLDivElem
 }
 
 /**
- * iPhone/iPad-only interactive horizontal pager. It intentionally ignores the
- * navigation back-edge so Phase 1's edge-pop gesture always wins there.
+ * iPhone/iPad-only interactive horizontal pager. By default it preserves the
+ * legacy Back edge, while dedicated surfaces (such as Lecture Detail) can opt
+ * into the entire width when page-level Back is intentionally disabled.
  */
 export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>({
   onNext,
@@ -281,6 +284,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   isEnabled,
   isRtl = false,
   blockedSelector,
+  reserveBackEdge = true,
   commitDistance = 78,
   velocityThreshold = 0.58,
 }: HorizontalSwipePagerOptions): HorizontalSwipePagerGesture<T> {
@@ -296,6 +300,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   const enabledRef = useRef(isEnabled);
   const isRtlRef = useRef(isRtl);
   const blockedSelectorRef = useRef(blockedSelector);
+  const reserveBackEdgeRef = useRef(reserveBackEdge);
   const commitDistanceRef = useRef(commitDistance);
   const velocityThresholdRef = useRef(velocityThreshold);
 
@@ -319,6 +324,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     enabledRef.current = isEnabled;
     isRtlRef.current = isRtl;
     blockedSelectorRef.current = blockedSelector;
+    reserveBackEdgeRef.current = reserveBackEdge;
     commitDistanceRef.current = commitDistance;
     velocityThresholdRef.current = velocityThreshold;
   });
@@ -332,6 +338,11 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       setIsInteracting(false);
       return;
     }
+
+    // Lets the app-wide Back recognizer yield immediately to explicit content
+    // pagers (calendar, MCQ, flashcards, and lecture-tab paging).
+    const previousPagerMarker = node.getAttribute("data-horizontal-pager");
+    node.setAttribute("data-horizontal-pager", "true");
 
     const stopAnimation = () => {
       stopAnimationRef.current?.();
@@ -369,7 +380,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       const startsInBackEdge = isRtlRef.current
         ? touch.clientX >= rightEdge - backEdgeWidth
         : touch.clientX <= leftEdge + backEdgeWidth;
-      if (startsInBackEdge) return;
+      if (reserveBackEdgeRef.current && startsInBackEdge) return;
 
       stopAnimation();
       x.set(0);
@@ -507,6 +518,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       node.removeEventListener("touchmove", handleTouchMove);
       node.removeEventListener("touchend", handleTouchEnd);
       node.removeEventListener("touchcancel", handleTouchCancel);
+      if (previousPagerMarker === null) node.removeAttribute("data-horizontal-pager");
+      else node.setAttribute("data-horizontal-pager", previousPagerMarker);
     };
   }, [isEnabled, reduceMotion, x]);
 

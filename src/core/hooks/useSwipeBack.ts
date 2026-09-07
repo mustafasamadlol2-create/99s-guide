@@ -9,8 +9,10 @@ interface UseSwipeBackOptions {
   isEnabled: boolean;
   /** LTR = drag from the left edge toward the right. RTL mirrors the gesture. */
   direction?: SwipeBackDirection;
-  /** Width of the system edge activation zone. */
+  /** Width of the system edge activation zone when activationMode="edge". */
   edgeWidth?: number;
+  /** Full-surface back matches the requested app-wide gesture; edge is kept for rare opt-in cases. */
+  activationMode?: "full" | "edge";
   /** Minimum progress (0..1) that commits even with a slow drag. */
   commitProgress?: number;
   /** Fast flick velocity in px/ms that commits after a small minimum drag. */
@@ -37,6 +39,7 @@ const DISABLED_TARGET_SELECTOR = [
   '[contenteditable="true"]',
   '[role="slider"]',
   '#ios_native_tabbar_wrapper',
+  '[data-horizontal-pager="true"]',
 ].join(",");
 
 /**
@@ -57,7 +60,9 @@ export function isAppleTouchNavigationDevice(): boolean {
 }
 
 /**
- * Native-feeling, interactive iOS edge swipe-back.
+ * Native-feeling, interactive iOS/iPadOS swipe-back. By default the gesture
+ * can begin anywhere on the active page; direction still determines whether
+ * the drag is a Back request.
  *
  * The drag is driven by MotionValues so finger tracking does not cause a React
  * render on every frame. A successful gesture settles the current surface fully
@@ -69,6 +74,7 @@ export function useSwipeBack({
   isEnabled,
   direction = "ltr",
   edgeWidth = 30,
+  activationMode = "full",
   commitProgress = 0.34,
   velocityThreshold = 0.55,
   onSwipeStart,
@@ -98,6 +104,7 @@ export function useSwipeBack({
   const onSwipeEndRef = useRef(onSwipeEnd);
   const directionRef = useRef(direction);
   const edgeWidthRef = useRef(edgeWidth);
+  const activationModeRef = useRef(activationMode);
   const commitProgressRef = useRef(commitProgress);
   const velocityThresholdRef = useRef(velocityThreshold);
 
@@ -108,6 +115,7 @@ export function useSwipeBack({
     onSwipeEndRef.current = onSwipeEnd;
     directionRef.current = direction;
     edgeWidthRef.current = edgeWidth;
+    activationModeRef.current = activationMode;
     commitProgressRef.current = commitProgress;
     velocityThresholdRef.current = velocityThreshold;
   });
@@ -226,6 +234,7 @@ export function useSwipeBack({
             touch.clientX <= rightEdge + edgeSlop
           : touch.clientX <= leftEdge + edgeWidthRef.current &&
             touch.clientX >= leftEdge - edgeSlop;
+      const startsInAllowedZone = activationModeRef.current === "full" || inEdge;
 
       const target = event.target as Element | null;
       const modalIsOpen = Boolean(
@@ -234,7 +243,7 @@ export function useSwipeBack({
       const blocked =
         modalIsOpen || Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
 
-      if (!inEdge || blocked) {
+      if (!startsInAllowedZone || blocked) {
         resetTracking();
         return;
       }

@@ -1510,6 +1510,8 @@ export default function App() {
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
+  const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
+  const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
 
   const pushNavigationStack = useCallback((options?: { returnToSearch?: boolean }) => {
     const entry: NavigationEntry = {
@@ -1586,29 +1588,28 @@ export default function App() {
     isEnabled:
       activeTab === "home" &&
       !isCommandPaletteOpen &&
-      (activeHomeLecture !== null || activeHomeSubjectId !== null),
+      activeHomeLecture === null &&
+      activeHomeSubjectId !== null &&
+      !homeSubjectHasInternalBack,
     onSwipeBack: () => {
-      if (activeHomeLecture !== null) {
-        // A direct Search/Home lecture consumes the external navigation entry.
-        // A lecture opened *inside* an already-open Subject must first return
-        // to that Subject and leave the Search/Bulletin entry intact for the
-        // following Back action.
-        if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
-
-        setActiveHomeLecture(null);
-        if (lectureDetailSource === "dashboard") {
-          setActiveHomeSubjectId(null);
-        }
-        setLectureDetailSource(null);
-        return;
-      }
-
       if (activeHomeSubjectId !== null) {
         if (restorePreviousNavigationEntry()) return;
         setActiveHomeSubjectId(null);
       }
     },
   });
+
+  // Lecture Detail intentionally does not participate in page-level swipe-back:
+  // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
+  // tab paging. The visible Back button keeps the exact historical Back behavior.
+  const handleHomeLectureBack = useCallback(() => {
+    if (activeHomeLecture === null) return;
+    if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
+
+    setActiveHomeLecture(null);
+    if (lectureDetailSource === "dashboard") setActiveHomeSubjectId(null);
+    setLectureDetailSource(null);
+  }, [activeHomeLecture, lectureDetailSource, restorePreviousNavigationEntry]);
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
   // search/deep-link Subject → Lecture path.
@@ -1617,25 +1618,26 @@ export default function App() {
     isEnabled:
       activeTab === "subjects" &&
       !isCommandPaletteOpen &&
-      (activeLecture !== null ||
-        activeSubjectId !== null ||
-        activeModuleId !== null),
+      activeLecture === null &&
+      (
+        activeModuleId !== null ||
+        (activeSubjectId !== null && !legacySubjectHasInternalBack)
+      ),
     onSwipeBack: () => {
-      if (activeLecture !== null) {
-        if (restorePreviousNavigationEntry()) return;
-        setActiveLecture(null);
-        return;
-      }
       if (activeSubjectId !== null) {
         if (restorePreviousNavigationEntry()) return;
         setActiveSubjectId(null);
         return;
       }
-      if (activeModuleId !== null) {
-        setActiveModuleId(null);
-      }
+      if (activeModuleId !== null) setActiveModuleId(null);
     },
   });
+
+  const handleLegacyLectureBack = useCallback(() => {
+    if (activeLecture === null) return;
+    if (restorePreviousNavigationEntry()) return;
+    setActiveLecture(null);
+  }, [activeLecture, restorePreviousNavigationEntry]);
 
   // Root drill-down destinations (Profile → Settings, Settings → Legal,
   // Bulletin → Calendar/Home/etc.) use one shared page-level gesture. It is
@@ -4791,6 +4793,8 @@ const handleSignOut = useCallback(async () => {
                               deepLinkedLecture={activeHomeLecture}
                               onBack={homeBackGesture.triggerBack}
                               onSelectLecture={handleSelectNestedLecture}
+                              isSwipeNavigationEnabled={activeHomeLecture === null}
+                              onInternalNavigationStateChange={setHomeSubjectHasInternalBack}
                               language={language}
                               calendarEvents={calendarEventsDb}
                             />
@@ -4826,7 +4830,7 @@ const handleSignOut = useCallback(async () => {
                                     handleUpdateHomeLectureProgress
                                   }
                                   onAddPoints={handleAddPoints}
-                                  onBack={homeBackGesture.triggerBack}
+                                  onBack={handleHomeLectureBack}
                                   currentUser={activeLectureUser}
                                   language={language}
                                   initialTab={activeLectureTab}
@@ -4914,6 +4918,8 @@ const handleSignOut = useCallback(async () => {
                               dbLectures={dbLectures}
                               deepLinkedLecture={activeLecture}
                               onBack={subjectsBackGesture.triggerBack}
+                              isSwipeNavigationEnabled={activeLecture === null}
+                              onInternalNavigationStateChange={setLegacySubjectHasInternalBack}
                               onSelectLecture={(lect, tab) => {
                                 if (tab) setActiveLectureTab(tab);
                                 else setActiveLectureTab("pdf");
@@ -4950,7 +4956,7 @@ const handleSignOut = useCallback(async () => {
                                 progress={activeLectureProgress}
                                 onUpdateProgress={handleUpdateLectureProgress}
                                 onAddPoints={handleAddPoints}
-                                onBack={subjectsBackGesture.triggerBack}
+                                onBack={handleLegacyLectureBack}
                                 currentUser={activeLectureUser}
                                 language={language}
                                 calendarEvents={calendarEventsDb}

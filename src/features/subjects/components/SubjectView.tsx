@@ -65,6 +65,7 @@ import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 import { ContextMenu } from "../../../components/ui/ContextMenu";
 import { ListSkeleton } from "../../../components/ui/Skeleton";
 import { HapticFeedback } from "../../../core/device/haptic";
+import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
 
 // Department categories inside each Theory and Practical track
 const DEPARTMENTS = [
@@ -249,6 +250,10 @@ interface SubjectViewProps {
   calendarEvents?: CalendarEvent[];
   dbLectures?: any[];
   deepLinkedLecture?: any;
+  /** Lets the parent disable subject-level swipe while a LectureDetail overlay owns horizontal gestures. */
+  isSwipeNavigationEnabled?: boolean;
+  /** Reports whether Back should first unwind SubjectView's own hierarchy. */
+  onInternalNavigationStateChange?: (hasInternalBack: boolean) => void;
 }
 
 export const SubjectView = function SubjectView({
@@ -260,6 +265,8 @@ export const SubjectView = function SubjectView({
   calendarEvents = [],
   dbLectures = [],
   deepLinkedLecture,
+  isSwipeNavigationEnabled = true,
+  onInternalNavigationStateChange,
 }: SubjectViewProps) {
   const isRtl = language === "ar";
   const isTouchDevice = useIsTouchDevice();
@@ -724,6 +731,25 @@ export const SubjectView = function SubjectView({
     }
   }, [activeDepartment, activeTrack, activeSubSubject, subject.id, onBack]);
 
+  // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
+  // → Theory/Practical → department). The page-level swipe must unwind exactly
+  // one of those levels before the parent App is allowed to leave the subject.
+  const hasInternalBack =
+    activeDepartment !== null ||
+    activeTrack !== null ||
+    (subject.id === "ID" && activeSubSubject !== null);
+
+  useEffect(() => {
+    onInternalNavigationStateChange?.(hasInternalBack);
+    return () => onInternalNavigationStateChange?.(false);
+  }, [hasInternalBack, onInternalNavigationStateChange]);
+
+  const internalBackGesture = useSwipeBack({
+    direction: isRtl ? "rtl" : "ltr",
+    isEnabled: isSwipeNavigationEnabled && hasInternalBack,
+    onSwipeBack: handleNavBack,
+  });
+
   const lectureCountsBySubSubject = useMemo(() => {
     const counts: Record<string, { theory: number; practical: number }> = {};
     for (const subName of subSubjects) {
@@ -752,7 +778,13 @@ export const SubjectView = function SubjectView({
   }), []);
 
   return (
-    <div className="subject-view-root space-y-section pb-12 pr-1 relative">
+    <motion.div
+      className="subject-view-root space-y-section pb-12 pr-1 relative"
+      style={{
+        x: internalBackGesture.x,
+        willChange: internalBackGesture.isInteracting ? "transform" : "auto",
+      }}
+    >
       {/* Apple-style Large Navigation Header */}
       <div className="mb-8 pt-3">
         <div className="flex items-center gap-1 mb-4 -ml-2">
@@ -1238,7 +1270,7 @@ export const SubjectView = function SubjectView({
           </motion.div>
         )}
       </>
-    </div>
+    </motion.div>
   );
 };
 

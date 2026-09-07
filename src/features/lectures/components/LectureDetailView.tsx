@@ -1712,9 +1712,49 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    velocityThreshold: 0.58,
  });
 
+ const lectureTabOrder = useMemo(
+   () => ["pdf", "notes", "mcqs", "flashcards", "videos", "qa"] as const,
+   [],
+ );
+ const activeLectureTabIndex = lectureTabOrder.indexOf(activeTab);
+
+ const goToNextLectureTab = useCallback(() => {
+   if (activeLectureTabIndex < 0 || activeLectureTabIndex >= lectureTabOrder.length - 1) return;
+   handleLectureTabChange(lectureTabOrder[activeLectureTabIndex + 1]);
+ }, [activeLectureTabIndex, handleLectureTabChange, lectureTabOrder]);
+
+ const goToPreviousLectureTab = useCallback(() => {
+   if (activeLectureTabIndex <= 0) return;
+   handleLectureTabChange(lectureTabOrder[activeLectureTabIndex - 1]);
+ }, [activeLectureTabIndex, handleLectureTabChange, lectureTabOrder]);
+
+ // Lecture Detail is a horizontal content workspace, not a swipe-back surface.
+ // Outside nested MCQ/Anki pagers, a horizontal drag moves between the six
+ // lecture sections while the visible Back button remains the only exit path.
+ const lectureTabPager = useHorizontalSwipePager<HTMLDivElement>({
+   onNext: goToNextLectureTab,
+   onPrevious: goToPreviousLectureTab,
+   canNext: activeLectureTabIndex >= 0 && activeLectureTabIndex < lectureTabOrder.length - 1,
+   canPrevious: activeLectureTabIndex > 0,
+   isEnabled: true,
+   isRtl,
+   blockedSelector: '[data-lecture-inner-pager="true"], button, input, textarea, select, [contenteditable="true"]',
+   reserveBackEdge: false,
+   commitDistance: 72,
+   velocityThreshold: 0.54,
+ });
+
 
  return (
-  <div className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased">
+  <motion.div
+    ref={lectureTabPager.surfaceRef}
+    data-swipe-back-disabled="true"
+    className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased"
+    style={{
+      x: lectureTabPager.x,
+      willChange: lectureTabPager.isInteracting ? "transform" : "auto",
+    }}
+  >
  {/* 1. Header Toolbar */}
   <div className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
  <div className="flex items-center gap-3 w-full sm:w-auto -ml-1">
@@ -2098,6 +2138,7 @@ initial={{ opacity: 0, y: 3 }}
  // Quiz Active State (One question per screen as requested)
  <motion.div
    ref={mcqPager.surfaceRef}
+   data-lecture-inner-pager="true"
    style={{ x: mcqPager.x, willChange: "transform" }}
    className="flex flex-col"
  >
@@ -2641,6 +2682,7 @@ initial={{ opacity: 0, y: 3 }}
 
         <motion.div
           ref={flashcardPager.surfaceRef}
+          data-lecture-inner-pager="true"
           onClick={() => {
             if (flashcardPager.didDragRecently()) return;
             setIsFlipped(!isFlipped);
@@ -3570,7 +3612,7 @@ initial={{ opacity: 0, y: 3 }}
     }}
   />
   </SmoothAutoHeight>
-  </div>
+  </motion.div>
   );
 };
 
