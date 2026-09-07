@@ -7,6 +7,7 @@ import { apiClient } from "../../../core/api/apiClient";
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
@@ -724,6 +725,7 @@ export const SubjectView = function SubjectView({
   const hierarchyUnderlayRef = useRef<HTMLDivElement | null>(null);
   const hierarchySnapshotStackRef = useRef<HTMLElement[]>([]);
   const clearUnderlayFrameRef = useRef<number | null>(null);
+  const hierarchyGestureWidthRef = useRef(1);
   const [isHierarchyUnderlayVisible, setIsHierarchyUnderlayVisible] = useState(false);
 
   const sanitizeSnapshot = useCallback((snapshot: HTMLElement) => {
@@ -750,6 +752,22 @@ export const SubjectView = function SubjectView({
     return snapshot;
   }, []);
 
+  const primeHierarchyUnderlay = useCallback((visible: boolean) => {
+    const host = hierarchyUnderlayRef.current;
+    if (!host) return;
+
+    const snapshot =
+      hierarchySnapshotStackRef.current[hierarchySnapshotStackRef.current.length - 1];
+
+    // Set visibility imperatively before the next React paint. On WKWebView a
+    // state-only visibility toggle can miss the first interactive frame, which
+    // exposes the plain canvas as a brief white page. Keeping the previous page
+    // pre-mounted makes the reveal deterministic from the very first pixel.
+    host.style.visibility = visible && snapshot ? "visible" : "hidden";
+    if (snapshot) host.replaceChildren(snapshot.cloneNode(true));
+    else host.replaceChildren();
+  }, []);
+
   const captureHierarchySnapshot = useCallback(() => {
     const source = hierarchyLayerRef.current;
     if (!source) return;
@@ -758,28 +776,25 @@ export const SubjectView = function SubjectView({
     if (sourceBackground) clone.style.backgroundColor = sourceBackground;
     clone.style.opacity = "1";
     hierarchySnapshotStackRef.current.push(clone);
-  }, [sanitizeSnapshot]);
+
+    // Prepare the previous page while it is still off-screen/hidden. The next
+    // swipe therefore never waits for cloneNode + React state on its first frame.
+    primeHierarchyUnderlay(false);
+  }, [primeHierarchyUnderlay, sanitizeSnapshot]);
 
   const mountPreviousHierarchySnapshot = useCallback(() => {
-    const host = hierarchyUnderlayRef.current;
-    const snapshot =
-      hierarchySnapshotStackRef.current[hierarchySnapshotStackRef.current.length - 1];
-    if (!host || !snapshot) return;
-
     if (clearUnderlayFrameRef.current !== null) {
       cancelAnimationFrame(clearUnderlayFrameRef.current);
       clearUnderlayFrameRef.current = null;
     }
-    host.replaceChildren(snapshot.cloneNode(true));
+    primeHierarchyUnderlay(true);
     setIsHierarchyUnderlayVisible(true);
-  }, []);
+  }, [primeHierarchyUnderlay]);
 
   const hideHierarchyUnderlay = useCallback(() => {
-    const host = hierarchyUnderlayRef.current;
     setIsHierarchyUnderlayVisible(false);
-    if (!host) return;
-    host.replaceChildren();
-  }, []);
+    primeHierarchyUnderlay(false);
+  }, [primeHierarchyUnderlay]);
 
   const scheduleHierarchyUnderlayClear = useCallback(() => {
     if (clearUnderlayFrameRef.current !== null) {
@@ -856,7 +871,10 @@ export const SubjectView = function SubjectView({
     activeTrack !== null ||
     (subject.id === "ID" && activeSubSubject !== null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    // Publish ownership before the next paint so a fast second swipe cannot land
+    // in the one-frame gap between SubjectView's internal stack and App's parent
+    // back gesture. This is what makes rapid consecutive Back swipes reliable.
     onInternalNavigationStateChange?.(hasInternalBack);
     return () => onInternalNavigationStateChange?.(false);
   }, [hasInternalBack, onInternalNavigationStateChange]);
@@ -875,7 +893,13 @@ export const SubjectView = function SubjectView({
   const internalBackGesture = useSwipeBack({
     direction: isRtl ? "rtl" : "ltr",
     isEnabled: isSwipeNavigationEnabled && hasInternalBack,
-    onSwipeStart: mountPreviousHierarchySnapshot,
+    onSwipeStart: () => {
+      hierarchyGestureWidthRef.current = Math.max(
+        1,
+        hierarchyLayerRef.current?.getBoundingClientRect().width || window.innerWidth || 1,
+      );
+      mountPreviousHierarchySnapshot();
+    },
     onSwipeEnd: (success) => {
       if (success) scheduleHierarchyUnderlayClear();
       else hideHierarchyUnderlay();
@@ -890,13 +914,14 @@ export const SubjectView = function SubjectView({
   // cards visible in the supplied recording. A hard reveal boundary makes the two
   // navigation pages mutually exclusive on every frame.
   const hierarchyUnderlayClipPath = useTransform(
-    internalBackGesture.progress,
+    internalBackGesture.x,
     (latest) => {
-      const progress = Math.max(0, Math.min(1, latest));
-      const hiddenPercent = (1 - progress) * 100;
+      const width = Math.max(1, hierarchyGestureWidthRef.current);
+      const revealedPixels = Math.min(width, Math.abs(latest));
+      const hiddenPixels = Math.max(0, width - revealedPixels);
       return isRtl
-        ? `inset(0 0 0 ${hiddenPercent}%)`
-        : `inset(0 ${hiddenPercent}% 0 0)`;
+        ? `inset(0 0 0 ${hiddenPixels}px)`
+        : `inset(0 ${hiddenPixels}px 0 0)`;
     },
   );
   const hierarchyUnderlayOpacity = 1;

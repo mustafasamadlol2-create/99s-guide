@@ -1630,11 +1630,13 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  return (
   <motion.div
-    data-swipe-back-disabled="true"
     className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased"
   >
  {/* 1. Header Toolbar */}
-  <div className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
+  <div
+    data-lecture-swipe-back-header="true"
+    className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
+  >
  <div className="flex items-center gap-3 w-full sm:w-auto -ml-1">
  <motion.button
  type="button"
@@ -1726,7 +1728,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
  {/* Global tab shortcuts inside header */}
-  <div className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden">
+  <div
+    data-swipe-back-disabled="true"
+    className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
+  >
   <motion.div
     aria-hidden="true"
     className="absolute top-1 bottom-1 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"

@@ -17,6 +17,8 @@ interface UseSwipeBackOptions {
   commitProgress?: number;
   /** Fast flick velocity in px/ms that commits after a small minimum drag. */
   velocityThreshold?: number;
+  /** Optional selector that the initial touch target must be inside. */
+  allowedStartSelector?: string;
   onSwipeStart?: () => void;
   onSwipeMove?: (signedOffset: number, progress: number) => void;
   onSwipeEnd?: (success: boolean) => void;
@@ -77,6 +79,7 @@ export function useSwipeBack({
   activationMode = "full",
   commitProgress = 0.34,
   velocityThreshold = 0.55,
+  allowedStartSelector,
   onSwipeStart,
   onSwipeMove,
   onSwipeEnd,
@@ -107,18 +110,21 @@ export function useSwipeBack({
   const activationModeRef = useRef(activationMode);
   const commitProgressRef = useRef(commitProgress);
   const velocityThresholdRef = useRef(velocityThreshold);
+  const allowedStartSelectorRef = useRef(allowedStartSelector);
 
-  useEffect(() => {
-    onSwipeBackRef.current = onSwipeBack;
-    onSwipeStartRef.current = onSwipeStart;
-    onSwipeMoveRef.current = onSwipeMove;
-    onSwipeEndRef.current = onSwipeEnd;
-    directionRef.current = direction;
-    edgeWidthRef.current = edgeWidth;
-    activationModeRef.current = activationMode;
-    commitProgressRef.current = commitProgress;
-    velocityThresholdRef.current = velocityThreshold;
-  });
+  // Keep gesture configuration current during render rather than waiting for a
+  // post-paint effect. That removes a one-frame stale-owner window when users
+  // perform rapid consecutive Back swipes across navigation levels.
+  onSwipeBackRef.current = onSwipeBack;
+  onSwipeStartRef.current = onSwipeStart;
+  onSwipeMoveRef.current = onSwipeMove;
+  onSwipeEndRef.current = onSwipeEnd;
+  directionRef.current = direction;
+  edgeWidthRef.current = edgeWidth;
+  activationModeRef.current = activationMode;
+  commitProgressRef.current = commitProgress;
+  velocityThresholdRef.current = velocityThreshold;
+  allowedStartSelectorRef.current = allowedStartSelector;
 
   const triggerBack = useCallback(() => {
     if (triggerBackRef.current) {
@@ -279,14 +285,32 @@ export function useSwipeBack({
             touch.clientX >= leftEdge - edgeSlop;
       const startsInAllowedZone = activationModeRef.current === "full" || inEdge;
 
-      const target = event.target as Element | null;
-      const modalIsOpen = Boolean(
-        document.querySelector('[role="dialog"][aria-modal="true"]'),
-      );
+      const rawTarget = event.target;
+      const target =
+        rawTarget instanceof Element
+          ? rawTarget
+          : rawTarget instanceof Node
+            ? rawTarget.parentElement
+            : null;
+      const requiredStartSelector = allowedStartSelectorRef.current;
+      const startsInsideRequiredRegion =
+        !requiredStartSelector || Boolean(target?.closest?.(requiredStartSelector));
+      const modalIsOpen = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'),
+      ).some((dialog) => {
+        if (dialog.hidden || dialog.getAttribute("aria-hidden") === "true") return false;
+        const style = window.getComputedStyle(dialog);
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          style.pointerEvents !== "none" &&
+          dialog.getClientRects().length > 0
+        );
+      });
       const blocked =
         modalIsOpen || Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
 
-      if (!startsInAllowedZone || blocked) {
+      if (!startsInAllowedZone || !startsInsideRequiredRegion || blocked) {
         resetTracking();
         return;
       }
@@ -307,17 +331,37 @@ export function useSwipeBack({
       if (!eligibleRef.current || event.touches.length !== 1) return;
 
       const touch = event.touches[0];
-      const distance = signedDistance(touch.clientX);
+      const rawHorizontalDistance = touch.clientX - startXRef.current;
+      const directionalDistance =
+        directionRef.current === "rtl" ? -rawHorizontalDistance : rawHorizontalDistance;
+      const distance = Math.max(0, directionalDistance);
+      const absoluteHorizontalDistance = Math.abs(rawHorizontalDistance);
       const verticalDistance = Math.abs(touch.clientY - startYRef.current);
 
       if (!horizontalLockRef.current) {
-        if (verticalDistance > 10 && verticalDistance > distance * 0.72) {
+        // Do not permanently reject a swipe because of the first few noisy iOS
+        // touch samples. Wait until the user's intent is clear, then lock once
+        // horizontal movement wins. This removes the intermittent "nothing
+        // happens" starts without making vertical scrolling feel sticky.
+        if (
+          verticalDistance >= 18 &&
+          verticalDistance > absoluteHorizontalDistance * 1.15
+        ) {
           resetTracking();
           return;
         }
 
-        if (distance < 7) return;
-        if (verticalDistance > distance * 0.58) return;
+        // A short movement in the opposite direction is common when a finger
+        // lands. Only reject it once it is clearly intentional.
+        if (directionalDistance <= 0) {
+          if (absoluteHorizontalDistance >= 16 && absoluteHorizontalDistance > verticalDistance * 1.25) {
+            resetTracking();
+          }
+          return;
+        }
+
+        if (distance < 5) return;
+        if (verticalDistance > distance * 0.88) return;
 
         horizontalLockRef.current = true;
         setIsInteracting(true);

@@ -1507,6 +1507,55 @@ export default function App() {
 
   const navigationStackRef = useRef<NavigationEntry[]>([]);
   const [navigationStackTop, setNavigationStackTop] = useState<NavigationEntry | null>(null);
+
+  // Visual snapshot used only while swiping from a Home subject back to the
+  // dashboard. The destination is otherwise unmounted by the route conditional,
+  // which can expose the bare canvas during the interactive reveal.
+  const homeDashboardLayerRef = useRef<HTMLDivElement | null>(null);
+  const homeDashboardSnapshotRef = useRef<HTMLElement | null>(null);
+  const homeDashboardUnderlayHostRef = useRef<HTMLDivElement | null>(null);
+
+  const captureHomeDashboardSnapshot = useCallback(() => {
+    const source = homeDashboardLayerRef.current;
+    if (!source) return;
+
+    const clone = source.cloneNode(true) as HTMLElement;
+    clone.removeAttribute("id");
+    clone.querySelectorAll<HTMLElement>("[id]").forEach((node) => node.removeAttribute("id"));
+    clone.querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]").forEach((node) => {
+      node.setAttribute("tabindex", "-1");
+      node.setAttribute("aria-hidden", "true");
+    });
+    clone.style.pointerEvents = "none";
+    clone.style.userSelect = "none";
+    clone.style.transform = "none";
+    clone.style.willChange = "auto";
+    clone.style.position = "relative";
+    clone.style.width = "100%";
+    clone.style.minHeight = "100%";
+    clone.style.isolation = "isolate";
+    clone.style.contain = "paint";
+    clone.style.opacity = "1";
+    clone.setAttribute("aria-hidden", "true");
+
+    const sourceBackground = window.getComputedStyle(source).backgroundColor;
+    if (sourceBackground) clone.style.backgroundColor = sourceBackground;
+    homeDashboardSnapshotRef.current = clone;
+  }, []);
+
+  useLayoutEffect(() => {
+    const host = homeDashboardUnderlayHostRef.current;
+    if (!host) return;
+
+    const snapshot = homeDashboardSnapshotRef.current;
+    if (activeHomeSubjectId !== null && snapshot) {
+      host.replaceChildren(snapshot.cloneNode(true));
+      host.style.visibility = "visible";
+    } else {
+      host.replaceChildren();
+      host.style.visibility = "hidden";
+    }
+  }, [activeHomeSubjectId]);
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
@@ -1581,27 +1630,6 @@ export default function App() {
 
   const swipeDirection = isRtl ? "rtl" : "ltr";
 
-  // Home hierarchy: Welcome → Subject → Lecture. Search results also land here
-  // and pop back into the exact Search session that opened them.
-  const homeBackGesture = useSwipeBack({
-    direction: swipeDirection,
-    isEnabled:
-      activeTab === "home" &&
-      !isCommandPaletteOpen &&
-      activeHomeLecture === null &&
-      activeHomeSubjectId !== null &&
-      !homeSubjectHasInternalBack,
-    onSwipeBack: () => {
-      if (activeHomeSubjectId !== null) {
-        if (restorePreviousNavigationEntry()) return;
-        setActiveHomeSubjectId(null);
-      }
-    },
-  });
-
-  // Lecture Detail intentionally does not participate in page-level swipe-back:
-  // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
-  // tab paging. The visible Back button keeps the exact historical Back behavior.
   const handleHomeLectureBack = useCallback(() => {
     if (activeHomeLecture === null) return;
     if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
@@ -1611,25 +1639,30 @@ export default function App() {
     setLectureDetailSource(null);
   }, [activeHomeLecture, lectureDetailSource, restorePreviousNavigationEntry]);
 
-  // Modules / legacy Subject hierarchy: Modules → Module overview, and the
-  // search/deep-link Subject → Lecture path.
-  const subjectsBackGesture = useSwipeBack({
+  // Home hierarchy: Welcome → Subject → Lecture. Subject-level Back remains a
+  // full-surface gesture. Inside Lecture Detail, the exact same page animation
+  // is available only from the title/header strip above the PDF/Notes/MCQ bar,
+  // so horizontal tab paging below it remains completely untouched.
+  const homeBackGesture = useSwipeBack({
     direction: swipeDirection,
     isEnabled:
-      activeTab === "subjects" &&
+      activeTab === "home" &&
       !isCommandPaletteOpen &&
-      activeLecture === null &&
       (
-        activeModuleId !== null ||
-        (activeSubjectId !== null && !legacySubjectHasInternalBack)
+        activeHomeLecture !== null ||
+        (activeHomeSubjectId !== null && !homeSubjectHasInternalBack)
       ),
+    allowedStartSelector:
+      activeHomeLecture !== null ? '[data-lecture-swipe-back-header="true"]' : undefined,
     onSwipeBack: () => {
-      if (activeSubjectId !== null) {
-        if (restorePreviousNavigationEntry()) return;
-        setActiveSubjectId(null);
+      if (activeHomeLecture !== null) {
+        handleHomeLectureBack();
         return;
       }
-      if (activeModuleId !== null) setActiveModuleId(null);
+      if (activeHomeSubjectId !== null) {
+        if (restorePreviousNavigationEntry()) return;
+        setActiveHomeSubjectId(null);
+      }
     },
   });
 
@@ -1638,6 +1671,35 @@ export default function App() {
     if (restorePreviousNavigationEntry()) return;
     setActiveLecture(null);
   }, [activeLecture, restorePreviousNavigationEntry]);
+
+  // Modules / legacy Subject hierarchy: Modules → Module overview, and the
+  // search/deep-link Subject → Lecture path. Lecture Detail again owns only the
+  // dedicated header swipe-back region; its workspace keeps the tab pager.
+  const subjectsBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    isEnabled:
+      activeTab === "subjects" &&
+      !isCommandPaletteOpen &&
+      (
+        activeLecture !== null ||
+        activeModuleId !== null ||
+        (activeSubjectId !== null && !legacySubjectHasInternalBack)
+      ),
+    allowedStartSelector:
+      activeLecture !== null ? '[data-lecture-swipe-back-header="true"]' : undefined,
+    onSwipeBack: () => {
+      if (activeLecture !== null) {
+        handleLegacyLectureBack();
+        return;
+      }
+      if (activeSubjectId !== null) {
+        if (restorePreviousNavigationEntry()) return;
+        setActiveSubjectId(null);
+        return;
+      }
+      if (activeModuleId !== null) setActiveModuleId(null);
+    },
+  });
 
   // Root drill-down destinations (Profile → Settings, Settings → Legal,
   // Bulletin → Calendar/Home/etc.) use one shared page-level gesture. It is
@@ -1667,6 +1729,15 @@ export default function App() {
     },
   });
 
+  // The dashboard snapshot sits behind a Home subject only while that subject
+  // is being interactively popped. It uses the same subtle parallax as the live
+  // SubjectView under a Lecture, so the animation itself remains unchanged.
+  const homeSubjectUnderlayX = useTransform(
+    homeBackGesture.progress,
+    [0, 1],
+    [isRtl ? 22 : -22, 0],
+  );
+
   // Parallax for the parent page that is already mounted below a Lecture.
   // Only transform/opacity are animated, keeping the interactive path GPU-only.
   const homeLectureUnderlayX = useTransform(
@@ -1685,12 +1756,13 @@ export default function App() {
 
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
+    captureHomeDashboardSnapshot();
     setActiveHomeSubjectId(id);
     setActiveHomeLecture(null);
        
-  }, []);
+  }, [captureHomeDashboardSnapshot]);
 
-  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
+  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { captureHomeDashboardSnapshot(); setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, [captureHomeDashboardSnapshot]);
 
   const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
@@ -4720,6 +4792,7 @@ const handleSignOut = useCallback(async () => {
                 <>
                   {activeHomeSubjectId === null ? (
                     <motion.div
+                      ref={homeDashboardLayerRef}
                       key="home-dashboard"
                       initial={{ opacity: 1, x: 0 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -4756,12 +4829,34 @@ const handleSignOut = useCallback(async () => {
                       exit={{ opacity: 1, scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
                       className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
-                      style={{
-                        x: activeHomeLecture === null ? homeBackGesture.x : 0,
-                        willChange: homeBackGesture.isInteracting ? "transform" : "auto",
-                      }}
                     >
                       <div className="w-full grid grid-cols-1 grid-rows-1 relative">
+                        <motion.div
+                          ref={homeDashboardUnderlayHostRef}
+                          aria-hidden="true"
+                          className="absolute inset-0 z-0 w-full isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] pointer-events-none"
+                          style={{
+                            x: activeHomeLecture === null ? homeSubjectUnderlayX : 0,
+                            opacity: 1,
+                            willChange:
+                              activeHomeLecture === null && homeBackGesture.isInteracting
+                                ? "transform"
+                                : "auto",
+                          }}
+                        />
+
+                        <motion.div
+                          className="relative z-10 w-full isolate bg-neutral-50 dark:bg-[#000000]"
+                          style={{
+                            gridArea: "1 / 1 / 2 / 2",
+                            x: activeHomeLecture === null ? homeBackGesture.x : 0,
+                            willChange:
+                              activeHomeLecture === null && homeBackGesture.isInteracting
+                                ? "transform"
+                                : "auto",
+                          }}
+                        >
+                          <div className="w-full grid grid-cols-1 grid-rows-1 relative">
                         {/* Smooth state-driven preservation of SubjectView without unmounting (keeps states and scroll) */}
                         <motion.div
                           style={{
@@ -4834,6 +4929,8 @@ const handleSignOut = useCallback(async () => {
                             </motion.div>
                           )}
                         </>
+                          </div>
+                        </motion.div>
                       </div>
                     </motion.div>
                   )}
