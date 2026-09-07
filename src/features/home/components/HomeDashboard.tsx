@@ -753,6 +753,9 @@ const HeroBanner = memo(({
         {/* L2: ambient glow + slow aurora sweep */}
         <div className="absolute inset-0 z-[1]">
           <AmbientGlow isRtl={isRtl} />
+          {/* Premium gold atmosphere around the Baghdad Medical College badge. */}
+          <div className="hero-gold-motes" aria-hidden="true" />
+          <div className="hero-gold-current" aria-hidden="true" />
           {/* Aurora — slow rotating conic gradient, start angle shifts with time of day.
                CRITICAL: transform: translate(-50%,-50%) MUST be in the base inline style,
                NOT only in the keyframe. On iOS Safari, when display:none→block restores the
