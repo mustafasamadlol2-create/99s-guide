@@ -737,6 +737,15 @@ export const SubjectView = function SubjectView({
     snapshot.style.userSelect = "none";
     snapshot.style.transform = "none";
     snapshot.style.willChange = "auto";
+    // A snapshot is a complete navigation page, not a translucent decoration.
+    // Keep it boxed inside its own paint/stacking context so descendants can
+    // never bleed above the live page during an interactive pop.
+    snapshot.style.position = "relative";
+    snapshot.style.width = "100%";
+    snapshot.style.minHeight = "100%";
+    snapshot.style.overflow = "hidden";
+    snapshot.style.isolation = "isolate";
+    snapshot.style.contain = "paint";
     snapshot.setAttribute("aria-hidden", "true");
     return snapshot;
   }, []);
@@ -827,7 +836,6 @@ export const SubjectView = function SubjectView({
 
     if (isInternal && hierarchySnapshotStackRef.current.length > 0) {
       hierarchySnapshotStackRef.current.pop();
-      scheduleHierarchyUnderlayClear();
     }
   }, [
     activeDepartment,
@@ -835,7 +843,6 @@ export const SubjectView = function SubjectView({
     activeSubSubject,
     subject.id,
     onBack,
-    scheduleHierarchyUnderlayClear,
   ]);
 
   // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
@@ -867,7 +874,8 @@ export const SubjectView = function SubjectView({
     isEnabled: isSwipeNavigationEnabled && hasInternalBack,
     onSwipeStart: mountPreviousHierarchySnapshot,
     onSwipeEnd: (success) => {
-      if (!success) hideHierarchyUnderlay();
+      if (success) scheduleHierarchyUnderlayClear();
+      else hideHierarchyUnderlay();
     },
     onSwipeBack: handleNavBack,
   });
@@ -877,11 +885,9 @@ export const SubjectView = function SubjectView({
     [0, 1],
     [isRtl ? 18 : -18, 0],
   );
-  const hierarchyUnderlayOpacity = useTransform(
-    internalBackGesture.progress,
-    [0, 1],
-    [0.965, 1],
-  );
+  // Keep the previous page fully opaque at all times. Fading this layer was
+  // the source of text bleed/"double page" frames in WKWebView.
+  const hierarchyUnderlayOpacity = 1;
 
   const lectureCountsBySubSubject = useMemo(() => {
     const counts: Record<string, { theory: number; practical: number }> = {};
@@ -911,23 +917,28 @@ export const SubjectView = function SubjectView({
   }), []);
 
   return (
-    <div className="subject-view-root relative">
+    <div className="subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000]">
       <motion.div
         ref={hierarchyUnderlayRef}
         aria-hidden="true"
-        className="absolute inset-x-0 top-0 z-0 pointer-events-none min-h-full bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
         style={{
           visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
           x: hierarchyUnderlayX,
           opacity: hierarchyUnderlayOpacity,
-          willChange: internalBackGesture.isInteracting ? "transform, opacity" : "auto",
+          isolation: "isolate",
+          contain: "paint",
+          willChange: internalBackGesture.isInteracting ? "transform" : "auto",
         }}
       />
       <motion.div
         ref={hierarchyLayerRef}
-        className="relative z-10 bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        className="relative z-10 isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
         style={{
           x: internalBackGesture.x,
+          minHeight: "100%",
+          isolation: "isolate",
+          contain: "paint",
           boxShadow: internalBackGesture.isInteracting
             ? (isRtl
                 ? "-18px 0 34px -24px rgba(0,0,0,0.30)"

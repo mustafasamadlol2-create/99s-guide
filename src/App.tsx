@@ -1674,21 +1674,14 @@ export default function App() {
     [0, 1],
     [isRtl ? 22 : -22, 0],
   );
-  const homeLectureUnderlayOpacity = useTransform(
-    homeBackGesture.progress,
-    [0, 1],
-    [0.94, 1],
-  );
+  // Navigation underlays are full pages, never translucent layers.
+  const homeLectureUnderlayOpacity = 1;
   const lectureUnderlayX = useTransform(
     subjectsBackGesture.progress,
     [0, 1],
     [isRtl ? 22 : -22, 0],
   );
-  const lectureUnderlayOpacity = useTransform(
-    subjectsBackGesture.progress,
-    [0, 1],
-    [0.94, 1],
-  );
+  const lectureUnderlayOpacity = 1;
 
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
@@ -4762,7 +4755,7 @@ const handleSignOut = useCallback(async () => {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 1, scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                      className="relative overflow-hidden w-full"
+                      className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
                       style={{
                         x: activeHomeLecture === null ? homeBackGesture.x : 0,
                         willChange: homeBackGesture.isInteracting ? "transform" : "auto",
@@ -4779,7 +4772,7 @@ const handleSignOut = useCallback(async () => {
                             opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
                             willChange: homeBackGesture.isInteracting ? "transform, opacity" : "auto",
                           }}
-                          className="w-full"
+                          className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
                         >
                           <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
@@ -4819,7 +4812,7 @@ const handleSignOut = useCallback(async () => {
                               animate={{ opacity: 1 }}
                               exit={{ opacity: 1 }}
                               transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                              className="w-full bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                              className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
                             >
                               <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
@@ -4892,7 +4885,7 @@ const handleSignOut = useCallback(async () => {
                      It is no longer the visible Modules-page navigation path. */
                   <motion.div
                     key="subject-details-wrapper"
-                    className="relative overflow-hidden w-full"
+                    className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
                     style={{
                       x: activeLecture === null ? subjectsBackGesture.x : 0,
                       willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
@@ -4907,7 +4900,7 @@ const handleSignOut = useCallback(async () => {
                           opacity: activeLecture !== null ? lectureUnderlayOpacity : 1,
                           willChange: subjectsBackGesture.isInteracting ? "transform, opacity" : "auto",
                         }}
-                        className="w-full"
+                        className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
                       >
                         <Suspense fallback={iOSLoadingFallback}>
                           <ErrorBoundary>
@@ -4947,7 +4940,7 @@ const handleSignOut = useCallback(async () => {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 1 }}
                           transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                          className="w-full bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                          className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
                         >
                           <Suspense fallback={iOSLoadingFallback}>
                             <ErrorBoundary>

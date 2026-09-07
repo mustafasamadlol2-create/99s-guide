@@ -176,19 +176,32 @@ export function useSwipeBack({
       };
       const finish = () => {
         progress.set(targetProgress);
-        settlingRef.current = false;
-        onSwipeEndRef.current?.(success);
 
-        if (success) {
-          HapticFeedback.impact("light");
-          onSwipeBackRef.current();
-          // The destination state is now active. Reset the reusable motion
-          // values immediately so the next nested screen starts at x=0.
-          x.set(0);
-          progress.set(0);
+        if (!success) {
+          settlingRef.current = false;
+          onSwipeEndRef.current?.(false);
+          setIsInteracting(false);
+          return;
         }
 
-        setIsInteracting(false);
+        HapticFeedback.impact("light");
+
+        // First pop navigation while the outgoing page is still completely
+        // off-screen. The underlay therefore remains the only visible page.
+        // After two paint opportunities React/WKWebView has committed the live
+        // destination; resetting x then becomes visually lossless instead of
+        // producing the old white/reload-looking frame.
+        onSwipeBackRef.current();
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            x.set(0);
+            progress.set(0);
+            settlingRef.current = false;
+            setIsInteracting(false);
+            onSwipeEndRef.current?.(true);
+          });
+        });
       };
 
       if (reduceMotion) {

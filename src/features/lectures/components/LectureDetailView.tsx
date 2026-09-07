@@ -269,8 +269,12 @@ export const LectureDetailView = function LectureDetailView({
  "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
   >(initialTab);
   const [tabTransitionDirection, setTabTransitionDirection] = useState<1 | -1>(1);
-  const lectureTabTransitionEase = [0.32, 0.72, 0, 1] as const;
-  const lectureTabTransitionDuration = 0.24;
+  const lectureTabTransitionEase = [0.22, 1, 0.36, 1] as const;
+  // One shared visual clock: 140ms outgoing + 240ms incoming = 380ms total.
+  // The segmented indicator and card height use the same 380ms envelope.
+  const lectureTabTransitionDuration = 0.38;
+  const lectureTabExitDuration = 0.14;
+  const lectureTabEnterDuration = 0.24;
 
   // Search can replace the current lecture while this view remains mounted.
   // Keep the selected content tab synchronized with the new search result.
@@ -1619,13 +1623,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  // The gesture follows the finger, while the visible content moves only a
  // fraction of the drag. The surrounding card, header and segmented tab bar
  // stay still, matching the feel of an iOS content transition.
- const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.13);
- const lectureTabContentOpacity = useTransform(lectureTabPager.x, (latest) => {
-   // Keep the card visually continuous while the finger is moving; only a very
-   // small alpha change is used so the release never looks like a white flash.
-   const fade = Math.min(0.075, Math.abs(latest) / 1200);
-   return 1 - fade;
- });
+ const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.075);
+ // Never fade the entire workspace during the drag. A fully opaque card prevents
+ // white flashes and keeps text rasterization stable on WKWebView.
+ const lectureTabContentOpacity = 1;
 
 
  return (
@@ -1764,12 +1765,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[240ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
- style={{ transitionTimingFunction: "cubic-bezier(0.32, 0.72, 0, 1)" }}
+ className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[380ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
  >
  <span
- style={{ transitionTimingFunction: "cubic-bezier(0.32, 0.72, 0, 1)" }}
- className={`relative text-center whitespace-nowrap transition-colors duration-[240ms] ${
+ style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+ className={`relative text-center whitespace-nowrap transition-colors duration-[380ms] ${
  isActive
  ? "text-black dark:text-[var(--text-primary)] font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:text-white dark:hover:text-neutral-200"
@@ -1791,48 +1792,49 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={240}
-    transitionEasing="cubic-bezier(0.32, 0.72, 0, 1)"
+    durationMs={380}
+    transitionEasing="cubic-bezier(0.22, 1, 0.36, 1)"
     settleToAuto
     singlePassOnDependencyChange
     style={{ transformOrigin: "top center" }}
-    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
-    contentClassName="relative w-full min-h-[clamp(430px,58svh,650px)]"
+    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
+    contentClassName="relative isolate w-full min-h-[clamp(430px,58svh,650px)] bg-white dark:bg-[#1C1C1E]"
   >
-  {/* Keep the outgoing panel visually present only during the synchronized
-      cross-transition, while popLayout removes it from height calculation.
-      SmoothAutoHeight therefore measures the incoming panel only, avoiding both
-      a blank frame and the old long → short double-resize vibration. */}
+  {/* Sequential iOS-style content handoff. The persistent white card stays
+      mounted; the outgoing panel fully disappears before the incoming panel is
+      created, so text from two sections can never overlap. */}
   <motion.div
     ref={lectureTabPager.surfaceRef}
     className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
     style={{
       x: lectureTabContentX,
       opacity: lectureTabContentOpacity,
-      willChange: lectureTabPager.isInteracting ? "transform, opacity" : "auto",
+      willChange: lectureTabPager.isInteracting ? "transform" : "auto",
+      isolation: "isolate",
     }}
   >
-  <AnimatePresence initial={false} mode="popLayout" custom={tabTransitionDirection}>
+  <AnimatePresence initial={false} mode="wait" custom={tabTransitionDirection}>
     <motion.div
       key={`lecture-workspace-${activeTab}`}
       custom={tabTransitionDirection}
       initial={{
-        opacity: 0.76,
-        // During a swipe the shared workspace MotionValue already provides the
-        // directional motion. Avoid adding a second translate on top of it —
-        // that double transform was the main source of the visible vibration.
-        x: lectureTabPager.isInteracting ? 0 : tabTransitionDirection * 10,
+        opacity: 0,
+        x: tabTransitionDirection * 8,
       }}
       animate={{ opacity: 1, x: 0 }}
       exit={{
-        opacity: 0.76,
-        x: lectureTabPager.isInteracting ? 0 : tabTransitionDirection * -8,
+        opacity: 0,
+        x: tabTransitionDirection * -6,
+        transition: {
+          duration: lectureTabExitDuration,
+          ease: lectureTabTransitionEase,
+        },
       }}
       transition={{
-        duration: lectureTabTransitionDuration,
+        duration: lectureTabEnterDuration,
         ease: lectureTabTransitionEase,
       }}
-      className="relative w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col"
+      className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col"
     >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
