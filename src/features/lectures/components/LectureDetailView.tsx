@@ -21,7 +21,7 @@ import {
 } from "../../../core/types";
 import { parseBaghdadDate } from "../../../core/utils/timezone";
 import { Language } from "../../../core/i18n/translations";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
 import {
  ArrowLeft,
  BookOpen,
@@ -1658,60 +1658,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    });
  }, [quizQuestions, quizSource]);
 
- const activeFlashcardsForNavigation = useMemo(() => {
-   if (repeatFilter === "hard") return relevantCards.filter((c: any) => cardStats[c.id] === "hard");
-   if (repeatFilter === "medium") return relevantCards.filter((c: any) => cardStats[c.id] === "medium");
-   if (repeatFilter === "easy") return relevantCards.filter((c: any) => cardStats[c.id] === "easy");
-   return relevantCards;
- }, [relevantCards, repeatFilter, cardStats]);
-
- const goToPreviousFlashcard = useCallback(() => {
-   if (currentCardIndex <= 0) return;
-   setCurrentCardIndex((prev) => Math.max(0, prev - 1));
-   setIsFlipped(false);
- }, [currentCardIndex]);
-
- const goToNextFlashcard = useCallback(() => {
-   if (currentCardIndex >= activeFlashcardsForNavigation.length - 1) return;
-   setCurrentCardIndex((prev) => Math.min(activeFlashcardsForNavigation.length - 1, prev + 1));
-   setIsFlipped(false);
- }, [currentCardIndex, activeFlashcardsForNavigation.length]);
-
- const flashcardPager = useHorizontalSwipePager<HTMLDivElement>({
-   onNext: goToNextFlashcard,
-   onPrevious: goToPreviousFlashcard,
-   canNext: currentCardIndex < activeFlashcardsForNavigation.length - 1,
-   canPrevious: currentCardIndex > 0,
-   isEnabled: activeTab === "flashcards" && !deckFinished && activeFlashcardsForNavigation.length > 1,
-   isRtl,
-   commitDistance: 76,
-   velocityThreshold: 0.56,
- });
-
- const goToPreviousMcq = useCallback(() => {
-   if (currentQuestionIndex <= 0) return;
-   setCurrentQuestionIndex((prev) => Math.max(0, prev - 1));
-   setShowHint(false);
- }, [currentQuestionIndex]);
-
- const goToNextMcq = useCallback(() => {
-   if (currentQuestionIndex >= filteredQuizQuestions.length - 1) return;
-   setCurrentQuestionIndex((prev) => Math.min(filteredQuizQuestions.length - 1, prev + 1));
-   setShowHint(false);
- }, [currentQuestionIndex, filteredQuizQuestions.length]);
-
- const mcqPager = useHorizontalSwipePager<HTMLDivElement>({
-   onNext: goToNextMcq,
-   onPrevious: goToPreviousMcq,
-   canNext: currentQuestionIndex < filteredQuizQuestions.length - 1,
-   canPrevious: currentQuestionIndex > 0,
-   isEnabled: activeTab === "mcqs" && !quizSubmitted && filteredQuizQuestions.length > 1,
-   isRtl,
-   blockedSelector: "button",
-   commitDistance: 82,
-   velocityThreshold: 0.58,
- });
-
  const lectureTabOrder = useMemo(
    () => ["pdf", "notes", "mcqs", "flashcards", "videos", "qa"] as const,
    [],
@@ -1729,8 +1675,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  }, [activeLectureTabIndex, handleLectureTabChange, lectureTabOrder]);
 
  // Lecture Detail is a horizontal content workspace, not a swipe-back surface.
- // Outside nested MCQ/Anki pagers, a horizontal drag moves between the six
- // lecture sections while the visible Back button remains the only exit path.
+ // The page chrome (Back/header/tab bar) stays physically fixed. Only the
+ // workspace content below it responds to the horizontal section gesture.
  const lectureTabPager = useHorizontalSwipePager<HTMLDivElement>({
    onNext: goToNextLectureTab,
    onPrevious: goToPreviousLectureTab,
@@ -1738,22 +1684,26 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    canPrevious: activeLectureTabIndex > 0,
    isEnabled: true,
    isRtl,
-   blockedSelector: '[data-lecture-inner-pager="true"], button, input, textarea, select, [contenteditable="true"]',
+   blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
-   commitDistance: 72,
-   velocityThreshold: 0.54,
+   commitDistance: 68,
+   velocityThreshold: 0.5,
+ });
+
+ // The gesture follows the finger, while the visible content moves only a
+ // fraction of the drag. The surrounding card, header and segmented tab bar
+ // stay still, matching the feel of an iOS content transition.
+ const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.22);
+ const lectureTabContentOpacity = useTransform(lectureTabPager.x, (latest) => {
+   const fade = Math.min(1, Math.abs(latest) / 320);
+   return 1 - fade;
  });
 
 
  return (
   <motion.div
-    ref={lectureTabPager.surfaceRef}
     data-swipe-back-disabled="true"
     className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased"
-    style={{
-      x: lectureTabPager.x,
-      willChange: lectureTabPager.isInteracting ? "transform" : "auto",
-    }}
   >
  {/* 1. Header Toolbar */}
   <div className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
@@ -1878,10 +1828,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  {isActive && (
  <motion.div
- initial={{ opacity: 0.6 }}
- animate={{ opacity: 1 }}
+ layoutId={`lecture-active-tab-${lecture.id}`}
  className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg -z-10"
- transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ type: "spring", stiffness: 520, damping: 42, mass: 0.72 }}
  />
  )}
  <span
@@ -1907,7 +1856,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={160}
+    durationMs={230}
     includeOverflowInMeasurement
     settleToAuto
     singlePassOnDependencyChange
@@ -1919,6 +1868,15 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       Each incoming tab already has its own short fade animation. Rendering only
       the active panel ensures SmoothAutoHeight measures the new panel on the
       first committed frame, preventing the long → short "double resize" glitch. */}
+  <motion.div
+    ref={lectureTabPager.surfaceRef}
+    className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
+    style={{
+      x: lectureTabContentX,
+      opacity: lectureTabContentOpacity,
+      willChange: lectureTabPager.isInteracting ? "transform, opacity" : "auto",
+    }}
+  >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
@@ -2137,9 +2095,6 @@ initial={{ opacity: 0, y: 3 }}
  ) : !quizSubmitted ? (
  // Quiz Active State (One question per screen as requested)
  <motion.div
-   ref={mcqPager.surfaceRef}
-   data-lecture-inner-pager="true"
-   style={{ x: mcqPager.x, willChange: "transform" }}
    className="flex flex-col"
  >
  <div className="space-y-4">
@@ -2681,13 +2636,11 @@ initial={{ opacity: 0, y: 3 }}
         )}
 
         <motion.div
-          ref={flashcardPager.surfaceRef}
-          data-lecture-inner-pager="true"
           onClick={() => {
-            if (flashcardPager.didDragRecently()) return;
+            if (lectureTabPager.didDragRecently()) return;
             setIsFlipped(!isFlipped);
           }}
-          style={{ ...flashcardThemeVars, x: flashcardPager.x, willChange: "transform" }}
+          style={flashcardThemeVars}
           className={`relative w-full max-w-[980px] mx-auto min-h-[clamp(360px,46svh,420px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
               ? "bg-white border-black/[0.07] text-neutral-900 shadow-[0_24px_62px_rgba(15,23,42,0.12)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
@@ -3589,6 +3542,8 @@ initial={{ opacity: 0, y: 3 }}
    </motion.div>
   )}
 
+
+  </motion.div>
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}
   <ReportSheet

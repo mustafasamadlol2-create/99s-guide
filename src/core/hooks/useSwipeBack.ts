@@ -163,44 +163,74 @@ export function useSwipeBack({
       velocityRef.current = 0;
     };
 
-    const settleTo = (target: number, success: boolean) => {
+    const settleTo = (target: number, success: boolean, releaseVelocity = 0) => {
       stopAnimation();
       settlingRef.current = true;
 
       const targetProgress = success ? 1 : 0;
-      const distanceRemaining = Math.abs(target - x.get());
       const width = viewportWidth();
-      const normalized = Math.min(1, distanceRemaining / width);
-      const duration = reduceMotion
-        ? 0.01
-        : success
-          ? Math.max(0.12, 0.2 * normalized)
-          : Math.max(0.14, 0.24 * normalized);
+      const updateProgress = (latest: number) => {
+        const p = Math.min(1, Math.abs(latest) / width);
+        progress.set(p);
+        onSwipeMoveRef.current?.(latest, p);
+      };
+      const finish = () => {
+        progress.set(targetProgress);
+        settlingRef.current = false;
+        onSwipeEndRef.current?.(success);
+
+        if (success) {
+          HapticFeedback.impact("light");
+          onSwipeBackRef.current();
+          // The destination state is now active. Reset the reusable motion
+          // values immediately so the next nested screen starts at x=0.
+          x.set(0);
+          progress.set(0);
+        }
+
+        setIsInteracting(false);
+      };
+
+      if (reduceMotion) {
+        const controls = animate(x, target, {
+          duration: 0.01,
+          onUpdate: updateProgress,
+          onComplete: finish,
+        });
+        animationStopRef.current = () => controls.stop();
+        return;
+      }
+
+      if (!success) {
+        // iOS-like cancellation: the page is physically connected to the
+        // finger, then springs home without an artificial linear rewind.
+        const controls = animate(x, 0, {
+          type: "spring",
+          stiffness: 445,
+          damping: 43,
+          mass: 0.82,
+          restSpeed: 10,
+          restDelta: 0.5,
+          onUpdate: updateProgress,
+          onComplete: finish,
+        });
+        animationStopRef.current = () => controls.stop();
+        return;
+      }
+
+      const distanceRemaining = Math.abs(target - x.get());
+      const pxPerSecond = Math.max(width * 3.05, releaseVelocity * 1000);
+      const duration = Math.max(
+        0.14,
+        Math.min(0.29, distanceRemaining / Math.max(1, pxPerSecond)),
+      );
 
       const controls = animate(x, target, {
         duration,
-        ease: [0.22, 1, 0.36, 1],
-        onUpdate: (latest) => {
-          const p = Math.min(1, Math.abs(latest) / width);
-          progress.set(p);
-          onSwipeMoveRef.current?.(latest, p);
-        },
-        onComplete: () => {
-          progress.set(targetProgress);
-          settlingRef.current = false;
-          onSwipeEndRef.current?.(success);
-
-          if (success) {
-            HapticFeedback.impact("light");
-            onSwipeBackRef.current();
-            // The destination state is now active. Reset the reusable motion
-            // values immediately so the next nested screen starts at x=0.
-            x.set(0);
-            progress.set(0);
-          }
-
-          setIsInteracting(false);
-        },
+        // Close to UIKit's decelerating interactive-pop completion curve.
+        ease: [0.32, 0.72, 0, 1],
+        onUpdate: updateProgress,
+        onComplete: finish,
       });
 
       animationStopRef.current = () => controls.stop();
@@ -213,7 +243,7 @@ export function useSwipeBack({
       progress.set(0);
       setIsInteracting(true);
       onSwipeStartRef.current?.();
-      settleTo(signedOffset(viewportWidth()), true);
+      settleTo(signedOffset(viewportWidth()), true, 0);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -322,8 +352,9 @@ export function useSwipeBack({
       const distance = signedDistance(clientX);
       const width = viewportWidth();
       const finalProgress = Math.min(1, distance / width);
+      const releaseVelocity = velocityRef.current;
       const fastFlick =
-        distance >= 36 && velocityRef.current >= velocityThresholdRef.current;
+        distance >= 32 && releaseVelocity >= velocityThresholdRef.current;
       const success =
         !cancelled &&
         hadHorizontalLock &&
@@ -337,7 +368,7 @@ export function useSwipeBack({
         return;
       }
 
-      settleTo(success ? signedOffset(width) : 0, success);
+      settleTo(success ? signedOffset(width) : 0, success, releaseVelocity);
     };
 
     const handleTouchEnd = (event: TouchEvent) => finishGesture(event, false);

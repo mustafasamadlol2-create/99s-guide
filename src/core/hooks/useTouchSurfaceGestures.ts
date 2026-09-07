@@ -340,7 +340,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     }
 
     // Lets the app-wide Back recognizer yield immediately to explicit content
-    // pagers (calendar, MCQ, flashcards, and lecture-tab paging).
+    // pagers (calendar and lecture-section paging).
     const previousPagerMarker = node.getAttribute("data-horizontal-pager");
     node.setAttribute("data-horizontal-pager", "true");
 
@@ -422,7 +422,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       lastTimeRef.current = now;
 
       const { allowed } = logicalRequest(dx);
-      const renderedDx = allowed ? dx : dx * 0.2;
+      // Native-style rubber band at the first/last item rather than a hard stop.
+      const renderedDx = allowed ? dx : dx * 0.12;
       const width = Math.max(1, node.getBoundingClientRect().width || window.innerWidth || 1);
       const clamped = Math.max(-width, Math.min(width, renderedDx));
 
@@ -444,7 +445,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       const clientX = event?.changedTouches?.[0]?.clientX ?? lastXRef.current;
       const dx = clientX - startXRef.current;
       const request = logicalRequest(dx);
-      const fastFlick = Math.abs(dx) >= 32 && velocityRef.current >= velocityThresholdRef.current;
+      const releaseVelocity = velocityRef.current;
+      const fastFlick = Math.abs(dx) >= 30 && releaseVelocity >= velocityThresholdRef.current;
       const success =
         !cancelled &&
         hadLock &&
@@ -462,39 +464,76 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       lastDragAtRef.current = performance.now();
 
       if (!success) {
-        const controls = animate(x, 0, {
-          duration: reduceMotion ? 0.01 : 0.2,
-          ease: [0.22, 1, 0.36, 1],
-          onComplete: () => {
-            settlingRef.current = false;
-            setIsInteracting(false);
-          },
-        });
+        const controls = reduceMotion
+          ? animate(x, 0, {
+              duration: 0.01,
+              onComplete: () => {
+                settlingRef.current = false;
+                setIsInteracting(false);
+              },
+            })
+          : animate(x, 0, {
+              type: "spring",
+              stiffness: 470,
+              damping: 42,
+              mass: 0.78,
+              restSpeed: 10,
+              restDelta: 0.5,
+              onComplete: () => {
+                settlingRef.current = false;
+                setIsInteracting(false);
+              },
+            });
         stopAnimationRef.current = () => controls.stop();
         return;
       }
 
       const width = Math.max(1, node.getBoundingClientRect().width || window.innerWidth || 1);
       const exitTarget = dx < 0 ? -width : width;
+      const distanceRemaining = Math.abs(exitTarget - x.get());
+      const pxPerSecond = Math.max(width * 3.1, releaseVelocity * 1000);
+      const exitDuration = reduceMotion
+        ? 0.01
+        : Math.max(0.14, Math.min(0.24, distanceRemaining / Math.max(1, pxPerSecond)));
+
       const controls = animate(x, exitTarget, {
-        duration: reduceMotion ? 0.01 : 0.16,
+        duration: exitDuration,
         ease: [0.32, 0.72, 0, 1],
         onComplete: () => {
           if (request.wantsNext) onNextRef.current();
           else onPreviousRef.current();
 
-          const entranceOffset = -Math.sign(exitTarget) * Math.min(34, width * 0.08);
-          x.set(entranceOffset);
-          const entrance = animate(x, 0, {
-            duration: reduceMotion ? 0.01 : 0.22,
-            ease: [0.22, 1, 0.36, 1],
-            onComplete: () => {
-              settlingRef.current = false;
-              setIsInteracting(false);
-              HapticFeedback.selection();
-            },
+          const entranceOffset = -Math.sign(exitTarget) * Math.min(46, width * 0.11);
+
+          // Give React/WebKit two paint opportunities to commit the new panel
+          // while the old panel is still at the (mostly faded) exit position.
+          // This prevents a one-frame flash of the outgoing content when the
+          // MotionValue is moved back to the entrance position.
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = requestAnimationFrame(() => {
+              rafRef.current = null;
+              x.set(entranceOffset);
+
+              const finishEntrance = () => {
+                settlingRef.current = false;
+                setIsInteracting(false);
+                HapticFeedback.selection();
+              };
+
+              const entrance = reduceMotion
+                ? animate(x, 0, { duration: 0.01, onComplete: finishEntrance })
+                : animate(x, 0, {
+                    type: "spring",
+                    stiffness: 455,
+                    damping: 40,
+                    mass: 0.8,
+                    restSpeed: 9,
+                    restDelta: 0.45,
+                    onComplete: finishEntrance,
+                  });
+              stopAnimationRef.current = () => entrance.stop();
+            });
           });
-          stopAnimationRef.current = () => entrance.stop();
         },
       });
       stopAnimationRef.current = () => controls.stop();
