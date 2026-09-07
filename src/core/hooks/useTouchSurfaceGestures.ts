@@ -262,6 +262,12 @@ interface HorizontalSwipePagerOptions {
   reserveBackEdge?: boolean;
   commitDistance?: number;
   velocityThreshold?: number;
+  /**
+   * "page" keeps the original full page-style exit/enter choreography.
+   * "settle" commits the destination immediately and settles the shared
+   * surface back to rest so content + segmented indicator move together.
+   */
+  completionMode?: "page" | "settle";
 }
 
 export interface HorizontalSwipePagerGesture<T extends HTMLElement = HTMLDivElement> {
@@ -287,6 +293,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   reserveBackEdge = true,
   commitDistance = 78,
   velocityThreshold = 0.58,
+  completionMode = "page",
 }: HorizontalSwipePagerOptions): HorizontalSwipePagerGesture<T> {
   const surfaceRef = useRef<T | null>(null);
   const x = useMotionValue(0);
@@ -303,6 +310,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   const reserveBackEdgeRef = useRef(reserveBackEdge);
   const commitDistanceRef = useRef(commitDistance);
   const velocityThresholdRef = useRef(velocityThreshold);
+  const completionModeRef = useRef(completionMode);
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -327,6 +335,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     reserveBackEdgeRef.current = reserveBackEdge;
     commitDistanceRef.current = commitDistance;
     velocityThresholdRef.current = velocityThreshold;
+    completionModeRef.current = completionMode;
   });
 
   const didDragRecently = useCallback(() => performance.now() - lastDragAtRef.current < 360, []);
@@ -485,6 +494,34 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
               },
             });
         stopAnimationRef.current = () => controls.stop();
+        return;
+      }
+
+      if (completionModeRef.current === "settle") {
+        // Lecture-style content navigation: commit the new section once, then
+        // let React paint that destination before the shared drag MotionValue
+        // settles home. Starting the settle on the next animation frame keeps
+        // the segmented indicator, panel crossfade and finger-release motion on
+        // the same visual clock instead of letting the drag layer get one frame
+        // ahead of the tab indicator in WKWebView.
+        if (request.wantsNext) onNextRef.current();
+        else onPreviousRef.current();
+
+        const settleDuration = reduceMotion ? 0.01 : 0.24;
+
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          const controls = animate(x, 0, {
+            duration: settleDuration,
+            ease: [0.32, 0.72, 0, 1],
+            onComplete: () => {
+              settlingRef.current = false;
+              setIsInteracting(false);
+              HapticFeedback.selection();
+            },
+          });
+          stopAnimationRef.current = () => controls.stop();
+        });
         return;
       }
 

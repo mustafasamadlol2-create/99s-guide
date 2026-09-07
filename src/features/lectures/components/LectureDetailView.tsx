@@ -268,6 +268,9 @@ export const LectureDetailView = function LectureDetailView({
   const [activeTab, setActiveTab] = useState<
  "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
   >(initialTab);
+  const [tabTransitionDirection, setTabTransitionDirection] = useState<1 | -1>(1);
+  const lectureTabTransitionEase = [0.32, 0.72, 0, 1] as const;
+  const lectureTabTransitionDuration = 0.24;
 
   // Search can replace the current lecture while this view remains mounted.
   // Keep the selected content tab synchronized with the new search result.
@@ -312,17 +315,13 @@ export const LectureDetailView = function LectureDetailView({
     currentUser.email,
   ]);
 
-  // Preserve the outer app scroll position independently for every lecture tab.
-  // This makes returning to a previously visited tab feel like a native view
-  // instead of remounting a web page at the top.
-  const lectureTabScrollPositionsRef = useRef<Record<string, number>>({});
-  const pendingLectureTabScrollRef = useRef<number | null>(null);
-
+  // The Lecture header and segmented tab bar share the app's outer scroll
+  // canvas. Do not rewrite scrollTop during a tab transition: doing so makes the
+  // fixed chrome appear to vibrate when panel heights differ. Width remains
+  // stable so the tab indicator never shifts when a scrollbar appears.
   const getMainScrollCanvas = useCallback(() =>
     document.getElementById("main-scroll-canvas") as HTMLElement | null, []);
 
-  // Prevent the page width/header/tabbar from shifting when a tall tab causes
-  // the main scroll canvas to gain or lose a vertical scrollbar.
   useLayoutEffect(() => {
     const canvas = getMainScrollCanvas();
     if (!canvas) return;
@@ -333,96 +332,22 @@ export const LectureDetailView = function LectureDetailView({
     };
   }, [getMainScrollCanvas]);
 
-  const getLectureTabScrollKey = useCallback((tab: string) =>
-    `lecture_scroll_${lecture.id}_${tab}`, [lecture.id]);
-
-  const saveLectureTabScroll = useCallback((tab = activeTab) => {
-    const canvas = getMainScrollCanvas();
-    if (!canvas) return;
-    const position = canvas.scrollTop;
-    lectureTabScrollPositionsRef.current[tab] = position;
-    try {
-      sessionStorage.setItem(getLectureTabScrollKey(tab), String(position));
-    } catch {}
-  }, [activeTab, getLectureTabScrollKey, getMainScrollCanvas]);
-
   const handleLectureTabChange = useCallback((nextTab: typeof activeTab) => {
     if (nextTab === activeTab) return;
 
-    const canvas = getMainScrollCanvas();
-    const currentPosition = canvas?.scrollTop ?? 0;
-    saveLectureTabScroll(activeTab);
-
-    let nextPosition = lectureTabScrollPositionsRef.current[nextTab];
-    if (nextPosition == null) {
-      try {
-        const stored = sessionStorage.getItem(getLectureTabScrollKey(nextTab));
-        if (stored != null) nextPosition = Number(stored);
-      } catch {}
-    }
-
-    // First visit keeps the same viewport anchor. Returning to a visited tab
-    // restores that tab's exact previous position.
-    pendingLectureTabScrollRef.current = Number.isFinite(nextPosition)
-      ? nextPosition
-      : currentPosition;
+    const order: Array<typeof activeTab> = [
+      "pdf",
+      "notes",
+      "mcqs",
+      "flashcards",
+      "videos",
+      "qa",
+    ];
+    const currentIndex = order.indexOf(activeTab);
+    const nextIndex = order.indexOf(nextTab);
+    setTabTransitionDirection(nextIndex >= currentIndex ? 1 : -1);
     setActiveTab(nextTab);
-  }, [activeTab, getLectureTabScrollKey, getMainScrollCanvas, saveLectureTabScroll]);
-
-  useEffect(() => {
-    const canvas = getMainScrollCanvas();
-    if (!canvas) return;
-
-    let frame = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => saveLectureTabScroll(activeTab));
-    };
-
-    canvas.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      canvas.removeEventListener("scroll", onScroll);
-    };
-  }, [activeTab, getMainScrollCanvas, saveLectureTabScroll]);
-
-  useLayoutEffect(() => {
-    const requested = pendingLectureTabScrollRef.current;
-    if (requested == null) return;
-    pendingLectureTabScrollRef.current = null;
-
-    let frame1 = 0;
-    let frame2 = 0;
-    let settleTimer: ReturnType<typeof setTimeout> | null = null;
-
-    let hasAppliedRestore = false;
-    let lastAppliedPosition = 0;
-    const restore = () => {
-      const canvas = getMainScrollCanvas();
-      if (!canvas) return;
-      // If the user has intentionally scrolled after the first restore, never
-      // snap them back when the content-height animation finishes.
-      if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
-      const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
-      const nextPosition = Math.min(Math.max(0, requested), maxScroll);
-      canvas.scrollTop = nextPosition;
-      lastAppliedPosition = nextPosition;
-      hasAppliedRestore = true;
-    };
-
-    frame1 = requestAnimationFrame(() => {
-      frame2 = requestAnimationFrame(restore);
-    });
-    // Re-apply once the auto-height transition has settled so a shrinking or
-    // expanding tab cannot leave the viewport at an unintended offset.
-    settleTimer = setTimeout(restore, 190);
-
-    return () => {
-      cancelAnimationFrame(frame1);
-      cancelAnimationFrame(frame2);
-      if (settleTimer) clearTimeout(settleTimer);
-    };
-  }, [activeTab, getMainScrollCanvas]);
+  }, [activeTab]);
 
  const [customFlashcards, setCustomFlashcards] = useState<any[]>([]);
  const [postMuteError, setPostMuteError] = useState<string | null>(null);
@@ -1686,16 +1611,19 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    isRtl,
    blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
-   commitDistance: 68,
+   commitDistance: 64,
    velocityThreshold: 0.5,
+   completionMode: "settle",
  });
 
  // The gesture follows the finger, while the visible content moves only a
  // fraction of the drag. The surrounding card, header and segmented tab bar
  // stay still, matching the feel of an iOS content transition.
- const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.22);
+ const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.13);
  const lectureTabContentOpacity = useTransform(lectureTabPager.x, (latest) => {
-   const fade = Math.min(1, Math.abs(latest) / 320);
+   // Keep the card visually continuous while the finger is moving; only a very
+   // small alpha change is used so the release never looks like a white flash.
+   const fade = Math.min(0.075, Math.abs(latest) / 1200);
    return 1 - fade;
  });
 
@@ -1799,6 +1727,18 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  {/* Global tab shortcuts inside header */}
   <div className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden">
+  <motion.div
+    aria-hidden="true"
+    className="absolute top-1 bottom-1 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"
+    style={{
+      width: "calc((100% - 8px) / 6)",
+      left: isRtl ? "auto" : "4px",
+      right: isRtl ? "4px" : "auto",
+      willChange: "transform",
+    }}
+    animate={{ x: `${(isRtl ? -1 : 1) * Math.max(0, activeLectureTabIndex) * 100}%` }}
+    transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
+  />
  {[
  { id: "pdf", label: "PDF" },
  { id: "notes", label: "Notes" },
@@ -1820,21 +1760,16 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  <motion.button
  type="button"
- transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
+ transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[120ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[240ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ style={{ transitionTimingFunction: "cubic-bezier(0.32, 0.72, 0, 1)" }}
  >
- {isActive && (
- <motion.div
- layoutId={`lecture-active-tab-${lecture.id}`}
- className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg -z-10"
- transition={{ type: "spring", stiffness: 520, damping: 42, mass: 0.72 }}
- />
- )}
  <span
- className={`relative text-center whitespace-nowrap transition-colors duration-[120ms] ${
+ style={{ transitionTimingFunction: "cubic-bezier(0.32, 0.72, 0, 1)" }}
+ className={`relative text-center whitespace-nowrap transition-colors duration-[240ms] ${
  isActive
  ? "text-black dark:text-[var(--text-primary)] font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:text-white dark:hover:text-neutral-200"
@@ -1856,18 +1791,18 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={230}
-    includeOverflowInMeasurement
+    durationMs={240}
+    transitionEasing="cubic-bezier(0.32, 0.72, 0, 1)"
     settleToAuto
     singlePassOnDependencyChange
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative [overflow-anchor:none] overflow-hidden"
     contentClassName="relative w-full min-h-[clamp(430px,58svh,650px)]"
   >
-  {/* Important: do not keep the outgoing tab mounted while measuring height.
-      Each incoming tab already has its own short fade animation. Rendering only
-      the active panel ensures SmoothAutoHeight measures the new panel on the
-      first committed frame, preventing the long → short "double resize" glitch. */}
+  {/* Keep the outgoing panel visually present only during the synchronized
+      cross-transition, while popLayout removes it from height calculation.
+      SmoothAutoHeight therefore measures the incoming panel only, avoiding both
+      a blank frame and the old long → short double-resize vibration. */}
   <motion.div
     ref={lectureTabPager.surfaceRef}
     className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
@@ -1877,14 +1812,33 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       willChange: lectureTabPager.isInteracting ? "transform, opacity" : "auto",
     }}
   >
+  <AnimatePresence initial={false} mode="popLayout" custom={tabTransitionDirection}>
+    <motion.div
+      key={`lecture-workspace-${activeTab}`}
+      custom={tabTransitionDirection}
+      initial={{
+        opacity: 0.76,
+        // During a swipe the shared workspace MotionValue already provides the
+        // directional motion. Avoid adding a second translate on top of it —
+        // that double transform was the main source of the visible vibration.
+        x: lectureTabPager.isInteracting ? 0 : tabTransitionDirection * 10,
+      }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{
+        opacity: 0.76,
+        x: lectureTabPager.isInteracting ? 0 : tabTransitionDirection * -8,
+      }}
+      transition={{
+        duration: lectureTabTransitionDuration,
+        ease: lectureTabTransitionEase,
+      }}
+      className="relative w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col"
+    >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
  <motion.div
   key="pdf"
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  exit={{ opacity: 0 }}
-  transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
+  initial={false}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -1974,10 +1928,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "notes" && (
  <motion.div
   key="notes"
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  exit={{ opacity: 0 }}
-  transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
+  initial={false}
   className="p-8 space-y-8 flex-1 flex flex-col justify-center items-center text-center w-full"
   style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -2069,10 +2020,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {activeTab === "mcqs" && (
  <motion.div
  key="mcqs"
-initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+ initial={false}
  className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full overflow-x-clip"
  >
  {filteredQuizQuestions.length === 0 ? (
@@ -2435,10 +2383,7 @@ initial={{ opacity: 0, y: 3 }}
  {activeTab === "flashcards" && (
  <motion.div
  key="flashcards"
-initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+ initial={false}
  className="flex-1 flex flex-col justify-between w-full overflow-x-clip"
  >
  {(() => {
@@ -2853,10 +2798,7 @@ initial={{ opacity: 0, y: 3 }}
  {activeTab === "videos" && (
  <motion.div
  key="videos"
-initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+ initial={false}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  >
  <div className="space-y-4">
@@ -2895,10 +2837,7 @@ initial={{ opacity: 0, y: 3 }}
  {activeTab === "qa" && (
  <motion.div
  key="qa"
-initial={{ opacity: 0, y: 3 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -2 }}
- transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+ initial={false}
  className="p-6 space-y-section flex-1 flex flex-col justify-between w-full"
  style={{ direction: isRtl ? "rtl" : "ltr" }}
  >
@@ -3542,7 +3481,8 @@ initial={{ opacity: 0, y: 3 }}
    </motion.div>
   )}
 
-
+    </motion.div>
+  </AnimatePresence>
   </motion.div>
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}

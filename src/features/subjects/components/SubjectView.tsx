@@ -57,7 +57,7 @@ import {
 } from "lucide-react";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { Language } from "../../../core/i18n/translations";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
 import { useIsTouchDevice } from "../../../core/hooks/useIsTouchDevice";
 import { useDeviceProfile } from "../../../core/hooks/useDeviceProfile";
 import { LectureListItem } from "../../../features/lectures/components/LectureListItem";
@@ -714,8 +714,103 @@ export const SubjectView = function SubjectView({
     return Math.floor((done / available) * 100);
   }, []);
 
-  // Handle Breadcrumb navigating back to Level 1, 2, or 3
+  // ── Native visual back-stack snapshots ────────────────────────────────
+  // SubjectView owns several nested screens inside one React component. When
+  // the live screen is dragged away we keep the immediately previous rendered
+  // screen underneath it, exactly like an iOS navigation controller. This
+  // removes the white canvas that was previously exposed during interactive
+  // Back without remounting the previous screen during every touch frame.
+  const hierarchyLayerRef = useRef<HTMLDivElement | null>(null);
+  const hierarchyUnderlayRef = useRef<HTMLDivElement | null>(null);
+  const hierarchySnapshotStackRef = useRef<HTMLElement[]>([]);
+  const clearUnderlayFrameRef = useRef<number | null>(null);
+  const [isHierarchyUnderlayVisible, setIsHierarchyUnderlayVisible] = useState(false);
+
+  const sanitizeSnapshot = useCallback((snapshot: HTMLElement) => {
+    snapshot.removeAttribute("id");
+    snapshot.querySelectorAll<HTMLElement>("[id]").forEach((node) => node.removeAttribute("id"));
+    snapshot.querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]").forEach((node) => {
+      node.setAttribute("tabindex", "-1");
+      node.setAttribute("aria-hidden", "true");
+    });
+    snapshot.style.pointerEvents = "none";
+    snapshot.style.userSelect = "none";
+    snapshot.style.transform = "none";
+    snapshot.style.willChange = "auto";
+    snapshot.setAttribute("aria-hidden", "true");
+    return snapshot;
+  }, []);
+
+  const captureHierarchySnapshot = useCallback(() => {
+    const source = hierarchyLayerRef.current;
+    if (!source) return;
+    const clone = sanitizeSnapshot(source.cloneNode(true) as HTMLElement);
+    hierarchySnapshotStackRef.current.push(clone);
+  }, [sanitizeSnapshot]);
+
+  const mountPreviousHierarchySnapshot = useCallback(() => {
+    const host = hierarchyUnderlayRef.current;
+    const snapshot =
+      hierarchySnapshotStackRef.current[hierarchySnapshotStackRef.current.length - 1];
+    if (!host || !snapshot) return;
+
+    if (clearUnderlayFrameRef.current !== null) {
+      cancelAnimationFrame(clearUnderlayFrameRef.current);
+      clearUnderlayFrameRef.current = null;
+    }
+    host.replaceChildren(snapshot.cloneNode(true));
+    setIsHierarchyUnderlayVisible(true);
+  }, []);
+
+  const hideHierarchyUnderlay = useCallback(() => {
+    const host = hierarchyUnderlayRef.current;
+    setIsHierarchyUnderlayVisible(false);
+    if (!host) return;
+    host.replaceChildren();
+  }, []);
+
+  const scheduleHierarchyUnderlayClear = useCallback(() => {
+    if (clearUnderlayFrameRef.current !== null) {
+      cancelAnimationFrame(clearUnderlayFrameRef.current);
+    }
+    clearUnderlayFrameRef.current = requestAnimationFrame(() => {
+      clearUnderlayFrameRef.current = requestAnimationFrame(() => {
+        clearUnderlayFrameRef.current = null;
+        hideHierarchyUnderlay();
+      });
+    });
+  }, [hideHierarchyUnderlay]);
+
+  const truncateHierarchySnapshots = useCallback((length: number) => {
+    hierarchySnapshotStackRef.current =
+      hierarchySnapshotStackRef.current.slice(0, Math.max(0, length));
+    hideHierarchyUnderlay();
+  }, [hideHierarchyUnderlay]);
+
+  const navigateToSubSubject = useCallback((subSubject: string) => {
+    captureHierarchySnapshot();
+    setActiveSubSubject(subSubject);
+  }, [captureHierarchySnapshot]);
+
+  const navigateToTrack = useCallback((track: "Theory" | "Practical") => {
+    captureHierarchySnapshot();
+    setActiveTrack(track);
+  }, [captureHierarchySnapshot]);
+
+  const navigateToDepartment = useCallback((department: string) => {
+    captureHierarchySnapshot();
+    setActiveDepartment(department);
+  }, [captureHierarchySnapshot]);
+
+  // Handle Back one hierarchy level at a time. The detached visual snapshot is
+  // removed only after React has painted the restored live screen, preventing a
+  // one-frame white flash at the end of a completed swipe.
   const handleNavBack = useCallback(() => {
+    const isInternal =
+      activeDepartment !== null ||
+      activeTrack !== null ||
+      (subject.id === "ID" && activeSubSubject !== null);
+
     if (activeDepartment !== null) {
       setActiveDepartment(null);
     } else if (activeTrack !== null) {
@@ -729,7 +824,19 @@ export const SubjectView = function SubjectView({
     } else {
       onBack();
     }
-  }, [activeDepartment, activeTrack, activeSubSubject, subject.id, onBack]);
+
+    if (isInternal && hierarchySnapshotStackRef.current.length > 0) {
+      hierarchySnapshotStackRef.current.pop();
+      scheduleHierarchyUnderlayClear();
+    }
+  }, [
+    activeDepartment,
+    activeTrack,
+    activeSubSubject,
+    subject.id,
+    onBack,
+    scheduleHierarchyUnderlayClear,
+  ]);
 
   // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
   // → Theory/Practical → department). The page-level swipe must unwind exactly
@@ -744,11 +851,37 @@ export const SubjectView = function SubjectView({
     return () => onInternalNavigationStateChange?.(false);
   }, [hasInternalBack, onInternalNavigationStateChange]);
 
+  useEffect(() => {
+    hierarchySnapshotStackRef.current = [];
+    hideHierarchyUnderlay();
+  }, [subject.id, deepLinkedLecture?.id, hideHierarchyUnderlay]);
+
+  useEffect(() => () => {
+    if (clearUnderlayFrameRef.current !== null) {
+      cancelAnimationFrame(clearUnderlayFrameRef.current);
+    }
+  }, []);
+
   const internalBackGesture = useSwipeBack({
     direction: isRtl ? "rtl" : "ltr",
     isEnabled: isSwipeNavigationEnabled && hasInternalBack,
+    onSwipeStart: mountPreviousHierarchySnapshot,
+    onSwipeEnd: (success) => {
+      if (!success) hideHierarchyUnderlay();
+    },
     onSwipeBack: handleNavBack,
   });
+
+  const hierarchyUnderlayX = useTransform(
+    internalBackGesture.progress,
+    [0, 1],
+    [isRtl ? 18 : -18, 0],
+  );
+  const hierarchyUnderlayOpacity = useTransform(
+    internalBackGesture.progress,
+    [0, 1],
+    [0.965, 1],
+  );
 
   const lectureCountsBySubSubject = useMemo(() => {
     const counts: Record<string, { theory: number; practical: number }> = {};
@@ -778,13 +911,31 @@ export const SubjectView = function SubjectView({
   }), []);
 
   return (
-    <motion.div
-      className="subject-view-root space-y-section pb-12 pr-1 relative"
-      style={{
-        x: internalBackGesture.x,
-        willChange: internalBackGesture.isInteracting ? "transform" : "auto",
-      }}
-    >
+    <div className="subject-view-root relative">
+      <motion.div
+        ref={hierarchyUnderlayRef}
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 z-0 pointer-events-none min-h-full bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        style={{
+          visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
+          x: hierarchyUnderlayX,
+          opacity: hierarchyUnderlayOpacity,
+          willChange: internalBackGesture.isInteracting ? "transform, opacity" : "auto",
+        }}
+      />
+      <motion.div
+        ref={hierarchyLayerRef}
+        className="relative z-10 bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        style={{
+          x: internalBackGesture.x,
+          boxShadow: internalBackGesture.isInteracting
+            ? (isRtl
+                ? "-18px 0 34px -24px rgba(0,0,0,0.30)"
+                : "18px 0 34px -24px rgba(0,0,0,0.30)")
+            : "none",
+          willChange: internalBackGesture.isInteracting ? "transform" : "auto",
+        }}
+      >
       {/* Apple-style Large Navigation Header */}
       <div className="mb-8 pt-3">
         <div className="flex items-center gap-1 mb-4 -ml-2">
@@ -803,6 +954,7 @@ export const SubjectView = function SubjectView({
           {/* Direct Home Library access instead of Breadcrumbs bar icon */}
           <button
             onClick={() => {
+              truncateHierarchySnapshots(0);
               setActiveDepartment(null);
               setActiveTrack(null);
               setActiveSubSubject(null);
@@ -840,10 +992,12 @@ export const SubjectView = function SubjectView({
                 // so their root breadcrumb must never navigate to an empty
                 // intermediate screen.
                 if (subject.id === "ID" && activeSubSubject) {
+                  truncateHierarchySnapshots(0);
                   setActiveSubSubject(null);
                   setActiveTrack(null);
                   setActiveDepartment(null);
                 } else if (subject.id !== "ID" && activeTrack) {
+                  truncateHierarchySnapshots(0);
                   setActiveTrack(null);
                   setActiveDepartment(null);
                 }
@@ -863,6 +1017,7 @@ export const SubjectView = function SubjectView({
                 <button
                   onClick={() => {
                     if (activeTrack) {
+                      truncateHierarchySnapshots(1);
                       setActiveTrack(null);
                       setActiveDepartment(null);
                     }
@@ -883,6 +1038,7 @@ export const SubjectView = function SubjectView({
                 <button
                   onClick={() => {
                     if (activeDepartment) {
+                      truncateHierarchySnapshots(subject.id === "ID" ? 2 : 1);
                       setActiveDepartment(null);
                     }
                   }}
@@ -972,7 +1128,7 @@ export const SubjectView = function SubjectView({
                   <button
                     key={subName}
                     type="button"
-                    onClick={() => setActiveSubSubject(subName)}
+                    onClick={() => navigateToSubSubject(subName)}
                     className={baseCardClassName}
                     style={baseCardStyle}
                   >
@@ -1036,7 +1192,7 @@ export const SubjectView = function SubjectView({
               {/* Theory Selection Card */}
               <button
                 type="button"
-                onClick={() => setActiveTrack("Theory")}
+                onClick={() => navigateToTrack("Theory")}
                 className={baseCardClassName}
                 style={baseCardStyle}
               >
@@ -1069,7 +1225,7 @@ export const SubjectView = function SubjectView({
               {/* Practical Selection Card */}
               <button
                 type="button"
-                onClick={() => setActiveTrack("Practical")}
+                onClick={() => navigateToTrack("Practical")}
                 className={baseCardClassName}
                 style={baseCardStyle}
               >
@@ -1136,7 +1292,7 @@ export const SubjectView = function SubjectView({
                       <button
                         key={dept.id}
                         type="button"
-                        onClick={() => setActiveDepartment(dept.id)}
+                        onClick={() => navigateToDepartment(dept.id)}
                         className={baseCardClassName}
                         style={baseCardStyle}
                       >
@@ -1270,7 +1426,8 @@ export const SubjectView = function SubjectView({
           </motion.div>
         )}
       </>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 };
 
