@@ -1512,6 +1512,7 @@ export default function App() {
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
   const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
+  const [suppressHomeEntranceAnimations, setSuppressHomeEntranceAnimations] = useState(false);
 
   // Lightweight visual snapshot of the real Welcome page. We capture the DOM
   // before drilling into a Home subject and use the clone only as a non-
@@ -1532,6 +1533,7 @@ export default function App() {
         node.setAttribute("aria-hidden", "true");
       });
     snapshot.setAttribute("aria-hidden", "true");
+    snapshot.setAttribute("data-navigation-snapshot", "true");
     snapshot.style.pointerEvents = "none";
     snapshot.style.userSelect = "none";
     snapshot.style.transform = "none";
@@ -1541,19 +1543,30 @@ export default function App() {
     snapshot.style.minHeight = "100%";
     snapshot.style.overflow = "hidden";
     snapshot.style.isolation = "isolate";
-    snapshot.style.contain = "paint";
+    // iPad uses a width-reveal host instead of animated clip-path. Avoid a
+    // second paint-containment layer inside that host; it is the source of the
+    // black rectangular tile flashes seen in WKWebView during interactive Back.
+    snapshot.style.contain = device.isTablet ? "none" : "paint";
     return snapshot;
-  }, []);
+  }, [device.isTablet]);
 
   const captureHomeDashboardSnapshot = useCallback(() => {
     const source = homeDashboardSurfaceRef.current;
     if (!source) return;
     const clone = sanitizeHomeDashboardSnapshot(source.cloneNode(true) as HTMLElement);
+    const sourceRect = source.getBoundingClientRect();
+    clone.style.width = `${Math.max(1, sourceRect.width)}px`;
+    clone.style.minWidth = clone.style.width;
+    clone.style.maxWidth = "none";
+    clone.style.position = "absolute";
+    clone.style.top = "0";
+    clone.style.left = isRtl ? "auto" : "0";
+    clone.style.right = isRtl ? "0" : "auto";
     const sourceBackground = window.getComputedStyle(source).backgroundColor;
     if (sourceBackground) clone.style.backgroundColor = sourceBackground;
     clone.style.opacity = "1";
     homeDashboardSnapshotRef.current = clone;
-  }, [sanitizeHomeDashboardSnapshot]);
+  }, [sanitizeHomeDashboardSnapshot, isRtl]);
 
   const mountHomeDashboardSnapshot = useCallback(() => {
     const host = homeDashboardUnderlayHostRef.current;
@@ -1604,6 +1617,13 @@ export default function App() {
   }, []);
 
   const restoreNavigationEntry = useCallback((entry: NavigationEntry) => {
+    if (
+      entry.activeTab === "home" &&
+      entry.activeHomeSubjectId === null &&
+      entry.activeHomeLecture === null
+    ) {
+      setSuppressHomeEntranceAnimations(true);
+    }
     setActiveTab(entry.activeTab);
     setActiveSubjectId(entry.activeSubjectId);
     setActiveModuleId(entry.activeModuleId);
@@ -1643,6 +1663,7 @@ export default function App() {
       !homeSubjectHasInternalBack,
     onSwipeBack: () => {
       if (activeHomeSubjectId !== null) {
+        setSuppressHomeEntranceAnimations(true);
         if (restorePreviousNavigationEntry()) return;
         setActiveHomeSubjectId(null);
       }
@@ -1659,13 +1680,20 @@ export default function App() {
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
   );
+  const homeDashboardUnderlayRevealWidth = useTransform(
+    homeBackGesture.progress,
+    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
+  );
 
   // Lecture Detail intentionally does not participate in page-level swipe-back:
   // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
   // tab paging. The visible Back button keeps the exact historical Back behavior.
   const handleHomeLectureBack = useCallback(() => {
     if (activeHomeLecture === null) return;
-    if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
+    if (lectureDetailSource === "dashboard") {
+      setSuppressHomeEntranceAnimations(true);
+      if (restorePreviousNavigationEntry()) return;
+    }
 
     setActiveHomeLecture(null);
     if (lectureDetailSource === "dashboard") setActiveHomeSubjectId(null);
@@ -1693,6 +1721,10 @@ export default function App() {
         ? `inset(0 0 0 ${hiddenPercent}%)`
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
+  );
+  const homeDashboardLectureUnderlayRevealWidth = useTransform(
+    homeLectureBackGesture.progress,
+    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
   );
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
@@ -1785,13 +1817,14 @@ export default function App() {
 
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
+    setSuppressHomeEntranceAnimations(false);
     captureHomeDashboardSnapshot();
     setActiveHomeSubjectId(id);
     setActiveHomeLecture(null);
        
   }, [captureHomeDashboardSnapshot]);
 
-  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { captureHomeDashboardSnapshot(); setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, [captureHomeDashboardSnapshot]);
+  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setSuppressHomeEntranceAnimations(false); captureHomeDashboardSnapshot(); setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, [captureHomeDashboardSnapshot]);
 
   const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
@@ -4846,6 +4879,7 @@ const handleSignOut = useCallback(async () => {
                           onAddEvent={handleAddNewEvent}
                           language={language}
                           isActive={activeTab === 'home'}
+                          suppressEntranceAnimations={suppressHomeEntranceAnimations}
                         />
                       </ErrorBoundary>
 </Suspense>
@@ -4858,23 +4892,32 @@ const handleSignOut = useCallback(async () => {
                       <motion.div
                         ref={homeDashboardUnderlayHostRef}
                         aria-hidden="true"
-                        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                        className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
                         style={{
-                          clipPath:
-                            activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                              ? homeDashboardLectureUnderlayClipPath
-                              : homeDashboardUnderlayClipPath,
-                          WebkitClipPath:
-                            activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                              ? homeDashboardLectureUnderlayClipPath
-                              : homeDashboardUnderlayClipPath,
+                          left: device.isTablet && isRtl ? "auto" : 0,
+                          right: device.isTablet && !isRtl ? "auto" : 0,
+                          width: device.isTablet
+                            ? (activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                                ? homeDashboardLectureUnderlayRevealWidth
+                                : homeDashboardUnderlayRevealWidth)
+                            : "100%",
+                          clipPath: device.isTablet
+                            ? "none"
+                            : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                                ? homeDashboardLectureUnderlayClipPath
+                                : homeDashboardUnderlayClipPath),
+                          WebkitClipPath: device.isTablet
+                            ? "none"
+                            : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                                ? homeDashboardLectureUnderlayClipPath
+                                : homeDashboardUnderlayClipPath),
                           isolation: "isolate",
-                          contain: "paint",
+                          contain: device.isTablet ? "layout" : "paint",
                           WebkitBackfaceVisibility: "hidden",
                           backfaceVisibility: "hidden",
                           willChange:
                             homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
-                              ? "clip-path"
+                              ? (device.isTablet ? "width" : "clip-path")
                               : "auto",
                         }}
                       />

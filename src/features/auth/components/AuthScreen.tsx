@@ -1227,33 +1227,21 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
     ? {}
     : { whileHover: { scale: 1.015 }, whileTap: { scale: 0.985 }, transition: SP.tap };
 
-  // Slower, Apple-like entrance choreography used when the auth screen mounts
-  // (including when returning from Legal / Support pages). Keep micro-interactions
-  // snappy; only the page entrance is deliberately more cinematic.
-  const premiumEase: [number, number, number, number] = [0.16, 1, 0.3, 1];
-  const premiumPageEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.42, ease: premiumEase };
-  const premiumCardEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.88, ease: premiumEase };
-  const premiumLogoEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.78, delay: 0.10, ease: premiumEase };
-  const premiumHeaderEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.72, delay: 0.18, ease: premiumEase };
-  const premiumContentEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.78, delay: 0.26, ease: premiumEase };
-  const premiumFooterEntrance = reduce
-    ? { duration: 0 }
-    : { type: "tween" as const, duration: 0.72, delay: 0.48, ease: premiumEase };
+  // One restrained iOS-like curve for every major auth entrance / panel change.
+  // No staged 0.5–1.0s delays: those were the main source of perceived glitches
+  // when WKWebView was also compositing the blurred auth background.
+  const authEntrance = reduce ? { duration: 0 } : SP.gentle;
+  const premiumPageEntrance = authEntrance;
+  const premiumCardEntrance = authEntrance;
+  const premiumLogoEntrance = authEntrance;
+  const premiumHeaderEntrance = authEntrance;
+  const premiumContentEntrance = authEntrance;
+  const premiumFooterEntrance = authEntrance;
 
   return (
     <motion.div
       id="auth-screen-container"
-      initial={reduce ? false : { opacity: 0 }}
+      initial={false}
       animate={{ opacity: 1 }}
       transition={premiumPageEntrance}
       className="relative w-full h-full overflow-y-auto overflow-x-hidden bg-[#F8F9FC] dark:bg-[#1C1C1E] select-text ios-scrollable"
@@ -1337,17 +1325,19 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   role="status"
                   aria-live="polite"
                   aria-label="Signed in successfully"
-                  initial={reduce ? false : { opacity: 0, scale: 0.94, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.04, y: -14 }}
-                  transition={SP.gentle}
+                  variants={reduce ? undefined : SUCCESS_V}
+                  initial={reduce ? false : "hidden"}
+                  animate="visible"
+                  exit="exit"
+                  transition={authEntrance}
                   className="text-center py-6 focus:outline-none"
                 >
                   {/* Check icon */}
                   <motion.div
-                    initial={reduce ? false : { scale: 0.44, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 20, mass: 1 }}
+                    variants={reduce ? undefined : FIELD_V}
+                    initial={reduce ? false : "hidden"}
+                    animate="visible"
+                    transition={authEntrance}
                     className="flex justify-center mb-6"
                   >
                     <div className="relative">
@@ -1367,14 +1357,14 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   >
                     <motion.h3
                       variants={reduce ? undefined : FIELD_V}
-                      transition={{ ...SP.gentle, delay: 0.52 }}
+                      transition={authEntrance}
                       className="text-[21px] font-display font-semibold text-neutral-800 dark:text-white tracking-tight"
                     >
                       Welcome back
                     </motion.h3>
                     <motion.p
                       variants={reduce ? undefined : FIELD_V}
-                      transition={{ ...SP.gentle, delay: 0.60 }}
+                      transition={authEntrance}
                       className="text-secondary-label dark:text-[#EBEBF599]"
                     >
                       Signing you in to your dashboard…
@@ -1385,7 +1375,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={reduce ? { duration: 0 } : { delay: 0.82, duration: 0.35 }}
+                    transition={authEntrance}
                     className="mt-7"
                   >
                     <PulsingDots reduce={reduce} />
@@ -1410,9 +1400,10 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                 >
                   {/* Icon */}
                   <motion.div
-                    initial={reduce ? false : { scale: 0.44, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 20, mass: 1 }}
+                    variants={reduce ? undefined : FIELD_V}
+                    initial={reduce ? false : "hidden"}
+                    animate="visible"
+                    transition={authEntrance}
                     className="flex justify-center mb-5"
                   >
                     <div className="relative">
@@ -1432,14 +1423,14 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   >
                     <motion.h3
                       variants={reduce ? undefined : FIELD_V}
-                      transition={{ ...SP.gentle, delay: 0.50 }}
+                      transition={authEntrance}
                       className="text-body font-semibold text-neutral-800 dark:text-white"
                     >
                       Check Your Student Inbox
                     </motion.h3>
                     <motion.p
                       variants={reduce ? undefined : FIELD_V}
-                      transition={{ ...SP.gentle, delay: 0.58 }}
+                      transition={authEntrance}
                       className="text-secondary-label dark:text-[#EBEBF599] max-w-[280px] mx-auto leading-relaxed"
                     >
                       A secure recovery link was sent to{" "}
@@ -1454,7 +1445,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={reduce ? { duration: 0 } : { delay: 0.70, duration: 0.30 }}
+                    transition={authEntrance}
                     className="mt-7 space-y-2"
                   >
                     <CountdownBar durationMs={8000} reduce={reduce} />
@@ -1467,7 +1458,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                   <motion.div
                     initial={reduce ? false : { opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={reduce ? { duration: 0 } : { ...SP.gentle, delay: 0.78 }}
+                    transition={authEntrance}
                     className="mt-5"
                   >
                     <motion.button
@@ -1643,10 +1634,10 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                     <motion.div
                       ref={registerStepRef}
                       key={`register-step-${registerStep}`}
-                      initial={reduce ? false : { opacity: 0, x: direction > 0 ? 24 : -24 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={reduce ? { opacity: 0 } : { opacity: 0, x: direction > 0 ? -24 : 24 }}
-                      transition={reduce ? { duration: 0 } : SP.gentle}
+                      initial={reduce ? false : sv.enter}
+                      animate={sv.center}
+                      exit={reduce ? { opacity: 0 } : sv.exit}
+                      transition={authEntrance}
                       className="space-y-4"
                     >
                       {registerStep === 1 && (
@@ -1934,9 +1925,10 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                         >
                           {/* Animated check / spinner */}
                           <motion.div
-                            initial={reduce ? false : { scale: 0.44, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 20, mass: 1 }}
+                            variants={reduce ? undefined : FIELD_V}
+                            initial={reduce ? false : "hidden"}
+                            animate="visible"
+                            transition={authEntrance}
                             className="flex justify-center mb-6"
                           >
                             <div className="relative">
@@ -1962,7 +1954,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                           >
                             <motion.h3
                               variants={reduce ? undefined : FIELD_V}
-                              transition={{ ...SP.gentle, delay: isLoading ? 0 : 0.55 }}
+                              transition={authEntrance}
                               className="text-[21px] font-display font-semibold text-neutral-800 dark:text-white tracking-tight"
                             >
                                {isLoading
@@ -1973,7 +1965,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                             </motion.h3>
                             <motion.p
                               variants={reduce ? undefined : FIELD_V}
-                              transition={{ ...SP.gentle, delay: isLoading ? 0 : 0.63 }}
+                              transition={authEntrance}
                               className="text-secondary-label dark:text-[#EBEBF599] max-w-[280px] mx-auto leading-relaxed"
                             >
                                {isLoading
@@ -1990,7 +1982,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            transition={reduce ? { duration: 0 } : { delay: isLoading ? 0.2 : 0.84, duration: 0.35 }}
+                            transition={authEntrance}
                             className="mt-7"
                           >
                             <PulsingDots reduce={reduce} />
@@ -2000,7 +1992,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
-                              transition={{ delay: 1.05, duration: 0.35 }}
+                              transition={authEntrance}
                               className="mt-5"
                             >
                               <button
@@ -2265,8 +2257,9 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
           {/* ── Privacy footer ── */}
           <motion.div
             id="auth-privacy-footer"
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+            variants={reduce ? undefined : FIELD_V}
+            initial={reduce ? false : "hidden"}
+            animate="visible"
             transition={premiumFooterEntrance}
             className="mt-8 text-center max-w-xs text-caption text-med-muted dark:text-[#EBEBF599] p-3 bg-white/40 dark:bg-[#1C1C1E]/30 border border-med-beige/40 dark:border-white/[0.05] rounded-md select-none"
           >
@@ -2319,10 +2312,10 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
               role="dialog"
               aria-modal="true"
               aria-labelledby="legal-modal-title"
-              initial={{ scale: 0.93, y: 18, opacity: 0 }}
-              animate={{ scale: 1,    y: 0,  opacity: 1 }}
-              exit={{    scale: 0.93, y: 18, opacity: 0 }}
-              transition={SP.gentle}
+              initial={reduce ? false : sv.enter}
+              animate={sv.center}
+              exit={sv.exit}
+              transition={authEntrance}
               className="bg-white dark:bg-[#1c1c1e] w-full max-w-md rounded-2xl p-6 shadow-elevation-3 max-h-[80vh] overflow-y-auto"
             >
               <h3

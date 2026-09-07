@@ -67,6 +67,8 @@ import { CommandPalette, SearchResultItem } from "../../../components/ui/Command
 
 interface HomeDashboardProps {
   isActive?: boolean;
+  /** When the dashboard is restored by Back/Home, keep its existing content visually static. */
+  suppressEntranceAnimations?: boolean;
   user: {
     id?: string;
     name: string;
@@ -985,6 +987,7 @@ const HeroBanner = memo(({
 
 const HomeDashboard = memo(function HomeDashboard({
   isActive = true,
+  suppressEntranceAnimations = false,
   user,
   subjects,
   dbLectures = [],
@@ -1319,7 +1322,7 @@ const HomeDashboard = memo(function HomeDashboard({
   }, [device]);
 
   return (
-    <div className="home-root relative">
+    <div className={`home-root relative ${suppressEntranceAnimations ? "navigation-return-static" : ""}`}>
       <motion.div
         initial={{ opacity: 1 }}
         animate={{ opacity: 1 }}
@@ -1356,8 +1359,9 @@ const HomeDashboard = memo(function HomeDashboard({
                 <div
                   className="w-full relative z-30"
                   style={{
-                    animation:
-                      "iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.05s backwards",
+                    animation: suppressEntranceAnimations
+                      ? "none"
+                      : "iosSmoothDepthFadeIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.05s backwards",
                     WebkitBackfaceVisibility: "hidden",
                     backfaceVisibility: "hidden",
                   }}

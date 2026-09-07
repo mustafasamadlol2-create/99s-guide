@@ -18,6 +18,7 @@
 
 import React from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
 
 /* ─── Blob definitions ──────────────────────────────────────────────────── */
 
@@ -75,6 +76,10 @@ const BLOBS: BlobDef[] = [
 
 export default function AuthBackground() {
   const reduce = useReducedMotion();
+  // WKWebView can stutter when several very large blurred layers are animated
+  // while the auth card is also transitioning. Keep the identical blobs but
+  // freeze their transform on iPhone/iPad; desktop/web retains the slow drift.
+  const animateBlobs = !reduce && !isAppleTouchNavigationDevice();
 
   return (
     <div
@@ -223,9 +228,9 @@ export default function AuthBackground() {
             backfaceVisibility: "hidden",
             ...blob.pos,
           }}
-          animate={reduce ? undefined : { x: blob.kx, y: blob.ky }}
+          animate={animateBlobs ? { x: blob.kx, y: blob.ky } : undefined}
           transition={
-            reduce
+            !animateBlobs
               ? { duration: 0 }
               : {
                   duration:   blob.dur,

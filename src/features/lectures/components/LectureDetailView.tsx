@@ -1794,6 +1794,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
    {/* 2. Workspace View Tabs Rendering */}
+  {/* Keep the visual card exactly as-is, but make the touch surface continue
+      through the otherwise-empty area below it. This lets iPhone/iPad users
+      page PDF → Notes → MCQ → … from that lower whitespace without changing
+      SmoothAutoHeight measurements or the card transition itself. */}
+  <div
+    ref={lectureTabPager.surfaceRef}
+    className="relative w-full min-h-[calc(100svh-220px)]"
+  >
   <SmoothAutoHeight
     dependency={activeTab}
     durationMs={320}
@@ -1809,7 +1817,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       commit. This removes the blank handoff frame and lets SmoothAutoHeight
       measure the real incoming panel before the browser paints it. */}
   <motion.div
-    ref={lectureTabPager.surfaceRef}
     className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
     style={{
       x: lectureTabContentX,
@@ -3504,6 +3511,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     }}
   />
   </SmoothAutoHeight>
+  </div>
   </motion.div>
   );
 };

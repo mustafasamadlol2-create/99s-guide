@@ -253,11 +253,11 @@ export function useSwipeBack({
         // finger, then springs home without an artificial linear rewind.
         const controls = animate(x, 0, {
           type: "spring",
-          stiffness: 445,
-          damping: 43,
-          mass: 0.82,
-          restSpeed: 10,
-          restDelta: 0.5,
+          stiffness: 405,
+          damping: 38,
+          mass: 0.86,
+          restSpeed: 8,
+          restDelta: 0.4,
           onUpdate: updateProgress,
           onComplete: finish,
         });
@@ -266,16 +266,19 @@ export function useSwipeBack({
       }
 
       const distanceRemaining = Math.abs(target - x.get());
-      const pxPerSecond = Math.max(width * 3.05, releaseVelocity * 1000);
+      // Slightly slower than the previous completion curve so the final few
+      // centimeters never feel like they snap away from the finger. Fast flicks
+      // still shorten naturally through releaseVelocity.
+      const pxPerSecond = Math.max(width * 2.7, releaseVelocity * 1000);
       const duration = Math.max(
-        0.14,
-        Math.min(0.29, distanceRemaining / Math.max(1, pxPerSecond)),
+        0.16,
+        Math.min(0.31, distanceRemaining / Math.max(1, pxPerSecond)),
       );
 
       const controls = animate(x, target, {
         duration,
-        // Close to UIKit's decelerating interactive-pop completion curve.
-        ease: [0.32, 0.72, 0, 1],
+        // Apple's common ease-out family: quick response, soft final deceleration.
+        ease: [0.22, 1, 0.36, 1],
         onUpdate: updateProgress,
         onComplete: finish,
       });

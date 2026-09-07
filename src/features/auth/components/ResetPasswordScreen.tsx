@@ -105,9 +105,9 @@ export default function ResetPasswordScreen() {
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0 }}
+      initial={false}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.22 }}
+      transition={reduce ? { duration: 0 } : SP.gentle}
       className="absolute inset-0 w-full overflow-y-auto overflow-x-hidden bg-gradient-to-b from-med-bg to-med-cream dark:from-neutral-950 dark:to-neutral-900 selection:bg-med-gold/20 ios-scrollable"
     >
       <div
@@ -145,9 +145,10 @@ export default function ResetPasswordScreen() {
             </motion.div>
 
             <motion.div
-              initial={reduce ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...SP.gentle, delay: 0.1 }}
+              variants={reduce ? undefined : FIELD_V}
+              initial={reduce ? false : "hidden"}
+              animate="visible"
+              transition={reduce ? { duration: 0 } : SP.gentle}
             >
               <h2 className="text-title font-display font-semibold text-neutral-800 dark:text-white">
                 Secure Password Reset
@@ -176,9 +177,10 @@ export default function ResetPasswordScreen() {
                 className="text-center py-2"
               >
                 <motion.div
-                  initial={reduce ? false : { scale: 0.44, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 20 }}
+                  variants={reduce ? undefined : FIELD_V}
+                  initial={reduce ? false : "hidden"}
+                  animate="visible"
+                  transition={reduce ? { duration: 0 } : SP.gentle}
                   className="flex justify-center mb-4"
                 >
                   <div className="relative">
@@ -212,9 +214,10 @@ export default function ResetPasswordScreen() {
                 </motion.div>
 
                 <motion.button
-                  initial={reduce ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...SP.gentle, delay: 0.2 }}
+                  variants={reduce ? undefined : FIELD_V}
+                  initial={reduce ? false : "hidden"}
+                  animate="visible"
+                  transition={reduce ? { duration: 0 } : SP.gentle}
                   aria-label="Sign in to your dashboard"
                   {...btnMotion}
                   onClick={navigateToLogin}
@@ -230,10 +233,11 @@ export default function ResetPasswordScreen() {
               <motion.form
                 key="form"
                 noValidate
-                initial={reduce ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={SP.gentle}
+                variants={reduce ? undefined : FIELD_V}
+                initial={reduce ? false : "hidden"}
+                animate="visible"
+                exit="exit"
+                transition={reduce ? { duration: 0 } : SP.gentle}
                 onSubmit={handleSubmit}
               >
                 {isInvalid ? (
@@ -378,9 +382,10 @@ export default function ResetPasswordScreen() {
 
         {/* Footer badge */}
         <motion.div
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SP.gentle, delay: 0.38 }}
+          variants={reduce ? undefined : FIELD_V}
+          initial={reduce ? false : "hidden"}
+          animate="visible"
+          transition={reduce ? { duration: 0 } : SP.gentle}
           className="mt-8 text-center max-w-xs text-caption text-med-muted dark:text-[#EBEBF599] p-3 bg-white/40 dark:bg-[#1C1C1E]/30 border border-med-beige/40 dark:border-white/[0.05] rounded-md select-none"
         >
           <div className="flex items-center justify-center gap-1.5 font-semibold mb-1">

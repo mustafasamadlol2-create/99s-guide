@@ -1962,6 +1962,26 @@ input:active,
 .subject-view-root .ios-staggered-card {
   animation-delay: 0s !important;
 }
+
+/* Back-navigation destinations must paint as an already-existing screen, not
+   replay their normal one-shot entrance choreography. Forward navigation still
+   uses the regular animations because this class is set only on a restored
+   destination. */
+.navigation-return-static .ios-staggered-card {
+  animation: none !important;
+  animation-delay: 0s !important;
+  opacity: 1 !important;
+}
+
+/* Detached navigation snapshots are visual backing layers only. Cloning a DOM
+   node restarts CSS keyframes in WebKit unless we explicitly freeze them, which
+   made cards/hero decorations animate while the user was swiping Back. */
+[data-navigation-snapshot="true"],
+[data-navigation-snapshot="true"] * {
+  animation: none !important;
+  animation-delay: 0s !important;
+  transition: none !important;
+}
 /* --- iOS NAVIGATION ROUTER (UINavigationController Replicate) --- */
 
 /* iOS Page Router Container */

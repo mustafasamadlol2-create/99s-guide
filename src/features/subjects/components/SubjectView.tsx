@@ -726,6 +726,10 @@ export const SubjectView = function SubjectView({
   const hierarchySnapshotStackRef = useRef<HTMLElement[]>([]);
   const clearUnderlayFrameRef = useRef<number | null>(null);
   const [isHierarchyUnderlayVisible, setIsHierarchyUnderlayVisible] = useState(false);
+  // A Back-restored hierarchy level should look like a screen that was already
+  // there. Keep its one-shot card entrance animations disabled until the user
+  // drills forward again.
+  const [suppressContentEntranceAnimations, setSuppressContentEntranceAnimations] = useState(false);
 
   const sanitizeSnapshot = useCallback((snapshot: HTMLElement) => {
     snapshot.removeAttribute("id");
@@ -734,6 +738,7 @@ export const SubjectView = function SubjectView({
       node.setAttribute("tabindex", "-1");
       node.setAttribute("aria-hidden", "true");
     });
+    snapshot.setAttribute("data-navigation-snapshot", "true");
     snapshot.style.pointerEvents = "none";
     snapshot.style.userSelect = "none";
     snapshot.style.transform = "none";
@@ -746,20 +751,31 @@ export const SubjectView = function SubjectView({
     snapshot.style.minHeight = "100%";
     snapshot.style.overflow = "hidden";
     snapshot.style.isolation = "isolate";
-    snapshot.style.contain = "paint";
+    // iPad: paint containment on a cloned, clipped subtree can produce black
+    // compositor tiles. The tablet underlay already clips at its outer host, so
+    // the clone does not need its own paint layer.
+    snapshot.style.contain = device.isTablet ? "none" : "paint";
     snapshot.setAttribute("aria-hidden", "true");
     return snapshot;
-  }, []);
+  }, [device.isTablet]);
 
   const captureHierarchySnapshot = useCallback(() => {
     const source = hierarchyLayerRef.current;
     if (!source) return;
     const clone = sanitizeSnapshot(source.cloneNode(true) as HTMLElement);
+    const sourceRect = source.getBoundingClientRect();
+    clone.style.width = `${Math.max(1, sourceRect.width)}px`;
+    clone.style.minWidth = clone.style.width;
+    clone.style.maxWidth = "none";
+    clone.style.position = "absolute";
+    clone.style.top = "0";
+    clone.style.left = isRtl ? "auto" : "0";
+    clone.style.right = isRtl ? "0" : "auto";
     const sourceBackground = window.getComputedStyle(source).backgroundColor;
     if (sourceBackground) clone.style.backgroundColor = sourceBackground;
     clone.style.opacity = "1";
     hierarchySnapshotStackRef.current.push(clone);
-  }, [sanitizeSnapshot]);
+  }, [sanitizeSnapshot, isRtl]);
 
   const mountPreviousHierarchySnapshot = useCallback(() => {
     const host = hierarchyUnderlayRef.current;
@@ -801,16 +817,19 @@ export const SubjectView = function SubjectView({
   }, [hideHierarchyUnderlay]);
 
   const navigateToSubSubject = useCallback((subSubject: string) => {
+    setSuppressContentEntranceAnimations(false);
     captureHierarchySnapshot();
     setActiveSubSubject(subSubject);
   }, [captureHierarchySnapshot]);
 
   const navigateToTrack = useCallback((track: "Theory" | "Practical") => {
+    setSuppressContentEntranceAnimations(false);
     captureHierarchySnapshot();
     setActiveTrack(track);
   }, [captureHierarchySnapshot]);
 
   const navigateToDepartment = useCallback((department: string) => {
+    setSuppressContentEntranceAnimations(false);
     captureHierarchySnapshot();
     setActiveDepartment(department);
   }, [captureHierarchySnapshot]);
@@ -819,6 +838,7 @@ export const SubjectView = function SubjectView({
   // removed only after React has painted the restored live screen, preventing a
   // one-frame white flash at the end of a completed swipe.
   const handleNavBack = useCallback(() => {
+    setSuppressContentEntranceAnimations(true);
     const isInternal =
       activeDepartment !== null ||
       activeTrack !== null ||
@@ -904,6 +924,14 @@ export const SubjectView = function SubjectView({
     },
   );
   const hierarchyUnderlayOpacity = 1;
+  // iPadOS has a long-standing WebKit compositor artifact where an animated
+  // clip-path over a complex cloned subtree can flash black rectangular slices.
+  // On tablets reveal the same snapshot by changing only the width of one
+  // absolutely positioned overflow box; iPhone keeps the proven clip-path path.
+  const hierarchyUnderlayRevealWidth = useTransform(
+    internalBackGesture.progress,
+    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
+  );
 
   const lectureCountsBySubSubject = useMemo(() => {
     const counts: Record<string, { theory: number; practical: number }> = {};
@@ -935,23 +963,28 @@ export const SubjectView = function SubjectView({
   return (
     <div
       data-subject-internal-back-active={hasInternalBack ? "true" : "false"}
-      className="subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+      className={`subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
     >
       <motion.div
         ref={hierarchyUnderlayRef}
         aria-hidden="true"
-        className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+        className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
         style={{
           visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
           x: 0,
           opacity: hierarchyUnderlayOpacity,
-          clipPath: hierarchyUnderlayClipPath,
-          WebkitClipPath: hierarchyUnderlayClipPath,
+          left: device.isTablet && isRtl ? "auto" : 0,
+          right: device.isTablet && !isRtl ? "auto" : 0,
+          width: device.isTablet ? hierarchyUnderlayRevealWidth : "100%",
+          clipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
+          WebkitClipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
-          contain: "paint",
+          contain: device.isTablet ? "layout" : "paint",
           WebkitBackfaceVisibility: "hidden",
           backfaceVisibility: "hidden",
-          willChange: internalBackGesture.isInteracting ? "clip-path" : "auto",
+          willChange: internalBackGesture.isInteracting
+            ? (device.isTablet ? "width" : "clip-path")
+            : "auto",
         }}
       />
       <motion.div
@@ -961,7 +994,7 @@ export const SubjectView = function SubjectView({
           x: internalBackGesture.x,
           minHeight: "100%",
           isolation: "isolate",
-          contain: "paint",
+          contain: device.isTablet ? "none" : "paint",
           WebkitBackfaceVisibility: "hidden",
           backfaceVisibility: "hidden",
           boxShadow: internalBackGesture.isInteracting
@@ -1028,11 +1061,13 @@ export const SubjectView = function SubjectView({
                 // so their root breadcrumb must never navigate to an empty
                 // intermediate screen.
                 if (subject.id === "ID" && activeSubSubject) {
+                  setSuppressContentEntranceAnimations(true);
                   truncateHierarchySnapshots(0);
                   setActiveSubSubject(null);
                   setActiveTrack(null);
                   setActiveDepartment(null);
                 } else if (subject.id !== "ID" && activeTrack) {
+                  setSuppressContentEntranceAnimations(true);
                   truncateHierarchySnapshots(0);
                   setActiveTrack(null);
                   setActiveDepartment(null);
@@ -1053,6 +1088,7 @@ export const SubjectView = function SubjectView({
                 <button
                   onClick={() => {
                     if (activeTrack) {
+                      setSuppressContentEntranceAnimations(true);
                       truncateHierarchySnapshots(1);
                       setActiveTrack(null);
                       setActiveDepartment(null);
@@ -1074,6 +1110,7 @@ export const SubjectView = function SubjectView({
                 <button
                   onClick={() => {
                     if (activeDepartment) {
+                      setSuppressContentEntranceAnimations(true);
                       truncateHierarchySnapshots(subject.id === "ID" ? 2 : 1);
                       setActiveDepartment(null);
                     }
