@@ -36,6 +36,7 @@ import { CalendarMonthView } from "./CalendarMonthView";
 import { CalendarWeekView } from "./CalendarWeekView";
 import { CalendarDayView } from "./CalendarDayView";
 import { getEventIconInfo, PRIORITY, getEventPriority } from "../../../features/calendar/components/EventIcon";
+import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 
 import { parseLocalDate, formatLocalDate, to12HourFormatStr } from "../../../core/utils/dateUtils";
 
@@ -350,6 +351,42 @@ const CalendarView = memo(function CalendarView({
  language,
  });
 
+ const navigateToPreviousPeriod = React.useCallback(() => {
+   if (activeView === "month") handlePrevMonth();
+   else if (activeView === "week") handlePrevWeek();
+   else handlePrevDay();
+ }, [activeView, handlePrevMonth, handlePrevWeek, handlePrevDay]);
+
+ const navigateToNextPeriod = React.useCallback(() => {
+   if (activeView === "month") handleNextMonth();
+   else if (activeView === "week") handleNextWeek();
+   else handleNextDay();
+ }, [activeView, handleNextMonth, handleNextWeek, handleNextDay]);
+
+ const canNavigatePreviousPeriod =
+   activeView !== "month" || currentYear > 2025 || currentMonth > 0;
+ const canNavigateNextPeriod =
+   activeView !== "month" || currentYear < 2027 || currentMonth < 11;
+
+ // Week columns intentionally keep their own horizontal scrolling. Period
+ // paging lives on the date/navigation banner so the two gestures never fight.
+ const periodPager = useHorizontalSwipePager<HTMLDivElement>({
+   onNext: navigateToNextPeriod,
+   onPrevious: navigateToPreviousPeriod,
+   canNext: canNavigateNextPeriod,
+   canPrevious: canNavigatePreviousPeriod,
+   isEnabled: true,
+   isRtl,
+   blockedSelector:
+     activeView === "week"
+       ? "#week_columns_container"
+       : activeView === "day"
+         ? "#calendar_day_grid_deck"
+         : undefined,
+   commitDistance: 72,
+   velocityThreshold: 0.55,
+ });
+
  // Keep independent scroll positions for Month / Week / Day, like native
  // tab views. Switching views no longer destroys the user's reading position.
  const calendarViewScrollPositionsRef = useRef<Record<string, number>>({});
@@ -616,7 +653,7 @@ const CalendarView = memo(function CalendarView({
  return (
  <div
  id="calendar_viewport"
-  className="cal-view-root space-y-section animate-fadeIn pb-24 md:pb-12 select-none"
+  className="cal-view-root space-y-section animate-fadeIn pb-24 md:pb-12 select-none overflow-x-clip"
  style={{
  direction: isRtl ? "rtl" : "ltr",
  fontFamily:
@@ -625,9 +662,17 @@ const CalendarView = memo(function CalendarView({
  >
  <CalendarHeader t={t} isRtl={isRtl} activeView={activeView} setActiveView={handleCalendarViewChange} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
- <div
+ <motion.div
+ ref={periodPager.surfaceRef}
  id="left_middle_deck"
- className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] p-card-padding rounded-lg shadow-elevation-1 space-y-section transition duration-normal"
+ style={{ x: periodPager.x, willChange: "transform" }}
+ onClickCapture={(event) => {
+   if (periodPager.didDragRecently()) {
+     event.preventDefault();
+     event.stopPropagation();
+   }
+ }}
+ className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] p-card-padding rounded-lg shadow-elevation-1 space-y-section transition duration-normal touch-pan-y"
  >
  {/* NAVIGATION BAR - MONTHS */}
  <div
@@ -779,7 +824,7 @@ const CalendarView = memo(function CalendarView({
  )}
  </AnimatePresence>
  </SmoothAutoHeight>
- </div>
+ </motion.div>
 
  {/* Floating Apple-Style Context Menu */}
  <AnimatePresence mode="wait">

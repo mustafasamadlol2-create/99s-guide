@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { CalendarEvent } from "../../../core/types";
 import { apiClient } from "../../../core/api/apiClient";
 import { formatToBaghdadISO, parseBaghdadDate } from "../../../core/utils/timezone";
+import { useSwipeDownDismiss } from "../../../core/hooks/useTouchSurfaceGestures";
 
 interface EditCalendarEventProps {
   event: CalendarEvent;
@@ -78,6 +79,15 @@ export default function EditCalendarEvent({
     type: "success" | "error";
     message: string;
   } | null>(null);
+
+  const dismissGesture = useSwipeDownDismiss<HTMLDivElement>({
+    onDismiss: onBack,
+    isEnabled: !isSaving,
+    handleSelector: '[data-swipe-dismiss-handle="true"]',
+    blockedSelector: "button",
+    commitDistance: 118,
+    velocityThreshold: 0.6,
+  });
 
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -201,14 +211,16 @@ export default function EditCalendarEvent({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 16 }}
-      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+      ref={dismissGesture.surfaceRef}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      style={{ y: dismissGesture.y, willChange: "transform" }}
       className="h-dvh bg-neutral-50 dark:bg-[#111113] flex flex-col overflow-hidden"
     >
       {/* Sticky Header */}
-      <div className="sticky top-0 z-30 bg-neutral-50/90 dark:bg-[#111113]/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-white/[0.08] flex-shrink-0">
+      <div data-swipe-dismiss-handle="true" className="sticky top-0 z-30 bg-neutral-50/90 dark:bg-[#111113]/90 backdrop-blur-md border-b border-neutral-200/60 dark:border-white/[0.08] flex-shrink-0">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
           <button
             type="button"
@@ -236,6 +248,7 @@ export default function EditCalendarEvent({
 
       {/* Scrollable Body */}
       <div
+        data-swipe-dismiss-scroll="true"
         className="flex-1 overflow-y-auto"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}
       >

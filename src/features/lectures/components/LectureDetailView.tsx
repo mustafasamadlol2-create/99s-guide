@@ -58,6 +58,7 @@ import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
+import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -1657,6 +1658,60 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    });
  }, [quizQuestions, quizSource]);
 
+ const activeFlashcardsForNavigation = useMemo(() => {
+   if (repeatFilter === "hard") return relevantCards.filter((c: any) => cardStats[c.id] === "hard");
+   if (repeatFilter === "medium") return relevantCards.filter((c: any) => cardStats[c.id] === "medium");
+   if (repeatFilter === "easy") return relevantCards.filter((c: any) => cardStats[c.id] === "easy");
+   return relevantCards;
+ }, [relevantCards, repeatFilter, cardStats]);
+
+ const goToPreviousFlashcard = useCallback(() => {
+   if (currentCardIndex <= 0) return;
+   setCurrentCardIndex((prev) => Math.max(0, prev - 1));
+   setIsFlipped(false);
+ }, [currentCardIndex]);
+
+ const goToNextFlashcard = useCallback(() => {
+   if (currentCardIndex >= activeFlashcardsForNavigation.length - 1) return;
+   setCurrentCardIndex((prev) => Math.min(activeFlashcardsForNavigation.length - 1, prev + 1));
+   setIsFlipped(false);
+ }, [currentCardIndex, activeFlashcardsForNavigation.length]);
+
+ const flashcardPager = useHorizontalSwipePager<HTMLDivElement>({
+   onNext: goToNextFlashcard,
+   onPrevious: goToPreviousFlashcard,
+   canNext: currentCardIndex < activeFlashcardsForNavigation.length - 1,
+   canPrevious: currentCardIndex > 0,
+   isEnabled: activeTab === "flashcards" && !deckFinished && activeFlashcardsForNavigation.length > 1,
+   isRtl,
+   commitDistance: 76,
+   velocityThreshold: 0.56,
+ });
+
+ const goToPreviousMcq = useCallback(() => {
+   if (currentQuestionIndex <= 0) return;
+   setCurrentQuestionIndex((prev) => Math.max(0, prev - 1));
+   setShowHint(false);
+ }, [currentQuestionIndex]);
+
+ const goToNextMcq = useCallback(() => {
+   if (currentQuestionIndex >= filteredQuizQuestions.length - 1) return;
+   setCurrentQuestionIndex((prev) => Math.min(filteredQuizQuestions.length - 1, prev + 1));
+   setShowHint(false);
+ }, [currentQuestionIndex, filteredQuizQuestions.length]);
+
+ const mcqPager = useHorizontalSwipePager<HTMLDivElement>({
+   onNext: goToNextMcq,
+   onPrevious: goToPreviousMcq,
+   canNext: currentQuestionIndex < filteredQuizQuestions.length - 1,
+   canPrevious: currentQuestionIndex > 0,
+   isEnabled: activeTab === "mcqs" && !quizSubmitted && filteredQuizQuestions.length > 1,
+   isRtl,
+   blockedSelector: "button",
+   commitDistance: 82,
+   velocityThreshold: 0.58,
+ });
+
 
  return (
   <div className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased">
@@ -2020,7 +2075,7 @@ initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
- className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full"
+ className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full overflow-x-clip"
  >
  {filteredQuizQuestions.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
@@ -2041,7 +2096,11 @@ initial={{ opacity: 0, y: 3 }}
  </div>
  ) : !quizSubmitted ? (
  // Quiz Active State (One question per screen as requested)
- <div className="flex flex-col">
+ <motion.div
+   ref={mcqPager.surfaceRef}
+   style={{ x: mcqPager.x, willChange: "transform" }}
+   className="flex flex-col"
+ >
  <div className="space-y-4">
  {/* Subject and progress metrics */}
  <div className="flex justify-between items-center text-caption text-neutral-500 dark:text-[#EBEBF599]" style={flashcardThemeVars}>
@@ -2241,7 +2300,7 @@ initial={{ opacity: 0, y: 3 }}
  </div>
  </div>
  )}
- </div>
+ </motion.div>
  ) : (
  // Quiz Results State (Colorcoded green/red, review modes)
  <div className="space-y-section">
@@ -2384,7 +2443,7 @@ initial={{ opacity: 0, y: 3 }}
   animate={{ opacity: 1, y: 0 }}
   exit={{ opacity: 0, y: -2 }}
  transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
- className="flex-1 flex flex-col justify-between w-full"
+ className="flex-1 flex flex-col justify-between w-full overflow-x-clip"
  >
  {(() => {
  const relevantCards = getRelevantCards();
@@ -2580,9 +2639,13 @@ initial={{ opacity: 0, y: 3 }}
           </span>
         )}
 
-        <div
-          onClick={() => setIsFlipped(!isFlipped)}
-          style={flashcardThemeVars}
+        <motion.div
+          ref={flashcardPager.surfaceRef}
+          onClick={() => {
+            if (flashcardPager.didDragRecently()) return;
+            setIsFlipped(!isFlipped);
+          }}
+          style={{ ...flashcardThemeVars, x: flashcardPager.x, willChange: "transform" }}
           className={`relative w-full max-w-[980px] mx-auto min-h-[clamp(360px,46svh,420px)] rounded-[28px] sm:rounded-[32px] border overflow-hidden cursor-pointer select-none antialiased transition-colors duration-300 ${
             isFlipped
               ? "bg-white border-black/[0.07] text-neutral-900 shadow-[0_24px_62px_rgba(15,23,42,0.12)] dark:bg-[#151619] dark:border-white/[0.09] dark:text-white dark:shadow-[0_28px_75px_rgba(0,0,0,0.36)]"
@@ -2701,7 +2764,7 @@ initial={{ opacity: 0, y: 3 }}
               )}
             </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
 
         <div
           aria-hidden={!isFlipped}

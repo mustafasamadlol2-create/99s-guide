@@ -38,6 +38,7 @@ interface SettingsViewProps {
  pushAlerts: boolean;
  onPushAlertsChange: (val: boolean) => void;
   onAccountDeleted?: (confirmation: string) => Promise<boolean>;
+  onNavigateToLegal?: (tab: "privacy" | "terms" | "support" | "disclaimer") => void;
 }
 
 const SettingsActionItem = memo(({
@@ -93,10 +94,19 @@ const SettingsView = function SettingsView({
  pushAlerts,
  onPushAlertsChange,
  onAccountDeleted,
+ onNavigateToLegal,
 }: SettingsViewProps) {
  const { t } = useTranslation(language);
 
  const isRtl = language === "ar";
+
+ const navigateToLegal = useCallback((tab: "privacy" | "terms" | "support" | "disclaimer") => {
+   if (onNavigateToLegal) {
+     onNavigateToLegal(tab);
+     return;
+   }
+   window.location.hash = `#${tab}`;
+ }, [onNavigateToLegal]);
 
  const [privacyModalInfo, setPrivacyModalInfo] = useState<{title: string, desc: string} | null>(null);
 
@@ -412,7 +422,7 @@ const SettingsView = function SettingsView({
  
  <div className="flex flex-col">
  <SettingsActionItem
-  onClick={() => { window.location.hash = "#privacy"; }}
+  onClick={() => navigateToLegal("privacy")}
   Icon={ShieldCheck}
   title={isRtl ? "سياسة الخصوصية" : "Privacy Policy"}
   subtitle={isRtl ? "كيفية تعاملنا مع بياناتك الأكاديمية" : "How we handle your academic data"}
@@ -425,7 +435,7 @@ const SettingsView = function SettingsView({
  <div className="h-0 w-full bg-black/5 dark:bg-white/[0.08] my-1" />
 
  <SettingsActionItem
-  onClick={() => { window.location.hash = "#terms"; }}
+  onClick={() => navigateToLegal("terms")}
   Icon={FileText}
   title={isRtl ? "شروط الخدمة" : "Terms of Service"}
   subtitle={isRtl ? "القواعد والشروط للاستخدام" : "Rules and conditions for usage"}
@@ -438,7 +448,7 @@ const SettingsView = function SettingsView({
  <div className="h-0 w-full bg-black/5 dark:bg-white/[0.08] my-1" />
 
  <SettingsActionItem
-  onClick={() => { window.location.hash = "#support"; }}
+  onClick={() => navigateToLegal("support")}
   Icon={LifeBuoy}
   title={isRtl ? "مركز المساعدة والدعم" : "Help & Support Center"}
   subtitle={isRtl ? "اتصل بنا أو ابحث عن الإجابات" : "Contact us or find answers"}
@@ -451,7 +461,7 @@ const SettingsView = function SettingsView({
  <div className="h-0 w-full bg-black/5 dark:bg-white/[0.08] my-1" />
 
  <SettingsActionItem
-  onClick={() => { window.location.hash = "#disclaimer"; }}
+  onClick={() => navigateToLegal("disclaimer")}
   Icon={Book}
   title={isRtl ? "إخلاء المسؤولية الطبية" : "Medical Disclaimer"}
   subtitle={isRtl ? "إشعار هام للاستخدام الأكاديمي" : "Important notice for academic use"}

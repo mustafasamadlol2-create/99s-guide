@@ -34,7 +34,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
 import { useSwipeBack } from "./core/hooks/useSwipeBack";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
 import { SidebarNavItem } from "./core/layout/SidebarNavItem";
@@ -1486,146 +1486,205 @@ export default function App() {
     "dashboard" | "subject" | null
   >(null);
 
-  // --- Native iOS Real-time Interactive Swipe Back Drag States ---
-  const [homeLectureSwipeX, setHomeLectureSwipeX] = useState(0);
-  const [homeSubjectSwipeX, setHomeSubjectSwipeX] = useState(0);
-  const [lectureSwipeX, setLectureSwipeX] = useState(0);
-  const [subjectSwipeX, setSubjectSwipeX] = useState(0);
-
-  const [isReleasingHomeLecture, setIsReleasingHomeLecture] = useState(false);
-  const [isReleasingHomeSubject, setIsReleasingHomeSubject] = useState(false);
-  const [isReleasingLecture, setIsReleasingLecture] = useState(false);
-  const [isReleasingSubject, setIsReleasingSubject] = useState(false);
-
-  // ── Navigation stack for correct Back behavior from Search ───────────
-  // Each entry captures the complete navigation state so Back can restore it.
+  // ── iOS / iPadOS interactive navigation stack ──────────────────────────
+  // Main-tab changes are roots and clear this stack. Only explicit drill-down
+  // navigation (Search → result, Profile → Settings, Settings → Legal,
+  // Bulletin → destination) pushes an entry, so edge-swipe Back never turns
+  // into an unexpected "previous tab" gesture.
   type NavigationEntry = {
     activeTab: string;
     activeSubjectId: SubjectId | null;
+    activeModuleId: SubjectId | null;
     activeLecture: Lecture | null;
     activeLectureTab: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa";
     activeHomeSubjectId: SubjectId | null;
     activeHomeLecture: Lecture | null;
     lectureDetailSource: "dashboard" | "subject" | null;
+    returnToSearch: boolean;
   };
-  const navigationStackRef = useRef<NavigationEntry[]>([]);
 
-  const pushNavigationStack = useCallback(() => {
-    navigationStackRef.current.push({
+  const navigationStackRef = useRef<NavigationEntry[]>([]);
+  const [navigationStackTop, setNavigationStackTop] = useState<NavigationEntry | null>(null);
+  const [preserveSearchSession, setPreserveSearchSession] = useState(false);
+  const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
+  const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
+
+  const pushNavigationStack = useCallback((options?: { returnToSearch?: boolean }) => {
+    const entry: NavigationEntry = {
       activeTab,
       activeSubjectId,
+      activeModuleId,
       activeLecture,
       activeLectureTab,
       activeHomeSubjectId,
       activeHomeLecture,
       lectureDetailSource,
-    });
-  }, [activeTab, activeSubjectId, activeLecture, activeLectureTab, activeHomeSubjectId, activeHomeLecture, lectureDetailSource]);
+      returnToSearch: options?.returnToSearch ?? false,
+    };
+    navigationStackRef.current.push(entry);
+    setNavigationStackTop(entry);
+  }, [
+    activeTab,
+    activeSubjectId,
+    activeModuleId,
+    activeLecture,
+    activeLectureTab,
+    activeHomeSubjectId,
+    activeHomeLecture,
+    lectureDetailSource,
+  ]);
 
   const popNavigationStack = useCallback((): NavigationEntry | null => {
-    return navigationStackRef.current.pop() || null;
+    const entry = navigationStackRef.current.pop() || null;
+    setNavigationStackTop(
+      navigationStackRef.current.length > 0
+        ? navigationStackRef.current[navigationStackRef.current.length - 1]
+        : null,
+    );
+    return entry;
   }, []);
 
   const clearNavigationStack = useCallback(() => {
     navigationStackRef.current = [];
+    setNavigationStackTop(null);
+    setPreserveSearchSession(false);
   }, []);
 
-  // iOS-style Extreme Left Edge Swipe Back list triggers
-  useSwipeBack({
+  const restoreNavigationEntry = useCallback((entry: NavigationEntry) => {
+    setActiveTab(entry.activeTab);
+    setActiveSubjectId(entry.activeSubjectId);
+    setActiveModuleId(entry.activeModuleId);
+    setActiveLecture(entry.activeLecture);
+    setActiveLectureTab(entry.activeLectureTab);
+    setActiveHomeSubjectId(entry.activeHomeSubjectId);
+    setActiveHomeLecture(entry.activeHomeLecture);
+    setLectureDetailSource(entry.lectureDetailSource);
+
+    if (entry.returnToSearch) {
+      // CommandPalette keeps its local query/results mounted while closed. This
+      // flag tells it not to clear that session on the Back-driven reopen.
+      setPreserveSearchSession(true);
+      setIsCommandPaletteOpen(true);
+    }
+  }, []);
+
+  const restorePreviousNavigationEntry = useCallback(() => {
+    const previous = popNavigationStack();
+    if (!previous) return false;
+    restoreNavigationEntry(previous);
+    return true;
+  }, [popNavigationStack, restoreNavigationEntry]);
+
+  const swipeDirection = isRtl ? "rtl" : "ltr";
+
+  // Home hierarchy: Welcome → Subject → Lecture. Search results also land here
+  // and pop back into the exact Search session that opened them.
+  const homeBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    isEnabled:
+      activeTab === "home" &&
+      !isCommandPaletteOpen &&
+      (activeHomeLecture !== null || activeHomeSubjectId !== null),
     onSwipeBack: () => {
       if (activeHomeLecture !== null) {
+        // A direct Search/Home lecture consumes the external navigation entry.
+        // A lecture opened *inside* an already-open Subject must first return
+        // to that Subject and leave the Search/Bulletin entry intact for the
+        // following Back action.
+        if (lectureDetailSource === "dashboard" && restorePreviousNavigationEntry()) return;
+
         setActiveHomeLecture(null);
         if (lectureDetailSource === "dashboard") {
           setActiveHomeSubjectId(null);
         }
         setLectureDetailSource(null);
-      } else if (activeHomeSubjectId !== null) {
+        return;
+      }
+
+      if (activeHomeSubjectId !== null) {
+        if (restorePreviousNavigationEntry()) return;
         setActiveHomeSubjectId(null);
-      }
-    },
-    isEnabled: activeHomeLecture !== null || activeHomeSubjectId !== null,
-    onSwipeMove: (dx) => {
-      if (activeHomeLecture !== null) {
-        setHomeLectureSwipeX(dx);
-      } else if (activeHomeSubjectId !== null) {
-        setHomeSubjectSwipeX(dx);
-      }
-    },
-    onSwipeEnd: (success) => {
-      if (!success) {
-        if (activeHomeLecture !== null) {
-          setIsReleasingHomeLecture(true);
-          setHomeLectureSwipeX(0);
-          setTimeout(() => setIsReleasingHomeLecture(false), 300);
-        } else if (activeHomeSubjectId !== null) {
-          setIsReleasingHomeSubject(true);
-          setHomeSubjectSwipeX(0);
-          setTimeout(() => setIsReleasingHomeSubject(false), 300);
-        }
-      } else {
-        setHomeLectureSwipeX(0);
-        setHomeSubjectSwipeX(0);
       }
     },
   });
 
-  useSwipeBack({
+  // Modules / legacy Subject hierarchy: Modules → Module overview, and the
+  // search/deep-link Subject → Lecture path.
+  const subjectsBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    isEnabled:
+      activeTab === "subjects" &&
+      !isCommandPaletteOpen &&
+      (activeLecture !== null ||
+        activeSubjectId !== null ||
+        activeModuleId !== null),
     onSwipeBack: () => {
       if (activeLecture !== null) {
-        const prev = popNavigationStack();
-        if (prev) {
-          setActiveTab(prev.activeTab);
-          setActiveSubjectId(prev.activeSubjectId);
-          setActiveLecture(prev.activeLecture);
-          setActiveLectureTab(prev.activeLectureTab);
-          setActiveHomeSubjectId(prev.activeHomeSubjectId);
-          setActiveHomeLecture(prev.activeHomeLecture);
-          setLectureDetailSource(prev.lectureDetailSource);
-        } else {
-          setActiveLecture(null);
-        }
-      } else if (activeSubjectId !== null) {
-        const prev = popNavigationStack();
-        if (prev) {
-          setActiveTab(prev.activeTab);
-          setActiveSubjectId(prev.activeSubjectId);
-          setActiveLecture(prev.activeLecture);
-          setActiveLectureTab(prev.activeLectureTab);
-          setActiveHomeSubjectId(prev.activeHomeSubjectId);
-          setActiveHomeLecture(prev.activeHomeLecture);
-          setLectureDetailSource(prev.lectureDetailSource);
-        } else {
-          setActiveSubjectId(null);
-        }
-      } else if (activeModuleId !== null) {
+        if (restorePreviousNavigationEntry()) return;
+        setActiveLecture(null);
+        return;
+      }
+      if (activeSubjectId !== null) {
+        if (restorePreviousNavigationEntry()) return;
+        setActiveSubjectId(null);
+        return;
+      }
+      if (activeModuleId !== null) {
         setActiveModuleId(null);
       }
     },
-    isEnabled: activeLecture !== null || activeSubjectId !== null || activeModuleId !== null,
-    onSwipeMove: (dx) => {
-      if (activeLecture !== null) {
-        setLectureSwipeX(dx);
-      } else if (activeSubjectId !== null || activeModuleId !== null) {
-        setSubjectSwipeX(dx);
-      }
-    },
-    onSwipeEnd: (success) => {
-      if (!success) {
-        if (activeLecture !== null) {
-          setIsReleasingLecture(true);
-          setLectureSwipeX(0);
-          setTimeout(() => setIsReleasingLecture(false), 300);
-        } else if (activeSubjectId !== null || activeModuleId !== null) {
-          setIsReleasingSubject(true);
-          setSubjectSwipeX(0);
-          setTimeout(() => setIsReleasingSubject(false), 300);
-        }
-      } else {
-        setLectureSwipeX(0);
-        setSubjectSwipeX(0);
-      }
+  });
+
+  // Root drill-down destinations (Profile → Settings, Settings → Legal,
+  // Bulletin → Calendar/Home/etc.) use one shared page-level gesture. It is
+  // deliberately disabled whenever a deeper Subject/Lecture gesture owns the
+  // edge, which prevents competing recognizers.
+  const hasNestedHomeBack =
+    activeTab === "home" &&
+    (activeHomeLecture !== null || activeHomeSubjectId !== null);
+  const hasNestedSubjectBack =
+    activeTab === "subjects" &&
+    (activeLecture !== null || activeSubjectId !== null || activeModuleId !== null);
+
+  const isStandaloneLegalPage = ["privacy", "terms", "support", "disclaimer"].includes(activeTab);
+
+  const rootBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    isEnabled:
+      (navigationStackTop !== null || isStandaloneLegalPage) &&
+      !isCommandPaletteOpen &&
+      !hasNestedHomeBack &&
+      !hasNestedSubjectBack &&
+      !(activeTab === "profile" && isProfileSubViewOpen) &&
+      !(activeTab === "control-center" && controlCenterHasBackHistory),
+    onSwipeBack: () => {
+      if (restorePreviousNavigationEntry()) return;
+      if (isStandaloneLegalPage) setActiveTab("settings");
     },
   });
+
+  // Parallax for the parent page that is already mounted below a Lecture.
+  // Only transform/opacity are animated, keeping the interactive path GPU-only.
+  const homeLectureUnderlayX = useTransform(
+    homeBackGesture.progress,
+    [0, 1],
+    [isRtl ? 22 : -22, 0],
+  );
+  const homeLectureUnderlayOpacity = useTransform(
+    homeBackGesture.progress,
+    [0, 1],
+    [0.94, 1],
+  );
+  const lectureUnderlayX = useTransform(
+    subjectsBackGesture.progress,
+    [0, 1],
+    [isRtl ? 22 : -22, 0],
+  );
+  const lectureUnderlayOpacity = useTransform(
+    subjectsBackGesture.progress,
+    [0, 1],
+    [0.94, 1],
+  );
 
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
@@ -1636,61 +1695,6 @@ export default function App() {
 
   const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
-  const handleBackHomeSubject = useCallback(() => {
-    setActiveHomeSubjectId(null);
-       
-  }, []);
-
-  const handleBackSubject = useCallback(() => {
-    // If there's a navigation stack entry, restore it (e.g., Back from Search result).
-    const prev = popNavigationStack();
-    if (prev) {
-      setActiveTab(prev.activeTab);
-      setActiveSubjectId(prev.activeSubjectId);
-      setActiveLecture(prev.activeLecture);
-      setActiveLectureTab(prev.activeLectureTab);
-      setActiveHomeSubjectId(prev.activeHomeSubjectId);
-      setActiveHomeLecture(prev.activeHomeLecture);
-      setLectureDetailSource(prev.lectureDetailSource);
-      return;
-    }
-    setActiveSubjectId(null);
-  }, [popNavigationStack]);
-
-  const handleBackLecture = useCallback(() => {
-    // If there's a navigation stack entry, restore it (e.g., Back from Search result).
-    const prev = popNavigationStack();
-    if (prev) {
-      setActiveTab(prev.activeTab);
-      setActiveSubjectId(prev.activeSubjectId);
-      setActiveLecture(prev.activeLecture);
-      setActiveLectureTab(prev.activeLectureTab);
-      setActiveHomeSubjectId(prev.activeHomeSubjectId);
-      setActiveHomeLecture(prev.activeHomeLecture);
-      setLectureDetailSource(prev.lectureDetailSource);
-      return;
-    }
-    setActiveLecture(null);
-  }, [popNavigationStack]);
-
-  const handleBackHomeLecture = useCallback(() => {
-    const prev = popNavigationStack();
-    if (prev) {
-      setActiveTab(prev.activeTab);
-      setActiveSubjectId(prev.activeSubjectId);
-      setActiveLecture(prev.activeLecture);
-      setActiveLectureTab(prev.activeLectureTab);
-      setActiveHomeSubjectId(prev.activeHomeSubjectId);
-      setActiveHomeLecture(prev.activeHomeLecture);
-      setLectureDetailSource(prev.lectureDetailSource);
-      return;
-    }
-    setActiveHomeLecture(null);
-    if (lectureDetailSource === "dashboard") {
-      setActiveHomeSubjectId(null);
-    }
-  }, [lectureDetailSource, popNavigationStack]);
-
   const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
   // --- Deep-Linking, State Restoration & Universal Linking Sync Engine ---
@@ -1699,6 +1703,7 @@ export default function App() {
 
   const handleSidebarTabClick = useCallback((id: string) => {
     if (id === "search") {
+      setPreserveSearchSession(false);
       setIsCommandPaletteOpen(true);
       return;
     }
@@ -3993,7 +3998,10 @@ const handleSignOut = useCallback(async () => {
 
   const handleSearchSelect = useCallback(async (result: SearchResultItem) => {
     // Search belongs to the Welcome experience. Selecting a search result must
-    // never activate the independent Modules surface in the sidebar.
+    // never activate the independent Modules surface in the sidebar. Preserve
+    // the mounted Search session so a native Back gesture can restore the same
+    // query/results instead of opening a fresh palette.
+    setPreserveSearchSession(true);
     setIsCommandPaletteOpen(false);
 
     const tabToOpen: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa" =
@@ -4029,7 +4037,7 @@ const handleSignOut = useCallback(async () => {
 
     // Keep normal Back navigation intact, but route the search hit through the
     // Welcome hierarchy instead of the old Library/Modules hierarchy.
-    pushNavigationStack();
+    pushNavigationStack({ returnToSearch: true });
 
     setActiveSubjectId(null);
     setActiveLecture(null);
@@ -4355,11 +4363,15 @@ const handleSignOut = useCallback(async () => {
     >
       <CommandPalette
         isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
+        onClose={() => {
+          setIsCommandPaletteOpen(false);
+          setPreserveSearchSession(false);
+        }}
         data={globalSearchData}
         onSelectResult={handleSearchSelect}
         mobilePresentation={usePhoneLayout}
         cancelLabel={language === "ar" ? "إلغاء" : "Cancel"}
+        preserveOnOpen={preserveSearchSession}
       />
       {!isOnline && (
         <div className="absolute top-0 left-0 right-0 bg-red-500/90 backdrop-blur-sm text-white text-xs py-1.5 text-center z-[100] font-medium" style={{ paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))' }}>
@@ -4574,17 +4586,20 @@ const handleSignOut = useCallback(async () => {
       {/* Main Content Workspace wrapper */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full max-h-full overflow-hidden relative">
         {/* 2. Main Content Canvas */}
-        <main
+        <motion.main
           id="main-scroll-canvas"
+          data-swipe-back-region="true"
             onScroll={handlePhoneTabBarVerticalScroll}
             className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain ${usePhoneLayout ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
+            x: rootBackGesture.x,
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
              // The phone scroll inset is supplied by .ios-main-scroll so it
              // accounts for the fixed bar without creating a separate spacer.
              paddingBottom: usePhoneLayout
                ? undefined
                : "calc(24px + env(safe-area-inset-bottom, 0px))",
+            willChange: rootBackGesture.isInteracting ? "transform" : "auto",
           }}
         >
           {/* iOS Native Large Title (Scrolls with Content) */}
@@ -4600,7 +4615,7 @@ const handleSignOut = useCallback(async () => {
                   </h1>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("bulletin")}
+                    onClick={() => { pushNavigationStack(); setActiveTab("bulletin"); }}
                     className="relative flex items-center justify-center w-10 h-10 -mr-2 rounded-full active:bg-neutral-200 dark:active:bg-white/10 transition-colors"
                     aria-label={language === "ar" ? "التنبيهات" : "Notifications"}
                   >
@@ -4689,17 +4704,14 @@ const handleSignOut = useCallback(async () => {
                   ) : (
                     <motion.div
                       key="home-subject-details"
-                      initial={{ opacity: 1, x: 0, scale: 1 }}
-                      animate={{ opacity: 1, x: 0, scale: 1 }}
-                      exit={{ opacity: 1, x: 0, scale: 1 }}
+                      initial={{ opacity: 1, scale: 1 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 1, scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
                       className="relative overflow-hidden w-full"
                       style={{
-                        transform: `translate3d(${homeSubjectSwipeX}px, 0, 0)`,
-                        transition: isReleasingHomeSubject
-                          ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
-                          : "none",
-                        willChange: "transform, opacity",
+                        x: activeHomeLecture === null ? homeBackGesture.x : 0,
+                        willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                       }}
                     >
                       <div className="w-full grid grid-cols-1 grid-rows-1 relative">
@@ -4709,12 +4721,10 @@ const handleSignOut = useCallback(async () => {
                             gridArea: "1 / 1 / 2 / 2",
                             pointerEvents:
                               activeHomeLecture === null ? "auto" : "none",
-                            willChange: "transform, opacity",
+                            x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
+                            opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
+                            willChange: homeBackGesture.isInteracting ? "transform, opacity" : "auto",
                           }}
-                          initial={{ opacity: 1 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 1 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
                           className="w-full"
                         >
                           <Suspense fallback={iOSLoadingFallback}>
@@ -4727,7 +4737,7 @@ const handleSignOut = useCallback(async () => {
                               progress={progressDb}
                               dbLectures={dbLectures}
                               deepLinkedLecture={activeHomeLecture}
-                              onBack={handleBackHomeSubject}
+                              onBack={homeBackGesture.triggerBack}
                               onSelectLecture={handleSelectNestedLecture}
                               language={language}
                               calendarEvents={calendarEventsDb}
@@ -4746,11 +4756,8 @@ const handleSignOut = useCallback(async () => {
                                 boxShadow:
                                   "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
                                 overflow: "hidden",
-                                transform: `translate3d(${homeLectureSwipeX}px, 0, 0)`,
-                                transition: isReleasingHomeLecture
-                                  ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
-                                  : "none",
-                                willChange: "transform, opacity",
+                                x: homeBackGesture.x,
+                                willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                               }}
                               initial={{ opacity: 1 }}
                               animate={{ opacity: 1 }}
@@ -4767,13 +4774,7 @@ const handleSignOut = useCallback(async () => {
                                     handleUpdateHomeLectureProgress
                                   }
                                   onAddPoints={handleAddPoints}
-                                  onBack={() => {
-                                    setActiveHomeLecture(null);
-                                    if (lectureDetailSource === "dashboard") {
-                                      setActiveHomeSubjectId(null);
-                                    }
-                                    setLectureDetailSource(null);
-                                  }}
+                                  onBack={homeBackGesture.triggerBack}
                                   currentUser={activeLectureUser}
                                   language={language}
                                   initialTab={activeLectureTab}
@@ -4798,26 +4799,23 @@ const handleSignOut = useCallback(async () => {
             >
               <div className="w-full">
                 {activeModuleId !== null ? (
-                  <div
+                  <motion.div
                     className="w-full"
                     style={{
-                      transform: `translate3d(${subjectSwipeX}px, 0, 0)`,
-                      transition: isReleasingSubject
-                        ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
-                        : "none",
-                      willChange: "transform",
+                      x: subjectsBackGesture.x,
+                      willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
                     }}
                   >
                     <Suspense fallback={iOSLoadingFallback}>
                       <ErrorBoundary>
                         <ModulePlaceholderView
                           subject={subjects.find((subject) => subject.id === activeModuleId) || subjects[0]}
-                          onBack={() => setActiveModuleId(null)}
+                          onBack={subjectsBackGesture.triggerBack}
                           language={language}
                         />
                       </ErrorBoundary>
                     </Suspense>
-                  </div>
+                  </motion.div>
                 ) : activeSubjectId === null ? (
                   <Suspense fallback={iOSLoadingFallback}>
                     <ErrorBoundary>
@@ -4836,16 +4834,22 @@ const handleSignOut = useCallback(async () => {
                 ) : (
                   /* Legacy SubjectView remains available only for search/deep links.
                      It is no longer the visible Modules-page navigation path. */
-                  <div
+                  <motion.div
                     key="subject-details-wrapper"
                     className="relative overflow-hidden w-full"
-                    style={{ transform: `translate3d(${subjectSwipeX}px, 0, 0)` }}
+                    style={{
+                      x: activeLecture === null ? subjectsBackGesture.x : 0,
+                      willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
+                    }}
                   >
                     <div className="w-full grid grid-cols-1 grid-rows-1 relative">
-                      <div
+                      <motion.div
                         style={{
                           gridArea: "1 / 1 / 2 / 2",
                           pointerEvents: activeLecture === null ? "auto" : "none",
+                          x: activeLecture !== null ? lectureUnderlayX : 0,
+                          opacity: activeLecture !== null ? lectureUnderlayOpacity : 1,
+                          willChange: subjectsBackGesture.isInteracting ? "transform, opacity" : "auto",
                         }}
                         className="w-full"
                       >
@@ -4857,7 +4861,7 @@ const handleSignOut = useCallback(async () => {
                               progress={progressDb}
                               dbLectures={dbLectures}
                               deepLinkedLecture={activeLecture}
-                              onBack={handleBackSubject}
+                              onBack={subjectsBackGesture.triggerBack}
                               onSelectLecture={(lect, tab) => {
                                 if (tab) setActiveLectureTab(tab);
                                 else setActiveLectureTab("pdf");
@@ -4868,7 +4872,7 @@ const handleSignOut = useCallback(async () => {
                             />
                           </ErrorBoundary>
                         </Suspense>
-                      </div>
+                      </motion.div>
 
                       {activeLecture !== null && (
                         <motion.div
@@ -4878,11 +4882,8 @@ const handleSignOut = useCallback(async () => {
                             zIndex: 10,
                             boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
                             overflow: "hidden",
-                            transform: `translate3d(${lectureSwipeX}px, 0, 0)`,
-                            transition: isReleasingLecture
-                              ? "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
-                              : "none",
-                            willChange: "transform, opacity",
+                            x: subjectsBackGesture.x,
+                            willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
                           }}
                           initial={{ opacity: 1 }}
                           animate={{ opacity: 1 }}
@@ -4897,7 +4898,7 @@ const handleSignOut = useCallback(async () => {
                                 progress={activeLectureProgress}
                                 onUpdateProgress={handleUpdateLectureProgress}
                                 onAddPoints={handleAddPoints}
-                                onBack={handleBackLecture}
+                                onBack={subjectsBackGesture.triggerBack}
                                 currentUser={activeLectureUser}
                                 language={language}
                                 calendarEvents={calendarEventsDb}
@@ -4908,7 +4909,7 @@ const handleSignOut = useCallback(async () => {
                         </motion.div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
             </div>
@@ -4964,7 +4965,10 @@ const handleSignOut = useCallback(async () => {
                     onUpdateProfile={handleUpdateProfile}
                     onSignOut={handleSignOut}
                     showSettingsButton={usePhoneLayout}
-                    onOpenSettings={() => setActiveTab("settings")}
+                    onOpenSettings={() => { pushNavigationStack(); setActiveTab("settings"); }}
+                    isActive={activeTab === "profile"}
+                    language={language}
+                    onSubViewChange={setIsProfileSubViewOpen}
                   />
                 </ErrorBoundary>
 </Suspense>
@@ -4995,6 +4999,10 @@ const handleSignOut = useCallback(async () => {
                       updatePreference("pushAlerts", val)
                     }
                     onAccountDeleted={handleAccountSelfDelete}
+                    onNavigateToLegal={(tab) => {
+                      pushNavigationStack();
+                      setActiveTab(tab);
+                    }}
                   />
                 </ErrorBoundary>
 </Suspense>
@@ -5043,6 +5051,8 @@ const handleSignOut = useCallback(async () => {
                       onEditEvent={handleEditEvent}
                       onRedirect={(tab) => setActiveTab(tab)}
                       isPhone={usePhoneLayout}
+                      isActive={activeTab === "control-center"}
+                      onBackHistoryChange={setControlCenterHasBackHistory}
                     />
                   </ErrorBoundary>
 </Suspense>
@@ -5074,11 +5084,14 @@ const handleSignOut = useCallback(async () => {
                     language={language}
                     subjects={subjects}
                     onNavigateToLecture={(lect) => {
+                      pushNavigationStack();
+                      setActiveModuleId(null);
                       setActiveLecture(lect);
                       setActiveSubjectId(lect.subjectId as any);
                       setActiveTab("subjects");
                     }}
                     onNavigateToTab={(tab) => {
+                      pushNavigationStack();
                       setActiveTab(tab);
                     }}
                   />
@@ -5094,7 +5107,10 @@ const handleSignOut = useCallback(async () => {
             >
               <Suspense fallback={iOSLoadingFallback}>
                 <ErrorBoundary>
-                  {activeTab === "privacy" && <PrivacyPolicyView onBack={() => setActiveTab("settings")} />}
+                  {activeTab === "privacy" && <PrivacyPolicyView onBack={() => {
+                    if (navigationStackTop) rootBackGesture.triggerBack();
+                    else setActiveTab("settings");
+                  }} />}
                 </ErrorBoundary>
               </Suspense>
             </div>
@@ -5106,7 +5122,10 @@ const handleSignOut = useCallback(async () => {
             >
               <Suspense fallback={iOSLoadingFallback}>
                 <ErrorBoundary>
-                  {activeTab === "terms" && <TermsOfServiceView onBack={() => setActiveTab("settings")} />}
+                  {activeTab === "terms" && <TermsOfServiceView onBack={() => {
+                    if (navigationStackTop) rootBackGesture.triggerBack();
+                    else setActiveTab("settings");
+                  }} />}
                 </ErrorBoundary>
               </Suspense>
             </div>
@@ -5118,7 +5137,10 @@ const handleSignOut = useCallback(async () => {
             >
               <Suspense fallback={iOSLoadingFallback}>
                 <ErrorBoundary>
-                  {activeTab === "support" && <SupportView onBack={() => setActiveTab("settings")} />}
+                  {activeTab === "support" && <SupportView onBack={() => {
+                    if (navigationStackTop) rootBackGesture.triggerBack();
+                    else setActiveTab("settings");
+                  }} />}
                 </ErrorBoundary>
               </Suspense>
             </div>
@@ -5130,14 +5152,17 @@ const handleSignOut = useCallback(async () => {
             >
               <Suspense fallback={iOSLoadingFallback}>
                 <ErrorBoundary>
-                  {activeTab === "disclaimer" && <MedicalDisclaimerView onBack={() => setActiveTab("settings")} />}
+                  {activeTab === "disclaimer" && <MedicalDisclaimerView onBack={() => {
+                    if (navigationStackTop) rootBackGesture.triggerBack();
+                    else setActiveTab("settings");
+                  }} />}
                 </ErrorBoundary>
               </Suspense>
             </div>
 
             
           </div>
-        </main>
+        </motion.main>
 
         {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer

@@ -16,7 +16,8 @@ import {
  Settings,
  Command,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
+import { useSwipeDownDismiss } from "../../core/hooks/useTouchSurfaceGestures";
 import fuzzysort from "fuzzysort";
 
 type SearchResultType =
@@ -48,6 +49,8 @@ interface CommandPaletteProps {
  inline?: boolean;
  mobilePresentation?: boolean;
  cancelLabel?: string;
+ /** Keep the current query/results when Search is reopened by a Back action. */
+ preserveOnOpen?: boolean;
 }
 
 const TYPE_ICONS: Record<SearchResultType, any> = {
@@ -80,6 +83,7 @@ export const CommandPalette = memo(function CommandPalette({
  inline = false,
  mobilePresentation = false,
  cancelLabel = "Cancel",
+ preserveOnOpen = false,
 }: CommandPaletteProps) {
  const [value, setValue] = useState("");
  const [recentSearches, setRecentSearches] = useState<SearchResultItem[]>([]);
@@ -88,6 +92,19 @@ export const CommandPalette = memo(function CommandPalette({
  const [isLoading, setIsLoading] = useState(false);
  const inputRef = useRef<HTMLInputElement>(null);
  const containerRef = useRef<HTMLDivElement>(null);
+ const mobileDismiss = useSwipeDownDismiss<HTMLDivElement>({
+   onDismiss: onClose,
+   isEnabled: isOpen && mobilePresentation,
+   handleSelector: '[data-swipe-dismiss-handle="true"]',
+   blockedSelector: "button",
+   commitDistance: 104,
+   velocityThreshold: 0.58,
+ });
+ const mobileBackdropGestureOpacity = useTransform(
+   mobileDismiss.progress,
+   [0, 0.35, 1],
+   [1, 0.82, 0.12],
+ );
 
  // Click-outside: blur & clear inline search when user taps elsewhere
  useEffect(() => {
@@ -119,14 +136,16 @@ export const CommandPalette = memo(function CommandPalette({
 
  useEffect(() => {
  if (isOpen) {
+ if (!preserveOnOpen) {
  setValue("");
  setSearchResults([]);
  setSelectedIndex(0);
+ }
  if (!inline) {
  setTimeout(() => inputRef.current?.focus(), 50);
  }
  }
- }, [isOpen, inline]);
+ }, [isOpen, inline, preserveOnOpen]);
 
  const saveRecentSearch = (item: SearchResultItem) => {
  try {
@@ -391,23 +410,29 @@ export const CommandPalette = memo(function CommandPalette({
  exit={{
    opacity: 0,
    transition: {
-     duration: mobilePresentation ? 0.22 : 0.18,
+     duration: mobilePresentation ? 0.2 : 0.18,
      ease: [0.32, 0.72, 0, 1],
    },
  }}
  transition={{ duration: mobilePresentation ? 0 : 0.18, ease: [0.32, 0.72, 0, 1] }}
- className={`absolute inset-0 ${
-   mobilePresentation
-     ? "bg-black/20 backdrop-blur-[2px]"
-     : "bg-black/40 backdrop-blur-sm"
- }`}
- style={mobilePresentation ? {
-   WebkitBackdropFilter: "blur(2px)",
-   backdropFilter: "blur(2px)",
-   willChange: "opacity, backdrop-filter",
-   transform: "translateZ(0)",
- } : undefined}
- />
+ className="absolute inset-0"
+ >
+   <motion.div
+     aria-hidden="true"
+     className={`absolute inset-0 ${
+       mobilePresentation
+         ? "bg-black/20 backdrop-blur-[2px]"
+         : "bg-black/40 backdrop-blur-sm"
+     }`}
+     style={mobilePresentation ? {
+       opacity: mobileBackdropGestureOpacity,
+       WebkitBackdropFilter: "blur(2px)",
+       backdropFilter: "blur(2px)",
+       willChange: "opacity, backdrop-filter",
+       transform: "translateZ(0)",
+     } : undefined}
+   />
+ </motion.div>
  <motion.div
  initial={mobilePresentation ? { y: 22, scale: 0.992 } : { opacity: 0, scale: 0.95, y: -20 }}
  animate={mobilePresentation ? { scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
@@ -428,12 +453,20 @@ export const CommandPalette = memo(function CommandPalette({
  role="dialog" aria-modal="true" aria-label="Command Palette"
  className={
    mobilePresentation
-     ? "cp-mobile-search-sheet relative w-full bg-[#F7F7F8]/96 dark:bg-[#111113]/96 backdrop-blur-3xl border border-white/30 dark:border-white/[0.10] overflow-hidden flex flex-col max-h-[78dvh]"
+     ? "relative w-full max-h-[78dvh]"
      : "relative w-full max-w-2xl bg-[#ffffff]/90 dark:bg-[var(--bg-surface-1)]/90 backdrop-blur-3xl rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border border-white/20 dark:border-white/[0.12] overflow-hidden flex flex-col max-h-[60vh]"
  }
  >
- {mobilePresentation && <div className="cp-mobile-sheet-grabber" aria-hidden="true" />}
+ <motion.div
+   ref={mobileDismiss.surfaceRef}
+   style={mobilePresentation ? { y: mobileDismiss.y, willChange: "transform" } : undefined}
+   className={mobilePresentation
+     ? "cp-mobile-search-sheet relative w-full bg-[#F7F7F8]/96 dark:bg-[#111113]/96 backdrop-blur-3xl border border-white/30 dark:border-white/[0.10] overflow-hidden flex flex-col max-h-[78dvh]"
+     : "contents"}
+ >
+ {mobilePresentation && <div className="cp-mobile-sheet-grabber" data-swipe-dismiss-handle="true" aria-hidden="true" />}
  <div
+   data-swipe-dismiss-handle={mobilePresentation ? "true" : undefined}
    className={
      mobilePresentation
        ? "cp-mobile-search-header flex items-center gap-2.5 px-3 pt-2 pb-3 shrink-0"
@@ -482,7 +515,7 @@ export const CommandPalette = memo(function CommandPalette({
  )}
  </div>
 
- <div className={`flex-1 overflow-y-auto custom-scrollbar overscroll-y-contain ${mobilePresentation ? "cp-mobile-search-results" : ""}`} id="command-palette-results" role="listbox">
+ <div data-swipe-dismiss-scroll={mobilePresentation ? "true" : undefined} className={`flex-1 overflow-y-auto custom-scrollbar overscroll-y-contain ${mobilePresentation ? "cp-mobile-search-results" : ""}`} id="command-palette-results" role="listbox">
  {value && searchResults.length > 0 && !isLoading && (
  <div className="py-2">
  <div className="px-4 py-2">
@@ -542,6 +575,7 @@ export const CommandPalette = memo(function CommandPalette({
           </div>
         )}
       </div>
+    </motion.div>
     </motion.div>
   </motion.div>
 )}

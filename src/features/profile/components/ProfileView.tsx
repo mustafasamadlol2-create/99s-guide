@@ -1,4 +1,5 @@
 import { getLectureProgressStats } from "../../../core/utils/progressUtils";
+import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -39,6 +40,8 @@ interface ProfileViewProps {
   dbLectures?: any[];
   showSettingsButton?: boolean;
   onOpenSettings?: () => void;
+  language?: "en" | "ar";
+  onSubViewChange?: (isOpen: boolean) => void;
 }
 
 const SettingsGroup = memo(({
@@ -160,9 +163,22 @@ export const ProfileView = function ProfileView({
  dbLectures,
  showSettingsButton = false,
  onOpenSettings,
+ isActive = false,
+ language = "en",
+ onSubViewChange,
 }: ProfileViewProps) {
  // Sub-view navigation
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
+
+ const profileBackGesture = useSwipeBack({
+   isEnabled: Boolean(isActive && subView),
+   direction: language === "ar" ? "rtl" : "ltr",
+   onSwipeBack: () => setSubView(null),
+ });
+
+ useEffect(() => {
+   onSubViewChange?.(Boolean(subView));
+ }, [onSubViewChange, subView]);
 
  // Edit fields profile
  const [isEditing, setIsEditing] = useState(false);
@@ -258,12 +274,33 @@ export const ProfileView = function ProfileView({
   };
  }, [subjects, progress, dbLectures]);
 
-  // Render sub-views
+  // Render sub-views. The surface follows the finger via a MotionValue, so
+  // iOS edge-back stays at native frame cadence without React state updates.
   if (subView === "blocked-users") {
-    return <BlockedUsersView onBack={() => setSubView(null)} />;
+    return (
+      <motion.div
+        className="w-full"
+        style={{
+          x: profileBackGesture.x,
+          willChange: profileBackGesture.isInteracting ? "transform" : "auto",
+        }}
+      >
+        <BlockedUsersView onBack={profileBackGesture.triggerBack} />
+      </motion.div>
+    );
   }
   if (subView === "my-reports") {
-    return <MyReportsView onBack={() => setSubView(null)} />;
+    return (
+      <motion.div
+        className="w-full"
+        style={{
+          x: profileBackGesture.x,
+          willChange: profileBackGesture.isInteracting ? "transform" : "auto",
+        }}
+      >
+        <MyReportsView onBack={profileBackGesture.triggerBack} />
+      </motion.div>
+    );
   }
 
   return (

@@ -3,7 +3,8 @@
  * Modern, minimal, professional. Smooth scale+fade animation.
  */
 import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
+import { useSwipeDownDismiss } from "../../../core/hooks/useTouchSurfaceGestures";
 import { X, TriangleAlert, Loader2, CheckCircle2 } from "lucide-react";
 import { apiClient } from "../../../core/api/apiClient";
 
@@ -36,6 +37,19 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const dismissGesture = useSwipeDownDismiss<HTMLDivElement>({
+    onDismiss: onClose,
+    isEnabled: Boolean(target) && !loading,
+    handleSelector: '[data-swipe-dismiss-handle="true"]',
+    blockedSelector: "button",
+    commitDistance: 108,
+    velocityThreshold: 0.58,
+  });
+  const backdropGestureOpacity = useTransform(
+    dismissGesture.progress,
+    [0, 0.45, 1],
+    [1, 0.8, 0.12],
+  );
 
   useEffect(() => {
     if (target) {
@@ -94,10 +108,16 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 backdrop-blur-md"
+            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+            className="fixed inset-0 z-50"
             onClick={onClose}
-          />
+          >
+            <motion.div
+              aria-hidden="true"
+              className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-md"
+              style={{ opacity: backdropGestureOpacity }}
+            />
+          </motion.div>
 
           {/* Centered dialog */}
           <div className="mobile-overlay-top mobile-dialog-shell fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
@@ -107,11 +127,16 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ type: "spring", stiffness: 380, damping: 32, mass: 0.8 }}
-              className="mobile-dialog-panel pointer-events-auto w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-white/[0.08] overflow-hidden"
+              className="pointer-events-auto w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
+              <motion.div
+                ref={dismissGesture.surfaceRef}
+                style={{ y: dismissGesture.y, willChange: "transform" }}
+                className="mobile-dialog-panel w-full bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-2xl border border-neutral-200/60 dark:border-white/[0.08] overflow-hidden"
+              >
               {/* Header */}
-              <div className="flex items-start justify-between px-6 pt-6 pb-4">
+              <div data-swipe-dismiss-handle="true" className="flex items-start justify-between px-6 pt-6 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 flex items-center justify-center shrink-0">
                     <TriangleAlert className="w-4.5 h-4.5 text-rose-500" />
@@ -137,7 +162,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
               <div className="h-px bg-neutral-100 dark:bg-white/[0.06] mx-6" />
 
               {/* Body */}
-              <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              <div data-swipe-dismiss-scroll="true" className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
                 {/* Comment preview */}
                 <div className="bg-neutral-50 dark:bg-white/[0.04] border border-neutral-100 dark:border-white/[0.06] rounded-xl px-4 py-3">
                   <p className="text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-1.5">
@@ -243,6 +268,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
                   )}
                 </button>
               </div>
+              </motion.div>
             </motion.div>
           </div>
         </>
