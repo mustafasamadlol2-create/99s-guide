@@ -138,6 +138,12 @@ type AuthState = "INITIALIZING" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ER
 export default function App() {
   const device = useDeviceProfile();
   const shouldReduceMotion = useReducedMotion();
+  // Keep every pushed iPad page as a real, full-height sheet. This is especially
+  // important on the 13-inch iPad Pro where short screens can otherwise end
+  // well above the bottom of the navigation viewport during an interactive pop.
+  const navigationSurfaceMinHeight = device.isIPadOS
+    ? "calc(100dvh - 40px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))"
+    : "100%";
   useIOSKeyboardDragDismiss({ isEnabled: true });
 
   // --- Core Session States ---
@@ -4708,6 +4714,7 @@ const handleSignOut = useCallback(async () => {
             className="relative w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
             style={{
               x: rootBackGesture.x,
+              minHeight: navigationSurfaceMinHeight,
               willChange: rootBackGesture.isInteracting ? "transform" : "auto",
             }}
           >
@@ -4773,7 +4780,10 @@ const handleSignOut = useCallback(async () => {
                   page and never unmounts while a Subject/Lecture is pushed on
                   top. The moving child can therefore never expose the raw root
                   window/canvas on iPad. */}
-              <div className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]">
+              <div
+                className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                style={{ minHeight: navigationSurfaceMinHeight }}
+              >
                 <div
                   aria-hidden={activeHomeSubjectId !== null ? "true" : undefined}
                   className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
@@ -4821,6 +4831,13 @@ const handleSignOut = useCallback(async () => {
                     style={{
                       gridArea: "1 / 1 / 2 / 2",
                       x: activeHomeLecture === null ? homeBackGesture.x : 0,
+                      minHeight: navigationSurfaceMinHeight,
+                      boxShadow:
+                        activeHomeLecture === null && homeBackGesture.isInteracting
+                          ? (isRtl
+                              ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                              : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                          : "none",
                       willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                     }}
                   >
@@ -4836,6 +4853,7 @@ const handleSignOut = useCallback(async () => {
                               : "visible",
                           x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
                           opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
+                          minHeight: navigationSurfaceMinHeight,
                           willChange: homeLectureBackGesture.isInteracting
                             ? "transform, opacity"
                             : "auto",

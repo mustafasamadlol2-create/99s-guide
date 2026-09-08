@@ -273,6 +273,14 @@ export const SubjectView = function SubjectView({
   const isTouchDevice = useIsTouchDevice();
   const device = useDeviceProfile();
 
+  // iPad Pro 13" has a very tall content viewport. Every interactive navigation
+  // page must own a full-height opaque surface, even when that hierarchy level
+  // only contains one or two cards. Otherwise the page edge/shadow ends at the
+  // content height and the transition looks visually "cut" halfway down.
+  const navigationSurfaceMinHeight = device.isIPadOS
+    ? "calc(100dvh - 40px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))"
+    : "100%";
+
   const isMountedRef = useRef(true);
   useEffect(() => {
     isMountedRef.current = true;
@@ -748,7 +756,7 @@ export const SubjectView = function SubjectView({
     // never bleed above the live page during an interactive pop.
     snapshot.style.position = "relative";
     snapshot.style.width = "100%";
-    snapshot.style.minHeight = "100%";
+    snapshot.style.minHeight = navigationSurfaceMinHeight;
     snapshot.style.overflow = "hidden";
     snapshot.style.isolation = "isolate";
     // iPad: paint containment on a cloned, clipped subtree can produce black
@@ -757,7 +765,7 @@ export const SubjectView = function SubjectView({
     snapshot.style.contain = device.isIPadOS ? "none" : "paint";
     snapshot.setAttribute("aria-hidden", "true");
     return snapshot;
-  }, [device.isIPadOS]);
+  }, [device.isIPadOS, navigationSurfaceMinHeight]);
 
   const captureHierarchySnapshot = useCallback(() => {
     const source = hierarchyLayerRef.current;
@@ -969,6 +977,7 @@ export const SubjectView = function SubjectView({
       data-subject-internal-swipe-surface="true"
       data-swipe-back-surface="true"
       className={`subject-view-root relative isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
+      style={{ minHeight: navigationSurfaceMinHeight }}
     >
       <motion.div
         ref={hierarchyUnderlayRef}
@@ -981,6 +990,7 @@ export const SubjectView = function SubjectView({
           right: 0,
           width: "100%",
           maxWidth: "100%",
+          minHeight: navigationSurfaceMinHeight,
           // Keep the iPad backing page completely static. Promoting/moving the
           // cloned underlay alongside the foreground causes WebKit tiled-layer
           // corruption (the black rectangles visible in the recording).
@@ -1002,15 +1012,19 @@ export const SubjectView = function SubjectView({
         className="relative z-10 isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
         style={{
           x: internalBackGesture.x,
-          minHeight: "100%",
+          minHeight: navigationSurfaceMinHeight,
           isolation: "isolate",
           contain: device.isIPadOS ? "none" : "paint",
           WebkitBackfaceVisibility: "hidden",
           backfaceVisibility: "hidden",
+          // Match a UINavigationController-style moving sheet: the shadow is
+          // cast toward the page being revealed, and because this layer now
+          // spans the full viewport the separation continues all the way down
+          // instead of stopping below the last card.
           boxShadow: internalBackGesture.isInteracting
             ? (isRtl
-                ? "-18px 0 34px -24px rgba(0,0,0,0.30)"
-                : "18px 0 34px -24px rgba(0,0,0,0.30)")
+                ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                : "-18px 0 30px -18px rgba(0,0,0,0.48)")
             : "none",
           willChange: internalBackGesture.isInteracting ? "transform" : "auto",
         }}

@@ -318,16 +318,22 @@ export function useSwipeBack({
         return;
       }
 
+      const directionSign = directionRef.current === "rtl" ? -1 : 1;
+
       if (!success) {
-        // iOS-like cancellation: the page is physically connected to the
-        // finger, then springs home without an artificial linear rewind.
+        // A cancelled interactive pop should feel physically connected to the
+        // finger. Preserve a small amount of release momentum, then use a
+        // slightly over-damped spring so the sheet returns without bounce.
+        const cancelVelocity =
+          directionSign * Math.min(releaseVelocity * 1000, width * 1.6);
         const controls = animate(x, 0, {
           type: "spring",
-          stiffness: 405,
-          damping: 38,
-          mass: 0.86,
-          restSpeed: 8,
-          restDelta: 0.4,
+          stiffness: 520,
+          damping: 46,
+          mass: 0.78,
+          velocity: cancelVelocity,
+          restSpeed: 16,
+          restDelta: 0.35,
           onUpdate: updateProgress,
           onComplete: finish,
         });
@@ -335,20 +341,20 @@ export function useSwipeBack({
         return;
       }
 
-      const distanceRemaining = Math.abs(target - x.get());
-      // Slightly slower than the previous completion curve so the final few
-      // centimeters never feel like they snap away from the finger. Fast flicks
-      // still shorten naturally through releaseVelocity.
-      const pxPerSecond = Math.max(width * 2.7, releaseVelocity * 1000);
-      const duration = Math.max(
-        0.16,
-        Math.min(0.31, distanceRemaining / Math.max(1, pxPerSecond)),
-      );
-
+      // UIKit-style completion: retain the user's release velocity and let an
+      // over-damped spring finish the remaining distance. This removes the
+      // web-like fixed-duration easing while avoiding overshoot beyond the
+      // navigation viewport on wide iPads.
+      const completionVelocity =
+        directionSign * Math.min(releaseVelocity * 1000, width * 4.0);
       const controls = animate(x, target, {
-        duration,
-        // Apple's common ease-out family: quick response, soft final deceleration.
-        ease: [0.22, 1, 0.36, 1],
+        type: "spring",
+        stiffness: 430,
+        damping: 42,
+        mass: 0.82,
+        velocity: completionVelocity,
+        restSpeed: 18,
+        restDelta: 0.45,
         onUpdate: updateProgress,
         onComplete: finish,
       });
@@ -501,9 +507,9 @@ export function useSwipeBack({
         directionRef.current === "rtl"
           ? lastXRef.current - touch.clientX
           : touch.clientX - lastXRef.current;
-      // Smooth noisy iOS touch samples instead of trusting a single packet.
+      // Smooth noisy iOS touch samples without making fast flicks feel delayed.
       const instantaneousVelocity = Math.max(0, frameDirectionalDistance / dt);
-      velocityRef.current = velocityRef.current * 0.68 + instantaneousVelocity * 0.32;
+      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
@@ -512,13 +518,12 @@ export function useSwipeBack({
       const offset = signedOffset(clampedDistance);
       const nextProgress = Math.min(1, clampedDistance / width);
 
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        x.set(offset);
-        progress.set(nextProgress);
-        onSwipeMoveRef.current?.(offset, nextProgress);
-      });
+      // MotionValues are already render-batched. Writing them directly from the
+      // touch packet avoids the extra requestAnimationFrame of latency that made
+      // the page trail the finger by one frame and feel like a web gesture.
+      x.set(offset);
+      progress.set(nextProgress);
+      onSwipeMoveRef.current?.(offset, nextProgress);
     };
 
     const finishGesture = (event: TouchEvent | null, cancelled = false) => {
