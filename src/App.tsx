@@ -1514,66 +1514,8 @@ export default function App() {
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
   const [suppressHomeEntranceAnimations, setSuppressHomeEntranceAnimations] = useState(false);
 
-  // Lightweight visual snapshot of the real Welcome page. We capture the DOM
-  // before drilling into a Home subject and use the clone only as a non-
-  // interactive underlay during the root swipe. This avoids mounting a second
-  // live HomeDashboard (and its effects/data work) while also preventing the
-  // browser's blank canvas from being exposed behind a moving SubjectView.
-  const homeDashboardSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const homeDashboardSnapshotRef = useRef<HTMLElement | null>(null);
-  const homeDashboardUnderlayHostRef = useRef<HTMLDivElement | null>(null);
-
-  const sanitizeHomeDashboardSnapshot = useCallback((snapshot: HTMLElement) => {
-    snapshot.removeAttribute("id");
-    snapshot.querySelectorAll<HTMLElement>("[id]").forEach((node) => node.removeAttribute("id"));
-    snapshot
-      .querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]")
-      .forEach((node) => {
-        node.setAttribute("tabindex", "-1");
-        node.setAttribute("aria-hidden", "true");
-      });
-    snapshot.setAttribute("aria-hidden", "true");
-    snapshot.setAttribute("data-navigation-snapshot", "true");
-    snapshot.style.pointerEvents = "none";
-    snapshot.style.userSelect = "none";
-    snapshot.style.transform = "none";
-    snapshot.style.willChange = "auto";
-    snapshot.style.position = "relative";
-    snapshot.style.width = "100%";
-    snapshot.style.minHeight = "100%";
-    snapshot.style.overflow = "hidden";
-    snapshot.style.isolation = "isolate";
-    // iPad uses a single overflow reveal host instead of clipping the cloned
-    // subtree itself. Keep the clone out of an extra paint-containment layer;
-    // the host owns the reveal boundary.
-    snapshot.style.contain = device.isIPadOS ? "none" : "paint";
-    return snapshot;
-  }, [device.isIPadOS]);
-
-  const captureHomeDashboardSnapshot = useCallback(() => {
-    const source = homeDashboardSurfaceRef.current;
-    if (!source) return;
-    const clone = sanitizeHomeDashboardSnapshot(source.cloneNode(true) as HTMLElement);
-    const sourceRect = source.getBoundingClientRect();
-    clone.style.width = `${Math.max(1, sourceRect.width)}px`;
-    clone.style.minWidth = clone.style.width;
-    clone.style.maxWidth = "none";
-    clone.style.position = "absolute";
-    clone.style.top = "0";
-    clone.style.left = isRtl ? "auto" : "0";
-    clone.style.right = isRtl ? "0" : "auto";
-    const sourceBackground = window.getComputedStyle(source).backgroundColor;
-    if (sourceBackground) clone.style.backgroundColor = sourceBackground;
-    clone.style.opacity = "1";
-    homeDashboardSnapshotRef.current = clone;
-  }, [sanitizeHomeDashboardSnapshot, isRtl]);
-
-  const mountHomeDashboardSnapshot = useCallback(() => {
-    const host = homeDashboardUnderlayHostRef.current;
-    const snapshot = homeDashboardSnapshotRef.current;
-    if (!host || !snapshot) return;
-    host.replaceChildren(snapshot.cloneNode(true));
-  }, []);
+  // Welcome stays mounted as the live parent page while a Subject/Lecture is open.
+  // This is the persistent navigation shell used by both Capacitor WKWebView and PWA Safari.
 
   const pushNavigationStack = useCallback((options?: { returnToSearch?: boolean }) => {
     const entry: NavigationEntry = {
@@ -1671,22 +1613,6 @@ export default function App() {
     },
   });
 
-  const homeDashboardUnderlayClipPath = useTransform(
-    homeBackGesture.progress,
-    (latest) => {
-      const p = Math.max(0, Math.min(1, latest));
-      const hiddenPercent = (1 - p) * 100;
-      return isRtl
-        ? `inset(0 0 0 ${hiddenPercent}%)`
-        : `inset(0 ${hiddenPercent}% 0 0)`;
-    },
-  );
-  // iPad uses a full-size backing page and only compositor-safe transforms.
-  // The gesture itself now measures the moving content surface (not the full
-  // window), so foreground and underlay share one coordinate system. Keeping
-  // the underlay full width avoids the width/clip relayout tiles that Safari and
-  // WKWebView can render as black rectangles on large iPad surfaces.
-
   // Lecture Detail intentionally does not participate in page-level swipe-back:
   // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
   // tab paging. The visible Back button keeps the exact historical Back behavior.
@@ -1714,17 +1640,6 @@ export default function App() {
     allowedStartSelector: '[data-lecture-swipe-back-header="true"]',
     onSwipeBack: handleHomeLectureBack,
   });
-
-  const homeDashboardLectureUnderlayClipPath = useTransform(
-    homeLectureBackGesture.progress,
-    (latest) => {
-      const p = Math.max(0, Math.min(1, latest));
-      const hiddenPercent = (1 - p) * 100;
-      return isRtl
-        ? `inset(0 0 0 ${hiddenPercent}%)`
-        : `inset(0 ${hiddenPercent}% 0 0)`;
-    },
-  );
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
   // search/deep-link Subject → Lecture path.
@@ -1785,7 +1700,7 @@ export default function App() {
 
   const rootBackGesture = useSwipeBack({
     direction: swipeDirection,
-    surfaceSelector: '#main-scroll-canvas',
+    surfaceSelector: '#root-navigation-page-layer',
     isEnabled:
       (navigationStackTop !== null || isStandaloneLegalPage) &&
       !isCommandPaletteOpen &&
@@ -1815,21 +1730,21 @@ export default function App() {
   );
   const lectureUnderlayOpacity = 1;
 
-  useLayoutEffect(() => {
-    if (activeTab !== "home" || activeHomeSubjectId === null) return;
-    mountHomeDashboardSnapshot();
-  }, [activeTab, activeHomeSubjectId, mountHomeDashboardSnapshot]);
-
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
     setSuppressHomeEntranceAnimations(false);
-    captureHomeDashboardSnapshot();
     setActiveHomeSubjectId(id);
     setActiveHomeLecture(null);
-       
-  }, [captureHomeDashboardSnapshot]);
+  }, []);
 
-  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setSuppressHomeEntranceAnimations(false); captureHomeDashboardSnapshot(); setLectureDetailSource("dashboard"); setActiveHomeSubjectId(lect.subjectId); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, [captureHomeDashboardSnapshot]);
+  const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => {
+    setSuppressHomeEntranceAnimations(false);
+    setLectureDetailSource("dashboard");
+    setActiveHomeSubjectId(lect.subjectId);
+    if (tab) setActiveLectureTab(tab);
+    else setActiveLectureTab("pdf");
+    setActiveHomeLecture(lect);
+  }, []);
 
   const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
 
@@ -4772,22 +4687,30 @@ const handleSignOut = useCallback(async () => {
       {/* Main Content Workspace wrapper */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full max-h-full overflow-hidden relative">
         {/* 2. Main Content Canvas */}
-        <motion.main
+        <main
           id="main-scroll-canvas"
-          data-swipe-back-region="true"
-            onScroll={handlePhoneTabBarVerticalScroll}
-            className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-clip ios-scrollable overscroll-y-contain ${usePhoneLayout ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          onScroll={handlePhoneTabBarVerticalScroll}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
-            x: rootBackGesture.x,
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
-             // The phone scroll inset is supplied by .ios-main-scroll so it
-             // accounts for the fixed bar without creating a separate spacer.
-             paddingBottom: usePhoneLayout
-               ? undefined
-               : "calc(24px + env(safe-area-inset-bottom, 0px))",
-            willChange: rootBackGesture.isInteracting ? "transform" : "auto",
+            // The phone scroll inset is supplied by .ios-main-scroll so it
+            // accounts for the fixed bar without creating a separate spacer.
+            paddingBottom: usePhoneLayout
+              ? undefined
+              : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
         >
+          {/* Persistent shell: the scroll workspace and Sidebar never move.
+              Only this route/page layer participates in root swipe-back. */}
+          <motion.div
+            id="root-navigation-page-layer"
+            data-swipe-back-region="true"
+            className="relative w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+            style={{
+              x: rootBackGesture.x,
+              willChange: rootBackGesture.isInteracting ? "transform" : "auto",
+            }}
+          >
           {/* iOS Native Large Title (Scrolls with Content) */}
           {((activeTab === "subjects" && activeSubjectId === null && activeModuleId === null) ||
             ["calendar", "control-center", "profile", "settings"].includes(
@@ -4843,145 +4766,89 @@ const handleSignOut = useCallback(async () => {
           <div className="w-full relative min-h-full">
             {/* Tab 1: Welcome (Home) */}
             <div
-              
               style={{ display: activeTab === "home" ? "block" : "none" }}
-              className="w-full"
+              className="w-full min-h-full"
             >
-              {/* Plain div replaces the no-op motion.div that was here.
-                  The previous wrapper had animate={{ opacity:1, scale:1 }} with initial={false}
-                  — it never animated to different values, so it was a permanent no-op.
-                  Its willChange:"transform,opacity" created a persistent GPU compositing layer
-                  for the entire home tab that was destroyed + rebuilt on every display:none→block
-                  cycle, amplifying the iOS Safari Hero brightness-glitch on tab return. */}
-              <div
-                className="w-full"
-              >
-                <>
-                  {activeHomeSubjectId === null ? (
-                    <motion.div
-                      ref={homeDashboardSurfaceRef}
-                      key="home-dashboard"
-                      initial={{ opacity: 1, x: 0 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 1, x: 0 }}
-                      style={{ willChange: "transform, opacity" }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                    >
-                      <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
-                        <HomeDashboard
-                          user={currentUser}
-                          subjects={subjects}
-                          dbLectures={dbLectures}
-                          calendarEvents={calendarEventsDb}
-                          progress={progressDb}
-                          globalSearchData={globalSearchData}
-                          onSearchSelect={handleSearchSelect}
-                          onSelectSubject={handleSelectHomeSubject}
-                          onSelectLecture={handleSelectHomeLecture}
-                          onNavigateTab={handleSidebarTabClick}
-                          onUpdateEvents={handleUpdateEvents}
-                          onAddEvent={handleAddNewEvent}
-                          language={language}
-                          isActive={activeTab === 'home'}
-                          suppressEntranceAnimations={suppressHomeEntranceAnimations}
-                        />
-                      </ErrorBoundary>
-</Suspense>
-                    </motion.div>
-                  ) : (
-                    <div
-                      key="home-subject-details-stack"
-                      data-home-subject-swipe-surface="true"
-                      data-swipe-back-surface="true"
-                      className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
-                    >
-                      <motion.div
-                        ref={homeDashboardUnderlayHostRef}
-                        aria-hidden="true"
-                        className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
-                        style={{
-                          left: 0,
-                          right: 0,
-                          width: "100%",
-                          maxWidth: "100%",
-                          visibility:
-                            device.isIPadOS
-                              ? "visible"
-                              : device.isTablet &&
-                                  !(homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
-                                ? "hidden"
-                                : "visible",
-                          // iPad Safari/WKWebView must keep the backing page on the
-                          // normal paint path. Moving/promoting both foreground and
-                          // underlay creates large tiled compositor surfaces which can
-                          // flash as opaque black rectangles. Only the foreground moves.
-                          x: 0,
-                          clipPath: device.isIPadOS
-                            ? "none"
-                            : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                                ? homeDashboardLectureUnderlayClipPath
-                                : homeDashboardUnderlayClipPath),
-                          WebkitClipPath: device.isIPadOS
-                            ? "none"
-                            : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                                ? homeDashboardLectureUnderlayClipPath
-                                : homeDashboardUnderlayClipPath),
-                          isolation: "isolate",
-                          contain: device.isIPadOS ? "none" : "paint",
-                          WebkitBackfaceVisibility: device.isIPadOS ? "visible" : "hidden",
-                          backfaceVisibility: device.isIPadOS ? "visible" : "hidden",
-                          // Never promote the iPad backing page to its own GPU layer.
-                          // The foreground is the sole transformed surface during Back.
-                          willChange:
-                            device.isIPadOS
-                              ? "auto"
-                              : (homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
-                                  ? "clip-path"
-                                  : "auto"),
-                        }}
+              {/* Persistent parent layout. Welcome is the live, stable parent
+                  page and never unmounts while a Subject/Lecture is pushed on
+                  top. The moving child can therefore never expose the raw root
+                  window/canvas on iPad. */}
+              <div className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]">
+                <div
+                  aria-hidden={activeHomeSubjectId !== null ? "true" : undefined}
+                  className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+                  style={{
+                    gridArea: "1 / 1 / 2 / 2",
+                    zIndex: 0,
+                    pointerEvents: activeHomeSubjectId === null ? "auto" : "none",
+                  }}
+                >
+                  <Suspense fallback={iOSLoadingFallback}>
+                    <ErrorBoundary>
+                      <HomeDashboard
+                        user={currentUser}
+                        subjects={subjects}
+                        dbLectures={dbLectures}
+                        calendarEvents={calendarEventsDb}
+                        progress={progressDb}
+                        globalSearchData={globalSearchData}
+                        onSearchSelect={handleSearchSelect}
+                        onSelectSubject={handleSelectHomeSubject}
+                        onSelectLecture={handleSelectHomeLecture}
+                        onNavigateTab={handleSidebarTabClick}
+                        onUpdateEvents={handleUpdateEvents}
+                        onAddEvent={handleAddNewEvent}
+                        language={language}
+                        isActive={activeTab === "home" && activeHomeSubjectId === null}
+                        suppressEntranceAnimations={
+                          suppressHomeEntranceAnimations || activeHomeSubjectId !== null
+                        }
                       />
+                    </ErrorBoundary>
+                  </Suspense>
+                </div>
 
+                {activeHomeSubjectId !== null && (
+                  <motion.div
+                    key="home-subject-details"
+                    data-home-subject-swipe-surface="true"
+                    data-swipe-back-surface="true"
+                    className={`relative z-10 isolate overflow-hidden w-full min-h-full ${
+                      activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                        ? "bg-transparent"
+                        : "bg-neutral-50 dark:bg-[#000000]"
+                    }`}
+                    style={{
+                      gridArea: "1 / 1 / 2 / 2",
+                      x: activeHomeLecture === null ? homeBackGesture.x : 0,
+                      willChange: homeBackGesture.isInteracting ? "transform" : "auto",
+                    }}
+                  >
+                    <div className="w-full min-h-full grid grid-cols-1 grid-rows-1 relative">
+                      {/* The live Subject page is kept mounted under Lecture detail. */}
                       <motion.div
-                        key="home-subject-details"
-                        initial={{ opacity: 1, scale: 1 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 1, scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                        className={`relative z-10 isolate overflow-hidden w-full ${
-                          activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                            ? "bg-transparent"
-                            : "bg-neutral-50 dark:bg-[#000000]"
-                        }`}
                         style={{
-                          x: activeHomeLecture === null ? homeBackGesture.x : 0,
-                          willChange: homeBackGesture.isInteracting ? "transform" : "auto",
+                          gridArea: "1 / 1 / 2 / 2",
+                          pointerEvents: activeHomeLecture === null ? "auto" : "none",
+                          visibility:
+                            activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                              ? "hidden"
+                              : "visible",
+                          x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
+                          opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
+                          willChange: homeLectureBackGesture.isInteracting
+                            ? "transform, opacity"
+                            : "auto",
                         }}
+                        className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
                       >
-                      <div className="w-full grid grid-cols-1 grid-rows-1 relative">
-                        {/* Smooth state-driven preservation of SubjectView without unmounting (keeps states and scroll) */}
-                        <motion.div
-                          style={{
-                            gridArea: "1 / 1 / 2 / 2",
-                            pointerEvents:
-                              activeHomeLecture === null ? "auto" : "none",
-                            visibility:
-                              activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                                ? "hidden"
-                                : "visible",
-                            x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
-                            opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
-                            willChange: homeLectureBackGesture.isInteracting ? "transform, opacity" : "auto",
-                          }}
-                          className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
-                        >
-                          <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
+                        <Suspense fallback={iOSLoadingFallback}>
+                          <ErrorBoundary>
                             <SubjectView
                               key={activeHomeSubjectId}
-                              subject={subjects.find(
-                                (s) => s.id === activeHomeSubjectId,
-                              ) || subjects[0]}
+                              subject={
+                                subjects.find((s) => s.id === activeHomeSubjectId) || subjects[0]
+                              }
                               progress={progressDb}
                               dbLectures={dbLectures}
                               deepLinkedLecture={activeHomeLecture}
@@ -4993,62 +4860,58 @@ const handleSignOut = useCallback(async () => {
                               calendarEvents={calendarEventsDb}
                             />
                           </ErrorBoundary>
-</Suspense>
-                        </motion.div>
-
-                        <>
-                          {activeHomeLecture !== null && (
-                            <motion.div
-                              key="home-lecture-detail"
-                              data-home-lecture-swipe-surface="true"
-                              data-swipe-back-surface="true"
-                              style={{
-                                gridArea: "1 / 1 / 2 / 2",
-                                zIndex: 10,
-                                boxShadow:
-                                  "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
-                                overflow: "hidden",
-                                x: homeLectureBackGesture.x,
-                                willChange: homeLectureBackGesture.isInteracting ? "transform" : "auto",
-                              }}
-                              initial={{ opacity: 1 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                              className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
-                            >
-                              <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
-                                <LectureDetailView
-                                  lecture={activeHomeLecture}
-                                  progress={activeHomeLectureProgress}
-                                  onUpdateProgress={
-                                    handleUpdateHomeLectureProgress
-                                  }
-                                  onAddPoints={handleAddPoints}
-                                  onBack={handleHomeLectureBack}
-                                  currentUser={activeLectureUser}
-                                  language={language}
-                                  initialTab={activeLectureTab}
-                                  calendarEvents={calendarEventsDb}
-                                />
-                              </ErrorBoundary>
-</Suspense>
-                            </motion.div>
-                          )}
-                        </>
-                        </div>
+                        </Suspense>
                       </motion.div>
+
+                      {activeHomeLecture !== null && (
+                        <motion.div
+                          key="home-lecture-detail"
+                          data-home-lecture-swipe-surface="true"
+                          data-swipe-back-surface="true"
+                          style={{
+                            gridArea: "1 / 1 / 2 / 2",
+                            zIndex: 10,
+                            boxShadow:
+                              "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
+                            overflow: "hidden",
+                            x: homeLectureBackGesture.x,
+                            willChange: homeLectureBackGesture.isInteracting
+                              ? "transform"
+                              : "auto",
+                          }}
+                          initial={{ opacity: 1 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+                          className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                        >
+                          <Suspense fallback={iOSLoadingFallback}>
+                            <ErrorBoundary>
+                              <LectureDetailView
+                                lecture={activeHomeLecture}
+                                progress={activeHomeLectureProgress}
+                                onUpdateProgress={handleUpdateHomeLectureProgress}
+                                onAddPoints={handleAddPoints}
+                                onBack={handleHomeLectureBack}
+                                currentUser={activeLectureUser}
+                                language={language}
+                                initialTab={activeLectureTab}
+                                calendarEvents={calendarEventsDb}
+                              />
+                            </ErrorBoundary>
+                          </Suspense>
+                        </motion.div>
+                      )}
                     </div>
-                  )}
-                </>
+                  </motion.div>
+                )}
               </div>
             </div>
 
             {/* Tab 2: Modules */}
             <div
               style={{ display: activeTab === "subjects" ? "block" : "none" }}
-              className="w-full"
+              className="w-full min-h-full"
             >
               <div className="w-full">
                 {activeModuleId !== null ? (
@@ -5423,7 +5286,8 @@ const handleSignOut = useCallback(async () => {
 
             
           </div>
-        </motion.main>
+          </motion.div>
+        </main>
 
         {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer

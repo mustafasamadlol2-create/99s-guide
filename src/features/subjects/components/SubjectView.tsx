@@ -968,7 +968,7 @@ export const SubjectView = function SubjectView({
       data-subject-internal-back-active={hasInternalBack ? "true" : "false"}
       data-subject-internal-swipe-surface="true"
       data-swipe-back-surface="true"
-      className={`subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
+      className={`subject-view-root relative isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
     >
       <motion.div
         ref={hierarchyUnderlayRef}
@@ -999,7 +999,7 @@ export const SubjectView = function SubjectView({
       />
       <motion.div
         ref={hierarchyLayerRef}
-        className="relative z-10 isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+        className="relative z-10 isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
         style={{
           x: internalBackGesture.x,
           minHeight: "100%",
