@@ -1543,9 +1543,9 @@ export default function App() {
     snapshot.style.minHeight = "100%";
     snapshot.style.overflow = "hidden";
     snapshot.style.isolation = "isolate";
-    // iPad uses a width-reveal host instead of animated clip-path. Avoid a
-    // second paint-containment layer inside that host; it is the source of the
-    // black rectangular tile flashes seen in WKWebView during interactive Back.
+    // iPad uses a single overflow reveal host instead of clipping the cloned
+    // subtree itself. Keep the clone out of an extra paint-containment layer;
+    // the host owns the reveal boundary.
     snapshot.style.contain = device.isTablet ? "none" : "paint";
     return snapshot;
   }, [device.isTablet]);
@@ -1680,9 +1680,12 @@ export default function App() {
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
   );
+  // On iPad the content surface is narrower than window.visualViewport because
+  // the sidebar remains visible. Reveal by the gesture's exact pixel offset, not
+  // viewport-derived progress, otherwise a black vertical seam is exposed.
   const homeDashboardUnderlayRevealWidth = useTransform(
-    homeBackGesture.progress,
-    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
+    homeBackGesture.x,
+    (latest) => `${Math.max(0, Math.abs(latest))}px`,
   );
 
   // Lecture Detail intentionally does not participate in page-level swipe-back:
@@ -1723,8 +1726,8 @@ export default function App() {
     },
   );
   const homeDashboardLectureUnderlayRevealWidth = useTransform(
-    homeLectureBackGesture.progress,
-    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
+    homeLectureBackGesture.x,
+    (latest) => `${Math.max(0, Math.abs(latest))}px`,
   );
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
@@ -4901,6 +4904,7 @@ const handleSignOut = useCallback(async () => {
                                 ? homeDashboardLectureUnderlayRevealWidth
                                 : homeDashboardUnderlayRevealWidth)
                             : "100%",
+                          maxWidth: "100%",
                           clipPath: device.isTablet
                             ? "none"
                             : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
@@ -4913,11 +4917,15 @@ const handleSignOut = useCallback(async () => {
                                 : homeDashboardUnderlayClipPath),
                           isolation: "isolate",
                           contain: device.isTablet ? "layout" : "paint",
-                          WebkitBackfaceVisibility: "hidden",
-                          backfaceVisibility: "hidden",
+                          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
+                          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+                          // Do not promote a width-changing iPad underlay into its
+                          // own compositor surface; that is where WKWebView can
+                          // flash stale/black tiles. iPhone keeps the clip-path hint.
                           willChange:
-                            homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
-                              ? (device.isTablet ? "width" : "clip-path")
+                            !device.isTablet &&
+                            (homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
+                              ? "clip-path"
                               : "auto",
                         }}
                       />

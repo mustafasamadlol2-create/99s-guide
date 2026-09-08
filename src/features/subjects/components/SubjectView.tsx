@@ -924,13 +924,14 @@ export const SubjectView = function SubjectView({
     },
   );
   const hierarchyUnderlayOpacity = 1;
-  // iPadOS has a long-standing WebKit compositor artifact where an animated
-  // clip-path over a complex cloned subtree can flash black rectangular slices.
-  // On tablets reveal the same snapshot by changing only the width of one
-  // absolutely positioned overflow box; iPhone keeps the proven clip-path path.
+  // iPad content is narrower than the visual viewport because the sidebar remains
+  // visible. Gesture progress is viewport-based, so using progress*100% here leaves
+  // a black seam between the underlay and a foreground translated in real pixels.
+  // Reveal the snapshot by the exact physical X displacement instead. The host is
+  // capped at 100%, so completion cannot overshoot the subject surface.
   const hierarchyUnderlayRevealWidth = useTransform(
-    internalBackGesture.progress,
-    (latest) => `${Math.max(0, Math.min(1, latest)) * 100}%`,
+    internalBackGesture.x,
+    (latest) => `${Math.max(0, Math.abs(latest))}px`,
   );
 
   const lectureCountsBySubSubject = useMemo(() => {
@@ -976,15 +977,20 @@ export const SubjectView = function SubjectView({
           left: device.isTablet && isRtl ? "auto" : 0,
           right: device.isTablet && !isRtl ? "auto" : 0,
           width: device.isTablet ? hierarchyUnderlayRevealWidth : "100%",
+          maxWidth: "100%",
           clipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           WebkitClipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
           contain: device.isTablet ? "layout" : "paint",
-          WebkitBackfaceVisibility: "hidden",
-          backfaceVisibility: "hidden",
-          willChange: internalBackGesture.isInteracting
-            ? (device.isTablet ? "width" : "clip-path")
-            : "auto",
+          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
+          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+          // Width is layout-driven on iPad. Promoting it with will-change creates
+          // extra WebKit tiles and is counter-productive; only iPhone's clip-path
+          // reveal benefits from an explicit compositing hint.
+          willChange:
+            !device.isTablet && internalBackGesture.isInteracting
+              ? "clip-path"
+              : "auto",
         }}
       />
       <motion.div
