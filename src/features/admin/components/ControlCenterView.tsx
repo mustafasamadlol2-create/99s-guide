@@ -7,7 +7,6 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useRef,
   memo,
   lazy,
   Suspense,
@@ -143,8 +142,6 @@ const MutedUsersView      = lazy(() => import("../../moderation/components/Muted
 const BannedUsersView     = lazy(() => import("../../moderation/components/BannedUsersView"));
 const ModerationHistoryView = lazy(() => import("../../moderation/components/ModerationHistoryView"));
 import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
-import { motion } from "motion/react";
-import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -207,31 +204,17 @@ const ControlCenterView = function ControlCenterView({
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(
     currentUser.role === "admin" ? "lecture" : "live-study-hall",
   );
-  const subTabHistoryRef = useRef<SubTab[]>([]);
-  const [subTabHistoryDepth, setSubTabHistoryDepth] = useState(0);
 
+  // Control Center is intentionally not part of the app's swipe-back system.
+  // Switching tools is explicit through the console navigation only.
   const navigateSubTab = useCallback((next: SubTab) => {
     if (next === activeSubTab) return;
-    subTabHistoryRef.current.push(activeSubTab);
-    setSubTabHistoryDepth(subTabHistoryRef.current.length);
     setActiveSubTab(next);
   }, [activeSubTab]);
 
-  const navigateBackSubTab = useCallback(() => {
-    const previous = subTabHistoryRef.current.pop();
-    setSubTabHistoryDepth(subTabHistoryRef.current.length);
-    if (previous) setActiveSubTab(previous);
-  }, []);
-
-  const controlCenterBackGesture = useSwipeBack({
-    isEnabled: isActive && subTabHistoryDepth > 0,
-    direction: isRtl ? "rtl" : "ltr",
-    onSwipeBack: navigateBackSubTab,
-  });
-
   useEffect(() => {
-    onBackHistoryChange?.(subTabHistoryDepth > 0);
-  }, [onBackHistoryChange, subTabHistoryDepth]);
+    onBackHistoryChange?.(false);
+  }, [onBackHistoryChange]);
 
   const handleRefreshSubjects = useCallback(() => {
     onRefreshSubjects?.();
@@ -554,7 +537,7 @@ const ControlCenterView = function ControlCenterView({
             so the panel doesn't collapse when lazy-loading a panel that
             hasn't rendered yet.
         */}
-        <motion.div
+        <div
           className={`
             flex-1 min-w-0
             bg-white dark:bg-[#1C1C1E]
@@ -562,10 +545,6 @@ const ControlCenterView = function ControlCenterView({
             rounded-md p-4 shadow-elevation-0
             min-h-[200px] md:min-h-[300px]
           `}
-          style={{
-            x: controlCenterBackGesture.x,
-            willChange: controlCenterBackGesture.isInteracting ? "transform" : "auto",
-          }}
         >
           <Suspense
             fallback={
@@ -708,7 +687,7 @@ const ControlCenterView = function ControlCenterView({
                 </div>
               )}
           </Suspense>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

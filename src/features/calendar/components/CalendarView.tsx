@@ -161,6 +161,7 @@ const MobileAgendaItem = memo(function MobileAgendaItem({ ev, isRtl }: MobileAge
 interface CalendarViewProps {
   isActive?: boolean;
   isPhone?: boolean;
+  disableDayHover?: boolean;
  events: CalendarEvent[];
  subjects: Subject[];
  onAddEvent: (newEvent: CalendarEvent) => void;
@@ -171,6 +172,7 @@ interface CalendarViewProps {
 
 const CalendarView = memo(function CalendarView({
  isPhone = false,
+ disableDayHover = false,
  events,
  subjects,
  onAddEvent,
@@ -793,7 +795,7 @@ const CalendarView = memo(function CalendarView({
  setSwipeStartX(null);
  }}
  >
- <CalendarMonthView isRtl={isRtl} emptyPaddings={emptyPaddings} calendarDays={calendarDays} getFormattedDate={getFormattedDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
+ <CalendarMonthView isRtl={isRtl} isPhone={isPhone} emptyPaddings={emptyPaddings} calendarDays={calendarDays} getFormattedDate={getFormattedDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
  </motion.div>
  )}
  {activeView === "week" && (
@@ -806,7 +808,7 @@ const CalendarView = memo(function CalendarView({
  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full min-w-0 touch-pan-x"
  >
- <CalendarWeekView isRtl={isRtl} activeWeekDays={activeWeekDays} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
+ <CalendarWeekView isRtl={isRtl} disableDayHover={disableDayHover} activeWeekDays={activeWeekDays} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
  </motion.div>
  )}
  {activeView === "day" && (

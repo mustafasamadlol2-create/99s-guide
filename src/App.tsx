@@ -1712,6 +1712,10 @@ export default function App() {
       !isCommandPaletteOpen &&
       !hasNestedHomeBack &&
       !hasNestedSubjectBack &&
+      // Schedule and Control Center are deliberate navigation roots: no edge
+      // swipe-back is exposed on either iPhone or iPad.
+      activeTab !== "calendar" &&
+      activeTab !== "control-center" &&
       !(activeTab === "profile" && isProfileSubViewOpen) &&
       !(activeTab === "control-center" && controlCenterHasBackHistory),
     onSwipeBack: () => {
@@ -5126,6 +5130,7 @@ const handleSignOut = useCallback(async () => {
 <ErrorBoundary>
                   <CalendarView
                     isPhone={device.isPhone}
+                    disableDayHover={device.isPhone || device.isTablet || device.isIPadOS}
                     events={calendarEventsDb}
                     subjects={subjects}
                     onAddEvent={handleAddNewEvent}

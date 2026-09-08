@@ -20,6 +20,7 @@ interface WeekDayCellProps {
  todayDay: number;
  
  isRtl: boolean;
+ disableDayHover: boolean;
  setSelectedDate: (date: string) => void;
 }
 
@@ -34,6 +35,7 @@ const WeekDayCell = memo(function WeekDayCell({
   todayDay,
   
   isRtl,
+  disableDayHover,
   setSelectedDate,
 }: WeekDayCellProps) {
   const isToday =
@@ -68,7 +70,7 @@ const WeekDayCell = memo(function WeekDayCell({
   let badgeClass = "text-neutral-500 dark:text-[#EBEBF599] font-sans font-semibold";
   let dayNameClass = "text-neutral-500 dark:text-[#EBEBF599] font-sans";
   
-  let ringClass = isDaySelected ? "ring-2 ring-neutral-400/30 dark:ring-white/10 z-10 shadow-sm bg-white dark:bg-[#2C2C2E]" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+  let ringClass = isDaySelected ? "ring-2 ring-neutral-400/30 dark:ring-white/10 z-10 shadow-sm bg-white dark:bg-[#2C2C2E]" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
 
   if (dayEvents.length > 0) {
     const sortedEvents = [...dayEvents].sort((a, b) => getEventPriority(a) - getEventPriority(b));
@@ -78,32 +80,34 @@ const WeekDayCell = memo(function WeekDayCell({
       cellBgClass = "bg-red-50/60 dark:bg-red-950/20";
       cellBorderClass = "border-red-200/70 dark:border-red-800/40";
       dayNameClass = "text-red-700/90 dark:text-red-400/90 font-semibold";
-      ringClass = isDaySelected ? "ring-2 ring-red-400/50 dark:ring-red-500/30 z-10 shadow-sm bg-red-50 dark:bg-red-900/30" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+      ringClass = isDaySelected ? "ring-2 ring-red-400/50 dark:ring-red-500/30 z-10 shadow-sm bg-red-50 dark:bg-red-900/30" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
     } else if (topPriority === PRIORITY.QUIZ) {
       cellBgClass = "bg-orange-50/50 dark:bg-orange-950/20";
       cellBorderClass = "border-orange-200/60 dark:border-orange-800/30";
       dayNameClass = "text-orange-700/90 dark:text-orange-400/90 font-semibold";
-      ringClass = isDaySelected ? "ring-2 ring-orange-400/50 dark:ring-orange-500/30 z-10 shadow-sm bg-orange-50 dark:bg-orange-900/30" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+      ringClass = isDaySelected ? "ring-2 ring-orange-400/50 dark:ring-orange-500/30 z-10 shadow-sm bg-orange-50 dark:bg-orange-900/30" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
     } else if (topPriority === PRIORITY.ANNOUNCEMENT) {
       cellBgClass = "bg-green-50/50 dark:bg-green-950/20";
       cellBorderClass = "border-green-200/60 dark:border-green-800/30";
       dayNameClass = "text-green-700/90 dark:text-green-400/90 font-semibold";
-      ringClass = isDaySelected ? "ring-2 ring-green-400/50 dark:ring-green-500/30 z-10 shadow-sm bg-green-50 dark:bg-green-900/30" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+      ringClass = isDaySelected ? "ring-2 ring-green-400/50 dark:ring-green-500/30 z-10 shadow-sm bg-green-50 dark:bg-green-900/30" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
     } else if (topPriority === PRIORITY.LECTURE || topPriority === PRIORITY.ASSIGNMENT) {
       cellBgClass = "bg-blue-50/50 dark:bg-blue-950/20";
       cellBorderClass = "border-blue-200/60 dark:border-blue-800/30";
       dayNameClass = "text-blue-700/90 dark:text-blue-400/90 font-semibold";
-      ringClass = isDaySelected ? "ring-2 ring-blue-400/50 dark:ring-blue-500/30 z-10 shadow-sm bg-blue-50 dark:bg-blue-900/30" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+      ringClass = isDaySelected ? "ring-2 ring-blue-400/50 dark:ring-blue-500/30 z-10 shadow-sm bg-blue-50 dark:bg-blue-900/30" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
     } else if (topPriority === PRIORITY.HOLIDAY) {
       cellBgClass = "bg-emerald-50/40 dark:bg-emerald-950/15";
       cellBorderClass = "border-emerald-200/50 dark:border-emerald-800/20";
       dayNameClass = "text-emerald-600/90 dark:text-emerald-400/90 font-medium";
-      ringClass = isDaySelected ? "ring-2 ring-emerald-400/50 dark:ring-emerald-500/30 z-10 shadow-sm bg-emerald-50 dark:bg-emerald-900/20" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm";
+      ringClass = isDaySelected ? "ring-2 ring-emerald-400/50 dark:ring-emerald-500/30 z-10 shadow-sm bg-emerald-50 dark:bg-emerald-900/20" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
     }
   }
 
   if (isToday) {
-    badgeClass = "text-[#ff3b30] font-semibold font-sans transition duration-300 ease-[var(--ease-apple)] transform group-hover:scale-105";
+    badgeClass = disableDayHover
+      ? "text-[#ff3b30] font-semibold font-sans"
+      : "text-[#ff3b30] font-semibold font-sans transition duration-300 ease-[var(--ease-apple)] transform group-hover:scale-105";
     dayNameClass = "text-[#ff3b30] font-semibold";
 
     // Keep Today's outline fully inside the day cell. An outer ring can be
@@ -114,7 +118,9 @@ const WeekDayCell = memo(function WeekDayCell({
       ringClass = "ring-1 ring-inset ring-[#ff3b30]/35 dark:ring-[#ff453a]/30 z-10 shadow-sm bg-[#ff3b30]/[0.08] dark:bg-[#ff3b30]/[0.15]";
     } else if (dayEvents.length === 0) {
       cellBgClass = "bg-[#ff3b30]/[0.04] dark:bg-[#ff3b30]/[0.06]";
-      ringClass = "ring-1 ring-inset ring-[#ff3b30]/20 dark:ring-[#ff453a]/20 hover:shadow-sm hover:bg-[#ff3b30]/[0.08] dark:hover:bg-[#ff3b30]/[0.1]";
+      ringClass = disableDayHover
+        ? "ring-1 ring-inset ring-[#ff3b30]/20 dark:ring-[#ff453a]/20"
+        : "ring-1 ring-inset ring-[#ff3b30]/20 dark:ring-[#ff453a]/20 hover:shadow-sm hover:bg-[#ff3b30]/[0.08] dark:hover:bg-[#ff3b30]/[0.1]";
     }
   } else if (isDaySelected && dayEvents.length === 0) {
     badgeClass = "text-neutral-900 dark:text-white font-semibold font-sans";
@@ -196,6 +202,7 @@ const WeekDayCell = memo(function WeekDayCell({
 
 interface CalendarWeekViewProps {
  isRtl: boolean;
+ disableDayHover: boolean;
  activeWeekDays: Date[];
  selectedDate: string;
  setSelectedDate: (date: string) => void;
@@ -206,6 +213,7 @@ const EMPTY_EVENTS: CalendarEvent[] = [];
 
 export const CalendarWeekView = memo(function CalendarWeekView({
  isRtl,
+ disableDayHover,
  activeWeekDays,
  selectedDate,
  setSelectedDate,
@@ -289,7 +297,7 @@ export const CalendarWeekView = memo(function CalendarWeekView({
  const dayEvents = eventsByDate.get(dateStr) || EMPTY_EVENTS;
 
  return (
- <WeekDayCell key={`week-day-${idx}`} idx={idx} dateObj={dateObj} dateStr={dateStr} isDaySelected={isDaySelected} dayEvents={dayEvents} todayYear={todayYear} todayMonth={todayMonth} todayDay={todayDay}  isRtl={isRtl} setSelectedDate={setSelectedDate} />
+ <WeekDayCell key={`week-day-${idx}`} idx={idx} dateObj={dateObj} dateStr={dateStr} isDaySelected={isDaySelected} dayEvents={dayEvents} todayYear={todayYear} todayMonth={todayMonth} todayDay={todayDay}  isRtl={isRtl} disableDayHover={disableDayHover} setSelectedDate={setSelectedDate} />
  );
  })}
  </div>
