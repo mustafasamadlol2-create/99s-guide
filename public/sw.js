@@ -11,7 +11,7 @@
  * deleted during the activate phase — no infinite cache growth.
  */
 
-const CACHE_VERSION = 'v1.4.1';
+const CACHE_VERSION = 'v1.4.2';
 const CACHE_NAME = `app-shell-${CACHE_VERSION}`;
 
 // Minimal app shell pre-cached at install time.

@@ -1546,9 +1546,9 @@ export default function App() {
     // iPad uses a single overflow reveal host instead of clipping the cloned
     // subtree itself. Keep the clone out of an extra paint-containment layer;
     // the host owns the reveal boundary.
-    snapshot.style.contain = device.isTablet ? "none" : "paint";
+    snapshot.style.contain = device.isIPadOS ? "none" : "paint";
     return snapshot;
-  }, [device.isTablet]);
+  }, [device.isIPadOS]);
 
   const captureHomeDashboardSnapshot = useCallback(() => {
     const source = homeDashboardSurfaceRef.current;
@@ -4542,7 +4542,7 @@ const handleSignOut = useCallback(async () => {
 
   return (
     <div
-      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${device.isTablet ? " ipad-layout" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
+      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
       style={{
         fontSize: `${textScale}rem`,
       }}
@@ -4906,33 +4906,35 @@ const handleSignOut = useCallback(async () => {
                           width: "100%",
                           maxWidth: "100%",
                           visibility:
-                            device.isTablet &&
-                            !(homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
-                              ? "hidden"
-                              : "visible",
+                            device.isIPadOS
+                              ? "visible"
+                              : device.isTablet &&
+                                  !(homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
+                                ? "hidden"
+                                : "visible",
                           // iPad Safari/WKWebView must keep the backing page on the
                           // normal paint path. Moving/promoting both foreground and
                           // underlay creates large tiled compositor surfaces which can
                           // flash as opaque black rectangles. Only the foreground moves.
                           x: 0,
-                          clipPath: device.isTablet
+                          clipPath: device.isIPadOS
                             ? "none"
                             : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
                                 ? homeDashboardLectureUnderlayClipPath
                                 : homeDashboardUnderlayClipPath),
-                          WebkitClipPath: device.isTablet
+                          WebkitClipPath: device.isIPadOS
                             ? "none"
                             : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
                                 ? homeDashboardLectureUnderlayClipPath
                                 : homeDashboardUnderlayClipPath),
                           isolation: "isolate",
-                          contain: device.isTablet ? "none" : "paint",
-                          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
-                          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+                          contain: device.isIPadOS ? "none" : "paint",
+                          WebkitBackfaceVisibility: device.isIPadOS ? "visible" : "hidden",
+                          backfaceVisibility: device.isIPadOS ? "visible" : "hidden",
                           // Never promote the iPad backing page to its own GPU layer.
                           // The foreground is the sole transformed surface during Back.
                           willChange:
-                            device.isTablet
+                            device.isIPadOS
                               ? "auto"
                               : (homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
                                   ? "clip-path"

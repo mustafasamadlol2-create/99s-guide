@@ -29,6 +29,8 @@ interface DeviceProfile {
   isPhone: boolean;
   isTablet: boolean;
   isDesktop: boolean;
+  /** True for a real iPad/iPadOS runtime regardless of viewport width or Display Zoom mode. */
+  isIPadOS: boolean;
   isSmallPhone: boolean; // iPhone SE
   hasDynamicIsland: boolean; // iPhone 14 Pro, 15 series, etc.
   margins: string; // padding-x classes for margin
@@ -257,17 +259,47 @@ export function useDeviceProfile(): DeviceProfile {
     let profile: DeviceProfileType = "MacBook";
     let isSmallPhone = false;
 
-    // Real iPadOS detection: modern iPad Safari reports a "Macintosh" UA, so
-    // touch-capable MacIntel devices count as iPadOS. Needed to classify iPad
-    // Pro 11 / 13 landscape (1194 / 1366 px) as tablets instead of desktops.
-    const isIpadOS =
-      typeof navigator !== "undefined" &&
-      (/iPad/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    // Real iPadOS detection MUST NOT depend on viewport width.
+    //
+    // iPad Pro 13" can report a desktop-class CSS viewport (for example in
+    // Display Zoom / More Space, Stage Manager, PWA standalone, or WKWebView).
+    // Modern iPadOS may also identify itself as Macintosh/MacIntel.  If we put
+    // an upper width bound on iPad detection, a real 13" iPad is silently
+    // reclassified as a MacBook and every `.ipad-layout` / `device.isTablet`
+    // navigation fix is skipped.
+    const isIpadOS = (() => {
+      if (typeof navigator === "undefined") return false;
+
+      const ua = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const touchPoints = navigator.maxTouchPoints || 0;
+
+      // Classic iPad Safari / WKWebView.
+      if (/iPad/i.test(ua) || /iPad/i.test(platform)) return true;
+
+      // iPadOS 13+ desktop-class identity. A real Mac does not expose a
+      // touch-screen maxTouchPoints value > 1, so this remains Mac-safe.
+      if (touchPoints > 1 && (/Macintosh/i.test(ua) || /MacIntel|Macintosh/i.test(platform))) {
+        return true;
+      }
+
+      // Capacitor iOS can be queried directly. Use screen size only to
+      // distinguish iPad from iPhone; this branch is native-app-only.
+      if (typeof window !== "undefined") {
+        const capacitor = (window as any).Capacitor;
+        const nativePlatform = capacitor?.getPlatform?.();
+        const shortScreenSide = Math.min(window.screen?.width || 0, window.screen?.height || 0);
+        if (nativePlatform === "ios" && touchPoints > 1 && shortScreenSide >= 600) {
+          return true;
+        }
+      }
+
+      return false;
+    })();
 
     // 1. Phone Detection: either very narrow, or landscape phone with shallow height
-    const isPhoneWidth = width < 480;
-    const isLandscapePhoneHeight = height < 480 && width < 960;
+    const isPhoneWidth = !isIpadOS && width < 480;
+    const isLandscapePhoneHeight = !isIpadOS && height < 480 && width < 960;
 
     if (isPhoneWidth || isLandscapePhoneHeight) {
       deviceType = "phone";
@@ -287,10 +319,12 @@ export function useDeviceProfile(): DeviceProfile {
         profile = "iPhonePlus";
       }
     }
-    // 2. Tablet Detection: narrow widths are tablets outright; for wider
-    //    landscape iPads (11"/12.9"/13" Pro up to 1376 px) the iPadOS-touch
-    //    check owns the upper boundary so real desktops stay desktop.
-    else if (width <= 1180 || (isIpadOS && width <= 1400)) {
+    // 2. Tablet Detection:
+    //    A confirmed iPadOS runtime is ALWAYS a tablet, regardless of CSS
+    //    viewport width. This is essential for iPad Pro 13" where More Space
+    //    / Stage Manager / standalone PWA / WKWebView can exceed 1400 CSS px.
+    //    Non-iPad devices still use the existing width fallback.
+    else if (isIpadOS || width <= 1180) {
       deviceType = "tablet";
       if (isLandscape) {
         activeLayout = "ipad-landscape";
@@ -463,6 +497,7 @@ export function useDeviceProfile(): DeviceProfile {
       isPhone,
       isTablet,
       isDesktop,
+      isIPadOS: isIpadOS,
       isSmallPhone,
       hasDynamicIsland,
       margins,

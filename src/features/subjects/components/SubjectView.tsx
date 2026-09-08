@@ -754,10 +754,10 @@ export const SubjectView = function SubjectView({
     // iPad: paint containment on a cloned, clipped subtree can produce black
     // compositor tiles. The tablet underlay already clips at its outer host, so
     // the clone does not need its own paint layer.
-    snapshot.style.contain = device.isTablet ? "none" : "paint";
+    snapshot.style.contain = device.isIPadOS ? "none" : "paint";
     snapshot.setAttribute("aria-hidden", "true");
     return snapshot;
-  }, [device.isTablet]);
+  }, [device.isIPadOS]);
 
   const captureHierarchySnapshot = useCallback(() => {
     const source = hierarchyLayerRef.current;
@@ -788,15 +788,20 @@ export const SubjectView = function SubjectView({
       clearUnderlayFrameRef.current = null;
     }
     host.replaceChildren(snapshot.cloneNode(true));
+    // iPadOS: expose the backing page synchronously in the same native touch
+    // event, before MotionValue advances the foreground on the next RAF. This
+    // removes the one-frame black root flash caused by waiting for React state.
+    if (device.isIPadOS) host.style.visibility = "visible";
     setIsHierarchyUnderlayVisible(true);
-  }, []);
+  }, [device.isIPadOS]);
 
   const hideHierarchyUnderlay = useCallback(() => {
     const host = hierarchyUnderlayRef.current;
     setIsHierarchyUnderlayVisible(false);
     if (!host) return;
+    if (device.isIPadOS) host.style.visibility = "hidden";
     host.replaceChildren();
-  }, []);
+  }, [device.isIPadOS]);
 
   const scheduleHierarchyUnderlayClear = useCallback(() => {
     if (clearUnderlayFrameRef.current !== null) {
@@ -970,7 +975,7 @@ export const SubjectView = function SubjectView({
         aria-hidden="true"
         className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
         style={{
-          visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
+          visibility: device.isIPadOS ? "visible" : (isHierarchyUnderlayVisible ? "visible" : "hidden"),
           opacity: hierarchyUnderlayOpacity,
           left: 0,
           right: 0,
@@ -980,14 +985,14 @@ export const SubjectView = function SubjectView({
           // cloned underlay alongside the foreground causes WebKit tiled-layer
           // corruption (the black rectangles visible in the recording).
           x: 0,
-          clipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
-          WebkitClipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
+          clipPath: device.isIPadOS ? "none" : hierarchyUnderlayClipPath,
+          WebkitClipPath: device.isIPadOS ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
-          contain: device.isTablet ? "none" : "paint",
-          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
-          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+          contain: device.isIPadOS ? "none" : "paint",
+          WebkitBackfaceVisibility: device.isIPadOS ? "visible" : "hidden",
+          backfaceVisibility: device.isIPadOS ? "visible" : "hidden",
           willChange:
-            device.isTablet
+            device.isIPadOS
               ? "auto"
               : (internalBackGesture.isInteracting ? "clip-path" : "auto"),
         }}
@@ -999,7 +1004,7 @@ export const SubjectView = function SubjectView({
           x: internalBackGesture.x,
           minHeight: "100%",
           isolation: "isolate",
-          contain: device.isTablet ? "none" : "paint",
+          contain: device.isIPadOS ? "none" : "paint",
           WebkitBackfaceVisibility: "hidden",
           backfaceVisibility: "hidden",
           boxShadow: internalBackGesture.isInteracting
