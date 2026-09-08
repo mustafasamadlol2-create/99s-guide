@@ -1735,7 +1735,6 @@ export default function App() {
     [isRtl ? 22 : -22, 0],
   );
   const lectureUnderlayOpacity = 1;
-
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
     setSuppressHomeEntranceAnimations(false);
@@ -4940,41 +4939,88 @@ const handleSignOut = useCallback(async () => {
               className="w-full min-h-full"
             >
               <div className="w-full">
-                {activeModuleId !== null ? (
-                  <motion.div
-                    data-module-swipe-surface="true"
-                    data-swipe-back-surface="true"
-                    className="w-full"
-                    style={{
-                      x: subjectsBackGesture.x,
-                      willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
-                    }}
+                {activeSubjectId === null ? (
+                  /* Persistent Modules stack. Keep the actual seven-module grid
+                     alive under a pushed module page so interactive Back always
+                     reveals the true previous screen, never the root canvas. */
+                  <div
+                    className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                    style={{ minHeight: navigationSurfaceMinHeight }}
                   >
-                    <Suspense fallback={iOSLoadingFallback}>
-                      <ErrorBoundary>
-                        <ModulePlaceholderView
-                          subject={subjects.find((subject) => subject.id === activeModuleId) || subjects[0]}
-                          onBack={subjectsBackGesture.triggerBack}
-                          language={language}
-                        />
-                      </ErrorBoundary>
-                    </Suspense>
-                  </motion.div>
-                ) : activeSubjectId === null ? (
-                  <Suspense fallback={iOSLoadingFallback}>
-                    <ErrorBoundary>
-                      <ModulesView
-                        subjects={subjects}
-                        lectureCounts={subjectLectureCounts}
-                        progressBySubject={subjectProgressMetrics}
-                        onSelectModule={(subjectId) => {
-                          setActiveLecture(null);
-                          setActiveModuleId(subjectId);
+                    <div
+                      aria-hidden={activeModuleId !== null}
+                      style={{
+                        gridArea: "1 / 1 / 2 / 2",
+                        pointerEvents: activeModuleId === null ? "auto" : "none",
+                        minHeight: navigationSurfaceMinHeight,
+                      }}
+                      className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+                    >
+                      {/* On phones the large Modules title normally lives just
+                          above this tab. While a module is pushed that outer title
+                          is intentionally hidden, so keep an identical copy inside
+                          the persistent parent page. It is covered at rest and is
+                          revealed only during interactive Back, then swaps 1:1 with
+                          the normal title on commit with no visual jump. */}
+                      {activeModuleId !== null && (
+                        <div className="mb-6 pt-2 select-none md:hidden">
+                          <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                            {language === "ar" ? "الموديولات" : "Modules"}
+                          </h1>
+                        </div>
+                      )}
+                      <Suspense fallback={iOSLoadingFallback}>
+                        <ErrorBoundary>
+                          <ModulesView
+                            subjects={subjects}
+                            lectureCounts={subjectLectureCounts}
+                            progressBySubject={subjectProgressMetrics}
+                            onSelectModule={(subjectId) => {
+                              setActiveLecture(null);
+                              setActiveModuleId(subjectId);
+                            }}
+                            language={language}
+                          />
+                        </ErrorBoundary>
+                      </Suspense>
+                    </div>
+
+                    {activeModuleId !== null && (
+                      <motion.div
+                        key={`module-detail-${activeModuleId}`}
+                        data-module-swipe-surface="true"
+                        data-swipe-back-surface="true"
+                        className="relative isolate w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                        style={{
+                          gridArea: "1 / 1 / 2 / 2",
+                          zIndex: 10,
+                          x: subjectsBackGesture.x,
+                          minHeight: navigationSurfaceMinHeight,
+                          boxShadow: subjectsBackGesture.isInteracting
+                            ? (isRtl
+                                ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                                : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                            : "none",
+                          willChange: subjectsBackGesture.isInteracting
+                            ? "transform"
+                            : "auto",
                         }}
-                        language={language}
-                      />
-                    </ErrorBoundary>
-                  </Suspense>
+                      >
+                        <Suspense fallback={iOSLoadingFallback}>
+                          <ErrorBoundary>
+                            <ModulePlaceholderView
+                              subject={
+                                subjects.find((subject) => subject.id === activeModuleId) ||
+                                subjects[0]
+                              }
+                              onBack={subjectsBackGesture.triggerBack}
+                              language={language}
+                            />
+                          </ErrorBoundary>
+                        </Suspense>
+                      </motion.div>
+                    )}
+                  </div>
                 ) : (
                   /* Legacy SubjectView remains available only for search/deep links.
                      It is no longer the visible Modules-page navigation path. */
