@@ -21,6 +21,12 @@ interface UseSwipeBackOptions {
   allowedStartSelector?: string;
   /** Optional selector that vetoes this recognizer for the initial touch target. */
   blockedStartSelector?: string;
+  /**
+   * Optional selector for the exact visual surface that moves during Back.
+   * On iPad this is intentionally NOT the full viewport because the persistent
+   * sidebar and page padding make the content surface narrower.
+   */
+  surfaceSelector?: string;
   onSwipeStart?: () => void;
   onSwipeMove?: (signedOffset: number, progress: number) => void;
   onSwipeEnd?: (success: boolean) => void;
@@ -83,6 +89,7 @@ export function useSwipeBack({
   velocityThreshold = 0.50,
   allowedStartSelector,
   blockedStartSelector,
+  surfaceSelector,
   onSwipeStart,
   onSwipeMove,
   onSwipeEnd,
@@ -105,6 +112,9 @@ export function useSwipeBack({
   const animationStopRef = useRef<(() => void) | null>(null);
   const triggerBackRef = useRef<(() => void) | null>(null);
   const settlementEpochRef = useRef(0);
+  const surfaceWidthRef = useRef(0);
+  const surfaceLeftRef = useRef(0);
+  const surfaceRightRef = useRef(0);
 
   const onSwipeBackRef = useRef(onSwipeBack);
   const onSwipeStartRef = useRef(onSwipeStart);
@@ -117,6 +127,7 @@ export function useSwipeBack({
   const velocityThresholdRef = useRef(velocityThreshold);
   const allowedStartSelectorRef = useRef(allowedStartSelector);
   const blockedStartSelectorRef = useRef(blockedStartSelector);
+  const surfaceSelectorRef = useRef(surfaceSelector);
 
   useLayoutEffect(() => {
     onSwipeBackRef.current = onSwipeBack;
@@ -130,6 +141,7 @@ export function useSwipeBack({
     velocityThresholdRef.current = velocityThreshold;
     allowedStartSelectorRef.current = allowedStartSelector;
     blockedStartSelectorRef.current = blockedStartSelector;
+    surfaceSelectorRef.current = surfaceSelector;
   });
 
   const triggerBack = useCallback(() => {
@@ -155,6 +167,9 @@ export function useSwipeBack({
       eligibleRef.current = false;
       horizontalLockRef.current = false;
       velocityRef.current = 0;
+      surfaceWidthRef.current = 0;
+      surfaceLeftRef.current = 0;
+      surfaceRightRef.current = 0;
       triggerBackRef.current = null;
       x.set(0);
       progress.set(0);
@@ -169,6 +184,61 @@ export function useSwipeBack({
 
     const viewportWidth = () =>
       Math.max(1, Math.round(window.visualViewport?.width || window.innerWidth || 1));
+
+    const isUsableSurface = (element: Element | null): element is HTMLElement => {
+      if (!(element instanceof HTMLElement)) return false;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 1 || rect.height <= 1) return false;
+      const style = window.getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden";
+    };
+
+    const measureGestureSurface = (target?: Element | null) => {
+      const selector = surfaceSelectorRef.current;
+      let surface: HTMLElement | null = null;
+
+      if (selector && target) {
+        const closest = target.closest(selector);
+        if (isUsableSurface(closest)) surface = closest;
+      }
+
+      if (!surface && selector) {
+        const candidates = Array.from(document.querySelectorAll(selector));
+        surface =
+          (candidates.find((candidate) => isUsableSurface(candidate)) as HTMLElement | undefined) ??
+          null;
+      }
+
+      if (!surface && target) {
+        const closest = target.closest('[data-swipe-back-surface="true"]');
+        if (isUsableSurface(closest)) surface = closest;
+      }
+
+      if (!surface) {
+        const region = document.querySelector<HTMLElement>(
+          '[data-swipe-back-region="true"]',
+        );
+        if (isUsableSurface(region)) surface = region;
+      }
+
+      if (surface) {
+        const rect = surface.getBoundingClientRect();
+        const width = Math.max(1, rect.width);
+        surfaceWidthRef.current = width;
+        surfaceLeftRef.current = rect.left;
+        surfaceRightRef.current = rect.right;
+        return { width, left: rect.left, right: rect.right };
+      }
+
+      const width = viewportWidth();
+      surfaceWidthRef.current = width;
+      surfaceLeftRef.current = 0;
+      surfaceRightRef.current = width;
+      return { width, left: 0, right: width };
+    };
+
+    const gestureWidth = () =>
+      Math.max(1, surfaceWidthRef.current || measureGestureSurface().width);
 
     const signedDistance = (clientX: number) => {
       const raw =
@@ -194,7 +264,7 @@ export function useSwipeBack({
       const settlementEpoch = ++settlementEpochRef.current;
 
       const targetProgress = success ? 1 : 0;
-      const width = viewportWidth();
+      const width = gestureWidth();
       const updateProgress = (latest: number) => {
         const p = Math.min(1, Math.abs(latest) / width);
         progress.set(p);
@@ -297,11 +367,12 @@ export function useSwipeBack({
         settlingSuccessRef.current = false;
       }
       resetTracking();
+      measureGestureSurface();
       x.set(0);
       progress.set(0);
       setIsInteracting(true);
       onSwipeStartRef.current?.();
-      settleTo(signedOffset(viewportWidth()), true, 0);
+      settleTo(signedOffset(gestureWidth()), true, 0);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -315,13 +386,17 @@ export function useSwipeBack({
       }
 
       const touch = event.touches[0];
-      const width = viewportWidth();
-      const region = document.querySelector<HTMLElement>(
-        '[data-swipe-back-region="true"]',
-      );
-      const regionRect = region?.getBoundingClientRect();
-      const leftEdge = regionRect?.left ?? 0;
-      const rightEdge = regionRect?.right ?? width;
+      const rawTarget = event.target;
+      const target =
+        rawTarget instanceof Element
+          ? rawTarget
+          : rawTarget instanceof Node
+            ? rawTarget.parentElement
+            : null;
+      const surfaceRect = measureGestureSurface(target);
+      const width = surfaceRect.width;
+      const leftEdge = surfaceRect.left;
+      const rightEdge = surfaceRect.right;
       const edgeSlop = 2;
       const inEdge =
         directionRef.current === "rtl"
@@ -331,13 +406,6 @@ export function useSwipeBack({
             touch.clientX >= leftEdge - edgeSlop;
       const startsInAllowedZone = activationModeRef.current === "full" || inEdge;
 
-      const rawTarget = event.target;
-      const target =
-        rawTarget instanceof Element
-          ? rawTarget
-          : rawTarget instanceof Node
-            ? rawTarget.parentElement
-            : null;
       const requiredStartSelector = allowedStartSelectorRef.current;
       const startsInsideRequiredRegion =
         !requiredStartSelector || Boolean(target?.closest?.(requiredStartSelector));
@@ -439,7 +507,7 @@ export function useSwipeBack({
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
-      const width = viewportWidth();
+      const width = gestureWidth();
       const clampedDistance = Math.min(width, distance);
       const offset = signedOffset(clampedDistance);
       const nextProgress = Math.min(1, clampedDistance / width);
@@ -464,7 +532,7 @@ export function useSwipeBack({
       const hadHorizontalLock = horizontalLockRef.current;
       const clientX = event?.changedTouches?.[0]?.clientX ?? lastXRef.current;
       const distance = signedDistance(clientX);
-      const width = viewportWidth();
+      const width = gestureWidth();
       const finalProgress = Math.min(1, distance / width);
       const releaseVelocity = velocityRef.current;
       const fastFlick =

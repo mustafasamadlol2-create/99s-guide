@@ -2702,6 +2702,12 @@ button:not(:disabled):active,
 /* Canvas: touch-friendly bottom inset (non-phone inline padding is 24px). */
 .ipad-layout #main-scroll-canvas {
   padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
+  /* iPad Safari/WKWebView can leave black compositor tiles when a transformed
+     descendant crosses an overflow-x:clip boundary. `hidden` keeps the same
+     visual clipping contract but uses the stable scroll-container path in both
+     the Capacitor WKWebView and standalone PWA. */
+  overflow-x: hidden !important;
+  overscroll-behavior-x: none;
 }
 
 /* View roots: the canvas already reserves bottom space — drop the utility

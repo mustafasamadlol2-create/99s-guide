@@ -898,6 +898,7 @@ export const SubjectView = function SubjectView({
 
   const internalBackGesture = useSwipeBack({
     direction: isRtl ? "rtl" : "ltr",
+    surfaceSelector: '[data-subject-internal-swipe-surface="true"]',
     isEnabled: isSwipeNavigationEnabled && hasInternalBack,
     onSwipeStart: mountPreviousHierarchySnapshot,
     onSwipeEnd: (success) => {
@@ -924,14 +925,15 @@ export const SubjectView = function SubjectView({
     },
   );
   const hierarchyUnderlayOpacity = 1;
-  // iPad content is narrower than the visual viewport because the sidebar remains
-  // visible. Gesture progress is viewport-based, so using progress*100% here leaves
-  // a black seam between the underlay and a foreground translated in real pixels.
-  // Reveal the snapshot by the exact physical X displacement instead. The host is
-  // capped at 100%, so completion cannot overshoot the subject surface.
-  const hierarchyUnderlayRevealWidth = useTransform(
-    internalBackGesture.x,
-    (latest) => `${Math.max(0, Math.abs(latest))}px`,
+  // Tablet navigation uses one full-size backing surface and transform-only
+  // parallax. The swipe hook measures this exact SubjectView width, so the
+  // foreground never travels on the wider window coordinate system. Avoiding
+  // animated width/clip on the cloned subtree removes the iPadOS black-tile
+  // artifacts in both Safari/PWA and Capacitor WKWebView.
+  const hierarchyTabletUnderlayX = useTransform(
+    internalBackGesture.progress,
+    [0, 1],
+    [isRtl ? 18 : -18, 0],
   );
 
   const lectureCountsBySubSubject = useMemo(() => {
@@ -964,6 +966,8 @@ export const SubjectView = function SubjectView({
   return (
     <div
       data-subject-internal-back-active={hasInternalBack ? "true" : "false"}
+      data-subject-internal-swipe-surface="true"
+      data-swipe-back-surface="true"
       className={`subject-view-root relative isolate overflow-hidden bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
     >
       <motion.div
@@ -972,25 +976,21 @@ export const SubjectView = function SubjectView({
         className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
         style={{
           visibility: isHierarchyUnderlayVisible ? "visible" : "hidden",
-          x: 0,
           opacity: hierarchyUnderlayOpacity,
-          left: device.isTablet && isRtl ? "auto" : 0,
-          right: device.isTablet && !isRtl ? "auto" : 0,
-          width: device.isTablet ? hierarchyUnderlayRevealWidth : "100%",
+          left: 0,
+          right: 0,
+          width: "100%",
           maxWidth: "100%",
+          x: device.isTablet ? hierarchyTabletUnderlayX : 0,
           clipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           WebkitClipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
-          contain: device.isTablet ? "layout" : "paint",
-          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
-          backfaceVisibility: device.isTablet ? "visible" : "hidden",
-          // Width is layout-driven on iPad. Promoting it with will-change creates
-          // extra WebKit tiles and is counter-productive; only iPhone's clip-path
-          // reveal benefits from an explicit compositing hint.
-          willChange:
-            !device.isTablet && internalBackGesture.isInteracting
-              ? "clip-path"
-              : "auto",
+          contain: "paint",
+          WebkitBackfaceVisibility: "hidden",
+          backfaceVisibility: "hidden",
+          willChange: internalBackGesture.isInteracting
+            ? (device.isTablet ? "transform" : "clip-path")
+            : "auto",
         }}
       />
       <motion.div

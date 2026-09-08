@@ -1654,6 +1654,7 @@ export default function App() {
   // and pop back into the exact Search session that opened them.
   const homeBackGesture = useSwipeBack({
     direction: swipeDirection,
+    surfaceSelector: '[data-home-subject-swipe-surface="true"]',
     blockedStartSelector: '[data-subject-internal-back-active="true"]',
     isEnabled:
       activeTab === "home" &&
@@ -1680,12 +1681,15 @@ export default function App() {
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
   );
-  // On iPad the content surface is narrower than window.visualViewport because
-  // the sidebar remains visible. Reveal by the gesture's exact pixel offset, not
-  // viewport-derived progress, otherwise a black vertical seam is exposed.
-  const homeDashboardUnderlayRevealWidth = useTransform(
-    homeBackGesture.x,
-    (latest) => `${Math.max(0, Math.abs(latest))}px`,
+  // iPad uses a full-size backing page and only compositor-safe transforms.
+  // The gesture itself now measures the moving content surface (not the full
+  // window), so foreground and underlay share one coordinate system. Keeping
+  // the underlay full width avoids the width/clip relayout tiles that Safari and
+  // WKWebView can render as black rectangles on large iPad surfaces.
+  const homeDashboardTabletUnderlayX = useTransform(
+    homeBackGesture.progress,
+    [0, 1],
+    [isRtl ? 18 : -18, 0],
   );
 
   // Lecture Detail intentionally does not participate in page-level swipe-back:
@@ -1707,6 +1711,7 @@ export default function App() {
   // This keeps PDF/Notes/MCQ/etc. horizontal paging completely independent.
   const homeLectureBackGesture = useSwipeBack({
     direction: swipeDirection,
+    surfaceSelector: '[data-home-lecture-swipe-surface="true"]',
     isEnabled:
       activeTab === "home" &&
       !isCommandPaletteOpen &&
@@ -1725,15 +1730,20 @@ export default function App() {
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
   );
-  const homeDashboardLectureUnderlayRevealWidth = useTransform(
-    homeLectureBackGesture.x,
-    (latest) => `${Math.max(0, Math.abs(latest))}px`,
+  const homeDashboardLectureTabletUnderlayX = useTransform(
+    homeLectureBackGesture.progress,
+    [0, 1],
+    [isRtl ? 18 : -18, 0],
   );
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
   // search/deep-link Subject → Lecture path.
   const subjectsBackGesture = useSwipeBack({
     direction: swipeDirection,
+    surfaceSelector:
+      activeModuleId !== null
+        ? '[data-module-swipe-surface="true"]'
+        : '[data-legacy-subject-swipe-surface="true"]',
     blockedStartSelector: '[data-subject-internal-back-active="true"]',
     isEnabled:
       activeTab === "subjects" &&
@@ -1761,6 +1771,7 @@ export default function App() {
 
   const subjectsLectureBackGesture = useSwipeBack({
     direction: swipeDirection,
+    surfaceSelector: '[data-legacy-lecture-swipe-surface="true"]',
     isEnabled:
       activeTab === "subjects" &&
       !isCommandPaletteOpen &&
@@ -1784,6 +1795,7 @@ export default function App() {
 
   const rootBackGesture = useSwipeBack({
     direction: swipeDirection,
+    surfaceSelector: '#main-scroll-canvas',
     isEnabled:
       (navigationStackTop !== null || isStandaloneLegalPage) &&
       !isCommandPaletteOpen &&
@@ -4890,6 +4902,8 @@ const handleSignOut = useCallback(async () => {
                   ) : (
                     <div
                       key="home-subject-details-stack"
+                      data-home-subject-swipe-surface="true"
+                      data-swipe-back-surface="true"
                       className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
                     >
                       <motion.div
@@ -4897,14 +4911,20 @@ const handleSignOut = useCallback(async () => {
                         aria-hidden="true"
                         className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
                         style={{
-                          left: device.isTablet && isRtl ? "auto" : 0,
-                          right: device.isTablet && !isRtl ? "auto" : 0,
-                          width: device.isTablet
-                            ? (activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                                ? homeDashboardLectureUnderlayRevealWidth
-                                : homeDashboardUnderlayRevealWidth)
-                            : "100%",
+                          left: 0,
+                          right: 0,
+                          width: "100%",
                           maxWidth: "100%",
+                          visibility:
+                            device.isTablet &&
+                            !(homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
+                              ? "hidden"
+                              : "visible",
+                          x: device.isTablet
+                            ? (activeHomeLecture !== null && lectureDetailSource === "dashboard"
+                                ? homeDashboardLectureTabletUnderlayX
+                                : homeDashboardTabletUnderlayX)
+                            : 0,
                           clipPath: device.isTablet
                             ? "none"
                             : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
@@ -4916,16 +4936,12 @@ const handleSignOut = useCallback(async () => {
                                 ? homeDashboardLectureUnderlayClipPath
                                 : homeDashboardUnderlayClipPath),
                           isolation: "isolate",
-                          contain: device.isTablet ? "layout" : "paint",
-                          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
-                          backfaceVisibility: device.isTablet ? "visible" : "hidden",
-                          // Do not promote a width-changing iPad underlay into its
-                          // own compositor surface; that is where WKWebView can
-                          // flash stale/black tiles. iPhone keeps the clip-path hint.
+                          contain: "paint",
+                          WebkitBackfaceVisibility: "hidden",
+                          backfaceVisibility: "hidden",
                           willChange:
-                            !device.isTablet &&
-                            (homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
-                              ? "clip-path"
+                            homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
+                              ? (device.isTablet ? "transform" : "clip-path")
                               : "auto",
                         }}
                       />
@@ -4988,6 +5004,8 @@ const handleSignOut = useCallback(async () => {
                           {activeHomeLecture !== null && (
                             <motion.div
                               key="home-lecture-detail"
+                              data-home-lecture-swipe-surface="true"
+                              data-swipe-back-surface="true"
                               style={{
                                 gridArea: "1 / 1 / 2 / 2",
                                 zIndex: 10,
@@ -5039,6 +5057,8 @@ const handleSignOut = useCallback(async () => {
               <div className="w-full">
                 {activeModuleId !== null ? (
                   <motion.div
+                    data-module-swipe-surface="true"
+                    data-swipe-back-surface="true"
                     className="w-full"
                     style={{
                       x: subjectsBackGesture.x,
@@ -5075,6 +5095,8 @@ const handleSignOut = useCallback(async () => {
                      It is no longer the visible Modules-page navigation path. */
                   <motion.div
                     key="subject-details-wrapper"
+                    data-legacy-subject-swipe-surface="true"
+                    data-swipe-back-surface="true"
                     className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
                     style={{
                       x: activeLecture === null ? subjectsBackGesture.x : 0,
@@ -5118,6 +5140,8 @@ const handleSignOut = useCallback(async () => {
                       {activeLecture !== null && (
                         <motion.div
                           key="lecture-detail"
+                          data-legacy-lecture-swipe-surface="true"
+                          data-swipe-back-surface="true"
                           style={{
                             gridArea: "1 / 1 / 2 / 2",
                             zIndex: 10,
