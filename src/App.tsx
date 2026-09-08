@@ -4869,7 +4869,15 @@ const handleSignOut = useCallback(async () => {
                               }
                               progress={progressDb}
                               dbLectures={dbLectures}
-                              deepLinkedLecture={activeHomeLecture}
+                              // When a lecture is opened from inside the live Subject hierarchy,
+                              // that hierarchy is already at the correct parent screen. Passing the
+                              // lecture back into SubjectView as a deep link would re-run its deep-link
+                              // restoration effects and clear the visual Back snapshot stack. Preserve
+                              // the stack for nested lectures; only dashboard/search-style direct entry
+                              // needs SubjectView to reconstruct the lecture hierarchy.
+                              deepLinkedLecture={
+                                lectureDetailSource === "dashboard" ? activeHomeLecture : undefined
+                              }
                               onBack={homeBackGesture.triggerBack}
                               onSelectLecture={handleSelectNestedLecture}
                               isSwipeNavigationEnabled={activeHomeLecture === null}

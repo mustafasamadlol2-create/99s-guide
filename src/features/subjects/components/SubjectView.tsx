@@ -815,12 +815,28 @@ export const SubjectView = function SubjectView({
     if (clearUnderlayFrameRef.current !== null) {
       cancelAnimationFrame(clearUnderlayFrameRef.current);
     }
-    clearUnderlayFrameRef.current = requestAnimationFrame(() => {
+
+    // Keep the already-painted destination snapshot in place until AFTER the
+    // live hierarchy has been restored to x=0 and WebKit has had several paint
+    // opportunities to commit it. The swipe hook performs its own two-frame
+    // handoff; clearing the backing layer on the same two frames created a
+    // visible refresh/blink on the 120 Hz iPad Pro. Four additional paints are
+    // still only ~33 ms at 120 Hz, are visually identical because both layers
+    // show the same destination, and remove the race completely.
+    let paintsRemaining = 4;
+    const waitForStableLiveDestination = () => {
       clearUnderlayFrameRef.current = requestAnimationFrame(() => {
+        paintsRemaining -= 1;
+        if (paintsRemaining > 0) {
+          waitForStableLiveDestination();
+          return;
+        }
         clearUnderlayFrameRef.current = null;
         hideHierarchyUnderlay();
       });
-    });
+    };
+
+    waitForStableLiveDestination();
   }, [hideHierarchyUnderlay]);
 
   const truncateHierarchySnapshots = useCallback((length: number) => {
