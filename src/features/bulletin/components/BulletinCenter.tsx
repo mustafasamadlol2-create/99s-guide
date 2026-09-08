@@ -30,6 +30,7 @@ import {
 import { AppNotification, Subject, Lecture } from "../../../core/types";
 import { nativeAlert } from "../../../core/device/alert";
 import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
+import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
 
 interface BulletinCenterProps {
   isActive?: boolean;
@@ -64,6 +65,87 @@ export const BulletinCenter = function BulletinCenter({
  const [selectedCategory, setSelectedCategory] = useState<
  "all" | "lecture" | "quiz" | "exam" | "announcement"
  >("all");
+ const [segmentUnderlay, setSegmentUnderlay] = useState<"all" | "unread">("unread");
+ const pendingSegmentRef = useRef<"all" | "unread" | null>(null);
+ const segmentHandoffRafRef = useRef<number | null>(null);
+
+ const getOppositeSegment = useCallback(
+   (segment: "all" | "unread"): "all" | "unread" =>
+     segment === "all" ? "unread" : "all",
+   [],
+ );
+
+ const selectSegment = useCallback((segment: "all" | "unread") => {
+   if (segmentHandoffRafRef.current !== null) {
+     cancelAnimationFrame(segmentHandoffRafRef.current);
+     segmentHandoffRafRef.current = null;
+   }
+   pendingSegmentRef.current = null;
+   setSegmentUnderlay(getOppositeSegment(segment));
+   setActiveSegment(segment);
+ }, [getOppositeSegment]);
+
+ const segmentSwipeDirection = useMemo(() => {
+   // Match iOS logical paging: in LTR, moving from All → Unread follows a
+   // leftward content swipe; RTL mirrors the physical gesture.
+   if (activeSegment === "all") return isRtl ? "ltr" : "rtl";
+   return isRtl ? "rtl" : "ltr";
+ }, [activeSegment, isRtl]);
+
+ const segmentSwipeGesture = useSwipeBack({
+   direction: segmentSwipeDirection,
+   activationMode: "full",
+   commitProgress: 0.24,
+   velocityThreshold: 0.44,
+   surfaceSelector: '[data-bulletin-segment-swipe-surface="true"]',
+   allowedStartSelector: '[data-bulletin-segment-swipe-surface="true"]',
+   blockedStartSelector: [
+     '[data-bulletin-row="true"]',
+     '.bulletin-chip',
+     '.bulletin-icon-btn',
+     'input',
+     'textarea',
+     'select',
+   ].join(','),
+   isEnabled: true,
+   onSwipeBack: () => {
+     const next = getOppositeSegment(activeSegment);
+     pendingSegmentRef.current = next;
+     // Keep the already-painted destination page as the underlay until the
+     // outgoing surface has reset to x=0. This is the same handoff pattern used
+     // by the app's native-style page stacks and prevents a black/blank frame.
+     setActiveSegment(next);
+   },
+   onSwipeEnd: (success) => {
+     if (!success) {
+       pendingSegmentRef.current = null;
+       setSegmentUnderlay(getOppositeSegment(activeSegment));
+       return;
+     }
+
+     const committed = pendingSegmentRef.current;
+     if (!committed) return;
+
+     let frames = 0;
+     const finishHandoff = () => {
+       frames += 1;
+       if (frames < 4) {
+         segmentHandoffRafRef.current = requestAnimationFrame(finishHandoff);
+         return;
+       }
+       segmentHandoffRafRef.current = null;
+       pendingSegmentRef.current = null;
+       setSegmentUnderlay(getOppositeSegment(committed));
+     };
+     segmentHandoffRafRef.current = requestAnimationFrame(finishHandoff);
+   },
+ });
+
+ useEffect(() => () => {
+   if (segmentHandoffRafRef.current !== null) {
+     cancelAnimationFrame(segmentHandoffRafRef.current);
+   }
+ }, []);
 
  // Find matching lecture from notification for deep-linking
  const findMatchingLecture = (notif: AppNotification): Lecture | null => {
@@ -119,23 +201,28 @@ export const BulletinCenter = function BulletinCenter({
  };
 
  // Filter and Search Logic
- const filteredNotifications = useMemo(() => {
- return notifications.filter((notif) => {
- // 1. Segment filter
- if (activeSegment === "unread" && notif.read) return false;
+ const filterNotificationsForSegment = useCallback((segment: "all" | "unread") => {
+   return notifications.filter((notif) => {
+     if (segment === "unread" && notif.read) return false;
 
- // 2. Category filter
- let effectiveType = notif.type;
- if (effectiveType === "system") effectiveType = "announcement";
- if (effectiveType === "achievement") effectiveType = "exam";
- if (effectiveType === "discussion") effectiveType = "announcement";
+     let effectiveType = notif.type;
+     if (effectiveType === "system") effectiveType = "announcement";
+     if (effectiveType === "achievement") effectiveType = "exam";
+     if (effectiveType === "discussion") effectiveType = "announcement";
 
- if (selectedCategory !== "all" && effectiveType !== selectedCategory)
- return false;
+     if (selectedCategory !== "all" && effectiveType !== selectedCategory) return false;
+     return true;
+   });
+ }, [notifications, selectedCategory]);
 
- return true;
- });
- }, [notifications, activeSegment, selectedCategory]);
+ const filteredNotifications = useMemo(
+   () => filterNotificationsForSegment(activeSegment),
+   [activeSegment, filterNotificationsForSegment],
+ );
+ const underlayNotifications = useMemo(
+   () => filterNotificationsForSegment(segmentUnderlay),
+   [filterNotificationsForSegment, segmentUnderlay],
+ );
 
  const unreadCount = useMemo(() => {
  return notifications.filter((n) => !n.read).length;
@@ -251,9 +338,51 @@ export const BulletinCenter = function BulletinCenter({
  }
  };
 
+ const renderSegmentPanel = (
+   segment: "all" | "unread",
+   segmentNotifications: AppNotification[],
+   isUnderlay: boolean,
+ ) => (
+   <div
+     className="w-full min-h-full px-2 md:px-4 pt-2 pb-6 bg-neutral-50 dark:bg-[#000000]"
+     aria-hidden={isUnderlay || undefined}
+   >
+     {segmentNotifications.length === 0 ? (
+       <div className="flex flex-col items-center justify-center py-24 px-6 text-center w-full antialiased">
+         <div className="relative mb-6">
+           <div className="relative w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.04] shadow-elevation-1 dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+             <Inbox className="w-10 h-10 text-neutral-500 dark:text-[var(--text-muted)]" />
+           </div>
+         </div>
+         <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+           {isRtl ? "لا توجد منشورات أو تنبيهات" : "Your slate is clean"}
+         </h3>
+         <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
+           {isRtl
+             ? "لا توجد مستندات أو تنبيهات سريرية مطابقة للفلاتر النشطة."
+             : segment === "unread"
+               ? "No unread academic alerts or study milestones are currently flagged."
+               : "No academic alerts or study milestones are currently flagged."}
+         </p>
+       </div>
+     ) : (
+       <div className="space-y-4">
+         <div className="space-y-3.5">
+           <AnimatePresence mode="popLayout" initial={false}>
+             {segmentNotifications.map((notif) =>
+               renderNotificationCard(notif, false, isUnderlay),
+             )}
+           </AnimatePresence>
+         </div>
+       </div>
+     )}
+   </div>
+ );
+
  return (
  <div
- className="bulletin-root w-full flex flex-col relative"
+ data-bulletin-segment-swipe-surface="true"
+ className="bulletin-root w-full flex flex-col relative overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
  style={{
  direction: isRtl ? "rtl" : "ltr",
  paddingBottom: "110px",
@@ -267,7 +396,7 @@ export const BulletinCenter = function BulletinCenter({
               {(["all", "unread"] as const).map((segment) => (
                 <button
                   key={segment}
-                  onClick={() => setActiveSegment(segment)}
+                  onClick={() => selectSegment(segment)}
                   className={`bulletin-seg-btn relative flex-1 h-full flex items-center justify-center text-[14px] rounded-[8px] z-10 transition-colors duration-150 ${
                     activeSegment === segment
                       ? "text-neutral-900 dark:text-white font-semibold"
@@ -347,43 +476,39 @@ export const BulletinCenter = function BulletinCenter({
           </div>
         </header>
 
- {/* NOTIFICATIONS LIST SECTION */}
- <main className="flex-1 px-2 md:px-4 pt-2 pb-6">
- {filteredNotifications.length === 0 ? (
- <div className="flex flex-col items-center justify-center py-24 px-6 text-center w-full antialiased">
- <div className="relative mb-6">
- 
- <div className="relative w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.04] shadow-elevation-1 dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
- <Inbox className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
- </div>
- </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
- {isRtl ? "لا توجد منشورات أو تنبيهات" : "Your slate is clean"}
- </h3>
- <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
- {isRtl
- ? "لا توجد مستندات أو تنبيهات سريرية مطابقة للفلاتر النشطة."
- : "No academic alerts or study milestones are currently flagged."}
- </p>
- </div>
- ) : (
-             <div className="space-y-4">
-              {/* NOTIFICATIONS LIST */}
-              <div className="space-y-3.5">
-                <AnimatePresence mode="popLayout">
-                  {filteredNotifications.map((notif) =>
-                    renderNotificationCard(notif, false),
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
- )}
+ {/* NOTIFICATIONS LIST SECTION — two real stacked pages. The inactive
+      segment stays mounted underneath so an interactive swipe never exposes
+      the root canvas or a blank frame. */}
+ <main className="flex-1 relative grid grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]">
+   <div
+     className="w-full min-h-full pointer-events-none select-none"
+     style={{ gridArea: "1 / 1 / 2 / 2", zIndex: 0 }}
+   >
+     {renderSegmentPanel(segmentUnderlay, underlayNotifications, true)}
+   </div>
+
+   <motion.div
+     className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+     style={{
+       gridArea: "1 / 1 / 2 / 2",
+       zIndex: 10,
+       x: segmentSwipeGesture.x,
+       boxShadow: segmentSwipeGesture.isInteracting
+         ? (segmentSwipeDirection === "ltr"
+             ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
+             : "18px 0 30px -18px rgba(0,0,0,0.48)")
+         : "none",
+       willChange: segmentSwipeGesture.isInteracting ? "transform" : "auto",
+     }}
+   >
+     {renderSegmentPanel(activeSegment, filteredNotifications, false)}
+   </motion.div>
  </main>
  </div>
  );
 
  // NOTIFICATION RENDER CARD
- function renderNotificationCard(notif: AppNotification, isPinned: boolean) {
+ function renderNotificationCard(notif: AppNotification, isPinned: boolean, isUnderlay = false) {
  const theme = getCategoryTheme(notif);
  const Icon = theme.icon;
 
@@ -454,17 +579,19 @@ export const BulletinCenter = function BulletinCenter({
 
  return (
  <motion.div
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
+ data-bulletin-row="true"
+ initial={isUnderlay || segmentSwipeGesture.isInteracting ? false : { opacity: 0, scale: 0.95, y: 10 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: -10 }}
+ exit={isUnderlay ? undefined : { opacity: 0, scale: 0.95, y: -10 }}
  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
  style={{ willChange: "transform, opacity" }}
  key={notif.id}
  className="ios-list-item-virtualized relative overflow-hidden rounded-xl shadow-sm hover:shadow-md dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)] transition-shadow duration-normal"
  >
  <SwipeActionItem
- keyId={`bulletin-${notif.id}`}
+ keyId={`bulletin-${isUnderlay ? "underlay-" : ""}${notif.id}`}
  direction={isRtl ? "rtl" : "ltr"}
+ disabled={isUnderlay}
  className="rounded-xl"
  actions={[
  {

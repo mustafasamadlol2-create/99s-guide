@@ -185,8 +185,10 @@ const UserPresenceWidget = function UserPresenceWidget({ isOwner = false, curren
  </div>
  </div>
 
- {/* User scrollable lists container */}
- <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1 scrollbar-thin overscroll-y-contain">
+ {/* User roster — let the global app canvas own vertical scrolling so the
+     roster can use the full available page height instead of stopping at an
+     arbitrary 280px nested-scroll ceiling. */}
+ <div className="pr-1 space-y-1">
  {loading && users.length === 0 ? (
  <LivePresenceSkeleton />
  ) : error && users.length === 0 ? (

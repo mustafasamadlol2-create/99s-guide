@@ -5,7 +5,7 @@ import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useLayoutEffect, useRef, memo } from "react";
 import { User, PointsLog, Subject, UserProgress } from "../../../core/types";
 import { motion, AnimatePresence } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
@@ -167,14 +167,37 @@ export const ProfileView = function ProfileView({
  language = "en",
  onSubViewChange,
 }: ProfileViewProps) {
- // Sub-view navigation
+ // Sub-view navigation. The Profile root remains mounted underneath the pushed
+ // page so interactive Back reveals the real previous screen instead of the
+ // app canvas. This mirrors the persistent stacks used by Modules/Subjects.
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
+ const profileParentScrollTopRef = useRef(0);
+
+ const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
+   const canvas = document.getElementById("main-scroll-canvas");
+   profileParentScrollTopRef.current = canvas?.scrollTop ?? 0;
+   setSubView(next);
+ }, []);
+
+ const closeProfileSubView = useCallback(() => {
+   const canvas = document.getElementById("main-scroll-canvas");
+   if (canvas) canvas.scrollTop = profileParentScrollTopRef.current;
+   setSubView(null);
+ }, []);
 
  const profileBackGesture = useSwipeBack({
    isEnabled: Boolean(isActive && subView),
    direction: language === "ar" ? "rtl" : "ltr",
-   onSwipeBack: () => setSubView(null),
+   surfaceSelector: '[data-profile-subview-swipe-surface="true"]',
+   allowedStartSelector: '[data-profile-subview-swipe-surface="true"]',
+   onSwipeBack: closeProfileSubView,
  });
+
+ useLayoutEffect(() => {
+   if (!subView) return;
+   const canvas = document.getElementById("main-scroll-canvas");
+   if (canvas) canvas.scrollTop = 0;
+ }, [subView]);
 
  useEffect(() => {
    onSubViewChange?.(Boolean(subView));
@@ -274,36 +297,7 @@ export const ProfileView = function ProfileView({
   };
  }, [subjects, progress, dbLectures]);
 
-  // Render sub-views. The surface follows the finger via a MotionValue, so
-  // iOS edge-back stays at native frame cadence without React state updates.
-  if (subView === "blocked-users") {
-    return (
-      <motion.div
-        className="w-full"
-        style={{
-          x: profileBackGesture.x,
-          willChange: profileBackGesture.isInteracting ? "transform" : "auto",
-        }}
-      >
-        <BlockedUsersView onBack={profileBackGesture.triggerBack} />
-      </motion.div>
-    );
-  }
-  if (subView === "my-reports") {
-    return (
-      <motion.div
-        className="w-full"
-        style={{
-          x: profileBackGesture.x,
-          willChange: profileBackGesture.isInteracting ? "transform" : "auto",
-        }}
-      >
-        <MyReportsView onBack={profileBackGesture.triggerBack} />
-      </motion.div>
-    );
-  }
-
-  return (
+  const profileRoot = (
     <div className="profile-view-root w-full max-w-2xl mx-auto pb-24 pt-6 px-4 sm:px-6 animate-fadeIn">
       {/* Large Profile Header (Apple ID Style) */}
       <div className="flex flex-col items-center mb-10 relative">
@@ -574,14 +568,14 @@ export const ProfileView = function ProfileView({
             iconBg="bg-orange-500"
             title="Blocked Users"
             showChevron
-            onClick={() => setSubView("blocked-users")}
+            onClick={() => openProfileSubView("blocked-users")}
           />
           <SettingsItem
             Icon={Flag}
             iconBg="bg-rose-500"
             title="My Reports"
             showChevron
-            onClick={() => setSubView("my-reports")}
+            onClick={() => openProfileSubView("my-reports")}
           />
         </SettingsGroup>
 
@@ -610,6 +604,50 @@ export const ProfileView = function ProfileView({
  </>
  )}
  </div>
+ );
+
+ return (
+   <div className="relative w-full min-h-full overflow-x-hidden bg-neutral-50 dark:bg-[#000000]">
+     <div
+       aria-hidden={subView !== null || undefined}
+       className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+       style={subView !== null
+         ? {
+             position: "absolute",
+             insetInline: 0,
+             top: -profileParentScrollTopRef.current,
+             zIndex: 0,
+             pointerEvents: "none",
+           }
+         : { position: "relative", zIndex: 0 }}
+     >
+       {profileRoot}
+     </div>
+
+     {subView !== null && (
+       <motion.div
+         key={`profile-subview-${subView}`}
+         data-profile-subview-swipe-surface="true"
+         data-swipe-back-surface="true"
+         className="relative z-10 w-full min-h-[100svh] isolate bg-neutral-50 dark:bg-[#000000]"
+         style={{
+           x: profileBackGesture.x,
+           boxShadow: profileBackGesture.isInteracting
+             ? (language === "ar"
+                 ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                 : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+             : "none",
+           willChange: profileBackGesture.isInteracting ? "transform" : "auto",
+         }}
+       >
+         {subView === "blocked-users" ? (
+           <BlockedUsersView onBack={profileBackGesture.triggerBack} />
+         ) : (
+           <MyReportsView onBack={profileBackGesture.triggerBack} />
+         )}
+       </motion.div>
+     )}
+   </div>
  );
 };
 

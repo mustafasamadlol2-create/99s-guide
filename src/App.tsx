@@ -1513,6 +1513,7 @@ export default function App() {
 
   const navigationStackRef = useRef<NavigationEntry[]>([]);
   const [navigationStackTop, setNavigationStackTop] = useState<NavigationEntry | null>(null);
+  const legalParentScrollTopRef = useRef(0);
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
@@ -1708,7 +1709,8 @@ export default function App() {
     direction: swipeDirection,
     surfaceSelector: '#root-navigation-page-layer',
     isEnabled:
-      (navigationStackTop !== null || isStandaloneLegalPage) &&
+      navigationStackTop !== null &&
+      !isStandaloneLegalPage &&
       !isCommandPaletteOpen &&
       !hasNestedHomeBack &&
       !hasNestedSubjectBack &&
@@ -1719,9 +1721,26 @@ export default function App() {
       !(activeTab === "profile" && isProfileSubViewOpen) &&
       !(activeTab === "control-center" && controlCenterHasBackHistory),
     onSwipeBack: () => {
-      if (restorePreviousNavigationEntry()) return;
-      if (isStandaloneLegalPage) setActiveTab("settings");
+      restorePreviousNavigationEntry();
     },
+  });
+
+  const handleLegalBack = useCallback(() => {
+    // The Settings page remains mounted underneath the legal page. Restore the
+    // parent canvas position in the same commit that pops navigation so the
+    // live underlay hands off to the real Settings screen without a flash.
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (canvas) canvas.scrollTop = legalParentScrollTopRef.current;
+    if (restorePreviousNavigationEntry()) return;
+    setActiveTab("settings");
+  }, [restorePreviousNavigationEntry]);
+
+  const legalBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    surfaceSelector: '[data-legal-swipe-surface="true"]',
+    allowedStartSelector: '[data-legal-swipe-surface="true"]',
+    isEnabled: isStandaloneLegalPage && !isCommandPaletteOpen,
+    onSwipeBack: handleLegalBack,
   });
 
   // Parallax for the parent page that is already mounted below a Lecture.
@@ -5176,38 +5195,117 @@ const handleSignOut = useCallback(async () => {
               </motion.div>
             </div>
 
-            {/* Tab 5: Settings */}
+            {/* Tab 5 + legal detail stack: Settings stays live underneath the
+                pushed legal page, matching the persistent native stacks used by
+                Modules and Subjects. Only the detail layer moves during Back. */}
             <div
-              style={{ display: activeTab === "settings" ? "block" : "none" }}
-              className="w-full"
+              style={{
+                display:
+                  activeTab === "settings" || isStandaloneLegalPage
+                    ? "block"
+                    : "none",
+              }}
+              className="w-full min-h-full"
             >
-              <motion.div
-                initial={false}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                style={{ willChange: "transform, opacity" }}
-                className="w-full"
+              <div
+                className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
+                style={{ minHeight: navigationSurfaceMinHeight }}
               >
-                <Suspense fallback={iOSLoadingFallback}>
-<ErrorBoundary>
-                  <SettingsView
-                    language={language}
-                    onLanguageChange={setLanguage}
-                    theme={theme}
-                    onThemeChange={setTheme}
-                    pushAlerts={preferences.pushAlerts}
-                    onPushAlertsChange={(val) =>
-                      updatePreference("pushAlerts", val)
-                    }
-                    onAccountDeleted={handleAccountSelfDelete}
-                    onNavigateToLegal={(tab) => {
-                      pushNavigationStack();
-                      setActiveTab(tab);
+                <div
+                  aria-hidden={isStandaloneLegalPage || undefined}
+                  className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+                  style={{
+                    gridArea: "1 / 1 / 2 / 2",
+                    zIndex: 0,
+                    pointerEvents: activeTab === "settings" ? "auto" : "none",
+                    minHeight: navigationSurfaceMinHeight,
+                    transform: isStandaloneLegalPage
+                      ? `translateY(-${legalParentScrollTopRef.current}px)`
+                      : undefined,
+                  }}
+                >
+                  {/* On iPhone the native large Settings title normally sits
+                      outside this route. Keep an identical copy in the parent
+                      while a legal page is pushed so the reveal is complete. */}
+                  {isStandaloneLegalPage && usePhoneLayout && (
+                    <div className="mb-6 pt-2 select-none">
+                      <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                        {language === "ar" ? "الإعدادات" : "Settings"}
+                      </h1>
+                    </div>
+                  )}
+
+                  <motion.div
+                    initial={false}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
+                    style={{ willChange: "transform, opacity" }}
+                    className="w-full"
+                  >
+                    <Suspense fallback={iOSLoadingFallback}>
+                      <ErrorBoundary>
+                        <SettingsView
+                          language={language}
+                          onLanguageChange={setLanguage}
+                          theme={theme}
+                          onThemeChange={setTheme}
+                          pushAlerts={preferences.pushAlerts}
+                          onPushAlertsChange={(val) =>
+                            updatePreference("pushAlerts", val)
+                          }
+                          onAccountDeleted={handleAccountSelfDelete}
+                          onNavigateToLegal={(tab) => {
+                            const canvas = document.getElementById("main-scroll-canvas");
+                            legalParentScrollTopRef.current = canvas?.scrollTop ?? 0;
+                            pushNavigationStack();
+                            setActiveTab(tab);
+                          }}
+                        />
+                      </ErrorBoundary>
+                    </Suspense>
+                  </motion.div>
+                </div>
+
+                {isStandaloneLegalPage && (
+                  <motion.div
+                    key={`legal-detail-${activeTab}`}
+                    data-legal-swipe-surface="true"
+                    data-swipe-back-surface="true"
+                    className="relative isolate w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                    style={{
+                      gridArea: "1 / 1 / 2 / 2",
+                      zIndex: 10,
+                      x: legalBackGesture.x,
+                      minHeight: navigationSurfaceMinHeight,
+                      boxShadow: legalBackGesture.isInteracting
+                        ? (isRtl
+                            ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                            : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                        : "none",
+                      willChange: legalBackGesture.isInteracting
+                        ? "transform"
+                        : "auto",
                     }}
-                  />
-                </ErrorBoundary>
-</Suspense>
-              </motion.div>
+                  >
+                    <Suspense fallback={iOSLoadingFallback}>
+                      <ErrorBoundary>
+                        {activeTab === "privacy" && (
+                          <PrivacyPolicyView onBack={legalBackGesture.triggerBack} />
+                        )}
+                        {activeTab === "terms" && (
+                          <TermsOfServiceView onBack={legalBackGesture.triggerBack} />
+                        )}
+                        {activeTab === "support" && (
+                          <SupportView onBack={legalBackGesture.triggerBack} />
+                        )}
+                        {activeTab === "disclaimer" && (
+                          <MedicalDisclaimerView onBack={legalBackGesture.triggerBack} />
+                        )}
+                      </ErrorBoundary>
+                    </Suspense>
+                  </motion.div>
+                )}
+              </div>
             </div>
 
             {/* Tab 6: Control Center (Admin only) */}
@@ -5300,67 +5398,6 @@ const handleSignOut = useCallback(async () => {
 </Suspense>
               </motion.div>
             </div>
-
-            {/* Tab 8: Privacy Policy */}
-            <div
-              style={{ display: activeTab === "privacy" ? "block" : "none" }}
-              className="w-full h-full"
-            >
-              <Suspense fallback={iOSLoadingFallback}>
-                <ErrorBoundary>
-                  {activeTab === "privacy" && <PrivacyPolicyView onBack={() => {
-                    if (navigationStackTop) rootBackGesture.triggerBack();
-                    else setActiveTab("settings");
-                  }} />}
-                </ErrorBoundary>
-              </Suspense>
-            </div>
-
-            {/* Tab 9: Terms of Service */}
-            <div
-              style={{ display: activeTab === "terms" ? "block" : "none" }}
-              className="w-full h-full"
-            >
-              <Suspense fallback={iOSLoadingFallback}>
-                <ErrorBoundary>
-                  {activeTab === "terms" && <TermsOfServiceView onBack={() => {
-                    if (navigationStackTop) rootBackGesture.triggerBack();
-                    else setActiveTab("settings");
-                  }} />}
-                </ErrorBoundary>
-              </Suspense>
-            </div>
-
-            {/* Tab 10: Support */}
-            <div
-              style={{ display: activeTab === "support" ? "block" : "none" }}
-              className="w-full h-full"
-            >
-              <Suspense fallback={iOSLoadingFallback}>
-                <ErrorBoundary>
-                  {activeTab === "support" && <SupportView onBack={() => {
-                    if (navigationStackTop) rootBackGesture.triggerBack();
-                    else setActiveTab("settings");
-                  }} />}
-                </ErrorBoundary>
-              </Suspense>
-            </div>
-
-            {/* Tab 11: Medical Disclaimer */}
-            <div
-              style={{ display: activeTab === "disclaimer" ? "block" : "none" }}
-              className="w-full h-full"
-            >
-              <Suspense fallback={iOSLoadingFallback}>
-                <ErrorBoundary>
-                  {activeTab === "disclaimer" && <MedicalDisclaimerView onBack={() => {
-                    if (navigationStackTop) rootBackGesture.triggerBack();
-                    else setActiveTab("settings");
-                  }} />}
-                </ErrorBoundary>
-              </Suspense>
-            </div>
-
             
           </div>
           </motion.div>
