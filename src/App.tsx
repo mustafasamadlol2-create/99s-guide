@@ -1686,11 +1686,6 @@ export default function App() {
   // window), so foreground and underlay share one coordinate system. Keeping
   // the underlay full width avoids the width/clip relayout tiles that Safari and
   // WKWebView can render as black rectangles on large iPad surfaces.
-  const homeDashboardTabletUnderlayX = useTransform(
-    homeBackGesture.progress,
-    [0, 1],
-    [isRtl ? 18 : -18, 0],
-  );
 
   // Lecture Detail intentionally does not participate in page-level swipe-back:
   // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
@@ -1729,11 +1724,6 @@ export default function App() {
         ? `inset(0 0 0 ${hiddenPercent}%)`
         : `inset(0 ${hiddenPercent}% 0 0)`;
     },
-  );
-  const homeDashboardLectureTabletUnderlayX = useTransform(
-    homeLectureBackGesture.progress,
-    [0, 1],
-    [isRtl ? 18 : -18, 0],
   );
 
   // Modules / legacy Subject hierarchy: Modules → Module overview, and the
@@ -4920,11 +4910,11 @@ const handleSignOut = useCallback(async () => {
                             !(homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting)
                               ? "hidden"
                               : "visible",
-                          x: device.isTablet
-                            ? (activeHomeLecture !== null && lectureDetailSource === "dashboard"
-                                ? homeDashboardLectureTabletUnderlayX
-                                : homeDashboardTabletUnderlayX)
-                            : 0,
+                          // iPad Safari/WKWebView must keep the backing page on the
+                          // normal paint path. Moving/promoting both foreground and
+                          // underlay creates large tiled compositor surfaces which can
+                          // flash as opaque black rectangles. Only the foreground moves.
+                          x: 0,
                           clipPath: device.isTablet
                             ? "none"
                             : (activeHomeLecture !== null && lectureDetailSource === "dashboard"
@@ -4936,13 +4926,17 @@ const handleSignOut = useCallback(async () => {
                                 ? homeDashboardLectureUnderlayClipPath
                                 : homeDashboardUnderlayClipPath),
                           isolation: "isolate",
-                          contain: "paint",
-                          WebkitBackfaceVisibility: "hidden",
-                          backfaceVisibility: "hidden",
+                          contain: device.isTablet ? "none" : "paint",
+                          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
+                          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+                          // Never promote the iPad backing page to its own GPU layer.
+                          // The foreground is the sole transformed surface during Back.
                           willChange:
-                            homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
-                              ? (device.isTablet ? "transform" : "clip-path")
-                              : "auto",
+                            device.isTablet
+                              ? "auto"
+                              : (homeBackGesture.isInteracting || homeLectureBackGesture.isInteracting
+                                  ? "clip-path"
+                                  : "auto"),
                         }}
                       />
 

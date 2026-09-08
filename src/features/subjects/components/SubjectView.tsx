@@ -930,11 +930,6 @@ export const SubjectView = function SubjectView({
   // foreground never travels on the wider window coordinate system. Avoiding
   // animated width/clip on the cloned subtree removes the iPadOS black-tile
   // artifacts in both Safari/PWA and Capacitor WKWebView.
-  const hierarchyTabletUnderlayX = useTransform(
-    internalBackGesture.progress,
-    [0, 1],
-    [isRtl ? 18 : -18, 0],
-  );
 
   const lectureCountsBySubSubject = useMemo(() => {
     const counts: Record<string, { theory: number; practical: number }> = {};
@@ -981,16 +976,20 @@ export const SubjectView = function SubjectView({
           right: 0,
           width: "100%",
           maxWidth: "100%",
-          x: device.isTablet ? hierarchyTabletUnderlayX : 0,
+          // Keep the iPad backing page completely static. Promoting/moving the
+          // cloned underlay alongside the foreground causes WebKit tiled-layer
+          // corruption (the black rectangles visible in the recording).
+          x: 0,
           clipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           WebkitClipPath: device.isTablet ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
-          contain: "paint",
-          WebkitBackfaceVisibility: "hidden",
-          backfaceVisibility: "hidden",
-          willChange: internalBackGesture.isInteracting
-            ? (device.isTablet ? "transform" : "clip-path")
-            : "auto",
+          contain: device.isTablet ? "none" : "paint",
+          WebkitBackfaceVisibility: device.isTablet ? "visible" : "hidden",
+          backfaceVisibility: device.isTablet ? "visible" : "hidden",
+          willChange:
+            device.isTablet
+              ? "auto"
+              : (internalBackGesture.isInteracting ? "clip-path" : "auto"),
         }}
       />
       <motion.div
