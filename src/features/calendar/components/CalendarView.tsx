@@ -36,7 +36,6 @@ import { CalendarMonthView } from "./CalendarMonthView";
 import { CalendarWeekView } from "./CalendarWeekView";
 import { CalendarDayView } from "./CalendarDayView";
 import { getEventIconInfo, PRIORITY, getEventPriority } from "../../../features/calendar/components/EventIcon";
-import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 
 import { parseLocalDate, formatLocalDate, to12HourFormatStr } from "../../../core/utils/dateUtils";
 
@@ -330,12 +329,6 @@ const CalendarView = memo(function CalendarView({
  timelineRef,
  setNewTaskTime,
  setIsAddingTask,
- handleSwipeStart,
- handleSwipeMove,
- handleSwipeEnd,
- swipeStartX,
- setSwipeStartX,
- swipeTranslateX,
  parseTimeToMinutes,
  formatMinutesToTime,
  handlePrevMonth,
@@ -351,42 +344,6 @@ const CalendarView = memo(function CalendarView({
  onAddEvent,
  onUpdateEvents,
  language,
- });
-
- const navigateToPreviousPeriod = React.useCallback(() => {
-   if (activeView === "month") handlePrevMonth();
-   else if (activeView === "week") handlePrevWeek();
-   else handlePrevDay();
- }, [activeView, handlePrevMonth, handlePrevWeek, handlePrevDay]);
-
- const navigateToNextPeriod = React.useCallback(() => {
-   if (activeView === "month") handleNextMonth();
-   else if (activeView === "week") handleNextWeek();
-   else handleNextDay();
- }, [activeView, handleNextMonth, handleNextWeek, handleNextDay]);
-
- const canNavigatePreviousPeriod =
-   activeView !== "month" || currentYear > 2025 || currentMonth > 0;
- const canNavigateNextPeriod =
-   activeView !== "month" || currentYear < 2027 || currentMonth < 11;
-
- // Week columns intentionally keep their own horizontal scrolling. Period
- // paging lives on the date/navigation banner so the two gestures never fight.
- const periodPager = useHorizontalSwipePager<HTMLDivElement>({
-   onNext: navigateToNextPeriod,
-   onPrevious: navigateToPreviousPeriod,
-   canNext: canNavigateNextPeriod,
-   canPrevious: canNavigatePreviousPeriod,
-   isEnabled: true,
-   isRtl,
-   blockedSelector:
-     activeView === "week"
-       ? "#week_columns_container"
-       : activeView === "day"
-         ? "#calendar_day_grid_deck"
-         : undefined,
-   commitDistance: 72,
-   velocityThreshold: 0.55,
  });
 
  // Keep independent scroll positions for Month / Week / Day, like native
@@ -665,15 +622,7 @@ const CalendarView = memo(function CalendarView({
  <CalendarHeader t={t} isRtl={isRtl} activeView={activeView} setActiveView={handleCalendarViewChange} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <motion.div
- ref={periodPager.surfaceRef}
  id="left_middle_deck"
- style={{ x: periodPager.x, willChange: "transform" }}
- onClickCapture={(event) => {
-   if (periodPager.didDragRecently()) {
-     event.preventDefault();
-     event.stopPropagation();
-   }
- }}
  className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] p-card-padding rounded-lg shadow-elevation-1 space-y-section transition duration-normal touch-pan-y"
  >
  {/* NAVIGATION BAR - MONTHS */}
@@ -782,18 +731,6 @@ const CalendarView = memo(function CalendarView({
  exit={{ opacity: 0, x: 6 }}
  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full min-w-0 touch-pan-y"
- onTouchStart={(e) => setSwipeStartX(e.targetTouches[0].clientX)}
- onTouchEnd={(e) => {
- if (swipeStartX === null) return;
- const diff = e.changedTouches[0].clientX - swipeStartX;
- // Lower sensitivity for month view
- if (diff > 100) {
- isRtl ? handleNextMonth() : handlePrevMonth();
- } else if (diff < -100) {
- isRtl ? handlePrevMonth() : handleNextMonth();
- }
- setSwipeStartX(null);
- }}
  >
  <CalendarMonthView isRtl={isRtl} isPhone={isPhone} emptyPaddings={emptyPaddings} calendarDays={calendarDays} getFormattedDate={getFormattedDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
  </motion.div>
@@ -806,7 +743,7 @@ const CalendarView = memo(function CalendarView({
  animate={{ opacity: 1, x: 0 }}
  exit={{ opacity: 0, x: 6 }}
  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
- className="w-full min-w-0 touch-pan-x"
+ className="w-full min-w-0"
  >
  <CalendarWeekView isRtl={isRtl} disableDayHover={disableDayHover} activeWeekDays={activeWeekDays} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
  </motion.div>
@@ -821,7 +758,7 @@ const CalendarView = memo(function CalendarView({
  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
  className="w-full"
  >
- <CalendarDayView selectedDate={selectedDate} selectedDateEvents={selectedDateEvents} setSelectedDate={setSelectedDate} events={processedEvents} dayTransition={dayTransition} hoursArray={hoursArray} eventDurations={eventDurations} HOUR_HEIGHT={HOUR_HEIGHT} timelineRef={timelineRef} setNewTaskTime={setNewTaskTime} setIsAddingTask={setIsAddingTask} handleSwipeStart={handleSwipeStart} handleSwipeMove={handleSwipeMove} handleSwipeEnd={handleSwipeEnd} setSwipeStartX={setSwipeStartX} swipeTranslateX={swipeTranslateX} parseTimeToMinutes={parseTimeToMinutes} />
+ <CalendarDayView selectedDate={selectedDate} selectedDateEvents={selectedDateEvents} setSelectedDate={setSelectedDate} events={processedEvents} dayTransition={dayTransition} hoursArray={hoursArray} eventDurations={eventDurations} HOUR_HEIGHT={HOUR_HEIGHT} timelineRef={timelineRef} setNewTaskTime={setNewTaskTime} setIsAddingTask={setIsAddingTask} parseTimeToMinutes={parseTimeToMinutes} />
  </motion.div>
  )}
  </AnimatePresence>

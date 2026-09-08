@@ -91,8 +91,6 @@ export function useCalendar({
  return {};
  });
 
- // Swipe gesture for navigating calendar days (left/right)
- const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
  const [dayTransition, setDayTransition] = useState<"left" | "right" | null>(
  null,
  );
@@ -406,65 +404,6 @@ export function useCalendar({
  return `${h < 10 ? "0" : ""}${h}:${m < 10 ? "0" : ""}${m}`;
  }, []);
 
- // Day swipe gestures (extremely smooth iOS translation feel with elastic real-time preview)
- const [swipeTranslateX, setSwipeTranslateX] = useState<number>(0);
- const swipeStartYRef = useRef<number | null>(null);
-
- const handleSwipeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
- const target = e.target as HTMLElement;
- if (target.closest(".interactive-node") || target.closest("button")) return;
-
- try {
- e.currentTarget.setPointerCapture(e.pointerId);
- } catch (err) {}
-
- setSwipeStartX(e.clientX);
- swipeStartYRef.current = e.clientY;
- setSwipeTranslateX(0);
- }, [setSwipeStartX]);
-
- const handleSwipeMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
- if (swipeStartX === null) return;
- const diffX = e.clientX - swipeStartX;
-
- // Permit scrolling if swipe is primarily vertical
- if (swipeStartYRef.current !== null) {
- const diffY = e.clientY - swipeStartYRef.current;
- if (Math.abs(diffY) > Math.abs(diffX) * 1.6 && Math.abs(diffX) < 15) {
- setSwipeStartX(null);
- swipeStartYRef.current = null;
- setSwipeTranslateX(0);
- return;
- }
- }
-
- setSwipeTranslateX(diffX);
- }, [swipeStartX, setSwipeStartX]);
-
- const handleSwipeEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
- if (swipeStartX === null) return;
- try {
- e.currentTarget.releasePointerCapture(e.pointerId);
- } catch (err) {}
-
- const diffX = e.clientX - swipeStartX;
- setSwipeStartX(null);
- swipeStartYRef.current = null;
-
- // Filter minimum drag thresholds
- if (Math.abs(diffX) > 85) {
- triggerHaptic(18); // iOS level page swipe confirmation click
- if (diffX > 0) {
- isRtl ? handleNextDay() : handlePrevDay();
- } else {
- isRtl ? handlePrevDay() : handleNextDay();
- }
- }
-
- // Fluidly spring back to rest position
- setSwipeTranslateX(0);
- }, [swipeStartX, setSwipeStartX, isRtl, handleNextDay, handlePrevDay]);
-
  // Filter events of selected date
  const selectedDateEvents = useMemo(() => {
  return events.filter((e) => e.date === selectedDate);
@@ -498,9 +437,6 @@ export function useCalendar({
  activeWeekDays,
  eventDurations,
  setEventDurations,
- swipeStartX,
- setSwipeStartX,
- swipeTranslateX,
  dayTransition,
  isAddingTask,
  setIsAddingTask,
@@ -523,9 +459,6 @@ export function useCalendar({
  timelineRef,
  parseTimeToMinutes,
  formatMinutesToTime,
- handleSwipeStart,
- handleSwipeMove,
- handleSwipeEnd,
  selectedDateEvents,
  hoursArray,
  };

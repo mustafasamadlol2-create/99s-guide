@@ -194,11 +194,6 @@ interface CalendarDayViewProps {
  timelineRef: React.RefObject<HTMLDivElement | null>;
  setNewTaskTime: (time: string) => void;
  setIsAddingTask: (val: boolean) => void;
- handleSwipeStart: (e: React.PointerEvent<HTMLDivElement>) => void;
- handleSwipeMove: (e: React.PointerEvent<HTMLDivElement>) => void;
- handleSwipeEnd: (e: React.PointerEvent<HTMLDivElement>) => void;
- setSwipeStartX: (val: number | null) => void;
- swipeTranslateX: number;
  parseTimeToMinutes: (timeStr: string) => number;
 }
 
@@ -216,11 +211,6 @@ export const CalendarDayView = memo(function CalendarDayView({
  timelineRef,
  setNewTaskTime,
  setIsAddingTask,
- handleSwipeStart,
- handleSwipeMove,
- handleSwipeEnd,
- setSwipeStartX,
- swipeTranslateX,
  parseTimeToMinutes,
 }: CalendarDayViewProps) {
  const [todayStr, setTodayStr] = useState(() => {
@@ -344,12 +334,6 @@ export const CalendarDayView = memo(function CalendarDayView({
  <div
  id="calendar_day_grid_deck" tabIndex={0} role="application" aria-label="Interactive daily timeline"
  ref={timelineRef}
- onPointerDown={handleSwipeStart}
- onPointerMove={handleSwipeMove}
- onPointerUp={handleSwipeEnd}
- onPointerLeave={() => {
- setSwipeStartX(null);
- }}
       className="relative min-h-[240px] overflow-x-clip border border-neutral-200 dark:border-white/[0.15] rounded-lg bg-neutral-50/50 dark:bg-[#000000] select-none touch-pan-y transition-colors shadow-elevation-1 p-3 sm:p-4"
  style={{ contentVisibility: "auto" }}
  >
@@ -362,19 +346,8 @@ export const CalendarDayView = memo(function CalendarDayView({
  : ""
  }`}
  style={{
- transform:
- swipeTranslateX !== 0
- ? `translateX(${swipeTranslateX}px) rotate(${swipeTranslateX * 0.015}deg) scale(${1 - Math.min(0.04, Math.abs(swipeTranslateX) / 2000)})`
- : undefined,
- transition:
- swipeTranslateX === 0 && !dayTransition
- ? "transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-spring"
- : dayTransition
+ transition: dayTransition
  ? "transform 0.3s ease-spring, opacity 0.3s ease-spring"
- : "none",
- opacity:
- swipeTranslateX !== 0
- ? Math.max(0.65, 1 - Math.abs(swipeTranslateX) / 500)
  : undefined,
  }}
  >
