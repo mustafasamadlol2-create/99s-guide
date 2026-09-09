@@ -4870,3 +4870,21 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     padding-bottom: 3px;
   }
 }
+
+/* Arabic UI quality pass: use Cairo consistently and let the document-level
+   direction drive layout without overriding explicitly LTR technical fields. */
+html[dir="rtl"] body,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  font-family: "Cairo", "SF Pro Text", system-ui, sans-serif;
+}
+
+html[dir="rtl"] :where(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: 0;
+}
+
+html[dir="rtl"] [dir="ltr"] {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+}

@@ -679,22 +679,20 @@ export default function UploadMaterial({
  )}
  </div>
  
- {/* Action Controls */}
- {selectedLectureId && (
-  <div className="mobile-bottom-action fixed bottom-6 ltr:right-6 rtl:left-6 md:bottom-10 md:ltr:right-10 md:rtl:left-10 z-[100] animate-fadeIn flex justify-end">
+ {/* Final action — belongs to the last completed material step and stays
+     in normal document flow. It must never float over the upload surface. */}
+ {selectedLectureId && (type === "VIDEO" ? Boolean(videoUrl.trim()) : Boolean(file)) && (
+  <div className="mt-6 pt-5 border-t border-neutral-200/70 dark:border-white/[0.08] animate-fadeIn flex justify-end">
  <button
  type="submit"
  disabled={
  isSubmitting ||
- !title.trim() ||
- (type === "VIDEO" ? !videoUrl.trim() : !file)
+ !title.trim()
  }
- className={`px-6 py-4 text-base font-semibold rounded-lg shadow-elevation-3 text-white transition select-none cursor-pointer flex items-center justify-center gap-2 ${
- title.trim() &&
- (type === "VIDEO" ? videoUrl.trim() : file) &&
- !isSubmitting
- ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/30"
- : "bg-neutral-200 dark:bg-[#2C2C2E] text-neutral-500 dark:text-[#EBEBF599] cursor-not-allowed border-none shadow-elevation-0"
+ className={`w-full sm:w-auto px-6 py-3.5 text-base font-semibold rounded-lg text-white transition select-none flex items-center justify-center gap-2 ${
+ title.trim() && !isSubmitting
+ ? "bg-rose-600 hover:bg-rose-500 active:bg-rose-700 shadow-elevation-1 cursor-pointer"
+ : "bg-neutral-200 dark:bg-[#2C2C2E] text-neutral-500 dark:text-[#EBEBF599] cursor-not-allowed border-none shadow-none"
  }`}
  >
  {isSubmitting ? (

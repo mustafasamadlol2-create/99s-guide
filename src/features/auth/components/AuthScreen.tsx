@@ -2360,16 +2360,16 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                 }}
               >
                 {authLegalPath === "/privacy" && (
-                  <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} />
+                  <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} language={language} />
                 )}
                 {authLegalPath === "/terms" && (
-                  <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} />
+                  <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} language={language} />
                 )}
                 {authLegalPath === "/support" && (
-                  <SupportView onBack={authLegalBackGesture.triggerBack} />
+                  <SupportView onBack={authLegalBackGesture.triggerBack} language={language} />
                 )}
                 {authLegalPath === "/disclaimer" && (
-                  <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} />
+                  <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} language={language} />
                 )}
               </motion.div>
             )}

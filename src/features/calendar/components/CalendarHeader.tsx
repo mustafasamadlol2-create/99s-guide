@@ -170,8 +170,8 @@ export function CalendarHeader({
  {monthNames[currentMonth]?.substring(0, 3)}
  </span>
  </div>
- <div className="flex-1 flex items-center justify-center leading-none bg-white dark:bg-[var(--bg-surface-1)] pb-1">
- <span className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white leading-none -mt-0.5">
+ <div className="w-full flex-1 flex items-center justify-center leading-none bg-white dark:bg-[#2C2C2E] pb-1">
+ <span className="bg-transparent text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white leading-none -mt-0.5">
  {getDayNumber()}
  </span>
  </div>

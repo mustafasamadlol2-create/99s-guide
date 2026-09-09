@@ -11,6 +11,7 @@ import { CommandPalette, SearchResultItem } from "./components/ui/CommandPalette
 import IOSAlert from "./core/layout/iOSAlert";
 import { showiOSAlert } from "./core/device/alert";
 import { Language, useTranslation } from "./core/i18n/translations";
+import { useLegacyArabicUiLocalization } from "./core/i18n/legacyArabicUi";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
 import { IDBManager } from "./core/utils/indexedDB";
 import { DataSyncManager } from "./core/offline/DataSyncManager";
@@ -470,6 +471,7 @@ export default function App() {
   };
 
   const isRtl = language === "ar";
+  useLegacyArabicUiLocalization(language);
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
@@ -4443,6 +4445,7 @@ const handleSignOut = useCallback(async () => {
         >
           <ErrorBoundary>
             <PublicLegalView
+              language={language}
               onBack={() => {
                 if (window.history.length > 1) {
                   window.history.back();
@@ -5433,16 +5436,16 @@ const handleSignOut = useCallback(async () => {
                     <Suspense fallback={iOSLoadingFallback}>
                       <ErrorBoundary>
                         {activeTab === "privacy" && (
-                          <PrivacyPolicyView onBack={legalBackGesture.triggerBack} />
+                          <PrivacyPolicyView onBack={legalBackGesture.triggerBack} language={language} />
                         )}
                         {activeTab === "terms" && (
-                          <TermsOfServiceView onBack={legalBackGesture.triggerBack} />
+                          <TermsOfServiceView onBack={legalBackGesture.triggerBack} language={language} />
                         )}
                         {activeTab === "support" && (
-                          <SupportView onBack={legalBackGesture.triggerBack} />
+                          <SupportView onBack={legalBackGesture.triggerBack} language={language} />
                         )}
                         {activeTab === "disclaimer" && (
-                          <MedicalDisclaimerView onBack={legalBackGesture.triggerBack} />
+                          <MedicalDisclaimerView onBack={legalBackGesture.triggerBack} language={language} />
                         )}
                       </ErrorBoundary>
                     </Suspense>
@@ -5522,7 +5525,7 @@ const handleSignOut = useCallback(async () => {
                     }
                   : {}),
               }}
-              className="w-full bg-neutral-50 dark:bg-[#000000]"
+              className={`w-full ${bulletinReturnsToProfile ? "bg-transparent" : "bg-neutral-50 dark:bg-[#000000]"}`}
             >
               <motion.div
                 data-bulletin-page-swipe-surface="true"
