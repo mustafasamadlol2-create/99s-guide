@@ -172,16 +172,24 @@ export const ProfileView = function ProfileView({
  // app canvas. This mirrors the persistent stacks used by Modules/Subjects.
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
  const profileParentScrollTopRef = useRef(0);
+ const pendingProfileScrollRestoreRef = useRef<number | null>(null);
+ const profileRestoreFrameRef = useRef<number | null>(null);
 
  const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
    const canvas = document.getElementById("main-scroll-canvas");
    profileParentScrollTopRef.current = canvas?.scrollTop ?? 0;
+   // Tell App synchronously before this page moves the shared canvas to zero,
+   // so the root scroll-memory listener cannot overwrite the parent position.
+   onSubViewChange?.(true);
    setSubView(next);
- }, []);
+ }, [onSubViewChange]);
 
  const closeProfileSubView = useCallback(() => {
-   const canvas = document.getElementById("main-scroll-canvas");
-   if (canvas) canvas.scrollTop = profileParentScrollTopRef.current;
+   // Restore only after React has put the persistent Profile parent back into
+   // normal document flow. Writing scrollTop before setSubView(null) lets
+   // WebKit clamp/reset it during the same commit and causes the visible jump
+   // to the top seen in the recording.
+   pendingProfileScrollRestoreRef.current = profileParentScrollTopRef.current;
    setSubView(null);
  }, []);
 
@@ -194,14 +202,39 @@ export const ProfileView = function ProfileView({
  });
 
  useLayoutEffect(() => {
-   if (!subView) return;
    const canvas = document.getElementById("main-scroll-canvas");
-   if (canvas) canvas.scrollTop = 0;
- }, [subView]);
+   if (!canvas) return;
 
- useEffect(() => {
-   onSubViewChange?.(Boolean(subView));
+   if (subView) {
+     canvas.scrollTop = 0;
+     return;
+   }
+
+   const requested = pendingProfileScrollRestoreRef.current;
+   if (requested === null) return;
+
+   // Layout effects run before paint: the user sees the restored Profile at the
+   // exact old position, never an intermediate frame at scrollTop=0. Re-assert
+   // once on the next frame for WKWebView pages whose height settles late.
+   canvas.scrollTop = requested;
+   if (profileRestoreFrameRef.current !== null) {
+     cancelAnimationFrame(profileRestoreFrameRef.current);
+   }
+   profileRestoreFrameRef.current = requestAnimationFrame(() => {
+     profileRestoreFrameRef.current = null;
+     const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+     canvas.scrollTop = Math.min(requested, maxScroll);
+     pendingProfileScrollRestoreRef.current = null;
+     onSubViewChange?.(false);
+   });
  }, [onSubViewChange, subView]);
+
+ useEffect(() => () => {
+   if (profileRestoreFrameRef.current !== null) {
+     cancelAnimationFrame(profileRestoreFrameRef.current);
+   }
+   onSubViewChange?.(false);
+ }, [onSubViewChange]);
 
  // Edit fields profile
  const [isEditing, setIsEditing] = useState(false);

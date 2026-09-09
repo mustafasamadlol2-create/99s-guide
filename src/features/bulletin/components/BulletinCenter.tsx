@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef, useCallback, useLayoutEffect, Suspense, memo, lazy } from "react";
+import React, { useState, useMemo, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
  BellRing,
@@ -30,7 +30,7 @@ import {
 import { AppNotification, Subject, Lecture } from "../../../core/types";
 import { nativeAlert } from "../../../core/device/alert";
 import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
-import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
+import { useBulletinSegmentPager } from "../hooks/useBulletinSegmentPager";
 
 interface BulletinCenterProps {
   isActive?: boolean;
@@ -66,8 +66,6 @@ export const BulletinCenter = function BulletinCenter({
  "all" | "lecture" | "quiz" | "exam" | "announcement"
  >("all");
  const [segmentUnderlay, setSegmentUnderlay] = useState<"all" | "unread">("unread");
- const pendingSegmentRef = useRef<"all" | "unread" | null>(null);
- const segmentHandoffRafRef = useRef<number | null>(null);
 
  const getOppositeSegment = useCallback(
    (segment: "all" | "unread"): "all" | "unread" =>
@@ -75,77 +73,40 @@ export const BulletinCenter = function BulletinCenter({
    [],
  );
 
- const selectSegment = useCallback((segment: "all" | "unread") => {
-   if (segmentHandoffRafRef.current !== null) {
-     cancelAnimationFrame(segmentHandoffRafRef.current);
-     segmentHandoffRafRef.current = null;
-   }
-   pendingSegmentRef.current = null;
-   setSegmentUnderlay(getOppositeSegment(segment));
+ const commitSegment = useCallback((segment: "all" | "unread") => {
    setActiveSegment(segment);
- }, [getOppositeSegment]);
+ }, []);
 
- const segmentSwipeDirection = useMemo(() => {
-   // Match iOS logical paging: in LTR, moving from All → Unread follows a
-   // leftward content swipe; RTL mirrors the physical gesture.
-   if (activeSegment === "all") return isRtl ? "ltr" : "rtl";
-   return isRtl ? "rtl" : "ltr";
- }, [activeSegment, isRtl]);
-
- const segmentSwipeGesture = useSwipeBack({
-   direction: segmentSwipeDirection,
-   activationMode: "full",
-   commitProgress: 0.24,
-   velocityThreshold: 0.44,
-   surfaceSelector: '[data-bulletin-segment-swipe-surface="true"]',
-   allowedStartSelector: '[data-bulletin-segment-swipe-surface="true"]',
-   blockedStartSelector: [
+ // A dedicated two-page pager is used here instead of the app's Back gesture.
+ // It keeps the destination painted underneath, tracks the finger 1:1 without
+ // React renders, then commits only after the outgoing page is fully offscreen.
+ const segmentPager = useBulletinSegmentPager({
+   activeSegment,
+   isRtl,
+   onCommit: commitSegment,
+   blockedSelector: [
      '[data-bulletin-row="true"]',
      '.bulletin-chip',
      '.bulletin-icon-btn',
      'input',
      'textarea',
      'select',
+     '[contenteditable="true"]',
    ].join(','),
-   isEnabled: true,
-   onSwipeBack: () => {
-     const next = getOppositeSegment(activeSegment);
-     pendingSegmentRef.current = next;
-     // Keep the already-painted destination page as the underlay until the
-     // outgoing surface has reset to x=0. This is the same handoff pattern used
-     // by the app's native-style page stacks and prevents a black/blank frame.
-     setActiveSegment(next);
-   },
-   onSwipeEnd: (success) => {
-     if (!success) {
-       pendingSegmentRef.current = null;
-       setSegmentUnderlay(getOppositeSegment(activeSegment));
-       return;
-     }
-
-     const committed = pendingSegmentRef.current;
-     if (!committed) return;
-
-     let frames = 0;
-     const finishHandoff = () => {
-       frames += 1;
-       if (frames < 4) {
-         segmentHandoffRafRef.current = requestAnimationFrame(finishHandoff);
-         return;
-       }
-       segmentHandoffRafRef.current = null;
-       pendingSegmentRef.current = null;
-       setSegmentUnderlay(getOppositeSegment(committed));
-     };
-     segmentHandoffRafRef.current = requestAnimationFrame(finishHandoff);
-   },
  });
 
- useEffect(() => () => {
-   if (segmentHandoffRafRef.current !== null) {
-     cancelAnimationFrame(segmentHandoffRafRef.current);
+ const selectSegment = useCallback((segment: "all" | "unread") => {
+   segmentPager.navigateTo(segment);
+ }, [segmentPager.navigateTo]);
+
+ // During the complete exit -> React commit -> entrance handoff, keep showing
+ // the already-painted destination page underneath. Only swap the hidden
+ // underlay after the live destination has fully settled at x=0.
+ useEffect(() => {
+   if (!segmentPager.isInteracting) {
+     setSegmentUnderlay(getOppositeSegment(activeSegment));
    }
- }, []);
+ }, [activeSegment, getOppositeSegment, segmentPager.isInteracting]);
 
  // Find matching lecture from notification for deep-linking
  const findMatchingLecture = (notif: AppNotification): Lecture | null => {
@@ -381,11 +342,13 @@ export const BulletinCenter = function BulletinCenter({
 
  return (
  <div
+ ref={segmentPager.surfaceRef}
  data-bulletin-segment-swipe-surface="true"
  className="bulletin-root w-full flex flex-col relative overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
  style={{
  direction: isRtl ? "rtl" : "ltr",
  paddingBottom: "110px",
+ touchAction: "pan-y",
  }}
  >
  {/* ENHANCED iOS HEADER */}
@@ -480,25 +443,30 @@ export const BulletinCenter = function BulletinCenter({
       segment stays mounted underneath so an interactive swipe never exposes
       the root canvas or a blank frame. */}
  <main className="flex-1 relative grid grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]">
-   <div
+   <motion.div
      className="w-full min-h-full pointer-events-none select-none"
-     style={{ gridArea: "1 / 1 / 2 / 2", zIndex: 0 }}
+     style={{
+       gridArea: "1 / 1 / 2 / 2",
+       zIndex: 0,
+       x: segmentPager.underlayX,
+       willChange: segmentPager.isInteracting ? "transform" : "auto",
+     }}
    >
      {renderSegmentPanel(segmentUnderlay, underlayNotifications, true)}
-   </div>
+   </motion.div>
 
    <motion.div
      className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
      style={{
        gridArea: "1 / 1 / 2 / 2",
        zIndex: 10,
-       x: segmentSwipeGesture.x,
-       boxShadow: segmentSwipeGesture.isInteracting
-         ? (segmentSwipeDirection === "ltr"
-             ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
-             : "18px 0 30px -18px rgba(0,0,0,0.48)")
+       x: segmentPager.x,
+       boxShadow: segmentPager.isInteracting
+         ? ((activeSegment === "all" ? (isRtl ? 1 : -1) : (isRtl ? -1 : 1)) < 0
+             ? "18px 0 30px -18px rgba(0,0,0,0.42)"
+             : "-18px 0 30px -18px rgba(0,0,0,0.42)")
          : "none",
-       willChange: segmentSwipeGesture.isInteracting ? "transform" : "auto",
+       willChange: segmentPager.isInteracting ? "transform" : "auto",
      }}
    >
      {renderSegmentPanel(activeSegment, filteredNotifications, false)}
@@ -580,7 +548,7 @@ export const BulletinCenter = function BulletinCenter({
  return (
  <motion.div
  data-bulletin-row="true"
- initial={isUnderlay || segmentSwipeGesture.isInteracting ? false : { opacity: 0, scale: 0.95, y: 10 }}
+ initial={isUnderlay || segmentPager.isInteracting ? false : { opacity: 0, scale: 0.95, y: 10 }}
  animate={{ opacity: 1, scale: 1, y: 0 }}
  exit={isUnderlay ? undefined : { opacity: 0, scale: 0.95, y: -10 }}
  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}

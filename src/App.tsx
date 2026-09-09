@@ -35,7 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
-import { useSwipeBack, isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
+import { useSwipeBack } from "./core/hooks/useSwipeBack";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
 import { SidebarNavItem } from "./core/layout/SidebarNavItem";
@@ -1509,6 +1509,8 @@ export default function App() {
     activeHomeLecture: Lecture | null;
     lectureDetailSource: "dashboard" | "subject" | null;
     returnToSearch: boolean;
+    /** Exact main canvas position of the page being pushed. */
+    scrollTop: number;
   };
 
   const navigationStackRef = useRef<NavigationEntry[]>([]);
@@ -1519,7 +1521,26 @@ export default function App() {
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
   const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
+  const profileSubViewOpenRef = useRef(false);
+  const homeSubjectInternalBackRef = useRef(false);
+  const legacySubjectInternalBackRef = useRef(false);
+  const pendingNavigationScrollRestoreRef = useRef<number | null>(null);
   const [suppressHomeEntranceAnimations, setSuppressHomeEntranceAnimations] = useState(false);
+
+  const handleProfileSubViewChange = useCallback((open: boolean) => {
+    profileSubViewOpenRef.current = open;
+    setIsProfileSubViewOpen(open);
+  }, []);
+
+  const handleHomeSubjectInternalBackChange = useCallback((hasBack: boolean) => {
+    homeSubjectInternalBackRef.current = hasBack;
+    setHomeSubjectHasInternalBack(hasBack);
+  }, []);
+
+  const handleLegacySubjectInternalBackChange = useCallback((hasBack: boolean) => {
+    legacySubjectInternalBackRef.current = hasBack;
+    setLegacySubjectHasInternalBack(hasBack);
+  }, []);
 
   // Welcome stays mounted as the live parent page while a Subject/Lecture is open.
   // This is the persistent navigation shell used by both Capacitor WKWebView and PWA Safari.
@@ -1535,6 +1556,7 @@ export default function App() {
       activeHomeLecture,
       lectureDetailSource,
       returnToSearch: options?.returnToSearch ?? false,
+      scrollTop: document.getElementById("main-scroll-canvas")?.scrollTop ?? 0,
     };
     navigationStackRef.current.push(entry);
     setNavigationStackTop(entry);
@@ -1566,6 +1588,10 @@ export default function App() {
   }, []);
 
   const restoreNavigationEntry = useCallback((entry: NavigationEntry) => {
+    // Capture the exact parent position from the navigation entry itself. This
+    // survives short destination pages, layout changes and WebKit clamping.
+    pendingNavigationScrollRestoreRef.current = Math.max(0, entry.scrollTop || 0);
+
     if (
       entry.activeTab === "home" &&
       entry.activeHomeSubjectId === null &&
@@ -1726,11 +1752,10 @@ export default function App() {
   });
 
   const handleLegalBack = useCallback(() => {
-    // The Settings page remains mounted underneath the legal page. Restore the
-    // parent canvas position in the same commit that pops navigation so the
-    // live underlay hands off to the real Settings screen without a flash.
-    const canvas = document.getElementById("main-scroll-canvas");
-    if (canvas) canvas.scrollTop = legalParentScrollTopRef.current;
+    // Do not write scrollTop while the legal page still owns the shared canvas.
+    // Queue the Settings position and restore it after the parent is back in the
+    // live layout, before paint. This prevents the web-like top jump/clamp.
+    pendingNavigationScrollRestoreRef.current = legalParentScrollTopRef.current;
     if (restorePreviousNavigationEntry()) return;
     setActiveTab("settings");
   }, [restorePreviousNavigationEntry]);
@@ -1780,48 +1805,11 @@ export default function App() {
   const targetHomeLectureIdRef = useRef<string | null>(null);
   const targetLectureIdRef = useRef<string | null>(null);
 
-  const scrollActiveRootToTop = useCallback(() => {
-    const canvas = document.getElementById("main-scroll-canvas");
-    if (!canvas) return;
-
-    // This is an explicit user command, not route restoration. Keep the phone
-    // floating-bar scroll baseline synchronized so the bar does not briefly
-    // shrink again from stale scroll history while the smooth scroll runs.
-    isRestoringGlobalScrollRef.current = false;
-    phoneTabBarLastScrollTopRef.current = 0;
-    phoneTabBarPendingExpandedRef.current = null;
-    setIsPhoneTabBarEngaged(true);
-
-    canvas.scrollTo({
-      top: 0,
-      behavior: shouldReduceMotion ? "auto" : "smooth",
-    });
-  }, [shouldReduceMotion]);
 
   const handleSidebarTabClick = useCallback((id: string) => {
     if (id === "search") {
       setPreserveSearchSession(false);
       setIsCommandPaletteOpen(true);
-      return;
-    }
-
-    const isSameTab = activeTab === id;
-    const isAtRoot =
-      id === "home"
-        ? activeHomeSubjectId === null && activeHomeLecture === null
-        : id === "subjects"
-          ? activeModuleId === null && activeSubjectId === null && activeLecture === null
-          : id === "profile"
-            ? !isProfileSubViewOpen
-            : id === "control-center"
-              ? !controlCenterHasBackHistory
-              : true;
-
-    // Native tab-bar convention: tapping the already-selected root tab returns
-    // the persistent content canvas to the top. If that tab is currently in a
-    // drill-down state, the existing behavior wins first and returns to root.
-    if (isSameTab && isAtRoot && isAppleTouchNavigationDevice()) {
-      scrollActiveRootToTop();
       return;
     }
 
@@ -1860,7 +1848,6 @@ export default function App() {
     isProfileSubViewOpen,
     controlCenterHasBackHistory,
     clearNavigationStack,
-    scrollActiveRootToTop,
   ]);
 
   // Sync state variables -> URL hash (prevents page reloads, keeps standard state synchronization)
@@ -1891,6 +1878,7 @@ export default function App() {
     activeTab,
     activeHomeSubjectId,
     activeHomeLecture,
+    activeModuleId,
     activeSubjectId,
     activeLecture,
   ]);
@@ -2079,6 +2067,9 @@ export default function App() {
         path += `/lecture/${activeHomeLecture.id}`;
       }
     } else if (activeTab === "subjects") {
+      if (activeModuleId) {
+        path += `/module/${activeModuleId}`;
+      }
       if (activeSubjectId) {
         path += `/subject/${activeSubjectId}`;
       }
@@ -2091,6 +2082,7 @@ export default function App() {
     activeTab,
     activeHomeSubjectId,
     activeHomeLecture,
+    activeModuleId,
     activeSubjectId,
     activeLecture,
   ]);
@@ -2135,7 +2127,12 @@ export default function App() {
 
     let frame = 0;
     const handleScroll = () => {
-      if (isRestoringGlobalScrollRef.current) return;
+      if (
+        isRestoringGlobalScrollRef.current ||
+        profileSubViewOpenRef.current ||
+        homeSubjectInternalBackRef.current ||
+        legacySubjectInternalBackRef.current
+      ) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         storeScrollPosition(prevNavigationPathRef.current, canvas.scrollTop);
@@ -2143,6 +2140,11 @@ export default function App() {
     };
 
     const handlePageHide = () => {
+      if (
+        profileSubViewOpenRef.current ||
+        homeSubjectInternalBackRef.current ||
+        legacySubjectInternalBackRef.current
+      ) return;
       storeScrollPosition(prevNavigationPathRef.current, canvas.scrollTop);
     };
 
@@ -2172,7 +2174,9 @@ export default function App() {
     // page has already been mounted and clamped by the browser.
     prevNavigationPathRef.current = navigationPath;
 
-    const requested = readScrollPosition(navigationPath) ?? 0;
+    const queuedStackPosition = pendingNavigationScrollRestoreRef.current;
+    const requested =
+      queuedStackPosition ?? readScrollPosition(navigationPath) ?? 0;
     isRestoringGlobalScrollRef.current = true;
 
     let frame1 = 0;
@@ -2191,15 +2195,28 @@ export default function App() {
       hasAppliedRestore = true;
     };
 
+    // First restore synchronously inside the layout effect. React has already
+    // committed the destination DOM, but the browser has not painted it yet, so
+    // a Back/Home return can never expose a frame at scrollTop=0 before jumping
+    // to the saved position. Re-assert on the next two frames for WKWebView
+    // layouts whose height settles one compositor tick later.
+    restore();
     frame1 = requestAnimationFrame(() => {
+      restore();
       frame2 = requestAnimationFrame(restore);
     });
 
     // Some views finish their auto-height/content transition after the first
-    // two frames. Reapply once after settling so returning to a page lands at
-    // the exact saved position rather than a browser-clamped intermediate one.
+    // frames. Reapply once after settling, unless the user has intentionally
+    // scrolled in the meantime (guarded inside restore()).
     settleTimer = setTimeout(() => {
       restore();
+      if (
+        queuedStackPosition !== null &&
+        pendingNavigationScrollRestoreRef.current === queuedStackPosition
+      ) {
+        pendingNavigationScrollRestoreRef.current = null;
+      }
       isRestoringGlobalScrollRef.current = false;
     }, 460);
 
@@ -4903,7 +4920,7 @@ const handleSignOut = useCallback(async () => {
                               onBack={homeBackGesture.triggerBack}
                               onSelectLecture={handleSelectNestedLecture}
                               isSwipeNavigationEnabled={activeHomeLecture === null}
-                              onInternalNavigationStateChange={setHomeSubjectHasInternalBack}
+                              onInternalNavigationStateChange={handleHomeSubjectInternalBackChange}
                               language={language}
                               calendarEvents={calendarEventsDb}
                             />
@@ -5078,7 +5095,7 @@ const handleSignOut = useCallback(async () => {
                               deepLinkedLecture={activeLecture}
                               onBack={subjectsBackGesture.triggerBack}
                               isSwipeNavigationEnabled={activeLecture === null}
-                              onInternalNavigationStateChange={setLegacySubjectHasInternalBack}
+                              onInternalNavigationStateChange={handleLegacySubjectInternalBackChange}
                               onSelectLecture={(lect, tab) => {
                                 if (tab) setActiveLectureTab(tab);
                                 else setActiveLectureTab("pdf");
@@ -5188,7 +5205,7 @@ const handleSignOut = useCallback(async () => {
                     onOpenSettings={() => { pushNavigationStack(); setActiveTab("settings"); }}
                     isActive={activeTab === "profile"}
                     language={language}
-                    onSubViewChange={setIsProfileSubViewOpen}
+                    onSubViewChange={handleProfileSubViewChange}
                   />
                 </ErrorBoundary>
 </Suspense>

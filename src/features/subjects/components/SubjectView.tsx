@@ -732,6 +732,12 @@ export const SubjectView = function SubjectView({
   const hierarchyLayerRef = useRef<HTMLDivElement | null>(null);
   const hierarchyUnderlayRef = useRef<HTMLDivElement | null>(null);
   const hierarchySnapshotStackRef = useRef<HTMLElement[]>([]);
+  // Scroll memory mirrors the visual hierarchy stack. Each pushed Subject page
+  // owns its own parent scroll position so Back never lands at the top merely
+  // because the child page was shorter or WebKit clamped the shared canvas.
+  const hierarchyScrollStackRef = useRef<number[]>([]);
+  const pendingHierarchyScrollRestoreRef = useRef<number | null>(null);
+  const hierarchyScrollRestoreFrameRef = useRef<number | null>(null);
   const clearUnderlayFrameRef = useRef<number | null>(null);
   const [isHierarchyUnderlayVisible, setIsHierarchyUnderlayVisible] = useState(false);
   // A Back-restored hierarchy level should look like a screen that was already
@@ -845,23 +851,31 @@ export const SubjectView = function SubjectView({
     hideHierarchyUnderlay();
   }, [hideHierarchyUnderlay]);
 
+  const rememberHierarchyParentScroll = useCallback(() => {
+    const canvas = document.getElementById("main-scroll-canvas");
+    hierarchyScrollStackRef.current.push(canvas?.scrollTop ?? 0);
+  }, []);
+
   const navigateToSubSubject = useCallback((subSubject: string) => {
     setSuppressContentEntranceAnimations(false);
+    rememberHierarchyParentScroll();
     captureHierarchySnapshot();
     setActiveSubSubject(subSubject);
-  }, [captureHierarchySnapshot]);
+  }, [captureHierarchySnapshot, rememberHierarchyParentScroll]);
 
   const navigateToTrack = useCallback((track: "Theory" | "Practical") => {
     setSuppressContentEntranceAnimations(false);
+    rememberHierarchyParentScroll();
     captureHierarchySnapshot();
     setActiveTrack(track);
-  }, [captureHierarchySnapshot]);
+  }, [captureHierarchySnapshot, rememberHierarchyParentScroll]);
 
   const navigateToDepartment = useCallback((department: string) => {
     setSuppressContentEntranceAnimations(false);
+    rememberHierarchyParentScroll();
     captureHierarchySnapshot();
     setActiveDepartment(department);
-  }, [captureHierarchySnapshot]);
+  }, [captureHierarchySnapshot, rememberHierarchyParentScroll]);
 
   // Handle Back one hierarchy level at a time. The detached visual snapshot is
   // removed only after React has painted the restored live screen, preventing a
@@ -872,6 +886,11 @@ export const SubjectView = function SubjectView({
       activeDepartment !== null ||
       activeTrack !== null ||
       (subject.id === "ID" && activeSubSubject !== null);
+
+    if (isInternal && hierarchyScrollStackRef.current.length > 0) {
+      pendingHierarchyScrollRestoreRef.current =
+        hierarchyScrollStackRef.current.pop() ?? 0;
+    }
 
     if (activeDepartment !== null) {
       setActiveDepartment(null);
@@ -898,6 +917,28 @@ export const SubjectView = function SubjectView({
     onBack,
   ]);
 
+  useLayoutEffect(() => {
+    const requested = pendingHierarchyScrollRestoreRef.current;
+    if (requested === null) return;
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (!canvas) return;
+
+    // Apply before paint so the restored parent is already at the exact old
+    // vertical position when the snapshot hands control back to the live DOM.
+    const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+    canvas.scrollTop = Math.min(requested, maxScroll);
+
+    if (hierarchyScrollRestoreFrameRef.current !== null) {
+      cancelAnimationFrame(hierarchyScrollRestoreFrameRef.current);
+    }
+    hierarchyScrollRestoreFrameRef.current = requestAnimationFrame(() => {
+      hierarchyScrollRestoreFrameRef.current = null;
+      const settledMax = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      canvas.scrollTop = Math.min(requested, settledMax);
+      pendingHierarchyScrollRestoreRef.current = null;
+    });
+  }, [activeDepartment, activeSubSubject, activeTrack]);
+
   // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
   // → Theory/Practical → department). The page-level swipe must unwind exactly
   // one of those levels before the parent App is allowed to leave the subject.
@@ -916,12 +957,17 @@ export const SubjectView = function SubjectView({
 
   useEffect(() => {
     hierarchySnapshotStackRef.current = [];
+    hierarchyScrollStackRef.current = [];
+    pendingHierarchyScrollRestoreRef.current = null;
     hideHierarchyUnderlay();
   }, [subject.id, deepLinkedLecture?.id, hideHierarchyUnderlay]);
 
   useEffect(() => () => {
     if (clearUnderlayFrameRef.current !== null) {
       cancelAnimationFrame(clearUnderlayFrameRef.current);
+    }
+    if (hierarchyScrollRestoreFrameRef.current !== null) {
+      cancelAnimationFrame(hierarchyScrollRestoreFrameRef.current);
     }
   }, []);
 
