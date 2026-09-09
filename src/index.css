@@ -4838,3 +4838,35 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     transition: opacity 78ms ease-out !important;
   }
 }
+
+/* iPhone Month View: denser native calendar geometry in both orientations. */
+.calendar-month-phone .calendar-month-phone-cell {
+  min-height: clamp(58px, 16.5vw, 68px);
+}
+
+.calendar-month-phone .calendar-month-day-number {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.calendar-month-phone .calendar-month-dots {
+  padding-bottom: 5px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .calendar-month-phone .calendar-month-phone-cell {
+    min-height: 48px;
+    border-radius: 9px;
+  }
+
+  .calendar-month-phone .calendar-month-day-number {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .calendar-month-phone .calendar-month-dots {
+    padding-bottom: 3px;
+  }
+}

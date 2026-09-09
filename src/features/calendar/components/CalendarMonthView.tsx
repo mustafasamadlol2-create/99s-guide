@@ -116,29 +116,27 @@ const MonthDayCell = memo(function MonthDayCell({
  return (
  <div
  key={`day-${day}`}
-  className={`group relative ${isPhone ? "min-h-[92px] rounded-[12px]" : "min-h-[86px] aspect-square rounded-lg"} w-full flex flex-col justify-start items-stretch text-left transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
+  className={`group relative ${isPhone ? "calendar-month-phone-cell rounded-[11px]" : "min-h-[86px] aspect-square rounded-lg"} w-full flex flex-col justify-start items-stretch text-left transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
  ${cellBgClass} ${cellBorderClass} ${ringClass}
  `}
  >
  <button
  onClick={handleDayClick}
- className={`absolute inset-0 w-full h-full cursor-pointer ${isPhone ? "rounded-[12px]" : "rounded-lg"}`}
+ className={`absolute inset-0 w-full h-full cursor-pointer ${isPhone ? "rounded-[11px]" : "rounded-lg"}`}
  aria-label={`Select date ${dayDate}`}
  />
  <div className={`relative pointer-events-none ${isPhone ? "px-1.5 py-1.5" : "px-1 py-1"} flex flex-col justify-start items-stretch w-full h-full overflow-hidden`}>
  {/* Day Header with numbers and indicator dots */}
-        <div className={`flex justify-between items-start w-full shrink-0 ${isPhone ? "mb-1 px-0.5 pt-0.5" : "mb-0.5 px-1 pt-1"}`}>
+        <div className={`flex items-start w-full shrink-0 ${isPhone ? "justify-center mb-0 px-0 pt-0" : "justify-between mb-0.5 px-1 pt-1"}`}>
           <span
-            className={`relative flex items-center justify-center ${isPhone ? "w-8 h-8 text-[15px]" : "w-7 h-7 text-sm"} rounded-full leading-none transition-colors ${badgeClass}`}
+            className={`calendar-month-day-number relative flex items-center justify-center ${isPhone ? "w-7 h-7 text-[14px]" : "w-7 h-7 text-sm"} rounded-full leading-none transition-colors ${badgeClass}`}
           >
             {day}
           </span>
-           {dayEvents.length > 0 && (
-             <span className={`calendar-event-count text-[9px] ${isPhone ? "font-semibold px-1" : "font-medium px-1.5"} text-neutral-500 dark:text-[#EBEBF599] bg-black/5 dark:bg-white/[0.12] py-0.5 rounded-full mt-0.5 whitespace-nowrap`}>
+           {!isPhone && dayEvents.length > 0 && (
+             <span className="calendar-event-count text-[9px] font-medium px-1.5 text-neutral-500 dark:text-[#EBEBF599] bg-black/5 dark:bg-white/[0.12] py-0.5 rounded-full mt-0.5 whitespace-nowrap">
                <span>{dayEvents.length}</span>{" "}
-               {!isPhone && (
-                 <span className="calendar-event-count-label">{isRtl ? (dayEvents.length === 1 ? "حدث" : "أحداث") : (dayEvents.length === 1 ? "Event" : "Events")}</span>
-               )}
+               <span className="calendar-event-count-label">{isRtl ? (dayEvents.length === 1 ? "حدث" : "أحداث") : (dayEvents.length === 1 ? "Event" : "Events")}</span>
              </span>
            )}
         </div>
@@ -146,7 +144,7 @@ const MonthDayCell = memo(function MonthDayCell({
 
  {/* Event Rows inside cell */}
  {isPhone ? (
-   <div className="flex flex-1 w-full items-end justify-center pb-2">
+   <div className="calendar-month-dots flex flex-1 w-full items-end justify-center pb-1.5">
      {visibleEvents.length > 0 ? (
        <div className="flex items-center justify-center gap-[3px] max-w-full">
          {visibleEvents.slice(0, 3).map((ev) => {
@@ -300,7 +298,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  const todayDay = today.getDate();
 
  return (
- <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label="Interactive monthly calendar" className={`${isPhone ? "px-0.5 py-1" : "p-1"} font-sans select-none`}>
+ <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label="Interactive monthly calendar" className={`${isPhone ? "calendar-month-phone px-0 py-0.5" : "p-1"} font-sans select-none`}>
  {/* Week Day Labels (iOS Minimalist Header style) */}
   <div className={`grid grid-cols-7 ${isPhone ? "gap-1 mb-2.5 text-[10px] tracking-[0.04em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase`}>
   {[
@@ -321,13 +319,13 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  {/* Grid Canvas - Distinct Floating Cards */}
  <div
  id="monthly_grid"
-  className={`grid grid-cols-7 ${isPhone ? "gap-1" : "gap-3"}`}
+  className={`grid grid-cols-7 ${isPhone ? "gap-[3px]" : "gap-3"}`}
  >
  {/* Empty padding slots matching start day of month */}
  {emptyPaddings.map((idx) => (
  <div
  key={`pad-${idx}`}
- className={`${isPhone ? "min-h-[92px] rounded-[12px]" : "aspect-square rounded-lg"} bg-neutral-50/20 dark:bg-[#2C2C2E]/10 border border-neutral-200/20 dark:border-white/[0.12]/20 pointer-events-none`}
+ className={`${isPhone ? "calendar-month-phone-cell rounded-[11px]" : "aspect-square rounded-lg"} bg-neutral-50/20 dark:bg-[#2C2C2E]/10 border border-neutral-200/20 dark:border-white/[0.12]/20 pointer-events-none`}
  />
  ))}
 

@@ -11,14 +11,16 @@ import {
  ClipboardCheck,
  CircleCheck,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { HapticFeedback } from "../../../core/device/haptic";
+import { motion, useTransform, type MotionValue } from "motion/react";
 import { CalendarEvent } from "../../../core/types";
 import { formatLocalDate } from "../../../core/utils/dateUtils";
 
 interface CalendarHeaderProps {
  t: (key: string) => string;
  isRtl: boolean;
+ isPhone: boolean;
+ useLiveIndicator: boolean;
+ indicatorPosition: MotionValue<number>;
  activeView: "month" | "week" | "day";
  setActiveView: (view: "month" | "week" | "day") => void;
  handlePrint: () => void;
@@ -37,6 +39,9 @@ interface CalendarHeaderProps {
 export function CalendarHeader({
  t,
  isRtl,
+ isPhone,
+ useLiveIndicator,
+ indicatorPosition,
  activeView,
  setActiveView,
  handlePrint,
@@ -57,6 +62,13 @@ export function CalendarHeader({
  { id: "day" as const, label: isRtl ? t("viewDay") : "Day" },
  { id: "month" as const, label: isRtl ? t("viewMonth") : "Month" },
  ];
+
+ // On iPhone the selected thumb is driven by the same MotionValue as the live
+ // Week/Day/Month page swipe, so the control and content never fall out of sync.
+ const phoneIndicatorX = useTransform(
+ indicatorPosition,
+ (position) => `${(isRtl ? 2 - position : position) * 100}%`,
+ );
 
  // Safely parse local day number timezone-proof
  const getDayNumber = () => {
@@ -172,7 +184,7 @@ export function CalendarHeader({
 
                 {/* Academic Cohort Pill Row */}
                  <div className="flex flex-row flex-wrap gap-1.5 mt-3 max-w-full" role="group" aria-label={isRtl ? "المجموعات" : "Groups"}>
-                  {["A", "B", "C", "D", "ALL"].map((group) => {
+                  {["A", "B", "C", "D", "E", "ALL"].map((group) => {
                     const isActive = studentGroup === group;
                     return (
                       <button
@@ -243,8 +255,15 @@ export function CalendarHeader({
  <div
  role="tablist"
  aria-label="Calendar view options"
-  className="cal-segment calendar-segment relative bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] p-1 rounded-lg flex items-center w-full sm:w-auto h-8 sm:h-8 select-none"
+  className={`cal-segment calendar-segment relative bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] p-1 rounded-lg flex items-center h-8 sm:h-8 select-none overflow-hidden ${useLiveIndicator ? "w-full sm:w-[300px]" : "w-full sm:w-auto"}`}
  >
+ {useLiveIndicator && (
+ <motion.div
+ aria-hidden="true"
+ className="absolute top-1 bottom-1 left-1 w-[calc(33.333333%_-_2.6667px)] rounded-[7px] bg-white dark:bg-[#636366] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-black/5 dark:border-black/20 pointer-events-none"
+ style={{ x: phoneIndicatorX }}
+ />
+ )}
  {segments.map((segment, index) => {
  const isActive = activeView === segment.id;
  const showDivider =
@@ -255,7 +274,7 @@ export function CalendarHeader({
  return (
  <div
  key={segment.id}
- className="relative flex-1 sm:flex-initial flex items-center h-full"
+ className={`relative flex items-center h-full ${useLiveIndicator ? "flex-1" : "flex-1 sm:flex-initial"}`}
  >
  <button
  role="tab"
@@ -264,7 +283,6 @@ export function CalendarHeader({
  id={`${segment.id}-tab`}
  onClick={() => {
  setActiveView(segment.id);
- HapticFeedback.selection();
  }}
  className={`
  relative px-4 sm:px-6 h-full rounded-lg text-secondary-label sm:text-secondary-label font-medium transition-colors z-10 flex items-center justify-center/50 cursor-pointer w-full
@@ -275,7 +293,7 @@ export function CalendarHeader({
  }
  `}
  >
- {isActive && (
+ {isActive && !useLiveIndicator && (
  <motion.div
  layoutId="activeCalendarSegmentApple"
  className="absolute inset-0 bg-white dark:bg-[#636366] rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-black/5 dark:border-black/20 -z-10"

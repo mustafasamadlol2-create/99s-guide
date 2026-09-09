@@ -3660,7 +3660,7 @@ app.post("/api/notifications", requireOwner, catchAsync(async (req, res) => {
     }
 
     // Validate targetGroup: must be one of the known groups or absent (= global)
-    const VALID_GROUPS = ["A", "B", "C", "D"] as const;
+    const VALID_GROUPS = ["A", "B", "C", "D", "E"] as const;
     const normalizedGroup: string | null =
       targetGroup && VALID_GROUPS.includes(String(targetGroup).toUpperCase() as any)
         ? String(targetGroup).toUpperCase()
@@ -7927,8 +7927,8 @@ app.post("/api/auth/register", catchAsync(async (req, res) => {
       return res.status(400).json({ error: "Password must be under 128 characters.", field: "password" });
     }
 
-    if (studentGroup && !["A", "B", "C", "D"].includes(studentGroup)) {
-      return res.status(400).json({ error: "Invalid academic group. Allowed values: A, B, C, D", field: "studentGroup" });
+    if (studentGroup && !["A", "B", "C", "D", "E"].includes(studentGroup)) {
+      return res.status(400).json({ error: "Invalid academic group. Allowed values: A, B, C, D, E", field: "studentGroup" });
     }
 
     if (signature !== undefined && signature !== null && signature !== "") {
@@ -8240,7 +8240,7 @@ app.post("/api/auth/complete-profile", requireUser, catchAsync(async (req: any, 
   if (name.trim().length > 200) {
     return res.status(400).json({ error: "Name must be under 200 characters." });
   }
-  if (!studentGroup || !["A", "B", "C", "D"].includes(studentGroup)) {
+  if (!studentGroup || !["A", "B", "C", "D", "E"].includes(studentGroup)) {
     return res.status(400).json({ error: "Please select a valid academic group." });
   }
   if (!signature || typeof signature !== "string" || !signature.startsWith("data:image/")) {
@@ -8283,8 +8283,8 @@ app.post("/api/auth/update-profile", requireUser, catchAsync(async (req, res) =>
       return res.status(400).json({ error: "removeAvatar must be a boolean." });
     }
 
-    if (studentGroup && !["A", "B", "C", "D"].includes(studentGroup)) {
-      return res.status(400).json({ error: "Invalid academic group. Allowed values: A, B, C, D" });
+    if (studentGroup && !["A", "B", "C", "D", "E"].includes(studentGroup)) {
+      return res.status(400).json({ error: "Invalid academic group. Allowed values: A, B, C, D, E" });
     }
 
     const authUser = (req as any).user;

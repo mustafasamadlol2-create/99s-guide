@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import { useCalendar } from "../hooks/useCalendar";
+import { useCalendarViewPager, type CalendarViewMode } from "../hooks/useCalendarViewPager";
 import { CalendarHeader } from "./CalendarHeader";
 import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { CalendarMonthView } from "./CalendarMonthView";
@@ -367,7 +368,7 @@ const CalendarView = memo(function CalendarView({
  } catch {}
  }, [activeView, getCalendarScrollKey, getMainScrollCanvas]);
 
- const handleCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
+ const commitCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
  if (nextView === activeView) return;
 
  const canvas = getMainScrollCanvas();
@@ -387,6 +388,27 @@ const CalendarView = memo(function CalendarView({
  : currentPosition;
  setActiveView(nextView);
  }, [activeView, getCalendarScrollKey, getMainScrollCanvas, saveCalendarViewScroll, setActiveView]);
+
+ // Week / Day / Month are three adjacent native-style pages. This gesture
+ // switches the VIEW only; it never invokes next/previous week/day/month.
+ const calendarViewPager = useCalendarViewPager({
+ activeView: activeView as CalendarViewMode,
+ isRtl,
+ onCommit: commitCalendarViewChange,
+ blockedSelector: [
+ '#month_banner_nav',
+ '#week_columns_container',
+ 'input',
+ 'textarea',
+ 'select',
+ '[contenteditable="true"]',
+ '[data-calendar-view-pager-disabled="true"]',
+ ].join(','),
+ });
+
+ const handleCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
+ calendarViewPager.navigateTo(nextView as CalendarViewMode);
+ }, [calendarViewPager.navigateTo]);
 
  useEffect(() => {
  const canvas = getMainScrollCanvas();
@@ -609,21 +631,70 @@ const CalendarView = memo(function CalendarView({
 
  const pLocalDate = parseLocalDate(selectedDate);
 
+ const renderCalendarView = (view: CalendarViewMode) => {
+ if (view === "month") {
+ return (
+ <CalendarMonthView
+ isRtl={isRtl}
+ isPhone={isPhone}
+ emptyPaddings={emptyPaddings}
+ calendarDays={calendarDays}
+ getFormattedDate={getFormattedDate}
+ selectedDate={selectedDate}
+ setSelectedDate={setSelectedDate}
+ events={processedEvents}
+ />
+ );
+ }
+
+ if (view === "week") {
+ return (
+ <CalendarWeekView
+ isRtl={isRtl}
+ disableDayHover={disableDayHover}
+ activeWeekDays={activeWeekDays}
+ selectedDate={selectedDate}
+ setSelectedDate={setSelectedDate}
+ events={processedEvents}
+ />
+ );
+ }
+
+ return (
+ <CalendarDayView
+ selectedDate={selectedDate}
+ selectedDateEvents={selectedDateEvents}
+ setSelectedDate={setSelectedDate}
+ events={processedEvents}
+ dayTransition={dayTransition}
+ hoursArray={hoursArray}
+ eventDurations={eventDurations}
+ HOUR_HEIGHT={HOUR_HEIGHT}
+ timelineRef={timelineRef}
+ setNewTaskTime={setNewTaskTime}
+ setIsAddingTask={setIsAddingTask}
+ parseTimeToMinutes={parseTimeToMinutes}
+ />
+ );
+ };
+
  return (
  <div
  id="calendar_viewport"
-  className="cal-view-root space-y-section animate-fadeIn pb-24 md:pb-12 select-none overflow-x-clip"
+  className="cal-view-root space-y-section animate-fadeIn pb-24 md:pb-12 select-none overflow-x-hidden"
  style={{
  direction: isRtl ? "rtl" : "ltr",
  fontFamily:
  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
  }}
  >
- <CalendarHeader t={t} isRtl={isRtl} activeView={activeView} setActiveView={handleCalendarViewChange} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
+ <CalendarHeader t={t} isRtl={isRtl} isPhone={isPhone} useLiveIndicator={disableDayHover} activeView={activeView} setActiveView={handleCalendarViewChange} indicatorPosition={calendarViewPager.indicatorPosition} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <motion.div
+ ref={calendarViewPager.surfaceRef}
  id="left_middle_deck"
- className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] p-card-padding rounded-lg shadow-elevation-1 space-y-section transition duration-normal touch-pan-y"
+ data-calendar-view-pager-surface="true"
+ className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition duration-normal ${isPhone ? "p-3 rounded-[18px] space-y-4" : "p-card-padding rounded-lg space-y-section"}`}
  >
  {/* NAVIGATION BAR - MONTHS */}
  <div
@@ -712,56 +783,51 @@ const CalendarView = memo(function CalendarView({
  {/* View Switcher Container */}
  <SmoothAutoHeight
  dependency={activeView}
- durationMs={420}
+ durationMs={380}
  className="w-full pt-1 min-w-0 overflow-hidden [overflow-anchor:none]"
- contentClassName="grid w-full min-w-0"
+ contentClassName="relative grid w-full min-w-0 overflow-hidden"
  style={{
  fontFamily:
  '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
  transformOrigin: "top center",
  }}
  >
- <AnimatePresence mode="wait" initial={false}>
- {activeView === "month" && (
+ {calendarViewPager.targetView && (
  <motion.div
- key="month-view"
- style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -6 }}
- animate={{ opacity: 1, x: 0 }}
- exit={{ opacity: 0, x: 6 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
- className="w-full min-w-0 touch-pan-y"
+ key={`calendar-target-${calendarViewPager.targetView}`}
+ aria-hidden="true"
+ className="absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E] pointer-events-none"
+ style={{
+ gridArea: "1 / 1",
+ x: calendarViewPager.targetX,
+ zIndex: 0,
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ }}
  >
- <CalendarMonthView isRtl={isRtl} isPhone={isPhone} emptyPaddings={emptyPaddings} calendarDays={calendarDays} getFormattedDate={getFormattedDate} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
+ {renderCalendarView(calendarViewPager.targetView)}
  </motion.div>
  )}
- {activeView === "week" && (
+
  <motion.div
- key="week-view"
- style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -6 }}
- animate={{ opacity: 1, x: 0 }}
- exit={{ opacity: 0, x: 6 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
- className="w-full min-w-0"
+ key={`calendar-live-${activeView}`}
+ id={`${activeView}-panel`}
+ role="tabpanel"
+ aria-labelledby={`${activeView}-tab`}
+ className="relative w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+ style={{
+ gridArea: "1 / 1",
+ x: calendarViewPager.x,
+ zIndex: 1,
+ boxShadow: calendarViewPager.isInteracting
+ ? (isRtl
+ ? "18px 0 28px -20px rgba(0,0,0,0.34)"
+ : "-18px 0 28px -20px rgba(0,0,0,0.34)")
+ : "none",
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ }}
  >
- <CalendarWeekView isRtl={isRtl} disableDayHover={disableDayHover} activeWeekDays={activeWeekDays} selectedDate={selectedDate} setSelectedDate={setSelectedDate} events={processedEvents} />
+ {renderCalendarView(activeView as CalendarViewMode)}
  </motion.div>
- )}
- {activeView === "day" && (
- <motion.div
- key="day-view"
- style={{ gridArea: "1 / 1" }}
-  initial={{ opacity: 0, x: -6 }}
- animate={{ opacity: 1, x: 0 }}
- exit={{ opacity: 0, x: 6 }}
- transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
- className="w-full"
- >
- <CalendarDayView selectedDate={selectedDate} selectedDateEvents={selectedDateEvents} setSelectedDate={setSelectedDate} events={processedEvents} dayTransition={dayTransition} hoursArray={hoursArray} eventDurations={eventDurations} HOUR_HEIGHT={HOUR_HEIGHT} timelineRef={timelineRef} setNewTaskTime={setNewTaskTime} setIsAddingTask={setIsAddingTask} parseTimeToMinutes={parseTimeToMinutes} />
- </motion.div>
- )}
- </AnimatePresence>
  </SmoothAutoHeight>
  </motion.div>
 

@@ -245,7 +245,7 @@ export const ProfileView = function ProfileView({
  const [editSignature, setEditSignature] = useState(user.signature || "");
  const [isSigning, setIsSigning] = useState(false);
 
- // Keep the compact profile label tied to the user's Academic Group (A-D),
+ // Keep the compact profile label tied to the user's Academic Group (A-E),
  // not the fixed Batch value. Normalize defensively in case persisted data
  // ever contains a prefixed value such as "Group D".
  const academicGroupLabel = useMemo(() => {
@@ -412,6 +412,7 @@ export const ProfileView = function ProfileView({
                 <option value="B">Group B</option>
                 <option value="C">Group C</option>
                 <option value="D">Group D</option>
+                <option value="E">Group E</option>
               </select>
             </div>
             

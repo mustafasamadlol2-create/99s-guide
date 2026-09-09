@@ -8,58 +8,64 @@ import {
 import { HapticFeedback } from "../../../core/device/haptic";
 import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
 
-export type BulletinSegment = "all" | "unread";
+export type CalendarViewMode = "week" | "day" | "month";
 
-interface UseBulletinSegmentPagerOptions {
-  activeSegment: BulletinSegment;
+const VIEW_ORDER: CalendarViewMode[] = ["week", "day", "month"];
+
+interface UseCalendarViewPagerOptions {
+  activeView: CalendarViewMode;
   isRtl: boolean;
-  onCommit: (segment: BulletinSegment) => void;
+  onCommit: (view: CalendarViewMode) => void;
   blockedSelector?: string;
   isEnabled?: boolean;
 }
 
-interface BulletinSegmentPagerGesture {
+interface CalendarViewPagerGesture {
   surfaceRef: RefObject<HTMLDivElement | null>;
   x: MotionValue<number>;
-  underlayX: MotionValue<number>;
-  /** 0 = All, 1 = Unread. Tracks the finger continuously for the segmented control. */
+  targetX: MotionValue<number>;
+  /** 0 = Week, 1 = Day, 2 = Month. */
   indicatorPosition: MotionValue<number>;
+  targetView: CalendarViewMode | null;
   isInteracting: boolean;
-  navigateTo: (segment: BulletinSegment) => void;
+  navigateTo: (view: CalendarViewMode) => void;
 }
 
-const opposite = (segment: BulletinSegment): BulletinSegment =>
-  segment === "all" ? "unread" : "all";
+const viewIndex = (view: CalendarViewMode) => VIEW_ORDER.indexOf(view);
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 /**
- * Two-page interactive pager for Notifications (All / Unread).
+ * Interactive iOS/iPadOS pager for switching the calendar VIEW only.
  *
- * The two pages behave like adjacent native pages rather than a web carousel:
- * the current page follows the finger 1:1 while the destination page travels
- * beside it from exactly one viewport away. On commit, both pages finish the
- * same physical movement; React swaps the live segment only after the target is
- * already sitting at x=0, so there is no second entrance animation, snap, flash
- * or refresh-looking handoff.
+ * It never changes the selected temporal period. Week/day/month next/previous
+ * remain owned exclusively by their explicit arrow/Today controls. The live
+ * destination view is painted beside the foreground page before completion,
+ * then React commits only after that destination is already at x=0.
  */
-export function useBulletinSegmentPager({
-  activeSegment,
+export function useCalendarViewPager({
+  activeView,
   isRtl,
   onCommit,
   blockedSelector,
   isEnabled = true,
-}: UseBulletinSegmentPagerOptions): BulletinSegmentPagerGesture {
+}: UseCalendarViewPagerOptions): CalendarViewPagerGesture {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const x = useMotionValue(0);
-  const underlayX = useMotionValue(0);
-  const indicatorPosition = useMotionValue(activeSegment === "all" ? 0 : 1);
+  const targetX = useMotionValue(0);
+  const indicatorPosition = useMotionValue(viewIndex(activeView));
   const reduceMotion = useReducedMotion();
+
+  const [targetView, setTargetViewState] = useState<CalendarViewMode | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
 
-  const activeSegmentRef = useRef(activeSegment);
+  const activeViewRef = useRef(activeView);
   const isRtlRef = useRef(isRtl);
   const onCommitRef = useRef(onCommit);
   const blockedSelectorRef = useRef(blockedSelector);
   const enabledRef = useRef(isEnabled);
+  const targetViewRef = useRef<CalendarViewMode | null>(null);
+  const targetIndexRef = useRef(-1);
+  const exitSignRef = useRef<1 | -1>(-1);
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -70,21 +76,25 @@ export function useBulletinSegmentPager({
   const horizontalLockRef = useRef(false);
   const settlingRef = useRef(false);
   const stopAnimationRef = useRef<(() => void) | null>(null);
-  const commitPaintFrameRef = useRef<number | null>(null);
+  const programmaticFrameRef = useRef<number | null>(null);
+  const commitFrameRef = useRef<number | null>(null);
   const handoffFrameRef = useRef<number | null>(null);
 
+  const setTargetView = useCallback((view: CalendarViewMode | null) => {
+    targetViewRef.current = view;
+    targetIndexRef.current = view == null ? -1 : viewIndex(view);
+    setTargetViewState(view);
+  }, []);
+
   useLayoutEffect(() => {
-    activeSegmentRef.current = activeSegment;
+    activeViewRef.current = activeView;
     isRtlRef.current = isRtl;
     onCommitRef.current = onCommit;
     blockedSelectorRef.current = blockedSelector;
     enabledRef.current = isEnabled;
 
-    // External/tab-driven segment changes still keep the indicator authoritative.
-    // During an interactive handoff the MotionValue is already sitting on the
-    // destination, so do not snap it back while React commits the new segment.
     if (!settlingRef.current && !isInteracting) {
-      indicatorPosition.set(activeSegment === "all" ? 0 : 1);
+      indicatorPosition.set(viewIndex(activeView));
     }
   });
 
@@ -93,22 +103,19 @@ export function useBulletinSegmentPager({
     stopAnimationRef.current = null;
   }, []);
 
-  const clearHandoffFrames = useCallback(() => {
-    if (commitPaintFrameRef.current !== null) {
-      cancelAnimationFrame(commitPaintFrameRef.current);
-      commitPaintFrameRef.current = null;
+  const clearFrames = useCallback(() => {
+    if (programmaticFrameRef.current !== null) {
+      cancelAnimationFrame(programmaticFrameRef.current);
+      programmaticFrameRef.current = null;
+    }
+    if (commitFrameRef.current !== null) {
+      cancelAnimationFrame(commitFrameRef.current);
+      commitFrameRef.current = null;
     }
     if (handoffFrameRef.current !== null) {
       cancelAnimationFrame(handoffFrameRef.current);
       handoffFrameRef.current = null;
     }
-  }, []);
-
-  // Physical direction in which the CURRENT page exits.
-  // LTR: All -> Unread exits left; Unread -> All exits right. RTL mirrors it.
-  const exitSignFor = useCallback((segment: BulletinSegment): 1 | -1 => {
-    if (segment === "all") return isRtlRef.current ? 1 : -1;
-    return isRtlRef.current ? -1 : 1;
   }, []);
 
   const getSurfaceWidth = useCallback(() => {
@@ -122,36 +129,46 @@ export function useBulletinSegmentPager({
     );
   }, []);
 
-  /** Keep the destination page and the segmented-control thumb locked to the same gesture. */
-  const syncAdjacentPage = useCallback(
-    (foregroundOffset: number, width: number, exitSign: 1 | -1) => {
-      underlayX.set(-exitSign * width + foregroundOffset);
-
-      const directionalProgress = Math.max(
-        0,
-        Math.min(1, (foregroundOffset * exitSign) / Math.max(1, width)),
-      );
-      indicatorPosition.set(
-        activeSegmentRef.current === "all"
-          ? directionalProgress
-          : 1 - directionalProgress,
-      );
+  const exitSignForTarget = useCallback(
+    (from: CalendarViewMode, to: CalendarViewMode): 1 | -1 => {
+      const logicalDelta = viewIndex(to) - viewIndex(from);
+      // LTR: advancing Week -> Day -> Month exits left. RTL mirrors it.
+      if (logicalDelta > 0) return isRtlRef.current ? 1 : -1;
+      return isRtlRef.current ? -1 : 1;
     },
-    [indicatorPosition, underlayX],
+    [],
+  );
+
+  const syncPages = useCallback(
+    (
+      foregroundOffset: number,
+      width: number,
+      exitSign: 1 | -1,
+      fromView: CalendarViewMode,
+      toView: CalendarViewMode,
+    ) => {
+      targetX.set(-exitSign * width + foregroundOffset);
+      const progress = clamp01((foregroundOffset * exitSign) / Math.max(1, width));
+      const fromIndex = viewIndex(fromView);
+      const toIndex = viewIndex(toView);
+      indicatorPosition.set(fromIndex + (toIndex - fromIndex) * progress);
+    },
+    [indicatorPosition, targetX],
   );
 
   const finishSuccessfulTransition = useCallback(
     (
-      targetSegment: BulletinSegment,
+      toView: CalendarViewMode,
       exitSign: 1 | -1,
       width: number,
       releaseVelocityPxPerMs: number,
     ) => {
       stopAnimation();
-      clearHandoffFrames();
+      clearFrames();
       settlingRef.current = true;
       setIsInteracting(true);
 
+      const fromView = activeViewRef.current;
       const exitTarget = exitSign * width;
       const velocityPxPerSecond = Math.max(
         -width * 4.5,
@@ -159,21 +176,19 @@ export function useBulletinSegmentPager({
       );
 
       const finishHandoff = () => {
-        // At this exact point the destination page is already at x=0 and the
-        // outgoing page is fully offscreen. Commit the state while the real
-        // destination underlay remains visible, then replace the offscreen live
-        // layer with the same content before revealing it. The visual frame does
-        // not change during this handoff.
-        onCommitRef.current(targetSegment);
+        // The destination underlay is already at x=0. Commit the view while it
+        // remains painted, then reset the new live foreground after two paints.
+        onCommitRef.current(toView);
         HapticFeedback.selection();
 
-        commitPaintFrameRef.current = requestAnimationFrame(() => {
-          commitPaintFrameRef.current = null;
+        commitFrameRef.current = requestAnimationFrame(() => {
+          commitFrameRef.current = null;
           handoffFrameRef.current = requestAnimationFrame(() => {
             handoffFrameRef.current = null;
             x.set(0);
-            underlayX.set(0);
-            indicatorPosition.set(targetSegment === "all" ? 0 : 1);
+            targetX.set(0);
+            indicatorPosition.set(viewIndex(toView));
+            setTargetView(null);
             settlingRef.current = false;
             setIsInteracting(false);
           });
@@ -183,59 +198,67 @@ export function useBulletinSegmentPager({
       if (reduceMotion) {
         const controls = animate(x, exitTarget, {
           duration: 0.01,
-          onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
+          onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
           onComplete: finishHandoff,
         });
         stopAnimationRef.current = () => controls.stop();
         return;
       }
 
-      // Critically damped-feeling completion: velocity from the finger is
-      // preserved, but there is no bounce/overshoot. This is intentionally close
-      // to the physical character of UIKit page transitions rather than a CSS
-      // ease or a second web-style slide animation.
       const controls = animate(x, exitTarget, {
         type: "spring",
-        stiffness: 470,
+        stiffness: 460,
         damping: 44,
         mass: 0.82,
         velocity: velocityPxPerSecond,
         restSpeed: 18,
         restDelta: 0.4,
-        onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
+        onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
         onComplete: finishHandoff,
       });
       stopAnimationRef.current = () => controls.stop();
     },
-    [clearHandoffFrames, indicatorPosition, reduceMotion, stopAnimation, syncAdjacentPage, underlayX, x],
+    [clearFrames, indicatorPosition, reduceMotion, setTargetView, stopAnimation, syncPages, targetX, x],
   );
 
   const navigateTo = useCallback(
-    (targetSegment: BulletinSegment) => {
-      if (targetSegment === activeSegmentRef.current || settlingRef.current) return;
+    (nextView: CalendarViewMode) => {
+      const fromView = activeViewRef.current;
+      if (nextView === fromView || settlingRef.current) return;
 
-      const node = surfaceRef.current;
-      if (!node || !isEnabled || !isAppleTouchNavigationDevice()) {
-        indicatorPosition.set(targetSegment === "all" ? 0 : 1);
-        onCommitRef.current(targetSegment);
+      if (!isEnabled || !isAppleTouchNavigationDevice()) {
+        indicatorPosition.set(viewIndex(nextView));
+        onCommitRef.current(nextView);
         return;
       }
 
+      stopAnimation();
+      clearFrames();
       const width = getSurfaceWidth();
-      const exitSign = exitSignFor(activeSegmentRef.current);
+      const exitSign = exitSignForTarget(fromView, nextView);
+      exitSignRef.current = exitSign;
+      setTargetView(nextView);
       x.set(0);
-      syncAdjacentPage(0, width, exitSign);
-      finishSuccessfulTransition(targetSegment, exitSign, width, 0);
+      syncPages(0, width, exitSign, fromView, nextView);
+      setIsInteracting(true);
+
+      // Let React paint the destination just offscreen before the programmatic
+      // segment transition starts. This prevents an empty first frame.
+      programmaticFrameRef.current = requestAnimationFrame(() => {
+        programmaticFrameRef.current = null;
+        finishSuccessfulTransition(nextView, exitSign, width, 0);
+      });
     },
-    [exitSignFor, finishSuccessfulTransition, getSurfaceWidth, indicatorPosition, isEnabled, syncAdjacentPage, x],
+    [clearFrames, exitSignForTarget, finishSuccessfulTransition, getSurfaceWidth, indicatorPosition, isEnabled, setTargetView, stopAnimation, syncPages, x],
   );
 
   useEffect(() => {
     const node = surfaceRef.current;
     if (!node || !isEnabled || !isAppleTouchNavigationDevice()) {
       x.set(0);
-      underlayX.set(0);
-      indicatorPosition.set(activeSegmentRef.current === "all" ? 0 : 1);
+      targetX.set(0);
+      indicatorPosition.set(viewIndex(activeViewRef.current));
+      setTargetView(null);
       setIsInteracting(false);
       return;
     }
@@ -253,12 +276,11 @@ export function useBulletinSegmentPager({
       if (blockedSelectorRef.current && target.closest(blockedSelectorRef.current)) return;
 
       stopAnimation();
-      clearHandoffFrames();
+      clearFrames();
+      setTargetView(null);
       x.set(0);
-
-      const width = getSurfaceWidth();
-      const exitSign = exitSignFor(activeSegmentRef.current);
-      syncAdjacentPage(0, width, exitSign);
+      targetX.set(0);
+      indicatorPosition.set(viewIndex(activeViewRef.current));
 
       const touch = event.touches[0];
       startXRef.current = touch.clientX;
@@ -275,21 +297,38 @@ export function useBulletinSegmentPager({
       const touch = event.touches[0];
       const dx = touch.clientX - startXRef.current;
       const dy = touch.clientY - startYRef.current;
-      const exitSign = exitSignFor(activeSegmentRef.current);
-      const directionalDistance = dx * exitSign;
 
       if (!horizontalLockRef.current) {
-        if (Math.abs(dy) >= 14 && Math.abs(dy) > Math.abs(dx) * 1.1) {
+        if (Math.abs(dy) >= 14 && Math.abs(dy) > Math.abs(dx) * 1.08) {
           resetTracking();
-          x.set(0);
-          underlayX.set(0);
           return;
         }
-        if (Math.abs(dx) < 5) return;
+        if (Math.abs(dx) < 7) return;
         if (Math.abs(dy) > Math.abs(dx) * 0.78) return;
+
+        const physicalExitSign: 1 | -1 = dx >= 0 ? 1 : -1;
+        const logicalDelta = isRtlRef.current ? physicalExitSign : -physicalExitSign;
+        const fromIndex = viewIndex(activeViewRef.current);
+        const nextIndex = fromIndex + logicalDelta;
+        if (nextIndex < 0 || nextIndex >= VIEW_ORDER.length) {
+          resetTracking();
+          return;
+        }
+
+        const nextView = VIEW_ORDER[nextIndex];
+        exitSignRef.current = physicalExitSign;
+        setTargetView(nextView);
+        const width = getSurfaceWidth();
+        syncPages(0, width, physicalExitSign, activeViewRef.current, nextView);
         horizontalLockRef.current = true;
         setIsInteracting(true);
       }
+
+      const toView = targetViewRef.current;
+      if (!toView) return;
+      const exitSign = exitSignRef.current;
+      const directionalDistance = dx * exitSign;
+      const width = getSurfaceWidth();
 
       if (event.cancelable) event.preventDefault();
 
@@ -300,71 +339,67 @@ export function useBulletinSegmentPager({
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
-      const width = getSurfaceWidth();
-
-      // There is exactly one neighboring page from each segment. Resist a swipe
-      // in the invalid direction instead of moving the foreground and exposing a
-      // raw root/background strip.
       if (directionalDistance <= 0) {
         x.set(0);
-        syncAdjacentPage(0, width, exitSign);
+        syncPages(0, width, exitSign, activeViewRef.current, toView);
         return;
       }
 
       const clamped = Math.max(-width, Math.min(width, dx));
-      // MotionValues already batch directly into the compositor, so the page
-      // remains locked to the finger without an extra requestAnimationFrame.
       x.set(clamped);
-      syncAdjacentPage(clamped, width, exitSign);
+      syncPages(clamped, width, exitSign, activeViewRef.current, toView);
     };
 
     const finishGesture = (event: TouchEvent | null, cancelled = false) => {
       if (!eligibleRef.current) return;
-
       const hadLock = horizontalLockRef.current;
+      const toView = targetViewRef.current;
       const clientX = event?.changedTouches?.[0]?.clientX ?? lastXRef.current;
       const dx = clientX - startXRef.current;
-      const exitSign = exitSignFor(activeSegmentRef.current);
-      const directionalDistance = dx * exitSign;
+      const exitSign = exitSignRef.current;
       const width = getSurfaceWidth();
+      const directionalDistance = dx * exitSign;
       const releaseVelocity = velocityRef.current;
       const releaseVelocityInDirection = releaseVelocity * exitSign;
       const progress = Math.max(0, directionalDistance) / width;
       const fastFlick = directionalDistance >= 24 && releaseVelocityInDirection >= 0.38;
       const success =
-        !cancelled && hadLock && directionalDistance > 0 && (progress >= 0.22 || fastFlick);
+        !cancelled &&
+        hadLock &&
+        Boolean(toView) &&
+        directionalDistance > 0 &&
+        (progress >= 0.22 || fastFlick);
 
       resetTracking();
-      if (!hadLock) {
+      if (!hadLock || !toView) {
         x.set(0);
-        underlayX.set(0);
-        indicatorPosition.set(activeSegmentRef.current === "all" ? 0 : 1);
+        targetX.set(0);
+        indicatorPosition.set(viewIndex(activeViewRef.current));
+        setTargetView(null);
+        setIsInteracting(false);
         return;
       }
 
       if (success) {
-        finishSuccessfulTransition(
-          opposite(activeSegmentRef.current),
-          exitSign,
-          width,
-          releaseVelocity,
-        );
+        finishSuccessfulTransition(toView, exitSign, width, releaseVelocity);
         return;
       }
 
       settlingRef.current = true;
+      const fromView = activeViewRef.current;
       const finishCancel = () => {
         settlingRef.current = false;
-        setIsInteracting(false);
         x.set(0);
-        underlayX.set(0);
-        indicatorPosition.set(activeSegmentRef.current === "all" ? 0 : 1);
+        targetX.set(0);
+        indicatorPosition.set(viewIndex(fromView));
+        setTargetView(null);
+        setIsInteracting(false);
       };
 
       if (reduceMotion) {
         const controls = animate(x, 0, {
           duration: 0.01,
-          onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
+          onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
           onComplete: finishCancel,
         });
         stopAnimationRef.current = () => controls.stop();
@@ -379,7 +414,7 @@ export function useBulletinSegmentPager({
         velocity: releaseVelocity * 1000,
         restSpeed: 14,
         restDelta: 0.35,
-        onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
+        onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
         onComplete: finishCancel,
       });
       stopAnimationRef.current = () => controls.stop();
@@ -396,10 +431,12 @@ export function useBulletinSegmentPager({
     return () => {
       resetTracking();
       stopAnimation();
-      clearHandoffFrames();
+      clearFrames();
       settlingRef.current = false;
       x.set(0);
-      underlayX.set(0);
+      targetX.set(0);
+      indicatorPosition.set(viewIndex(activeViewRef.current));
+      setTargetView(null);
       setIsInteracting(false);
       node.removeEventListener("touchstart", handleTouchStart);
       node.removeEventListener("touchmove", handleTouchMove);
@@ -407,18 +444,26 @@ export function useBulletinSegmentPager({
       node.removeEventListener("touchcancel", handleTouchCancel);
     };
   }, [
-    clearHandoffFrames,
-    exitSignFor,
+    clearFrames,
     finishSuccessfulTransition,
     getSurfaceWidth,
+    indicatorPosition,
     isEnabled,
     reduceMotion,
+    setTargetView,
     stopAnimation,
-    syncAdjacentPage,
-    indicatorPosition,
-    underlayX,
+    syncPages,
+    targetX,
     x,
   ]);
 
-  return { surfaceRef, x, underlayX, indicatorPosition, isInteracting, navigateTo };
+  return {
+    surfaceRef,
+    x,
+    targetX,
+    indicatorPosition,
+    targetView,
+    isInteracting,
+    navigateTo,
+  };
 }

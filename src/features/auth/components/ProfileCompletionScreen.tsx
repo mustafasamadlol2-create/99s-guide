@@ -30,7 +30,7 @@ export default function ProfileCompletionScreen({
       setError("Please enter your full name.");
       return;
     }
-    if (!["A", "B", "C", "D"].includes(studentGroup)) {
+    if (!["A", "B", "C", "D", "E"].includes(studentGroup)) {
       setError("Please select your academic group.");
       return;
     }
@@ -137,6 +137,7 @@ export default function ProfileCompletionScreen({
                       <option value="B" className="text-med-dark bg-white dark:bg-neutral-900">Group B</option>
                       <option value="C" className="text-med-dark bg-white dark:bg-neutral-900">Group C</option>
                       <option value="D" className="text-med-dark bg-white dark:bg-neutral-900">Group D</option>
+                      <option value="E" className="text-med-dark bg-white dark:bg-neutral-900">Group E</option>
                     </select>
                     <div className="absolute right-4 top-1/2 pointer-events-none mt-[2px]">
                       <svg width="12" height="8" viewBox="0 0 12 8" fill="none" className="stroke-med-muted dark:stroke-[#EBEBF560]">

@@ -21,6 +21,8 @@ interface UseSwipeBackOptions {
   allowedStartSelector?: string;
   /** Optional selector that vetoes this recognizer for the initial touch target. */
   blockedStartSelector?: string;
+  /** Allow a drag to begin on buttons/controls inside an explicitly allowed header. */
+  allowInteractiveStart?: boolean;
   /**
    * Optional selector for the exact visual surface that moves during Back.
    * On iPad this is intentionally NOT the full viewport because the persistent
@@ -89,6 +91,7 @@ export function useSwipeBack({
   velocityThreshold = 0.50,
   allowedStartSelector,
   blockedStartSelector,
+  allowInteractiveStart = false,
   surfaceSelector,
   onSwipeStart,
   onSwipeMove,
@@ -127,6 +130,7 @@ export function useSwipeBack({
   const velocityThresholdRef = useRef(velocityThreshold);
   const allowedStartSelectorRef = useRef(allowedStartSelector);
   const blockedStartSelectorRef = useRef(blockedStartSelector);
+  const allowInteractiveStartRef = useRef(allowInteractiveStart);
   const surfaceSelectorRef = useRef(surfaceSelector);
 
   useLayoutEffect(() => {
@@ -141,6 +145,7 @@ export function useSwipeBack({
     velocityThresholdRef.current = velocityThreshold;
     allowedStartSelectorRef.current = allowedStartSelector;
     blockedStartSelectorRef.current = blockedStartSelector;
+    allowInteractiveStartRef.current = allowInteractiveStart;
     surfaceSelectorRef.current = surfaceSelector;
   });
 
@@ -434,10 +439,13 @@ export function useSwipeBack({
           dialog.getClientRects().length > 0
         );
       });
+      const blockedByDefaultInteractiveTarget =
+        !allowInteractiveStartRef.current &&
+        Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
       const blocked =
         modalIsOpen ||
         blockedForThisRecognizer ||
-        Boolean(target?.closest?.(DISABLED_TARGET_SELECTOR));
+        blockedByDefaultInteractiveTarget;
 
       if (!startsInAllowedZone || !startsInsideRequiredRegion || blocked) {
         resetTracking();

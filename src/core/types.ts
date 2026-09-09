@@ -22,7 +22,7 @@ export interface User {
   signature?: string | null;
   totalTimeSpent?: number; // total study minutes spent in app
   lastActive?: string;
-  studentGroup?: "A" | "B" | "C" | "D" | string;
+  studentGroup?: "A" | "B" | "C" | "D" | "E" | string;
 }
 
 export type SubjectId = "ID" | "NT" | "RM" | "CA" | "PHC" | "ImD" | "SSC";

@@ -468,7 +468,7 @@ export default function CreateLecture({
  : "Target Academic Groups"}
  </label>
  <div className="flex flex-wrap gap-2">
- {["ALL", "A", "B", "C", "D"].map((g) => {
+ {["ALL", "A", "B", "C", "D", "E"].map((g) => {
  const isSelected = scheduleGroups.includes(g);
  return (
  <button

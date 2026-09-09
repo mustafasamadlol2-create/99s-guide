@@ -90,7 +90,7 @@ export default function ManageCalendar({
     };
  }, []);
 
- const groupsList = ["A", "B", "C", "D", "ALL"];
+ const groupsList = ["A", "B", "C", "D", "E", "ALL"];
 
  const handleGroupToggle = (group: string) => {
  if (group === "ALL") {

@@ -23,7 +23,7 @@ interface EditCalendarEventProps {
   onBack: () => void;
 }
 
-const GROUPS = ["A", "B", "C", "D", "ALL"];
+const GROUPS = ["A", "B", "C", "D", "E", "ALL"];
 const EVENT_TYPES = [
   { value: "LECTURE", label: "Lecture", labelAr: "محاضرة" },
   { value: "QUIZ", label: "Daily Quiz", labelAr: "امتحان يومي" },

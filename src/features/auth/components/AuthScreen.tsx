@@ -620,7 +620,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
       setRegisterEmailValidationAttempted(true);
       return false;
     }
-    if (step === 2 && !["A", "B", "C", "D"].includes(studentGroup)) {
+    if (step === 2 && !["A", "B", "C", "D", "E"].includes(studentGroup)) {
       showError("Please choose a valid academic group.");
       return false;
     }
@@ -1781,6 +1781,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                                 <option value="B">Group B</option>
                                 <option value="C">Group C</option>
                                 <option value="D">Group D</option>
+                                <option value="E">Group E</option>
                               </select>
                               <ChevronLeft aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 -rotate-90 w-4 h-4 pointer-events-none opacity-50" />
                             </motion.div>

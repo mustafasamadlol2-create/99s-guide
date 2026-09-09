@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback, memo } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
 import {
  BellRing,
  PartyPopper,
@@ -86,6 +86,7 @@ export const BulletinCenter = function BulletinCenter({
    onCommit: commitSegment,
    blockedSelector: [
      '[data-bulletin-row="true"]',
+     '[data-bulletin-back-header="true"]',
      '.bulletin-chip',
      '.bulletin-icon-btn',
      'input',
@@ -98,6 +99,23 @@ export const BulletinCenter = function BulletinCenter({
  const selectSegment = useCallback((segment: "all" | "unread") => {
    segmentPager.navigateTo(segment);
  }, [segmentPager.navigateTo]);
+
+ // The segmented-control thumb shares the exact same MotionValue as the page
+ // gesture, so it travels with the finger instead of waiting for React state.
+ const segmentIndicatorX = useTransform(
+   segmentPager.indicatorPosition,
+   (position) => `${(isRtl ? 1 - position : position) * 100}%`,
+ );
+ const allLabelOpacity = useTransform(
+   segmentPager.indicatorPosition,
+   [0, 1],
+   [1, 0.58],
+ );
+ const unreadLabelOpacity = useTransform(
+   segmentPager.indicatorPosition,
+   [0, 1],
+   [0.58, 1],
+ );
 
  // During the complete exit -> React commit -> entrance handoff, keep showing
  // the already-painted destination page underneath. Only swap the hidden
@@ -352,34 +370,27 @@ export const BulletinCenter = function BulletinCenter({
  }}
  >
  {/* ENHANCED iOS HEADER */}
-        <header className="px-4 md:px-6 pt-5 pb-4 flex flex-col gap-4 shrink-0 safe-top">
+        <header data-bulletin-back-header="true" className="px-4 md:px-6 pt-5 pb-4 flex flex-col gap-4 shrink-0 safe-top">
           <div className="flex items-center justify-between gap-4">
             {/* SEGMENTED CONTROL - iOS Style */}
-            <div className="bulletin-segment flex-1 p-[3px] bg-neutral-200/80 dark:bg-white/[0.08] rounded-[10px] flex relative items-center h-[34px]">
+            <div className="bulletin-segment flex-1 p-[3px] bg-neutral-200/80 dark:bg-white/[0.08] rounded-[10px] flex relative items-center h-[34px] overflow-hidden">
+              <motion.div
+                aria-hidden="true"
+                className="absolute top-[3px] bottom-[3px] left-[3px] w-[calc(50%_-_3px)] bg-white dark:bg-[#3A3A3C] rounded-[8px] shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-none dark:ring-1 dark:ring-white/[0.08] pointer-events-none"
+                style={{ x: segmentIndicatorX }}
+              />
               {(["all", "unread"] as const).map((segment) => (
                 <button
                   key={segment}
                   onClick={() => selectSegment(segment)}
-                  className={`bulletin-seg-btn relative flex-1 h-full flex items-center justify-center text-[14px] rounded-[8px] z-10 transition-colors duration-150 ${
-                    activeSegment === segment
-                      ? "text-neutral-900 dark:text-white font-semibold"
-                      : "text-neutral-500 dark:text-[#EBEBF599] font-medium hover:text-neutral-700 dark:hover:text-[#EBEBF5CC]"
-                  }`}
+                  className="bulletin-seg-btn relative flex-1 h-full flex items-center justify-center text-[14px] rounded-[8px] z-10 text-neutral-900 dark:text-white font-semibold"
                 >
-                  {activeSegment === segment && (
-                    <motion.div
-                      layoutId="segment-indicator"
-                      className="absolute inset-0 bg-white dark:bg-[#3A3A3C] rounded-[8px] shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-none dark:ring-1 dark:ring-white/[0.08] z-[-1]"
-                      transition={{
-                        type: "spring",
-                        bounce: 0,
-                        duration: 0.18,
-                      }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">
+                  <motion.span
+                    className="relative z-10 flex items-center gap-1.5"
+                    style={{ opacity: segment === "all" ? allLabelOpacity : unreadLabelOpacity }}
+                  >
                     {segment === "all" ? isRtl ? "الكل" : "All" : isRtl ? "غير مقروء" : "Unread"}
-                  </span>
+                  </motion.span>
                 </button>
               ))}
             </div>

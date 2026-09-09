@@ -108,7 +108,7 @@ export default function SendNotification({ language }: SendNotificationProps) {
  {isRtl ? "المستلمون" : "Recipients"}
  </label>
  <div className="flex flex-wrap gap-1 p-1 bg-neutral-100 dark:bg-[#2C2C2E]/80 rounded-lg">
- {["All Students", "Group A", "Group B", "Group C", "Group D"].map((option) => {
+ {["All Students", "Group A", "Group B", "Group C", "Group D", "Group E"].map((option) => {
  const active = recipient === option;
  const label = isRtl
  ? option === "All Students"

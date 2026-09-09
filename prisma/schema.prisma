@@ -220,7 +220,7 @@ model Notification {
   message      String
   isSystem     Boolean  @default(true)
   targetUserId String?
-  targetGroup  String? // null = everyone; "A"/"B"/"C"/"D" = that group only
+  targetGroup  String? // null = everyone; "A"/"B"/"C"/"D"/"E" = that group only
   createdAt    DateTime @default(now())
 
   @@index([createdAt])

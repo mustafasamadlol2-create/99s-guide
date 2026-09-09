@@ -1731,6 +1731,28 @@ export default function App() {
 
   const isStandaloneLegalPage = ["privacy", "terms", "support", "disclaimer"].includes(activeTab);
 
+  // Notifications opened from the Profile bell use their own native-style page
+  // layer. The real Profile page stays mounted underneath, while Back belongs
+  // exclusively to the Notifications header so All/Unread paging can own the
+  // rest of the screen without competing recognizers.
+  const bulletinReturnsToProfile =
+    activeTab === "bulletin" && navigationStackTop?.activeTab === "profile";
+
+  const handleBulletinBack = useCallback(() => {
+    restorePreviousNavigationEntry();
+  }, [restorePreviousNavigationEntry]);
+
+  const bulletinBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    surfaceSelector: '[data-bulletin-page-swipe-surface="true"]',
+    allowedStartSelector: '[data-bulletin-back-header="true"]',
+    allowInteractiveStart: true,
+    isEnabled:
+      bulletinReturnsToProfile &&
+      !isCommandPaletteOpen,
+    onSwipeBack: handleBulletinBack,
+  });
+
   const rootBackGesture = useSwipeBack({
     direction: swipeDirection,
     surfaceSelector: '#root-navigation-page-layer',
@@ -1744,8 +1766,14 @@ export default function App() {
       // swipe-back is exposed on either iPhone or iPad.
       activeTab !== "calendar" &&
       activeTab !== "control-center" &&
+      !bulletinReturnsToProfile &&
       !(activeTab === "profile" && isProfileSubViewOpen) &&
       !(activeTab === "control-center" && controlCenterHasBackHistory),
+    allowedStartSelector:
+      activeTab === "bulletin"
+        ? '[data-bulletin-back-header="true"]'
+        : undefined,
+    allowInteractiveStart: activeTab === "bulletin",
     onSwipeBack: () => {
       restorePreviousNavigationEntry();
     },
@@ -5181,9 +5209,33 @@ const handleSignOut = useCallback(async () => {
 
             {/* Tab 4: Profile */}
             <div
-              style={{ display: activeTab === "profile" ? "block" : "none" }}
-              className="w-full"
+              aria-hidden={bulletinReturnsToProfile || undefined}
+              style={{
+                display:
+                  activeTab === "profile" || bulletinReturnsToProfile
+                    ? "block"
+                    : "none",
+                position: bulletinReturnsToProfile ? "absolute" : "relative",
+                inset: bulletinReturnsToProfile ? 0 : undefined,
+                zIndex: bulletinReturnsToProfile ? 0 : undefined,
+                pointerEvents: bulletinReturnsToProfile ? "none" : "auto",
+                minHeight: navigationSurfaceMinHeight,
+              }}
+              className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
+              {bulletinReturnsToProfile && usePhoneLayout && (
+                <div className="mb-6 pt-2 select-none flex items-center justify-between">
+                  <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                    {language === "ar" ? "ملف الطالب" : "Profile"}
+                  </h1>
+                  <div className="relative flex items-center justify-center w-10 h-10 -mr-2 rounded-full">
+                    <Bell className="w-[22px] h-[22px] text-neutral-600 dark:text-neutral-400" />
+                    {unreadNotificationsCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-[1.5px] border-white dark:border-neutral-950" />
+                    )}
+                  </div>
+                </div>
+              )}
               <motion.div
                 initial={false}
                 animate={{ opacity: 1, scale: 1 }}
@@ -5376,17 +5428,39 @@ const handleSignOut = useCallback(async () => {
               </div>
             )}
 
-            {/* Tab 7: Bulletin */}
+            {/* Tab 7: Bulletin. When opened from Profile, the live Profile
+                page remains underneath and only this opaque Bulletin layer
+                moves. This mirrors the persistent stacks used by Modules and
+                Subjects and prevents black/root-canvas reveals. */}
             <div
-              style={{ display: activeTab === "bulletin" ? "block" : "none" }}
-              className="w-full"
+              style={{
+                display: activeTab === "bulletin" ? "block" : "none",
+                position: "relative",
+                zIndex: activeTab === "bulletin" ? 10 : undefined,
+              }}
+              className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
               <motion.div
+                data-bulletin-page-swipe-surface="true"
+                data-swipe-back-surface="true"
                 initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                style={{ willChange: "transform, opacity" }}
-                className="w-full"
+                style={{
+                  x: bulletinReturnsToProfile ? bulletinBackGesture.x : 0,
+                  minHeight: navigationSurfaceMinHeight,
+                  boxShadow:
+                    bulletinReturnsToProfile && bulletinBackGesture.isInteracting
+                      ? (isRtl
+                          ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                          : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                      : "none",
+                  willChange:
+                    bulletinReturnsToProfile && bulletinBackGesture.isInteracting
+                      ? "transform"
+                      : "auto",
+                }}
+                className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
               >
                 <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
