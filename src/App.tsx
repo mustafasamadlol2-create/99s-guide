@@ -1738,6 +1738,17 @@ export default function App() {
   const bulletinReturnsToProfile =
     activeTab === "bulletin" && navigationStackTop?.activeTab === "profile";
 
+  // On iPhone, Settings is a pushed page above the real Profile root. Keeping
+  // Profile mounted underneath gives Settings the same native persistent-stack
+  // Back behavior already used by Notifications, Modules and Subjects.
+  const settingsReturnsToProfile =
+    device.isPhone &&
+    activeTab === "settings" &&
+    navigationStackTop?.activeTab === "profile";
+
+  const persistentProfileUnderlay =
+    bulletinReturnsToProfile || settingsReturnsToProfile;
+
   const handleBulletinBack = useCallback(() => {
     restorePreviousNavigationEntry();
   }, [restorePreviousNavigationEntry]);
@@ -1751,6 +1762,18 @@ export default function App() {
       bulletinReturnsToProfile &&
       !isCommandPaletteOpen,
     onSwipeBack: handleBulletinBack,
+  });
+
+  const handleSettingsBack = useCallback(() => {
+    restorePreviousNavigationEntry();
+  }, [restorePreviousNavigationEntry]);
+
+  const settingsBackGesture = useSwipeBack({
+    direction: swipeDirection,
+    surfaceSelector: '[data-settings-page-swipe-surface="true"]',
+    allowedStartSelector: '[data-settings-page-swipe-surface="true"]',
+    isEnabled: settingsReturnsToProfile && !isCommandPaletteOpen,
+    onSwipeBack: handleSettingsBack,
   });
 
   const rootBackGesture = useSwipeBack({
@@ -1767,6 +1790,7 @@ export default function App() {
       activeTab !== "calendar" &&
       activeTab !== "control-center" &&
       !bulletinReturnsToProfile &&
+      !settingsReturnsToProfile &&
       !(activeTab === "profile" && isProfileSubViewOpen) &&
       !(activeTab === "control-center" && controlCenterHasBackHistory),
     allowedStartSelector:
@@ -4763,7 +4787,7 @@ const handleSignOut = useCallback(async () => {
         <main
           id="main-scroll-canvas"
           onScroll={handlePhoneTabBarVerticalScroll}
-          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout && activeTab !== "bulletin" ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
             // The phone scroll inset is supplied by .ios-main-scroll so it
@@ -4789,7 +4813,9 @@ const handleSignOut = useCallback(async () => {
           {((activeTab === "subjects" && activeSubjectId === null && activeModuleId === null) ||
             ["calendar", "control-center", "profile", "settings"].includes(
               activeTab,
-            )) && (
+            )) &&
+            !(usePhoneLayout && activeTab === "profile" && isProfileSubViewOpen) &&
+            !(usePhoneLayout && activeTab === "settings" && settingsReturnsToProfile) && (
             <div className={`mb-6 pt-2 select-none ${usePhoneLayout ? "" : "md:hidden"}`}>
               {activeTab === "profile" && usePhoneLayout ? (
                 <div className="flex items-center justify-between">
@@ -5209,21 +5235,24 @@ const handleSignOut = useCallback(async () => {
 
             {/* Tab 4: Profile */}
             <div
-              aria-hidden={bulletinReturnsToProfile || undefined}
+              aria-hidden={persistentProfileUnderlay || undefined}
               style={{
                 display:
-                  activeTab === "profile" || bulletinReturnsToProfile
+                  activeTab === "profile" || persistentProfileUnderlay
                     ? "block"
                     : "none",
-                position: bulletinReturnsToProfile ? "absolute" : "relative",
-                inset: bulletinReturnsToProfile ? 0 : undefined,
-                zIndex: bulletinReturnsToProfile ? 0 : undefined,
-                pointerEvents: bulletinReturnsToProfile ? "none" : "auto",
+                position: persistentProfileUnderlay ? "absolute" : "relative",
+                inset: persistentProfileUnderlay ? 0 : undefined,
+                zIndex: persistentProfileUnderlay ? 0 : undefined,
+                pointerEvents: persistentProfileUnderlay ? "none" : "auto",
                 minHeight: navigationSurfaceMinHeight,
+                transform: persistentProfileUnderlay
+                  ? `translateY(-${Math.max(0, navigationStackTop?.scrollTop ?? 0)}px)`
+                  : undefined,
               }}
               className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
-              {bulletinReturnsToProfile && usePhoneLayout && (
+              {persistentProfileUnderlay && usePhoneLayout && (
                 <div className="mb-6 pt-2 select-none flex items-center justify-between">
                   <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
                     {language === "ar" ? "ملف الطالب" : "Profile"}
@@ -5267,14 +5296,27 @@ const handleSignOut = useCallback(async () => {
             {/* Tab 5 + legal detail stack: Settings stays live underneath the
                 pushed legal page, matching the persistent native stacks used by
                 Modules and Subjects. Only the detail layer moves during Back. */}
-            <div
+            <motion.div
+              data-settings-page-swipe-surface={settingsReturnsToProfile ? "true" : undefined}
+              data-swipe-back-surface={settingsReturnsToProfile ? "true" : undefined}
               style={{
                 display:
                   activeTab === "settings" || isStandaloneLegalPage
                     ? "block"
                     : "none",
+                x: settingsReturnsToProfile ? settingsBackGesture.x : 0,
+                boxShadow:
+                  settingsReturnsToProfile && settingsBackGesture.isInteracting
+                    ? (isRtl
+                        ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                        : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                    : "none",
+                willChange:
+                  settingsReturnsToProfile && settingsBackGesture.isInteracting
+                    ? "transform"
+                    : "auto",
               }}
-              className="w-full min-h-full"
+              className="relative z-10 w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
             >
               <div
                 className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
@@ -5296,7 +5338,7 @@ const handleSignOut = useCallback(async () => {
                   {/* On iPhone the native large Settings title normally sits
                       outside this route. Keep an identical copy in the parent
                       while a legal page is pushed so the reveal is complete. */}
-                  {isStandaloneLegalPage && usePhoneLayout && (
+                  {(isStandaloneLegalPage || settingsReturnsToProfile) && usePhoneLayout && (
                     <div className="mb-6 pt-2 select-none">
                       <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
                         {language === "ar" ? "الإعدادات" : "Settings"}
@@ -5375,7 +5417,7 @@ const handleSignOut = useCallback(async () => {
                   </motion.div>
                 )}
               </div>
-            </div>
+            </motion.div>
 
             {/* Tab 6: Control Center (Admin only) */}
             {(currentUser?.isAdmin ||
@@ -5437,6 +5479,16 @@ const handleSignOut = useCallback(async () => {
                 display: activeTab === "bulletin" ? "block" : "none",
                 position: "relative",
                 zIndex: activeTab === "bulletin" ? 10 : undefined,
+                ...(usePhoneLayout
+                  ? {
+                      marginInline: isCompactHeight ? "-24px" : "-16px",
+                      width: isCompactHeight
+                        ? "calc(100% + 48px)"
+                        : "calc(100% + 32px)",
+                      marginTop: "calc(-16px - env(safe-area-inset-top, 0px))",
+                      minHeight: "100dvh",
+                    }
+                  : {}),
               }}
               className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
@@ -5466,6 +5518,8 @@ const handleSignOut = useCallback(async () => {
 <ErrorBoundary>
                   <BulletinCenter
                     notifications={notifications}
+                    fullPageMobile={usePhoneLayout}
+                    onBack={bulletinReturnsToProfile ? bulletinBackGesture.triggerBack : undefined}
                     onMarkRead={handleMarkNotificationRead}
                     onMarkUnread={handleMarkNotificationUnread}
                     onMarkAllRead={handleMarkAllNotificationsRead}
@@ -5503,7 +5557,7 @@ const handleSignOut = useCallback(async () => {
             isPhoneTabBarEngaged ? "ios-tabbar-engaged" : "ios-tabbar-resting"
           } ${
             showPhoneFloatingSearch ? "ios-floating-tabbar-with-search" : ""
-          } ${usePhoneLayout ? "block" : "hidden"}`}
+          } ${usePhoneLayout && activeTab !== "bulletin" ? "block" : "hidden"}`}
         >
           <div className="ios-floating-tabbar-cluster">
             <div

@@ -21,6 +21,7 @@ import {
  Pin,
  Share2,
  Archive,
+ ChevronLeft,
  ChevronRight,
  X,
  Inbox,
@@ -34,6 +35,8 @@ import { useBulletinSegmentPager } from "../hooks/useBulletinSegmentPager";
 
 interface BulletinCenterProps {
   isActive?: boolean;
+  fullPageMobile?: boolean;
+  onBack?: () => void;
  notifications: AppNotification[];
  onMarkRead: (id: string) => void;
  onMarkUnread: (id: string) => void;
@@ -47,6 +50,8 @@ interface BulletinCenterProps {
 }
 
 export const BulletinCenter = function BulletinCenter({
+ fullPageMobile = false,
+ onBack,
  notifications,
  onMarkRead,
  onMarkUnread,
@@ -362,15 +367,39 @@ export const BulletinCenter = function BulletinCenter({
  <div
  ref={segmentPager.surfaceRef}
  data-bulletin-segment-swipe-surface="true"
- className="bulletin-root w-full flex flex-col relative overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
+ className={`bulletin-root w-full flex flex-col relative overflow-x-hidden bg-neutral-50 dark:bg-[#000000] ${fullPageMobile ? "min-h-[100dvh]" : ""}`}
  style={{
  direction: isRtl ? "rtl" : "ltr",
- paddingBottom: "110px",
+ paddingBottom: fullPageMobile
+   ? "calc(16px + env(safe-area-inset-bottom, 0px))"
+   : "110px",
  touchAction: "pan-y",
  }}
  >
  {/* ENHANCED iOS HEADER */}
-        <header data-bulletin-back-header="true" className="px-4 md:px-6 pt-5 pb-4 flex flex-col gap-4 shrink-0 safe-top">
+        <header data-bulletin-back-header="true" className={`${fullPageMobile ? "px-4 pt-2" : "px-4 md:px-6 pt-5"} pb-4 flex flex-col gap-4 shrink-0 safe-top bg-neutral-50 dark:bg-[#000000]`}>
+          {fullPageMobile && (
+            <div className="relative flex items-center justify-center min-h-11">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="absolute left-0 w-11 h-11 -ml-2 flex items-center justify-center rounded-full text-blue-500 dark:text-blue-400 active:bg-neutral-200/70 dark:active:bg-white/[0.08] transition-colors"
+                  aria-label={isRtl ? "رجوع" : "Back"}
+                >
+                  {isRtl ? (
+                    <ChevronRight className="w-6 h-6" strokeWidth={2.1} />
+                  ) : (
+                    <ChevronLeft className="w-6 h-6" strokeWidth={2.1} />
+                  )}
+                </button>
+              )}
+              <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-neutral-900 dark:text-white">
+                {isRtl ? "الإشعارات" : "Notifications"}
+              </h1>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-4">
             {/* SEGMENTED CONTROL - iOS Style */}
             <div className="bulletin-segment flex-1 p-[3px] bg-neutral-200/80 dark:bg-white/[0.08] rounded-[10px] flex relative items-center h-[34px] overflow-hidden">

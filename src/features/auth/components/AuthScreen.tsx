@@ -41,6 +41,11 @@ import {
   GraduationCap, ClipboardCheck, ShieldCheck, PenLine,
 } from "lucide-react";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
+import { useSwipeBack, isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
+import PrivacyPolicyView from "../../legal/components/PrivacyPolicyView";
+import TermsOfServiceView from "../../legal/components/TermsOfServiceView";
+import SupportView from "../../legal/components/SupportView";
+import MedicalDisclaimerView from "../../legal/components/MedicalDisclaimerView";
 import {
   AuthSpinner, AuthSocialButton, AuthPasswordField,
   AuthValidation, DEFAULT_RULES, AuthAnimatedCheck,
@@ -84,6 +89,7 @@ interface AuthScreenProps {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SocialStatus = "idle" | "loading" | "success" | "error";
+type AuthLegalPath = "/privacy" | "/terms" | "/support" | "/disclaimer";
 
 
 // ─── Auto-countdown progress bar ─────────────────────────────────────────────
@@ -155,6 +161,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
   const dark = useDarkMode();
   const [showTerms,       setShowTerms]       = useState(false);
   const [showPrivacy,     setShowPrivacy]     = useState(false);
+  const [authLegalPath,   setAuthLegalPath]   = useState<AuthLegalPath | null>(null);
   const [error,           setError]           = useState("");
   const [isLoading,       setIsLoading]       = useState(false);
   const [socialState,     setSocialState]     = useState<Record<string, SocialStatus>>({});
@@ -200,6 +207,28 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
       oauthInFlightRef.current = false;
     };
   }, []);
+
+  const closeAuthLegalPage = useCallback(() => {
+    setAuthLegalPath(null);
+  }, []);
+
+  const authLegalBackGesture = useSwipeBack({
+    isEnabled: authLegalPath !== null,
+    direction: "ltr",
+    surfaceSelector: '[data-auth-legal-swipe-surface="true"]',
+    allowedStartSelector: '[data-auth-legal-swipe-surface="true"]',
+    onSwipeBack: closeAuthLegalPage,
+  });
+
+  const openAuthLegalPage = useCallback((path: AuthLegalPath) => {
+    // iPhone/iPad use a persistent local stack so the Auth screen remains live
+    // underneath the legal page. Desktop/web keeps the public route behavior.
+    if (isAppleTouchNavigationDevice()) {
+      setAuthLegalPath(path);
+      return;
+    }
+    onNavigateToLegal(path);
+  }, [onNavigateToLegal]);
 
   const isValidEmail = useCallback((value: string) => {
     const normalized = value.trim();
@@ -2282,7 +2311,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                 <button
                   key={link.href}
                   type="button"
-                  onClick={() => onNavigateToLegal(link.href)}
+                  onClick={() => openAuthLegalPage(link.href as AuthLegalPath)}
                   className="text-med-blue dark:text-amber-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-med-blue dark:focus-visible:ring-amber-400 rounded-sm px-0.5"
                 >
                   {link.label}
@@ -2294,6 +2323,44 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
         </div>
         <div className="flex-grow shrink-0 min-h-[20px] max-h-[10vh]" />
       </div>
+
+      {/* ── Native iPhone/iPad legal page stack ───────────────────────────
+          The Auth screen stays mounted underneath. Only the opaque legal page
+          participates in Back, so the gesture can never expose a white/black
+          root canvas or restart the auth entrance animation. */}
+      <AnimatePresence initial={false}>
+        {authLegalPath && (
+          <motion.div
+            key={`auth-legal-${authLegalPath}`}
+            data-auth-legal-swipe-surface="true"
+            data-swipe-back-surface="true"
+            initial={false}
+            exit={{ opacity: 1 }}
+            className="fixed inset-0 z-[120] overflow-y-auto ios-scrollable bg-[#F8F9FC] dark:bg-[#000000]"
+            style={{
+              x: authLegalBackGesture.x,
+              minHeight: "100dvh",
+              boxShadow: authLegalBackGesture.isInteracting
+                ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
+                : "none",
+              willChange: authLegalBackGesture.isInteracting ? "transform" : "auto",
+            }}
+          >
+            {authLegalPath === "/privacy" && (
+              <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} />
+            )}
+            {authLegalPath === "/terms" && (
+              <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} />
+            )}
+            {authLegalPath === "/support" && (
+              <SupportView onBack={authLegalBackGesture.triggerBack} />
+            )}
+            {authLegalPath === "/disclaimer" && (
+              <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Terms / Privacy modal ── */}
       <AnimatePresence>

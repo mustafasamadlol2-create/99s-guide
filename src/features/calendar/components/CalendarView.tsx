@@ -347,47 +347,15 @@ const CalendarView = memo(function CalendarView({
  language,
  });
 
- // Keep independent scroll positions for Month / Week / Day, like native
- // tab views. Switching views no longer destroys the user's reading position.
- const calendarViewScrollPositionsRef = useRef<Record<string, number>>({});
- const pendingCalendarScrollRef = useRef<number | null>(null);
-
- const getMainScrollCanvas = React.useCallback(() =>
- document.getElementById("main-scroll-canvas") as HTMLElement | null, []);
-
- const getCalendarScrollKey = React.useCallback((view: string) =>
- `calendar_scroll_${view}`, []);
-
- const saveCalendarViewScroll = React.useCallback((view = activeView) => {
- const canvas = getMainScrollCanvas();
- if (!canvas) return;
- const position = canvas.scrollTop;
- calendarViewScrollPositionsRef.current[view] = position;
- try {
- sessionStorage.setItem(getCalendarScrollKey(view), String(position));
- } catch {}
- }, [activeView, getCalendarScrollKey, getMainScrollCanvas]);
-
+ // View switching must never write to the shared app scroll canvas. The
+ // calendar deck stays anchored where the user left it while only its inner
+ // presentation changes. Disabling scroll anchoring below prevents WebKit from
+ // "helpfully" re-centering the viewport when Month/Week/Day have different
+ // intrinsic heights.
  const commitCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
  if (nextView === activeView) return;
-
- const canvas = getMainScrollCanvas();
- const currentPosition = canvas?.scrollTop ?? 0;
- saveCalendarViewScroll(activeView);
-
- let nextPosition = calendarViewScrollPositionsRef.current[nextView];
- if (nextPosition == null) {
- try {
- const stored = sessionStorage.getItem(getCalendarScrollKey(nextView));
- if (stored != null) nextPosition = Number(stored);
- } catch {}
- }
-
- pendingCalendarScrollRef.current = Number.isFinite(nextPosition)
- ? nextPosition
- : currentPosition;
  setActiveView(nextView);
- }, [activeView, getCalendarScrollKey, getMainScrollCanvas, saveCalendarViewScroll, setActiveView]);
+ }, [activeView, setActiveView]);
 
  // Week / Day / Month are three adjacent native-style pages. This gesture
  // switches the VIEW only; it never invokes next/previous week/day/month.
@@ -396,8 +364,7 @@ const CalendarView = memo(function CalendarView({
  isRtl,
  onCommit: commitCalendarViewChange,
  blockedSelector: [
- '#month_banner_nav',
- '#week_columns_container',
+ 'button',
  'input',
  'textarea',
  'select',
@@ -409,54 +376,6 @@ const CalendarView = memo(function CalendarView({
  const handleCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
  calendarViewPager.navigateTo(nextView as CalendarViewMode);
  }, [calendarViewPager.navigateTo]);
-
- useEffect(() => {
- const canvas = getMainScrollCanvas();
- if (!canvas) return;
-
- let frame = 0;
- const onScroll = () => {
- cancelAnimationFrame(frame);
- frame = requestAnimationFrame(() => saveCalendarViewScroll(activeView));
- };
- canvas.addEventListener("scroll", onScroll, { passive: true });
- return () => {
- cancelAnimationFrame(frame);
- canvas.removeEventListener("scroll", onScroll);
- };
- }, [activeView, getMainScrollCanvas, saveCalendarViewScroll]);
-
- React.useLayoutEffect(() => {
- const requested = pendingCalendarScrollRef.current;
- if (requested == null) return;
- pendingCalendarScrollRef.current = null;
-
- let frame1 = 0;
- let frame2 = 0;
- let settleTimer: ReturnType<typeof setTimeout> | null = null;
- let hasAppliedRestore = false;
- let lastAppliedPosition = 0;
- const restore = () => {
- const canvas = getMainScrollCanvas();
- if (!canvas) return;
- if (hasAppliedRestore && Math.abs(canvas.scrollTop - lastAppliedPosition) > 6) return;
- const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
- const nextPosition = Math.min(Math.max(0, requested), maxScroll);
- canvas.scrollTop = nextPosition;
- lastAppliedPosition = nextPosition;
- hasAppliedRestore = true;
- };
-
- frame1 = requestAnimationFrame(() => {
- frame2 = requestAnimationFrame(restore);
- });
- settleTimer = setTimeout(restore, 440);
- return () => {
- cancelAnimationFrame(frame1);
- cancelAnimationFrame(frame2);
- if (settleTimer) clearTimeout(settleTimer);
- };
- }, [activeView, getMainScrollCanvas]);
 
  useEffect(() => {
  const handleKeyDown = (e: KeyboardEvent) => {
@@ -539,6 +458,7 @@ const CalendarView = memo(function CalendarView({
  {showMiniCalendar && (
  <motion.div
  ref={miniCalendarRef}
+ data-calendar-view-pager-disabled="true"
  initial={{ opacity: 0, y: -10, scale: 0.95 }}
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -691,15 +611,16 @@ const CalendarView = memo(function CalendarView({
  <CalendarHeader t={t} isRtl={isRtl} isPhone={isPhone} useLiveIndicator={disableDayHover} activeView={activeView} setActiveView={handleCalendarViewChange} indicatorPosition={calendarViewPager.indicatorPosition} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <motion.div
- ref={calendarViewPager.surfaceRef}
  id="left_middle_deck"
- data-calendar-view-pager-surface="true"
  className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition duration-normal ${isPhone ? "p-3 rounded-[18px] space-y-4" : "p-card-padding rounded-lg space-y-section"}`}
+ style={{ overflowAnchor: "none" }}
  >
  {/* NAVIGATION BAR - MONTHS */}
  <div
+ ref={calendarViewPager.surfaceRef}
  id="month_banner_nav"
- className="flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none"
+ data-calendar-view-switch-swipe-header="true"
+ className="flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none touch-pan-y"
  >
  <div className="flex items-center gap-2 relative z-50">
  <span
@@ -783,7 +704,7 @@ const CalendarView = memo(function CalendarView({
  {/* View Switcher Container */}
  <SmoothAutoHeight
  dependency={activeView}
- durationMs={380}
+ durationMs={420}
  className="w-full pt-1 min-w-0 overflow-hidden [overflow-anchor:none]"
  contentClassName="relative grid w-full min-w-0 overflow-hidden"
  style={{
