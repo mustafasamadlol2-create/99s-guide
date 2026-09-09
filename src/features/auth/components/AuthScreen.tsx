@@ -21,6 +21,7 @@ import { SecureStorage } from "../../../core/utils/secureStorage";
 import React, {
   useState, useRef, useCallback, useEffect, memo,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   motion, AnimatePresence, useReducedMotion,
 } from "motion/react";
@@ -2328,39 +2329,53 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
           The Auth screen stays mounted underneath. Only the opaque legal page
           participates in Back, so the gesture can never expose a white/black
           root canvas or restart the auth entrance animation. */}
-      <AnimatePresence initial={false}>
-        {authLegalPath && (
-          <motion.div
-            key={`auth-legal-${authLegalPath}`}
-            data-auth-legal-swipe-surface="true"
-            data-swipe-back-surface="true"
-            initial={false}
-            exit={{ opacity: 1 }}
-            className="fixed inset-0 z-[120] overflow-y-auto ios-scrollable bg-[#F8F9FC] dark:bg-[#000000]"
-            style={{
-              x: authLegalBackGesture.x,
-              minHeight: "100dvh",
-              boxShadow: authLegalBackGesture.isInteracting
-                ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
-                : "none",
-              willChange: authLegalBackGesture.isInteracting ? "transform" : "auto",
-            }}
-          >
-            {authLegalPath === "/privacy" && (
-              <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} />
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence initial={false}>
+            {authLegalPath && (
+              <motion.div
+                key={`auth-legal-${authLegalPath}`}
+                data-auth-legal-swipe-surface="true"
+                data-swipe-back-surface="true"
+                initial={false}
+                exit={{ opacity: 1 }}
+                className="fixed inset-0 isolate overflow-hidden bg-[#F8F9FC] dark:bg-[#000000]"
+                style={{
+                  x: authLegalBackGesture.x,
+                  width: "100vw",
+                  height: "100dvh",
+                  minHeight: "100dvh",
+                  zIndex: 2147483000,
+                  boxShadow: authLegalBackGesture.isInteracting
+                    ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
+                    : "none",
+                  // The legal page is a separate top-level surface now. Keeping
+                  // this single foreground layer promoted for its pushed
+                  // lifetime prevents first-frame compositor jitter, while the
+                  // Auth page remains a normal live DOM page underneath.
+                  willChange: "transform",
+                  WebkitBackfaceVisibility: "hidden",
+                  backfaceVisibility: "hidden",
+                  touchAction: "pan-y",
+                }}
+              >
+                {authLegalPath === "/privacy" && (
+                  <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} />
+                )}
+                {authLegalPath === "/terms" && (
+                  <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} />
+                )}
+                {authLegalPath === "/support" && (
+                  <SupportView onBack={authLegalBackGesture.triggerBack} />
+                )}
+                {authLegalPath === "/disclaimer" && (
+                  <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} />
+                )}
+              </motion.div>
             )}
-            {authLegalPath === "/terms" && (
-              <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} />
-            )}
-            {authLegalPath === "/support" && (
-              <SupportView onBack={authLegalBackGesture.triggerBack} />
-            )}
-            {authLegalPath === "/disclaimer" && (
-              <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} />
-            )}
-          </motion.div>
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
 
       {/* ── Terms / Privacy modal ── */}
       <AnimatePresence>

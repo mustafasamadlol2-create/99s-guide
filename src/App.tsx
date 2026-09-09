@@ -1742,7 +1742,7 @@ export default function App() {
   // Profile mounted underneath gives Settings the same native persistent-stack
   // Back behavior already used by Notifications, Modules and Subjects.
   const settingsReturnsToProfile =
-    device.isPhone &&
+    (device.isPhone || device.isIPadOS) &&
     activeTab === "settings" &&
     navigationStackTop?.activeTab === "profile";
 
@@ -2253,6 +2253,27 @@ export default function App() {
     // to the saved position. Re-assert on the next two frames for WKWebView
     // layouts whose height settles one compositor tick later.
     restore();
+
+    // Profile is already mounted underneath Settings/Notifications during an
+    // interactive pop. Its layout is complete in this very commit, so repeated
+    // RAF/timer writes are not only unnecessary — on iOS they visibly move the
+    // page a few pixels after the swipe has finished. Native persistent-stack
+    // returns therefore perform one synchronous pre-paint restoration only.
+    const isPersistentProfileReturn =
+      queuedStackPosition !== null &&
+      navigationPath === "/profile" &&
+      (previousPath === "/settings" || previousPath === "/bulletin");
+
+    if (isPersistentProfileReturn) {
+      if (
+        pendingNavigationScrollRestoreRef.current === queuedStackPosition
+      ) {
+        pendingNavigationScrollRestoreRef.current = null;
+      }
+      isRestoringGlobalScrollRef.current = false;
+      return;
+    }
+
     frame1 = requestAnimationFrame(() => {
       restore();
       frame2 = requestAnimationFrame(restore);
@@ -5242,13 +5263,21 @@ const handleSignOut = useCallback(async () => {
                     ? "block"
                     : "none",
                 position: persistentProfileUnderlay ? "absolute" : "relative",
-                inset: persistentProfileUnderlay ? 0 : undefined,
+                insetInline: persistentProfileUnderlay ? 0 : undefined,
+                top: persistentProfileUnderlay
+                  ? -Math.max(0, navigationStackTop?.scrollTop ?? 0)
+                  : undefined,
                 zIndex: persistentProfileUnderlay ? 0 : undefined,
                 pointerEvents: persistentProfileUnderlay ? "none" : "auto",
                 minHeight: navigationSurfaceMinHeight,
-                transform: persistentProfileUnderlay
-                  ? `translateY(-${Math.max(0, navigationStackTop?.scrollTop ?? 0)}px)`
-                  : undefined,
+                // Keep the Profile parent as a normal DOM layer while it is
+                // revealed by Settings/Notifications. A translateY() here made
+                // WebKit promote both parent and child to compositor layers,
+                // which caused the vertical shimmer/reposition visible during
+                // interactive Back. Positioning the already-mounted parent at
+                // its saved scroll offset is visually identical without a
+                // second moving GPU surface.
+                transform: "none",
               }}
               className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
@@ -5311,10 +5340,13 @@ const handleSignOut = useCallback(async () => {
                         ? "18px 0 30px -18px rgba(0,0,0,0.48)"
                         : "-18px 0 30px -18px rgba(0,0,0,0.48)")
                     : "none",
-                willChange:
-                  settingsReturnsToProfile && settingsBackGesture.isInteracting
-                    ? "transform"
-                    : "auto",
+                // Pre-promote only the outgoing page while it is pushed.
+                // Avoid creating the layer on the first drag frame, which is
+                // visible as a tiny vibration in WKWebView.
+                willChange: settingsReturnsToProfile ? "transform" : "auto",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
+                touchAction: settingsReturnsToProfile ? "pan-y" : undefined,
               }}
               className="relative z-10 w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
             >
@@ -5507,10 +5539,10 @@ const handleSignOut = useCallback(async () => {
                           ? "18px 0 30px -18px rgba(0,0,0,0.48)"
                           : "-18px 0 30px -18px rgba(0,0,0,0.48)")
                       : "none",
-                  willChange:
-                    bulletinReturnsToProfile && bulletinBackGesture.isInteracting
-                      ? "transform"
-                      : "auto",
+                  willChange: bulletinReturnsToProfile ? "transform" : "auto",
+                  WebkitBackfaceVisibility: "hidden",
+                  backfaceVisibility: "hidden",
+                  touchAction: bulletinReturnsToProfile ? "pan-y" : undefined,
                 }}
                 className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
               >

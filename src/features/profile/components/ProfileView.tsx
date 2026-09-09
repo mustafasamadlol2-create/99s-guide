@@ -173,7 +173,6 @@ export const ProfileView = function ProfileView({
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
  const profileParentScrollTopRef = useRef(0);
  const pendingProfileScrollRestoreRef = useRef<number | null>(null);
- const profileRestoreFrameRef = useRef<number | null>(null);
 
  const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
    const canvas = document.getElementById("main-scroll-canvas");
@@ -213,26 +212,17 @@ export const ProfileView = function ProfileView({
    const requested = pendingProfileScrollRestoreRef.current;
    if (requested === null) return;
 
-   // Layout effects run before paint: the user sees the restored Profile at the
-   // exact old position, never an intermediate frame at scrollTop=0. Re-assert
-   // once on the next frame for WKWebView pages whose height settles late.
-   canvas.scrollTop = requested;
-   if (profileRestoreFrameRef.current !== null) {
-     cancelAnimationFrame(profileRestoreFrameRef.current);
-   }
-   profileRestoreFrameRef.current = requestAnimationFrame(() => {
-     profileRestoreFrameRef.current = null;
-     const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
-     canvas.scrollTop = Math.min(requested, maxScroll);
-     pendingProfileScrollRestoreRef.current = null;
-     onSubViewChange?.(false);
-   });
+   // The Profile parent never unmounts while Blocked Users / My Reports is
+   // pushed. Its final height is already available in this layout effect, so a
+   // single synchronous restoration is enough. The old extra RAF write was the
+   // source of the post-swipe "reposition" seen on iPhone/iPad.
+   const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+   canvas.scrollTop = Math.min(requested, maxScroll);
+   pendingProfileScrollRestoreRef.current = null;
+   onSubViewChange?.(false);
  }, [onSubViewChange, subView]);
 
  useEffect(() => () => {
-   if (profileRestoreFrameRef.current !== null) {
-     cancelAnimationFrame(profileRestoreFrameRef.current);
-   }
    onSubViewChange?.(false);
  }, [onSubViewChange]);
 
@@ -671,7 +661,13 @@ export const ProfileView = function ProfileView({
                  ? "18px 0 30px -18px rgba(0,0,0,0.48)"
                  : "-18px 0 30px -18px rgba(0,0,0,0.48)")
              : "none",
-           willChange: profileBackGesture.isInteracting ? "transform" : "auto",
+           // Keep the outgoing page in one stable compositor layer for its
+           // whole pushed lifetime. Promoting it only after the first touch
+           // caused the visible one-frame vibration on WebKit.
+           willChange: "transform",
+           WebkitBackfaceVisibility: "hidden",
+           backfaceVisibility: "hidden",
+           touchAction: "pan-y",
          }}
        >
          {subView === "blocked-users" ? (
