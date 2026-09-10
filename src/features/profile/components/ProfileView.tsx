@@ -5,7 +5,8 @@ import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useLayoutEffect, useRef, memo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import { createPortal } from "react-dom";
 import { User, PointsLog, Subject, UserProgress } from "../../../core/types";
 import { motion, AnimatePresence } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
@@ -189,30 +190,23 @@ export const ProfileView = function ProfileView({
  const isRtl = language === "ar";
  const tr = useCallback((english: string, arabic: string) => (isRtl ? arabic : english), [isRtl]);
 
- // Sub-view navigation. The Profile root remains mounted underneath the pushed
- // page so interactive Back reveals the real previous screen instead of the
- // app canvas. This mirrors the persistent stacks used by Modules/Subjects.
+ // Profile sub-pages are true viewport overlays. The Profile page underneath
+ // never changes position, never leaves normal document flow, and — most
+ // importantly — the shared main scroll canvas is never reset to 0. This is
+ // the native-stack invariant that removes the post-Back vertical jump: the
+ // page revealed during the swipe is literally the same already-painted page
+ // that remains after the swipe completes.
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
- const profileParentScrollTopRef = useRef(0);
- const pendingProfileScrollRestoreRef = useRef<number | null>(null);
 
  const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
-   const canvas = document.getElementById("main-scroll-canvas");
-   profileParentScrollTopRef.current = canvas?.scrollTop ?? 0;
-   // Tell App synchronously before this page moves the shared canvas to zero,
-   // so the root scroll-memory listener cannot overwrite the parent position.
    onSubViewChange?.(true);
    setSubView(next);
  }, [onSubViewChange]);
 
  const closeProfileSubView = useCallback(() => {
-   // Restore only after React has put the persistent Profile parent back into
-   // normal document flow. Writing scrollTop before setSubView(null) lets
-   // WebKit clamp/reset it during the same commit and causes the visible jump
-   // to the top seen in the recording.
-   pendingProfileScrollRestoreRef.current = profileParentScrollTopRef.current;
    setSubView(null);
- }, []);
+   onSubViewChange?.(false);
+ }, [onSubViewChange]);
 
  const profileBackGesture = useSwipeBack({
    isEnabled: Boolean(isActive && subView),
@@ -221,41 +215,6 @@ export const ProfileView = function ProfileView({
    allowedStartSelector: '[data-profile-subview-swipe-surface="true"]',
    onSwipeBack: closeProfileSubView,
  });
-
- useLayoutEffect(() => {
-   const canvas = document.getElementById("main-scroll-canvas");
-   if (!canvas) return;
-
-   const markProgrammaticScroll = () => {
-     canvas.dataset.programmaticScrollRestore = "true";
-     requestAnimationFrame(() => {
-       requestAnimationFrame(() => {
-         if (canvas.dataset.programmaticScrollRestore === "true") {
-           delete canvas.dataset.programmaticScrollRestore;
-         }
-       });
-     });
-   };
-
-   if (subView) {
-     markProgrammaticScroll();
-     canvas.scrollTop = 0;
-     return;
-   }
-
-   const requested = pendingProfileScrollRestoreRef.current;
-   if (requested === null) return;
-
-   // The Profile parent never unmounts while Blocked Users / My Reports is
-   // pushed. Its final height is already available in this layout effect, so a
-   // single synchronous restoration is enough. The old extra RAF write was the
-   // source of the post-swipe "reposition" seen on iPhone/iPad.
-   const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
-   markProgrammaticScroll();
-   canvas.scrollTop = Math.min(requested, maxScroll);
-   pendingProfileScrollRestoreRef.current = null;
-   onSubViewChange?.(false);
- }, [onSubViewChange, subView]);
 
  useEffect(() => () => {
    onSubViewChange?.(false);
@@ -701,36 +660,30 @@ export const ProfileView = function ProfileView({
    >
      <div
        aria-hidden={subView !== null || undefined}
-       className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
-       style={subView !== null
-         ? {
-             position: "absolute",
-             insetInline: 0,
-             top: -profileParentScrollTopRef.current,
-             zIndex: 0,
-             pointerEvents: "none",
-           }
-         : { position: "relative", zIndex: 0 }}
+       className="relative z-0 w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+       style={{ pointerEvents: subView !== null ? "none" : "auto" }}
      >
        {profileRoot}
      </div>
 
-     {subView !== null && (
+     {subView !== null && typeof document !== "undefined" && createPortal(
        <motion.div
          key={`profile-subview-${subView}`}
          data-profile-subview-swipe-surface="true"
          data-swipe-back-surface="true"
-         className="relative z-10 w-full min-h-[100svh] isolate bg-neutral-50 dark:bg-[#000000]"
+         className="fixed inset-0 z-40 w-full overflow-y-auto overflow-x-hidden overscroll-y-contain ios-scrollable isolate bg-neutral-50 dark:bg-[#000000]"
+         dir={isRtl ? "rtl" : "ltr"}
          style={{
            x: profileBackGesture.x,
+           paddingTop: "env(safe-area-inset-top, 0px)",
+           paddingBottom: "calc(82px + env(safe-area-inset-bottom, 0px))",
            boxShadow: profileBackGesture.isInteracting
              ? (language === "ar"
                  ? "18px 0 30px -18px rgba(0,0,0,0.48)"
                  : "-18px 0 30px -18px rgba(0,0,0,0.48)")
              : "none",
-           // Keep the outgoing page in one stable compositor layer for its
-           // whole pushed lifetime. Promoting it only after the first touch
-           // caused the visible one-frame vibration on WebKit.
+           // The pushed page owns a single compositor layer for its complete
+           // lifetime; the Profile underneath is never transformed or rebuilt.
            willChange: "transform",
            WebkitBackfaceVisibility: "hidden",
            backfaceVisibility: "hidden",
@@ -742,7 +695,8 @@ export const ProfileView = function ProfileView({
          ) : (
            <MyReportsView onBack={profileBackGesture.triggerBack} />
          )}
-       </motion.div>
+       </motion.div>,
+       document.body,
      )}
    </div>
  );

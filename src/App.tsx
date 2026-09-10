@@ -1470,7 +1470,11 @@ export default function App() {
   const phoneTabBarLastScrollTopRef = useRef(0);
   const phoneTabBarPendingExpandedRef = useRef<boolean | null>(null);
   const phoneTabBarResizeFrameRef = useRef<number | null>(null);
+  const phoneTabBarScrollSourceRef = useRef<HTMLElement | null>(null);
   const isRestoringGlobalScrollRef = useRef(false);
+  // True while a phone-only page (Settings/Notifications) is visually pushed
+  // above Profile. The shared Profile canvas must remain completely frozen.
+  const profileOverlayRouteOpenRef = useRef(false);
 
   const handlePhoneTabBarVerticalScroll = useCallback(
     (event: React.UIEvent<HTMLElement>) => {
@@ -1483,8 +1487,19 @@ export default function App() {
         Math.max(0, canvas.scrollTop),
       );
 
+      // A different scroll surface (for example the independent Settings page)
+      // gets its own baseline. Never compare its first packet with Profile's
+      // previous scrollTop; that cross-surface delta was one source of the
+      // seemingly random resize immediately after navigation.
+      if (phoneTabBarScrollSourceRef.current !== canvas) {
+        phoneTabBarScrollSourceRef.current = canvas;
+        phoneTabBarLastScrollTopRef.current = nextScrollTop;
+        return;
+      }
+
       // Route restoration is not a user scroll. Keep the baseline synchronized
-      // but never resize the floating bar because a page was restored.
+      // but never resize the floating bar because a page was restored. Profile
+      // sub-pages also own an independent overlay and must not mutate this bar.
       if (
         isRestoringGlobalScrollRef.current ||
         canvas.dataset.programmaticScrollRestore === "true" ||
@@ -1533,6 +1548,7 @@ export default function App() {
 
     // A new phone/desktop layout starts with a fresh scroll baseline.
     phoneTabBarLastScrollTopRef.current = 0;
+    phoneTabBarScrollSourceRef.current = null;
 
     return () => {
       if (phoneTabBarResizeFrameRef.current !== null) {
@@ -1570,6 +1586,8 @@ export default function App() {
   const navigationStackRef = useRef<NavigationEntry[]>([]);
   const [navigationStackTop, setNavigationStackTop] = useState<NavigationEntry | null>(null);
   const legalParentScrollTopRef = useRef(0);
+  const pendingSettingsOverlayScrollRestoreRef = useRef<number | null>(null);
+  const profileSettingsOverlayScrollRef = useRef<HTMLDivElement | null>(null);
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
@@ -1792,16 +1810,28 @@ export default function App() {
   const bulletinReturnsToProfile =
     activeTab === "bulletin" && navigationStackTop?.activeTab === "profile";
 
-  // On iPhone, Settings is a pushed page above the real Profile root. Keeping
-  // Profile mounted underneath gives Settings the same native persistent-stack
-  // Back behavior already used by Notifications, Modules and Subjects.
+  // On iPhone/iPad, Settings can be a pushed page above Profile. On iPhone the
+  // entire Settings -> Legal stack becomes its own scroll surface so Profile
+  // underneath never changes DOM flow or scrollTop while the pushed page is up.
   const settingsReturnsToProfile =
     (device.isPhone || device.isIPadOS) &&
     activeTab === "settings" &&
     navigationStackTop?.activeTab === "profile";
 
+  const legalReturnsToProfileSettings =
+    device.isPhone &&
+    isStandaloneLegalPage &&
+    navigationStackTop?.activeTab === "settings" &&
+    navigationStackRef.current.some((entry) => entry.activeTab === "profile");
+
+  const profileSettingsOverlayActive =
+    device.isPhone && (settingsReturnsToProfile || legalReturnsToProfileSettings);
+
   const persistentProfileUnderlay =
-    bulletinReturnsToProfile || settingsReturnsToProfile;
+    bulletinReturnsToProfile || settingsReturnsToProfile || profileSettingsOverlayActive;
+
+  profileOverlayRouteOpenRef.current =
+    device.isPhone && (bulletinReturnsToProfile || profileSettingsOverlayActive);
 
   const handleBulletinBack = useCallback(() => {
     restorePreviousNavigationEntry();
@@ -1858,13 +1888,17 @@ export default function App() {
   });
 
   const handleLegalBack = useCallback(() => {
-    // Do not write scrollTop while the legal page still owns the shared canvas.
-    // Queue the Settings position and restore it after the parent is back in the
-    // live layout, before paint. This prevents the web-like top jump/clamp.
-    pendingNavigationScrollRestoreRef.current = legalParentScrollTopRef.current;
+    // Phone Settings uses an independent overlay scroll surface. Restore that
+    // surface, not the frozen Profile canvas. Tablet/desktop keep the existing
+    // shared-canvas restoration path.
+    if (profileSettingsOverlayActive) {
+      pendingSettingsOverlayScrollRestoreRef.current = legalParentScrollTopRef.current;
+    } else {
+      pendingNavigationScrollRestoreRef.current = legalParentScrollTopRef.current;
+    }
     if (restorePreviousNavigationEntry()) return;
     setActiveTab("settings");
-  }, [restorePreviousNavigationEntry]);
+  }, [profileSettingsOverlayActive, restorePreviousNavigationEntry]);
 
   const legalBackGesture = useSwipeBack({
     direction: swipeDirection,
@@ -1873,6 +1907,36 @@ export default function App() {
     isEnabled: isStandaloneLegalPage && !isCommandPaletteOpen,
     onSwipeBack: handleLegalBack,
   });
+
+  // Settings on iPhone scrolls independently above the frozen Profile page.
+  // Legal details temporarily scroll that overlay to 0, while their Settings
+  // parent is visually offset by the saved amount. Returning restores the exact
+  // Settings scroll position synchronously before paint.
+  useLayoutEffect(() => {
+    if (!profileSettingsOverlayActive) return;
+    const scroller = profileSettingsOverlayScrollRef.current;
+    if (!scroller) return;
+
+    scroller.dataset.programmaticScrollRestore = "true";
+
+    if (isStandaloneLegalPage) {
+      scroller.scrollTop = 0;
+    } else if (activeTab === "settings") {
+      const requested = pendingSettingsOverlayScrollRestoreRef.current;
+      if (requested !== null) {
+        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        scroller.scrollTop = Math.min(Math.max(0, requested), maxScroll);
+        pendingSettingsOverlayScrollRestoreRef.current = null;
+      }
+    }
+
+    const frame = requestAnimationFrame(() => {
+      if (scroller.dataset.programmaticScrollRestore === "true") {
+        delete scroller.dataset.programmaticScrollRestore;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, isStandaloneLegalPage, profileSettingsOverlayActive]);
 
   // Parallax for the parent page that is already mounted below a Lecture.
   // Only transform/opacity are animated, keeping the interactive path GPU-only.
@@ -2236,6 +2300,7 @@ export default function App() {
       if (
         isRestoringGlobalScrollRef.current ||
         profileSubViewOpenRef.current ||
+        profileOverlayRouteOpenRef.current ||
         homeSubjectInternalBackRef.current ||
         legacySubjectInternalBackRef.current
       ) return;
@@ -2248,6 +2313,7 @@ export default function App() {
     const handlePageHide = () => {
       if (
         profileSubViewOpenRef.current ||
+        profileOverlayRouteOpenRef.current ||
         homeSubjectInternalBackRef.current ||
         legacySubjectInternalBackRef.current
       ) return;
@@ -2279,6 +2345,41 @@ export default function App() {
     // render. Do not overwrite it here after the new, potentially shorter,
     // page has already been mounted and clamped by the browser.
     prevNavigationPathRef.current = navigationPath;
+
+    // Profile -> Settings/Notifications on iPhone is a true overlay push. The
+    // Profile canvas must not move at all while that stack is active. The old
+    // code changed main-scroll-canvas to the child route's scrollTop (usually 0)
+    // and later restored it, which is exactly the post-Back reposition visible
+    // in the recording. Freeze the same canvas for every transition inside the
+    // Profile overlay stack, including Settings -> Legal and the final pop.
+    const profileOverlayPaths = new Set([
+      "/settings",
+      "/bulletin",
+      "/privacy",
+      "/terms",
+      "/support",
+      "/disclaimer",
+    ]);
+    const previousIsProfileOverlay = profileOverlayPaths.has(previousPath);
+    const nextIsProfileOverlay = profileOverlayPaths.has(navigationPath);
+    const hasProfileStackEntry = navigationStackRef.current.some(
+      (entry) => entry.activeTab === "profile",
+    );
+    const keepProfileCanvasFrozen =
+      device.isPhone &&
+      ((previousPath === "/profile" && nextIsProfileOverlay && hasProfileStackEntry) ||
+        (navigationPath === "/profile" && previousIsProfileOverlay) ||
+        (previousIsProfileOverlay && nextIsProfileOverlay && hasProfileStackEntry));
+
+    if (keepProfileCanvasFrozen) {
+      phoneTabBarScrollSourceRef.current = canvas;
+      phoneTabBarLastScrollTopRef.current = canvas.scrollTop;
+      if (navigationPath === "/profile") {
+        pendingNavigationScrollRestoreRef.current = null;
+      }
+      isRestoringGlobalScrollRef.current = false;
+      return;
+    }
 
     const queuedStackPosition = pendingNavigationScrollRestoreRef.current;
     const requested =
@@ -2353,7 +2454,7 @@ export default function App() {
       if (settleTimer) clearTimeout(settleTimer);
       isRestoringGlobalScrollRef.current = false;
     };
-  }, [navigationPath, readScrollPosition]);
+  }, [device.isPhone, navigationPath, readScrollPosition]);
 
   const fetchMaterials = async (bypassCache = false) => {
     if (!currentUserRef.current) return;
@@ -4620,6 +4721,10 @@ const handleSignOut = useCallback(async () => {
   // Tablet  → icon rail (< 900 px) or collapsible sidebar (≥ 900 px)
   // Desktop → full collapsible sidebar
   const usePhoneLayout = device.isPhone;
+  const visibleLargeTitleTab =
+    usePhoneLayout && persistentProfileUnderlay ? "profile" : activeTab;
+  const phoneNavigationActiveTab =
+    usePhoneLayout && persistentProfileUnderlay ? "profile" : activeTab;
   const useRailNav     = device.railNav; // thin icon-only sidebar, no expand
   // The circular Search control is a permanent member of the iPhone floating
   // navigation cluster. It stays available across Home, Modules, Schedule,
@@ -4868,7 +4973,7 @@ const handleSignOut = useCallback(async () => {
         <main
           id="main-scroll-canvas"
           onScroll={handlePhoneTabBarVerticalScroll}
-          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout && activeTab !== "bulletin" ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
             // The phone scroll inset is supplied by .ios-main-scroll so it
@@ -4891,14 +4996,12 @@ const handleSignOut = useCallback(async () => {
             }}
           >
           {/* iOS Native Large Title (Scrolls with Content) */}
-          {((activeTab === "subjects" && activeSubjectId === null && activeModuleId === null) ||
+          {((visibleLargeTitleTab === "subjects" && activeSubjectId === null && activeModuleId === null) ||
             ["calendar", "control-center", "profile", "settings"].includes(
-              activeTab,
-            )) &&
-            !(usePhoneLayout && activeTab === "profile" && isProfileSubViewOpen) &&
-            !(usePhoneLayout && activeTab === "settings" && settingsReturnsToProfile) && (
+              visibleLargeTitleTab,
+            )) && (
             <div className={`mb-6 pt-2 select-none ${usePhoneLayout ? "" : "md:hidden"}`}>
-              {activeTab === "profile" && usePhoneLayout ? (
+              {visibleLargeTitleTab === "profile" && usePhoneLayout ? (
                 <div className="flex items-center justify-between">
                   <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
                     {language === "ar" ? "ملف الطالب" : "Profile"}
@@ -4917,23 +5020,23 @@ const handleSignOut = useCallback(async () => {
                 </div>
               ) : (
                 <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
-                  {activeTab === "subjects"
+                  {visibleLargeTitleTab === "subjects"
                     ? language === "ar"
                       ? "الموديولات"
                       : "Modules"
-                    : activeTab === "calendar"
+                    : visibleLargeTitleTab === "calendar"
                       ? language === "ar"
                         ? "الجدول والامتحانات"
                         : "Schedule"
-                      : activeTab === "control-center"
+                      : visibleLargeTitleTab === "control-center"
                         ? language === "ar"
                           ? "لوحة التحكم"
                           : "Control Center"
-                        : activeTab === "profile"
+                        : visibleLargeTitleTab === "profile"
                           ? language === "ar"
                             ? "ملف الطالب"
                             : "Profile"
-                          : activeTab === "settings"
+                          : visibleLargeTitleTab === "settings"
                             ? language === "ar"
                               ? "الإعدادات"
                               : "Settings"
@@ -5322,11 +5425,21 @@ const handleSignOut = useCallback(async () => {
                   activeTab === "profile" || persistentProfileUnderlay
                     ? "block"
                     : "none",
-                position: persistentProfileUnderlay ? "absolute" : "relative",
-                insetInline: persistentProfileUnderlay ? 0 : undefined,
-                top: persistentProfileUnderlay
-                  ? -Math.max(0, navigationStackTop?.scrollTop ?? 0)
-                  : undefined,
+                // iPhone keeps the *actual* Profile page in normal flow at its
+                // existing main-canvas scroll coordinate. Settings/Notifications
+                // are independent opaque overlays above it, so the page revealed
+                // during an interactive Back is exactly the page that remains
+                // after commit. iPad keeps the existing positioned underlay.
+                position:
+                  persistentProfileUnderlay && !usePhoneLayout
+                    ? "absolute"
+                    : "relative",
+                insetInline:
+                  persistentProfileUnderlay && !usePhoneLayout ? 0 : undefined,
+                top:
+                  persistentProfileUnderlay && !usePhoneLayout
+                    ? -Math.max(0, navigationStackTop?.scrollTop ?? 0)
+                    : undefined,
                 zIndex: persistentProfileUnderlay ? 0 : undefined,
                 pointerEvents: persistentProfileUnderlay ? "none" : "auto",
                 minHeight: navigationSurfaceMinHeight,
@@ -5341,19 +5454,6 @@ const handleSignOut = useCallback(async () => {
               }}
               className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
-              {persistentProfileUnderlay && usePhoneLayout && (
-                <div className="mb-6 pt-2 select-none flex items-center justify-between">
-                  <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
-                    {language === "ar" ? "ملف الطالب" : "Profile"}
-                  </h1>
-                  <div className={`relative flex items-center justify-center w-10 h-10 ${isRtl ? "-ml-2" : "-mr-2"} rounded-full`}>
-                    <Bell className="w-[22px] h-[22px] text-neutral-600 dark:text-neutral-400" />
-                    {unreadNotificationsCount > 0 && (
-                      <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-[1.5px] border-white dark:border-neutral-950" />
-                    )}
-                  </div>
-                </div>
-              )}
               <motion.div
                 initial={false}
                 animate={{ opacity: 1, scale: 1 }}
@@ -5372,7 +5472,11 @@ const handleSignOut = useCallback(async () => {
                     onUpdateProfile={handleUpdateProfile}
                     onSignOut={handleSignOut}
                     showSettingsButton={usePhoneLayout}
-                    onOpenSettings={() => { pushNavigationStack(); setActiveTab("settings"); }}
+                    onOpenSettings={() => {
+                      pendingSettingsOverlayScrollRestoreRef.current = 0;
+                      pushNavigationStack();
+                      setActiveTab("settings");
+                    }}
                     isActive={activeTab === "profile"}
                     language={language}
                     onSubViewChange={handleProfileSubViewChange}
@@ -5386,6 +5490,7 @@ const handleSignOut = useCallback(async () => {
                 pushed legal page, matching the persistent native stacks used by
                 Modules and Subjects. Only the detail layer moves during Back. */}
             <motion.div
+              ref={profileSettingsOverlayScrollRef}
               data-settings-page-swipe-surface={settingsReturnsToProfile ? "true" : undefined}
               data-swipe-back-surface={settingsReturnsToProfile ? "true" : undefined}
               style={{
@@ -5393,6 +5498,27 @@ const handleSignOut = useCallback(async () => {
                   activeTab === "settings" || isStandaloneLegalPage
                     ? "block"
                     : "none",
+                // On iPhone Settings/Legal is a genuine viewport page, not a
+                // continuation of Profile's document flow. It owns its scroll
+                // container and opaque background while the real Profile stays
+                // painted and completely untouched underneath.
+                position: profileSettingsOverlayActive ? "fixed" : "relative",
+                inset: profileSettingsOverlayActive ? 0 : undefined,
+                height: profileSettingsOverlayActive ? "100dvh" : undefined,
+                boxSizing: profileSettingsOverlayActive ? "border-box" : undefined,
+                paddingTop: profileSettingsOverlayActive
+                  ? "calc(16px + env(safe-area-inset-top, 0px))"
+                  : undefined,
+                paddingInline: profileSettingsOverlayActive
+                  ? (isCompactHeight ? "24px" : "16px")
+                  : undefined,
+                paddingBottom: profileSettingsOverlayActive
+                  ? "calc(88px + env(safe-area-inset-bottom, 0px))"
+                  : undefined,
+                overflowY: profileSettingsOverlayActive ? "auto" : undefined,
+                overflowX: profileSettingsOverlayActive ? "hidden" : undefined,
+                overscrollBehaviorY: profileSettingsOverlayActive ? "contain" : undefined,
+                zIndex: profileSettingsOverlayActive ? 40 : undefined,
                 x: settingsReturnsToProfile ? settingsBackGesture.x : 0,
                 boxShadow:
                   settingsReturnsToProfile && settingsBackGesture.isInteracting
@@ -5400,15 +5526,12 @@ const handleSignOut = useCallback(async () => {
                         ? "18px 0 30px -18px rgba(0,0,0,0.48)"
                         : "-18px 0 30px -18px rgba(0,0,0,0.48)")
                     : "none",
-                // Pre-promote only the outgoing page while it is pushed.
-                // Avoid creating the layer on the first drag frame, which is
-                // visible as a tiny vibration in WKWebView.
                 willChange: settingsReturnsToProfile ? "transform" : "auto",
                 WebkitBackfaceVisibility: "hidden",
                 backfaceVisibility: "hidden",
                 touchAction: settingsReturnsToProfile ? "pan-y" : undefined,
               }}
-              className="relative z-10 w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+              className="relative z-10 w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000] ios-scrollable"
             >
               <div
                 className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
@@ -5459,7 +5582,9 @@ const handleSignOut = useCallback(async () => {
                           onAccountDeleted={handleAccountSelfDelete}
                           onNavigateToLegal={(tab) => {
                             const canvas = document.getElementById("main-scroll-canvas");
-                            legalParentScrollTopRef.current = canvas?.scrollTop ?? 0;
+                            legalParentScrollTopRef.current = profileSettingsOverlayActive
+                              ? (profileSettingsOverlayScrollRef.current?.scrollTop ?? 0)
+                              : (canvas?.scrollTop ?? 0);
                             pushNavigationStack();
                             setActiveTab(tab);
                           }}
@@ -5569,9 +5694,29 @@ const handleSignOut = useCallback(async () => {
             <div
               style={{
                 display: activeTab === "bulletin" ? "block" : "none",
-                position: "relative",
-                zIndex: activeTab === "bulletin" ? 10 : undefined,
-                ...(usePhoneLayout
+                position:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "fixed"
+                    : "relative",
+                inset:
+                  bulletinReturnsToProfile && usePhoneLayout ? 0 : undefined,
+                height:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "100dvh"
+                    : undefined,
+                overflowY:
+                  bulletinReturnsToProfile && usePhoneLayout ? "auto" : undefined,
+                overflowX:
+                  bulletinReturnsToProfile && usePhoneLayout ? "hidden" : undefined,
+                overscrollBehaviorY:
+                  bulletinReturnsToProfile && usePhoneLayout ? "contain" : undefined,
+                zIndex:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? 40
+                    : activeTab === "bulletin"
+                      ? 10
+                      : undefined,
+                ...(!bulletinReturnsToProfile && usePhoneLayout
                   ? {
                       marginInline: isCompactHeight ? "-24px" : "-16px",
                       width: isCompactHeight
@@ -5582,7 +5727,11 @@ const handleSignOut = useCallback(async () => {
                     }
                   : {}),
               }}
-              className={`w-full ${bulletinReturnsToProfile ? "bg-transparent" : "bg-neutral-50 dark:bg-[#000000]"}`}
+              className={`w-full ios-scrollable ${
+                bulletinReturnsToProfile
+                  ? "bg-transparent"
+                  : "bg-neutral-50 dark:bg-[#000000]"
+              }`}
             >
               <motion.div
                 data-bulletin-page-swipe-surface="true"
@@ -5655,7 +5804,7 @@ const handleSignOut = useCallback(async () => {
             isPhoneTabBarEngaged ? "ios-tabbar-engaged" : "ios-tabbar-resting"
           } ${
             showPhoneFloatingSearch ? "ios-floating-tabbar-with-search" : ""
-          } ${usePhoneLayout && activeTab !== "bulletin" ? "block" : "hidden"}`}
+          } ${usePhoneLayout ? "block" : "hidden"}`}
         >
           <div className="ios-floating-tabbar-cluster">
             <div
@@ -5671,7 +5820,7 @@ const handleSignOut = useCallback(async () => {
                     id={item.id}
                     icon={item.icon}
                     label={item.label}
-                    isActive={activeTab === item.id}
+                    isActive={phoneNavigationActiveTab === item.id}
                     isCompactHeight={isCompactHeight}
                     isEngaged={isPhoneTabBarEngaged}
                     activeColorClass={item.activeColorClass}
@@ -5721,7 +5870,7 @@ const handleSignOut = useCallback(async () => {
             <div className="ios-floating-tabbar-icon-grid">
               {bottomTabBarItems.map((item) => {
                 const Icon = item.icon;
-                const isActiveItem = activeTab === item.id;
+                const isActiveItem = phoneNavigationActiveTab === item.id;
 
                 return (
                   <div key={`stable-icon-${item.id}`} className="ios-floating-tabbar-icon-slot">
