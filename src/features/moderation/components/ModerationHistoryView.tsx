@@ -98,6 +98,16 @@ const ACTION_LABELS: Record<string, string> = {
   BAN_EXPIRED:     "Ban Expired",
 };
 
+const ACTION_LABELS_AR: Record<string, string> = {
+  APPROVE_REPORT: "قبول البلاغ", REJECT_REPORT: "رفض البلاغ",
+  DELETE_QUESTION: "حذف السؤال", DELETE_ANSWER: "حذف الإجابة", DELETE_REPLY: "حذف الرد",
+  MUTE_USER: "كتم المستخدم", REMOVE_MUTE: "إلغاء الكتم", UPDATE_MUTE: "تحديث الكتم",
+  EXTEND_MUTE: "تمديد الكتم", REDUCE_MUTE: "تقليل مدة الكتم", PERMANENT_MUTE: "كتم دائم",
+  BAN_USER: "حظر المستخدم", REMOVE_BAN: "إلغاء الحظر", UPDATE_BAN: "تحديث الحظر",
+  EXTEND_BAN: "تمديد الحظر", REDUCE_BAN: "تقليل مدة الحظر", PERMANENT_BAN: "حظر دائم",
+  MUTE_EXPIRED: "انتهاء الكتم", BAN_EXPIRED: "انتهاء الحظر",
+};
+
 const ACTION_COLORS: Record<string, { bg: string; text: string; icon: React.ElementType }> = {
   APPROVE_REPORT:  { bg: "bg-emerald-50 dark:bg-emerald-500/10",   text: "text-emerald-700 dark:text-emerald-400", icon: CheckCircle },
   REJECT_REPORT:   { bg: "bg-neutral-100 dark:bg-white/[0.06]",    text: "text-neutral-600 dark:text-neutral-400", icon: XCircle },
@@ -171,13 +181,13 @@ function computeCurrentStatus(record: HistoryRecord): { label: string; color: st
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const ActionBadge: React.FC<{ actionType: string }> = ({ actionType }) => {
+const ActionBadge: React.FC<{ actionType: string; isRtl?: boolean }> = ({ actionType, isRtl = false }) => {
   const style = getActionStyle(actionType);
   const Icon = style.icon;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap ${style.bg} ${style.text}`}>
       <Icon className="w-3 h-3 shrink-0" />
-      {ACTION_LABELS[actionType] ?? actionType}
+      {(isRtl ? ACTION_LABELS_AR[actionType] : ACTION_LABELS[actionType]) ?? ACTION_LABELS[actionType] ?? actionType}
     </span>
   );
 };
@@ -214,7 +224,7 @@ const UserCell: React.FC<{ user: AdminUser | null; empty?: string; isSystem?: bo
 
 // ─── Detail Panel ─────────────────────────────────────────────────────────────
 
-const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void }> = ({ record, onClose }) => {
+const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void; isRtl?: boolean }> = ({ record, onClose, isRtl = false }) => {
   const status = record ? computeCurrentStatus(record) : null;
   return (
     <AnimatePresence>
@@ -235,7 +245,7 @@ const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void 
             {/* Header */}
             <div className="sticky top-0 bg-white dark:bg-[#1C1C1E] border-b border-neutral-100 dark:border-white/[0.06] px-6 py-4 flex items-center justify-between z-10">
               <div>
-                <h3 className="text-[15px] font-semibold text-neutral-900 dark:text-white">Action Detail</h3>
+                <h3 className="text-[15px] font-semibold text-neutral-900 dark:text-white">{isRtl ? "تفاصيل الإجراء" : "Action Detail"}</h3>
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">{record.id}</p>
               </div>
               <button onClick={onClose} className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/[0.08] text-neutral-400 transition-colors cursor-pointer">
@@ -246,17 +256,17 @@ const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void 
             <div className="px-6 py-5 space-y-5">
               {/* Action badge */}
               <div className="flex items-center gap-3 flex-wrap">
-                <ActionBadge actionType={record.actionType} />
+                <ActionBadge actionType={record.actionType} isRtl={isRtl} />
                 {record.isPermanent && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider">
-                    <InfinityIcon className="w-3 h-3" /> Permanent
+                    <InfinityIcon className="w-3 h-3" /> {isRtl ? "دائم" : "Permanent"}
                   </span>
                 )}
                 <span className={`text-[12px] font-semibold ${status?.color}`}>{status?.label}</span>
               </div>
 
               {/* People */}
-              <Section title="Administrator">
+              <Section title={isRtl ? "المشرف" : "Administrator"}>
                 <UserCell user={record.admin} isSystem={record.isSystemAction && !record.admin} />
                 {record.isSystemAction && (
                   <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
@@ -264,35 +274,35 @@ const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void 
                   </span>
                 )}
               </Section>
-              <Section title="Target User">
+              <Section title={isRtl ? "المستخدم المستهدف" : "Target User"}>
                 <UserCell user={record.targetUser} empty="No target user" />
               </Section>
 
               {/* Timing */}
-              <Section title="Timing">
+              <Section title={isRtl ? "التوقيت" : "Timing"}>
                 <div className="space-y-1.5">
-                  <InfoRow icon={Calendar} label="Action Time" value={formatDateTime(record.createdAt)} />
-                  {record.duration && <InfoRow icon={Clock} label="Duration" value={formatDuration(record.duration, record.isPermanent)} />}
-                  {record.expiresAt && <InfoRow icon={Clock} label="Expires" value={formatDateTime(record.expiresAt)} />}
-                  {record.revokedAt && <InfoRow icon={CheckCircle} label="Revoked" value={formatDateTime(record.revokedAt)} />}
+                  <InfoRow icon={Calendar} label={isRtl ? "وقت الإجراء" : "Action Time"} value={new Date(record.createdAt).toLocaleString(isRtl ? "ar-IQ-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })} />
+                  {record.duration && <InfoRow icon={Clock} label={isRtl ? "المدة" : "Duration"} value={formatDuration(record.duration, record.isPermanent)} />}
+                  {record.expiresAt && <InfoRow icon={Clock} label={isRtl ? "ينتهي" : "Expires"} value={formatDateTime(record.expiresAt)} />}
+                  {record.revokedAt && <InfoRow icon={CheckCircle} label={isRtl ? "أُلغي" : "Revoked"} value={formatDateTime(record.revokedAt)} />}
                 </div>
               </Section>
 
               {/* Reason */}
               {record.reason && (
-                <Section title="Reason">
+                <Section title={isRtl ? "السبب" : "Reason"}>
                   <p className="text-[13px] text-neutral-700 dark:text-neutral-200 leading-relaxed">{record.reason}</p>
                 </Section>
               )}
               {record.notes && (
-                <Section title="Notes">
+                <Section title={isRtl ? "ملاحظات" : "Notes"}>
                   <p className="text-[13px] text-neutral-700 dark:text-neutral-200 leading-relaxed">{record.notes}</p>
                 </Section>
               )}
 
               {/* Status changes */}
               {(record.oldStatus || record.newStatus) && (
-                <Section title="Status Change">
+                <Section title={isRtl ? "تغيير الحالة" : "Status Change"}>
                   <div className="flex items-center gap-2 text-[13px]">
                     {record.oldStatus && <span className="px-2 py-0.5 bg-neutral-100 dark:bg-white/[0.06] rounded text-neutral-500 dark:text-neutral-400">{record.oldStatus}</span>}
                     {record.oldStatus && record.newStatus && <span className="text-neutral-400">→</span>}
@@ -302,7 +312,7 @@ const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void 
               )}
 
               {/* References */}
-              <Section title="References">
+              <Section title={isRtl ? "المراجع" : "References"}>
                 <div className="space-y-1.5">
                   {record.reportId  && <InfoRow icon={Flag}     label="Report ID"  value={record.reportId}  mono />}
                   {record.commentId && <InfoRow icon={FileText} label="Comment ID" value={record.commentId} mono />}
@@ -312,7 +322,7 @@ const DetailPanel: React.FC<{ record: HistoryRecord | null; onClose: () => void 
 
               {/* Metadata */}
               {record.metadata && Object.keys(record.metadata).length > 0 && (
-                <Section title="Metadata">
+                <Section title={isRtl ? "البيانات الوصفية" : "Metadata"}>
                   <pre className="text-[11px] text-neutral-600 dark:text-neutral-400 bg-neutral-50 dark:bg-white/[0.04] rounded-lg p-3 overflow-x-auto">
                     {JSON.stringify(record.metadata, null, 2)}
                   </pre>
@@ -343,7 +353,8 @@ const InfoRow: React.FC<{ icon: React.ElementType; label: string; value: string;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ModerationHistoryView: React.FC = () => {
+const ModerationHistoryView: React.FC<{ language?: "en" | "ar" }> = ({ language = "en" }) => {
+  const isRtl = language === "ar";
   const [records, setRecords]           = useState<HistoryRecord[]>([]);
   const [total, setTotal]               = useState(0);
   const [totalPages, setTotalPages]     = useState(1);
@@ -386,11 +397,11 @@ const ModerationHistoryView: React.FC = () => {
       setTotal(data.total);
       setTotalPages(data.totalPages);
     } catch {
-      setError("Failed to load moderation history.");
+      setError(isRtl ? "تعذر تحميل سجل الإشراف." : "Failed to load moderation history.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isRtl]);
 
   // Fetch admins for filter dropdown
   useEffect(() => {
@@ -514,14 +525,14 @@ const ModerationHistoryView: React.FC = () => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-4">
       {/* Page Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-[18px] font-semibold text-neutral-900 dark:text-white tracking-tight">Moderation History</h2>
+          <h2 className="text-[18px] font-semibold text-neutral-900 dark:text-white tracking-tight">{isRtl ? "سجل الإشراف" : "Moderation History"}</h2>
           <p className="text-[12px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Permanent audit log of every moderation action.{" "}
-            {!loading && <span className="font-semibold text-neutral-700 dark:text-neutral-300">{total.toLocaleString()} records</span>}
+            {isRtl ? "سجل دائم لجميع إجراءات الإشراف." : "Permanent audit log of every moderation action."}{" "}
+            {!loading && <span className="font-semibold text-neutral-700 dark:text-neutral-300">{total.toLocaleString(isRtl ? "ar-IQ-u-nu-latn" : "en-US")} {isRtl ? "سجل" : "records"}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -530,7 +541,7 @@ const ModerationHistoryView: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 dark:border-white/[0.1] text-neutral-600 dark:text-neutral-300 text-[12px] font-medium hover:bg-neutral-50 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {isRtl ? "تحديث" : "Refresh"}
           </button>
           <button
             onClick={exportCSV}
@@ -553,13 +564,13 @@ const ModerationHistoryView: React.FC = () => {
       <div className="space-y-2">
         <div className="flex gap-2 flex-wrap">
           <div className="flex-1 min-w-48 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
+            <Search className={`absolute ${isRtl ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400`} />
             <input
               type="text"
-              placeholder="Search by user, email, reason, report ID…"
+              placeholder={isRtl ? "ابحث بالمستخدم، البريد، السبب أو رقم البلاغ…" : "Search by user, email, reason, report ID…"}
               defaultValue={filters.search}
               onChange={e => handleSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-neutral-200 dark:border-white/[0.1] bg-neutral-50 dark:bg-white/[0.04] text-[13px] text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-white/20 transition"
+              className={`w-full ${isRtl ? "pr-9 pl-3 text-right" : "pl-9 pr-3 text-left"} py-2 rounded-lg border border-neutral-200 dark:border-white/[0.1] bg-neutral-50 dark:bg-white/[0.04] text-[13px] text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-white/20 transition`}
             />
           </div>
           <button
@@ -571,7 +582,7 @@ const ModerationHistoryView: React.FC = () => {
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
-            Filters
+            {isRtl ? "الفلاتر" : "Filters"}
             {hasActiveFilters && <span className="ml-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] flex items-center justify-center font-bold">!</span>}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? "rotate-180" : ""}`} />
           </button>
@@ -580,7 +591,7 @@ const ModerationHistoryView: React.FC = () => {
               onClick={clearFilters}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 dark:border-white/[0.1] text-neutral-500 dark:text-neutral-400 text-[12px] hover:bg-neutral-50 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
             >
-              <X className="w-3 h-3" /> Clear
+              <X className="w-3 h-3" /> {isRtl ? "مسح" : "Clear"}
             </button>
           )}
         </div>
@@ -598,36 +609,36 @@ const ModerationHistoryView: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-4 bg-neutral-50 dark:bg-white/[0.03] border border-neutral-100 dark:border-white/[0.06] rounded-xl">
                 {/* Action type */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Action Type</label>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{isRtl ? "نوع الإجراء" : "Action Type"}</label>
                   <select
                     value={filters.actionType}
                     onChange={e => handleFilter("actionType", e.target.value)}
                     className="w-full appearance-none bg-white dark:bg-white/[0.06] border border-neutral-200 dark:border-white/[0.1] rounded-lg px-2.5 py-2 text-[12px] text-neutral-900 dark:text-white outline-none transition cursor-pointer"
                   >
-                    <option value="">All Types</option>
-                    {ALL_ACTION_TYPES.map(t => <option key={t} value={t}>{ACTION_LABELS[t]}</option>)}
+                    <option value="">{isRtl ? "كل الأنواع" : "All Types"}</option>
+                    {ALL_ACTION_TYPES.map(t => <option key={t} value={t}>{(isRtl ? ACTION_LABELS_AR[t] : ACTION_LABELS[t]) ?? ACTION_LABELS[t]}</option>)}
                   </select>
                 </div>
 
                 {/* Admin */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Administrator</label>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{isRtl ? "المشرف" : "Administrator"}</label>
                   <select
                     value={filters.adminId}
                     onChange={e => handleFilter("adminId", e.target.value)}
                     className="w-full appearance-none bg-white dark:bg-white/[0.06] border border-neutral-200 dark:border-white/[0.1] rounded-lg px-2.5 py-2 text-[12px] text-neutral-900 dark:text-white outline-none transition cursor-pointer"
                   >
-                    <option value="">All Admins</option>
+                    <option value="">{isRtl ? "كل المشرفين" : "All Admins"}</option>
                     {admins.map(a => <option key={a.id} value={a.id}>{a.name || a.email}</option>)}
                   </select>
                 </div>
 
                 {/* Target User search */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Target User ID</label>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{isRtl ? "معرّف المستخدم المستهدف" : "Target User ID"}</label>
                   <input
                     type="text"
-                    placeholder="Paste user ID…"
+                    placeholder={isRtl ? "ألصق معرّف المستخدم…" : "Paste user ID…"}
                     value={filters.targetUserId}
                     onChange={e => handleFilter("targetUserId", e.target.value)}
                     className="w-full bg-white dark:bg-white/[0.06] border border-neutral-200 dark:border-white/[0.1] rounded-lg px-2.5 py-2 text-[12px] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none transition"
@@ -636,7 +647,7 @@ const ModerationHistoryView: React.FC = () => {
 
                 {/* Start Date */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">From Date</label>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{isRtl ? "من تاريخ" : "From Date"}</label>
                   <input
                     type="date"
                     value={filters.startDate}
@@ -647,7 +658,7 @@ const ModerationHistoryView: React.FC = () => {
 
                 {/* End Date */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">To Date</label>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{isRtl ? "إلى تاريخ" : "To Date"}</label>
                   <input
                     type="date"
                     value={filters.endDate}
@@ -668,7 +679,7 @@ const ModerationHistoryView: React.FC = () => {
                       }}
                       className="w-3.5 h-3.5 rounded accent-rose-500 cursor-pointer"
                     />
-                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">Permanent only</span>
+                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">{isRtl ? "الدائم فقط" : "Permanent only"}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -680,7 +691,7 @@ const ModerationHistoryView: React.FC = () => {
                       }}
                       className="w-3.5 h-3.5 rounded accent-emerald-500 cursor-pointer"
                     />
-                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">Active only</span>
+                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">{isRtl ? "النشط فقط" : "Active only"}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -692,7 +703,7 @@ const ModerationHistoryView: React.FC = () => {
                       }}
                       className="w-3.5 h-3.5 rounded accent-neutral-400 cursor-pointer"
                     />
-                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">Expired / lifted</span>
+                    <span className="text-[12px] font-medium text-neutral-700 dark:text-neutral-300">{isRtl ? "منتهي / مرفوع" : "Expired / lifted"}</span>
                   </label>
                 </div>
               </div>
@@ -704,17 +715,17 @@ const ModerationHistoryView: React.FC = () => {
       {/* Table */}
       <div className="border border-neutral-200/60 dark:border-white/[0.08] rounded-xl overflow-hidden">
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse" style={{ minWidth: "760px" }}>
+          <table className={`w-full ${isRtl ? "text-right" : "text-left"} border-collapse`} style={{ minWidth: "760px" }}>
             <thead>
               <tr className="bg-neutral-50 dark:bg-white/[0.03] border-b border-neutral-200/60 dark:border-white/[0.08]">
                 {[
-                  { label: "Action",        style: { minWidth: "120px" } },
-                  { label: "Target User",   style: { minWidth: "150px" } },
-                  { label: "Administrator", style: { minWidth: "150px" } },
-                  { label: "Reason",        style: { minWidth: "140px", maxWidth: "180px" } },
-                  { label: "Date",          style: { minWidth: "110px" } },
-                  { label: "Status",        style: { minWidth: "80px"  } },
-                  { label: "Duration",      style: { minWidth: "90px"  } },
+                  { label: isRtl ? "الإجراء" : "Action",        style: { minWidth: "120px" } },
+                  { label: isRtl ? "المستخدم" : "Target User",   style: { minWidth: "150px" } },
+                  { label: isRtl ? "المشرف" : "Administrator", style: { minWidth: "150px" } },
+                  { label: isRtl ? "السبب" : "Reason",        style: { minWidth: "140px", maxWidth: "180px" } },
+                  { label: isRtl ? "التاريخ" : "Date",          style: { minWidth: "110px" } },
+                  { label: isRtl ? "الحالة" : "Status",        style: { minWidth: "80px"  } },
+                  { label: isRtl ? "المدة" : "Duration",      style: { minWidth: "90px"  } },
                   { label: "",              style: { minWidth: "44px", width: "44px" } },
                 ].map(h => (
                   <th key={h.label} style={h.style} className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
@@ -729,7 +740,7 @@ const ModerationHistoryView: React.FC = () => {
                   <td colSpan={8} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <RefreshCw className="w-5 h-5 text-neutral-400 animate-spin" />
-                      <p className="text-[13px] text-neutral-500 dark:text-neutral-400">Loading…</p>
+                      <p className="text-[13px] text-neutral-500 dark:text-neutral-400">{isRtl ? "جارٍ التحميل…" : "Loading…"}</p>
                     </div>
                   </td>
                 </tr>
@@ -739,10 +750,10 @@ const ModerationHistoryView: React.FC = () => {
                   <td colSpan={8} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Shield className="w-8 h-8 text-neutral-300 dark:text-neutral-600" />
-                      <p className="text-[14px] font-medium text-neutral-500 dark:text-neutral-400">No records found</p>
+                      <p className="text-[14px] font-medium text-neutral-500 dark:text-neutral-400">{isRtl ? "لا توجد سجلات" : "No records found"}</p>
                       {hasActiveFilters && (
                         <button onClick={clearFilters} className="text-[12px] text-rose-500 hover:underline cursor-pointer">
-                          Clear filters
+                          {isRtl ? "مسح الفلاتر" : "Clear filters"}
                         </button>
                       )}
                     </div>
@@ -750,7 +761,8 @@ const ModerationHistoryView: React.FC = () => {
                 </tr>
               )}
               {records.map((record, idx) => {
-                const status = computeCurrentStatus(record);
+                const statusBase = computeCurrentStatus(record);
+                const status = isRtl ? { ...statusBase, label: ({ Lifted: "مرفوع", Permanent: "دائم", Expired: "منتهي", Active: "نشط", Completed: "مكتمل" } as Record<string,string>)[statusBase.label] ?? statusBase.label } : statusBase;
                 return (
                   <tr
                     key={record.id}
@@ -758,7 +770,7 @@ const ModerationHistoryView: React.FC = () => {
                       idx % 2 === 0 ? "" : "bg-neutral-50/30 dark:bg-white/[0.01]"
                     }`}
                   >
-                    <td className="px-4 py-3"><ActionBadge actionType={record.actionType} /></td>
+                    <td className="px-4 py-3"><ActionBadge actionType={record.actionType} isRtl={isRtl} /></td>
                     <td className="px-4 py-3"><UserCell user={record.targetUser} /></td>
                     <td className="px-4 py-3"><UserCell user={record.admin} isSystem={record.isSystemAction && !record.admin} /></td>
                     <td className="px-4 py-3 max-w-[180px]">
@@ -767,7 +779,7 @@ const ModerationHistoryView: React.FC = () => {
                       </p>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <p className="text-[12px] text-neutral-600 dark:text-neutral-300">{formatDateTime(record.createdAt)}</p>
+                      <p className="text-[12px] text-neutral-600 dark:text-neutral-300">{new Date(record.createdAt).toLocaleString(isRtl ? "ar-IQ-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[12px] font-semibold ${status.color}`}>{status.label}</span>
@@ -775,7 +787,7 @@ const ModerationHistoryView: React.FC = () => {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.isPermanent ? (
                         <span className="inline-flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-semibold">
-                          <InfinityIcon className="w-3 h-3" /> Permanent
+                          <InfinityIcon className="w-3 h-3" /> {isRtl ? "دائم" : "Permanent"}
                         </span>
                       ) : (
                         <span className="text-[12px] text-neutral-600 dark:text-neutral-300">
@@ -787,7 +799,7 @@ const ModerationHistoryView: React.FC = () => {
                       <button
                         onClick={() => setSelected(record)}
                         className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/[0.08] text-neutral-400 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
-                        title="View details"
+                        title={isRtl ? "عرض التفاصيل" : "View details"}
                       >
                         <Eye className="w-3.5 h-3.5" />
                       </button>
@@ -804,7 +816,7 @@ const ModerationHistoryView: React.FC = () => {
       {totalPages > 1 && (
         <div className="mod-history-pagination flex items-center justify-between">
           <p className="text-[12px] text-neutral-500 dark:text-neutral-400">
-            Showing {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, total)} of {total.toLocaleString()}
+            {isRtl ? "عرض" : "Showing"} {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, total)} {isRtl ? "من" : "of"} {total.toLocaleString(isRtl ? "ar-IQ-u-nu-latn" : "en-US")}
           </p>
           <div className="flex items-center gap-1">
             <button
@@ -862,7 +874,7 @@ const ModerationHistoryView: React.FC = () => {
       )}
 
       {/* Detail panel */}
-      <DetailPanel record={selected} onClose={() => setSelected(null)} />
+      <DetailPanel record={selected} onClose={() => setSelected(null)} isRtl={isRtl} />
     </div>
   );
 };

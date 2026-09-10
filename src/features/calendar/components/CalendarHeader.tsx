@@ -197,11 +197,9 @@ export function CalendarHeader({
                             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-white/[0.18]"
                         }`}
                       >
-                        {isRtl && group === "ALL"
-                          ? "الكل"
-                          : group === "ALL"
-                          ? "ALL"
-                          : `Group ${group}`}
+                        {group === "ALL"
+                          ? (isRtl ? "الكل" : "ALL")
+                          : (isRtl ? `المجموعة ${group}` : `Group ${group}`)}
                       </button>
                     );
                   })}

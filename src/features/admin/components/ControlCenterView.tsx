@@ -113,7 +113,7 @@ const PillNavButton = memo(({
     type="button"
     data-console-tab-id={id}
     onClick={() => onClick(id)}
-    className={`flex-none flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 touch-manipulation ${
+    className={`snap-center flex-none flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 touch-manipulation ${
       isActive
         ? "bg-rose-500 text-white shadow-sm"
         : "bg-neutral-100 dark:bg-white/[0.08] text-neutral-600 dark:text-[#EBEBF599] hover:bg-neutral-200 dark:hover:bg-white/[0.14]"
@@ -405,7 +405,7 @@ const ControlCenterView = function ControlCenterView({
     {
       id: "anki" as SubTab,
       sidebarLabel:   isRtl ? "بطاقات تذكر (Anki)" : "Anki",
-      pillLabel:      "Anki",
+      pillLabel:      isRtl ? "بطاقات" : "Anki",
       Icon: Layers,
       iconColorClass: "text-indigo-500",
     },
@@ -654,8 +654,8 @@ const ControlCenterView = function ControlCenterView({
         <div
           ref={consolePillStripRef}
           data-console-nav-strip="true"
-          className="flex flex-row gap-2 overflow-x-auto pb-1 hide-scrollbar"
-          style={{ WebkitOverflowScrolling: "touch" }}
+          className="flex flex-row gap-2 overflow-x-auto pb-1 hide-scrollbar overscroll-x-contain snap-x snap-proximity scroll-smooth"
+          style={{ WebkitOverflowScrolling: "touch", direction: isRtl ? "rtl" : "ltr", scrollPaddingInline: "16px" }}
         >
           {navItems.map((item) => (
             <PillNavButton
@@ -902,7 +902,7 @@ const ControlCenterView = function ControlCenterView({
             {activeSubTab === "moderation-history" &&
               currentUser.role === "owner" && (
                 <div className="animate-fadeIn">
-                  <ModerationHistoryView />
+                  <ModerationHistoryView language={language} />
                 </div>
               )}
           </Suspense>

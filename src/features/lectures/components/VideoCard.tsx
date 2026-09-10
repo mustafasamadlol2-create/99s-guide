@@ -38,11 +38,14 @@ export const VideoCard = ({
   video,
   videoId,
   onWatch,
+  language = "en",
 }: {
   video: any;
   videoId: string | undefined;
   onWatch: (url: string) => void | Promise<void>;
+  language?: "en" | "ar";
 }) => {
+  const isRtl = language === "ar";
   const [realDuration, setRealDuration] = useState<number | null>(null);
   const [shouldLoadDuration, setShouldLoadDuration] = useState(false);
   const cardRef = useRef<HTMLButtonElement | null>(null);
@@ -157,8 +160,9 @@ export const VideoCard = ({
       ref={cardRef}
       type="button"
       onClick={handleVideoPress}
-      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.10] rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 p-4 sm:p-5 gap-4 sm:gap-5 cursor-pointer text-left appearance-none"
-      aria-label={`Watch ${video?.title || "YouTube video"}`}
+      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.10] rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 p-4 sm:p-5 gap-4 sm:gap-5 cursor-pointer text-start appearance-none"
+      dir={isRtl ? "rtl" : "ltr"}
+      aria-label={`${isRtl ? "مشاهدة" : "Watch"} ${video?.title || (isRtl ? "فيديو يوتيوب" : "YouTube video")}`}
     >
       <span className="video-thumb relative w-40 sm:w-48 lg:w-56 shrink-0 aspect-video bg-neutral-100 dark:bg-[#2C2C2E] rounded-xl overflow-hidden border border-black/[0.04] dark:border-white/[0.06]">
         {videoId ? (
@@ -184,7 +188,7 @@ export const VideoCard = ({
         )}
       </span>
 
-      <span className="flex-1 min-w-0 py-1 text-left">
+      <span className="flex-1 min-w-0 py-1 text-start">
         <span className="block text-base sm:text-lg font-semibold text-neutral-900 dark:text-white transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
           {video?.title}
         </span>
@@ -196,8 +200,8 @@ export const VideoCard = ({
         )}
 
         <span className="inline-flex items-center justify-center px-5 sm:px-6 py-2 sm:py-2.5 bg-red-600 group-hover:bg-red-700 group-active:bg-red-800 text-white text-sm font-semibold rounded-full transition pointer-events-none">
-          <PlayCircle className="w-4 h-4 mr-2" />
-          Watch
+          <PlayCircle className={`w-4 h-4 ${isRtl ? "ml-2" : "mr-2"}`} />
+          {isRtl ? "مشاهدة" : "Watch"}
         </span>
       </span>
     </button>

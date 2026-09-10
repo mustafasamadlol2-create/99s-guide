@@ -116,14 +116,14 @@ const MonthDayCell = memo(function MonthDayCell({
  return (
  <div
  key={`day-${day}`}
-  className={`group relative ${isPhone ? "calendar-month-phone-cell rounded-[11px]" : "min-h-[86px] aspect-square rounded-lg"} w-full flex flex-col justify-start items-stretch text-left transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
+  className={`group relative ${isPhone ? "calendar-month-phone-cell rounded-[11px]" : "min-h-[86px] aspect-square rounded-lg"} w-full flex flex-col justify-start items-stretch text-start transition duration-200 select-none ${showPopover ? "z-50" : "z-0"}
  ${cellBgClass} ${cellBorderClass} ${ringClass}
  `}
  >
  <button
  onClick={handleDayClick}
  className={`absolute inset-0 w-full h-full cursor-pointer ${isPhone ? "rounded-[11px]" : "rounded-lg"}`}
- aria-label={`Select date ${dayDate}`}
+ aria-label={isRtl ? `اختر التاريخ ${dayDate}` : `Select date ${dayDate}`}
  />
  <div className={`relative pointer-events-none ${isPhone ? "px-1.5 py-1.5" : "px-1 py-1"} flex flex-col justify-start items-stretch w-full h-full overflow-hidden`}>
  {/* Day Header with numbers and indicator dots */}
@@ -176,7 +176,7 @@ const MonthDayCell = memo(function MonthDayCell({
                {to12HourFormatStr(ev.time)}
              </span>
            )}
-           <span className={`text-[10px] font-bold truncate flex-1 text-left ${textColorClass}`}>
+           <span className={`text-[10px] font-bold truncate flex-1 text-start ${textColorClass}`}>
              {ev.title}
            </span>
          </div>
@@ -193,9 +193,9 @@ const MonthDayCell = memo(function MonthDayCell({
  e.stopPropagation();
  setShowPopover((prev) => !prev);
  }}
- className="text-[11px] text-neutral-500 hover:text-neutral-700 dark:text-[#EBEBF599] dark:hover:text-neutral-200 font-medium px-1 shrink-0 text-left transition-colors"
+ className="text-[11px] text-neutral-500 hover:text-neutral-700 dark:text-[#EBEBF599] dark:hover:text-neutral-200 font-medium px-1 shrink-0 text-start transition-colors"
  >
- +{hiddenCount} more
+ +{hiddenCount} {isRtl ? "أخرى" : "more"}
  </button>
  </div>
  )}
@@ -231,7 +231,7 @@ const MonthDayCell = memo(function MonthDayCell({
                             {to12HourFormatStr(ev.time)}
                           </span>
                         )}
-                        <span className={`text-[11px] font-bold truncate flex-1 text-left ${textColorClass}`}>
+                        <span className={`text-[11px] font-bold truncate flex-1 text-start ${textColorClass}`}>
                           {ev.title}
                         </span>
                     </div>
@@ -298,7 +298,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  const todayDay = today.getDate();
 
  return (
- <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label="Interactive monthly calendar" className={`${isPhone ? "calendar-month-phone px-0 py-0.5" : "p-1"} font-sans select-none`}>
+ <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "تقويم شهري تفاعلي" : "Interactive monthly calendar"} className={`${isPhone ? "calendar-month-phone px-0 py-0.5" : "p-1"} font-sans select-none`}>
  {/* Week Day Labels (iOS Minimalist Header style) */}
   <div className={`grid grid-cols-7 ${isPhone ? "gap-1 mb-2.5 text-[10px] tracking-[0.04em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase`}>
   {[

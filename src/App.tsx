@@ -1861,12 +1861,12 @@ export default function App() {
   const bulletinBackGesture = useSwipeBack({
     direction: swipeDirection,
     surfaceSelector: '[data-bulletin-page-swipe-surface="true"]',
-    // Notifications also owns a horizontal All/Unread pager. Give Back the
-    // native iOS edge lane across the *entire page height* so the two gestures
-    // never compete: edge drag = Back, interior horizontal drag = segment.
-    activationMode: "edge",
-    edgeWidth: 34,
-    allowedStartSelector: '[data-bulletin-page-swipe-surface="true"]',
+    // Keep the approved native Back animation exactly as-is, but allow the
+    // gesture to begin anywhere inside the Notifications header zone only
+    // (title row + All/Unread segmented row). Category chips and body remain
+    // owned by the segment pager / vertical scroll.
+    activationMode: "full",
+    allowedStartSelector: '[data-bulletin-back-zone="true"]',
     allowInteractiveStart: true,
     isEnabled:
       bulletinReturnsToProfile &&
@@ -1921,7 +1921,7 @@ export default function App() {
       !(activeTab === "control-center" && controlCenterHasBackHistory),
     allowedStartSelector:
       activeTab === "bulletin"
-        ? '[data-bulletin-back-header="true"]'
+        ? '[data-bulletin-back-zone="true"]'
         : undefined,
     allowInteractiveStart: activeTab === "bulletin",
     onSwipeBack: () => {

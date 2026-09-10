@@ -1017,7 +1017,7 @@ export const SubjectView = function SubjectView({
     return counts;
   }, [subSubjects, getLecturesForHierarchy]);
 
-  const baseCardClassName = `ios-staggered-card relative group flex flex-col justify-between w-full h-full min-h-[160px] p-5 bg-white dark:bg-[#1C1C1E] rounded-[24px] text-left cursor-pointer select-none overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${!isTouchDevice ? "cursor-pointer" : ""}`;
+  const baseCardClassName = `ios-staggered-card relative group flex flex-col justify-between w-full h-full min-h-[160px] p-5 bg-white dark:bg-[#1C1C1E] rounded-[24px] text-start cursor-pointer select-none overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${!isTouchDevice ? "cursor-pointer" : ""}`;
   
   // Card sizing is pure CSS: the grid stretches sibling cards to one row height
   // and min-h-[160px] is the single fixed floor — nothing is measured in JS.
@@ -1093,14 +1093,14 @@ export const SubjectView = function SubjectView({
       >
       {/* Apple-style Large Navigation Header */}
       <div className="mb-8 pt-3">
-        <div className="flex items-center gap-1 mb-4 -ml-2">
+        <div className={`flex items-center gap-1 mb-4 ${isRtl ? "-mr-2" : "-ml-2"}`}>
           <button
             onClick={handleNavBack}
             className="subject-back flex items-center gap-1 text-med-blue hover:text-med-blue dark:text-blue-400 font-medium px-2 py-2 rounded-lg transition-colors cursor-pointer/40"
             title={isRtl ? "رجوع" : "Back"}
             aria-label={isRtl ? "رجوع" : "Back"}
           >
-            <ArrowLeft className="w-icon-md h-icon-md -mt-[1px]" />
+            {isRtl ? <ChevronRight className="w-icon-md h-icon-md -mt-[1px]" /> : <ArrowLeft className="w-icon-md h-icon-md -mt-[1px]" />}
             <span className="text-base tracking-[-0.015em]">
               {isRtl ? "رجوع" : "Back"}
             </span>
@@ -1115,15 +1115,15 @@ export const SubjectView = function SubjectView({
               setActiveSubSubject(null);
               onBack();
             }}
-            className="ml-auto text-neutral-500 dark:text-[#EBEBF599] disabled:opacity-50 hover:bg-neutral-900/5 dark:hover:bg-white/[0.12] p-3 rounded-full transition-colors cursor-pointer"
-            title="Syllabus Library Root"
-            aria-label="Home"
+            className="ms-auto text-neutral-500 dark:text-[#EBEBF599] disabled:opacity-50 hover:bg-neutral-900/5 dark:hover:bg-white/[0.12] p-3 rounded-full transition-colors cursor-pointer"
+            title={isRtl ? "الرئيسية" : "Syllabus Library Root"}
+            aria-label={isRtl ? "الرئيسية" : "Home"}
           >
             <Home className="w-6 h-6 sm:w-7 sm:h-7 text-neutral-500 dark:text-[var(--text-secondary)]" />
           </button>
         </div>
 
-        <div className="flex flex-col pl-2 px-2">
+        <div className={`flex flex-col px-2 ${isRtl ? "text-right" : "text-left"}`}>
           <span
             className={`text-xs font-semibold uppercase mb-2 shadow-elevation-1 px-2 py-1 rounded-md inline-block max-w-fit ${info.bg} ${info.text} antialiased`}
           >
@@ -1139,7 +1139,7 @@ export const SubjectView = function SubjectView({
               subject.name}
           </h1>
           {/* Redesigned interactive breadcrumb navigation (Apple Files style) */}
-          <div className="subject-breadcrumbs text-neutral-500 dark:text-[var(--text-secondary)] font-medium text-base mt-2 flex items-center flex-wrap gap-1 -ml-2 antialiased">
+          <div className={`subject-breadcrumbs text-neutral-500 dark:text-[var(--text-secondary)] font-medium text-base mt-2 flex items-center flex-wrap gap-1 antialiased ${isRtl ? "-mr-2" : "-ml-2"}`}>
             <button
               onClick={() => {
                 // Only ID has a real sub-subject level.
@@ -1170,7 +1170,7 @@ export const SubjectView = function SubjectView({
             </button>
             {subject.id === "ID" && activeSubSubject && (
               <>
-                <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />
+                {isRtl ? <ChevronLeft className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" /> : <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />}
                 <button
                   onClick={() => {
                     if (activeTrack) {
@@ -1192,7 +1192,7 @@ export const SubjectView = function SubjectView({
             )}
             {activeTrack && (
               <>
-                <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />
+                {isRtl ? <ChevronLeft className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" /> : <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />}
                 <button
                   onClick={() => {
                     if (activeDepartment) {
@@ -1220,7 +1220,7 @@ export const SubjectView = function SubjectView({
             )}
             {activeDepartment && (
               <>
-                <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />
+                {isRtl ? <ChevronLeft className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" /> : <ChevronRight className="w-icon-sm h-icon-sm opacity-40 mx-0 flex-shrink-0" />}
                 <span className="px-3 py-1 text-neutral-900 dark:text-[var(--text-primary)] font-semibold cursor-default">
                   {activeDepartment}
                 </span>
@@ -1233,7 +1233,7 @@ export const SubjectView = function SubjectView({
       {isSubjectRootPage && subjectCredit !== undefined && (
         <div
           className="flex items-center justify-center gap-3 sm:gap-4 py-3 sm:py-4 select-none"
-          aria-label={`Credit: ${subjectCredit}`}
+          aria-label={isRtl ? `الساعات المعتمدة: ${subjectCredit}` : `Credit: ${subjectCredit}`}
         >
           <div className="flex items-center gap-1.5" aria-hidden="true">
             <span className={`w-1.5 h-1.5 rounded-full ${subjectCreditColors.dot}`} />
@@ -1243,7 +1243,7 @@ export const SubjectView = function SubjectView({
           <div className={`flex items-center gap-2 ${subjectCreditColors.text}`}>
             <Medal className="w-5 h-5 stroke-[1.8]" aria-hidden="true" />
             <span className="text-[15px] sm:text-base font-semibold tracking-[-0.01em] antialiased">
-              Credit : {subjectCredit}
+              {isRtl ? "الساعات المعتمدة" : "Credit"} : {subjectCredit}
             </span>
           </div>
 
@@ -1573,7 +1573,7 @@ export const SubjectView = function SubjectView({
               <div className="w-avatar-sm h-avatar-sm rounded-full bg-med-blue/10 text-blue-400 flex items-center justify-center shrink-0">
                 <Sparkles className="w-icon-sm h-icon-sm" />
               </div>
-              <div className="flex-1 text-left">
+              <div className="flex-1 text-start">
                 <h5 className="text-caption font-semibold leading-none text-white">
                   {nativeToast.title}
                 </h5>

@@ -463,7 +463,7 @@ const CalendarView = memo(function CalendarView({
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: -10, scale: 0.95 }}
  transition={{ type: "spring" as const, stiffness: 400, damping: 40, mass: 1 }}
- className="absolute top-full left-0 mt-2 p-3 bg-white dark:bg-[#2C2C2E] rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.12] z-50 w-[260px] cursor-default"
+ className={`absolute top-full ${isRtl ? "right-0" : "left-0"} mt-2 p-3 bg-white dark:bg-[#2C2C2E] rounded-lg shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border border-black/5 dark:border-white/[0.12] z-50 w-[260px] cursor-default`}
  onClick={(e) => e.stopPropagation()}
  >
  <div className="flex items-center justify-between mb-3 px-1">
@@ -594,6 +594,7 @@ const CalendarView = memo(function CalendarView({
  setNewTaskTime={setNewTaskTime}
  setIsAddingTask={setIsAddingTask}
  parseTimeToMinutes={parseTimeToMinutes}
+ isRtl={isRtl}
  />
  );
  };
@@ -628,15 +629,19 @@ const CalendarView = memo(function CalendarView({
  e.stopPropagation();
  setShowMiniCalendar(!showMiniCalendar);
  }}
- className="text-neutral-900 dark:text-[var(--text-primary)] text-title font-semibold font-sans select-none flex items-center pr-4 cursor-pointer hover:opacity-80 transition-opacity"
+ className="text-neutral-900 dark:text-[var(--text-primary)] text-title font-semibold font-sans select-none flex items-center pe-4 cursor-pointer hover:opacity-80 transition-opacity"
  >
  {activeView === "month" &&
  `${monthNames[currentMonth]} ${currentYear}`}
  {activeView === "week" &&
- `${isRtl ? "الأسبوع المختار" : "Week of"} ${pLocalDate.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", { month: "long", day: "numeric" })}, ${currentYear}`}
+ (isRtl
+   ? `الأسبوع المختار • ${pLocalDate.toLocaleDateString("ar-IQ-u-nu-latn", { day: "numeric", month: "long", year: "numeric" })}`
+   : `Week of ${pLocalDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`)}
  {activeView === "day" &&
- `${isRtl ? "اليوم المختار" : "Timeline for"} ${pLocalDate.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", { month: "long", day: "numeric" })}, ${currentYear}`}
- <ChevronDown className="w-icon-md h-icon-md ml-2 text-neutral-500 dark:text-[#EBEBF599]" />
+ (isRtl
+   ? `اليوم المختار • ${pLocalDate.toLocaleDateString("ar-IQ-u-nu-latn", { day: "numeric", month: "long", year: "numeric" })}`
+   : `Timeline for ${pLocalDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`)}
+ <ChevronDown className="w-icon-md h-icon-md ms-2 text-neutral-500 dark:text-[#EBEBF599]" />
  </span>
  {renderMiniCalendar()}
  </div>

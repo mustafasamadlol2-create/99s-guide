@@ -4927,3 +4927,99 @@ html[dir="rtl"] .lecture-tabbar {
     line-height: 1;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Arabic iPhone floating-tab compositor alignment
+   --------------------------------------------------------------------------
+   The Search capsule moves to the inline-end/left side when the document is
+   RTL. The real tab grid follows that RTL geometry automatically, but the
+   compositor-only icon mirror is absolutely positioned and therefore needs
+   its physical X origin and resize deltas mirrored too. Without this mirror,
+   the active glass selector belongs to the correct RTL tab while the painted
+   SVG is one visual slot away, which looks like a blank selector at the edge.
+   -------------------------------------------------------------------------- */
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-icon-layer {
+  left: calc(50% + 30.5px);
+}
+
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(1) {
+  transform: translate3d(calc(3.2vw + 0.532px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(2) {
+  transform: translate3d(calc(1.6vw + 3.516px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(3) {
+  transform: translate3d(6.5px, -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(4) {
+  transform: translate3d(calc(-1.6vw + 9.484px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(5) {
+  transform: translate3d(calc(-3.2vw + 12.468px), -6.5px, 0);
+}
+
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(1) {
+  transform: translate3d(calc(3vw + 0.905px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(2) {
+  transform: translate3d(calc(1vw + 4.635px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(3) {
+  transform: translate3d(calc(-1vw + 8.365px), -6.5px, 0);
+}
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged
+  .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(4) {
+  transform: translate3d(calc(-3vw + 12.095px), -6.5px, 0);
+}
+
+html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-tabbar-icon-layer {
+  left: calc(50% + 27px);
+}
+
+@media (min-width: 454px) {
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(1) {
+    transform: translate3d(20.5px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(2) {
+    transform: translate3d(11.5px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(3) {
+    transform: translate3d(2.5px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(4) {
+    transform: translate3d(-6.5px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-5 .ios-floating-tabbar-icon-slot:nth-child(5) {
+    transform: translate3d(-15.5px, -2.5px, 0);
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(1) {
+    transform: translate3d(19.375px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(2) {
+    transform: translate3d(8.125px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(3) {
+    transform: translate3d(-3.125px, -2.5px, 0);
+  }
+  html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact.ios-tabbar-engaged
+    .ios-floating-tabbar-icon-layer-4 .ios-floating-tabbar-icon-slot:nth-child(4) {
+    transform: translate3d(-14.375px, -2.5px, 0);
+  }
+}

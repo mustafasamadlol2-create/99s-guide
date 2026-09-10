@@ -1591,6 +1591,17 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    [],
  );
  const activeLectureTabIndex = lectureTabOrder.indexOf(activeTab);
+ const lectureTabbarRef = useRef<HTMLDivElement | null>(null);
+
+ // Keep the active tab centered in the compact mobile tab strip. The active
+ // pill belongs to the real tab node (not a percentage-based overlay), so RTL
+ // and horizontal overflow can never leave a blank/offset selector.
+ useEffect(() => {
+   const node = lectureTabbarRef.current?.querySelector<HTMLElement>(
+     `[data-lecture-tab-id="${activeTab}"]`,
+   );
+   node?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+ }, [activeTab]);
 
  const goToNextLectureTab = useCallback(() => {
    if (activeLectureTabIndex < 0 || activeLectureTabIndex >= lectureTabOrder.length - 1) return;
@@ -1637,7 +1648,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     data-lecture-swipe-back-header="true"
     className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
   >
- <div className="flex items-center gap-3 w-full sm:w-auto -ml-1">
+ <div className="flex items-center gap-3 w-full sm:w-auto -ms-1">
  <motion.button
  type="button"
  onClick={(e) => {
@@ -1670,7 +1681,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <div className="flex flex-col min-w-0 pr-1">
  <div className="flex items-center gap-2 overflow-hidden">
  <span className="text-xs font-semibold font-mono text-neutral-500 dark:text-[var(--text-secondary)] bg-black/[0.04] dark:bg-white/[0.06] px-2 py-1 rounded-md shrink-0 antialiased">
- LECTURE {lecture.orderNumber}
+ {isRtl ? "المحاضرة" : "LECTURE"} {lecture.orderNumber}
  </span>
  <span className="text-sm font-medium text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)] truncate min-w-0 antialiased">
  {lecture.category}
@@ -1729,29 +1740,19 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  {/* Global tab shortcuts inside header */}
   <div
+    ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
-    className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none h-8 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
+    className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-x-auto overflow-y-hidden scrollbar-none overscroll-x-contain scroll-smooth"
+    style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
-  <motion.div
-    aria-hidden="true"
-    className="absolute top-1 bottom-1 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"
-    style={{
-      width: "calc((100% - 8px) / 6)",
-      left: isRtl ? "auto" : "4px",
-      right: isRtl ? "4px" : "auto",
-      willChange: "transform",
-    }}
-    animate={{ x: `${(isRtl ? -1 : 1) * Math.max(0, activeLectureTabIndex) * 100}%` }}
-    transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
-  />
- {[
+ {([
  { id: "pdf", label: "PDF" },
- { id: "notes", label: "Notes" },
+ { id: "notes", label: isRtl ? "الملاحظات" : "Notes" },
  { id: "mcqs", label: "MCQ" },
- { id: "flashcards", label: "Anki" },
- { id: "videos", label: "Video" },
- { id: "qa", label: "Q&A" },
- ].map((tab, index, array) => {
+ { id: "flashcards", label: isRtl ? "بطاقات" : "Anki" },
+ { id: "videos", label: isRtl ? "فيديو" : "Video" },
+ { id: "qa", label: isRtl ? "الأسئلة" : "Q&A" },
+ ] as const).map((tab, index, array) => {
  const isActive = activeTab === tab.id;
  const nextIsActive =
  index < array.length - 1 && activeTab === array[index + 1].id;
@@ -1761,15 +1762,24 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  return (
  <div
  key={tab.id}
- className="relative flex-1 flex items-center h-full"
+ data-lecture-tab-id={tab.id}
+ className="relative flex-none sm:flex-1 min-w-[72px] sm:min-w-0 flex items-center h-7"
  >
+ {isActive && (
+   <motion.div
+     layoutId="lecture-active-tab-pill"
+     aria-hidden="true"
+     className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"
+     transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
+   />
+ )}
  <motion.button
  type="button"
  transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className={`relative rounded-lg text-sm font-medium cursor-pointer transition-colors duration-[380ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full`}
+ className="relative rounded-lg text-[13px] sm:text-sm font-medium cursor-pointer transition-colors duration-[380ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full px-2"
  style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
  >
  <span
@@ -1777,7 +1787,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  className={`relative text-center whitespace-nowrap transition-colors duration-[380ms] ${
  isActive
  ? "text-black dark:text-[var(--text-primary)] font-semibold"
- : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:text-white dark:hover:text-neutral-200"
+ : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
  }`}
  >
  {tab.label}
@@ -1785,7 +1795,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </motion.button>
 
  {showDivider && (
- <div className="absolute right-0 top-[20%] bottom-[20%] w-0 bg-black/[0.1] dark:bg-white/[0.1] z-0" />
+ <div className={`absolute ${isRtl ? "left-0" : "right-0"} top-[20%] bottom-[20%] w-px bg-black/[0.08] dark:bg-white/[0.08] z-0`} />
  )}
  </div>
  );
@@ -2061,7 +2071,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      borderColor: `rgba(${flashcardTheme.rgb}, 0.24)`,
    }}
  >
- Question {currentQuestionIndex + 1} of{" "}
+ {isRtl ? "السؤال" : "Question"} {currentQuestionIndex + 1} {isRtl ? "من" : "of"}{" "}
  {filteredQuizQuestions.length}
  </span>
  </div>
@@ -2088,7 +2098,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
            {isRtl ? "سؤال سريري" : "MCQ CONCEPT"}
          </span>
        </div>
-       <h3 className="text-base sm:text-lg lg:text-xl font-sans text-neutral-900 dark:text-white font-semibold leading-relaxed">
+       <h3 dir="auto" className="text-base sm:text-lg lg:text-xl font-sans text-neutral-900 dark:text-white font-semibold leading-relaxed text-start">
          {filteredQuizQuestions[currentQuestionIndex].question}
        </h3>
      </div>
@@ -2174,10 +2184,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <HelpCircle className="quiz-nav-btn-icon w-icon-sm h-icon-sm text-[#FF9500]" />
  {showHint
  ? isRtl
- ? "إخفاء التلميح السريري"
+ ? "إخفاء التلميح"
  : "Hide Hint"
  : isRtl
- ? "عرض تلميح تشخيصي"
+ ? "عرض التلميح"
  : "Reveal Hint"}
  </button>
  </div>
@@ -2208,7 +2218,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ? "تسليم الإجابات ✓"
  : "Submit Answers ✓"
  : isRtl
- ? "التالي ➔"
+ ? "التالي ←"
  : "Next Question ➔"}
  </button>
  </div>
@@ -2235,9 +2245,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
 
  {/* iOS Notification Content Body */}
- <div className="p-4 flex gap-3 text-left">
+ <div className="p-4 flex gap-3 text-start">
  <div className="w-2 rounded-full bg-gradient-to-b from-[#FF9500] to-[#FFCC00] shrink-0" />
- <div className="space-y-1 text-left flex-1">
+ <div className="space-y-1 text-start flex-1">
  <p className="font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
  {filteredQuizQuestions[currentQuestionIndex]?.explanation
  ? filteredQuizQuestions[currentQuestionIndex].explanation
@@ -2258,12 +2268,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {quizScorePct}%
  </div>
  <h3 className="font-display font-semibold text-neutral-800 dark:text-white text-body">
- MCQ Performance Score
+ {isRtl ? "نتيجة أسئلة الاختيار المتعدد" : "MCQ Performance Score"}
  </h3>
  <p className="text-secondary-label mt-1">
  {quizScorePct >= 80
- ? "★ Excellent medical diagnostic accuracy. High Score Honors gained!"
- : "Comprehensive review recommended. Feel free to re-test below."}
+ ? (isRtl ? "★ دقة ممتازة في الإجابات. أداء مرتفع!" : "★ Excellent medical diagnostic accuracy. High Score Honors gained!")
+ : (isRtl ? "يُنصح بمراجعة شاملة. يمكنك إعادة الاختبار أدناه." : "Comprehensive review recommended. Feel free to re-test below.")}
  </p>
 
   <button
@@ -2275,14 +2285,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   }}
   className="mt-4 px-4 py-2 bg-neutral-900 text-[#D5C7B5] font-semibold text-caption rounded-lg hover:bg-neutral-800 transition cursor-pointer"
   >
- Retake Medical Quiz
+ {isRtl ? "إعادة الاختبار" : "Retake Medical Quiz"}
  </button>
  </div>
 
  {/* Review Mode: Color-coded Green/Red list of options */}
  <div className="space-y-4">
  <h4 className="font-semibold text-caption uppercase text-neutral-500 dark:text-[#EBEBF599]">
- Clinical Verification Log:
+ {isRtl ? "سجل مراجعة الإجابات:" : "Clinical Verification Log:"}
  </h4>
   {quizQuestions.map((q, idx) => {
   const selected = answersMap[q.id];
@@ -2310,8 +2320,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  const isAnsCorrect = optKey === correct;
 
  return (
- <div className="flex items-center justify-between w-full gap-2 text-left">
- <span className="">
+ <div className="flex items-center justify-between w-full gap-2 text-start">
+ <span dir="auto" className="text-start">
  {optKey}: {text}
  </span>
  {isAnsCorrect && (
@@ -2345,12 +2355,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  : "bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300"
  }`}
  >
- Question {idx + 1}:{" "}
- {isCorrect ? "CORRECT ✓" : "INCORRECT ✗"}
+ {isRtl ? `السؤال ${idx + 1}:` : `Question ${idx + 1}:`}{" "}
+ {isRtl ? (isCorrect ? "صحيحة ✓" : "غير صحيحة ✗") : (isCorrect ? "CORRECT ✓" : "INCORRECT ✗")}
  </span>
  </div>
 
- <p className="text-caption font-semibold text-neutral-800 dark:text-white mt-2 font-sans">
+ <p dir="auto" className="text-caption font-semibold text-neutral-800 dark:text-white mt-2 font-sans text-start">
  {q.question}
  </p>
 
@@ -2373,7 +2383,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <span className="font-semibold text-neutral-900 dark:text-white">
   {isRtl ? "الشرح:" : "Explanation:"}
   </span>{" "}
-  {verified?.explanation || q.explanation}
+  <span dir="auto">{verified?.explanation || q.explanation}</span>
   </div>
  </div>
  );
@@ -2665,7 +2675,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
                       <div className="h-px flex-1 bg-gradient-to-l from-transparent via-black/[0.10] to-black/[0.04] dark:via-white/12 dark:to-white/5" />
                     </div>
                     <p className="text-[11px] sm:text-sm font-medium text-neutral-500 dark:text-white/58 uppercase tracking-[0.16em]">
-                      {isRtl ? "انقر لإظهار التفسير (أو Space)" : "Tap to reveal explanation (Space)"}
+                      {isRtl ? "انقر أو اضغط Space لإظهار التفسير" : "Tap to reveal explanation (Space)"}
                     </p>
                   </div>
                 </motion.div>
@@ -2785,7 +2795,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
       <div className="border-t border-neutral-100 pt-5 mt-5 flex justify-between items-center text-caption dark:border-white/[0.12]">
         <span className="text-neutral-550 font-semibold font-mono text-caption">
-          Card {currentCardIndex + 1} of {activeCards.length}
+          {isRtl ? "البطاقة" : "Card"} {currentCardIndex + 1} {isRtl ? "من" : "of"} {activeCards.length}
         </span>
         {progress.flashcardsCompleted && (
           <span className="text-caption font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 border border-emerald-100/50">
@@ -2830,7 +2840,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ) : (
  getRelevantVideos().map((video) => {
               const videoId = video.youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1];
-              return <VideoCard key={video.id} video={video} videoId={videoId} onWatch={handleWatchVideo} />;
+              return <VideoCard key={video.id} video={video} videoId={videoId} onWatch={handleWatchVideo} language={language} />;
             })
  )}
  </div>
@@ -2901,11 +2911,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ? "طرح استفسار أو لغز تشخيصي..."
  : "Ask about details that you didn't understand..."
  }
- className="w-full pl-5 pr-12 py-4 text-base bg-white dark:bg-[#2C2C2E] dark:text-[var(--text-primary)] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-medium transition placeholder:text-neutral-500 dark:text-[#EBEBF599] shadow-elevation-1"
+ dir="auto"
+ className={`w-full ${isRtl ? "pr-5 pl-14 text-right" : "pl-5 pr-14 text-left"} py-4 text-base bg-white dark:bg-[#2C2C2E] dark:text-[var(--text-primary)] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-medium transition placeholder:text-neutral-500 dark:text-[#EBEBF599] shadow-elevation-1` }
  />
  <button
  type="submit"
- className="absolute right-2 top-1/2 -translate-y-1/2 p-3 bg-med-gold hover:bg-med-gold text-white rounded-lg cursor-pointer flex items-center justify-center shadow-elevation-1"
+ className={`absolute ${isRtl ? "left-2" : "right-2"} top-1/2 -translate-y-1/2 p-3 bg-med-gold hover:bg-med-gold text-white rounded-lg cursor-pointer flex items-center justify-center shadow-elevation-1`}
  >
  <Send className="w-icon-sm h-icon-sm" />
  </button>

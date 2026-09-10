@@ -3,7 +3,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, UserX, Loader2, AlertCircle, UserCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, UserX, Loader2, AlertCircle, UserCheck } from "lucide-react";
 import { apiClient } from "../../../core/api/apiClient";
 import { UserAvatar } from "../../profile/components/UserAvatar";
 import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
@@ -19,9 +19,11 @@ interface BlockedUser {
 
 interface BlockedUsersViewProps {
   onBack: () => void;
+  language?: "en" | "ar";
 }
 
-export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) => {
+export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack, language = "en" }) => {
+  const isRtl = language === "ar";
   const [users, setUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,11 +37,11 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
       if (!res.ok) throw new Error("Failed to load blocked users");
       setUsers(await res.json());
     } catch {
-      setError("Failed to load blocked users. Please try again.");
+      setError(isRtl ? "تعذر تحميل المستخدمين المحظورين. حاول مرة أخرى." : "Failed to load blocked users. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isRtl]);
 
   useEffect(() => { fetchBlocked(); }, [fetchBlocked]);
 
@@ -50,19 +52,20 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
       if (!res.ok) throw new Error("Failed to unblock");
       setUsers((prev) => prev.filter((u) => u.id !== blockedId));
     } catch {
-      setError("Failed to unblock user. Please try again.");
+      setError(isRtl ? "تعذر إلغاء حظر المستخدم. حاول مرة أخرى." : "Failed to unblock user. Please try again.");
     } finally {
       setUnblocking(null);
     }
-  }, []);
+  }, [isRtl]);
 
   return (
     <motion.div
       key="blocked-users-view"
-      initial={{ opacity: 0, x: 24 }}
+      initial={{ opacity: 0, x: isRtl ? -24 : 24 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 24 }}
+      exit={{ opacity: 0, x: isRtl ? -24 : 24 }}
       transition={{ type: "spring", stiffness: 400, damping: 38 }}
+      dir={isRtl ? "rtl" : "ltr"}
       className="w-full max-w-2xl mx-auto pb-24 pt-4 px-4 sm:px-6 animate-fadeIn"
     >
       {/* Header */}
@@ -71,10 +74,10 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
           onClick={onBack}
           className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-white/[0.08] text-neutral-600 dark:text-[#EBEBF599] transition-colors cursor-pointer"
         >
-          <ChevronLeft className="w-5 h-5" />
+          {isRtl ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
         <h1 className="text-[20px] font-semibold text-neutral-900 dark:text-white tracking-tight">
-          Blocked Users
+          {isRtl ? "المستخدمون المحظورون" : "Blocked Users"}
         </h1>
       </div>
 
@@ -82,7 +85,7 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="w-7 h-7 text-neutral-400 animate-spin" />
-          <p className="text-[14px] text-neutral-500">Loading…</p>
+          <p className="text-[14px] text-neutral-500">{isRtl ? "جارٍ التحميل…" : "Loading…"}</p>
         </div>
       )}
 
@@ -98,9 +101,9 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
           <div className="w-14 h-14 rounded-2xl bg-neutral-100 dark:bg-white/[0.06] flex items-center justify-center">
             <UserX className="w-6 h-6 text-neutral-400" />
           </div>
-          <p className="text-[16px] font-semibold text-neutral-700 dark:text-white">No blocked users</p>
+          <p className="text-[16px] font-semibold text-neutral-700 dark:text-white">{isRtl ? "لا يوجد مستخدمون محظورون" : "No blocked users"}</p>
           <p className="text-[14px] text-neutral-500 dark:text-[#EBEBF599] max-w-xs">
-            You haven't blocked anyone. Users you block will appear here.
+            {isRtl ? "لم تحظر أي مستخدم بعد. سيظهر المستخدمون الذين تحظرهم هنا." : "You haven't blocked anyone. Users you block will appear here."}
           </p>
         </div>
       )}
@@ -123,7 +126,7 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
                   className="rounded-none"
                   actions={[
                     {
-                      label: "Unblock",
+                      label: isRtl ? "إلغاء الحظر" : "Unblock",
                       icon: <UserCheck className="w-5 h-5" />,
                       bgClass: "bg-emerald-500 dark:bg-emerald-600",
                       onClick: () => handleUnblock(user.id),
@@ -147,8 +150,8 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
                         {user.name}
                       </p>
                       <p className="text-[13px] text-neutral-500 dark:text-[#EBEBF599] mt-0.5">
-                        Blocked on{" "}
-                        {new Date(user.blockedAt).toLocaleDateString("en-US", {
+                        {isRtl ? "حُظر في" : "Blocked on"}{" "}
+                        {new Date(user.blockedAt).toLocaleDateString(isRtl ? "ar-IQ-u-nu-latn" : "en-US", {
                           month: "long",
                           day: "numeric",
                           year: "numeric",
@@ -163,7 +166,7 @@ export const BlockedUsersView: React.FC<BlockedUsersViewProps> = ({ onBack }) =>
                       {unblocking === user.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        "Unblock"
+                        (isRtl ? "إلغاء الحظر" : "Unblock")
                       )}
                     </button>
                   </div>

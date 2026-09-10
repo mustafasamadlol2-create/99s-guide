@@ -691,9 +691,9 @@ export const ProfileView = function ProfileView({
          }}
        >
          {subView === "blocked-users" ? (
-           <BlockedUsersView onBack={profileBackGesture.triggerBack} />
+           <BlockedUsersView onBack={profileBackGesture.triggerBack} language={language} />
          ) : (
-           <MyReportsView onBack={profileBackGesture.triggerBack} />
+           <MyReportsView onBack={profileBackGesture.triggerBack} language={language} />
          )}
        </motion.div>,
        document.body,

@@ -4,6 +4,7 @@ import {
   ChartPie,
   CheckSquare2,
   ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   FileCheck2,
@@ -219,6 +220,36 @@ const MODULE_DETAILS: Record<SubjectId, ModuleDetailConfig> = {
   },
 };
 
+
+const AR_ASSESSMENT_LABELS: Record<string, string> = {
+  "Attendance & Participation": "الحضور والمشاركة",
+  "History Taking": "أخذ التاريخ المرضي",
+  "Focused History": "التاريخ المرضي المركّز",
+  "OSCE": "امتحان OSCE",
+  "MCQ Exam": "امتحان MCQ",
+  "Practicing / Clinical Skills": "المهارات العملية والسريرية",
+  "Mid-module Exam": "امتحان منتصف الموديول",
+  "End Semester Exam": "امتحان نهاية الفصل",
+  "Practical / Clinical": "العملي / السريري",
+  "Checklist Submission": "تسليم قائمة المتطلبات",
+  "Final Written Exam / Article submission": "الامتحان النهائي / تسليم المقال",
+};
+
+const AR_LEARNING_LABELS: Record<string, string> = {
+  "Clinical / Practical": "السريري / العملي",
+  "Practical": "العملي",
+  "Seminars": "الندوات",
+  "SSS / Electronic Lectures": "SSS / المحاضرات الإلكترونية",
+  "SSS / Practical": "SSS / العملي",
+  "Semester": "الفصل الدراسي",
+};
+
+const localizeModuleLabel = (label: string, language: "en" | "ar") =>
+  language === "ar" ? (AR_ASSESSMENT_LABELS[label] ?? AR_LEARNING_LABELS[label] ?? label) : label;
+
+const localizeHoursValue = (value: string, language: "en" | "ar") =>
+  language === "ar" ? value.replace(/\bh\b/g, "ساعة") : value;
+
 const TONE_STYLES: Record<AssessmentTone, { rgb: string; text: string }> = {
   violet: { rgb: "139,92,246", text: "#A78BFA" },
   emerald: { rgb: "34,197,94", text: "#4ADE80" },
@@ -246,7 +277,7 @@ function SectionHeading({ icon: Icon, title, accent, accentRgb }: { icon: SmallI
   );
 }
 
-function AssessmentCard({ item }: { item: AssessmentItem }) {
+function AssessmentCard({ item, language }: { item: AssessmentItem; language: "en" | "ar" }) {
   const tone = TONE_STYLES[item.tone];
   const Icon = item.icon;
 
@@ -264,8 +295,8 @@ function AssessmentCard({ item }: { item: AssessmentItem }) {
         <Icon className="h-[22px] w-[22px]" />
       </span>
       <div className="relative min-w-0">
-        <div className="text-[15px] font-semibold leading-[1.25] text-neutral-900 dark:text-white sm:text-[16px]">{item.label}</div>
-        <div className="mt-2 text-[15px] font-semibold" style={{ color: tone.text }}>{item.marks} marks</div>
+        <div className="text-[15px] font-semibold leading-[1.25] text-neutral-900 dark:text-white sm:text-[16px]">{localizeModuleLabel(item.label, language)}</div>
+        <div className="mt-2 text-[15px] font-semibold" style={{ color: tone.text }}>{language === "ar" ? `${item.marks} درجة` : `${item.marks} marks`}</div>
       </div>
     </div>
   );
@@ -304,8 +335,9 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
   return (
     <section
       ref={rootRef}
+      dir={language === "ar" ? "rtl" : "ltr"}
       className="w-full bg-[#F5F7FA] px-2 pb-6 pt-3 dark:bg-transparent sm:bg-transparent sm:px-0 sm:pb-8 sm:pt-2"
-      aria-label={`${config.title} module overview`}
+      aria-label={language === "ar" ? `نظرة عامة على موديول ${config.title}` : `${config.title} module overview`}
     >
       <button
         type="button"
@@ -313,7 +345,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
         className="mb-4 inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-2 py-1.5 text-[15px] font-medium shadow-[0_1px_0_rgba(15,23,42,0.04)] active:opacity-60 dark:bg-transparent dark:shadow-none sm:mb-5 sm:bg-transparent sm:px-1 sm:py-1 sm:shadow-none"
         style={{ color: config.accent }}
       >
-        <ChevronLeft className="h-5 w-5" />
+        {language === "ar" ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         {language === "ar" ? "رجوع" : "Back"}
       </button>
 
@@ -330,7 +362,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
           <SubjectIcon className="h-7 w-7" />
         </div>
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">{subject.id} Module</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">{language === "ar" ? `موديول ${subject.id}` : `${subject.id} Module`}</div>
           <h1 className="mt-1 break-words text-[28px] font-display font-semibold leading-[1.08] tracking-[-0.03em] text-neutral-950 dark:text-white sm:text-[38px] sm:leading-[1.05]">
             {config.title}
           </h1>
@@ -381,7 +413,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
         <section className="rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-5 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
           <SectionHeading icon={ChartPie} title="تقسيم الدرجات" accent={config.accent} accentRgb={config.accentRgb} />
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-            {config.assessments.map((item) => <AssessmentCard key={item.label} item={item} />)}
+            {config.assessments.map((item) => <AssessmentCard key={item.label} item={item} language={language} />)}
           </div>
         </section>
 
@@ -397,16 +429,16 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
           <section className="relative overflow-hidden rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-[18px] shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-6 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]">
             <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(135deg, rgba(${config.accentRgb},0.10), transparent 54%)` }} />
             <div className="relative">
-              <SectionHeading icon={Clock3} title="Learning Hours" accent={config.accent} accentRgb={config.accentRgb} />
+              <SectionHeading icon={Clock3} title={language === "ar" ? "الساعات التعليمية" : "Learning Hours"} accent={config.accent} accentRgb={config.accentRgb} />
               <div className="space-y-2.5">
                 {config.learningHours.map((item, index) => (
                   <div key={item.label} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-[14px] sm:text-[15px]">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: index % 2 === 0 ? config.accent : `rgba(${config.accentRgb},0.65)` }} />
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="whitespace-nowrap font-medium text-neutral-700 dark:text-[#E4E4E7]">{item.label}</span>
+                      <span className="whitespace-nowrap font-medium text-neutral-700 dark:text-[#E4E4E7]">{localizeModuleLabel(item.label, language)}</span>
                       <span className="h-px min-w-[24px] flex-1 border-t border-dotted border-neutral-300 dark:border-white/20" />
                     </div>
-                    <span className="whitespace-nowrap font-semibold text-neutral-900 dark:text-white">{item.value}</span>
+                    <span className="whitespace-nowrap font-semibold text-neutral-900 dark:text-white">{localizeHoursValue(item.value, language)}</span>
                   </div>
                 ))}
               </div>

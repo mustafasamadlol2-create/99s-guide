@@ -91,7 +91,7 @@ export const BulletinCenter = function BulletinCenter({
    onCommit: commitSegment,
    blockedSelector: [
      '[data-bulletin-row="true"]',
-     '[data-bulletin-back-header="true"]',
+     '[data-bulletin-back-zone="true"]',
      '.bulletin-chip',
      '.bulletin-icon-btn',
      'input',
@@ -377,14 +377,14 @@ export const BulletinCenter = function BulletinCenter({
  }}
  >
  {/* ENHANCED iOS HEADER */}
-        <header data-bulletin-back-header="true" className={`${fullPageMobile ? "px-4 pt-2" : "px-4 md:px-6 pt-5"} pb-4 flex flex-col gap-4 shrink-0 safe-top bg-neutral-50 dark:bg-[#000000]`}>
+        <header className={`${fullPageMobile ? "px-4 pt-2" : "px-4 md:px-6 pt-5"} pb-4 flex flex-col gap-4 shrink-0 safe-top bg-neutral-50 dark:bg-[#000000]`}>
           {fullPageMobile && (
-            <div className="relative flex items-center justify-center min-h-11">
+            <div data-bulletin-back-zone="true" className="relative flex items-center justify-center min-h-11">
               {onBack && (
                 <button
                   type="button"
                   onClick={onBack}
-                  className="absolute left-0 w-11 h-11 -ml-2 flex items-center justify-center rounded-full text-blue-500 dark:text-blue-400 active:bg-neutral-200/70 dark:active:bg-white/[0.08] transition-colors"
+                  className={`absolute ${isRtl ? "right-0 -mr-2" : "left-0 -ml-2"} w-11 h-11 flex items-center justify-center rounded-full text-blue-500 dark:text-blue-400 active:bg-neutral-200/70 dark:active:bg-white/[0.08] transition-colors`}
                   aria-label={isRtl ? "رجوع" : "Back"}
                 >
                   {isRtl ? (
@@ -400,7 +400,7 @@ export const BulletinCenter = function BulletinCenter({
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-4">
+          <div data-bulletin-back-zone="true" className="flex items-center justify-between gap-4">
             {/* SEGMENTED CONTROL - iOS Style */}
             <div className="bulletin-segment flex-1 p-[3px] bg-neutral-200/80 dark:bg-white/[0.08] rounded-[10px] flex relative items-center h-[34px] overflow-hidden">
               <motion.div
@@ -432,7 +432,7 @@ export const BulletinCenter = function BulletinCenter({
                 </div>
               )}
               {notifications.length > 0 && (
-                <div className="flex items-center gap-1 ml-1">
+                <div className={`flex items-center gap-1 ${isRtl ? "mr-1" : "ml-1"}`}>
                   <button
                     onClick={onMarkAllRead}
                     className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 dark:text-[#EBEBF599] hover:bg-neutral-100 dark:hover:bg-white/[0.08] hover:text-neutral-900 dark:hover:text-white active:scale-95 transition-all duration-200"

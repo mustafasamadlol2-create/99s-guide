@@ -135,7 +135,7 @@ const WeekDayCell = memo(function WeekDayCell({
     <button
       key={`week-day-${idx}`}
       onClick={handleDayClick}
-       className={`group relative py-3 px-2 min-h-[400px] flex-none w-[calc(50%-6px)]  shrink-0 snap-start md:w-auto md:min-h-[600px] md:flex-none rounded-xl text-left flex flex-col justify-start cursor-pointer transition duration-200 select-none z-0
+       className={`group relative py-3 px-2 min-h-[400px] flex-none w-[calc(50%-6px)]  shrink-0 snap-start md:w-auto md:min-h-[600px] md:flex-none rounded-xl text-start flex flex-col justify-start cursor-pointer transition duration-200 select-none z-0
       border ${cellBgClass} ${cellBorderClass} ${ringClass}
       `}
     >
@@ -143,7 +143,7 @@ const WeekDayCell = memo(function WeekDayCell({
         <span
           className={`block text-[11px] tracking-[0.05em] uppercase font-semibold mb-1 ${dayNameClass}`}
         >
-          {dateObj.toLocaleDateString(undefined, { weekday: "short" })}
+          {dateObj.toLocaleDateString(isRtl ? "ar-IQ-u-nu-latn" : "en-US", { weekday: "short" })}
         </span>
         <span
           className={`relative flex items-center justify-center w-8 h-8 rounded-full text-[15px] font-semibold mb-2 transition-colors ${badgeClass} ${badgeBgClass}`}

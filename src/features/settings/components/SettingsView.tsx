@@ -79,8 +79,11 @@ const SettingsActionItem = memo(({
         </span>
       </div>
     </div>
-    <div className="shrink-0 ml-4">
-      <ChevronRight className={`w-icon-md h-icon-md transition-colors ${isDanger ? 'text-red-300 dark:text-red-900/60 group-hover:text-med-error' : 'text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-500'}`} />
+    <div className="shrink-0 ms-4">
+      <ChevronRight
+        className={`w-icon-md h-icon-md transition-colors ${isDanger ? 'text-red-300 dark:text-red-900/60 group-hover:text-med-error' : 'text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-500'}`}
+        style={{ transform: isRtl ? "rotate(180deg)" : "none" }}
+      />
     </div>
   </button>
 ));
@@ -279,7 +282,7 @@ const SettingsView = function SettingsView({
  </span>
  </div>
  </div>
- <div className="settings-segment shrink-0 ml-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
+ <div className="settings-segment shrink-0 ms-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
  <button
  onClick={handleThemeLight}
  className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "light" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
@@ -318,7 +321,7 @@ const SettingsView = function SettingsView({
  </span>
  </div>
  </div>
- <div className="settings-segment shrink-0 ml-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
+ <div className="settings-segment shrink-0 ms-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
  <button
  onClick={handleLangEn}
  className={`px-3 py-2 rounded-md settings-segment-btn transition ${language === "en" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
@@ -358,7 +361,7 @@ const SettingsView = function SettingsView({
  </span>
  </div>
  </div>
- <div className="shrink-0 ml-4 pointer-events-none">
+ <div className="shrink-0 ms-4 pointer-events-none">
  <div className={`relative inline-flex h-8 w-12 items-center rounded-full transition-colors ${pushAlerts ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-600'}`}>
  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition shadow-elevation-1 ${pushAlerts ? (isRtl ? '-translate-x-[26px]' : 'translate-x-[26px]') : (isRtl ? '-translate-x-1' : 'translate-x-1')}`} />
  </div>

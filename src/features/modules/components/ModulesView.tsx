@@ -148,7 +148,7 @@ function MetricCard({ icon: Icon, value, label, tone }: {
         <Icon className={`h-[15px] w-[15px] sm:h-[19px] sm:w-[19px] ${selectedTone.icon}`} />
       </div>
 
-      <div className="min-w-0 text-left">
+      <div className="min-w-0 text-start">
         <div className="text-[15px] font-semibold leading-none tracking-[-0.02em] text-neutral-950 dark:text-white sm:text-[17px]">
           {value}
         </div>
@@ -173,14 +173,14 @@ export const ModulesView = memo(function ModulesView({ subjects, progressBySubje
   const totalCredits = orderedSubjects.reduce((sum, subject) => sum + MODULE_VISUALS[subject.id].credits, 0);
 
   return (
-    <section className="w-full pb-8" aria-label={language === "ar" ? "الموديولات" : "Modules"}>
+    <section dir={language === "ar" ? "rtl" : "ltr"} className="w-full pb-8" aria-label={language === "ar" ? "الموديولات" : "Modules"}>
       <header className="flex flex-col gap-5 pt-4 pb-7">
         <div className="flex flex-col gap-2.5">
           <h1 className="hidden md:block text-large-title font-display font-semibold tracking-[-0.025em] text-neutral-950 dark:text-white">
             {language === "ar" ? "الموديولات" : "Modules"}
           </h1>
           <p className="max-w-2xl text-subhead font-medium text-neutral-500 dark:text-[#EBEBF599]">
-            {language === "ar" ? "استعرض كل موديول مع الكريديت والمحاضرات والساعات الدراسية." : "Explore each module with its credits, lectures, and lecture hours."}
+            {language === "ar" ? "استعرض كل موديول مع الساعات المعتمدة والمحاضرات والساعات الدراسية." : "Explore each module with its credits, lectures, and lecture hours."}
           </p>
         </div>
 
@@ -200,7 +200,7 @@ export const ModulesView = memo(function ModulesView({ subjects, progressBySubje
           <MetricCard
             icon={GraduationCap}
             value={totalCredits}
-            label={language === "ar" ? "الكريديت" : "Credit"}
+            label={language === "ar" ? "الساعات المعتمدة" : "Credit"}
             tone="emerald"
           />
         </div>
@@ -218,14 +218,14 @@ export const ModulesView = memo(function ModulesView({ subjects, progressBySubje
               key={subject.id}
               type="button"
               onClick={() => onSelectModule(subject.id)}
-              className="relative isolate flex min-h-[348px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-left shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
-              aria-label={`${subject.name} module`}
+              className="relative isolate flex min-h-[348px] w-full flex-col overflow-hidden rounded-[22px] border border-black/[0.06] text-start shadow-[0_12px_34px_rgba(15,23,42,0.08)] dark:border-white/[0.08] dark:shadow-[0_16px_40px_rgba(0,0,0,0.28)]"
+              aria-label={language === "ar" ? `موديول ${subject.name}` : `${subject.name} module`}
             >
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
                 <ResilientModuleImage src={meta.image} placeholder={meta.placeholder} accentRgb={meta.accentRgb} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-black/10" />
                 <div
-                  className="absolute left-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl"
+                  className={`absolute ${language === "ar" ? "right-4" : "left-4"} top-4 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl`}
                   style={{
                     color: meta.accent,
                     backgroundColor: `rgba(${meta.accentRgb},0.18)`,
@@ -247,22 +247,22 @@ export const ModulesView = memo(function ModulesView({ subjects, progressBySubje
 
                 <div className="mt-2 grid grid-cols-3 border-y border-black/[0.07] py-3 dark:border-white/[0.08]">
                   <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
-                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Credits</div>
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{language === "ar" ? "الساعات المعتمدة" : "Credits"}</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.credits}</div>
                   </div>
                   <div className="flex min-w-0 flex-col items-center justify-center border-x border-black/[0.07] px-2 text-center dark:border-white/[0.08]">
-                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Lectures</div>
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{language === "ar" ? "المحاضرات" : "Lectures"}</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{displayedLectureCount}</div>
                   </div>
                   <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
-                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">Hours</div>
+                    <div className="text-[11px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{language === "ar" ? "الساعات" : "Hours"}</div>
                     <div className="mt-1 text-[20px] font-medium leading-none text-neutral-900 dark:text-white">{meta.hours}</div>
                   </div>
                 </div>
 
                 <div className="mt-auto pt-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? "Completed" : "In progress"}</span>
+                    <span className="text-[12px] font-medium text-neutral-500 dark:text-[#EBEBF599]">{progress >= 100 ? (language === "ar" ? "مكتمل" : "Completed") : (language === "ar" ? "قيد الدراسة" : "In progress")}</span>
                     <span
                       className="flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold"
                       style={{

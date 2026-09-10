@@ -87,6 +87,7 @@ interface DayStripItemProps {
  todayYear: number;
  todayMonth: number;
  todayDay: number;
+ isRtl: boolean;
 }
 
 const DayStripItem = memo(function DayStripItem({
@@ -98,6 +99,7 @@ const DayStripItem = memo(function DayStripItem({
  todayYear,
  todayMonth,
  todayDay,
+ isRtl,
 }: DayStripItemProps) {
  const y = dayDate.getFullYear();
  const m = String(dayDate.getMonth() + 1).padStart(2, "0");
@@ -169,7 +171,7 @@ const DayStripItem = memo(function DayStripItem({
  <span
  className={`text-caption uppercase ${dayNameClass} transition-colors`}
  >
- {dayDate.toLocaleDateString(undefined, { weekday: "narrow" })}
+ {dayDate.toLocaleDateString(isRtl ? "ar-IQ-u-nu-latn" : "en-US", { weekday: "narrow" })}
  </span>
 
  <div
@@ -195,6 +197,7 @@ interface CalendarDayViewProps {
  setNewTaskTime: (time: string) => void;
  setIsAddingTask: (val: boolean) => void;
  parseTimeToMinutes: (timeStr: string) => number;
+ isRtl: boolean;
 }
 
 const EMPTY_EVENTS: CalendarEvent[] = [];
@@ -212,6 +215,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  setNewTaskTime,
  setIsAddingTask,
  parseTimeToMinutes,
+ isRtl,
 }: CalendarDayViewProps) {
  const [todayStr, setTodayStr] = useState(() => {
     const d = new Date();
@@ -324,7 +328,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  const dayEvents = eventsByDate.get(currentFormatted) || EMPTY_EVENTS;
 
  return (
- <DayStripItem key={`ios-strip-${idx}`} dayDate={dayDate} idx={idx} selectedDate={selectedDate} setSelectedDate={setSelectedDate} dayEvents={dayEvents} todayYear={todayYear} todayMonth={todayMonth} todayDay={todayDay} />
+ <DayStripItem key={`ios-strip-${idx}`} dayDate={dayDate} idx={idx} selectedDate={selectedDate} setSelectedDate={setSelectedDate} dayEvents={dayEvents} todayYear={todayYear} todayMonth={todayMonth} todayDay={todayDay} isRtl={isRtl} />
  );
  })}
  </div>
@@ -332,7 +336,7 @@ export const CalendarDayView = memo(function CalendarDayView({
 
  {/* Day View Chronological Schedule */}
  <div
- id="calendar_day_grid_deck" tabIndex={0} role="application" aria-label="Interactive daily timeline"
+ id="calendar_day_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "الجدول الزمني اليومي التفاعلي" : "Interactive daily timeline"}
  ref={timelineRef}
       className="relative min-h-[240px] overflow-x-clip border border-neutral-200 dark:border-white/[0.15] rounded-lg bg-neutral-50/50 dark:bg-[#000000] select-none touch-pan-y transition-colors shadow-elevation-1 p-3 sm:p-4"
  style={{ contentVisibility: "auto" }}
@@ -362,7 +366,7 @@ export const CalendarDayView = memo(function CalendarDayView({
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-semibold">{ev.title}</h4>
-                      <p className="text-xs opacity-80 uppercase tracking-wider font-semibold">Entire Day</p>
+                      <p className="text-xs opacity-80 uppercase tracking-wider font-semibold">{isRtl ? "طوال اليوم" : "Entire Day"}</p>
                     </div>
                   </div>
                 );
@@ -375,7 +379,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  <div className="w-16 h-16 bg-black/5 dark:bg-white/[0.08] rounded-full flex items-center justify-center mb-4">
  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
  </div>
- <p className="text-sm font-medium">No events scheduled for this day</p>
+ <p className="text-sm font-medium">{isRtl ? "لا توجد أحداث مجدولة لهذا اليوم" : "No events scheduled for this day"}</p>
  </div>
  ) : (
  eventClusters.map((cluster, i) => (
