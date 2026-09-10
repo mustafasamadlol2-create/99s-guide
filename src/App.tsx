@@ -1886,6 +1886,22 @@ export default function App() {
     onSwipeBack: handleSettingsBack,
   });
 
+  // Match the native stacked-page treatment already used by lecture/detail
+  // navigation: the destination is a *complete live page* underneath the
+  // outgoing sheet, offset only a few pixels until the interactive pop reveals
+  // it. This avoids a flat/blank reveal and guarantees that Settings and
+  // Notifications uncover the exact Profile DOM that remains after Back.
+  const bulletinProfileUnderlayX = useTransform(
+    bulletinBackGesture.progress,
+    [0, 1],
+    [isRtl ? 22 : -22, 0],
+  );
+  const settingsProfileUnderlayX = useTransform(
+    settingsBackGesture.progress,
+    [0, 1],
+    [isRtl ? 22 : -22, 0],
+  );
+
   const rootBackGesture = useSwipeBack({
     direction: swipeDirection,
     surfaceSelector: '#root-navigation-page-layer',
@@ -5448,7 +5464,7 @@ const handleSignOut = useCallback(async () => {
             </div>
 
             {/* Tab 4: Profile */}
-            <div
+            <motion.div
               aria-hidden={persistentProfileUnderlay || undefined}
               style={{
                 display:
@@ -5473,14 +5489,23 @@ const handleSignOut = useCallback(async () => {
                 zIndex: persistentProfileUnderlay ? 0 : undefined,
                 pointerEvents: persistentProfileUnderlay ? "none" : "auto",
                 minHeight: navigationSurfaceMinHeight,
-                // Keep the Profile parent as a normal DOM layer while it is
-                // revealed by Settings/Notifications. A translateY() here made
-                // WebKit promote both parent and child to compositor layers,
-                // which caused the vertical shimmer/reposition visible during
-                // interactive Back. Positioning the already-mounted parent at
-                // its saved scroll offset is visually identical without a
-                // second moving GPU surface.
-                transform: "none",
+                // Keep vertical positioning completely untouched. Only the
+                // tiny horizontal iOS underlay parallax is compositor-driven
+                // while a pushed Profile child is actively available to pop.
+                // The value is undefined on ordinary Profile rendering, so no
+                // permanent transform layer is created after Back completes.
+                x:
+                  bulletinReturnsToProfile
+                    ? bulletinProfileUnderlayX
+                    : settingsReturnsToProfile
+                      ? settingsProfileUnderlayX
+                      : undefined,
+                willChange:
+                  bulletinReturnsToProfile || settingsReturnsToProfile
+                    ? "transform"
+                    : "auto",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
               }}
               className="w-full bg-neutral-50 dark:bg-[#000000]"
             >
@@ -5514,7 +5539,7 @@ const handleSignOut = useCallback(async () => {
                 </ErrorBoundary>
 </Suspense>
               </motion.div>
-            </div>
+            </motion.div>
 
             {/* Tab 5 + legal detail stack: Settings stays live underneath the
                 pushed legal page, matching the persistent native stacks used by
@@ -5729,7 +5754,9 @@ const handleSignOut = useCallback(async () => {
                 moves. This mirrors the persistent stacks used by Modules and
                 Subjects and prevents black/root-canvas reveals. */}
             <PhoneViewportPortal enabled={bulletinReturnsToProfile && usePhoneLayout}>
-            <div
+            <motion.div
+              data-bulletin-page-swipe-surface="true"
+              data-swipe-back-surface="true"
               style={{
                 display: activeTab === "bulletin" ? "block" : "none",
                 position:
@@ -5772,6 +5799,21 @@ const handleSignOut = useCallback(async () => {
                     : activeTab === "bulletin"
                       ? 10
                       : undefined,
+                // Move the *entire opaque viewport page*, not only its inner
+                // content. Previously the fixed white/black wrapper remained
+                // stationary and masked Profile, which is exactly the blank
+                // strip seen during interactive Back in WKWebView.
+                x: bulletinReturnsToProfile ? bulletinBackGesture.x : 0,
+                boxShadow:
+                  bulletinReturnsToProfile && bulletinBackGesture.isInteracting
+                    ? (isRtl
+                        ? "18px 0 30px -18px rgba(0,0,0,0.48)"
+                        : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                    : "none",
+                willChange: bulletinReturnsToProfile ? "transform" : "auto",
+                WebkitBackfaceVisibility: "hidden",
+                backfaceVisibility: "hidden",
+                touchAction: bulletinReturnsToProfile ? "pan-y" : undefined,
                 ...(!bulletinReturnsToProfile && usePhoneLayout
                   ? {
                       marginInline: isCompactHeight ? "-24px" : "-16px",
@@ -5785,26 +5827,8 @@ const handleSignOut = useCallback(async () => {
               }}
               className="w-full ios-scrollable bg-neutral-50 dark:bg-[#000000]"
             >
-              <motion.div
-                data-bulletin-page-swipe-surface="true"
-                data-swipe-back-surface="true"
-                initial={false}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                style={{
-                  x: bulletinReturnsToProfile ? bulletinBackGesture.x : 0,
-                  minHeight: navigationSurfaceMinHeight,
-                  boxShadow:
-                    bulletinReturnsToProfile && bulletinBackGesture.isInteracting
-                      ? (isRtl
-                          ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                          : "-18px 0 30px -18px rgba(0,0,0,0.48)")
-                      : "none",
-                  willChange: bulletinReturnsToProfile ? "transform" : "auto",
-                  WebkitBackfaceVisibility: "hidden",
-                  backfaceVisibility: "hidden",
-                  touchAction: bulletinReturnsToProfile ? "pan-y" : undefined,
-                }}
+              <div
+                style={{ minHeight: navigationSurfaceMinHeight }}
                 className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
               >
                 <Suspense fallback={iOSLoadingFallback}>
@@ -5834,8 +5858,8 @@ const handleSignOut = useCallback(async () => {
                   />
                 </ErrorBoundary>
 </Suspense>
-              </motion.div>
-            </div>
+              </div>
+            </motion.div>
             </PhoneViewportPortal>
             
           </div>
