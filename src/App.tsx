@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
+import { createPortal } from "react-dom";
 import { useSwipeBack } from "./core/hooks/useSwipeBack";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
@@ -105,6 +106,26 @@ if (typeof window !== "undefined") {
 
 // Reusable Apple-Quality Fallback Skeleton (Apple Human Interface Guidelines)
 const iOSLoadingFallback = <DashboardSkeleton />;
+
+/**
+ * Phone-only pushed pages must live outside the transformed/scrolling route
+ * canvas. A CSS `position: fixed` descendant of a transformed Motion layer is
+ * fixed to that layer rather than to the viewport in WebKit; once the parent
+ * canvas scrolls, the pushed page can expose Profile underneath. Portaling the
+ * page to this stable host gives it true viewport ownership while preserving
+ * React state and the existing interactive swipe-back MotionValue.
+ */
+function PhoneViewportPortal({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: React.ReactNode;
+}) {
+  if (!enabled || typeof document === "undefined") return <>{children}</>;
+  const host = document.getElementById("phone-viewport-page-portal") ?? document.body;
+  return createPortal(children, host);
+}
 
 const handleSidebarKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
   if (e.key === "Escape") {
@@ -1840,7 +1861,12 @@ export default function App() {
   const bulletinBackGesture = useSwipeBack({
     direction: swipeDirection,
     surfaceSelector: '[data-bulletin-page-swipe-surface="true"]',
-    allowedStartSelector: '[data-bulletin-back-header="true"]',
+    // Notifications also owns a horizontal All/Unread pager. Give Back the
+    // native iOS edge lane across the *entire page height* so the two gestures
+    // never compete: edge drag = Back, interior horizontal drag = segment.
+    activationMode: "edge",
+    edgeWidth: 34,
+    allowedStartSelector: '[data-bulletin-page-swipe-surface="true"]',
     allowInteractiveStart: true,
     isEnabled:
       bulletinReturnsToProfile &&
@@ -4741,6 +4767,10 @@ const handleSignOut = useCallback(async () => {
         fontSize: `${textScale}rem`,
       }}
     >
+      {/* Stable viewport host for iPhone pushed pages. It is intentionally a
+          direct child of the app shell, outside the transformed scroll canvas. */}
+      <div id="phone-viewport-page-portal" className="contents" />
+
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => {
@@ -5489,6 +5519,7 @@ const handleSignOut = useCallback(async () => {
             {/* Tab 5 + legal detail stack: Settings stays live underneath the
                 pushed legal page, matching the persistent native stacks used by
                 Modules and Subjects. Only the detail layer moves during Back. */}
+            <PhoneViewportPortal enabled={profileSettingsOverlayActive}>
             <motion.div
               ref={profileSettingsOverlayScrollRef}
               data-settings-page-swipe-surface={settingsReturnsToProfile ? "true" : undefined}
@@ -5504,7 +5535,11 @@ const handleSignOut = useCallback(async () => {
                 // painted and completely untouched underneath.
                 position: profileSettingsOverlayActive ? "fixed" : "relative",
                 inset: profileSettingsOverlayActive ? 0 : undefined,
+                width: profileSettingsOverlayActive ? "100vw" : undefined,
+                maxWidth: profileSettingsOverlayActive ? "100vw" : undefined,
                 height: profileSettingsOverlayActive ? "100dvh" : undefined,
+                minHeight: profileSettingsOverlayActive ? "100dvh" : undefined,
+                maxHeight: profileSettingsOverlayActive ? "100dvh" : undefined,
                 boxSizing: profileSettingsOverlayActive ? "border-box" : undefined,
                 paddingTop: profileSettingsOverlayActive
                   ? "calc(16px + env(safe-area-inset-top, 0px))"
@@ -5517,7 +5552,8 @@ const handleSignOut = useCallback(async () => {
                   : undefined,
                 overflowY: profileSettingsOverlayActive ? "auto" : undefined,
                 overflowX: profileSettingsOverlayActive ? "hidden" : undefined,
-                overscrollBehaviorY: profileSettingsOverlayActive ? "contain" : undefined,
+                overscrollBehaviorY: profileSettingsOverlayActive ? "none" : undefined,
+                WebkitOverflowScrolling: profileSettingsOverlayActive ? "touch" : undefined,
                 zIndex: profileSettingsOverlayActive ? 40 : undefined,
                 x: settingsReturnsToProfile ? settingsBackGesture.x : 0,
                 boxShadow:
@@ -5635,6 +5671,7 @@ const handleSignOut = useCallback(async () => {
                 )}
               </div>
             </motion.div>
+            </PhoneViewportPortal>
 
             {/* Tab 6: Control Center (Admin only) */}
             {(currentUser?.isAdmin ||
@@ -5691,6 +5728,7 @@ const handleSignOut = useCallback(async () => {
                 page remains underneath and only this opaque Bulletin layer
                 moves. This mirrors the persistent stacks used by Modules and
                 Subjects and prevents black/root-canvas reveals. */}
+            <PhoneViewportPortal enabled={bulletinReturnsToProfile && usePhoneLayout}>
             <div
               style={{
                 display: activeTab === "bulletin" ? "block" : "none",
@@ -5700,7 +5738,23 @@ const handleSignOut = useCallback(async () => {
                     : "relative",
                 inset:
                   bulletinReturnsToProfile && usePhoneLayout ? 0 : undefined,
+                width:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "100vw"
+                    : undefined,
+                maxWidth:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "100vw"
+                    : undefined,
                 height:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "100dvh"
+                    : undefined,
+                minHeight:
+                  bulletinReturnsToProfile && usePhoneLayout
+                    ? "100dvh"
+                    : undefined,
+                maxHeight:
                   bulletinReturnsToProfile && usePhoneLayout
                     ? "100dvh"
                     : undefined,
@@ -5709,7 +5763,9 @@ const handleSignOut = useCallback(async () => {
                 overflowX:
                   bulletinReturnsToProfile && usePhoneLayout ? "hidden" : undefined,
                 overscrollBehaviorY:
-                  bulletinReturnsToProfile && usePhoneLayout ? "contain" : undefined,
+                  bulletinReturnsToProfile && usePhoneLayout ? "none" : undefined,
+                WebkitOverflowScrolling:
+                  bulletinReturnsToProfile && usePhoneLayout ? "touch" : undefined,
                 zIndex:
                   bulletinReturnsToProfile && usePhoneLayout
                     ? 40
@@ -5727,11 +5783,7 @@ const handleSignOut = useCallback(async () => {
                     }
                   : {}),
               }}
-              className={`w-full ios-scrollable ${
-                bulletinReturnsToProfile
-                  ? "bg-transparent"
-                  : "bg-neutral-50 dark:bg-[#000000]"
-              }`}
+              className="w-full ios-scrollable bg-neutral-50 dark:bg-[#000000]"
             >
               <motion.div
                 data-bulletin-page-swipe-surface="true"
@@ -5784,6 +5836,7 @@ const handleSignOut = useCallback(async () => {
 </Suspense>
               </motion.div>
             </div>
+            </PhoneViewportPortal>
             
           </div>
           </motion.div>

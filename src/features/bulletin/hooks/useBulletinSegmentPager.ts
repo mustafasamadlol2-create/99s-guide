@@ -252,6 +252,19 @@ export function useBulletinSegmentPager({
       if (!target) return;
       if (blockedSelectorRef.current && target.closest(blockedSelectorRef.current)) return;
 
+      // Reserve the native Back edge for the page-level recognizer. Without
+      // this explicit arbitration both the Notifications segment pager and the
+      // interactive Back gesture can lock onto the same iOS touch stream,
+      // producing a double transform / snap. The center of the page remains a
+      // full-width All <-> Unread pager.
+      const touch = event.touches[0];
+      const rect = node.getBoundingClientRect();
+      const backEdgeWidth = 34;
+      const startsInBackEdge = isRtlRef.current
+        ? touch.clientX >= rect.right - backEdgeWidth
+        : touch.clientX <= rect.left + backEdgeWidth;
+      if (startsInBackEdge) return;
+
       stopAnimation();
       clearHandoffFrames();
       x.set(0);
@@ -260,7 +273,6 @@ export function useBulletinSegmentPager({
       const exitSign = exitSignFor(activeSegmentRef.current);
       syncAdjacentPage(0, width, exitSign);
 
-      const touch = event.touches[0];
       startXRef.current = touch.clientX;
       startYRef.current = touch.clientY;
       lastXRef.current = touch.clientX;
