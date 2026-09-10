@@ -147,6 +147,54 @@ export default function App() {
     : "100%";
   useIOSKeyboardDragDismiss({ isEnabled: true });
 
+  // Native-app viewport contract: the app shell must never behave like a web
+  // page that can be pinched/keyboard-zoomed.  AvatarCropEditor performs its
+  // own image zoom inside the crop surface, so disabling *viewport* zoom does
+  // not remove that intended editing gesture.  Keep this runtime-owned rather
+  // than hard-coding index.html so the same rule is applied consistently to
+  // Capacitor and installed-PWA sessions as soon as App mounts.
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    const previousViewport = viewport?.getAttribute("content") ?? null;
+    if (viewport) {
+      viewport.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover",
+      );
+    }
+
+    const preventGestureZoom = (event: Event) => {
+      event.preventDefault();
+    };
+    const preventModifierWheelZoom = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) event.preventDefault();
+    };
+    const preventKeyboardZoom = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (["+", "=", "-", "0"].includes(event.key)) event.preventDefault();
+    };
+
+    // iOS Safari/WKWebView still emits the proprietary gesture events on some
+    // versions even with the viewport contract above.  Blocking them removes
+    // the rubber-band page magnification visible in the recording.
+    document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
+    document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
+    document.addEventListener("gestureend", preventGestureZoom, { passive: false });
+    window.addEventListener("wheel", preventModifierWheelZoom, { passive: false });
+    window.addEventListener("keydown", preventKeyboardZoom, { capture: true });
+
+    return () => {
+      if (viewport && previousViewport !== null) viewport.setAttribute("content", previousViewport);
+      document.removeEventListener("gesturestart", preventGestureZoom);
+      document.removeEventListener("gesturechange", preventGestureZoom);
+      document.removeEventListener("gestureend", preventGestureZoom);
+      window.removeEventListener("wheel", preventModifierWheelZoom);
+      window.removeEventListener("keydown", preventKeyboardZoom, { capture: true });
+    };
+  }, []);
+
   // --- Core Session States ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   // Socket callbacks read this ref so profile/group updates are visible without
@@ -1415,9 +1463,9 @@ export default function App() {
   // scrollTop increases (content moves down) -> compact / smaller bar
   // scrollTop decreases (content moves up)   -> expanded / larger bar
   //
-  // No tab press, touch gesture by itself, horizontal swipe, wheel delta, route
-  // change, or any other interaction writes to this state. Keeping the source of
-  // truth this narrow makes the behavior deterministic on WKWebView.
+  // User vertical scrolling and an intentional tab-bar press are the only inputs
+  // allowed to write this visual state. Horizontal gestures, route restores, and
+  // programmatic scrolling are explicitly excluded to keep WKWebView stable.
   const [isPhoneTabBarEngaged, setIsPhoneTabBarEngaged] = useState(true);
   const phoneTabBarLastScrollTopRef = useRef(0);
   const phoneTabBarPendingExpandedRef = useRef<boolean | null>(null);
@@ -1437,7 +1485,11 @@ export default function App() {
 
       // Route restoration is not a user scroll. Keep the baseline synchronized
       // but never resize the floating bar because a page was restored.
-      if (isRestoringGlobalScrollRef.current) {
+      if (
+        isRestoringGlobalScrollRef.current ||
+        canvas.dataset.programmaticScrollRestore === "true" ||
+        profileSubViewOpenRef.current
+      ) {
         phoneTabBarLastScrollTopRef.current = nextScrollTop;
         return;
       }
@@ -4491,6 +4543,7 @@ const handleSignOut = useCallback(async () => {
           }
         >
           <AuthScreen
+            language={language}
             onNavigateToLegal={navigateInApp}
             onLoginSuccess={(u) =>
               handleAuthSuccess(u.name, u.email, u.password, u.studentGroup, u.isNewUser, u.signature)
@@ -4606,7 +4659,7 @@ const handleSignOut = useCallback(async () => {
         aria-label={
           language === "ar" ? "الشريط الجانبي الرئيسي" : "Main Sidebar"
         }
-        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell sidebar-premium-surface ${isAsideCollapsed ? "sidebar-shell-collapsed" : "sidebar-shell-expanded"} shrink-0 flex-col border-r h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
+        className={`${usePhoneLayout ? "hidden" : "flex"} sidebar-shell sidebar-premium-surface ${isAsideCollapsed ? "sidebar-shell-collapsed" : "sidebar-shell-expanded"} shrink-0 flex-col ${isRtl ? "border-l" : "border-r"} h-full max-h-full select-none z-30 justify-between overflow-hidden relative`}
         style={{
           width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
@@ -4683,7 +4736,11 @@ const handleSignOut = useCallback(async () => {
                     isAsideCollapsed ? "sidebar-toggle-icon-collapsed" : ""
                   }`}
                 >
-                  <ChevronLeft className={"w-[20px] h-[20px]"} />
+                  {isRtl ? (
+                    <ChevronRight className="w-[20px] h-[20px]" />
+                  ) : (
+                    <ChevronLeft className="w-[20px] h-[20px]" />
+                  )}
                 </span>
               </button>
             )}
@@ -4849,7 +4906,7 @@ const handleSignOut = useCallback(async () => {
                   <button
                     type="button"
                     onClick={() => { pushNavigationStack(); setActiveTab("bulletin"); }}
-                    className="relative flex items-center justify-center w-10 h-10 -mr-2 rounded-full active:bg-neutral-200 dark:active:bg-white/10 transition-colors"
+                    className={`relative flex items-center justify-center w-10 h-10 ${isRtl ? "-ml-2" : "-mr-2"} rounded-full active:bg-neutral-200 dark:active:bg-white/10 transition-colors`}
                     aria-label={language === "ar" ? "التنبيهات" : "Notifications"}
                   >
                     <Bell className="w-[22px] h-[22px] text-neutral-600 dark:text-neutral-400" />
@@ -5289,7 +5346,7 @@ const handleSignOut = useCallback(async () => {
                   <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
                     {language === "ar" ? "ملف الطالب" : "Profile"}
                   </h1>
-                  <div className="relative flex items-center justify-center w-10 h-10 -mr-2 rounded-full">
+                  <div className={`relative flex items-center justify-center w-10 h-10 ${isRtl ? "-ml-2" : "-mr-2"} rounded-full`}>
                     <Bell className="w-[22px] h-[22px] text-neutral-600 dark:text-neutral-400" />
                     {unreadNotificationsCount > 0 && (
                       <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-[1.5px] border-white dark:border-neutral-950" />
@@ -5586,6 +5643,12 @@ const handleSignOut = useCallback(async () => {
         {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer
           id="ios_native_tabbar_wrapper"
+          onPointerDown={() => {
+            // Third explicit state rule requested for iPhone: touching any
+            // control in the floating navigation immediately engages the larger
+            // native-sized capsule. Scroll-down remains the only shrink action.
+            if (device.isPhone) setIsPhoneTabBarEngaged(true);
+          }}
           className={`ios-floating-tabbar fixed z-50 select-none ${
             isCompactHeight ? "ios-floating-tabbar-compact" : ""
           } ${
@@ -5610,6 +5673,7 @@ const handleSignOut = useCallback(async () => {
                     label={item.label}
                     isActive={activeTab === item.id}
                     isCompactHeight={isCompactHeight}
+                    isEngaged={isPhoneTabBarEngaged}
                     activeColorClass={item.activeColorClass}
                     onClick={handleSidebarTabClick}
                   />
@@ -5641,8 +5705,8 @@ const handleSignOut = useCallback(async () => {
             </AnimatePresence>
           </div>
 
-          {/* Composite-only icon layer. The real tab buttons, labels and active
-              glass indicator stay in their original layout; only the SVG glyphs
+          {/* Composite-only icon layer. The real tab buttons and active glass
+              indicator stay in their original layout; only the SVG glyphs
               are mirrored here so scroll-driven resize can move them with a
               single GPU transform instead of re-rasterizing them through CSS
               Grid on every width/height frame. */}
@@ -5675,7 +5739,6 @@ const handleSignOut = useCallback(async () => {
                         strokeWidth={isActiveItem ? 2.5 : 1.8}
                       />
                     </span>
-                    <span className="ios-floating-tabbar-icon-label-spacer" />
                   </div>
                 );
               })}

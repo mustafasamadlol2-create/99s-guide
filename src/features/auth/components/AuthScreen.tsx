@@ -47,6 +47,7 @@ import PrivacyPolicyView from "../../legal/components/PrivacyPolicyView";
 import TermsOfServiceView from "../../legal/components/TermsOfServiceView";
 import SupportView from "../../legal/components/SupportView";
 import MedicalDisclaimerView from "../../legal/components/MedicalDisclaimerView";
+import type { Language } from "../../../core/i18n/translations";
 import {
   AuthSpinner, AuthSocialButton, AuthPasswordField,
   AuthValidation, DEFAULT_RULES, AuthAnimatedCheck,
@@ -76,6 +77,7 @@ async function oauthResponseError(response: Response, fallback: string): Promise
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AuthScreenProps {
+  language: Language;
   onNavigateToLegal: (path: string) => void;
   onLoginSuccess: (user: {
     name: string;
@@ -135,8 +137,10 @@ const PulsingDots = memo(function PulsingDots({ reduce }: { reduce: boolean }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthScreenProps) {
+export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess }: AuthScreenProps) {
   const reduce = !!useReducedMotion();
+  const isRtl = language === "ar";
+  const tr = useCallback((english: string, arabic: string) => (isRtl ? arabic : english), [isRtl]);
 
   // ── Navigation state ──
   const [mode, setMode]           = useState<AuthMode>("login");
@@ -1228,19 +1232,38 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
 
   // ── Per-mode header copy ──
   const headers: Record<AuthMode, { title: string; subtitle: string }> = {
-    login:    { title: "Welcome to 99's Guide",           subtitle: "Sign in with your Baghdad University College of Medicine account to access the Medical Portal." },
-    register: { title: "Create Account",               subtitle: "Join the collaborative medical study network" },
-    forgot:   { title: "Reset Password",               subtitle: "Provide your registered university email"     },
-    sent:     { title: "Check Your Inbox",             subtitle: "Secure recovery link dispatched"              },
+    login: {
+      title: tr("Welcome to 99's Guide", "مرحبًا بك في دليل 99"),
+      subtitle: tr(
+        "Sign in with your Baghdad University College of Medicine account to access the Medical Portal.",
+        "سجّل الدخول باستخدام حساب كلية الطب بجامعة بغداد للوصول إلى البوابة الطبية.",
+      ),
+    },
+    register: {
+      title: tr("Create Account", "إنشاء حساب"),
+      subtitle: tr("Join the collaborative medical study network", "انضم إلى شبكة الدراسة الطبية التعاونية"),
+    },
+    forgot: {
+      title: tr("Reset Password", "إعادة تعيين كلمة المرور"),
+      subtitle: tr("Provide your registered university email", "أدخل بريدك الجامعي المسجل"),
+    },
+    sent: {
+      title: tr("Check Your Inbox", "تحقق من بريدك الوارد"),
+      subtitle: tr("Secure recovery link dispatched", "تم إرسال رابط استعادة آمن"),
+    },
   };
   const registerStepMeta = [
-    { title: "Personal Information", subtitle: "Tell us a little about yourself", icon: User },
-    { title: "University Information", subtitle: "Connect your academic identity", icon: GraduationCap },
-    { title: "Password", subtitle: "Secure your student account", icon: ShieldCheck },
-    { title: "Review", subtitle: "Make sure everything is correct", icon: ClipboardCheck },
+    { title: tr("Personal Information", "المعلومات الشخصية"), subtitle: tr("Tell us a little about yourself", "أخبرنا قليلًا عنك"), icon: User },
+    { title: tr("University Information", "المعلومات الجامعية"), subtitle: tr("Connect your academic identity", "اربط هويتك الأكاديمية"), icon: GraduationCap },
+    { title: tr("Password", "كلمة المرور"), subtitle: tr("Secure your student account", "أمّن حسابك الطلابي"), icon: ShieldCheck },
+    { title: tr("Review", "المراجعة"), subtitle: tr("Make sure everything is correct", "تأكد من صحة جميع المعلومات"), icon: ClipboardCheck },
     {
-      title: registrationVerificationRequired ? "Verify Your Email" : "Success",
-      subtitle: registrationVerificationRequired ? "Confirm your university inbox to continue" : "Your student account is ready",
+      title: registrationVerificationRequired
+        ? tr("Verify Your Email", "تحقق من بريدك الإلكتروني")
+        : tr("Success", "تم بنجاح"),
+      subtitle: registrationVerificationRequired
+        ? tr("Confirm your university inbox to continue", "أكد بريدك الجامعي للمتابعة")
+        : tr("Your student account is ready", "حسابك الطلابي جاهز"),
       icon: CheckCircle,
     },
   ];
@@ -1271,6 +1294,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
   return (
     <motion.div
       id="auth-screen-container"
+      dir={isRtl ? "rtl" : "ltr"}
       initial={false}
       animate={{ opacity: 1 }}
       transition={premiumPageEntrance}
@@ -2224,7 +2248,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                     <motion.div variants={FIELD_V as any} className="flex flex-col gap-3">
                       <AuthSocialButton
                         id="auth-google-btn"
-                        label="Continue with Google"
+                        label={tr("Continue with Google", "المتابعة باستخدام Google")}
                         status={socialState["google"] ?? "idle"}
                         anyLoading={Object.values(socialState).some(s => s === "loading")}
                         onClick={() => handleSocialLogin("Google")}
@@ -2240,7 +2264,7 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
                       {/* Apple Sign-In — Apple HIG: logo adapts to light/dark */}
                       <AuthSocialButton
                         id="auth-apple-btn"
-                        label="Continue with Apple"
+                        label={tr("Continue with Apple", "المتابعة باستخدام Apple")}
                         status={socialState["apple"] ?? "idle"}
                         anyLoading={Object.values(socialState).some(s => s === "loading")}
                         onClick={() => handleSocialLogin("apple")}
@@ -2296,18 +2320,18 @@ export default function AuthScreen({ onNavigateToLegal, onLoginSuccess }: AuthSc
           >
             <div className="flex items-center justify-center gap-1.5 font-semibold mb-1">
               <ShieldCheck aria-hidden="true" className="w-3.5 h-3.5 text-med-teal dark:text-amber-400/80 shrink-0" />
-              <span>Privacy &amp; Medical Integrity</span>
+              <span>{tr("Privacy & Medical Integrity", "الخصوصية والنزاهة الطبية")}</span>
             </div>
-            <p>Exclusive to Medical Students. Passwords encrypted. Multi-device syncing enabled locally.</p>
+            <p>{tr("Exclusive to Medical Students. Passwords encrypted. Multi-device syncing enabled locally.", "مخصص لطلبة الطب. كلمات المرور محمية، والمزامنة بين الأجهزة مدعومة.")}</p>
             <nav
               aria-label="Legal documents"
               className="mt-3 pt-2 border-t border-med-beige/40 dark:border-white/[0.06] flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-caption text-med-muted dark:text-[#EBEBF599]"
             >
               {[
-                { href: "/privacy", label: "Privacy Policy" },
-                { href: "/terms", label: "Terms of Service" },
-                { href: "/support", label: "Support" },
-                { href: "/disclaimer", label: "Medical Disclaimer" },
+                { href: "/privacy", label: tr("Privacy Policy", "سياسة الخصوصية") },
+                { href: "/terms", label: tr("Terms of Service", "شروط الخدمة") },
+                { href: "/support", label: tr("Support", "الدعم") },
+                { href: "/disclaimer", label: tr("Medical Disclaimer", "إخلاء المسؤولية الطبية") },
               ].map((link) => (
                 <button
                   key={link.href}

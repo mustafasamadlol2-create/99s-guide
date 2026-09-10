@@ -47,13 +47,19 @@ interface ProfileViewProps {
 const SettingsGroup = memo(({
   children,
   title,
+  isRtl = false,
 }: {
   children: React.ReactNode;
   title?: string;
+  isRtl?: boolean;
 }) => (
-  <div className="mb-8 animate-fadeIn">
+  <div className="mb-8 animate-fadeIn" dir={isRtl ? "rtl" : "ltr"}>
     {title && (
-      <h2 className="text-[13px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-[rgba(235,235,245,0.3)] pl-4 mb-3 select-none">
+      <h2
+        className={`text-[13px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mb-3 select-none ${
+          isRtl ? "pr-4 text-right" : "pl-4 text-left"
+        }`}
+      >
         {title}
       </h2>
     )}
@@ -81,6 +87,7 @@ const SettingsItem = memo(({
   showChevron = false,
   isDestructive = false,
   customRight,
+  isRtl = false,
 }: {
   Icon: React.ElementType;
   iconBg?: string;
@@ -91,22 +98,31 @@ const SettingsItem = memo(({
   showChevron?: boolean;
   isDestructive?: boolean;
   customRight?: React.ReactNode;
+  isRtl?: boolean;
 }) => {
   const innerContent = (
     <div
-      className={`flex items-center p-4 relative transition duration-300 hover:bg-neutral-50/80 dark:hover:bg-white/[0.04] z-0 hover:z-10 ${
+      dir={isRtl ? "rtl" : "ltr"}
+      className={`flex items-center gap-4 p-4 relative transition duration-300 hover:bg-neutral-50/80 dark:hover:bg-white/[0.04] z-0 hover:z-10 ${
         onClick ? "cursor-pointer" : ""
-      } after:content-[''] after:absolute after:bottom-0 after:left-14 after:right-4 after:h-[1px] after:bg-neutral-100 dark:after:bg-neutral-800/50 last:after:hidden`}
-      role="button" tabIndex={0} onKeyDown={handleSettingsItemKeyDown} onClick={onClick}
+      } ${
+        isRtl
+          ? "after:content-[''] after:absolute after:bottom-0 after:right-14 after:left-4 after:h-[1px] after:bg-neutral-100 dark:after:bg-neutral-800/50 last:after:hidden"
+          : "after:content-[''] after:absolute after:bottom-0 after:left-14 after:right-4 after:h-[1px] after:bg-neutral-100 dark:after:bg-neutral-800/50 last:after:hidden"
+      }`}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? handleSettingsItemKeyDown : undefined}
+      onClick={onClick}
     >
       <div
-        className={`w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 mr-4 text-white ${
+        className={`w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 text-white ${
           iconBg || "bg-blue-500"
         } shadow-sm`}
       >
         <Icon className="w-[18px] h-[18px]" />
       </div>
-      <div className="flex-1 flex flex-col justify-center min-w-0 py-0.5">
+      <div className={`flex-1 flex flex-col justify-center min-w-0 py-0.5 ${isRtl ? "text-right" : "text-left"}`}>
         <span
           className={`text-[15px] font-medium tracking-tight truncate ${
             isDestructive ? "text-red-500" : "text-neutral-800 dark:text-white"
@@ -121,18 +137,21 @@ const SettingsItem = memo(({
         )}
       </div>
       {customRight ? (
-        <div className="ml-3 shrink-0 flex items-center">{customRight}</div>
+        <div className="shrink-0 flex items-center" dir="ltr">{customRight}</div>
       ) : (
         value && (
           <div
-            className={`text-[15px] font-medium mr-1 shrink-0 truncate max-w-[120px] sm:max-w-[200px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)]`}
+            className="text-[15px] font-medium shrink-0 truncate max-w-[120px] sm:max-w-[200px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)]"
           >
             {value}
           </div>
         )
       )}
       {showChevron && onClick && (
-        <ChevronRight className="w-4 h-4 ml-1 text-neutral-500 dark:text-[rgba(235,235,245,0.3)] shrink-0" />
+        <ChevronRight
+          className="w-4 h-4 text-neutral-500 dark:text-[rgba(235,235,245,0.3)] shrink-0"
+          style={{ transform: isRtl ? "rotate(180deg)" : "none" }}
+        />
       )}
     </div>
   );
@@ -167,6 +186,9 @@ export const ProfileView = function ProfileView({
  language = "en",
  onSubViewChange,
 }: ProfileViewProps) {
+ const isRtl = language === "ar";
+ const tr = useCallback((english: string, arabic: string) => (isRtl ? arabic : english), [isRtl]);
+
  // Sub-view navigation. The Profile root remains mounted underneath the pushed
  // page so interactive Back reveals the real previous screen instead of the
  // app canvas. This mirrors the persistent stacks used by Modules/Subjects.
@@ -204,7 +226,19 @@ export const ProfileView = function ProfileView({
    const canvas = document.getElementById("main-scroll-canvas");
    if (!canvas) return;
 
+   const markProgrammaticScroll = () => {
+     canvas.dataset.programmaticScrollRestore = "true";
+     requestAnimationFrame(() => {
+       requestAnimationFrame(() => {
+         if (canvas.dataset.programmaticScrollRestore === "true") {
+           delete canvas.dataset.programmaticScrollRestore;
+         }
+       });
+     });
+   };
+
    if (subView) {
+     markProgrammaticScroll();
      canvas.scrollTop = 0;
      return;
    }
@@ -217,6 +251,7 @@ export const ProfileView = function ProfileView({
    // single synchronous restoration is enough. The old extra RAF write was the
    // source of the post-swipe "reposition" seen on iPhone/iPad.
    const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+   markProgrammaticScroll();
    canvas.scrollTop = Math.min(requested, maxScroll);
    pendingProfileScrollRestoreRef.current = null;
    onSubViewChange?.(false);
@@ -321,7 +356,10 @@ export const ProfileView = function ProfileView({
  }, [subjects, progress, dbLectures]);
 
   const profileRoot = (
-    <div className="profile-view-root w-full max-w-2xl mx-auto pb-24 pt-6 px-4 sm:px-6 animate-fadeIn">
+    <div
+      className="profile-view-root w-full max-w-2xl mx-auto pb-24 pt-6 px-4 sm:px-6 animate-fadeIn"
+      dir={isRtl ? "rtl" : "ltr"}
+    >
       {/* Large Profile Header (Apple ID Style) */}
       <div className="flex flex-col items-center mb-10 relative">
         <InteractiveAvatar
@@ -351,7 +389,7 @@ export const ProfileView = function ProfileView({
               </h1>
               <p
                 className="text-[15px] text-neutral-500 dark:text-[#EBEBF599] mt-1 font-medium"
-                aria-label={`Academic Group ${academicGroupLabel}`}
+                aria-label={tr(`Academic Group ${academicGroupLabel}`, `المجموعة الدراسية ${academicGroupLabel}`)}
               >
                 {academicGroupLabel}
               </p>
@@ -364,7 +402,7 @@ export const ProfileView = function ProfileView({
                  className="mt-6 min-h-11 flex items-center gap-1.5 text-[14px] text-blue-500 dark:text-blue-400 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-5 py-2.5 rounded-full transition duration-300"
               >
                 <Pencil className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
+                <span>{tr("Edit Profile", "تعديل الملف الشخصي")}</span>
               </button>
             </motion.div>
           </AnimatePresence>
@@ -374,9 +412,9 @@ export const ProfileView = function ProfileView({
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-[320px] mt-8 space-y-4"
           >
-            <div className="space-y-1.5 text-left">
-              <label className="text-[13px] ml-1 font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider">
-                Full Name
+            <div className={`space-y-1.5 ${isRtl ? "text-right" : "text-left"}`}>
+              <label className={`text-[13px] font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
+                {tr("Full Name", "الاسم الكامل")}
               </label>
               <input aria-label="Input field"
                 value={editName}
@@ -389,28 +427,35 @@ export const ProfileView = function ProfileView({
                 className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-neutral-900 dark:text-white outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm"
               />
             </div>
-            <div className="space-y-1.5 text-left">
-              <label className="text-[13px] ml-1 font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider">
-                Academic Group
+            <div className={`space-y-1.5 ${isRtl ? "text-right" : "text-left"}`}>
+              <label className={`text-[13px] font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
+                {tr("Academic Group", "المجموعة الدراسية")}
               </label>
               <select
                 value={editGroup}
                 onChange={handleGroupChange}
                 className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-neutral-900 dark:text-white outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm appearance-none cursor-pointer"
               >
-                <option value="A">Group A</option>
-                <option value="B">Group B</option>
-                <option value="C">Group C</option>
-                <option value="D">Group D</option>
-                <option value="E">Group E</option>
+                <option value="A">{tr("Group A", "المجموعة A")}</option>
+                <option value="B">{tr("Group B", "المجموعة B")}</option>
+                <option value="C">{tr("Group C", "المجموعة C")}</option>
+                <option value="D">{tr("Group D", "المجموعة D")}</option>
+                <option value="E">{tr("Group E", "المجموعة E")}</option>
               </select>
             </div>
             
             <div className="space-y-1.5 text-left">
-              <label className="text-[13px] ml-1 font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider flex justify-between items-center">
-                <span>Signature</span>
+              <label
+                className="text-[13px] ml-1 font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider flex justify-between items-center text-left"
+                dir="ltr"
+              >
+                {/* Explicit product requirement: in Arabic the Signature label
+                    remains on the LEFT, even though the rest of Profile is RTL. */}
+                <span dir={isRtl ? "rtl" : "ltr"}>{tr("Signature", "التوقيع")}</span>
                 {editSignature && !isSigning && (
-                  <button onClick={() => setIsSigning(true)} className="text-blue-500 text-xs normal-case">Redraw</button>
+                  <button onClick={() => setIsSigning(true)} className="text-blue-500 text-xs normal-case" dir={isRtl ? "rtl" : "ltr"}>
+                    {tr("Redraw", "إعادة الرسم")}
+                  </button>
                 )}
               </label>
               
@@ -428,7 +473,7 @@ export const ProfileView = function ProfileView({
                   className="w-full h-24 sm:h-32 border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm flex items-center justify-center p-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-white/[0.06] transition"
                   onClick={() => setIsSigning(true)}
                 >
-                  <img src={editSignature} alt="Signature" className="max-h-full max-w-full object-contain dark:invert" />
+                  <img src={editSignature} alt={tr("Signature", "التوقيع")} className="max-h-full max-w-full object-contain dark:invert" />
                 </div>
               )}
             </div>
@@ -438,13 +483,13 @@ export const ProfileView = function ProfileView({
                 onClick={cancelEditing}
                 className="flex-1 py-3.5 rounded-2xl border border-neutral-200/50 dark:border-white/[0.06] bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm text-neutral-700 dark:text-[#EBEBF599] font-medium text-[15px] hover:bg-neutral-50 dark:hover:bg-white/[0.06] transition-colors shadow-sm"
               >
-                Cancel
+                {tr("Cancel", "إلغاء")}
               </button>
               <button
                 onClick={handleSaveProfile}
                 className="flex-1 py-3.5 rounded-2xl bg-blue-500 text-white font-medium text-[15px] flex items-center justify-center gap-2 shadow-md hover:bg-blue-600 hover:shadow-lg hover:-translate-y-0.5 transition"
               >
-                <Save className="w-4 h-4" /> Save
+                <Save className="w-4 h-4" /> {tr("Save", "حفظ")}
               </button>
             </div>
           </motion.div>
@@ -454,46 +499,56 @@ export const ProfileView = function ProfileView({
  {!isEditing && (
  <>
  {/* Academic Information */}
- <SettingsGroup title="Academic Information">
+ <SettingsGroup title={tr("Academic Information", "المعلومات الأكاديمية")} isRtl={isRtl}>
  <SettingsItem Icon={GraduationCap}
  iconBg="bg-indigo-500"
- title="Institution"
- value="Baghdad University"
+ title={tr("Institution", "الجامعة")}
+ value={tr("Baghdad University", "جامعة بغداد")}
+ 
+ isRtl={isRtl}
  />
  <SettingsItem Icon={Book}
  iconBg="bg-med-blue"
- title="College"
- value="College of Medicine"
+ title={tr("College", "الكلية")}
+ value={tr("College of Medicine", "كلية الطب")}
+ 
+ isRtl={isRtl}
  />
  <SettingsItem Icon={Award}
  iconBg="bg-med-gold"
- title="Batch"
+ title={tr("Batch", "الدفعة")}
  value="99"
+ 
+ isRtl={isRtl}
  />
  <SettingsItem Icon={UserIcon}
  iconBg="bg-blue-500"
- title="Academic Group"
- value={`Group ${academicGroupLabel}`}
+ title={tr("Academic Group", "المجموعة الدراسية")}
+ value={tr(`Group ${academicGroupLabel}`, `المجموعة ${academicGroupLabel}`)}
+ 
+ isRtl={isRtl}
  />
   </SettingsGroup>
 
   {showSettingsButton && (
-    <SettingsGroup title="General">
+    <SettingsGroup title={tr("General", "عام")} isRtl={isRtl}>
       <SettingsItem
         Icon={Settings}
         iconBg="bg-slate-500"
-        title="Settings"
+        title={tr("Settings", "الإعدادات")}
         showChevron
         onClick={onOpenSettings}
-      />
+      
+ isRtl={isRtl}
+ />
     </SettingsGroup>
   )}
 
   {/* Academic Progress */}
- <SettingsGroup title="Academic Progress">
+ <SettingsGroup title={tr("Academic Progress", "التقدم الأكاديمي")} isRtl={isRtl}>
           <SettingsItem Icon={BarChart3}
             iconBg="bg-emerald-500"
-            title="Overall Progress"
+            title={tr("Overall Progress", "التقدم العام")}
             customRight={
               <div className="flex items-center gap-3">
                 <span className="text-[15px] font-medium text-neutral-500 font-mono">
@@ -536,10 +591,11 @@ export const ProfileView = function ProfileView({
                 </div>
               </div>
             }
+            isRtl={isRtl}
           />
           <SettingsItem Icon={CircleCheck}
             iconBg="bg-teal-500"
-            title="Lectures Completed"
+            title={tr("Lectures Completed", "المحاضرات المكتملة")}
             customRight={
               <div className="flex items-center gap-3">
                 <span className="text-[15px] font-medium text-neutral-500 font-mono">
@@ -582,25 +638,30 @@ export const ProfileView = function ProfileView({
                 </div>
               </div>
             }
+            isRtl={isRtl}
           />
  </SettingsGroup>
 
         {/* Privacy & Safety */}
-        <SettingsGroup title="Privacy & Safety">
+        <SettingsGroup title={tr("Privacy & Safety", "الخصوصية والأمان")} isRtl={isRtl}>
           <SettingsItem
             Icon={UserX}
             iconBg="bg-orange-500"
-            title="Blocked Users"
+            title={tr("Blocked Users", "المستخدمون المحظورون")}
             showChevron
             onClick={() => openProfileSubView("blocked-users")}
-          />
+          
+ isRtl={isRtl}
+ />
           <SettingsItem
             Icon={Flag}
             iconBg="bg-rose-500"
-            title="My Reports"
+            title={tr("My Reports", "بلاغاتي")}
             showChevron
             onClick={() => openProfileSubView("my-reports")}
-          />
+          
+ isRtl={isRtl}
+ />
         </SettingsGroup>
 
         {/* Actions */}
@@ -614,15 +675,18 @@ export const ProfileView = function ProfileView({
               <LogOut className="w-[16px] h-[16px] ml-0.5" />
             </div>
             <span className="text-[15px] font-semibold tracking-tight text-red-500">
-              Sign Out
+              {tr("Sign Out", "تسجيل الخروج")}
             </span>
           </div>
-          <ChevronRight className="w-4 h-4 text-red-300 dark:text-red-500/50 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors duration-300" />
+          <ChevronRight
+            className="w-4 h-4 text-red-300 dark:text-red-500/50 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors duration-300"
+            style={{ transform: isRtl ? "rotate(180deg)" : "none" }}
+          />
         </motion.button>
 
         <div className="flex justify-center items-center mt-12 mb-8">
           <p className="text-[10px] font-mono tracking-widest uppercase text-neutral-500/40 dark:text-[rgba(235,235,245,0.3)]/30 select-none">
-            99's Guide • Version 1.0.0
+            {tr("99's Guide • Version 1.0.0", "دليل 99 • الإصدار 1.0.0")}
           </p>
         </div>
  </>
@@ -631,7 +695,10 @@ export const ProfileView = function ProfileView({
  );
 
  return (
-   <div className="relative w-full min-h-full overflow-x-hidden bg-neutral-50 dark:bg-[#000000]">
+   <div
+     className="relative w-full min-h-full overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
+     dir={isRtl ? "rtl" : "ltr"}
+   >
      <div
        aria-hidden={subView !== null || undefined}
        className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"

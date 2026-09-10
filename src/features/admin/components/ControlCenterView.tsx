@@ -7,10 +7,13 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useLayoutEffect,
+  useRef,
   memo,
   lazy,
   Suspense,
 } from "react";
+import { animate, motion, useMotionValue } from "motion/react";
 import {
   User,
   UserProgress,
@@ -18,7 +21,7 @@ import {
   CalendarEvent,
   Subject,
 } from "../../../core/types";
-import { useTranslation, Language } from "../../../core/i18n/translations";
+import { Language } from "../../../core/i18n/translations";
 import {
   ShieldCheck,
   Lock,
@@ -61,6 +64,7 @@ const NavButton = memo(({
 }) => (
   <button
     type="button"
+    data-console-tab-id={id}
     onClick={() => onClick(id)}
     className={`w-full text-right font-display text-caption font-medium px-3 py-3 rounded-lg flex items-center justify-between transition cursor-pointer ${extraClassName} ${
       isActive
@@ -107,6 +111,7 @@ const PillNavButton = memo(({
 }) => (
   <button
     type="button"
+    data-console-tab-id={id}
     onClick={() => onClick(id)}
     className={`flex-none flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 touch-manipulation ${
       isActive
@@ -141,7 +146,6 @@ const ModerationView      = lazy(() => import("../../moderation/components/Moder
 const MutedUsersView      = lazy(() => import("../../moderation/components/MutedUsersView"));
 const BannedUsersView     = lazy(() => import("../../moderation/components/BannedUsersView"));
 const ModerationHistoryView = lazy(() => import("../../moderation/components/ModerationHistoryView"));
-import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -166,7 +170,7 @@ interface ControlCenterProps {
   onEditEvent?: (event: CalendarEvent) => void;
   onRedirect?: (tab: string) => void;
   isPhone: boolean;
-  onBackHistoryChange?: (hasHistory: boolean) => void;
+  onBackHistoryChange?: (hasBackHistory: boolean) => void;
 }
 
 type SubTab =
@@ -198,23 +202,82 @@ const ControlCenterView = function ControlCenterView({
   isActive = false,
   onBackHistoryChange,
 }: ControlCenterProps) {
-  const { t } = useTranslation(language);
   const isRtl = language === "ar";
 
   const [activeSubTab, setActiveSubTab] = useState<SubTab>(
     currentUser.role === "admin" ? "lecture" : "live-study-hall",
   );
 
-  // Control Center is intentionally not part of the app's swipe-back system.
-  // Switching tools is explicit through the console navigation only.
-  const navigateSubTab = useCallback((next: SubTab) => {
-    if (next === activeSubTab) return;
-    setActiveSubTab(next);
-  }, [activeSubTab]);
+  // iPhone-only Console pager state. The gesture is recognized from the full
+  // Console surface, while only the opaque content panel receives a subtle
+  // horizontal transform. This preserves one solid page background throughout
+  // the gesture and therefore cannot reveal a black/white root canvas.
+  const consoleSwipeX = useMotionValue(0);
+  const consoleSwipeSessionRef = useRef<{
+    tracking: boolean;
+    axis: "x" | "y" | null;
+    startX: number;
+    startY: number;
+    startTime: number;
+  }>({ tracking: false, axis: null, startX: 0, startY: 0, startTime: 0 });
+  const consoleSwipeAnimatingRef = useRef(false);
+  const consolePillStripRef = useRef<HTMLDivElement>(null);
+  const subTabScrollPositionsRef = useRef<Partial<Record<SubTab, number>>>({});
+  const pendingSubTabScrollRestoreRef = useRef<number | null>(null);
 
+  // Console tab paging is lateral navigation, not a pushed Back stack. Report
+  // that explicitly so App never lets a stale flag interfere with root gestures.
   useEffect(() => {
     onBackHistoryChange?.(false);
+    return () => onBackHistoryChange?.(false);
   }, [onBackHistoryChange]);
+
+  // Restore the exact vertical position only when RETURNING to a Console tab.
+  // First visits start at the top. The dataset flag is shared with App's phone
+  // tabbar scroll listener so this programmatic write never shrinks/expands it.
+  useLayoutEffect(() => {
+    const requested = pendingSubTabScrollRestoreRef.current;
+    if (requested === null) return;
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (!canvas) {
+      pendingSubTabScrollRestoreRef.current = null;
+      return;
+    }
+
+    canvas.dataset.programmaticScrollRestore = "true";
+    const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+    canvas.scrollTop = Math.min(requested, maxScroll);
+    pendingSubTabScrollRestoreRef.current = null;
+
+    const frame1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (canvas.dataset.programmaticScrollRestore === "true") {
+          delete canvas.dataset.programmaticScrollRestore;
+        }
+      });
+    });
+    return () => cancelAnimationFrame(frame1);
+  }, [activeSubTab]);
+
+  // Keep the active pill horizontally centered without scrolling the page
+  // vertically (scrollIntoView would jump the shared main canvas on long forms).
+  useEffect(() => {
+    if (!isPhone || !isActive) return;
+    const frame = requestAnimationFrame(() => {
+      const strip = consolePillStripRef.current;
+      const item = strip?.querySelector<HTMLElement>(`[data-console-tab-id="${activeSubTab}"]`);
+      if (!strip || !item) return;
+      const stripRect = strip.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      const delta =
+        itemRect.left + itemRect.width / 2 -
+        (stripRect.left + stripRect.width / 2);
+      if (Math.abs(delta) > 4) {
+        strip.scrollBy({ left: delta, behavior: "smooth" });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeSubTab, isActive, isPhone]);
 
   const handleRefreshSubjects = useCallback(() => {
     onRefreshSubjects?.();
@@ -380,27 +443,172 @@ const ControlCenterView = function ControlCenterView({
       },
       {
         id: "muted-users" as SubTab,
-        sidebarLabel:   "Muted Users",
+        sidebarLabel:   isRtl ? "المستخدمون المكتومون" : "Muted Users",
         pillLabel:      isRtl ? "كتم" : "Muted",
         Icon: MicOff,
         iconColorClass: "text-amber-500",
       },
       {
         id: "banned-users" as SubTab,
-        sidebarLabel:   "Banned Users",
+        sidebarLabel:   isRtl ? "المستخدمون المحظورون" : "Banned Users",
         pillLabel:      isRtl ? "محظور" : "Banned",
         Icon: ShieldOff,
         iconColorClass: "text-neutral-500",
       },
       {
         id: "moderation-history" as SubTab,
-        sidebarLabel:   "Moderation History",
+        sidebarLabel:   isRtl ? "سجل الإشراف" : "Moderation History",
         pillLabel:      isRtl ? "تاريخ" : "History",
         Icon: ClipboardList,
         iconColorClass: "text-violet-500",
       },
     ] as NavItem[]) : []),
   ];
+
+  const selectSubTab = (next: SubTab) => {
+    if (next === activeSubTab) return;
+
+    const canvas = document.getElementById("main-scroll-canvas");
+    if (canvas) {
+      subTabScrollPositionsRef.current[activeSubTab] = canvas.scrollTop;
+    }
+    pendingSubTabScrollRestoreRef.current =
+      subTabScrollPositionsRef.current[next] ?? 0;
+
+    // A click/tap changes the pill and panel in the same React commit. Any
+    // previous partial swipe is reset so there is never a competing transform.
+    consoleSwipeX.set(0);
+    setActiveSubTab(next);
+  };
+
+  const shouldIgnoreConsoleSwipe = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false;
+    if (
+      target.closest(
+        '[data-console-nav-strip="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
+      )
+    ) {
+      return true;
+    }
+
+    // Preserve native horizontal carousels/sliders nested inside admin forms.
+    let node: HTMLElement | null = target;
+    const root = document.getElementById("control_panel_view");
+    while (node && node !== root) {
+      if (node.scrollWidth > node.clientWidth + 4) {
+        const overflowX = getComputedStyle(node).overflowX;
+        if (overflowX === "auto" || overflowX === "scroll") return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  };
+
+  const resetConsoleSwipe = () => {
+    const session = consoleSwipeSessionRef.current;
+    session.tracking = false;
+    session.axis = null;
+    animate(consoleSwipeX, 0, {
+      duration: 0.24,
+      ease: [0.32, 0.72, 0, 1],
+    });
+  };
+
+  const handleConsoleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isPhone || !isActive || consoleSwipeAnimatingRef.current) return;
+    if (event.touches.length !== 1 || shouldIgnoreConsoleSwipe(event.target)) return;
+    const touch = event.touches[0];
+    consoleSwipeSessionRef.current = {
+      tracking: true,
+      axis: null,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startTime: performance.now(),
+    };
+  };
+
+  const handleConsoleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const session = consoleSwipeSessionRef.current;
+    if (!session.tracking || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const dx = touch.clientX - session.startX;
+    const dy = touch.clientY - session.startY;
+
+    if (session.axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= 8) {
+      session.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? "x" : "y";
+    }
+    if (session.axis !== "x") return;
+
+    // Once horizontal intent is unambiguous, own that axis so WKWebView does
+    // not try to perform a browser-level pan at the same time as the Console
+    // pager. Vertical scrolling remains untouched because we only prevent the
+    // default after the horizontal axis has been locked.
+    if (event.cancelable) event.preventDefault();
+
+    const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
+    const physicalForward = isRtl ? dx > 0 : dx < 0;
+    const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
+    const atBoundary = desiredIndex < 0 || desiredIndex >= navItems.length;
+
+    // Follow the finger enough to feel native, but keep the opaque card covering
+    // the viewport. Boundary resistance makes first/last tabs feel deliberate.
+    consoleSwipeX.set(dx * (atBoundary ? 0.08 : 0.28));
+  };
+
+  const handleConsoleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const session = consoleSwipeSessionRef.current;
+    if (!session.tracking) return;
+    session.tracking = false;
+
+    const touch = event.changedTouches[0];
+    if (!touch || session.axis !== "x") {
+      resetConsoleSwipe();
+      return;
+    }
+
+    const dx = touch.clientX - session.startX;
+    const elapsed = Math.max(1, performance.now() - session.startTime);
+    const velocity = dx / elapsed;
+    const qualifies =
+      Math.abs(dx) >= 62 || (Math.abs(dx) >= 28 && Math.abs(velocity) >= 0.48);
+
+    const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
+    const physicalForward = isRtl ? dx > 0 : dx < 0;
+    const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
+
+    if (!qualifies || desiredIndex < 0 || desiredIndex >= navItems.length) {
+      resetConsoleSwipe();
+      return;
+    }
+
+    const next = navItems[desiredIndex]?.id;
+    if (!next) {
+      resetConsoleSwipe();
+      return;
+    }
+
+    consoleSwipeAnimatingRef.current = true;
+
+    // Save/restore is performed by the same selector used by pill taps. The
+    // new panel inherits the current small finger offset, then settles to zero;
+    // this keeps tab highlight + content movement synchronized with no blank
+    // interstitial frame or duplicate panel overlap.
+    selectSubTab(next);
+    const settleFrom = Math.sign(dx || 1) * Math.min(28, Math.max(14, Math.abs(dx) * 0.16));
+    consoleSwipeX.set(settleFrom);
+    animate(consoleSwipeX, 0, {
+      duration: 0.3,
+      ease: [0.32, 0.72, 0, 1],
+    }).then(() => {
+      consoleSwipeAnimatingRef.current = false;
+    });
+  };
+
+  const handleConsoleTouchCancel = () => {
+    consoleSwipeAnimatingRef.current = false;
+    resetConsoleSwipe();
+  };
 
   // ── Sidebar: group categories to insert headings between items ───────────────
   // We track which category heading we've already rendered.
@@ -411,6 +619,10 @@ const ControlCenterView = function ControlCenterView({
       id="control_panel_view"
       className="cc-view-root space-y-section animate-fadeIn pb-24 w-full"
       style={{ direction: isRtl ? "rtl" : "ltr" }}
+      onTouchStart={handleConsoleTouchStart}
+      onTouchMove={handleConsoleTouchMove}
+      onTouchEnd={handleConsoleTouchEnd}
+      onTouchCancel={handleConsoleTouchCancel}
     >
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-200/40 dark:border-[rgba(255,255,255,0.08)] rounded-lg p-3 sm:p-4 shadow-elevation-1">
@@ -440,6 +652,8 @@ const ControlCenterView = function ControlCenterView({
         aria-label={isRtl ? "تنقل اللوحة" : "Console Navigation"}
       >
         <div
+          ref={consolePillStripRef}
+          data-console-nav-strip="true"
           className="flex flex-row gap-2 overflow-x-auto pb-1 hide-scrollbar"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
@@ -452,7 +666,7 @@ const ControlCenterView = function ControlCenterView({
               iconColorClass={item.iconColorClass}
               isPulse={item.isPulse}
               isActive={activeSubTab === item.id}
-              onClick={navigateSubTab}
+              onClick={selectSubTab}
             />
           ))}
         </div>
@@ -517,7 +731,7 @@ const ControlCenterView = function ControlCenterView({
                       iconColorClass={item.iconColorClass}
                       isPulse={item.isPulse}
                       isActive={activeSubTab === item.id}
-                      onClick={navigateSubTab}
+                      onClick={selectSubTab}
                       isRtl={isRtl}
                       extraClassName={item.extraClassName}
                     />
@@ -544,8 +758,13 @@ const ControlCenterView = function ControlCenterView({
             border border-neutral-200/40 dark:border-white/[0.10]
             rounded-md p-4 shadow-elevation-0
             min-h-[200px] md:min-h-[300px]
+            overflow-x-hidden
           `}
         >
+          <motion.div
+            className="w-full min-w-0"
+            style={{ x: isPhone ? consoleSwipeX : 0, willChange: isPhone ? "transform" : "auto" }}
+          >
           <Suspense
             fallback={
               <div className="animate-pulse h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />
@@ -687,6 +906,7 @@ const ControlCenterView = function ControlCenterView({
                 </div>
               )}
           </Suspense>
+          </motion.div>
         </div>
       </div>
     </div>

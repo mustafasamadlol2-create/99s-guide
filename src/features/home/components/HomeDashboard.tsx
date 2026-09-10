@@ -957,12 +957,11 @@ const HeroBanner = memo(({
         {user?.signature && (
           <motion.div
             variants={heroItemVariant}
-            className="absolute pointer-events-none z-10
-              top-[34%] right-4
-              sm:top-[32%] sm:right-5
-              md:top-10 md:right-8
-              lg:top-12 lg:right-10
-              xl:top-14 xl:right-12"
+            className={`absolute pointer-events-none z-10
+              top-[34%] sm:top-[32%] md:top-10 lg:top-12 xl:top-14
+              ${isRtl
+                ? "left-4 sm:left-5 md:left-8 lg:left-10 xl:left-12"
+                : "right-4 sm:right-5 md:right-8 lg:right-10 xl:right-12"}`}
           >
             <img 
               src={user.signature} 

@@ -3675,8 +3675,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
    Search capsule and compositor-only icon layer on the exact same curve makes
    the scroll morph read as one continuous, liquid iOS-style movement. */
 .mobile-phone-layout .ios-floating-tabbar {
-  --ios-nav-resize-duration: 430ms;
-  --ios-nav-resize-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ios-nav-resize-duration: 380ms;
+  --ios-nav-resize-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* iPhone adaptive resize.
@@ -3768,32 +3768,46 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   backface-visibility: hidden;
 }
 
-/* Active glass surface sizing only. The shared Motion layoutId/spring that
-   moves this surface between Welcome / Modules / Schedule / Console / Profile
-   is intentionally untouched. These state-specific insets simply give the
-   selected icon (and its label when expanded) more even breathing room. */
+/* Active selector is an icon-sized glass halo, not a full tab-cell slab.
+   Keeping one fixed physical size makes it track the SVG cleanly while the
+   outer capsule grows/shrinks and removes the oversized shadow seen in the
+   previous phone build. Motion still owns the horizontal shared-layout move. */
 .mobile-phone-layout .ios-tabbar-active-indicator {
-  inset: 3px 2px;
-  transition:
-    top var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
-    right var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
-    bottom var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
-    left var(--ios-nav-resize-duration) var(--ios-nav-resize-ease);
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  margin-top: -21px;
+  border-radius: 14px !important;
+  box-shadow:
+    0 5px 16px -8px rgba(0, 0, 0, 0.24),
+    0 1px 4px rgba(0, 0, 0, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
-.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-tabbar-active-indicator {
-  inset: 2px 3px;
+.dark .mobile-phone-layout .ios-tabbar-active-indicator,
+.mobile-phone-layout.dark .ios-tabbar-active-indicator {
+  box-shadow:
+    0 6px 18px -8px rgba(0, 0, 0, 0.72),
+    0 1px 5px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
-.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-engaged .ios-tabbar-active-indicator {
-  inset: 3px 2px;
+.mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-active-indicator {
+  width: 38px;
+  height: 38px;
+  margin-left: -19px;
+  margin-top: -19px;
+  border-radius: 13px !important;
 }
 
 /* --------------------------------------------------------------------------
    ZERO-VIBRATION TAB ICON COMPOSITING
    --------------------------------------------------------------------------
-   The glass shell and the original tab buttons keep their approved geometry,
-   labels and shared active-indicator animation. Only the SVG glyph paint is
+   The glass shell and original tab buttons keep their approved geometry and
+   shared active-indicator animation. Only the SVG glyph paint is
    moved to this fixed overlay. The overlay starts at the exact portrait
    resting-state icon geometry. When the bar expands, each slot moves to the
    exact engaged center using compositor-only translate3d with the SAME 360ms
@@ -3859,19 +3873,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   backface-visibility: hidden;
 }
 
-/* Preserve the original 12px label lane in the icon-only mirror so the glyph
-   has the exact same vertical center as the real TabBarItem. */
-.mobile-phone-layout .ios-floating-tabbar-icon-label-spacer {
-  display: block;
-  flex: 0 0 12px;
-  width: 1px;
-  height: 12px;
-  margin-top: 2px;
-  visibility: hidden;
-}
-
-/* The original icon keeps its layout footprint (so labels/indicator do not
-   change at all) but is not painted. */
+/* The original icon keeps its layout footprint so the selector geometry does
+   not change, but its paint is mirrored in this compositor-only layer. */
 .mobile-phone-layout .ios-tabbar-item .ios-tabbar-icon-motion {
   visibility: hidden !important;
 }
@@ -3964,24 +3967,6 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
 .mobile-phone-layout .ios-tabbar-icon-motion {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-}
-
-/* Scroll-resize must never restart the per-tab Motion animation. Labels fade
-   from the parent state instead, so the five memoized tab items stay visually
-   stable while the glass shell changes size. */
-.mobile-phone-layout .ios-tabbar-label {
-  opacity: 0.8;
-  transition:
-    opacity 300ms cubic-bezier(0.32, 0.72, 0, 1),
-    color 220ms ease !important;
-}
-
-.mobile-phone-layout .ios-tabbar-item[aria-current="page"] .ios-tabbar-label {
-  opacity: 1;
-}
-
-.mobile-phone-layout .ios-floating-tabbar.ios-tabbar-resting .ios-tabbar-label {
-  opacity: 0;
 }
 
 /* Native-style search sheet rendering and focus response. Motion itself is
@@ -4887,4 +4872,58 @@ html[dir="rtl"] :where(h1, h2, h3, h4, h5, h6) {
 
 html[dir="rtl"] [dir="ltr"] {
   font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+}
+
+
+/* --------------------------------------------------------------------------
+   Arabic / RTL finishing pass
+   -------------------------------------------------------------------------- */
+/* The desktop/iPad sidebar lives on the inline-start side in RTL. Keep the
+   divider on the content-facing edge rather than leaving an LTR right border. */
+html[dir="rtl"] .sidebar-premium-surface {
+  border-right-color: transparent !important;
+  border-left-color: rgba(10, 31, 68, 0.09) !important;
+}
+
+html.dark[dir="rtl"] .sidebar-premium-surface {
+  border-left-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+/* Arabic labels such as "الملاحظات" are wider than their English versions.
+   On phone-sized lecture headers, let each tab own a readable native-sized
+   pill and scroll the strip horizontally instead of squeezing/overlapping text. */
+html[dir="rtl"] .lecture-tabbar {
+  direction: rtl;
+}
+
+@media (max-width: 639px) {
+  html[dir="rtl"] .lecture-tabbar {
+    justify-content: flex-start;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+    touch-action: pan-x;
+    gap: 2px;
+  }
+
+  html[dir="rtl"] .lecture-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[dir="rtl"] .lecture-tabbar > div {
+    flex: 0 0 auto !important;
+    min-width: 72px;
+  }
+
+  html[dir="rtl"] .lecture-tabbar > div > button {
+    min-width: 72px;
+    padding-inline: 8px;
+  }
+
+  html[dir="rtl"] .lecture-tabbar > div > button > span {
+    font-size: 12px;
+    line-height: 1;
+  }
 }

@@ -7,44 +7,52 @@ export interface TabBarItemProps {
   label: string;
   isActive: boolean;
   isCompactHeight: boolean;
+  isEngaged?: boolean;
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
 }
 
+/**
+ * iPhone floating-tab item.
+ *
+ * The visible phone bar is intentionally icon-only. `label` remains available
+ * to VoiceOver through aria-label, while no text lane participates in layout.
+ * Keeping the button geometry this simple is also important for WKWebView: the
+ * active selector and icon no longer shift vertically when the shell changes
+ * between its resting and engaged sizes.
+ */
 export const TabBarItem: React.FC<TabBarItemProps> = memo(
   ({
     id,
     icon: Icon,
     label,
     isActive,
-    isCompactHeight,
+    isCompactHeight: _isCompactHeight,
+    isEngaged = true,
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
   }) => {
     return (
-      <button
-        type="button"
+      <motion.button
         onClick={() => onClick(id)}
         aria-label={label}
         aria-current={isActive ? "page" : undefined}
-        className="ios-tabbar-item flex flex-col items-center justify-center h-full cursor-pointer relative select-none w-full outline-none"
+        className="ios-tabbar-item flex items-center justify-center h-full cursor-pointer relative select-none w-full outline-none"
         style={{ WebkitTapHighlightColor: "transparent" }}
+        whileTap={{ scale: 0.965 }}
       >
-        {/* One shared glass selection surface gives the original premium
-            left/right travel between tabs. It animates only when selection
-            changes; the scroll-driven shell resize is handled independently. */}
         {isActive && (
           <motion.div
             layoutId="ios_mobile_tab_indicator"
-            className="ios-tabbar-active-indicator absolute rounded-xl pointer-events-none"
+            className="ios-tabbar-active-indicator absolute pointer-events-none"
             initial={false}
             transition={{
               type: "spring",
-              stiffness: 320,
-              damping: 35,
-              mass: 0.76,
+              stiffness: 380,
+              damping: 34,
+              mass: 0.68,
             }}
           />
         )}
@@ -54,18 +62,15 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             isActive ? activeColorClass : colorClass
           }`}
         >
+          {/* On iPhone this glyph keeps its layout footprint but its paint is
+              mirrored by App's compositor-only icon layer. On non-phone
+              surfaces it remains the visible icon. */}
           <motion.div
-            className="ios-tabbar-icon-motion"
-            animate={
-              isActive
-                ? { y: [0, -1.15, 0], scale: [1, 1.045, 1] }
-                : { y: 0, scale: 1 }
-            }
-            transition={
-              isActive
-                ? { duration: 0.32, ease: [0.32, 0.72, 0, 1] }
-                : { duration: 0 }
-            }
+            className="ios-tabbar-icon-motion flex items-center justify-center"
+            animate={{
+              scale: isActive ? (isEngaged ? 1.045 : 1.02) : 1,
+            }}
+            transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.64 }}
           >
             <Icon
               className="w-icon-lg h-icon-lg"
@@ -73,22 +78,9 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             />
           </motion.div>
         </div>
-
-        <span
-          // Scroll-driven visibility is controlled by the parent bar class in
-          // CSS. Keeping it out of Motion means a resize never re-triggers the
-          // tab icon animation or causes per-item React animation work.
-          className={`ios-tabbar-label relative z-10 h-[12px] min-h-[12px] mt-0.5 leading-[12px] overflow-hidden whitespace-nowrap font-sans select-none transition-colors duration-300 ${
-            isCompactHeight ? "hidden" : "block"
-          } ${
-            isActive
-              ? `${activeColorClass} font-semibold text-[10.5px]`
-              : "text-neutral-500 dark:text-[#EBEBF599] font-medium text-[10.5px]"
-          }`}
-        >
-          {label}
-        </span>
-      </button>
+      </motion.button>
     );
   },
 );
+
+TabBarItem.displayName = "TabBarItem";
