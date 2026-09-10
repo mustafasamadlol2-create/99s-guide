@@ -23,7 +23,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  motion, AnimatePresence, useReducedMotion,
+  motion, AnimatePresence, useReducedMotion, useTransform,
 } from "motion/react";
 import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 import { isIosDevice, isStandalonePwa } from "../../../core/utils/platform";
@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { useSwipeBack, isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 import PrivacyPolicyView from "../../legal/components/PrivacyPolicyView";
 import TermsOfServiceView from "../../legal/components/TermsOfServiceView";
 import SupportView from "../../legal/components/SupportView";
@@ -219,11 +220,19 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
 
   const authLegalBackGesture = useSwipeBack({
     isEnabled: authLegalPath !== null,
-    direction: "ltr",
+    direction: isRtl ? "rtl" : "ltr",
     surfaceSelector: '[data-auth-legal-swipe-surface="true"]',
     allowedStartSelector: '[data-auth-legal-swipe-surface="true"]',
     onSwipeBack: closeAuthLegalPage,
   });
+
+  // Keep the live Auth surface beneath legal pages on the same 22px native
+  // parallax used by the approved Notifications/Settings -> Profile swipe.
+  const authLegalUnderlayX = useTransform(
+    authLegalBackGesture.progress,
+    [0, 1],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+  );
 
   const openAuthLegalPage = useCallback((path: AuthLegalPath) => {
     // iPhone/iPad use a persistent local stack so the Auth screen remains live
@@ -1298,6 +1307,10 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
       initial={false}
       animate={{ opacity: 1 }}
       transition={premiumPageEntrance}
+      style={{
+        x: authLegalPath ? authLegalUnderlayX : 0,
+        willChange: authLegalBackGesture.isInteracting ? "transform" : "auto",
+      }}
       className="relative w-full h-full overflow-y-auto overflow-x-hidden bg-[#F8F9FC] dark:bg-[#1C1C1E] select-text ios-scrollable"
     >
       <div
@@ -2371,7 +2384,7 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
                   minHeight: "100dvh",
                   zIndex: 2147483000,
                   boxShadow: authLegalBackGesture.isInteracting
-                    ? "-18px 0 30px -18px rgba(0,0,0,0.48)"
+                    ? getNativeSwipeLayerShadow(isRtl)
                     : "none",
                   // The legal page is a separate top-level surface now. Keeping
                   // this single foreground layer promoted for its pushed

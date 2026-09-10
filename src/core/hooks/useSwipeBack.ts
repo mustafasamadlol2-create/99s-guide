@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
 import { HapticFeedback } from "../device/haptic";
+import { IOS_SWIPE_MOTION } from "../motion/swipeMotion";
 
 export type SwipeBackDirection = "ltr" | "rtl";
 
@@ -87,8 +88,8 @@ export function useSwipeBack({
   direction = "ltr",
   edgeWidth = 30,
   activationMode = "full",
-  commitProgress = 0.30,
-  velocityThreshold = 0.50,
+  commitProgress = IOS_SWIPE_MOTION.commitProgress,
+  velocityThreshold = IOS_SWIPE_MOTION.velocityThreshold,
   allowedStartSelector,
   blockedStartSelector,
   allowInteractiveStart = false,
@@ -333,12 +334,12 @@ export function useSwipeBack({
           directionSign * Math.min(releaseVelocity * 1000, width * 1.6);
         const controls = animate(x, 0, {
           type: "spring",
-          stiffness: 520,
-          damping: 46,
-          mass: 0.78,
+          stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+          damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+          mass: IOS_SWIPE_MOTION.cancelSpring.mass,
           velocity: cancelVelocity,
-          restSpeed: 16,
-          restDelta: 0.35,
+          restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+          restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
           onUpdate: updateProgress,
           onComplete: finish,
         });
@@ -354,12 +355,12 @@ export function useSwipeBack({
         directionSign * Math.min(releaseVelocity * 1000, width * 4.0);
       const controls = animate(x, target, {
         type: "spring",
-        stiffness: 430,
-        damping: 42,
-        mass: 0.82,
+        stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.completionSpring.damping,
+        mass: IOS_SWIPE_MOTION.completionSpring.mass,
         velocity: completionVelocity,
-        restSpeed: 18,
-        restDelta: 0.45,
+        restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
         onUpdate: updateProgress,
         onComplete: finish,
       });
@@ -480,7 +481,7 @@ export function useSwipeBack({
         // a few diagonal/noisy samples immediately after touch-down; rejecting
         // those made legitimate Back swipes feel random.
         if (
-          verticalDistance >= 18 &&
+          verticalDistance >= IOS_SWIPE_MOTION.verticalRejectDistance &&
           verticalDistance > absoluteHorizontalDistance * 1.25
         ) {
           resetTracking();
@@ -491,7 +492,7 @@ export function useSwipeBack({
         // horizontal gesture in the wrong direction once intent is obvious.
         if (directionalDistance <= 0) {
           if (
-            absoluteHorizontalDistance >= 18 &&
+            absoluteHorizontalDistance >= IOS_SWIPE_MOTION.verticalRejectDistance &&
             absoluteHorizontalDistance > verticalDistance * 1.30
           ) {
             resetTracking();
@@ -499,7 +500,7 @@ export function useSwipeBack({
           return;
         }
 
-        if (distance < 6) return;
+        if (distance < IOS_SWIPE_MOTION.axisLockDistance) return;
         if (verticalDistance > distance * 0.95) return;
 
         horizontalLockRef.current = true;
@@ -549,7 +550,8 @@ export function useSwipeBack({
       const finalProgress = Math.min(1, distance / width);
       const releaseVelocity = velocityRef.current;
       const fastFlick =
-        distance >= 32 && releaseVelocity >= velocityThresholdRef.current;
+        distance >= IOS_SWIPE_MOTION.flickDistance &&
+        releaseVelocity >= velocityThresholdRef.current;
       const success =
         !cancelled &&
         hadHorizontalLock &&

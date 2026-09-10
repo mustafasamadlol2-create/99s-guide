@@ -67,6 +67,7 @@ import { ContextMenu } from "../../../components/ui/ContextMenu";
 import { ListSkeleton } from "../../../components/ui/Skeleton";
 import { HapticFeedback } from "../../../core/device/haptic";
 import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 
 // Department categories inside each Theory and Practical track
 const DEPARTMENTS = [
@@ -1000,6 +1001,11 @@ export const SubjectView = function SubjectView({
     },
   );
   const hierarchyUnderlayOpacity = 1;
+  const hierarchyUnderlayX = useTransform(
+    internalBackGesture.progress,
+    [0, 1],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+  );
   // Tablet navigation uses one full-size backing surface and transform-only
   // parallax. The swipe hook measures this exact SubjectView width, so the
   // foreground never travels on the wider window coordinate system. Avoiding
@@ -1053,10 +1059,10 @@ export const SubjectView = function SubjectView({
           width: "100%",
           maxWidth: "100%",
           minHeight: navigationSurfaceMinHeight,
-          // Keep the iPad backing page completely static. Promoting/moving the
-          // cloned underlay alongside the foreground causes WebKit tiled-layer
-          // corruption (the black rectangles visible in the recording).
-          x: 0,
+          // iPad keeps the backing page static to avoid WebKit tiled-layer
+          // corruption. iPhone uses the same 22px live-parent parallax as the
+          // approved Notifications/Settings Back transition.
+          x: device.isIPadOS ? 0 : hierarchyUnderlayX,
           clipPath: device.isIPadOS ? "none" : hierarchyUnderlayClipPath,
           WebkitClipPath: device.isIPadOS ? "none" : hierarchyUnderlayClipPath,
           isolation: "isolate",
@@ -1084,9 +1090,7 @@ export const SubjectView = function SubjectView({
           // spans the full viewport the separation continues all the way down
           // instead of stopping below the last card.
           boxShadow: internalBackGesture.isInteracting
-            ? (isRtl
-                ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+            ? getNativeSwipeLayerShadow(isRtl)
             : "none",
           willChange: internalBackGesture.isInteracting ? "transform" : "auto",
         }}

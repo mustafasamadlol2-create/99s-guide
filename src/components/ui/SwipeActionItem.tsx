@@ -8,6 +8,7 @@ import {
 } from "motion/react";
 import { HapticFeedback } from "../../core/device/haptic";
 import { isAppleTouchNavigationDevice } from "../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION } from "../../core/motion/swipeMotion";
 
 interface SwipeAction {
   label: string;
@@ -98,7 +99,7 @@ export function SwipeActionItem({
       if (detail?.keyId === keyId) return;
       void controls.start({
         x: 0,
-        transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        transition: { type: "spring", stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness, damping: IOS_SWIPE_MOTION.cancelSpring.damping, mass: IOS_SWIPE_MOTION.cancelSpring.mass, restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed, restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta },
       });
       setIsOpen(false);
       thresholdHapticRef.current = false;
@@ -109,7 +110,7 @@ export function SwipeActionItem({
       if (!target || containerRef.current?.contains(target)) return;
       void controls.start({
         x: 0,
-        transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        transition: { type: "spring", stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness, damping: IOS_SWIPE_MOTION.cancelSpring.damping, mass: IOS_SWIPE_MOTION.cancelSpring.mass, restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed, restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta },
       });
       setIsOpen(false);
       thresholdHapticRef.current = false;
@@ -136,7 +137,7 @@ export function SwipeActionItem({
       x: 0,
       transition: shouldReduceMotion
         ? { duration: 0.01 }
-        : { type: "spring", stiffness: 430, damping: 40, mass: 0.78 },
+        : { type: "spring", stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness, damping: IOS_SWIPE_MOTION.cancelSpring.damping, mass: IOS_SWIPE_MOTION.cancelSpring.mass, restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed, restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta },
     });
     setIsOpen(false);
     thresholdHapticRef.current = false;
@@ -147,7 +148,7 @@ export function SwipeActionItem({
       x: revealTarget,
       transition: shouldReduceMotion
         ? { duration: 0.01 }
-        : { type: "spring", stiffness: 430, damping: 40, mass: 0.78 },
+        : { type: "spring", stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness, damping: IOS_SWIPE_MOTION.completionSpring.damping, mass: IOS_SWIPE_MOTION.completionSpring.mass, restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed, restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta },
     });
     setIsOpen(true);
     thresholdHapticRef.current = false;
@@ -159,7 +160,12 @@ export function SwipeActionItem({
     const logicalOffset = info.offset.x * revealSign;
     const logicalVelocity = info.velocity.x * revealSign;
 
-    if (logicalOffset > totalWidth * 0.44 || logicalVelocity > 260) {
+    const distance = Math.max(0, logicalOffset);
+    const fastFlick =
+      distance >= IOS_SWIPE_MOTION.flickDistance &&
+      logicalVelocity >= IOS_SWIPE_MOTION.velocityThreshold * 1000;
+
+    if (distance >= totalWidth * IOS_SWIPE_MOTION.commitProgress || fastFlick) {
       snapOpen();
     } else {
       snapClosed();

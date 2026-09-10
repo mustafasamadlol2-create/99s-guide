@@ -32,6 +32,7 @@ import { AppNotification, Subject, Lecture } from "../../../core/types";
 import { nativeAlert } from "../../../core/device/alert";
 import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 import { useBulletinSegmentPager } from "../hooks/useBulletinSegmentPager";
+import { getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
 
 interface BulletinCenterProps {
   isActive?: boolean;
@@ -502,9 +503,11 @@ export const BulletinCenter = function BulletinCenter({
        zIndex: 10,
        x: segmentPager.x,
        boxShadow: segmentPager.isInteracting
-         ? ((activeSegment === "all" ? (isRtl ? 1 : -1) : (isRtl ? -1 : 1)) < 0
-             ? "18px 0 30px -18px rgba(0,0,0,0.42)"
-             : "-18px 0 30px -18px rgba(0,0,0,0.42)")
+         ? getSwipeLayerShadowForExitSign(
+             activeSegment === "all"
+               ? (isRtl ? 1 : -1)
+               : (isRtl ? -1 : 1),
+           )
          : "none",
        willChange: segmentPager.isInteracting ? "transform" : "auto",
      }}

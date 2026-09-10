@@ -97,8 +97,6 @@ export const CommandPalette = memo(function CommandPalette({
    isEnabled: isOpen && mobilePresentation,
    handleSelector: '[data-swipe-dismiss-handle="true"]',
    blockedSelector: "button",
-   commitDistance: 104,
-   velocityThreshold: 0.58,
  });
  const mobileBackdropGestureOpacity = useTransform(
    mobileDismiss.progress,

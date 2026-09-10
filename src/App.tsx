@@ -38,6 +38,7 @@ import {
 import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
 import { createPortal } from "react-dom";
 import { useSwipeBack } from "./core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "./core/motion/swipeMotion";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
 import { SidebarNavItem } from "./core/layout/SidebarNavItem";
@@ -1894,12 +1895,12 @@ export default function App() {
   const bulletinProfileUnderlayX = useTransform(
     bulletinBackGesture.progress,
     [0, 1],
-    [isRtl ? 22 : -22, 0],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const settingsProfileUnderlayX = useTransform(
     settingsBackGesture.progress,
     [0, 1],
-    [isRtl ? 22 : -22, 0],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
   );
 
   const rootBackGesture = useSwipeBack({
@@ -1982,17 +1983,32 @@ export default function App() {
 
   // Parallax for the parent page that is already mounted below a Lecture.
   // Only transform/opacity are animated, keeping the interactive path GPU-only.
+  const homeSubjectUnderlayX = useTransform(
+    homeBackGesture.progress,
+    [0, 1],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+  );
+  const modulesUnderlayX = useTransform(
+    subjectsBackGesture.progress,
+    [0, 1],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+  );
+  const legalSettingsUnderlayX = useTransform(
+    legalBackGesture.progress,
+    [0, 1],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+  );
   const homeLectureUnderlayX = useTransform(
     homeLectureBackGesture.progress,
     [0, 1],
-    [isRtl ? 22 : -22, 0],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   // Navigation underlays are full pages, never translucent layers.
   const homeLectureUnderlayOpacity = 1;
   const lectureUnderlayX = useTransform(
     subjectsLectureBackGesture.progress,
     [0, 1],
-    [isRtl ? 22 : -22, 0],
+    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const lectureUnderlayOpacity = 1;
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
@@ -5038,6 +5054,9 @@ const handleSignOut = useCallback(async () => {
             style={{
               x: rootBackGesture.x,
               minHeight: navigationSurfaceMinHeight,
+              boxShadow: rootBackGesture.isInteracting
+                ? getNativeSwipeLayerShadow(isRtl)
+                : "none",
               willChange: rootBackGesture.isInteracting ? "transform" : "auto",
             }}
           >
@@ -5107,13 +5126,18 @@ const handleSignOut = useCallback(async () => {
                 className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
                 style={{ minHeight: navigationSurfaceMinHeight }}
               >
-                <div
+                <motion.div
                   aria-hidden={activeHomeSubjectId !== null ? "true" : undefined}
                   className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
                   style={{
                     gridArea: "1 / 1 / 2 / 2",
                     zIndex: 0,
                     pointerEvents: activeHomeSubjectId === null ? "auto" : "none",
+                    x:
+                      activeHomeSubjectId !== null && activeHomeLecture === null
+                        ? homeSubjectUnderlayX
+                        : 0,
+                    willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                   }}
                 >
                   <Suspense fallback={iOSLoadingFallback}>
@@ -5139,7 +5163,7 @@ const handleSignOut = useCallback(async () => {
                       />
                     </ErrorBoundary>
                   </Suspense>
-                </div>
+                </motion.div>
 
                 {activeHomeSubjectId !== null && (
                   <motion.div
@@ -5157,9 +5181,7 @@ const handleSignOut = useCallback(async () => {
                       minHeight: navigationSurfaceMinHeight,
                       boxShadow:
                         activeHomeLecture === null && homeBackGesture.isInteracting
-                          ? (isRtl
-                              ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                              : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                          ? getNativeSwipeLayerShadow(isRtl)
                           : "none",
                       willChange: homeBackGesture.isInteracting ? "transform" : "auto",
                     }}
@@ -5220,8 +5242,9 @@ const handleSignOut = useCallback(async () => {
                           style={{
                             gridArea: "1 / 1 / 2 / 2",
                             zIndex: 10,
-                            boxShadow:
-                              "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
+                            boxShadow: homeLectureBackGesture.isInteracting
+                              ? getNativeSwipeLayerShadow(isRtl)
+                              : "none",
                             overflow: "hidden",
                             x: homeLectureBackGesture.x,
                             willChange: homeLectureBackGesture.isInteracting
@@ -5271,12 +5294,14 @@ const handleSignOut = useCallback(async () => {
                     className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]"
                     style={{ minHeight: navigationSurfaceMinHeight }}
                   >
-                    <div
+                    <motion.div
                       aria-hidden={activeModuleId !== null}
                       style={{
                         gridArea: "1 / 1 / 2 / 2",
                         pointerEvents: activeModuleId === null ? "auto" : "none",
                         minHeight: navigationSurfaceMinHeight,
+                        x: activeModuleId !== null ? modulesUnderlayX : 0,
+                        willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
                       }}
                       className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
                     >
@@ -5307,7 +5332,7 @@ const handleSignOut = useCallback(async () => {
                           />
                         </ErrorBoundary>
                       </Suspense>
-                    </div>
+                    </motion.div>
 
                     {activeModuleId !== null && (
                       <motion.div
@@ -5321,9 +5346,7 @@ const handleSignOut = useCallback(async () => {
                           x: subjectsBackGesture.x,
                           minHeight: navigationSurfaceMinHeight,
                           boxShadow: subjectsBackGesture.isInteracting
-                            ? (isRtl
-                                ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                                : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                            ? getNativeSwipeLayerShadow(isRtl)
                             : "none",
                           willChange: subjectsBackGesture.isInteracting
                             ? "transform"
@@ -5400,7 +5423,9 @@ const handleSignOut = useCallback(async () => {
                           style={{
                             gridArea: "1 / 1 / 2 / 2",
                             zIndex: 10,
-                            boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 15px 25px -10px rgba(0, 0, 0, 0.08)",
+                            boxShadow: subjectsLectureBackGesture.isInteracting
+                              ? getNativeSwipeLayerShadow(isRtl)
+                              : "none",
                             overflow: "hidden",
                             x: subjectsLectureBackGesture.x,
                             willChange: subjectsLectureBackGesture.isInteracting ? "transform" : "auto",
@@ -5583,9 +5608,7 @@ const handleSignOut = useCallback(async () => {
                 x: settingsReturnsToProfile ? settingsBackGesture.x : 0,
                 boxShadow:
                   settingsReturnsToProfile && settingsBackGesture.isInteracting
-                    ? (isRtl
-                        ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                        : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                    ? getNativeSwipeLayerShadow(isRtl)
                     : "none",
                 willChange: settingsReturnsToProfile ? "transform" : "auto",
                 WebkitBackfaceVisibility: "hidden",
@@ -5598,7 +5621,7 @@ const handleSignOut = useCallback(async () => {
                 className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
                 style={{ minHeight: navigationSurfaceMinHeight }}
               >
-                <div
+                <motion.div
                   aria-hidden={isStandaloneLegalPage || undefined}
                   className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
                   style={{
@@ -5606,9 +5629,9 @@ const handleSignOut = useCallback(async () => {
                     zIndex: 0,
                     pointerEvents: activeTab === "settings" ? "auto" : "none",
                     minHeight: navigationSurfaceMinHeight,
-                    transform: isStandaloneLegalPage
-                      ? `translateY(-${legalParentScrollTopRef.current}px)`
-                      : undefined,
+                    x: isStandaloneLegalPage ? legalSettingsUnderlayX : 0,
+                    y: isStandaloneLegalPage ? -legalParentScrollTopRef.current : 0,
+                    willChange: legalBackGesture.isInteracting ? "transform" : "auto",
                   }}
                 >
                   {/* On iPhone the native large Settings title normally sits
@@ -5653,7 +5676,7 @@ const handleSignOut = useCallback(async () => {
                       </ErrorBoundary>
                     </Suspense>
                   </motion.div>
-                </div>
+                </motion.div>
 
                 {isStandaloneLegalPage && (
                   <motion.div
@@ -5667,9 +5690,7 @@ const handleSignOut = useCallback(async () => {
                       x: legalBackGesture.x,
                       minHeight: navigationSurfaceMinHeight,
                       boxShadow: legalBackGesture.isInteracting
-                        ? (isRtl
-                            ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                            : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                        ? getNativeSwipeLayerShadow(isRtl)
                         : "none",
                       willChange: legalBackGesture.isInteracting
                         ? "transform"
@@ -5806,9 +5827,7 @@ const handleSignOut = useCallback(async () => {
                 x: bulletinReturnsToProfile ? bulletinBackGesture.x : 0,
                 boxShadow:
                   bulletinReturnsToProfile && bulletinBackGesture.isInteracting
-                    ? (isRtl
-                        ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                        : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+                    ? getNativeSwipeLayerShadow(isRtl)
                     : "none",
                 willChange: bulletinReturnsToProfile ? "transform" : "auto",
                 WebkitBackfaceVisibility: "hidden",

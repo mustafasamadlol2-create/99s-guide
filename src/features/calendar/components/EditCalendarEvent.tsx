@@ -85,8 +85,6 @@ export default function EditCalendarEvent({
     isEnabled: !isSaving,
     handleSelector: '[data-swipe-dismiss-handle="true"]',
     blockedSelector: "button",
-    commitDistance: 118,
-    velocityThreshold: 0.6,
   });
 
   const titleRef = useRef<HTMLInputElement>(null);

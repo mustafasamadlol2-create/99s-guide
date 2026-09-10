@@ -59,6 +59,7 @@ import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
+import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -269,11 +270,8 @@ export const LectureDetailView = function LectureDetailView({
  "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
   >(initialTab);
   const [tabTransitionDirection, setTabTransitionDirection] = useState<1 | -1>(1);
-  const lectureTabTransitionEase = [0.22, 1, 0.36, 1] as const;
   // Keep the segmented-control indicator relaxed, while the workspace panel
   // itself settles slightly faster so the card resize never feels delayed.
-  const lectureTabTransitionDuration = 0.38;
-  const lectureTabEnterDuration = 0.20;
 
   // Search can replace the current lecture while this view remains mounted.
   // Keep the selected content tab synchronized with the new search result.
@@ -1625,15 +1623,13 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    isRtl,
    blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
-   commitDistance: 64,
-   velocityThreshold: 0.5,
    completionMode: "settle",
  });
 
  // The gesture follows the finger, while the visible content moves only a
  // fraction of the drag. The surrounding card, header and segmented tab bar
  // stay still, matching the feel of an iOS content transition.
- const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.075);
+ const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.28);
  // Never fade the entire workspace during the drag. A fully opaque card prevents
  // white flashes and keeps text rasterization stable on WKWebView.
  const lectureTabContentOpacity = 1;
@@ -1770,12 +1766,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      layoutId="lecture-active-tab-pill"
      aria-hidden="true"
      className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"
-     transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
+     transition={IOS_SWIPE_MOTION.completionSpring}
    />
  )}
  <motion.button
  type="button"
- transition={{ duration: lectureTabTransitionDuration, ease: lectureTabTransitionEase }}
+ transition={IOS_SWIPE_MOTION.completionSpring}
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
@@ -1838,15 +1834,20 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     <motion.div
       key={`lecture-workspace-${activeTab}`}
       custom={tabTransitionDirection}
-      initial={{
-        opacity: 0.985,
-        x: tabTransitionDirection * 4,
-      }}
+      initial={lectureTabPager.isInteracting
+        ? { opacity: 1, x: 0 }
+        : { opacity: 1, x: tabTransitionDirection * IOS_SWIPE_MOTION.underlayOffset }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{
-        duration: lectureTabEnterDuration,
-        ease: lectureTabTransitionEase,
-      }}
+      transition={lectureTabPager.isInteracting
+        ? { duration: 0 }
+        : {
+            type: "spring",
+            stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+            damping: IOS_SWIPE_MOTION.completionSpring.damping,
+            mass: IOS_SWIPE_MOTION.completionSpring.mass,
+            restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+            restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+          }}
       className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col"
     >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}

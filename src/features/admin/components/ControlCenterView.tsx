@@ -14,6 +14,7 @@ import React, {
   Suspense,
 } from "react";
 import { animate, motion, useMotionValue } from "motion/react";
+import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 import {
   User,
   UserProgress,
@@ -218,8 +219,10 @@ const ControlCenterView = function ControlCenterView({
     axis: "x" | "y" | null;
     startX: number;
     startY: number;
-    startTime: number;
-  }>({ tracking: false, axis: null, startX: 0, startY: 0, startTime: 0 });
+    lastX: number;
+    lastTime: number;
+    velocity: number;
+  }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0 });
   const consoleSwipeAnimatingRef = useRef(false);
   const consolePillStripRef = useRef<HTMLDivElement>(null);
   const subTabScrollPositionsRef = useRef<Partial<Record<SubTab, number>>>({});
@@ -508,9 +511,14 @@ const ControlCenterView = function ControlCenterView({
     const session = consoleSwipeSessionRef.current;
     session.tracking = false;
     session.axis = null;
+    session.velocity = 0;
     animate(consoleSwipeX, 0, {
-      duration: 0.24,
-      ease: [0.32, 0.72, 0, 1],
+      type: "spring",
+      stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+      damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+      mass: IOS_SWIPE_MOTION.cancelSpring.mass,
+      restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+      restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
     });
   };
 
@@ -523,7 +531,9 @@ const ControlCenterView = function ControlCenterView({
       axis: null,
       startX: touch.clientX,
       startY: touch.clientY,
-      startTime: performance.now(),
+      lastX: touch.clientX,
+      lastTime: performance.now(),
+      velocity: 0,
     };
   };
 
@@ -535,7 +545,7 @@ const ControlCenterView = function ControlCenterView({
     const dx = touch.clientX - session.startX;
     const dy = touch.clientY - session.startY;
 
-    if (session.axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= 8) {
+    if (session.axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= IOS_SWIPE_MOTION.axisLockDistance) {
       session.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? "x" : "y";
     }
     if (session.axis !== "x") return;
@@ -551,9 +561,22 @@ const ControlCenterView = function ControlCenterView({
     const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
     const atBoundary = desiredIndex < 0 || desiredIndex >= navItems.length;
 
-    // Follow the finger enough to feel native, but keep the opaque card covering
-    // the viewport. Boundary resistance makes first/last tabs feel deliberate.
-    consoleSwipeX.set(dx * (atBoundary ? 0.08 : 0.28));
+    const now = performance.now();
+    const dt = Math.max(1, now - session.lastTime);
+    const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
+    session.velocity = session.velocity * 0.58 + instantaneousVelocity * 0.42;
+    session.lastX = touch.clientX;
+    session.lastTime = now;
+
+    // Keep the panel connected to the finger like the native Back gesture, but
+    // cap travel because Console does not mount two expensive admin panels at
+    // once. The surrounding page stays fully opaque, so there is never a blank
+    // interstitial canvas.
+    const maxTravel = Math.min(96, Math.max(44, window.innerWidth * 0.25));
+    const rendered = atBoundary
+      ? dx * IOS_SWIPE_MOTION.boundaryResistance
+      : Math.max(-maxTravel, Math.min(maxTravel, dx));
+    consoleSwipeX.set(rendered);
   };
 
   const handleConsoleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -568,10 +591,11 @@ const ControlCenterView = function ControlCenterView({
     }
 
     const dx = touch.clientX - session.startX;
-    const elapsed = Math.max(1, performance.now() - session.startTime);
-    const velocity = dx / elapsed;
+    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
     const qualifies =
-      Math.abs(dx) >= 62 || (Math.abs(dx) >= 28 && Math.abs(velocity) >= 0.48);
+      Math.abs(dx) >= width * IOS_SWIPE_MOTION.commitProgress ||
+      (Math.abs(dx) >= IOS_SWIPE_MOTION.flickDistance &&
+        session.velocity >= IOS_SWIPE_MOTION.velocityThreshold);
 
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
     const physicalForward = isRtl ? dx > 0 : dx < 0;
@@ -590,18 +614,37 @@ const ControlCenterView = function ControlCenterView({
 
     consoleSwipeAnimatingRef.current = true;
 
-    // Save/restore is performed by the same selector used by pill taps. The
-    // new panel inherits the current small finger offset, then settles to zero;
-    // this keeps tab highlight + content movement synchronized with no blank
-    // interstitial frame or duplicate panel overlap.
-    selectSubTab(next);
-    const settleFrom = Math.sign(dx || 1) * Math.min(28, Math.max(14, Math.abs(dx) * 0.16));
-    consoleSwipeX.set(settleFrom);
-    animate(consoleSwipeX, 0, {
-      duration: 0.3,
-      ease: [0.32, 0.72, 0, 1],
-    }).then(() => {
+    const physicalSign = dx < 0 ? -1 : 1;
+    const exitTarget = physicalSign * Math.min(96, width * 0.25);
+    const finishIncoming = () => {
       consoleSwipeAnimatingRef.current = false;
+    };
+    const commitAndEnter = () => {
+      // Commit while the opaque Console shell remains mounted, then use the same
+      // 22px parent-page reveal distance as Notifications/Settings for the new
+      // panel entrance. No opacity animation and no blank frame are involved.
+      selectSubTab(next);
+      consoleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+      animate(consoleSwipeX, 0, {
+        type: "spring",
+        stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.completionSpring.damping,
+        mass: IOS_SWIPE_MOTION.completionSpring.mass,
+        restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+        onComplete: finishIncoming,
+      });
+    };
+
+    animate(consoleSwipeX, exitTarget, {
+      type: "spring",
+      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+      damping: IOS_SWIPE_MOTION.completionSpring.damping,
+      mass: IOS_SWIPE_MOTION.completionSpring.mass,
+      velocity: physicalSign * Math.min(session.velocity * 1000, width * 4.0),
+      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+      onComplete: commitAndEnter,
     });
   };
 

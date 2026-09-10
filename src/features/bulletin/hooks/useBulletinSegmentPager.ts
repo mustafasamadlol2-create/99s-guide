@@ -7,6 +7,7 @@ import {
 } from "motion/react";
 import { HapticFeedback } from "../../../core/device/haptic";
 import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 
 export type BulletinSegment = "all" | "unread";
 
@@ -35,11 +36,10 @@ const opposite = (segment: BulletinSegment): BulletinSegment =>
  * Two-page interactive pager for Notifications (All / Unread).
  *
  * The two pages behave like adjacent native pages rather than a web carousel:
- * the current page follows the finger 1:1 while the destination page travels
- * beside it from exactly one viewport away. On commit, both pages finish the
- * same physical movement; React swaps the live segment only after the target is
- * already sitting at x=0, so there is no second entrance animation, snap, flash
- * or refresh-looking handoff.
+ * the current page follows the finger 1:1 while the destination is already
+ * painted underneath and parallax-reveals from the same 22px offset used by
+ * Notifications/Settings -> Profile. React swaps the live segment only after
+ * the target is sitting at x=0, so there is no snap, flash, or blank handoff.
  */
 export function useBulletinSegmentPager({
   activeSegment,
@@ -125,11 +125,12 @@ export function useBulletinSegmentPager({
   /** Keep the destination page and the segmented-control thumb locked to the same gesture. */
   const syncAdjacentPage = useCallback(
     (foregroundOffset: number, width: number, exitSign: 1 | -1) => {
-      underlayX.set(-exitSign * width + foregroundOffset);
-
       const directionalProgress = Math.max(
         0,
         Math.min(1, (foregroundOffset * exitSign) / Math.max(1, width)),
+      );
+      underlayX.set(
+        -exitSign * IOS_SWIPE_MOTION.underlayOffset * (1 - directionalProgress),
       );
       indicatorPosition.set(
         activeSegmentRef.current === "all"
@@ -196,12 +197,12 @@ export function useBulletinSegmentPager({
       // ease or a second web-style slide animation.
       const controls = animate(x, exitTarget, {
         type: "spring",
-        stiffness: 470,
-        damping: 44,
-        mass: 0.82,
+        stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.completionSpring.damping,
+        mass: IOS_SWIPE_MOTION.completionSpring.mass,
         velocity: velocityPxPerSecond,
-        restSpeed: 18,
-        restDelta: 0.4,
+        restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
         onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
         onComplete: finishHandoff,
       });
@@ -291,13 +292,13 @@ export function useBulletinSegmentPager({
       const directionalDistance = dx * exitSign;
 
       if (!horizontalLockRef.current) {
-        if (Math.abs(dy) >= 14 && Math.abs(dy) > Math.abs(dx) * 1.1) {
+        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * 1.25) {
           resetTracking();
           x.set(0);
           underlayX.set(0);
           return;
         }
-        if (Math.abs(dx) < 5) return;
+        if (Math.abs(dx) < IOS_SWIPE_MOTION.axisLockDistance) return;
         if (Math.abs(dy) > Math.abs(dx) * 0.78) return;
         horizontalLockRef.current = true;
         setIsInteracting(true);
@@ -308,7 +309,7 @@ export function useBulletinSegmentPager({
       const now = performance.now();
       const dt = Math.max(1, now - lastTimeRef.current);
       const instantaneousVelocity = (touch.clientX - lastXRef.current) / dt;
-      velocityRef.current = velocityRef.current * 0.5 + instantaneousVelocity * 0.5;
+      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
@@ -342,9 +343,14 @@ export function useBulletinSegmentPager({
       const releaseVelocity = velocityRef.current;
       const releaseVelocityInDirection = releaseVelocity * exitSign;
       const progress = Math.max(0, directionalDistance) / width;
-      const fastFlick = directionalDistance >= 24 && releaseVelocityInDirection >= 0.38;
+      const fastFlick =
+        directionalDistance >= IOS_SWIPE_MOTION.flickDistance &&
+        releaseVelocityInDirection >= IOS_SWIPE_MOTION.velocityThreshold;
       const success =
-        !cancelled && hadLock && directionalDistance > 0 && (progress >= 0.22 || fastFlick);
+        !cancelled &&
+        hadLock &&
+        directionalDistance > 0 &&
+        (progress >= IOS_SWIPE_MOTION.commitProgress || fastFlick);
 
       resetTracking();
       if (!hadLock) {
@@ -385,12 +391,12 @@ export function useBulletinSegmentPager({
 
       const controls = animate(x, 0, {
         type: "spring",
-        stiffness: 500,
-        damping: 46,
-        mass: 0.78,
+        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
         velocity: releaseVelocity * 1000,
-        restSpeed: 14,
-        restDelta: 0.35,
+        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
         onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),
         onComplete: finishCancel,
       });

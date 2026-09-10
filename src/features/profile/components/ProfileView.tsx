@@ -1,5 +1,6 @@
 import { getLectureProgressStats } from "../../../core/utils/progressUtils";
 import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -8,7 +9,7 @@ import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
 import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
 import { User, PointsLog, Subject, UserProgress } from "../../../core/types";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useTransform } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
@@ -215,6 +216,12 @@ export const ProfileView = function ProfileView({
    allowedStartSelector: '[data-profile-subview-swipe-surface="true"]',
    onSwipeBack: closeProfileSubView,
  });
+
+ const profileUnderlayX = useTransform(
+   profileBackGesture.progress,
+   [0, 1],
+   [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+ );
 
  useEffect(() => () => {
    onSubViewChange?.(false);
@@ -658,13 +665,17 @@ export const ProfileView = function ProfileView({
      className="relative w-full min-h-full overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
      dir={isRtl ? "rtl" : "ltr"}
    >
-     <div
+     <motion.div
        aria-hidden={subView !== null || undefined}
        className="relative z-0 w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
-       style={{ pointerEvents: subView !== null ? "none" : "auto" }}
+       style={{
+         pointerEvents: subView !== null ? "none" : "auto",
+         x: subView !== null ? profileUnderlayX : 0,
+         willChange: profileBackGesture.isInteracting ? "transform" : "auto",
+       }}
      >
        {profileRoot}
-     </div>
+     </motion.div>
 
      {subView !== null && typeof document !== "undefined" && createPortal(
        <motion.div
@@ -678,9 +689,7 @@ export const ProfileView = function ProfileView({
            paddingTop: "env(safe-area-inset-top, 0px)",
            paddingBottom: "calc(82px + env(safe-area-inset-bottom, 0px))",
            boxShadow: profileBackGesture.isInteracting
-             ? (language === "ar"
-                 ? "18px 0 30px -18px rgba(0,0,0,0.48)"
-                 : "-18px 0 30px -18px rgba(0,0,0,0.48)")
+             ? getNativeSwipeLayerShadow(isRtl)
              : "none",
            // The pushed page owns a single compositor layer for its complete
            // lifetime; the Profile underneath is never transformed or rebuilt.

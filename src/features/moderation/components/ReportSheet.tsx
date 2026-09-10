@@ -42,8 +42,6 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ target, onClose, onSuc
     isEnabled: Boolean(target) && !loading,
     handleSelector: '[data-swipe-dismiss-handle="true"]',
     blockedSelector: "button",
-    commitDistance: 108,
-    velocityThreshold: 0.58,
   });
   const backdropGestureOpacity = useTransform(
     dismissGesture.progress,

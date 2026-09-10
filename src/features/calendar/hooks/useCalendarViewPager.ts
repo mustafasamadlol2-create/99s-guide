@@ -7,6 +7,7 @@ import {
 } from "motion/react";
 import { HapticFeedback } from "../../../core/device/haptic";
 import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
+import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 
 export type CalendarViewMode = "week" | "day" | "month";
 
@@ -147,8 +148,11 @@ export function useCalendarViewPager({
       fromView: CalendarViewMode,
       toView: CalendarViewMode,
     ) => {
-      targetX.set(-exitSign * width + foregroundOffset);
       const progress = clamp01((foregroundOffset * exitSign) / Math.max(1, width));
+      // Native push/pop layering: the destination is already painted beneath
+      // the foreground and moves only 22px into place, exactly like the
+      // approved Notifications/Settings -> Profile swipe-back.
+      targetX.set(-exitSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress));
       const fromIndex = viewIndex(fromView);
       const toIndex = viewIndex(toView);
       indicatorPosition.set(fromIndex + (toIndex - fromIndex) * progress);
@@ -207,12 +211,12 @@ export function useCalendarViewPager({
 
       const controls = animate(x, exitTarget, {
         type: "spring",
-        stiffness: 460,
-        damping: 44,
-        mass: 0.82,
+        stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.completionSpring.damping,
+        mass: IOS_SWIPE_MOTION.completionSpring.mass,
         velocity: velocityPxPerSecond,
-        restSpeed: 18,
-        restDelta: 0.4,
+        restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
         onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
         onComplete: finishHandoff,
       });
@@ -299,11 +303,11 @@ export function useCalendarViewPager({
       const dy = touch.clientY - startYRef.current;
 
       if (!horizontalLockRef.current) {
-        if (Math.abs(dy) >= 14 && Math.abs(dy) > Math.abs(dx) * 1.08) {
+        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * 1.25) {
           resetTracking();
           return;
         }
-        if (Math.abs(dx) < 7) return;
+        if (Math.abs(dx) < IOS_SWIPE_MOTION.axisLockDistance) return;
         if (Math.abs(dy) > Math.abs(dx) * 0.78) return;
 
         const physicalExitSign: 1 | -1 = dx >= 0 ? 1 : -1;
@@ -335,7 +339,7 @@ export function useCalendarViewPager({
       const now = performance.now();
       const dt = Math.max(1, now - lastTimeRef.current);
       const instantaneousVelocity = (touch.clientX - lastXRef.current) / dt;
-      velocityRef.current = velocityRef.current * 0.5 + instantaneousVelocity * 0.5;
+      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
@@ -362,13 +366,15 @@ export function useCalendarViewPager({
       const releaseVelocity = velocityRef.current;
       const releaseVelocityInDirection = releaseVelocity * exitSign;
       const progress = Math.max(0, directionalDistance) / width;
-      const fastFlick = directionalDistance >= 24 && releaseVelocityInDirection >= 0.38;
+      const fastFlick =
+        directionalDistance >= IOS_SWIPE_MOTION.flickDistance &&
+        releaseVelocityInDirection >= IOS_SWIPE_MOTION.velocityThreshold;
       const success =
         !cancelled &&
         hadLock &&
         Boolean(toView) &&
         directionalDistance > 0 &&
-        (progress >= 0.22 || fastFlick);
+        (progress >= IOS_SWIPE_MOTION.commitProgress || fastFlick);
 
       resetTracking();
       if (!hadLock || !toView) {
@@ -408,12 +414,12 @@ export function useCalendarViewPager({
 
       const controls = animate(x, 0, {
         type: "spring",
-        stiffness: 500,
-        damping: 46,
-        mass: 0.78,
+        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
         velocity: releaseVelocity * 1000,
-        restSpeed: 14,
-        restDelta: 0.35,
+        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
         onUpdate: (latest) => syncPages(latest, width, exitSign, fromView, toView),
         onComplete: finishCancel,
       });

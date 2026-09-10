@@ -31,6 +31,7 @@ import {
 
 import { useCalendar } from "../hooks/useCalendar";
 import { useCalendarViewPager, type CalendarViewMode } from "../hooks/useCalendarViewPager";
+import { getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
 import { CalendarHeader } from "./CalendarHeader";
 import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { CalendarMonthView } from "./CalendarMonthView";
@@ -372,6 +373,17 @@ const CalendarView = memo(function CalendarView({
  '[data-calendar-view-pager-disabled="true"]',
  ].join(','),
  });
+
+ const calendarSwipeExitSign: 1 | -1 = (() => {
+   const order: CalendarViewMode[] = ["week", "day", "month"];
+   const from = order.indexOf(activeView as CalendarViewMode);
+   const to = calendarViewPager.targetView == null
+     ? from
+     : order.indexOf(calendarViewPager.targetView);
+   if (to === from) return isRtl ? 1 : -1;
+   if (to > from) return isRtl ? 1 : -1;
+   return isRtl ? -1 : 1;
+ })();
 
  const handleCalendarViewChange = React.useCallback((nextView: typeof activeView) => {
  calendarViewPager.navigateTo(nextView as CalendarViewMode);
@@ -745,9 +757,7 @@ const CalendarView = memo(function CalendarView({
  x: calendarViewPager.x,
  zIndex: 1,
  boxShadow: calendarViewPager.isInteracting
- ? (isRtl
- ? "18px 0 28px -20px rgba(0,0,0,0.34)"
- : "-18px 0 28px -20px rgba(0,0,0,0.34)")
+ ? getSwipeLayerShadowForExitSign(calendarSwipeExitSign)
  : "none",
  willChange: calendarViewPager.isInteracting ? "transform" : "auto",
  }}
