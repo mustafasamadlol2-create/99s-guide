@@ -2236,7 +2236,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  <span className="font-sans font-semibold text-caption text-[#1c1c1e] dark:text-[var(--text-secondary)] uppercase">
  {isRtl
- ? "المستشار السريري البغدادي"
+ ? "المستشار"
  : "THE HINT"}
  </span>
  </div>
