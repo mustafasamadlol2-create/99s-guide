@@ -1590,16 +1590,53 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  );
  const activeLectureTabIndex = lectureTabOrder.indexOf(activeTab);
  const lectureTabbarRef = useRef<HTMLDivElement | null>(null);
+ const [lectureTabPill, setLectureTabPill] = useState({ left: 0, width: 0, ready: false });
 
- // Keep the active tab centered in the compact mobile tab strip. The active
- // pill belongs to the real tab node (not a percentage-based overlay), so RTL
- // and horizontal overflow can never leave a blank/offset selector.
- useEffect(() => {
-   const node = lectureTabbarRef.current?.querySelector<HTMLElement>(
+ // Keep one persistent iOS-style indicator underneath every label. The old
+ // per-tab layoutId pill was mounted/unmounted whenever activeTab changed; on
+ // WKWebView that could briefly promote the moving pill above the glyph layer
+ // and make the active label appear blank. Measuring the real tab node and
+ // animating one permanent underlay keeps every word mounted and fully opaque.
+ useLayoutEffect(() => {
+   const container = lectureTabbarRef.current;
+   const node = container?.querySelector<HTMLElement>(
      `[data-lecture-tab-id="${activeTab}"]`,
    );
-   node?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
- }, [activeTab]);
+   if (!container || !node) return;
+
+   let frame = 0;
+   const measure = () => {
+     frame = 0;
+     setLectureTabPill((previous) => {
+       const next = { left: node.offsetLeft, width: node.offsetWidth, ready: true };
+       if (
+         previous.ready === next.ready &&
+         Math.abs(previous.left - next.left) < 0.5 &&
+         Math.abs(previous.width - next.width) < 0.5
+       ) {
+         return previous;
+       }
+       return next;
+     });
+   };
+
+   measure();
+   node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+   frame = window.requestAnimationFrame(measure);
+
+   const resizeObserver = typeof ResizeObserver !== "undefined"
+     ? new ResizeObserver(() => {
+         if (!frame) frame = window.requestAnimationFrame(measure);
+       })
+     : null;
+   resizeObserver?.observe(container);
+   resizeObserver?.observe(node);
+
+   return () => {
+     if (frame) window.cancelAnimationFrame(frame);
+     resizeObserver?.disconnect();
+   };
+ }, [activeTab, isRtl]);
 
  const goToNextLectureTab = useCallback(() => {
    if (activeLectureTabIndex < 0 || activeLectureTabIndex >= lectureTabOrder.length - 1) return;
@@ -1738,9 +1775,21 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <div
     ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
-    className="lecture-tabbar relative bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-x-auto overflow-y-hidden scrollbar-none overscroll-x-contain scroll-smooth"
+    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-x-auto overflow-y-hidden scrollbar-none overscroll-x-contain scroll-smooth"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
+  <motion.div
+    aria-hidden="true"
+    className="absolute top-1 bottom-1 rounded-lg bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] z-0 pointer-events-none"
+    initial={false}
+    animate={{
+      x: lectureTabPill.left,
+      width: lectureTabPill.width,
+      opacity: lectureTabPill.ready ? 1 : 0,
+    }}
+    transition={IOS_SWIPE_MOTION.completionSpring}
+    style={{ left: 0, willChange: "transform,width", transform: "translateZ(0)" }}
+  />
  {([
  { id: "pdf", label: "PDF" },
  { id: "notes", label: isRtl ? "الملاحظات" : "Notes" },
@@ -1759,36 +1808,30 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div
  key={tab.id}
  data-lecture-tab-id={tab.id}
- className="relative flex-none sm:flex-1 min-w-[72px] sm:min-w-0 flex items-center h-7"
+ className={`relative flex-none sm:flex-1 ${isRtl ? "min-w-[84px]" : "min-w-[72px]"} sm:min-w-0 flex items-center h-7 z-10`}
  >
- {isActive && (
-   <motion.div
-     layoutId="lecture-active-tab-pill"
-     aria-hidden="true"
-     className="absolute inset-0 bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] rounded-lg z-0"
-     transition={IOS_SWIPE_MOTION.completionSpring}
-   />
- )}
- <motion.button
+ <button
  type="button"
- transition={IOS_SWIPE_MOTION.completionSpring}
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className="relative rounded-lg text-[13px] sm:text-sm font-medium cursor-pointer transition-colors duration-[380ms] flex-1 select-none z-10 flex items-center justify-center w-full h-full px-2"
- style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+ className="relative rounded-lg text-[13px] sm:text-sm font-medium cursor-pointer flex-1 select-none z-20 flex items-center justify-center w-full h-full px-2 overflow-visible"
  >
  <span
- style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
- className={`relative text-center whitespace-nowrap transition-colors duration-[380ms] ${
+ className={`relative z-20 inline-flex w-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-200 ${
  isActive
- ? "text-black dark:text-[var(--text-primary)] font-semibold"
+ ? "text-black dark:text-white font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
  }`}
+ style={{
+   opacity: 1,
+   transform: "translateZ(0)",
+   backfaceVisibility: "hidden",
+ }}
  >
  {tab.label}
  </span>
- </motion.button>
+ </button>
 
  {showDivider && (
  <div className={`absolute ${isRtl ? "left-0" : "right-0"} top-[20%] bottom-[20%] w-px bg-black/[0.08] dark:bg-white/[0.08] z-0`} />
