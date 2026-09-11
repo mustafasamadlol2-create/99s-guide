@@ -1756,11 +1756,16 @@ export default function App() {
   // tab paging. The visible Back button keeps the exact historical Back behavior.
   const handleHomeLectureBack = useCallback(() => {
     if (activeHomeLecture === null) return;
+
+    // Every user-driven Home lecture push now owns a stack entry, whether it
+    // came directly from Dashboard or from inside a Subject. Restore that entry
+    // first so its saved scrollTop is applied synchronously before paint.
     if (lectureDetailSource === "dashboard") {
       setSuppressHomeEntranceAnimations(true);
-      if (restorePreviousNavigationEntry()) return;
     }
+    if (restorePreviousNavigationEntry()) return;
 
+    // Deep links may not have a local stack entry; keep the historical fallback.
     setActiveHomeLecture(null);
     if (lectureDetailSource === "dashboard") setActiveHomeSubjectId(null);
     setLectureDetailSource(null);
@@ -1802,7 +1807,12 @@ export default function App() {
         setActiveSubjectId(null);
         return;
       }
-      if (activeModuleId !== null) setActiveModuleId(null);
+      if (activeModuleId !== null) {
+        // Modules -> Module detail is a pushed page. Restore the captured
+        // Modules-list scroll position before revealing the persistent parent.
+        if (restorePreviousNavigationEntry()) return;
+        setActiveModuleId(null);
+      }
     },
   });
 
@@ -2022,23 +2032,52 @@ export default function App() {
     [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const lectureUnderlayOpacity = 1;
+
+  // Pages that share main-scroll-canvas cannot keep two independent vertical
+  // scroll positions at once. While a child page is pushed, render the live
+  // parent underlay translated by the scrollTop captured in its navigation
+  // entry. During interactive Back the user therefore sees the parent at the
+  // exact old vertical level. On commit, the translation is removed in the
+  // same pre-paint commit in which main-scroll-canvas is restored to that
+  // scrollTop, producing a mathematically identical frame with no jump.
+  const navigationParentVisualScrollOffset = Math.max(
+    0,
+    navigationStackTop?.scrollTop ?? 0,
+  );
+
   // Memoized handlers to optimize rendering and prevent breaking child component memoization
   const handleSelectHomeSubject = useCallback((id: SubjectId) => {
+    // Preserve the exact Dashboard scroll position before the pushed Subject
+    // changes the shared main-scroll-canvas. Back must reveal the Dashboard at
+    // the same pixel, never at scrollTop=0.
+    pushNavigationStack();
     setSuppressHomeEntranceAnimations(false);
     setActiveHomeSubjectId(id);
     setActiveHomeLecture(null);
-  }, []);
+  }, [pushNavigationStack]);
 
   const handleSelectHomeLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => {
+    // Direct Dashboard -> Lecture is also a native push. Capture the parent
+    // scroll before the Lecture route resets/reflows the shared canvas.
+    pushNavigationStack();
     setSuppressHomeEntranceAnimations(false);
     setLectureDetailSource("dashboard");
     setActiveHomeSubjectId(lect.subjectId);
     if (tab) setActiveLectureTab(tab);
     else setActiveLectureTab("pdf");
     setActiveHomeLecture(lect);
-  }, []);
+  }, [pushNavigationStack]);
 
-  const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => { setLectureDetailSource("subject"); if (tab) setActiveLectureTab(tab); else setActiveLectureTab("pdf"); setActiveHomeLecture(lect); }, []);
+  const handleSelectNestedLecture = useCallback((lect: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => {
+    // Subject -> Lecture shares the same scroll canvas. Saving here is what
+    // allows both button Back and interactive swipe Back to return to the exact
+    // lecture-list position without a post-transition correction.
+    pushNavigationStack();
+    setLectureDetailSource("subject");
+    if (tab) setActiveLectureTab(tab);
+    else setActiveLectureTab("pdf");
+    setActiveHomeLecture(lect);
+  }, [pushNavigationStack]);
 
   // --- Deep-Linking, State Restoration & Universal Linking Sync Engine ---
   const targetHomeLectureIdRef = useRef<string | null>(null);
@@ -5150,7 +5189,15 @@ const handleSignOut = useCallback(async () => {
                       activeHomeSubjectId !== null && activeHomeLecture === null
                         ? homeSubjectUnderlayX
                         : 0,
-                    willChange: homeBackGesture.isInteracting ? "transform" : "auto",
+                    y:
+                      activeHomeSubjectId !== null &&
+                      (activeHomeLecture === null || lectureDetailSource === "dashboard")
+                        ? -navigationParentVisualScrollOffset
+                        : 0,
+                    willChange:
+                      activeHomeSubjectId !== null || homeBackGesture.isInteracting
+                        ? "transform"
+                        : "auto",
                   }}
                 >
                   <Suspense fallback={iOSLoadingFallback}>
@@ -5210,9 +5257,13 @@ const handleSignOut = useCallback(async () => {
                               ? "hidden"
                               : "visible",
                           x: activeHomeLecture !== null ? homeLectureUnderlayX : 0,
+                          y:
+                            activeHomeLecture !== null && lectureDetailSource === "subject"
+                              ? -navigationParentVisualScrollOffset
+                              : 0,
                           opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
                           minHeight: navigationSurfaceMinHeight,
-                          willChange: homeLectureBackGesture.isInteracting
+                          willChange: activeHomeLecture !== null
                             ? "transform, opacity"
                             : "auto",
                         }}
@@ -5314,7 +5365,14 @@ const handleSignOut = useCallback(async () => {
                         pointerEvents: activeModuleId === null ? "auto" : "none",
                         minHeight: navigationSurfaceMinHeight,
                         x: activeModuleId !== null ? modulesUnderlayX : 0,
-                        willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
+                        y:
+                          activeModuleId !== null
+                            ? -navigationParentVisualScrollOffset
+                            : 0,
+                        willChange:
+                          activeModuleId !== null || subjectsBackGesture.isInteracting
+                            ? "transform"
+                            : "auto",
                       }}
                       className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
                     >
@@ -5338,6 +5396,11 @@ const handleSignOut = useCallback(async () => {
                             lectureCounts={subjectLectureCounts}
                             progressBySubject={subjectProgressMetrics}
                             onSelectModule={(subjectId) => {
+                              // ModulePlaceholderView intentionally opens the
+                              // shared canvas at the top. Capture the Modules
+                              // list position before that reset so Back can
+                              // restore the exact card/offset pre-paint.
+                              pushNavigationStack();
                               setActiveLecture(null);
                               setActiveModuleId(subjectId);
                             }}
@@ -5400,8 +5463,12 @@ const handleSignOut = useCallback(async () => {
                           gridArea: "1 / 1 / 2 / 2",
                           pointerEvents: activeLecture === null ? "auto" : "none",
                           x: activeLecture !== null ? lectureUnderlayX : 0,
+                          y:
+                            activeLecture !== null
+                              ? -navigationParentVisualScrollOffset
+                              : 0,
                           opacity: activeLecture !== null ? lectureUnderlayOpacity : 1,
-                          willChange: subjectsLectureBackGesture.isInteracting ? "transform, opacity" : "auto",
+                          willChange: activeLecture !== null ? "transform, opacity" : "auto",
                         }}
                         className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
                       >
@@ -5417,6 +5484,9 @@ const handleSignOut = useCallback(async () => {
                               isSwipeNavigationEnabled={activeLecture === null}
                               onInternalNavigationStateChange={handleLegacySubjectInternalBackChange}
                               onSelectLecture={(lect, tab) => {
+                                // Preserve the Subject list's exact vertical
+                                // position before pushing Lecture detail.
+                                pushNavigationStack();
                                 if (tab) setActiveLectureTab(tab);
                                 else setActiveLectureTab("pdf");
                                 setActiveLecture(lect);
