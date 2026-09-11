@@ -2079,27 +2079,32 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  {/* Subject-aware Question Card */}
  <div
-   className="relative overflow-hidden rounded-[22px] sm:rounded-[26px] border border-black/[0.06] dark:border-white/[0.09] bg-white dark:bg-[#17181B] shadow-[0_10px_28px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.22)] min-h-[132px] sm:min-h-[150px]"
+   className="relative overflow-hidden rounded-[22px] sm:rounded-[26px] border border-black/[0.06] dark:border-white/[0.09] bg-white dark:bg-[#17181B] shadow-[0_10px_28px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.22)] min-h-[160px] sm:min-h-[180px]"
    style={flashcardThemeVars}
  >
    <div className="pointer-events-none absolute inset-0">
      <SubjectFlashcardArtwork
        subjectId={lecture.subjectId}
        rgb={flashcardTheme.rgb}
-       className="absolute inset-0 opacity-70 dark:opacity-80"
+       className="absolute inset-0 opacity-68 dark:opacity-78"
      />
-     <div className="absolute inset-0 bg-white/[0.18] dark:bg-black/[0.12]" />
+     <div className="absolute inset-0 bg-white/[0.12] dark:bg-black/[0.16]" />
+     <div className="absolute inset-y-0 left-0 w-[72%] bg-gradient-to-r from-white/[0.88] via-white/[0.62] to-transparent dark:from-[#15161A]/[0.90] dark:via-[#15161A]/[0.68] dark:to-transparent" />
      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(var(--flashcard-accent-rgb),0.42)] to-transparent" />
    </div>
-   <div className="relative z-10 px-5 py-6 sm:px-7 sm:py-7 flex items-center min-h-[132px] sm:min-h-[150px]">
-     <div className="max-w-[82%]">
-       <div className="mb-3 flex items-center gap-2">
-         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: flashcardTheme.accent }} />
-         <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: flashcardTheme.accent }}>
+   <div className="relative z-10 min-h-[160px] sm:min-h-[180px] px-5 py-5 sm:px-7 sm:py-7 flex items-center">
+     <div className="w-full max-w-[95%] sm:max-w-[92%]">
+       <div className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-[2px] bg-white/10 dark:bg-black/10 border border-white/10 dark:border-white/8">
+         <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: flashcardTheme.accent }} />
+         <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] leading-none" style={{ color: flashcardTheme.accent }}>
            {isRtl ? "سؤال سريري" : "MCQ CONCEPT"}
          </span>
        </div>
-       <h3 dir="auto" className="text-base sm:text-lg lg:text-xl font-sans text-neutral-900 dark:text-white font-semibold leading-relaxed text-start">
+       <h3
+         dir="auto"
+         className="text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-neutral-900 dark:text-white font-semibold leading-[1.58] sm:leading-[1.62] text-start"
+         style={{ textWrap: "balance" }}
+       >
          {filteredQuizQuestions[currentQuestionIndex].question}
        </h3>
      </div>
