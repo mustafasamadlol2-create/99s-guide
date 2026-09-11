@@ -1619,6 +1619,12 @@ export default function App() {
   const homeSubjectInternalBackRef = useRef(false);
   const legacySubjectInternalBackRef = useRef(false);
   const pendingNavigationScrollRestoreRef = useRef<number | null>(null);
+  // Back navigation (gesture or Back button) must reveal the already-positioned
+  // destination and then leave it completely untouched. A delayed second/third
+  // scrollTop write is visible in WKWebView as a tiny refresh/reposition after
+  // the swipe settles, especially in RTL. Mark stack pops so restoration is
+  // performed once, synchronously in the layout phase before the first paint.
+  const pendingNavigationRestoreIsBackRef = useRef(false);
   const [suppressHomeEntranceAnimations, setSuppressHomeEntranceAnimations] = useState(false);
 
   const handleProfileSubViewChange = useCallback((open: boolean) => {
@@ -1677,6 +1683,8 @@ export default function App() {
 
   const clearNavigationStack = useCallback(() => {
     navigationStackRef.current = [];
+    pendingNavigationScrollRestoreRef.current = null;
+    pendingNavigationRestoreIsBackRef.current = false;
     setNavigationStackTop(null);
     setPreserveSearchSession(false);
   }, []);
@@ -1684,7 +1692,10 @@ export default function App() {
   const restoreNavigationEntry = useCallback((entry: NavigationEntry) => {
     // Capture the exact parent position from the navigation entry itself. This
     // survives short destination pages, layout changes and WebKit clamping.
+    // Every stack restore is a native-style Back. It gets exactly one pre-paint
+    // scroll restoration; never a later RAF/timer correction after the swipe.
     pendingNavigationScrollRestoreRef.current = Math.max(0, entry.scrollTop || 0);
+    pendingNavigationRestoreIsBackRef.current = true;
 
     if (
       entry.activeTab === "home" &&
@@ -2432,9 +2443,11 @@ export default function App() {
     if (keepProfileCanvasFrozen) {
       phoneTabBarScrollSourceRef.current = canvas;
       phoneTabBarLastScrollTopRef.current = canvas.scrollTop;
-      if (navigationPath === "/profile") {
-        pendingNavigationScrollRestoreRef.current = null;
-      }
+      // The Profile canvas never moved while its overlay stack was open, so a
+      // restore here would only manufacture a post-Back jump. Consume the
+      // queued stack value without writing scrollTop at all.
+      pendingNavigationScrollRestoreRef.current = null;
+      pendingNavigationRestoreIsBackRef.current = false;
       isRestoringGlobalScrollRef.current = false;
       return;
     }
@@ -2467,22 +2480,21 @@ export default function App() {
     // layouts whose height settles one compositor tick later.
     restore();
 
-    // Profile is already mounted underneath Settings/Notifications during an
-    // interactive pop. Its layout is complete in this very commit, so repeated
-    // RAF/timer writes are not only unnecessary — on iOS they visibly move the
-    // page a few pixels after the swipe has finished. Native persistent-stack
-    // returns therefore perform one synchronous pre-paint restoration only.
-    const isPersistentProfileReturn =
+    // A native Back (interactive swipe or the matching animated Back button)
+    // must never be followed by a second scroll correction. The destination is
+    // restored once here, synchronously before paint, and then its scroll
+    // position is left completely alone. This removes the small RTL/LTR jump,
+    // refresh-like snap and Floating Bar shake that delayed RAF/timer writes
+    // could cause after the transition had already visually finished.
+    const isNativeBackRestore =
       queuedStackPosition !== null &&
-      navigationPath === "/profile" &&
-      (previousPath === "/settings" || previousPath === "/bulletin");
+      pendingNavigationRestoreIsBackRef.current;
 
-    if (isPersistentProfileReturn) {
-      if (
-        pendingNavigationScrollRestoreRef.current === queuedStackPosition
-      ) {
+    if (isNativeBackRestore) {
+      if (pendingNavigationScrollRestoreRef.current === queuedStackPosition) {
         pendingNavigationScrollRestoreRef.current = null;
       }
+      pendingNavigationRestoreIsBackRef.current = false;
       isRestoringGlobalScrollRef.current = false;
       return;
     }
@@ -2503,6 +2515,7 @@ export default function App() {
       ) {
         pendingNavigationScrollRestoreRef.current = null;
       }
+      pendingNavigationRestoreIsBackRef.current = false;
       isRestoringGlobalScrollRef.current = false;
     }, 460);
 

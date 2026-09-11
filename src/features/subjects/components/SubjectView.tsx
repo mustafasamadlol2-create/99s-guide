@@ -738,7 +738,6 @@ export const SubjectView = function SubjectView({
   // because the child page was shorter or WebKit clamped the shared canvas.
   const hierarchyScrollStackRef = useRef<number[]>([]);
   const pendingHierarchyScrollRestoreRef = useRef<number | null>(null);
-  const hierarchyScrollRestoreFrameRef = useRef<number | null>(null);
   const clearUnderlayFrameRef = useRef<number | null>(null);
   const [isHierarchyUnderlayVisible, setIsHierarchyUnderlayVisible] = useState(false);
   // A Back-restored hierarchy level should look like a screen that was already
@@ -929,15 +928,12 @@ export const SubjectView = function SubjectView({
     const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
     canvas.scrollTop = Math.min(requested, maxScroll);
 
-    if (hierarchyScrollRestoreFrameRef.current !== null) {
-      cancelAnimationFrame(hierarchyScrollRestoreFrameRef.current);
-    }
-    hierarchyScrollRestoreFrameRef.current = requestAnimationFrame(() => {
-      hierarchyScrollRestoreFrameRef.current = null;
-      const settledMax = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
-      canvas.scrollTop = Math.min(requested, settledMax);
-      pendingHierarchyScrollRestoreRef.current = null;
-    });
+    // Do not re-assert scrollTop on a later animation frame. The first write
+    // already happens in a layout effect before paint; a second write after the
+    // interactive Back has settled is visible as a tiny reposition/refresh on
+    // iOS (and was more obvious in RTL). One pre-paint write is the native
+    // persistent-stack behavior we want.
+    pendingHierarchyScrollRestoreRef.current = null;
   }, [activeDepartment, activeSubSubject, activeTrack]);
 
   // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
@@ -966,9 +962,6 @@ export const SubjectView = function SubjectView({
   useEffect(() => () => {
     if (clearUnderlayFrameRef.current !== null) {
       cancelAnimationFrame(clearUnderlayFrameRef.current);
-    }
-    if (hierarchyScrollRestoreFrameRef.current !== null) {
-      cancelAnimationFrame(hierarchyScrollRestoreFrameRef.current);
     }
   }, []);
 

@@ -913,13 +913,13 @@ const HeroBanner = memo(({
           </div>
 
           {/* Pills — decorative identity badges */}
-          <ul role="list" aria-label="Student identity" className="home-hero-pills flex items-center gap-1.5 relative z-10 list-none p-0 m-0">
+          <ul role="list" aria-label="Student identity" className="home-hero-pills flex items-center gap-1.5 relative z-10 list-none p-0 m-0" dir={isRtl ? "rtl" : "ltr"}>
             {/* MED SCHOOL — gold accent with live dot */}
             <motion.li
               role="listitem"
               aria-label="Medical school student"
               variants={heroPillVariant(0)}
-              className={`${layout.pillsClass} flex items-center gap-2 uppercase font-semibold bg-gradient-to-r from-[#D4AF37]/[0.16] to-[#D4AF37]/[0.08] hover:from-[#D4AF37]/[0.26] hover:to-[#D4AF37]/[0.14] text-amber-300 border border-amber-500/35 hover:border-amber-400/65 hover:shadow-[0_0_18px_3px_rgba(212,175,55,0.22)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
+              className={`${layout.pillsClass} home-hero-identity-pill home-hero-med-pill flex items-center gap-2 uppercase font-semibold bg-gradient-to-r from-[#D4AF37]/[0.16] to-[#D4AF37]/[0.08] hover:from-[#D4AF37]/[0.26] hover:to-[#D4AF37]/[0.14] text-amber-300 border border-amber-500/35 hover:border-amber-400/65 hover:shadow-[0_0_18px_3px_rgba(212,175,55,0.22)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
             >
               {/* Live pulse dot */}
               <span className="relative flex h-[7px] w-[7px] shrink-0" aria-hidden="true">
@@ -927,7 +927,7 @@ const HeroBanner = memo(({
                 <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-amber-400" />
               </span>
               <Hospital className="w-4 h-4 opacity-90" aria-hidden="true" />
-              {t("medSchool")}
+              <span className="home-hero-pill-label">{t("medSchool")}</span>
             </motion.li>
 
             {/* STAGE 3 — neutral white */}
@@ -935,10 +935,10 @@ const HeroBanner = memo(({
               role="listitem"
               aria-label="Stage 3"
               variants={heroPillVariant(1)}
-              className={`${layout.pillsClass} flex items-center gap-2 uppercase font-semibold bg-white/[0.07] hover:bg-white/[0.14] text-white/90 border border-white/[0.14] hover:border-white/[0.32] hover:shadow-[0_0_16px_2px_rgba(255,255,255,0.09)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
+              className={`${layout.pillsClass} home-hero-identity-pill home-hero-stage-pill flex items-center gap-2 uppercase font-semibold bg-white/[0.07] hover:bg-white/[0.14] text-white/90 border border-white/[0.14] hover:border-white/[0.32] hover:shadow-[0_0_16px_2px_rgba(255,255,255,0.09)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
             >
               <BookOpen className="w-4 h-4 opacity-85" aria-hidden="true" />
-              {t("stage3")}
+              <span className="home-hero-pill-label">{t("stage3")}</span>
             </motion.li>
 
             {/* BATCH 99 — subtle */}
@@ -946,10 +946,10 @@ const HeroBanner = memo(({
               role="listitem"
               aria-label="Batch 99"
               variants={heroPillVariant(2)}
-              className={`${layout.pillsClass} flex items-center gap-2 uppercase font-semibold bg-white/[0.055] hover:bg-white/[0.12] text-white/65 hover:text-white/88 border border-white/[0.11] hover:border-white/[0.26] hover:shadow-[0_0_14px_2px_rgba(255,255,255,0.07)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
+              className={`${layout.pillsClass} home-hero-identity-pill home-hero-batch-pill flex items-center gap-2 uppercase font-semibold bg-white/[0.055] hover:bg-white/[0.12] text-white/65 hover:text-white/88 border border-white/[0.11] hover:border-white/[0.26] hover:shadow-[0_0_14px_2px_rgba(255,255,255,0.07)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
             >
               <Users className="w-4 h-4 opacity-75" aria-hidden="true" />
-              {t("batch99")}
+              <span className="home-hero-pill-label">{t("batch99")}</span>
             </motion.li>
           </ul>
         </div>

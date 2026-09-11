@@ -3029,6 +3029,41 @@ button:not(:disabled):active,
     width: 17px !important;
     height: 17px !important;
   }
+
+  /* Arabic identity pills need slightly tighter inline geometry than English.
+     Keep all three labels on one optical baseline and, critically, keep
+     "الدفعة 99" fully inside the 252px phone hero instead of letting its final
+     digit fall outside the scaled foreground canvas. */
+  html[dir="rtl"] .mobile-phone-layout .home-hero-pills {
+    gap: 5px;
+    justify-content: space-between;
+    width: calc(100% + 8px);
+    margin-inline: -4px;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-pills > li {
+    flex: 0 0 auto;
+    min-width: max-content;
+    padding: 5px 8px !important;
+    gap: 5px !important;
+    font-family: var(--font-arabic, "Cairo", "SF Arabic", "Noto Sans Arabic", sans-serif) !important;
+    font-size: 0.75rem !important;
+    line-height: 1.05rem !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-pill-label {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    line-height: 1;
+    padding-block: 1px;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-batch-pill {
+    padding-inline: 7px !important;
+  }
 }
 
 @media (orientation: portrait) and (max-width: 380px) {
@@ -3047,6 +3082,20 @@ button:not(:disabled):active,
     padding-inline: 7px !important;
     font-size: 0.73rem !important;
     gap: 5px !important;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-pills {
+    gap: 4px;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-pills > li {
+    padding-inline: 6px !important;
+    font-size: 0.70rem !important;
+    gap: 4px !important;
+  }
+
+  html[dir="rtl"] .mobile-phone-layout .home-hero-batch-pill {
+    padding-inline: 6px !important;
   }
 }
 
