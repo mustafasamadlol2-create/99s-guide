@@ -65,9 +65,11 @@ export function CalendarHeader({
 
  // On iPhone the selected thumb is driven by the same MotionValue as the live
  // Week/Day/Month page swipe, so the control and content never fall out of sync.
- const phoneIndicatorX = useTransform(
+ // Use a position-driven LEFT offset rather than translateX-by-self-width so the
+ // selected thumb can be slightly narrower and perfectly centered inside each slot.
+ const phoneIndicatorLeft = useTransform(
  indicatorPosition,
- (position) => `${(isRtl ? 2 - position : position) * 100}%`,
+ (position) => `calc(6px + ${(isRtl ? 2 - position : position) * (100 / 3)}%)`,
  );
 
  // Safely parse local day number timezone-proof
@@ -253,13 +255,16 @@ export function CalendarHeader({
  <div
  role="tablist"
  aria-label="Calendar view options"
-  className={`cal-segment calendar-segment relative bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] p-1 rounded-lg flex items-center h-8 sm:h-8 select-none overflow-hidden ${useLiveIndicator ? "w-full sm:w-[300px]" : "w-full sm:w-auto"}`}
+  className={`cal-segment calendar-segment relative bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] p-1 rounded-[22px] flex items-center h-[72px] sm:h-[40px] select-none overflow-hidden ${useLiveIndicator ? "w-full sm:w-[300px]" : "w-full sm:w-auto"}`}
  >
  {useLiveIndicator && (
  <motion.div
  aria-hidden="true"
- className="absolute top-1 bottom-1 left-1 w-[calc(33.333333%_-_2.6667px)] rounded-[7px] bg-white dark:bg-[#636366] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-black/5 dark:border-black/20 pointer-events-none"
- style={{ x: phoneIndicatorX }}
+ className="absolute top-[6px] bottom-[6px] rounded-[18px] sm:rounded-[10px] bg-[#8A8A92] dark:bg-[#636366] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-white/10 dark:border-black/20 pointer-events-none"
+ style={{
+ left: phoneIndicatorLeft,
+ width: "calc(33.333333% - 12px)",
+ }}
  />
  )}
  {segments.map((segment, index) => {
@@ -272,7 +277,7 @@ export function CalendarHeader({
  return (
  <div
  key={segment.id}
- className={`relative flex items-center h-full ${useLiveIndicator ? "flex-1" : "flex-1 sm:flex-initial"}`}
+ className={`relative flex items-center justify-center h-full ${useLiveIndicator ? "flex-1" : "flex-1 sm:flex-initial"}`}
  >
  <button
  role="tab"
@@ -283,11 +288,11 @@ export function CalendarHeader({
  setActiveView(segment.id);
  }}
  className={`
- relative px-4 sm:px-6 h-full rounded-lg text-secondary-label sm:text-secondary-label font-medium transition-colors z-10 flex items-center justify-center/50 cursor-pointer w-full
+ relative px-4 sm:px-6 h-full rounded-[18px] sm:rounded-[10px] text-[16px] sm:text-secondary-label leading-none font-medium transition-colors z-10 flex items-center justify-center cursor-pointer w-full text-center
  ${
  isActive
- ? "text-black dark:text-white font-semibold"
- : "text-neutral-700 dark:text-white hover:bg-[#767680]/[0.05] dark:hover:bg-[#767680]/[0.15] "
+ ? "text-white dark:text-white font-semibold"
+ : "text-white/92 dark:text-white/92 hover:bg-[#767680]/[0.05] dark:hover:bg-[#767680]/[0.15]"
  }
  `}
  >
@@ -301,7 +306,7 @@ export function CalendarHeader({
  }}
  />
  )}
- <span className="relative text-center whitespace-nowrap z-20">
+ <span className="relative z-20 inline-flex w-full items-center justify-center whitespace-nowrap text-center align-middle">
  {segment.label}
  </span>
  </button>
