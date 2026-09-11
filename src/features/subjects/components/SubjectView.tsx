@@ -66,7 +66,7 @@ import { SwipeActionItem } from "../../../components/ui/SwipeActionItem";
 import { ContextMenu } from "../../../components/ui/ContextMenu";
 import { ListSkeleton } from "../../../components/ui/Skeleton";
 import { HapticFeedback } from "../../../core/device/haptic";
-import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
+import { getSwipeBackDirection, useSwipeBack } from "../../../core/hooks/useSwipeBack";
 import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 
 // Department categories inside each Theory and Practical track
@@ -926,7 +926,18 @@ export const SubjectView = function SubjectView({
     // Apply before paint so the restored parent is already at the exact old
     // vertical position when the snapshot hands control back to the live DOM.
     const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+    canvas.dataset.programmaticScrollRestore = "true";
     canvas.scrollTop = Math.min(requested, maxScroll);
+
+    // Keep only the guard through the first paint. There is deliberately no
+    // second scrollTop write: this prevents the floating bar from interpreting
+    // the restoration packet as a user scroll while also avoiding a post-Back
+    // reposition/refresh.
+    const clearRestoreGuardFrame = requestAnimationFrame(() => {
+      if (canvas.dataset.programmaticScrollRestore === "true") {
+        delete canvas.dataset.programmaticScrollRestore;
+      }
+    });
 
     // Do not re-assert scrollTop on a later animation frame. The first write
     // already happens in a layout effect before paint; a second write after the
@@ -934,6 +945,12 @@ export const SubjectView = function SubjectView({
     // iOS (and was more obvious in RTL). One pre-paint write is the native
     // persistent-stack behavior we want.
     pendingHierarchyScrollRestoreRef.current = null;
+    return () => {
+      cancelAnimationFrame(clearRestoreGuardFrame);
+      if (canvas.dataset.programmaticScrollRestore === "true") {
+        delete canvas.dataset.programmaticScrollRestore;
+      }
+    };
   }, [activeDepartment, activeSubSubject, activeTrack]);
 
   // A SubjectView has its own nested navigation stack (e.g. ID → Bacteriology
@@ -966,7 +983,7 @@ export const SubjectView = function SubjectView({
   }, []);
 
   const internalBackGesture = useSwipeBack({
-    direction: isRtl ? "rtl" : "ltr",
+    direction: getSwipeBackDirection(isRtl),
     surfaceSelector: '[data-subject-internal-swipe-surface="true"]',
     isEnabled: isSwipeNavigationEnabled && hasInternalBack,
     onSwipeStart: mountPreviousHierarchySnapshot,
@@ -997,7 +1014,7 @@ export const SubjectView = function SubjectView({
   const hierarchyUnderlayX = useTransform(
     internalBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-internalBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   // Tablet navigation uses one full-size backing surface and transform-only
   // parallax. The swipe hook measures this exact SubjectView width, so the

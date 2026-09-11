@@ -1,9 +1,19 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
+import { flushSync } from "react-dom";
 import { HapticFeedback } from "../device/haptic";
 import { IOS_SWIPE_MOTION } from "../motion/swipeMotion";
 
 export type SwipeBackDirection = "ltr" | "rtl";
+
+/**
+ * One semantic source of truth for physical Back direction.
+ * English/LTR mirrors iOS: left edge -> drag right.
+ * Arabic/RTL is the exact physical inverse: right edge -> drag left.
+ */
+export function getSwipeBackDirection(isRtl: boolean): SwipeBackDirection {
+  return isRtl ? "rtl" : "ltr";
+}
 
 interface UseSwipeBackOptions {
   onSwipeBack: () => void;
@@ -290,28 +300,25 @@ export function useSwipeBack({
 
         HapticFeedback.impact("light");
 
-        // First pop navigation while the outgoing page is still completely
-        // off-screen. The underlay therefore remains the only visible page.
-        // After two paint opportunities React/WKWebView has committed the live
-        // destination; resetting x then becomes visually lossless instead of
-        // producing the old white/reload-looking frame.
-        onSwipeBackRef.current();
-        // Tell the owner immediately that navigation committed. Owners that
-        // hold a visual underlay can now schedule its removal after React paints
-        // the restored screen. Waiting until our own RAF chain used to lose this
-        // callback whenever navigation disabled the hook during the handoff.
-        onSwipeEndRef.current?.(true);
-        rafRef.current = requestAnimationFrame(() => {
-          rafRef.current = requestAnimationFrame(() => {
-            if (settlementEpoch !== settlementEpochRef.current) return;
-            rafRef.current = null;
-            x.set(0);
-            progress.set(0);
-            settlingRef.current = false;
-            settlingSuccessRef.current = false;
-            setIsInteracting(false);
-          });
+        // Commit the navigation atomically before the browser can paint another
+        // frame. React flushes the destination DOM and every layout-effect scroll
+        // restoration while the foreground is still fully off-screen. We then
+        // reset the MotionValues immediately in the same task. There is therefore
+        // no intermediate frame where WKWebView can show the old page snapping
+        // back to x=0, a blank root canvas, or the destination at scrollTop=0.
+        flushSync(() => {
+          onSwipeBackRef.current();
         });
+
+        // Owners may keep a detached/live underlay for a few paints; notify them
+        // only after the destination has synchronously committed.
+        onSwipeEndRef.current?.(true);
+
+        x.set(0);
+        progress.set(0);
+        settlingRef.current = false;
+        settlingSuccessRef.current = false;
+        setIsInteracting(false);
       };
 
       if (reduceMotion) {

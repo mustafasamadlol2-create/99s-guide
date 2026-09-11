@@ -1,5 +1,5 @@
 import { getLectureProgressStats } from "../../../core/utils/progressUtils";
-import { useSwipeBack } from "../../../core/hooks/useSwipeBack";
+import { getSwipeBackDirection, useSwipeBack } from "../../../core/hooks/useSwipeBack";
 import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 /**
  * @license
@@ -211,7 +211,7 @@ export const ProfileView = function ProfileView({
 
  const profileBackGesture = useSwipeBack({
    isEnabled: Boolean(isActive && subView),
-   direction: language === "ar" ? "rtl" : "ltr",
+   direction: getSwipeBackDirection(isRtl),
    surfaceSelector: '[data-profile-subview-swipe-surface="true"]',
    allowedStartSelector: '[data-profile-subview-swipe-surface="true"]',
    onSwipeBack: closeProfileSubView,
@@ -220,7 +220,7 @@ export const ProfileView = function ProfileView({
  const profileUnderlayX = useTransform(
    profileBackGesture.progress,
    [0, 1],
-   [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+   [-profileBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
  );
 
  useEffect(() => () => {

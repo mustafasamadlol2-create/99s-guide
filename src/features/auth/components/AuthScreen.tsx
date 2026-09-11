@@ -42,7 +42,7 @@ import {
   GraduationCap, ClipboardCheck, ShieldCheck, PenLine,
 } from "lucide-react";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
-import { useSwipeBack, isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
+import { getSwipeBackDirection, useSwipeBack, isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
 import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 import PrivacyPolicyView from "../../legal/components/PrivacyPolicyView";
 import TermsOfServiceView from "../../legal/components/TermsOfServiceView";
@@ -220,7 +220,7 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
 
   const authLegalBackGesture = useSwipeBack({
     isEnabled: authLegalPath !== null,
-    direction: isRtl ? "rtl" : "ltr",
+    direction: getSwipeBackDirection(isRtl),
     surfaceSelector: '[data-auth-legal-swipe-surface="true"]',
     allowedStartSelector: '[data-auth-legal-swipe-surface="true"]',
     onSwipeBack: closeAuthLegalPage,
@@ -231,7 +231,7 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
   const authLegalUnderlayX = useTransform(
     authLegalBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-authLegalBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
 
   const openAuthLegalPage = useCallback((path: AuthLegalPath) => {
@@ -2367,50 +2367,46 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
           participates in Back, so the gesture can never expose a white/black
           root canvas or restart the auth entrance animation. */}
       {typeof document !== "undefined" &&
+        authLegalPath &&
         createPortal(
-          <AnimatePresence initial={false}>
-            {authLegalPath && (
-              <motion.div
-                key={`auth-legal-${authLegalPath}`}
-                data-auth-legal-swipe-surface="true"
-                data-swipe-back-surface="true"
-                initial={false}
-                exit={{ opacity: 1 }}
-                className="fixed inset-0 isolate overflow-hidden bg-[#F8F9FC] dark:bg-[#000000]"
-                style={{
-                  x: authLegalBackGesture.x,
-                  width: "100vw",
-                  height: "100dvh",
-                  minHeight: "100dvh",
-                  zIndex: 2147483000,
-                  boxShadow: authLegalBackGesture.isInteracting
-                    ? getNativeSwipeLayerShadow(isRtl)
-                    : "none",
-                  // The legal page is a separate top-level surface now. Keeping
-                  // this single foreground layer promoted for its pushed
-                  // lifetime prevents first-frame compositor jitter, while the
-                  // Auth page remains a normal live DOM page underneath.
-                  willChange: "transform",
-                  WebkitBackfaceVisibility: "hidden",
-                  backfaceVisibility: "hidden",
-                  touchAction: "pan-y",
-                }}
-              >
-                {authLegalPath === "/privacy" && (
-                  <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} language={language} />
-                )}
-                {authLegalPath === "/terms" && (
-                  <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} language={language} />
-                )}
-                {authLegalPath === "/support" && (
-                  <SupportView onBack={authLegalBackGesture.triggerBack} language={language} />
-                )}
-                {authLegalPath === "/disclaimer" && (
-                  <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} language={language} />
-                )}
-              </motion.div>
+          <motion.div
+            key={`auth-legal-${authLegalPath}`}
+            data-auth-legal-swipe-surface="true"
+            data-swipe-back-surface="true"
+            initial={false}
+            className="fixed inset-0 isolate overflow-hidden bg-[#F8F9FC] dark:bg-[#000000]"
+            style={{
+              x: authLegalBackGesture.x,
+              width: "100vw",
+              height: "100dvh",
+              minHeight: "100dvh",
+              zIndex: 2147483000,
+              boxShadow: authLegalBackGesture.isInteracting
+                ? getNativeSwipeLayerShadow(isRtl)
+                : "none",
+              // Never keep an exiting legal sheet mounted after Back. With a
+              // controlled interactive transform, AnimatePresence exit retention
+              // can briefly repaint the old page at x=0 after the MotionValue is
+              // reset. Direct conditional unmount makes the handoff atomic.
+              willChange: "transform",
+              WebkitBackfaceVisibility: "hidden",
+              backfaceVisibility: "hidden",
+              touchAction: "pan-y",
+            }}
+          >
+            {authLegalPath === "/privacy" && (
+              <PrivacyPolicyView onBack={authLegalBackGesture.triggerBack} language={language} />
             )}
-          </AnimatePresence>,
+            {authLegalPath === "/terms" && (
+              <TermsOfServiceView onBack={authLegalBackGesture.triggerBack} language={language} />
+            )}
+            {authLegalPath === "/support" && (
+              <SupportView onBack={authLegalBackGesture.triggerBack} language={language} />
+            )}
+            {authLegalPath === "/disclaimer" && (
+              <MedicalDisclaimerView onBack={authLegalBackGesture.triggerBack} language={language} />
+            )}
+          </motion.div>,
           document.body,
         )}
 

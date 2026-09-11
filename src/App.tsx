@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform } from "motion/react";
 import { createPortal } from "react-dom";
-import { useSwipeBack } from "./core/hooks/useSwipeBack";
+import { getSwipeBackDirection, useSwipeBack } from "./core/hooks/useSwipeBack";
 import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "./core/motion/swipeMotion";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
@@ -1690,6 +1690,17 @@ export default function App() {
   }, []);
 
   const restoreNavigationEntry = useCallback((entry: NavigationEntry) => {
+    // Freeze every scroll-derived visual side effect BEFORE React commits the
+    // Back destination. In particular, a pending floating-bar resize from the
+    // outgoing page must never fire after the pop and look like a post-Back
+    // shake/reposition.
+    if (phoneTabBarResizeFrameRef.current !== null) {
+      cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
+      phoneTabBarResizeFrameRef.current = null;
+    }
+    phoneTabBarPendingExpandedRef.current = null;
+    isRestoringGlobalScrollRef.current = true;
+
     // Capture the exact parent position from the navigation entry itself. This
     // survives short destination pages, layout changes and WebKit clamping.
     // Every stack restore is a native-style Back. It gets exactly one pre-paint
@@ -1728,7 +1739,7 @@ export default function App() {
     return true;
   }, [popNavigationStack, restoreNavigationEntry]);
 
-  const swipeDirection = isRtl ? "rtl" : "ltr";
+  const swipeDirection = getSwipeBackDirection(isRtl);
 
   // Home hierarchy: Welcome → Subject → Lecture. Search results also land here
   // and pop back into the exact Search session that opened them.
@@ -1916,12 +1927,12 @@ export default function App() {
   const bulletinProfileUnderlayX = useTransform(
     bulletinBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-bulletinBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const settingsProfileUnderlayX = useTransform(
     settingsBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-settingsBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
 
   const rootBackGesture = useSwipeBack({
@@ -2007,29 +2018,29 @@ export default function App() {
   const homeSubjectUnderlayX = useTransform(
     homeBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-homeBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const modulesUnderlayX = useTransform(
     subjectsBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-subjectsBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const legalSettingsUnderlayX = useTransform(
     legalBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-legalBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const homeLectureUnderlayX = useTransform(
     homeLectureBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-homeLectureBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   // Navigation underlays are full pages, never translucent layers.
   const homeLectureUnderlayOpacity = 1;
   const lectureUnderlayX = useTransform(
     subjectsLectureBackGesture.progress,
     [0, 1],
-    [isRtl ? IOS_SWIPE_MOTION.underlayOffset : -IOS_SWIPE_MOTION.underlayOffset, 0],
+    [-subjectsLectureBackGesture.directionSign * IOS_SWIPE_MOTION.underlayOffset, 0],
   );
   const lectureUnderlayOpacity = 1;
 
@@ -2507,6 +2518,7 @@ export default function App() {
       const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
       const nextPosition = Math.min(Math.max(0, requested), maxScroll);
       phoneTabBarLastScrollTopRef.current = nextPosition;
+      canvas.dataset.programmaticScrollRestore = "true";
       canvas.scrollTop = nextPosition;
       lastAppliedPosition = nextPosition;
       hasAppliedRestore = true;
@@ -2534,8 +2546,24 @@ export default function App() {
         pendingNavigationScrollRestoreRef.current = null;
       }
       pendingNavigationRestoreIsBackRef.current = false;
-      isRestoringGlobalScrollRef.current = false;
-      return;
+
+      // Do not write scrollTop again. Keep only the restoration guard alive
+      // through the first paint so WebKit's asynchronous scroll event cannot
+      // resize the floating bar or trigger route-scroll bookkeeping afterward.
+      frame1 = requestAnimationFrame(() => {
+        if (canvas.dataset.programmaticScrollRestore === "true") {
+          delete canvas.dataset.programmaticScrollRestore;
+        }
+        isRestoringGlobalScrollRef.current = false;
+      });
+
+      return () => {
+        cancelAnimationFrame(frame1);
+        if (canvas.dataset.programmaticScrollRestore === "true") {
+          delete canvas.dataset.programmaticScrollRestore;
+        }
+        isRestoringGlobalScrollRef.current = false;
+      };
     }
 
     frame1 = requestAnimationFrame(() => {
@@ -2555,6 +2583,9 @@ export default function App() {
         pendingNavigationScrollRestoreRef.current = null;
       }
       pendingNavigationRestoreIsBackRef.current = false;
+      if (canvas.dataset.programmaticScrollRestore === "true") {
+        delete canvas.dataset.programmaticScrollRestore;
+      }
       isRestoringGlobalScrollRef.current = false;
     }, 460);
 
@@ -2562,6 +2593,9 @@ export default function App() {
       cancelAnimationFrame(frame1);
       cancelAnimationFrame(frame2);
       if (settleTimer) clearTimeout(settleTimer);
+      if (canvas.dataset.programmaticScrollRestore === "true") {
+        delete canvas.dataset.programmaticScrollRestore;
+      }
       isRestoringGlobalScrollRef.current = false;
     };
   }, [device.isPhone, navigationPath, readScrollPosition]);
