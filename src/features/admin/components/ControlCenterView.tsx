@@ -15,7 +15,7 @@ import React, {
 } from "react";
 import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
-import { IOS_CONSOLE_SMOOTH_MOTION, getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
+import { IOS_CONSOLE_SMOOTH_MOTION } from "../../../core/motion/swipeMotion";
 import {
   User,
   UserProgress,
@@ -227,16 +227,14 @@ const ControlCenterView = function ControlCenterView({
     currentUser.role === "admin" ? "lecture" : "live-study-hall",
   );
 
-  // iPhone-only Console pager state. The gesture is recognized from the full
-  // Console surface, while only the opaque content panel receives a subtle
-  // horizontal transform. This preserves one solid page background throughout
-  // the gesture and therefore cannot reveal a black/white root canvas.
+  // iPhone-only Console pager state. Keep this intentionally identical to the
+  // approved Roles filter pager: a short content drag, atomic content handoff,
+  // then one spring back to x=0. No underlay/preview page is mounted while the
+  // finger is moving, so there is no second layout tree that can resize, flash,
+  // or look like a refresh during the gesture.
   const consoleSwipeX = useMotionValue(0);
-  const consoleUnderlayX = useMotionValue(0);
-  const consoleUnderlayScale = useMotionValue(1);
   const [consolePreviewSubTab, setConsolePreviewSubTab] = useState<SubTab | null>(null);
   const consolePreviewSubTabRef = useRef<SubTab | null>(null);
-  const consoleSwipePhysicalSignRef = useRef<1 | -1>(1);
   const consoleSwipeSessionRef = useRef<{
     tracking: boolean;
     axis: "x" | "y" | null;
@@ -249,8 +247,8 @@ const ControlCenterView = function ControlCenterView({
   }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0, roleHeaderZone: false });
   const consoleSwipeAnimatingRef = useRef(false);
   const consolePillStripRef = useRef<HTMLDivElement>(null);
-  const subTabScrollPositionsRef = useRef<Partial<Record<SubTab, number>>>({});
-  const pendingSubTabScrollRestoreRef = useRef<number | null>(null);
+  const consoleContentShellRef = useRef<HTMLDivElement>(null);
+  const consoleStableMinHeightRef = useRef(0);
 
   useEffect(() => {
     if (!isPhone || !isActive) return;
@@ -281,32 +279,22 @@ const ControlCenterView = function ControlCenterView({
     return () => onBackHistoryChange?.(false);
   }, [onBackHistoryChange]);
 
-  // Restore the exact vertical position only when RETURNING to a Console tab.
-  // First visits start at the top. The dataset flag is shared with App's phone
-  // tabbar scroll listener so this programmatic write never shrinks/expands it.
+  // Keep the Console content shell from shrinking between sub-tabs on iPhone.
+  // A shorter destination panel therefore cannot resize the shared page or move
+  // the user's vertical position after a swipe. The floor only grows during the
+  // current Console session and is applied before the browser paints.
   useLayoutEffect(() => {
-    const requested = pendingSubTabScrollRestoreRef.current;
-    if (requested === null) return;
-    const canvas = document.getElementById("main-scroll-canvas");
-    if (!canvas) {
-      pendingSubTabScrollRestoreRef.current = null;
-      return;
+    if (!isPhone) return;
+    const shell = consoleContentShellRef.current;
+    if (!shell) return;
+    const measured = Math.ceil(Math.max(shell.getBoundingClientRect().height, shell.scrollHeight));
+    if (measured > consoleStableMinHeightRef.current) {
+      consoleStableMinHeightRef.current = measured;
+      shell.style.minHeight = `${measured}px`;
+    } else if (consoleStableMinHeightRef.current > 0) {
+      shell.style.minHeight = `${consoleStableMinHeightRef.current}px`;
     }
-
-    canvas.dataset.programmaticScrollRestore = "true";
-    const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
-    canvas.scrollTop = Math.min(requested, maxScroll);
-    pendingSubTabScrollRestoreRef.current = null;
-
-    const frame1 = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (canvas.dataset.programmaticScrollRestore === "true") {
-          delete canvas.dataset.programmaticScrollRestore;
-        }
-      });
-    });
-    return () => cancelAnimationFrame(frame1);
-  }, [activeSubTab]);
+  }, [activeSubTab, isPhone]);
 
   // Keep the active pill horizontally centered without scrolling the page
   // vertically (scrollIntoView would jump the shared main canvas on long forms).
@@ -514,31 +502,86 @@ const ControlCenterView = function ControlCenterView({
     ] as NavItem[]) : []),
   ];
 
-  // While the finger is revealing an adjacent Console page, highlight that
-  // exact destination pill immediately. If the gesture cancels, the highlight
-  // returns with the same cancellation spring. This keeps page + tab state
-  // visually locked together instead of changing only after the handoff.
+  // During a drag we only preview the destination in the top pill strip. The
+  // content itself stays as one tree, exactly like All / Owner / Admin / Student
+  // in Roles. This is deliberate: one tree means no preview mount, no hidden
+  // fetch, no auto-height race, and no refresh-like handoff.
   const visualSubTab = consolePreviewSubTab ?? activeSubTab;
+
+  const freezeConsoleContentHeight = () => {
+    if (!isPhone) return;
+    const shell = consoleContentShellRef.current;
+    if (!shell) return;
+    const measured = Math.ceil(Math.max(shell.getBoundingClientRect().height, shell.scrollHeight));
+    if (measured > consoleStableMinHeightRef.current) {
+      consoleStableMinHeightRef.current = measured;
+    }
+    if (consoleStableMinHeightRef.current > 0) {
+      shell.style.minHeight = `${consoleStableMinHeightRef.current}px`;
+    }
+  };
+
+  const preserveMainScrollDuringConsoleCommit = (commit: () => void) => {
+    const canvas = document.getElementById("main-scroll-canvas");
+    const savedTop = canvas?.scrollTop ?? null;
+
+    // Freeze the current content footprint before React swaps panels. This is
+    // the Console equivalent of Roles' stable list shell and prevents a shorter
+    // destination panel from pulling the shared page upward.
+    freezeConsoleContentHeight();
+    if (canvas) canvas.dataset.programmaticScrollRestore = "true";
+
+    flushSync(commit);
+
+    // Measure the newly committed panel before paint. The floor may grow but
+    // never shrinks during this Console session, so there is no resize pulse.
+    freezeConsoleContentHeight();
+
+    if (canvas && savedTop !== null) {
+      const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+      canvas.scrollTop = Math.min(savedTop, maxScroll);
+      requestAnimationFrame(() => {
+        if (canvas.dataset.programmaticScrollRestore === "true") {
+          delete canvas.dataset.programmaticScrollRestore;
+        }
+      });
+    }
+  };
+
+  const clearConsolePreview = () => {
+    consolePreviewSubTabRef.current = null;
+    setConsolePreviewSubTab(null);
+  };
+
+  // This intentionally mirrors settleRoleSwipe() one-for-one.
+  const settleConsoleSwipe = () => {
+    const session = consoleSwipeSessionRef.current;
+    const currentX = consoleSwipeX.get();
+    const direction = currentX === 0 ? 0 : Math.sign(currentX);
+    const releaseVelocity = session.velocity;
+
+    session.tracking = false;
+    session.axis = null;
+    session.velocity = 0;
+
+    animate(consoleSwipeX, 0, {
+      ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
+      velocity:
+        direction *
+        Math.min(
+          releaseVelocity * 1000,
+          window.innerWidth * IOS_CONSOLE_SMOOTH_MOTION.cancelVelocityScreensPerSecond,
+        ),
+      onComplete: clearConsolePreview,
+    });
+  };
 
   const selectSubTab = (next: SubTab) => {
     if (next === activeSubTab || consoleSwipeAnimatingRef.current) return;
 
-    const canvas = document.getElementById("main-scroll-canvas");
-    if (canvas) {
-      subTabScrollPositionsRef.current[activeSubTab] = canvas.scrollTop;
-    }
-    pendingSubTabScrollRestoreRef.current =
-      subTabScrollPositionsRef.current[next] ?? 0;
-
-    // Desktop keeps the immediate sidebar behavior. On iPhone, taps on the
-    // Console pills use the same native horizontal transition as a committed
-    // swipe so touch + tap never feel like two different navigation systems.
     if (!isPhone) {
       consoleSwipeX.set(0);
-      consoleUnderlayX.set(0);
-      consoleUnderlayScale.set(1);
-      consolePreviewSubTabRef.current = null;
-      setConsolePreviewSubTab(null);
+      clearConsolePreview();
       setActiveSubTab(next);
       return;
     }
@@ -546,7 +589,7 @@ const ControlCenterView = function ControlCenterView({
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
     const nextIndex = navItems.findIndex((item) => item.id === next);
     if (currentIndex < 0 || nextIndex < 0) {
-      setActiveSubTab(next);
+      preserveMainScrollDuringConsoleCommit(() => setActiveSubTab(next));
       return;
     }
 
@@ -554,34 +597,21 @@ const ControlCenterView = function ControlCenterView({
     const physicalSign: 1 | -1 = logicalForward
       ? (isRtl ? 1 : -1)
       : (isRtl ? -1 : 1);
-    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
 
+    // Same tap transition as Roles: commit immediately, place the new content
+    // only 22px from rest, then use the same completion spring to settle.
     consoleSwipeAnimatingRef.current = true;
-    consoleSwipePhysicalSignRef.current = physicalSign;
+    preserveMainScrollDuringConsoleCommit(() => {
+      setActiveSubTab(next);
+      setConsolePreviewSubTab(null);
+    });
+    consolePreviewSubTabRef.current = null;
     consoleSwipeX.stop();
-    consoleSwipeX.set(0);
-    consolePreviewSubTabRef.current = next;
-    flushSync(() => setConsolePreviewSubTab(next));
-    consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
-    consoleUnderlayScale.set(1);
-
-    animate(consoleSwipeX, physicalSign * width, {
+    consoleSwipeX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
+    animate(consoleSwipeX, 0, {
       ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
-      onUpdate: (latest) => {
-        const progress = Math.min(1, Math.abs(latest) / width);
-        consoleUnderlayX.set(
-          -physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
-        );
-      },
       onComplete: () => {
-        flushSync(() => {
-          setActiveSubTab(next);
-          setConsolePreviewSubTab(null);
-        });
-        consolePreviewSubTabRef.current = null;
         consoleSwipeX.set(0);
-        consoleUnderlayX.set(0);
-        consoleUnderlayScale.set(1);
         consoleSwipeAnimatingRef.current = false;
       },
     });
@@ -610,52 +640,14 @@ const ControlCenterView = function ControlCenterView({
     return false;
   };
 
-  const clearConsolePreview = () => {
-    consolePreviewSubTabRef.current = null;
-    setConsolePreviewSubTab(null);
-    consoleUnderlayX.set(0);
-    consoleUnderlayScale.set(1);
-  };
-
-  const resetConsoleSwipe = () => {
-    const session = consoleSwipeSessionRef.current;
-    const releaseVelocity = session.velocity;
-    const exitSign = consoleSwipePhysicalSignRef.current;
-    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
-
-    session.tracking = false;
-    session.axis = null;
-    session.velocity = 0;
-
-    const signedVelocity =
-      exitSign *
-      Math.min(
-        releaseVelocity * 1000,
-        width * IOS_CONSOLE_SMOOTH_MOTION.cancelVelocityScreensPerSecond,
-      );
-
-    animate(consoleSwipeX, 0, {
-      ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
-      velocity: signedVelocity,
-      onUpdate: (latest) => {
-        if (!consolePreviewSubTabRef.current) return;
-        const progress = Math.min(1, Math.abs(latest) / width);
-        consoleUnderlayX.set(
-          -exitSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
-        );
-        consoleUnderlayScale.set(1);
-      },
-      onComplete: clearConsolePreview,
-    });
-  };
-
   const handleConsoleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (!isPhone || !isActive || consoleSwipeAnimatingRef.current) return;
     if (event.touches.length !== 1 || shouldIgnoreConsoleSwipe(event.target)) return;
 
-    // Start every gesture from a completely settled native page state.
-    clearConsolePreview();
+    consoleSwipeX.stop();
     consoleSwipeX.set(0);
+    clearConsolePreview();
+
     const touch = event.touches[0];
     const target = event.target instanceof HTMLElement ? event.target : null;
     const roleHeaderZone = Boolean(
@@ -663,6 +655,7 @@ const ControlCenterView = function ControlCenterView({
       target?.closest("#user_role_management_view") &&
       !target?.closest('[data-role-filter-local-zone="true"]'),
     );
+
     consoleSwipeSessionRef.current = {
       tracking: true,
       axis: null,
@@ -682,16 +675,16 @@ const ControlCenterView = function ControlCenterView({
     const touch = event.touches[0];
     const dx = touch.clientX - session.startX;
     const dy = touch.clientY - session.startY;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
 
     if (session.axis === null) {
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
       if (
         absY >= IOS_CONSOLE_SMOOTH_MOTION.verticalRejectDistance &&
         absY > absX * IOS_CONSOLE_SMOOTH_MOTION.verticalRejectRatio
       ) {
-        session.axis = "y";
         session.tracking = false;
+        session.axis = "y";
         return;
       }
       if (absX < IOS_CONSOLE_SMOOTH_MOTION.axisLockDistance) return;
@@ -699,20 +692,7 @@ const ControlCenterView = function ControlCenterView({
       session.axis = "x";
     }
     if (session.axis !== "x") return;
-
-    // Once horizontal intent is unambiguous, own that axis so WKWebView does
-    // not try to perform a browser-level pan at the same time as the Console
-    // pager. Vertical scrolling remains untouched because we only prevent the
-    // default after the horizontal axis has been locked.
     if (event.cancelable) event.preventDefault();
-
-    const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    // On the Roles heading/filter strip the requested physical mapping is fixed:
-    // swipe right -> Live Study Hall, swipe left -> Calendar, regardless of RTL.
-    // Everywhere else Console keeps its normal language-aware direction.
-    const physicalForward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
-    const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
-    const atBoundary = desiredIndex < 0 || desiredIndex >= navItems.length;
 
     const now = performance.now();
     const dt = Math.max(1, now - session.lastTime);
@@ -723,37 +703,36 @@ const ControlCenterView = function ControlCenterView({
     session.lastX = touch.clientX;
     session.lastTime = now;
 
+    const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
+    // Keep the previously approved physical mapping on the Roles heading/filter
+    // strip. Elsewhere use the normal language-aware Console direction.
+    const forward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
+    const nextIndex = currentIndex + (forward ? 1 : -1);
+    const atBoundary = nextIndex < 0 || nextIndex >= navItems.length;
+
     if (atBoundary) {
-      if (consolePreviewSubTabRef.current) clearConsolePreview();
+      clearConsolePreview();
       consoleSwipeX.set(dx * IOS_CONSOLE_SMOOTH_MOTION.boundaryResistance);
       return;
     }
 
-    const next = navItems[desiredIndex]?.id;
-    if (!next) return;
-
-    const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
-    consoleSwipePhysicalSignRef.current = physicalSign;
-
-    // Mount the incoming admin panel *under* the current one as soon as the
-    // horizontal intent is known. It never contributes to layout height, so
-    // expensive forms cannot resize/reposition the shared scroll canvas mid-swipe.
-    if (consolePreviewSubTabRef.current !== next) {
-      consolePreviewSubTabRef.current = next;
-      setConsolePreviewSubTab(next);
-      consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
-      consoleUnderlayScale.set(1);
+    const preview = navItems[nextIndex]?.id;
+    if (!preview) return;
+    if (consolePreviewSubTabRef.current !== preview) {
+      consolePreviewSubTabRef.current = preview;
+      setConsolePreviewSubTab(preview);
     }
 
-    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
-    const rendered = Math.max(-width, Math.min(width, dx));
-    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width));
-
-    // True iOS feel: foreground follows the finger 1:1. The incoming page uses
-    // only the subtle approved 22px parallax and gently settles to full scale.
+    // Exact Roles motion: a short, direct content translation. Never move the
+    // Console panel across the full screen and never mount an underlay page.
+    const rendered = Math.max(
+      -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+      Math.min(
+        IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+        dx * IOS_CONSOLE_SMOOTH_MOTION.roleDragFactor,
+      ),
+    );
     consoleSwipeX.set(rendered);
-    consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress));
-    consoleUnderlayScale.set(1);
   };
 
   const handleConsoleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -763,86 +742,52 @@ const ControlCenterView = function ControlCenterView({
 
     const touch = event.changedTouches[0];
     if (!touch || session.axis !== "x") {
-      resetConsoleSwipe();
+      settleConsoleSwipe();
       return;
     }
 
     const dx = touch.clientX - session.startX;
-    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
-    const qualifies =
-      Math.abs(dx) >= width * IOS_CONSOLE_SMOOTH_MOTION.commitProgress ||
-      (Math.abs(dx) >= IOS_CONSOLE_SMOOTH_MOTION.flickDistance &&
-        session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
-
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    // On the Roles heading/filter strip the requested physical mapping is fixed:
-    // swipe right -> Live Study Hall, swipe left -> Calendar, regardless of RTL.
-    // Everywhere else Console keeps its normal language-aware direction.
-    const physicalForward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
-    const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
+    const forward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
+    const nextIndex = currentIndex + (forward ? 1 : -1);
 
-    if (!qualifies || desiredIndex < 0 || desiredIndex >= navItems.length) {
-      resetConsoleSwipe();
+    // Match Roles exactly instead of using the old 30%-of-screen page threshold.
+    const qualifies =
+      Math.abs(dx) >= 44 ||
+      (Math.abs(dx) >= 24 && session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
+
+    if (!qualifies || nextIndex < 0 || nextIndex >= navItems.length) {
+      settleConsoleSwipe();
       return;
     }
 
-    const next = navItems[desiredIndex]?.id;
+    const next = navItems[nextIndex]?.id;
     if (!next) {
-      resetConsoleSwipe();
+      settleConsoleSwipe();
       return;
     }
 
     consoleSwipeAnimatingRef.current = true;
 
-    const physicalSign: 1 | -1 = dx < 0 ? -1 : 1;
-    consoleSwipePhysicalSignRef.current = physicalSign;
-    const exitTarget = physicalSign * width;
+    // Same atomic handoff as Roles: the destination inherits the exact rendered
+    // X position, React swaps the content once, then that same layer settles to
+    // zero. No full-page exit, no underlay, no second resize/refresh phase.
+    const handoffX = Math.max(
+      -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+      Math.min(IOS_CONSOLE_SMOOTH_MOTION.roleDragMax, consoleSwipeX.get()),
+    );
 
-    // A very fast flick can finish before React has painted the preview from the
-    // last touchmove. Force that one state update now so there can never be a
-    // white/black interstitial frame while the outgoing panel leaves.
-    if (consolePreviewSubTabRef.current !== next) {
-      consolePreviewSubTabRef.current = next;
-      flushSync(() => setConsolePreviewSubTab(next));
-      consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
-      consoleUnderlayScale.set(1);
-    }
-
-    consoleUnderlayScale.set(1);
-
-    animate(consoleSwipeX, exitTarget, {
+    preserveMainScrollDuringConsoleCommit(() => {
+      setActiveSubTab(next);
+      setConsolePreviewSubTab(null);
+    });
+    consolePreviewSubTabRef.current = null;
+    consoleSwipeX.set(handoffX);
+    animate(consoleSwipeX, 0, {
       ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
-      velocity:
-        physicalSign *
-        Math.min(
-          session.velocity * 1000,
-          width * IOS_CONSOLE_SMOOTH_MOTION.completionVelocityScreensPerSecond,
-        ),
-      onUpdate: (latest) => {
-        const progress = Math.min(1, Math.abs(latest) / width);
-        consoleUnderlayX.set(
-          -physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
-        );
-      },
+      velocity: 0,
       onComplete: () => {
-        const canvas = document.getElementById("main-scroll-canvas");
-        if (canvas) {
-          subTabScrollPositionsRef.current[activeSubTab] = canvas.scrollTop;
-        }
-        pendingSubTabScrollRestoreRef.current =
-          subTabScrollPositionsRef.current[next] ?? 0;
-
-        // Atomic visual handoff: replace the outgoing React panel with the panel
-        // already visible underneath and clear transforms in the same JS turn.
-        // Browser paint happens only after this completes, so there is no snap.
-        flushSync(() => {
-          setActiveSubTab(next);
-          setConsolePreviewSubTab(null);
-        });
-        consolePreviewSubTabRef.current = null;
         consoleSwipeX.set(0);
-        consoleUnderlayX.set(0);
-        consoleUnderlayScale.set(1);
         consoleSwipeAnimatingRef.current = false;
       },
     });
@@ -850,7 +795,7 @@ const ControlCenterView = function ControlCenterView({
 
   const handleConsoleTouchCancel = () => {
     consoleSwipeAnimatingRef.current = false;
-    resetConsoleSwipe();
+    settleConsoleSwipe();
   };
 
   const panelClassName = isPhone ? "" : "animate-fadeIn";
@@ -1059,6 +1004,7 @@ const ControlCenterView = function ControlCenterView({
             hasn't rendered yet.
         */}
         <div
+          ref={consoleContentShellRef}
           className={`
             flex-1 min-w-0
             bg-white dark:bg-[#1C1C1E]
@@ -1067,38 +1013,16 @@ const ControlCenterView = function ControlCenterView({
             min-h-[200px] md:min-h-[300px]
             overflow-x-hidden
           `}
+          style={{ overflowAnchor: "none" }}
         >
           <div className="relative w-full min-w-0 overflow-hidden isolate">
-            {isPhone && consolePreviewSubTab && (
-              <motion.div
-                aria-hidden="true"
-                className="absolute inset-x-0 top-0 z-0 w-full min-w-0 pointer-events-none bg-white dark:bg-[#1C1C1E]"
-                style={{
-                  x: consoleUnderlayX,
-                  scale: consoleUnderlayScale,
-                  transformOrigin: "center center",
-                  willChange: "transform",
-                  backfaceVisibility: "hidden",
-                  WebkitBackfaceVisibility: "hidden",
-                }}
-              >
-                <Suspense fallback={<div className="h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />}>
-                  {renderConsolePanel(consolePreviewSubTab)}
-                </Suspense>
-              </motion.div>
-            )}
-
             <motion.div
-              className="relative z-10 w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+              className="relative z-10 w-full min-w-0 bg-white dark:bg-[#1C1C1E] will-change-transform"
               style={{
                 x: isPhone ? consoleSwipeX : 0,
-                willChange: isPhone ? "transform" : "auto",
+                transformOrigin: "center center",
                 backfaceVisibility: isPhone ? "hidden" : "visible",
                 WebkitBackfaceVisibility: isPhone ? "hidden" : "visible",
-                boxShadow:
-                  isPhone && consolePreviewSubTab
-                    ? getSwipeLayerShadowForExitSign(consoleSwipePhysicalSignRef.current)
-                    : "none",
               }}
             >
               <Suspense
