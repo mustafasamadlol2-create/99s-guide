@@ -3019,23 +3019,22 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ? "اسأل زملائك سؤالاً طبيّاً / سريريّاً ملحّاً"
  : "Ask a Clinical Question to your Peers"}
  </label>
- <div className="relative w-full">
- <input aria-label={isRtl ? "اكتب سؤالك السريري" : "Clinical question input"}
+ <div
+   className={`w-full min-w-0 h-14 flex items-center gap-2 p-1.5 bg-white dark:bg-[#2C2C2E] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-xl shadow-elevation-1 transition-[border-color,box-shadow] focus-within:border-amber-500 focus-within:ring-4 focus-within:ring-amber-500/10 ${isRtl ? "flex-row-reverse" : "flex-row"}`}
+ >
+ <input
+ aria-label={isRtl ? "اكتب سؤالك السريري" : "Clinical question input"}
  type="text"
  value={newQuestionContent}
  onChange={(e) => setNewQuestionContent(e.target.value)}
- placeholder={
- isRtl
- ? "طرح استفسار أو لغز تشخيصي..."
- : "Ask about details that you didn't understand..."
- }
- dir="auto"
- className={`box-border w-full h-14 ${isRtl ? "pr-5 pl-[76px] text-right" : "pl-5 pr-[76px] text-left"} text-base bg-white dark:bg-[#2C2C2E] dark:text-[var(--text-primary)] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-medium transition placeholder:text-neutral-500 dark:text-[#EBEBF599] shadow-elevation-1`}
+ placeholder={isRtl ? "اكتب سؤالك السريري..." : "Ask a clinical question..."}
+ dir={isRtl ? "rtl" : "ltr"}
+ className={`min-w-0 flex-1 h-full px-3 text-base bg-transparent dark:text-[var(--text-primary)] border-0 outline-none focus:ring-0 font-medium placeholder:text-neutral-500 dark:placeholder:text-[#EBEBF599] ${isRtl ? "text-right" : "text-left"}`}
  />
  <button
  type="submit"
  aria-label={isRtl ? "إرسال السؤال" : "Send question"}
- className={`absolute ${isRtl ? "left-1.5" : "right-1.5"} top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 bg-med-gold hover:bg-med-gold active:scale-[0.96] text-white rounded-[14px] cursor-pointer flex items-center justify-center shadow-elevation-1 transition-transform duration-150`}
+ className="w-11 h-11 sm:w-12 sm:h-12 shrink-0 bg-med-gold hover:bg-med-gold active:scale-[0.96] text-white rounded-[14px] cursor-pointer flex items-center justify-center shadow-elevation-1 transition-transform duration-150"
  >
  <Send className="w-5 h-5 shrink-0" />
  </button>
