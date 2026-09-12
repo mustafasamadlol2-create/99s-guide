@@ -2966,8 +2966,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ? "اسأل زملائك سؤالاً طبيّاً / سريريّاً ملحّاً"
  : "Ask a Clinical Question to your Peers"}
  </label>
- <div className="relative">
- <input aria-label="Input field"
+ <div className="relative w-full">
+ <input aria-label={isRtl ? "اكتب سؤالك السريري" : "Clinical question input"}
  type="text"
  value={newQuestionContent}
  onChange={(e) => setNewQuestionContent(e.target.value)}
@@ -2977,13 +2977,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  : "Ask about details that you didn't understand..."
  }
  dir="auto"
- className={`w-full ${isRtl ? "pr-5 pl-14 text-right" : "pl-5 pr-14 text-left"} py-4 text-base bg-white dark:bg-[#2C2C2E] dark:text-[var(--text-primary)] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-medium transition placeholder:text-neutral-500 dark:text-[#EBEBF599] shadow-elevation-1` }
+ className={`box-border w-full h-14 ${isRtl ? "pr-5 pl-[76px] text-right" : "pl-5 pr-[76px] text-left"} text-base bg-white dark:bg-[#2C2C2E] dark:text-[var(--text-primary)] border border-neutral-300/60 dark:border-white/[0.15]/60 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 font-medium transition placeholder:text-neutral-500 dark:text-[#EBEBF599] shadow-elevation-1`}
  />
  <button
  type="submit"
- className={`absolute ${isRtl ? "left-2" : "right-2"} top-1/2 -translate-y-1/2 p-3 bg-med-gold hover:bg-med-gold text-white rounded-lg cursor-pointer flex items-center justify-center shadow-elevation-1`}
+ aria-label={isRtl ? "إرسال السؤال" : "Send question"}
+ className={`absolute ${isRtl ? "left-1.5" : "right-1.5"} top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 bg-med-gold hover:bg-med-gold active:scale-[0.96] text-white rounded-[14px] cursor-pointer flex items-center justify-center shadow-elevation-1 transition-transform duration-150`}
  >
- <Send className="w-icon-sm h-icon-sm" />
+ <Send className="w-5 h-5 shrink-0" />
  </button>
  </div>
  {postMuteError && (
