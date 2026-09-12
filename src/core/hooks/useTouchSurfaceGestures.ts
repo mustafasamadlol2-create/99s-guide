@@ -289,6 +289,13 @@ interface HorizontalSwipePagerOptions {
   reserveBackEdge?: boolean;
   commitDistance?: number;
   velocityThreshold?: number;
+  /**
+   * `shared` preserves the app-wide horizontal pager choreography.
+   * `instant` is a single-stage compact content transition used by Lecture tabs.
+   */
+  completionMode?: "shared" | "instant";
+  /** Fraction of finger travel rendered by instant content pagers. */
+  visualScale?: number;
 }
 
 export interface HorizontalSwipePagerGesture<T extends HTMLElement = HTMLDivElement> {
@@ -314,6 +321,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   reserveBackEdge = true,
   commitDistance = 0,
   velocityThreshold = IOS_SWIPE_MOTION.velocityThreshold,
+  completionMode = "shared",
+  visualScale = 0.28,
 }: HorizontalSwipePagerOptions): HorizontalSwipePagerGesture<T> {
   const surfaceRef = useRef<T | null>(null);
   const x = useMotionValue(0);
@@ -330,6 +339,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   const reserveBackEdgeRef = useRef(reserveBackEdge);
   const commitDistanceRef = useRef(commitDistance);
   const velocityThresholdRef = useRef(velocityThreshold);
+  const completionModeRef = useRef(completionMode);
+  const visualScaleRef = useRef(Math.max(0.16, Math.min(0.5, visualScale)));
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -354,6 +365,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     reserveBackEdgeRef.current = reserveBackEdge;
     commitDistanceRef.current = commitDistance;
     velocityThresholdRef.current = velocityThreshold;
+    completionModeRef.current = completionMode;
+    visualScaleRef.current = Math.max(0.16, Math.min(0.5, visualScale));
   });
 
   const didDragRecently = useCallback(() => performance.now() - lastDragAtRef.current < 360, []);
@@ -453,22 +466,28 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       const { allowed } = logicalRequest(dx);
       const width = Math.max(1, node.getBoundingClientRect().width || window.innerWidth || 1);
 
-      // Lecture/segmented content uses the same recognition, velocity filtering,
-      // commit thresholds and spring timing as Notifications -> Profile, but the
-      // visual travel is intentionally compact like an iOS segmented-content
-      // transition. Follow the finger 1:1 for the first 44 px, then apply the
-      // same native rubber-band resistance. This keeps the opaque workspace
-      // continuously filled instead of exposing a white/black gap while still
-      // making the drag feel directly connected to the finger.
-      const nativeTravel = IOS_SWIPE_MOTION.underlayOffset * 2;
-      const rawDistance = Math.abs(dx);
-      const compactDistance = rawDistance <= nativeTravel
-        ? rawDistance
-        : nativeTravel + (rawDistance - nativeTravel) * IOS_SWIPE_MOTION.boundaryResistance;
-      const allowedRendered = Math.sign(dx || 1) * Math.min(width, compactDistance);
-      const renderedDx = allowed
-        ? allowedRendered
-        : dx * IOS_SWIPE_MOTION.boundaryResistance;
+      const renderedDx = (() => {
+        if (!allowed) return dx * IOS_SWIPE_MOTION.boundaryResistance;
+
+        if (completionModeRef.current === "instant") {
+          // One-stage iOS segmented workspace: show only a small amount of the
+          // finger travel. There is never a full-width outgoing sweep, so the
+          // opaque lecture card can never expose an empty white/black page.
+          const maxTravel = Math.max(28, Math.min(56, width * 0.16));
+          return Math.max(
+            -maxTravel,
+            Math.min(maxTravel, dx * visualScaleRef.current),
+          );
+        }
+
+        // Shared pagers keep the existing compact native tracking contract.
+        const nativeTravel = IOS_SWIPE_MOTION.underlayOffset * 2;
+        const rawDistance = Math.abs(dx);
+        const compactDistance = rawDistance <= nativeTravel
+          ? rawDistance
+          : nativeTravel + (rawDistance - nativeTravel) * IOS_SWIPE_MOTION.boundaryResistance;
+        return Math.sign(dx || 1) * Math.min(width, compactDistance);
+      })();
 
       x.set(Math.max(-width, Math.min(width, renderedDx)));
     };
@@ -541,6 +560,43 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
         else onPreviousRef.current();
         HapticFeedback.selection();
       };
+
+      if (completionModeRef.current === "instant") {
+        // No outgoing phase and no wait. Commit the destination immediately,
+        // then let the incoming page settle from the same short native offset.
+        // Because the opaque workspace shell never unmounts, this produces a
+        // continuous one-stage transition with no blank frame.
+        flushSync(() => {
+          commitDestination();
+        });
+        x.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+
+        const finishInstant = () => {
+          x.set(0);
+          settlingRef.current = false;
+          setIsInteracting(false);
+        };
+        const instantControls = reduceMotion
+          ? animate(x, 0, { duration: 0.01, onComplete: finishInstant })
+          : animate(x, 0, {
+              type: "spring",
+              stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+              damping: IOS_SWIPE_MOTION.completionSpring.damping,
+              mass: IOS_SWIPE_MOTION.completionSpring.mass,
+              velocity: Math.max(
+                -width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+                Math.min(
+                  width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+                  -signedVelocity * 0.18,
+                ),
+              ),
+              restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+              restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+              onComplete: finishInstant,
+            });
+        stopAnimationRef.current = () => instantControls.stop();
+        return;
+      }
 
       // iOS segmented-content handoff: the outgoing content only travels a
       // compact native distance; the destination is committed synchronously

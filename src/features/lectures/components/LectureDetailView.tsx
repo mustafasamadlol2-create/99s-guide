@@ -1625,17 +1625,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
    measure();
 
-   // Center only the horizontal tab strip. scrollIntoView() can also touch the
-   // outer vertical scroll canvas in WKWebView, which made tab changes feel as
-   // though the whole page subtly repositioned. Keep the page completely still.
-   const containerRect = container.getBoundingClientRect();
-   const nodeRect = node.getBoundingClientRect();
-   const horizontalDelta =
-     nodeRect.left + nodeRect.width / 2 - (containerRect.left + containerRect.width / 2);
-   if (Math.abs(horizontalDelta) > 1) {
-     container.scrollBy({ left: horizontalDelta, behavior: "smooth" });
-   }
-
    frame = window.requestAnimationFrame(measure);
 
    const resizeObserver = typeof ResizeObserver !== "undefined"
@@ -1674,6 +1663,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    isRtl,
    blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
+   completionMode: "instant",
+   visualScale: 0.40,
+   commitDistance: 52,
  });
 
  // Lecture sections now use the exact same 1:1 foreground tracking as the
@@ -1786,7 +1778,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <div
     ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
-    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-x-auto overflow-y-hidden scrollbar-none overscroll-x-contain scroll-smooth"
+    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg grid grid-cols-6 sm:flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
   <motion.div
@@ -1819,14 +1811,14 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div
  key={tab.id}
  data-lecture-tab-id={tab.id}
- className={`relative flex-none sm:flex-1 ${isRtl ? "min-w-[84px]" : "min-w-[72px]"} sm:min-w-0 flex items-center h-7 z-10`}
+ className="relative min-w-0 flex items-center justify-center h-7 z-10"
  >
  <button
  type="button"
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className="relative rounded-lg text-[13px] sm:text-sm font-medium cursor-pointer flex-1 select-none z-20 flex items-center justify-center w-full h-full px-2 overflow-visible"
+ className="relative rounded-lg text-[10.5px] min-[390px]:text-[11.5px] sm:text-sm tracking-[-0.015em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-1 sm:px-2 overflow-visible"
  >
  <span
  className={`relative z-20 inline-flex w-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-200 ${
@@ -1883,7 +1875,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       key={`lecture-workspace-${activeTab}`}
       initial={lectureTabPager.isInteracting
         ? false
-        : { opacity: 1, x: tabTransitionDirection * IOS_SWIPE_MOTION.underlayOffset }}
+        : { opacity: 1, x: tabTransitionDirection * Math.min(16, IOS_SWIPE_MOTION.underlayOffset) }}
       animate={{ opacity: 1, x: 0 }}
       transition={lectureTabPager.isInteracting
         ? { duration: 0 }
