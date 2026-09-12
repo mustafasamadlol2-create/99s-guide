@@ -15,7 +15,7 @@ import React, {
 } from "react";
 import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
-import { IOS_SWIPE_MOTION, getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
+import { IOS_CONSOLE_SMOOTH_MOTION, getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
 import {
   User,
   UserProgress,
@@ -561,15 +561,15 @@ const ControlCenterView = function ControlCenterView({
     consoleSwipeX.set(0);
     consolePreviewSubTabRef.current = next;
     flushSync(() => setConsolePreviewSubTab(next));
-    consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+    consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
     consoleUnderlayScale.set(1);
 
     animate(consoleSwipeX, physicalSign * width, {
-      ...IOS_SWIPE_MOTION.completionSpring,
+      ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
       onUpdate: (latest) => {
         const progress = Math.min(1, Math.abs(latest) / width);
         consoleUnderlayX.set(
-          -physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+          -physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
         );
       },
       onComplete: () => {
@@ -630,17 +630,17 @@ const ControlCenterView = function ControlCenterView({
       exitSign *
       Math.min(
         releaseVelocity * 1000,
-        width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+        width * IOS_CONSOLE_SMOOTH_MOTION.cancelVelocityScreensPerSecond,
       );
 
     animate(consoleSwipeX, 0, {
-      ...IOS_SWIPE_MOTION.cancelSpring,
+      ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
       velocity: signedVelocity,
       onUpdate: (latest) => {
         if (!consolePreviewSubTabRef.current) return;
         const progress = Math.min(1, Math.abs(latest) / width);
         consoleUnderlayX.set(
-          -exitSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+          -exitSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
         );
         consoleUnderlayScale.set(1);
       },
@@ -679,15 +679,15 @@ const ControlCenterView = function ControlCenterView({
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
       if (
-        absY >= IOS_SWIPE_MOTION.verticalRejectDistance &&
-        absY > absX * IOS_SWIPE_MOTION.verticalRejectRatio
+        absY >= IOS_CONSOLE_SMOOTH_MOTION.verticalRejectDistance &&
+        absY > absX * IOS_CONSOLE_SMOOTH_MOTION.verticalRejectRatio
       ) {
         session.axis = "y";
         session.tracking = false;
         return;
       }
-      if (absX < IOS_SWIPE_MOTION.axisLockDistance) return;
-      if (absY > absX * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
+      if (absX < IOS_CONSOLE_SMOOTH_MOTION.axisLockDistance) return;
+      if (absY > absX * IOS_CONSOLE_SMOOTH_MOTION.horizontalLockMaxVerticalRatio) return;
       session.axis = "x";
     }
     if (session.axis !== "x") return;
@@ -707,14 +707,14 @@ const ControlCenterView = function ControlCenterView({
     const dt = Math.max(1, now - session.lastTime);
     const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
     session.velocity =
-      session.velocity * IOS_SWIPE_MOTION.velocityPreviousWeight +
-      instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
+      session.velocity * IOS_CONSOLE_SMOOTH_MOTION.velocityPreviousWeight +
+      instantaneousVelocity * IOS_CONSOLE_SMOOTH_MOTION.velocityCurrentWeight;
     session.lastX = touch.clientX;
     session.lastTime = now;
 
     if (atBoundary) {
       if (consolePreviewSubTabRef.current) clearConsolePreview();
-      consoleSwipeX.set(dx * IOS_SWIPE_MOTION.boundaryResistance);
+      consoleSwipeX.set(dx * IOS_CONSOLE_SMOOTH_MOTION.boundaryResistance);
       return;
     }
 
@@ -730,7 +730,7 @@ const ControlCenterView = function ControlCenterView({
     if (consolePreviewSubTabRef.current !== next) {
       consolePreviewSubTabRef.current = next;
       setConsolePreviewSubTab(next);
-      consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+      consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
       consoleUnderlayScale.set(1);
     }
 
@@ -741,7 +741,7 @@ const ControlCenterView = function ControlCenterView({
     // True iOS feel: foreground follows the finger 1:1. The incoming page uses
     // only the subtle approved 22px parallax and gently settles to full scale.
     consoleSwipeX.set(rendered);
-    consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress));
+    consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress));
     consoleUnderlayScale.set(1);
   };
 
@@ -759,9 +759,9 @@ const ControlCenterView = function ControlCenterView({
     const dx = touch.clientX - session.startX;
     const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
     const qualifies =
-      Math.abs(dx) >= width * IOS_SWIPE_MOTION.commitProgress ||
-      (Math.abs(dx) >= IOS_SWIPE_MOTION.flickDistance &&
-        session.velocity >= IOS_SWIPE_MOTION.velocityThreshold);
+      Math.abs(dx) >= width * IOS_CONSOLE_SMOOTH_MOTION.commitProgress ||
+      (Math.abs(dx) >= IOS_CONSOLE_SMOOTH_MOTION.flickDistance &&
+        session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
 
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
     const physicalForward = isRtl ? dx > 0 : dx < 0;
@@ -790,24 +790,24 @@ const ControlCenterView = function ControlCenterView({
     if (consolePreviewSubTabRef.current !== next) {
       consolePreviewSubTabRef.current = next;
       flushSync(() => setConsolePreviewSubTab(next));
-      consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+      consoleUnderlayX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
       consoleUnderlayScale.set(1);
     }
 
     consoleUnderlayScale.set(1);
 
     animate(consoleSwipeX, exitTarget, {
-      ...IOS_SWIPE_MOTION.completionSpring,
+      ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
       velocity:
         physicalSign *
         Math.min(
           session.velocity * 1000,
-          width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond,
+          width * IOS_CONSOLE_SMOOTH_MOTION.completionVelocityScreensPerSecond,
         ),
       onUpdate: (latest) => {
         const progress = Math.min(1, Math.abs(latest) / width);
         consoleUnderlayX.set(
-          -physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+          -physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset * (1 - progress),
         );
       },
       onComplete: () => {
@@ -1064,6 +1064,8 @@ const ControlCenterView = function ControlCenterView({
                   scale: consoleUnderlayScale,
                   transformOrigin: "center center",
                   willChange: "transform",
+                  backfaceVisibility: "hidden",
+                  WebkitBackfaceVisibility: "hidden",
                 }}
               >
                 <Suspense fallback={<div className="h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />}>
@@ -1077,6 +1079,8 @@ const ControlCenterView = function ControlCenterView({
               style={{
                 x: isPhone ? consoleSwipeX : 0,
                 willChange: isPhone ? "transform" : "auto",
+                backfaceVisibility: isPhone ? "hidden" : "visible",
+                WebkitBackfaceVisibility: isPhone ? "hidden" : "visible",
                 boxShadow:
                   isPhone && consolePreviewSubTab
                     ? getSwipeLayerShadowForExitSign(consoleSwipePhysicalSignRef.current)

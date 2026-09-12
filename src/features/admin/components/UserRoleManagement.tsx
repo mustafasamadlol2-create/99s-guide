@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
-import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
+import { IOS_CONSOLE_SMOOTH_MOTION } from "../../../core/motion/swipeMotion";
 import { showiOSAlert } from "../../../core/device/alert";
 import { User } from "../../../core/types";
 import { FormError } from "../../../components/ui/FormError";
@@ -243,11 +243,22 @@ try {
 
  const settleRoleSwipe = useCallback(() => {
   const session = roleSwipeSessionRef.current;
+  const currentX = roleSwipeX.get();
+  const direction = currentX === 0 ? 0 : Math.sign(currentX);
+  const releaseVelocity = session.velocity;
+
   session.tracking = false;
   session.axis = null;
   session.velocity = 0;
+
   animate(roleSwipeX, 0, {
-   ...IOS_SWIPE_MOTION.cancelSpring,
+   ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
+   velocity:
+    direction *
+    Math.min(
+     releaseVelocity * 1000,
+     window.innerWidth * IOS_CONSOLE_SMOOTH_MOTION.cancelVelocityScreensPerSecond,
+    ),
    onComplete: clearRoleSwipePreview,
   });
  }, [clearRoleSwipePreview, roleSwipeX]);
@@ -287,13 +298,13 @@ try {
   const absY = Math.abs(dy);
 
   if (session.axis === null) {
-   if (absY >= IOS_SWIPE_MOTION.verticalRejectDistance && absY > absX * IOS_SWIPE_MOTION.verticalRejectRatio) {
+   if (absY >= IOS_CONSOLE_SMOOTH_MOTION.verticalRejectDistance && absY > absX * IOS_CONSOLE_SMOOTH_MOTION.verticalRejectRatio) {
     session.tracking = false;
     session.axis = "y";
     return;
    }
-   if (absX < IOS_SWIPE_MOTION.axisLockDistance) return;
-   if (absY > absX * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
+   if (absX < IOS_CONSOLE_SMOOTH_MOTION.axisLockDistance) return;
+   if (absY > absX * IOS_CONSOLE_SMOOTH_MOTION.horizontalLockMaxVerticalRatio) return;
    session.axis = "x";
   }
   if (session.axis !== "x") return;
@@ -303,8 +314,8 @@ try {
   const dt = Math.max(1, now - session.lastTime);
   const instantVelocity = Math.abs(touch.clientX - session.lastX) / dt;
   session.velocity =
-   session.velocity * IOS_SWIPE_MOTION.velocityPreviousWeight +
-   instantVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
+   session.velocity * IOS_CONSOLE_SMOOTH_MOTION.velocityPreviousWeight +
+   instantVelocity * IOS_CONSOLE_SMOOTH_MOTION.velocityCurrentWeight;
   session.lastX = touch.clientX;
   session.lastTime = now;
 
@@ -315,14 +326,20 @@ try {
 
   if (atBoundary) {
    setRoleSwipePreview(null);
-   roleSwipeX.set(dx * IOS_SWIPE_MOTION.boundaryResistance);
+   roleSwipeX.set(dx * IOS_CONSOLE_SMOOTH_MOTION.boundaryResistance);
    return;
   }
 
   setRoleSwipePreview(ROLE_FILTER_ORDER[nextIndex]);
   // This is an iOS segmented-content swipe, not a pushed page. Keep the list
   // attached to the finger while limiting travel so the card never exposes a gap.
-  const rendered = Math.max(-42, Math.min(42, dx * 0.28));
+  const rendered = Math.max(
+   -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+   Math.min(
+    IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+    dx * IOS_CONSOLE_SMOOTH_MOTION.roleDragFactor,
+   ),
+  );
   roleSwipeX.set(rendered);
  };
 
@@ -343,7 +360,7 @@ try {
   const nextIndex = currentIndex + (forward ? 1 : -1);
   const qualifies =
    Math.abs(dx) >= 44 ||
-   (Math.abs(dx) >= 24 && session.velocity >= IOS_SWIPE_MOTION.velocityThreshold);
+   (Math.abs(dx) >= 24 && session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
 
   if (!qualifies || nextIndex < 0 || nextIndex >= ROLE_FILTER_ORDER.length) {
    settleRoleSwipe();
@@ -360,11 +377,11 @@ try {
    setRoleFilter(nextFilter);
    setRoleSwipePreview(null);
   });
-  roleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+  roleSwipeX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
   animate(roleSwipeX, 0, {
-   ...IOS_SWIPE_MOTION.completionSpring,
+   ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
    velocity:
-    -physicalSign * Math.min(session.velocity * 1000, window.innerWidth * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond),
+    -physicalSign * Math.min(session.velocity * 1000, window.innerWidth * IOS_CONSOLE_SMOOTH_MOTION.completionVelocityScreensPerSecond),
    onComplete: () => {
     roleSwipeAnimatingRef.current = false;
    },
@@ -390,9 +407,9 @@ try {
    setRoleFilter(nextFilter);
    setRoleSwipePreview(null);
   });
-  roleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+  roleSwipeX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
   animate(roleSwipeX, 0, {
-   ...IOS_SWIPE_MOTION.completionSpring,
+   ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
    onComplete: () => {
     roleSwipeAnimatingRef.current = false;
    },
@@ -510,7 +527,11 @@ try {
  {/* Data Presentation (List View) */}
  <motion.div
   className="will-change-transform"
-  style={{ x: roleSwipeX }}
+  style={{
+   x: roleSwipeX,
+   backfaceVisibility: "hidden",
+   WebkitBackfaceVisibility: "hidden",
+  }}
  >
  {loading && users.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-12 space-y-2">

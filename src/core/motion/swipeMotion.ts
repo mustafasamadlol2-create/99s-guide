@@ -56,6 +56,50 @@ export const IOS_SWIPE_MOTION = {
   layerShadowRtl: "18px 0 30px -18px rgba(0,0,0,0.48)",
 } as const;
 
+
+/**
+ * Slightly softer release profile for nested Console pagers.
+ * Recognition thresholds stay identical to the global iOS gesture, while the
+ * settle curve is closer to critically damped UIKit paging so the page glides
+ * into place instead of feeling like it snaps at finger-up. This profile is
+ * intentionally scoped to Console + Role filters only.
+ */
+export const IOS_CONSOLE_SMOOTH_MOTION = {
+  ...IOS_SWIPE_MOTION,
+
+  // Keep more of the previous sample so tiny finger-speed spikes do not become
+  // visible as a sudden acceleration when the spring takes over.
+  velocityPreviousWeight: 0.72,
+  velocityCurrentWeight: 0.28,
+  completionVelocityScreensPerSecond: 3.2,
+  cancelVelocityScreensPerSecond: 1.25,
+
+  // Near-critical spring: quick, soft and non-bouncy, similar to UIKit paging.
+  completionSpring: {
+    type: "spring" as const,
+    stiffness: 360,
+    damping: 34,
+    mass: 0.86,
+    restSpeed: 10,
+    restDelta: 0.22,
+  },
+
+  // Cancellation is a touch firmer so an aborted gesture returns cleanly
+  // without oscillation, while still avoiding the previous mechanical snap.
+  cancelSpring: {
+    type: "spring" as const,
+    stiffness: 420,
+    damping: 38,
+    mass: 0.84,
+    restSpeed: 9,
+    restDelta: 0.20,
+  },
+
+  // Local content pager tuning for All / Owner / Admin / Student.
+  roleDragFactor: 0.32,
+  roleDragMax: 46,
+} as const;
+
 export function getNativeSwipeLayerShadow(isRtl: boolean): string {
   return isRtl ? IOS_SWIPE_MOTION.layerShadowRtl : IOS_SWIPE_MOTION.layerShadowLtr;
 }
