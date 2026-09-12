@@ -625,7 +625,7 @@ const CalendarView = memo(function CalendarView({
 
  <motion.div
  id="left_middle_deck"
- className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition duration-normal ${isPhone ? "p-3 rounded-[18px] space-y-4" : "p-card-padding rounded-lg space-y-section"}`}
+ className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition-colors duration-normal ${isPhone ? "calendar-phone-deck p-3 rounded-[18px] space-y-3" : "p-card-padding rounded-lg space-y-section"}`}
  style={{ overflowAnchor: "none" }}
  >
  {/* NAVIGATION BAR - MONTHS */}
@@ -633,15 +633,15 @@ const CalendarView = memo(function CalendarView({
  ref={calendarViewPager.surfaceRef}
  id="month_banner_nav"
  data-calendar-view-switch-swipe-header="true"
- className="flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none touch-pan-y"
+ className={`calendar-view-banner ${isPhone ? "calendar-phone-view-banner" : ""} flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none touch-pan-y`}
  >
- <div className="flex items-center gap-2 relative z-50">
+ <div className={`calendar-view-banner-title-wrap flex items-center gap-2 relative z-50 ${isPhone ? "w-full justify-center" : ""}`}>
  <span
  role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }} onClick={(e) => {
  e.stopPropagation();
  setShowMiniCalendar(!showMiniCalendar);
  }}
- className="text-neutral-900 dark:text-[var(--text-primary)] text-title font-semibold font-sans select-none flex items-center pe-4 cursor-pointer hover:opacity-80 transition-opacity"
+ className={`calendar-view-banner-title text-neutral-900 dark:text-[var(--text-primary)] text-title font-semibold font-sans select-none flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isPhone ? "w-full min-h-[54px] justify-center text-center px-2 leading-[1.12]" : "pe-4"}`}
  >
  {activeView === "month" &&
  `${monthNames[currentMonth]} ${currentYear}`}
@@ -658,7 +658,7 @@ const CalendarView = memo(function CalendarView({
  {renderMiniCalendar()}
  </div>
 
- <div className="flex items-center gap-4">
+ <div className={`calendar-view-banner-controls flex items-center gap-4 ${isPhone ? "w-full justify-center min-h-[44px]" : ""}`}>
  <motion.button
  id="month_nav_today_btn"
  initial={{ opacity: 0, scale: 0.8 }}
@@ -719,6 +719,48 @@ const CalendarView = memo(function CalendarView({
  </div>
 
  {/* View Switcher Container */}
+ {isPhone ? (
+ <div
+ className="calendar-phone-view-shell w-full min-w-0 [overflow-anchor:none]"
+ style={{
+ fontFamily:
+ '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+ }}
+ >
+ {calendarViewPager.targetView && (
+ <motion.div
+ key={`calendar-phone-target-${calendarViewPager.targetView}`}
+ aria-hidden="true"
+ className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E] pointer-events-none"
+ style={{
+ x: calendarViewPager.targetX,
+ zIndex: 0,
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ }}
+ >
+ {renderCalendarView(calendarViewPager.targetView)}
+ </motion.div>
+ )}
+
+ <motion.div
+ key={`calendar-phone-live-${activeView}`}
+ id={`${activeView}-panel`}
+ role="tabpanel"
+ aria-labelledby={`${activeView}-tab`}
+ className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+ style={{
+ x: calendarViewPager.x,
+ zIndex: 1,
+ boxShadow: calendarViewPager.isInteracting
+ ? getSwipeLayerShadowForExitSign(calendarSwipeExitSign)
+ : "none",
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ }}
+ >
+ {renderCalendarView(activeView as CalendarViewMode)}
+ </motion.div>
+ </div>
+ ) : (
  <SmoothAutoHeight
  dependency={activeView}
  durationMs={420}
@@ -765,6 +807,7 @@ const CalendarView = memo(function CalendarView({
  {renderCalendarView(activeView as CalendarViewMode)}
  </motion.div>
  </SmoothAutoHeight>
+ )}
  </motion.div>
 
  {/* Floating Apple-Style Context Menu */}

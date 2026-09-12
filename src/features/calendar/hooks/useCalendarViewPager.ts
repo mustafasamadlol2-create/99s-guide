@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import {
   animate,
   useMotionValue,
@@ -180,23 +181,25 @@ export function useCalendarViewPager({
       );
 
       const finishHandoff = () => {
-        // The destination underlay is already at x=0. Commit the view while it
-        // remains painted, then reset the new live foreground after two paints.
-        onCommitRef.current(toView);
-        HapticFeedback.selection();
+        // Atomic iOS-style handoff: the destination is already fully painted at
+        // x=0 underneath the outgoing page. Reset the motion values and commit
+        // React state in the same JavaScript turn, before the browser can paint
+        // another frame. This removes the duplicate-page / resize frame that
+        // previously appeared after a Week/Day/Month transition in WKWebView.
+        stopAnimationRef.current = null;
+        activeViewRef.current = toView;
+        x.set(0);
+        targetX.set(0);
+        indicatorPosition.set(viewIndex(toView));
 
-        commitFrameRef.current = requestAnimationFrame(() => {
-          commitFrameRef.current = null;
-          handoffFrameRef.current = requestAnimationFrame(() => {
-            handoffFrameRef.current = null;
-            x.set(0);
-            targetX.set(0);
-            indicatorPosition.set(viewIndex(toView));
-            setTargetView(null);
-            settlingRef.current = false;
-            setIsInteracting(false);
-          });
+        flushSync(() => {
+          onCommitRef.current(toView);
+          setTargetView(null);
+          setIsInteracting(false);
         });
+
+        settlingRef.current = false;
+        HapticFeedback.selection();
       };
 
       if (reduceMotion) {

@@ -61,14 +61,18 @@ const MonthDayCell = memo(function MonthDayCell({
  const [showPopover, setShowPopover] = useState(false);
 
  let cellBgClass = isPhone
-   ? "bg-neutral-50/55 dark:bg-[#1C1C1E]/45"
+   ? "bg-neutral-50/78 dark:bg-[#1C1C1E]/58"
    : "bg-neutral-50/40 dark:bg-[#1C1C1E]/30 hover:bg-neutral-100/60 dark:hover:bg-white/[0.12]/60";
- let cellBorderClass = "border border-neutral-200/40 dark:border-white/[0.04]";
+ let cellBorderClass = isPhone
+   ? "border border-black/[0.035] dark:border-white/[0.055]"
+   : "border border-neutral-200/40 dark:border-white/[0.04]";
  let badgeClass = "text-neutral-500 dark:text-[#EBEBF599] font-semibold text-sm font-sans";
  let ringClass = isSelected
-   ? "ring-2 ring-neutral-900/10 dark:ring-white/10 z-10 shadow-elevation-1"
+   ? (isPhone
+     ? "ring-1 ring-inset ring-neutral-900/10 dark:ring-white/12 z-10 shadow-[0_2px_8px_rgba(0,0,0,0.045)]"
+     : "ring-2 ring-neutral-900/10 dark:ring-white/10 z-10 shadow-elevation-1")
    : isPhone
-     ? "shadow-elevation-1"
+     ? "shadow-[0_1px_2px_rgba(0,0,0,0.025)]"
      : "shadow-elevation-1 hover:shadow-elevation-1";
 
  if (priorityEvents.length > 0) {
@@ -96,11 +100,13 @@ const MonthDayCell = memo(function MonthDayCell({
 
   if (isToday) {
  badgeClass = "text-[#ff3b30] font-bold";
-    cellBorderClass = "border border-[#ff3b30]/60 dark:border-[#ff3b30]/50";
+    cellBorderClass = isPhone
+      ? "border border-[#ff3b30]/48 dark:border-[#ff453a]/45"
+      : "border border-[#ff3b30]/60 dark:border-[#ff3b30]/50";
  ringClass = isPhone
-   ? "shadow-[0_0_15px_rgba(255,59,48,0.15)] dark:shadow-[0_0_15px_rgba(255,59,48,0.1)] z-10"
+   ? "ring-1 ring-inset ring-[#ff3b30]/28 shadow-[0_3px_12px_rgba(255,59,48,0.10)] dark:shadow-[0_3px_12px_rgba(255,69,58,0.08)] z-10"
    : "shadow-[0_0_15px_rgba(255,59,48,0.15)] dark:shadow-[0_0_15px_rgba(255,59,48,0.1)] z-10 hover:shadow-[0_0_20px_rgba(255,59,48,0.2)]";
-    if (isSelected) ringClass += " ring-2 ring-[#ff3b30]/40";
+    if (isSelected) ringClass += isPhone ? " ring-1 ring-[#ff3b30]/34" : " ring-2 ring-[#ff3b30]/40";
  } else if (isSelected && priorityEvents.length === 0) {
  ringClass += " ring-2 ring-neutral-900/10 dark:ring-white/10 z-10 shadow-elevation-1";
  } else if (isSelected) {
@@ -296,11 +302,12 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  const todayYear = today.getFullYear();
  const todayMonth = today.getMonth(); // 0-indexed
  const todayDay = today.getDate();
+ const weekRows = Math.max(4, Math.ceil((emptyPaddings.length + calendarDays.length) / 7));
 
  return (
- <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "تقويم شهري تفاعلي" : "Interactive monthly calendar"} className={`${isPhone ? "calendar-month-phone px-0 py-0.5" : "p-1"} font-sans select-none`}>
+ <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "تقويم شهري تفاعلي" : "Interactive monthly calendar"} className={`${isPhone ? `calendar-month-phone calendar-month-phone-weeks-${weekRows} px-0 py-0.5` : "p-1"} font-sans select-none`}>
  {/* Week Day Labels (iOS Minimalist Header style) */}
-  <div className={`grid grid-cols-7 ${isPhone ? "gap-1 mb-2.5 text-[10px] tracking-[0.04em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase`}>
+  <div className={`calendar-month-weekdays grid grid-cols-7 ${isPhone ? "gap-1 mb-2 text-[10px] tracking-[0.055em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase`}>
   {[
     ["أحد", "الأحد", "Sun"],
     ["اثن", "الاثنين", "Mon"],
@@ -319,7 +326,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  {/* Grid Canvas - Distinct Floating Cards */}
  <div
  id="monthly_grid"
-  className={`grid grid-cols-7 ${isPhone ? "gap-[3px]" : "gap-3"}`}
+  className={`calendar-month-phone-grid grid grid-cols-7 ${isPhone ? "gap-[4px]" : "gap-3"}`}
  >
  {/* Empty padding slots matching start day of month */}
  {emptyPaddings.map((idx) => (

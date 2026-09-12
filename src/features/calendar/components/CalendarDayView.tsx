@@ -339,7 +339,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  id="calendar_day_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "الجدول الزمني اليومي التفاعلي" : "Interactive daily timeline"}
  ref={timelineRef}
       className="relative min-h-[240px] overflow-x-clip border border-neutral-200 dark:border-white/[0.15] rounded-lg bg-neutral-50/50 dark:bg-[#000000] select-none touch-pan-y transition-colors shadow-elevation-1 p-3 sm:p-4"
- style={{ contentVisibility: "auto" }}
+ style={{ contentVisibility: "visible" }}
  >
   <div
   className={`relative w-full flex flex-col gap-3 origin-center ${

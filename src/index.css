@@ -4873,35 +4873,197 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   }
 }
 
-/* iPhone Month View: denser native calendar geometry in both orientations. */
+/* ==========================================================================
+   iPhone Calendar — stable native pager + premium month geometry
+   --------------------------------------------------------------------------
+   Week / Day / Month deliberately share one fixed mobile viewport. Their
+   intrinsic heights never participate in the parent layout while a view is
+   changing, which prevents WKWebView scroll anchoring, post-swipe resizing,
+   and the small reposition/jitter that used to happen after the handoff.
+   ========================================================================== */
+.mobile-phone-layout .calendar-phone-deck {
+  overflow-anchor: none;
+  contain: layout style;
+}
+
+.mobile-phone-layout .calendar-phone-view-banner {
+  min-height: 106px;
+  gap: 8px !important;
+  overflow-anchor: none;
+}
+
+.mobile-phone-layout .calendar-view-banner-title-wrap {
+  min-height: 54px;
+}
+
+.mobile-phone-layout .calendar-view-banner-title {
+  min-height: 54px;
+  max-width: 100%;
+  margin-inline: auto;
+  text-wrap: balance;
+}
+
+.mobile-phone-layout .calendar-view-banner-controls {
+  min-height: 44px;
+}
+
+.mobile-phone-layout .calendar-phone-view-shell {
+  position: relative;
+  height: clamp(360px, calc(100dvh - 470px), 440px);
+  min-height: 360px;
+  max-height: 440px;
+  overflow: hidden;
+  overflow-anchor: none;
+  contain: layout paint style;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.mobile-phone-layout .calendar-phone-pager-page {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.mobile-phone-layout .calendar-phone-pager-page::-webkit-scrollbar {
+  display: none;
+}
+
+/* Week cards fill the same stable page viewport instead of changing the deck. */
+.mobile-phone-layout .calendar-phone-view-shell #week_columns_container {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.mobile-phone-layout .calendar-phone-view-shell #week_columns_container > button {
+  min-height: 0;
+  height: 100%;
+}
+
+/* The day destination must already have a concrete layout before it is revealed. */
+.mobile-phone-layout .calendar-phone-view-shell #calendar_day_grid_deck {
+  min-height: 240px;
+  overflow-anchor: none;
+}
+
+/* Month view: compact, softly surfaced, and vertically balanced like an iOS
+   calendar rather than seven large independent cards. */
+.calendar-month-phone {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 2px 8px;
+  overflow-anchor: none;
+}
+
+.calendar-month-phone .calendar-month-weekdays {
+  flex: 0 0 auto;
+  padding-inline: 2px;
+}
+
+.calendar-month-phone .calendar-month-phone-grid {
+  flex: 0 0 auto;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(118, 118, 128, 0.035);
+  border: 1px solid rgba(0, 0, 0, 0.018);
+}
+
+.dark .calendar-month-phone .calendar-month-phone-grid {
+  background: rgba(118, 118, 128, 0.075);
+  border-color: rgba(255, 255, 255, 0.035);
+}
+
 .calendar-month-phone .calendar-month-phone-cell {
-  min-height: clamp(58px, 16.5vw, 68px);
+  min-height: 52px;
+  border-radius: 11px;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.calendar-month-phone-weeks-4 .calendar-month-phone-cell {
+  min-height: 62px;
+}
+
+.calendar-month-phone-weeks-5 .calendar-month-phone-cell {
+  min-height: 56px;
+}
+
+.calendar-month-phone-weeks-6 .calendar-month-phone-cell {
+  min-height: 48px;
 }
 
 .calendar-month-phone .calendar-month-day-number {
-  width: 28px;
-  height: 28px;
-  font-size: 14px;
+  width: 27px;
+  height: 27px;
+  font-size: 13px;
 }
 
 .calendar-month-phone .calendar-month-dots {
-  padding-bottom: 5px;
+  padding-bottom: 4px;
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .calendar-month-phone .calendar-month-phone-cell {
-    min-height: 48px;
+@media (max-height: 740px) and (orientation: portrait) {
+  .mobile-phone-layout .calendar-phone-view-shell {
+    height: 350px;
+    min-height: 350px;
+  }
+
+  .calendar-month-phone-weeks-5 .calendar-month-phone-cell {
+    min-height: 52px;
+  }
+
+  .calendar-month-phone-weeks-6 .calendar-month-phone-cell {
+    min-height: 45px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-phone-layout .calendar-phone-view-banner {
+    min-height: 80px;
+  }
+
+  .mobile-phone-layout .calendar-view-banner-title-wrap,
+  .mobile-phone-layout .calendar-view-banner-title {
+    min-height: 40px;
+  }
+
+  .mobile-phone-layout .calendar-phone-view-shell {
+    height: clamp(190px, calc(100dvh - 185px), 300px);
+    min-height: 190px;
+    max-height: 300px;
+  }
+
+  .calendar-month-phone {
+    justify-content: flex-start;
+    padding-block: 2px;
+  }
+
+  .calendar-month-phone .calendar-month-phone-cell,
+  .calendar-month-phone-weeks-4 .calendar-month-phone-cell,
+  .calendar-month-phone-weeks-5 .calendar-month-phone-cell,
+  .calendar-month-phone-weeks-6 .calendar-month-phone-cell {
+    min-height: 42px;
     border-radius: 9px;
   }
 
   .calendar-month-phone .calendar-month-day-number {
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
+    width: 23px;
+    height: 23px;
+    font-size: 11px;
   }
 
   .calendar-month-phone .calendar-month-dots {
-    padding-bottom: 3px;
+    padding-bottom: 2px;
   }
 }
 
