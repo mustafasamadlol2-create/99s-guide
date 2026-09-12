@@ -287,6 +287,8 @@ interface HorizontalSwipePagerOptions {
    * surface back to rest so content + segmented indicator move together.
    */
   completionMode?: "page" | "settle";
+  /** Visual fraction of the raw finger drag applied by compact settle pagers. */
+  visualScale?: number;
 }
 
 export interface HorizontalSwipePagerGesture<T extends HTMLElement = HTMLDivElement> {
@@ -313,6 +315,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   commitDistance = 0,
   velocityThreshold = IOS_SWIPE_MOTION.velocityThreshold,
   completionMode = "page",
+  visualScale = 0.28,
 }: HorizontalSwipePagerOptions): HorizontalSwipePagerGesture<T> {
   const surfaceRef = useRef<T | null>(null);
   const x = useMotionValue(0);
@@ -330,6 +333,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   const commitDistanceRef = useRef(commitDistance);
   const velocityThresholdRef = useRef(velocityThreshold);
   const completionModeRef = useRef(completionMode);
+  const visualScaleRef = useRef(visualScale);
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -355,6 +359,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     commitDistanceRef.current = commitDistance;
     velocityThresholdRef.current = velocityThreshold;
     completionModeRef.current = completionMode;
+    visualScaleRef.current = Math.max(0.12, Math.min(1, visualScale));
   });
 
   const didDragRecently = useCallback(() => performance.now() - lastDragAtRef.current < 360, []);
@@ -535,8 +540,8 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
         // finish the current finger momentum, commit while the opaque shell stays
         // mounted, then let the incoming content settle from the same 22px
         // underlay distance used by Notifications/Settings -> Profile.
-        const visualScale = 0.28;
-        const nativeOffsetInGestureSpace = IOS_SWIPE_MOTION.underlayOffset / visualScale;
+        const settleVisualScale = visualScaleRef.current;
+        const nativeOffsetInGestureSpace = IOS_SWIPE_MOTION.underlayOffset / settleVisualScale;
         const settleTarget = physicalSign * Math.min(width * 0.22, nativeOffsetInGestureSpace);
 
         const finishOutgoing = () => {

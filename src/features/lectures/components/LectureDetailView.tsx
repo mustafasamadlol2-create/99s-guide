@@ -1621,7 +1621,18 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    };
 
    measure();
-   node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+
+   // Center only the horizontal tab strip. scrollIntoView() can also touch the
+   // outer vertical scroll canvas in WKWebView, which made tab changes feel as
+   // though the whole page subtly repositioned. Keep the page completely still.
+   const containerRect = container.getBoundingClientRect();
+   const nodeRect = node.getBoundingClientRect();
+   const horizontalDelta =
+     nodeRect.left + nodeRect.width / 2 - (containerRect.left + containerRect.width / 2);
+   if (Math.abs(horizontalDelta) > 1) {
+     container.scrollBy({ left: horizontalDelta, behavior: "smooth" });
+   }
+
    frame = window.requestAnimationFrame(measure);
 
    const resizeObserver = typeof ResizeObserver !== "undefined"
@@ -1661,12 +1672,13 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
    completionMode: "settle",
+   visualScale: 0.44,
  });
 
- // The gesture follows the finger, while the visible content moves only a
- // fraction of the drag. The surrounding card, header and segmented tab bar
- // stay still, matching the feel of an iOS content transition.
- const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.28);
+ // The workspace follows enough of the finger to feel directly connected, but
+ // not so much that the heavy lecture panel exposes an empty edge. 0.44 gives
+ // the same compact iOS push/pop character as the app-wide native navigation.
+ const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.44);
  // Never fade the entire workspace during the drag. A fully opaque card prevents
  // white flashes and keeps text rasterization stable on WKWebView.
  const lectureTabContentOpacity = 1;
@@ -1853,7 +1865,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   >
   <SmoothAutoHeight
     dependency={activeTab}
-    durationMs={320}
+    durationMs={270}
     transitionEasing="cubic-bezier(0.22, 1, 0.36, 1)"
     settleToAuto
     singlePassOnDependencyChange
@@ -1874,24 +1886,28 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       isolation: "isolate",
     }}
   >
+    <AnimatePresence initial={false} mode="popLayout">
     <motion.div
       key={`lecture-workspace-${activeTab}`}
       custom={tabTransitionDirection}
       initial={lectureTabPager.isInteracting
         ? { opacity: 1, x: 0 }
-        : { opacity: 1, x: tabTransitionDirection * IOS_SWIPE_MOTION.underlayOffset }}
+        : { opacity: 1, x: tabTransitionDirection * 18 }}
       animate={{ opacity: 1, x: 0 }}
+      exit={lectureTabPager.isInteracting
+        ? { opacity: 1, x: 0 }
+        : { opacity: 1, x: -tabTransitionDirection * 12 }}
       transition={lectureTabPager.isInteracting
         ? { duration: 0 }
         : {
             type: "spring",
-            stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-            damping: IOS_SWIPE_MOTION.completionSpring.damping,
-            mass: IOS_SWIPE_MOTION.completionSpring.mass,
+            stiffness: 480,
+            damping: 44,
+            mass: 0.76,
             restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
             restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
           }}
-      className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col"
+      className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col [backface-visibility:hidden]"
     >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
@@ -3547,6 +3563,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   )}
 
     </motion.div>
+  </AnimatePresence>
   </motion.div>
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}
