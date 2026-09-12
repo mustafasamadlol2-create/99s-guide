@@ -260,7 +260,7 @@ export function CalendarHeader({
  {useLiveIndicator && (
  <motion.div
  aria-hidden="true"
- className="absolute top-[6px] bottom-[6px] rounded-[18px] sm:rounded-[10px] bg-[#8A8A92] dark:bg-[#636366] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-white/10 dark:border-black/20 pointer-events-none"
+ className="absolute top-[6px] bottom-[6px] rounded-[18px] sm:rounded-[10px] bg-white dark:bg-[#636366] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] border-[0.5px] border-black/5 dark:border-black/20 pointer-events-none"
  style={{
  left: phoneIndicatorLeft,
  width: "calc(33.333333% - 12px)",
@@ -291,8 +291,8 @@ export function CalendarHeader({
  relative px-4 sm:px-6 h-full rounded-[18px] sm:rounded-[10px] text-[16px] sm:text-secondary-label leading-none font-medium transition-colors z-10 flex items-center justify-center cursor-pointer w-full text-center
  ${
  isActive
- ? "text-white dark:text-white font-semibold"
- : "text-white/92 dark:text-white/92 hover:bg-[#767680]/[0.05] dark:hover:bg-[#767680]/[0.15]"
+ ? "text-black dark:text-white font-semibold"
+ : "text-neutral-700 dark:text-white hover:bg-[#767680]/[0.05] dark:hover:bg-[#767680]/[0.15]"
  }
  `}
  >
