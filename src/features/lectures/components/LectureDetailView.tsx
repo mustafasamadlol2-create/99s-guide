@@ -1606,15 +1606,26 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      `[data-lecture-tab-id="${activeTab}"]`,
    );
    if (!container || !node) return;
+   const labelNode = node.querySelector<HTMLElement>("[data-lecture-tab-label]");
 
    let frame = 0;
    const measure = () => {
      frame = 0;
      setLectureTabPill((previous) => {
-       const pillInset = 4;
+       const labelWidth = labelNode?.getBoundingClientRect().width ?? 0;
+       // The selected thumb follows the actual word width instead of filling
+       // the whole equal-width grid cell. This keeps short labels such as PDF
+       // compact while giving Arabic labels like "الملاحظات" enough room.
+       const horizontalPadding = window.matchMedia("(min-width: 640px)").matches ? 24 : 18;
+       const minimumWidth = 48;
+       const maximumWidth = Math.max(minimumWidth, node.offsetWidth - 8);
+       const measuredWidth = Math.min(
+         maximumWidth,
+         Math.max(minimumWidth, Math.ceil(labelWidth + horizontalPadding * 2)),
+       );
        const next = {
-         left: node.offsetLeft + pillInset,
-         width: Math.max(0, node.offsetWidth - pillInset * 2),
+         left: node.offsetLeft + (node.offsetWidth - measuredWidth) / 2,
+         width: measuredWidth,
          ready: true,
        };
        if (
@@ -1639,6 +1650,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      : null;
    resizeObserver?.observe(container);
    resizeObserver?.observe(node);
+   if (labelNode) resizeObserver?.observe(labelNode);
 
    return () => {
      if (frame) window.cancelAnimationFrame(frame);
@@ -1826,7 +1838,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  className="relative rounded-[11px] text-[10.75px] min-[390px]:text-[11.25px] sm:text-[13px] tracking-[-0.01em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-0.5 sm:px-1.5 overflow-visible"
  >
  <span
- className={`relative z-20 inline-flex w-full h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
+ data-lecture-tab-label
+ className={`relative z-20 inline-flex h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
  isActive
  ? "text-black dark:text-white font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
