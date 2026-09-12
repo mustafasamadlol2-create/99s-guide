@@ -516,15 +516,14 @@ export default function CreateLecture({
  </div>
  )}
 
- {/* Action Controls */}
-  <div className="mobile-bottom-action fixed bottom-6 ltr:right-6 rtl:left-6 md:bottom-10 md:ltr:right-10 md:rtl:left-10 z-[100] animate-fadeIn flex justify-end">
+ {/* Action Controls — normal document flow so the submit action stays at the end of the form. */}
+ {canProceedToLecture && (
+ <div className="animate-fadeIn flex justify-end pt-1">
  <button
  type="submit"
- disabled={
- isSubmitting || !canProceedToLecture || !lectureName.trim()
- }
- className={`px-6 py-4 text-base font-semibold rounded-lg shadow-elevation-3 text-white transition select-none cursor-pointer flex items-center justify-center gap-2 ${
- canProceedToLecture && lectureName.trim() && !isSubmitting
+ disabled={isSubmitting || !lectureName.trim()}
+ className={`w-full sm:w-auto px-6 py-4 text-base font-semibold rounded-lg shadow-elevation-3 text-white transition select-none cursor-pointer flex items-center justify-center gap-2 ${
+ lectureName.trim() && !isSubmitting
  ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/30"
  : "bg-neutral-200 dark:bg-[#2C2C2E] text-neutral-500 dark:text-[#EBEBF599] cursor-not-allowed border-none shadow-elevation-0"
  }`}
@@ -543,6 +542,7 @@ export default function CreateLecture({
  )}
  </button>
  </div>
+ )}
  </form>
  </div>
  );
