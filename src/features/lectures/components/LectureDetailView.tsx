@@ -1611,7 +1611,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    const measure = () => {
      frame = 0;
      setLectureTabPill((previous) => {
-       const next = { left: node.offsetLeft, width: node.offsetWidth, ready: true };
+       const pillInset = 4;
+       const next = {
+         left: node.offsetLeft + pillInset,
+         width: Math.max(0, node.offsetWidth - pillInset * 2),
+         ready: true,
+       };
        if (
          previous.ready === next.ready &&
          Math.abs(previous.left - next.left) < 0.5 &&
@@ -1778,12 +1783,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <div
     ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
-    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg grid grid-cols-6 sm:flex items-center select-none min-h-9 w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
+    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-[3px] rounded-[14px] grid grid-cols-6 sm:flex items-center select-none h-[44px] sm:h-[40px] w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
   <motion.div
     aria-hidden="true"
-    className="absolute top-1 bottom-1 rounded-lg bg-white dark:bg-neutral-700 shadow-elevation-1 border border-black/5 dark:border-white/[0.12] z-0 pointer-events-none"
+    className="absolute top-[5px] bottom-[5px] sm:top-[4px] sm:bottom-[4px] rounded-[11px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] z-0 pointer-events-none"
     initial={false}
     animate={{
       x: lectureTabPill.left,
@@ -1811,17 +1816,17 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div
  key={tab.id}
  data-lecture-tab-id={tab.id}
- className="relative min-w-0 flex items-center justify-center h-7 z-10"
+ className="relative min-w-0 flex items-center justify-center h-full z-10"
  >
  <button
  type="button"
  onClick={() => {
  handleLectureTabChange(tab.id as typeof activeTab);
  }}
- className="relative rounded-lg text-[10.5px] min-[390px]:text-[11.5px] sm:text-sm tracking-[-0.015em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-1 sm:px-2 overflow-visible"
+ className="relative rounded-[11px] text-[10.75px] min-[390px]:text-[11.25px] sm:text-[13px] tracking-[-0.01em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-0.5 sm:px-1.5 overflow-visible"
  >
  <span
- className={`relative z-20 inline-flex w-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-200 ${
+ className={`relative z-20 inline-flex w-full h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
  isActive
  ? "text-black dark:text-white font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
