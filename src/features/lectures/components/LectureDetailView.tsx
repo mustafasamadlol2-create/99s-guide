@@ -1881,7 +1881,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    <span
      data-lecture-tab-label
      className={`relative z-20 inline-flex w-max max-w-none flex-none h-[30px] items-center justify-center rounded-[9px] whitespace-nowrap text-center leading-none border transition-[color,background-color,border-color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-       tab.id === "qa" ? "px-[6px]" : "px-[7px] min-[390px]:px-[8px]"
+       tab.id === "qa" ? "px-[5px]" : "px-[7px] min-[390px]:px-[8px]"
      } ${
        isActive
          ? "bg-white dark:bg-neutral-700 text-black dark:text-white font-semibold shadow-[0_2px_7px_rgba(0,0,0,0.075)] dark:shadow-[0_2px_9px_rgba(0,0,0,0.28)] border-black/[0.045] dark:border-white/[0.10]"
@@ -1892,7 +1892,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
        opacity: 1,
        WebkitFontSmoothing: "antialiased",
        backfaceVisibility: "hidden",
-       transform: "translateZ(0)",
+       transform: tab.id === "qa" ? "translate3d(6px,0,0)" : "translateZ(0)",
      }}
    >
      {tab.label}
