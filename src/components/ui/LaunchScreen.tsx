@@ -455,6 +455,8 @@ export const LaunchScreen = memo(function LaunchScreen({ onDone }: LaunchScreenP
   return (
     <div
       ref={wrapperRef}
+      dir="ltr"
+      lang="en"
       aria-hidden="true"
       role="status"
       aria-label="Loading"

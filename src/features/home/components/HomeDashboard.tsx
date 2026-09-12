@@ -731,6 +731,7 @@ const HeroBanner = memo(({
 
   return (
     <div
+      data-main-tab-swipe-zone={isPhone ? "true" : undefined}
       className={[
         "relative rounded-xl md:rounded-xl bg-[#05070B] text-white isolate home-hero-banner overflow-hidden",
         layout.heightClass, layout.paddingClass,
@@ -1330,25 +1331,31 @@ const HomeDashboard = memo(function HomeDashboard({
         <div className={`w-full flex flex-col ${device.spacing} items-start`}>
           {/* Main Dashboard Panel */}
           <div className={`w-full flex flex-col ${device.spacing}`}>
-            {/* 1. Welcome Section & Banner */}
-            <HeroBanner
-              isActive={isActive}
-              isRtl={isRtl}
-              smartGreeting={smartGreeting}
-              user={user}
-              smartSubtitle={smartSubtitle}
-              activeMottos={activeMottos}
-              mottoIndex={mottoIndex}
-              layout={layout}
-              t={t}
-              nextEvent={nextEvent}
-              onNavigateTab={onNavigateTab}
-              isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
-              isPhone={device.isPhone}
-            />
+            {/* 1. Welcome Section & Banner. On iPhone this whole hero cluster
+                is the safe root-tab swipe surface requested for Welcome. */}
+            <div
+              className="contents"
+              data-main-tab-swipe-zone={device.isPhone ? "true" : undefined}
+            >
+              <HeroBanner
+                isActive={isActive}
+                isRtl={isRtl}
+                smartGreeting={smartGreeting}
+                user={user}
+                smartSubtitle={smartSubtitle}
+                activeMottos={activeMottos}
+                mottoIndex={mottoIndex}
+                layout={layout}
+                t={t}
+                nextEvent={nextEvent}
+                onNavigateTab={onNavigateTab}
+                isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
+                isPhone={device.isPhone}
+              />
 
-            {/* 2. Banner Notification alert */}
-            {nextEvent && <UpcomingEventAlert nextEvent={nextEvent} isRtl={isRtl} onNavigateTab={onNavigateTab} t={t} />}
+              {/* 2. Banner Notification alert */}
+              {nextEvent && <UpcomingEventAlert nextEvent={nextEvent} isRtl={isRtl} onNavigateTab={onNavigateTab} t={t} />}
+            </div>
 
             {/* 3. Global Inline Search & Quick Actions */}
             <div className={`grid grid-cols-1 ${device.isPhone ? "" : "sm:grid-cols-2"} gap-3 items-start`}>

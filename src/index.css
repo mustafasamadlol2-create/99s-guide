@@ -5234,3 +5234,11 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     transform: translate3d(-14.375px, -2.5px, 0);
   }
 }
+
+/* Root iPhone tab pager capture zones. Vertical scrolling remains native; only
+   an unambiguous horizontal gesture is claimed by App.tsx. */
+.mobile-phone-layout [data-main-tab-swipe-zone="true"] {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}

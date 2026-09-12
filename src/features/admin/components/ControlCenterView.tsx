@@ -13,8 +13,9 @@ import React, {
   lazy,
   Suspense,
 } from "react";
+import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
-import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
+import { IOS_SWIPE_MOTION, getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
 import {
   User,
   UserProgress,
@@ -136,17 +137,34 @@ const PillNavButton = memo(({
 // ── Lazy-loaded panels ────────────────────────────────────────────────────────
 import UserPresenceWidget from "../../../components/ui/UserPresenceWidget";
 import CreateLecture from "../../lectures/components/CreateLecture";
-const UploadMaterial      = lazy(() => import("../../lectures/components/UploadMaterial"));
-const CreateMCQ           = lazy(() => import("../../lectures/components/CreateMCQ"));
-const CreateAnki          = lazy(() => import("../../lectures/components/CreateAnki"));
-const SendNotification    = lazy(() => import("../../bulletin/components/SendNotification"));
-const ManageCalendar      = lazy(() => import("../../calendar/components/ManageCalendar"));
-const ManageDailyMotto    = lazy(() => import("./ManageDailyMotto"));
-const UserRoleManagement  = lazy(() => import("./UserRoleManagement"));
-const ModerationView      = lazy(() => import("../../moderation/components/ModerationView"));
-const MutedUsersView      = lazy(() => import("../../moderation/components/MutedUsersView"));
-const BannedUsersView     = lazy(() => import("../../moderation/components/BannedUsersView"));
-const ModerationHistoryView = lazy(() => import("../../moderation/components/ModerationHistoryView"));
+
+// Keep the panels code-split for normal users, but warm the admin-only chunks as
+// soon as Control Center becomes active on iPhone. That removes the one-frame
+// Suspense gap that otherwise makes the first swipe to a never-opened tab feel
+// like a web page instead of a native pager.
+const loadUploadMaterial = () => import("../../lectures/components/UploadMaterial");
+const loadCreateMCQ = () => import("../../lectures/components/CreateMCQ");
+const loadCreateAnki = () => import("../../lectures/components/CreateAnki");
+const loadSendNotification = () => import("../../bulletin/components/SendNotification");
+const loadManageCalendar = () => import("../../calendar/components/ManageCalendar");
+const loadManageDailyMotto = () => import("./ManageDailyMotto");
+const loadUserRoleManagement = () => import("./UserRoleManagement");
+const loadModerationView = () => import("../../moderation/components/ModerationView");
+const loadMutedUsersView = () => import("../../moderation/components/MutedUsersView");
+const loadBannedUsersView = () => import("../../moderation/components/BannedUsersView");
+const loadModerationHistoryView = () => import("../../moderation/components/ModerationHistoryView");
+
+const UploadMaterial = lazy(loadUploadMaterial);
+const CreateMCQ = lazy(loadCreateMCQ);
+const CreateAnki = lazy(loadCreateAnki);
+const SendNotification = lazy(loadSendNotification);
+const ManageCalendar = lazy(loadManageCalendar);
+const ManageDailyMotto = lazy(loadManageDailyMotto);
+const UserRoleManagement = lazy(loadUserRoleManagement);
+const ModerationView = lazy(loadModerationView);
+const MutedUsersView = lazy(loadMutedUsersView);
+const BannedUsersView = lazy(loadBannedUsersView);
+const ModerationHistoryView = lazy(loadModerationHistoryView);
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -214,6 +232,11 @@ const ControlCenterView = function ControlCenterView({
   // horizontal transform. This preserves one solid page background throughout
   // the gesture and therefore cannot reveal a black/white root canvas.
   const consoleSwipeX = useMotionValue(0);
+  const consoleUnderlayX = useMotionValue(0);
+  const consoleUnderlayScale = useMotionValue(1);
+  const [consolePreviewSubTab, setConsolePreviewSubTab] = useState<SubTab | null>(null);
+  const consolePreviewSubTabRef = useRef<SubTab | null>(null);
+  const consoleSwipePhysicalSignRef = useRef<1 | -1>(1);
   const consoleSwipeSessionRef = useRef<{
     tracking: boolean;
     axis: "x" | "y" | null;
@@ -227,6 +250,26 @@ const ControlCenterView = function ControlCenterView({
   const consolePillStripRef = useRef<HTMLDivElement>(null);
   const subTabScrollPositionsRef = useRef<Partial<Record<SubTab, number>>>({});
   const pendingSubTabScrollRestoreRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isPhone || !isActive) return;
+
+    // Fire-and-forget preload. Dynamic-import promises are cached by the module
+    // loader, so rendering a preview later reuses the exact same chunks.
+    void Promise.allSettled([
+      loadUploadMaterial(),
+      loadCreateMCQ(),
+      loadCreateAnki(),
+      loadSendNotification(),
+      loadManageCalendar(),
+      loadManageDailyMotto(),
+      loadUserRoleManagement(),
+      loadModerationView(),
+      loadMutedUsersView(),
+      loadBannedUsersView(),
+      loadModerationHistoryView(),
+    ]);
+  }, [isActive, isPhone]);
 
   // Console tab paging is lateral navigation, not a pushed Back stack. Report
   // that explicitly so App never lets a stale flag interfere with root gestures.
@@ -478,9 +521,13 @@ const ControlCenterView = function ControlCenterView({
     pendingSubTabScrollRestoreRef.current =
       subTabScrollPositionsRef.current[next] ?? 0;
 
-    // A click/tap changes the pill and panel in the same React commit. Any
-    // previous partial swipe is reset so there is never a competing transform.
+    // Direct taps use the same stable shell as swipes. Clear any interrupted
+    // interactive state before the React commit so no stale transform survives.
     consoleSwipeX.set(0);
+    consoleUnderlayX.set(0);
+    consoleUnderlayScale.set(1);
+    consolePreviewSubTabRef.current = null;
+    setConsolePreviewSubTab(null);
     setActiveSubTab(next);
   };
 
@@ -507,11 +554,39 @@ const ControlCenterView = function ControlCenterView({
     return false;
   };
 
+  const clearConsolePreview = () => {
+    consolePreviewSubTabRef.current = null;
+    setConsolePreviewSubTab(null);
+    consoleUnderlayX.set(0);
+    consoleUnderlayScale.set(1);
+  };
+
   const resetConsoleSwipe = () => {
     const session = consoleSwipeSessionRef.current;
     session.tracking = false;
     session.axis = null;
     session.velocity = 0;
+
+    const exitSign = consoleSwipePhysicalSignRef.current;
+    if (consolePreviewSubTabRef.current) {
+      animate(consoleUnderlayX, -exitSign * IOS_SWIPE_MOTION.underlayOffset, {
+        type: "spring",
+        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
+        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
+      });
+      animate(consoleUnderlayScale, 0.985, {
+        type: "spring",
+        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
+        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
+        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
+        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
+        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
+      });
+    }
+
     animate(consoleSwipeX, 0, {
       type: "spring",
       stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
@@ -519,12 +594,17 @@ const ControlCenterView = function ControlCenterView({
       mass: IOS_SWIPE_MOTION.cancelSpring.mass,
       restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
       restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
+      onComplete: clearConsolePreview,
     });
   };
 
   const handleConsoleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (!isPhone || !isActive || consoleSwipeAnimatingRef.current) return;
     if (event.touches.length !== 1 || shouldIgnoreConsoleSwipe(event.target)) return;
+
+    // Start every gesture from a completely settled native page state.
+    clearConsolePreview();
+    consoleSwipeX.set(0);
     const touch = event.touches[0];
     consoleSwipeSessionRef.current = {
       tracking: true,
@@ -568,15 +648,37 @@ const ControlCenterView = function ControlCenterView({
     session.lastX = touch.clientX;
     session.lastTime = now;
 
-    // Keep the panel connected to the finger like the native Back gesture, but
-    // cap travel because Console does not mount two expensive admin panels at
-    // once. The surrounding page stays fully opaque, so there is never a blank
-    // interstitial canvas.
-    const maxTravel = Math.min(96, Math.max(44, window.innerWidth * 0.25));
-    const rendered = atBoundary
-      ? dx * IOS_SWIPE_MOTION.boundaryResistance
-      : Math.max(-maxTravel, Math.min(maxTravel, dx));
+    if (atBoundary) {
+      if (consolePreviewSubTabRef.current) clearConsolePreview();
+      consoleSwipeX.set(dx * IOS_SWIPE_MOTION.boundaryResistance);
+      return;
+    }
+
+    const next = navItems[desiredIndex]?.id;
+    if (!next) return;
+
+    const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
+    consoleSwipePhysicalSignRef.current = physicalSign;
+
+    // Mount the incoming admin panel *under* the current one as soon as the
+    // horizontal intent is known. It never contributes to layout height, so
+    // expensive forms cannot resize/reposition the shared scroll canvas mid-swipe.
+    if (consolePreviewSubTabRef.current !== next) {
+      consolePreviewSubTabRef.current = next;
+      setConsolePreviewSubTab(next);
+      consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+      consoleUnderlayScale.set(0.985);
+    }
+
+    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
+    const rendered = Math.max(-width, Math.min(width, dx));
+    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width * 0.72));
+
+    // True iOS feel: foreground follows the finger 1:1. The incoming page uses
+    // only the subtle approved 22px parallax and gently settles to full scale.
     consoleSwipeX.set(rendered);
+    consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress));
+    consoleUnderlayScale.set(0.985 + 0.015 * progress);
   };
 
   const handleConsoleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -614,27 +716,36 @@ const ControlCenterView = function ControlCenterView({
 
     consoleSwipeAnimatingRef.current = true;
 
-    const physicalSign = dx < 0 ? -1 : 1;
-    const exitTarget = physicalSign * Math.min(96, width * 0.25);
-    const finishIncoming = () => {
-      consoleSwipeAnimatingRef.current = false;
-    };
-    const commitAndEnter = () => {
-      // Commit while the opaque Console shell remains mounted, then use the same
-      // 22px parent-page reveal distance as Notifications/Settings for the new
-      // panel entrance. No opacity animation and no blank frame are involved.
-      selectSubTab(next);
-      consoleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
-      animate(consoleSwipeX, 0, {
-        type: "spring",
-        stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-        damping: IOS_SWIPE_MOTION.completionSpring.damping,
-        mass: IOS_SWIPE_MOTION.completionSpring.mass,
-        restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-        restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-        onComplete: finishIncoming,
-      });
-    };
+    const physicalSign: 1 | -1 = dx < 0 ? -1 : 1;
+    consoleSwipePhysicalSignRef.current = physicalSign;
+    const exitTarget = physicalSign * width;
+
+    // A very fast flick can finish before React has painted the preview from the
+    // last touchmove. Force that one state update now so there can never be a
+    // white/black interstitial frame while the outgoing panel leaves.
+    if (consolePreviewSubTabRef.current !== next) {
+      consolePreviewSubTabRef.current = next;
+      flushSync(() => setConsolePreviewSubTab(next));
+      consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+      consoleUnderlayScale.set(0.985);
+    }
+
+    animate(consoleUnderlayX, 0, {
+      type: "spring",
+      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+      damping: IOS_SWIPE_MOTION.completionSpring.damping,
+      mass: IOS_SWIPE_MOTION.completionSpring.mass,
+      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+    });
+    animate(consoleUnderlayScale, 1, {
+      type: "spring",
+      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
+      damping: IOS_SWIPE_MOTION.completionSpring.damping,
+      mass: IOS_SWIPE_MOTION.completionSpring.mass,
+      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
+      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+    });
 
     animate(consoleSwipeX, exitTarget, {
       type: "spring",
@@ -644,13 +755,97 @@ const ControlCenterView = function ControlCenterView({
       velocity: physicalSign * Math.min(session.velocity * 1000, width * 4.0),
       restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
       restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-      onComplete: commitAndEnter,
+      onComplete: () => {
+        const canvas = document.getElementById("main-scroll-canvas");
+        if (canvas) {
+          subTabScrollPositionsRef.current[activeSubTab] = canvas.scrollTop;
+        }
+        pendingSubTabScrollRestoreRef.current =
+          subTabScrollPositionsRef.current[next] ?? 0;
+
+        // Atomic visual handoff: replace the outgoing React panel with the panel
+        // already visible underneath and clear transforms in the same JS turn.
+        // Browser paint happens only after this completes, so there is no snap.
+        flushSync(() => {
+          setActiveSubTab(next);
+          setConsolePreviewSubTab(null);
+        });
+        consolePreviewSubTabRef.current = null;
+        consoleSwipeX.set(0);
+        consoleUnderlayX.set(0);
+        consoleUnderlayScale.set(1);
+        consoleSwipeAnimatingRef.current = false;
+      },
     });
   };
 
   const handleConsoleTouchCancel = () => {
     consoleSwipeAnimatingRef.current = false;
     resetConsoleSwipe();
+  };
+
+  const panelClassName = isPhone ? "" : "animate-fadeIn";
+
+  const renderConsolePanel = (tab: SubTab) => {
+    switch (tab) {
+      case "calendar":
+        return (
+          <div className={panelClassName}>
+            <ManageCalendar
+              language={language === "ar" ? "ar" : "en"}
+              onEventCreated={handleRefreshSubjects}
+              events={calendarEventsDb}
+              onDeleteEvent={onDeleteEvent}
+              onEditEvent={onEditEvent}
+            />
+          </div>
+        );
+      case "live-study-hall":
+        return (
+          <div className={`space-y-4 ${panelClassName}`}>
+            <div className="border-b border-neutral-100 dark:border-white/[0.12] pb-3 flex items-center gap-2 group relative">
+              <h3 className="text-headline font-display font-semibold text-neutral-800 dark:text-white text-right md:text-left">
+                {isRtl ? "قاعة الدراسة الحية عبر القنوات الحقيقية" : "Live Study Hall Real-time Presence"}
+              </h3>
+              <HelpCircle className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] cursor-help" />
+              <div className="absolute top-full left-0 mt-2 w-64 p-2 bg-neutral-800/95 dark:bg-neutral-700/95 backdrop-blur-sm text-white text-xs rounded-lg shadow-elevation-3 opacity-0 pointer-events-none group-hover:opacity-80 transition-opacity z-50">
+                {isRtl
+                  ? "قائمة بالطلبة والزملاء المتواجدين حالياً في المنصة بشكل مباشر."
+                  : "Real-time list of current cohort representatives and students active on the portal."}
+              </div>
+            </div>
+            <UserPresenceWidget isOwner={currentUser.role === "owner"} currentUserId={currentUser.id} />
+          </div>
+        );
+      case "lecture":
+        return <div className={panelClassName}><CreateLecture onLectureCreated={handleRefreshSubjects} language={language === "ar" ? "ar" : "en"} /></div>;
+      case "pdf":
+        return <div className={panelClassName}><UploadMaterial initialType="PDF" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
+      case "note":
+        return <div className={panelClassName}><UploadMaterial initialType="NOTE" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
+      case "video":
+        return <div className={panelClassName}><UploadMaterial initialType="VIDEO" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
+      case "mcq":
+        return <div className={panelClassName}><CreateMCQ language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
+      case "anki":
+        return <div className={panelClassName}><CreateAnki language={language === "ar" ? "ar" : "en"} /></div>;
+      case "notifications":
+        return <div className={panelClassName}><SendNotification language={language === "ar" ? "ar" : "en"} /></div>;
+      case "daily-motto":
+        return currentUser.role === "owner" ? <div className={panelClassName}><ManageDailyMotto language={language === "ar" ? "ar" : "en"} /></div> : null;
+      case "user-role-management":
+        return currentUser.role === "owner" ? <div className={panelClassName}><UserRoleManagement currentUser={currentUser} language={language === "ar" ? "ar" : "en"} /></div> : null;
+      case "moderation":
+        return currentUser.role === "owner" ? <div className={panelClassName}><ModerationView language={language === "ar" ? "ar" : "en"} /></div> : null;
+      case "muted-users":
+        return currentUser.role === "owner" ? <div className={panelClassName}><MutedUsersView /></div> : null;
+      case "banned-users":
+        return currentUser.role === "owner" ? <div className={panelClassName}><BannedUsersView /></div> : null;
+      case "moderation-history":
+        return currentUser.role === "owner" ? <div className={panelClassName}><ModerationHistoryView language={language} /></div> : null;
+      default:
+        return null;
+    }
   };
 
   // ── Sidebar: group categories to insert headings between items ───────────────
@@ -804,152 +999,42 @@ const ControlCenterView = function ControlCenterView({
             overflow-x-hidden
           `}
         >
-          <motion.div
-            className="w-full min-w-0"
-            style={{ x: isPhone ? consoleSwipeX : 0, willChange: isPhone ? "transform" : "auto" }}
-          >
-          <Suspense
-            fallback={
-              <div className="animate-pulse h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />
-            }
-          >
-            {activeSubTab === "calendar" && (
-              <div className="animate-fadeIn">
-                <ManageCalendar
-                  language={language === "ar" ? "ar" : "en"}
-                  onEventCreated={handleRefreshSubjects}
-                  events={calendarEventsDb}
-                  onDeleteEvent={onDeleteEvent}
-                  onEditEvent={onEditEvent}
-                />
-              </div>
+          <div className="relative w-full min-w-0">
+            {isPhone && consolePreviewSubTab && (
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 z-0 w-full min-w-0 pointer-events-none bg-white dark:bg-[#1C1C1E]"
+                style={{
+                  x: consoleUnderlayX,
+                  scale: consoleUnderlayScale,
+                  transformOrigin: "center center",
+                  willChange: "transform",
+                }}
+              >
+                <Suspense fallback={<div className="h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />}>
+                  {renderConsolePanel(consolePreviewSubTab)}
+                </Suspense>
+              </motion.div>
             )}
 
-            {activeSubTab === "live-study-hall" && (
-              <div className="space-y-4 animate-fadeIn">
-                <div className="border-b border-neutral-100 dark:border-white/[0.12] pb-3 flex items-center gap-2 group relative">
-                  <h3 className="text-headline font-display font-semibold text-neutral-800 dark:text-white text-right md:text-left">
-                    {isRtl
-                      ? "قاعة الدراسة الحية عبر القنوات الحقيقية"
-                      : "Live Study Hall Real-time Presence"}
-                  </h3>
-                  <HelpCircle className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] cursor-help" />
-                  <div className="absolute top-full left-0 mt-2 w-64 p-2 bg-neutral-800/95 dark:bg-neutral-700/95 backdrop-blur-sm text-white text-xs rounded-lg shadow-elevation-3 opacity-0 pointer-events-none group-hover:opacity-80 transition-opacity z-50">
-                    {isRtl
-                      ? "قائمة بالطلبة والزملاء المتواجدين حالياً في المنصة بشكل مباشر."
-                      : "Real-time list of current cohort representatives and students active on the portal."}
-                  </div>
-                </div>
-                <UserPresenceWidget
-                  isOwner={currentUser.role === "owner"}
-                  currentUserId={currentUser.id}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "lecture" && (
-              <div className="animate-fadeIn">
-                <CreateLecture
-                  onLectureCreated={handleRefreshSubjects}
-                  language={language === "ar" ? "ar" : "en"}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "pdf" && (
-              <div className="animate-fadeIn">
-                <UploadMaterial
-                  initialType="PDF"
-                  language={language === "ar" ? "ar" : "en"}
-                  onSuccess={handleRefreshSubjects}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "note" && (
-              <div className="animate-fadeIn">
-                <UploadMaterial
-                  initialType="NOTE"
-                  language={language === "ar" ? "ar" : "en"}
-                  onSuccess={handleRefreshSubjects}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "video" && (
-              <div className="animate-fadeIn">
-                <UploadMaterial
-                  initialType="VIDEO"
-                  language={language === "ar" ? "ar" : "en"}
-                  onSuccess={handleRefreshSubjects}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "mcq" && (
-              <div className="animate-fadeIn">
-                <CreateMCQ
-                  language={language === "ar" ? "ar" : "en"}
-                  onSuccess={handleRefreshSubjects}
-                />
-              </div>
-            )}
-
-            {activeSubTab === "anki" && (
-              <div className="animate-fadeIn">
-                <CreateAnki language={language === "ar" ? "ar" : "en"} />
-              </div>
-            )}
-
-            {activeSubTab === "notifications" && (
-              <div className="animate-fadeIn">
-                <SendNotification language={language === "ar" ? "ar" : "en"} />
-              </div>
-            )}
-
-            {activeSubTab === "daily-motto" && currentUser.role === "owner" && (
-              <div className="animate-fadeIn">
-                <ManageDailyMotto language={language === "ar" ? "ar" : "en"} />
-              </div>
-            )}
-
-            {activeSubTab === "user-role-management" &&
-              currentUser.role === "owner" && (
-                <div className="animate-fadeIn">
-                  <UserRoleManagement
-                    currentUser={currentUser}
-                    language={language === "ar" ? "ar" : "en"}
-                  />
-                </div>
-              )}
-
-            {activeSubTab === "moderation" && currentUser.role === "owner" && (
-              <div className="animate-fadeIn">
-                <ModerationView language={language === "ar" ? "ar" : "en"} />
-              </div>
-            )}
-
-            {activeSubTab === "muted-users" && currentUser.role === "owner" && (
-              <div className="animate-fadeIn">
-                <MutedUsersView />
-              </div>
-            )}
-
-            {activeSubTab === "banned-users" &&
-              currentUser.role === "owner" && (
-                <div className="animate-fadeIn">
-                  <BannedUsersView />
-                </div>
-              )}
-
-            {activeSubTab === "moderation-history" &&
-              currentUser.role === "owner" && (
-                <div className="animate-fadeIn">
-                  <ModerationHistoryView language={language} />
-                </div>
-              )}
-          </Suspense>
-          </motion.div>
+            <motion.div
+              className="relative z-10 w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+              style={{
+                x: isPhone ? consoleSwipeX : 0,
+                willChange: isPhone ? "transform" : "auto",
+                boxShadow:
+                  isPhone && consolePreviewSubTab
+                    ? getSwipeLayerShadowForExitSign(consoleSwipePhysicalSignRef.current)
+                    : "none",
+              }}
+            >
+              <Suspense
+                fallback={<div className="animate-pulse h-32 rounded-lg bg-neutral-100 dark:bg-white/[0.05]" />}
+              >
+                {renderConsolePanel(activeSubTab)}
+              </Suspense>
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>
