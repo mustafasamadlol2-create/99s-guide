@@ -1613,32 +1613,33 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      frame = 0;
      setLectureTabPill((previous) => {
        const labelRect = labelNode?.getBoundingClientRect();
+       const nodeRect = node.getBoundingClientRect();
        const containerRect = container.getBoundingClientRect();
-       const labelWidth = labelRect?.width ?? 0;
+       const labelWidth = labelNode
+         ? Math.ceil(Math.max(labelNode.scrollWidth, labelRect?.width ?? 0))
+         : 0;
        const isDesktopTabs = window.matchMedia("(min-width: 640px)").matches;
 
        let nextLeft: number;
        let measuredWidth: number;
 
-       if (isRtl && labelRect) {
-         // RTL/WKWebView: do not derive the selected thumb from the equal-width
-         // grid cell. `offsetLeft` can be reported relative to the RTL layout
-         // context and makes Arabic labels look as if they still own a full
-         // segment. Anchor the thumb to the physical glyph bounds instead.
-         // This makes every Arabic word get its own natural-sized selector.
-         const horizontalPadding = isDesktopTabs ? 14 : 10;
-         const minimumWidth = isDesktopTabs ? 46 : 42;
-         measuredWidth = Math.max(
-           minimumWidth,
-           Math.ceil(labelWidth + horizontalPadding * 2),
+       if (isRtl && labelNode) {
+         // Arabic/WKWebView must not use the label's logical RTL left edge or
+         // the equal grid-cell width. Center the selector on the *physical*
+         // tab cell, then size it only from the intrinsic word width.
+         // `scrollWidth` + `w-max` below prevents the Arabic label from ever
+         // stretching to the full segment width.
+         const horizontalPaddingTotal = isDesktopTabs ? 20 : 16;
+         const edgeInset = 4;
+         const cellInnerMax = Math.max(0, nodeRect.width - 8);
+         measuredWidth = Math.min(
+           cellInnerMax,
+           Math.max(36, labelWidth + horizontalPaddingTotal),
          );
 
-         // Position from the *visual* left edge, independent of RTL logical
-         // start/end semantics, then clamp inside the segmented-control shell.
-         nextLeft =
-           labelRect.left - containerRect.left - (measuredWidth - labelWidth) / 2;
-         const edgeInset = 4;
-         measuredWidth = Math.min(measuredWidth, containerRect.width - edgeInset * 2);
+         const physicalCellCenter =
+           nodeRect.left - containerRect.left + nodeRect.width / 2;
+         nextLeft = physicalCellCenter - measuredWidth / 2;
          nextLeft = Math.min(
            Math.max(edgeInset, nextLeft),
            Math.max(edgeInset, containerRect.width - edgeInset - measuredWidth),
@@ -1871,7 +1872,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  <span
  data-lecture-tab-label
- className={`relative z-20 inline-flex h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
+ className={`relative z-20 inline-flex w-max flex-none h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
  isActive
  ? "text-black dark:text-white font-semibold"
  : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
