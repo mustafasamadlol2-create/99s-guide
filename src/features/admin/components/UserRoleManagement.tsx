@@ -265,12 +265,40 @@ try {
 
  const shouldIgnoreRoleSwipe = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
-  if (target.closest('input, textarea, select, [contenteditable="true"], [data-role-filter-swipe-ignore="true"]')) return true;
+  // The Search field itself is intentionally swipe-enabled. We do not call
+  // preventDefault until horizontal intent is locked, so taps/focus/typing keep
+  // their native behavior while a deliberate horizontal drag belongs to Roles.
+  if (target.closest('textarea, select, [contenteditable="true"], [data-role-filter-swipe-ignore="true"]')) return true;
   const button = target.closest("button");
-  return Boolean(button && !button.hasAttribute("data-role-filter-tab"));
+  return Boolean(button);
  };
 
+ const isRoleLocalSwipeZone = (target: EventTarget | null) =>
+  target instanceof HTMLElement && Boolean(target.closest('[data-role-filter-local-zone="true"]'));
+
+ const preserveMainScrollDuringRoleCommit = useCallback((commit: () => void) => {
+  const canvas = document.getElementById("main-scroll-canvas");
+  const savedTop = canvas?.scrollTop ?? null;
+
+  if (canvas) canvas.dataset.programmaticScrollRestore = "true";
+  flushSync(commit);
+
+  // Keep the shared Console canvas at the exact same visual level in the same
+  // JS turn as the filter handoff. There is intentionally no delayed scroll
+  // write: no RAF/setTimeout can create a post-swipe reposition or "refresh".
+  if (canvas && savedTop !== null) {
+   const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
+   canvas.scrollTop = Math.min(savedTop, maxScroll);
+   requestAnimationFrame(() => {
+    if (canvas.dataset.programmaticScrollRestore === "true") {
+     delete canvas.dataset.programmaticScrollRestore;
+    }
+   });
+  }
+ }, []);
+
  const handleRoleSwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
+  if (!isRoleLocalSwipeZone(event.target)) return;
   if (event.touches.length !== 1 || roleSwipeAnimatingRef.current || shouldIgnoreRoleSwipe(event.target)) return;
   const touch = event.touches[0];
   roleSwipeX.stop();
@@ -330,7 +358,8 @@ try {
    return;
   }
 
-  setRoleSwipePreview(ROLE_FILTER_ORDER[nextIndex]);
+  const previewFilter = ROLE_FILTER_ORDER[nextIndex];
+  setRoleSwipePreview((current) => current === previewFilter ? current : previewFilter);
   // This is an iOS segmented-content swipe, not a pushed page. Keep the list
   // attached to the finger while limiting travel so the card never exposes a gap.
   const rendered = Math.max(
@@ -368,21 +397,28 @@ try {
   }
 
   const nextFilter = ROLE_FILTER_ORDER[nextIndex];
-  const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
   roleSwipeAnimatingRef.current = true;
 
-  // One-frame content handoff: the filter state and the 22px incoming offset
-  // are committed before the browser paints, then the new list settles home.
-  flushSync(() => {
+  // Preserve visual continuity: the incoming list inherits the exact rendered X
+  // position of the outgoing list. The old implementation jumped from the drag
+  // position to an opposite 22px offset at commit, which was perceived as a
+  // vibration/resize. Now there is one continuous settle to zero.
+  const handoffX = Math.max(
+   -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
+   Math.min(IOS_CONSOLE_SMOOTH_MOTION.roleDragMax, roleSwipeX.get()),
+  );
+  preserveMainScrollDuringRoleCommit(() => {
    setRoleFilter(nextFilter);
    setRoleSwipePreview(null);
   });
-  roleSwipeX.set(-physicalSign * IOS_CONSOLE_SMOOTH_MOTION.underlayOffset);
+  roleSwipeX.set(handoffX);
   animate(roleSwipeX, 0, {
    ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
-   velocity:
-    -physicalSign * Math.min(session.velocity * 1000, window.innerWidth * IOS_CONSOLE_SMOOTH_MOTION.completionVelocityScreensPerSecond),
+   // Do not inject the release spike into freshly swapped content. The position
+   // continuity already carries the gesture; a clean spring removes micro-jitter.
+   velocity: 0,
    onComplete: () => {
+    roleSwipeX.set(0);
     roleSwipeAnimatingRef.current = false;
    },
   });
@@ -403,7 +439,7 @@ try {
    : (isRtl ? -1 : 1);
 
   roleSwipeAnimatingRef.current = true;
-  flushSync(() => {
+  preserveMainScrollDuringRoleCommit(() => {
    setRoleFilter(nextFilter);
    setRoleSwipePreview(null);
   });
@@ -437,8 +473,7 @@ try {
  <div
   className="space-y-4 overflow-x-hidden"
   id="user_role_management_view"
-  data-role-filter-swipe="true"
-  style={{ touchAction: "pan-y" }}
+  style={{ touchAction: "pan-y", overflowAnchor: "none" }}
   onTouchStart={handleRoleSwipeStart}
   onTouchMove={handleRoleSwipeMove}
   onTouchEnd={handleRoleSwipeEnd}
@@ -460,7 +495,7 @@ try {
  {/* Header Section: Filters + Search */}
  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
  {/* Filters (Left) */}
- <div className="flex items-center gap-4 border-b border-black/5 dark:border-white/[0.12] w-full md:w-auto overflow-x-auto no-scrollbar overscroll-x-contain">
+ <div className="flex items-center justify-between md:justify-start gap-3 md:gap-4 border-b border-black/5 dark:border-white/[0.12] w-full md:w-auto overflow-visible md:overflow-x-auto no-scrollbar md:overscroll-x-contain">
  {roleFilters.map((filter) => (
  <button
  key={filter.id}
@@ -481,7 +516,11 @@ try {
  </div>
 
  {/* Search Bar (Right) */}
- <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+ <div
+  className="flex items-center gap-2 w-full md:w-auto shrink-0"
+  data-role-filter-local-zone="true"
+  style={{ touchAction: "pan-y", overflowAnchor: "none" }}
+ >
  <div className="relative flex items-center w-full md:w-[260px]">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] pointer-events-none" />
  <input aria-label="Input field"
@@ -494,6 +533,7 @@ try {
  />
  </div>
  <button
+ data-role-filter-swipe-ignore="true"
  onClick={() => void fetchUsers(true)}
  className="p-2 rounded-lg bg-black/5 hover:bg-black/10 text-neutral-500 hover:text-neutral-800 dark:bg-[rgba(255,255,255,0.05)] dark:hover:bg-[rgba(255,255,255,0.1)] dark:hover:text-white transition-colors border border-black/10 dark:border-[rgba(255,255,255,0.1)] shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
  title="Refresh List"
@@ -508,6 +548,11 @@ try {
  </div>
  </div>
 
+ <div
+  data-role-filter-local-zone="true"
+  className="space-y-4 overflow-x-hidden"
+  style={{ touchAction: "pan-y", overflowAnchor: "none" }}
+ >
  {/* Notifications */}
  {successMessage && (
  <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg flex items-center gap-3 text-emerald-800 dark:text-emerald-400 text-caption font-medium animate-fadeIn">
@@ -529,6 +574,8 @@ try {
   className="will-change-transform"
   style={{
    x: roleSwipeX,
+   overflowAnchor: "none",
+   transformOrigin: "center center",
    backfaceVisibility: "hidden",
    WebkitBackfaceVisibility: "hidden",
   }}
@@ -694,6 +741,7 @@ try {
  </div>
  )}
  </motion.div>
+ </div>
  </div>
  );
 }

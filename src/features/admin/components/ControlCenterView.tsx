@@ -245,7 +245,8 @@ const ControlCenterView = function ControlCenterView({
     lastX: number;
     lastTime: number;
     velocity: number;
-  }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0 });
+    roleHeaderZone: boolean;
+  }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0, roleHeaderZone: false });
   const consoleSwipeAnimatingRef = useRef(false);
   const consolePillStripRef = useRef<HTMLDivElement>(null);
   const subTabScrollPositionsRef = useRef<Partial<Record<SubTab, number>>>({});
@@ -590,7 +591,7 @@ const ControlCenterView = function ControlCenterView({
     if (!(target instanceof HTMLElement)) return false;
     if (
       target.closest(
-        '[data-console-nav-strip="true"], [data-role-filter-swipe="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
+        '[data-console-nav-strip="true"], [data-role-filter-local-zone="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
       )
     ) {
       return true;
@@ -656,6 +657,12 @@ const ControlCenterView = function ControlCenterView({
     clearConsolePreview();
     consoleSwipeX.set(0);
     const touch = event.touches[0];
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const roleHeaderZone = Boolean(
+      activeSubTab === "user-role-management" &&
+      target?.closest("#user_role_management_view") &&
+      !target?.closest('[data-role-filter-local-zone="true"]'),
+    );
     consoleSwipeSessionRef.current = {
       tracking: true,
       axis: null,
@@ -664,6 +671,7 @@ const ControlCenterView = function ControlCenterView({
       lastX: touch.clientX,
       lastTime: performance.now(),
       velocity: 0,
+      roleHeaderZone,
     };
   };
 
@@ -699,7 +707,10 @@ const ControlCenterView = function ControlCenterView({
     if (event.cancelable) event.preventDefault();
 
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    const physicalForward = isRtl ? dx > 0 : dx < 0;
+    // On the Roles heading/filter strip the requested physical mapping is fixed:
+    // swipe right -> Live Study Hall, swipe left -> Calendar, regardless of RTL.
+    // Everywhere else Console keeps its normal language-aware direction.
+    const physicalForward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
     const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
     const atBoundary = desiredIndex < 0 || desiredIndex >= navItems.length;
 
@@ -764,7 +775,10 @@ const ControlCenterView = function ControlCenterView({
         session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
 
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    const physicalForward = isRtl ? dx > 0 : dx < 0;
+    // On the Roles heading/filter strip the requested physical mapping is fixed:
+    // swipe right -> Live Study Hall, swipe left -> Calendar, regardless of RTL.
+    // Everywhere else Console keeps its normal language-aware direction.
+    const physicalForward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
     const desiredIndex = currentIndex + (physicalForward ? 1 : -1);
 
     if (!qualifies || desiredIndex < 0 || desiredIndex >= navItems.length) {

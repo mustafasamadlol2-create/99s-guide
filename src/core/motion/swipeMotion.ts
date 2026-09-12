@@ -96,8 +96,8 @@ export const IOS_CONSOLE_SMOOTH_MOTION = {
   },
 
   // Local content pager tuning for All / Owner / Admin / Student.
-  roleDragFactor: 0.32,
-  roleDragMax: 46,
+  roleDragFactor: 0.40,
+  roleDragMax: 52,
 } as const;
 
 export function getNativeSwipeLayerShadow(isRtl: boolean): string {
