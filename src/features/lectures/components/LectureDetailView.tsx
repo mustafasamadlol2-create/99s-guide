@@ -1601,6 +1601,11 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  // and make the active label appear blank. Measuring the real tab node and
  // animating one permanent underlay keeps every word mounted and fully opaque.
  useLayoutEffect(() => {
+   // Arabic renders its active pill intrinsically around the label itself.
+   // Skip all geometry measurement in RTL so WKWebView can never re-expand
+   // the selector to the equal grid-cell width.
+   if (isRtl) return;
+
    const container = lectureTabbarRef.current;
    const node = container?.querySelector<HTMLElement>(
      `[data-lecture-tab-id="${activeTab}"]`,
@@ -1831,18 +1836,20 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-[3px] rounded-[14px] grid grid-cols-6 sm:flex items-center select-none h-[44px] sm:h-[40px] w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
-  <motion.div
-    aria-hidden="true"
-    className="absolute top-[5px] bottom-[5px] sm:top-[4px] sm:bottom-[4px] rounded-[11px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] z-0 pointer-events-none"
-    initial={false}
-    animate={{
-      x: lectureTabPill.left,
-      width: lectureTabPill.width,
-      opacity: lectureTabPill.ready ? 1 : 0,
-    }}
-    transition={IOS_SWIPE_MOTION.completionSpring}
-    style={{ left: 0, willChange: "transform,width", transform: "translateZ(0)" }}
-  />
+  {!isRtl && (
+    <motion.div
+      aria-hidden="true"
+      className="absolute top-[5px] bottom-[5px] sm:top-[4px] sm:bottom-[4px] rounded-[11px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] z-0 pointer-events-none"
+      initial={false}
+      animate={{
+        x: lectureTabPill.left,
+        width: lectureTabPill.width,
+        opacity: lectureTabPill.ready ? 1 : 0,
+      }}
+      transition={IOS_SWIPE_MOTION.completionSpring}
+      style={{ left: 0, willChange: "transform,width", transform: "translateZ(0)" }}
+    />
+  )}
  {([
  { id: "pdf", label: "PDF" },
  { id: "notes", label: isRtl ? "الملاحظات" : "Notes" },
@@ -1870,21 +1877,57 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  }}
  className="relative rounded-[11px] text-[10.75px] min-[390px]:text-[11.25px] sm:text-[13px] tracking-[-0.01em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-0.5 sm:px-1.5 overflow-visible"
  >
- <span
- data-lecture-tab-label
- className={`relative z-20 inline-flex w-max flex-none h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
- isActive
- ? "text-black dark:text-white font-semibold"
- : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
- }`}
- style={{
-   opacity: 1,
-   transform: "translateZ(0)",
-   backfaceVisibility: "hidden",
- }}
- >
- {tab.label}
- </span>
+ {isRtl ? (
+   <motion.span
+     className={`relative z-20 inline-flex w-max max-w-none flex-none h-[34px] items-center justify-center rounded-[10px] px-[9px] min-[390px]:px-[10px] whitespace-nowrap leading-none ${
+       isActive
+         ? "text-black dark:text-white font-semibold"
+         : "text-neutral-500 dark:text-[var(--text-secondary)] font-medium"
+     }`}
+     initial={false}
+     animate={isActive ? { scale: 1 } : { scale: 0.985 }}
+     transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.72 }}
+     style={{
+       opacity: 1,
+       transformOrigin: "center",
+       backfaceVisibility: "hidden",
+     }}
+   >
+     {isActive && (
+       <motion.span
+         aria-hidden="true"
+         className="absolute inset-0 rounded-[10px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] pointer-events-none"
+         initial={{ opacity: 0.72, scale: 0.96 }}
+         animate={{ opacity: 1, scale: 1 }}
+         exit={{ opacity: 0, scale: 0.98 }}
+         transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.72 }}
+       />
+     )}
+     <span
+       data-lecture-tab-label
+       className="relative z-10 inline-block w-max max-w-none whitespace-nowrap text-center leading-none"
+       style={{ width: "max-content" }}
+     >
+       {tab.label}
+     </span>
+   </motion.span>
+ ) : (
+   <span
+     data-lecture-tab-label
+     className={`relative z-20 inline-flex w-max flex-none h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
+       isActive
+         ? "text-black dark:text-white font-semibold"
+         : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
+     }`}
+     style={{
+       opacity: 1,
+       transform: "translateZ(0)",
+       backfaceVisibility: "hidden",
+     }}
+   >
+     {tab.label}
+   </span>
+ )}
  </button>
 
  {showDivider && (
