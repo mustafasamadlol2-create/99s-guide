@@ -1612,19 +1612,51 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    const measure = () => {
      frame = 0;
      setLectureTabPill((previous) => {
-       const labelWidth = labelNode?.getBoundingClientRect().width ?? 0;
-       // The selected thumb follows the actual word width instead of filling
-       // the whole equal-width grid cell. This keeps short labels such as PDF
-       // compact while giving Arabic labels like "الملاحظات" enough room.
-       const horizontalPadding = window.matchMedia("(min-width: 640px)").matches ? 24 : 18;
-       const minimumWidth = 48;
-       const maximumWidth = Math.max(minimumWidth, node.offsetWidth - 8);
-       const measuredWidth = Math.min(
-         maximumWidth,
-         Math.max(minimumWidth, Math.ceil(labelWidth + horizontalPadding * 2)),
-       );
+       const labelRect = labelNode?.getBoundingClientRect();
+       const containerRect = container.getBoundingClientRect();
+       const labelWidth = labelRect?.width ?? 0;
+       const isDesktopTabs = window.matchMedia("(min-width: 640px)").matches;
+
+       let nextLeft: number;
+       let measuredWidth: number;
+
+       if (isRtl && labelRect) {
+         // RTL/WKWebView: do not derive the selected thumb from the equal-width
+         // grid cell. `offsetLeft` can be reported relative to the RTL layout
+         // context and makes Arabic labels look as if they still own a full
+         // segment. Anchor the thumb to the physical glyph bounds instead.
+         // This makes every Arabic word get its own natural-sized selector.
+         const horizontalPadding = isDesktopTabs ? 14 : 10;
+         const minimumWidth = isDesktopTabs ? 46 : 42;
+         measuredWidth = Math.max(
+           minimumWidth,
+           Math.ceil(labelWidth + horizontalPadding * 2),
+         );
+
+         // Position from the *visual* left edge, independent of RTL logical
+         // start/end semantics, then clamp inside the segmented-control shell.
+         nextLeft =
+           labelRect.left - containerRect.left - (measuredWidth - labelWidth) / 2;
+         const edgeInset = 4;
+         measuredWidth = Math.min(measuredWidth, containerRect.width - edgeInset * 2);
+         nextLeft = Math.min(
+           Math.max(edgeInset, nextLeft),
+           Math.max(edgeInset, containerRect.width - edgeInset - measuredWidth),
+         );
+       } else {
+         // Preserve the already-correct English sizing exactly as before.
+         const horizontalPadding = isDesktopTabs ? 24 : 18;
+         const minimumWidth = 48;
+         const maximumWidth = Math.max(minimumWidth, node.offsetWidth - 8);
+         measuredWidth = Math.min(
+           maximumWidth,
+           Math.max(minimumWidth, Math.ceil(labelWidth + horizontalPadding * 2)),
+         );
+         nextLeft = node.offsetLeft + (node.offsetWidth - measuredWidth) / 2;
+       }
+
        const next = {
-         left: node.offsetLeft + (node.offsetWidth - measuredWidth) / 2,
+         left: nextLeft,
          width: measuredWidth,
          ready: true,
        };
