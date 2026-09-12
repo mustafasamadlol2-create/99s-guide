@@ -4936,10 +4936,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   display: none;
 }
 
-/* Week cards fill the same stable page viewport instead of changing the deck. */
+/* Week cards fill the same stable page viewport instead of changing the deck.
+   Keep the intermediate week deck stretched too; otherwise percentage heights
+   resolve against an auto-height parent and the day cards collapse to their
+   content height, leaving a large unused area underneath on iPhone. */
+.mobile-phone-layout .calendar-phone-view-shell #calendar_week_grid_deck {
+  height: 100%;
+  min-height: 100%;
+}
+
 .mobile-phone-layout .calendar-phone-view-shell #week_columns_container {
   height: 100%;
-  min-height: 0;
+  min-height: 100%;
   padding-bottom: 8px;
 }
 
