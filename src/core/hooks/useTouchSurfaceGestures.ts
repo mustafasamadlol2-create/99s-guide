@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
+import { flushSync } from "react-dom";
 import { HapticFeedback } from "../device/haptic";
 import { NativeBridge } from "../device/capacitor/nativeBridge";
 import { isAppleTouchNavigationDevice } from "./useSwipeBack";
@@ -105,13 +106,18 @@ export function useSwipeDownDismiss<T extends HTMLElement = HTMLDivElement>({
       settlingRef.current = true;
       const height = viewportHeight();
       const finish = () => {
-        settlingRef.current = false;
         if (success) {
           HapticFeedback.impact("light");
-          onDismissRef.current();
+          // Match swipe-back's no-flicker commit: close the sheet synchronously
+          // before WebKit gets a chance to paint the offscreen surface snapping
+          // back to its resting transform.
+          flushSync(() => {
+            onDismissRef.current();
+          });
           y.set(0);
           progress.set(0);
         }
+        settlingRef.current = false;
         setIsInteracting(false);
       };
       const onUpdate = (latest: number) => {
@@ -130,7 +136,9 @@ export function useSwipeDownDismiss<T extends HTMLElement = HTMLDivElement>({
         stiffness: profile.stiffness,
         damping: profile.damping,
         mass: profile.mass,
-        velocity: Math.min(releaseVelocity * 1000, height * (success ? 4 : 1.6)),
+        velocity: Math.min(releaseVelocity * 1000, height * (success
+          ? IOS_SWIPE_MOTION.completionVelocityScreensPerSecond
+          : IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond)),
         restSpeed: profile.restSpeed,
         restDelta: profile.restDelta,
         onUpdate,
@@ -177,13 +185,13 @@ export function useSwipeDownDismiss<T extends HTMLElement = HTMLDivElement>({
         if (
           dy < -IOS_SWIPE_MOTION.axisLockDistance ||
           (Math.abs(dx) >= IOS_SWIPE_MOTION.verticalRejectDistance &&
-            Math.abs(dx) > Math.abs(dy) * 1.25)
+            Math.abs(dx) > Math.abs(dy) * IOS_SWIPE_MOTION.verticalRejectRatio)
         ) {
           resetTracking();
           return;
         }
         if (dy < IOS_SWIPE_MOTION.axisLockDistance) return;
-        if (Math.abs(dx) > dy * 0.95) return;
+        if (Math.abs(dx) > dy * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
         verticalLockRef.current = true;
         setIsInteracting(true);
       }
@@ -193,7 +201,9 @@ export function useSwipeDownDismiss<T extends HTMLElement = HTMLDivElement>({
       const now = performance.now();
       const dt = Math.max(1, now - lastTimeRef.current);
       const instantaneousVelocity = Math.max(0, (touch.clientY - lastYRef.current) / dt);
-      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
+      velocityRef.current =
+        velocityRef.current * IOS_SWIPE_MOTION.velocityPreviousWeight +
+        instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
       lastYRef.current = touch.clientY;
       lastTimeRef.current = now;
 
@@ -203,12 +213,10 @@ export function useSwipeDownDismiss<T extends HTMLElement = HTMLDivElement>({
       // The sheet stays directly under the finger until it reaches one viewport.
       const offset = Math.min(height, raw);
 
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        y.set(offset);
-        progress.set(Math.min(1, offset / Math.max(1, height)));
-      });
+      // Match Notifications -> Profile exactly: MotionValues are written from
+      // the touch packet itself, with no extra RAF of latency behind the finger.
+      y.set(offset);
+      progress.set(Math.min(1, offset / Math.max(1, height)));
     };
 
     const finishGesture = (event: TouchEvent | null, cancelled = false) => {
@@ -281,14 +289,6 @@ interface HorizontalSwipePagerOptions {
   reserveBackEdge?: boolean;
   commitDistance?: number;
   velocityThreshold?: number;
-  /**
-   * "page" keeps the original full page-style exit/enter choreography.
-   * "settle" commits the destination immediately and settles the shared
-   * surface back to rest so content + segmented indicator move together.
-   */
-  completionMode?: "page" | "settle";
-  /** Visual fraction of the raw finger drag applied by compact settle pagers. */
-  visualScale?: number;
 }
 
 export interface HorizontalSwipePagerGesture<T extends HTMLElement = HTMLDivElement> {
@@ -314,8 +314,6 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   reserveBackEdge = true,
   commitDistance = 0,
   velocityThreshold = IOS_SWIPE_MOTION.velocityThreshold,
-  completionMode = "page",
-  visualScale = 0.28,
 }: HorizontalSwipePagerOptions): HorizontalSwipePagerGesture<T> {
   const surfaceRef = useRef<T | null>(null);
   const x = useMotionValue(0);
@@ -332,8 +330,6 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
   const reserveBackEdgeRef = useRef(reserveBackEdge);
   const commitDistanceRef = useRef(commitDistance);
   const velocityThresholdRef = useRef(velocityThreshold);
-  const completionModeRef = useRef(completionMode);
-  const visualScaleRef = useRef(visualScale);
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -358,8 +354,6 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
     reserveBackEdgeRef.current = reserveBackEdge;
     commitDistanceRef.current = commitDistance;
     velocityThresholdRef.current = velocityThreshold;
-    completionModeRef.current = completionMode;
-    visualScaleRef.current = Math.max(0.12, Math.min(1, visualScale));
   });
 
   const didDragRecently = useCallback(() => performance.now() - lastDragAtRef.current < 360, []);
@@ -433,12 +427,12 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       const dy = touch.clientY - startYRef.current;
 
       if (!horizontalLockRef.current) {
-        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * 1.25) {
+        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * IOS_SWIPE_MOTION.verticalRejectRatio) {
           resetTracking();
           return;
         }
         if (Math.abs(dx) < IOS_SWIPE_MOTION.axisLockDistance) return;
-        if (Math.abs(dy) > Math.abs(dx) * 0.62) return;
+        if (Math.abs(dy) > Math.abs(dx) * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
         horizontalLockRef.current = true;
         lastDragAtRef.current = performance.now();
         setIsInteracting(true);
@@ -450,21 +444,33 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
       const now = performance.now();
       const dt = Math.max(1, now - lastTimeRef.current);
       const instantaneousVelocity = Math.abs(touch.clientX - lastXRef.current) / dt;
-      velocityRef.current = velocityRef.current * 0.68 + instantaneousVelocity * 0.32;
+      velocityRef.current =
+        velocityRef.current * IOS_SWIPE_MOTION.velocityPreviousWeight +
+        instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
       const { allowed } = logicalRequest(dx);
-      // Native-style rubber band at the first/last item rather than a hard stop.
-      const renderedDx = allowed ? dx : dx * IOS_SWIPE_MOTION.boundaryResistance;
       const width = Math.max(1, node.getBoundingClientRect().width || window.innerWidth || 1);
-      const clamped = Math.max(-width, Math.min(width, renderedDx));
 
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        x.set(clamped);
-      });
+      // Lecture/segmented content uses the same recognition, velocity filtering,
+      // commit thresholds and spring timing as Notifications -> Profile, but the
+      // visual travel is intentionally compact like an iOS segmented-content
+      // transition. Follow the finger 1:1 for the first 44 px, then apply the
+      // same native rubber-band resistance. This keeps the opaque workspace
+      // continuously filled instead of exposing a white/black gap while still
+      // making the drag feel directly connected to the finger.
+      const nativeTravel = IOS_SWIPE_MOTION.underlayOffset * 2;
+      const rawDistance = Math.abs(dx);
+      const compactDistance = rawDistance <= nativeTravel
+        ? rawDistance
+        : nativeTravel + (rawDistance - nativeTravel) * IOS_SWIPE_MOTION.boundaryResistance;
+      const allowedRendered = Math.sign(dx || 1) * Math.min(width, compactDistance);
+      const renderedDx = allowed
+        ? allowedRendered
+        : dx * IOS_SWIPE_MOTION.boundaryResistance;
+
+      x.set(Math.max(-width, Math.min(width, renderedDx)));
     };
 
     const finishGesture = (event: TouchEvent | null, cancelled = false) => {
@@ -505,7 +511,9 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
 
       const physicalSign = dx < 0 ? -1 : 1;
       const signedVelocity =
-        physicalSign * Math.min(releaseVelocity * 1000, width * (success ? 4.0 : 1.6));
+        physicalSign * Math.min(releaseVelocity * 1000, width * (success
+          ? IOS_SWIPE_MOTION.completionVelocityScreensPerSecond
+          : IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond));
 
       if (!success) {
         const finishCancel = () => {
@@ -534,89 +542,35 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
         HapticFeedback.selection();
       };
 
-      if (completionModeRef.current === "settle") {
-        // Content pagers cannot render two heavy workspaces simultaneously, so
-        // they use the same native spring character in a compact push/pop form:
-        // finish the current finger momentum, commit while the opaque shell stays
-        // mounted, then let the incoming content settle from the same 22px
-        // underlay distance used by Notifications/Settings -> Profile.
-        const settleVisualScale = visualScaleRef.current;
-        const nativeOffsetInGestureSpace = IOS_SWIPE_MOTION.underlayOffset / settleVisualScale;
-        const settleTarget = physicalSign * Math.min(width * 0.22, nativeOffsetInGestureSpace);
-
-        const finishOutgoing = () => {
+      // iOS segmented-content handoff: the outgoing content only travels a
+      // compact native distance; the destination is committed synchronously
+      // while the opaque card shell remains mounted, then the incoming content
+      // settles from the opposite 22 px underlay offset. There is no full-width
+      // blank sweep and no second animation language.
+      const outgoingTarget = physicalSign * IOS_SWIPE_MOTION.underlayOffset * 2;
+      const finishOutgoing = () => {
+        flushSync(() => {
           commitDestination();
-          x.set(-physicalSign * Math.min(width * 0.22, nativeOffsetInGestureSpace));
-
-          const finishIncoming = () => {
-            settlingRef.current = false;
-            setIsInteracting(false);
-          };
-          const entrance = reduceMotion
-            ? animate(x, 0, { duration: 0.01, onComplete: finishIncoming })
-            : animate(x, 0, {
-                type: "spring",
-                stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-                damping: IOS_SWIPE_MOTION.completionSpring.damping,
-                mass: IOS_SWIPE_MOTION.completionSpring.mass,
-                restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-                restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-                onComplete: finishIncoming,
-              });
-          stopAnimationRef.current = () => entrance.stop();
-        };
-
-        const outgoing = reduceMotion
-          ? animate(x, settleTarget, { duration: 0.01, onComplete: finishOutgoing })
-          : animate(x, settleTarget, {
-              type: "spring",
-              stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-              damping: IOS_SWIPE_MOTION.completionSpring.damping,
-              mass: IOS_SWIPE_MOTION.completionSpring.mass,
-              velocity: signedVelocity,
-              restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-              restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-              onComplete: finishOutgoing,
-            });
-        stopAnimationRef.current = () => outgoing.stop();
-        return;
-      }
-
-      const exitTarget = physicalSign * width;
-      const finishExit = () => {
-        commitDestination();
-
-        // Keep the destination opaque and already committed for two paint frames
-        // before the new foreground is reset. This is the same no-flash handoff
-        // contract used by the approved swipe-back stack.
-        rafRef.current = requestAnimationFrame(() => {
-          rafRef.current = requestAnimationFrame(() => {
-            rafRef.current = null;
-            x.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
-
-            const finishEntrance = () => {
-              settlingRef.current = false;
-              setIsInteracting(false);
-            };
-            const entrance = reduceMotion
-              ? animate(x, 0, { duration: 0.01, onComplete: finishEntrance })
-              : animate(x, 0, {
-                  type: "spring",
-                  stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-                  damping: IOS_SWIPE_MOTION.completionSpring.damping,
-                  mass: IOS_SWIPE_MOTION.completionSpring.mass,
-                  restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-                  restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-                  onComplete: finishEntrance,
-                });
-            stopAnimationRef.current = () => entrance.stop();
-          });
         });
+        x.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+
+        const finishIncoming = () => {
+          x.set(0);
+          settlingRef.current = false;
+          setIsInteracting(false);
+        };
+        const entrance = reduceMotion
+          ? animate(x, 0, { duration: 0.01, onComplete: finishIncoming })
+          : animate(x, 0, {
+              ...IOS_SWIPE_MOTION.completionSpring,
+              onComplete: finishIncoming,
+            });
+        stopAnimationRef.current = () => entrance.stop();
       };
 
       const controls = reduceMotion
-        ? animate(x, exitTarget, { duration: 0.01, onComplete: finishExit })
-        : animate(x, exitTarget, {
+        ? animate(x, outgoingTarget, { duration: 0.01, onComplete: finishOutgoing })
+        : animate(x, outgoingTarget, {
             type: "spring",
             stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
             damping: IOS_SWIPE_MOTION.completionSpring.damping,
@@ -624,7 +578,7 @@ export function useHorizontalSwipePager<T extends HTMLElement = HTMLDivElement>(
             velocity: signedVelocity,
             restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
             restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-            onComplete: finishExit,
+            onComplete: finishOutgoing,
           });
       stopAnimationRef.current = () => controls.stop();
     };

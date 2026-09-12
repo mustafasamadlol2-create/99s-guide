@@ -21,7 +21,7 @@ import {
 } from "../../../core/types";
 import { parseBaghdadDate } from "../../../core/utils/timezone";
 import { Language } from "../../../core/i18n/translations";
-import { motion, AnimatePresence, useTransform } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
  ArrowLeft,
  BookOpen,
@@ -57,7 +57,6 @@ import { showiOSAlert } from "../../../core/device/alert";
 import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
-import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 
@@ -346,9 +345,13 @@ export const LectureDetailView = function LectureDetailView({
     ];
     const currentIndex = order.indexOf(activeTab);
     const nextIndex = order.indexOf(nextTab);
-    setTabTransitionDirection(nextIndex >= currentIndex ? 1 : -1);
+    const logicalDirection: 1 | -1 = nextIndex >= currentIndex ? 1 : -1;
+    // Segment navigation mirrors physically in Arabic, exactly like every other
+    // horizontal pager in the app. Keep this direction only for direct taps;
+    // interactive swipes are driven 1:1 by the shared pager MotionValue.
+    setTabTransitionDirection(isRtl ? -logicalDirection : logicalDirection);
     setActiveTab(nextTab);
-  }, [activeTab]);
+  }, [activeTab, isRtl]);
 
  const [customFlashcards, setCustomFlashcards] = useState<any[]>([]);
  const [postMuteError, setPostMuteError] = useState<string | null>(null);
@@ -1671,16 +1674,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    isRtl,
    blockedSelector: 'button, input, textarea, select, [contenteditable="true"]',
    reserveBackEdge: false,
-   completionMode: "settle",
-   visualScale: 0.44,
  });
 
- // The workspace follows enough of the finger to feel directly connected, but
- // not so much that the heavy lecture panel exposes an empty edge. 0.44 gives
- // the same compact iOS push/pop character as the app-wide native navigation.
- const lectureTabContentX = useTransform(lectureTabPager.x, (latest) => latest * 0.44);
- // Never fade the entire workspace during the drag. A fully opaque card prevents
- // white flashes and keeps text rasterization stable on WKWebView.
+ // Lecture sections now use the exact same 1:1 foreground tracking as the
+ // approved Notifications -> Profile interactive pop. No secondary scale,
+ // opacity, or compact-drag multiplier is layered on top of the gesture.
+ const lectureTabContentX = lectureTabPager.x;
  const lectureTabContentOpacity = 1;
 
 
@@ -1857,26 +1856,20 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    {/* 2. Workspace View Tabs Rendering */}
   {/* Keep the visual card exactly as-is, but make the touch surface continue
       through the otherwise-empty area below it. This lets iPhone/iPad users
-      page PDF → Notes → MCQ → … from that lower whitespace without changing
-      SmoothAutoHeight measurements or the card transition itself. */}
+      page PDF → Notes → MCQ → … from that lower whitespace without letting
+      the outer page or header participate in the horizontal motion. */}
   <div
     ref={lectureTabPager.surfaceRef}
     className="relative w-full min-h-[calc(100svh-220px)]"
   >
-  <SmoothAutoHeight
-    dependency={activeTab}
-    durationMs={270}
-    transitionEasing="cubic-bezier(0.22, 1, 0.36, 1)"
-    settleToAuto
-    singlePassOnDependencyChange
-    usePreviousStableHeightOnDependencyChange
+  <div
     style={{ transformOrigin: "top center" }}
     className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
-    contentClassName="relative isolate w-full min-h-[clamp(430px,58svh,650px)] bg-white dark:bg-[#1C1C1E]"
   >
-  {/* The card shell stays mounted while the selected panel is replaced in one
-      commit. This removes the blank handoff frame and lets SmoothAutoHeight
-      measure the real incoming panel before the browser paints it. */}
+  {/* Keep one opaque shell mounted permanently. The shell never auto-resizes
+      through a scripted height animation, so switching PDF/Notes/MCQ/etc.
+      cannot create the web-like resize/reposition pulse that was visible in
+      WKWebView. Natural content height is allowed to grow below the minimum. */}
   <motion.div
     className="relative w-full min-h-[clamp(430px,58svh,650px)] flex flex-col"
     style={{
@@ -1886,27 +1879,15 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       isolation: "isolate",
     }}
   >
-    <AnimatePresence initial={false} mode="popLayout">
     <motion.div
       key={`lecture-workspace-${activeTab}`}
-      custom={tabTransitionDirection}
       initial={lectureTabPager.isInteracting
-        ? { opacity: 1, x: 0 }
-        : { opacity: 1, x: tabTransitionDirection * 18 }}
+        ? false
+        : { opacity: 1, x: tabTransitionDirection * IOS_SWIPE_MOTION.underlayOffset }}
       animate={{ opacity: 1, x: 0 }}
-      exit={lectureTabPager.isInteracting
-        ? { opacity: 1, x: 0 }
-        : { opacity: 1, x: -tabTransitionDirection * 12 }}
       transition={lectureTabPager.isInteracting
         ? { duration: 0 }
-        : {
-            type: "spring",
-            stiffness: 480,
-            damping: 44,
-            mass: 0.76,
-            restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-            restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-          }}
+        : IOS_SWIPE_MOTION.completionSpring}
       className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col [backface-visibility:hidden]"
     >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
@@ -3564,7 +3545,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   )}
 
     </motion.div>
-  </AnimatePresence>
   </motion.div>
 
   {/* Report sheet — bottom-sheet modal for submitting Q&A reports */}
@@ -3588,7 +3568,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       setShowGuidelines(false);
     }}
   />
-  </SmoothAutoHeight>
+  </div>
   </div>
   </motion.div>
   );

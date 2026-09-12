@@ -4775,12 +4775,31 @@ const handleSignOut = useCallback(async () => {
 
   const finishCancelledMainTabSwipe = useCallback(() => {
     const session = mainTabSwipeSessionRef.current;
-    const previewReturnX = -session.physicalSign * IOS_SWIPE_MOTION.underlayOffset;
+    const canvas = document.getElementById("main-scroll-canvas");
+    const width = Math.max(
+      1,
+      canvas?.clientWidth || window.visualViewport?.width || window.innerWidth || 1,
+    );
+    const exitSign = session.physicalSign;
+    const signedVelocity =
+      exitSign *
+      Math.min(
+        session.velocity * 1000,
+        width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+      );
+
     mainTabSwipeAnimatingRef.current = true;
-    animate(mainTabUnderlayX, previewReturnX, IOS_SWIPE_MOTION.cancelSpring);
-    animate(mainTabUnderlayScale, 0.985, IOS_SWIPE_MOTION.cancelSpring);
+    mainTabUnderlayScale.set(1);
     animate(mainTabSwipeX, 0, {
       ...IOS_SWIPE_MOTION.cancelSpring,
+      velocity: signedVelocity,
+      onUpdate: (latest) => {
+        if (!session.nextTab) return;
+        const progress = Math.min(1, Math.abs(latest) / width);
+        mainTabUnderlayX.set(
+          -exitSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+        );
+      },
       onComplete: () => {
         mainTabSwipeAnimatingRef.current = false;
         mainTabSwipeActiveRef.current = false;
@@ -4913,15 +4932,20 @@ const handleSignOut = useCallback(async () => {
     const dx = touch.clientX - session.startX;
     const dy = touch.clientY - session.startY;
 
-    if (
-      session.axis === null &&
-      Math.max(Math.abs(dx), Math.abs(dy)) >= IOS_SWIPE_MOTION.axisLockDistance
-    ) {
-      session.axis = Math.abs(dx) > Math.abs(dy) * 1.16 ? "x" : "y";
-      if (session.axis === "y") {
+    if (session.axis === null) {
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (
+        absY >= IOS_SWIPE_MOTION.verticalRejectDistance &&
+        absY > absX * IOS_SWIPE_MOTION.verticalRejectRatio
+      ) {
+        session.axis = "y";
         session.tracking = false;
         return;
       }
+      if (absX < IOS_SWIPE_MOTION.axisLockDistance) return;
+      if (absY > absX * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
+      session.axis = "x";
 
       mainTabSwipeActiveRef.current = true;
       setMainTabSwipeVisualActive(true);
@@ -4945,7 +4969,9 @@ const handleSignOut = useCallback(async () => {
     const now = performance.now();
     const dt = Math.max(1, now - session.lastTime);
     const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
-    session.velocity = session.velocity * 0.58 + instantaneousVelocity * 0.42;
+    session.velocity =
+      session.velocity * IOS_SWIPE_MOTION.velocityPreviousWeight +
+      instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
     session.lastX = touch.clientX;
     session.lastTime = now;
 
@@ -4974,19 +5000,19 @@ const handleSignOut = useCallback(async () => {
       session.targetScrollTop = targetScrollTop;
       setMainTabPreviewTab(nextTab);
       mainTabUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
-      mainTabUnderlayScale.set(0.985);
+      mainTabUnderlayScale.set(1);
       // Both pages live in the same persistent scroll canvas. Offset the preview
       // so it is already painted at *its own* remembered scroll coordinate.
       mainTabPreviewY.set(session.startScrollTop - targetScrollTop);
     }
 
     const rendered = Math.max(-width, Math.min(width, dx));
-    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width * 0.72));
+    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width));
     mainTabSwipeX.set(rendered);
     mainTabUnderlayX.set(
       -physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
     );
-    mainTabUnderlayScale.set(0.985 + 0.015 * progress);
+    mainTabUnderlayScale.set(1);
   };
 
   const handleMainTabTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
@@ -5021,12 +5047,21 @@ const handleSignOut = useCallback(async () => {
     mainTabSwipeAnimatingRef.current = true;
     const exitTarget = session.physicalSign * width;
 
-    animate(mainTabUnderlayX, 0, IOS_SWIPE_MOTION.completionSpring);
-    animate(mainTabUnderlayScale, 1, IOS_SWIPE_MOTION.completionSpring);
+    mainTabUnderlayScale.set(1);
     animate(mainTabSwipeX, exitTarget, {
       ...IOS_SWIPE_MOTION.completionSpring,
       velocity:
-        session.physicalSign * Math.min(session.velocity * 1000, width * 4),
+        session.physicalSign *
+        Math.min(
+          session.velocity * 1000,
+          width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond,
+        ),
+      onUpdate: (latest) => {
+        const progress = Math.min(1, Math.abs(latest) / width);
+        mainTabUnderlayX.set(
+          -session.physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+        );
+      },
       onComplete: () => commitMainTabSwipe(session.nextTab as MainPhoneTabId),
     });
   };

@@ -80,7 +80,9 @@ export function SwipeActionItem({
 
   useEffect(() => {
     const unsubscribe = x.on("change", (latest) => {
-      const crossed = Math.abs(latest) >= Math.max(24, totalWidth * 0.72);
+      const crossed =
+        Math.abs(latest) >=
+        Math.max(IOS_SWIPE_MOTION.flickDistance, totalWidth * IOS_SWIPE_MOTION.commitProgress);
       if (crossed && !thresholdHapticRef.current) {
         thresholdHapticRef.current = true;
         void HapticFeedback.impact("light");
@@ -237,11 +239,7 @@ export function SwipeActionItem({
             ? { left: 0, right: totalWidth }
             : { left: -totalWidth, right: 0 }
         }
-        dragElastic={
-          resolvedDirection === "rtl"
-            ? { left: 0.04, right: 0.1 }
-            : { left: 0.1, right: 0.04 }
-        }
+        dragElastic={IOS_SWIPE_MOTION.boundaryResistance}
         dragMomentum={false}
         onPointerDown={handlePointerDown}
         onDragEnd={handleDragEnd}

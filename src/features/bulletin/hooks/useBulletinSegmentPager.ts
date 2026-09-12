@@ -5,6 +5,7 @@ import {
   useReducedMotion,
   type MotionValue,
 } from "motion/react";
+import { flushSync } from "react-dom";
 import { HapticFeedback } from "../../../core/device/haptic";
 import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
 import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
@@ -155,30 +156,27 @@ export function useBulletinSegmentPager({
 
       const exitTarget = exitSign * width;
       const velocityPxPerSecond = Math.max(
-        -width * 4.5,
-        Math.min(width * 4.5, releaseVelocityPxPerMs * 1000),
+        -width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond,
+        Math.min(
+          width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond,
+          releaseVelocityPxPerMs * 1000,
+        ),
       );
 
       const finishHandoff = () => {
-        // At this exact point the destination page is already at x=0 and the
-        // outgoing page is fully offscreen. Commit the state while the real
-        // destination underlay remains visible, then replace the offscreen live
-        // layer with the same content before revealing it. The visual frame does
-        // not change during this handoff.
-        onCommitRef.current(targetSegment);
-        HapticFeedback.selection();
-
-        commitPaintFrameRef.current = requestAnimationFrame(() => {
-          commitPaintFrameRef.current = null;
-          handoffFrameRef.current = requestAnimationFrame(() => {
-            handoffFrameRef.current = null;
-            x.set(0);
-            underlayX.set(0);
-            indicatorPosition.set(targetSegment === "all" ? 0 : 1);
-            settlingRef.current = false;
-            setIsInteracting(false);
-          });
+        // Same atomic commit contract as Notifications -> Profile Back: the
+        // destination is already painted underneath, so commit React state and
+        // clear transforms in one task before WebKit can paint another frame.
+        activeSegmentRef.current = targetSegment;
+        flushSync(() => {
+          onCommitRef.current(targetSegment);
         });
+        x.set(0);
+        underlayX.set(0);
+        indicatorPosition.set(targetSegment === "all" ? 0 : 1);
+        settlingRef.current = false;
+        setIsInteracting(false);
+        HapticFeedback.selection();
       };
 
       if (reduceMotion) {
@@ -292,14 +290,14 @@ export function useBulletinSegmentPager({
       const directionalDistance = dx * exitSign;
 
       if (!horizontalLockRef.current) {
-        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * 1.25) {
+        if (Math.abs(dy) >= IOS_SWIPE_MOTION.verticalRejectDistance && Math.abs(dy) > Math.abs(dx) * IOS_SWIPE_MOTION.verticalRejectRatio) {
           resetTracking();
           x.set(0);
           underlayX.set(0);
           return;
         }
         if (Math.abs(dx) < IOS_SWIPE_MOTION.axisLockDistance) return;
-        if (Math.abs(dy) > Math.abs(dx) * 0.78) return;
+        if (Math.abs(dy) > Math.abs(dx) * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
         horizontalLockRef.current = true;
         setIsInteracting(true);
       }
@@ -309,7 +307,9 @@ export function useBulletinSegmentPager({
       const now = performance.now();
       const dt = Math.max(1, now - lastTimeRef.current);
       const instantaneousVelocity = (touch.clientX - lastXRef.current) / dt;
-      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
+      velocityRef.current =
+        velocityRef.current * IOS_SWIPE_MOTION.velocityPreviousWeight +
+        instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 
@@ -394,7 +394,13 @@ export function useBulletinSegmentPager({
         stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
         damping: IOS_SWIPE_MOTION.cancelSpring.damping,
         mass: IOS_SWIPE_MOTION.cancelSpring.mass,
-        velocity: releaseVelocity * 1000,
+        velocity: Math.max(
+          -width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+          Math.min(
+            width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+            releaseVelocity * 1000,
+          ),
+        ),
         restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
         restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
         onUpdate: (latest) => syncAdjacentPage(latest, width, exitSign),

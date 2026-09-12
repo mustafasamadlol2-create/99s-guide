@@ -338,7 +338,7 @@ export function useSwipeBack({
         // finger. Preserve a small amount of release momentum, then use a
         // slightly over-damped spring so the sheet returns without bounce.
         const cancelVelocity =
-          directionSign * Math.min(releaseVelocity * 1000, width * 1.6);
+          directionSign * Math.min(releaseVelocity * 1000, width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond);
         const controls = animate(x, 0, {
           type: "spring",
           stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
@@ -359,7 +359,7 @@ export function useSwipeBack({
       // web-like fixed-duration easing while avoiding overshoot beyond the
       // navigation viewport on wide iPads.
       const completionVelocity =
-        directionSign * Math.min(releaseVelocity * 1000, width * 4.0);
+        directionSign * Math.min(releaseVelocity * 1000, width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond);
       const controls = animate(x, target, {
         type: "spring",
         stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
@@ -489,7 +489,7 @@ export function useSwipeBack({
         // those made legitimate Back swipes feel random.
         if (
           verticalDistance >= IOS_SWIPE_MOTION.verticalRejectDistance &&
-          verticalDistance > absoluteHorizontalDistance * 1.25
+          verticalDistance > absoluteHorizontalDistance * IOS_SWIPE_MOTION.verticalRejectRatio
         ) {
           resetTracking();
           return;
@@ -500,7 +500,7 @@ export function useSwipeBack({
         if (directionalDistance <= 0) {
           if (
             absoluteHorizontalDistance >= IOS_SWIPE_MOTION.verticalRejectDistance &&
-            absoluteHorizontalDistance > verticalDistance * 1.30
+            absoluteHorizontalDistance > verticalDistance * IOS_SWIPE_MOTION.verticalRejectRatio
           ) {
             resetTracking();
           }
@@ -508,7 +508,7 @@ export function useSwipeBack({
         }
 
         if (distance < IOS_SWIPE_MOTION.axisLockDistance) return;
-        if (verticalDistance > distance * 0.95) return;
+        if (verticalDistance > distance * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
 
         horizontalLockRef.current = true;
         setIsInteracting(true);
@@ -525,7 +525,9 @@ export function useSwipeBack({
           : touch.clientX - lastXRef.current;
       // Smooth noisy iOS touch samples without making fast flicks feel delayed.
       const instantaneousVelocity = Math.max(0, frameDirectionalDistance / dt);
-      velocityRef.current = velocityRef.current * 0.58 + instantaneousVelocity * 0.42;
+      velocityRef.current =
+        velocityRef.current * IOS_SWIPE_MOTION.velocityPreviousWeight +
+        instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
       lastXRef.current = touch.clientX;
       lastTimeRef.current = now;
 

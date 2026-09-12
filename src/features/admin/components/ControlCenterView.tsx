@@ -563,37 +563,32 @@ const ControlCenterView = function ControlCenterView({
 
   const resetConsoleSwipe = () => {
     const session = consoleSwipeSessionRef.current;
+    const releaseVelocity = session.velocity;
+    const exitSign = consoleSwipePhysicalSignRef.current;
+    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
+
     session.tracking = false;
     session.axis = null;
     session.velocity = 0;
 
-    const exitSign = consoleSwipePhysicalSignRef.current;
-    if (consolePreviewSubTabRef.current) {
-      animate(consoleUnderlayX, -exitSign * IOS_SWIPE_MOTION.underlayOffset, {
-        type: "spring",
-        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
-        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
-        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
-        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
-        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
-      });
-      animate(consoleUnderlayScale, 0.985, {
-        type: "spring",
-        stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
-        damping: IOS_SWIPE_MOTION.cancelSpring.damping,
-        mass: IOS_SWIPE_MOTION.cancelSpring.mass,
-        restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
-        restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
-      });
-    }
+    const signedVelocity =
+      exitSign *
+      Math.min(
+        releaseVelocity * 1000,
+        width * IOS_SWIPE_MOTION.cancelVelocityScreensPerSecond,
+      );
 
     animate(consoleSwipeX, 0, {
-      type: "spring",
-      stiffness: IOS_SWIPE_MOTION.cancelSpring.stiffness,
-      damping: IOS_SWIPE_MOTION.cancelSpring.damping,
-      mass: IOS_SWIPE_MOTION.cancelSpring.mass,
-      restSpeed: IOS_SWIPE_MOTION.cancelSpring.restSpeed,
-      restDelta: IOS_SWIPE_MOTION.cancelSpring.restDelta,
+      ...IOS_SWIPE_MOTION.cancelSpring,
+      velocity: signedVelocity,
+      onUpdate: (latest) => {
+        if (!consolePreviewSubTabRef.current) return;
+        const progress = Math.min(1, Math.abs(latest) / width);
+        consoleUnderlayX.set(
+          -exitSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+        );
+        consoleUnderlayScale.set(1);
+      },
       onComplete: clearConsolePreview,
     });
   };
@@ -625,8 +620,20 @@ const ControlCenterView = function ControlCenterView({
     const dx = touch.clientX - session.startX;
     const dy = touch.clientY - session.startY;
 
-    if (session.axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= IOS_SWIPE_MOTION.axisLockDistance) {
-      session.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? "x" : "y";
+    if (session.axis === null) {
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (
+        absY >= IOS_SWIPE_MOTION.verticalRejectDistance &&
+        absY > absX * IOS_SWIPE_MOTION.verticalRejectRatio
+      ) {
+        session.axis = "y";
+        session.tracking = false;
+        return;
+      }
+      if (absX < IOS_SWIPE_MOTION.axisLockDistance) return;
+      if (absY > absX * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
+      session.axis = "x";
     }
     if (session.axis !== "x") return;
 
@@ -644,7 +651,9 @@ const ControlCenterView = function ControlCenterView({
     const now = performance.now();
     const dt = Math.max(1, now - session.lastTime);
     const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
-    session.velocity = session.velocity * 0.58 + instantaneousVelocity * 0.42;
+    session.velocity =
+      session.velocity * IOS_SWIPE_MOTION.velocityPreviousWeight +
+      instantaneousVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
     session.lastX = touch.clientX;
     session.lastTime = now;
 
@@ -667,18 +676,18 @@ const ControlCenterView = function ControlCenterView({
       consolePreviewSubTabRef.current = next;
       setConsolePreviewSubTab(next);
       consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
-      consoleUnderlayScale.set(0.985);
+      consoleUnderlayScale.set(1);
     }
 
     const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
     const rendered = Math.max(-width, Math.min(width, dx));
-    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width * 0.72));
+    const progress = Math.min(1, Math.abs(rendered) / Math.max(1, width));
 
     // True iOS feel: foreground follows the finger 1:1. The incoming page uses
     // only the subtle approved 22px parallax and gently settles to full scale.
     consoleSwipeX.set(rendered);
     consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress));
-    consoleUnderlayScale.set(0.985 + 0.015 * progress);
+    consoleUnderlayScale.set(1);
   };
 
   const handleConsoleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -727,34 +736,25 @@ const ControlCenterView = function ControlCenterView({
       consolePreviewSubTabRef.current = next;
       flushSync(() => setConsolePreviewSubTab(next));
       consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
-      consoleUnderlayScale.set(0.985);
+      consoleUnderlayScale.set(1);
     }
 
-    animate(consoleUnderlayX, 0, {
-      type: "spring",
-      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-      damping: IOS_SWIPE_MOTION.completionSpring.damping,
-      mass: IOS_SWIPE_MOTION.completionSpring.mass,
-      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-    });
-    animate(consoleUnderlayScale, 1, {
-      type: "spring",
-      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-      damping: IOS_SWIPE_MOTION.completionSpring.damping,
-      mass: IOS_SWIPE_MOTION.completionSpring.mass,
-      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
-    });
+    consoleUnderlayScale.set(1);
 
     animate(consoleSwipeX, exitTarget, {
-      type: "spring",
-      stiffness: IOS_SWIPE_MOTION.completionSpring.stiffness,
-      damping: IOS_SWIPE_MOTION.completionSpring.damping,
-      mass: IOS_SWIPE_MOTION.completionSpring.mass,
-      velocity: physicalSign * Math.min(session.velocity * 1000, width * 4.0),
-      restSpeed: IOS_SWIPE_MOTION.completionSpring.restSpeed,
-      restDelta: IOS_SWIPE_MOTION.completionSpring.restDelta,
+      ...IOS_SWIPE_MOTION.completionSpring,
+      velocity:
+        physicalSign *
+        Math.min(
+          session.velocity * 1000,
+          width * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond,
+        ),
+      onUpdate: (latest) => {
+        const progress = Math.min(1, Math.abs(latest) / width);
+        consoleUnderlayX.set(
+          -physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+        );
+      },
       onComplete: () => {
         const canvas = document.getElementById("main-scroll-canvas");
         if (canvas) {

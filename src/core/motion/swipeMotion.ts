@@ -15,6 +15,16 @@ export const IOS_SWIPE_MOTION = {
   axisLockDistance: 6,
   verticalRejectDistance: 18,
 
+  // Axis/velocity filtering copied from the approved Notifications -> Profile
+  // interactive pop. Every other swipe recognizer reads these exact values so
+  // the app has one gesture character instead of subtly different pagers.
+  verticalRejectRatio: 1.25,
+  horizontalLockMaxVerticalRatio: 0.95,
+  velocityPreviousWeight: 0.58,
+  velocityCurrentWeight: 0.42,
+  completionVelocityScreensPerSecond: 4.0,
+  cancelVelocityScreensPerSecond: 1.6,
+
   // Parent-page reveal used by native pushed-page Back transitions.
   underlayOffset: 22,
 
