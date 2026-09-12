@@ -1878,39 +1878,25 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  className="relative rounded-[11px] text-[10.75px] min-[390px]:text-[11.25px] sm:text-[13px] tracking-[-0.01em] font-medium cursor-pointer select-none z-20 flex items-center justify-center w-full h-full px-0.5 sm:px-1.5 overflow-visible"
  >
  {isRtl ? (
-   <motion.span
-     className={`relative z-20 inline-flex w-max max-w-none flex-none h-[34px] items-center justify-center rounded-[10px] px-[9px] min-[390px]:px-[10px] whitespace-nowrap leading-none ${
+   <span
+     data-lecture-tab-label
+     className={`relative z-20 inline-flex w-max max-w-none flex-none h-[30px] items-center justify-center rounded-[9px] whitespace-nowrap text-center leading-none border transition-[color,background-color,border-color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+       tab.id === "qa" ? "px-[6px]" : "px-[7px] min-[390px]:px-[8px]"
+     } ${
        isActive
-         ? "text-black dark:text-white font-semibold"
-         : "text-neutral-500 dark:text-[var(--text-secondary)] font-medium"
+         ? "bg-white dark:bg-neutral-700 text-black dark:text-white font-semibold shadow-[0_2px_7px_rgba(0,0,0,0.075)] dark:shadow-[0_2px_9px_rgba(0,0,0,0.28)] border-black/[0.045] dark:border-white/[0.10]"
+         : "bg-transparent text-neutral-500 dark:text-[var(--text-secondary)] font-medium border-transparent shadow-none"
      }`}
-     initial={false}
-     animate={isActive ? { scale: 1 } : { scale: 0.985 }}
-     transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.72 }}
      style={{
+       width: "max-content",
        opacity: 1,
-       transformOrigin: "center",
+       WebkitFontSmoothing: "antialiased",
        backfaceVisibility: "hidden",
+       transform: "translateZ(0)",
      }}
    >
-     {isActive && (
-       <motion.span
-         aria-hidden="true"
-         className="absolute inset-0 rounded-[10px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] pointer-events-none"
-         initial={{ opacity: 0.72, scale: 0.96 }}
-         animate={{ opacity: 1, scale: 1 }}
-         exit={{ opacity: 0, scale: 0.98 }}
-         transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.72 }}
-       />
-     )}
-     <span
-       data-lecture-tab-label
-       className="relative z-10 inline-block w-max max-w-none whitespace-nowrap text-center leading-none"
-       style={{ width: "max-content" }}
-     >
-       {tab.label}
-     </span>
-   </motion.span>
+     {tab.label}
+   </span>
  ) : (
    <span
      data-lecture-tab-label
