@@ -263,13 +263,15 @@ const ControlCenterView = function ControlCenterView({
       loadSendNotification(),
       loadManageCalendar(),
       loadManageDailyMotto(),
-      loadUserRoleManagement(),
+      currentUser.role === "owner"
+        ? loadUserRoleManagement().then((module) => module.preloadUserRoleUsers?.())
+        : Promise.resolve(),
       loadModerationView(),
       loadMutedUsersView(),
       loadBannedUsersView(),
       loadModerationHistoryView(),
     ]);
-  }, [isActive, isPhone]);
+  }, [currentUser.role, isActive, isPhone]);
 
   // Console tab paging is lateral navigation, not a pushed Back stack. Report
   // that explicitly so App never lets a stale flag interfere with root gestures.
@@ -511,8 +513,14 @@ const ControlCenterView = function ControlCenterView({
     ] as NavItem[]) : []),
   ];
 
+  // While the finger is revealing an adjacent Console page, highlight that
+  // exact destination pill immediately. If the gesture cancels, the highlight
+  // returns with the same cancellation spring. This keeps page + tab state
+  // visually locked together instead of changing only after the handoff.
+  const visualSubTab = consolePreviewSubTab ?? activeSubTab;
+
   const selectSubTab = (next: SubTab) => {
-    if (next === activeSubTab) return;
+    if (next === activeSubTab || consoleSwipeAnimatingRef.current) return;
 
     const canvas = document.getElementById("main-scroll-canvas");
     if (canvas) {
@@ -521,21 +529,68 @@ const ControlCenterView = function ControlCenterView({
     pendingSubTabScrollRestoreRef.current =
       subTabScrollPositionsRef.current[next] ?? 0;
 
-    // Direct taps use the same stable shell as swipes. Clear any interrupted
-    // interactive state before the React commit so no stale transform survives.
+    // Desktop keeps the immediate sidebar behavior. On iPhone, taps on the
+    // Console pills use the same native horizontal transition as a committed
+    // swipe so touch + tap never feel like two different navigation systems.
+    if (!isPhone) {
+      consoleSwipeX.set(0);
+      consoleUnderlayX.set(0);
+      consoleUnderlayScale.set(1);
+      consolePreviewSubTabRef.current = null;
+      setConsolePreviewSubTab(null);
+      setActiveSubTab(next);
+      return;
+    }
+
+    const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
+    const nextIndex = navItems.findIndex((item) => item.id === next);
+    if (currentIndex < 0 || nextIndex < 0) {
+      setActiveSubTab(next);
+      return;
+    }
+
+    const logicalForward = nextIndex > currentIndex;
+    const physicalSign: 1 | -1 = logicalForward
+      ? (isRtl ? 1 : -1)
+      : (isRtl ? -1 : 1);
+    const width = Math.max(1, window.visualViewport?.width || window.innerWidth || 1);
+
+    consoleSwipeAnimatingRef.current = true;
+    consoleSwipePhysicalSignRef.current = physicalSign;
+    consoleSwipeX.stop();
     consoleSwipeX.set(0);
-    consoleUnderlayX.set(0);
+    consolePreviewSubTabRef.current = next;
+    flushSync(() => setConsolePreviewSubTab(next));
+    consoleUnderlayX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
     consoleUnderlayScale.set(1);
-    consolePreviewSubTabRef.current = null;
-    setConsolePreviewSubTab(null);
-    setActiveSubTab(next);
+
+    animate(consoleSwipeX, physicalSign * width, {
+      ...IOS_SWIPE_MOTION.completionSpring,
+      onUpdate: (latest) => {
+        const progress = Math.min(1, Math.abs(latest) / width);
+        consoleUnderlayX.set(
+          -physicalSign * IOS_SWIPE_MOTION.underlayOffset * (1 - progress),
+        );
+      },
+      onComplete: () => {
+        flushSync(() => {
+          setActiveSubTab(next);
+          setConsolePreviewSubTab(null);
+        });
+        consolePreviewSubTabRef.current = null;
+        consoleSwipeX.set(0);
+        consoleUnderlayX.set(0);
+        consoleUnderlayScale.set(1);
+        consoleSwipeAnimatingRef.current = false;
+      },
+    });
   };
 
   const shouldIgnoreConsoleSwipe = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
     if (
       target.closest(
-        '[data-console-nav-strip="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
+        '[data-console-nav-strip="true"], [data-role-filter-swipe="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
       )
     ) {
       return true;
@@ -856,7 +911,7 @@ const ControlCenterView = function ControlCenterView({
     <div
       id="control_panel_view"
       className="cc-view-root space-y-section animate-fadeIn pb-24 w-full"
-      style={{ direction: isRtl ? "rtl" : "ltr" }}
+      style={{ direction: isRtl ? "rtl" : "ltr", touchAction: "pan-y" }}
       onTouchStart={handleConsoleTouchStart}
       onTouchMove={handleConsoleTouchMove}
       onTouchEnd={handleConsoleTouchEnd}
@@ -903,7 +958,7 @@ const ControlCenterView = function ControlCenterView({
               Icon={item.Icon}
               iconColorClass={item.iconColorClass}
               isPulse={item.isPulse}
-              isActive={activeSubTab === item.id}
+              isActive={visualSubTab === item.id}
               onClick={selectSubTab}
             />
           ))}
@@ -999,7 +1054,7 @@ const ControlCenterView = function ControlCenterView({
             overflow-x-hidden
           `}
         >
-          <div className="relative w-full min-w-0">
+          <div className="relative w-full min-w-0 overflow-hidden isolate">
             {isPhone && consolePreviewSubTab && (
               <motion.div
                 aria-hidden="true"

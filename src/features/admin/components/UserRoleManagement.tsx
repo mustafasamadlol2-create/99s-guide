@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, Suspense, memo, lazy } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
+import { animate, motion, useMotionValue } from "motion/react";
+import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
 import { showiOSAlert } from "../../../core/device/alert";
 import { User } from "../../../core/types";
 import { FormError } from "../../../components/ui/FormError";
@@ -37,17 +40,68 @@ interface FetchedUser {
  isOnline: boolean;
 }
 
+let cachedRoleUsers: FetchedUser[] | null = null;
+let roleUsersRequest: Promise<FetchedUser[]> | null = null;
+
+async function requestRoleUsers(force = false): Promise<FetchedUser[]> {
+ if (!force && cachedRoleUsers) return cachedRoleUsers;
+ if (roleUsersRequest) return roleUsersRequest;
+
+ roleUsersRequest = (async () => {
+  const token = await import("../../../core/utils/secureStorage").then((m) =>
+   m.SecureStorage.get("auth_token"),
+  );
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const response = await apiClient("/api/users", { headers: authHeaders });
+  if (!response.ok) throw new Error("Failed to fetch users");
+  const data = await response.json();
+  const nextUsers = Array.isArray(data) ? data : [];
+  cachedRoleUsers = nextUsers;
+  return nextUsers;
+ })();
+
+ try {
+  return await roleUsersRequest;
+ } finally {
+  roleUsersRequest = null;
+ }
+}
+
+/** Warm the Roles panel before the first Console swipe reaches it. */
+export async function preloadUserRoleUsers(): Promise<void> {
+ try {
+  await requestRoleUsers(false);
+ } catch {
+  // The mounted panel will surface the normal localized error state if needed.
+ }
+}
+
+const ROLE_FILTER_ORDER = ["all", "owner", "admin", "user"] as const;
+type RoleFilterId = (typeof ROLE_FILTER_ORDER)[number];
+
 export default function UserRoleManagement({
  currentUser,
  language,
 }: UserRoleManagementProps) {
  const isRtl = language === "ar";
 
- const [users, setUsers] = useState<FetchedUser[]>([]);
- const [loading, setLoading] = useState(true);
+ const [users, setUsers] = useState<FetchedUser[]>(() => cachedRoleUsers ?? []);
+ const [loading, setLoading] = useState(() => cachedRoleUsers === null);
  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
  const [searchQuery, setSearchQuery] = useState("");
- const [roleFilter, setRoleFilter] = useState("all");
+ const [roleFilter, setRoleFilter] = useState<RoleFilterId>("all");
+ const roleSwipeX = useMotionValue(0);
+ const [roleSwipePreview, setRoleSwipePreview] = useState<RoleFilterId | null>(null);
+ const roleSwipeAnimatingRef = useRef(false);
+ const roleSwipeSessionRef = useRef({
+  tracking: false,
+  axis: null as "x" | "y" | null,
+  startX: 0,
+  startY: 0,
+  lastX: 0,
+  lastTime: 0,
+  velocity: 0,
+ });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [disciplinaryUser, setDisciplinaryUser] = useState<FetchedUser | null>(null);
@@ -60,50 +114,43 @@ export default function UserRoleManagement({
     return true;
   }, [currentUser.id, isPrimaryOwner]);
 
- const fetchUsers = async () => {
- try {
- setLoading(true);
- const token = await import("../../../core/utils/secureStorage").then(m => m.SecureStorage.get("auth_token"));
-      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await apiClient("/api/users", { headers: authHeaders });
- if (!response.ok) {
- throw new Error("Failed to fetch users");
- }
- const data = await response.json();
- if (Array.isArray(data)) {
- setUsers(data);
- }
- } catch (err: any) {
- 
- setErrorMessage(
- isRtl ? "فشل تحميل قائمة المستخدمين." : "Failed to load user records.",
- );
- } finally {
- setLoading(false);
- }
- };
+ const fetchUsers = useCallback(async (force = false) => {
+  const shouldShowBlockingSpinner = users.length === 0 && cachedRoleUsers === null;
+  try {
+   if (shouldShowBlockingSpinner) setLoading(true);
+   const data = await requestRoleUsers(force);
+   setUsers(data);
+  } catch (err: any) {
+   setErrorMessage(
+    isRtl ? "فشل تحميل قائمة المستخدمين." : "Failed to load user records.",
+   );
+  } finally {
+   setLoading(false);
+  }
+ }, [isRtl, users.length]);
 
  useEffect(() => {
- fetchUsers();
+ fetchUsers(false);
  
-    const handleFocus = () => fetchUsers();
+    const handleFocus = () => fetchUsers(true);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") handleFocus();
     };
     window.addEventListener("focus", handleFocus);
     window.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("socket-roster-updated", fetchUsers as EventListener);
-    window.addEventListener("socket-user-created", fetchUsers as EventListener);
-    window.addEventListener("socket-user-deleted", fetchUsers as EventListener);
+    const handleRosterRefresh = () => void fetchUsers(true);
+    window.addEventListener("socket-roster-updated", handleRosterRefresh as EventListener);
+    window.addEventListener("socket-user-created", handleRosterRefresh as EventListener);
+    window.addEventListener("socket-user-deleted", handleRosterRefresh as EventListener);
 
     return () => {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("socket-roster-updated", fetchUsers as EventListener);
-      window.removeEventListener("socket-user-created", fetchUsers as EventListener);
-      window.removeEventListener("socket-user-deleted", fetchUsers as EventListener);
+      window.removeEventListener("socket-roster-updated", handleRosterRefresh as EventListener);
+      window.removeEventListener("socket-user-created", handleRosterRefresh as EventListener);
+      window.removeEventListener("socket-user-deleted", handleRosterRefresh as EventListener);
     };
- }, []);
+ }, [fetchUsers]);
 
  const handleRoleChange = async (
  userId: string,
@@ -190,6 +237,168 @@ try {
  return matchesSearch && matchesRole;
  });
 
+ const clearRoleSwipePreview = useCallback(() => {
+  setRoleSwipePreview(null);
+ }, []);
+
+ const settleRoleSwipe = useCallback(() => {
+  const session = roleSwipeSessionRef.current;
+  session.tracking = false;
+  session.axis = null;
+  session.velocity = 0;
+  animate(roleSwipeX, 0, {
+   ...IOS_SWIPE_MOTION.cancelSpring,
+   onComplete: clearRoleSwipePreview,
+  });
+ }, [clearRoleSwipePreview, roleSwipeX]);
+
+ const shouldIgnoreRoleSwipe = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest('input, textarea, select, [contenteditable="true"], [data-role-filter-swipe-ignore="true"]')) return true;
+  const button = target.closest("button");
+  return Boolean(button && !button.hasAttribute("data-role-filter-tab"));
+ };
+
+ const handleRoleSwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
+  if (event.touches.length !== 1 || roleSwipeAnimatingRef.current || shouldIgnoreRoleSwipe(event.target)) return;
+  const touch = event.touches[0];
+  roleSwipeX.stop();
+  roleSwipeX.set(0);
+  setRoleSwipePreview(null);
+  roleSwipeSessionRef.current = {
+   tracking: true,
+   axis: null,
+   startX: touch.clientX,
+   startY: touch.clientY,
+   lastX: touch.clientX,
+   lastTime: performance.now(),
+   velocity: 0,
+  };
+ };
+
+ const handleRoleSwipeMove = (event: React.TouchEvent<HTMLDivElement>) => {
+  const session = roleSwipeSessionRef.current;
+  if (!session.tracking || event.touches.length !== 1) return;
+
+  const touch = event.touches[0];
+  const dx = touch.clientX - session.startX;
+  const dy = touch.clientY - session.startY;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+
+  if (session.axis === null) {
+   if (absY >= IOS_SWIPE_MOTION.verticalRejectDistance && absY > absX * IOS_SWIPE_MOTION.verticalRejectRatio) {
+    session.tracking = false;
+    session.axis = "y";
+    return;
+   }
+   if (absX < IOS_SWIPE_MOTION.axisLockDistance) return;
+   if (absY > absX * IOS_SWIPE_MOTION.horizontalLockMaxVerticalRatio) return;
+   session.axis = "x";
+  }
+  if (session.axis !== "x") return;
+  if (event.cancelable) event.preventDefault();
+
+  const now = performance.now();
+  const dt = Math.max(1, now - session.lastTime);
+  const instantVelocity = Math.abs(touch.clientX - session.lastX) / dt;
+  session.velocity =
+   session.velocity * IOS_SWIPE_MOTION.velocityPreviousWeight +
+   instantVelocity * IOS_SWIPE_MOTION.velocityCurrentWeight;
+  session.lastX = touch.clientX;
+  session.lastTime = now;
+
+  const currentIndex = ROLE_FILTER_ORDER.indexOf(roleFilter);
+  const forward = isRtl ? dx > 0 : dx < 0;
+  const nextIndex = currentIndex + (forward ? 1 : -1);
+  const atBoundary = nextIndex < 0 || nextIndex >= ROLE_FILTER_ORDER.length;
+
+  if (atBoundary) {
+   setRoleSwipePreview(null);
+   roleSwipeX.set(dx * IOS_SWIPE_MOTION.boundaryResistance);
+   return;
+  }
+
+  setRoleSwipePreview(ROLE_FILTER_ORDER[nextIndex]);
+  // This is an iOS segmented-content swipe, not a pushed page. Keep the list
+  // attached to the finger while limiting travel so the card never exposes a gap.
+  const rendered = Math.max(-42, Math.min(42, dx * 0.28));
+  roleSwipeX.set(rendered);
+ };
+
+ const handleRoleSwipeEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+  const session = roleSwipeSessionRef.current;
+  if (!session.tracking) return;
+  session.tracking = false;
+
+  const touch = event.changedTouches[0];
+  if (!touch || session.axis !== "x") {
+   settleRoleSwipe();
+   return;
+  }
+
+  const dx = touch.clientX - session.startX;
+  const currentIndex = ROLE_FILTER_ORDER.indexOf(roleFilter);
+  const forward = isRtl ? dx > 0 : dx < 0;
+  const nextIndex = currentIndex + (forward ? 1 : -1);
+  const qualifies =
+   Math.abs(dx) >= 44 ||
+   (Math.abs(dx) >= 24 && session.velocity >= IOS_SWIPE_MOTION.velocityThreshold);
+
+  if (!qualifies || nextIndex < 0 || nextIndex >= ROLE_FILTER_ORDER.length) {
+   settleRoleSwipe();
+   return;
+  }
+
+  const nextFilter = ROLE_FILTER_ORDER[nextIndex];
+  const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
+  roleSwipeAnimatingRef.current = true;
+
+  // One-frame content handoff: the filter state and the 22px incoming offset
+  // are committed before the browser paints, then the new list settles home.
+  flushSync(() => {
+   setRoleFilter(nextFilter);
+   setRoleSwipePreview(null);
+  });
+  roleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+  animate(roleSwipeX, 0, {
+   ...IOS_SWIPE_MOTION.completionSpring,
+   velocity:
+    -physicalSign * Math.min(session.velocity * 1000, window.innerWidth * IOS_SWIPE_MOTION.completionVelocityScreensPerSecond),
+   onComplete: () => {
+    roleSwipeAnimatingRef.current = false;
+   },
+  });
+ };
+
+ const handleRoleSwipeCancel = () => {
+  roleSwipeAnimatingRef.current = false;
+  settleRoleSwipe();
+ };
+
+ const selectRoleFilter = (nextFilter: RoleFilterId) => {
+  if (nextFilter === roleFilter || roleSwipeAnimatingRef.current) return;
+  const currentIndex = ROLE_FILTER_ORDER.indexOf(roleFilter);
+  const nextIndex = ROLE_FILTER_ORDER.indexOf(nextFilter);
+  const logicalForward = nextIndex > currentIndex;
+  const physicalSign: 1 | -1 = logicalForward
+   ? (isRtl ? 1 : -1)
+   : (isRtl ? -1 : 1);
+
+  roleSwipeAnimatingRef.current = true;
+  flushSync(() => {
+   setRoleFilter(nextFilter);
+   setRoleSwipePreview(null);
+  });
+  roleSwipeX.set(-physicalSign * IOS_SWIPE_MOTION.underlayOffset);
+  animate(roleSwipeX, 0, {
+   ...IOS_SWIPE_MOTION.completionSpring,
+   onComplete: () => {
+    roleSwipeAnimatingRef.current = false;
+   },
+  });
+ };
+
  if (currentUser.role !== "owner") {
  return (
  <div className="p-6 text-center text-med-error bg-red-50 dark:bg-red-950/20 rounded-md border border-red-100 dark:border-red-950 font-display">
@@ -208,7 +417,16 @@ try {
  ];
 
  return (
- <div className="space-y-4" id="user_role_management_view">
+ <div
+  className="space-y-4 overflow-x-hidden"
+  id="user_role_management_view"
+  data-role-filter-swipe="true"
+  style={{ touchAction: "pan-y" }}
+  onTouchStart={handleRoleSwipeStart}
+  onTouchMove={handleRoleSwipeMove}
+  onTouchEnd={handleRoleSwipeEnd}
+  onTouchCancel={handleRoleSwipeCancel}
+ >
  <div className="flex flex-col gap-4">
  <h3 className="text-headline font-display font-semibold text-neutral-800 dark:text-white flex items-center gap-2">
  <ShieldAlert className="w-icon-md h-icon-md text-rose-500" />
@@ -229,15 +447,16 @@ try {
  {roleFilters.map((filter) => (
  <button
  key={filter.id}
- onClick={() => setRoleFilter(filter.id)}
+ data-role-filter-tab
+ onClick={() => selectRoleFilter(filter.id as RoleFilterId)}
  className={`pb-2 text-sm font-medium transition-colors whitespace-nowrap relative ${
- roleFilter === filter.id
+ (roleSwipePreview ?? roleFilter) === filter.id
  ? "text-neutral-900 dark:text-white"
  : "text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"
  }`}
  >
  {filter.label}
- {roleFilter === filter.id && (
+ {(roleSwipePreview ?? roleFilter) === filter.id && (
  <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-900 dark:bg-white rounded-t-full" />
  )}
  </button>
@@ -258,7 +477,7 @@ try {
  />
  </div>
  <button
- onClick={fetchUsers}
+ onClick={() => void fetchUsers(true)}
  className="p-2 rounded-lg bg-black/5 hover:bg-black/10 text-neutral-500 hover:text-neutral-800 dark:bg-[rgba(255,255,255,0.05)] dark:hover:bg-[rgba(255,255,255,0.1)] dark:hover:text-white transition-colors border border-black/10 dark:border-[rgba(255,255,255,0.1)] shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
  title="Refresh List"
  >
@@ -289,6 +508,10 @@ try {
  <FormError message={errorMessage} onDismiss={() => setErrorMessage(null)} />
 
  {/* Data Presentation (List View) */}
+ <motion.div
+  className="will-change-transform"
+  style={{ x: roleSwipeX }}
+ >
  {loading && users.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-12 space-y-2">
  <Loader2 className="w-icon-xl h-icon-xl text-rose-500 animate-spin" />
@@ -449,6 +672,7 @@ try {
  })}
  </div>
  )}
+ </motion.div>
  </div>
  );
 }
