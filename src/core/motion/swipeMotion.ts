@@ -73,13 +73,22 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   velocityThreshold: 0.42,
   boundaryResistance: 0.08,
 
-  // Instagram/UIKit-like release: fast at first, then a soft deceleration to
-  // rest. A tween is used deliberately so there is no spring rebound/vibration.
-  settleEase: [0.22, 0.72, 0.16, 1] as const,
-  minCommitDuration: 0.16,
-  maxCommitDuration: 0.30,
-  minCancelDuration: 0.14,
-  maxCancelDuration: 0.24,
+  // Premium Instagram/UIKit-like release: the page keeps meaningful travel
+  // time after finger-up instead of snapping through the last distance. This
+  // yields enough compositor frames to look fluid on 60/90/120 Hz displays
+  // while remaining decisive. A tween is deliberate: no spring rebound,
+  // vibration or scale/fade choreography is introduced.
+  settleEase: [0.20, 0.82, 0.18, 1] as const,
+  minCommitDuration: 0.22,
+  maxCommitDuration: 0.42,
+  minCancelDuration: 0.18,
+  maxCancelDuration: 0.34,
+
+  // A fast flick may shorten only a small portion of the remaining settle.
+  // Keeping this bounded prevents a high-velocity release from collapsing to a
+  // visibly low-frame snap while still respecting the user's momentum.
+  velocityDurationReduction: 0.18,
+  velocityDurationReference: 1.6, // px / ms
 } as const;
 
 

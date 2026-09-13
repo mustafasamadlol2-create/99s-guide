@@ -8,6 +8,7 @@ export interface TabBarItemProps {
   isActive: boolean;
   isCompactHeight: boolean;
   isEngaged?: boolean;
+  suppressIndicator?: boolean;
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
@@ -30,6 +31,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     isActive,
     isCompactHeight: _isCompactHeight,
     isEngaged = true,
+    suppressIndicator = false,
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
@@ -43,7 +45,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         style={{ WebkitTapHighlightColor: "transparent" }}
         whileTap={{ scale: 0.965 }}
       >
-        {isActive && (
+        {isActive && !suppressIndicator && (
           <motion.div
             layoutId="ios_mobile_tab_indicator"
             className="ios-tabbar-active-indicator absolute pointer-events-none"

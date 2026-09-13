@@ -5307,3 +5307,75 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   animation-delay: 0s !important;
   opacity: 1 !important;
 }
+
+/* ── 120 Hz root-tab pager refinement ───────────────────────────────────────
+   Keep the moving source snapshot to one viewport-sized compositor surface.
+   A tiny edge treatment adds native page separation without scaling/fading the
+   page or triggering layout/raster work on every swipe frame. */
+.mobile-phone-layout .main-tab-swipe-snapshot-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  isolation: isolate;
+}
+
+.mobile-phone-layout .main-tab-swipe-snapshot-layer::after {
+  content: "";
+  position: absolute;
+  z-index: 2147483646;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
+}
+
+.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
+}
+
+.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after,
+.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-left::after {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+}
+
+.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after,
+.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-right::after {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+}
+
+/* During an interactive root swipe the normal shared-layout indicator is
+   temporarily replaced by this compositor-only selector. App.tsx drives its X
+   from the exact same scalar progress as both pages, so the floating bar can no
+   longer finish late or run on a second spring timeline. */
+.mobile-phone-layout .ios-tabbar-swipe-sync-indicator {
+  left: 0 !important;
+  margin-left: 0 !important;
+  z-index: 1;
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-swipe-sync-indicator {
+  margin-left: 0 !important;
+}
+
+/* Do not replay the active-glyph pop while the finger is already animating the
+   tab selector. The target glyph receives its normal active state once the
+   page has actually settled. */
+.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
+  .ios-floating-tabbar-icon-glyph-active {
+  animation: none !important;
+}
