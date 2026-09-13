@@ -5252,30 +5252,24 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 }
 
 /* ── Native phone root-tab pager ─────────────────────────────────────────────
-   The outgoing page is frozen into a fixed inert viewport snapshot while the
-   live destination sits beside it and follows the finger. This decouples the
-   horizontal pager from the one shared vertical scroll canvas: destination
-   scroll restoration can happen behind the snapshot before it ever becomes
-   visible, eliminating the old black/blank canvas and resize/reposition flash. */
+   React/Vite/Capacitor cannot use React-Native Reanimated, so the root pager is
+   structured around compositor-only transforms instead: the live source page
+   remains untouched by React during the drag and an inert, opaque destination
+   viewport is placed exactly one physical screen beside it.  No page is ever
+   stacked on top of another at x=0, which removes text ghosting completely. */
 .mobile-phone-layout .main-tab-stable-page {
   width: 100%;
   max-width: 100%;
   isolation: isolate;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transform-style: flat;
 }
 
-.mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
-.mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card {
-  animation: none !important;
-  animation-delay: 0s !important;
-  transition: none !important;
-  opacity: 1 !important;
-}
-
-/* Snapshot host is a pure compositor layer. It is fixed to the viewport rather
-   than the scroll canvas and intentionally remains below the floating tab bar
-   (z-50). No layout size is ever derived from this layer. */
+/* The snapshot host never participates in layout and never intercepts touch.
+   It sits below the floating tab bar (z-50) but above the live page. */
 .mobile-phone-layout .main-tab-swipe-snapshot-host {
   position: fixed;
   inset: 0;
@@ -5289,18 +5283,98 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
+  contain: strict;
 }
 
-.mobile-phone-layout [data-main-tab-navigation-snapshot="true"] {
-  -webkit-backface-visibility: hidden !important;
-  backface-visibility: hidden !important;
-  transform-origin: 0 0 !important;
+/* One destination screen only.  The pane is a full viewport, opaque surface;
+   its inner page keeps the same content margins/scroll offset as the real app.
+   Because the pane starts at ±100vw and source moves by the same amount, their
+   geometry is strictly side-by-side for the entire interactive transition. */
+.mobile-phone-layout .main-tab-swipe-target-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #fafafa;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform-style: flat;
+  isolation: isolate;
+  contain: layout paint style;
 }
 
-/* Console sub-tab paging uses the same single-surface contract as the main
-   phone pager. A newly committed form can contain legacy `animate-fadeIn`
-   helpers; suppress those only during the swipe/tap handoff so the content
-   does not replay card animations or look as if it refreshed. */
+.dark .mobile-phone-layout .main-tab-swipe-target-pane,
+.mobile-phone-layout.dark .main-tab-swipe-target-pane {
+  background: #000;
+}
+
+.mobile-phone-layout .main-tab-swipe-target-content {
+  position: absolute;
+  margin: 0;
+  max-width: none;
+  opacity: 1;
+  pointer-events: none;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Frozen destinations must never replay entrance/fade/card choreography while
+   they are being used as a pager surface.  Their pixels should look like the
+   already-settled page that Instagram reveals beside the current one. */
+.mobile-phone-layout .main-tab-swipe-target-pane .animate-fadeIn,
+.mobile-phone-layout .main-tab-swipe-target-pane .ios-staggered-card,
+.mobile-phone-layout .main-tab-swipe-target-pane [style*="animation"] {
+  animation: none !important;
+  animation-delay: 0s !important;
+  opacity: 1 !important;
+}
+
+.mobile-phone-layout .main-tab-swipe-target-pane * {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  caret-color: transparent !important;
+}
+
+/* A subtle page-edge separator gives the same visual ownership as a native
+   pager without scaling/fading either screen.  It is painted once on the
+   compositor surface; there is no per-frame shadow/layout calculation. */
+.mobile-phone-layout .main-tab-swipe-target-pane::after {
+  content: "";
+  position: absolute;
+  z-index: 2147483646;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.mobile-phone-layout .main-tab-swipe-target-pane--from-left::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
+}
+
+.mobile-phone-layout .main-tab-swipe-target-pane--from-right::after {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
+}
+
+.dark .mobile-phone-layout .main-tab-swipe-target-pane--from-left::after,
+.mobile-phone-layout.dark .main-tab-swipe-target-pane--from-left::after {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+}
+
+.dark .mobile-phone-layout .main-tab-swipe-target-pane--from-right::after,
+.mobile-phone-layout.dark .main-tab-swipe-target-pane--from-right::after {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+}
+
+/* Console sub-tab paging keeps its existing one-surface contract. */
 .mobile-phone-layout [data-console-transition-active="true"] .animate-fadeIn,
 .mobile-phone-layout [data-console-transition-active="true"] .ios-staggered-card {
   animation: none !important;
@@ -5308,62 +5382,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
 }
 
-/* ── 120 Hz root-tab pager refinement ───────────────────────────────────────
-   Keep the moving source snapshot to one viewport-sized compositor surface.
-   A tiny edge treatment adds native page separation without scaling/fading the
-   page or triggering layout/raster work on every swipe frame. */
-.mobile-phone-layout .main-tab-swipe-snapshot-layer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  overflow: hidden;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  isolation: isolate;
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer::after {
-  content: "";
-  position: absolute;
-  z-index: 2147483646;
-  top: 0;
-  bottom: 0;
-  width: 10px;
-  pointer-events: none;
-  opacity: 0.52;
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after {
-  left: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0));
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after {
-  right: 0;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0));
-}
-
-.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after,
-.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-left::after {
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0));
-}
-
-.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after,
-.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-right::after {
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0));
-}
-
-/* During an interactive root swipe the normal shared-layout indicator is
-   temporarily replaced by this compositor-only selector. App.tsx drives its X
-   from the exact same scalar progress as both pages, so the floating bar can no
-   longer finish late or run on a second spring timeline. */
+/* Floating selector: always mounted so enabling swipe sync never causes a React
+   render at gesture start.  App.tsx writes only transform+opacity directly and
+   runs the release keyframes on the same compositor timeline as both pages. */
 .mobile-phone-layout .ios-tabbar-swipe-sync-indicator {
   left: 0 !important;
   margin-left: 0 !important;
-  z-index: 1;
-  will-change: transform;
+  z-index: 2;
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -5372,9 +5400,20 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   margin-left: 0 !important;
 }
 
-/* Do not replay the active-glyph pop while the finger is already animating the
-   tab selector. The target glyph receives its normal active state once the
-   page has actually settled. */
+/* While the compositor selector is active, hide the normal Framer layout
+   indicator underneath it.  On commit the compositor indicator remains at the
+   exact target briefly while the regular indicator settles invisibly, so there
+   is never a late floating-bar catch-up. */
+.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
+  .ios-tabbar-active-indicator:not(.ios-tabbar-swipe-sync-indicator) {
+  opacity: 0 !important;
+}
+
+.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
+  .ios-tabbar-swipe-sync-indicator {
+  opacity: 1;
+}
+
 .mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
   .ios-floating-tabbar-icon-glyph {
   transition: none !important;
