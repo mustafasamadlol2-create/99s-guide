@@ -5250,3 +5250,36 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ── Stable phone root-tab handoff ───────────────────────────────────────────
+   While Welcome / Modules / Schedule / Console / Profile are being paged, the
+   whole live page is already moving on one compositor layer. Replaying child
+   entrance keyframes at the React handoff creates the illusion of refresh,
+   resize, or card vibration. Freeze only those entrance animations for the
+   few milliseconds that the root-tab transition is active. Normal navigation
+   outside a tab swipe keeps the existing animation system unchanged. */
+.mobile-phone-layout .main-tab-stable-page {
+  width: 100%;
+  max-width: 100%;
+  isolation: isolate;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
+.mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card {
+  animation: none !important;
+  animation-delay: 0s !important;
+  opacity: 1 !important;
+}
+
+/* Console sub-tab paging uses the same single-surface contract as the main
+   phone pager. A newly committed form can contain legacy `animate-fadeIn`
+   helpers; suppress those only during the swipe/tap handoff so the content
+   does not replay card animations or look as if it refreshed. */
+.mobile-phone-layout [data-console-transition-active="true"] .animate-fadeIn,
+.mobile-phone-layout [data-console-transition-active="true"] .ios-staggered-card {
+  animation: none !important;
+  animation-delay: 0s !important;
+  opacity: 1 !important;
+}

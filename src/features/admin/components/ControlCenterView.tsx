@@ -233,6 +233,7 @@ const ControlCenterView = function ControlCenterView({
   // finger is moving, so there is no second layout tree that can resize, flash,
   // or look like a refresh during the gesture.
   const consoleSwipeX = useMotionValue(0);
+  const [consoleSwipeVisualActive, setConsoleSwipeVisualActive] = useState(false);
   const [consolePreviewSubTab, setConsolePreviewSubTab] = useState<SubTab | null>(null);
   const consolePreviewSubTabRef = useRef<SubTab | null>(null);
   const consoleSwipeSessionRef = useRef<{
@@ -243,18 +244,20 @@ const ControlCenterView = function ControlCenterView({
     lastX: number;
     lastTime: number;
     velocity: number;
-    roleHeaderZone: boolean;
-  }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0, roleHeaderZone: false });
+  }>({ tracking: false, axis: null, startX: 0, startY: 0, lastX: 0, lastTime: 0, velocity: 0 });
   const consoleSwipeAnimatingRef = useRef(false);
   const consolePillStripRef = useRef<HTMLDivElement>(null);
   const consoleContentShellRef = useRef<HTMLDivElement>(null);
   const consoleStableMinHeightRef = useRef(0);
 
   useEffect(() => {
-    if (!isPhone || !isActive) return;
+    if (!isPhone) return;
 
-    // Fire-and-forget preload. Dynamic-import promises are cached by the module
-    // loader, so rendering a preview later reuses the exact same chunks.
+    // Fire-and-forget preload as soon as the phone admin shell is mounted, not
+    // only after Console becomes visible. By the time the user enters Console,
+    // first-swipe destinations are therefore already warm and cannot flash a
+    // Suspense fallback that looks like a refresh. Dynamic-import promises are
+    // cached by the module loader.
     void Promise.allSettled([
       loadUploadMaterial(),
       loadCreateMCQ(),
@@ -270,7 +273,7 @@ const ControlCenterView = function ControlCenterView({
       loadBannedUsersView(),
       loadModerationHistoryView(),
     ]);
-  }, [currentUser.role, isActive, isPhone]);
+  }, [currentUser.role, isPhone]);
 
   // Console tab paging is lateral navigation, not a pushed Back stack. Report
   // that explicitly so App never lets a stale flag interfere with root gestures.
@@ -298,22 +301,22 @@ const ControlCenterView = function ControlCenterView({
 
   // Keep the active pill horizontally centered without scrolling the page
   // vertically (scrollIntoView would jump the shared main canvas on long forms).
-  useEffect(() => {
+  // Do this in the same pre-paint layout pass as the panel handoff: a delayed
+  // smooth-scroll used to leave the nav strip visibly moving after the content
+  // had already settled, which read as a second animation / reposition.
+  useLayoutEffect(() => {
     if (!isPhone || !isActive) return;
-    const frame = requestAnimationFrame(() => {
-      const strip = consolePillStripRef.current;
-      const item = strip?.querySelector<HTMLElement>(`[data-console-tab-id="${activeSubTab}"]`);
-      if (!strip || !item) return;
-      const stripRect = strip.getBoundingClientRect();
-      const itemRect = item.getBoundingClientRect();
-      const delta =
-        itemRect.left + itemRect.width / 2 -
-        (stripRect.left + stripRect.width / 2);
-      if (Math.abs(delta) > 4) {
-        strip.scrollBy({ left: delta, behavior: "smooth" });
-      }
-    });
-    return () => cancelAnimationFrame(frame);
+    const strip = consolePillStripRef.current;
+    const item = strip?.querySelector<HTMLElement>(`[data-console-tab-id="${activeSubTab}"]`);
+    if (!strip || !item) return;
+    const stripRect = strip.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const delta =
+      itemRect.left + itemRect.width / 2 -
+      (stripRect.left + stripRect.width / 2);
+    if (Math.abs(delta) > 4) {
+      strip.scrollBy({ left: delta, behavior: "auto" });
+    }
   }, [activeSubTab, isActive, isPhone]);
 
   const handleRefreshSubjects = useCallback(() => {
@@ -556,9 +559,6 @@ const ControlCenterView = function ControlCenterView({
   // This intentionally mirrors settleRoleSwipe() one-for-one.
   const settleConsoleSwipe = () => {
     const session = consoleSwipeSessionRef.current;
-    const currentX = consoleSwipeX.get();
-    const direction = currentX === 0 ? 0 : Math.sign(currentX);
-    const releaseVelocity = session.velocity;
 
     session.tracking = false;
     session.axis = null;
@@ -566,13 +566,14 @@ const ControlCenterView = function ControlCenterView({
 
     animate(consoleSwipeX, 0, {
       ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
-      velocity:
-        direction *
-        Math.min(
-          releaseVelocity * 1000,
-          window.innerWidth * IOS_CONSOLE_SMOOTH_MOTION.cancelVelocityScreensPerSecond,
-        ),
-      onComplete: clearConsolePreview,
+      // Never inject a finger-speed spike into an aborted Console swipe. This
+      // keeps cancellation critically damped and removes the small RTL/LTR
+      // rebound that can feel like a vibration on iOS.
+      velocity: 0,
+      onComplete: () => {
+        clearConsolePreview();
+        setConsoleSwipeVisualActive(false);
+      },
     });
   };
 
@@ -600,6 +601,7 @@ const ControlCenterView = function ControlCenterView({
 
     // Same tap transition as Roles: commit immediately, place the new content
     // only 22px from rest, then use the same completion spring to settle.
+    setConsoleSwipeVisualActive(true);
     consoleSwipeAnimatingRef.current = true;
     preserveMainScrollDuringConsoleCommit(() => {
       setActiveSubTab(next);
@@ -613,6 +615,7 @@ const ControlCenterView = function ControlCenterView({
       onComplete: () => {
         consoleSwipeX.set(0);
         consoleSwipeAnimatingRef.current = false;
+        setConsoleSwipeVisualActive(false);
       },
     });
   };
@@ -649,12 +652,6 @@ const ControlCenterView = function ControlCenterView({
     clearConsolePreview();
 
     const touch = event.touches[0];
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    const roleHeaderZone = Boolean(
-      activeSubTab === "user-role-management" &&
-      target?.closest("#user_role_management_view") &&
-      !target?.closest('[data-role-filter-local-zone="true"]'),
-    );
 
     consoleSwipeSessionRef.current = {
       tracking: true,
@@ -664,7 +661,6 @@ const ControlCenterView = function ControlCenterView({
       lastX: touch.clientX,
       lastTime: performance.now(),
       velocity: 0,
-      roleHeaderZone,
     };
   };
 
@@ -690,6 +686,7 @@ const ControlCenterView = function ControlCenterView({
       if (absX < IOS_CONSOLE_SMOOTH_MOTION.axisLockDistance) return;
       if (absY > absX * IOS_CONSOLE_SMOOTH_MOTION.horizontalLockMaxVerticalRatio) return;
       session.axis = "x";
+      setConsoleSwipeVisualActive(true);
     }
     if (session.axis !== "x") return;
     if (event.cancelable) event.preventDefault();
@@ -704,9 +701,9 @@ const ControlCenterView = function ControlCenterView({
     session.lastTime = now;
 
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    // Keep the previously approved physical mapping on the Roles heading/filter
-    // strip. Elsewhere use the normal language-aware Console direction.
-    const forward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
+    // One logical direction contract everywhere in Console. Arabic mirrors the
+    // physical gesture; English stays LTR. There are no per-panel exceptions.
+    const forward = isRtl ? dx > 0 : dx < 0;
     const nextIndex = currentIndex + (forward ? 1 : -1);
     const atBoundary = nextIndex < 0 || nextIndex >= navItems.length;
 
@@ -748,7 +745,7 @@ const ControlCenterView = function ControlCenterView({
 
     const dx = touch.clientX - session.startX;
     const currentIndex = navItems.findIndex((item) => item.id === activeSubTab);
-    const forward = session.roleHeaderZone ? dx < 0 : (isRtl ? dx > 0 : dx < 0);
+    const forward = isRtl ? dx > 0 : dx < 0;
     const nextIndex = currentIndex + (forward ? 1 : -1);
 
     // Match Roles exactly instead of using the old 30%-of-screen page threshold.
@@ -789,6 +786,7 @@ const ControlCenterView = function ControlCenterView({
       onComplete: () => {
         consoleSwipeX.set(0);
         consoleSwipeAnimatingRef.current = false;
+        setConsoleSwipeVisualActive(false);
       },
     });
   };
@@ -869,7 +867,8 @@ const ControlCenterView = function ControlCenterView({
   return (
     <div
       id="control_panel_view"
-      className="cc-view-root space-y-section animate-fadeIn pb-24 w-full"
+      data-console-transition-active={consoleSwipeVisualActive ? "true" : undefined}
+      className={`cc-view-root space-y-section ${isPhone ? "" : "animate-fadeIn"} pb-24 w-full`}
       style={{ direction: isRtl ? "rtl" : "ltr", touchAction: "pan-y" }}
       onTouchStart={handleConsoleTouchStart}
       onTouchMove={handleConsoleTouchMove}
@@ -906,7 +905,7 @@ const ControlCenterView = function ControlCenterView({
         <div
           ref={consolePillStripRef}
           data-console-nav-strip="true"
-          className="flex flex-row gap-2 overflow-x-auto pb-1 hide-scrollbar overscroll-x-contain snap-x snap-proximity scroll-smooth"
+          className="flex flex-row gap-2 overflow-x-auto pb-1 hide-scrollbar overscroll-x-contain snap-x snap-proximity"
           style={{ WebkitOverflowScrolling: "touch", direction: isRtl ? "rtl" : "ltr", scrollPaddingInline: "16px" }}
         >
           {navItems.map((item) => (
