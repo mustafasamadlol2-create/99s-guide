@@ -5252,24 +5252,41 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 }
 
 /* ── Native phone root-tab pager ─────────────────────────────────────────────
-   React/Vite/Capacitor cannot use React-Native Reanimated, so the root pager is
-   structured around compositor-only transforms instead: the live source page
-   remains untouched by React during the drag and an inert, opaque destination
-   viewport is placed exactly one physical screen beside it.  No page is ever
-   stacked on top of another at x=0, which removes text ghosting completely. */
+   Stability-first iOS/Instagram handoff: the currently painted source is frozen
+   into one viewport-sized inert layer, while the real React destination is
+   prepared exactly one page beside it.  We never animate a cloned destination
+   and never permanently promote the entire long source document, which avoids
+   the black compositor surfaces seen in WKWebView under tile-memory pressure. */
 .mobile-phone-layout .main-tab-stable-page {
   width: 100%;
   max-width: 100%;
   isolation: isolate;
   transform: translate3d(0, 0, 0);
-  will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform-style: flat;
 }
 
-/* The snapshot host never participates in layout and never intercepts touch.
-   It sits below the floating tab bar (z-50) but above the live page. */
+/* During root paging, destination content is already mounted but must look
+   settled.  Entrance/card animations are suppressed only for the short pager
+   handoff; normal navigation keeps the original animation behavior. */
+.mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
+.mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card,
+.mobile-phone-layout [data-main-tab-transition-active="true"] [style*="animation"] {
+  animation: none !important;
+  animation-delay: 0s !important;
+  opacity: 1 !important;
+}
+
+.mobile-phone-layout [data-main-tab-transition-active="true"] * {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* Fixed visual-only host.  It stays below the floating tab bar and never owns
+   input.  `contain: paint` clips the frozen source to the viewport without the
+   more aggressive `contain: strict`, which can produce blank descendants in
+   older WKWebView builds. */
 .mobile-phone-layout .main-tab-swipe-snapshot-host {
   position: fixed;
   inset: 0;
@@ -5282,96 +5299,84 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   user-select: none;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  transform: translate3d(0, 0, 0);
-  contain: strict;
+  contain: paint;
 }
 
-/* One destination screen only.  The pane is a full viewport, opaque surface;
-   its inner page keeps the same content margins/scroll offset as the real app.
-   Because the pane starts at ±100vw and source moves by the same amount, their
-   geometry is strictly side-by-side for the entire interactive transition. */
-.mobile-phone-layout .main-tab-swipe-target-pane {
+.mobile-phone-layout .main-tab-swipe-snapshot-layer {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
   overflow: hidden;
   pointer-events: none;
-  background: #fafafa;
   opacity: 1;
+  background: #fafafa;
   transform: translate3d(0, 0, 0);
   will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform-style: flat;
   isolation: isolate;
-  contain: layout paint style;
+  contain: paint;
 }
 
-.dark .mobile-phone-layout .main-tab-swipe-target-pane,
-.mobile-phone-layout.dark .main-tab-swipe-target-pane {
+.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer,
+.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer {
   background: #000;
 }
 
-.mobile-phone-layout .main-tab-swipe-target-content {
-  position: absolute;
-  margin: 0;
-  max-width: none;
-  opacity: 1;
-  pointer-events: none;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] {
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+  transform-origin: 0 0 !important;
+  pointer-events: none !important;
 }
 
-/* Frozen destinations must never replay entrance/fade/card choreography while
-   they are being used as a pager surface.  Their pixels should look like the
-   already-settled page that Instagram reveals beside the current one. */
-.mobile-phone-layout .main-tab-swipe-target-pane .animate-fadeIn,
-.mobile-phone-layout .main-tab-swipe-target-pane .ios-staggered-card,
-.mobile-phone-layout .main-tab-swipe-target-pane [style*="animation"] {
+/* Frozen source pixels must never replay local choreography. */
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .animate-fadeIn,
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .ios-staggered-card,
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] [style*="animation"] {
   animation: none !important;
   animation-delay: 0s !important;
   opacity: 1 !important;
 }
 
-.mobile-phone-layout .main-tab-swipe-target-pane * {
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] * {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
   caret-color: transparent !important;
 }
 
-/* A subtle page-edge separator gives the same visual ownership as a native
-   pager without scaling/fading either screen.  It is painted once on the
-   compositor surface; there is no per-frame shadow/layout calculation. */
-.mobile-phone-layout .main-tab-swipe-target-pane::after {
+/* Tiny page-edge ownership cue; no opacity/scale choreography is applied to
+   either screen. */
+.mobile-phone-layout .main-tab-swipe-snapshot-layer::after {
   content: "";
   position: absolute;
   z-index: 2147483646;
   top: 0;
   bottom: 0;
-  width: 18px;
+  width: 12px;
   pointer-events: none;
-  opacity: 0.72;
+  opacity: 0.56;
 }
 
-.mobile-phone-layout .main-tab-swipe-target-pane--from-left::after {
-  right: 0;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
-}
-
-.mobile-phone-layout .main-tab-swipe-target-pane--from-right::after {
+.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after {
   left: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.11), rgba(0, 0, 0, 0));
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0));
 }
 
-.dark .mobile-phone-layout .main-tab-swipe-target-pane--from-left::after,
-.mobile-phone-layout.dark .main-tab-swipe-target-pane--from-left::after {
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0));
 }
 
-.dark .mobile-phone-layout .main-tab-swipe-target-pane--from-right::after,
-.mobile-phone-layout.dark .main-tab-swipe-target-pane--from-right::after {
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0));
+.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after,
+.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-left::after {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0));
+}
+
+.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after,
+.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-right::after {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0));
 }
 
 /* Console sub-tab paging keeps its existing one-surface contract. */
