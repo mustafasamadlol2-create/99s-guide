@@ -38,7 +38,13 @@ import {
 import { motion, AnimatePresence, useReducedMotion, useTransform, useMotionValue, animate } from "motion/react";
 import { createPortal, flushSync } from "react-dom";
 import { getSwipeBackDirection, useSwipeBack } from "./core/hooks/useSwipeBack";
-import { IOS_CONSOLE_SMOOTH_MOTION, IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "./core/motion/swipeMotion";
+import {
+  IOS_CONSOLE_SMOOTH_MOTION,
+  IOS_MAIN_TAB_PAGER_MOTION,
+  IOS_SWIPE_MOTION,
+  getNativeSwipeLayerShadow,
+  getSwipeLayerShadowForExitSign,
+} from "./core/motion/swipeMotion";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
 import { SidebarNavItem } from "./core/layout/SidebarNavItem";
@@ -4690,27 +4696,43 @@ const handleSignOut = useCallback(async () => {
   );
 
 
-  // ── iPhone root-tab stable pager ─────────────────────────────────────────
-  // Welcome / Modules / Schedule / Console / Profile use ONE stable content
-  // surface. The destination is never mounted beside the current page while a
-  // finger is down. That previous two-live-page design had to fake two vertical
-  // scroll positions inside one shared scroll container; on WKWebView it could
-  // shift the hidden destination outside the viewport and expose a black/blank
-  // canvas (the corruption visible in the supplied recording).
+  // ── iPhone root-tab native pager ─────────────────────────────────────────
+  // Welcome / Modules / Schedule / Console / Profile use a viewport snapshot
+  // handoff instead of mounting two live React pages inside the same scroll
+  // canvas. This gives the visual language of Instagram/iOS paging (current
+  // page follows the finger 1:1 while the adjacent page travels beside it)
+  // without reintroducing the old shared-scroll corruption/blank-canvas bug.
   //
-  // The new contract deliberately mirrors the already-approved Roles pager:
-  //   1) short compositor-only drag of the current surface,
-  //   2) one synchronous React handoff at finger-up,
-  //   3) the destination inherits the exact same X offset and settles to zero.
-  // No preview tree, no page-width sweep, no scale/opacity animation, no haptic,
-  // no delayed scroll correction, and therefore no resize/refresh phase.
+  // During a horizontal drag:
+  //   1) clone the already-painted source page into an inert fixed snapshot;
+  //   2) synchronously switch the live React tree to the destination *behind*
+  //      that snapshot and restore the destination scroll before paint;
+  //   3) move snapshot + destination together as one full-width pager;
+  //   4) on cancel, restore the source behind the snapshot before removing it.
+  //
+  // No refresh, no scale/fade, no card entrance choreography, no haptic and no
+  // delayed resize/reposition phase are part of this transition.
   const [mainTabSwipeVisualActive, setMainTabSwipeVisualActive] = useState(false);
   const mainTabSwipeAnimatingRef = useRef(false);
   const mainTabSwipeX = useMotionValue(0);
+  const mainTabLivePageRef = useRef<HTMLDivElement | null>(null);
+  const mainTabSwipeSnapshotHostRef = useRef<HTMLDivElement | null>(null);
+  const mainTabSwipeSnapshotPageRef = useRef<HTMLElement | null>(null);
+
+  type MainTabRootStateSnapshot = {
+    activeHomeSubjectId: SubjectId | null;
+    activeHomeLecture: Lecture | null;
+    activeModuleId: SubjectId | null;
+    activeSubjectId: SubjectId | null;
+    activeLecture: Lecture | null;
+    lectureDetailSource: "dashboard" | "subject" | null;
+    suppressHomeEntranceAnimations: boolean;
+  };
 
   const mainTabSwipeSessionRef = useRef<{
     tracking: boolean;
     axis: "x" | "y" | null;
+    prepared: boolean;
     startX: number;
     startY: number;
     lastX: number;
@@ -4718,10 +4740,16 @@ const handleSignOut = useCallback(async () => {
     velocity: number;
     currentTab: MainPhoneTabId | null;
     nextTab: MainPhoneTabId | null;
+    physicalSign: 1 | -1;
+    pageWidth: number;
+    sourceScrollTop: number;
+    targetScrollTop: number;
     sourcePath: string;
+    rootState: MainTabRootStateSnapshot | null;
   }>({
     tracking: false,
     axis: null,
+    prepared: false,
     startX: 0,
     startY: 0,
     lastX: 0,
@@ -4729,7 +4757,12 @@ const handleSignOut = useCallback(async () => {
     velocity: 0,
     currentTab: null,
     nextTab: null,
+    physicalSign: 1,
+    pageWidth: 1,
+    sourceScrollTop: 0,
+    targetScrollTop: 0,
     sourcePath: "/home",
+    rootState: null,
   });
 
   const mainPhoneTabOrder = useMemo(
@@ -4764,43 +4797,203 @@ const handleSignOut = useCallback(async () => {
     isProfileSubViewOpen,
   ]);
 
+  const hideMainTabSnapshot = useCallback(() => {
+    const host = mainTabSwipeSnapshotHostRef.current;
+    if (host) {
+      host.style.visibility = "hidden";
+      host.style.backgroundColor = "transparent";
+      host.replaceChildren();
+    }
+    mainTabSwipeSnapshotPageRef.current = null;
+  }, []);
+
+  const setMainTabSnapshotX = useCallback((x: number) => {
+    const snapshot = mainTabSwipeSnapshotPageRef.current;
+    if (!snapshot) return;
+    snapshot.style.transform = `translate3d(${x}px, 0, 0)`;
+  }, []);
+
+  const captureMainTabSnapshot = useCallback((physicalSign: 1 | -1): number | null => {
+    const source = mainTabLivePageRef.current;
+    const host = mainTabSwipeSnapshotHostRef.current;
+    if (!source || !host) return null;
+
+    const sourceRect = source.getBoundingClientRect();
+    if (sourceRect.width < 2) return null;
+    const clone = source.cloneNode(true) as HTMLElement;
+    const sourceStyle = window.getComputedStyle(source);
+
+    clone.setAttribute("data-navigation-snapshot", "true");
+    clone.setAttribute("data-main-tab-navigation-snapshot", "true");
+    clone.setAttribute("aria-hidden", "true");
+    clone.style.pointerEvents = "none";
+    clone.style.userSelect = "none";
+    clone.style.position = "absolute";
+    clone.style.top = `${sourceRect.top}px`;
+    clone.style.left = `${sourceRect.left}px`;
+    clone.style.right = "auto";
+    clone.style.width = `${Math.max(1, sourceRect.width)}px`;
+    clone.style.minWidth = clone.style.width;
+    clone.style.maxWidth = clone.style.width;
+    clone.style.minHeight = `${Math.max(source.scrollHeight, sourceRect.height)}px`;
+    clone.style.margin = "0";
+    clone.style.opacity = "1";
+    clone.style.transform = "translate3d(0, 0, 0)";
+    clone.style.transformOrigin = "0 0";
+    clone.style.willChange = "transform";
+    clone.style.backfaceVisibility = "hidden";
+    (clone.style as any).webkitBackfaceVisibility = "hidden";
+    clone.style.isolation = "isolate";
+    clone.style.overflow = "visible";
+    clone.style.backgroundColor = sourceStyle.backgroundColor || "transparent";
+    clone.style.boxShadow = getSwipeLayerShadowForExitSign(physicalSign);
+
+    // The clone is a frozen visual layer only. Never let duplicated media or
+    // focusable controls run while it is crossing the viewport.
+    clone.querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]").forEach((node) => {
+      node.setAttribute("tabindex", "-1");
+      node.setAttribute("aria-hidden", "true");
+    });
+    clone.querySelectorAll<HTMLVideoElement>("video").forEach((video) => {
+      video.autoplay = false;
+      video.muted = true;
+      video.removeAttribute("autoplay");
+    });
+
+    // Host itself stays transparent so the adjacent live destination is visible
+    // in the area uncovered by the moving source snapshot.
+    host.style.backgroundColor = "transparent";
+    host.replaceChildren(clone);
+    host.style.visibility = "visible";
+    mainTabSwipeSnapshotPageRef.current = clone;
+
+    return Math.max(1, sourceRect.width);
+  }, []);
+
+  const resetMainTabSwipeSession = useCallback(() => {
+    const session = mainTabSwipeSessionRef.current;
+    session.tracking = false;
+    session.axis = null;
+    session.prepared = false;
+    session.velocity = 0;
+    session.currentTab = null;
+    session.nextTab = null;
+    session.pageWidth = 1;
+    session.sourceScrollTop = 0;
+    session.targetScrollTop = 0;
+    session.rootState = null;
+  }, []);
+
   const finishMainTabVisual = useCallback(() => {
     mainTabSwipeAnimatingRef.current = false;
     mainTabSwipeActiveRef.current = false;
-    setMainTabSwipeVisualActive(false);
     mainTabSwipeX.set(0);
-  }, [mainTabSwipeX]);
+    hideMainTabSnapshot();
+    resetMainTabSwipeSession();
+    setMainTabSwipeVisualActive(false);
+  }, [hideMainTabSnapshot, mainTabSwipeX, resetMainTabSwipeSession]);
+
+  const restoreCancelledMainTabSource = useCallback(() => {
+    const session = mainTabSwipeSessionRef.current;
+    const sourceTab = session.currentTab;
+    const rootState = session.rootState;
+    if (!sourceTab || !rootState) {
+      finishMainTabVisual();
+      return;
+    }
+
+    // The snapshot is already back at x=0 and completely hides this atomic
+    // restoration. Put the original root + exact scroll position back before
+    // the snapshot is released, so cancellation cannot flash/reflow.
+    pendingNavigationScrollRestoreRef.current = session.sourceScrollTop;
+    pendingNavigationRestoreIsBackRef.current = true;
+    isRestoringGlobalScrollRef.current = true;
+    mainTabSwipeX.set(0);
+
+    flushSync(() => {
+      setActiveHomeSubjectId(rootState.activeHomeSubjectId);
+      setActiveHomeLecture(rootState.activeHomeLecture);
+      setActiveModuleId(rootState.activeModuleId);
+      setActiveSubjectId(rootState.activeSubjectId);
+      setActiveLecture(rootState.activeLecture);
+      setLectureDetailSource(rootState.lectureDetailSource);
+      setSuppressHomeEntranceAnimations(rootState.suppressHomeEntranceAnimations);
+      setActiveTab(sourceTab);
+    });
+
+    // Keep the identical frozen source above the live source for two paints.
+    // This is cheap (< 34 ms at 60 Hz) and avoids WebKit exposing a half-laid
+    // out frame while the shared scroll canvas restores behind it.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(finishMainTabVisual);
+    });
+  }, [finishMainTabVisual, mainTabSwipeX]);
 
   const settleCancelledMainTabSwipe = useCallback(() => {
     const session = mainTabSwipeSessionRef.current;
     session.tracking = false;
-    session.axis = null;
-    session.nextTab = null;
-    session.velocity = 0;
+
+    if (!session.prepared || !session.nextTab) {
+      mainTabSwipeAnimatingRef.current = true;
+      animate(mainTabSwipeX, 0, {
+        type: "tween",
+        duration: IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration,
+        ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+        onComplete: finishMainTabVisual,
+      });
+      return;
+    }
 
     mainTabSwipeAnimatingRef.current = true;
-    animate(mainTabSwipeX, 0, {
-      ...IOS_CONSOLE_SMOOTH_MOTION.cancelSpring,
-      // Deliberately do not inject the finger velocity into the cancellation.
-      // A zero-velocity overdamped settle is identical in LTR/RTL and removes
-      // the tiny rebound/vibration seen when direction changed near finger-up.
-      velocity: 0,
-      onComplete: finishMainTabVisual,
-    });
-  }, [finishMainTabVisual, mainTabSwipeX]);
+    const sign = session.physicalSign;
+    const width = Math.max(1, session.pageWidth);
+    const currentIncomingX = mainTabSwipeX.get();
+    const currentOutgoingX = currentIncomingX + sign * width;
+    const progress = Math.min(1, Math.abs(currentOutgoingX) / width);
+    const duration =
+      IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration +
+      (IOS_MAIN_TAB_PAGER_MOTION.maxCancelDuration -
+        IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration) * progress;
 
-  const commitMainTabSwipe = useCallback((nextTab: MainPhoneTabId) => {
+    animate(currentOutgoingX, 0, {
+      type: "tween",
+      duration,
+      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      onUpdate: setMainTabSnapshotX,
+    });
+    animate(mainTabSwipeX, -sign * width, {
+      type: "tween",
+      duration,
+      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      onComplete: restoreCancelledMainTabSource,
+    });
+  }, [finishMainTabVisual, mainTabSwipeX, restoreCancelledMainTabSource, setMainTabSnapshotX]);
+
+  const prepareMainTabDestination = useCallback((nextTab: MainPhoneTabId, dx: number) => {
     const session = mainTabSwipeSessionRef.current;
+    if (session.prepared || !session.currentTab) return;
+
     const canvas = document.getElementById("main-scroll-canvas");
     const sourceScrollTop = canvas?.scrollTop ?? 0;
+    const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
     const targetScrollTop = readScrollPosition(`/${nextTab}`) ?? 0;
-    const handoffX = Math.max(
-      -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
-      Math.min(IOS_CONSOLE_SMOOTH_MOTION.roleDragMax, mainTabSwipeX.get()),
-    );
 
-    // Persist the outgoing root before the destination DOM becomes active.
+    // Capture before changing any React state. The clone contains the exact
+    // already-painted source page (including the large title) at this scroll
+    // coordinate, so the source never needs to remain live during the drag.
+    const pageWidth = captureMainTabSnapshot(physicalSign);
+    if (!pageWidth) return;
+
+    session.prepared = true;
+    session.nextTab = nextTab;
+    session.physicalSign = physicalSign;
+    session.pageWidth = pageWidth;
+    session.sourceScrollTop = sourceScrollTop;
+    session.targetScrollTop = targetScrollTop;
+
     storeScrollPosition(session.sourcePath || navigationPath, sourceScrollTop);
+    mainTabSwipeActiveRef.current = true;
+    setMainTabSwipeVisualActive(true);
 
     if (phoneTabBarResizeFrameRef.current !== null) {
       cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
@@ -4808,42 +5001,79 @@ const handleSignOut = useCallback(async () => {
     }
     phoneTabBarPendingExpandedRef.current = null;
 
-    // Root-tab navigation is a single handoff, never a pushed Back stack.
-    clearNavigationStack();
+    // Place the destination exactly one page beside the source before React
+    // reveals it. The snapshot hides this atomic handoff from the user.
+    mainTabSwipeX.stop();
+    mainTabSwipeX.set(-physicalSign * pageWidth);
     pendingNavigationScrollRestoreRef.current = targetScrollTop;
-    // Reuse the native single-write restoration path: restore before paint once,
-    // never RAF/timer-correct the destination after the swipe has settled.
     pendingNavigationRestoreIsBackRef.current = true;
     isRestoringGlobalScrollRef.current = true;
 
     flushSync(() => {
-      // Every root swipe lands at the root of the destination tab so stale
-      // Module/Lecture/Profile child state can never bleed into the transition.
       setActiveHomeSubjectId(null);
       setActiveHomeLecture(null);
       setActiveModuleId(null);
       setActiveSubjectId(null);
       setActiveLecture(null);
       setLectureDetailSource(null);
+      // Returning to Welcome by a root swipe is visually the same as a native
+      // Back: the Dashboard was already there, so its one-shot card entrances
+      // must stay disabled after the swipe has finished.
+      if (nextTab === "home") setSuppressHomeEntranceAnimations(true);
       setActiveTab(nextTab);
     });
+  }, [
+    captureMainTabSnapshot,
+    mainTabSwipeX,
+    navigationPath,
+    readScrollPosition,
+    storeScrollPosition,
+  ]);
 
-    // Preserve the exact compositor position across the React swap. The new
-    // page starts where the old page was at finger-up, then glides to rest.
-    // There is no opposite-side jump, scale, opacity change, or vibration.
-    mainTabSwipeX.set(handoffX);
+  const commitMainTabSwipe = useCallback(() => {
+    const session = mainTabSwipeSessionRef.current;
+    if (!session.prepared || !session.nextTab) {
+      settleCancelledMainTabSwipe();
+      return;
+    }
+
+    session.tracking = false;
+    mainTabSwipeAnimatingRef.current = true;
+
+    const sign = session.physicalSign;
+    const width = Math.max(1, session.pageWidth);
+    const currentIncomingX = mainTabSwipeX.get();
+    const currentOutgoingX = currentIncomingX + sign * width;
+    const progress = Math.min(1, Math.abs(currentOutgoingX) / width);
+    const remaining = 1 - progress;
+    const duration =
+      IOS_MAIN_TAB_PAGER_MOTION.minCommitDuration +
+      (IOS_MAIN_TAB_PAGER_MOTION.maxCommitDuration -
+        IOS_MAIN_TAB_PAGER_MOTION.minCommitDuration) * remaining;
+
+    // One planar page transition: the outgoing snapshot and incoming live page
+    // move the exact same remaining distance with the exact same easing.
+    animate(currentOutgoingX, sign * width, {
+      type: "tween",
+      duration,
+      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      onUpdate: setMainTabSnapshotX,
+    });
     animate(mainTabSwipeX, 0, {
-      ...IOS_CONSOLE_SMOOTH_MOTION.completionSpring,
-      velocity: 0,
-      onComplete: finishMainTabVisual,
+      type: "tween",
+      duration,
+      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      onComplete: () => {
+        clearNavigationStack();
+        finishMainTabVisual();
+      },
     });
   }, [
     clearNavigationStack,
     finishMainTabVisual,
     mainTabSwipeX,
-    navigationPath,
-    readScrollPosition,
-    storeScrollPosition,
+    setMainTabSnapshotX,
+    settleCancelledMainTabSwipe,
   ]);
 
   const handleMainTabTouchStart = (event: React.TouchEvent<HTMLElement>) => {
@@ -4853,16 +5083,20 @@ const handleSignOut = useCallback(async () => {
     const zone = target?.closest('[data-main-tab-swipe-zone]');
     if (!zone) return;
 
-    // Root-tab paging never steals a gesture from a control, a nested pager,
-    // swipe-back surface, horizontal carousel, form field or the floating nav.
-    if (
-      target?.closest(
-        'button, a, input, textarea, select, [contenteditable="true"], [role="button"], [role="tab"], [role="slider"], [data-main-tab-swipe-ignore="true"], [data-swipe-back-surface="true"], [data-horizontal-pager="true"], #ios_native_tabbar_wrapper',
-      )
-    ) {
-      return;
-    }
+    // Zones marked "full" allow a deliberate horizontal drag to begin over
+    // cards/buttons as well as empty space. Their DOM boundary still defines the
+    // scope: Welcome/Modules/Profile use the whole page, while Schedule/Console
+    // opt in only for the exact upper sections requested. Normal taps remain
+    // untouched because we do not prevent anything until horizontal axis lock.
+    const permissiveSwipeZone = target?.closest('[data-main-tab-swipe-zone="full"]');
+    const isPermissiveSwipeZone = Boolean(permissiveSwipeZone);
+    const blockedSelector = isPermissiveSwipeZone
+      ? 'input, textarea, select, [contenteditable="true"], [role="slider"], [data-main-tab-swipe-ignore="true"], [data-swipe-back-surface="true"], [data-horizontal-pager="true"], #ios_native_tabbar_wrapper'
+      : 'button, a, input, textarea, select, [contenteditable="true"], [role="button"], [role="tab"], [role="slider"], [data-main-tab-swipe-ignore="true"], [data-swipe-back-surface="true"], [data-horizontal-pager="true"], #ios_native_tabbar_wrapper';
 
+    if (target?.closest(blockedSelector)) return;
+
+    // Preserve any genuine nested horizontal scroller (chips, carousel, etc.).
     if (target instanceof HTMLElement && zone instanceof HTMLElement) {
       let node: HTMLElement | null = target;
       while (node && node !== zone) {
@@ -4882,11 +5116,13 @@ const handleSignOut = useCallback(async () => {
 
     mainTabSwipeX.stop();
     mainTabSwipeX.set(0);
+    hideMainTabSnapshot();
 
     const touch = event.touches[0];
     mainTabSwipeSessionRef.current = {
       tracking: true,
       axis: null,
+      prepared: false,
       startX: touch.clientX,
       startY: touch.clientY,
       lastX: touch.clientX,
@@ -4894,7 +5130,20 @@ const handleSignOut = useCallback(async () => {
       velocity: 0,
       currentTab,
       nextTab: null,
+      physicalSign: 1,
+      pageWidth: 1,
+      sourceScrollTop: document.getElementById("main-scroll-canvas")?.scrollTop ?? 0,
+      targetScrollTop: 0,
       sourcePath: navigationPath,
+      rootState: {
+        activeHomeSubjectId,
+        activeHomeLecture,
+        activeModuleId,
+        activeSubjectId,
+        activeLecture,
+        lectureDetailSource,
+        suppressHomeEntranceAnimations,
+      },
     };
   };
 
@@ -4910,22 +5159,19 @@ const handleSignOut = useCallback(async () => {
 
     if (session.axis === null) {
       if (
-        absY >= IOS_CONSOLE_SMOOTH_MOTION.verticalRejectDistance &&
-        absY > absX * IOS_CONSOLE_SMOOTH_MOTION.verticalRejectRatio
+        absY >= IOS_MAIN_TAB_PAGER_MOTION.verticalRejectDistance &&
+        absY > absX * IOS_MAIN_TAB_PAGER_MOTION.verticalRejectRatio
       ) {
         session.axis = "y";
         session.tracking = false;
         return;
       }
-      if (absX < IOS_CONSOLE_SMOOTH_MOTION.axisLockDistance) return;
-      if (absY > absX * IOS_CONSOLE_SMOOTH_MOTION.horizontalLockMaxVerticalRatio) return;
-
+      if (absX < IOS_MAIN_TAB_PAGER_MOTION.axisLockDistance) return;
+      if (absY > absX * IOS_MAIN_TAB_PAGER_MOTION.horizontalLockMaxVerticalRatio) return;
       session.axis = "x";
       mainTabSwipeActiveRef.current = true;
       setMainTabSwipeVisualActive(true);
 
-      // A horizontal root swipe must never resize the floating tab bar. Cancel
-      // any vertical-scroll resize packet that was queued before axis lock.
       if (phoneTabBarResizeFrameRef.current !== null) {
         cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
         phoneTabBarResizeFrameRef.current = null;
@@ -4936,75 +5182,83 @@ const handleSignOut = useCallback(async () => {
     if (session.axis !== "x") return;
     if (event.cancelable) event.preventDefault();
 
-    const currentIndex = mainPhoneTabOrder.indexOf(session.currentTab);
-    if (currentIndex < 0) return;
-
-    const forward = isRtl ? dx > 0 : dx < 0;
-    const nextIndex = currentIndex + (forward ? 1 : -1);
-    const atBoundary = nextIndex < 0 || nextIndex >= mainPhoneTabOrder.length;
-
     const now = performance.now();
     const dt = Math.max(1, now - session.lastTime);
     const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
     session.velocity =
-      session.velocity * IOS_CONSOLE_SMOOTH_MOTION.velocityPreviousWeight +
-      instantaneousVelocity * IOS_CONSOLE_SMOOTH_MOTION.velocityCurrentWeight;
+      session.velocity * IOS_MAIN_TAB_PAGER_MOTION.velocityPreviousWeight +
+      instantaneousVelocity * IOS_MAIN_TAB_PAGER_MOTION.velocityCurrentWeight;
     session.lastX = touch.clientX;
     session.lastTime = now;
 
-    if (atBoundary) {
-      session.nextTab = null;
-      const boundaryX = Math.max(
-        -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax * 0.45,
-        Math.min(
-          IOS_CONSOLE_SMOOTH_MOTION.roleDragMax * 0.45,
-          dx * IOS_CONSOLE_SMOOTH_MOTION.boundaryResistance,
-        ),
-      );
-      mainTabSwipeX.set(boundaryX);
-      return;
+    const currentIndex = mainPhoneTabOrder.indexOf(session.currentTab);
+    if (currentIndex < 0) return;
+
+    if (!session.prepared) {
+      const forward = isRtl ? dx > 0 : dx < 0;
+      const nextIndex = currentIndex + (forward ? 1 : -1);
+      const atBoundary = nextIndex < 0 || nextIndex >= mainPhoneTabOrder.length;
+
+      if (atBoundary) {
+        session.nextTab = null;
+        const boundaryX = Math.max(
+          -18,
+          Math.min(18, dx * IOS_MAIN_TAB_PAGER_MOTION.boundaryResistance),
+        );
+        mainTabSwipeX.set(boundaryX);
+        return;
+      }
+
+      const nextTab = mainPhoneTabOrder[nextIndex];
+      prepareMainTabDestination(nextTab, dx);
     }
 
-    const nextTab = mainPhoneTabOrder[nextIndex];
-    session.nextTab = nextTab;
+    if (!session.prepared) return;
 
-    // Same stable visual language as Roles/Console: direct but intentionally
-    // compact finger tracking. Full-page sweeps are what exposed blank WebKit
-    // compositor regions and made the app look as if it had resized/refreshed.
-    const rendered = Math.max(
-      -IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
-      Math.min(
-        IOS_CONSOLE_SMOOTH_MOTION.roleDragMax,
-        dx * IOS_CONSOLE_SMOOTH_MOTION.roleDragFactor,
-      ),
-    );
-    mainTabSwipeX.set(rendered);
+    // Lock this touch sequence to the first adjacent page chosen after axis
+    // recognition. Reversing the finger simply returns toward the start instead
+    // of hot-swapping React roots mid-gesture.
+    const sign = session.physicalSign;
+    const width = Math.max(1, session.pageWidth);
+    const directedDistance = Math.max(0, Math.min(width, sign * dx));
+    const outgoingX = sign * directedDistance;
+    const incomingX = outgoingX - sign * width;
+
+    setMainTabSnapshotX(outgoingX);
+    mainTabSwipeX.set(incomingX);
   };
 
   const handleMainTabTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
     const session = mainTabSwipeSessionRef.current;
-    if (!session.tracking) return;
+    if (!session.tracking && session.axis !== "x") return;
     session.tracking = false;
 
     const touch = event.changedTouches[0];
-    if (!touch || session.axis !== "x" || !session.currentTab || !session.nextTab) {
+    if (!touch || session.axis !== "x") {
       if (session.axis === "x") settleCancelledMainTabSwipe();
       else finishMainTabVisual();
       return;
     }
 
+    if (!session.prepared || !session.nextTab) {
+      settleCancelledMainTabSwipe();
+      return;
+    }
+
     const dx = touch.clientX - session.startX;
+    const width = Math.max(1, session.pageWidth);
+    const directedDistance = Math.max(0, Math.min(width, session.physicalSign * dx));
     const qualifies =
-      Math.abs(dx) >= 52 ||
-      (Math.abs(dx) >= 26 && session.velocity >= IOS_CONSOLE_SMOOTH_MOTION.velocityThreshold);
+      directedDistance >= width * IOS_MAIN_TAB_PAGER_MOTION.commitProgress ||
+      (directedDistance >= IOS_MAIN_TAB_PAGER_MOTION.flickDistance &&
+        session.velocity >= IOS_MAIN_TAB_PAGER_MOTION.velocityThreshold);
 
     if (!qualifies) {
       settleCancelledMainTabSwipe();
       return;
     }
 
-    mainTabSwipeAnimatingRef.current = true;
-    commitMainTabSwipe(session.nextTab);
+    commitMainTabSwipe();
   };
 
   const handleMainTabTouchCancel = () => {
@@ -5205,7 +5459,11 @@ const handleSignOut = useCallback(async () => {
   const visibleLargeTitleTab =
     usePhoneLayout && persistentProfileUnderlay ? "profile" : activeTab;
   const phoneNavigationActiveTab =
-    usePhoneLayout && persistentProfileUnderlay ? "profile" : activeTab;
+    usePhoneLayout && persistentProfileUnderlay
+      ? "profile"
+      : usePhoneLayout && mainTabSwipeVisualActive && mainTabSwipeSessionRef.current.currentTab
+        ? mainTabSwipeSessionRef.current.currentTab
+        : activeTab;
   const useRailNav     = device.railNav; // thin icon-only sidebar, no expand
   // The circular Search control is a permanent member of the iPhone floating
   // navigation cluster. It stays available across Home, Modules, Schedule,
@@ -5488,6 +5746,7 @@ const handleSignOut = useCallback(async () => {
             }}
           >
           <motion.div
+            ref={mainTabLivePageRef}
             data-main-tab-transition-active={mainTabSwipeVisualActive ? "true" : "false"}
             className="main-tab-stable-page relative w-full min-w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
             style={{
@@ -5510,7 +5769,9 @@ const handleSignOut = useCallback(async () => {
               data-main-tab-swipe-zone={
                 usePhoneLayout &&
                 ["subjects", "calendar", "control-center", "profile"].includes(visibleLargeTitleTab)
-                  ? "true"
+                  ? (visibleLargeTitleTab === "subjects" || visibleLargeTitleTab === "profile"
+                      ? "full"
+                      : "header")
                   : undefined
               }
               className={`mb-6 pt-2 select-none ${usePhoneLayout ? "" : "md:hidden"}`}
@@ -5564,6 +5825,7 @@ const handleSignOut = useCallback(async () => {
           <div className="w-full relative min-h-full">
             {/* Tab 1: Welcome (Home) */}
             <motion.div
+              data-main-tab-swipe-zone={activeTab === "home" ? "full" : undefined}
               style={getMainTabPanelStyle("home")}
               className="w-full min-h-full"
             >
@@ -5745,6 +6007,7 @@ const handleSignOut = useCallback(async () => {
 
             {/* Tab 2: Modules */}
             <motion.div
+              data-main-tab-swipe-zone={activeTab === "subjects" ? "full" : undefined}
               style={getMainTabPanelStyle("subjects")}
               className="w-full min-h-full"
             >
@@ -5973,7 +6236,7 @@ const handleSignOut = useCallback(async () => {
             {/* Tab 4: Profile */}
             <motion.div
               data-main-tab-swipe-zone={
-                activeTab === "profile" && !persistentProfileUnderlay ? "true" : undefined
+                activeTab === "profile" && !persistentProfileUnderlay ? "full" : undefined
               }
               style={
                 persistentProfileUnderlay
@@ -6378,6 +6641,18 @@ const handleSignOut = useCallback(async () => {
           </motion.div>
           </motion.div>
         </main>
+
+        {/* Fixed inert visual source used only while an iPhone root-tab swipe is
+            in progress. It sits below the floating navigation (z-50) and above
+            the live page, so shared-scroll restoration happens invisibly behind
+            the already-painted source frame. */}
+        {usePhoneLayout && (
+          <div
+            ref={mainTabSwipeSnapshotHostRef}
+            className="main-tab-swipe-snapshot-host"
+            aria-hidden="true"
+          />
+        )}
 
         {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer

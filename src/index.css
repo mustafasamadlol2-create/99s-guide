@@ -5245,19 +5245,18 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
 /* Root iPhone tab pager capture zones. Vertical scrolling remains native; only
    an unambiguous horizontal gesture is claimed by App.tsx. */
-.mobile-phone-layout [data-main-tab-swipe-zone="true"] {
+.mobile-phone-layout [data-main-tab-swipe-zone] {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* ── Stable phone root-tab handoff ───────────────────────────────────────────
-   While Welcome / Modules / Schedule / Console / Profile are being paged, the
-   whole live page is already moving on one compositor layer. Replaying child
-   entrance keyframes at the React handoff creates the illusion of refresh,
-   resize, or card vibration. Freeze only those entrance animations for the
-   few milliseconds that the root-tab transition is active. Normal navigation
-   outside a tab swipe keeps the existing animation system unchanged. */
+/* ── Native phone root-tab pager ─────────────────────────────────────────────
+   The outgoing page is frozen into a fixed inert viewport snapshot while the
+   live destination sits beside it and follows the finger. This decouples the
+   horizontal pager from the one shared vertical scroll canvas: destination
+   scroll restoration can happen behind the snapshot before it ever becomes
+   visible, eliminating the old black/blank canvas and resize/reposition flash. */
 .mobile-phone-layout .main-tab-stable-page {
   width: 100%;
   max-width: 100%;
@@ -5270,7 +5269,32 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 .mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card {
   animation: none !important;
   animation-delay: 0s !important;
+  transition: none !important;
   opacity: 1 !important;
+}
+
+/* Snapshot host is a pure compositor layer. It is fixed to the viewport rather
+   than the scroll canvas and intentionally remains below the floating tab bar
+   (z-50). No layout size is ever derived from this layer. */
+.mobile-phone-layout .main-tab-swipe-snapshot-host {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+  isolation: isolate;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.mobile-phone-layout [data-main-tab-navigation-snapshot="true"] {
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+  transform-origin: 0 0 !important;
 }
 
 /* Console sub-tab paging uses the same single-surface contract as the main

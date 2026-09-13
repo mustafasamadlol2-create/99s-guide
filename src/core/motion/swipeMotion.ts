@@ -58,6 +58,32 @@ export const IOS_SWIPE_MOTION = {
 
 
 /**
+ * Root-tab pager motion (Welcome / Modules / Schedule / Console / Profile).
+ *
+ * This intentionally does NOT use the short "content nudge" used by Console
+ * filters. Root tabs behave like a native full-page pager: the outgoing page
+ * tracks the finger 1:1, the adjacent page is already positioned beside it,
+ * and release uses one short, non-bouncy deceleration. No scale, fade, card
+ * choreography or haptic is part of this transition.
+ */
+export const IOS_MAIN_TAB_PAGER_MOTION = {
+  ...IOS_SWIPE_MOTION,
+  commitProgress: 0.26,
+  flickDistance: 26,
+  velocityThreshold: 0.42,
+  boundaryResistance: 0.08,
+
+  // Instagram/UIKit-like release: fast at first, then a soft deceleration to
+  // rest. A tween is used deliberately so there is no spring rebound/vibration.
+  settleEase: [0.22, 0.72, 0.16, 1] as const,
+  minCommitDuration: 0.16,
+  maxCommitDuration: 0.30,
+  minCancelDuration: 0.14,
+  maxCancelDuration: 0.24,
+} as const;
+
+
+/**
  * Slightly softer release profile for nested Console pagers.
  * Recognition thresholds stay identical to the global iOS gesture, while the
  * settle curve is closer to critically damped UIKit paging so the page glides

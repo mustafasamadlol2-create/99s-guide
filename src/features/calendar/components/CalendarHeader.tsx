@@ -162,7 +162,10 @@ export function CalendarHeader({
   className="w-full flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 pb-2 pt-2 select-none"
  >
  {/* Left section: Typography and Meta */}
-  <div className="flex flex-col gap-4 w-full lg:w-auto min-w-0">
+  <div
+   data-main-tab-swipe-zone={isPhone ? "full" : undefined}
+   className="flex flex-col gap-4 w-full lg:w-auto min-w-0"
+  >
   <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
  <div className="flex items-center gap-3">
  {/* iOS Native Style Calendar App Icon - Larger in redesign */}

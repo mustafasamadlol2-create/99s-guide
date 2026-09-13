@@ -876,7 +876,11 @@ const ControlCenterView = function ControlCenterView({
       onTouchCancel={handleConsoleTouchCancel}
     >
       {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <div className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-200/40 dark:border-[rgba(255,255,255,0.08)] rounded-lg p-3 sm:p-4 shadow-elevation-1">
+      <div
+        data-main-tab-swipe-zone={isPhone ? "full" : undefined}
+        data-console-swipe-ignore={isPhone ? "true" : undefined}
+        className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-200/40 dark:border-[rgba(255,255,255,0.08)] rounded-lg p-3 sm:p-4 shadow-elevation-1"
+      >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex-1">
             <h2 className="text-lg font-display font-semibold text-neutral-800 dark:text-white flex items-center gap-2">
