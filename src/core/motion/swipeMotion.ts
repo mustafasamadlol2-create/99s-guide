@@ -68,27 +68,55 @@ export const IOS_SWIPE_MOTION = {
  */
 export const IOS_MAIN_TAB_PAGER_MOTION = {
   ...IOS_SWIPE_MOTION,
-  commitProgress: 0.26,
-  flickDistance: 26,
-  velocityThreshold: 0.42,
-  boundaryResistance: 0.08,
 
-  // Premium Instagram/UIKit-like release: the page keeps meaningful travel
-  // time after finger-up instead of snapping through the last distance. This
-  // yields enough compositor frames to look fluid on 60/90/120 Hz displays
-  // while remaining decisive. A tween is deliberate: no spring rebound,
-  // vibration or scale/fade choreography is introduced.
-  settleEase: [0.20, 0.82, 0.18, 1] as const,
-  minCommitDuration: 0.22,
-  maxCommitDuration: 0.42,
-  minCancelDuration: 0.18,
-  maxCancelDuration: 0.34,
+  // Instagram/UIKit-style page selection: position wins at half a page, while
+  // a decisive fling can still advance before the halfway mark.
+  commitProgress: 0.50,
+  velocityThreshold: 0.62, // px / ms
+  flickDistance: 0,
 
-  // A fast flick may shorten only a small portion of the remaining settle.
-  // Keeping this bounded prevents a high-velocity release from collapsing to a
-  // visibly low-frame snap while still respecting the user's momentum.
-  velocityDurationReduction: 0.18,
-  velocityDurationReference: 1.6, // px / ms
+  // Directional lock stays intentionally small so horizontal intent is picked
+  // up quickly without stealing ordinary vertical scrolling.
+  axisLockDistance: 6,
+  verticalRejectDistance: 16,
+  verticalRejectRatio: 1.22,
+  horizontalLockMaxVerticalRatio: 0.82,
+
+  // Keep the release velocity responsive. The latest sample carries most of the
+  // weight so the spring begins with the same momentum the user's finger had.
+  velocityPreviousWeight: 0.30,
+  velocityCurrentWeight: 0.70,
+
+  // UIKit-like edge rubber band. Small drags begin at roughly 0.5x finger
+  // travel, then progressively resist larger pulls.
+  boundaryResistance: 0.50,
+
+  // Release is physics-driven, not duration/easing driven. These values are
+  // very close to critically damped at mass 1, giving a fast, weighty settle
+  // with effectively no visible bounce. Typical release-to-rest is ~250–300 ms.
+  completionSpring: {
+    type: "spring" as const,
+    stiffness: 560,
+    damping: 46,
+    mass: 1,
+    restSpeed: 0.12,
+    restDelta: 0.004,
+  },
+
+  cancelSpring: {
+    type: "spring" as const,
+    stiffness: 620,
+    damping: 50,
+    mass: 1,
+    restSpeed: 0.10,
+    restDelta: 0.0035,
+  },
+
+  // Motion's spring velocity is expressed in animated units per second. Root
+  // paging animates normalized progress, so this is a screen-widths/sec guard.
+  // It prevents pathological touch samples from producing a visually explosive
+  // launch while preserving the actual fling direction and momentum.
+  maxSpringVelocityScreensPerSecond: 5.5,
 } as const;
 
 

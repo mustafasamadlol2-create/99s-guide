@@ -43,7 +43,6 @@ import {
   IOS_MAIN_TAB_PAGER_MOTION,
   IOS_SWIPE_MOTION,
   getNativeSwipeLayerShadow,
-  getSwipeLayerShadowForExitSign,
 } from "./core/motion/swipeMotion";
 import { useIOSKeyboardDragDismiss } from "./core/hooks/useTouchSurfaceGestures";
 import { UserAvatar } from "./features/profile/components/UserAvatar";
@@ -4720,8 +4719,6 @@ const handleSignOut = useCallback(async () => {
   // application-wide rerenders while the finger is moving.
   const mainTabBarIndicatorX = useMotionValue(0);
   const mainTabBarRef = useRef<HTMLDivElement | null>(null);
-  const mainTabSwipeFrameRef = useRef<number | null>(null);
-  const mainTabSwipePendingProgressRef = useRef<number | null>(null);
   const mainTabLivePageRef = useRef<HTMLDivElement | null>(null);
   const mainTabSwipeSnapshotHostRef = useRef<HTMLDivElement | null>(null);
   const mainTabSwipeSnapshotPageRef = useRef<HTMLElement | null>(null);
@@ -4917,28 +4914,6 @@ const handleSignOut = useCallback(async () => {
     syncMainTabBarIconVisual,
   ]);
 
-  const queueMainTabSwipeProgress = useCallback((progress: number) => {
-    mainTabSwipePendingProgressRef.current = progress;
-    if (mainTabSwipeFrameRef.current !== null) return;
-
-    mainTabSwipeFrameRef.current = requestAnimationFrame(() => {
-      mainTabSwipeFrameRef.current = null;
-      const pending = mainTabSwipePendingProgressRef.current;
-      mainTabSwipePendingProgressRef.current = null;
-      if (pending !== null) applyMainTabSwipeProgress(pending);
-    });
-  }, [applyMainTabSwipeProgress]);
-
-  const flushMainTabSwipeProgress = useCallback(() => {
-    if (mainTabSwipeFrameRef.current !== null) {
-      cancelAnimationFrame(mainTabSwipeFrameRef.current);
-      mainTabSwipeFrameRef.current = null;
-    }
-    const pending = mainTabSwipePendingProgressRef.current;
-    mainTabSwipePendingProgressRef.current = null;
-    if (pending !== null) applyMainTabSwipeProgress(pending);
-  }, [applyMainTabSwipeProgress]);
-
   const captureMainTabSnapshot = useCallback((physicalSign: 1 | -1): number | null => {
     const source = mainTabLivePageRef.current;
     const host = mainTabSwipeSnapshotHostRef.current;
@@ -4972,10 +4947,13 @@ const handleSignOut = useCallback(async () => {
     snapshotLayer.style.backfaceVisibility = "hidden";
     (snapshotLayer.style as any).webkitBackfaceVisibility = "hidden";
     snapshotLayer.style.overflow = "hidden";
-    snapshotLayer.style.contain = "layout style";
+    snapshotLayer.style.contain = "layout paint style";
     snapshotLayer.style.isolation = "isolate";
     snapshotLayer.style.backgroundColor = sourceStyle.backgroundColor || "transparent";
-    snapshotLayer.style.boxShadow = getSwipeLayerShadowForExitSign(physicalSign);
+    snapshotLayer.style.boxShadow =
+      physicalSign > 0
+        ? "-10px 0 24px -18px rgba(0,0,0,0.26)"
+        : "10px 0 24px -18px rgba(0,0,0,0.26)";
 
     clone.setAttribute("data-main-tab-navigation-snapshot-content", "true");
     clone.setAttribute("aria-hidden", "true");
@@ -4999,12 +4977,10 @@ const handleSignOut = useCallback(async () => {
     clone.style.backgroundColor = sourceStyle.backgroundColor || "transparent";
     clone.style.boxShadow = "none";
 
-    // The clone is a frozen visual layer only. Never let duplicated media or
-    // focusable controls run while it is crossing the viewport.
-    clone.querySelectorAll<HTMLElement>("button, input, textarea, select, a, [tabindex]").forEach((node) => {
-      node.setAttribute("tabindex", "-1");
-      node.setAttribute("aria-hidden", "true");
-    });
+    // The clone is a frozen visual layer only. `inert` prevents every
+    // descendant from receiving focus without walking the entire cloned tree
+    // and rewriting dozens of attributes during the first swipe frame.
+    (clone as HTMLElement & { inert: boolean }).inert = true;
     clone.querySelectorAll<HTMLVideoElement>("video").forEach((video) => {
       video.autoplay = false;
       video.muted = true;
@@ -5039,11 +5015,6 @@ const handleSignOut = useCallback(async () => {
   }, []);
 
   const finishMainTabVisual = useCallback(() => {
-    if (mainTabSwipeFrameRef.current !== null) {
-      cancelAnimationFrame(mainTabSwipeFrameRef.current);
-      mainTabSwipeFrameRef.current = null;
-    }
-    mainTabSwipePendingProgressRef.current = null;
     mainTabSwipeAnimatingRef.current = false;
     mainTabSwipeActiveRef.current = false;
     mainTabSwipeX.stop();
@@ -5090,50 +5061,58 @@ const handleSignOut = useCallback(async () => {
     });
   }, [finishMainTabVisual, mainTabSwipeX]);
 
+  const getMainTabProgressVelocity = useCallback(() => {
+    const session = mainTabSwipeSessionRef.current;
+    const width = Math.max(1, session.pageWidth);
+    const directedPxPerSecond = session.physicalSign * session.velocity * 1000;
+    const screensPerSecond = directedPxPerSecond / width;
+    const maxVelocity = IOS_MAIN_TAB_PAGER_MOTION.maxSpringVelocityScreensPerSecond;
+    return Math.max(-maxVelocity, Math.min(maxVelocity, screensPerSecond));
+  }, []);
+
+  const getMainTabBoundaryVelocity = useCallback(() => {
+    const session = mainTabSwipeSessionRef.current;
+    const maxVelocityPxPerSecond =
+      IOS_MAIN_TAB_PAGER_MOTION.maxSpringVelocityScreensPerSecond *
+      Math.max(1, window.innerWidth);
+    return Math.max(
+      -maxVelocityPxPerSecond,
+      Math.min(maxVelocityPxPerSecond, session.velocity * 1000),
+    );
+  }, []);
+
   const settleCancelledMainTabSwipe = useCallback(() => {
     const session = mainTabSwipeSessionRef.current;
     session.tracking = false;
-    flushMainTabSwipeProgress();
+    mainTabSwipeAnimatingRef.current = true;
 
     if (!session.prepared || !session.nextTab) {
-      mainTabSwipeAnimatingRef.current = true;
+      // Extreme-edge rubber-band return. Keep the physical release velocity so
+      // the page does not suddenly lose momentum at finger-up.
       animate(mainTabSwipeX, 0, {
-        type: "tween",
-        duration: IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration,
-        ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+        ...IOS_MAIN_TAB_PAGER_MOTION.cancelSpring,
+        velocity: getMainTabBoundaryVelocity(),
         onComplete: finishMainTabVisual,
       });
       return;
     }
 
-    mainTabSwipeAnimatingRef.current = true;
     const progress = session.visualProgress;
-    const baseDuration =
-      IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration +
-      (IOS_MAIN_TAB_PAGER_MOTION.maxCancelDuration -
-        IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration) * progress;
-    const velocityRatio = Math.min(
-      1,
-      session.velocity / IOS_MAIN_TAB_PAGER_MOTION.velocityDurationReference,
-    );
-    const duration = Math.max(
-      IOS_MAIN_TAB_PAGER_MOTION.minCancelDuration,
-      baseDuration * (1 - IOS_MAIN_TAB_PAGER_MOTION.velocityDurationReduction * velocityRatio),
-    );
 
-    // One scalar timeline owns source page, destination page and floating-tab
-    // selector. They therefore cannot drift a frame apart during cancellation.
+    // The same normalized spring timeline drives outgoing page, incoming page,
+    // and floating-bar selector. Release velocity is injected directly into the
+    // spring in screen-widths/sec so finger-up is visually seamless.
     animate(progress, 0, {
-      type: "tween",
-      duration,
-      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      ...IOS_MAIN_TAB_PAGER_MOTION.cancelSpring,
+      velocity: getMainTabProgressVelocity(),
       onUpdate: applyMainTabSwipeProgress,
       onComplete: restoreCancelledMainTabSource,
     });
   }, [
     applyMainTabSwipeProgress,
     finishMainTabVisual,
-    flushMainTabSwipeProgress,
+    getMainTabBoundaryVelocity,
+    getMainTabProgressVelocity,
     mainTabSwipeX,
     restoreCancelledMainTabSource,
   ]);
@@ -5168,7 +5147,6 @@ const handleSignOut = useCallback(async () => {
 
     storeScrollPosition(session.sourcePath || navigationPath, sourceScrollTop);
     mainTabSwipeActiveRef.current = true;
-    setMainTabSwipeVisualActive(true);
 
     if (phoneTabBarResizeFrameRef.current !== null) {
       cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
@@ -5185,6 +5163,10 @@ const handleSignOut = useCallback(async () => {
     isRestoringGlobalScrollRef.current = true;
 
     flushSync(() => {
+      // One atomic render prepares the visual pager state and the destination.
+      // Avoiding a separate pre-render here removes an extra main-thread commit
+      // at the exact moment horizontal tracking begins.
+      setMainTabSwipeVisualActive(true);
       setActiveHomeSubjectId(null);
       setActiveHomeLecture(null);
       setActiveModuleId(null);
@@ -5216,30 +5198,15 @@ const handleSignOut = useCallback(async () => {
 
     session.tracking = false;
     mainTabSwipeAnimatingRef.current = true;
-    flushMainTabSwipeProgress();
 
     const progress = session.visualProgress;
-    const remaining = 1 - progress;
-    const baseDuration =
-      IOS_MAIN_TAB_PAGER_MOTION.minCommitDuration +
-      (IOS_MAIN_TAB_PAGER_MOTION.maxCommitDuration -
-        IOS_MAIN_TAB_PAGER_MOTION.minCommitDuration) * remaining;
-    const velocityRatio = Math.min(
-      1,
-      session.velocity / IOS_MAIN_TAB_PAGER_MOTION.velocityDurationReference,
-    );
-    const duration = Math.max(
-      IOS_MAIN_TAB_PAGER_MOTION.minCommitDuration,
-      baseDuration * (1 - IOS_MAIN_TAB_PAGER_MOTION.velocityDurationReduction * velocityRatio),
-    );
 
-    // Exactly one compositor timeline drives all three visible participants:
-    // outgoing snapshot, incoming live page and floating-bar selector. This is
-    // the key to keeping the bar perfectly phase-locked with the swipe.
+    // Instagram-style physics: release to the destination with a firm,
+    // near-critically-damped spring and carry the user's actual fling velocity
+    // into the spring instead of substituting a fixed easing curve.
     animate(progress, 1, {
-      type: "tween",
-      duration,
-      ease: IOS_MAIN_TAB_PAGER_MOTION.settleEase,
+      ...IOS_MAIN_TAB_PAGER_MOTION.completionSpring,
+      velocity: getMainTabProgressVelocity(),
       onUpdate: applyMainTabSwipeProgress,
       onComplete: () => {
         clearNavigationStack();
@@ -5250,7 +5217,7 @@ const handleSignOut = useCallback(async () => {
     applyMainTabSwipeProgress,
     clearNavigationStack,
     finishMainTabVisual,
-    flushMainTabSwipeProgress,
+    getMainTabProgressVelocity,
     settleCancelledMainTabSwipe,
   ]);
 
@@ -5292,11 +5259,6 @@ const handleSignOut = useCallback(async () => {
     const currentTab = activeTab as MainPhoneTabId;
     if (!mainPhoneTabOrder.includes(currentTab)) return;
 
-    if (mainTabSwipeFrameRef.current !== null) {
-      cancelAnimationFrame(mainTabSwipeFrameRef.current);
-      mainTabSwipeFrameRef.current = null;
-    }
-    mainTabSwipePendingProgressRef.current = null;
     mainTabSwipeX.stop();
     mainTabBarIndicatorX.stop();
     mainTabSwipeX.set(0);
@@ -5358,7 +5320,6 @@ const handleSignOut = useCallback(async () => {
       if (absY > absX * IOS_MAIN_TAB_PAGER_MOTION.horizontalLockMaxVerticalRatio) return;
       session.axis = "x";
       mainTabSwipeActiveRef.current = true;
-      setMainTabSwipeVisualActive(true);
 
       if (phoneTabBarResizeFrameRef.current !== null) {
         cancelAnimationFrame(phoneTabBarResizeFrameRef.current);
@@ -5372,7 +5333,7 @@ const handleSignOut = useCallback(async () => {
 
     const now = performance.now();
     const dt = Math.max(1, now - session.lastTime);
-    const instantaneousVelocity = Math.abs(touch.clientX - session.lastX) / dt;
+    const instantaneousVelocity = (touch.clientX - session.lastX) / dt;
     session.velocity =
       session.velocity * IOS_MAIN_TAB_PAGER_MOTION.velocityPreviousWeight +
       instantaneousVelocity * IOS_MAIN_TAB_PAGER_MOTION.velocityCurrentWeight;
@@ -5389,14 +5350,27 @@ const handleSignOut = useCallback(async () => {
 
       if (atBoundary) {
         session.nextTab = null;
-        const boundaryX = Math.max(
-          -18,
-          Math.min(18, dx * IOS_MAIN_TAB_PAGER_MOTION.boundaryResistance),
+
+        // UIKit-style rubber band. The derivative near zero is the configured
+        // resistance (~0.5x finger travel), then resistance increases
+        // progressively instead of hitting a hard pixel clamp.
+        const dimension = Math.max(
+          1,
+          mainTabLivePageRef.current?.getBoundingClientRect().width ??
+            window.innerWidth,
         );
-        mainTabSwipeX.set(boundaryX);
+        const distance = Math.abs(dx);
+        const coefficient = IOS_MAIN_TAB_PAGER_MOTION.boundaryResistance;
+        const resisted =
+          (1 - 1 / (distance * coefficient / dimension + 1)) * dimension;
+        mainTabSwipeX.set(Math.sign(dx || 1) * resisted);
         return;
       }
 
+      // A gesture may begin by pulling against an outer edge and then reverse
+      // into a valid adjacent page. Remove the rubber-band offset before taking
+      // the frozen source frame so the page pair starts from the true origin.
+      if (mainTabSwipeX.get() !== 0) mainTabSwipeX.set(0);
       const nextTab = mainPhoneTabOrder[nextIndex];
       prepareMainTabDestination(nextTab, dx);
     }
@@ -5411,11 +5385,11 @@ const handleSignOut = useCallback(async () => {
     const directedDistance = Math.max(0, Math.min(width, sign * dx));
     const progress = directedDistance / width;
 
-    // Touch events can arrive faster than the panel refresh rate. Coalesce all
-    // writes into one requestAnimationFrame so WKWebView performs one transform
-    // commit per display frame (including 120 Hz ProMotion) instead of doing
-    // redundant style work between frames.
-    queueMainTabSwipeProgress(progress);
+    // Interactive tracking is intentionally direct, not queued through another
+    // requestAnimationFrame. Touch input already arrives on the browser's input
+    // pipeline; applying the normalized distance immediately removes the extra
+    // one-frame latency that made the previous version feel "30 fps".
+    applyMainTabSwipeProgress(progress);
   };
 
   const handleMainTabTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
@@ -5438,10 +5412,11 @@ const handleSignOut = useCallback(async () => {
     const dx = touch.clientX - session.startX;
     const width = Math.max(1, session.pageWidth);
     const directedDistance = Math.max(0, Math.min(width, session.physicalSign * dx));
+    const progress = directedDistance / width;
+    const directedVelocity = session.physicalSign * session.velocity;
     const qualifies =
-      directedDistance >= width * IOS_MAIN_TAB_PAGER_MOTION.commitProgress ||
-      (directedDistance >= IOS_MAIN_TAB_PAGER_MOTION.flickDistance &&
-        session.velocity >= IOS_MAIN_TAB_PAGER_MOTION.velocityThreshold);
+      progress >= IOS_MAIN_TAB_PAGER_MOTION.commitProgress ||
+      directedVelocity >= IOS_MAIN_TAB_PAGER_MOTION.velocityThreshold;
 
     if (!qualifies) {
       settleCancelledMainTabSwipe();
