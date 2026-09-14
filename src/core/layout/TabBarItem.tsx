@@ -1,5 +1,6 @@
 import React, { memo } from "react";
 import { motion } from "motion/react";
+import { IOS_CONSOLE_SMOOTH_MOTION } from "../motion/swipeMotion";
 
 export interface TabBarItemProps {
   id: string;
@@ -8,7 +9,6 @@ export interface TabBarItemProps {
   isActive: boolean;
   isCompactHeight: boolean;
   isEngaged?: boolean;
-  suppressIndicator?: boolean;
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
@@ -31,7 +31,6 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     isActive,
     isCompactHeight: _isCompactHeight,
     isEngaged = true,
-    suppressIndicator = false,
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
@@ -45,17 +44,12 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         style={{ WebkitTapHighlightColor: "transparent" }}
         whileTap={{ scale: 0.965 }}
       >
-        {isActive && !suppressIndicator && (
+        {isActive && (
           <motion.div
             layoutId="ios_mobile_tab_indicator"
             className="ios-tabbar-active-indicator absolute pointer-events-none"
             initial={false}
-            transition={{
-              type: "spring",
-              stiffness: 380,
-              damping: 34,
-              mass: 0.68,
-            }}
+            transition={IOS_CONSOLE_SMOOTH_MOTION.completionSpring}
           />
         )}
 
@@ -72,7 +66,7 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             animate={{
               scale: isActive ? (isEngaged ? 1.045 : 1.02) : 1,
             }}
-            transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.64 }}
+            transition={IOS_CONSOLE_SMOOTH_MOTION.completionSpring}
           >
             <Icon
               className="w-icon-lg h-icon-lg"

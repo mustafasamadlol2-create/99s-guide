@@ -67,14 +67,22 @@ export const SwipeableSubjectButton = memo(function SwipeableSubjectButton({
 
       <div className="flex justify-between items-start gap-3 w-full relative z-10 pointer-events-none shrink-0">
         <div 
-          className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${iconInfo.text} relative ring-1 ring-black/[0.03] dark:ring-white/10 overflow-hidden`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${iconInfo.text} relative ring-1 ring-black/[0.03] dark:ring-white/10 overflow-hidden isolate`}
           style={{ 
             background: `radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, ${iconInfo.glow} 16%, transparent) 0%, color-mix(in srgb, ${iconInfo.glow} 4%, transparent) 100%)`, 
             boxShadow: `0 8px 20px -6px color-mix(in srgb, ${iconInfo.glow} 35%, transparent), inset 0 1.5px 1.5px rgba(255,255,255,0.4), inset 0 -1.5px 1.5px rgba(0,0,0,0.03)`,
+            WebkitTransform: "translate3d(0,0,0)",
+            transform: "translate3d(0,0,0)",
+            WebkitBackfaceVisibility: "hidden",
+            backfaceVisibility: "hidden",
+            contain: "paint",
           }}
         >
-          <div className="absolute inset-0 rounded-full bg-white/30 dark:bg-[#000000]/20 backdrop-blur-sm" />
-          <IconComponent className="w-icon-md h-icon-md relative z-10 filter drop-shadow-md" />
+          <div className="absolute inset-0 rounded-full bg-white/30 dark:bg-[#000000]/20" />
+          <IconComponent
+            className="w-icon-md h-icon-md relative z-10"
+            style={{ WebkitTransform: "translateZ(0)", transform: "translateZ(0)" }}
+          />
         </div>
         
         <div className="flex flex-col items-end gap-1">
