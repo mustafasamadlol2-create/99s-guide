@@ -91,13 +91,13 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   // travel, then progressively resist larger pulls.
   boundaryResistance: 0.50,
 
-  // Near-critical release. Previous stiffness was 560; this softer 500 spring
-  // glides instead of snapping rigidly, while damping ~= 2*sqrt(k*m) prevents
-  // oscillation. maxDurationMs is a safety ceiling, not a cubic duration.
+  // Slightly under-critical iOS release. The lower damping preserves finger
+  // momentum and reaches visual rest naturally inside ~250-300ms instead of
+  // crawling toward the final pixels and then snapping at the duration cap.
   completionSpring: {
     type: "spring" as const,
     stiffness: 470,
-    damping: 43.4,
+    damping: 39,
     mass: 1,
     restSpeed: 0.18,
     restDelta: 0.005,
@@ -107,7 +107,7 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   cancelSpring: {
     type: "spring" as const,
     stiffness: 500,
-    damping: 44.7,
+    damping: 42,
     mass: 1,
     restSpeed: 0.16,
     restDelta: 0.004,

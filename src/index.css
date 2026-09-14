@@ -3737,7 +3737,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
     width var(--ios-nav-resize-duration) var(--ios-nav-resize-ease),
     height var(--ios-nav-resize-duration) var(--ios-nav-resize-ease);
   will-change: width, height;
-  transform: translate3d(0, 0, 0);
+  transform: none;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -5268,10 +5268,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   width: 100%;
   max-width: 100%;
   isolation: isolate;
-  transform: translate3d(0, 0, 0);
+  transform: none;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform-style: flat;
+}
+
+.mobile-phone-layout .main-tab-swipe-temp-title {
+  pointer-events: none;
+  background: transparent;
+  contain: layout style;
 }
 
 /* During root paging, destination content is already mounted but must look
@@ -5285,7 +5291,13 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
 }
 
-.mobile-phone-layout [data-main-tab-transition-active="true"] * {
+/* Do not blanket-disable transitions on every descendant here. That selector
+   forced a full style recalc across the very large hidden root-tab trees at the
+   exact moment the finger began moving. Root pages are persistent/mounted, so
+   suppress only the entrance primitives that can visibly replay. */
+.mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
+.mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card,
+.mobile-phone-layout [data-main-tab-transition-active="true"] [data-main-tab-enter-animation="true"] {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
 }
@@ -5347,10 +5359,13 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
 }
 
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] * {
+/* The snapshot is inert, so a universal descendant selector is unnecessary and
+   expensive. Keep only the known entrance primitives frozen. */
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .animate-fadeIn,
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .ios-staggered-card,
+.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] [data-main-tab-enter-animation="true"] {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
-  caret-color: transparent !important;
 }
 
 /* Tiny page-edge ownership cue; no opacity/scale choreography is applied to
