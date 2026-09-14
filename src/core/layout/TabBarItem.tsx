@@ -12,6 +12,7 @@ export interface TabBarItemProps {
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
+  suspendSharedIndicatorMotion?: boolean;
 }
 
 /**
@@ -34,9 +35,11 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
+    suspendSharedIndicatorMotion = false,
   }) => {
     return (
       <motion.button
+        data-tab-id={id}
         onClick={() => onClick(id)}
         aria-label={label}
         aria-current={isActive ? "page" : undefined}
@@ -49,7 +52,11 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
             layoutId="ios_mobile_tab_indicator"
             className="ios-tabbar-active-indicator absolute pointer-events-none"
             initial={false}
-            transition={IOS_CONSOLE_SMOOTH_MOTION.completionSpring}
+            transition={
+              suspendSharedIndicatorMotion
+                ? { duration: 0 }
+                : IOS_CONSOLE_SMOOTH_MOTION.completionSpring
+            }
           />
         )}
 

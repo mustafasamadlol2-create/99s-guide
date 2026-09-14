@@ -109,8 +109,10 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
     stiffness: 500,
     damping: 42,
     mass: 1,
-    restSpeed: 0.16,
-    restDelta: 0.004,
+    // Slightly looser physical rest thresholds keep a cancelled page return in
+    // the same ~280-300 ms perceptual window as a committed page snap.
+    restSpeed: 0.20,
+    restDelta: 0.01,
     maxDurationMs: 290,
   },
 
