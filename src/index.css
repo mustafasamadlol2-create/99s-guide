@@ -5246,9 +5246,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 /* Root iPhone tab pager capture zones. Vertical scrolling remains native; only
    an unambiguous horizontal gesture is claimed by App.tsx. */
 .mobile-phone-layout [data-main-tab-swipe-zone] {
-  touch-action: pan-y;
+  touch-action: pan-y !important;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* The stable root owns the event stream while React swaps only the live tab
+   content behind the frozen source. Horizontal paging stays app-controlled;
+   native vertical scrolling remains available until the recognizer axis-locks. */
+.mobile-phone-layout #root-navigation-page-layer {
+  touch-action: pan-y !important;
 }
 
 /* ── Native phone root-tab pager ─────────────────────────────────────────────

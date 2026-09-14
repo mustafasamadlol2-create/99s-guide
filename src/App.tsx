@@ -4955,7 +4955,10 @@ const handleSignOut = useCallback(async () => {
     mainTabSwipeSnapshotPageRef.current = null;
   }, []);
 
-  const captureMainTabSourceSnapshot = useCallback((physicalSign: 1 | -1): number | null => {
+  const captureMainTabSourceSnapshot = useCallback((
+    physicalSign: 1 | -1,
+    currentTab: MainPhoneTabId,
+  ): number | null => {
     const source = mainTabLivePageRef.current;
     const host = mainTabSwipeSnapshotHostRef.current;
     if (!source || !host) return null;
@@ -4964,10 +4967,39 @@ const handleSignOut = useCallback(async () => {
     if (sourceRect.width < 2 || sourceRect.height < 2) return null;
 
     const background = getMainTabOpaqueBackground();
-    const clone = source.cloneNode(true) as HTMLElement;
+
+    // IMPORTANT: never deep-clone the entire root workspace. All root tabs stay
+    // mounted in this app, so a full clone duplicated several hidden, heavy
+    // screens and could stall WKWebView on the first horizontal frame. Build a
+    // visual source from only the title + currently visible root panel instead.
+    const clone = source.cloneNode(false) as HTMLElement;
+    const title = Array.from(source.children).find(
+      (node): node is HTMLElement =>
+        node instanceof HTMLElement && node.dataset.mainTabLargeTitle === "true",
+    );
+    const panelHost = Array.from(source.children).find(
+      (node): node is HTMLElement =>
+        node instanceof HTMLElement && node.dataset.mainTabPanelHost === "true",
+    );
+    const activePanel = panelHost?.querySelector<HTMLElement>(
+      `[data-main-tab-panel="${currentTab}"]`,
+    );
+
+    if (title) clone.appendChild(title.cloneNode(true));
+    if (panelHost && activePanel) {
+      const panelHostClone = panelHost.cloneNode(false) as HTMLElement;
+      const panelClone = activePanel.cloneNode(true) as HTMLElement;
+      panelClone.style.display = "block";
+      panelHostClone.appendChild(panelClone);
+      clone.appendChild(panelHostClone);
+    }
+
+    // If markup changes in the future, fail safely instead of animating an empty
+    // opaque layer. This keeps the app usable even when the pager cannot prepare.
+    if (!activePanel) return null;
 
     // Duplicate ids inside a visual clone can confuse querySelector/getElementById
-    // code that runs during the React destination commit.  Strip them from the
+    // code that runs during the React destination commit. Strip them from the
     // inert copy; the snapshot is pixels only, never an interactive app subtree.
     clone.removeAttribute("id");
     clone.querySelectorAll<HTMLElement>("[id]").forEach((node) => node.removeAttribute("id"));
@@ -5340,7 +5372,7 @@ const handleSignOut = useCallback(async () => {
     const physicalSign: 1 | -1 = dx >= 0 ? 1 : -1;
     const targetScrollTop = readScrollPosition(`/${nextTab}`) ?? 0;
     const tabBarMetrics = measureMainTabBarSwipe(session.currentTab, nextTab);
-    const pageWidth = captureMainTabSourceSnapshot(physicalSign);
+    const pageWidth = captureMainTabSourceSnapshot(physicalSign, session.currentTab);
     if (!pageWidth) return;
 
     session.prepared = true;
@@ -5457,7 +5489,12 @@ const handleSignOut = useCallback(async () => {
     if (!isMainTabSwipeRoot() || event.touches.length !== 1) return;
 
     const target = event.target instanceof Element ? event.target : null;
-    const zone = target?.closest('[data-main-tab-swipe-zone]');
+    const stableSurface = mainTabGestureSurfaceRef.current;
+    // Listeners live on window so the gesture survives the atomic activeTab
+    // handoff below. Only accept starts that originated inside our stable app
+    // page layer; otherwise a global listener could steal unrelated overlays.
+    if (!target || !stableSurface || !stableSurface.contains(target)) return;
+    const zone = target.closest('[data-main-tab-swipe-zone]');
     if (!zone) return;
 
     const permissiveSwipeZone = target?.closest('[data-main-tab-swipe-zone="full"]');
@@ -5678,24 +5715,29 @@ const handleSignOut = useCallback(async () => {
   };
 
   useLayoutEffect(() => {
-    const surface = mainTabGestureSurfaceRef.current;
-    if (!surface || !device.isPhone) return;
+    if (!device.isPhone) return;
 
     const onStart = (event: TouchEvent) => mainTabNativeTouchHandlersRef.current?.start(event);
     const onMove = (event: TouchEvent) => mainTabNativeTouchHandlersRef.current?.move(event);
     const onEnd = (event: TouchEvent) => mainTabNativeTouchHandlersRef.current?.end(event);
     const onCancel = () => mainTabNativeTouchHandlersRef.current?.cancel();
 
-    surface.addEventListener("touchstart", onStart, { capture: true, passive: true });
-    surface.addEventListener("touchmove", onMove, { capture: true, passive: false });
-    surface.addEventListener("touchend", onEnd, { capture: true, passive: true });
-    surface.addEventListener("touchcancel", onCancel, { capture: true, passive: true });
+    // Keep the tracking listeners on the stable Window, not on the tab content
+    // being replaced. WKWebView can stop dispatching move/end to a touch target
+    // after that target becomes display:none during the destination handoff.
+    // Window-level listeners are also the battle-tested pattern used by the
+    // app's working swipe-back hook. They preserve the same finger stream all
+    // the way through release without adding React work per frame.
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd, { passive: true });
+    window.addEventListener("touchcancel", onCancel, { passive: true });
 
     return () => {
-      surface.removeEventListener("touchstart", onStart, true);
-      surface.removeEventListener("touchmove", onMove, true);
-      surface.removeEventListener("touchend", onEnd, true);
-      surface.removeEventListener("touchcancel", onCancel, true);
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onCancel);
     };
   }, [device.isPhone]);
 
@@ -6225,6 +6267,7 @@ const handleSignOut = useCallback(async () => {
               visibleLargeTitleTab,
             )) && (
             <div
+              data-main-tab-large-title="true"
               data-main-tab-swipe-zone={
                 usePhoneLayout &&
                 ["subjects", "calendar", "control-center", "profile"].includes(visibleLargeTitleTab)
@@ -6281,7 +6324,7 @@ const handleSignOut = useCallback(async () => {
           )}
 
           {/* VIEW CONDITIONAL SWITCH WITH FLUID GESTURE TRANSITIONS */}
-          <div className="w-full relative min-h-full">
+          <div data-main-tab-panel-host="true" className="w-full relative min-h-full">
             {/* Tab 1: Welcome (Home) */}
             <motion.div
               data-main-tab-panel="home"

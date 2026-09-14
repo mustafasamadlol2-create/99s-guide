@@ -72,15 +72,15 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   // Instagram/UIKit-style page selection: position wins at half a page, while
   // a decisive fling can still advance before the halfway mark.
   commitProgress: 0.50,
-  velocityThreshold: 0.62, // px / ms
+  velocityThreshold: 0.56, // px / ms
   flickDistance: 0,
 
   // Directional lock stays intentionally small so horizontal intent is picked
   // up quickly without stealing ordinary vertical scrolling.
-  axisLockDistance: 6,
-  verticalRejectDistance: 16,
-  verticalRejectRatio: 1.22,
-  horizontalLockMaxVerticalRatio: 0.82,
+  axisLockDistance: 5,
+  verticalRejectDistance: 18,
+  verticalRejectRatio: 1.25,
+  horizontalLockMaxVerticalRatio: 0.96,
 
   // Keep the release velocity responsive. The latest sample carries most of the
   // weight so the spring begins with the same momentum the user's finger had.
@@ -96,8 +96,8 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   // oscillation. maxDurationMs is a safety ceiling, not a cubic duration.
   completionSpring: {
     type: "spring" as const,
-    stiffness: 500,
-    damping: 44.8,
+    stiffness: 470,
+    damping: 43.4,
     mass: 1,
     restSpeed: 0.18,
     restDelta: 0.005,
@@ -106,8 +106,8 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
 
   cancelSpring: {
     type: "spring" as const,
-    stiffness: 520,
-    damping: 45.7,
+    stiffness: 500,
+    damping: 44.7,
     mass: 1,
     restSpeed: 0.16,
     restDelta: 0.004,
