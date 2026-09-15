@@ -4882,6 +4882,7 @@ const handleSignOut = useCallback(async () => {
     panel.removeAttribute("data-main-tab-handoff-target");
     panel.style.removeProperty("--main-tab-preview-x");
     panel.style.removeProperty("--main-tab-preview-y");
+    panel.style.removeProperty("--main-tab-preview-height");
   };
 
   const prepareMainTabPreviewDom = (tab: MainPhoneTabId) => {
@@ -4899,8 +4900,27 @@ const handleSignOut = useCallback(async () => {
     // tied to session.pageWidth keeps full-bleed edges perfectly contiguous.
     const pageOffsetPx = -session.physicalSign * Math.max(1, session.pageWidth);
     const scrollCompensationY = session.startScrollTop - session.targetScrollTop;
+    const canvas = document.getElementById("main-scroll-canvas");
+    const viewportHeight = Math.max(1, canvas?.clientHeight ?? window.innerHeight ?? 1);
+
+    // Hidden warm neighbours used to retain their full intrinsic height while
+    // absolutely positioned. WebKit includes that overflow in the shared
+    // scroll canvas, so a short active page could be scrolled through metres of
+    // invisible neighbour content (the black void from the recording).
+    //
+    // During a live swipe we expose only the exact vertical slice required to
+    // paint the destination's saved scroll position. After the Y compensation
+    // below, this box ends at roughly the current viewport bottom, so it cannot
+    // extend the active page's scroll range even when the destination itself is
+    // a very long Console/Profile page.
+    const previewHeight = Math.max(
+      viewportHeight,
+      Math.max(0, session.targetScrollTop) + viewportHeight + 2,
+    );
+
     panel.style.setProperty("--main-tab-preview-x", `${pageOffsetPx}px`);
     panel.style.setProperty("--main-tab-preview-y", `${scrollCompensationY}px`);
+    panel.style.setProperty("--main-tab-preview-height", `${previewHeight}px`);
     panel.setAttribute("data-main-tab-live-preview", "true");
     session.previewTab = tab;
     return true;
@@ -5472,11 +5492,53 @@ const handleSignOut = useCallback(async () => {
   }, [
     activeTab,
     persistentProfileUnderlay,
-    isPhoneTabBarEngaged,
     device.isPhone,
     mainPhoneTabOrder,
     mainTabIndicatorX,
     measureMainTabIndicatorX,
+  ]);
+
+  // The floating shell changes width continuously while vertical scrolling
+  // expands/collapses it. A one-off pixel measurement at the beginning of that
+  // CSS transition leaves the glass selector behind until the shell settles.
+  // ResizeObserver runs after layout and before paint; writing only the
+  // selector's transform cannot trigger another resize, so it safely keeps the
+  // pill centred on the active grid cell for every intermediate frame without
+  // React renders or a second timing curve.
+  useEffect(() => {
+    if (!device.isPhone || typeof ResizeObserver === "undefined") return;
+
+    const bar = document.getElementById("ios_native_tabbar");
+    if (!bar) return;
+
+    const syncIndicatorToLiveBarGeometry = () => {
+      if (mainTabSwipeActiveRef.current || mainTabSwipeAnimatingRef.current || mainTabHandoffRef.current) {
+        return;
+      }
+
+      const visibleTab = (persistentProfileUnderlay ? "profile" : activeTab) as MainPhoneTabId;
+      if (!mainPhoneTabOrder.includes(visibleTab)) return;
+
+      // A bar resize owns the selector geometry for this frame. Stop any stale
+      // px-target spring created before the shell started resizing, then write
+      // the exact new centre as a compositor-only transform.
+      mainTabIndicatorAnimationRef.current?.stop();
+      mainTabIndicatorAnimationRef.current = null;
+      mainTabIndicatorX.set(measureMainTabIndicatorX(visibleTab));
+    };
+
+    const observer = new ResizeObserver(syncIndicatorToLiveBarGeometry);
+    observer.observe(bar);
+    syncIndicatorToLiveBarGeometry();
+
+    return () => observer.disconnect();
+  }, [
+    activeTab,
+    device.isPhone,
+    mainPhoneTabOrder,
+    mainTabIndicatorX,
+    measureMainTabIndicatorX,
+    persistentProfileUnderlay,
   ]);
 
   const getMainTabPanelStyle = (tab: MainPhoneTabId) => {
@@ -5507,7 +5569,14 @@ const handleSignOut = useCallback(async () => {
         top: 0,
         left: 0,
         width: "100%",
-        minHeight: navigationSurfaceMinHeight,
+        // Keep neighbours mounted/warm without letting their long intrinsic
+        // content participate in #main-scroll-canvas's scrollable overflow.
+        // The live-preview CSS expands only the required viewport slice at the
+        // instant horizontal paging actually begins.
+        height: 0,
+        minHeight: 0,
+        maxHeight: 0,
+        overflow: "hidden" as const,
         zIndex: 0,
         opacity: 0,
         pointerEvents: "none" as const,

@@ -104,6 +104,12 @@ const StarField = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const appShell = document.getElementById("root")?.firstElementChild as HTMLElement | null;
+    const mainTabStage = document.getElementById("main-tab-motion-stage");
+    const shouldPauseForUiTransition = () =>
+      mainTabStage?.getAttribute("data-main-tab-transition-active") === "true" ||
+      appShell?.classList.contains("sidebar-animating") === true;
+
     let animationFrameId = 0;
     let width = (canvas.width = canvas.parentElement?.clientWidth || 600);
     let height = (canvas.height = canvas.parentElement?.clientHeight || 260);
@@ -176,7 +182,7 @@ const StarField = ({
         // Re-draw static frame on resize when motion is reduced, or during the
         // sidebar collapse/expand window (keeps stars visible while the rAF
         // loop is paused so the canvas doesn't flash blank mid-toggle).
-        if (prefersReducedMotion || document.querySelector(".sidebar-animating")) drawStaticFrame();
+        if (prefersReducedMotion || shouldPauseForUiTransition()) drawStaticFrame();
       }
     });
     if (canvas.parentElement) {
@@ -233,7 +239,7 @@ const StarField = ({
       // the app root): skip the per-frame draw so the toggle's width re-layout
       // doesn't compete with this canvas on the welcome page. The loop keeps
       // running so it resumes automatically once the class is removed.
-      if (document.querySelector(".sidebar-animating")) {
+      if (shouldPauseForUiTransition()) {
         lastTimestamp = 0; // reset clock so resuming doesn't fast-forward drift
         animationFrameId = requestAnimationFrame(render);
         return;

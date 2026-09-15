@@ -5279,12 +5279,38 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
   z-index: 4 !important;
   pointer-events: none !important;
+  /* Warm root tabs are zero-height while idle so they can never inflate the
+     active page's scrollHeight. During an actual swipe App.tsx expands the
+     neighbour only far enough to cover its saved Y position + one viewport.
+     The translated bottom therefore ends at the current viewport instead of
+     creating the infinite black scroll tail seen in the recording. */
+  height: var(--main-tab-preview-height, 100dvh) !important;
+  min-height: var(--main-tab-preview-height, 100dvh) !important;
+  max-height: var(--main-tab-preview-height, 100dvh) !important;
+  overflow: hidden !important;
   transform: translate3d(
     var(--main-tab-preview-x, 0%),
     var(--main-tab-preview-y, 0px),
     0
   ) !important;
   will-change: transform !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Give the transform compositor the cleanest possible frame budget without
+   changing the approved pager timing/physics. Only perpetual decorative work
+   is paused; content, layout and gesture tracking remain completely live. */
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .hero-aurora-layer,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .hero-gold-motes,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .hero-gold-current,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .animate-gold-nebula,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .animate-blue-nebula,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .badge-shimmer-sweep,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .hero-ring-pulse,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .hero-dot-ping,
+.mobile-phone-layout #main-tab-motion-stage[data-main-tab-transition-active="true"] .animate-pulse {
+  animation-play-state: paused !important;
 }
 
 /* During root paging, destination content is already mounted but must look
