@@ -5243,19 +5243,32 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 }
 
-/* Root iPhone tab pager capture zones. Vertical scrolling remains native; only
-   an unambiguous horizontal gesture is claimed by App.tsx. */
-.mobile-phone-layout [data-main-tab-swipe-zone] {
+/* Root iPhone tab pager capture zones.
+
+   Full-screen pages (Welcome / Modules / Profile) deliberately keep native
+   touch negotiation enabled. App.tsx claims the stream only after a positive
+   horizontal directional lock, which means a nested overflow-x control can
+   consume its own horizontal gesture without fighting an ancestor pan-y rule.
+
+   Restricted pages (Schedule / Console) expose only their top app header as a
+   main-pager zone. That header has no nested horizontal scroller, so pan-y is
+   safe there and makes the X handoff immediate. */
+.mobile-phone-layout [data-main-tab-swipe-zone="full"] {
+  touch-action: auto !important;
+}
+
+.mobile-phone-layout [data-main-tab-swipe-zone="header"] {
   touch-action: pan-y !important;
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* The stable root owns the event stream while React swaps only the live tab
-   content behind the frozen source. Horizontal paging stays app-controlled;
-   native vertical scrolling remains available until the recognizer axis-locks. */
+/* Never globally disable horizontal touch negotiation on the whole app shell.
+   Doing so prevents Calendar/Console carousels and any future horizontal list
+   from owning their native gesture even when the root pager has rejected it. */
 .mobile-phone-layout #root-navigation-page-layer {
-  touch-action: pan-y !important;
+  touch-action: auto !important;
+  overscroll-behavior-x: none;
 }
 
 /* ── Native phone root-tab pager ─────────────────────────────────────────────
@@ -5278,6 +5291,21 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   pointer-events: none;
   background: transparent;
   contain: layout style;
+}
+
+/* The selected warm neighbour is promoted entirely outside React state.
+   `!important` intentionally wins over the warm panel's inline hidden style so
+   unrelated application renders cannot collapse the preview mid-gesture. */
+.mobile-phone-layout [data-main-tab-live-preview="true"] {
+  opacity: 1 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  transform: translate3d(
+    var(--main-tab-preview-x, 0%),
+    var(--main-tab-preview-y, 0px),
+    0
+  ) !important;
+  will-change: transform !important;
 }
 
 /* During root paging, destination content is already mounted but must look

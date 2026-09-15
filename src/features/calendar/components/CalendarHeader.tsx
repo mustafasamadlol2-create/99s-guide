@@ -159,11 +159,12 @@ export function CalendarHeader({
  animate={{ opacity: 1, y: 0 }}
  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
  id="calendar_header_bar"
+  data-main-tab-swipe-zone={isPhone ? "header" : undefined}
+  data-main-tab-for={isPhone ? "calendar" : undefined}
   className="w-full flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 pb-2 pt-2 select-none"
  >
  {/* Left section: Typography and Meta */}
   <div
-   data-main-tab-swipe-zone={isPhone ? "full" : undefined}
    className="flex flex-col gap-4 w-full lg:w-auto min-w-0"
   >
   <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">

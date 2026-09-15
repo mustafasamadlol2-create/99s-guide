@@ -869,7 +869,7 @@ const ControlCenterView = function ControlCenterView({
       id="control_panel_view"
       data-console-transition-active={consoleSwipeVisualActive ? "true" : undefined}
       className={`cc-view-root space-y-section ${isPhone ? "" : "animate-fadeIn"} pb-24 w-full`}
-      style={{ direction: isRtl ? "rtl" : "ltr", touchAction: "pan-y" }}
+      style={{ direction: isRtl ? "rtl" : "ltr", touchAction: "auto" }}
       onTouchStart={handleConsoleTouchStart}
       onTouchMove={handleConsoleTouchMove}
       onTouchEnd={handleConsoleTouchEnd}
@@ -877,7 +877,8 @@ const ControlCenterView = function ControlCenterView({
     >
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div
-        data-main-tab-swipe-zone={isPhone ? "full" : undefined}
+        data-main-tab-swipe-zone={isPhone ? "header" : undefined}
+        data-main-tab-for={isPhone ? "control-center" : undefined}
         data-console-swipe-ignore={isPhone ? "true" : undefined}
         className="w-full bg-white dark:bg-[#1C1C1E] border border-neutral-200/40 dark:border-[rgba(255,255,255,0.08)] rounded-lg p-3 sm:p-4 shadow-elevation-1"
       >

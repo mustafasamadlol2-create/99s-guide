@@ -731,7 +731,6 @@ const HeroBanner = memo(({
 
   return (
     <div
-      data-main-tab-swipe-zone={isPhone ? "true" : undefined}
       className={[
         "relative rounded-xl md:rounded-xl bg-[#05070B] text-white isolate home-hero-banner overflow-hidden",
         layout.heightClass, layout.paddingClass,
@@ -1331,11 +1330,10 @@ const HomeDashboard = memo(function HomeDashboard({
         <div className={`w-full flex flex-col ${device.spacing} items-start`}>
           {/* Main Dashboard Panel */}
           <div className={`w-full flex flex-col ${device.spacing}`}>
-            {/* 1. Welcome Section & Banner. On iPhone this whole hero cluster
-                is the safe root-tab swipe surface requested for Welcome. */}
+            {/* 1. Welcome Section & Banner. The App root panel owns the iPhone
+                full-screen main-tab gesture; this component stays gesture-neutral. */}
             <div
               className="contents"
-              data-main-tab-swipe-zone={device.isPhone ? "true" : undefined}
             >
               <HeroBanner
                 isActive={isActive}
