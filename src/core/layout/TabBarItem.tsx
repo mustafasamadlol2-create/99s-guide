@@ -12,17 +12,14 @@ export interface TabBarItemProps {
   onClick: (id: string) => void;
   colorClass?: string;
   activeColorClass?: string;
-  suspendSharedIndicatorMotion?: boolean;
 }
 
 /**
  * iPhone floating-tab item.
  *
- * The visible phone bar is intentionally icon-only. `label` remains available
- * to VoiceOver through aria-label, while no text lane participates in layout.
- * Keeping the button geometry this simple is also important for WKWebView: the
- * active selector and icon no longer shift vertically when the shell changes
- * between its resting and engaged sizes.
+ * The glass selector itself is owned once by App.tsx. Keeping it out of every
+ * item avoids a Framer layoutId animation racing the root pager at swipe
+ * handoff. The item is therefore responsible only for semantics + icon paint.
  */
 export const TabBarItem: React.FC<TabBarItemProps> = memo(
   ({
@@ -35,7 +32,6 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     onClick,
     colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
     activeColorClass = "text-med-blue dark:text-blue-400",
-    suspendSharedIndicatorMotion = false,
   }) => {
     return (
       <motion.button
@@ -47,27 +43,11 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
         style={{ WebkitTapHighlightColor: "transparent" }}
         whileTap={{ scale: 0.965 }}
       >
-        {isActive && (
-          <motion.div
-            layoutId="ios_mobile_tab_indicator"
-            className="ios-tabbar-active-indicator absolute pointer-events-none"
-            initial={false}
-            transition={
-              suspendSharedIndicatorMotion
-                ? { duration: 0 }
-                : IOS_CONSOLE_SMOOTH_MOTION.completionSpring
-            }
-          />
-        )}
-
         <div
-          className={`relative z-10 flex items-center justify-center transition-colors duration-300 ${
+          className={`relative z-10 flex items-center justify-center transition-colors duration-200 ${
             isActive ? activeColorClass : colorClass
           }`}
         >
-          {/* On iPhone this glyph keeps its layout footprint but its paint is
-              mirrored by App's compositor-only icon layer. On non-phone
-              surfaces it remains the visible icon. */}
           <motion.div
             className="ios-tabbar-icon-motion flex items-center justify-center"
             animate={{

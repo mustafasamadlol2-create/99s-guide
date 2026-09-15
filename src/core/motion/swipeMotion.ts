@@ -59,169 +59,54 @@ export const IOS_SWIPE_MOTION = {
 /**
  * Root-tab pager motion (Welcome / Modules / Schedule / Console / Profile).
  *
- * Root paging is deliberately a different implementation from the short
- * content nudges used inside Console. The interactive phase is 1:1 with the
- * finger; release is generated from real spring physics and then executed as
- * compositor keyframes (WAAPI) so React/JS does not have to paint each snap
- * frame.  The numbers below are slightly softer than the previous rigid spring
- * while remaining critically damped: fast, weighty and without visible bounce.
+ * The live gesture is a 1:1 MotionValue transform and never changes React
+ * state. Release uses one slightly-overdamped spring for both the page and the
+ * floating selector. Values are expressed in the units Motion expects for a
+ * pixel MotionValue (restSpeed is px/s, restDelta is px).
  */
 export const IOS_MAIN_TAB_PAGER_MOTION = {
   ...IOS_SWIPE_MOTION,
 
-  // Instagram/UIKit-style page selection: position wins at half a page, while
-  // a decisive fling can still advance before the halfway mark.
+  // Position wins at half a page; a decisive fling can commit earlier.
   commitProgress: 0.50,
   velocityThreshold: 0.56, // px / ms
   flickDistance: 0,
 
-  // Directional lock stays intentionally small so horizontal intent is picked
-  // up quickly without stealing ordinary vertical scrolling.
+  // Fast directional lock without stealing normal vertical scroll.
   axisLockDistance: 5,
   verticalRejectDistance: 18,
   verticalRejectRatio: 1.25,
   horizontalLockMaxVerticalRatio: 0.96,
 
-  // Keep the release velocity responsive. The latest sample carries most of the
-  // weight so the spring begins with the same momentum the user's finger had.
-  velocityPreviousWeight: 0.26,
-  velocityCurrentWeight: 0.74,
+  // Favor the latest touch sample so release momentum feels continuous.
+  velocityPreviousWeight: 0.30,
+  velocityCurrentWeight: 0.70,
 
-  // UIKit-like edge rubber band. Small drags begin at roughly 0.5x finger
-  // travel, then progressively resist larger pulls.
+  // Requested edge resistance.
   boundaryResistance: 0.50,
 
-  // Slightly under-critical iOS release. The lower damping preserves finger
-  // momentum and reaches visual rest naturally inside ~250-300ms instead of
-  // crawling toward the final pixels and then snapping at the duration cap.
+  // Near-critical spring: fast and weighty, with no visible bounce.
   completionSpring: {
     type: "spring" as const,
-    stiffness: 470,
-    damping: 39,
-    mass: 1,
-    restSpeed: 0.18,
-    restDelta: 0.005,
-    maxDurationMs: 300,
+    stiffness: 800,
+    damping: 55,
+    mass: 0.95,
+    restSpeed: 18,
+    restDelta: 0.45,
   },
 
   cancelSpring: {
     type: "spring" as const,
-    stiffness: 500,
-    damping: 42,
-    mass: 1,
-    // Slightly looser physical rest thresholds keep a cancelled page return in
-    // the same ~280-300 ms perceptual window as a committed page snap.
-    restSpeed: 0.20,
-    restDelta: 0.01,
-    maxDurationMs: 290,
+    stiffness: 900,
+    damping: 57,
+    mass: 0.90,
+    restSpeed: 18,
+    restDelta: 0.40,
   },
 
-  // Motion velocity is normalized to screen-widths/sec for the page spring.
+  // Clamp pathological touch velocity without flattening normal flings.
   maxSpringVelocityScreensPerSecond: 5.0,
-
-  // Browser spring samples are generated at 120 Hz and handed to WAAPI. The
-  // browser can interpolate those transform keyframes on its compositor thread
-  // on both 60 Hz and ProMotion/120 Hz displays.
-  compositorSampleRate: 120,
 } as const;
-
-export type CompositorSpringConfig = {
-  stiffness: number;
-  damping: number;
-  mass: number;
-  restSpeed?: number;
-  restDelta?: number;
-  maxDurationMs?: number;
-};
-
-export type SampledSpring = {
-  values: number[];
-  offsets: number[];
-  durationMs: number;
-};
-
-/**
- * Pre-sample a physical damped spring for Web Animations.
- *
- * The interactive drag itself still comes directly from touch input; this is
- * only for finger-up.  Sampling once at release means the browser receives a
- * transform-only keyframe animation and can run the settle on the compositor
- * rather than asking React/Motion to update application state every frame.
- */
-export function sampleCompositorSpring(
-  from: number,
-  to: number,
-  initialVelocity: number,
-  config: CompositorSpringConfig,
-  sampleRate = IOS_MAIN_TAB_PAGER_MOTION.compositorSampleRate,
-): SampledSpring {
-  const safeRate = Math.max(60, Math.min(240, sampleRate));
-  const dt = 1 / safeRate;
-  const maxDurationMs = Math.max(180, config.maxDurationMs ?? 320);
-  const maxSteps = Math.max(2, Math.ceil((maxDurationMs / 1000) * safeRate));
-  const restSpeed = Math.max(0.0001, config.restSpeed ?? 0.18);
-  const restDelta = Math.max(0.00001, config.restDelta ?? 0.005);
-  const minSettleSeconds = 0.14;
-
-  let x = from;
-  let v = Number.isFinite(initialVelocity) ? initialVelocity : 0;
-  let elapsed = 0;
-
-  const values: number[] = [from];
-  const times: number[] = [0];
-  const direction = Math.sign(to - from);
-
-  for (let step = 1; step <= maxSteps; step += 1) {
-    const springForce = -config.stiffness * (x - to);
-    const dampingForce = -config.damping * v;
-    const acceleration = (springForce + dampingForce) / Math.max(0.001, config.mass);
-
-    // Semi-implicit Euler is stable for this short critically-damped interval
-    // and preserves the supplied release velocity better than an easing curve.
-    v += acceleration * dt;
-    x += v * dt;
-    elapsed += dt;
-
-    // Instagram/UIKit does not visibly bounce past the neighboring page. If a
-    // large fling would mathematically overshoot, land exactly on the page and
-    // finish there rather than exposing a rubbery rebound.
-    if (direction !== 0 && Math.sign(to - x) !== direction) {
-      x = to;
-      v = 0;
-    }
-
-    values.push(x);
-    times.push(elapsed);
-
-    if (
-      elapsed >= minSettleSeconds &&
-      Math.abs(to - x) <= restDelta &&
-      Math.abs(v) <= restSpeed
-    ) {
-      break;
-    }
-  }
-
-  // Always end on the exact pixel/page target. This avoids a 0.2px residual
-  // transform that can keep text rasterized on a half-pixel in WKWebView.
-  if (values[values.length - 1] !== to) {
-    const maxDurationSeconds = maxDurationMs / 1000;
-    if (elapsed >= maxDurationSeconds - dt * 0.5) {
-      values[values.length - 1] = to;
-    } else {
-      values.push(to);
-      times.push(Math.min(maxDurationSeconds, elapsed + dt));
-    }
-  }
-
-  const durationSeconds = Math.max(dt, times[times.length - 1]);
-  const durationMs = Math.max(1, Math.round(durationSeconds * 1000));
-  const offsets = times.map((time, index) =>
-    index === times.length - 1 ? 1 : Math.max(0, Math.min(1, time / durationSeconds)),
-  );
-
-  return { values, offsets, durationMs };
-}
 
 /**
  * Slightly softer release profile for nested Console pagers.

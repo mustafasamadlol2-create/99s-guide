@@ -5272,33 +5272,14 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 }
 
 /* ── Native phone root-tab pager ─────────────────────────────────────────────
-   Stability-first iOS/Instagram handoff: the currently painted source is frozen
-   into one viewport-sized inert layer, while the real React destination is
-   prepared exactly one page beside it.  We never animate a cloned destination
-   and never permanently promote the entire long source document, which avoids
-   the black compositor surfaces seen in WKWebView under tile-memory pressure. */
-.mobile-phone-layout .main-tab-stable-page {
-  width: 100%;
-  max-width: 100%;
-  isolation: isolate;
-  transform: none;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  transform-style: flat;
-}
-
-.mobile-phone-layout .main-tab-swipe-temp-title {
-  pointer-events: none;
-  background: transparent;
-  contain: layout style;
-}
-
+   Only the real active page and one already-mounted neighbour participate.
+   There are no DOM clones/snapshots and no opacity crossfade at handoff. */
 /* The selected warm neighbour is promoted entirely outside React state.
    `!important` intentionally wins over the warm panel's inline hidden style so
    unrelated application renders cannot collapse the preview mid-gesture. */
 .mobile-phone-layout [data-main-tab-live-preview="true"] {
   opacity: 1 !important;
-  z-index: 1 !important;
+  z-index: 4 !important;
   pointer-events: none !important;
   transform: translate3d(
     var(--main-tab-preview-x, 0%),
@@ -5330,104 +5311,9 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   transition-delay: 0s !important;
 }
 
-/* Fixed visual-only host.  It stays below the floating tab bar and never owns
-   input.  `contain: paint` clips the frozen source to the viewport without the
-   more aggressive `contain: strict`, which can produce blank descendants in
-   older WKWebView builds. */
-.mobile-phone-layout .main-tab-swipe-snapshot-host {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  overflow: hidden;
-  pointer-events: none;
-  visibility: hidden;
-  isolation: isolate;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  contain: paint;
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 1;
-  background: #fafafa;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  transform-style: flat;
-  isolation: isolate;
-  contain: paint;
-}
-
-.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer,
-.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer {
-  background: #000;
-}
-
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] {
-  -webkit-backface-visibility: hidden !important;
-  backface-visibility: hidden !important;
-  transform-origin: 0 0 !important;
-  pointer-events: none !important;
-}
-
-/* Frozen source pixels must never replay local choreography. */
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .animate-fadeIn,
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .ios-staggered-card,
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] [style*="animation"] {
-  animation: none !important;
-  animation-delay: 0s !important;
-  opacity: 1 !important;
-}
-
-/* The snapshot is inert, so a universal descendant selector is unnecessary and
-   expensive. Keep only the known entrance primitives frozen. */
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .animate-fadeIn,
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] .ios-staggered-card,
-.mobile-phone-layout [data-main-tab-navigation-snapshot-content="true"] [data-main-tab-enter-animation="true"] {
-  transition-duration: 0s !important;
-  transition-delay: 0s !important;
-}
-
-/* Tiny page-edge ownership cue; no opacity/scale choreography is applied to
-   either screen. */
-.mobile-phone-layout .main-tab-swipe-snapshot-layer::after {
-  content: "";
-  position: absolute;
-  z-index: 2147483646;
-  top: 0;
-  bottom: 0;
-  width: 12px;
-  pointer-events: none;
-  opacity: 0.56;
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after {
-  left: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0));
-}
-
-.mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after {
-  right: 0;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0));
-}
-
-.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-left::after,
-.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-left::after {
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0));
-}
-
-.dark .mobile-phone-layout .main-tab-swipe-snapshot-layer--reveal-right::after,
-.mobile-phone-layout.dark .main-tab-swipe-snapshot-layer--reveal-right::after {
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0));
-}
+/* No snapshot/clone layer is used by the root pager. WKWebView can drop
+   very large promoted snapshot surfaces under memory pressure, exposing black.
+   The real current + warm neighbour pages remain the only painted surfaces. */
 
 /* Console sub-tab paging keeps its existing one-surface contract. */
 .mobile-phone-layout [data-console-transition-active="true"] .animate-fadeIn,
@@ -5437,36 +5323,22 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
 }
 
-/* Floating selector: always mounted so enabling swipe sync never causes a React
-   render at gesture start.  App.tsx writes only transform+opacity directly and
-   runs the release keyframes on the same compositor timeline as both pages. */
+/* One persistent selector is the only glass-indicator layer on iPhone.
+   App.tsx drives its X MotionValue during both drag and spring settle, so there
+   is no layoutId indicator underneath it that can catch up a frame later. */
 .mobile-phone-layout .ios-tabbar-swipe-sync-indicator {
   left: 0 !important;
   margin-left: 0 !important;
   z-index: 2;
-  opacity: 0;
+  opacity: 1;
   transform: translate3d(0, 0, 0);
-  will-change: transform, opacity;
+  will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 
 .mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-swipe-sync-indicator {
   margin-left: 0 !important;
-}
-
-/* While the compositor selector is active, hide the normal Framer layout
-   indicator underneath it.  On commit the compositor indicator remains at the
-   exact target briefly while the regular indicator settles invisibly, so there
-   is never a late floating-bar catch-up. */
-.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
-  .ios-tabbar-active-indicator:not(.ios-tabbar-swipe-sync-indicator) {
-  opacity: 0 !important;
-}
-
-.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
-  .ios-tabbar-swipe-sync-indicator {
-  opacity: 1;
 }
 
 .mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
