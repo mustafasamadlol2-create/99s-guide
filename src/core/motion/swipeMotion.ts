@@ -67,45 +67,53 @@ export const IOS_SWIPE_MOTION = {
 export const IOS_MAIN_TAB_PAGER_MOTION = {
   ...IOS_SWIPE_MOTION,
 
-  // Position wins at half a page; a decisive fling can commit earlier.
-  commitProgress: 0.50,
-  velocityThreshold: 0.56, // px / ms
-  flickDistance: 0,
+  // Native-feeling commit character. A deliberate short drag should be enough
+  // to page, while a quick flick can commit after only a few centimetres of
+  // travel. The live pan remains strictly 1:1; these values affect release
+  // intent only, never finger tracking.
+  commitProgress: 0.22,
+  velocityThreshold: 0.32, // px / ms
+  flickDistance: 12,
+  releaseProjectionMs: 170,
+  projectedCommitProgress: 0.30,
 
   // Fast directional lock without stealing normal vertical scroll.
-  axisLockDistance: 5,
+  axisLockDistance: 4,
   verticalRejectDistance: 18,
   verticalRejectRatio: 1.25,
   horizontalLockMaxVerticalRatio: 0.96,
 
-  // Favor the latest touch sample so release momentum feels continuous.
-  velocityPreviousWeight: 0.30,
-  velocityCurrentWeight: 0.70,
+  // Favor the newest touch sample so a short iOS-style flick preserves its
+  // momentum instead of feeling filtered/late at finger-up.
+  velocityPreviousWeight: 0.24,
+  velocityCurrentWeight: 0.76,
 
   // Requested edge resistance.
   boundaryResistance: 0.50,
 
-  // Near-critical spring: fast and weighty, with no visible bounce.
+  // UIKit-like near-critical settle. These values are intentionally faster
+  // than the previous build: the remaining page travel finishes decisively
+  // without overshoot or the slow web-carousel tail.
   completionSpring: {
     type: "spring" as const,
-    stiffness: 800,
-    damping: 55,
-    mass: 0.95,
-    restSpeed: 18,
-    restDelta: 0.45,
+    stiffness: 1050,
+    damping: 58,
+    mass: 0.80,
+    restSpeed: 28,
+    restDelta: 0.55,
   },
 
   cancelSpring: {
     type: "spring" as const,
-    stiffness: 900,
-    damping: 57,
-    mass: 0.90,
-    restSpeed: 18,
-    restDelta: 0.40,
+    stiffness: 1250,
+    damping: 63,
+    mass: 0.78,
+    restSpeed: 26,
+    restDelta: 0.45,
   },
 
   // Clamp pathological touch velocity without flattening normal flings.
-  maxSpringVelocityScreensPerSecond: 5.0,
+  maxSpringVelocityScreensPerSecond: 6.0,
 } as const;
 
 /**

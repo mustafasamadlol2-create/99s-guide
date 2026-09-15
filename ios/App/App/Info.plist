@@ -39,6 +39,10 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<!-- Allow iPhone ProMotion devices to use refresh rates above the system default. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+
 	<!-- Camera permission -->
 	<key>NSCameraUsageDescription</key>
 	<string>99s Guide uses the camera so you can take a profile photo.</string>

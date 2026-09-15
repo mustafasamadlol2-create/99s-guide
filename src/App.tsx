@@ -4714,7 +4714,9 @@ const handleSignOut = useCallback(async () => {
   const mainTabIndicatorReadyRef = useRef(false);
   const mainTabPostCommitFrameRef = useRef<number | null>(null);
   const mainTabSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mainTabHiddenSourceRef = useRef<HTMLElement | null>(null);
   const mainTabHandoffRef = useRef<{
+    sourceTab: MainPhoneTabId;
     targetTab: MainPhoneTabId;
     previewTab: MainPhoneTabId;
     indicatorX: number;
@@ -4813,8 +4815,13 @@ const handleSignOut = useCallback(async () => {
     document.querySelector<HTMLElement>(`[data-main-tab-panel="${tab}"]`);
 
   const getMainTabStageWidth = useCallback(() => {
-    const stage = getMainTabStageElement();
-    const measured = stage?.getBoundingClientRect().width ?? 0;
+    // IMPORTANT: page travel is the physical phone viewport, not the padded
+    // inner stage width. #main-scroll-canvas carries px-4 on iPhone while
+    // several root pages intentionally render full-bleed content through
+    // negative margins. Using the inner stage width left exactly that margin
+    // width of the previous page visible after a completed swipe.
+    const canvas = document.getElementById("main-scroll-canvas");
+    const measured = canvas?.getBoundingClientRect().width ?? 0;
     return Math.max(1, measured || window.innerWidth || 1);
   }, []);
 
@@ -4835,6 +4842,14 @@ const handleSignOut = useCallback(async () => {
     mainTabIndicatorAnimationRef.current?.stop();
     mainTabPageAnimationRef.current = null;
     mainTabIndicatorAnimationRef.current = null;
+  };
+
+  const releaseMainTabHiddenSource = () => {
+    const panel = mainTabHiddenSourceRef.current;
+    if (!panel) return;
+    panel.style.removeProperty("visibility");
+    panel.style.removeProperty("pointer-events");
+    mainTabHiddenSourceRef.current = null;
   };
 
   const setMainTabVisualActive = (active: boolean) => {
@@ -4878,9 +4893,13 @@ const handleSignOut = useCallback(async () => {
     const panel = getMainTabPanelElement(tab);
     if (!panel) return false;
 
-    const pageOffsetPercent = -session.physicalSign * 100;
+    // Keep the neighbouring page exactly one *physical viewport* away. The
+    // root stage is horizontally padded, so 100% of the panel is smaller than
+    // the visible iPhone canvas and causes source/target overlap. Pixel travel
+    // tied to session.pageWidth keeps full-bleed edges perfectly contiguous.
+    const pageOffsetPx = -session.physicalSign * Math.max(1, session.pageWidth);
     const scrollCompensationY = session.startScrollTop - session.targetScrollTop;
-    panel.style.setProperty("--main-tab-preview-x", `${pageOffsetPercent}%`);
+    panel.style.setProperty("--main-tab-preview-x", `${pageOffsetPx}px`);
     panel.style.setProperty("--main-tab-preview-y", `${scrollCompensationY}px`);
     panel.setAttribute("data-main-tab-live-preview", "true");
     session.previewTab = tab;
@@ -4986,6 +5005,7 @@ const handleSignOut = useCallback(async () => {
     }
 
     const session = mainTabSwipeSessionRef.current;
+    releaseMainTabHiddenSource();
     resetMainTabPreviewDom(session.previewTab);
     if (mainTabHandoffRef.current) {
       resetMainTabPreviewDom(mainTabHandoffRef.current.previewTab);
@@ -5074,6 +5094,7 @@ const handleSignOut = useCallback(async () => {
       pendingNavigationRestoreIsBackRef.current = true;
       isRestoringGlobalScrollRef.current = true;
       mainTabHandoffRef.current = {
+        sourceTab: session.currentTab ?? (activeTab as MainPhoneTabId),
         targetTab: nextTab,
         previewTab,
         indicatorX: session.indicatorToX,
@@ -5138,6 +5159,7 @@ const handleSignOut = useCallback(async () => {
 
     clearMainTabSafetyTimer();
     stopMainTabAnimations();
+    releaseMainTabHiddenSource();
     if (mainTabPostCommitFrameRef.current !== null) {
       cancelAnimationFrame(mainTabPostCommitFrameRef.current);
       mainTabPostCommitFrameRef.current = null;
@@ -5283,13 +5305,28 @@ const handleSignOut = useCallback(async () => {
       releaseInstantaneousVelocity * IOS_MAIN_TAB_PAGER_MOTION.velocityCurrentWeight;
 
     const pageWidth = session.pageWidth || getMainTabStageWidth();
+    const releaseDirection = Math.sign(session.velocity || dx);
+    const directionQualified = releaseDirection === session.physicalSign;
+    const travelled = Math.abs(dx);
     const positionQualified =
-      Math.abs(dx) >= pageWidth * IOS_MAIN_TAB_PAGER_MOTION.commitProgress;
-    const velocityQualified =
-      Math.abs(session.velocity) >= IOS_MAIN_TAB_PAGER_MOTION.velocityThreshold &&
-      Math.sign(session.velocity || dx) === session.physicalSign;
+      travelled >= pageWidth * IOS_MAIN_TAB_PAGER_MOTION.commitProgress;
 
-    if (!positionQualified && !velocityQualified) {
+    // Project a short, decisive flick forward instead of forcing the user to
+    // drag most of the display. This mirrors UIKit's predicted-end behavior:
+    // the live pan is still 1:1, but release intent includes momentum.
+    const projectedDx =
+      dx + session.velocity * IOS_MAIN_TAB_PAGER_MOTION.releaseProjectionMs;
+    const projectedQualified =
+      directionQualified &&
+      travelled >= IOS_MAIN_TAB_PAGER_MOTION.flickDistance &&
+      Math.abs(projectedDx) >=
+        pageWidth * IOS_MAIN_TAB_PAGER_MOTION.projectedCommitProgress;
+    const velocityQualified =
+      directionQualified &&
+      travelled >= IOS_MAIN_TAB_PAGER_MOTION.flickDistance &&
+      Math.abs(session.velocity) >= IOS_MAIN_TAB_PAGER_MOTION.velocityThreshold;
+
+    if (!positionQualified && !projectedQualified && !velocityQualified) {
       finishCancelledMainTabSwipe();
       return;
     }
@@ -5363,8 +5400,21 @@ const handleSignOut = useCallback(async () => {
     // exact same x=0 target. There is no paint where either the source canvas
     // or a black root background can be exposed between the two geometries.
     const handoffPanel = getMainTabPanelElement(handoff.previewTab);
+    const sourcePanel = getMainTabPanelElement(handoff.sourceTab);
     const stage = getMainTabStageElement();
-    if (handoffPanel) handoffPanel.style.setProperty("--main-tab-preview-x", "0%");
+
+    // Hide the outgoing real panel for the commit paint. React has already
+    // marked it as a warm neighbour, but this one-frame imperative guard makes
+    // the handoff immune to Safari/WKWebView retaining a stale composited tile.
+    // It is released after the destination has been painted in its final state.
+    releaseMainTabHiddenSource();
+    if (sourcePanel && sourcePanel !== handoffPanel) {
+      sourcePanel.style.visibility = "hidden";
+      sourcePanel.style.pointerEvents = "none";
+      mainTabHiddenSourceRef.current = sourcePanel;
+    }
+
+    if (handoffPanel) handoffPanel.style.setProperty("--main-tab-preview-x", "0px");
     if (stage) stage.style.transform = "translate3d(0px, 0px, 0px)";
     mainTabSwipeX.set(0);
     mainTabIndicatorX.set(measureMainTabIndicatorX(handoff.targetTab));
@@ -5384,9 +5434,17 @@ const handleSignOut = useCallback(async () => {
     if (mainTabPostCommitFrameRef.current !== null) {
       cancelAnimationFrame(mainTabPostCommitFrameRef.current);
     }
+    // Keep swipe-sync styling through one *painted* committed frame. A single
+    // rAF runs before that paint, which previously re-enabled the 300 ms icon
+    // colour transition too early and briefly showed both the old blue icon
+    // and the new yellow/blue icon. The nested rAF guarantees one atomic final
+    // bar paint first; transitions are restored only on the following frame.
     mainTabPostCommitFrameRef.current = requestAnimationFrame(() => {
-      mainTabPostCommitFrameRef.current = null;
-      setMainTabVisualActive(false);
+      mainTabPostCommitFrameRef.current = requestAnimationFrame(() => {
+        mainTabPostCommitFrameRef.current = null;
+        releaseMainTabHiddenSource();
+        setMainTabVisualActive(false);
+      });
     });
   }, [activeTab, mainTabIndicatorX, mainTabSwipeX, measureMainTabIndicatorX]);
 
