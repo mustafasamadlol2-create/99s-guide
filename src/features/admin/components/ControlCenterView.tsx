@@ -248,7 +248,6 @@ const ControlCenterView = function ControlCenterView({
   const consoleSwipeAnimatingRef = useRef(false);
   const consolePillStripRef = useRef<HTMLDivElement>(null);
   const consoleContentShellRef = useRef<HTMLDivElement>(null);
-  const consoleStableMinHeightRef = useRef(0);
 
   useEffect(() => {
     if (!isPhone) return;
@@ -281,23 +280,6 @@ const ControlCenterView = function ControlCenterView({
     onBackHistoryChange?.(false);
     return () => onBackHistoryChange?.(false);
   }, [onBackHistoryChange]);
-
-  // Keep the Console content shell from shrinking between sub-tabs on iPhone.
-  // A shorter destination panel therefore cannot resize the shared page or move
-  // the user's vertical position after a swipe. The floor only grows during the
-  // current Console session and is applied before the browser paints.
-  useLayoutEffect(() => {
-    if (!isPhone) return;
-    const shell = consoleContentShellRef.current;
-    if (!shell) return;
-    const measured = Math.ceil(Math.max(shell.getBoundingClientRect().height, shell.scrollHeight));
-    if (measured > consoleStableMinHeightRef.current) {
-      consoleStableMinHeightRef.current = measured;
-      shell.style.minHeight = `${measured}px`;
-    } else if (consoleStableMinHeightRef.current > 0) {
-      shell.style.minHeight = `${consoleStableMinHeightRef.current}px`;
-    }
-  }, [activeSubTab, isPhone]);
 
   // Keep the active pill horizontally centered without scrolling the page
   // vertically (scrollIntoView would jump the shared main canvas on long forms).
@@ -511,34 +493,27 @@ const ControlCenterView = function ControlCenterView({
   // fetch, no auto-height race, and no refresh-like handoff.
   const visualSubTab = consolePreviewSubTab ?? activeSubTab;
 
-  const freezeConsoleContentHeight = () => {
-    if (!isPhone) return;
-    const shell = consoleContentShellRef.current;
-    if (!shell) return;
-    const measured = Math.ceil(Math.max(shell.getBoundingClientRect().height, shell.scrollHeight));
-    if (measured > consoleStableMinHeightRef.current) {
-      consoleStableMinHeightRef.current = measured;
-    }
-    if (consoleStableMinHeightRef.current > 0) {
-      shell.style.minHeight = `${consoleStableMinHeightRef.current}px`;
-    }
-  };
-
   const preserveMainScrollDuringConsoleCommit = (commit: () => void) => {
     const canvas = document.getElementById("main-scroll-canvas");
+    const shell = consoleContentShellRef.current;
     const savedTop = canvas?.scrollTop ?? null;
 
-    // Freeze the current content footprint before React swaps panels. This is
-    // the Console equivalent of Roles' stable list shell and prevents a shorter
-    // destination panel from pulling the shared page upward.
-    freezeConsoleContentHeight();
+    // Hold the *current* footprint only for the synchronous React handoff. The
+    // old implementation retained the largest height ever visited, which made
+    // short PDF / Notes / Videos panels inherit the height of Rules or Live
+    // Study Hall. The temporary floor below exists for this JavaScript turn
+    // only and is removed before the browser can paint the destination.
+    if (isPhone && shell) {
+      shell.style.minHeight = `${Math.ceil(shell.getBoundingClientRect().height)}px`;
+    }
     if (canvas) canvas.dataset.programmaticScrollRestore = "true";
 
     flushSync(commit);
 
-    // Measure the newly committed panel before paint. The floor may grow but
-    // never shrinks during this Console session, so there is no resize pulse.
-    freezeConsoleContentHeight();
+    // Return immediately to the panel's natural intrinsic height. iPhone has
+    // no artificial floor; desktop keeps only its existing md:min-h-[300px]
+    // presentation floor. There is no cross-tab session floor anymore.
+    if (shell) shell.style.removeProperty("min-height");
 
     if (canvas && savedTop !== null) {
       const maxScroll = Math.max(0, canvas.scrollHeight - canvas.clientHeight);
@@ -622,6 +597,13 @@ const ControlCenterView = function ControlCenterView({
 
   const shouldIgnoreConsoleSwipe = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
+    const root = document.getElementById("control_panel_view");
+
+    // Bare Console background belongs to the root main-tab pager. Without
+    // this explicit delegation both the root pager (capture phase) and the
+    // Console sub-tab pager (bubble phase) can lock the same touch stream.
+    if (root && target === root) return true;
+
     if (
       target.closest(
         '[data-console-nav-strip="true"], [data-role-filter-local-zone="true"], input, textarea, select, [contenteditable="true"], [data-console-swipe-ignore="true"]',
@@ -632,7 +614,6 @@ const ControlCenterView = function ControlCenterView({
 
     // Preserve native horizontal carousels/sliders nested inside admin forms.
     let node: HTMLElement | null = target;
-    const root = document.getElementById("control_panel_view");
     while (node && node !== root) {
       if (node.scrollWidth > node.clientWidth + 4) {
         const overflowX = getComputedStyle(node).overflowX;
@@ -1014,7 +995,7 @@ const ControlCenterView = function ControlCenterView({
             bg-white dark:bg-[#1C1C1E]
             border border-neutral-200/40 dark:border-white/[0.10]
             rounded-md p-4 shadow-elevation-0
-            min-h-[200px] md:min-h-[300px]
+            md:min-h-[300px]
             overflow-x-hidden
           `}
           style={{ overflowAnchor: "none" }}

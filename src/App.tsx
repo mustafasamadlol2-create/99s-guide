@@ -4804,8 +4804,8 @@ const handleSignOut = useCallback(async () => {
     isProfileSubViewOpen,
   ]);
 
-  const getMainTabSwipeAreaMode = (tab: MainPhoneTabId): "full" | "header" =>
-    tab === "calendar" || tab === "control-center" ? "header" : "full";
+  const getMainTabSwipeAreaMode = (tab: MainPhoneTabId): "full" | "console" =>
+    tab === "control-center" ? "console" : "full";
 
   const getMainTabStageElement = () => document.getElementById("main-tab-motion-stage");
   const getMainTabBarElement = () => document.getElementById("ios_native_tabbar_wrapper");
@@ -4872,6 +4872,19 @@ const handleSignOut = useCallback(async () => {
       if (active) bar.setAttribute("data-main-tab-swipe-sync", "true");
       else bar.removeAttribute("data-main-tab-swipe-sync");
     }
+  };
+
+  // Prepare the expensive root page for a possible horizontal gesture one
+  // frame before the first translated paint. This pauses only perpetual visual
+  // effects and promotes the stage; it does not move anything or touch React
+  // state. Doing this at touchstart removes the small first-frame hitch that
+  // otherwise happens when the direction lock and compositor promotion land in
+  // the same frame.
+  const prepareMainTabCompositor = () => {
+    const stage = getMainTabStageElement();
+    if (!stage) return;
+    stage.setAttribute("data-main-tab-transition-active", "true");
+    stage.style.willChange = "transform";
   };
 
   const resetMainTabPreviewDom = (tab: MainPhoneTabId | null) => {
@@ -5161,12 +5174,26 @@ const handleSignOut = useCallback(async () => {
       const headerZone = target.closest<HTMLElement>(
         `[data-main-tab-swipe-zone="header"][data-main-tab-for="${currentTab}"]`,
       );
-      if (!headerZone || !activePanel.contains(headerZone)) return;
-      gestureBoundary = headerZone;
+      const consoleRoot = target.closest<HTMLElement>("#control_panel_view");
+      const isBareConsoleBackground =
+        target === activePanel ||
+        Boolean(consoleRoot && target === consoleRoot);
+
+      // Console keeps its own horizontal navigation inside Rules / Hall /
+      // Calendar / Lecture and the pill strip. The root pager may start only
+      // from the app title/header card or an actually bare Console background
+      // gap, never from a descendant content card.
+      if (headerZone && activePanel.contains(headerZone)) {
+        gestureBoundary = headerZone;
+      } else if (isBareConsoleBackground) {
+        gestureBoundary = activePanel;
+      } else {
+        return;
+      }
     }
 
     const interactionIgnoreSelector =
-      areaMode === "header"
+      areaMode === "console"
         ? 'button, a, input, textarea, select, [contenteditable="true"], [role="button"], [role="tab"], [role="slider"], [data-main-tab-swipe-ignore="true"], [data-root-pager-ignore="true"], [data-swipe-back-surface="true"]'
         : 'input, textarea, select, [contenteditable="true"], [role="slider"], [data-main-tab-swipe-ignore="true"], [data-root-pager-ignore="true"], [data-swipe-back-surface="true"]';
     if (target.closest(interactionIgnoreSelector)) return;
@@ -5188,6 +5215,7 @@ const handleSignOut = useCallback(async () => {
     mainTabSwipeX.set(0);
     mainTabIndicatorX.set(indicatorFromX);
     setMainTabVisualActive(false);
+    prepareMainTabCompositor();
 
     mainTabSwipeSessionRef.current = {
       tracking: true,
@@ -5227,6 +5255,7 @@ const handleSignOut = useCallback(async () => {
       ) {
         session.axis = "y";
         session.tracking = false;
+        setMainTabVisualActive(false);
         return;
       }
       if (absX < IOS_MAIN_TAB_PAGER_MOTION.axisLockDistance) return;
@@ -5328,8 +5357,12 @@ const handleSignOut = useCallback(async () => {
     const releaseDirection = Math.sign(session.velocity || dx);
     const directionQualified = releaseDirection === session.physicalSign;
     const travelled = Math.abs(dx);
+    const positionCommitDistance = Math.min(
+      pageWidth * IOS_MAIN_TAB_PAGER_MOTION.commitProgress,
+      IOS_MAIN_TAB_PAGER_MOTION.shortCommitDistance,
+    );
     const positionQualified =
-      travelled >= pageWidth * IOS_MAIN_TAB_PAGER_MOTION.commitProgress;
+      directionQualified && travelled >= positionCommitDistance;
 
     // Project a short, decisive flick forward instead of forcing the user to
     // drag most of the display. This mirrors UIKit's predicted-end behavior:
@@ -6545,6 +6578,7 @@ const handleSignOut = useCallback(async () => {
             {/* Tab 3: Schedule (Calendar) */}
             <motion.div
               data-main-tab-panel="calendar"
+              data-main-tab-swipe-zone={usePhoneLayout ? "full" : undefined}
               style={getMainTabPanelStyle("calendar")}
               className="w-full min-h-full"
             >

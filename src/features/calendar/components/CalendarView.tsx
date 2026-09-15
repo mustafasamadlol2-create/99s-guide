@@ -365,7 +365,6 @@ const CalendarView = memo(function CalendarView({
  isRtl,
  onCommit: commitCalendarViewChange,
  blockedSelector: [
- 'button',
  'input',
  'textarea',
  'select',
@@ -624,13 +623,15 @@ const CalendarView = memo(function CalendarView({
  <CalendarHeader t={t} isRtl={isRtl} isPhone={isPhone} useLiveIndicator={disableDayHover} activeView={activeView} setActiveView={handleCalendarViewChange} indicatorPosition={calendarViewPager.indicatorPosition} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <motion.div
+ ref={isPhone ? calendarViewPager.surfaceRef : undefined}
  id="left_middle_deck"
+ data-root-pager-ignore={isPhone ? "true" : undefined}
  className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition-colors duration-normal ${isPhone ? "calendar-phone-deck p-3 rounded-[18px] space-y-3" : "p-card-padding rounded-lg space-y-section"}`}
  style={{ overflowAnchor: "none" }}
  >
  {/* NAVIGATION BAR - MONTHS */}
  <div
- ref={calendarViewPager.surfaceRef}
+ ref={!isPhone ? calendarViewPager.surfaceRef : undefined}
  id="month_banner_nav"
  data-calendar-view-switch-swipe-header="true"
  className={`calendar-view-banner ${isPhone ? "calendar-phone-view-banner" : ""} flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none touch-pan-y`}
@@ -747,6 +748,7 @@ const CalendarView = memo(function CalendarView({
  id={`${activeView}-panel`}
  role="tabpanel"
  aria-labelledby={`${activeView}-tab`}
+ data-calendar-view-pager-disabled={activeView === "week" ? "true" : undefined}
  className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
  style={{
  x: calendarViewPager.x,
