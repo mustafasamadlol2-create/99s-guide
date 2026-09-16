@@ -7110,6 +7110,11 @@ const handleSignOut = useCallback(async () => {
                     isCompactHeight={isCompactHeight}
                     isEngaged={isPhoneTabBarEngaged}
                     activeColorClass={item.activeColorClass}
+                    suspendSharedIndicatorMotion={
+                      mainTabSwipeActiveRef.current ||
+                      mainTabSwipeAnimatingRef.current ||
+                      mainTabHandoffRef.current !== null
+                    }
                     onClick={handleSidebarTabClick}
                   />
                 ))}

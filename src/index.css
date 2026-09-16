@@ -5339,22 +5339,41 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 1 !important;
 }
 
-/* One persistent selector is the only glass-indicator layer on iPhone.
-   App.tsx drives its X MotionValue during both drag and spring settle, so there
-   is no layoutId indicator underneath it that can catch up a frame later. */
+/* Floating glass selector ownership is intentionally split by interaction:
+   - normal tab taps use the existing Framer layoutId selector so the halo glides
+     between icons with the approved liquid-glass spring;
+   - an interactive root swipe switches to the always-mounted compositor
+     selector, whose X MotionValue follows the finger 1:1 and settles with the
+     page spring.
+   Only ONE selector is painted at a time. This restores the premium tap motion
+   without reintroducing the old double-indicator / late-catch-up failure mode. */
 .mobile-phone-layout .ios-tabbar-swipe-sync-indicator {
   left: 0 !important;
   margin-left: 0 !important;
   z-index: 2;
-  opacity: 1;
+  opacity: 0;
   transform: translate3d(0, 0, 0);
-  will-change: transform;
+  will-change: transform, opacity;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 
 .mobile-phone-layout .ios-floating-tabbar-compact .ios-tabbar-swipe-sync-indicator {
   margin-left: 0 !important;
+}
+
+/* Once horizontal paging owns the gesture, hide the normal layout selector and
+   reveal the compositor selector in the exact same frame. During commit the
+   normal selector is moved to the destination invisibly with duration:0; the
+   existing two-rAF handoff then reveals it already settled at the target. */
+.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
+  .ios-tabbar-active-indicator:not(.ios-tabbar-swipe-sync-indicator) {
+  opacity: 0 !important;
+}
+
+.mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
+  .ios-tabbar-swipe-sync-indicator {
+  opacity: 1;
 }
 
 .mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
