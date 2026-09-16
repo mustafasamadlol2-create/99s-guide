@@ -1,0 +1,55 @@
+99's Guide — Stage 8F-2 Admin Roster Diagnostic
+================================================
+
+DO NOT change Render flags yet.
+DO NOT replace server.ts yet.
+DO NOT redeploy the backend yet.
+
+The previous parity verifier showed that the beginning of the Supabase and D1
+payloads is identical, but it stopped at a generic equality failure.
+
+This diagnostic is READ-ONLY and reports the exact mismatch class without
+printing the full roster or secrets.
+
+RUN
+---
+From project root, in the same CMD session where PRIVATE_DATA_SYNC_SECRET is set:
+
+node diagnose-stage8f2-admin-roster.mjs
+
+EXPECTED POSSIBLE RESULTS
+-------------------------
+A)
+STAGE 8F-2 DIAGNOSTIC PASS — ORDER ONLY
+
+This means all values match and only result ordering differs. ChatGPT will then
+provide a tiny deterministic-order repair.
+
+B)
+STAGE 8F-2 DIAGNOSTIC PASS — EXACT
+
+This means the previous mismatch was transient.
+
+C)
+DIAGNOSIS: VALUE_MISMATCH
+
+The script prints only:
+- userId
+- exact field path
+- the two differing values
+
+D)
+DIAGNOSIS: ROW_SET_MISMATCH
+
+The script prints only sample row IDs missing from one side.
+
+SAFETY
+------
+- No Supabase write.
+- No D1 write.
+- No Worker deployment.
+- No Render change.
+- No JWT/cookie required.
+- Do not send PRIVATE_DATA_SYNC_SECRET to ChatGPT.
+
+Send the diagnostic output only.

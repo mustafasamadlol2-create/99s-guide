@@ -701,6 +701,101 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
       return jsonNoStore({ rows: result.results || [] });
     }
 
+
+    if (path === "/internal/private-read/blocked-users") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+
+      const result = await env.DB.prepare(
+        `SELECT
+          b."id" AS "blockId",
+          b."blockedId" AS "id",
+          b."createdAt" AS "blockedAt",
+          u."name" AS "name",
+          u."avatar" AS "avatar",
+          u."avatarUrl" AS "avatarUrl"
+         FROM "UserBlock" b
+         LEFT JOIN "User" u ON u."id" = b."blockedId"
+         WHERE b."blockerId" = ?
+         ORDER BY b."createdAt" DESC, b."id" DESC`
+      ).bind(userId).all();
+
+      return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/admin-roster") {
+      const limit = readLimit(url, 1000, 2000);
+
+      const usersResult = await env.DB.prepare(
+        `SELECT
+          "id","name","email","profileEmail","role","isPrimaryOwner","emailVerified",
+          "avatar","avatarUrl","totalPoints","level","levelBadge","streakDays",
+          "totalTimeSpent","lastActive","createdAt"
+         FROM "User"
+         ORDER BY "id" ASC
+         LIMIT ?`
+      ).bind(limit).all();
+
+      const progressResult = await env.DB.prepare(
+        `SELECT
+          "userId","lectureId","pdfCompleted","notesCompleted","videoCompleted",
+          "flashcardsCompleted","quizCompleted","quizScore","lastAccessed"
+         FROM "LectureProgress"
+         ORDER BY "userId" ASC, "lectureId" ASC
+         LIMIT 10000`
+      ).all();
+
+      const progressByUser = new Map<string, any[]>();
+      for (const raw of progressResult.results || []) {
+        const row: any = raw;
+        const arr = progressByUser.get(String(row.userId)) || [];
+        arr.push({
+          userId: row.userId,
+          lectureId: row.lectureId,
+          pdfCompleted: Number(row.pdfCompleted) === 1,
+          notesCompleted: Number(row.notesCompleted) === 1,
+          videoCompleted: Number(row.videoCompleted) === 1,
+          flashcardsCompleted: Number(row.flashcardsCompleted) === 1,
+          quizCompleted: Number(row.quizCompleted) === 1,
+          quizScore: Number(row.quizScore || 0),
+          lastAccessed: row.lastAccessed,
+        });
+        progressByUser.set(String(row.userId), arr);
+      }
+
+      const rows = (usersResult.results || []).map((raw: any) => {
+        const progress = progressByUser.get(String(raw.id)) || [];
+        return {
+          id: raw.id,
+          name: raw.name || "",
+          email: raw.email,
+          profileEmail: raw.profileEmail ?? null,
+          role: raw.role,
+          isAdmin: raw.role === "admin",
+          isPrimaryOwner: Number(raw.isPrimaryOwner) === 1,
+          emailVerified: Number(raw.emailVerified) === 1,
+          avatar: raw.avatar || "",
+          avatarUrl: raw.avatarUrl || raw.avatar || "",
+          totalPoints: Number(raw.totalPoints || 0),
+          level: raw.level,
+          levelBadge: raw.levelBadge,
+          streakDays: Number(raw.streakDays || 0),
+          totalTimeSpent: Number(raw.totalTimeSpent || 0),
+          lastActive: raw.lastActive,
+          created_at: raw.createdAt,
+          completedLectCount: progress.filter((p) => p.pdfCompleted).length,
+          completedQuizzesCount: progress.filter((p) => p.quizCompleted).length,
+          progress,
+        };
+      });
+
+      rows.sort((a: any, b: any) =>
+        ((b.totalPoints || 0) - (a.totalPoints || 0)) ||
+        String(a.id).localeCompare(String(b.id))
+      );
+      return jsonNoStore({ rows });
+    }
+
     if (path === "/internal/private-read/qa") {
       const lectureId = readStringParam(url, "lectureId");
       const callerId = readStringParam(url, "callerId");

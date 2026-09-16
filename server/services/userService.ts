@@ -1,4 +1,5 @@
 import { getPrisma } from "./prismaClient.js";
+import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./privateD1Read.js";
 import crypto from "node:crypto";
 import {
   deleteManagedAvatarByUrl,
@@ -487,11 +488,31 @@ export class UserService {
 
   // Fetch all users with basic metrics
   static async listAllUsers(): Promise<any[]> {
+    if (
+      privateReadEnabled("PRIVATE_D1_ROSTER_READS_ENABLED")
+    ) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/admin-roster",
+          { limit: 1000 },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid admin roster payload.");
+        }
+        return payload.rows;
+      } catch (error) {
+        logPrivateReadFallback("admin-roster", error);
+      }
+    }
+
     const client = getPrisma();
     const allUsers = await client.user.findMany({
       take: 1000,
+      orderBy: { id: "asc" },
       include: {
-        lectureProgresses: true
+        lectureProgresses: {
+          orderBy: { lectureId: "asc" }
+        }
       }
     });
 
@@ -501,7 +522,7 @@ export class UserService {
       const completedLectCount = progressList.filter((p: any) => p.pdfCompleted === true).length;
       const completedQuizzesCount = progressList.filter((p: any) => p.quizCompleted === true).length;
 
-      const mapped = {
+      list.push({
         id: u.id,
         name: u.name || "",
         email: u.email,
@@ -532,19 +553,51 @@ export class UserService {
           quizScore: p.quizScore || 0,
           lastAccessed: p.lastAccessed ? p.lastAccessed.toISOString() : new Date().toISOString()
         }))
-      };
-
-      list.push(mapped);
+      });
     }
 
-    list.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+    list.sort((a, b) =>
+      ((b.totalPoints || 0) - (a.totalPoints || 0)) ||
+      String(a.id).localeCompare(String(b.id))
+    );
     return list;
   }
 
   // Get progress records for a user
-  static async getProgress(userId: string): Promise<ProgressRecord[]> {
-    const client = getPrisma();
-    const progressList = await client.lectureProgress.findMany({
+  static async getProgress(
+    userId: string,
+    forceSupabase = false,
+  ): Promise<ProgressRecord[]> {
+    if (
+      !forceSupabase &&
+      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
+      privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")
+    ) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/lecture-progress",
+          { userId },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid lecture progress payload.");
+        }
+        return payload.rows.map((row: any) => ({
+          userId: row.userId,
+          lectureId: row.lectureId,
+          pdfCompleted: !!row.pdfCompleted,
+          notesCompleted: !!row.notesCompleted,
+          videoCompleted: !!row.videoCompleted,
+          flashcardsCompleted: !!row.flashcardsCompleted,
+          quizCompleted: !!row.quizCompleted,
+          quizScore: Number(row.quizScore || 0),
+          lastAccessed: row.lastAccessed || new Date().toISOString(),
+        }));
+      } catch (error) {
+        logPrivateReadFallback("full-user-progress", error);
+      }
+    }
+
+    const progressList = await getPrisma().lectureProgress.findMany({
       take: 2000,
       where: { userId }
     });
@@ -595,9 +648,36 @@ export class UserService {
   }
 
   // Get academic points logs
-  static async getPointsLogs(userId: string): Promise<PointsLogRecord[]> {
-    const client = getPrisma();
-    const logs = await client.pointsLog.findMany({
+  static async getPointsLogs(
+    userId: string,
+    forceSupabase = false,
+  ): Promise<PointsLogRecord[]> {
+    if (
+      !forceSupabase &&
+      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
+      privateReadEnabled("PRIVATE_D1_POINTS_READS_ENABLED")
+    ) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/points-logs",
+          { userId, limit: 50 },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid points log payload.");
+        }
+        return payload.rows.map((row: any) => ({
+          id: row.id,
+          userId: row.userId,
+          points: Number(row.points || 0),
+          reason: row.reason,
+          createdAt: row.createdAt || new Date().toISOString(),
+        }));
+      } catch (error) {
+        logPrivateReadFallback("full-user-points", error);
+      }
+    }
+
+    const logs = await getPrisma().pointsLog.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 50
@@ -632,9 +712,37 @@ export class UserService {
   }
 
   // Get custom calendar events (now handled client-side or managed via global calendar)
-  static async getCalendarEvents(userId: string): Promise<any[]> {
-    const client = getPrisma();
-    const events = await client.calendarEvent.findMany({
+  static async getCalendarEvents(
+    userId: string,
+    forceSupabase = false,
+  ): Promise<any[]> {
+    if (
+      !forceSupabase &&
+      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
+      privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED")
+    ) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/personal-calendar",
+          { userId },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid personal calendar payload.");
+        }
+        return payload.rows.map((row: any) => ({
+          id: row.id,
+          title: row.title,
+          date: row.startDateTime ? new Date(row.startDateTime).toISOString().split('T')[0] : "",
+          time: row.startDateTime ? new Date(row.startDateTime).toISOString().substring(11, 16) : "",
+          type: String(row.eventType || "OTHER").toLowerCase(),
+          completed: !!row.isCompleted,
+        }));
+      } catch (error) {
+        logPrivateReadFallback("full-user-calendar", error);
+      }
+    }
+
+    const events = await getPrisma().calendarEvent.findMany({
       take: 2000,
       where: { userId }
     });
@@ -642,7 +750,7 @@ export class UserService {
       id: row.id,
       title: row.title,
       date: row.startDateTime ? new Date(row.startDateTime).toISOString().split('T')[0] : "",
-      time: row.startDateTime ? new Date(row.startDateTime).toTimeString().substring(0, 5) : "",
+      time: row.startDateTime ? new Date(row.startDateTime).toISOString().substring(11, 16) : "",
       type: row.eventType?.toLowerCase() || "other",
       completed: row.isCompleted
     }));
@@ -838,14 +946,19 @@ export class UserService {
   }
 
   // Get full client-side view object for syncing
-  static async getFullUserData(userId: string, knownUser?: UserRecord): Promise<any> {
+  static async getFullUserData(
+    userId: string,
+    knownUser?: UserRecord,
+    options: { forceSupabaseState?: boolean } = {},
+  ): Promise<any> {
     const userRow = knownUser || await UserService.findById(userId);
     if (!userRow) return null;
 
+    const forceSupabaseState = options.forceSupabaseState === true;
     const [progress, pointsLogs, calendarEvents] = await Promise.all([
-      UserService.getProgress(userId),
-      UserService.getPointsLogs(userId),
-      UserService.getCalendarEvents(userId),
+      UserService.getProgress(userId, forceSupabaseState),
+      UserService.getPointsLogs(userId, forceSupabaseState),
+      UserService.getCalendarEvents(userId, forceSupabaseState),
     ]);
 
     const mappedUser = {

@@ -4183,10 +4183,35 @@ app.patch("/api/qa/answers/:id/best", requireUser, catchAsync(async (req, res) =
 
 // GET /api/blocks — list users the caller has blocked
 app.get("/api/blocks", requireUser, catchAsync(async (req, res) => {
-  const prismaClient = getPrisma();
   const userId = (req as any).user.id;
 
-  const blocks = await prismaClient.userBlock.findMany({
+  if (privateReadEnabled("PRIVATE_D1_BLOCKS_READS_ENABLED")) {
+    try {
+      const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+        "/internal/private-read/blocked-users",
+        { userId },
+      );
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid blocked-users payload.");
+      }
+      res.setHeader("X-Private-Blocks-Read-Source", "d1");
+      return res.json(payload.rows.map((row: any) => ({
+        id: row.id,
+        blockId: row.blockId,
+        name: row.name || "Unknown",
+        avatar: row.avatar || "",
+        avatarUrl: row.avatarUrl || "",
+        blockedAt: row.blockedAt,
+      })));
+    } catch (error) {
+      logPrivateReadFallback("blocks", error);
+      res.setHeader("X-Private-Blocks-Read-Source", "supabase-fallback");
+    }
+  } else {
+    res.setHeader("X-Private-Blocks-Read-Source", "supabase");
+  }
+
+  const blocks = await getPrisma().userBlock.findMany({
     where: { blockerId: userId },
     orderBy: { createdAt: "desc" },
     include: {
@@ -4194,7 +4219,7 @@ app.get("/api/blocks", requireUser, catchAsync(async (req, res) => {
     },
   });
 
-  res.json(blocks.map((b: any) => ({
+  return res.json(blocks.map((b: any) => ({
     id: b.blocked.id,
     blockId: b.id,
     name: b.blocked.name || "Unknown",
@@ -4206,14 +4231,36 @@ app.get("/api/blocks", requireUser, catchAsync(async (req, res) => {
 
 // GET /api/blocks/ids — lightweight: just returns blocked user IDs for the caller
 app.get("/api/blocks/ids", requireUser, catchAsync(async (req, res) => {
-  const prismaClient = getPrisma();
   const userId = (req as any).user.id;
 
-  const blocks = await prismaClient.userBlock.findMany({
+  if (privateReadEnabled("PRIVATE_D1_BLOCKS_READS_ENABLED")) {
+    try {
+      const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+        "/internal/private-read/blocks",
+        { userId },
+      );
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid blocks payload.");
+      }
+      res.setHeader("X-Private-Blocks-Read-Source", "d1");
+      return res.json(
+        payload.rows
+          .filter((row: any) => row.blockerId === userId)
+          .map((row: any) => row.blockedId),
+      );
+    } catch (error) {
+      logPrivateReadFallback("block-ids", error);
+      res.setHeader("X-Private-Blocks-Read-Source", "supabase-fallback");
+    }
+  } else {
+    res.setHeader("X-Private-Blocks-Read-Source", "supabase");
+  }
+
+  const blocks = await getPrisma().userBlock.findMany({
     where: { blockerId: userId },
     select: { blockedId: true },
   });
-  res.json(blocks.map((b: any) => b.blockedId));
+  return res.json(blocks.map((b: any) => b.blockedId));
 }));
 
 // POST /api/blocks — block a user
@@ -8727,7 +8774,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     });
 
     // Compile refreshed database aggregates
-    const syncData = await UserService.getFullUserData(userId);
+    const syncData = await UserService.getFullUserData(userId, undefined, { forceSupabaseState: true });
     const mDb = await readMaterialsDb();
 
     // Fetch global calendar events from Prisma
