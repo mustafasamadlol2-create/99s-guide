@@ -496,6 +496,290 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
   }
 }
 
+
+function readStringParam(url: URL, name: string, max = 500): string | null {
+  const value = url.searchParams.get(name);
+  if (value === null) return null;
+  const clean = value.trim();
+  if (!clean || clean.length > max) return null;
+  return clean;
+}
+
+function readLimit(url: URL, fallback: number, max: number): number {
+  const raw = Number(url.searchParams.get("limit") || fallback);
+  if (!Number.isInteger(raw) || raw < 1) return fallback;
+  return Math.min(raw, max);
+}
+
+function mapIntegerBooleans(
+  row: Record<string, unknown> | null,
+  fields: string[],
+): Record<string, unknown> | null {
+  if (!row) return null;
+  const copy: Record<string, unknown> = { ...row };
+  for (const field of fields) {
+    if (copy[field] !== null && copy[field] !== undefined) {
+      copy[field] = Number(copy[field]) === 1;
+    }
+  }
+  return copy;
+}
+
+function mapManyIntegerBooleans(
+  rows: Record<string, unknown>[],
+  fields: string[],
+): Record<string, unknown>[] {
+  return rows.map((row) => mapIntegerBooleans(row, fields) as Record<string, unknown>);
+}
+
+async function handlePrivateRead(request: Request, env: any, url: URL): Promise<Response> {
+  if (request.method !== "GET") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { Allow: "GET", "Cache-Control": "no-store" },
+    });
+  }
+
+  const authError = await authenticate(request, env);
+  if (authError) return authError;
+
+  try {
+    const path = url.pathname;
+
+    if (path === "/internal/private-read/auth-user") {
+      const id = readStringParam(url, "id");
+      const email = readStringParam(url, "email");
+      if ((!id && !email) || (id && email)) {
+        return jsonNoStore({ ok: false, error: "Provide exactly one of id or email." }, 400);
+      }
+
+      const where = id ? `"id" = ?` : `lower("email") = lower(?)`;
+      const value = id || email || "";
+      const row = await env.DB.prepare(
+        `SELECT
+          "id","email","profileEmail","role","sessionVersion","name","avatar","avatarUrl",
+          "totalPoints","level","levelBadge","streakDays","totalTimeSpent","lastActive",
+          "createdAt","accountStatus","isOnline","studentGroup","isPrimaryOwner","emailVerified"
+         FROM "User"
+         WHERE ${where}
+         LIMIT 1`
+      ).bind(value).first();
+
+      return jsonNoStore({
+        row: mapIntegerBooleans(row || null, ["isOnline","isPrimaryOwner","emailVerified"]),
+      });
+    }
+
+    if (path === "/internal/private-read/users") {
+      const limit = readLimit(url, 200, 2000);
+      const result = await env.DB.prepare(
+        `SELECT
+          "id","email","name","avatar","avatarUrl","role","isPrimaryOwner","isOnline",
+          "lastSeen","createdAt","updatedAt","studentGroup","accountStatus"
+         FROM "User"
+         ORDER BY "isOnline" DESC, lower(COALESCE("name", "")) ASC, "id" ASC
+         LIMIT ?`
+      ).bind(limit).all();
+
+      return jsonNoStore({
+        rows: mapManyIntegerBooleans(result.results || [], ["isPrimaryOwner","isOnline"]),
+      });
+    }
+
+    if (path === "/internal/private-read/lecture-progress") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "LectureProgress" WHERE "userId" = ? LIMIT 2000`
+      ).bind(userId).all();
+      return jsonNoStore({
+        rows: mapManyIntegerBooleans(
+          result.results || [],
+          ["pdfCompleted","notesCompleted","videoCompleted","flashcardsCompleted","quizCompleted"],
+        ),
+      });
+    }
+
+    if (path === "/internal/private-read/flashcard-progress") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "FlashcardProgress" WHERE "userId" = ?`
+      ).bind(userId).all();
+      return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/points-logs") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const limit = readLimit(url, 50, 500);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "PointsLog"
+         WHERE "userId" = ?
+         ORDER BY "createdAt" DESC, "id" DESC
+         LIMIT ?`
+      ).bind(userId, limit).all();
+      return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/personal-calendar") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "UserCalendarEvent" WHERE "userId" = ? LIMIT 2000`
+      ).bind(userId).all();
+      return jsonNoStore({
+        rows: mapManyIntegerBooleans(result.results || [], ["isPinned","isCompleted"]),
+      });
+    }
+
+    if (path === "/internal/private-read/material-progress") {
+      const userId = readStringParam(url, "userId");
+      const materialId = readStringParam(url, "materialId");
+      if (!userId || !materialId) {
+        return jsonNoStore({ ok: false, error: "userId and materialId are required." }, 400);
+      }
+      const row = await env.DB.prepare(
+        `SELECT * FROM "UserProgress" WHERE "userId" = ? AND "materialId" = ? LIMIT 1`
+      ).bind(userId, materialId).first();
+      return jsonNoStore({
+        row: mapIntegerBooleans(row || null, ["hasViewed","isCompleted"]),
+      });
+    }
+
+    if (path === "/internal/private-read/notifications") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const group = readStringParam(url, "group", 10);
+      const limit = readLimit(url, 50, 100);
+
+      const sql = group
+        ? `SELECT * FROM "Notification"
+           WHERE ("targetUserId" IS NULL OR "targetUserId" = ?)
+             AND ("targetGroup" IS NULL OR "targetGroup" = ?)
+           ORDER BY "createdAt" DESC, "id" DESC LIMIT ?`
+        : `SELECT * FROM "Notification"
+           WHERE ("targetUserId" IS NULL OR "targetUserId" = ?)
+             AND "targetGroup" IS NULL
+           ORDER BY "createdAt" DESC, "id" DESC LIMIT ?`;
+
+      const result = group
+        ? await env.DB.prepare(sql).bind(userId, group, limit).all()
+        : await env.DB.prepare(sql).bind(userId, limit).all();
+
+      return jsonNoStore({
+        rows: mapManyIntegerBooleans(result.results || [], ["isSystem"]),
+      });
+    }
+
+    if (path === "/internal/private-read/ban") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const row = await env.DB.prepare(
+        `SELECT * FROM "UserBan" WHERE "userId" = ? LIMIT 1`
+      ).bind(userId).first();
+      return jsonNoStore({ row: mapIntegerBooleans(row || null, ["isPermanent"]) });
+    }
+
+    if (path === "/internal/private-read/mute") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const row = await env.DB.prepare(
+        `SELECT * FROM "UserMute" WHERE "userId" = ? LIMIT 1`
+      ).bind(userId).first();
+      return jsonNoStore({ row: mapIntegerBooleans(row || null, ["isPermanent"]) });
+    }
+
+    if (path === "/internal/private-read/blocks") {
+      const userId = readStringParam(url, "userId");
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "UserBlock"
+         WHERE "blockerId" = ? OR "blockedId" = ?
+         ORDER BY "createdAt" DESC, "id" DESC`
+      ).bind(userId, userId).all();
+      return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/qa") {
+      const lectureId = readStringParam(url, "lectureId");
+      const callerId = readStringParam(url, "callerId");
+      if (!lectureId || !callerId) {
+        return jsonNoStore({ ok: false, error: "lectureId and callerId are required." }, 400);
+      }
+
+      const blockedResult = await env.DB.prepare(
+        `SELECT "blockedId" FROM "UserBlock" WHERE "blockerId" = ?`
+      ).bind(callerId).all();
+      const blocked = new Set((blockedResult.results || []).map((r: any) => String(r.blockedId)));
+
+      const qResult = await env.DB.prepare(
+        `SELECT
+          q."id", q."lectureId", q."userId", q."content", q."upvotes",
+          q."createdAt", u."name" AS "userName", u."avatar" AS "userAvatarRaw",
+          u."avatarUrl" AS "userAvatarUrl"
+         FROM "QaQuestion" q
+         LEFT JOIN "User" u ON u."id" = q."userId"
+         WHERE q."lectureId" = ? AND q."isDeleted" = 0
+         ORDER BY q."createdAt" DESC, q."id" DESC`
+      ).bind(lectureId).all();
+
+      const aResult = await env.DB.prepare(
+        `SELECT
+          a."id", a."questionId", a."userId", a."content", a."upvotes",
+          a."isBest", a."createdAt", u."name" AS "userName",
+          u."avatar" AS "userAvatarRaw", u."avatarUrl" AS "userAvatarUrl"
+         FROM "QaAnswer" a
+         INNER JOIN "QaQuestion" q ON q."id" = a."questionId"
+         LEFT JOIN "User" u ON u."id" = a."userId"
+         WHERE q."lectureId" = ? AND a."isDeleted" = 0
+         ORDER BY a."createdAt" ASC, a."id" ASC`
+      ).bind(lectureId).all();
+
+      const answersByQuestion = new Map<string, any[]>();
+      for (const row of aResult.results || []) {
+        const questionId = String((row as any).questionId);
+        const arr = answersByQuestion.get(questionId) || [];
+        if (arr.length < 200) {
+          arr.push({
+            id: (row as any).id,
+            questionId: (row as any).questionId,
+            userId: (row as any).userId,
+            userName: (row as any).userName || "Unknown",
+            userAvatar: (row as any).userAvatarUrl || (row as any).userAvatarRaw || "",
+            content: (row as any).content,
+            createdAt: (row as any).createdAt,
+            upvotes: Number((row as any).upvotes || 0),
+            isBest: Number((row as any).isBest) === 1,
+            isBlocked: blocked.has(String((row as any).userId)),
+          });
+        }
+        answersByQuestion.set(questionId, arr);
+      }
+
+      const rows = (qResult.results || []).map((row: any) => ({
+        id: row.id,
+        lectureId: row.lectureId,
+        user_id: row.userId,
+        userName: row.userName || "Unknown",
+        userAvatar: row.userAvatarUrl || row.userAvatarRaw || "",
+        content: row.content,
+        createdAt: row.createdAt,
+        upvotes: Number(row.upvotes || 0),
+        isBlocked: blocked.has(String(row.userId)),
+        answers: answersByQuestion.get(String(row.id)) || [],
+      }));
+
+      return jsonNoStore({ rows });
+    }
+
+    return jsonNoStore({ ok: false, error: "Unknown private read endpoint." }, 404);
+  } catch (error) {
+    console.error("[PrivateDataRead]", error);
+    return jsonNoStore({ ok: false, error: "Private read failed." }, 500);
+  }
+}
+
 export default {
   async fetch(request: Request, env: any): Promise<Response> {
     const url = new URL(request.url);
@@ -536,6 +820,10 @@ export default {
 
     if (url.pathname === "/internal/private-sync") {
       return handlePrivateSync(request, env);
+    }
+
+    if (url.pathname.startsWith("/internal/private-read/")) {
+      return handlePrivateRead(request, env, url);
     }
 
     return new Response("Not Found", {

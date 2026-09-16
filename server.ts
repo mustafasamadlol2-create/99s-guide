@@ -43,6 +43,7 @@ import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
 import { startPrivateD1SyncDrainer, stopPrivateD1SyncDrainer } from "./server/services/privateD1Sync.js";
+import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./server/services/privateD1Read.js";
 import { execFile } from "child_process";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
@@ -1823,29 +1824,46 @@ app.get("/api/health", (req, res) => {
 // Users support fields: id, name, email, avatarUrl (from local storage), role, isOnline
 app.get("/api/users", requireUser, catchAsync(async (req, res) => {
   try {
-    // Send cache-control headers for client-side caching (stale-while-revalidate)
     res.setHeader("Cache-Control", "no-cache");
 
-    // 1. Fetch from database using Prisma Client directly with absolute state
-    try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 200, 1), 2000);
+    const isPrivileged = (req as any).user?.role === "admin" || (req as any).user?.role === "owner";
+    const callerId = (req as any).user?.id;
+
+    let rows: any[] | null = null;
+    let readSource = "supabase";
+
+    if (privateReadEnabled("PRIVATE_D1_USERS_READS_ENABLED")) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/users",
+          { limit },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid private users payload.");
+        }
+        rows = payload.rows;
+        readSource = "d1";
+      } catch (error) {
+        readSource = "supabase-fallback";
+        logPrivateReadFallback("users", error);
+      }
+    }
+
+    if (!rows) {
       const client = getPrisma();
-      const limit = parseInt(req.query.limit as string) || 200;
-      const isPrivileged = (req as any).user?.role === 'admin' || (req as any).user?.role === 'owner';
-      const callerId = (req as any).user?.id;
-      // Select only the fields the response actually uses — avoids fetching passwordHash,
-      // avatar base64 blobs, deviceToken, preferences JSON, and other unused columns.
-      const prismaUsers = await client.user.findMany({
-        take: limit > 2000 ? 2000 : limit,
-        orderBy: [{ isOnline: 'desc' }, { name: 'asc' }],
+      rows = await client.user.findMany({
+        take: limit,
+        orderBy: [{ isOnline: "desc" }, { name: "asc" }],
         select: {
           id: true,
           email: true,
           name: true,
           avatar: true,
           avatarUrl: true,
-           role: true,
-           isPrimaryOwner: true,
-           isOnline: true,
+          role: true,
+          isPrimaryOwner: true,
+          isOnline: true,
           lastSeen: true,
           createdAt: true,
           updatedAt: true,
@@ -1853,35 +1871,34 @@ app.get("/api/users", requireUser, catchAsync(async (req, res) => {
           accountStatus: true,
         },
       });
-      const formatted = prismaUsers.map(u => ({
-        id: u.id,
-        email: (isPrivileged || u.id === callerId) ? u.email : undefined,
-        name: u.name || u.email.split("@")[0],
-        avatarUrl: u.avatarUrl || u.avatar || "",
-        avatar: u.avatar || "",
-         role: u.role,
-         isPrimaryOwner: u.isPrimaryOwner === true,
-         isOnline: u.isOnline,
-        lastSeen: u.lastSeen,
-        createdAt: u.createdAt,
-        updatedAt: u.updatedAt,
-        studentGroup: u.studentGroup,
-        accountStatus: String(u.accountStatus || "ACTIVE").toLowerCase(),
-      }));
-      return res.json(formatted);
-    } catch (prismaErr) {
-      // Fail closed. The legacy list contains progress/activity fields and
-      // must never be used as a fallback for this general user endpoint.
-      console.error(prismaErr); return res.status(503).json({ error: "User list temporarily unavailable.", retryable: true, msg: String(prismaErr) });
     }
+
+    const formatted = rows.map((u: any) => ({
+      id: u.id,
+      email: (isPrivileged || u.id === callerId) ? u.email : undefined,
+      name: u.name || String(u.email || "").split("@")[0],
+      avatarUrl: u.avatarUrl || u.avatar || "",
+      avatar: u.avatar || "",
+      role: u.role,
+      isPrimaryOwner: u.isPrimaryOwner === true,
+      isOnline: u.isOnline === true,
+      lastSeen: u.lastSeen,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+      studentGroup: u.studentGroup,
+      accountStatus: String(u.accountStatus || "ACTIVE").toLowerCase(),
+    }));
+
+    res.setHeader("X-Private-Users-Read-Source", readSource);
+    return res.json(formatted);
   } catch (err: any) {
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Users endpoint failed:", err instanceof Error ? err.message.substring(0, 80) : "Sanitized");
+    return res.status(503).json({
+      error: "User list temporarily unavailable.",
+      retryable: true,
+    });
   }
 }));
-
-
-
-
 
 // 2. Content/Lectures CRUD Endpoints (/api/content)
 // Content/Lectures support fields: title, youtubeUrl (string), pdfUrl (local URL from multer)
@@ -2059,18 +2076,39 @@ app.get("/api/content/:id", requireUser, catchAsync(async (req, res) => {
 app.get("/api/flashcards/progress", requireUser, catchAsync(async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-cache");
-    const prismaClient = getPrisma();
     const userId = (req as any).user.id;
-    const progress = await prismaClient.flashcardProgress.findMany({
-      where: { userId }
-    });
-    const stats: Record<string, string> = {};
-    for (const p of progress) {
-      stats[p.flashcardId] = p.status;
+
+    let progress: any[] | null = null;
+    let readSource = "supabase";
+
+    if (privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/flashcard-progress",
+          { userId },
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid flashcard progress payload.");
+        }
+        progress = payload.rows;
+        readSource = "d1";
+      } catch (error) {
+        readSource = "supabase-fallback";
+        logPrivateReadFallback("flashcard-progress", error);
+      }
     }
-    res.json(stats);
+
+    if (!progress) {
+      progress = await getPrisma().flashcardProgress.findMany({ where: { userId } });
+    }
+
+    const stats: Record<string, string> = {};
+    for (const p of progress) stats[p.flashcardId] = p.status;
+
+    res.setHeader("X-Private-Progress-Read-Source", readSource);
+    return res.json(stats);
   } catch (err) {
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
@@ -3590,37 +3628,57 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
 // Notifications Endpoints
 app.get("/api/notifications", requireUser, catchAsync(async (req, res) => {
   try {
-    const prismaClient = getPrisma();
     const currentUser = (req as any).user;
     const currentUserId = currentUser?.id;
     const currentUserGroup: string | null = currentUser?.studentGroup || null;
 
-    // Return notifications that are addressed to this user (or everyone) AND
-    // are either global (targetGroup null) or targeted at the user's own group.
-    const notifications = await prismaClient.notification.findMany({
-      take: 50,
-      where: {
-        AND: [
+    let notifications: any[] | null = null;
+    let readSource = "supabase";
+
+    if (privateReadEnabled("PRIVATE_D1_NOTIFICATIONS_READS_ENABLED")) {
+      try {
+        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/notifications",
           {
-            OR: [
-              { targetUserId: null },
-              { targetUserId: currentUserId },
-            ],
+            userId: currentUserId,
+            group: currentUserGroup,
+            limit: 50,
           },
-          {
-            OR: [
-              { targetGroup: null },
-              ...(currentUserGroup ? [{ targetGroup: currentUserGroup }] : []),
-            ],
-          },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    res.json(notifications);
+        );
+        if (!payload || !Array.isArray(payload.rows)) {
+          throw new Error("Invalid notifications payload.");
+        }
+        notifications = payload.rows;
+        readSource = "d1";
+      } catch (error) {
+        readSource = "supabase-fallback";
+        logPrivateReadFallback("notifications", error);
+      }
+    }
+
+    if (!notifications) {
+      notifications = await getPrisma().notification.findMany({
+        take: 50,
+        where: {
+          AND: [
+            { OR: [{ targetUserId: null }, { targetUserId: currentUserId }] },
+            {
+              OR: [
+                { targetGroup: null },
+                ...(currentUserGroup ? [{ targetGroup: currentUserGroup }] : []),
+              ],
+            },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    res.setHeader("X-Private-Notifications-Read-Source", readSource);
+    return res.json(notifications);
   } catch (err: any) {
     console.error("Failed to fetch notifications:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
@@ -3746,34 +3804,52 @@ async function removeDeviceTokensForUser(userId: string): Promise<void> {
 
 // GET /api/qa/:lectureId — fetch questions (hidden deleted; hide blocked-user content for caller)
 app.get("/api/qa/:lectureId", requireUser, catchAsync(async (req, res) => {
-  const prismaClient = getPrisma();
   const userId = (req as any).user.id;
   const { lectureId } = req.params;
 
-  // Fetch blocks and questions in parallel — they are independent queries
+  if (privateReadEnabled("PRIVATE_D1_QA_READS_ENABLED")) {
+    try {
+      const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+        "/internal/private-read/qa",
+        { lectureId, callerId: userId },
+      );
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid Q&A private payload.");
+      }
+      res.setHeader("X-Private-QA-Read-Source", "d1");
+      return res.json(payload.rows);
+    } catch (error) {
+      logPrivateReadFallback("qa", error);
+      res.setHeader("X-Private-QA-Read-Source", "supabase-fallback");
+    }
+  } else {
+    res.setHeader("X-Private-QA-Read-Source", "supabase");
+  }
+
+  const prismaClient = getPrisma();
   const [blocks, questions] = await Promise.all([
     prismaClient.userBlock.findMany({
       where: { blockerId: userId },
       select: { blockedId: true },
     }),
     prismaClient.qaQuestion.findMany({
-    where: { lectureId, isDeleted: false },
-    orderBy: { createdAt: "desc" },
-    include: {
-      user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
-      answers: {
-        where: { isDeleted: false },
-        orderBy: { createdAt: "asc" },
-        take: 200,
-        include: {
-          user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
+      where: { lectureId, isDeleted: false },
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
+        answers: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+          include: {
+            user: { select: { id: true, name: true, avatar: true, avatarUrl: true } },
+          },
         },
       },
-    },
-  }),
+    }),
   ]);
-  const blockedIds = new Set(blocks.map((b: any) => b.blockedId));
 
+  const blockedIds = new Set(blocks.map((b: any) => b.blockedId));
   const mapped = questions.map((q: any) => ({
     id: q.id,
     lectureId: q.lectureId,
@@ -3798,7 +3874,7 @@ app.get("/api/qa/:lectureId", requireUser, catchAsync(async (req, res) => {
     })),
   }));
 
-  res.json(mapped);
+  return res.json(mapped);
 }));
 
 // POST /api/qa/:lectureId/questions — post a new question
@@ -5197,7 +5273,7 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
     const isPrivileged = currentUser?.role === "admin" || currentUser?.role === "owner";
 
     let events: any[] = [];
-    let readSource: "d1+supabase-personal" | "supabase" | "supabase-fallback" = "supabase";
+    let readSource: "d1+private-d1-personal" | "d1+supabase-personal" | "supabase" | "supabase-fallback" = "supabase";
 
     if (contentD1CalendarReadsEnabled()) {
       try {
@@ -5206,11 +5282,21 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
         const [globalPayload, personalEvents] = await Promise.all([
           fetchContentReadJson<any>("/calendar/global"),
           userId
-            ? prismaClient.calendarEvent.findMany({
-                take: 1000,
-                where: { userId },
-                orderBy: { startDateTime: "asc" },
-              })
+            ? (privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED")
+                ? fetchPrivateReadJson<{ rows: any[] }>(
+                    "/internal/private-read/personal-calendar",
+                    { userId },
+                  ).then((payload) => {
+                    if (!payload || !Array.isArray(payload.rows)) {
+                      throw new Error("Invalid personal calendar payload.");
+                    }
+                    return payload.rows;
+                  })
+                : prismaClient.calendarEvent.findMany({
+                    take: 1000,
+                    where: { userId },
+                    orderBy: { startDateTime: "asc" },
+                  }))
             : Promise.resolve([]),
         ]);
 
@@ -5238,7 +5324,7 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
           })
           .slice(0, 1000);
 
-        readSource = "d1+supabase-personal";
+        readSource = privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED") ? "d1+private-d1-personal" : "d1+supabase-personal";
       } catch (error: any) {
         readSource = "supabase-fallback";
         logger.warn(
@@ -5248,7 +5334,7 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
       }
     }
 
-    if (readSource !== "d1+supabase-personal") {
+    if (readSource !== "d1+supabase-personal" && readSource !== "d1+private-d1-personal") {
       events = await prismaClient.calendarEvent.findMany({
         take: 1000,
         where: {
@@ -8949,25 +9035,41 @@ app.get("/api/progress/:userId/:materialId", requireUser, catchAsync(async (req,
       return res.status(403).json({ error: "Access denied. You can only view your own material progress." });
     }
 
-    const client = getPrisma();
-    const progress = await client.userProgress.findUnique({
-      where: {
-        userId_materialId: {
-          userId,
-          materialId
-        }
+    let progress: any | null = null;
+    let readSource = "supabase";
+
+    if (privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+      try {
+        const payload = await fetchPrivateReadJson<{ row: any | null }>(
+          "/internal/private-read/material-progress",
+          { userId, materialId },
+        );
+        progress = payload?.row ?? null;
+        readSource = "d1";
+      } catch (error) {
+        readSource = "supabase-fallback";
+        logPrivateReadFallback("material-progress", error);
       }
-    });
+    }
+
+    if (readSource !== "d1") {
+      progress = await getPrisma().userProgress.findUnique({
+        where: { userId_materialId: { userId, materialId } },
+      });
+    }
+
+    res.setHeader("X-Private-Progress-Read-Source", readSource);
     if (!progress) {
       return res.json({ hasViewed: false, isCompleted: false });
     }
-    res.json({
+
+    return res.json({
       hasViewed: !!progress.hasViewed,
-      isCompleted: !!progress.isCompleted
+      isCompleted: !!progress.isCompleted,
     });
   } catch (error) {
     console.error("Error fetching material progress status:", error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }));
 
