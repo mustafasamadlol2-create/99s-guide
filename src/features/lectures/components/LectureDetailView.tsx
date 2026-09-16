@@ -1833,6 +1833,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <div
     ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
+    data-lecture-section-tabs="true"
     className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-[3px] rounded-[14px] grid grid-cols-6 sm:flex items-center select-none h-[44px] sm:h-[40px] w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >

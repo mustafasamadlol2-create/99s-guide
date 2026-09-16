@@ -2723,78 +2723,124 @@ button:not(:disabled):active,
   padding-bottom: 0 !important;
 }
 
-/* Lecture detail: reachable back button and an iPad-native segmented tab strip.
-   Keep this entire refinement scoped to `.ipad-layout` so iPhone and
-   Mac/desktop retain their existing dimensions. The bar scales with the iPad
-   canvas instead of inheriting the desktop-fixed 420px width. */
+/* Lecture detail: reachable back button and iPad-native six-way section control. */
 .ipad-layout .lecture-detail-back {
   min-height: 44px;
 }
 
-.ipad-layout .lecture-tabbar {
-  /* iPad Mini / narrow Split View: stay compact enough to share the header. */
-  width: clamp(388px, 52vw, 440px);
-  min-width: clamp(388px, 52vw, 440px);
-  max-width: 440px;
-  flex: 0 0 clamp(388px, 52vw, 440px);
-  height: 48px;
-  min-height: 48px;
-  padding: 4px;
-  border-radius: 16px;
+/* IMPORTANT: the desktop `sm:flex` utility lets each label keep only its
+   intrinsic width, which is why the iPad bar used to leave a large dead zone
+   after Q&A.  On iPad the six destinations are a true equal-width segmented
+   control.  This applies to the shared React UI used by both PWA and
+   Capacitor/WKWebView. */
+.ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  width: clamp(480px, 45vw, 620px) !important;
+  min-width: clamp(480px, 45vw, 620px) !important;
+  max-width: 620px !important;
+  flex: 0 0 clamp(480px, 45vw, 620px) !important;
+  height: 50px !important;
+  min-height: 50px !important;
+  padding: 4px !important;
+  border-radius: 15px !important;
+  gap: 0 !important;
 }
 
-/* The animated selection pill gets a true 40px iPad touch-visual height while
-   remaining inside the segmented-control shell. */
-.ipad-layout .lecture-tabbar > [aria-hidden="true"] {
-  top: 4px !important;
-  bottom: 4px !important;
-  border-radius: 12px !important;
+.ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  flex: none !important;
 }
 
-.ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
-  min-height: 40px;
-  padding-inline: 5px;
-  font-size: 13px;
-  line-height: 1;
+.ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] > button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  height: 100% !important;
+  padding-inline: 8px !important;
+  font-size: 13.5px !important;
+  line-height: 1 !important;
 }
 
-.ipad-layout .lecture-tabbar [data-lecture-tab-label] {
+.ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] [data-lecture-tab-label] {
+  width: auto !important;
+  max-width: 100% !important;
+  justify-content: center !important;
   letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
 
-/* Standard 10–11 inch iPads: give all six sections more breathing room. */
-@media (min-width: 900px) {
-  .ipad-layout .lecture-tabbar {
-    width: clamp(460px, 43vw, 520px);
-    min-width: clamp(460px, 43vw, 520px);
-    max-width: 520px;
-    flex-basis: clamp(460px, 43vw, 520px);
-    height: 50px;
-    min-height: 50px;
+.ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] > [aria-hidden="true"] {
+  top: 4px !important;
+  bottom: 4px !important;
+  border-radius: 12px !important;
+}
+
+/* 12.9/13-inch iPad Pro landscape has enough regular-width space to make the
+   control substantially larger without stealing room from the lecture title. */
+@media (min-width: 1180px) {
+  .ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] {
+    width: clamp(570px, 46vw, 640px) !important;
+    min-width: clamp(570px, 46vw, 640px) !important;
+    max-width: 640px !important;
+    flex-basis: clamp(570px, 46vw, 640px) !important;
+    height: 52px !important;
+    min-height: 52px !important;
   }
 
-  .ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
-    min-height: 42px;
-    padding-inline: 7px;
-    font-size: 13.5px;
+  .ipad-layout .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] > button {
+    min-height: 44px !important;
+    padding-inline: 10px !important;
+    font-size: 14px !important;
   }
 }
 
-/* 12.9/13-inch iPad Pro landscape: use the available regular-width canvas
-   rather than leaving a desktop-sized segmented control floating in space. */
-@media (min-width: 1180px) {
-  .ipad-layout .lecture-tabbar {
-    width: 540px;
-    min-width: 540px;
-    max-width: 540px;
-    flex-basis: 540px;
-  }
+/* Standalone iPad PWA fallback.  Some Safari installation modes can report a
+   desktop-style UA before device classification has settled.  The WebKit touch
+   capability + tablet viewport reproduces the exact same segmented geometry. */
+@supports (-webkit-touch-callout: none) {
+  @media (min-width: 768px) and (max-width: 1366px) {
+    .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] {
+      display: grid !important;
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      align-items: stretch !important;
+      width: clamp(480px, 45vw, 620px) !important;
+      min-width: clamp(480px, 45vw, 620px) !important;
+      max-width: 620px !important;
+      flex: 0 0 clamp(480px, 45vw, 620px) !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      padding: 4px !important;
+      border-radius: 15px !important;
+      gap: 0 !important;
+    }
 
-  .ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
-    padding-inline: 9px;
-    font-size: 14px;
+    .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] {
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 100% !important;
+      flex: none !important;
+    }
+
+    .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] > button {
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 100% !important;
+      min-height: 42px !important;
+      padding-inline: 8px !important;
+      font-size: 13.5px !important;
+      line-height: 1 !important;
+    }
+
+    .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] [data-lecture-tab-label] {
+      width: auto !important;
+      max-width: 100% !important;
+      justify-content: center !important;
+    }
   }
 }
 
