@@ -1,0 +1,497 @@
+{
+  "generatedAt": "2026-09-16T20:45:28.182Z",
+  "mode": "READ_ONLY",
+  "db": {
+    "connected": false,
+    "reason": "@prisma/client unavailable: Cannot find package '@prisma/client' imported from C:\\Users\\Lenovo\\OneDrive\\Desktop\\Mustafa\\99s Guide\\99s-guide-main (19)\\99s-guide-main\\audit-stage8a-remaining-supabase.mjs",
+    "target": {
+      "hostname": "aws-0-eu-central-1.pooler.supabase.com",
+      "database": "postgres"
+    },
+    "tables": []
+  },
+  "workerSignals": {
+    "contentSync": true,
+    "lectures": false,
+    "materials": false,
+    "mottos": false,
+    "calendar": false,
+    "search": false,
+    "cacheFlag": false
+  },
+  "totals": {
+    "prismaModels": 25,
+    "expressRoutes": 103,
+    "routesWithPrisma": 8,
+    "remainingModelsWithSupabaseReads": 3
+  },
+  "modelAudit": [
+    {
+      "model": "User",
+      "classification": "remaining-supabase-read",
+      "readCalls": 1,
+      "writeCalls": 1,
+      "readMethods": [
+        "findUnique"
+      ],
+      "writeMethods": [
+        "update"
+      ],
+      "routesUsing": [
+        "POST /auth/callback/apple"
+      ],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Lecture",
+      "classification": "already-shared-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Material",
+      "classification": "already-shared-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Mcq",
+      "classification": "already-shared-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Flashcard",
+      "classification": "already-shared-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "CalendarEvent",
+      "classification": "partial-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "PointsLog",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "SmartNotification",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "LectureProgress",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "UserProgress",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Notification",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "FlashcardProgress",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "DailyMotto",
+      "classification": "already-shared-d1",
+      "readCalls": 2,
+      "writeCalls": 3,
+      "readMethods": [
+        "findMany"
+      ],
+      "writeMethods": [
+        "create",
+        "update",
+        "delete"
+      ],
+      "routesUsing": [
+        "GET /api/mottos/active",
+        "GET /api/mottos",
+        "POST /api/mottos",
+        "PATCH /api/mottos/:id",
+        "DELETE /api/mottos/:id"
+      ],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "SystemSetting",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "QaQuestion",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "QaAnswer",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "QaVote",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "UserBlock",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "UserMute",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "UserBan",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "Report",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "PasswordResetToken",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "EmailVerificationToken",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "OAuthIdentity",
+      "classification": "remaining-supabase-read",
+      "readCalls": 3,
+      "writeCalls": 1,
+      "readMethods": [
+        "findFirst"
+      ],
+      "writeMethods": [
+        "delete"
+      ],
+      "routesUsing": [
+        "GET /api/auth/me",
+        "POST /auth/callback/apple",
+        "POST /api/auth/apple/select-email"
+      ],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "ModerationHistory",
+      "classification": "not-seen-in-server",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    }
+  ],
+  "remainingSupabaseReadCandidates": [
+    {
+      "model": "OAuthIdentity",
+      "classification": "remaining-supabase-read",
+      "readCalls": 3,
+      "writeCalls": 1,
+      "readMethods": [
+        "findFirst"
+      ],
+      "writeMethods": [
+        "delete"
+      ],
+      "routesUsing": [
+        "GET /api/auth/me",
+        "POST /auth/callback/apple",
+        "POST /api/auth/apple/select-email"
+      ],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "User",
+      "classification": "remaining-supabase-read",
+      "readCalls": 1,
+      "writeCalls": 1,
+      "readMethods": [
+        "findUnique"
+      ],
+      "writeMethods": [
+        "update"
+      ],
+      "routesUsing": [
+        "POST /auth/callback/apple"
+      ],
+      "exactRows": null,
+      "totalBytes": null
+    },
+    {
+      "model": "CalendarEvent",
+      "classification": "partial-d1",
+      "readCalls": 0,
+      "writeCalls": 0,
+      "readMethods": [],
+      "writeMethods": [],
+      "routesUsing": [],
+      "exactRows": null,
+      "totalBytes": null
+    }
+  ],
+  "routeModelMatrix": [
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "models": [
+        {
+          "model": "OAuthIdentity",
+          "reads": [
+            "findFirst"
+          ],
+          "writes": []
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/auth/callback/apple",
+      "models": [
+        {
+          "model": "User",
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "update"
+          ]
+        },
+        {
+          "model": "OAuthIdentity",
+          "reads": [
+            "findFirst"
+          ],
+          "writes": [
+            "delete"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/apple/select-email",
+      "models": [
+        {
+          "model": "OAuthIdentity",
+          "reads": [
+            "findFirst"
+          ],
+          "writes": []
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/mottos/active",
+      "models": [
+        {
+          "model": "DailyMotto",
+          "reads": [
+            "findMany"
+          ],
+          "writes": []
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/mottos",
+      "models": [
+        {
+          "model": "DailyMotto",
+          "reads": [
+            "findMany"
+          ],
+          "writes": []
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/mottos",
+      "models": [
+        {
+          "model": "DailyMotto",
+          "reads": [],
+          "writes": [
+            "create"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/mottos/:id",
+      "models": [
+        {
+          "model": "DailyMotto",
+          "reads": [],
+          "writes": [
+            "update"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/mottos/:id",
+      "models": [
+        {
+          "model": "DailyMotto",
+          "reads": [],
+          "writes": [
+            "delete"
+          ]
+        }
+      ]
+    }
+  ]
+}

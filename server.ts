@@ -42,6 +42,7 @@ import * as OAuthService from "./server/services/oauthService.js";
 import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
+import { startPrivateD1SyncDrainer, stopPrivateD1SyncDrainer } from "./server/services/privateD1Sync.js";
 import { execFile } from "child_process";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
@@ -9508,6 +9509,11 @@ async function startServer() {
 
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`\n✅ Server is running! You can now view it in your browser.`);
+
+    // Stage 8D — transaction-safe private Supabase -> D1 mirror.
+    // When disabled, PostgreSQL triggers still queue changes durably but no
+    // network delivery occurs until PRIVATE_D1_WRITE_MIRROR_ENABLED is enabled.
+    startPrivateD1SyncDrainer();
     
     // Fold legacy ephemeral local files into durable database storage. Runs a
     // few seconds after boot (non-blocking) and only in production.
@@ -9562,6 +9568,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     // Drain Socket.IO connections
     await new Promise<void>((resolve) => io.close(() => resolve()));
+    // Stop the private D1 outbox poller before closing Prisma.
+    stopPrivateD1SyncDrainer();
     // Release Prisma connection pool
     await disconnectPrisma();
     clearTimeout(forceExit);

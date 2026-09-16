@@ -1,0 +1,33 @@
+99's Guide — Stage 8A Final Audit V3
+=====================================
+
+WHY V3
+------
+The V2 database inventory succeeded, but its source scanner assumed the Prisma
+client variable was literally named "prisma". V3 removes that blind spot.
+
+V3:
+- keeps the successful read-only PostgreSQL inventory
+- detects Prisma delegate calls through ANY client variable name
+  (prisma.user, db.user, client.user, bracket notation, etc.)
+- scans server.ts plus server\
+- detects raw Prisma SQL and Supabase .from("table") usage
+- reads pg_stat_user_tables counters to identify which tables have actually
+  seen the most database read activity
+- makes NO database or source changes
+
+RUN FROM CURRENT PROJECT ROOT
+-----------------------------
+node audit-stage8a-final-v3.mjs
+
+EXPECTED END
+------------
+No database was modified.
+No source file was modified.
+STAGE 8A FINAL V3 AUDIT COMPLETED
+
+Then paste the console output or upload:
+stage8a-final-report-v3.txt
+
+STOP THERE.
+Do not start Stage 8B until this report is reviewed.

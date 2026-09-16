@@ -1,0 +1,99 @@
+99's Guide — Stage 8D-1 Dedicated Private Sync Worker
+======================================================
+
+WHY A DEDICATED WORKER
+----------------------
+Stage 8D is the first stage that will mirror user/private tables.
+
+This package intentionally DOES NOT replace the existing 99s-content-api Worker.
+That preserves the already-working content reads, cache, invalidation, avatars,
+and public production behavior.
+
+Instead, Stage 8D uses a second small private Worker:
+99s-private-data-api
+
+It binds to the SAME D1 database:
+99s-guide-content
+
+It exposes only:
+GET  /health
+POST /internal/private-sync
+
+There are NO public user-data read endpoints in Stage 8D-1.
+
+STATUS
+------
+Stage 8A: PASS
+Stage 8B: PASS
+Stage 8C: PASS
+Stage 8D: CURRENT — substep 8D-1
+
+STEP 1 — COPY FOLDER
+--------------------
+Copy this folder into the project root:
+
+cloudflare-private-data-api
+
+Do NOT replace cloudflare-content-api.
+
+STEP 2 — CREATE A NEW PRIVATE SECRET LOCALLY
+--------------------------------------------
+From project root:
+
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+Copy the value somewhere private.
+DO NOT send it to ChatGPT.
+DO NOT commit it to Git.
+
+STEP 3 — SET THE WORKER SECRET
+------------------------------
+From project root:
+
+cd cloudflare-private-data-api
+
+npx wrangler secret put PRIVATE_DATA_SYNC_SECRET -c wrangler.jsonc
+
+Paste the new private secret when Wrangler asks.
+
+STEP 4 — DEPLOY ONLY THE NEW PRIVATE WORKER
+-------------------------------------------
+npx wrangler deploy -c wrangler.jsonc
+
+Then:
+
+cd ..
+
+Wrangler will print the new Worker URL, expected to be similar to:
+
+https://99s-private-data-api.<your-subdomain>.workers.dev
+
+STEP 5 — VERIFY
+---------------
+In the same local CMD session set ONLY the worker URL:
+
+set PRIVATE_DATA_WORKER_BASE_URL=https://PASTE-THE-NEW-WORKER-URL
+
+Then run:
+
+node verify-stage8d1-private-worker.mjs
+
+Expected final:
+
+Health + D1 + 19 private tables: PASS
+Unauthorized private sync gate: PASS (401)
+No D1 row was modified.
+No Supabase row was modified.
+STAGE 8D-1 PRIVATE WORKER PASS
+
+IMPORTANT
+---------
+Do NOT add the new secret or URL to Render yet.
+Do NOT modify Supabase yet.
+Do NOT start write mirroring yet.
+
+STOP after 8D-1 PASS and send ChatGPT:
+- the Wrangler deploy output (without any secret)
+- the verifier output
+
+Stage 8D-2 will add the transaction-safe write outbox and Render drainer.

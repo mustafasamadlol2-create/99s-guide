@@ -1,0 +1,50 @@
+99's Guide — Stage 8A RETRY / V2
+================================
+
+IMPORTANT
+---------
+Run this from the SAME CURRENT PROJECT COPY used for the successful Stage 6/7
+production verification.
+
+Based on the previous commands, that was:
+
+C:\Users\Lenovo\OneDrive\Desktop\Mustafa\99s Guide\99s-guide-storage-only(2)\99s-guide-storage-only
+
+Do NOT run this from an older 99s-guide-main (19) checkout.
+
+WHY V2
+------
+- scans server.ts PLUS all backend source files under server\
+- tries @prisma/client first
+- automatically falls back to pg if Prisma Client import is unavailable
+- verifies the latest Worker source signals including cache/invalidation
+
+READ-ONLY
+---------
+No INSERT, UPDATE, DELETE, schema change, deploy, or source-code modification.
+
+RUN
+---
+node audit-stage8a-remaining-supabase-v2.mjs
+
+EXPECTED:
+DATABASE
+Connected: YES
+
+WORKER SIGNALS should reflect the production-era Worker, including:
+contentSync: YES
+lectures: YES
+materials: YES
+mottos: YES
+calendar: YES
+search: YES
+cacheFlag: YES
+safeInvalidation: YES
+
+FINAL:
+No database was modified.
+No source file was modified.
+STAGE 8A V2 AUDIT SCRIPT COMPLETED
+
+Upload stage8a-audit-report-v2.txt or paste its console output.
+STOP. Do not begin Stage 8B.

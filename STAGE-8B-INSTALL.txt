@@ -1,0 +1,74 @@
+99's Guide — Stage 8B Private D1 Schema
+========================================
+
+STATUS BEFORE THIS STAGE
+------------------------
+Stage 8A: COMPLETE / PASS
+
+PURPOSE
+-------
+Create D1 mirror TABLE STRUCTURE for the remaining Supabase application tables.
+
+IMPORTANT
+---------
+This stage creates schema only.
+It does NOT copy rows yet.
+It does NOT switch application reads.
+It does NOT change server.ts.
+It does NOT delete anything from Supabase.
+
+Existing D1 shared tables are skipped:
+- Lecture
+- Material
+- Mcq
+- Flashcard
+- DailyMotto
+- CalendarEvent
+
+_prisma_migrations is excluded.
+
+All other current public PostgreSQL application tables are generated from the
+ACTUAL production PostgreSQL schema, including:
+- columns / nullability
+- primary keys
+- unique constraints
+- foreign keys
+- simple indexes
+
+STEP 1 — GENERATE LOCALLY
+-------------------------
+From the current project root:
+
+node generate-stage8b-private-d1-schema.mjs
+
+Expected final:
+STAGE 8B SCHEMA GENERATION PASS
+
+It creates:
+- stage8b-private-d1-schema.sql
+- stage8b-private-d1-verify.sql
+- stage8b-private-d1-manifest.json
+
+STEP 2 — APPLY TO REMOTE D1
+---------------------------
+From project root:
+
+cd cloudflare-content-api
+
+npx wrangler d1 execute 99s-guide-content --remote --file=..\stage8b-private-d1-schema.sql -c wrangler.jsonc
+
+Then verify:
+
+npx wrangler d1 execute 99s-guide-content --remote --file=..\stage8b-private-d1-verify.sql -c wrangler.jsonc
+
+cd ..
+
+EXPECTED VERIFY
+---------------
+- All newly generated target tables are listed.
+- Every new table has rowCount = 0.
+- Existing Lecture/Material/Mcq/Flashcard/DailyMotto/CalendarEvent data is untouched.
+
+STOP THERE.
+Send the generator output and the final D1 verify output to ChatGPT.
+Do not start Stage 8C until Stage 8B is marked PASS.

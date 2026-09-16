@@ -1,0 +1,96 @@
+99's Guide — Stage 8A Remaining Supabase Read Audit V2
+=======================================================
+Project root: C:\Users\Lenovo\OneDrive\Desktop\Mustafa\99s Guide\99s-guide-main (19)\99s-guide-main
+Generated: 2026-09-16T20:52:35.656Z
+Mode: READ-ONLY
+
+DATABASE
+Connected: YES
+Driver: @prisma/client
+Target: aws-0-eu-central-1.pooler.supabase.com / postgres
+
+WORKER SIGNALS
+contentSync: YES
+lectures: NO
+materials: NO
+mottos: NO
+calendar: NO
+search: NO
+cacheFlag: NO
+safeInvalidation: NO
+
+MODEL SUMMARY
+Model | Class | Reads | Writes | Rows | Size | Backend files | Direct routes
+User | remaining-supabase-read | 1 | 1 | 119 | 5.80 MB | 1 | 1
+Lecture | already-shared-d1 | 0 | 0 | 53 | 64.00 KB | 0 | 0
+Material | already-shared-d1 | 0 | 0 | 115 | 2.50 MB | 0 | 0
+Mcq | already-shared-d1 | 0 | 0 | 100 | 184.00 KB | 0 | 0
+Flashcard | already-shared-d1 | 0 | 0 | 100 | 144.00 KB | 0 | 0
+CalendarEvent | partial-d1 | 0 | 0 | 0 | 112.00 KB | 0 | 0
+PointsLog | not-seen-in-backend | 0 | 0 | 108 | 104.00 KB | 0 | 0
+SmartNotification | not-seen-in-backend | 0 | 0 | 0 | 32.00 KB | 0 | 0
+LectureProgress | not-seen-in-backend | 0 | 0 | 29 | 64.00 KB | 0 | 0
+UserProgress | not-seen-in-backend | 0 | 0 | 0 | 32.00 KB | 0 | 0
+Notification | not-seen-in-backend | 0 | 0 | 0 | 80.00 KB | 0 | 0
+FlashcardProgress | not-seen-in-backend | 0 | 0 | 16 | 96.00 KB | 0 | 0
+DailyMotto | already-shared-d1 | 2 | 3 | 14 | 64.00 KB | 1 | 5
+SystemSetting | not-seen-in-backend | 0 | 0 | 0 | 64.00 KB | 0 | 0
+QaQuestion | not-seen-in-backend | 0 | 0 | 1 | 64.00 KB | 0 | 0
+QaAnswer | not-seen-in-backend | 0 | 0 | 1 | 64.00 KB | 0 | 0
+QaVote | not-seen-in-backend | 0 | 0 | 0 | 64.00 KB | 0 | 0
+UserBlock | not-seen-in-backend | 0 | 0 | 0 | 32.00 KB | 0 | 0
+UserMute | not-seen-in-backend | 0 | 0 | 0 | 32.00 KB | 0 | 0
+UserBan | not-seen-in-backend | 0 | 0 | 0 | 32.00 KB | 0 | 0
+Report | not-seen-in-backend | 0 | 0 | 0 | 64.00 KB | 0 | 0
+PasswordResetToken | not-seen-in-backend | 0 | 0 | 1 | 64.00 KB | 0 | 0
+EmailVerificationToken | not-seen-in-backend | 0 | 0 | 0 | 80.00 KB | 0 | 0
+OAuthIdentity | remaining-supabase-read | 3 | 1 | 0 | 48.00 KB | 1 | 3
+ModerationHistory | not-seen-in-backend | 0 | 0 | 2 | 208.00 KB | 0 | 0
+
+REMAINING SUPABASE READ CANDIDATES
+1. OAuthIdentity — reads=3, rows=0, size=48.00 KB
+   file: server.ts | reads=findFirst | writes=delete
+   route: GET /api/auth/me
+   route: POST /auth/callback/apple
+   route: POST /api/auth/apple/select-email
+2. User — reads=1, rows=119, size=5.80 MB
+   file: server.ts | reads=findUnique | writes=update
+   route: POST /auth/callback/apple
+3. CalendarEvent — reads=0, rows=0, size=112.00 KB
+
+TOP POSTGRES TABLES BY SIZE
+User — rows=119, total=5.80 MB, data=96.00 KB, indexes=160.00 KB
+Material — rows=115, total=2.50 MB, data=104.00 KB, indexes=96.00 KB
+ModerationHistory — rows=2, total=208.00 KB, data=8.00 KB, indexes=192.00 KB
+Mcq — rows=100, total=184.00 KB, data=80.00 KB, indexes=72.00 KB
+Flashcard — rows=100, total=144.00 KB, data=64.00 KB, indexes=48.00 KB
+CalendarEvent — rows=0, total=112.00 KB, data=8.00 KB, indexes=96.00 KB
+PointsLog — rows=108, total=104.00 KB, data=24.00 KB, indexes=48.00 KB
+FlashcardProgress — rows=16, total=96.00 KB, data=8.00 KB, indexes=48.00 KB
+Notification — rows=0, total=80.00 KB, data=8.00 KB, indexes=64.00 KB
+EmailVerificationToken — rows=0, total=80.00 KB, data=8.00 KB, indexes=64.00 KB
+SystemSetting — rows=0, total=64.00 KB, data=8.00 KB, indexes=16.00 KB
+QaAnswer — rows=1, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+Lecture — rows=53, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+QaVote — rows=0, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+PasswordResetToken — rows=1, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+LectureProgress — rows=29, total=64.00 KB, data=8.00 KB, indexes=32.00 KB
+Report — rows=0, total=64.00 KB, data=0 B, indexes=56.00 KB
+QaQuestion — rows=1, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+DailyMotto — rows=14, total=64.00 KB, data=8.00 KB, indexes=48.00 KB
+OAuthIdentity — rows=0, total=48.00 KB, data=0 B, indexes=40.00 KB
+UserBan — rows=0, total=32.00 KB, data=0 B, indexes=24.00 KB
+UserMute — rows=0, total=32.00 KB, data=0 B, indexes=24.00 KB
+UserProgress — rows=0, total=32.00 KB, data=0 B, indexes=24.00 KB
+UserBlock — rows=0, total=32.00 KB, data=0 B, indexes=24.00 KB
+SmartNotification — rows=0, total=32.00 KB, data=0 B, indexes=24.00 KB
+
+AUDIT RESULT
+Prisma models detected: 25
+Backend source files scanned: 14
+Express routes detected: 103
+Remaining models with Supabase reads: 3
+
+No database was modified.
+No source file was modified.
+STAGE 8A V2 AUDIT SCRIPT COMPLETED

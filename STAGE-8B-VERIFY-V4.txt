@@ -1,0 +1,45 @@
+99's Guide — Stage 8B Verify V4
+================================
+
+WHY V4
+------
+The V3 verifier failed before making any query because Node 24 on Windows
+returned:
+
+spawnSync npx.cmd EINVAL
+
+This is a Windows child-process invocation issue only.
+
+V4 avoids Node child_process completely. It is a normal Windows .cmd file that
+calls Wrangler directly, exactly like the commands that already worked in your CMD.
+
+DO NOT:
+- redeploy Stage 8B schema
+- modify Supabase
+- copy data yet
+
+RUN
+---
+Place both files in the project root, then from the project root run:
+
+verify-stage8b-remote-v4.cmd
+
+It performs four READ-ONLY checks:
+
+A) presentTables = 19
+
+B) Every new private mirror table count = 0
+
+C) Existing shared D1 counts remain:
+   Lecture = 53
+   Material = 115
+   Mcq = 100
+   Flashcard = 100
+   DailyMotto = 14
+   CalendarEvent = 0
+
+D) Lists index counts for the 19 new tables.
+
+The script performs SELECT queries only.
+
+STOP after it finishes and send the full output to ChatGPT.

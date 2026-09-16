@@ -1,0 +1,1065 @@
+{
+  "User": {
+    "sourceTable": "User",
+    "targetEntity": "User",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "email",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "name",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "avatar",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "avatarUrl",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "role",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "isOnline",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "lastActive",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "lastSeen",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "accountStatus",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "updatedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "studentGroup",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "totalPoints",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "level",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "levelBadge",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "streakDays",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "totalTimeSpent",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "preferences",
+        "sqliteType": "TEXT",
+        "postgresType": "jsonb",
+        "nullable": true
+      },
+      {
+        "name": "sessionVersion",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "isPrimaryOwner",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "emailVerified",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "profileEmail",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      }
+    ]
+  },
+  "FlashcardProgress": {
+    "sourceTable": "FlashcardProgress",
+    "targetEntity": "FlashcardProgress",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "flashcardId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "status",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "updatedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "LectureProgress": {
+    "sourceTable": "LectureProgress",
+    "targetEntity": "LectureProgress",
+    "primaryKey": [
+      "userId",
+      "lectureId"
+    ],
+    "columns": [
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "lectureId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "pdfCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "notesCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "videoCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "flashcardsCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "quizCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "quizScore",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": true
+      },
+      {
+        "name": "lastAccessed",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "ModerationHistory": {
+    "sourceTable": "ModerationHistory",
+    "targetEntity": "ModerationHistory",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "actionType",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "adminId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "targetUserId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "commentId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "questionId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "answerId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "replyId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "lectureId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "reportId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "reason",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "notes",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "oldStatus",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "newStatus",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "duration",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": true
+      },
+      {
+        "name": "isPermanent",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "isSystemAction",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "expiresAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": true
+      },
+      {
+        "name": "revokedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": true
+      },
+      {
+        "name": "revokedBy",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "metadata",
+        "sqliteType": "TEXT",
+        "postgresType": "jsonb",
+        "nullable": true
+      }
+    ]
+  },
+  "Notification": {
+    "sourceTable": "Notification",
+    "targetEntity": "Notification",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "title",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "message",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "isSystem",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "targetUserId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "targetGroup",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      }
+    ]
+  },
+  "PointsLog": {
+    "sourceTable": "PointsLog",
+    "targetEntity": "PointsLog",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "points",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "reason",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "QaAnswer": {
+    "sourceTable": "QaAnswer",
+    "targetEntity": "QaAnswer",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "questionId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "content",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "upvotes",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "isBest",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "isDeleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "updatedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "QaQuestion": {
+    "sourceTable": "QaQuestion",
+    "targetEntity": "QaQuestion",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "lectureId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "content",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "upvotes",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "isDeleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "updatedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "QaVote": {
+    "sourceTable": "QaVote",
+    "targetEntity": "QaVote",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "targetId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "targetType",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "value",
+        "sqliteType": "INTEGER",
+        "postgresType": "integer",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "Report": {
+    "sourceTable": "Report",
+    "targetEntity": "Report",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "reporterId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "reportedUserId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "lectureId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "commentId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "commentType",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "commentContent",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "reason",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "description",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "status",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "SmartNotification": {
+    "sourceTable": "SmartNotification",
+    "targetEntity": "SmartNotification",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "title",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "body",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "type",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "sentAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "read",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      }
+    ]
+  },
+  "UserBan": {
+    "sourceTable": "UserBan",
+    "targetEntity": "UserBan",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "reason",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "startTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "endTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": true
+      },
+      {
+        "name": "isPermanent",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdBy",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "UserBlock": {
+    "sourceTable": "UserBlock",
+    "targetEntity": "UserBlock",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "blockerId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "blockedId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "UserMute": {
+    "sourceTable": "UserMute",
+    "targetEntity": "UserMute",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "reason",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "startTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "endTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": true
+      },
+      {
+        "name": "isPermanent",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdBy",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "UserProgress": {
+    "sourceTable": "UserProgress",
+    "targetEntity": "UserProgress",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "materialId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "hasViewed",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "isCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "createdAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "updatedAt",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      }
+    ]
+  },
+  "UserCalendarEvent": {
+    "sourceTable": "CalendarEvent",
+    "targetEntity": "UserCalendarEvent",
+    "primaryKey": [
+      "id"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "userId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "title",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "eventType",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "startDateTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "endDateTime",
+        "sqliteType": "TEXT",
+        "postgresType": "timestamp without time zone",
+        "nullable": false
+      },
+      {
+        "name": "targetGroups",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": false
+      },
+      {
+        "name": "description",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "subjectId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "lectureId",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "room",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "doctor",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "notes",
+        "sqliteType": "TEXT",
+        "postgresType": "text",
+        "nullable": true
+      },
+      {
+        "name": "isPinned",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      },
+      {
+        "name": "isCompleted",
+        "sqliteType": "INTEGER",
+        "postgresType": "boolean",
+        "nullable": false
+      }
+    ]
+  }
+}

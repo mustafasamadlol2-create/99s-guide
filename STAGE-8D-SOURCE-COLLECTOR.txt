@@ -1,0 +1,52 @@
+99's Guide — Stage 8D Source Collector
+=========================================
+
+STATUS
+------
+Stage 8A: PASS
+Stage 8B: PASS
+Stage 8C: PASS
+Stage 8D: CURRENT
+
+WHY THIS STEP
+-------------
+Stage 8D is the first stage that modifies write paths.
+
+The current production backend has writes spread across:
+- server.ts
+- server/services/userService.ts
+- Prisma transaction clients
+- the current Cloudflare Worker /internal/content-sync implementation
+
+Using an older Stage 4/5 file would risk overwriting later Stage 6/7 behavior.
+This collector packages the CURRENT local source so Stage 8D can be patched
+against exactly what is running now.
+
+SAFETY
+------
+The collector:
+- does NOT deploy anything
+- does NOT connect to Supabase
+- does NOT connect to D1
+- does NOT modify source files
+- does NOT include .env
+- does NOT include CONTENT_SYNC_SECRET
+- does NOT include auth tokens
+
+RUN
+---
+Place collect-stage8d-current-source.cmd in the current project root and run:
+
+collect-stage8d-current-source.cmd
+
+EXPECTED FINAL:
+STAGE 8D SOURCE PACK READY
+
+It creates:
+
+stage8d-current-source-pack.zip
+
+Upload that ZIP to ChatGPT.
+
+STOP THERE.
+Do not edit server.ts or deploy the Worker yet.

@@ -1,0 +1,1667 @@
+{
+  "generatedAt": "2026-09-16T20:56:54.972Z",
+  "mode": "READ_ONLY",
+  "root": "C:\\Users\\Lenovo\\OneDrive\\Desktop\\Mustafa\\99s Guide\\99s-guide-main (19)\\99s-guide-main",
+  "backendFilesScanned": [
+    "server.ts",
+    "server\\middleware\\requestLogger.ts",
+    "server\\services\\authMonitor.ts",
+    "server\\services\\authService.ts",
+    "server\\services\\dbMonitor.ts",
+    "server\\services\\emailService.ts",
+    "server\\services\\logger.ts",
+    "server\\services\\oauthService.ts",
+    "server\\services\\oauthState.ts",
+    "server\\services\\pdfAccess.ts",
+    "server\\services\\prismaClient.ts",
+    "server\\services\\sessionRevocation.ts",
+    "server\\services\\supabaseStorage.ts",
+    "server\\services\\userService.ts"
+  ],
+  "totals": {
+    "models": 25,
+    "dbTables": 26,
+    "remainingTables": 20
+  },
+  "modelAudit": [
+    {
+      "model": "User",
+      "classification": "remaining-supabase",
+      "exactRows": 119,
+      "totalBytes": 6078464,
+      "seqScan": 28502,
+      "seqRowsRead": 453380,
+      "idxScan": 58177,
+      "idxRowsFetched": 59900,
+      "rowsInserted": 160,
+      "rowsUpdated": 21493,
+      "rowsDeleted": 41,
+      "codeReadCalls": 15,
+      "codeWriteCalls": 18,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client",
+            "prismaClient",
+            "tx",
+            "prisma"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique",
+            "findFirst"
+          ],
+          "writes": [
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client",
+            "tx"
+          ],
+          "reads": [
+            "findUnique",
+            "findMany"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Lecture",
+      "classification": "already-shared-d1",
+      "exactRows": 53,
+      "totalBytes": 65536,
+      "seqScan": 13051,
+      "seqRowsRead": 300344,
+      "idxScan": 48,
+      "idxRowsFetched": 518,
+      "rowsInserted": 86,
+      "rowsUpdated": 2,
+      "rowsDeleted": 33,
+      "codeReadCalls": 14,
+      "codeWriteCalls": 2,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Material",
+      "classification": "already-shared-d1",
+      "exactRows": 115,
+      "totalBytes": 2621440,
+      "seqScan": 16051,
+      "seqRowsRead": 959645,
+      "idxScan": 1768,
+      "idxRowsFetched": 27328,
+      "rowsInserted": 237,
+      "rowsUpdated": 53,
+      "rowsDeleted": 117,
+      "codeReadCalls": 10,
+      "codeWriteCalls": 5,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx",
+            "client"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "update",
+            "delete",
+            "deleteMany",
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Mcq",
+      "classification": "already-shared-d1",
+      "exactRows": 100,
+      "totalBytes": 188416,
+      "seqScan": 10989,
+      "seqRowsRead": 462527,
+      "idxScan": 549,
+      "idxRowsFetched": 3796,
+      "rowsInserted": 124,
+      "rowsUpdated": 0,
+      "rowsDeleted": 24,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Flashcard",
+      "classification": "already-shared-d1",
+      "exactRows": 100,
+      "totalBytes": 147456,
+      "seqScan": 14442,
+      "seqRowsRead": 658021,
+      "idxScan": 1072,
+      "idxRowsFetched": 52761,
+      "rowsInserted": 120,
+      "rowsUpdated": 0,
+      "rowsDeleted": 20,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "CalendarEvent",
+      "classification": "partial-d1",
+      "exactRows": 0,
+      "totalBytes": 114688,
+      "seqScan": 25,
+      "seqRowsRead": 8,
+      "idxScan": 26214,
+      "idxRowsFetched": 3395,
+      "rowsInserted": 13,
+      "rowsUpdated": 2,
+      "rowsDeleted": 13,
+      "codeReadCalls": 9,
+      "codeWriteCalls": 6,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "update",
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "PointsLog",
+      "classification": "remaining-supabase",
+      "exactRows": 108,
+      "totalBytes": 106496,
+      "seqScan": 13,
+      "seqRowsRead": 628,
+      "idxScan": 992,
+      "idxRowsFetched": 423,
+      "rowsInserted": 109,
+      "rowsUpdated": 17,
+      "rowsDeleted": 1,
+      "codeReadCalls": 3,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "aggregate"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "SmartNotification",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 9,
+      "seqRowsRead": 0,
+      "idxScan": 19,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 0,
+      "codeWriteCalls": 0,
+      "codeOtherCalls": 0,
+      "backendFiles": []
+    },
+    {
+      "model": "LectureProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 29,
+      "totalBytes": 65536,
+      "seqScan": 1609,
+      "seqRowsRead": 23419,
+      "idxScan": 1376,
+      "idxRowsFetched": 1188,
+      "rowsInserted": 69,
+      "rowsUpdated": 260,
+      "rowsDeleted": 40,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 4,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 2235,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "deleteMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Notification",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 81920,
+      "seqScan": 1011,
+      "seqRowsRead": 22,
+      "idxScan": 8083,
+      "idxRowsFetched": 531,
+      "rowsInserted": 27,
+      "rowsUpdated": 0,
+      "rowsDeleted": 27,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "delete",
+            "create"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "deleteMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "FlashcardProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 16,
+      "totalBytes": 98304,
+      "seqScan": 745,
+      "seqRowsRead": 7209,
+      "idxScan": 459,
+      "idxRowsFetched": 360,
+      "rowsInserted": 39,
+      "rowsUpdated": 73,
+      "rowsDeleted": 23,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 2,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "DailyMotto",
+      "classification": "already-shared-d1",
+      "exactRows": 14,
+      "totalBytes": 65536,
+      "seqScan": 896,
+      "seqRowsRead": 12351,
+      "idxScan": 3797,
+      "idxRowsFetched": 10972,
+      "rowsInserted": 22,
+      "rowsUpdated": 24,
+      "rowsDeleted": 8,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prisma"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "SystemSetting",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 73861,
+      "seqRowsRead": 123680,
+      "idxScan": 1554,
+      "idxRowsFetched": 385,
+      "rowsInserted": 1112,
+      "rowsUpdated": 344,
+      "rowsDeleted": 1112,
+      "codeReadCalls": 0,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaQuestion",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 10,
+      "seqRowsRead": 2,
+      "idxScan": 1104,
+      "idxRowsFetched": 144,
+      "rowsInserted": 1,
+      "rowsUpdated": 4,
+      "rowsDeleted": 0,
+      "codeReadCalls": 6,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaAnswer",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 12,
+      "seqRowsRead": 2,
+      "idxScan": 69,
+      "idxRowsFetched": 10,
+      "rowsInserted": 1,
+      "rowsUpdated": 3,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 9,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaVote",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 53,
+      "idxRowsFetched": 2,
+      "rowsInserted": 1,
+      "rowsUpdated": 0,
+      "rowsDeleted": 1,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 4,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "delete",
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserBlock",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 10,
+      "seqRowsRead": 0,
+      "idxScan": 2227,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 2,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserMute",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 28,
+      "seqRowsRead": 0,
+      "idxScan": 2119,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 6,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findUnique",
+            "findMany"
+          ],
+          "writes": [
+            "delete",
+            "upsert",
+            "update"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserBan",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 32,
+      "seqRowsRead": 0,
+      "idxScan": 317,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 5,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "tx",
+            "prismaClient",
+            "client"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "upsert",
+            "delete",
+            "update"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Report",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 15,
+      "seqRowsRead": 0,
+      "idxScan": 162,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 5,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findMany",
+            "groupBy",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "PasswordResetToken",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 10,
+      "seqRowsRead": 5,
+      "idxScan": 64,
+      "idxRowsFetched": 19,
+      "rowsInserted": 3,
+      "rowsUpdated": 0,
+      "rowsDeleted": 2,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client",
+            "tx"
+          ],
+          "reads": [
+            "findFirst"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "EmailVerificationToken",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 81920,
+      "seqScan": 9,
+      "seqRowsRead": 2,
+      "idxScan": 52,
+      "idxRowsFetched": 13,
+      "rowsInserted": 8,
+      "rowsUpdated": 0,
+      "rowsDeleted": 8,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "OAuthIdentity",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 49152,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 1177,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 3,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prisma"
+          ],
+          "reads": [
+            "findFirst"
+          ],
+          "writes": [
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "ModerationHistory",
+      "classification": "remaining-supabase",
+      "exactRows": 2,
+      "totalBytes": 212992,
+      "seqScan": 38,
+      "seqRowsRead": 28,
+      "idxScan": 139,
+      "idxRowsFetched": 52,
+      "rowsInserted": 2,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "count"
+          ],
+          "writes": [
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    }
+  ],
+  "remainingTables": [
+    {
+      "model": "User",
+      "classification": "remaining-supabase",
+      "exactRows": 119,
+      "totalBytes": 6078464,
+      "seqScan": 28502,
+      "seqRowsRead": 453380,
+      "idxScan": 58177,
+      "idxRowsFetched": 59900,
+      "rowsInserted": 160,
+      "rowsUpdated": 21493,
+      "rowsDeleted": 41,
+      "codeReadCalls": 15,
+      "codeWriteCalls": 18,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client",
+            "prismaClient",
+            "tx",
+            "prisma"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique",
+            "findFirst"
+          ],
+          "writes": [
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client",
+            "tx"
+          ],
+          "reads": [
+            "findUnique",
+            "findMany"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "CalendarEvent",
+      "classification": "partial-d1",
+      "exactRows": 0,
+      "totalBytes": 114688,
+      "seqScan": 25,
+      "seqRowsRead": 8,
+      "idxScan": 26214,
+      "idxRowsFetched": 3395,
+      "rowsInserted": 13,
+      "rowsUpdated": 2,
+      "rowsDeleted": 13,
+      "codeReadCalls": 9,
+      "codeWriteCalls": 6,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "update",
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "PointsLog",
+      "classification": "remaining-supabase",
+      "exactRows": 108,
+      "totalBytes": 106496,
+      "seqScan": 13,
+      "seqRowsRead": 628,
+      "idxScan": 992,
+      "idxRowsFetched": 423,
+      "rowsInserted": 109,
+      "rowsUpdated": 17,
+      "rowsDeleted": 1,
+      "codeReadCalls": 3,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "aggregate"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "SmartNotification",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 9,
+      "seqRowsRead": 0,
+      "idxScan": 19,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 0,
+      "codeWriteCalls": 0,
+      "codeOtherCalls": 0,
+      "backendFiles": []
+    },
+    {
+      "model": "LectureProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 29,
+      "totalBytes": 65536,
+      "seqScan": 1609,
+      "seqRowsRead": 23419,
+      "idxScan": 1376,
+      "idxRowsFetched": 1188,
+      "rowsInserted": 69,
+      "rowsUpdated": 260,
+      "rowsDeleted": 40,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 4,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "deleteMany",
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 2235,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "deleteMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Notification",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 81920,
+      "seqScan": 1011,
+      "seqRowsRead": 22,
+      "idxScan": 8083,
+      "idxRowsFetched": 531,
+      "rowsInserted": 27,
+      "rowsUpdated": 0,
+      "rowsDeleted": 27,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "delete",
+            "create"
+          ],
+          "other": []
+        },
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "deleteMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "FlashcardProgress",
+      "classification": "remaining-supabase",
+      "exactRows": 16,
+      "totalBytes": 98304,
+      "seqScan": 745,
+      "seqRowsRead": 7209,
+      "idxScan": 459,
+      "idxRowsFetched": 360,
+      "rowsInserted": 39,
+      "rowsUpdated": 73,
+      "rowsDeleted": 23,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 2,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany"
+          ],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "SystemSetting",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 73861,
+      "seqRowsRead": 123680,
+      "idxScan": 1554,
+      "idxRowsFetched": 385,
+      "rowsInserted": 1112,
+      "rowsUpdated": 344,
+      "rowsDeleted": 1112,
+      "codeReadCalls": 0,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "client"
+          ],
+          "reads": [],
+          "writes": [
+            "upsert"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaQuestion",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 10,
+      "seqRowsRead": 2,
+      "idxScan": 1104,
+      "idxRowsFetched": 144,
+      "rowsInserted": 1,
+      "rowsUpdated": 4,
+      "rowsDeleted": 0,
+      "codeReadCalls": 6,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaAnswer",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 12,
+      "seqRowsRead": 2,
+      "idxScan": 69,
+      "idxRowsFetched": 10,
+      "rowsInserted": 1,
+      "rowsUpdated": 3,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 9,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "QaVote",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 53,
+      "idxRowsFetched": 2,
+      "rowsInserted": 1,
+      "rowsUpdated": 0,
+      "rowsDeleted": 1,
+      "codeReadCalls": 2,
+      "codeWriteCalls": 4,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "delete",
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserBlock",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 10,
+      "seqRowsRead": 0,
+      "idxScan": 2227,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 2,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserMute",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 28,
+      "seqRowsRead": 0,
+      "idxScan": 2119,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 6,
+      "codeWriteCalls": 7,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findUnique",
+            "findMany"
+          ],
+          "writes": [
+            "delete",
+            "upsert",
+            "update"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "UserBan",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 32768,
+      "seqScan": 32,
+      "seqRowsRead": 0,
+      "idxScan": 317,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 5,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "tx",
+            "prismaClient",
+            "client"
+          ],
+          "reads": [
+            "findMany",
+            "findUnique"
+          ],
+          "writes": [
+            "upsert",
+            "delete",
+            "update"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "Report",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 65536,
+      "seqScan": 15,
+      "seqRowsRead": 0,
+      "idxScan": 162,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 5,
+      "codeWriteCalls": 5,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient",
+            "tx"
+          ],
+          "reads": [
+            "findMany",
+            "groupBy",
+            "findUnique"
+          ],
+          "writes": [
+            "create",
+            "update",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "PasswordResetToken",
+      "classification": "remaining-supabase",
+      "exactRows": 1,
+      "totalBytes": 65536,
+      "seqScan": 10,
+      "seqRowsRead": 5,
+      "idxScan": 64,
+      "idxRowsFetched": 19,
+      "rowsInserted": 3,
+      "rowsUpdated": 0,
+      "rowsDeleted": 2,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "client",
+            "tx"
+          ],
+          "reads": [
+            "findFirst"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "EmailVerificationToken",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 81920,
+      "seqScan": 9,
+      "seqRowsRead": 2,
+      "idxScan": 52,
+      "idxRowsFetched": 13,
+      "rowsInserted": 8,
+      "rowsUpdated": 0,
+      "rowsDeleted": 8,
+      "codeReadCalls": 1,
+      "codeWriteCalls": 3,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server\\services\\userService.ts",
+          "clients": [
+            "tx"
+          ],
+          "reads": [
+            "findUnique"
+          ],
+          "writes": [
+            "deleteMany",
+            "create",
+            "updateMany"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "OAuthIdentity",
+      "classification": "remaining-supabase",
+      "exactRows": 0,
+      "totalBytes": 49152,
+      "seqScan": 11,
+      "seqRowsRead": 0,
+      "idxScan": 1177,
+      "idxRowsFetched": 0,
+      "rowsInserted": 0,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 3,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prisma"
+          ],
+          "reads": [
+            "findFirst"
+          ],
+          "writes": [
+            "delete"
+          ],
+          "other": []
+        }
+      ]
+    },
+    {
+      "model": "ModerationHistory",
+      "classification": "remaining-supabase",
+      "exactRows": 2,
+      "totalBytes": 212992,
+      "seqScan": 38,
+      "seqRowsRead": 28,
+      "idxScan": 139,
+      "idxRowsFetched": 52,
+      "rowsInserted": 2,
+      "rowsUpdated": 0,
+      "rowsDeleted": 0,
+      "codeReadCalls": 4,
+      "codeWriteCalls": 1,
+      "codeOtherCalls": 0,
+      "backendFiles": [
+        {
+          "file": "server.ts",
+          "clients": [
+            "prismaClient"
+          ],
+          "reads": [
+            "findMany",
+            "count"
+          ],
+          "writes": [
+            "create"
+          ],
+          "other": []
+        }
+      ]
+    }
+  ],
+  "rawSqlFiles": [
+    {
+      "file": "server.ts",
+      "rawSignals": [
+        "queryRaw",
+        "executeRawUnsafe"
+      ],
+      "supabaseFrom": []
+    },
+    {
+      "file": "server\\services\\prismaClient.ts",
+      "rawSignals": [
+        "executeRawUnsafe",
+        "queryRaw"
+      ],
+      "supabaseFrom": []
+    }
+  ]
+}

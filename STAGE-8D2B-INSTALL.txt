@@ -1,0 +1,179 @@
+99's Guide — Stage 8D-2B Transaction-Safe Write Mirroring
+============================================================
+
+STATUS BEFORE THIS SUBSTEP
+--------------------------
+Stage 8A: PASS
+Stage 8B: PASS
+Stage 8C: PASS
+Stage 8D-1: PASS
+Stage 8D-2A: PASS
+Stage 8D: CURRENT
+
+WHAT THIS SUBSTEP DOES
+----------------------
+This is the actual continuous Supabase -> D1 write mirror.
+
+Design:
+Supabase/PostgreSQL remains the WRITE AUTHORITY.
+
+Every committed INSERT / UPDATE / DELETE on the 16 mirrored source tables is
+captured by an AFTER-row PostgreSQL trigger into PrivateD1SyncOutbox.
+
+Because the outbox row is created inside the SAME PostgreSQL transaction:
+- committed app write => committed outbox mutation
+- rolled-back app write => no outbox mutation
+- Worker outage => mutation remains durable in Supabase
+- repeated writes to the same row => latest mutation is coalesced
+- a revision guard prevents the drainer from deleting a newer mutation after
+  successfully sending an older leased revision.
+
+Render drains that outbox to the existing private Worker.
+
+NOT MIRRORED
+------------
+These remain Supabase-only:
+- PasswordResetToken
+- EmailVerificationToken
+- OAuthIdentity
+- SystemSetting
+- User.passwordHash
+- User.socketId
+- User.deviceToken
+- User.signature
+
+Existing global CalendarEvent remains handled by the old content mirror.
+Only PERSONAL CalendarEvent rows are mirrored as UserCalendarEvent.
+
+NO READ CUTOVER occurs in Stage 8D-2B.
+
+FILES TO COPY
+-------------
+Replace the project-root:
+server.ts
+
+Add:
+server\services\privateD1Sync.ts
+
+Keep every other source file unchanged.
+
+STEP 1 — COPY SOURCE FILES, BUT KEEP MIRROR DISABLED
+----------------------------------------------------
+Copy the provided full server.ts over the current server.ts.
+Copy privateD1Sync.ts into server\services\.
+
+Do not enable the Render flag yet.
+
+STEP 2 — INSTALL TRANSACTION-SAFE OUTBOX + TRIGGERS
+---------------------------------------------------
+From project root:
+
+node install-stage8d2b-outbox.mjs
+
+Expected:
+Installed private mirror triggers: 16 / 16
+STAGE 8D-2B OUTBOX INSTALL PASS
+
+The installer also seeds/reconciles the current canonical rows into the outbox.
+That intentionally closes the Stage 8C -> Stage 8D installation race window.
+
+At this point, future writes queue safely even if Render has not been deployed yet.
+
+STEP 3 — BUILD LOCALLY
+----------------------
+From project root:
+
+npm run build
+
+Expected: build success.
+
+STOP if build fails.
+
+STEP 4 — RENDER ENVIRONMENT VARIABLES
+-------------------------------------
+In Render, configure:
+
+PRIVATE_DATA_WORKER_BASE_URL
+https://99s-private-data-api.mustafasamadlol2.workers.dev
+
+PRIVATE_DATA_SYNC_SECRET
+Use the SAME private secret already stored in the private Worker.
+DO NOT send the value to ChatGPT.
+
+PRIVATE_D1_WRITE_MIRROR_ENABLED
+false
+
+Optional:
+PRIVATE_D1_SYNC_POLL_MS
+15000
+
+Deploy the new backend server.ts + privateD1Sync.ts while the enabled flag is false.
+
+Expected startup behavior:
+Private D1 write mirror is installed but DISABLED.
+The database triggers continue queueing changes safely.
+
+STEP 5 — ENABLE THE DRAINER
+---------------------------
+After the patched Render deployment is healthy, change:
+
+PRIVATE_D1_WRITE_MIRROR_ENABLED=true
+
+Render will redeploy/restart.
+
+Expected startup log includes:
+Private D1 write mirror ENABLED
+
+Wait about 30–60 seconds for the seeded outbox to drain.
+
+STEP 6 — VERIFY THE OUTBOX
+--------------------------
+From project root:
+
+node verify-stage8d2b-outbox.mjs
+
+Expected:
+Private mirror triggers: 16 (expected 16)
+Pending outbox rows: 0 (expected 0 after drain)
+Rows with lastError: 0 (expected 0)
+STAGE 8D-2B OUTBOX DRAIN PASS
+
+If pending rows are still decreasing, wait 30 seconds and run it again.
+If lastError > 0, STOP and send the output to ChatGPT.
+
+STEP 7 — EXPORT REMOTE D1
+-------------------------
+From project root:
+
+export-stage8d2b-d1-remote.cmd
+
+Expected:
+STAGE 8D-2B REMOTE D1 EXPORT PASS
+
+STEP 8 — LIVE SAFE-MIRROR PARITY
+--------------------------------
+Immediately after the D1 export:
+
+node verify-stage8d2b-live-parity.mjs
+
+Expected:
+All 16 safe mirror entities = PASS
+STAGE 8D-2B LIVE MIRROR PARITY PASS
+
+Because the production app is live, a write exactly between the Supabase read and
+D1 export can produce a transient mismatch. If the outbox is 0 and there are no
+lastError rows, export D1 and run parity one more time before treating it as a
+real failure.
+
+STOP THERE.
+Do not start Stage 8E until ChatGPT marks Stage 8D-2B PASS.
+
+ROLLBACK FILE
+-------------
+rollback-stage8d2b-outbox.mjs is included only for emergency use.
+DO NOT run it unless ChatGPT explicitly tells you to roll back.
+
+SECURITY
+--------
+Do not paste PRIVATE_DATA_SYNC_SECRET into chat.
+Do not commit generated D1 export files containing private rows.

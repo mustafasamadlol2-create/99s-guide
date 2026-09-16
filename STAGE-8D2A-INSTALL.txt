@@ -1,0 +1,111 @@
+99's Guide — Stage 8D-2A Private Mirror Hardening
+==================================================
+
+STATUS
+------
+Stage 8A: PASS
+Stage 8B: PASS
+Stage 8C: PASS
+Stage 8D-1: PASS
+Stage 8D: CURRENT
+
+WHY THIS SUBSTEP EXISTS
+-----------------------
+Stage 8C copied the exact private-table snapshot before write mirroring.
+
+Before enabling continuous mirroring, Stage 8D-2A tightens the mirror:
+- PasswordResetToken rows are removed from D1.
+- EmailVerificationToken rows are removed from D1.
+- OAuthIdentity rows are removed from D1.
+- User.passwordHash is removed from the D1 copy.
+- User.socketId is not retained in D1.
+- User.deviceToken is not retained in D1.
+- User.signature is not retained in D1.
+- Those fields/tables stay authoritative in Supabase only.
+- A dedicated UserCalendarEvent D1 table is added for PERSONAL calendar events.
+- Existing global CalendarEvent stays unchanged.
+
+The private Worker is also reduced to a SAFE 16-entity write whitelist.
+It has NO public user-data read endpoint.
+
+STEP 1 — COPY FILES
+-------------------
+Copy/merge the ZIP contents into the project root.
+
+Replace ONLY:
+cloudflare-private-data-api\src\index.ts
+cloudflare-private-data-api\wrangler.jsonc
+
+Do NOT touch cloudflare-content-api.
+
+STEP 2 — HARDEN D1
+------------------
+From project root:
+
+cd cloudflare-private-data-api
+
+npx wrangler d1 execute 99s-guide-content --remote --file=..\stage8d2a-d1-hardening.sql -c wrangler.jsonc
+
+cd ..
+
+Expected: success.
+
+STEP 3 — EXPORT CURRENT PERSONAL CALENDAR SNAPSHOT
+--------------------------------------------------
+From project root:
+
+node export-stage8d2a-personal-calendar.mjs
+
+Expected final:
+STAGE 8D-2A PERSONAL CALENDAR EXPORT PASS
+
+This only READS Supabase and generates two local SQL files.
+
+STEP 4 — BACKFILL PERSONAL CALENDAR INTO D1
+-------------------------------------------
+cd cloudflare-private-data-api
+
+npx wrangler d1 execute 99s-guide-content --remote --file=..\stage8d2a-personal-calendar-backfill.sql -c wrangler.jsonc
+
+npx wrangler d1 execute 99s-guide-content --remote --file=..\stage8d2a-d1-verify.sql -c wrangler.jsonc
+
+cd ..
+
+Verification requirements:
+- personalCalendarRows = the exporter count, status PASS
+- passwordResetRows = 0
+- emailVerificationRows = 0
+- oauthIdentityRows = 0
+- sensitiveUserRows = 0
+
+STEP 5 — DEPLOY THE HARDENED PRIVATE WORKER
+-------------------------------------------
+cd cloudflare-private-data-api
+
+npx wrangler deploy -c wrangler.jsonc
+
+cd ..
+
+The existing PRIVATE_DATA_SYNC_SECRET remains attached to this Worker.
+Do NOT create or send a new secret.
+
+STEP 6 — VERIFY WORKER
+----------------------
+If this CMD session no longer has the URL set:
+
+set PRIVATE_DATA_WORKER_BASE_URL=https://99s-private-data-api.mustafasamadlol2.workers.dev
+
+Then:
+
+node verify-stage8d2a-private-worker.mjs
+
+Expected:
+Health + D1 + 16 safe mirror tables: PASS
+Unauthorized private sync gate: PASS (401)
+STAGE 8D-2A PRIVATE MIRROR HARDENING PASS
+
+STOP THERE.
+
+Do NOT add the private Worker secret to Render yet.
+Do NOT install Supabase triggers yet.
+Do NOT start Stage 8D-2B until ChatGPT reviews the outputs.

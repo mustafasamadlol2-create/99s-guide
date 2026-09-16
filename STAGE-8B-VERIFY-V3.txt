@@ -1,0 +1,39 @@
+99's Guide — Stage 8B Remote Verify V3
+=====================================
+
+WHY V3
+------
+The Stage 8B schema deployment succeeded.
+The V2 verifier also executed 63 read-only queries with 0 writes, but Wrangler's
+--file import mode did not print each SELECT result.
+
+V3 uses Wrangler --command --json for each read-only check so the PASS/FAIL
+results are visible in the console.
+
+DO NOT redeploy the schema.
+DO NOT copy any rows yet.
+
+RUN FROM PROJECT ROOT
+---------------------
+node verify-stage8b-remote.mjs
+
+EXPECTED FINAL
+--------------
+STAGE 8B REMOTE VERIFY PASS
+
+It checks:
+- all 19 new tables exist
+- all 19 new tables still have 0 rows
+- existing shared D1 counts remain:
+  Lecture 53
+  Material 115
+  Mcq 100
+  Flashcard 100
+  DailyMotto 14
+  CalendarEvent 0
+- index metadata is readable
+
+This verifier performs SELECT statements only.
+
+STOP THERE.
+Send the full console output to ChatGPT.
