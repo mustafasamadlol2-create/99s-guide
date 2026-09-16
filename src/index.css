@@ -2723,13 +2723,79 @@ button:not(:disabled):active,
   padding-bottom: 0 !important;
 }
 
-/* Lecture detail: reachable back button and full-touch-height tab strip. */
+/* Lecture detail: reachable back button and an iPad-native segmented tab strip.
+   Keep this entire refinement scoped to `.ipad-layout` so iPhone and
+   Mac/desktop retain their existing dimensions. The bar scales with the iPad
+   canvas instead of inheriting the desktop-fixed 420px width. */
 .ipad-layout .lecture-detail-back {
   min-height: 44px;
 }
 
 .ipad-layout .lecture-tabbar {
-  min-height: 44px;
+  /* iPad Mini / narrow Split View: stay compact enough to share the header. */
+  width: clamp(388px, 52vw, 440px);
+  min-width: clamp(388px, 52vw, 440px);
+  max-width: 440px;
+  flex: 0 0 clamp(388px, 52vw, 440px);
+  height: 48px;
+  min-height: 48px;
+  padding: 4px;
+  border-radius: 16px;
+}
+
+/* The animated selection pill gets a true 40px iPad touch-visual height while
+   remaining inside the segmented-control shell. */
+.ipad-layout .lecture-tabbar > [aria-hidden="true"] {
+  top: 4px !important;
+  bottom: 4px !important;
+  border-radius: 12px !important;
+}
+
+.ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
+  min-height: 40px;
+  padding-inline: 5px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.ipad-layout .lecture-tabbar [data-lecture-tab-label] {
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+/* Standard 10–11 inch iPads: give all six sections more breathing room. */
+@media (min-width: 900px) {
+  .ipad-layout .lecture-tabbar {
+    width: clamp(460px, 43vw, 520px);
+    min-width: clamp(460px, 43vw, 520px);
+    max-width: 520px;
+    flex-basis: clamp(460px, 43vw, 520px);
+    height: 50px;
+    min-height: 50px;
+  }
+
+  .ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
+    min-height: 42px;
+    padding-inline: 7px;
+    font-size: 13.5px;
+  }
+}
+
+/* 12.9/13-inch iPad Pro landscape: use the available regular-width canvas
+   rather than leaving a desktop-sized segmented control floating in space. */
+@media (min-width: 1180px) {
+  .ipad-layout .lecture-tabbar {
+    width: 540px;
+    min-width: 540px;
+    max-width: 540px;
+    flex-basis: 540px;
+  }
+
+  .ipad-layout .lecture-tabbar [data-lecture-tab-id] > button {
+    padding-inline: 9px;
+    font-size: 14px;
+  }
 }
 
 /* MCQ quiz (lecture detail): collapse Previous / Reveal Hint / Next into one
