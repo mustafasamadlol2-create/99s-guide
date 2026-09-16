@@ -85,38 +85,41 @@ export const IOS_MAIN_TAB_PAGER_MOTION = {
   verticalRejectRatio: 1.25,
   horizontalLockMaxVerticalRatio: 0.96,
 
-  // Favor the newest touch sample so a short iOS-style flick preserves its
-  // momentum instead of feeling filtered/late at finger-up.
-  velocityPreviousWeight: 0.24,
-  velocityCurrentWeight: 0.76,
+  // Smooth the release estimate across adjacent samples. A 50/50-ish low
+  // pass keeps short flick intent intact (thresholds below are intentionally
+  // permissive) while removing the last-sample jitter that can make a 60/120
+  // Hz release feel like a web snap rather than a UIKit settle.
+  velocityPreviousWeight: 0.48,
+  velocityCurrentWeight: 0.52,
 
   // Requested edge resistance.
   boundaryResistance: 0.50,
 
-  // Faster near-critical settle with the same visual language. Increasing
-  // stiffness and matching damping near the critical value shortens the tail
-  // without adding bounce, so short-flick transitions feel like a native iOS
-  // pager rather than a web carousel catching up after finger-up.
+  // UIKit-like critically damped settle. The previous very-high stiffness was
+  // fast but could look like a CSS/web snap at finger-up. This pair keeps the
+  // same quick navigation character while spreading acceleration over a few
+  // more display frames, which reads substantially smoother on both 60 Hz and
+  // 120 Hz panels without adding visible bounce.
   completionSpring: {
     type: "spring" as const,
-    stiffness: 1350,
-    damping: 66,
-    mass: 0.80,
-    restSpeed: 34,
-    restDelta: 0.50,
+    stiffness: 850,
+    damping: 53,
+    mass: 0.82,
+    restSpeed: 28,
+    restDelta: 0.40,
   },
 
   cancelSpring: {
     type: "spring" as const,
-    stiffness: 1500,
-    damping: 69,
+    stiffness: 980,
+    damping: 56,
     mass: 0.78,
-    restSpeed: 32,
-    restDelta: 0.40,
+    restSpeed: 27,
+    restDelta: 0.34,
   },
 
   // Clamp pathological touch velocity without flattening normal flings.
-  maxSpringVelocityScreensPerSecond: 6.0,
+  maxSpringVelocityScreensPerSecond: 4.8,
 } as const;
 
 /**

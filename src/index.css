@@ -4023,7 +4023,6 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
   will-change: transform, opacity;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  contain: paint;
 }
 
 .cp-mobile-search-field {
@@ -5248,9 +5247,9 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
    horizontal directional lock, which means a nested overflow-x control can
    consume its own horizontal gesture without fighting an ancestor pan-y rule.
 
-   Restricted pages (Schedule / Console) expose only their top app header as a
-   main-pager zone. That header has no nested horizontal scroller, so pan-y is
-   safe there and makes the X handoff immediate. */
+   Console exposes explicit root/header zones, while Schedule can use the root
+   pager across the page except where Calendar marks an inner horizontal owner.
+   Those nested owners retain their own gesture stream. */
 .mobile-phone-layout [data-main-tab-swipe-zone="full"] {
   touch-action: auto !important;
 }
@@ -5294,6 +5293,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     0
   ) !important;
   will-change: transform !important;
+  contain: paint;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -5314,25 +5314,17 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 }
 
 /* During root paging, destination content is already mounted but must look
-   settled.  Entrance/card animations are suppressed only for the short pager
-   handoff; normal navigation keeps the original animation behavior. */
+   settled. Suppress only entrance primitives that can visibly replay. Keeping
+   animation + transition overrides in one rule avoids duplicate selector work
+   without blanket-disabling transitions across the large root-page trees. */
 .mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
 .mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card,
 .mobile-phone-layout [data-main-tab-transition-active="true"] [data-main-tab-enter-animation="true"] {
   animation: none !important;
   animation-delay: 0s !important;
-  opacity: 1 !important;
-}
-
-/* Do not blanket-disable transitions on every descendant here. That selector
-   forced a full style recalc across the very large hidden root-tab trees at the
-   exact moment the finger began moving. Root pages are persistent/mounted, so
-   suppress only the entrance primitives that can visibly replay. */
-.mobile-phone-layout [data-main-tab-transition-active="true"] .animate-fadeIn,
-.mobile-phone-layout [data-main-tab-transition-active="true"] .ios-staggered-card,
-.mobile-phone-layout [data-main-tab-transition-active="true"] [data-main-tab-enter-animation="true"] {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
+  opacity: 1 !important;
 }
 
 /* No snapshot/clone layer is used by the root pager. WKWebView can drop

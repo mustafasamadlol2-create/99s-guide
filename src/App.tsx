@@ -2110,6 +2110,34 @@ export default function App() {
       return;
     }
 
+    const isSelectedMainTab = activeTab === id;
+    const isRootReselect =
+      isSelectedMainTab &&
+      ((id === "home" && activeHomeSubjectId === null && activeHomeLecture === null) ||
+        (id === "subjects" &&
+          activeModuleId === null &&
+          activeSubjectId === null &&
+          activeLecture === null) ||
+        id === "calendar" ||
+        (id === "control-center" && !controlCenterHasBackHistory) ||
+        (id === "profile" &&
+          !isProfileSubViewOpen &&
+          !profileOverlayRouteOpenRef.current));
+
+    // Native tab-bar convention: selecting the already-visible root tab means
+    // "take me back to the top". Let the browser own the scroll animation so
+    // it stays on the platform scroll pipeline rather than driving scrollTop
+    // from React frames. The normal scroll listener then persists 0 for this
+    // route, so a later swipe away/back cannot resurrect the previous offset.
+    if (device.isPhone && isRootReselect) {
+      const canvas = document.getElementById("main-scroll-canvas");
+      if (canvas) {
+        void HapticFeedback.selection();
+        canvas.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+
     // Clear navigation stack when switching main tabs — stale entries from
     // a previous context (e.g. Search) must not affect the new tab.
     clearNavigationStack();
@@ -2137,7 +2165,6 @@ export default function App() {
       setActiveSubjectId(null);
       return id;
     });
-       
   }, [
     activeTab,
     activeHomeSubjectId,
@@ -2148,6 +2175,7 @@ export default function App() {
     isProfileSubViewOpen,
     controlCenterHasBackHistory,
     clearNavigationStack,
+    device.isPhone,
   ]);
 
   // Sync state variables -> URL hash (prevents page reloads, keeps standard state synchronization)
@@ -4701,12 +4729,12 @@ const handleSignOut = useCallback(async () => {
   //   • one spring owns page + floating-bar settle; no WAAPI/DOM animation mix;
   //   • a committed neighbour is rebased to x=0 before React changes activeTab,
   //     then the imperative preview override is removed in a layout effect;
-  //   • Schedule/Console start only from their header zones, while Home,
-  //     Modules and Profile can start anywhere except nested horizontal owners.
+  //   • Home / Modules / Schedule / Profile can start across their allowed
+  //     surface, while Console stays restricted to its explicit root zones;
+  //     nested horizontal owners always keep their own gesture stream.
   // This keeps the handoff deterministic in WKWebView and removes the black
   // frame failure mode caused by two animation engines racing a React commit.
   const mainTabSwipeAnimatingRef = useRef(false);
-  const mainTabSwipeVisualActiveRef = useRef(false);
   const mainTabSwipeX = useMotionValue(0);
   const mainTabIndicatorX = useMotionValue(0);
   const mainTabPageAnimationRef = useRef<{ stop: () => void } | null>(null);
@@ -4719,7 +4747,6 @@ const handleSignOut = useCallback(async () => {
     sourceTab: MainPhoneTabId;
     targetTab: MainPhoneTabId;
     previewTab: MainPhoneTabId;
-    indicatorX: number;
   } | null>(null);
 
   const mainTabSwipeSessionRef = useRef<{
@@ -4738,8 +4765,11 @@ const handleSignOut = useCallback(async () => {
     targetScrollTop: number;
     sourcePath: string;
     pageWidth: number;
+    viewportHeight: number;
     indicatorFromX: number;
     indicatorToX: number;
+    indicatorTargets: Partial<Record<MainPhoneTabId, number>>;
+    scrollTargets: Partial<Record<MainPhoneTabId, number>>;
   }>({
     tracking: false,
     axis: null,
@@ -4756,8 +4786,11 @@ const handleSignOut = useCallback(async () => {
     targetScrollTop: 0,
     sourcePath: "/home",
     pageWidth: 0,
+    viewportHeight: 0,
     indicatorFromX: 0,
     indicatorToX: 0,
+    indicatorTargets: {},
+    scrollTargets: {},
   });
 
   const mainPhoneTabOrder = useMemo(
@@ -4853,12 +4886,10 @@ const handleSignOut = useCallback(async () => {
   };
 
   const setMainTabVisualActive = (active: boolean) => {
-    mainTabSwipeVisualActiveRef.current = active;
     const stage = getMainTabStageElement();
     const bar = getMainTabBarElement();
 
     if (stage) {
-      stage.setAttribute("data-main-tab-transitioning", active ? "true" : "false");
       if (active) {
         stage.setAttribute("data-main-tab-transition-active", "true");
         stage.style.willChange = "transform";
@@ -4913,8 +4944,10 @@ const handleSignOut = useCallback(async () => {
     // tied to session.pageWidth keeps full-bleed edges perfectly contiguous.
     const pageOffsetPx = -session.physicalSign * Math.max(1, session.pageWidth);
     const scrollCompensationY = session.startScrollTop - session.targetScrollTop;
-    const canvas = document.getElementById("main-scroll-canvas");
-    const viewportHeight = Math.max(1, canvas?.clientHeight ?? window.innerHeight ?? 1);
+    const viewportHeight = Math.max(
+      1,
+      session.viewportHeight || window.innerHeight || 1,
+    );
 
     // Hidden warm neighbours used to retain their full intrinsic height while
     // absolutely positioned. WebKit includes that overflow in the shared
@@ -5130,7 +5163,6 @@ const handleSignOut = useCallback(async () => {
         sourceTab: session.currentTab ?? (activeTab as MainPhoneTabId),
         targetTab: nextTab,
         previewTab,
-        indicatorX: session.indicatorToX,
       };
 
       // React is intentionally allowed to batch this normally. The visual
@@ -5202,7 +5234,24 @@ const handleSignOut = useCallback(async () => {
     const touch = event.touches[0];
     const canvas = document.getElementById("main-scroll-canvas");
     const pageWidth = getMainTabStageWidth();
+    const viewportHeight = Math.max(1, canvas?.clientHeight ?? window.innerHeight ?? 1);
     const indicatorFromX = measureMainTabIndicatorX(currentTab);
+
+    // Preflight every layout/storage read that a one-page gesture may need.
+    // `touchmove` must stay compositor-only: no getBoundingClientRect(), no
+    // clientHeight reads and no synchronous sessionStorage access while the
+    // finger is moving. This removes the small first-horizontal-frame hitch
+    // that is most visible on 60 Hz devices and becomes even more obvious
+    // beside a 120 Hz ProMotion render cadence.
+    const indicatorTargets: Partial<Record<MainPhoneTabId, number>> = {};
+    const scrollTargets: Partial<Record<MainPhoneTabId, number>> = {};
+    const currentIndex = mainPhoneTabOrder.indexOf(currentTab);
+    for (const neighbourIndex of [currentIndex - 1, currentIndex + 1]) {
+      const neighbourTab = mainPhoneTabOrder[neighbourIndex];
+      if (!neighbourTab) continue;
+      indicatorTargets[neighbourTab] = measureMainTabIndicatorX(neighbourTab);
+      scrollTargets[neighbourTab] = readScrollPosition(`/${neighbourTab}`) ?? 0;
+    }
 
     clearMainTabSafetyTimer();
     stopMainTabAnimations();
@@ -5233,8 +5282,11 @@ const handleSignOut = useCallback(async () => {
       targetScrollTop: 0,
       sourcePath: navigationPath,
       pageWidth,
+      viewportHeight,
       indicatorFromX,
       indicatorToX: indicatorFromX,
+      indicatorTargets,
+      scrollTargets,
     };
   };
 
@@ -5310,8 +5362,9 @@ const handleSignOut = useCallback(async () => {
     const nextTab = mainPhoneTabOrder[desiredIndex];
     if (session.nextTab !== nextTab) {
       session.nextTab = nextTab;
-      session.targetScrollTop = readScrollPosition(`/${nextTab}`) ?? 0;
-      session.indicatorToX = measureMainTabIndicatorX(nextTab);
+      session.targetScrollTop = session.scrollTargets[nextTab] ?? 0;
+      session.indicatorToX =
+        session.indicatorTargets[nextTab] ?? session.indicatorFromX;
       if (!prepareMainTabPreviewDom(nextTab)) {
         session.nextTab = null;
         return;
@@ -6136,8 +6189,6 @@ const handleSignOut = useCallback(async () => {
           >
           <motion.div
             id="main-tab-motion-stage"
-            data-main-tab-transitioning={mainTabSwipeVisualActiveRef.current ? "true" : "false"}
-            data-main-tab-transition-active={mainTabSwipeVisualActiveRef.current ? "true" : undefined}
             className="relative w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
             style={{
               x: usePhoneLayout ? mainTabSwipeX : 0,
@@ -7022,7 +7073,6 @@ const handleSignOut = useCallback(async () => {
         {/* 3. iOS-Native Floating Glass Tab Bar + persistent phone Search */}
         <footer
           id="ios_native_tabbar_wrapper"
-          data-main-tab-swipe-sync={mainTabSwipeVisualActiveRef.current || mainTabSwipeAnimatingRef.current ? "true" : undefined}
           onPointerDown={() => {
             // Third explicit state rule requested for iPhone: touching any
             // control in the floating navigation immediately engages the larger
