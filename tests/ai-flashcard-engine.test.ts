@@ -73,65 +73,89 @@ async function stagedPreparedFile(
   const stagedFiles = await Promise.all(
     Array.from({ length: imageCount }, () => manager.stage(new Uint8Array([1, 2, 3]))),
   );
-  const contents = stagedFiles.map((staged, imageIndex) => ({
-    kind: "file" as const,
-    inputType,
-    mimeType: inputType === "pdf" ? "application/pdf" as const : "image/png" as const,
-    fileSource: {
-      kind: "staged_file" as const,
-      capability: staged.capability,
-      ownership: "owned_transient" as const,
-    },
-    source: inputType === "pdf"
-      ? { inputType: "pdf" as const, page: 2, section: "Cardiology" }
-      : { inputType: "image" as const, imageIndex },
-    sizeBytes: staged.sizeBytes,
-    sha256: `${imageIndex + 1}`.repeat(64),
-  }));
-  return {
-    input: inputType === "pdf"
-      ? {
+  const dispose = async () => {
+    await Promise.all(stagedFiles.map((staged) => staged.dispose()));
+  };
+  if (inputType === "pdf") {
+    const staged = stagedFiles[0]!;
+    const contents: PreparedAIInput["contents"] = [{
+      kind: "file",
+      inputType: "pdf",
+      mimeType: "application/pdf",
+      fileSource: {
+        kind: "staged_file",
+        capability: staged.capability,
+        ownership: "owned_transient",
+      },
+      source: { inputType: "pdf", page: 2, section: "Cardiology" },
+      sizeBytes: staged.sizeBytes,
+      sha256: "1".repeat(64),
+    }];
+    return {
+      input: {
         input: {
           kind: "pdf",
           pdf: {
             kind: "pdf",
             displayName: "lecture.pdf",
             mimeType: "application/pdf",
-            sizeBytes: stagedFiles[0]!.sizeBytes,
+            sizeBytes: staged.sizeBytes,
             sha256: "1".repeat(64),
             source: { inputType: "pdf", page: 2, section: "Cardiology" },
             origin: "upload",
             ownership: "owned_transient",
             fileSource: {
               kind: "staged_file",
-              capability: stagedFiles[0]!.capability,
+              capability: staged.capability,
               ownership: "owned_transient",
             },
           },
         },
         contents,
-        dispose: () => manager.dispose(),
-      }
-      : {
-        input: {
-          kind: "image",
-          images: contents.map((part, imageIndex) => ({
-            kind: "image" as const,
-            imageIndex,
-            displayName: `image-${imageIndex}.png`,
-            mimeType: "image/png" as const,
-            sizeBytes: part.sizeBytes,
-            sha256: part.sha256,
-            source: { inputType: "image" as const, imageIndex },
-            origin: "upload" as const,
-            ownership: "owned_transient" as const,
-            fileSource: part.fileSource,
-          })),
-        },
-        contents,
-        dispose: () => manager.dispose(),
+        dispose,
       },
-    dispose: () => manager.dispose(),
+      dispose,
+    };
+  }
+
+  const contents: PreparedAIInput["contents"] = stagedFiles.map((staged, imageIndex) => ({
+    kind: "file",
+    inputType: "image",
+    mimeType: "image/png",
+    fileSource: {
+      kind: "staged_file",
+      capability: staged.capability,
+      ownership: "owned_transient",
+    },
+    source: { inputType: "image", imageIndex },
+    sizeBytes: staged.sizeBytes,
+    sha256: `${imageIndex + 1}`.repeat(64),
+  }));
+  return {
+    input: {
+      input: {
+        kind: "image",
+        images: stagedFiles.map((staged, imageIndex) => ({
+          kind: "image",
+          imageIndex,
+          displayName: `image-${imageIndex}.png`,
+          mimeType: "image/png",
+          sizeBytes: staged.sizeBytes,
+          sha256: `${imageIndex + 1}`.repeat(64),
+          source: { inputType: "image", imageIndex },
+          origin: "upload",
+          ownership: "owned_transient",
+          fileSource: {
+            kind: "staged_file",
+            capability: staged.capability,
+            ownership: "owned_transient",
+          },
+        })),
+      },
+      contents,
+      dispose,
+    },
+    dispose,
   };
 }
 
@@ -177,11 +201,16 @@ function generationResponse(
   return { items, uncertainties: [], ...overrides };
 }
 
-function engineWith(provider: QueueProvider, config = DEFAULT_FLASHCARD_ENGINE_CONFIG) {
+function engineWith(
+  provider: QueueProvider,
+  config = DEFAULT_FLASHCARD_ENGINE_CONFIG,
+  candidateIds: string[] = [FIXED_ID],
+) {
+  let candidateIndex = 0;
   return new FlashcardAIEngine(
     new AIContentService(provider),
     config,
-    () => FIXED_ID,
+    () => candidateIds[candidateIndex++] ?? randomUUID(),
   );
 }
 
@@ -389,7 +418,10 @@ test("enhancement fills only missing explanations and preserves existing cards",
       uncertainties: [],
     },
   ]);
-  const result = await engineWith(provider).enhanceExistingFlashcards(preparedText());
+  const result = await engineWith(provider, DEFAULT_FLASHCARD_ENGINE_CONFIG, [
+    FIXED_ID,
+    "00000000-0000-4000-8000-000000000002",
+  ]).enhanceExistingFlashcards(preparedText());
 
   assert.equal(provider.calls.length, 2);
   assert.equal(result.items[0]?.explanation, "Generated explanation from the source.");
