@@ -73,6 +73,7 @@ export interface Material {
   lectureId: string;
   createdAt?: string;
   fileData?: unknown;
+  storagePath?: string | null;
 }
 
 export interface DatabaseLecture {

@@ -423,6 +423,20 @@ export const LectureDetailView = function LectureDetailView({
   }, [lecture, detailedLecture]);
  const getRelevantVideos = useCallback(() => relevantVideos, [relevantVideos]);
 
+  const noteMaterials = useMemo(() => {
+    const materials = (detailedLecture.materials || lecture.materials || []) as any[];
+    return materials
+      .filter((material) => String(material?.type || "").toUpperCase() === "NOTE")
+      .sort((a, b) => {
+        const createdA = Date.parse(String(a?.createdAt || ""));
+        const createdB = Date.parse(String(b?.createdAt || ""));
+        if (Number.isFinite(createdA) && Number.isFinite(createdB) && createdA !== createdB) {
+          return createdA - createdB;
+        }
+        return String(a?.id || "").localeCompare(String(b?.id || ""));
+      });
+  }, [detailedLecture.materials, lecture.materials]);
+
  // --- Sub-States ---
  // PDF Section
   const [pdfPage, setPdfPage] = useState(0);
@@ -555,7 +569,7 @@ export const LectureDetailView = function LectureDetailView({
     void handleOpenPdf();
   };
 
-  const triggerNotesViewed = async () => {
+  const triggerNotesViewed = async (materialId?: string) => {
   setHasViewedNotes(true);
   if (!currentUser?.id) return;
  try {
@@ -564,7 +578,7 @@ export const LectureDetailView = function LectureDetailView({
  headers: { "Content-Type": "application/json" },
  body: JSON.stringify({
  userId: currentUser.id,
- materialId: `notes_${lecture.id}`,
+  materialId: materialId || `notes_${lecture.id}`,
  }),
  });
   } catch (err) {
@@ -572,15 +586,17 @@ export const LectureDetailView = function LectureDetailView({
   }
   };
 
-  const handleOpenNotes = async () => {
+  const handleOpenNote = async (material?: any) => {
     let popupWindow: Window | null = null;
     if (!NativeBridge.isNativePlatform()) {
       popupWindow = window.open("about:blank", "_blank");
     }
     try {
-      const notesMaterialId = (detailedLecture.materials || lecture.materials || [])
-        .find((material: any) => material.type.toUpperCase() === "NOTE")?.id;
-      const cleanLink = await resolveExternalPdfUrl(lecture.notesPdfUrl || "", notesMaterialId, currentUser.id || currentUser.email);
+      const cleanLink = await resolveExternalPdfUrl(
+        material?.fileUrlOrLink || lecture.notesPdfUrl || "",
+        material?.id,
+        currentUser.id || currentUser.email,
+      );
       await NativeBridge.openPdfUrl(cleanLink, popupWindow);
 
       localStorage.setItem(
@@ -588,7 +604,7 @@ export const LectureDetailView = function LectureDetailView({
         "true",
       );
       setHasOpenedNotes(true);
-      triggerNotesViewed();
+      triggerNotesViewed(material?.id);
     } catch (err: any) {
       if (popupWindow && !popupWindow.closed) {
         popupWindow.close();
@@ -602,8 +618,8 @@ export const LectureDetailView = function LectureDetailView({
     }
   };
 
-  const handleNotesButtonActivate = () => {
-    void handleOpenNotes();
+  const handleNotesButtonActivate = (material?: any) => {
+    void handleOpenNote(material);
   };
 
   const handleMarkPdfCompleted = async () => {
@@ -2068,9 +2084,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </h2>
  </div>
 
- {/* Central Direct Click-to-Open Notes Action Button - NEATLY CENTERED */}
+  {/* Notes collection: each Material opens through its own authenticated URL. */}
  <div className="pt-2 flex justify-center w-full">
- {!lecture.notesPdfUrl ? (
+  {noteMaterials.length === 0 && !lecture.notesPdfUrl ? (
  <div className="flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
  <div className="relative mb-6">
  
@@ -2088,17 +2104,39 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </p>
  </div>
  ) : (
-  <div className="flex flex-col items-center gap-4 w-full">
-    <button
-      type="button"
-      onClick={handleNotesButtonActivate}
-      className="document-open-button w-full sm:w-auto px-8 py-4 bg-purple-500 text-white rounded-lg text-base font-semibold flex items-center justify-center gap-3 cursor-pointer shadow-elevation-1 antialiased"
-    >
-      <ExternalLink className="w-icon-sm h-icon-sm pointer-events-none" />{" "}
-      {isRtl
-        ? "فتح ملف الملاحظات والملخصات"
-        : "Open Review Notes"}
-    </button>
+   <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+     {(noteMaterials.length > 0 ? noteMaterials : [{
+       id: undefined,
+       title: isRtl ? "ملف الملاحظات والملخصات" : "Review Notes",
+       fileUrlOrLink: lecture.notesPdfUrl,
+     }]).map((note: any, index: number) => (
+       <div
+         key={note.id || `legacy-note-${lecture.id}`}
+         className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-purple-500/15 bg-white/70 p-4 text-left shadow-elevation-1 dark:bg-[#1C1C1E]/60"
+       >
+         <div className="flex min-w-0 items-start gap-3">
+           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+             <BookMarked className="h-5 w-5" />
+           </div>
+           <div className="min-w-0">
+             <p className="text-xs font-semibold uppercase tracking-wide text-purple-500">
+               {isRtl ? `ملاحظة ${index + 1}` : `Note ${index + 1}`}
+             </p>
+             <h3 className="break-words text-base font-semibold text-neutral-800 dark:text-white [overflow-wrap:anywhere]">
+               {note.title || (isRtl ? "ملف ملاحظات" : "Notes file")}
+             </h3>
+           </div>
+         </div>
+         <button
+           type="button"
+           onClick={() => handleNotesButtonActivate(note.id ? note : undefined)}
+           className="document-open-button min-h-12 w-full rounded-xl bg-purple-500 px-4 py-3 text-base font-semibold text-white shadow-elevation-1 transition hover:bg-purple-600 flex items-center justify-center gap-3"
+         >
+           <ExternalLink className="h-icon-sm w-icon-sm pointer-events-none" />
+           {isRtl ? "فتح الملاحظات" : "Open notes"}
+         </button>
+       </div>
+     ))}
 
  {(hasViewedNotes ||
  hasOpenedNotes ||
@@ -2115,7 +2153,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {isRtl ? "تحديد كمكتمل" : "Mark as Completed"}
  </button>
  )}
- </div>
+   </div>
  )}
  </div>
 

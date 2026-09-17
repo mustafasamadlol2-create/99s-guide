@@ -13,7 +13,10 @@ import {
  RefreshCcw,
  Sparkles,
  Search,
- BookOpen, HelpCircle,
+  BookOpen,
+  HelpCircle,
+  Trash2,
+  X,
 } from "lucide-react";
 
 interface Lecture {
@@ -29,6 +32,16 @@ interface UploadMaterialProps {
  initialType: "PDF" | "NOTE" | "VIDEO";
  language?: "en" | "ar";
  onSuccess?: () => void;
+}
+
+type NoteUploadState = "waiting" | "uploading" | "uploaded" | "failed";
+
+interface NoteUploadItem {
+  id: string;
+  file: File;
+  title: string;
+  state: NoteUploadState;
+  error?: string;
 }
 
 export default function UploadMaterial({
@@ -66,6 +79,11 @@ export default function UploadMaterial({
  const [videoUrl, setVideoUrl] = useState("");
  const [file, setFile] = useState<File | null>(null);
  const MAX_PDF_FILE_BYTES = 50 * 1024 * 1024;
+  const MAX_NOTE_FILES = 10;
+  const [noteQueue, setNoteQueue] = useState<NoteUploadItem[]>([]);
+  const [existingNotes, setExistingNotes] = useState<any[]>([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
  // Status state
  const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +98,8 @@ export default function UploadMaterial({
  useEffect(() => {
  setType(initialType);
  setFeedback(null);
+  setNoteQueue([]);
+  setExistingNotes([]);
  }, [initialType]);
 
  // Fetch lectures for the SPECIFIC chosen tree path
@@ -120,14 +140,101 @@ export default function UploadMaterial({
  fetchLecturesForPath();
  }, [mainSubject, subSubject, trackMode, department, canProceedToLecture]);
 
+  const refreshExistingNotes = useCallback(async () => {
+    if (type !== "NOTE" || !selectedLectureId) {
+      setExistingNotes([]);
+      return;
+    }
+
+    setIsLoadingNotes(true);
+    try {
+      const response = await apiClient(`/api/lectures/${encodeURIComponent(selectedLectureId)}`, {
+        bypassCache: true,
+        retries: 0,
+        silent: true,
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const notes = Array.isArray(data?.materials)
+        ? data.materials
+            .filter((material: any) => String(material?.type || "").toUpperCase() === "NOTE")
+            .sort((a: any, b: any) => {
+              const createdA = Date.parse(String(a?.createdAt || ""));
+              const createdB = Date.parse(String(b?.createdAt || ""));
+              if (Number.isFinite(createdA) && Number.isFinite(createdB) && createdA !== createdB) {
+                return createdA - createdB;
+              }
+              return String(a?.id || "").localeCompare(String(b?.id || ""));
+            })
+        : [];
+      setExistingNotes(notes);
+    } finally {
+      setIsLoadingNotes(false);
+    }
+  }, [selectedLectureId, type]);
+
+  useEffect(() => {
+    setNoteQueue([]);
+    void refreshExistingNotes();
+  }, [refreshExistingNotes]);
+
  const handleDragOver = (e: React.DragEvent) => {
  e.preventDefault();
  };
 
+  const noteFileValidationError = useCallback((candidate: File): string | null => {
+    if (candidate.type !== "application/pdf") {
+      return isRtl ? "عذراً! يُسمح برفع ملفات PDF فقط." : "Only PDF files are supported.";
+    }
+    if (candidate.size > MAX_PDF_FILE_BYTES) {
+      return isRtl
+        ? "حجم ملف PDF يجب ألا يتجاوز 50 ميغابايت."
+        : "PDF files must be 50 MB or smaller.";
+    }
+    return null;
+  }, [isRtl]);
+
+  const addNoteFiles = useCallback((files: File[]) => {
+    const availableSlots = MAX_NOTE_FILES - existingNotes.length - noteQueue.length;
+    if (files.length > availableSlots) {
+      setFeedback({
+        type: "error",
+        message: isRtl
+          ? `يمكنك اختيار ${Math.max(0, availableSlots)} ملفاً إضافياً فقط لهذه المحاضرة.`
+          : `Only ${Math.max(0, availableSlots)} more note file${availableSlots === 1 ? "" : "s"} can be selected for this lecture.`,
+      });
+      return;
+    }
+
+    const validItems: NoteUploadItem[] = [];
+    for (const candidate of files) {
+      const validationError = noteFileValidationError(candidate);
+      if (validationError) {
+        setFeedback({ type: "error", message: validationError });
+        continue;
+      }
+      validItems.push({
+        id: `${candidate.name}-${candidate.size}-${candidate.lastModified}-${crypto.randomUUID()}`,
+        file: candidate,
+        title: candidate.name.replace(/\.pdf$/i, ""),
+        state: "waiting",
+      });
+    }
+
+    if (validItems.length > 0) {
+      setNoteQueue((current) => [...current, ...validItems]);
+      setFeedback(null);
+    }
+  }, [existingNotes.length, isRtl, noteFileValidationError, noteQueue.length]);
+
  const handleDrop = (e: React.DragEvent) => {
  e.preventDefault();
  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
- const droppedFile = e.dataTransfer.files[0];
+  if (type === "NOTE") {
+  addNoteFiles(Array.from(e.dataTransfer.files));
+  return;
+  }
+  const droppedFile = e.dataTransfer.files[0];
  if (droppedFile.type === "application/pdf") {
  if (droppedFile.size > MAX_PDF_FILE_BYTES) {
  setFile(null);
@@ -157,6 +264,11 @@ export default function UploadMaterial({
 
  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
  if (e.target.files && e.target.files.length > 0) {
+  if (type === "NOTE") {
+  addNoteFiles(Array.from(e.target.files));
+  e.target.value = "";
+  return;
+  }
  const chosenFile = e.target.files[0];
  if (chosenFile.type !== "application/pdf") {
  setFile(null);
@@ -197,7 +309,7 @@ export default function UploadMaterial({
  });
  return;
  }
- if (!title.trim()) {
+  if (type !== "NOTE" && !title.trim()) {
  setFeedback({
  type: "error",
  message: isRtl
@@ -206,6 +318,129 @@ export default function UploadMaterial({
  });
  return;
  }
+
+  if (type === "NOTE") {
+    const pendingItems = noteQueue.filter(
+      (item) => item.state === "waiting" || item.state === "failed",
+    );
+    if (pendingItems.length === 0) {
+      setFeedback({
+        type: "error",
+        message: isRtl
+          ? "يرجى اختيار ملف ملاحظات واحد على الأقل."
+          : "Select at least one note PDF before uploading.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+    let nextIndex = 0;
+    let uploadedCount = 0;
+    let failedCount = 0;
+
+    const uploadOneNote = async (item: NoteUploadItem) => {
+      setNoteQueue((current) =>
+        current.map((candidate) =>
+          candidate.id === item.id
+            ? { ...candidate, state: "uploading", error: undefined }
+            : candidate,
+        ),
+      );
+
+      try {
+        const formData = new FormData();
+        formData.append("file", item.file);
+        formData.append("title", item.title.trim() || item.file.name.replace(/\.pdf$/i, ""));
+        formData.append("type", "NOTE");
+        formData.append("lectureId", selectedLectureId);
+
+        const response = await apiClient("/api/materials/upload", {
+          method: "POST",
+          body: formData,
+          timeoutMs: 180_000,
+          // A successful write whose response is lost must not be replayed.
+          retries: 0,
+        });
+
+        let data: any = {};
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          data = await response.json();
+        } else {
+          await response.text();
+        }
+
+        if (!response.ok) {
+          const message = data.code === "NOTE_LIMIT_REACHED"
+            ? (isRtl
+              ? "تحتوي هذه المحاضرة بالفعل على 10 ملفات ملاحظات. احذف ملفاً موجوداً قبل رفع ملف جديد."
+              : "This lecture already has 10 note files. Remove an existing note before uploading another.")
+            : (typeof data.error === "string" ? data.error : (
+              isRtl ? `فشل رفع الملف (${response.status}).` : `Upload failed (${response.status}).`
+            ));
+          throw new Error(message);
+        }
+
+        uploadedCount += 1;
+        setNoteQueue((current) =>
+          current.map((candidate) =>
+            candidate.id === item.id
+              ? { ...candidate, state: "uploaded", error: undefined }
+              : candidate,
+          ),
+        );
+      } catch (error: any) {
+        failedCount += 1;
+        const message = typeof error?.message === "string"
+          ? error.message
+          : (isRtl ? "فشل رفع ملف الملاحظات." : "Note upload failed.");
+        setNoteQueue((current) =>
+          current.map((candidate) =>
+            candidate.id === item.id
+              ? { ...candidate, state: "failed", error: message }
+              : candidate,
+          ),
+        );
+      }
+    };
+
+    const worker = async () => {
+      while (nextIndex < pendingItems.length) {
+        const item = pendingItems[nextIndex];
+        nextIndex += 1;
+        await uploadOneNote(item);
+      }
+    };
+
+    try {
+      await Promise.all(
+        Array.from(
+          { length: Math.min(2, pendingItems.length) },
+          () => worker(),
+        ),
+      );
+      await refreshExistingNotes();
+      setNoteQueue((current) => current.filter((item) => item.state === "failed"));
+      if (uploadedCount > 0) onSuccess?.();
+      setFeedback({
+        type: failedCount === 0 ? "success" : "error",
+        message: failedCount === 0
+          ? (isRtl
+            ? `تم رفع ${uploadedCount} من ملفات الملاحظات بنجاح.`
+            : `${uploadedCount} note${uploadedCount === 1 ? "" : "s"} uploaded successfully.`)
+          : (isRtl
+            ? `تم رفع ${uploadedCount} بنجاح، وفشل ${failedCount}. يمكنك إعادة المحاولة يدوياً.`
+            : `${uploadedCount} note${uploadedCount === 1 ? "" : "s"} uploaded successfully; ${failedCount} failed and can be retried.`),
+      });
+      if (failedCount === 0 && fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+    return;
+  }
 
  if (type === "VIDEO") {
  if (!videoUrl.trim()) {
@@ -252,8 +487,8 @@ export default function UploadMaterial({
  } finally {
  setIsSubmitting(false);
  }
- } else {
- // PDF or NOTE (file uploads)
+  } else {
+  // Primary PDF replacement upload.
  if (!file) {
  setFeedback({
  type: "error",
@@ -278,7 +513,7 @@ export default function UploadMaterial({
  method: "POST",
  body: formData,
  timeoutMs: 180_000,
- retries: 1,
+  retries: 1,
  });
 
  const contentType = response.headers.get("content-type");
@@ -317,8 +552,68 @@ export default function UploadMaterial({
  } finally {
  setIsSubmitting(false);
  }
- }
+  }
  };
+
+  const removeQueuedNote = (itemId: string) => {
+    if (isSubmitting) return;
+    setNoteQueue((current) => current.filter((item) => item.id !== itemId));
+  };
+
+  const updateQueuedNoteTitle = (itemId: string, nextTitle: string) => {
+    setNoteQueue((current) =>
+      current.map((item) => item.id === itemId ? { ...item, title: nextTitle } : item),
+    );
+  };
+
+  const handleDeleteExistingNote = async (note: any) => {
+    const confirmed = window.confirm(
+      isRtl
+        ? `هل تريد حذف ملف الملاحظات "${note.title}"؟`
+        : `Delete the note "${note.title}"?`,
+    );
+    if (!confirmed) return;
+
+    setDeletingNoteId(note.id);
+    setFeedback(null);
+    try {
+      const response = await apiClient(`/api/materials/${encodeURIComponent(note.id)}`, {
+        method: "DELETE",
+        retries: 0,
+      });
+      let data: any = {};
+      if ((response.headers.get("content-type") || "").includes("application/json")) {
+        data = await response.json();
+      }
+      if (!response.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : (isRtl ? "تعذر حذف ملف الملاحظات." : "Could not delete the note."),
+        );
+      }
+      await refreshExistingNotes();
+      onSuccess?.();
+      setFeedback({
+        type: "success",
+        message: isRtl ? "تم حذف ملف الملاحظات وتحرير خانة جديدة." : "Note deleted and one slot is available again.",
+      });
+    } catch (error: any) {
+      setFeedback({
+        type: "error",
+        message: typeof error?.message === "string"
+          ? error.message
+          : (isRtl ? "تعذر حذف ملف الملاحظات." : "Could not delete the note."),
+      });
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
+
+  const remainingNoteSlots = Math.max(0, MAX_NOTE_FILES - existingNotes.length);
+  const queueHasPendingNotes = noteQueue.some(
+    (item) => item.state === "waiting" || item.state === "failed",
+  );
 
  return (
  <div
@@ -581,7 +876,7 @@ export default function UploadMaterial({
  {/* ONLY RENDER THE FORMS IF A VALID LECTURE WAS SELECTIONABLE */}
  {selectedLectureId && (
  <>
- <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
+  {type !== "NOTE" && <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
  <div className="flex items-center gap-2 mb-1">
  <span className="w-icon-md h-icon-md rounded-full bg-neutral-100 dark:bg-[#2C2C2E] text-xs font-semibold text-neutral-600 dark:text-[#EBEBF599] flex items-center justify-center shrink-0">
  6
@@ -604,7 +899,7 @@ export default function UploadMaterial({
  onChange={(e) => setTitle(e.target.value)}
  className="w-full px-4 py-3 bg-white dark:bg-[#1C1C1E] border border-neutral-300 dark:border-white/[0.12] text-neutral-800 dark:text-white rounded-lg font-medium text-caption focus:ring-1 focus:ring-rose-500 outline-none"
  />
- </div>
+  </div>}
 
  {/* Conditional PDF file / Video URL field */}
  {type === "VIDEO" ? (
@@ -631,9 +926,152 @@ export default function UploadMaterial({
  style={{ paddingLeft: "3.2rem" }}
  className="w-full py-3 pr-4 bg-white dark:bg-[#1C1C1E] border border-neutral-300 dark:border-white/[0.12] text-neutral-800 dark:text-white rounded-lg font-medium text-caption focus:ring-1 focus:ring-rose-500 outline-none text-left"
  />
+  </div>
  </div>
- </div>
- ) : (
+  ) : type === "NOTE" ? (
+  <div className="space-y-4 animate-fadeIn pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <p className="text-subhead font-semibold text-neutral-800 dark:text-white">
+          {isRtl ? "ملفات الملاحظات" : "Lecture Notes"}
+        </p>
+        <p className="text-caption text-neutral-500 dark:text-[#EBEBF599]">
+          {isLoadingNotes
+            ? (isRtl ? "جارٍ تحديث العدد..." : "Refreshing note count...")
+            : (isRtl
+              ? `${existingNotes.length} / ${MAX_NOTE_FILES} ملفات — متاح ${remainingNoteSlots}`
+              : `Notes: ${existingNotes.length} / ${MAX_NOTE_FILES} · ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? "" : "s"} remaining`)}
+        </p>
+      </div>
+      <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300">
+        PDF · 50 MB max
+      </span>
+    </div>
+
+    {existingNotes.length > 0 && (
+      <div className="space-y-2">
+        <p className="text-caption font-semibold text-neutral-700 dark:text-[#EBEBF599]">
+          {isRtl ? "الملاحظات الحالية" : "Existing notes"}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {existingNotes.map((note, index) => (
+            <div
+              key={note.id}
+              className="flex min-w-0 items-center gap-3 rounded-lg border border-neutral-200 dark:border-white/[0.12] bg-neutral-50/70 dark:bg-[#1C1C1E]/70 p-3"
+            >
+              <FileText className="w-icon-md h-icon-md shrink-0 text-purple-500" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-caption font-semibold text-neutral-800 dark:text-white">
+                  {index + 1}. {note.title}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-[#EBEBF599]">
+                  {note.createdAt ? new Date(note.createdAt).toLocaleDateString(isRtl ? "ar-IQ" : "en-US") : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={isRtl ? `حذف ${note.title}` : `Delete ${note.title}`}
+                disabled={deletingNoteId === note.id || isSubmitting}
+                onClick={() => void handleDeleteExistingNote(note)}
+                className="min-h-10 min-w-10 shrink-0 rounded-lg text-rose-500 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingNoteId === note.id
+                  ? <div className="mx-auto h-4 w-4 animate-spin rounded-full border-2 border-rose-500/30 border-t-rose-500" />
+                  : <Trash2 className="mx-auto h-4 w-4" />}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <div
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
+      onClick={() => remainingNoteSlots > 0 && fileInputRef.current?.click()}
+      className={`border-2 border-dashed border-neutral-300 dark:border-white/[0.12] rounded-lg p-5 text-center transition bg-neutral-50/50 dark:bg-[#1C1C1E]/40 ${
+        remainingNoteSlots > 0
+          ? "cursor-pointer hover:border-purple-500/50 hover:bg-neutral-50 dark:hover:bg-white/[0.06]"
+          : "cursor-not-allowed opacity-60"
+      }`}
+    >
+      <input
+        aria-label={isRtl ? "اختيار ملفات الملاحظات" : "Choose note PDFs"}
+        type="file"
+        ref={fileInputRef}
+        accept="application/pdf,.pdf"
+        multiple
+        onChange={handleFileChange}
+        disabled={remainingNoteSlots === 0 || isSubmitting}
+        className="hidden"
+      />
+      <Upload className="mx-auto mb-2 h-icon-xl w-icon-xl text-purple-500" />
+      <p className="text-caption font-medium text-neutral-600 dark:text-[#EBEBF599]">
+        {remainingNoteSlots > 0
+          ? (isRtl ? "اسحب ملفات PDF متعددة أو انقر للتصفح" : "Drag multiple PDF files here, or click to browse")
+          : (isRtl ? "تم الوصول إلى الحد الأقصى للملاحظات" : "The 10-note limit has been reached")}
+      </p>
+      <p className="mt-1 text-xs font-mono uppercase text-neutral-500 dark:text-[#EBEBF599]">
+        {isRtl ? `المتاح: ${remainingNoteSlots}` : `${remainingNoteSlots} slot${remainingNoteSlots === 1 ? "" : "s"} available`}
+      </p>
+    </div>
+
+    {noteQueue.length > 0 && (
+      <div className="space-y-2">
+        <p className="text-caption font-semibold text-neutral-700 dark:text-[#EBEBF599]">
+          {isRtl ? "قائمة الرفع" : "Upload queue"}
+        </p>
+        <div className="space-y-2">
+          {noteQueue.map((item, index) => (
+            <div key={item.id} className="rounded-lg border border-neutral-200 dark:border-white/[0.12] p-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="mt-1 text-xs font-mono text-neutral-500">{index + 1}</span>
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-purple-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-caption font-medium text-neutral-800 dark:text-white">{item.file.name}</p>
+                  <p className="text-xs text-neutral-500 dark:text-[#EBEBF599]">
+                    {(item.file.size / (1024 * 1024)).toFixed(2)} MB · {item.state === "waiting"
+                      ? (isRtl ? "في الانتظار" : "Waiting")
+                      : item.state === "uploading"
+                        ? (isRtl ? "جارٍ الرفع" : "Uploading")
+                        : item.state === "uploaded"
+                          ? (isRtl ? "تم الرفع" : "Uploaded")
+                          : (isRtl ? "فشل" : "Failed")}
+                  </p>
+                  {item.error && <p className="mt-1 text-xs text-rose-500">{item.error}</p>}
+                </div>
+                {item.state === "uploading" && (
+                  <div className="mt-1 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-purple-500/30 border-t-purple-500" />
+                )}
+                {item.state !== "uploading" && item.state !== "uploaded" && (
+                  <button
+                    type="button"
+                    aria-label={isRtl ? "إزالة الملف" : "Remove file"}
+                    onClick={() => removeQueuedNote(item.id)}
+                    className="min-h-9 min-w-9 shrink-0 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/[0.08]"
+                  >
+                    <X className="mx-auto h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <input
+                aria-label={isRtl ? "عنوان ملف الملاحظات" : "Note title"}
+                type="text"
+                value={item.title}
+                disabled={isSubmitting || item.state === "uploaded"}
+                onChange={(e) => updateQueuedNoteTitle(item.id, e.target.value)}
+                className="mt-2 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-caption text-neutral-800 outline-none focus:ring-1 focus:ring-purple-500 dark:border-white/[0.12] dark:bg-[#1C1C1E] dark:text-white"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+  ) : (
  <div className="space-y-2 animate-fadeIn pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
  <div className="flex items-center gap-2 mb-1">
  <span className="w-icon-md h-icon-md rounded-full bg-neutral-100 dark:bg-[#2C2C2E] text-xs font-semibold text-neutral-600 dark:text-[#EBEBF599] flex items-center justify-center shrink-0">
@@ -681,22 +1119,24 @@ export default function UploadMaterial({
  
  {/* Final action — belongs to the last completed material step and stays
      in normal document flow. It must never float over the upload surface. */}
- {selectedLectureId && (type === "VIDEO" ? Boolean(videoUrl.trim()) : Boolean(file)) && (
+  {selectedLectureId && (
   <div
    className="admin-final-action mt-6 pt-5 border-t border-neutral-200/70 dark:border-white/[0.08] animate-fadeIn flex justify-end"
    data-final-ready={Boolean(
-     title.trim() &&
-     (type === "VIDEO" ? videoUrl.trim() : file)
+      type === "NOTE"
+        ? queueHasPendingNotes
+        : title.trim() && (type === "VIDEO" ? videoUrl.trim() : file)
    )}
   >
  <button
  type="submit"
  disabled={
  isSubmitting ||
- !title.trim()
+  (type !== "NOTE" && !title.trim()) ||
+  (type === "NOTE" && !queueHasPendingNotes)
  }
  className={`w-full sm:w-auto px-6 py-3.5 text-base font-semibold rounded-lg text-white transition select-none flex items-center justify-center gap-2 ${
- title.trim() && !isSubmitting
+  (type === "NOTE" ? queueHasPendingNotes : title.trim()) && !isSubmitting
  ? "bg-rose-600 hover:bg-rose-500 active:bg-rose-700 shadow-elevation-1 cursor-pointer"
  : "bg-neutral-200 dark:bg-[#2C2C2E] text-neutral-500 dark:text-[#EBEBF599] cursor-not-allowed border-none shadow-none"
  }`}
@@ -709,8 +1149,8 @@ export default function UploadMaterial({
  ) : (
  <span>
  {isRtl
- ? "تسجيل المرفق الدراسي"
- : "Register Cohort Material"}
+  ? (type === "NOTE" ? "رفع ملفات الملاحظات" : "تسجيل المرفق الدراسي")
+  : (type === "NOTE" ? "Upload Note Files" : "Register Cohort Material")}
  </span>
  )}
  </button>

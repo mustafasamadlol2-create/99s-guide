@@ -67,6 +67,11 @@ import {
   deleteSupabaseStorageObject,
   uploadPdfToSupabaseStorage,
 } from "./server/services/supabaseStorage.js";
+import {
+  MAX_NOTE_MATERIALS,
+  NoteLimitReachedError,
+  noteLimitResponse,
+} from "./server/services/materialNotePolicy.js";
 
 
 // --- Production-Grade In-Memory Caches for read-heavy operations ---
@@ -2580,6 +2585,7 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
 }, catchAsync(async (req, res) => {
   try {
     const { title, type, lectureId } = req.body;
+    const materialType = String(type || "").trim().toUpperCase();
 
     if (!req.file) {
       return res.status(400).json({ error: "No file was uploaded." });
@@ -2593,7 +2599,7 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
       return res.status(400).json({ error: "Missing required fields: title, type, and lectureId are required." });
     }
 
-    if (type !== 'PDF' && type !== 'NOTE') {
+    if (materialType !== "PDF" && materialType !== "NOTE") {
       if (req.file && req.file.path) {
         try { await fs.unlink(req.file.path); } catch (e) {}
       }
@@ -2610,6 +2616,20 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
         try { await fs.unlink(req.file.path); } catch (e) {}
       }
       return res.status(404).json({ error: `Lecture with ID '${lectureId}' was not found.` });
+    }
+
+    // This is only a cheap early rejection. The authoritative NOTE count is
+    // checked again inside a transaction after the Storage upload.
+    if (materialType === "NOTE") {
+      const currentCount = await prismaClient.material.count({
+        where: { lectureId, type: "NOTE" },
+      });
+      if (currentCount >= MAX_NOTE_MATERIALS) {
+        if (req.file?.path) {
+          try { await fs.unlink(req.file.path); } catch (_) {}
+        }
+        return res.status(409).json(noteLimitResponse(currentCount));
+      }
     }
 
     const uniqueId = crypto.randomUUID();
@@ -2634,10 +2654,12 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     }
 
     const storagePath = buildMaterialStoragePath(lectureId, uniqueId);
-    const replacedMaterials = await prismaClient.material.findMany({
-      where: { lectureId, type },
-      select: { id: true, storagePath: true, fileUrlOrLink: true },
-    });
+    const replacedMaterials = materialType === "PDF"
+      ? await prismaClient.material.findMany({
+          where: { lectureId, type: "PDF" },
+          select: { id: true, storagePath: true, fileUrlOrLink: true },
+        })
+      : [];
 
     try {
       await uploadPdfToSupabaseStorage(storagePath, fileBuffer);
@@ -2655,12 +2677,29 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     let material: any;
     try {
       material = await prismaClient.$transaction(async (tx: any) => {
-        await tx.material.deleteMany({ where: { lectureId, type } });
+        if (materialType === "NOTE") {
+          // Lock the parent row so concurrent NOTE uploads for this lecture
+          // serialize before the authoritative count and insert.
+          await tx.$executeRawUnsafe(
+            'SELECT "id" FROM "Lecture" WHERE "id" = $1 FOR UPDATE',
+            lectureId,
+          );
+          const currentCount = await tx.material.count({
+            where: { lectureId, type: "NOTE" },
+          });
+          if (currentCount >= MAX_NOTE_MATERIALS) {
+            throw new NoteLimitReachedError(currentCount);
+          }
+        } else {
+          // Preserve the existing single-primary-PDF replacement behavior.
+          await tx.material.deleteMany({ where: { lectureId, type: "PDF" } });
+        }
+
         return tx.material.create({
           data: {
             id: uniqueId,
             title,
-            type,
+            type: materialType,
             fileUrlOrLink,
             storagePath,
             fileData: null,
@@ -2671,6 +2710,11 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     } catch (dbError) {
       // Do not leave an orphaned Storage object when metadata persistence fails.
       try { await deleteSupabaseStorageObject(storagePath); } catch (_) {}
+
+      if (dbError instanceof NoteLimitReachedError) {
+        return res.status(409).json(noteLimitResponse(dbError.currentCount));
+      }
+
       throw dbError;
     }
 
@@ -2694,11 +2738,13 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
       try { await fs.unlink(req.file.path); } catch (e) {}
     }
 
-    // This route replaces the prior PDF/NOTE of the same lecture/type in one
-    // PostgreSQL transaction, so mirror both sides of that replacement.
-    for (const previous of replacedMaterials) {
-      if (previous.id !== material.id) {
-        await syncContentDelete("Material", previous.id);
+    // Primary PDFs replace prior PDF metadata. NOTE uploads append and must
+    // never mirror deletes for existing NOTE rows.
+    if (materialType === "PDF") {
+      for (const previous of replacedMaterials) {
+        if (previous.id !== material.id) {
+          await syncContentDelete("Material", previous.id);
+        }
       }
     }
     await syncContentUpsert("Material", toMaterialContentRow(material));
@@ -2709,7 +2755,7 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     res.status(201).json({
       id: uniqueId,
       title,
-      type,
+      type: materialType,
       fileUrlOrLink,
       lectureId,
       material: {
@@ -2722,6 +2768,10 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
       },
     });
   } catch (err: any) {
+    if (err instanceof NoteLimitReachedError) {
+      return res.status(409).json(noteLimitResponse(err.currentCount));
+    }
+
     const errorCode =
       typeof err?.code === "string" ? err.code : "PDF_UPLOAD_FAILED";
     const safeMessage =
