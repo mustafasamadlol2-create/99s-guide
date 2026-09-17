@@ -4743,14 +4743,36 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main#main-sc
    width forces the WKWebView's entire main canvas to relayout. Snapping the
    geometry once, then animating only the chevron/active surfaces, is much
    smoother and more iOS-native than 15–20 expensive width frames. The explicit
-   .ipad-layout rule keeps this stable even when an iPad has a trackpad attached. */
-.ipad-layout .sidebar-shell {
+   .ipad-layout rule keeps this stable even when an iPad has a trackpad attached.
+
+   PC/Laptop Welcome uses this exact proven iPad geometry path as well. This is
+   intentionally scoped to the Welcome root only; every other desktop page keeps
+   the normal short width glide. */
+.ipad-layout .sidebar-shell,
+.desktop-welcome-ipad-sidebar-motion .sidebar-shell {
   transition: none !important;
   will-change: auto !important;
 }
 
-.ipad-layout .sidebar-content-shell {
+.ipad-layout .sidebar-content-shell,
+.desktop-welcome-ipad-sidebar-motion .sidebar-content-shell {
   transition: none !important;
+}
+
+/* Reuse the iPad's lightweight inner feedback on PC Welcome. Only compositor-
+   friendly opacity/transform work remains after the one-step width change. */
+.desktop-welcome-ipad-sidebar-motion .sidebar-brand {
+  transition:
+    opacity 110ms ease-out,
+    transform 120ms ease-out !important;
+}
+
+.desktop-welcome-ipad-sidebar-motion .sidebar-toggle-icon {
+  transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+.desktop-welcome-ipad-sidebar-motion .sidebar-active-indicator {
+  animation-duration: 145ms;
 }
 
 @media (hover: none) and (pointer: coarse) and (min-width: 900px) {
