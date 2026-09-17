@@ -87,10 +87,6 @@ const GEMINI_JSON_SCHEMA_KEYWORDS = new Set([
   "enum",
   "items",
   "prefixItems",
-  "minItems",
-  "maxItems",
-  "minimum",
-  "maximum",
   "anyOf",
   "oneOf",
   "properties",
@@ -172,6 +168,13 @@ function providerError(error: unknown, timedOut: boolean): AIServiceError {
       publicMessage: "The AI service is temporarily unavailable.",
       diagnosticMessage: `Gemini returned HTTP ${status}.`,
       retryable: true,
+      cause: error,
+    });
+  }
+  if (status === 400) {
+    return new AIServiceError("AI_PROVIDER_ERROR", {
+      publicMessage: "The AI provider could not complete the request.",
+      diagnosticMessage: "provider_invalid_argument",
       cause: error,
     });
   }

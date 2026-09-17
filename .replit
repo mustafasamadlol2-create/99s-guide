@@ -38,3 +38,8 @@ externalPort = 5000
 localPort = 9229
 externalPort = 80
 exposeLocalhost = true
+
+[userenv]
+
+[userenv.shared]
+VITE_API_BASE_URL = "https://nine9s-guide.onrender.com"
