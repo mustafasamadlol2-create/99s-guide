@@ -341,22 +341,37 @@ export default function App() {
     return w >= 480; // Unified with tablet
   });
 
-  // Brief window flag during the sidebar collapse/expand transition. Applies
-  // `.sidebar-animating` to the app root, which pauses the home hero's
-  // continuous animations (starfield rAF + aurora CSS) so the toggle stays
-  // smooth on the welcome page instead of fighting the hero for layout and
-  // repaint time. Skips the initial mount so it only fires on real toggles.
+  // Keep the established sidebar-animation path everywhere (including iPad),
+  // but start the heavy desktop Welcome optimization synchronously. Previously
+  // `.sidebar-animating` was added by this effect one commit *after* the width
+  // transition had started, creating a second style/paint pass mid-animation.
   const sidebarAnimatingSkipMount = useRef(true);
+  const desktopWelcomeSidebarTransitionRef = useRef(false);
   const [isSidebarAnimating, setIsSidebarAnimating] = useState(false);
+  const sidebarAnimationFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (sidebarAnimatingSkipMount.current) {
       sidebarAnimatingSkipMount.current = false;
       return;
     }
+
+    // Desktop Welcome is already in the optimized state from the click handler;
+    // do not schedule the old second render in the middle of its width glide.
+    if (desktopWelcomeSidebarTransitionRef.current) return;
+
+    // Preserve the previous behaviour exactly for iPad and all other pages.
     setIsSidebarAnimating(true);
     const t = setTimeout(() => setIsSidebarAnimating(false), 240);
     return () => clearTimeout(t);
   }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    return () => {
+      if (sidebarAnimationFallbackRef.current) {
+        clearTimeout(sidebarAnimationFallbackRef.current);
+      }
+    };
+  }, []);
 
   // Auto-manage sidebar collapse when the device tier changes (e.g. browser resize).
   // Must be top-level (before any early returns) to satisfy Rules of Hooks.
@@ -5919,6 +5934,48 @@ const handleSignOut = useCallback(async () => {
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
 
+  const clearDesktopWelcomeSidebarAnimation = () => {
+    desktopWelcomeSidebarTransitionRef.current = false;
+    if (sidebarAnimationFallbackRef.current) {
+      clearTimeout(sidebarAnimationFallbackRef.current);
+      sidebarAnimationFallbackRef.current = null;
+    }
+    setIsSidebarAnimating(false);
+  };
+
+  const handleSidebarCollapseToggle = () => {
+    const isFinePointerDesktop =
+      device.isDesktop &&
+      !device.isIPadOS &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const isWelcomeRoot = activeTab === "home" && activeHomeSubjectId === null;
+    const optimizeDesktopWelcome = isFinePointerDesktop && isWelcomeRoot;
+
+    if (sidebarAnimationFallbackRef.current) {
+      clearTimeout(sidebarAnimationFallbackRef.current);
+      sidebarAnimationFallbackRef.current = null;
+    }
+
+    if (optimizeDesktopWelcome) {
+      // Start the hero pause/freeze and sidebar width change in ONE React batch.
+      // This is the PC/laptop Welcome-only fix; iPad follows the old path above.
+      desktopWelcomeSidebarTransitionRef.current = true;
+      setIsSidebarAnimating(true);
+    }
+
+    setIsSidebarCollapsed((prev) => !prev);
+
+    // transitionend is the normal exit. The timeout is only a safety net for an
+    // interrupted CSS transition (tab switch/reduced-motion/browser edge case).
+    if (optimizeDesktopWelcome) {
+      sidebarAnimationFallbackRef.current = setTimeout(
+        clearDesktopWelcomeSidebarAnimation,
+        320,
+      );
+    }
+  };
+
   return (
     <div
       className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
@@ -5961,6 +6018,16 @@ const handleSignOut = useCallback(async () => {
           paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
         }}
         onKeyDown={handleSidebarKeyDown}
+        onTransitionEnd={(event) => {
+          if (
+            desktopWelcomeSidebarTransitionRef.current &&
+            isSidebarAnimating &&
+            event.target === event.currentTarget &&
+            (event.propertyName === "width" || event.propertyName === "flex-basis")
+          ) {
+            clearDesktopWelcomeSidebarAnimation();
+          }
+        }}
       >
         <div className="sidebar-ambient-wash absolute inset-0 z-[-2] pointer-events-none" />
         <div className="sidebar-ambient-radial absolute top-0 left-0 right-0 h-[50vh] z-[-1] pointer-events-none" />
@@ -6007,7 +6074,7 @@ const handleSignOut = useCallback(async () => {
             {!useRailNav && (
               <button
                 type="button"
-                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                onClick={handleSidebarCollapseToggle}
                 aria-label={isSidebarCollapsed
                   ? (language === "ar" ? "توسيع الشريط الجانبي" : "Expand sidebar")
                   : (language === "ar" ? "تصغير الشريط الجانبي" : "Collapse sidebar")}

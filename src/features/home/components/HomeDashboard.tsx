@@ -106,15 +106,14 @@ const StarField = ({
 
     const appShell = document.getElementById("root")?.firstElementChild as HTMLElement | null;
     const mainTabStage = document.getElementById("main-tab-motion-stage");
-    const desktopSidebarMedia = window.matchMedia(
-      "(min-width: 1181px) and (hover: hover) and (pointer: fine)",
-    );
-    const isDesktopSidebarTransition = () =>
-      desktopSidebarMedia.matches &&
+    // App.tsx now adds `.sidebar-animating` only for a real PC/laptop Welcome
+    // sidebar toggle, so this hot path no longer needs to run matchMedia checks
+    // on every ResizeObserver callback/frame.
+    const isDesktopWelcomeSidebarTransition = () =>
       appShell?.classList.contains("sidebar-animating") === true;
     const shouldPauseForUiTransition = () =>
       mainTabStage?.getAttribute("data-main-tab-transition-active") === "true" ||
-      appShell?.classList.contains("sidebar-animating") === true;
+      isDesktopWelcomeSidebarTransition();
 
     let animationFrameId = 0;
     let width = (canvas.width = canvas.parentElement?.clientWidth || 600);
@@ -201,7 +200,7 @@ const StarField = ({
       // forces an expensive repaint. Keep the current raster stable during the
       // width glide and apply only the final geometry when the transition ends.
       // iPad/mobile behaviour is untouched.
-      if (isDesktopSidebarTransition()) {
+      if (isDesktopWelcomeSidebarTransition()) {
         deferredDesktopResize = {
           width: rect.width,
           height: rect.height,

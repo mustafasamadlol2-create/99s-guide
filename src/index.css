@@ -3706,42 +3706,16 @@ input:-webkit-autofill:active {
   backface-visibility: hidden;
 }
 
-/* Sidebar collapse/expand window (App.tsx toggles `.sidebar-animating` on the
-   app root while the sidebar animates): pause the home hero's continuous CSS
-   animations so the width re-layout does not compete with them — this is the
-   jank on the welcome page. `animation-play-state` only affects animations that
-   are actually running, so hover-triggered ones stay untouched. */
+/* Desktop Welcome sidebar transition. App.tsx applies `.sidebar-animating`
+   synchronously in the same commit as the sidebar width change, and only on a
+   fine-pointer desktop Welcome root. Keep the expensive continuous hero loops
+   paused, but avoid broad `*` selectors / forced compositing: those caused an
+   extra full-subtree style pass and made the sidebar feel like slow motion. */
 .sidebar-animating .hero-aurora-layer,
 .sidebar-animating .badge-shimmer-sweep,
 .sidebar-animating .hero-ring-pulse,
 .sidebar-animating .hero-dot-ping {
   animation-play-state: paused;
-}
-
-
-/* PC/laptop Welcome only: while the sidebar width glides, freeze every
-   decorative hero animation and composite the hero as one stable paint layer.
-   The Modules and other pages are untouched, as are iPad and phone layouts.
-   Combined with the StarField deferred resize this removes the hero/sidebar
-   frame contention visible only on desktop Welcome. */
-@media (min-width: 1181px) and (hover: hover) and (pointer: fine) {
-  .sidebar-animating .home-hero-banner {
-    contain: paint;
-    transform: translateZ(0);
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-  }
-
-  .sidebar-animating .home-hero-banner *,
-  .sidebar-animating .home-hero-banner *::before,
-  .sidebar-animating .home-hero-banner *::after {
-    animation-play-state: paused !important;
-  }
-
-  .sidebar-animating .home-hero-foreground {
-    -webkit-font-smoothing: antialiased;
-    text-rendering: geometricPrecision;
-  }
 }
 
 
