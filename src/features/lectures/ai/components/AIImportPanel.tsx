@@ -408,7 +408,11 @@ export default function AIImportPanel({
   };
 
   if (response) {
-    return <AIReviewStudio language={language} target={target} response={response} onNewPreview={() => setResponse(null)} />;
+    return (
+      <div dir={language === "ar" ? "rtl" : "ltr"}>
+        <AIReviewStudio language={language} target={target} response={response} onNewPreview={() => setResponse(null)} />
+      </div>
+    );
   }
 
   return (
