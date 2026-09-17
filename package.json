@@ -17,6 +17,7 @@
     "test:ai-input": "tsx --test tests/ai-input.test.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --allowSyntheticDefaultImports server/services/ai/input/*.ts tests/ai-input-contracts.type-test.ts",
     "test:ai-media": "tsx --test tests/ai-gemini-media.test.ts",
     "test:ai-mcq": "tsx --test tests/ai-mcq-engine.test.ts",
+    "test:ai-flashcard": "tsx --test tests/ai-flashcard-engine.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-contracts.cjs",
