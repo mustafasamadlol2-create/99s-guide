@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "iPqcb9TiEeZv7M_h9BleQ"
+uri = "file://PHASE_1_AI_INTEGRATION_AUDIT.md"
+type = "text"
+title = "Phase 1 AI Integration Audit"
+description = "Read-only architecture audit and integration map for the future AI-assisted MCQ and Flashcard system."
+logical_id = "497c8147-2248-4a3c-baae-05d7cb90b6ad"
+content_hash = "sha256:8fb25b83fb95c52b46ed66c1fa2c9984777e79e9837f45a000af2d31a3b21215"
+size = 16629
+mtime_ms = 1789652320728
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:57c93ebc-23bc-483a-9cf8-fe13cfb51a4c/497c8147-2248-4a3c-baae-05d7cb90b6ad/b0b66424-d037-4c81-a5ec-71d1c00c3d32"
+storage_version_token = "1789652350558377"
+content_type = "text/markdown"

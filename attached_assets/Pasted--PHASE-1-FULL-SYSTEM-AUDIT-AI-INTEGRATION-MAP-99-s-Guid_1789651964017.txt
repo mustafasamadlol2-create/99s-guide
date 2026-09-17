@@ -1,0 +1,1108 @@
+# PHASE 1 — FULL SYSTEM AUDIT & AI INTEGRATION MAP
+
+## 99’s Guide — AI-Assisted MCQ & Flashcard System
+
+You are working inside the existing production codebase of **99’s Guide**.
+
+This is **Phase 1 only** of a multi-phase implementation.
+
+Your task in this phase is to perform a deep, evidence-based audit of the current application and produce a precise integration map for a future AI-assisted MCQ and Flashcard system.
+
+---
+
+# CRITICAL RULE — AUDIT ONLY
+
+For this phase:
+
+**DO NOT IMPLEMENT ANY FEATURE.**
+
+Do not:
+
+* modify existing application code
+* create production components
+* create database migrations
+* change schemas
+* alter APIs
+* change storage configuration
+* refactor existing code
+* rename files
+* move files
+* install unnecessary dependencies
+* change environment variables
+* change authentication
+* modify the current Console UI
+* add Gemini integration
+* add AI buttons
+* alter MCQ behavior
+* alter Flashcard/Anki behavior
+* alter Lecture behavior
+* alter Cloudflare/Supabase/storage behavior
+
+This phase is **READ-ONLY ANALYSIS**.
+
+You may create **one audit/report document only** if necessary, but preferably return the complete report directly in your final response.
+
+The existing production application must remain functionally untouched.
+
+---
+
+# PROJECT CONTEXT
+
+99’s Guide already has a production educational system containing Lectures.
+
+Each Lecture may contain content such as:
+
+* Main PDF
+* Notes PDF
+* Video links
+* MCQs
+* Flashcards / Anki cards
+* other lecture-related resources
+
+The existing Console already allows authorized administrators to manually create MCQs and Flashcards.
+
+For example, an MCQ may already support fields such as:
+
+* question
+* option A
+* option B
+* option C
+* option D
+* correct answer
+* hint
+* explanation
+* lecture relationship
+* potentially other metadata
+
+Flashcards likewise already have their own existing schema and creation workflow.
+
+We must integrate into these existing systems rather than replace them.
+
+---
+
+# FUTURE FEATURE — CONTEXT ONLY
+
+Do NOT build this yet.
+
+A future AI-assisted import system will exist inside the MCQ and Flashcard sections of the Console.
+
+It will eventually have three primary AI modes:
+
+## Mode 1 — Extract Existing Content
+
+Input may contain existing MCQs or Flashcards.
+
+Supported input types will be:
+
+* PDF
+* Image
+* Pasted Text
+
+The system will extract the existing items and map them into the application's existing MCQ or Flashcard structure.
+
+---
+
+## Mode 2 — Generate from Educational Content
+
+Administrator provides:
+
+* PDF
+* Image
+* Pasted Text
+
+The AI generates new:
+
+* MCQs
+* or Flashcards
+
+from that educational material.
+
+For MCQs this may eventually support configuration such as:
+
+* number of questions
+* difficulty
+* direct recall
+* understanding
+* clinical questions
+* mixed mode
+* hints
+* explanations
+
+---
+
+## Mode 3 — Enhance Existing Content
+
+Existing MCQs or Flashcards may be supplied through:
+
+* PDF
+* Image
+* Pasted Text
+
+The AI can preserve the existing content while adding missing fields such as:
+
+* hint
+* explanation
+* tags
+* other supported metadata
+
+It must not unnecessarily rewrite content the administrator only asked to enhance.
+
+---
+
+# FUTURE AI PROVIDER
+
+The planned primary provider is:
+
+**Google Gemini API**
+
+Target model family:
+
+**Gemini Flash**
+
+The AI implementation will later sit behind a provider abstraction instead of being tightly coupled throughout the application.
+
+Example conceptual architecture:
+
+AIContentService
+
+→ GeminiProvider
+
+Future providers could theoretically be added without rebuilding the Console.
+
+Again:
+
+**DO NOT IMPLEMENT THIS IN PHASE 1.**
+
+---
+
+# STORAGE / DATABASE CONSTRAINT
+
+This point is extremely important.
+
+The application currently has an existing storage/database architecture involving its existing SQL/database system and Cloudflare-related infrastructure.
+
+Some structured application records exist as database rows/tables.
+
+Large binary content such as PDFs and images should NOT simply be inserted as binary blobs into SQL.
+
+The current application may use or integrate infrastructure such as:
+
+* Supabase/PostgreSQL
+* Cloudflare R2
+* Cloudflare D1
+* Cloudflare Workers
+* other existing storage/proxy mechanisms
+
+Do not assume which system is responsible for which data.
+
+You MUST inspect the actual repository and determine the truth.
+
+The upcoming AI feature must integrate with the existing architecture and must not unnecessarily consume SQL/database storage with raw uploaded files.
+
+Temporary AI source files may eventually need separate handling, but no decision should be invented before inspecting the codebase.
+
+---
+
+# MAIN AUDIT OBJECTIVES
+
+Perform a complete codebase audit focused specifically on everything needed to safely add the future AI MCQ/Flashcard feature.
+
+You must trace the actual implementation from frontend to backend to database/storage.
+
+---
+
+# 1. REPOSITORY / APPLICATION ARCHITECTURE
+
+Identify:
+
+* frontend framework
+* backend framework
+* repository structure
+* major apps/packages
+* shared packages
+* API structure
+* database ORM/client
+* database provider
+* Cloudflare integrations
+* object/file storage implementation
+* authentication architecture
+* authorization architecture
+* deployment-related architecture that affects this feature
+
+Provide exact file paths.
+
+Do not rely only on package.json.
+
+Inspect implementation files.
+
+---
+
+# 2. CONSOLE ARCHITECTURE
+
+Locate the administrator Console.
+
+Determine:
+
+* Console root
+* routing architecture
+* role protection
+* owner/admin authorization
+* lecture management pages
+* lecture creation/editing UI
+* MCQ management UI
+* Flashcard/Anki management UI
+
+Identify the exact files/components/hooks/services involved.
+
+Explain how navigation works between:
+
+Console
+→ Lectures
+→ specific Lecture
+→ MCQ
+→ Flashcards/Anki
+
+if that is how the current system works.
+
+If the actual design differs, document the actual design.
+
+---
+
+# 3. LECTURE DATA MODEL
+
+Inspect the real Lecture model/schema.
+
+Report every relevant field, especially:
+
+* lecture ID
+* subject/module relationships
+* title
+* ordering
+* PDFs
+* notes
+* video relationships
+* MCQ relationships
+* Flashcard relationships
+* timestamps
+* status/publishing metadata
+
+Identify:
+
+* database table/model name
+* schema file
+* relations
+* API endpoints
+* frontend types
+* validation schemas
+
+Do not guess.
+
+---
+
+# 4. MCQ SYSTEM — DEEP AUDIT
+
+Trace the complete MCQ lifecycle.
+
+## Database
+
+Determine:
+
+* table/model name
+* columns
+* data types
+* relations
+* indexes
+* unique constraints
+* cascading behavior
+* timestamps
+* ownership/lecture references
+* optional fields
+
+Specifically determine whether the current system supports:
+
+* question
+* four options
+* correct answer
+* hint
+* explanation
+* difficulty
+* tags
+* source
+* order/index
+* lectureId
+* subjectId/moduleId
+* createdBy
+* updatedBy
+
+Report only fields that truly exist.
+
+Clearly separate:
+
+**existing fields**
+
+from
+
+**fields that do not currently exist**
+
+---
+
+## Backend
+
+Identify:
+
+* routes/endpoints
+* controllers/handlers
+* services
+* repository/data-access functions
+* validators
+* Zod schemas if used
+* authorization guards
+* bulk insertion capabilities
+* update capabilities
+* delete capabilities
+* duplicate prevention if any
+
+Document the exact current flow for creating one MCQ manually.
+
+Example structure:
+
+Console form
+→ frontend mutation
+→ endpoint
+→ validator
+→ service
+→ database
+
+Use the actual project flow.
+
+---
+
+## Frontend
+
+Locate:
+
+* MCQ Console page
+* manual MCQ form
+* option inputs
+* answer selector
+* hint field
+* explanation field
+* validation
+* save action
+* error handling
+* loading state
+
+Determine whether creation is performed:
+
+* one request per MCQ
+* batch request
+* another mechanism
+
+This is critical for future bulk AI imports.
+
+---
+
+# 5. FLASHCARD / ANKI SYSTEM — DEEP AUDIT
+
+Perform the equivalent audit for Flashcards/Anki.
+
+Determine the actual terminology used by the repository:
+
+* Flashcard
+* Anki
+* Card
+* StudyCard
+* another name
+
+Report:
+
+## Database
+
+* model/table
+* fields
+* relations
+* constraints
+* indexes
+
+## Backend
+
+* routes
+* validators
+* services
+* create/update/delete operations
+* bulk support if any
+
+## Frontend
+
+* Console pages/components
+* current manual creation flow
+* existing fields
+* lecture selection
+* save behavior
+
+Clearly identify what the current Flashcard structure expects.
+
+---
+
+# 6. CURRENT FILE UPLOAD ARCHITECTURE
+
+This section is extremely important.
+
+Trace all existing upload mechanisms.
+
+Determine how the application currently handles:
+
+* Lecture PDF upload
+* Notes PDF upload
+* images
+* avatars if relevant to architecture
+* other uploaded files
+
+For each relevant file type report:
+
+1. frontend upload component
+2. frontend request
+3. backend endpoint
+4. middleware
+5. temporary storage behavior
+6. final storage provider
+7. stored database metadata
+8. generated URL structure
+9. deletion behavior
+10. authorization
+11. file size validation
+12. MIME/type validation
+
+Identify whether uploads currently go to:
+
+* local server disk
+* Supabase Storage
+* Cloudflare R2
+* Cloudflare Worker
+* presigned URL flow
+* direct browser upload
+* proxy upload
+* something else
+
+Do not assume.
+
+Trace the code.
+
+---
+
+# 7. CLOUDFLARE ARCHITECTURE
+
+Search the repository for all actual Cloudflare-related integration.
+
+Look for:
+
+* R2
+* D1
+* Workers
+* KV
+* Durable Objects
+* CDN/proxy URLs
+* Wrangler configuration
+* bindings
+* Cloudflare APIs
+* environment variables
+* storage adapters
+
+For each discovered integration explain:
+
+* what it currently stores/handles
+* whether it is production-critical
+* how it interacts with the main database
+* whether it is relevant to future AI source uploads
+
+We need to know exactly where future temporary:
+
+* PDFs
+* images
+
+could safely live without putting their binary contents inside PostgreSQL/SQL.
+
+Do NOT recommend migration yet unless evidence clearly shows one is necessary.
+
+---
+
+# 8. SUPABASE / POSTGRESQL ARCHITECTURE
+
+Determine:
+
+* whether Supabase PostgreSQL is still the primary structured database
+* ORM used
+* connection architecture
+* migrations
+* current database models relevant to this feature
+* whether MCQs and Flashcards currently live there
+* whether any data has already moved elsewhere
+* whether database URLs or adapters indicate split architecture
+
+We need a factual map of:
+
+**what lives in SQL today**
+
+versus:
+
+**what lives outside SQL today**
+
+---
+
+# 9. AUTHENTICATION & RBAC
+
+The future AI system must be restricted.
+
+Audit:
+
+* authentication middleware
+* user session/JWT handling
+* roles
+* owner role
+* admin role
+* user/student role
+* permission checks
+* Console protection
+* backend route guards
+
+Identify the safest existing authorization mechanism we should reuse for future AI endpoints.
+
+Do not invent a new RBAC system.
+
+---
+
+# 10. EXISTING BULK OPERATIONS
+
+Search the repository for any existing bulk operations such as:
+
+* bulk create
+* createMany
+* transactional insertion
+* batch updates
+* bulk imports
+* CSV imports
+* roster imports
+* mass delete
+* mass publish
+
+We need to know whether a proven pattern already exists that future AI imports should reuse.
+
+Document:
+
+* exact implementation
+* database transaction behavior
+* validation behavior
+* maximum practical batch size if evident
+
+---
+
+# 11. DUPLICATE DETECTION
+
+Search for any current duplicate prevention mechanisms.
+
+Specifically for:
+
+* MCQs
+* Flashcards
+* Lectures
+* imported data
+
+Determine whether duplicate checking currently exists.
+
+If none exists, say clearly:
+
+**No existing MCQ/Flashcard duplicate detection was found.**
+
+Do not build it yet.
+
+---
+
+# 12. CURRENT DATA VALIDATION
+
+Identify current validation mechanisms for MCQs and Flashcards.
+
+We need exact schemas if available.
+
+For example determine:
+
+* minimum question length
+* required options
+* allowed answer values
+* optional/required hints
+* optional/required explanations
+* string length limits
+* empty card restrictions
+
+This will later become the source of truth for AI structured output validation.
+
+---
+
+# 13. ERROR HANDLING
+
+Audit how the existing Console handles:
+
+* backend errors
+* validation errors
+* failed uploads
+* partial failures
+* network errors
+* unauthorized requests
+
+Identify reusable patterns.
+
+---
+
+# 14. FRONTEND DESIGN SYSTEM
+
+Determine what existing components/design patterns the future AI UI should reuse.
+
+Identify:
+
+* modal/dialog components
+* sheets/drawers
+* upload zones
+* cards
+* tabs
+* segmented controls
+* progress components
+* tables/lists
+* toast system
+* confirmation dialogs
+* loading skeletons
+* mobile/iPad responsive behavior
+
+Do not design the new interface yet.
+
+Simply identify reusable existing building blocks.
+
+---
+
+# 15. PDF / IMAGE / TEXT PROCESSING CAPABILITIES
+
+Search current dependencies and codebase for existing utilities related to:
+
+* PDF parsing
+* PDF.js
+* pdf-lib
+* OCR
+* image processing
+* MIME detection
+* text extraction
+* file hashing
+* document parsing
+
+Report whether any current dependency can be reused.
+
+Do NOT install anything.
+
+---
+
+# 16. BACKEND AI INTEGRATION LOCATION
+
+Based strictly on the current architecture, determine the safest future location for an AI module.
+
+For example, this could eventually resemble:
+
+server/modules/ai/
+
+or
+
+src/services/ai/
+
+But do not create it yet.
+
+Recommend the location based on the repository's real conventions.
+
+Also identify where future endpoints should logically live.
+
+---
+
+# 17. SECRET MANAGEMENT
+
+Audit how production secrets are currently handled.
+
+Determine the appropriate future location for:
+
+GEMINI_API_KEY
+
+Requirements:
+
+* backend only
+* never exposed in frontend bundle
+* never use `VITE_GEMINI_API_KEY`
+* never returned to the client
+* never logged
+
+Report how current production environment variables are loaded and validated.
+
+---
+
+# 18. AI INPUT STORAGE ANALYSIS
+
+We will later support three source input types:
+
+### A. PDF
+
+### B. Image
+
+### C. Pasted Text
+
+Analyze how each should integrate with the CURRENT application architecture.
+
+Do not implement.
+
+For each input type identify likely handling:
+
+### PDF
+
+* upload mechanism
+* temporary storage possibility
+* size/MIME validation
+* cleanup path
+
+### Image
+
+* upload mechanism
+* temporary storage possibility
+* supported existing image infrastructure
+
+### Text
+
+* whether it can be sent directly to backend
+* whether any persistence is necessary
+
+Important:
+
+Do not recommend permanent storage for source input unless there is a real application requirement.
+
+The source documents are primarily AI-processing inputs.
+
+---
+
+# 19. EXISTING CONTENT STORAGE VS TEMPORARY AI INPUT
+
+Clearly distinguish between:
+
+## Production educational resources
+
+Examples:
+
+* actual Lecture PDFs
+* Notes PDFs
+
+and:
+
+## Temporary AI input
+
+Examples:
+
+* PDF uploaded only to extract MCQs
+* screenshot uploaded only to generate Flashcards
+* pasted text used only for generation
+
+The future implementation should not automatically treat every temporary AI input as permanent lecture content.
+
+Audit the architecture with this distinction in mind.
+
+---
+
+# 20. GEMINI INTEGRATION READINESS
+
+Without implementing Gemini, identify what backend capabilities are already available for:
+
+* outbound HTTPS requests
+* multipart processing
+* temporary uploads
+* JSON schema validation
+* async processing
+* timeouts
+* retries
+* server-side environment secrets
+
+Identify gaps.
+
+Do not add packages.
+
+---
+
+# 21. PERFORMANCE & LIMIT ANALYSIS
+
+Identify anything in the current architecture that could affect operations such as:
+
+* importing 20 MCQs
+* importing 100 MCQs
+* importing 300 Flashcards
+* processing a large PDF
+
+Look for:
+
+* body size limits
+* upload limits
+* proxy limits
+* API timeouts
+* Render limits
+* Cloudflare limits already encoded in configuration
+* database transaction behavior
+
+Only report evidence that exists in the repository/configuration.
+
+If infrastructure limits require external verification, label them:
+
+**Requires external verification**
+
+instead of guessing.
+
+---
+
+# 22. PRODUCTION SAFETY
+
+Identify areas where adding AI could accidentally break current production behavior.
+
+Pay particular attention to:
+
+* manual MCQ creation
+* manual Flashcard creation
+* Lecture editing
+* existing uploads
+* authentication
+* Console routes
+* database schemas
+* mobile/iPad/PWA builds
+
+The future system must be additive.
+
+Existing manual workflows must remain available.
+
+---
+
+# REQUIRED FINAL DELIVERABLE
+
+At the end of this phase return a comprehensive audit report using exactly these sections.
+
+# PHASE 1 FINAL AUDIT REPORT
+
+## 1. Executive Summary
+
+Brief architecture overview and overall AI integration readiness.
+
+## 2. Repository Architecture
+
+Exact relevant directories and technologies.
+
+## 3. Console Architecture
+
+Exact Console paths/components/routes.
+
+## 4. Lecture System
+
+Models, APIs, components, relations.
+
+## 5. MCQ System
+
+Database → backend → frontend complete flow.
+
+## 6. Flashcard / Anki System
+
+Database → backend → frontend complete flow.
+
+## 7. File Upload System
+
+Exact PDF/image upload architecture.
+
+## 8. Cloudflare Integration
+
+R2/D1/Workers/etc. actually found.
+
+## 9. SQL / Supabase / PostgreSQL Architecture
+
+What structured data currently lives where.
+
+## 10. Authentication & Authorization
+
+Owner/Admin protections that can be reused.
+
+## 11. Existing Bulk Operations
+
+Patterns available for future AI import.
+
+## 12. Duplicate Handling
+
+Existing duplicate logic or confirmation that none exists.
+
+## 13. Validation Schemas
+
+Existing MCQ and Flashcard validation rules.
+
+## 14. UI Components We Can Reuse
+
+Existing components suitable for future AI Import UI.
+
+## 15. Existing PDF/Image/Text Utilities
+
+Anything already available.
+
+## 16. Recommended AI Module Location
+
+Exact recommended directories/routes based on current architecture.
+
+## 17. Secret Management
+
+How `GEMINI_API_KEY` should eventually fit the existing environment system.
+
+## 18. Recommended Input Handling
+
+PDF vs Image vs Pasted Text using current architecture.
+
+## 19. Storage Recommendation
+
+Based ONLY on discovered architecture:
+
+* what should remain SQL
+* what should use current file/object storage
+* how temporary AI uploads should eventually be handled
+* whether Cloudflare R2 should be reused
+
+Do not invent infrastructure.
+
+## 20. Required Database Changes
+
+List any likely future schema changes.
+
+Do NOT create them.
+
+Separate:
+
+* definitely required
+* optional
+* unnecessary
+
+## 21. Required Backend Changes
+
+Future changes only.
+
+## 22. Required Frontend Changes
+
+Future changes only.
+
+## 23. Security Risks
+
+Potential attack paths and safeguards needed.
+
+## 24. Production Regression Risks
+
+What must not be broken.
+
+## 25. Blockers / Unknowns
+
+Anything that cannot be conclusively determined from the repository.
+
+## 26. Proposed Integration Map
+
+Provide a concrete future flow similar to:
+
+Admin Console
+→ AI Import
+→ input processing
+→ AI service
+→ structured output validation
+→ review
+→ duplicate detection
+→ bulk import
+→ existing MCQ/Flashcard system
+
+But adapt it to the REAL project architecture you discovered.
+
+## 27. Exact Files Expected to Change in Future Phases
+
+Create a table:
+
+| File | Current Responsibility | Expected Future Change | Phase |
+| ---- | ---------------------- | ---------------------- | ----- |
+
+Do NOT change these files now.
+
+## 28. Exact New Files Likely Needed
+
+Create a table:
+
+| Proposed File | Responsibility | Phase |
+| ------------- | -------------- | ----- |
+
+Do NOT create them now.
+
+## 29. Phase 2 Recommendation
+
+State exactly what should be implemented in Phase 2 based on the audit.
+
+---
+
+# EVIDENCE REQUIREMENT
+
+Every important conclusion must reference actual repository evidence.
+
+Use:
+
+* exact file paths
+* function names
+* component names
+* route names
+* model names
+* schema names
+* relevant code behavior
+
+Avoid vague statements such as:
+
+“the app probably uses…”
+
+or:
+
+“it seems like…”
+
+If uncertain, explicitly state:
+
+**Not conclusively determined from the repository.**
+
+---
+
+# NO SILENT ASSUMPTIONS
+
+Do not assume:
+
+* Supabase is still used for everything
+* D1 owns any specific table
+* R2 owns any specific files
+* the MCQ schema has specific fields
+* Anki and Flashcards are identical
+* batch import already exists
+* Gemini should receive permanent file URLs
+* PDFs should be permanently uploaded
+
+Discover the actual implementation.
+
+---
+
+# FINAL CHECK
+
+Before returning your report verify:
+
+* [ ] No application code was modified.
+* [ ] No production feature was implemented.
+* [ ] No migration was created.
+* [ ] No dependencies were unnecessarily installed.
+* [ ] MCQ flow was traced end-to-end.
+* [ ] Flashcard flow was traced end-to-end.
+* [ ] Lecture relationships were inspected.
+* [ ] Current upload/storage flow was traced.
+* [ ] Cloudflare usage was inspected.
+* [ ] SQL/Supabase usage was inspected.
+* [ ] RBAC was inspected.
+* [ ] Existing bulk patterns were inspected.
+* [ ] Existing validation was inspected.
+* [ ] Future AI integration locations were proposed based on evidence.
+* [ ] Every uncertainty was explicitly reported.
+
+End the response with exactly:
+
+**PHASE 1 STATUS: AUDIT COMPLETE — READY FOR ARCHITECT REVIEW**
+
+Do not begin Phase 2.
