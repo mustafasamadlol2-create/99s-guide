@@ -29,6 +29,13 @@ export interface StructuredGenerationRequest<T> {
    * This is intentionally separate from trustedSystemInstruction.
    */
   additionalUntrustedContext?: string;
+  /**
+   * Optional operation metadata used by providers for bounded media chunking.
+   * It does not change the application response contract.
+   */
+  operation?: AIOperation;
+  requestedCount?: number;
+  maxItems?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
 }
@@ -37,7 +44,7 @@ export interface SafeProviderMetadata {
   provider: string;
   model: string;
   responseId?: string;
-  transport?: "inline" | "files_api";
+  transport?: "inline" | "files_api" | "markdown_conversion";
   mediaCount?: number;
   cleanupWarning?: "provider_media_cleanup_failed";
 }

@@ -136,6 +136,8 @@ export class MCQAIEngine {
       contents: input.contents,
       responseSchema: mcqExtractionProviderResponseSchema,
       trustedSystemInstruction: buildMCQExtractInstruction(),
+      operation: "extract",
+      maxItems: this.config.extractionMaxCount,
       signal,
     });
     const normalized = normalizeExtractedItems(
@@ -168,6 +170,9 @@ export class MCQAIEngine {
       contents: input.contents,
       responseSchema: mcqGenerationProviderResponseSchema,
       trustedSystemInstruction: buildMCQGenerateInstruction(selected),
+      operation: "generate",
+      requestedCount: selected.count,
+      maxItems: selected.count,
       signal,
     });
     const items = applyBatchDuplicateWarnings(normalizeGeneratedItems(
@@ -208,6 +213,8 @@ export class MCQAIEngine {
         responseSchema: createMCQEnhancementProviderResponseSchema(selected),
         trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
         additionalUntrustedContext: enhancementContext(eligible),
+        operation: "enhance",
+        maxItems: eligible.length,
         signal,
       });
       provider = response.meta;

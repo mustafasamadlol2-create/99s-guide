@@ -25,6 +25,9 @@ export interface AIStructuredContentRequest<T> {
   responseSchema: import("zod").ZodType<T>;
   trustedSystemInstruction?: string;
   additionalUntrustedContext?: string;
+  operation?: import("./contracts.js").AIOperation;
+  requestedCount?: number;
+  maxItems?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
 }

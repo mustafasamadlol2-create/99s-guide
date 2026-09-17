@@ -114,6 +114,8 @@ export class FlashcardAIEngine {
       contents: input.contents,
       responseSchema: flashcardExtractionProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardExtractInstruction(),
+      operation: "extract",
+      maxItems: this.config.extractionMaxCount,
       signal,
     });
     const normalized = normalizeExtractedFlashcards(response.data, input, this.candidateId);
@@ -148,6 +150,9 @@ export class FlashcardAIEngine {
       contents: input.contents,
       responseSchema: flashcardGenerationProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardGenerateInstruction(selected),
+      operation: "generate",
+      requestedCount: selected.count,
+      maxItems: selected.count,
       signal,
     });
     const items = applyFlashcardBatchDuplicateWarnings(
@@ -194,6 +199,8 @@ export class FlashcardAIEngine {
       responseSchema: flashcardEnhancementProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
       additionalUntrustedContext: enhancementContext(eligible),
+      operation: "enhance",
+      maxItems: eligible.length,
       signal,
     });
     const eligibleIds = new Set(eligible.map((candidate) => candidate.candidateId));

@@ -6,8 +6,7 @@ import type { AIAdoptedBinaryFile, RawAIInput } from "../input/contracts.js";
 import { AIInputService as DefaultAIInputService } from "../input/AIInputService.js";
 import { AITemporaryFileManager } from "../input/temporaryFiles.js";
 import { AIContentService } from "../AIContentService.js";
-import { GeminiProvider } from "../GeminiProvider.js";
-import { getGeminiConfig } from "../config.js";
+import { createConfiguredAIProvider } from "../providerFactory.js";
 import { MCQAIEngine } from "../mcq/MCQAIEngine.js";
 import type { MCQEnhancementOptions, MCQGenerationOptions, MCQOperationResult } from "../mcq/contracts.js";
 import { FlashcardAIEngine } from "../flashcard/FlashcardAIEngine.js";
@@ -174,7 +173,7 @@ async function rawInputFromRequest(
 }
 
 function defaultEngineFactory(): AIAdminEngines {
-  const contentService = new AIContentService(new GeminiProvider(getGeminiConfig()));
+  const contentService = new AIContentService(createConfiguredAIProvider());
   return {
     mcq: new MCQAIEngine(contentService),
     flashcard: new FlashcardAIEngine(contentService),
