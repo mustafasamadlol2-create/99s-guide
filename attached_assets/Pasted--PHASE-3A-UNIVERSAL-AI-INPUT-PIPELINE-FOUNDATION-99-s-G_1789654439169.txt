@@ -1,0 +1,1808 @@
+# PHASE 3A — UNIVERSAL AI INPUT PIPELINE FOUNDATION
+
+## 99’s Guide — PDF + Image + Pasted Text
+
+Phase 1: APPROVED
+Phase 2: APPROVED
+
+You are now authorized to implement **Prompt 3 / Phase 3A only**.
+
+This phase extends the approved AI foundation so the backend can safely represent, validate, normalize, stage, and clean up the three universal AI input forms:
+
+1. PDF
+2. Image
+3. Pasted Text
+
+This is the input infrastructure that will later be reused by ALL approved AI workflows:
+
+* Extract existing MCQs
+* Generate MCQs
+* Enhance MCQs
+* Extract existing Flashcards
+* Generate Flashcards
+* Enhance Flashcards
+
+Do NOT implement those six content workflows yet.
+
+---
+
+# 0. APPROVED ARCHITECTURE
+
+Preserve all Phase 2 decisions.
+
+Current AI architecture:
+
+```text
+Future authenticated route
+→ AIContentService
+→ AIProvider
+→ GeminiProvider
+→ Gemini API
+```
+
+Existing production architecture:
+
+```text
+Structured academic data
+→ PostgreSQL / Prisma authoritative
+
+Binary production resources
+→ Cloudflare R2 authoritative
+
+D1
+→ synchronized/read mirror
+```
+
+Temporary AI source inputs are NOT automatically permanent application resources.
+
+They must NOT become:
+
+* `Material` records
+* permanent Lecture PDFs
+* permanent R2 objects
+* PostgreSQL binary blobs
+* D1 records
+
+unless a later explicit feature requires it.
+
+---
+
+# 1. PHASE 3A SCOPE
+
+## IMPLEMENT NOW
+
+Implement:
+
+* universal AI source-input contracts
+* PDF input validation
+* image input validation
+* pasted-text validation
+* secure MIME/signature verification
+* transient local staging abstraction where needed
+* guaranteed cleanup lifecycle
+* multimodal provider input contracts
+* source metadata generation
+* safe filename handling
+* upload limit configuration
+* reusable binary-input utilities
+* tests
+* documentation/comments necessary to explain the lifecycle
+
+## DO NOT IMPLEMENT YET
+
+Do NOT implement:
+
+* frontend upload UI
+* Console buttons
+* Express AI upload route
+* MCQ prompts
+* MCQ extraction
+* MCQ generation
+* MCQ enhancement
+* Flashcard prompts
+* Flashcard extraction
+* Flashcard generation
+* Flashcard enhancement
+* duplicate detection
+* bulk insertion
+* database writes
+* Prisma migrations
+* D1 synchronization
+* cache invalidation
+* review UI
+* job queues
+* OCR
+* R2 temporary uploads
+* Gemini Files API upload workflow
+* final Gemini multimodal request execution
+
+The actual provider transport strategy will be completed in **Phase 3B / Prompt 4**.
+
+Do not silently begin Prompt 4.
+
+---
+
+# 2. IMPORTANT DESIGN CHANGE FROM PHASE 2
+
+Phase 2 used a generic provider field resembling:
+
+```ts
+sourceContent: string
+```
+
+That was acceptable as a foundation.
+
+It is NOT sufficient for Phase 3.
+
+PDF and image content must remain genuine multimodal input.
+
+Do NOT:
+
+* convert PDFs into extracted plain text
+* OCR images
+* convert binary data into fake text
+* put giant base64 strings into generic text contracts
+* flatten multimodal sources into one string
+
+Refactor the provider-independent input contract cleanly so it can represent:
+
+```text
+text
+pdf
+image
+```
+
+without coupling application code to Gemini-specific types.
+
+---
+
+# 3. PROVIDER-INDEPENDENT MULTIMODAL CONTRACT
+
+Introduce a provider-independent content-part abstraction.
+
+Conceptually:
+
+```ts
+type AIContentPart =
+  | AITextPart
+  | AIFilePart;
+```
+
+Possible conceptual shape:
+
+```ts
+type AITextPart = {
+  kind: "text";
+  text: string;
+};
+
+type AIFilePart = {
+  kind: "file";
+  inputType: "pdf" | "image";
+  mimeType: string;
+  source: ...;
+};
+```
+
+The exact design is your responsibility.
+
+Requirements:
+
+* no `@google/genai` types in application-level contracts
+* no Express types
+* no Multer types
+* no Prisma types
+* no React types
+* no R2-specific types
+* must support later Gemini inline-data transport
+* must support later Gemini Files API transport
+* must allow safe cleanup ownership
+* must not require giant binary data to remain permanently in memory
+
+---
+
+# 4. SOURCE INPUT CONTRACT
+
+Create a normalized application-level source input abstraction.
+
+It must distinguish:
+
+```text
+pdf
+image
+text
+```
+
+Recommended conceptual design:
+
+```ts
+type NormalizedAIInput =
+  | NormalizedPDFInput
+  | NormalizedImageInput
+  | NormalizedTextInput;
+```
+
+Each input should have safe metadata such as:
+
+* input kind
+* sanitized display name where relevant
+* MIME type where relevant
+* size in bytes
+* transient source representation
+* source label if available
+
+Do not include secrets.
+
+---
+
+# 5. PDF SUPPORT
+
+PDF input is mandatory.
+
+Support:
+
+```text
+application/pdf
+```
+
+Validation must include BOTH:
+
+1. claimed MIME/type
+2. actual binary signature
+
+Do not trust extension or browser MIME alone.
+
+At minimum verify a real PDF header such as:
+
+```text
+%PDF-
+```
+
+Use the project's existing PDF validation approach where appropriate, but extract reusable code rather than copying a large route implementation.
+
+---
+
+# 6. PDF SIZE LIMIT
+
+The project already uses a 50 MiB limit for Lecture PDF uploads.
+
+Gemini currently supports PDFs up to 50 MB.
+
+For AI PDF inputs, establish a central configurable application limit that MUST NOT exceed the effective provider limit.
+
+A reasonable default is:
+
+```text
+50 MiB maximum PDF input
+```
+
+Do not scatter `50 * 1024 * 1024` throughout the code.
+
+Create a single configuration source.
+
+If the repository distinguishes decimal MB and MiB, document the exact interpretation.
+
+Reject oversized PDF input before any provider call.
+
+---
+
+# 7. PDF PAGE COUNT
+
+Do NOT add a heavyweight PDF parser merely to count pages in Phase 3A.
+
+The provider supports documents up to 1000 pages, but reliable page inspection can be handled later if needed.
+
+For Phase 3A:
+
+* size validation is mandatory
+* header/signature validation is mandatory
+* page count may remain unknown
+
+Represent page count as optional metadata if useful.
+
+Do not claim a page count you did not actually determine.
+
+---
+
+# 8. IMAGE SUPPORT
+
+Image input is mandatory.
+
+Support the image types that are appropriate for Gemini and useful for the application.
+
+At minimum:
+
+* JPEG
+* PNG
+* WebP
+
+Also support:
+
+* HEIC
+* HEIF
+
+if they can be validated safely without destabilizing the existing build.
+
+HEIC/HEIF support is especially desirable because Console administrators may upload images directly from iPhone/iPad.
+
+Do not add image conversion in Phase 3A.
+
+Gemini can consume these formats directly.
+
+---
+
+# 9. IMAGE SIGNATURE VALIDATION
+
+Do not trust:
+
+* extension
+* supplied MIME
+* filename
+
+Perform binary signature/type verification.
+
+For common formats:
+
+* JPEG
+* PNG
+* WebP
+
+use reliable byte signatures.
+
+For HEIC/HEIF, inspect the ISO-BMFF `ftyp` brand safely or use a focused existing/reliable utility if one is genuinely justified.
+
+Do NOT accept arbitrary files merely renamed to `.jpg`.
+
+---
+
+# 10. IMAGE LIMIT
+
+Create a centralized AI image-size limit.
+
+Choose a conservative production-safe default appropriate for the existing Node backend.
+
+Recommended default:
+
+```text
+20 MiB per image
+```
+
+If repository constraints demonstrate that a different lower limit is necessary, use the safer value and report it.
+
+Do not permit unbounded image buffers.
+
+---
+
+# 11. SINGLE VS MULTIPLE IMAGES
+
+Design the contracts so one AI source request can support:
+
+```text
+1..N images
+```
+
+because a lecture or MCQ source may be supplied as multiple screenshots/pages.
+
+For Phase 3A:
+
+* support multiple normalized image inputs in contracts/services
+* keep a configurable maximum count
+* use a conservative default such as 20 images per request
+
+Do not create UI yet.
+
+Do not send them to Gemini yet.
+
+---
+
+# 12. PASTED TEXT SUPPORT
+
+Pasted text must NOT create a temporary file.
+
+Process it directly in memory/request scope.
+
+Validation must:
+
+* require a string
+* normalize line endings safely
+* trim meaningless surrounding whitespace
+* reject empty/whitespace-only input
+* enforce a configured maximum UTF-8 byte size
+* preserve meaningful internal formatting
+* preserve Arabic and English Unicode
+* preserve question numbering
+* preserve A/B/C/D formatting
+* preserve paragraphs
+
+Do not collapse the text into one line.
+
+---
+
+# 13. TEXT SIZE LIMIT
+
+Create a centralized limit.
+
+Recommended initial default:
+
+```text
+1 MiB UTF-8 pasted text
+```
+
+This is intentionally generous for educational content while protecting the API.
+
+Measure by UTF-8 bytes, not JavaScript character count alone.
+
+Document the value.
+
+---
+
+# 14. ARABIC / UNICODE SAFETY
+
+99’s Guide supports Arabic and English.
+
+Input normalization must not corrupt:
+
+* Arabic text
+* diacritics
+* Unicode punctuation
+* Arabic numerals
+* English MCQ formatting
+* mixed Arabic/English medical terminology
+
+Do not apply ASCII-only sanitization to educational content.
+
+Filename sanitization and content sanitization are separate concerns.
+
+---
+
+# 15. FILENAME HANDLING
+
+Uploaded filenames are untrusted metadata.
+
+Never use raw user filenames directly for temporary filesystem paths.
+
+Implement safe handling.
+
+For temporary staged files use generated identifiers such as:
+
+```text
+crypto.randomUUID()
+```
+
+or equivalent secure random identifiers.
+
+Original filenames may be retained only as sanitized display metadata.
+
+Prevent:
+
+* `../`
+* path traversal
+* absolute paths
+* reserved path manipulation
+* control characters
+* excessively long names
+
+---
+
+# 16. TEMPORARY FILE STAGING
+
+PDF/image input may require a transient local file representation.
+
+Create a dedicated abstraction, not scattered filesystem calls.
+
+Possible conceptual name:
+
+```text
+AITemporaryFileManager
+```
+
+or equivalent.
+
+Responsibilities:
+
+* create safe temporary files
+* use system/project temporary directory appropriately
+* generate random filenames
+* restrict lifecycle to the request/operation
+* expose only necessary metadata
+* delete files deterministically
+* tolerate cleanup if file was already removed
+* prevent path traversal
+* never expose arbitrary filesystem reads
+
+Do NOT use permanent application upload directories unless the existing architecture clearly requires them.
+
+Prefer OS temporary storage or a dedicated transient AI directory.
+
+---
+
+# 17. CLEANUP MUST BE GUARANTEED
+
+Temporary binary input must be cleaned using lifecycle-safe behavior.
+
+Example principle:
+
+```ts
+const staged = await stage(...);
+
+try {
+  // future processing
+} finally {
+  await staged.cleanup();
+}
+```
+
+Cleanup must execute on:
+
+* success
+* validation failure after staging
+* provider failure
+* timeout
+* cancellation
+* thrown exception
+
+Avoid orphaned temporary files.
+
+---
+
+# 18. NO R2 IN PHASE 3A
+
+Do NOT upload temporary AI sources to Cloudflare R2 in this prompt.
+
+The current desired default is:
+
+```text
+temporary local/request-scoped processing
+→ Gemini
+→ cleanup
+```
+
+R2 remains for production application assets.
+
+Later, if an asynchronous job architecture ever becomes necessary, a dedicated temporary R2 prefix can be evaluated.
+
+Not now.
+
+---
+
+# 19. NO SQL FOR INPUT FILES
+
+Never put PDF or image bytes into:
+
+* PostgreSQL
+* Prisma Bytea
+* D1
+* Material.fileData
+
+Do not create database metadata rows for transient AI input.
+
+No schema changes.
+
+---
+
+# 20. BINARY INPUT OWNERSHIP
+
+Make ownership clear.
+
+A normalized/staged binary input must know whether the AI input subsystem owns cleanup.
+
+Avoid a contract where one service deletes a file owned by another production subsystem.
+
+For Phase 3A, staged AI files should be explicitly owned by the AI temporary-input lifecycle.
+
+---
+
+# 21. EXISTING LECTURE FILES — FUTURE COMPATIBILITY
+
+Do not implement this flow yet, but make the architecture compatible with a future case where the admin may choose an existing Lecture PDF as the AI source.
+
+In that case, we should not:
+
+* duplicate the permanent R2 object unnecessarily
+* delete the existing production file
+* treat it as AI-owned temporary storage
+
+Therefore distinguish conceptually between:
+
+```text
+owned transient input
+```
+
+and:
+
+```text
+borrowed/existing source
+```
+
+Phase 3A only needs the contract/design foundation.
+
+Do not implement R2 source retrieval unless required by compilation.
+
+---
+
+# 22. INPUT ORIGIN
+
+Add useful transient metadata representing origin.
+
+For example:
+
+```text
+upload
+pasted_text
+existing_resource
+```
+
+If `existing_resource` is not used yet, it may remain future-ready.
+
+Do not persist it to Prisma.
+
+---
+
+# 23. MIME NORMALIZATION
+
+Centralize MIME handling.
+
+Examples:
+
+```text
+application/pdf
+image/jpeg
+image/png
+image/webp
+image/heic
+image/heif
+text/plain
+```
+
+Normalize safe aliases where appropriate, e.g.:
+
+```text
+image/jpg → image/jpeg
+```
+
+Reject unsupported binary MIME types.
+
+Do not accept:
+
+* executable files
+* archives
+* Word documents
+* arbitrary `application/octet-stream`
+
+just because Gemini might process some of them.
+
+The user-approved scope is:
+
+**PDF + Image + Text only.**
+
+---
+
+# 24. FILE EXTENSIONS ARE SECONDARY
+
+Extensions may help display/diagnostics but are not the security boundary.
+
+A file named:
+
+```text
+lecture.pdf
+```
+
+that contains JPEG bytes must not be treated as a PDF.
+
+A file named:
+
+```text
+photo.jpg
+```
+
+containing arbitrary executable bytes must fail validation.
+
+---
+
+# 25. INPUT VALIDATION ERROR MODEL
+
+Extend the existing AI error system rather than creating unrelated generic errors.
+
+Add focused error categories if necessary, such as:
+
+```text
+AI_INPUT_INVALID
+AI_INPUT_TOO_LARGE
+AI_INPUT_UNSUPPORTED
+AI_INPUT_STAGE_FAILED
+AI_INPUT_CLEANUP_FAILED
+```
+
+Exact names may differ.
+
+Requirements:
+
+* safe messages
+* no sensitive filesystem path leakage to client-facing fields
+* internal diagnostic cause can remain server-side
+* validation failures should not be marked retryable
+* transient filesystem failures may be handled appropriately
+
+---
+
+# 26. CLEANUP FAILURE POLICY
+
+A cleanup error must not silently expose sensitive data.
+
+Design cleanup reporting carefully.
+
+If processing succeeded but cleanup failed:
+
+* record/report an internal sanitized diagnostic
+* do not expose local absolute paths
+* do not convert valid AI content into corrupted state silently
+
+Since no actual route exists yet, implement a sensible reusable policy and document it.
+
+Tests must cover cleanup behavior.
+
+---
+
+# 27. NO CONTENT LOGGING
+
+Do not log:
+
+* pasted lecture text
+* MCQ source text
+* full PDF contents
+* image bytes
+* base64 representations
+* raw educational documents
+
+Diagnostics may include safe metadata such as:
+
+* input type
+* byte size
+* normalized MIME
+* operation ID if available
+
+Do not include user source content.
+
+---
+
+# 28. HASHING
+
+For binary inputs, calculate a deterministic SHA-256 hash if it can be done efficiently during validation/staging.
+
+For text, a SHA-256 hash may also be calculated over normalized UTF-8 content.
+
+Use cases later include:
+
+* duplicate source detection
+* idempotency
+* debugging
+* safe identity without logging content
+
+Expose something like:
+
+```text
+sha256
+```
+
+only as transient metadata.
+
+Do NOT create duplicate detection behavior yet.
+
+Do NOT store hashes in database yet.
+
+---
+
+# 29. HASH PRIVACY
+
+Hashes are metadata, not authorization tokens.
+
+Never use a source hash as proof of ownership.
+
+Do not expose raw source content just because hashes match.
+
+---
+
+# 30. MULTIMODAL STRUCTURED GENERATION CONTRACT
+
+Refactor `StructuredGenerationRequest<T>` or equivalent to support content parts.
+
+Preferred conceptual direction:
+
+```ts
+interface StructuredGenerationRequest<T> {
+  contents: AIContentPart[];
+  responseSchema: ZodType<T>;
+  trustedSystemInstruction?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+```
+
+Do not force Gemini-specific shape into this interface.
+
+Maintain compatibility with Phase 2 tests where sensible.
+
+Update tests to use the new contract.
+
+---
+
+# 31. TEXT SOURCE AS A CONTENT PART
+
+Pasted text should become a genuine text content part.
+
+Example conceptual result:
+
+```text
+kind: text
+text: <normalized content>
+```
+
+Do not base64 encode text.
+
+---
+
+# 32. PDF / IMAGE SOURCE REPRESENTATION
+
+For binary input, design a safe intermediate representation.
+
+It can reference:
+
+* staged local path
+* byte stream abstraction
+* controlled buffer if small
+
+But avoid requiring every binary file to exist as a giant long-lived `Buffer`.
+
+The interface must be compatible with Phase 3B, which will decide:
+
+```text
+inline Gemini input
+OR
+Gemini Files API
+```
+
+without changing the rest of the application.
+
+---
+
+# 33. DO NOT IMPLEMENT GEMINI FILES API YET
+
+Do not call:
+
+```text
+client.files.upload(...)
+```
+
+in Phase 3A.
+
+That belongs to Prompt 4.
+
+Likewise do not yet turn staged files into Gemini inline parts.
+
+Phase 3A establishes the safe input boundary.
+
+---
+
+# 34. SOURCE REFERENCES
+
+Populate transient source-reference metadata when possible.
+
+Examples:
+
+For a PDF:
+
+```text
+inputType: pdf
+label: sanitized original filename
+```
+
+For images:
+
+```text
+inputType: image
+imageIndex: 0
+label: sanitized filename
+```
+
+For pasted text:
+
+```text
+inputType: text
+label: pasted text
+```
+
+Page numbers will generally not be known before Gemini processing.
+
+Do not fabricate them.
+
+---
+
+# 35. IMAGE INDEXING
+
+For multiple images, assign deterministic request-local indexes:
+
+```text
+0, 1, 2, ...
+```
+
+Preserve upload order.
+
+This will later let Gemini results reference:
+
+```text
+imageIndex
+```
+
+during review.
+
+---
+
+# 36. INPUT BATCH
+
+Create a normalized batch/envelope able to represent exactly one source mode at a time.
+
+Examples:
+
+```text
+PDF input
+OR
+Image input(s)
+OR
+Pasted text
+```
+
+Do not permit accidental mixed modes unless there is a clear future reason.
+
+The current Console design expects an administrator to select one input method.
+
+For image mode, multiple image files are allowed.
+
+---
+
+# 37. INPUT MODE CONSISTENCY
+
+Reject contradictory combinations such as:
+
+* inputKind = `text` plus PDF file
+* inputKind = `pdf` plus image array
+* inputKind = `image` with zero images
+* PDF mode with two PDFs unless explicitly designed otherwise
+
+For the initial product:
+
+* PDF mode: exactly one PDF
+* Image mode: 1..configured max images
+* Text mode: exactly one pasted text payload
+
+---
+
+# 38. CONFIGURATION
+
+Create centralized configuration/constants for AI input limits.
+
+Possible values:
+
+```text
+AI_MAX_PDF_BYTES
+AI_MAX_IMAGE_BYTES
+AI_MAX_IMAGE_COUNT
+AI_MAX_TEXT_BYTES
+```
+
+Do not require production environment variables for every value unless necessary.
+
+Safe code defaults are acceptable.
+
+If environment overrides are supported:
+
+* validate them
+* reject nonsensical values
+* never permit them to exceed hard provider/security ceilings accidentally
+
+---
+
+# 39. HARD LIMITS VS CONFIGURED LIMITS
+
+Distinguish:
+
+```text
+hard safety/provider ceiling
+```
+
+from:
+
+```text
+application default
+```
+
+Example:
+
+PDF must never exceed Gemini's supported PDF ceiling even if an environment variable is accidentally configured higher.
+
+Use:
+
+```text
+effectiveLimit = min(configuredLimit, hardLimit)
+```
+
+where appropriate.
+
+---
+
+# 40. RESOURCE SAFETY
+
+Avoid common Node server mistakes:
+
+* no unbounded `Buffer.concat`
+* no reading arbitrary 50MB files multiple times unnecessarily
+* no base64 duplication in Phase 3A
+* no global mutable upload state
+* no filenames derived from users
+* no forgotten temp handles
+* no large content in thrown error strings
+
+Keep memory usage bounded.
+
+---
+
+# 41. CONCURRENCY SAFETY
+
+Temporary paths and lifecycle state must be isolated per request/input.
+
+Two simultaneous administrators must not:
+
+* overwrite each other's files
+* share cleanup handles
+* reuse predictable temp names
+* mix image indexes
+* mix metadata
+
+Tests should cover unique staging identifiers.
+
+---
+
+# 42. ABORT / CANCELLATION FOUNDATION
+
+The input lifecycle should be compatible with cancellation.
+
+If a future request is aborted after staging:
+
+* cleanup must still occur
+
+Do not create full Express request cancellation yet.
+
+Ensure service APIs do not make it impossible later.
+
+---
+
+# 43. SECURITY — MALICIOUS FILES
+
+Phase 3A does not need antivirus scanning.
+
+However it must treat uploaded files as untrusted binary data.
+
+Do NOT:
+
+* execute them
+* unzip archives
+* render them server-side
+* run shell commands on filenames
+* dynamically import them
+* trust embedded URLs
+
+No SSRF.
+
+No URL upload input.
+
+The approved source types are locally submitted:
+
+* PDF
+* image
+* pasted text
+
+---
+
+# 44. PDF JAVASCRIPT / EMBEDDED OBJECTS
+
+Do not execute or attempt to interpret PDF embedded scripts or attachments.
+
+The AI pipeline treats the PDF as opaque media destined for Gemini after validation.
+
+No local PDF rendering is required.
+
+---
+
+# 45. IMAGE METADATA
+
+Do not rely on EXIF metadata.
+
+No geolocation extraction is necessary.
+
+Do not persist EXIF.
+
+The educational image itself is the AI input.
+
+---
+
+# 46. OCR RULE
+
+Do NOT install or implement:
+
+* Tesseract
+* OCR libraries
+* Cloud Vision
+* separate OCR APIs
+
+Gemini itself will later consume the images visually.
+
+---
+
+# 47. PDF PARSER RULE
+
+Do NOT install:
+
+* pdf.js
+* pdf-parse
+* pdf-lib
+
+solely to extract the entire PDF into text.
+
+Native Gemini PDF understanding is the intended primary path.
+
+A later narrow utility may be added only if a real requirement appears.
+
+---
+
+# 48. EXISTING STORAGE SERVICE
+
+Do not modify:
+
+`server/services/supabaseStorage.ts`
+
+unless extracting a tiny reusable binary-signature helper is objectively required.
+
+Prefer new focused AI-input utilities over coupling transient AI ingestion to the permanent R2 storage service.
+
+Do not rename the existing compatibility storage service in this phase.
+
+---
+
+# 49. EXISTING MATERIAL UPLOAD
+
+Do not alter:
+
+```text
+POST /api/materials/upload
+```
+
+Do not change its behavior, limits, Multer configuration, R2 upload behavior, or Material creation.
+
+AI input is a separate subsystem.
+
+---
+
+# 50. SERVER.TS
+
+Ideally `server.ts` remains unchanged in Prompt 3.
+
+No AI route is being registered yet.
+
+If modification becomes unavoidable, explain precisely why in the report.
+
+Do not paste hundreds of lines into `server.ts`.
+
+---
+
+# 51. FRONTEND
+
+No frontend source files should change.
+
+Specifically do NOT modify:
+
+* `CreateMCQ.tsx`
+* `CreateAnki.tsx`
+* `ControlCenterView.tsx`
+* `apiClient.ts`
+
+No user-visible AI functionality yet.
+
+---
+
+# 52. DATABASE
+
+Absolutely no:
+
+* Prisma schema changes
+* migration
+* database write
+* AI job table
+* temporary file table
+* hash column
+* source metadata column
+
+All Phase 3A data is transient.
+
+---
+
+# 53. CLOUDFLARE
+
+Absolutely no:
+
+* R2 upload changes
+* D1 changes
+* Worker changes
+* Wrangler changes
+
+Phase 3A is local/request-scope input infrastructure.
+
+---
+
+# 54. DEPENDENCIES
+
+Avoid new dependencies if Node built-ins and existing project utilities are sufficient.
+
+Potentially useful built-ins include:
+
+* `crypto`
+* `fs/promises`
+* `path`
+* `os`
+
+If a new dependency is genuinely required for safe MIME detection, justify it explicitly.
+
+Do not install a general file-processing framework.
+
+---
+
+# 55. SUGGESTED MODULE STRUCTURE
+
+Extend the existing:
+
+```text
+server/services/ai/
+```
+
+with focused files such as:
+
+```text
+input/
+  contracts.ts
+  config.ts
+  mime.ts
+  validators.ts
+  temporaryFiles.ts
+  normalizeText.ts
+  hash.ts
+  AIInputService.ts
+  index.ts
+```
+
+Exact names may vary to fit repository conventions.
+
+Keep responsibilities separated.
+
+Do not turn `schemas.ts` or `AIContentService.ts` into a giant file.
+
+---
+
+# 56. AI INPUT SERVICE
+
+Create one provider-independent orchestrator for normalization.
+
+Conceptually:
+
+```text
+raw trusted server-side intake
+→ AIInputService
+→ validation
+→ normalization
+→ staged/normalized input batch
+```
+
+The service must NOT:
+
+* call Gemini
+* call Prisma
+* call R2
+* know Express
+* publish MCQs
+* publish Flashcards
+
+---
+
+# 57. SAFE DISPOSABLE RESULT
+
+For binary inputs, consider returning a disposable resource structure such as:
+
+```ts
+const prepared = await inputService.prepare(...);
+
+try {
+  use(prepared);
+} finally {
+  await prepared.dispose();
+}
+```
+
+or an equivalent safe abstraction.
+
+It should be difficult for later code to forget cleanup.
+
+The exact API is your responsibility.
+
+---
+
+# 58. IDEMPOTENT DISPOSAL
+
+Calling cleanup/dispose more than once should not:
+
+* throw unexpectedly
+* delete arbitrary paths
+* affect other request files
+
+Test this behavior.
+
+---
+
+# 59. VALIDATION BEFORE STAGING WHERE POSSIBLE
+
+Perform cheap validations first.
+
+Example:
+
+* declared size
+* number of files
+* text emptiness
+* obvious unsupported MIME
+
+Then stage/inspect content as necessary.
+
+Avoid writing obviously invalid files to disk unnecessarily.
+
+---
+
+# 60. SIGNATURE VALIDATION AFTER STAGING
+
+For binary content, inspect enough bytes to verify type safely.
+
+Do not load the entire file into memory merely to inspect magic bytes if not required.
+
+---
+
+# 61. TOCTOU SAFETY
+
+Once an input has been validated, later services should operate on the exact staged file under AI subsystem control.
+
+Do not validate one path and then process an arbitrary user-controlled path.
+
+---
+
+# 62. PATH BOUNDARY
+
+No public API should ever be able to pass:
+
+```text
+C:\...
+/etc/...
+../../...
+```
+
+as an arbitrary local file for AI processing.
+
+The future route must provide bytes/multipart intake; the AI subsystem creates its own trusted path.
+
+Design Phase 3A accordingly.
+
+---
+
+# 63. TEST REQUIREMENTS — TEXT
+
+Test at minimum:
+
+* valid English text
+* valid Arabic text
+* mixed Arabic/English text
+* multiline MCQ-like text preserved
+* empty text rejected
+* whitespace-only rejected
+* over-limit text rejected
+* UTF-8 byte limit behaves correctly
+* line endings normalized safely
+
+---
+
+# 64. TEST REQUIREMENTS — PDF
+
+Test at minimum:
+
+* valid minimal PDF signature accepted
+* MIME `application/pdf`
+* fake `.pdf` bytes rejected
+* PDF supplied as wrong MIME rejected or safely normalized only if policy explicitly allows it
+* oversized PDF rejected
+* sanitized display filename
+* staged file uses generated path/name
+* hash is deterministic
+* cleanup removes staged file
+* second cleanup is safe
+
+Tests need not contain a large real lecture.
+
+Use small synthetic fixtures.
+
+---
+
+# 65. TEST REQUIREMENTS — IMAGES
+
+Test at minimum:
+
+* valid JPEG signature
+* valid PNG signature
+* valid WebP signature
+* fake renamed image rejected
+* unsupported type rejected
+* oversized image rejected
+* multiple images preserve order
+* image indexes assigned correctly
+* too many images rejected
+* unique staged filenames
+* cleanup removes all staged files
+
+If HEIC/HEIF support is implemented:
+
+* add focused HEIC/HEIF signature tests
+
+---
+
+# 66. TEST REQUIREMENTS — SECURITY
+
+Test:
+
+* `../evil.pdf` cannot control staging path
+* absolute filename cannot control staging path
+* unsupported executable bytes rejected
+* arbitrary local paths are never accepted as user input
+* cleanup cannot escape temp root
+* two staged inputs do not collide
+
+---
+
+# 67. TEST REQUIREMENTS — CONTRACT MIGRATION
+
+Update the existing Phase 2 AI tests to reflect multimodal request contents.
+
+Ensure:
+
+* text-only structured generation still works
+* provider injection still works
+* Gemini provider tests still compile
+* existing structured-output tests remain valid
+* no Phase 2 guarantee regresses
+
+---
+
+# 68. DO NOT MAKE LIVE GEMINI CALLS
+
+Prompt 3 must not require a real Gemini call.
+
+All tests should remain local.
+
+A live provider request belongs later.
+
+---
+
+# 69. BUILD / QUALITY CHECKS
+
+Run:
+
+* Phase 2 AI tests
+* new Phase 3A input tests
+* AI-focused TypeScript check
+* AI-focused lint
+* `npm run build`
+* existing auth test if practical
+* repository typecheck/lint for regression awareness
+* `git diff --check`
+
+Clearly separate pre-existing failures from new failures.
+
+---
+
+# 70. NO DRIVE-BY FIXES
+
+Phase 2 documented unrelated existing problems such as:
+
+* `LectureDetailView.tsx` type issue
+* generated module-image import issues
+* unrelated lint findings
+
+Do NOT fix those in Prompt 3.
+
+Stay scoped.
+
+---
+
+# 71. AGENT MEMORY / AUXILIARY FILES
+
+Phase 2 created `.agents/memory/*`.
+
+Do not add new agent-memory, planning, scratch, or assistant-specific repository artifacts in this phase unless they are essential to application correctness.
+
+Prefer code comments or the final report.
+
+Do not delete existing Phase 2 memory files unless explicitly necessary.
+
+---
+
+# 72. DEFINITION OF DONE
+
+Prompt 3 / Phase 3A is complete only when:
+
+* PDF input has safe validation
+* image input has safe validation
+* pasted text has safe validation
+* multimodal provider-independent content contracts exist
+* Phase 2 string-only limitation is removed cleanly
+* PDF and image binaries remain genuine media
+* temporary staging is isolated
+* cleanup is guaranteed and idempotent
+* safe MIME/signature validation exists
+* limits are centralized
+* text Unicode/Arabic is preserved
+* binary hashes are available transiently
+* multiple images are supported
+* PDF mode accepts exactly one PDF
+* image mode accepts configured 1..N images
+* text mode accepts exactly one text source
+* no SQL writes occur
+* no R2 writes occur
+* no D1 writes occur
+* no Gemini file uploads occur
+* no Express AI route exists yet
+* no frontend UI exists
+* all new tests pass
+* Phase 2 tests continue to pass
+* build succeeds without new failures
+
+---
+
+# 73. MANDATORY FINAL IMPLEMENTATION REPORT
+
+At completion, return the report exactly under this structure:
+
+# PHASE 3A FINAL IMPLEMENTATION REPORT
+
+## 1. Executive Summary
+
+State what was implemented and whether Prompt 3 is complete.
+
+## 2. Files Created
+
+| File | Purpose |
+| ---- | ------- |
+
+Every new file.
+
+## 3. Files Modified
+
+| File | Exact Change | Why |
+| ---- | ------------ | --- |
+
+Every modified file.
+
+## 4. Dependencies Added
+
+If none:
+
+**None**
+
+Otherwise include exact version and justification.
+
+## 5. Final Input Architecture
+
+Show the actual flow:
+
+```text
+Raw source
+→ ...
+→ NormalizedAIInput
+→ ...
+```
+
+## 6. Multimodal Contract Changes
+
+Explain precisely how Phase 2's string source was replaced/evolved.
+
+Include important TypeScript signatures.
+
+## 7. PDF Handling
+
+Report:
+
+* MIME policy
+* signature validation
+* size limit
+* temporary staging
+* hashing
+* cleanup
+
+## 8. Image Handling
+
+Report:
+
+* supported formats
+* signature validation
+* per-image size limit
+* maximum image count
+* multiple-image ordering
+* HEIC/HEIF status
+* hashing
+* cleanup
+
+## 9. Text Handling
+
+Report:
+
+* normalization
+* byte limit
+* Unicode/Arabic behavior
+* persistence behavior
+
+## 10. Temporary File Lifecycle
+
+Explain:
+
+* temp root
+* generated naming
+* ownership
+* disposal
+* idempotency
+* failure cleanup
+
+Do not expose machine-specific absolute temp paths unnecessarily.
+
+## 11. Security Controls
+
+Confirm protections against:
+
+* path traversal
+* fake MIME
+* fake extensions
+* unsupported binaries
+* oversized payloads
+* filename injection
+* local-path injection
+* content logging
+* file collisions
+
+## 12. Input Limits
+
+Table:
+
+| Input | Default Limit | Hard Ceiling | Reason |
+| ----- | ------------: | -----------: | ------ |
+
+## 13. Hashing
+
+State algorithm and what is hashed.
+
+## 14. Error Model Changes
+
+List new error categories.
+
+## 15. Gemini Impact
+
+Explicitly state whether:
+
+* Gemini network call added
+* Gemini Files API added
+* inline binary provider transport added
+
+Expected for Phase 3A:
+
+**No actual Gemini media transport yet**
+
+## 16. Database Impact
+
+Expected:
+
+**None**
+
+Confirm Prisma and migrations unchanged.
+
+## 17. Cloudflare Impact
+
+Expected:
+
+**None**
+
+Confirm R2/D1/Workers unchanged.
+
+## 18. Frontend Impact
+
+Expected:
+
+**None**
+
+## 19. Server Route Impact
+
+State whether `server.ts` changed.
+
+Expected:
+
+**No AI endpoint yet**
+
+## 20. Tests Added
+
+List test coverage in detail.
+
+## 21. Phase 2 Regression Tests
+
+State results.
+
+## 22. Commands Executed
+
+| Command | Result |
+| ------- | ------ |
+
+## 23. Existing Repository Failures
+
+Separate pre-existing failures from introduced failures.
+
+## 24. Deviations From Prompt
+
+If none:
+
+**None**
+
+## 25. Blockers / Unknowns
+
+Anything Phase 3B must resolve.
+
+## 26. Phase 3B Recommendation
+
+Explain how the prepared input should next be transported to Gemini through:
+
+* inline multimodal data
+* Gemini Files API where appropriate
+
+Do NOT implement it.
+
+## 27. Git Diff Summary
+
+Exact implementation summary.
+
+## 28. Final Verification Checklist
+
+Confirm explicitly:
+
+* [ ] PDF supported
+* [ ] Image supported
+* [ ] Text supported
+* [ ] Arabic/Unicode preserved
+* [ ] PDF signature verified
+* [ ] Image signatures verified
+* [ ] Binary limits enforced
+* [ ] Text byte limit enforced
+* [ ] Multiple images supported
+* [ ] Generated temp filenames used
+* [ ] Path traversal prevented
+* [ ] SHA-256 implemented
+* [ ] Cleanup idempotent
+* [ ] No R2 write
+* [ ] No D1 change
+* [ ] No Prisma change
+* [ ] No DB write
+* [ ] No Gemini Files API call
+* [ ] No public AI endpoint
+* [ ] No frontend AI UI
+* [ ] No MCQ AI engine
+* [ ] No Flashcard AI engine
+* [ ] Phase 2 tests preserved
+* [ ] Build status documented
+
+End your response with exactly:
+
+**PHASE 3A STATUS: IMPLEMENTATION COMPLETE — READY FOR ARCHITECT REVIEW**
+
+Do not begin Phase 3B.
