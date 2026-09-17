@@ -69,7 +69,7 @@ export class AIImportService {
     target: ImportTarget,
     lectureId: string,
     candidates: Candidate[],
-    requestId = randomUUID(),
+    requestId: string = randomUUID(),
   ): Promise<ImportCheckResponse> {
     validateRequest(target, candidates);
     const lecture = await this.lectureOrThrow(lectureId);
@@ -84,7 +84,7 @@ export class AIImportService {
     target: ImportTarget,
     lectureId: string,
     candidates: Candidate[],
-    requestId = randomUUID(),
+    requestId: string = randomUUID(),
   ): Promise<ImportCommitResponse> {
     validateRequest(target, candidates);
     const lecture = await this.lectureOrThrow(lectureId);

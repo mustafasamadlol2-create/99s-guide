@@ -1,0 +1,1073 @@
+# PHASE 7 — FINAL VERIFICATION & EVIDENCE LOCK
+
+The Phase 7 implementation appears functionally complete.
+
+Do NOT redesign or reimplement Phase 7.
+
+This task is a **verification, evidence, and final-report pass only**.
+
+Do NOT begin Phase 8.
+
+Runtime changes are allowed ONLY if this verification discovers a genuine Phase 7 defect.
+
+---
+
+# 1. PRIMARY VERIFICATION TARGETS
+
+You must verify, with repository evidence, all of the following:
+
+1. Import check is truly read-only.
+2. Commit re-runs duplicate detection.
+3. PostgreSQL insertion is atomic.
+4. `createManyAndReturn()` is actually supported by the installed Prisma version and generated client.
+5. Transaction isolation/retry behavior is correctly implemented.
+6. Existing D1 synchronization behavior was genuinely reused.
+7. The claimed realtime/socket event is actually the correct existing production event for MCQ/Flashcard content.
+8. Cache invalidation is targeted.
+9. Frontend performs no full reload.
+10. No Gemini call occurs during import.
+11. No Prisma/D1 schema changes occurred.
+12. No `.agents/*` changes occurred.
+
+---
+
+# 2. CRITICAL EVENT VERIFICATION — `materials_updated`
+
+The implementation summary claims Phase 7 reused:
+
+```text
+materials_updated
+```
+
+This point requires explicit repository evidence.
+
+Do NOT merely state that it is appropriate.
+
+Inspect the current repository and determine:
+
+* Where `materials_updated` is defined/emitted.
+* Which existing manual operations already emit it.
+* Whether manual MCQ creation emits it.
+* Whether manual Flashcard creation emits it.
+* Whether MCQ/Flashcard readers/listeners actually react to it.
+* Whether another existing event is the real content-refresh event for these models.
+
+Then choose ONE of these outcomes:
+
+### Outcome A — Proven correct
+
+If repository evidence shows `materials_updated` is already the established refresh event for MCQ/Flashcard content, keep it unchanged and cite exact files/functions/lines in the report.
+
+### Outcome B — Incorrect assumption
+
+If it was introduced in Phase 7 merely because the name appeared useful, replace it with the actual existing event/invalidation mechanism.
+
+### Outcome C — No realtime event exists for these writes
+
+If manual MCQ/Flashcard writes do not currently emit a content event, do NOT invent one in Phase 7 solely for AI import.
+
+Use only the existing cache/refetch mechanism and report that no established socket event exists.
+
+This verification is mandatory.
+
+---
+
+# 3. D1 SYNCHRONIZATION EVIDENCE
+
+The summary says:
+
+> Existing D1 synchronization was reused.
+
+Prove this from the repository.
+
+Report:
+
+* exact helper/service/function used
+* exact existing manual path that already uses it
+* whether MCQs are mirrored to D1
+* whether Flashcards are mirrored to D1
+* whether synchronization is:
+
+  * synchronous
+  * queued
+  * outbox-based
+  * best-effort
+* what happens on D1 failure after PostgreSQL commit
+
+Do not describe a hypothetical architecture.
+
+Use only what the actual repository implements.
+
+---
+
+# 4. VERIFY POSTGRESQL TRANSACTION
+
+Inspect the final import service.
+
+Confirm exactly:
+
+* duplicate query occurs inside or outside the transaction
+* final duplicate re-check location
+* insertion location
+* transaction isolation level
+* bounded serialization retry count
+* exact Prisma error/code that triggers serialization retry
+* arbitrary DB errors are NOT retried
+* Gemini is never retried/invoked
+
+If the implementation claims:
+
+```text
+Serializable
+```
+
+prove that the actual Prisma `$transaction` call supplies that isolation level.
+
+---
+
+# 5. VERIFY `createManyAndReturn`
+
+Confirm:
+
+* installed Prisma version
+* generated client exposes `createManyAndReturn`
+* it is used for PostgreSQL
+* exact models using it
+* returned IDs are mapped safely back to `clientKey`
+
+Important:
+
+Database return order must NOT be assumed to equal input order unless the implementation has an explicit safe mapping strategy.
+
+Verify how:
+
+```text
+clientKey → created DB id
+```
+
+is produced.
+
+If the implementation currently relies on returned array order without a guarantee, treat that as a defect and fix it.
+
+---
+
+# 6. CLIENT KEY MUST NOT BE PERSISTED
+
+Confirm:
+
+```text
+clientKey
+```
+
+is request metadata only.
+
+It must not be stored in:
+
+* MCQ
+* Flashcard
+* sourceRef
+* any hidden metadata field
+
+Report the exact mapping mechanism used.
+
+---
+
+# 7. VERIFY MCQ PERSISTENCE SEMANTICS
+
+Inspect:
+
+* Prisma `Mcq`
+* existing `POST /api/mcqs`
+* Phase 7 importer
+
+Report exact handling of:
+
+* `question`
+* `optionA`
+* `optionB`
+* `optionC`
+* `optionD`
+* `correctAnswer`
+* `hint`
+* `explanation`
+* `difficulty`
+* `sourceType`
+* `sourceRef`
+* `lectureId`
+
+Especially verify:
+
+```text
+sourceType
+sourceRef
+```
+
+Do NOT use invented AI-specific values unless they already exist as accepted production semantics.
+
+State the exact final values used by AI import and why they match the existing manual path.
+
+---
+
+# 8. VERIFY FLASHCARD PERSISTENCE SEMANTICS
+
+Inspect:
+
+* Prisma `Flashcard`
+* existing `POST /api/flashcards`
+* Phase 7 importer
+
+Confirm exact mapping for:
+
+```text
+clinicalConcept
+explanation
+lectureId
+```
+
+and any genuinely existing required/default fields.
+
+No AI metadata may be persisted.
+
+---
+
+# 9. VERIFY DUPLICATE NORMALIZATION
+
+Report the actual implemented normalization steps in exact order.
+
+Verify representative English and Arabic cases.
+
+Must not corrupt:
+
+* Arabic letters
+* diacritics in unsafe ways
+* medical abbreviations
+* mixed Arabic/English terminology
+
+Do not claim “Arabic safe” without tests.
+
+---
+
+# 10. VERIFY EXACT DUPLICATES
+
+For MCQs:
+
+```text
+normalized question
+```
+
+must be the primary exact duplicate key.
+
+For Flashcards:
+
+```text
+normalized clinicalConcept
+```
+
+must be the primary exact duplicate key.
+
+Verify both:
+
+* within submitted batch
+* against existing rows in selected Lecture
+
+Confirm same content in another Lecture is not treated as an existing-Lecture duplicate.
+
+---
+
+# 11. VERIFY POSSIBLE DUPLICATES
+
+Report actual implementation:
+
+* algorithm
+* threshold
+* minimum length
+* score range
+* normalization used before scoring
+
+The target design expected approximately:
+
+```text
+threshold: 0.92
+minimum normalized length: 20
+```
+
+If implementation differs, report exactly why.
+
+Test false-positive resistance with clearly different medical questions.
+
+---
+
+# 12. DUPLICATE PRECEDENCE
+
+If a candidate has multiple matches, define deterministic precedence.
+
+Recommended:
+
+```text
+exact_duplicate > possible_duplicate > new
+```
+
+Also define deterministic scope reporting if it duplicates:
+
+* another submitted item
+* an existing DB row
+
+Do not return unstable results based on array iteration accidents.
+
+---
+
+# 13. CHECK ENDPOINT MUST BE PURE
+
+Statically and through tests verify:
+
+```text
+POST /api/admin/ai/mcq/import/check
+POST /api/admin/ai/flashcards/import/check
+```
+
+perform ZERO:
+
+* Prisma creates
+* Prisma updates
+* Prisma deletes
+* D1 writes
+* socket emits
+* cache invalidation
+* Gemini calls
+
+Only:
+
+```text
+validate
+read Lecture
+read existing target content
+analyze
+respond
+```
+
+---
+
+# 14. COMMIT MUST IGNORE CLIENT DUPLICATE CLAIMS
+
+The commit endpoint must NOT trust client-provided:
+
+* `status`
+* `similarity`
+* `duplicateScope`
+* previous check result
+
+Ideally these fields should not exist in the commit request schema.
+
+Confirm the server independently recalculates everything.
+
+---
+
+# 15. ZERO-NEW IMPORT
+
+Verify commit behavior when every submitted candidate is duplicate.
+
+Required behavior:
+
+* no DB insertion
+* no D1 synchronization
+* no socket/content mutation event
+* no cache invalidation requiring a write
+* safe successful zero-import result or documented safe conflict response
+
+Frontend must not falsely mark anything imported.
+
+---
+
+# 16. ATOMICITY
+
+Prove through test or transaction mock:
+
+If insertion of the final new set fails:
+
+```text
+0 new records from that transaction remain committed
+```
+
+No partial imported state should be returned.
+
+---
+
+# 17. SERIALIZATION RETRY
+
+If Phase 7 implements bounded retry for a transaction conflict:
+
+Report:
+
+```text
+maximum attempts
+```
+
+and exact retryable condition.
+
+The retry must repeat only deterministic DB work.
+
+It must NOT:
+
+* call Gemini
+* call preview AI engines
+* resend source files
+* retry arbitrary validation errors
+
+---
+
+# 18. D1 MUST HAPPEN AFTER CANONICAL COMMIT
+
+Verify ordering:
+
+```text
+PostgreSQL transaction succeeds
+→ D1 synchronization/enqueue
+```
+
+NOT:
+
+```text
+D1 first
+→ PostgreSQL
+```
+
+and NOT a fake cross-system transaction.
+
+If D1 fails:
+
+* canonical PostgreSQL rows remain
+* response semantics accurately describe that
+* no canonical rollback is attempted
+
+---
+
+# 19. D1 DUPLICATE-SKIP SAFETY
+
+Only newly imported rows should be sent/enqueued to D1.
+
+Exact/possible duplicates skipped during import must not produce new mirror writes.
+
+Verify with tests.
+
+---
+
+# 20. REALTIME EVENT BEHAVIOR
+
+After resolving Section 2, verify mutation events occur only when:
+
+```text
+importedCount > 0
+```
+
+Do not emit mutation event on:
+
+* `/check`
+* failed transaction
+* zero-new import
+
+---
+
+# 21. FRONTEND CACHE INVALIDATION
+
+Inspect the actual frontend integration.
+
+Report exact mechanism used after import:
+
+* Query invalidation?
+* existing cache manager?
+* local state update?
+* Lecture content refetch?
+* custom event?
+
+No vague wording.
+
+Confirm:
+
+```text
+window.location.reload
+location.reload
+history.go(0)
+```
+
+are NOT used.
+
+Also check no route-key/remount hack effectively causes a full Console reset.
+
+---
+
+# 22. CONSOLE STABILITY
+
+Verify successful import keeps:
+
+* current Lecture
+* current MCQ/Flashcard section
+* Review Studio visible
+* current scroll position reasonably stable
+* imported/skipped result visible
+
+Do not perform full view reset.
+
+---
+
+# 23. IMPORTED STATE
+
+Verify successfully imported candidates:
+
+* are marked Imported
+* become unselected
+* cannot be imported again from same local review
+* remain visible
+
+---
+
+# 24. DUPLICATE-SKIPPED STATE
+
+Verify skipped duplicate candidates:
+
+* remain visible
+* become unselected
+* are not marked Imported
+* display exact/possible duplicate result
+
+---
+
+# 25. COMMIT FAILURE STATE
+
+Verify:
+
+* edits retained
+* selection retained where safe
+* no item marked Imported
+* confirmation closes/stays appropriately
+* admin can retry
+
+---
+
+# 26. NO GEMINI DURING IMPORT
+
+Run a static search / dependency inspection and tests.
+
+Neither import service nor import HTTP routes may depend on:
+
+* `AIContentService`
+* `GeminiProvider`
+* MCQ AI Engine
+* Flashcard AI Engine
+
+except shared pure types/utilities if strictly necessary.
+
+No provider request.
+
+---
+
+# 27. AUTHORIZATION
+
+Verify all four routes are mounted behind the existing:
+
+```text
+requireAdmin
+```
+
+Test:
+
+* unauthenticated
+* ordinary user/student
+* admin
+* owner
+
+A single `401` smoke check is insufficient for final Phase 7 evidence.
+
+---
+
+# 28. FRONTEND IMPORT API
+
+Verify typed API helpers exist for:
+
+* MCQ check
+* MCQ commit
+* Flashcard check
+* Flashcard commit
+
+They must reuse existing authenticated `apiClient`.
+
+No separate auth transport.
+
+---
+
+# 29. NO PERSISTENT REVIEW STATE
+
+Verify import integration does not introduce:
+
+* localStorage
+* sessionStorage
+* IndexedDB
+* Cache API persistence
+
+Review state remains React memory.
+
+---
+
+# 30. NO AGENT ARTIFACTS
+
+Run:
+
+```text
+git status
+git diff --name-only
+git diff --cached --name-only
+```
+
+Confirm:
+
+**No `.agents/*` file was created or modified by Phase 7.**
+
+If there is a Phase 7-specific agent artifact, remove/revert only that artifact.
+
+---
+
+# 31. REQUIRED TESTS
+
+Run all:
+
+```text
+npm run test:ai
+npm run test:ai-input
+npm run test:ai-media
+npm run test:ai-mcq
+npm run test:ai-flashcard
+npx tsx --test tests/ai-admin-http.test.ts
+npx tsx --test tests/ai-review-validation.test.ts
+npm run test:auth
+```
+
+Run all Phase 7 backend import tests.
+
+Run all Phase 7 frontend import tests.
+
+Also run:
+
+```text
+npm run build
+git diff --check
+npm run typecheck
+npm run lint
+npm run security:check
+```
+
+Repository-wide failures may remain only if clearly pre-existing.
+
+---
+
+# 32. TARGETED SOURCE SEARCHES
+
+Perform explicit searches for the Phase 7 diff/implementation for:
+
+```text
+location.reload
+window.location.reload
+history.go(
+GEMINI_API_KEY
+GeminiProvider
+AIContentService
+prisma.mcq.create(
+prisma.flashcard.create(
+localStorage
+sessionStorage
+indexedDB
+caches.
+.agents/
+```
+
+Explain relevant matches.
+
+Do not rely only on test names.
+
+---
+
+# 33. NO PHASE 8
+
+Do not:
+
+* run production Gemini against real user content
+* alter quota settings
+* implement monitoring
+* perform broad production hardening
+* redesign UI
+
+Those belong to Phase 8.
+
+---
+
+# 34. REQUIRED FINAL REPORT
+
+Return exactly:
+
+# PHASE 7 FINAL IMPLEMENTATION REPORT
+
+## 1. Executive Summary
+
+State whether complete safe bulk import is implemented and verified.
+
+## 2. Files Created
+
+| File | Purpose |
+| ---- | ------- |
+
+## 3. Files Modified
+
+| File | Exact Change | Why |
+| ---- | ------------ | --- |
+
+## 4. Dependencies Added
+
+If none:
+
+**None**
+
+## 5. Final Import Architecture
+
+Show:
+
+```text
+Review Studio
+→ Import Selected
+→ duplicate check
+→ confirmation
+→ commit
+→ server revalidation
+→ duplicate re-check
+→ PostgreSQL transaction
+→ D1 sync
+→ cache/realtime invalidation
+→ frontend imported/skipped state
+```
+
+## 6. Routes Implemented
+
+| Method | Route | Auth | Writes? |
+| ------ | ----- | ---- | ------- |
+
+## 7. Authorization Verification
+
+Report unauthenticated, user, admin, and owner behavior.
+
+## 8. Import Request Contracts
+
+Exact MCQ and Flashcard payloads.
+
+## 9. Server Revalidation
+
+Exact rules.
+
+## 10. Duplicate Normalization
+
+Exact normalization steps.
+
+Include Arabic behavior.
+
+## 11. Exact Duplicate Detection
+
+Batch + existing Lecture behavior.
+
+## 12. Possible Duplicate Detection
+
+Report:
+
+* actual algorithm
+* threshold
+* minimum length
+* deterministic precedence
+
+## 13. Duplicate Check Purity
+
+Explicitly prove check endpoints perform no writes, sync, emit, invalidation, or Gemini call.
+
+## 14. Duplicate Check Response
+
+Exact safe DTO and counts.
+
+## 15. Duplicate UX
+
+Explain confirmation and detail display.
+
+## 16. Duplicate Commit Policy
+
+Confirm exact and possible duplicates are skipped by default.
+
+## 17. Commit Re-check
+
+Explain how server ignores previous client duplicate analysis and recalculates.
+
+## 18. PostgreSQL Transaction
+
+Report:
+
+* exact Prisma API
+* exact transaction form
+* isolation level
+* serialization retry condition
+* maximum attempts
+* rollback behavior
+
+## 19. createManyAndReturn Verification
+
+Report:
+
+* installed Prisma version
+* client support
+* models using it
+* created-ID mapping mechanism
+* whether any result-order assumption exists
+
+## 20. Network Retry Safety
+
+Explain repeated identical commit behavior.
+
+## 21. MCQ DB Mapping
+
+Exact mapping.
+
+Especially:
+
+* sourceType
+* sourceRef
+* difficulty/default semantics
+
+## 22. Flashcard DB Mapping
+
+Exact mapping.
+
+## 23. D1 Synchronization — Repository Evidence
+
+Report:
+
+* exact helper/function
+* exact existing/manual path that establishes it
+* MCQ behavior
+* Flashcard behavior
+* batching/outbox behavior
+* when it runs relative to PostgreSQL
+
+## 24. D1 Failure Semantics
+
+Exact behavior.
+
+## 25. Realtime / Socket Event — Repository Evidence
+
+This section is mandatory.
+
+Report:
+
+* exact event used
+* exact existing source locations establishing it
+* listeners/consumers
+* whether MCQ and Flashcard manual workflows already use it
+
+If `materials_updated` was not actually established for this content, report the correction made.
+
+## 26. Backend Cache Invalidation
+
+Exact mechanism.
+
+## 27. Frontend Cache / State Invalidation
+
+Exact mechanism.
+
+Explicitly state:
+
+**No full-page refresh is used.**
+
+## 28. Console Stability
+
+Explain Lecture/tab/Review Studio preservation.
+
+## 29. Frontend Import Workflow
+
+Check → modal → confirm → commit.
+
+## 30. Imported Candidate State
+
+Exact behavior.
+
+## 31. Duplicate-Skipped Candidate State
+
+Exact behavior.
+
+## 32. Commit Failure UX
+
+Exact behavior.
+
+## 33. Database Impact
+
+Report rows/models written and confirm:
+
+**No Prisma schema change.**
+
+## 34. Cloudflare Impact
+
+Report D1 use and confirm:
+
+**No D1 schema/infrastructure change.**
+
+## 35. Gemini Impact
+
+Confirm:
+
+**No Gemini calls during import check or commit.**
+
+## 36. Preview Persistence
+
+Confirm:
+
+**None**
+
+## 37. Manual Workflow Impact
+
+Confirm manual create paths remain unchanged.
+
+## 38. Tests Added
+
+Detailed Phase 7 backend/frontend coverage.
+
+## 39. Phase 2 Regression Results
+
+Exact result.
+
+## 40. Phase 3A Regression Results
+
+Exact result.
+
+## 41. Phase 3B Regression Results
+
+Exact result.
+
+## 42. Phase 4 Regression Results
+
+Exact result.
+
+## 43. Phase 5 Regression Results
+
+Exact result.
+
+## 44. Phase 6A Regression Results
+
+Exact result.
+
+## 45. Phase 6B Regression Results
+
+Exact result.
+
+## 46. Auth Regression Results
+
+Exact result.
+
+## 47. Commands Executed
+
+| Command | Result |
+| ------- | ------ |
+
+## 48. Existing Repository Failures
+
+Separate pre-existing from introduced failures.
+
+## 49. Deviations From Prompt
+
+If none:
+
+**None**
+
+If verification corrected something such as an incorrect event assumption, report it here.
+
+## 50. Blockers / Unknowns
+
+Anything Phase 8 must verify.
+
+## 51. Phase 8 Readiness
+
+State readiness for production hardening.
+
+Do NOT implement Phase 8.
+
+## 52. Git Diff Summary
+
+Exact summary.
+
+## 53. Agent Artifact Verification
+
+State exactly:
+
+**No `.agents/*` file was created or modified by Phase 7.**
+
+## 54. Final Verification Checklist
+
+* [ ] MCQ import check exists
+* [ ] MCQ import commit exists
+* [ ] Flashcard import check exists
+* [ ] Flashcard import commit exists
+* [ ] All routes use requireAdmin
+* [ ] unauthenticated rejected
+* [ ] user/student rejected
+* [ ] admin allowed
+* [ ] owner allowed
+* [ ] Lecture validated
+* [ ] Server candidate revalidation works
+* [ ] Max 100 enforced
+* [ ] Duplicate clientKey rejected
+* [ ] Batch exact duplicates detected
+* [ ] Batch possible duplicates detected
+* [ ] DB exact duplicates detected
+* [ ] DB possible duplicates detected
+* [ ] Arabic duplicate normalization verified
+* [ ] Check performs zero writes
+* [ ] Check performs zero D1 sync
+* [ ] Check emits zero mutation events
+* [ ] Check performs zero Gemini calls
+* [ ] Duplicate summary shown before write
+* [ ] Explicit confirmation required
+* [ ] Commit independently rechecks duplicates
+* [ ] Exact duplicates skipped
+* [ ] Possible duplicates skipped
+* [ ] createManyAndReturn support verified
+* [ ] clientKey not persisted
+* [ ] created-ID mapping does not rely unsafely on DB return order
+* [ ] Bulk transaction atomic
+* [ ] Serializable behavior verified
+* [ ] Serialization retry bounded
+* [ ] Retry duplicate safety verified
+* [ ] Existing D1 path proven from repository
+* [ ] PostgreSQL remains canonical
+* [ ] D1 failure semantics verified
+* [ ] Realtime event proven from repository
+* [ ] Event not emitted for check/failure/zero-import
+* [ ] Cache invalidation targeted
+* [ ] No page refresh
+* [ ] Current Lecture preserved
+* [ ] Console section preserved
+* [ ] Review Studio preserved
+* [ ] Imported candidates marked
+* [ ] Duplicate candidates retained
+* [ ] Commit failure preserves edits
+* [ ] Manual MCQ preserved
+* [ ] Manual Flashcard preserved
+* [ ] No Gemini import call
+* [ ] No Prisma migration
+* [ ] No AI metadata persisted
+* [ ] No R2 change
+* [ ] No D1 schema change
+* [ ] No preview persistence
+* [ ] No `.agents/*` changes
+* [ ] Phase 2 tests pass
+* [ ] Phase 3A tests pass
+* [ ] Phase 3B tests pass
+* [ ] Phase 4 tests pass
+* [ ] Phase 5 tests pass
+* [ ] Phase 6A tests pass
+* [ ] Phase 6B tests pass
+* [ ] Auth tests pass
+* [ ] Production build passes
+
+End exactly with:
+
+**PHASE 7 STATUS: IMPLEMENTATION COMPLETE — READY FOR ARCHITECT REVIEW**
+
+Do not begin Phase 8.

@@ -66,7 +66,7 @@ export function createPrismaAIImportRepository(getPrisma: () => any): AIImportRe
               ...(candidate.difficulty ? { difficulty: candidate.difficulty } : {}),
               lectureId,
             }));
-            const clientKeyById = new Map(data.map((row, index) => [row.id, newCandidates[index]!.clientKey]));
+            const clientKeyById = new Map<string, string>(data.map((row, index) => [row.id, newCandidates[index]!.clientKey]));
             const createdRows = data.length
               ? await tx.mcq.createManyAndReturn({ data })
               : [];
@@ -106,7 +106,7 @@ export function createPrismaAIImportRepository(getPrisma: () => any): AIImportRe
               explanation: candidate.explanation.trim(),
               lectureId,
             }));
-            const clientKeyById = new Map(data.map((row, index) => [row.id, newCandidates[index]!.clientKey]));
+            const clientKeyById = new Map<string, string>(data.map((row, index) => [row.id, newCandidates[index]!.clientKey]));
             const createdRows = data.length
               ? await tx.flashcard.createManyAndReturn({ data })
               : [];
