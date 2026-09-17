@@ -1,5 +1,11 @@
 import type { MCQAnswer } from "../contracts.js";
-import type { AIMCQCandidate, MCQDifficulty, MCQSourceEvidence, SkippedMCQSourceItem } from "./contracts.js";
+import type {
+  AIMCQCandidate,
+  MCQAIEngineInput,
+  MCQDifficulty,
+  MCQSourceEvidence,
+  SkippedMCQSourceItem,
+} from "./contracts.js";
 import { MCQ_DIFFICULTIES } from "./contracts.js";
 import { MAX_UNCERTAINTIES } from "./config.js";
 import type {
@@ -22,14 +28,14 @@ function uncertaintiesToWarnings(uncertainties: string[]): string[] {
 
 function sourceWarnings(
   source: MCQSourceEvidence | null | undefined,
-  input: PreparedAIInput,
+  input: PreparedAIInput | MCQAIEngineInput,
 ): { source: MCQSourceEvidence | null; warnings: string[] } {
   return validateMCQSourceEvidence(source, input);
 }
 
 export function normalizeExtractedItems(
   response: MCQExtractionProviderResponse,
-  input: PreparedAIInput,
+  input: PreparedAIInput | MCQAIEngineInput,
   candidateId: () => string,
 ): { items: AIMCQCandidate[]; skippedItems: SkippedMCQSourceItem[] } {
   const skippedItems: SkippedMCQSourceItem[] = response.skippedItems.map((item) => {

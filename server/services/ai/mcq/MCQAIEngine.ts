@@ -16,6 +16,7 @@ import {
   type MCQEngineConfig,
 } from "./config.js";
 import {
+  createMCQEnhancementProviderResponseSchema,
   mcqEnhancementProviderResponseSchema,
   mcqExtractionProviderResponseSchema,
   mcqGenerationProviderResponseSchema,
@@ -138,15 +139,11 @@ export class MCQAIEngine {
     });
     const normalized = normalizeExtractedItems(
       response.data,
-      { input: input.inputKind === "image"
-        ? { kind: "image", images: new Array(input.imageCount ?? 0) }
-        : input.inputKind === "pdf"
-          ? { kind: "pdf", pdf: {} }
-          : { kind: "text", text: {} } } as PreparedAIInput,
+      input,
       this.candidateId,
     );
     let items = applyBatchDuplicateWarnings(normalized.items);
-    let skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
+    const skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
     const warnings = [...response.data.uncertainties.map((value) => `Model uncertainty: ${value}`), ...response.data.items.length > this.config.extractionMaxCount
       ? ["Extraction exceeded the configured maximum and was truncated."]
       : []];
@@ -156,7 +153,6 @@ export class MCQAIEngine {
     const truncated = response.data.truncated || response.data.items.length > this.config.extractionMaxCount;
     items = items.slice(0, this.config.extractionMaxCount);
     if (items.length < normalized.items.length) warnings.push("Extraction candidates were truncated to the configured maximum.");
-    skippedItems = skippedItems;
     return baseResult("extract", items, skippedItems, warnings, response.meta, startedAt, undefined, truncated);
   }
 
@@ -190,6 +186,7 @@ export class MCQAIEngine {
     input: PreparedAIInput,
     options: MCQEnhancementOptions,
   ): Promise<MCQOperationResult> {
+    const startedAt = performance.now();
     const selected = requiredEnhancementOptions(options);
     const extraction = await this.extractExistingMCQs(input);
     const candidates = extraction.items.map((item) => ({ ...item }));
@@ -204,7 +201,7 @@ export class MCQAIEngine {
     if (eligible.length > 0) {
       const response = await this.contentService.generateStructured({
         contents: input.contents,
-        responseSchema: mcqEnhancementProviderResponseSchema,
+        responseSchema: createMCQEnhancementProviderResponseSchema(selected),
         trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
         additionalUntrustedContext: enhancementContext(eligible),
       });
@@ -216,7 +213,7 @@ export class MCQAIEngine {
         extraction.skippedItems,
         warnings,
         provider,
-        performance.now() - (performance.now() - 0),
+        startedAt,
         undefined,
         extraction.truncated,
       );
@@ -231,7 +228,7 @@ export class MCQAIEngine {
       extraction.skippedItems,
       warnings,
       provider,
-      performance.now(),
+      startedAt,
       undefined,
       extraction.truncated,
     );

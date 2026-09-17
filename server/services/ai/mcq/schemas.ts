@@ -99,18 +99,26 @@ export const mcqGenerationProviderResponseSchema = z.object({
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
-export const mcqEnhancementProviderItemSchema = z.object({
-  candidateId: z.string().uuid(),
-  hint: nullableText.optional(),
-  explanation: nullableText.optional(),
-  confidence: z.number().finite().min(0).max(1),
-  uncertainties: providerUncertaintiesSchema,
-}).strict();
+export function createMCQEnhancementProviderResponseSchema(options: {
+  hint: boolean;
+  explanation: boolean;
+}) {
+  return z.object({
+    items: z.array(z.object({
+      candidateId: z.string().uuid(),
+      ...(options.hint ? { hint: nullableText.optional() } : {}),
+      ...(options.explanation ? { explanation: nullableText.optional() } : {}),
+      confidence: z.number().finite().min(0).max(1),
+      uncertainties: providerUncertaintiesSchema,
+    }).strict()).max(100),
+    uncertainties: providerUncertaintiesSchema,
+  }).strict();
+}
 
-export const mcqEnhancementProviderResponseSchema = z.object({
-  items: z.array(mcqEnhancementProviderItemSchema).max(100),
-  uncertainties: providerUncertaintiesSchema,
-}).strict();
+export const mcqEnhancementProviderResponseSchema = createMCQEnhancementProviderResponseSchema({
+  hint: true,
+  explanation: true,
+});
 
 export type MCQExtractionProviderResponse = z.infer<typeof mcqExtractionProviderResponseSchema>;
 export type MCQGenerationProviderResponse = z.infer<typeof mcqGenerationProviderResponseSchema>;
