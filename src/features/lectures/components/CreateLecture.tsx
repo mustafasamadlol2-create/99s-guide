@@ -518,7 +518,13 @@ export default function CreateLecture({
 
  {/* Action Controls — normal document flow so the submit action stays at the end of the form. */}
  {canProceedToLecture && (
- <div className="animate-fadeIn flex justify-end pt-1">
+ <div
+  className="admin-final-action animate-fadeIn flex justify-end pt-1"
+  data-final-ready={Boolean(
+    lectureName.trim() &&
+    (!shouldSchedule || (scheduleDate && scheduleStartTime && scheduleEndTime))
+  )}
+ >
  <button
  type="submit"
  disabled={isSubmitting || !lectureName.trim()}

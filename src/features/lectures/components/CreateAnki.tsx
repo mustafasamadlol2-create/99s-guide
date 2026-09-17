@@ -454,7 +454,13 @@ export default function CreateAnki({ language = "en", onSuccess }: CreateAnkiPro
  
  {/* Act Controls */}
  {selectedLectureId && (
-  <div className="mobile-bottom-action fixed bottom-6 ltr:right-6 rtl:left-6 md:bottom-10 md:ltr:right-10 md:rtl:left-10 z-[100] animate-fadeIn flex justify-end">
+  <div
+   className="admin-final-action mobile-bottom-action fixed bottom-6 ltr:right-6 rtl:left-6 md:bottom-10 md:ltr:right-10 md:rtl:left-10 z-[100] animate-fadeIn flex justify-end"
+   data-final-ready={Boolean(
+     clinicalConcept.trim() &&
+     explanation.trim()
+   )}
+  >
  <button
  type="submit"
  disabled={

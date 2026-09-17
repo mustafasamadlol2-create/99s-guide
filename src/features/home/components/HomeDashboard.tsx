@@ -106,6 +106,12 @@ const StarField = ({
 
     const appShell = document.getElementById("root")?.firstElementChild as HTMLElement | null;
     const mainTabStage = document.getElementById("main-tab-motion-stage");
+    const desktopSidebarMedia = window.matchMedia(
+      "(min-width: 1181px) and (hover: hover) and (pointer: fine)",
+    );
+    const isDesktopSidebarTransition = () =>
+      desktopSidebarMedia.matches &&
+      appShell?.classList.contains("sidebar-animating") === true;
     const shouldPauseForUiTransition = () =>
       mainTabStage?.getAttribute("data-main-tab-transition-active") === "true" ||
       appShell?.classList.contains("sidebar-animating") === true;
@@ -113,6 +119,16 @@ const StarField = ({
     let animationFrameId = 0;
     let width = (canvas.width = canvas.parentElement?.clientWidth || 600);
     let height = (canvas.height = canvas.parentElement?.clientHeight || 260);
+    let deferredDesktopResize: { width: number; height: number } | null = null;
+
+    const applyCanvasSize = (nextWidth: number, nextHeight: number) => {
+      const safeWidth = Math.max(1, Math.round(nextWidth));
+      const safeHeight = Math.max(1, Math.round(nextHeight));
+      if (safeWidth === width && safeHeight === height) return false;
+      width = canvas.width = safeWidth;
+      height = canvas.height = safeHeight;
+      return true;
+    };
 
     // Honour prefers-reduced-motion: draw a single static snapshot then stop
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -175,14 +191,27 @@ const StarField = ({
     }
 
     const resizeObserver = new ResizeObserver((entries) => {
-      if (entries.length > 0) {
-        const rect = entries[0].contentRect;
-        width = canvas.width = rect.width;
-        height = canvas.height = rect.height;
-        // Re-draw static frame on resize when motion is reduced, or during the
-        // sidebar collapse/expand window (keeps stars visible while the rAF
-        // loop is paused so the canvas doesn't flash blank mid-toggle).
-        if (prefersReducedMotion || shouldPauseForUiTransition()) drawStaticFrame();
+      if (entries.length === 0) return;
+
+      const rect = entries[0].contentRect;
+
+      // Desktop Welcome is the only place where sidebar width animation and the
+      // animated star canvas compete. Resizing canvas.width/canvas.height on
+      // every 190 ms sidebar frame clears/reallocates the backing store and
+      // forces an expensive repaint. Keep the current raster stable during the
+      // width glide and apply only the final geometry when the transition ends.
+      // iPad/mobile behaviour is untouched.
+      if (isDesktopSidebarTransition()) {
+        deferredDesktopResize = {
+          width: rect.width,
+          height: rect.height,
+        };
+        return;
+      }
+
+      const resized = applyCanvasSize(rect.width, rect.height);
+      if (resized && (prefersReducedMotion || shouldPauseForUiTransition())) {
+        drawStaticFrame();
       }
     });
     if (canvas.parentElement) {
@@ -243,6 +272,14 @@ const StarField = ({
         lastTimestamp = 0; // reset clock so resuming doesn't fast-forward drift
         animationFrameId = requestAnimationFrame(render);
         return;
+      }
+
+      if (deferredDesktopResize) {
+        applyCanvasSize(
+          deferredDesktopResize.width,
+          deferredDesktopResize.height,
+        );
+        deferredDesktopResize = null;
       }
 
       const elapsed = lastTimestamp === 0 ? 16.67 : Math.min(timestamp - lastTimestamp, 100);

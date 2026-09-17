@@ -1739,7 +1739,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     data-lecture-swipe-back-header="true"
     className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
   >
- <div className="flex items-center gap-3 w-full sm:w-auto -ms-1">
+ <div className="lecture-detail-title-cluster flex items-center gap-3 w-full sm:w-auto -ms-1">
  <motion.button
  type="button"
  onClick={(e) => {

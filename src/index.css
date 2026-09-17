@@ -2558,6 +2558,58 @@ button:not(:disabled):active,
   max-width: 100%;
 }
 
+
+/* Admin creation/upload final action.
+   Phone behaviour is intentionally unchanged. On iPad and desktop/laptop the
+   action belongs to the final completed step in normal document flow, never as
+   a floating overlay over MCQ/Anki fields. It stays hidden until every required
+   field for that form is ready; once submitting starts it remains visible so
+   the spinner/status cannot disappear. */
+.ipad-layout .admin-final-action {
+  position: static !important;
+  inset: auto !important;
+  z-index: auto !important;
+  width: 100% !important;
+  margin-top: 24px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid rgba(120, 120, 128, 0.16);
+  justify-content: flex-end !important;
+}
+
+.ipad-layout .admin-final-action[data-final-ready="false"] {
+  display: none !important;
+}
+
+.ipad-layout .admin-final-action > button {
+  width: auto !important;
+  min-width: 220px;
+  max-width: 100%;
+}
+
+@media (min-width: 1181px) and (hover: hover) and (pointer: fine) {
+  .admin-final-action {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    width: 100% !important;
+    margin-top: 24px !important;
+    padding-top: 20px !important;
+    border-top: 1px solid rgba(120, 120, 128, 0.16);
+    justify-content: flex-end !important;
+  }
+
+  .admin-final-action[data-final-ready="false"] {
+    display: none !important;
+  }
+
+  .admin-final-action > button {
+    width: auto !important;
+    min-width: 230px;
+    max-width: 100%;
+  }
+}
+
+
 .mobile-phone-layout .mobile-dialog-shell {
   align-items: flex-start;
   overflow-y: auto;
@@ -2841,6 +2893,70 @@ button:not(:disabled):active,
       max-width: 100% !important;
       justify-content: center !important;
     }
+  }
+}
+
+
+/* Desktop / laptop lecture header: use the same true six-way segmented
+   geometry that fixed iPad. The old sm:flex + 420px intrinsic bar left a large
+   dead zone and made the labels look undersized on PC. This is desktop-only;
+   iPhone and iPad keep their existing rules above. */
+@media (min-width: 1181px) and (hover: hover) and (pointer: fine) {
+  .lecture-detail-header {
+    gap: 18px !important;
+  }
+
+  .lecture-detail-title-cluster {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+    width: clamp(560px, 47vw, 680px) !important;
+    min-width: clamp(560px, 47vw, 680px) !important;
+    max-width: 680px !important;
+    flex: 0 0 clamp(560px, 47vw, 680px) !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    padding: 4px !important;
+    border-radius: 15px !important;
+    gap: 0 !important;
+  }
+
+  .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    flex: none !important;
+  }
+
+  .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] > [data-lecture-tab-id] > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    height: 100% !important;
+    padding-inline: 10px !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] [data-lecture-tab-label] {
+    width: auto !important;
+    max-width: 100% !important;
+    justify-content: center !important;
+    letter-spacing: -0.012em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  .lecture-detail-view .lecture-tabbar[data-lecture-section-tabs="true"] > [aria-hidden="true"] {
+    top: 4px !important;
+    bottom: 4px !important;
+    border-radius: 12px !important;
   }
 }
 
@@ -3601,6 +3717,33 @@ input:-webkit-autofill:active {
 .sidebar-animating .hero-dot-ping {
   animation-play-state: paused;
 }
+
+
+/* PC/laptop Welcome only: while the sidebar width glides, freeze every
+   decorative hero animation and composite the hero as one stable paint layer.
+   The Modules and other pages are untouched, as are iPad and phone layouts.
+   Combined with the StarField deferred resize this removes the hero/sidebar
+   frame contention visible only on desktop Welcome. */
+@media (min-width: 1181px) and (hover: hover) and (pointer: fine) {
+  .sidebar-animating .home-hero-banner {
+    contain: paint;
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  .sidebar-animating .home-hero-banner *,
+  .sidebar-animating .home-hero-banner *::before,
+  .sidebar-animating .home-hero-banner *::after {
+    animation-play-state: paused !important;
+  }
+
+  .sidebar-animating .home-hero-foreground {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
 
 @keyframes badge-shimmer {
   0%   { transform: translateX(-120%) skewX(-20deg); }

@@ -682,7 +682,13 @@ export default function UploadMaterial({
  {/* Final action — belongs to the last completed material step and stays
      in normal document flow. It must never float over the upload surface. */}
  {selectedLectureId && (type === "VIDEO" ? Boolean(videoUrl.trim()) : Boolean(file)) && (
-  <div className="mt-6 pt-5 border-t border-neutral-200/70 dark:border-white/[0.08] animate-fadeIn flex justify-end">
+  <div
+   className="admin-final-action mt-6 pt-5 border-t border-neutral-200/70 dark:border-white/[0.08] animate-fadeIn flex justify-end"
+   data-final-ready={Boolean(
+     title.trim() &&
+     (type === "VIDEO" ? videoUrl.trim() : file)
+   )}
+  >
  <button
  type="submit"
  disabled={
