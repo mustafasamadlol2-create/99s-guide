@@ -11,6 +11,7 @@ import {
  Search,
  Sparkles,
 } from "lucide-react";
+import { AIImportModeSelector, default as AIImportPanel } from "../ai/components/AIImportPanel";
 
 interface Lecture {
  id: string;
@@ -26,7 +27,7 @@ interface CreateMCQProps {
  onSuccess?: () => void;
 }
 
-export default function CreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
+function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  const isRtl = language === "ar";
 
  const [lectures, setLectures] = useState<Lecture[]>([]);
@@ -666,4 +667,20 @@ export default function CreateMCQ({ language = "en", onSuccess }: CreateMCQProps
  </div>
  </div>
  );
+}
+
+export default function CreateMCQ(props: CreateMCQProps) {
+  const [mode, setMode] = useState<"manual" | "ai">("manual");
+  const language = props.language ?? "en";
+  return (
+    <div className="space-y-1">
+      <AIImportModeSelector language={language} mode={mode} onChange={setMode} />
+      <div hidden={mode !== "manual"}>
+        <ManualCreateMCQ {...props} />
+      </div>
+      <div hidden={mode !== "ai"}>
+        <AIImportPanel language={language} target="mcq" />
+      </div>
+    </div>
+  );
 }

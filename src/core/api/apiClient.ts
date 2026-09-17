@@ -235,8 +235,13 @@ export async function apiClient(
     const actualRetries = isIdempotent ? retries : 0;
 
     for (let attempt = 0; attempt <= actualRetries; attempt++) {
+      if (fetchOptions.signal?.aborted) {
+        throw new DOMException("The request was aborted.", "AbortError");
+      }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const forwardAbort = () => controller.abort();
+      fetchOptions.signal?.addEventListener("abort", forwardAbort, { once: true });
 
       try {
         const response = await fetch(resolvedInput, {
@@ -294,9 +299,15 @@ export async function apiClient(
           invalidateRelatedCache(method, url);
         }
 
+        fetchOptions.signal?.removeEventListener("abort", forwardAbort);
         return response;
       } catch (error: any) {
         clearTimeout(timeoutId);
+        fetchOptions.signal?.removeEventListener("abort", forwardAbort);
+
+        if (fetchOptions.signal?.aborted) {
+          throw new DOMException("The request was aborted.", "AbortError");
+        }
 
         if (error.status && error.status < 500) {
           lastError = error;

@@ -10,6 +10,7 @@ import {
  Layers,
  Search, HelpCircle,
 } from "lucide-react";
+import { AIImportModeSelector, default as AIImportPanel } from "../ai/components/AIImportPanel";
 
 interface Lecture {
  id: string;
@@ -25,7 +26,7 @@ interface CreateAnkiProps {
  onSuccess?: () => void;
 }
 
-export default function CreateAnki({ language = "en", onSuccess }: CreateAnkiProps) {
+function ManualCreateAnki({ language = "en", onSuccess }: CreateAnkiProps) {
  const isRtl = language === "ar";
 
  const [lectures, setLectures] = useState<Lecture[]>([]);
@@ -494,4 +495,20 @@ export default function CreateAnki({ language = "en", onSuccess }: CreateAnkiPro
  </div>
  </div>
  );
+}
+
+export default function CreateAnki(props: CreateAnkiProps) {
+  const [mode, setMode] = useState<"manual" | "ai">("manual");
+  const language = props.language ?? "en";
+  return (
+    <div className="space-y-1">
+      <AIImportModeSelector language={language} mode={mode} onChange={setMode} />
+      <div hidden={mode !== "manual"}>
+        <ManualCreateAnki {...props} />
+      </div>
+      <div hidden={mode !== "ai"}>
+        <AIImportPanel language={language} target="flashcard" />
+      </div>
+    </div>
+  );
 }
