@@ -6,6 +6,11 @@ export const AI_ERROR_CODES = [
   "AI_INVALID_RESPONSE",
   "AI_VALIDATION_ERROR",
   "AI_UNAVAILABLE",
+  "AI_INPUT_INVALID",
+  "AI_INPUT_TOO_LARGE",
+  "AI_INPUT_UNSUPPORTED",
+  "AI_INPUT_STAGE_FAILED",
+  "AI_INPUT_CLEANUP_FAILED",
 ] as const;
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number];

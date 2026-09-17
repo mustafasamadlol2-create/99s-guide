@@ -7,10 +7,11 @@ import type {
 } from "./contracts.js";
 import { getGeminiConfig, type GeminiConfig } from "./config.js";
 import { AIServiceError, isAIServiceError } from "./errors.js";
+import type { AITextPart } from "./input/contracts.js";
 
 interface GeminiGenerateContentParameters {
   model: string;
-  contents: string;
+  contents: unknown;
   config?: {
     abortSignal?: AbortSignal;
     systemInstruction?: string;
@@ -31,6 +32,22 @@ export interface GeminiClient {
       parameters: GeminiGenerateContentParameters,
     ): Promise<GeminiGenerateContentResponse>;
   };
+}
+
+function toGeminiTextContents(requestContents: StructuredGenerationRequest<unknown>["contents"]): unknown {
+  const textParts = requestContents.filter(
+    (part): part is AITextPart => part.kind === "text",
+  );
+  if (textParts.length === 0 || textParts.length !== requestContents.length) {
+    throw new AIServiceError("AI_INPUT_UNSUPPORTED", {
+      publicMessage: "Binary AI transport is not available yet.",
+      diagnosticMessage: "Phase 3A does not convert staged files into Gemini media parts.",
+    });
+  }
+  return [{
+    role: "user",
+    parts: textParts.map((part) => ({ text: part.text })),
+  }];
 }
 
 const GEMINI_JSON_SCHEMA_KEYWORDS = new Set([
@@ -171,7 +188,7 @@ export class GeminiProvider implements AIProvider {
     try {
       const response = await this.client.models.generateContent({
         model: this.config.model,
-        contents: request.sourceContent,
+        contents: toGeminiTextContents(request.contents),
         config: {
           abortSignal: bounded.signal,
           systemInstruction: request.trustedSystemInstruction,

@@ -1,4 +1,5 @@
 import type { ZodType } from "zod";
+import type { AIContentPart } from "./input/contracts.js";
 
 export const AI_OPERATIONS = ["extract", "generate", "enhance"] as const;
 export const AI_CONTENT_TARGETS = ["mcq", "flashcard"] as const;
@@ -19,7 +20,7 @@ export interface StructuredGenerationRequest<T> {
    * Untrusted uploaded or submitted source material. It is always model content,
    * never a system instruction and never an authority to perform actions.
    */
-  sourceContent: string;
+  contents: AIContentPart[];
   responseSchema: ZodType<T>;
   /** Trusted, application-authored instruction. Never populate from source material. */
   trustedSystemInstruction?: string;

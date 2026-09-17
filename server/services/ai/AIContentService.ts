@@ -1,4 +1,6 @@
 import type { AIProvider, SafeProviderMetadata } from "./contracts.js";
+import type { AIContentPart } from "./input/contracts.js";
+import { aiContentPartSchema } from "./input/schemas.js";
 import { AIServiceError, isAIServiceError } from "./errors.js";
 import {
   aiFlashcardCandidateBatchSchema,
@@ -10,8 +12,8 @@ import {
 } from "./schemas.js";
 
 export type AIContentExecutionRequest = AIRequestEnvelope & {
-  /** Untrusted source data. This must never be promoted to a system instruction. */
-  sourceContent: string;
+  /** Untrusted, normalized source parts. These never become system instructions. */
+  contents: AIContentPart[];
   /** Optional trusted instruction authored by application code, not by an upload. */
   trustedSystemInstruction?: string;
   timeoutMs?: number;
@@ -23,28 +25,49 @@ export class AIContentService {
 
   async processContent(request: AIContentExecutionRequest): Promise<AIResponseEnvelope> {
     const {
-      sourceContent,
+      contents,
       trustedSystemInstruction,
       timeoutMs,
       signal,
       ...envelope
     } = request;
-    if (!sourceContent.trim()) {
+    if (!Array.isArray(contents) || contents.length === 0) {
       throw new AIServiceError("AI_VALIDATION_ERROR", {
         publicMessage: "AI source content cannot be empty.",
-        diagnosticMessage: "AIContentService received empty contents.",
+        diagnosticMessage: "AIContentService received no content parts.",
       });
     }
     const startedAt = performance.now();
 
     try {
       const validatedEnvelope = aiRequestEnvelopeSchema.parse(envelope);
+      const validatedContents: AIContentPart[] = contents.map(
+        (part) => aiContentPartSchema.parse(part) as AIContentPart,
+      );
+      const contentMatchesMode =
+        (validatedEnvelope.inputKind === "text" &&
+          validatedContents.length === 1 &&
+          validatedContents[0]?.kind === "text") ||
+        (validatedEnvelope.inputKind === "pdf" &&
+          validatedContents.length === 1 &&
+          validatedContents[0]?.kind === "file" &&
+          validatedContents[0].inputType === "pdf") ||
+        (validatedEnvelope.inputKind === "image" &&
+          validatedContents.every(
+            (part) => part.kind === "file" && part.inputType === "image",
+          ));
+      if (!contentMatchesMode) {
+        throw new AIServiceError("AI_INPUT_INVALID", {
+          publicMessage: "AI source content does not match the selected input mode.",
+          diagnosticMessage: "Content-part kinds contradicted the request inputKind.",
+        });
+      }
       let items: unknown[];
       let warnings: string[];
       let provider: SafeProviderMetadata;
       if (validatedEnvelope.target === "mcq") {
         const result = await this.provider.generateStructured({
-          sourceContent,
+          contents: validatedContents,
           responseSchema: aiMcqCandidateBatchSchema,
           trustedSystemInstruction,
           timeoutMs,
@@ -54,7 +77,7 @@ export class AIContentService {
         provider = result.meta;
       } else {
         const result = await this.provider.generateStructured({
-          sourceContent,
+          contents: validatedContents,
           responseSchema: aiFlashcardCandidateBatchSchema,
           trustedSystemInstruction,
           timeoutMs,

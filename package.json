@@ -14,6 +14,7 @@
     "clean": "node scripts/clean.cjs",
     "test:auth": "tsx --test tests/oauth-state.test.ts",
     "test:ai": "tsx --test tests/ai-foundation.test.ts",
+    "test:ai-input": "tsx --test tests/ai-input.test.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --allowSyntheticDefaultImports server/services/ai/input/*.ts tests/ai-input-contracts.type-test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-contracts.cjs",

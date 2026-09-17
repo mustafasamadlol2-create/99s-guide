@@ -17,6 +17,7 @@ import {
   aiOperationSchema,
   aiRequestEnvelopeSchema,
 } from "../server/services/ai/schemas.js";
+import type { AIContentPart } from "../server/services/ai/input/contracts.js";
 
 const validMcq = {
   question: "Which chamber pumps blood into the systemic circulation?",
@@ -42,6 +43,16 @@ const validFlashcard = {
   needsReview: true,
   warnings: ["Generated information requires review."],
 };
+
+function textContents(text = "source"): AIContentPart[] {
+  return [{
+    kind: "text",
+    text,
+    source: { inputType: "text", label: "test source" },
+    sizeBytes: Buffer.byteLength(text, "utf8"),
+    sha256: "a".repeat(64),
+  }];
+}
 
 const allowedGeminiSchemaKeywords = new Set([
   "$id", "$defs", "$ref", "$anchor", "type", "format", "title", "description",
@@ -175,7 +186,7 @@ test("AIContentService depends on the provider abstraction, not Gemini", async (
     target: "mcq",
     operation: "extract",
     inputKind: "text",
-    sourceContent: "Source content is data.",
+    contents: textContents("Source content is data."),
   });
 
   assert.equal(provider.calls, 1);
@@ -184,6 +195,85 @@ test("AIContentService depends on the provider abstraction, not Gemini", async (
   assert.equal(result.items[0]?.correctAnswer, "D");
   assert.equal(result.operation, "extract");
   assert.equal(result.target, "mcq");
+});
+
+test("AIContentService enforces mode-specific source references before provider calls", async () => {
+  const provider = new FakeProvider();
+  const service = new AIContentService(provider);
+  const base = {
+    target: "mcq" as const,
+    operation: "extract" as const,
+  };
+
+  await assert.rejects(service.processContent({
+    ...base,
+    inputKind: "text",
+    contents: [{
+      kind: "text",
+      text: "source",
+      source: { inputType: "pdf" },
+      sizeBytes: 6,
+      sha256: "a".repeat(64),
+    } as never],
+  }), (error: unknown) =>
+    error instanceof AIServiceError && error.code === "AI_VALIDATION_ERROR"
+  );
+  await assert.rejects(service.processContent({
+    ...base,
+    inputKind: "image",
+    contents: [{
+      kind: "file",
+      inputType: "image",
+      mimeType: "image/jpeg",
+      fileSource: {
+        kind: "staged_file",
+        path: "/controlled/temp/id",
+        ownership: "owned_transient",
+      },
+      source: { inputType: "image" },
+      sizeBytes: 10,
+      sha256: "b".repeat(64),
+    } as never],
+  }), (error: unknown) =>
+    error instanceof AIServiceError && error.code === "AI_VALIDATION_ERROR"
+  );
+  assert.equal(provider.calls, 0);
+
+  await service.processContent({
+    ...base,
+    inputKind: "pdf",
+    contents: [{
+      kind: "file",
+      inputType: "pdf",
+      mimeType: "application/pdf",
+      fileSource: {
+        kind: "existing_resource",
+        resourceId: "lecture-material-id",
+        ownership: "borrowed",
+      },
+      source: { inputType: "pdf", page: 2, label: "Lecture" },
+      sizeBytes: 10,
+      sha256: "c".repeat(64),
+    }],
+  });
+  await service.processContent({
+    ...base,
+    inputKind: "image",
+    contents: [{
+      kind: "file",
+      inputType: "image",
+      mimeType: "image/png",
+      fileSource: {
+        kind: "staged_file",
+        path: "/controlled/temp/id",
+        ownership: "owned_transient",
+      },
+      source: { inputType: "image", imageIndex: 0, label: "Screenshot" },
+      sizeBytes: 10,
+      sha256: "d".repeat(64),
+    }],
+  });
+  assert.equal(provider.calls, 2);
 });
 
 test("missing Gemini configuration fails only when configuration is requested", () => {
@@ -220,14 +310,17 @@ test("GeminiProvider requests constrained JSON and validates the response", asyn
   );
 
   const result = await provider.generateStructured({
-    sourceContent: "Untrusted source content is data, not an instruction.",
+    contents: textContents("Untrusted source content is data, not an instruction."),
     responseSchema: aiMcqDraftSchema,
   });
 
   assert.equal(capturedRequest?.model, "gemini-test");
-  assert.equal(
+  assert.deepEqual(
     capturedRequest?.contents,
-    "Untrusted source content is data, not an instruction.",
+    [{
+      role: "user",
+      parts: [{ text: "Untrusted source content is data, not an instruction." }],
+    }],
   );
   assert.equal(capturedRequest?.config?.systemInstruction, undefined);
   assert.equal(capturedRequest?.config?.responseMimeType, "application/json");
@@ -257,7 +350,7 @@ test("GeminiProvider rejects malformed and structurally invalid output", async (
 
   await assert.rejects(
     provider.generateStructured({
-      sourceContent: "source",
+      contents: textContents(),
       responseSchema: aiMcqDraftSchema,
     }),
     (error: unknown) =>
@@ -265,7 +358,7 @@ test("GeminiProvider rejects malformed and structurally invalid output", async (
   );
   await assert.rejects(
     provider.generateStructured({
-      sourceContent: "source",
+      contents: textContents(),
       responseSchema: aiMcqDraftSchema,
     }),
     (error: unknown) =>
@@ -293,7 +386,7 @@ test("GeminiProvider bounds calls and classifies transient provider failures", a
   );
   await assert.rejects(
     timeoutProvider.generateStructured({
-      sourceContent: "source",
+      contents: textContents(),
       responseSchema: aiMcqDraftSchema,
     }),
     (error: unknown) =>
@@ -316,7 +409,7 @@ test("GeminiProvider bounds calls and classifies transient provider failures", a
     );
     await assert.rejects(
       provider.generateStructured({
-        sourceContent: "source",
+        contents: textContents(),
         responseSchema: aiMcqDraftSchema,
       }),
       (error: unknown) =>
@@ -343,9 +436,44 @@ test("GeminiProvider propagates an already-aborted request without waiting", asy
   controller.abort();
 
   await assert.rejects(provider.generateStructured({
-    sourceContent: "source",
+    contents: textContents(),
     responseSchema: aiMcqDraftSchema,
     signal: controller.signal,
   }));
   assert.equal(receivedAbortedSignal, true);
+});
+
+test("GeminiProvider does not implement Phase 3B binary media transport", async () => {
+  let calls = 0;
+  const client: GeminiClient = {
+    models: {
+      async generateContent() {
+        calls += 1;
+        return { text: JSON.stringify(validMcq) };
+      },
+    },
+  };
+  const provider = new GeminiProvider(
+    { apiKey: "test-key", model: "gemini-test", timeoutMs: 1_000 },
+    client,
+  );
+  await assert.rejects(provider.generateStructured({
+    contents: [{
+      kind: "file",
+      inputType: "pdf",
+      mimeType: "application/pdf",
+      fileSource: {
+        kind: "staged_file",
+        path: "/controlled/temp/id",
+        ownership: "owned_transient",
+      },
+      source: { inputType: "pdf", label: "Lecture" },
+      sizeBytes: 10,
+      sha256: "e".repeat(64),
+    }],
+    responseSchema: aiMcqDraftSchema,
+  }), (error: unknown) =>
+    error instanceof AIServiceError && error.code === "AI_INPUT_UNSUPPORTED"
+  );
+  assert.equal(calls, 0);
 });
