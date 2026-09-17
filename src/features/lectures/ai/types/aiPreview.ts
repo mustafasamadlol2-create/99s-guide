@@ -156,6 +156,7 @@ export interface LocalMCQCandidate {
   selected: boolean;
   edited: boolean;
   localValidation: LocalValidation;
+  importStatus?: "imported" | "exact_duplicate" | "possible_duplicate";
 }
 
 export interface LocalFlashcardCandidate {
@@ -164,4 +165,63 @@ export interface LocalFlashcardCandidate {
   selected: boolean;
   edited: boolean;
   localValidation: LocalValidation;
+  importStatus?: "imported" | "exact_duplicate" | "possible_duplicate";
+}
+
+export interface AIImportMCQCandidate {
+  clientKey: string;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: MCQAnswer;
+  hint: string | null;
+  explanation: string | null;
+  difficulty: "Easy" | "Medium" | "Hard" | null;
+}
+
+export interface AIImportFlashcardCandidate {
+  clientKey: string;
+  clinicalConcept: string;
+  explanation: string;
+}
+
+export interface AIImportDecision {
+  clientKey: string;
+  status: "new" | "exact_duplicate" | "possible_duplicate";
+  duplicateScope?: "batch" | "existing";
+  similarity?: number;
+  matchedPreview?: string;
+}
+
+export interface AIImportCheckResponse {
+  requestId: string;
+  target: AIPreviewTarget;
+  lecture: { id: string; name: string };
+  summary: {
+    submittedCount: number;
+    newCount: number;
+    exactDuplicateCount: number;
+    possibleDuplicateCount: number;
+  };
+  items: AIImportDecision[];
+}
+
+export interface AIImportCommitResponse {
+  requestId: string;
+  target: AIPreviewTarget;
+  lecture: { id: string; name: string };
+  summary: {
+    submittedCount: number;
+    importedCount: number;
+    exactDuplicateSkipped: number;
+    possibleDuplicateSkipped: number;
+  };
+  items: Array<{
+    clientKey: string;
+    status: "imported" | "exact_duplicate" | "possible_duplicate";
+    createdId?: string;
+  }>;
+  sync: { status: "completed" | "pending"; warning?: string };
 }

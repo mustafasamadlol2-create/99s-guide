@@ -91,7 +91,12 @@ export function clearApiCache(pattern?: string): void {
 }
 
 function invalidateRelatedCache(method: string, url: string): void {
-  if (url.includes("/api/lectures")) {
+  if (url.includes("/api/admin/ai/mcq/import") || url.includes("/api/admin/ai/flashcards/import")) {
+    // AI imports mutate lecture academic content without replacing the current
+    // route. Keep the invalidation scoped to content-bearing lecture caches.
+    ApiCache.invalidate("/api/lectures");
+    ApiCache.invalidate("/api/materials");
+  } else if (url.includes("/api/lectures")) {
     ApiCache.invalidate("/api/lectures");
     ApiCache.invalidate("/api/subjects");
   } else if (url.includes("/api/materials")) {

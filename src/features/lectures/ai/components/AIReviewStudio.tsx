@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Language } from "../../../../core/i18n/translations";
 import { aiText } from "../i18n";
+import { requestAIImportCheck, requestAIImportCommit, type AIImportCandidate } from "../api/importApi";
 import {
   validateFlashcardCandidate,
   validateMCQCandidate,
@@ -295,6 +296,11 @@ export function AIReviewStudio({
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [lastRemoved, setLastRemoved] = useState<LocalMCQCandidate | LocalFlashcardCandidate | null>(null);
+  const [importCheck, setImportCheck] = useState<import("../types/aiPreview").AIImportCheckResponse | null>(null);
+  const [importPayload, setImportPayload] = useState<AIImportCandidate[] | null>(null);
+  const [importResult, setImportResult] = useState<import("../types/aiPreview").AIImportCommitResponse | null>(null);
+  const [importBusy, setImportBusy] = useState<"check" | "commit" | null>(null);
+  const [importError, setImportError] = useState("");
 
   useEffect(() => {
     if (target === "mcq") {
@@ -311,10 +317,15 @@ export function AIReviewStudio({
     setFilter("all");
     setSearch("");
     setLastRemoved(null);
+    setImportCheck(null);
+    setImportPayload(null);
+    setImportResult(null);
+    setImportBusy(null);
+    setImportError("");
   }, [response, target]);
 
   const candidates = target === "mcq" ? mcqs : flashcards;
-  const selectedCount = candidates.filter((item) => item.selected).length;
+  const selectedCount = candidates.filter((item) => item.selected && !item.importStatus).length;
   const readyCount = candidates.filter((item) => item.localValidation.ready).length;
   const reviewCount = candidates.length - readyCount;
 
@@ -340,7 +351,7 @@ export function AIReviewStudio({
   const updateCandidate = (next: AIMCQCandidate | AIFlashcardCandidate) => {
     if (target === "mcq") {
       setMcqs((items) => items.map((item) => {
-        if (item.draft.candidateId !== next.candidateId) return item;
+        if (item.draft.candidateId !== next.candidateId || item.importStatus || importCheck) return item;
         const draft = next as AIMCQCandidate;
         return {
           ...item,
@@ -352,7 +363,7 @@ export function AIReviewStudio({
       }));
     } else {
       setFlashcards((items) => items.map((item) => {
-        if (item.draft.candidateId !== next.candidateId) return item;
+        if (item.draft.candidateId !== next.candidateId || item.importStatus || importCheck) return item;
         const draft = next as AIFlashcardCandidate;
         return {
           ...item,
@@ -366,6 +377,7 @@ export function AIReviewStudio({
   };
 
   const toggleSelection = (id: string) => {
+    if (importBusy || importCheck) return;
     if (target === "mcq") {
       setMcqs((items) => items.map((item) => item.draft.candidateId === id && item.localValidation.ready
         ? { ...item, selected: !item.selected }
@@ -378,16 +390,19 @@ export function AIReviewStudio({
   };
 
   const selectAllReady = () => {
-    if (target === "mcq") setMcqs((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready })));
-    else setFlashcards((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready })));
+    if (importBusy || importCheck) return;
+    if (target === "mcq") setMcqs((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready && !item.importStatus })));
+    else setFlashcards((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready && !item.importStatus })));
   };
 
   const clearSelection = () => {
+    if (importBusy || importCheck) return;
     if (target === "mcq") setMcqs((items) => items.map((item) => ({ ...item, selected: false })));
     else setFlashcards((items) => items.map((item) => ({ ...item, selected: false })));
   };
 
   const removeCandidate = (id: string) => {
+    if (importBusy || importCheck) return;
     if (target === "mcq") {
       const item = mcqs.find((candidate) => candidate.draft.candidateId === id);
       if (item) setLastRemoved(item);
@@ -411,13 +426,115 @@ export function AIReviewStudio({
   };
 
   const resetCandidate = () => {
-    if (!active) return;
+    if (!active || active.importStatus || importCheck) return;
     if (target === "mcq") {
       const item = active as LocalMCQCandidate;
       updateCandidate({ ...item.original, warnings: [...item.original.warnings] });
     } else {
       const item = active as LocalFlashcardCandidate;
       updateCandidate({ ...item.original, warnings: [...item.original.warnings] });
+    }
+  };
+
+  const importLabel = (key: "import" | "checking" | "confirm" | "cancel" | "imported" | "exact" | "possible" | "saved") => {
+    const arabic: Record<typeof key, string> = {
+      import: "استيراد المحدد",
+      checking: "جارٍ تحليل التكرار…",
+      confirm: "تأكيد الاستيراد",
+      cancel: "إلغاء",
+      imported: "تم الاستيراد",
+      exact: "تكرار مطابق",
+      possible: "تكرار محتمل",
+      saved: "تم الحفظ بنجاح",
+    };
+    const english: Record<typeof key, string> = {
+      import: "Import Selected",
+      checking: "Checking duplicates…",
+      confirm: "Confirm Import",
+      cancel: "Cancel",
+      imported: "Imported",
+      exact: "Exact duplicate",
+      possible: "Possible duplicate",
+      saved: "Saved successfully",
+    };
+    return language === "ar" ? arabic[key] : english[key];
+  };
+
+  const buildImportPayload = (): AIImportCandidate[] => {
+    if (target === "mcq") {
+      return mcqs
+        .filter((item) => item.selected && item.localValidation.ready && !item.importStatus)
+        .map(({ draft }) => ({
+          clientKey: draft.candidateId,
+          question: draft.question,
+          optionA: draft.optionA,
+          optionB: draft.optionB,
+          optionC: draft.optionC,
+          optionD: draft.optionD,
+          correctAnswer: draft.correctAnswer!,
+          hint: draft.hint,
+          explanation: draft.explanation,
+          difficulty: draft.difficulty,
+        }));
+    }
+    return flashcards
+      .filter((item) => item.selected && item.localValidation.ready && !item.importStatus)
+      .map(({ draft }) => ({
+        clientKey: draft.candidateId,
+        clinicalConcept: draft.clinicalConcept,
+        explanation: draft.explanation!,
+      }));
+  };
+
+  const handleImportSelected = async () => {
+    if (importBusy || selectedCount === 0) return;
+    const payload = buildImportPayload();
+    if (payload.length === 0) return;
+    setImportBusy("check");
+    setImportError("");
+    try {
+      const checked = await requestAIImportCheck(target, response.lecture.id, payload);
+      setImportPayload(payload);
+      setImportCheck(checked);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Import check failed.");
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
+  const cancelImport = () => {
+    if (importBusy) return;
+    setImportCheck(null);
+    setImportPayload(null);
+    setImportError("");
+  };
+
+  const confirmImport = async () => {
+    if (!importPayload || !importCheck || importBusy || importCheck.summary.newCount === 0) return;
+    setImportBusy("commit");
+    setImportError("");
+    try {
+      const result = await requestAIImportCommit(target, response.lecture.id, importPayload);
+      setImportResult(result);
+      const statuses = new Map(result.items.map((item) => [item.clientKey, item.status]));
+      if (target === "mcq") {
+        setMcqs((items) => items.map((item) => {
+          const status = statuses.get(item.draft.candidateId);
+          return status ? { ...item, selected: false, importStatus: status } : item;
+        }));
+      } else {
+        setFlashcards((items) => items.map((item) => {
+          const status = statuses.get(item.draft.candidateId);
+          return status ? { ...item, selected: false, importStatus: status } : item;
+        }));
+      }
+      setImportCheck(null);
+      setImportPayload(null);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Import failed. No review items were changed.");
+    } finally {
+      setImportBusy(null);
     }
   };
 
@@ -436,7 +553,7 @@ export function AIReviewStudio({
           <div>
             <p className="font-semibold text-emerald-900 dark:text-emerald-200">{aiText(language, "previewOnly")}</p>
             <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-200/80">
-              {response.lecture.name} · {response.requestId.slice(0, 8)}
+              {language === "ar" ? "راجع المحتوى ثم استورد العناصر المحددة" : "Review content, then import selected items"} · {response.lecture.name} · {response.requestId.slice(0, 8)}
             </p>
           </div>
         </div>
@@ -505,9 +622,14 @@ export function AIReviewStudio({
               return (
                 <div key={item.draft.candidateId} className={`rounded-lg border transition ${activeId === item.draft.candidateId ? "border-rose-400 bg-rose-50/60 dark:border-rose-400/60 dark:bg-rose-400/[0.08]" : "border-neutral-200/80 dark:border-white/[0.08]"}`}>
                   <div className="flex items-start gap-2 p-2.5">
-                    <input type="checkbox" aria-label={`${aiText(language, "selected")} ${index + 1}`} checked={item.selected} disabled={!item.localValidation.ready} onChange={() => toggleSelection(item.draft.candidateId)} className="mt-1 h-4 w-4 accent-rose-500" />
+                    <input type="checkbox" aria-label={`${aiText(language, "selected")} ${index + 1}`} checked={item.selected} disabled={!item.localValidation.ready || Boolean(item.importStatus) || Boolean(importBusy)} onChange={() => toggleSelection(item.draft.candidateId)} className="mt-1 h-4 w-4 accent-rose-500" />
                     <button type="button" onClick={() => setActiveId(item.draft.candidateId)} className="min-w-0 flex-1 text-start">
-                      <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400"><span>{index + 1}</span><span className={item.localValidation.ready ? "text-emerald-600 dark:text-emerald-300" : "text-amber-600 dark:text-amber-300"}>{item.localValidation.ready ? aiText(language, "ready") : aiText(language, "needsReview")}</span></div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+                        <span>{index + 1}</span>
+                        <span className={item.importStatus === "imported" ? "text-emerald-600 dark:text-emerald-300" : item.importStatus ? "text-amber-600 dark:text-amber-300" : item.localValidation.ready ? "text-emerald-600 dark:text-emerald-300" : "text-amber-600 dark:text-amber-300"}>
+                          {item.importStatus === "imported" ? importLabel("imported") : item.importStatus === "exact_duplicate" ? importLabel("exact") : item.importStatus === "possible_duplicate" ? importLabel("possible") : item.localValidation.ready ? aiText(language, "ready") : aiText(language, "needsReview")}
+                        </span>
+                      </div>
                       <p className="line-clamp-3 text-sm font-medium text-neutral-800 dark:text-neutral-100">{title || "—"}</p>
                     </button>
                   </div>
@@ -525,12 +647,13 @@ export function AIReviewStudio({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{active.draft.candidateId.slice(0, 8)}</span>
                       {active.edited && <span className="rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">{aiText(language, "edited")}</span>}
+                      {active.importStatus && <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${active.importStatus === "imported" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"}`}>{active.importStatus === "imported" ? importLabel("imported") : active.importStatus === "exact_duplicate" ? importLabel("exact") : importLabel("possible")}</span>}
                     </div>
                     <CandidateMeta language={language} candidate={active.draft} validation={active.localValidation} />
                   </div>
                   <div className="flex gap-1">
                     {active.edited && <button type="button" onClick={resetCandidate} title={aiText(language, "reset")} aria-label={aiText(language, "reset")} className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/[0.08]"><RotateCcw className="h-4 w-4" /></button>}
-                    <button type="button" onClick={() => removeCandidate(active.draft.candidateId)} title={aiText(language, "reject")} aria-label={aiText(language, "reject")} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-400/10"><Trash2 className="h-4 w-4" /></button>
+                    {!active.importStatus && <button type="button" onClick={() => removeCandidate(active.draft.candidateId)} title={aiText(language, "reject")} aria-label={aiText(language, "reject")} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-400/10"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 </div>
                 <WarningBlock language={language} warnings={active.draft.warnings} errors={active.localValidation.errors} />
@@ -564,9 +687,68 @@ export function AIReviewStudio({
         </details>
       )}
 
+      {importError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-400/20 dark:bg-rose-400/[0.07] dark:text-rose-200">
+          {importError}
+        </div>
+      )}
+
+      {importResult && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-400/[0.07] dark:text-emerald-200">
+          <p className="font-semibold">{importLabel("saved")}</p>
+          <p className="mt-1">
+            {language === "ar"
+              ? `تم استيراد ${importResult.summary.importedCount} ${target === "mcq" ? "سؤالاً" : "بطاقة"} وتخطي ${importResult.summary.exactDuplicateSkipped + importResult.summary.possibleDuplicateSkipped} مكررات.`
+              : `Imported ${importResult.summary.importedCount} ${target === "mcq" ? "MCQs" : "flashcards"}; skipped ${importResult.summary.exactDuplicateSkipped + importResult.summary.possibleDuplicateSkipped} duplicates.`}
+          </p>
+          {importResult.sync.warning && <p className="mt-2 text-xs">{importResult.sync.warning}</p>}
+        </div>
+      )}
+
+      {importCheck && (
+        <section className="space-y-3 rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-400/20 dark:bg-rose-400/[0.07]">
+          <div>
+            <h3 className="font-semibold text-neutral-900 dark:text-white">{language === "ar" ? "جاهز للاستيراد" : "Ready to import"}</h3>
+            <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">
+              {importCheck.summary.newCount} {language === "ar" ? "جديد" : "new"} · {importCheck.summary.exactDuplicateCount + importCheck.summary.possibleDuplicateCount} {language === "ar" ? "سيتم تخطيه" : "duplicates will be skipped"}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              [language === "ar" ? "المحدد" : "Selected", importCheck.summary.submittedCount],
+              [language === "ar" ? "جديد" : "New", importCheck.summary.newCount],
+              [language === "ar" ? "تكرار مطابق" : "Exact duplicates", importCheck.summary.exactDuplicateCount],
+              [language === "ar" ? "تكرار محتمل" : "Possible duplicates", importCheck.summary.possibleDuplicateCount],
+            ].map(([label, count]) => <div key={String(label)} className="rounded-lg bg-white/80 p-2.5 dark:bg-white/[0.06]"><div className="text-lg font-semibold text-neutral-900 dark:text-white">{count}</div><div className="text-[11px] text-neutral-600 dark:text-neutral-300">{label}</div></div>)}
+          </div>
+          {(importCheck.summary.exactDuplicateCount > 0 || importCheck.summary.possibleDuplicateCount > 0) && (
+            <details className="rounded-lg bg-white/70 p-3 text-xs dark:bg-white/[0.05]">
+              <summary className="cursor-pointer font-semibold text-neutral-800 dark:text-neutral-100">{language === "ar" ? "عرض تفاصيل المكررات" : "Review duplicate details"}</summary>
+              <div className="mt-2 max-h-48 space-y-2 overflow-auto">
+                {importCheck.items.filter((item) => item.status !== "new").map((item) => (
+                  <div key={item.clientKey} className="rounded-md border border-neutral-200/70 p-2 dark:border-white/[0.08]">
+                    <div className="font-semibold">{item.status === "exact_duplicate" ? importLabel("exact") : importLabel("possible")} · {item.duplicateScope}</div>
+                    {item.matchedPreview && <div className="mt-1 text-neutral-600 dark:text-neutral-300">{item.matchedPreview}</div>}
+                    {item.similarity !== undefined && <div className="mt-1 text-neutral-500">{Math.round(item.similarity * 100)}%</div>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+          {importCheck.summary.newCount === 0 && <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{language === "ar" ? "تبدو جميع العناصر المحددة موجودة في هذه المحاضرة." : "All selected items already appear to exist in this Lecture."}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={cancelImport} disabled={Boolean(importBusy)} className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-semibold text-neutral-700 dark:border-white/[0.14] dark:text-neutral-200">{importLabel("cancel")}</button>
+            <button type="button" onClick={() => void confirmImport()} disabled={Boolean(importBusy) || importCheck.summary.newCount === 0} className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{importBusy === "commit" ? importLabel("checking") : importLabel("confirm")}</button>
+          </div>
+        </section>
+      )}
+
       <div className="flex flex-col gap-1 border-t border-neutral-200/70 pt-3 text-sm text-neutral-600 dark:border-white/[0.08] dark:text-neutral-300 sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-semibold">{selectedCount} {aiText(language, "selectedForImport")}</span>
-        <span className="text-xs">{aiText(language, "previewOnly")}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">{selectedCount} {aiText(language, "selectedForImport")}</span>
+          <button type="button" onClick={() => void handleImportSelected()} disabled={selectedCount === 0 || Boolean(importBusy) || Boolean(importCheck)} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{importBusy === "check" ? importLabel("checking") : importLabel("import")}</button>
+        </div>
+        <span className="text-xs">{language === "ar" ? "تبقى العناصر المستوردة ظاهرة للمراجعة" : "Imported items remain visible for review"}</span>
       </div>
     </section>
   );

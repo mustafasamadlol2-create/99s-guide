@@ -59,6 +59,8 @@ import { requestLogger } from "./server/middleware/requestLogger.js";
 import { buildOAuthPendingQuery, isOAuthStateBound, isValidPkceCodeChallenge, parseOAuthState } from "./server/services/oauthState.js";
 import { getRevokedSessionKey, isRevocationActive } from "./server/services/sessionRevocation.js";
 import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
+import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
+import { AIImportService, createPrismaAIImportRepository } from "./server/services/ai/import/index.js";
 import {
   buildMaterialStoragePath,
   createSupabaseSignedUrl,
@@ -6096,6 +6098,26 @@ app.use("/api/admin/ai", createAIAdminRouter({
       return lecture ? { id: lecture.id, name: lecture.name } : null;
     },
   },
+}));
+
+app.use("/api/admin/ai", createAIImportRouter({
+  requireAdmin,
+  service: new AIImportService(
+    createPrismaAIImportRepository(getPrisma),
+    async ({ target, rows }) => {
+      for (const item of rows) {
+        if (target === "mcq") {
+          await syncContentUpsert("Mcq", toMcqContentRow(item.row));
+        } else {
+          await syncContentUpsert("Flashcard", toFlashcardContentRow(item.row));
+        }
+      }
+      if (rows.length > 0) {
+        invalidateMaterialsCache();
+        io.to("authenticated").emit("materials_updated");
+      }
+    },
+  ),
 }));
 
 // Middleware to verify if the student has owner role credentials
