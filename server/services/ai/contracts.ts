@@ -24,6 +24,11 @@ export interface StructuredGenerationRequest<T> {
   responseSchema: ZodType<T>;
   /** Trusted, application-authored instruction. Never populate from source material. */
   trustedSystemInstruction?: string;
+  /**
+   * Optional untrusted context supplied as model content alongside the source.
+   * This is intentionally separate from trustedSystemInstruction.
+   */
+  additionalUntrustedContext?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
 }

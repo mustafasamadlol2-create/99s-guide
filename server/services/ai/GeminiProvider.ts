@@ -39,7 +39,10 @@ export interface GeminiClient {
   files?: GeminiFilesClient;
 }
 
-function toGeminiTextContents(requestContents: StructuredGenerationRequest<unknown>["contents"]): unknown {
+function toGeminiTextContents(
+  requestContents: StructuredGenerationRequest<unknown>["contents"],
+  additionalUntrustedContext?: string,
+): unknown {
   const textParts = requestContents.filter(
     (part): part is AITextPart => part.kind === "text",
   );
@@ -49,10 +52,27 @@ function toGeminiTextContents(requestContents: StructuredGenerationRequest<unkno
       diagnosticMessage: "Phase 3A does not convert staged files into Gemini media parts.",
     });
   }
+  const parts = textParts.map((part) => ({ text: part.text }));
+  if (additionalUntrustedContext) parts.push({ text: additionalUntrustedContext });
   return [{
     role: "user",
-    parts: textParts.map((part) => ({ text: part.text })),
+    parts,
   }];
+}
+
+function appendUntrustedContext(contents: unknown, context?: string): unknown {
+  if (!context || !Array.isArray(contents) || contents.length === 0) return contents;
+  const first = contents[0];
+  if (typeof first !== "object" || first === null || !Array.isArray((first as { parts?: unknown }).parts)) {
+    return contents;
+  }
+  return [{
+    ...(first as Record<string, unknown>),
+    parts: [
+      ...((first as { parts: unknown[] }).parts),
+      { text: context },
+    ],
+  }, ...contents.slice(1)];
 }
 
 const GEMINI_JSON_SCHEMA_KEYWORDS = new Set([
@@ -213,7 +233,9 @@ export class GeminiProvider implements AIProvider {
       }
       const response = await this.client.models.generateContent({
         model: this.config.model,
-        contents: media?.contents ?? toGeminiTextContents(request.contents),
+        contents: media
+          ? appendUntrustedContext(media.contents, request.additionalUntrustedContext)
+          : toGeminiTextContents(request.contents, request.additionalUntrustedContext),
         config: {
           abortSignal: bounded.signal,
           systemInstruction: request.trustedSystemInstruction,

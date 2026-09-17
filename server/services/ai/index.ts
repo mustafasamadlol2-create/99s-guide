@@ -15,3 +15,4 @@ export {
 export { GeminiFilesManager } from "./gemini/GeminiFilesManager.js";
 export { GeminiMediaTransport } from "./gemini/GeminiMediaTransport.js";
 export type { AIExistingResourceResolver } from "./gemini/GeminiMediaTransport.js";
+export * from "./mcq/index.js";

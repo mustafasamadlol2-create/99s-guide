@@ -20,8 +20,46 @@ export type AIContentExecutionRequest = AIRequestEnvelope & {
   signal?: AbortSignal;
 };
 
+export interface AIStructuredContentRequest<T> {
+  contents: AIContentPart[];
+  responseSchema: import("zod").ZodType<T>;
+  trustedSystemInstruction?: string;
+  additionalUntrustedContext?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+function validateContentParts(contents: AIContentPart[]): AIContentPart[] {
+  if (!Array.isArray(contents) || contents.length === 0) {
+    throw new AIServiceError("AI_VALIDATION_ERROR", {
+      publicMessage: "AI source content cannot be empty.",
+      diagnosticMessage: "AIContentService received no content parts.",
+    });
+  }
+  return contents.map((part) => aiContentPartSchema.parse(part) as AIContentPart);
+}
+
 export class AIContentService {
   constructor(private readonly provider: AIProvider) {}
+
+  async generateStructured<T>(
+    request: AIStructuredContentRequest<T>,
+  ): Promise<{ data: T; meta: SafeProviderMetadata }> {
+    try {
+      const validatedContents = validateContentParts(request.contents);
+      return await this.provider.generateStructured({
+        ...request,
+        contents: validatedContents,
+      });
+    } catch (error) {
+      if (isAIServiceError(error)) throw error;
+      throw new AIServiceError("AI_VALIDATION_ERROR", {
+        publicMessage: "The AI request or response did not match the required structure.",
+        diagnosticMessage: error instanceof Error ? error.message : "Unknown validation failure.",
+        cause: error,
+      });
+    }
+  }
 
   async processContent(request: AIContentExecutionRequest): Promise<AIResponseEnvelope> {
     const {
@@ -31,19 +69,11 @@ export class AIContentService {
       signal,
       ...envelope
     } = request;
-    if (!Array.isArray(contents) || contents.length === 0) {
-      throw new AIServiceError("AI_VALIDATION_ERROR", {
-        publicMessage: "AI source content cannot be empty.",
-        diagnosticMessage: "AIContentService received no content parts.",
-      });
-    }
     const startedAt = performance.now();
 
     try {
       const validatedEnvelope = aiRequestEnvelopeSchema.parse(envelope);
-      const validatedContents: AIContentPart[] = contents.map(
-        (part) => aiContentPartSchema.parse(part) as AIContentPart,
-      );
+      const validatedContents = validateContentParts(contents);
       const contentMatchesMode =
         (validatedEnvelope.inputKind === "text" &&
           validatedContents.length === 1 &&
