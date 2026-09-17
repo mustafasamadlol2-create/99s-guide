@@ -1,3 +1,2 @@
 - [Gemini structured schemas](gemini-structured-schemas.md) — sanitize generated JSON Schema to Gemini’s supported subset, then enforce full Zod validation after parsing.
 - [Flashcard AI semantics](flashcard-ai-semantics.md) — clinicalConcept is the canonical front, explanation is the canonical back, and enhancement fills missing explanations only.
-- [AI preview intake](ai-preview-intake.md) — large binary previews use adopted disk capabilities with shared validation and independent cancellation-safe cleanup.
