@@ -1,6 +1,7 @@
 import { AIServiceError } from "../errors.js";
 import type {
   AIContentPart,
+  AIAdoptedBinaryFile,
   AIFilePart,
   NormalizedImageInput,
   NormalizedPDFInput,
@@ -10,11 +11,11 @@ import type {
   SupportedAIBinaryMimeType,
 } from "./contracts.js";
 import { resolveAIInputLimits, type AIInputLimits } from "./config.js";
-import { sha256File } from "./hash.js";
+import { sha256Capability } from "./hash.js";
 import { sanitizeDisplayFilename, sanitizeSourceLabel } from "./mime.js";
 import { normalizeAIText } from "./normalizeText.js";
 import { rawAIInputSchema } from "./schemas.js";
-import { AITemporaryFileManager, type StagedAIFile } from "./temporaryFiles.js";
+import { AITemporaryFileManager } from "./temporaryFiles.js";
 import {
   assertDetectedMimeMatches,
   inspectStagedMimeType,
@@ -22,7 +23,7 @@ import {
 } from "./validators.js";
 
 interface PreparedBinary {
-  staged: StagedAIFile;
+  staged: AIAdoptedBinaryFile;
   displayName: string;
   mimeType: SupportedAIBinaryMimeType;
   sha256: string;
@@ -58,27 +59,29 @@ export class AIInputService {
     inputType: "pdf" | "image",
     maxBytes: number,
   ): Promise<PreparedBinary> {
-    if (!(raw?.bytes instanceof Uint8Array)) {
+    if (!(raw?.bytes instanceof Uint8Array) && !raw?.adoptedFile) {
       throw new AIServiceError("AI_INPUT_INVALID", {
         publicMessage: "Uploaded binary data is invalid.",
-        diagnosticMessage: "Binary intake did not provide a Uint8Array.",
+        diagnosticMessage: "Binary intake did not provide bytes or a trusted staged file.",
       });
     }
     const mimeType = validateClaimedBinaryMime(raw.claimedMimeType, inputType);
-    this.validateSize(raw.bytes.byteLength, maxBytes, inputType === "pdf" ? "PDF" : "image");
+    const sizeBytes = raw.adoptedFile?.sizeBytes ?? raw.bytes?.byteLength ?? 0;
+    this.validateSize(sizeBytes, maxBytes, inputType === "pdf" ? "PDF" : "image");
     const displayName = sanitizeDisplayFilename(raw.originalFilename);
-    const staged = await this.temporaryFiles.stage(raw.bytes);
+    const ownsStaged = !raw.adoptedFile;
+    const staged = raw.adoptedFile ?? await this.temporaryFiles.stage(raw.bytes!);
     try {
-      const detected = await inspectStagedMimeType(staged.path);
+      const detected = await inspectStagedMimeType(staged.capability);
       assertDetectedMimeMatches(mimeType, detected);
       return {
         staged,
         displayName,
         mimeType,
-        sha256: await sha256File(staged.path),
+        sha256: await sha256Capability(staged.capability),
       };
     } catch (error) {
-      await staged.dispose();
+      if (ownsStaged) await staged.dispose();
       throw error;
     }
   }
@@ -181,17 +184,21 @@ export class AIInputService {
       }
 
       for (const file of request.files) {
-        if (!(file?.bytes instanceof Uint8Array)) {
+        if (!(file?.bytes instanceof Uint8Array) && !file?.adoptedFile) {
           throw new AIServiceError("AI_INPUT_INVALID", {
             publicMessage: "Uploaded image data is invalid.",
-            diagnosticMessage: "An image intake item did not provide a Uint8Array.",
+            diagnosticMessage: "An image intake item did not provide bytes or a trusted staged file.",
           });
         }
         validateClaimedBinaryMime(file.claimedMimeType, "image");
-        this.validateSize(file.bytes.byteLength, this.limits.maxImageBytes, "image");
+        this.validateSize(
+          file.adoptedFile?.sizeBytes ?? file.bytes?.byteLength ?? 0,
+          this.limits.maxImageBytes,
+          "image",
+        );
       }
 
-      const staged: StagedAIFile[] = [];
+      const staged: AIAdoptedBinaryFile[] = [];
       try {
         const images: NormalizedImageInput[] = [];
         const contents: AIContentPart[] = [];

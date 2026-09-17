@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+  AIAdoptedBinaryFile,
   AIContentPart,
   AIFilePart,
   AIFileSource,
@@ -36,12 +37,22 @@ export const aiImageSourceReferenceSchema = z.object({
   label: optionalSourceString,
 }).strict() satisfies z.ZodType<AIImageSourceReference>;
 
+const adoptedBinaryFileSchema = z.object({
+  sizeBytes: z.number().int().positive(),
+  capability: z.custom<AIAdoptedBinaryFile["capability"]>(isTrustedAIStagedFileCapability),
+  dispose: z.custom<AIAdoptedBinaryFile["dispose"]>((value) => typeof value === "function"),
+}).strict();
+
 export const rawAIBinaryInputSchema = z.object({
-  bytes: z.instanceof(Uint8Array),
+  bytes: z.instanceof(Uint8Array).optional(),
+  adoptedFile: adoptedBinaryFileSchema.optional(),
   claimedMimeType: z.string().trim().min(1).max(100),
   originalFilename: optionalMetadataString,
   sourceLabel: optionalMetadataString,
-}).strict() satisfies z.ZodType<RawAIBinaryInput>;
+}).strict().refine(
+  (value) => (value.bytes !== undefined) !== (value.adoptedFile !== undefined),
+  "Binary input must provide exactly one trusted byte source.",
+) satisfies z.ZodType<RawAIBinaryInput>;
 
 export const rawAIInputSchema = z.union([
   z.object({

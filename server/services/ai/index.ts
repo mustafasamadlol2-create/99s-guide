@@ -17,3 +17,4 @@ export { GeminiMediaTransport } from "./gemini/GeminiMediaTransport.js";
 export type { AIExistingResourceResolver } from "./gemini/GeminiMediaTransport.js";
 export * from "./mcq/index.js";
 export * from "./flashcard/index.js";
+export * from "./http/index.js";

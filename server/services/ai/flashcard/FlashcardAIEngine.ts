@@ -108,12 +108,13 @@ export class FlashcardAIEngine {
     private readonly candidateId: () => string = randomUUID,
   ) {}
 
-  async extractExistingFlashcards(input: PreparedAIInput): Promise<FlashcardOperationResult> {
+  async extractExistingFlashcards(input: PreparedAIInput, signal?: AbortSignal): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
     const response = await this.contentService.generateStructured({
       contents: input.contents,
       responseSchema: flashcardExtractionProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardExtractInstruction(),
+      signal,
     });
     const normalized = normalizeExtractedFlashcards(response.data, input, this.candidateId);
     let items = applyFlashcardBatchDuplicateWarnings(normalized.items);
@@ -139,6 +140,7 @@ export class FlashcardAIEngine {
   async generateFlashcards(
     input: PreparedAIInput,
     options?: FlashcardGenerationOptions,
+    signal?: AbortSignal,
   ): Promise<FlashcardOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
@@ -146,6 +148,7 @@ export class FlashcardAIEngine {
       contents: input.contents,
       responseSchema: flashcardGenerationProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardGenerateInstruction(selected),
+      signal,
     });
     const items = applyFlashcardBatchDuplicateWarnings(
       normalizeGeneratedFlashcards(response.data, input, this.candidateId),
@@ -160,10 +163,11 @@ export class FlashcardAIEngine {
   async enhanceExistingFlashcards(
     input: PreparedAIInput,
     options?: FlashcardEnhancementOptions,
+    signal?: AbortSignal,
   ): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
     requiredEnhancementOptions(options);
-    const extraction = await this.extractExistingFlashcards(input);
+    const extraction = await this.extractExistingFlashcards(input, signal);
     const candidates = extraction.items.map((item) => ({ ...item }));
     const eligible = candidates.filter((item) => item.clinicalConcept.trim() && item.explanation === null);
     const warnings = [...extraction.warnings];
@@ -190,6 +194,7 @@ export class FlashcardAIEngine {
       responseSchema: flashcardEnhancementProviderResponseSchema,
       trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
       additionalUntrustedContext: enhancementContext(eligible),
+      signal,
     });
     const eligibleIds = new Set(eligible.map((candidate) => candidate.candidateId));
     const hasUnknownCandidateId = response.data.items.some((item) => !eligibleIds.has(item.candidateId));

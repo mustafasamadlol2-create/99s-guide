@@ -58,6 +58,7 @@ import {
 import { requestLogger } from "./server/middleware/requestLogger.js";
 import { buildOAuthPendingQuery, isOAuthStateBound, isValidPkceCodeChallenge, parseOAuthState } from "./server/services/oauthState.js";
 import { getRevokedSessionKey, isRevocationActive } from "./server/services/sessionRevocation.js";
+import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
 import {
   buildMaterialStoragePath,
   createSupabaseSignedUrl,
@@ -6083,6 +6084,19 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
     return sendAuthFailure(res, err, "Access denied. Verification token has expired or is invalid.");
   }
 }
+
+app.use("/api/admin/ai", createAIAdminRouter({
+  requireAdmin,
+  lectureResolver: {
+    async findLecture(id) {
+      const lecture = await getPrisma().lecture.findUnique({
+        where: { id },
+        select: { id: true, name: true },
+      });
+      return lecture ? { id: lecture.id, name: lecture.name } : null;
+    },
+  },
+}));
 
 // Middleware to verify if the student has owner role credentials
 async function requireOwner(req: express.Request, res: express.Response, next: express.NextFunction) {

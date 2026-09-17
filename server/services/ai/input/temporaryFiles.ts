@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { AIServiceError } from "../errors.js";
@@ -55,9 +55,40 @@ export class AITemporaryFileManager {
       });
     }
 
+    return this.createOwnedFile(path, bytes.byteLength, id);
+  }
+
+  async adopt(path: string): Promise<StagedAIFile> {
+    const resolvedPath = resolve(path);
+    if (!this.owns(resolvedPath)) {
+      throw new AIServiceError("AI_INPUT_STAGE_FAILED", {
+        publicMessage: "The AI input could not be adopted.",
+        diagnosticMessage: "Adoption path failed the temporary-root ownership check.",
+      });
+    }
+    let fileStats;
+    try {
+      fileStats = await stat(resolvedPath);
+    } catch (error) {
+      throw new AIServiceError("AI_INPUT_STAGE_FAILED", {
+        publicMessage: "The AI input could not be adopted.",
+        diagnosticMessage: "The uploaded temporary file could not be inspected.",
+        cause: error,
+      });
+    }
+    if (!fileStats.isFile() || !Number.isSafeInteger(fileStats.size) || fileStats.size <= 0) {
+      throw new AIServiceError("AI_INPUT_INVALID", {
+        publicMessage: "Uploaded binary data is invalid.",
+        diagnosticMessage: "Adopted temporary input was not a non-empty regular file.",
+      });
+    }
+    return this.createOwnedFile(resolvedPath, fileStats.size, resolvedPath.split(sep).pop() ?? randomUUID());
+  }
+
+  private createOwnedFile(path: string, sizeBytes: number, id: string): StagedAIFile {
     let disposed = false;
     const capability: AIStagedFileCapability = {
-      sizeBytes: bytes.byteLength,
+      sizeBytes,
       readBytes: async () => {
         if (disposed) throw new AIServiceError("AI_INPUT_CLEANUP_FAILED", {
           publicMessage: "The staged AI input is no longer available.",
@@ -78,7 +109,7 @@ export class AITemporaryFileManager {
     return {
       id,
       path,
-      sizeBytes: bytes.byteLength,
+      sizeBytes,
       capability,
       dispose: async () => {
         if (disposed) return;

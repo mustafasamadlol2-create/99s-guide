@@ -7,7 +7,7 @@ export {
 } from "./config.js";
 export type { AIInputLimits } from "./config.js";
 export * from "./contracts.js";
-export { sha256Bytes, sha256File, sha256Text } from "./hash.js";
+export { sha256Bytes, sha256Capability, sha256File, sha256Text } from "./hash.js";
 export {
   normalizeAIBinaryMimeType,
   sanitizeDisplayFilename,

@@ -126,16 +126,17 @@ export class MCQAIEngine {
     private readonly candidateId: () => string = randomUUID,
   ) {}
 
-  async extractExistingMCQs(input: PreparedAIInput): Promise<MCQOperationResult> {
-    return this.extractFromEngineInput(inputForPrepared(input));
+  async extractExistingMCQs(input: PreparedAIInput, signal?: AbortSignal): Promise<MCQOperationResult> {
+    return this.extractFromEngineInput(inputForPrepared(input), signal);
   }
 
-  private async extractFromEngineInput(input: MCQAIEngineInput): Promise<MCQOperationResult> {
+  private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const response = await this.contentService.generateStructured({
       contents: input.contents,
       responseSchema: mcqExtractionProviderResponseSchema,
       trustedSystemInstruction: buildMCQExtractInstruction(),
+      signal,
     });
     const normalized = normalizeExtractedItems(
       response.data,
@@ -159,6 +160,7 @@ export class MCQAIEngine {
   async generateMCQs(
     input: PreparedAIInput,
     options?: MCQGenerationOptions,
+    signal?: AbortSignal,
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
@@ -166,6 +168,7 @@ export class MCQAIEngine {
       contents: input.contents,
       responseSchema: mcqGenerationProviderResponseSchema,
       trustedSystemInstruction: buildMCQGenerateInstruction(selected),
+      signal,
     });
     const items = applyBatchDuplicateWarnings(normalizeGeneratedItems(
       response.data,
@@ -185,10 +188,11 @@ export class MCQAIEngine {
   async enhanceExistingMCQs(
     input: PreparedAIInput,
     options: MCQEnhancementOptions,
+    signal?: AbortSignal,
   ): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const selected = requiredEnhancementOptions(options);
-    const extraction = await this.extractExistingMCQs(input);
+    const extraction = await this.extractExistingMCQs(input, signal);
     const candidates = extraction.items.map((item) => ({ ...item }));
     const eligible = candidates.filter((item) =>
       item.correctAnswer !== null &&
@@ -204,6 +208,7 @@ export class MCQAIEngine {
         responseSchema: createMCQEnhancementProviderResponseSchema(selected),
         trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
         additionalUntrustedContext: enhancementContext(eligible),
+        signal,
       });
       provider = response.meta;
       const merged = this.mergeEnhancements(candidates, eligible, response.data, selected, warnings);

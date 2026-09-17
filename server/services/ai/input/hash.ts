@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+import type { AIStagedFileCapability } from "./contracts.js";
 
 export function sha256Bytes(value: Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -15,4 +16,8 @@ export async function sha256File(path: string): Promise<string> {
     hash.update(chunk);
   }
   return hash.digest("hex");
+}
+
+export async function sha256Capability(capability: AIStagedFileCapability): Promise<string> {
+  return capability.withPath((path) => sha256File(path));
 }

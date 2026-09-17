@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { AIServiceError } from "../errors.js";
-import type { SupportedAIBinaryMimeType } from "./contracts.js";
+import type { AIStagedFileCapability, SupportedAIBinaryMimeType } from "./contracts.js";
 import { normalizeAIBinaryMimeType } from "./mime.js";
 
 function isPrefix(bytes: Uint8Array, expected: readonly number[]): boolean {
@@ -48,9 +48,12 @@ export function detectAIBinaryMimeType(
 }
 
 export async function inspectStagedMimeType(
-  path: string,
+  pathOrCapability: string | AIStagedFileCapability,
 ): Promise<SupportedAIBinaryMimeType | null> {
-  const handle = await open(path, "r");
+  if (typeof pathOrCapability !== "string") {
+    return pathOrCapability.withPath((path) => inspectStagedMimeType(path));
+  }
+  const handle = await open(pathOrCapability, "r");
   try {
     const header = Buffer.alloc(256);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);

@@ -78,10 +78,17 @@ export type SupportedAIBinaryMimeType =
   | "image/heif";
 
 export interface RawAIBinaryInput {
-  bytes: Uint8Array;
+  bytes?: Uint8Array;
+  adoptedFile?: AIAdoptedBinaryFile;
   claimedMimeType: string;
   originalFilename?: string;
   sourceLabel?: string;
+}
+
+export interface AIAdoptedBinaryFile {
+  readonly sizeBytes: number;
+  readonly capability: AIStagedFileCapability;
+  dispose(): Promise<void>;
 }
 
 export type RawAIInput =
