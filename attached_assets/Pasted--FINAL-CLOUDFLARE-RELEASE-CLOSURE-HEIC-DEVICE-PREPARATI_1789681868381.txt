@@ -1,0 +1,214 @@
+# FINAL CLOUDFLARE RELEASE CLOSURE — HEIC + DEVICE PREPARATION
+
+Cloudflare Workers AI migration has passed live validation for:
+
+- MCQ Text
+- Flashcard Text
+- PDF
+- PNG Image
+- Structured JSON
+- Strict Zod validation
+- Production build
+- Capacitor sync
+- Secret scan
+
+Do NOT redesign or refactor the provider.
+
+Do NOT modify database/import/D1/R2 behavior.
+
+Only one provider-related release uncertainty remains:
+
+HEIC_RUNTIME_VALIDATION_REQUIRED
+
+Your task is to close or precisely isolate that gate and prepare the final real-device release validation.
+
+## 1. HEIC SERVER RUNTIME CAPABILITY
+
+Determine whether the exact installed production dependency/runtime:
+
+sharp@0.35.2
+
+can decode real HEIC/HEIF input in the Linux runtime used by the application.
+
+Inspect actual sharp/libvips capabilities at runtime.
+
+Report relevant supported input formats/codecs without exposing environment secrets.
+
+Do not infer support solely because the TypeScript path exists.
+
+## 2. REAL HEIC FIXTURE
+
+Obtain or create ONE safe synthetic/non-private HEIC test fixture if technically possible.
+
+Do not use production user content.
+
+If this environment cannot generate HEIC but can safely use a known public test fixture, use only a tiny benign fixture.
+
+Do not add a permanent dependency just to manufacture the test fixture.
+
+If no genuine HEIC fixture can be obtained safely, report:
+
+REAL_HEIC_FIXTURE_REQUIRED_FROM_DEVICE
+
+and do not fabricate PASS.
+
+## 3. HEIC END-TO-END TEST
+
+If a genuine HEIC file is available, run:
+
+validated HEIC
+→ sharp decode
+→ transient PNG normalization
+→ Cloudflare Markdown Conversion
+→ structured Cloudflare inference
+→ original strict Zod validation
+→ cleanup
+
+Verify:
+
+- no permanent converted file
+- no R2 upload
+- no DB write
+- original image index preserved
+- all transient files removed
+
+## 4. HEIF
+
+If the same runtime decoder supports HEIF through the same codec path, report it.
+
+Do not claim HEIF PASS solely because HEIC passed unless the actual decoder capability covers it.
+
+## 5. FAILURE UX
+
+If Render/runtime cannot decode HEIC/HEIF:
+
+do NOT silently accept the upload and fail later with an opaque provider error.
+
+Use a safe actionable media-processing error.
+
+Do not remove JPEG/PNG/WebP support.
+
+Do not redesign the UI.
+
+## 6. DO NOT ADD FALLBACK CONVERSION SERVICES
+
+Do not add:
+
+- another external image API
+- another AI provider
+- Cloudinary
+- third-party conversion SaaS
+
+Use the current focused sharp path only.
+
+If it cannot be made production-safe with the existing runtime, report the blocker.
+
+## 7. CLOUDFLARE PROVIDER REGRESSION
+
+Run:
+
+npm run test:ai
+npm run test:ai-input
+npm run test:ai-media
+npm run test:ai-mcq
+npm run test:ai-flashcard
+npx tsx --test tests/cloudflare-ai-provider.test.ts
+npx tsx --test tests/ai-admin-http.test.ts
+npx tsx --test tests/ai-review-validation.test.ts
+npx tsx --test tests/ai-import.test.ts
+npm run test:auth
+npm run build
+npx cap sync ios
+git diff --check
+
+No live Cloudflare calls beyond the HEIC validation are needed unless required to prove that pipeline.
+
+## 8. SECRET / PROVIDER CHECK
+
+Confirm:
+
+AI_PROVIDER=cloudflare
+
+Cloudflare token:
+- backend only
+- absent from frontend
+- absent from iOS web assets
+
+Gemini:
+- inactive
+- no automatic fallback
+
+## 9. AGENT ARTIFACTS
+
+No `.agents/*` changes.
+
+No temporary HEIC/PNG fixture may remain after testing.
+
+# REQUIRED REPORT
+
+Return:
+
+# FINAL CLOUDFLARE RELEASE CLOSURE REPORT
+
+## 1. Cloudflare Primary Status
+PASS / FAIL
+
+## 2. sharp Runtime Capability
+Report actual HEIC/HEIF codec/runtime capability.
+
+## 3. HEIC Live Runtime Test
+PASS / FAIL / REAL_HEIC_FIXTURE_REQUIRED_FROM_DEVICE
+
+## 4. HEIF Runtime Status
+PASS / FAIL / NOT VERIFIED
+
+## 5. HEIC Cloudflare End-to-End
+Report decode → normalize → Markdown → AI → Zod → cleanup.
+
+## 6. Cleanup
+Report temporary resource cleanup.
+
+## 7. Security
+Report secret/provider checks.
+
+## 8. Regression Results
+Exact results.
+
+## 9. Code Changes
+Expected: None unless a real HEIC defect required a minimal fix.
+
+## 10. Remaining Release Gates
+
+Expected after provider closure:
+
+REAL AUTHENTICATED IPAD PORTRAIT + LANDSCAPE VERIFICATION
+
+If a real HEIC fixture must come from the device, include HEIC upload in that same device gate.
+
+## 11. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 12. Provider Release Classification
+
+If Cloudflare text/PDF/image remain PASS and HEIC is either:
+- validated successfully, or
+- explicitly deferred to the real-device gate because no genuine fixture exists,
+
+state:
+
+CLOUDFLARE PROVIDER: PRODUCTION IMPLEMENTATION COMPLETE
+
+If an actual HEIC runtime failure remains unresolved:
+
+CLOUDFLARE PROVIDER: NOT READY
+
+End exactly with one:
+
+CLOUDFLARE RELEASE CLOSURE: READY FOR REAL DEVICE GATE
+
+or:
+
+CLOUDFLARE RELEASE CLOSURE: NOT READY — BLOCKER REMAINS

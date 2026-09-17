@@ -48,7 +48,7 @@ async function normalizeHeic(
   } catch (error) {
     if (signal.aborted) throw signal.reason ?? new Error("aborted");
     throw new AIServiceError("AI_INPUT_UNSUPPORTED", {
-      publicMessage: "This image format is not available for AI analysis.",
+      publicMessage: "This HEIC/HEIF image could not be prepared for AI analysis. Please convert it to JPEG, PNG, or WebP and try again.",
       diagnosticMessage: "HEIC/HEIF normalization could not be completed.",
       cause: error,
     });
