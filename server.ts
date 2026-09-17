@@ -369,7 +369,9 @@ function scheduleContentSyncDrain(delayMs = 30_000): void {
   if (typeof contentSyncDrainTimer.unref === "function") contentSyncDrainTimer.unref();
 }
 
-async function syncContentMutation(mutation: ContentSyncMutation): Promise<void> {
+type ContentSyncResult = "completed" | "pending";
+
+async function syncContentMutation(mutation: ContentSyncMutation): Promise<ContentSyncResult> {
   try {
     await postContentSyncMutation(mutation);
     try {
@@ -380,6 +382,7 @@ async function syncContentMutation(mutation: ContentSyncMutation): Promise<void>
         `D1 sync succeeded but stale outbox cleanup failed for ${mutation.entity}/${mutation.id}: ${clearError?.message ?? "unknown error"}`,
       );
     }
+    return "completed";
   } catch (syncError: any) {
     try {
       await persistContentSyncOutbox(mutation);
@@ -394,14 +397,15 @@ async function syncContentMutation(mutation: ContentSyncMutation): Promise<void>
         `CRITICAL: failed to sync or queue ${mutation.entity}/${mutation.id}: ${outboxError?.message ?? "unknown error"}`,
       );
     }
+    return "pending";
   }
 }
 
 async function syncContentUpsert(
   entity: ContentSyncEntity,
   data: Record<string, unknown>,
-): Promise<void> {
-  await syncContentMutation(makeContentUpsert(entity, data));
+): Promise<ContentSyncResult> {
+  return syncContentMutation(makeContentUpsert(entity, data));
 }
 
 async function syncContentDelete(entity: ContentSyncEntity, id: string): Promise<void> {
@@ -6105,17 +6109,23 @@ app.use("/api/admin/ai", createAIImportRouter({
   service: new AIImportService(
     createPrismaAIImportRepository(getPrisma),
     async ({ target, rows }) => {
+      let syncPending = false;
       for (const item of rows) {
+        let syncResult: ContentSyncResult;
         if (target === "mcq") {
-          await syncContentUpsert("Mcq", toMcqContentRow(item.row));
+          syncResult = await syncContentUpsert("Mcq", toMcqContentRow(item.row));
         } else {
-          await syncContentUpsert("Flashcard", toFlashcardContentRow(item.row));
+          syncResult = await syncContentUpsert("Flashcard", toFlashcardContentRow(item.row));
         }
+        syncPending ||= syncResult === "pending";
       }
       if (rows.length > 0) {
         invalidateMaterialsCache();
         io.to("authenticated").emit("materials_updated");
       }
+      return syncPending
+        ? { warning: "Content was saved to PostgreSQL, but D1 synchronization is queued for retry." }
+        : undefined;
     },
   ),
 }));
