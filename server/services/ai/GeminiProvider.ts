@@ -2,12 +2,16 @@ import { GoogleGenAI } from "@google/genai";
 import { toJSONSchema, ZodError } from "zod";
 import type {
   AIProvider,
+  SafeProviderMetadata,
   StructuredGenerationRequest,
   StructuredGenerationResult,
 } from "./contracts.js";
 import { getGeminiConfig, type GeminiConfig } from "./config.js";
 import { AIServiceError, isAIServiceError } from "./errors.js";
 import type { AITextPart } from "./input/contracts.js";
+import { getGeminiMediaConfig, type GeminiMediaConfig } from "./gemini/config.js";
+import { GeminiFilesManager, type GeminiFilesClient } from "./gemini/GeminiFilesManager.js";
+import { GeminiMediaTransport } from "./gemini/GeminiMediaTransport.js";
 
 interface GeminiGenerateContentParameters {
   model: string;
@@ -32,6 +36,7 @@ export interface GeminiClient {
       parameters: GeminiGenerateContentParameters,
     ): Promise<GeminiGenerateContentResponse>;
   };
+  files?: GeminiFilesClient;
 }
 
 function toGeminiTextContents(requestContents: StructuredGenerationRequest<unknown>["contents"]): unknown {
@@ -161,13 +166,28 @@ function providerError(error: unknown, timedOut: boolean): AIServiceError {
 export class GeminiProvider implements AIProvider {
   private readonly config: GeminiConfig;
   private readonly client: GeminiClient;
+  private readonly mediaTransport?: GeminiMediaTransport;
+  private readonly diagnosticSink?: (error: AIServiceError) => void | Promise<void>;
 
   constructor(
     config: GeminiConfig = getGeminiConfig(),
     client?: GeminiClient,
+    mediaConfig: GeminiMediaConfig = getGeminiMediaConfig(),
+    diagnosticSink?: (error: AIServiceError) => void | Promise<void>,
   ) {
     this.config = config;
     this.client = client ?? new GoogleGenAI({ apiKey: config.apiKey });
+    this.mediaTransport = new GeminiMediaTransport(
+      this.client.files
+        ? new GeminiFilesManager(this.client.files, {
+          processingTimeoutMs: mediaConfig.fileProcessingTimeoutMs,
+          pollIntervalMs: mediaConfig.filePollIntervalMs,
+          cleanupTimeoutMs: mediaConfig.fileCleanupTimeoutMs,
+        })
+        : undefined,
+      mediaConfig,
+    );
+    this.diagnosticSink = diagnosticSink;
   }
 
   async generateStructured<T>(
@@ -185,10 +205,15 @@ export class GeminiProvider implements AIProvider {
       request.signal,
     );
 
+    let media: Awaited<ReturnType<GeminiMediaTransport["prepare"]>> | undefined;
+    let resultMeta: SafeProviderMetadata | undefined;
     try {
+      if (request.contents.some((part) => part.kind !== "text")) {
+        media = await this.mediaTransport.prepare(request.contents, bounded.signal);
+      }
       const response = await this.client.models.generateContent({
         model: this.config.model,
-        contents: toGeminiTextContents(request.contents),
+        contents: media?.contents ?? toGeminiTextContents(request.contents),
         config: {
           abortSignal: bounded.signal,
           systemInstruction: request.trustedSystemInstruction,
@@ -218,13 +243,16 @@ export class GeminiProvider implements AIProvider {
       }
 
       try {
+        const meta: SafeProviderMetadata = {
+          provider: "gemini",
+          model: response.modelVersion || this.config.model,
+          responseId: response.responseId,
+          ...(media ? { transport: media.transport, mediaCount: media.mediaCount } : {}),
+        };
+        resultMeta = meta;
         return {
           data: request.responseSchema.parse(parsed),
-          meta: {
-            provider: "gemini",
-            model: response.modelVersion || this.config.model,
-            responseId: response.responseId,
-          },
+          meta,
         };
       } catch (error) {
         if (error instanceof ZodError) {
@@ -237,9 +265,34 @@ export class GeminiProvider implements AIProvider {
         throw error;
       }
     } catch (error) {
+      if (bounded.signal.aborted && !request.signal?.aborted) {
+        throw new AIServiceError("AI_TIMEOUT", {
+          publicMessage: "The AI request timed out.",
+          diagnosticMessage: "The shared Gemini operation deadline expired.",
+          retryable: true,
+          cause: error,
+        });
+      }
       if (isAIServiceError(error)) throw error;
       throw providerError(error, bounded.signal.aborted && !request.signal?.aborted);
     } finally {
+      if (media) {
+        try {
+          await media.cleanup();
+        } catch (error) {
+          const cleanupError = error instanceof AIServiceError
+            ? error
+            : new AIServiceError("AI_MEDIA_CLEANUP_FAILED", {
+              publicMessage: "AI media cleanup was incomplete.",
+              diagnosticMessage: "Provider media cleanup failed.",
+              cause: error,
+            });
+          if (this.diagnosticSink) {
+            void Promise.resolve().then(() => this.diagnosticSink!(cleanupError)).catch(() => {});
+          }
+          if (resultMeta) resultMeta.cleanupWarning = "provider_media_cleanup_failed";
+        }
+      }
       bounded.cleanup();
     }
   }

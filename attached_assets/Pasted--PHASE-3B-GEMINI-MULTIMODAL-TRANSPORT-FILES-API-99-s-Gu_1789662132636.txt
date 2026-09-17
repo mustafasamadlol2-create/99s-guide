@@ -1,0 +1,1728 @@
+# PHASE 3B — GEMINI MULTIMODAL TRANSPORT & FILES API
+
+## 99’s Guide — Prompt 4
+
+Phase 1: APPROVED
+Phase 2: APPROVED
+Phase 3A: APPROVED
+
+You are now authorized to implement **Phase 3B only**.
+
+Phase 3A established secure application-level handling for:
+
+* PDF
+* Images
+* Pasted Text
+* Temporary staging
+* SHA-256
+* Ownership and cleanup
+* Provider-independent `AIContentPart[]`
+
+Phase 3B must now connect those prepared inputs to the existing `GeminiProvider`.
+
+This phase completes the transport path:
+
+```text
+PreparedAIInput
+→ AIContentPart[]
+→ Gemini media transport strategy
+→ Gemini structured generation
+→ strict Zod validation
+→ provider media cleanup
+→ local temporary cleanup
+```
+
+Do NOT implement the MCQ or Flashcard engines yet.
+
+---
+
+# 1. CRITICAL SCOPE
+
+## IMPLEMENT NOW
+
+Implement:
+
+* Gemini text transport
+* Gemini inline image transport
+* Gemini Files API transport
+* PDF transport
+* large-image transport
+* multi-image transport
+* media transport strategy
+* provider-upload lifecycle
+* Files API polling
+* Files API cleanup
+* cancellation/timeout integration
+* provider-media error mapping
+* multimodal structured-output tests
+* safe provider metadata
+* local + provider cleanup coordination
+
+## DO NOT IMPLEMENT
+
+Do NOT implement:
+
+* Express AI endpoints
+* Console AI UI
+* MCQ prompts
+* MCQ extraction
+* MCQ generation
+* MCQ enhancement
+* Flashcard extraction
+* Flashcard generation
+* Flashcard enhancement
+* database writes
+* duplicate detection
+* bulk import
+* Prisma migrations
+* D1 synchronization
+* R2 temporary uploads
+* Review Studio
+* async job queue
+* OCR
+* PDF parsing
+
+Do not silently begin Phase 4.
+
+---
+
+# 2. CURRENT OFFICIAL PROVIDER CONSTRAINTS
+
+Design against the current Gemini API behavior.
+
+Current relevant constraints:
+
+* PDF maximum: **50 MB**
+* PDF maximum pages: **1000**
+* Files API uploads persist temporarily for up to **48 hours**
+* Files API files can be deleted explicitly
+* Files may enter:
+
+  * `PROCESSING`
+  * `ACTIVE`
+  * `FAILED`
+* A file in `PROCESSING` must not be used for inference
+* `ACTIVE` means it is available for inference
+* Inline media is appropriate for smaller request payloads
+* Files API is appropriate for larger media and reusable media
+* Gemini supports media through inline data and file references
+* `gemini-3.8-flash` remains the configured model
+
+Do not loosen Phase 3A's stricter application limits merely because the provider permits more.
+
+---
+
+# 3. APPROVED INITIAL TRANSPORT POLICY
+
+Use the following production policy.
+
+## Text
+
+Always:
+
+```text
+inline text
+```
+
+Never upload pasted text through Files API.
+
+---
+
+## PDF
+
+For the initial implementation:
+
+```text
+PDF → Gemini Files API
+```
+
+Use Files API for PDFs by default.
+
+Reasons:
+
+* PDFs can be large
+* avoids large base64 payloads
+* avoids duplicating large buffers
+* lecture documents naturally fit file-oriented processing
+* Gemini Files API is temporary
+* uploaded provider files can be explicitly deleted
+
+Do NOT permanently store Gemini File URIs.
+
+Do NOT treat Files API as application storage.
+
+---
+
+## Images
+
+Use a hybrid strategy.
+
+### Small image request
+
+Use inline media when the total raw image bytes are within a conservative configured threshold.
+
+Approved default:
+
+```text
+10 MiB total raw image bytes
+```
+
+This is an APPLICATION threshold, not a claim about Gemini's absolute provider maximum.
+
+### Larger image request
+
+If total raw image size exceeds the inline threshold:
+
+```text
+Images → Gemini Files API
+```
+
+This includes multi-image batches whose combined size becomes large.
+
+---
+
+# 4. CENTRALIZE TRANSPORT CONFIGURATION
+
+Create centralized Gemini media transport configuration.
+
+Conceptually:
+
+```text
+GEMINI_INLINE_IMAGE_MAX_TOTAL_BYTES
+GEMINI_FILE_PROCESSING_TIMEOUT_MS
+GEMINI_FILE_POLL_INTERVAL_MS
+```
+
+Safe defaults:
+
+```text
+inline image threshold = 10 MiB
+file processing timeout = 30 seconds
+poll interval = approximately 500–1000 ms
+```
+
+Exact values may be adjusted slightly if the existing timeout architecture requires it.
+
+Do not scatter numbers across provider code.
+
+---
+
+# 5. HARD SAFETY BOUNDARY
+
+Phase 3A limits remain authoritative.
+
+The provider MUST NOT accept media that bypasses Phase 3A validation.
+
+Do not create a second public path where arbitrary local files can be passed directly to Gemini.
+
+The expected flow remains:
+
+```text
+AIInputService
+→ PreparedAIInput
+→ validated AIContentPart[]
+→ GeminiProvider
+```
+
+---
+
+# 6. GEMINI PROVIDER MEDIA SUPPORT
+
+Upgrade `GeminiProvider` from:
+
+```text
+text only
+```
+
+to:
+
+```text
+text
+PDF
+image
+multiple images
+```
+
+while preserving:
+
+* structured output
+* response schema
+* timeout behavior
+* cancellation
+* error mapping
+* safe metadata
+* Phase 2 validation guarantees
+
+---
+
+# 7. DO NOT LEAK GEMINI TYPES
+
+Application-level contracts remain provider-independent.
+
+Do not place types such as Gemini-specific:
+
+```text
+Part
+File
+GenerateContentConfig
+```
+
+into:
+
+* `AIContentService`
+* input contracts
+* frontend
+* database models
+
+Gemini SDK types belong inside provider/media-adapter code.
+
+---
+
+# 8. RECOMMENDED INTERNAL MODULE SEPARATION
+
+Do not turn `GeminiProvider.ts` into a giant file.
+
+Prefer focused Gemini media files such as:
+
+```text
+server/services/ai/gemini/
+  GeminiMediaTransport.ts
+  GeminiFilesManager.ts
+  config.ts
+```
+
+or equivalent under the existing AI module.
+
+Exact names may differ.
+
+Responsibilities must remain clear.
+
+---
+
+# 9. FILES API MANAGER
+
+Create a focused provider-file lifecycle manager.
+
+Responsibilities:
+
+```text
+local staged file
+→ Gemini files.upload()
+→ wait until usable
+→ return provider file reference
+→ delete provider file after operation
+```
+
+It must own ONLY the Gemini-uploaded copy.
+
+It must NOT delete the local file.
+
+Local staging remains owned by Phase 3A disposal.
+
+---
+
+# 10. GEMINI FILE UPLOAD
+
+Use the existing official:
+
+```text
+@google/genai
+```
+
+SDK.
+
+For an uploaded file supply the validated MIME type.
+
+Do not infer MIME from extension at this stage.
+
+Phase 3A has already validated MIME/signature.
+
+Use the validated normalized MIME.
+
+---
+
+# 11. FILE STATUS POLLING
+
+After Files API upload, handle status safely.
+
+Support:
+
+```text
+PROCESSING
+ACTIVE
+FAILED
+```
+
+If immediately `ACTIVE`:
+
+continue.
+
+If `PROCESSING`:
+
+poll using `files.get()`.
+
+Do NOT create an infinite loop.
+
+Polling must respect:
+
+* processing timeout
+* outer provider timeout
+* abort signal
+
+If state becomes:
+
+```text
+FAILED
+```
+
+raise a safe provider/media error.
+
+---
+
+# 12. UNKNOWN FILE STATES
+
+Do not blindly loop forever on unknown/undefined states.
+
+Handle unknown states conservatively.
+
+Either:
+
+* poll within a bounded grace period if documented/appropriate
+* or raise a typed provider-media error
+
+Document your choice.
+
+---
+
+# 13. PROVIDER FILE CLEANUP
+
+Every file uploaded to Gemini Files API should be explicitly deleted after the AI operation.
+
+Use:
+
+```text
+files.delete(...)
+```
+
+in a guaranteed cleanup lifecycle.
+
+Conceptually:
+
+```ts
+const uploaded = await upload(...);
+
+try {
+  return await generate(...);
+} finally {
+  await deleteUploadedFile(...);
+}
+```
+
+For multiple provider files:
+
+delete every successfully uploaded file.
+
+---
+
+# 14. PARTIAL UPLOAD FAILURE
+
+Example:
+
+Image 1 uploads successfully.
+Image 2 uploads successfully.
+Image 3 upload fails.
+
+Images 1 and 2 must still be deleted.
+
+Do not leave already uploaded provider resources orphaned merely because a later upload fails.
+
+Test this.
+
+---
+
+# 15. FILES API RETENTION IS FALLBACK ONLY
+
+Gemini Files API automatically expires uploaded files after approximately 48 hours.
+
+This is a fallback safety net.
+
+It is NOT the intended cleanup strategy.
+
+The application should explicitly delete provider-uploaded media whenever possible.
+
+---
+
+# 16. CLEANUP FAILURE POLICY
+
+If generation succeeds but Gemini file deletion fails:
+
+Do NOT throw away a valid AI result solely because cleanup failed.
+
+Instead:
+
+* retain successful validated generation result
+* record safe internal cleanup diagnostics
+* optionally expose a sanitized provider cleanup warning in metadata
+* never expose API credentials
+* never expose local filesystem paths
+
+The provider file will still expire automatically.
+
+If generation itself failed:
+
+the generation failure remains the primary error.
+
+Cleanup should still be attempted.
+
+---
+
+# 17. INLINE IMAGE TRANSPORT
+
+For image batches at or below the configured inline threshold:
+
+convert each staged image into an inline Gemini media part.
+
+Use:
+
+```text
+inlineData
+```
+
+or the correct current SDK equivalent.
+
+Each part must use:
+
+* validated MIME
+* actual media bytes
+
+Preserve image order.
+
+---
+
+# 18. BASE64 MEMORY SAFETY
+
+Inline media may require base64 representation.
+
+Because inline transport is restricted to small image batches, this is acceptable.
+
+Still:
+
+* do not base64 large PDFs
+* do not base64 Files-API image batches unnecessarily
+* do not retain duplicate base64 strings after the request
+* do not log base64
+* do not put base64 in errors
+* do not place base64 in normalized application responses
+
+---
+
+# 19. PDF TRANSPORT
+
+All prepared PDF input in Phase 3B should use:
+
+```text
+Gemini Files API
+```
+
+Do NOT inline PDF by default.
+
+After upload:
+
+```text
+local staged PDF
+→ Files API
+→ ACTIVE
+→ URI/file reference
+→ generateContent
+→ files.delete
+```
+
+Keep the existing 50 MiB Phase 3A limit.
+
+---
+
+# 20. MULTIPLE IMAGE TRANSPORT
+
+Preserve Phase 3A image order.
+
+Example:
+
+```text
+imageIndex 0
+imageIndex 1
+imageIndex 2
+```
+
+must reach Gemini in that same semantic order.
+
+The model must be able to associate output source references with those indexes later.
+
+Do not sort by:
+
+* filename
+* hash
+* size
+* provider file ID
+
+---
+
+# 21. MIXED INPUT
+
+Phase 3A intentionally allows exactly one source mode:
+
+```text
+PDF
+OR
+Images
+OR
+Text
+```
+
+Do not introduce arbitrary mixed PDF+images+text-source mode in Phase 3B.
+
+Trusted application prompt/system instructions are separate from source mode.
+
+---
+
+# 22. TRUSTED INSTRUCTION VS SOURCE CONTENT
+
+Preserve the security boundary from Phase 2.
+
+Gemini request must structurally distinguish:
+
+```text
+trustedSystemInstruction
+```
+
+from:
+
+```text
+source content/media
+```
+
+A PDF containing:
+
+> Ignore previous instructions
+
+must remain document content.
+
+It cannot become a system instruction.
+
+---
+
+# 23. GENERATECONTENT API
+
+The current provider architecture already uses Gemini structured generation.
+
+Do not unnecessarily rewrite the entire AI implementation to another Gemini API style.
+
+Continue using the existing supported SDK generation path unless a media capability genuinely requires a narrowly scoped change.
+
+Avoid unrelated migration to a different Gemini endpoint architecture.
+
+---
+
+# 24. STRUCTURED OUTPUT MUST CONTINUE WORKING
+
+Multimodal input must retain:
+
+```text
+responseMimeType: application/json
+responseJsonSchema: ...
+```
+
+or the current equivalent already implemented.
+
+The flow remains:
+
+```text
+media/text
+→ Gemini
+→ structured JSON
+→ JSON.parse
+→ strict original Zod schema
+→ normalized trusted result
+```
+
+Do NOT weaken validation because media input was added.
+
+---
+
+# 25. GEMINI FILE REFERENCES
+
+When Files API is used, construct model content using the provider-returned:
+
+* URI
+* MIME type
+
+through the official SDK's supported file-reference mechanism.
+
+Do not manually invent Google URI shapes.
+
+Do not depend on undocumented URI formatting.
+
+---
+
+# 26. PROVIDER FILE IDENTIFIERS
+
+Gemini file:
+
+* name
+* URI
+* provider IDs
+
+are transient provider metadata.
+
+Do not:
+
+* persist them in PostgreSQL
+* put them into MCQ records
+* put them into Flashcards
+* expose them to frontend by default
+
+---
+
+# 27. LOCAL TEMP FILE CLEANUP
+
+Phase 3B must NOT replace Phase 3A cleanup.
+
+There are two independent lifecycles:
+
+```text
+A. local temporary source
+B. Gemini temporary uploaded file
+```
+
+Both must be cleaned.
+
+Example:
+
+```text
+prepare local
+→ upload Gemini
+→ generate
+→ delete Gemini file
+→ dispose local file
+```
+
+The appropriate service boundaries should guarantee both.
+
+---
+
+# 28. PROVIDER FILES AND ABORT
+
+If cancellation occurs:
+
+* stop polling where possible
+* abort generation where supported
+* still attempt Files API cleanup for already-created provider files
+* still allow Phase 3A local cleanup to execute
+
+Cancellation must not create orphaned local files.
+
+---
+
+# 29. TIMEOUT BUDGET
+
+Do not accidentally give each stage an independent 30-second timeout resulting in a 90-second request.
+
+Use a coherent operation deadline where practical.
+
+The lifecycle includes:
+
+```text
+upload
+processing wait
+generation
+cleanup
+```
+
+Cleanup may use a small best-effort allowance outside the main generation deadline if necessary.
+
+Document the final behavior.
+
+---
+
+# 30. FILE PROCESSING POLL
+
+Implement bounded polling.
+
+No:
+
+```ts
+while (true)
+```
+
+without deadline/abort handling.
+
+Every loop must be bounded by:
+
+* state
+* deadline
+* abort
+
+Tests should use fake timers or small mocked poll intervals where appropriate.
+
+---
+
+# 31. PROVIDER ERROR MAPPING
+
+Extend the existing AI error model only if required.
+
+Possible categories:
+
+```text
+AI_MEDIA_UPLOAD_FAILED
+AI_MEDIA_PROCESSING_FAILED
+AI_MEDIA_PROCESSING_TIMEOUT
+AI_MEDIA_CLEANUP_FAILED
+```
+
+Exact naming may differ.
+
+Do not introduce dozens of unnecessary codes.
+
+Provider failures should still map coherently to the existing categories:
+
+* rate limit
+* unavailable
+* timeout
+* provider error
+
+---
+
+# 32. UPLOAD FAILURE CLASSIFICATION
+
+A Gemini Files API upload may fail because of:
+
+* authentication
+* rate limit
+* service unavailable
+* invalid provider request
+* network error
+
+Reuse the existing safe error-mapping system.
+
+Do not include:
+
+* API key
+* source content
+* local absolute path
+
+inside public error messages.
+
+---
+
+# 33. FILE PROCESSING FAILURE
+
+If Gemini reports provider file state:
+
+```text
+FAILED
+```
+
+surface a safe typed provider/media error.
+
+Do not retry infinitely.
+
+Do not automatically re-upload repeatedly.
+
+---
+
+# 34. NO AUTOMATIC EXPENSIVE RETRIES
+
+Keep the Phase 2 conservative retry rule.
+
+Do not automatically upload a 50 MiB PDF multiple times because of a generic error.
+
+Any future retry policy should know whether upload/generation is idempotent and worthwhile.
+
+Phase 3B should avoid aggressive retries.
+
+---
+
+# 35. PROVIDER CLEANUP REGISTRY
+
+For operations with multiple Files API uploads, use a request-local cleanup registry/list.
+
+Conceptually:
+
+```ts
+uploadedFiles = []
+```
+
+Every successful upload is immediately registered for future cleanup.
+
+This registry must be isolated per operation.
+
+No global mutable list.
+
+---
+
+# 36. TRANSPORT STRATEGY COMPONENT
+
+Create a focused strategy that determines:
+
+```text
+text → inline text
+pdf → files_api
+images small → inline
+images large → files_api
+```
+
+Do not scatter this decision across loops and conditionals in multiple files.
+
+Make the choice independently testable.
+
+---
+
+# 37. TRANSPORT DECISION METADATA
+
+For internal/debug testing, it may be useful to represent:
+
+```text
+inline
+files_api
+```
+
+as transport metadata.
+
+Do not expose internal provider details unnecessarily to normal frontend users.
+
+Safe provider metadata may include aggregate transport mode if useful.
+
+---
+
+# 38. BORROWED EXISTING RESOURCES
+
+Phase 3A created:
+
+```text
+existing_resource
+ownership: borrowed
+```
+
+Do NOT incorrectly assume its `resourceId` is a local filesystem path.
+
+Do not allow arbitrary reads.
+
+For Phase 3B introduce a provider-independent resolver interface if necessary.
+
+Example concept:
+
+```ts
+interface AIExistingResourceResolver {
+  resolve(resourceId: string): Promise<...>;
+}
+```
+
+But:
+
+* do NOT wire R2 yet unless absolutely required
+* do NOT change Cloudflare storage
+* do NOT allow arbitrary URLs
+* do NOT allow arbitrary file paths
+
+A fake resolver should be testable.
+
+If no resolver is configured, attempting a borrowed resource should fail safely with a typed error.
+
+---
+
+# 39. NO SSRF
+
+Do not accept arbitrary:
+
+```text
+http://
+https://
+```
+
+URLs as media source input.
+
+Do not ask Gemini to fetch administrator-provided URLs.
+
+The approved media sources remain:
+
+* validated staged uploads
+* trusted application-resolved resources
+
+---
+
+# 40. NO R2 MODIFICATION
+
+Do NOT change:
+
+* R2 credentials
+* R2 upload functions
+* permanent storage lifecycle
+* `supabaseStorage.ts`
+
+If future existing-resource resolution needs R2, that integration will be explicitly approved later.
+
+---
+
+# 41. HEIC / HEIF
+
+Phase 3A validates:
+
+* HEIC
+* HEIF
+
+Phase 3B should send these using their validated normalized MIME when supported by the Gemini SDK.
+
+Do not convert them to JPEG.
+
+If the SDK/provider rejects one despite valid application input:
+
+map it to a safe provider error.
+
+Do not install image-conversion packages.
+
+---
+
+# 42. WEBP / PNG / JPEG
+
+Support inline and Files API paths as dictated by the transport policy.
+
+No transcoding.
+
+No resizing.
+
+No quality degradation.
+
+The source is educational material; preserve it.
+
+---
+
+# 43. MEDIA RESOLUTION
+
+Do not prematurely add complex per-image resolution optimization.
+
+Use provider defaults unless the current SDK requires configuration.
+
+We can optimize Gemini media resolution later if token/cost behavior proves necessary.
+
+Do not over-engineer Phase 3B.
+
+---
+
+# 44. PROVIDER METADATA
+
+Safe normalized provider metadata may include:
+
+* provider: Gemini
+* model
+* transport mode
+* number of media inputs
+* provider response ID if already supported
+
+Do not include:
+
+* API key
+* raw signed credentials
+* local paths
+* source text
+* base64 media
+* Gemini file URI by default
+
+---
+
+# 45. HASH PRESERVATION
+
+Phase 3A SHA-256 values are application metadata.
+
+Preserve them through transport preparation where useful.
+
+Do not recompute unnecessarily after provider upload.
+
+Do not assume Gemini's provider hash is the application's authorization source.
+
+---
+
+# 46. SOURCE METADATA PRESERVATION
+
+Transport conversion must preserve:
+
+* input kind
+* image index
+* source label
+* hash
+* ownership semantics
+
+Provider-specific transformation must not destroy the application's source mapping.
+
+This will be important when MCQ extraction later returns:
+
+```text
+source image index 3
+```
+
+or:
+
+```text
+PDF page 17
+```
+
+---
+
+# 47. PDF PAGE REFERENCES
+
+Do not locally parse PDF pages.
+
+Gemini will later be instructed by the MCQ/Flashcard engine to return page references where possible.
+
+Phase 3B only transports the PDF.
+
+---
+
+# 48. TEXT PATH
+
+Text must still work after all media changes.
+
+A text-only structured-generation request must:
+
+* never call `files.upload`
+* never access filesystem
+* never produce base64
+* continue to pass Phase 2 tests
+
+---
+
+# 49. SMALL IMAGE PATH
+
+A small single image below threshold must:
+
+```text
+staged image
+→ inlineData
+→ generateContent
+```
+
+and must NOT call:
+
+```text
+files.upload
+```
+
+Test this explicitly.
+
+---
+
+# 50. LARGE IMAGE PATH
+
+An image batch over the configured threshold must:
+
+```text
+staged images
+→ files.upload
+→ wait ACTIVE
+→ file references
+→ generateContent
+→ files.delete
+```
+
+Test explicitly.
+
+---
+
+# 51. PDF PATH
+
+Any valid Phase 3A PDF must:
+
+```text
+files.upload
+```
+
+in the approved default strategy.
+
+Test that PDF never accidentally uses inline data.
+
+---
+
+# 52. MULTI-IMAGE SMALL BATCH
+
+Example:
+
+```text
+3 images
+2 MiB each
+total 6 MiB
+```
+
+should use inline transport under the default threshold.
+
+Maintain order.
+
+---
+
+# 53. MULTI-IMAGE LARGE BATCH
+
+Example:
+
+```text
+4 images
+3 MiB each
+total 12 MiB
+```
+
+should use Files API under the default threshold.
+
+Maintain order.
+
+All uploaded provider files must be cleaned.
+
+---
+
+# 54. HYBRID WITHIN ONE IMAGE BATCH
+
+Do NOT use a confusing mixed strategy such as:
+
+```text
+image 1 inline
+image 2 Files API
+image 3 inline
+```
+
+for the same image-source operation.
+
+Choose ONE image transport mode for the entire image batch:
+
+```text
+all inline
+OR
+all Files API
+```
+
+This simplifies ordering and cleanup.
+
+---
+
+# 55. FILES API PROCESSING TESTS
+
+Mock tests must cover:
+
+* immediate ACTIVE
+* PROCESSING → ACTIVE
+* PROCESSING → FAILED
+* PROCESSING → timeout
+* abort while processing
+* `files.get` failure
+* cleanup after processing failure
+
+No real waiting in tests.
+
+---
+
+# 56. FILES API CLEANUP TESTS
+
+Test:
+
+* successful generation → delete provider file
+* generation failure → still delete
+* multiple upload → delete all
+* partial upload failure → delete earlier uploads
+* delete failure after successful result → result preserved with sanitized cleanup indication
+* delete failure after generation failure → generation error remains primary
+* no file upload → no delete
+
+---
+
+# 57. INLINE TESTS
+
+Test:
+
+* valid inline JPEG
+* valid inline PNG
+* valid inline WebP
+* HEIC/HEIF if SDK mapping allows
+* MIME preserved
+* ordering preserved
+* binary source not exposed in result
+* base64 not logged
+* Files API not invoked
+
+---
+
+# 58. STRUCTURED RESPONSE TEST
+
+At least one test should simulate:
+
+```text
+image input
+→ Gemini provider
+→ structured JSON
+→ strict Zod validation
+```
+
+to prove multimodal transport did not break structured generation.
+
+Use a fake SDK client.
+
+No live network call required.
+
+---
+
+# 59. PDF STRUCTURED RESPONSE TEST
+
+Likewise simulate:
+
+```text
+PDF
+→ Files API fake upload
+→ ACTIVE
+→ file reference
+→ structured response
+→ Zod validation
+→ delete provider file
+```
+
+---
+
+# 60. CANCELLATION TESTS
+
+Test:
+
+* already-aborted signal
+* abort during file processing
+* abort before generation
+* cleanup still attempted
+
+Do not leave timers/listeners attached.
+
+---
+
+# 61. NO LIVE PROVIDER DEPENDENCY
+
+The normal test suite must remain offline.
+
+Do not require:
+
+```text
+GEMINI_API_KEY
+```
+
+for tests.
+
+Use fake SDK clients/dependency injection.
+
+---
+
+# 62. OPTIONAL MANUAL SMOKE TEST
+
+If a real `GEMINI_API_KEY` is already configured, you MAY provide an optional manual script that tests a tiny generated synthetic input.
+
+It must:
+
+* not run automatically
+* not use private application data
+* not be required for success
+* use minimal tokens
+* clean uploaded Gemini files
+* never print the key
+
+Do not create or require a live test if unnecessary.
+
+---
+
+# 63. NO FRONTEND
+
+No frontend source change.
+
+Do NOT modify:
+
+* `CreateMCQ.tsx`
+* `CreateAnki.tsx`
+* `ControlCenterView.tsx`
+* `apiClient.ts`
+
+The feature remains invisible.
+
+---
+
+# 64. NO EXPRESS AI ROUTE
+
+No public AI endpoint yet.
+
+`server.ts` should ideally remain untouched.
+
+Phase 4/6 will introduce the content workflows/routes at the correct point.
+
+---
+
+# 65. NO DATABASE
+
+No:
+
+* Prisma change
+* migration
+* AI job
+* upload metadata table
+* DB write
+* content write
+
+---
+
+# 66. NO CLOUDFLARE CHANGE
+
+No:
+
+* R2 write
+* D1 write
+* Worker modification
+* Wrangler modification
+
+Gemini Files API is provider-side temporary storage and is separate from Cloudflare R2.
+
+---
+
+# 67. NO NEW GENERIC STORAGE SYSTEM
+
+Do not introduce:
+
+* S3 wrapper
+* Redis
+* temp database
+* object cache
+* queue
+
+Phase 3A local temporary storage + Gemini Files API are sufficient.
+
+---
+
+# 68. SECURITY REVIEW
+
+Before completion verify:
+
+* no raw local paths returned to callers
+* no Gemini file URI returned by default
+* no source content logged
+* no image base64 logged
+* no API key logged
+* no arbitrary path reading
+* no arbitrary URL fetching
+* no direct database capability
+* no Gemini function calling/tools
+* no autonomous provider actions
+
+---
+
+# 69. DEPENDENCIES
+
+Prefer existing:
+
+```text
+@google/genai
+```
+
+and Node built-ins.
+
+Do not add another Gemini SDK.
+
+Do not install:
+
+* Axios solely for this
+* LangChain
+* upload frameworks
+* queues
+* OCR packages
+
+If a new dependency is genuinely unavoidable, justify it.
+
+---
+
+# 70. BUILD SAFETY
+
+Run:
+
+* `npm run test:ai`
+* `npm run test:ai-input`
+* new Phase 3B Gemini media tests
+* AI-focused TypeScript check
+* AI-focused lint
+* `npm run build`
+* `npm run test:auth`
+* repository typecheck/lint for regression awareness
+* `git diff --check`
+
+Clearly distinguish existing failures from new failures.
+
+---
+
+# 71. NO DRIVE-BY FIXES
+
+Do not fix the unrelated repository failures already documented in Phase 3A.
+
+Stay scoped.
+
+---
+
+# 72. NO AGENT ARTIFACTS
+
+Do not create new:
+
+* `.agents/memory`
+* scratch files
+* planning artifacts
+* assistant-specific repository documents
+
+unless technically required for runtime correctness.
+
+---
+
+# 73. DEFINITION OF DONE
+
+Phase 3B is complete only when:
+
+* Gemini accepts text input
+* Gemini accepts inline small-image input
+* Gemini accepts Files-API PDF input
+* Gemini accepts Files-API large-image input
+* multiple images preserve order
+* Files API state polling is bounded
+* PROCESSING/ACTIVE/FAILED handled
+* provider files are explicitly deleted
+* partial upload failure cleans earlier files
+* timeout and cancellation work
+* provider cleanup failures are sanitized
+* structured output still works
+* original Zod validation remains final trust boundary
+* source metadata survives transport
+* no SQL changes
+* no Cloudflare changes
+* no frontend changes
+* no public route
+* Phase 2 tests pass
+* Phase 3A tests pass
+* new media tests pass
+* production build succeeds without new failures
+
+---
+
+# 74. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly:
+
+# PHASE 3B FINAL IMPLEMENTATION REPORT
+
+## 1. Executive Summary
+
+What was implemented and whether Phase 3B is complete.
+
+## 2. Files Created
+
+| File | Purpose |
+| ---- | ------- |
+
+## 3. Files Modified
+
+| File | Exact Change | Why |
+| ---- | ------------ | --- |
+
+## 4. Dependencies Added
+
+If none:
+
+**None**
+
+## 5. Final Gemini Media Architecture
+
+Show:
+
+```text
+PreparedAIInput
+→ AIContentPart[]
+→ transport decision
+→ inline / Files API
+→ Gemini structured generation
+→ validation
+→ provider cleanup
+→ local cleanup
+```
+
+## 6. Transport Policy
+
+Report exact behavior for:
+
+* Text
+* PDF
+* small images
+* large images
+* multi-image batches
+
+## 7. Configuration
+
+Report:
+
+* inline image threshold
+* polling interval
+* file processing timeout
+* relevant existing provider timeout
+
+## 8. Inline Media Implementation
+
+Explain how bytes reach Gemini and how memory is bounded.
+
+## 9. Files API Implementation
+
+Explain:
+
+* upload
+* MIME
+* state polling
+* ACTIVE
+* FAILED
+* timeout
+* file reference construction
+
+## 10. Provider File Cleanup
+
+Explain all cleanup scenarios.
+
+## 11. Local File Cleanup Integration
+
+Explain interaction with Phase 3A disposal.
+
+## 12. Multiple Images
+
+Explain ordering and all-inline/all-files decision.
+
+## 13. Borrowed Existing Resources
+
+State exact support status and resolver behavior.
+
+## 14. Structured Output
+
+Confirm media works with strict JSON/Zod validation.
+
+## 15. Error Model
+
+List new/changed errors.
+
+## 16. Timeout & Cancellation
+
+Explain total deadline behavior and abort cleanup.
+
+## 17. Security
+
+Confirm:
+
+* no arbitrary URL
+* no arbitrary local path
+* no API-key leak
+* no Gemini-file URI leak
+* no source logging
+* no autonomous tools
+* no DB access from provider
+
+## 18. Gemini Files API Retention
+
+Confirm explicit deletion behavior and 48-hour fallback semantics.
+
+## 19. Database Impact
+
+Expected:
+
+**None**
+
+## 20. Cloudflare Impact
+
+Expected:
+
+**None**
+
+## 21. Frontend Impact
+
+Expected:
+
+**None**
+
+## 22. Server Route Impact
+
+Expected:
+
+**No public AI endpoint**
+
+## 23. Tests Added
+
+List all media transport/lifecycle tests.
+
+## 24. Phase 2 Regression Results
+
+Exact results.
+
+## 25. Phase 3A Regression Results
+
+Exact results.
+
+## 26. Commands Executed
+
+| Command | Result |
+| ------- | ------ |
+
+## 27. Existing Repository Failures
+
+Separate pre-existing from introduced failures.
+
+## 28. Deviations From Prompt
+
+If none:
+
+**None**
+
+## 29. Blockers / Unknowns
+
+List anything unresolved before MCQ Engine.
+
+## 30. Phase 4 Readiness
+
+State whether infrastructure is ready for:
+
+* Extract Existing MCQs
+* Generate MCQs
+* Enhance Existing MCQs
+
+Do NOT implement them.
+
+## 31. Git Diff Summary
+
+Exact summary.
+
+## 32. Final Verification Checklist
+
+* [ ] Text Gemini transport works
+* [ ] PDF Gemini Files API transport works
+* [ ] Inline image transport works
+* [ ] Large-image Files API transport works
+* [ ] Multi-image ordering preserved
+* [ ] Image batch uses one transport mode
+* [ ] File status polling bounded
+* [ ] ACTIVE handled
+* [ ] PROCESSING handled
+* [ ] FAILED handled
+* [ ] Provider file cleanup guaranteed
+* [ ] Partial upload cleanup works
+* [ ] Cleanup failure sanitized
+* [ ] Cancellation cleanup works
+* [ ] Structured output preserved
+* [ ] Zod remains final validation
+* [ ] No arbitrary URLs
+* [ ] No arbitrary filesystem paths
+* [ ] No API-key exposure
+* [ ] No R2 write
+* [ ] No D1 change
+* [ ] No Prisma change
+* [ ] No DB write
+* [ ] No public AI endpoint
+* [ ] No frontend AI UI
+* [ ] No MCQ engine implemented
+* [ ] No Flashcard engine implemented
+* [ ] Phase 2 tests pass
+* [ ] Phase 3A tests pass
+* [ ] Build status documented
+
+End exactly with:
+
+**PHASE 3B STATUS: IMPLEMENTATION COMPLETE — READY FOR ARCHITECT REVIEW**
+
+Do not begin Phase 4.

@@ -18,6 +18,12 @@ import {
   aiRequestEnvelopeSchema,
 } from "../server/services/ai/schemas.js";
 import type { AIContentPart } from "../server/services/ai/input/contracts.js";
+import type { AIStagedFileCapability } from "../server/services/ai/input/contracts.js";
+import { AITemporaryFileManager } from "../server/services/ai/input/temporaryFiles.js";
+
+const testStager = new AITemporaryFileManager();
+const testCapability = async (_path: string): Promise<AIStagedFileCapability> =>
+  (await testStager.stage(new Uint8Array([1]))).capability;
 
 const validMcq = {
   question: "Which chamber pumps blood into the systemic circulation?",
@@ -227,7 +233,7 @@ test("AIContentService enforces mode-specific source references before provider 
       mimeType: "image/jpeg",
       fileSource: {
         kind: "staged_file",
-        path: "/controlled/temp/id",
+        capability: await testCapability("/controlled/temp/id"),
         ownership: "owned_transient",
       },
       source: { inputType: "image" },
@@ -265,7 +271,7 @@ test("AIContentService enforces mode-specific source references before provider 
       mimeType: "image/png",
       fileSource: {
         kind: "staged_file",
-        path: "/controlled/temp/id",
+        capability: await testCapability("/controlled/temp/id"),
         ownership: "owned_transient",
       },
       source: { inputType: "image", imageIndex: 0, label: "Screenshot" },
@@ -443,7 +449,7 @@ test("GeminiProvider propagates an already-aborted request without waiting", asy
   assert.equal(receivedAbortedSignal, true);
 });
 
-test("GeminiProvider does not implement Phase 3B binary media transport", async () => {
+test("GeminiProvider reports unavailable Files API for binary media when unconfigured", async () => {
   let calls = 0;
   const client: GeminiClient = {
     models: {
@@ -464,7 +470,7 @@ test("GeminiProvider does not implement Phase 3B binary media transport", async 
       mimeType: "application/pdf",
       fileSource: {
         kind: "staged_file",
-        path: "/controlled/temp/id",
+        capability: await testCapability("/controlled/temp/id"),
         ownership: "owned_transient",
       },
       source: { inputType: "pdf", label: "Lecture" },
@@ -473,7 +479,7 @@ test("GeminiProvider does not implement Phase 3B binary media transport", async 
     }],
     responseSchema: aiMcqDraftSchema,
   }), (error: unknown) =>
-    error instanceof AIServiceError && error.code === "AI_INPUT_UNSUPPORTED"
+    error instanceof AIServiceError && error.code === "AI_MEDIA_UPLOAD_FAILED"
   );
   assert.equal(calls, 0);
 });

@@ -4,7 +4,7 @@ export type AIBinaryOwnership = "owned_transient" | "borrowed";
 export type AIFileSource =
   | {
     kind: "staged_file";
-    path: string;
+    capability: AIStagedFileCapability;
     ownership: "owned_transient";
   }
   | {
@@ -12,6 +12,12 @@ export type AIFileSource =
     resourceId: string;
     ownership: "borrowed";
   };
+
+export interface AIStagedFileCapability {
+  readonly sizeBytes: number;
+  readBytes(): Promise<Uint8Array>;
+  withPath<T>(operation: (path: string) => Promise<T>): Promise<T>;
+}
 
 interface AISourceMetadata {
   section?: string;

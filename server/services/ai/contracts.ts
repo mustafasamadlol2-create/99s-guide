@@ -32,6 +32,9 @@ export interface SafeProviderMetadata {
   provider: string;
   model: string;
   responseId?: string;
+  transport?: "inline" | "files_api";
+  mediaCount?: number;
+  cleanupWarning?: "provider_media_cleanup_failed";
 }
 
 export interface StructuredGenerationResult<T> {

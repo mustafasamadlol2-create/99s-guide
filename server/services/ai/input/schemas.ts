@@ -3,6 +3,7 @@ import type {
   AIContentPart,
   AIFilePart,
   AIFileSource,
+  AIStagedFileCapability,
   AIImageSourceReference,
   AIPdfSourceReference,
   AITextPart,
@@ -10,6 +11,7 @@ import type {
   RawAIBinaryInput,
   RawAIInput,
 } from "./contracts.js";
+import { isTrustedAIStagedFileCapability } from "./temporaryFiles.js";
 
 const optionalMetadataString = z.string().max(500).optional();
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -59,7 +61,7 @@ export const rawAIInputSchema = z.union([
 
 const stagedFileSourceSchema = z.object({
   kind: z.literal("staged_file"),
-  path: z.string().min(1),
+  capability: z.custom<AIStagedFileCapability>(isTrustedAIStagedFileCapability),
   ownership: z.literal("owned_transient"),
 }).strict();
 
@@ -69,10 +71,10 @@ const existingResourceSourceSchema = z.object({
   ownership: z.literal("borrowed"),
 }).strict();
 
-export const aiFileSourceSchema: z.ZodType<AIFileSource> = z.discriminatedUnion("kind", [
+export const aiFileSourceSchema = z.discriminatedUnion("kind", [
   stagedFileSourceSchema,
   existingResourceSourceSchema,
-]);
+]) as unknown as z.ZodType<AIFileSource>;
 
 export const aiTextPartSchema = z.object({
   kind: z.literal("text"),

@@ -3,12 +3,22 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { AIServiceError } from "../errors.js";
+import type { AIStagedFileCapability } from "./contracts.js";
 
 export interface StagedAIFile {
   id: string;
   path: string;
   sizeBytes: number;
+  capability: AIStagedFileCapability;
   dispose(): Promise<void>;
+}
+
+const trustedCapabilities = new WeakSet<object>();
+
+export function isTrustedAIStagedFileCapability(
+  value: unknown,
+): value is AIStagedFileCapability {
+  return typeof value === "object" && value !== null && trustedCapabilities.has(value);
 }
 
 export class AITemporaryFileManager {
@@ -46,10 +56,30 @@ export class AITemporaryFileManager {
     }
 
     let disposed = false;
+    const capability: AIStagedFileCapability = {
+      sizeBytes: bytes.byteLength,
+      readBytes: async () => {
+        if (disposed) throw new AIServiceError("AI_INPUT_CLEANUP_FAILED", {
+          publicMessage: "The staged AI input is no longer available.",
+          diagnosticMessage: "A staged capability was read after disposal.",
+        });
+        const { readFile } = await import("node:fs/promises");
+        return new Uint8Array(await readFile(path));
+      },
+      withPath: async <T>(operation: (path: string) => Promise<T>) => {
+        if (disposed) throw new AIServiceError("AI_INPUT_CLEANUP_FAILED", {
+          publicMessage: "The staged AI input is no longer available.",
+          diagnosticMessage: "A staged capability was used after disposal.",
+        });
+        return operation(path);
+      },
+    };
+    trustedCapabilities.add(capability);
     return {
       id,
       path,
       sizeBytes: bytes.byteLength,
+      capability,
       dispose: async () => {
         if (disposed) return;
         if (!this.owns(path)) {

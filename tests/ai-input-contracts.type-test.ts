@@ -20,7 +20,11 @@ const validImage: AIContentPart = {
   mimeType: "image/png",
   fileSource: {
     kind: "staged_file",
-    path: "/controlled/temp/id",
+    capability: {
+      sizeBytes: 1,
+      readBytes: async () => new Uint8Array([1]),
+      withPath: async (operation) => operation("/controlled/temp/id"),
+    },
     ownership: "owned_transient",
   },
   source: { inputType: "image", imageIndex: 0 },

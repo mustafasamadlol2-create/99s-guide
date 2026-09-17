@@ -145,7 +145,7 @@ export class AIInputService {
         ownership: "owned_transient",
         fileSource: {
           kind: "staged_file",
-          path: prepared.staged.path,
+          capability: prepared.staged.capability,
           ownership: "owned_transient",
         },
         source,
@@ -217,7 +217,7 @@ export class AIInputService {
             ownership: "owned_transient",
             fileSource: {
               kind: "staged_file",
-              path: prepared.staged.path,
+              capability: prepared.staged.capability,
               ownership: "owned_transient",
             },
             source,

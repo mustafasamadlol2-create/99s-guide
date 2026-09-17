@@ -115,11 +115,15 @@ test("accepts a signed PDF, sanitizes its display name, hashes, stages, and disp
     assert.equal(pdf.source.page, undefined);
     assert.equal(pdf.fileSource.kind, "staged_file");
     if (pdf.fileSource.kind !== "staged_file") assert.fail("Expected staged PDF.");
-    assert.equal(pdf.fileSource.path.startsWith(`${root}/`), true);
-    assert.equal(pdf.fileSource.path.includes("محاضرة"), false);
-    assert.deepEqual(await readFile(pdf.fileSource.path), PDF);
+    const stagedBytes = await pdf.fileSource.capability.readBytes();
+    assert.deepEqual(Buffer.from(stagedBytes), PDF);
+    await pdf.fileSource.capability.withPath(async (path) => {
+      assert.equal(path.startsWith(`${root}/`), true);
+      assert.equal(path.includes("محاضرة"), false);
+      assert.deepEqual(await readFile(path), PDF);
+    });
     await prepared.dispose();
-    await assertMissing(pdf.fileSource.path);
+    await assert.rejects(pdf.fileSource.capability.readBytes);
     await prepared.dispose();
   });
 });
@@ -188,12 +192,14 @@ test("multiple images preserve order, receive indexes, use unique names, and cle
     );
     const paths = prepared.input.images.map((image) => {
       if (image.fileSource.kind !== "staged_file") assert.fail("Expected staged image.");
-      return image.fileSource.path;
+      return image.fileSource.capability;
     });
     assert.equal(new Set(paths).size, 3);
-    assert.equal(paths.every((path) => path.startsWith(`${root}/`)), true);
+    await Promise.all(paths.map((capability) => capability.withPath(async (path) => {
+      assert.equal(path.startsWith(`${root}/`), true);
+    })));
     await prepared.dispose();
-    await Promise.all(paths.map(assertMissing));
+    await Promise.all(paths.map((capability) => assert.rejects(capability.readBytes)));
     await prepared.dispose();
   });
 });
@@ -277,7 +283,9 @@ test("guarantees cleanup when prepared work throws or is cancelled", async () =>
       if (prepared.input.pdf.fileSource.kind !== "staged_file") {
         assert.fail("Expected staged PDF.");
       }
-      stagedPath = prepared.input.pdf.fileSource.path;
+      await prepared.input.pdf.fileSource.capability.withPath(async (path) => {
+        stagedPath = path;
+      });
       throw new Error("provider failed");
     }), /provider failed/);
     await assertMissing(stagedPath);
@@ -305,7 +313,9 @@ test("staging identifiers do not collide across concurrent inputs", async () => 
     ) {
       assert.fail("Expected staged PDFs.");
     }
-    assert.notEqual(first.input.pdf.fileSource.path, second.input.pdf.fileSource.path);
+    const firstPath = await first.input.pdf.fileSource.capability.withPath(async (path) => path);
+    const secondPath = await second.input.pdf.fileSource.capability.withPath(async (path) => path);
+    assert.notEqual(firstPath, secondPath);
     await Promise.all([first.dispose(), second.dispose()]);
   });
 });
