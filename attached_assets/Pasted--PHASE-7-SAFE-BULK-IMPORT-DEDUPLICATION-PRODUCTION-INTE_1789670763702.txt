@@ -1,0 +1,2305 @@
+# PHASE 7 — SAFE BULK IMPORT, DEDUPLICATION & PRODUCTION INTEGRATION
+
+## 99’s Guide — Prompt 9
+
+### MCQ + Flashcard Final Import Pipeline
+
+Phase 1: APPROVED
+Phase 2: APPROVED
+Phase 3A: APPROVED
+Phase 3B: APPROVED
+Phase 4: APPROVED
+Phase 5: APPROVED
+Phase 6A: APPROVED
+Phase 6B: APPROVED
+
+You are now authorized to implement **Phase 7 only**.
+
+The application now has a complete AI Preview and Review Studio.
+
+Current flow:
+
+```text
+Source
+→ AI Preview
+→ Review Studio
+→ administrator edits candidates
+→ administrator selects desired candidates
+```
+
+Phase 7 must implement the final safe persistence path:
+
+```text
+Selected edited candidates
+→ server-side revalidation
+→ database duplicate analysis
+→ administrator duplicate summary
+→ explicit confirmation
+→ duplicate re-check
+→ atomic PostgreSQL bulk import
+→ existing D1 synchronization
+→ existing cache/event invalidation
+→ success summary
+```
+
+This is the FIRST phase allowed to write AI-reviewed content to the database.
+
+---
+
+# 1. PRIMARY GOAL
+
+Implement safe final import for:
+
+* MCQs
+* Flashcards
+
+Requirements:
+
+* Admin/Owner only
+* Selected candidates only
+* Server-side validation
+* Existing-Lecture validation
+* Current-batch duplicate detection
+* Existing-database duplicate detection
+* Near-duplicate detection
+* Explicit duplicate analysis before commit
+* Duplicate re-check during commit
+* Transactional PostgreSQL insertion
+* Existing D1 synchronization architecture
+* Existing realtime/cache invalidation
+* No page reload
+* No one-request-per-item import
+* No Prisma migration unless absolutely unavoidable
+
+Expected outcome example:
+
+```text
+Selected: 100
+New: 94
+Exact duplicates: 4
+Possible duplicates: 2
+
+→ Confirm import
+
+Imported: 94
+Duplicates skipped: 6
+```
+
+---
+
+# 2. DO NOT TRUST FRONTEND REVIEW STATE
+
+The server MUST NOT trust:
+
+```text
+localImportReady
+serverImportReady
+needsReview
+confidence
+warnings
+requiresHumanApproval
+selected
+edited
+```
+
+These are frontend/review metadata.
+
+The import server must validate persisted fields independently.
+
+The frontend decides WHICH candidates to submit.
+
+The backend decides whether submitted content is structurally valid and safe to persist.
+
+---
+
+# 3. DO NOT SEND AI-ONLY METADATA FOR PERSISTENCE
+
+The import request should contain only what is necessary.
+
+MCQ import item conceptually:
+
+```ts
+{
+  clientKey: string;
+
+  question: string;
+
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+
+  correctAnswer: "A" | "B" | "C" | "D";
+
+  hint: string | null;
+  explanation: string | null;
+
+  difficulty: ...
+}
+```
+
+Flashcard:
+
+```ts
+{
+  clientKey: string;
+
+  clinicalConcept: string;
+  explanation: string;
+}
+```
+
+`clientKey` may use the transient candidate ID only for mapping the response back to the Review Studio.
+
+It must NOT become a DB primary key.
+
+Do not persist:
+
+* confidence
+* warnings
+* needsReview
+* source evidence
+* requestId
+* provider model
+* provider transport
+* AI candidate ID
+* local validation state
+
+unless an existing production database field explicitly requires equivalent data.
+
+---
+
+# 4. INSPECT EXISTING WRITE SEMANTICS FIRST
+
+Before implementation, inspect the CURRENT production behavior of:
+
+```text
+POST /api/mcqs
+POST /api/flashcards
+```
+
+Determine exactly:
+
+* trimming/normalization
+* default difficulty behavior
+* sourceType behavior
+* sourceRef behavior
+* lecture validation
+* D1 synchronization
+* socket/realtime notifications
+* cache invalidation assumptions
+* created IDs
+* error behavior
+
+AI bulk import must create records compatible with manual creation.
+
+Do NOT invent different semantics.
+
+---
+
+# 5. CRITICAL SOURCE TYPE RULE
+
+Phase 4 suggested possible future values such as:
+
+```text
+ai_pdf
+ai_image
+ai_text
+```
+
+Those were recommendations only.
+
+Do NOT introduce these values blindly.
+
+Inspect the actual application use of:
+
+```text
+Mcq.sourceType
+Mcq.sourceRef
+```
+
+Then:
+
+* reuse the existing accepted/default semantics
+* or use an already-established compatible value
+
+Do NOT create a new implicit enum merely because the database column is a string.
+
+If no current AI-specific source representation exists, use the safest existing manual/default behavior.
+
+Document the final decision.
+
+---
+
+# 6. FLASHCARD SCHEMA RULE
+
+The current Flashcard schema contains only canonical content such as:
+
+```text
+clinicalConcept
+explanation
+lectureId
+```
+
+Do NOT add:
+
+* AI fields
+* confidence
+* provenance
+* source page
+* tags
+
+No Flashcard migration.
+
+---
+
+# 7. NO PRISMA MIGRATION BY DEFAULT
+
+Phase 7 should work with existing models.
+
+Expected:
+
+```text
+No Prisma schema change
+No migration
+```
+
+If a migration appears necessary, STOP implementing that part and report why.
+
+Do not silently change production schema.
+
+---
+
+# 8. IMPORT ROUTES
+
+Implement admin-only import analysis and commit routes.
+
+Recommended:
+
+```text
+POST /api/admin/ai/mcq/import/check
+POST /api/admin/ai/mcq/import
+
+POST /api/admin/ai/flashcards/import/check
+POST /api/admin/ai/flashcards/import
+```
+
+Use the existing:
+
+```text
+requireAdmin
+```
+
+Do not create a new auth system.
+
+---
+
+# 9. WHY IMPORT CHECK IS SEPARATE
+
+The administrator must see duplicate analysis BEFORE writing.
+
+Flow:
+
+```text
+Review Studio
+→ Import Selected
+→ /import/check
+→ duplicate summary
+→ confirmation UI
+→ /import
+```
+
+The commit endpoint MUST repeat validation and duplicate detection.
+
+Never trust the earlier check as authoritative.
+
+Database state may have changed between check and commit.
+
+---
+
+# 10. LECTURE CONTEXT
+
+Both check and commit require:
+
+```text
+lectureId
+```
+
+Validate the Lecture exists.
+
+Use a read-only resolver/pattern consistent with Phase 6A.
+
+No candidate may import into an unknown Lecture.
+
+---
+
+# 11. MAXIMUM IMPORT BATCH
+
+Initial hard maximum:
+
+```text
+100 candidates
+```
+
+for both:
+
+* MCQs
+* Flashcards
+
+Reject:
+
+* zero candidates
+* more than 100
+
+Do not silently truncate final import requests.
+
+---
+
+# 12. STRICT REQUEST VALIDATION
+
+Use strict Zod/runtime schemas.
+
+Reject:
+
+* unknown keys where appropriate
+* malformed `clientKey`
+* invalid correct answer
+* empty question
+* empty options
+* empty Flashcard front
+* empty Flashcard back
+* oversized fields
+* invalid difficulty
+
+Do not rely on frontend validation.
+
+---
+
+# 13. MCQ SERVER VALIDATION
+
+Before duplicate analysis/import require:
+
+* non-empty trimmed question
+* non-empty A
+* non-empty B
+* non-empty C
+* non-empty D
+* correctAnswer A/B/C/D
+* no obvious duplicate options
+* hint normalized according to existing DB semantics
+* explanation normalized according to existing DB semantics
+* difficulty compatible with current persistence behavior
+
+Do not attempt medical fact verification.
+
+---
+
+# 14. FLASHCARD SERVER VALIDATION
+
+Require:
+
+* non-empty `clinicalConcept`
+* non-empty `explanation`
+
+Apply current production normalization.
+
+Do not create front-only database cards through the AI import path.
+
+---
+
+# 15. FIELD LIMITS
+
+Reuse actual database/application limits where they exist.
+
+If the DB has no explicit safe limits, reuse the already-approved AI candidate boundaries where compatible.
+
+Do not permit giant unbounded imported strings.
+
+Do not silently truncate educational content.
+
+Reject with a field-level error.
+
+---
+
+# 16. CLIENT KEY
+
+Require a request-local:
+
+```text
+clientKey
+```
+
+for each candidate.
+
+Purpose:
+
+```text
+server response
+→ frontend candidate mapping
+```
+
+Requirements:
+
+* unique within request
+* bounded string/UUID
+* not trusted as database identity
+* never used for authorization
+
+Reject duplicate clientKeys in one import request.
+
+---
+
+# 17. DUPLICATE DETECTION — TWO LEVELS
+
+Duplicate analysis must inspect:
+
+## A. Current submitted batch
+
+and
+
+## B. Existing records in the selected Lecture
+
+Do not compare against unrelated Lectures unless current application semantics require global uniqueness.
+
+The relevant scope is the target Lecture.
+
+---
+
+# 18. MCQ DUPLICATE KEY
+
+Primary comparison:
+
+```text
+question
+```
+
+Use a deterministic normalized representation.
+
+Do NOT require options to be identical before identifying an obvious repeated question.
+
+Options may be used as secondary diagnostic context.
+
+---
+
+# 19. FLASHCARD DUPLICATE KEY
+
+Primary comparison:
+
+```text
+clinicalConcept
+```
+
+Use normalized front/concept text.
+
+Do not require explanation equality before identifying the same study-card concept.
+
+---
+
+# 20. DUPLICATE NORMALIZATION
+
+Create a shared conservative normalization utility.
+
+At minimum:
+
+* Unicode normalization
+* trim
+* collapse repeated whitespace
+* normalize harmless spacing around punctuation where safe
+* case-insensitive comparison where appropriate
+
+Preserve Arabic.
+
+Do NOT:
+
+* transliterate Arabic
+* remove meaningful Arabic letters
+* use English-only normalization
+* aggressively stem medical terms
+
+Use a Unicode-aware implementation.
+
+---
+
+# 21. EXACT DUPLICATE
+
+An exact duplicate means normalized duplicate key is equal.
+
+Example:
+
+```text
+"What is Protein A?"
+"What   is Protein A? "
+```
+
+should be exact duplicates after normalization.
+
+---
+
+# 22. POSSIBLE / NEAR DUPLICATE
+
+Also detect conservative near duplicates.
+
+Goal:
+
+catch examples such as:
+
+```text
+What is the main virulence factor of S. aureus?
+What is the major virulence factor of Staphylococcus aureus?
+```
+
+without classifying broadly related questions as duplicates.
+
+Use a deterministic, testable string-similarity method.
+
+Recommended:
+
+* normalized character n-gram similarity
+* Dice/Jaccard-style comparison
+
+or another focused dependency-free approach.
+
+Do NOT use Gemini for duplicate detection.
+
+Do NOT add embeddings/vector DB.
+
+---
+
+# 23. NEAR-DUPLICATE THRESHOLD
+
+Centralize a conservative threshold.
+
+Recommended starting point:
+
+```text
+0.92
+```
+
+Do not compare extremely short strings with fuzzy similarity.
+
+Use a minimum normalized length before near-duplicate classification.
+
+Example:
+
+```text
+20 characters
+```
+
+Exact duplicates remain detectable regardless of length.
+
+---
+
+# 24. DUPLICATE CLASSIFICATIONS
+
+Use clear categories:
+
+```text
+new
+exact_duplicate
+possible_duplicate
+```
+
+Optionally:
+
+```text
+batch_exact_duplicate
+batch_possible_duplicate
+existing_exact_duplicate
+existing_possible_duplicate
+```
+
+internally.
+
+Frontend should be able to explain whether the match came from:
+
+* current selected batch
+* existing Lecture content
+
+---
+
+# 25. DUPLICATE RESPONSE
+
+Import check should return per candidate:
+
+```ts
+{
+  clientKey,
+  status:
+    | "new"
+    | "exact_duplicate"
+    | "possible_duplicate",
+
+  duplicateScope?: "batch" | "existing",
+
+  similarity?: number,
+
+  matchedPreview?: string
+}
+```
+
+Do not return unnecessary database internals.
+
+`matchedPreview` should be bounded.
+
+---
+
+# 26. CHECK SUMMARY
+
+Return:
+
+```text
+submittedCount
+newCount
+exactDuplicateCount
+possibleDuplicateCount
+```
+
+Example:
+
+```text
+100 selected
+94 new
+4 exact duplicates
+2 possible duplicates
+```
+
+---
+
+# 27. DUPLICATE POLICY
+
+For the initial safe import implementation:
+
+**Both exact and possible duplicates are skipped by default during commit.**
+
+Do not automatically insert a possible duplicate.
+
+This follows the safety-first approved product direction.
+
+The frontend can retain skipped candidates after import so the administrator sees what was not imported.
+
+Do not add an override flow in Phase 7 unless the existing UX makes it exceptionally simple and safe.
+
+---
+
+# 28. NO SILENT DUPLICATE DELETION
+
+Duplicate candidates are not erased from frontend review history.
+
+After commit:
+
+* new candidates become imported
+* duplicate candidates remain visible as skipped duplicates
+
+The admin must understand what happened.
+
+---
+
+# 29. COMMIT MUST RECHECK DUPLICATES
+
+The final `/import` endpoint:
+
+1. validates request
+2. validates Lecture
+3. queries existing relevant records
+4. performs duplicate analysis again
+5. determines final insert set
+6. inserts only final `new` candidates
+
+Do not trust duplicate statuses sent by frontend.
+
+Ideally frontend should not send statuses at all.
+
+---
+
+# 30. TRANSACTIONAL IMPORT
+
+All final PostgreSQL inserts for one import request must be atomic.
+
+MCQ example:
+
+```text
+94 new MCQs
+→ one bounded transaction
+```
+
+Flashcards equivalent.
+
+Do NOT send:
+
+```text
+94 independent create requests
+```
+
+Do NOT perform one transaction per candidate.
+
+---
+
+# 31. ALL-OR-NOTHING FOR NEW ITEMS
+
+If PostgreSQL insertion fails:
+
+```text
+0 of the final new items
+```
+
+should remain inserted from that transaction.
+
+Duplicates skipped before insertion are not considered failures.
+
+---
+
+# 32. USE EXISTING PRISMA CAPABILITIES
+
+Use the installed Prisma version's safest bulk pattern.
+
+Possible approaches:
+
+* `createMany`
+* `createManyAndReturn`
+* pre-generated UUIDs + `createMany`
+* another existing proven project pattern
+
+Inspect actual schema/client capability.
+
+Do not assume an API without checking installed Prisma behavior.
+
+---
+
+# 33. CREATED RECORD IDENTIFIERS
+
+The import result should be able to tell the frontend which `clientKey`s imported successfully.
+
+You may map:
+
+```text
+clientKey → created DB id
+```
+
+if useful.
+
+Do not expose unrelated record internals.
+
+---
+
+# 34. TRANSACTION ISOLATION / RACE SAFETY
+
+Duplicate detection must be as race-safe as practical.
+
+Perform the final existing-record duplicate query and insertion inside the transaction where possible.
+
+Use an appropriate PostgreSQL transaction isolation level supported by the installed Prisma/PostgreSQL stack.
+
+Preferred if supported:
+
+```text
+Serializable
+```
+
+because two administrators could import similar candidates concurrently.
+
+If serializable transaction support is used:
+
+* handle known serialization conflicts
+* a very small bounded retry is acceptable for the DATABASE transaction only
+* do NOT rerun Gemini
+* do not retry arbitrary errors
+
+If this is not compatible with the current project, document the chosen race-safety mechanism.
+
+---
+
+# 35. IMPORT CONCURRENCY
+
+Do not reuse Gemini preview quotas unnecessarily.
+
+Import is DB work, not AI work.
+
+However prevent obvious duplicate double-click import from the same frontend.
+
+Frontend:
+
+* disable confirmation button while commit active
+
+Backend duplicate re-check is the authoritative retry protection.
+
+---
+
+# 36. NETWORK RETRY SAFETY
+
+A user may click Import, lose connection, then retry.
+
+The second request must not create obvious duplicate content.
+
+Because commit re-runs DB duplicate detection:
+
+```text
+first request succeeded
+second request repeats
+→ previously inserted content is detected
+→ skipped
+```
+
+This provides content-level idempotency without an AI session table.
+
+---
+
+# 37. D1 SYNCHRONIZATION — INSPECT FIRST
+
+Phase 1 established:
+
+```text
+PostgreSQL = canonical
+D1 = synchronized/read mirror
+```
+
+Before implementation inspect:
+
+* current MCQ D1 sync behavior
+* current Flashcard D1 sync behavior
+* existing private D1 helpers/outbox
+* manual create route behavior
+* batching support
+
+Reuse the existing synchronization mechanism.
+
+Do NOT create a parallel D1 architecture.
+
+---
+
+# 38. POSTGRESQL COMMIT PRECEDES MIRROR SUCCESS
+
+PostgreSQL remains authoritative.
+
+Do NOT attempt a distributed atomic transaction between PostgreSQL and D1.
+
+Expected semantics:
+
+```text
+PostgreSQL transaction commits
+→ existing D1 sync mechanism runs/enqueues
+```
+
+If D1 synchronization temporarily fails:
+
+* PostgreSQL data remains committed
+* report a safe synchronization warning if current architecture requires it
+* reuse existing retry/outbox semantics if available
+
+Do NOT delete canonical PostgreSQL rows because Cloudflare is temporarily unavailable.
+
+---
+
+# 39. D1 BATCH EFFICIENCY
+
+Do not unnecessarily perform 100 standalone D1 network operations if existing architecture supports batching/outbox.
+
+Use the actual project's proven mechanism.
+
+If only per-record helper exists, build the smallest safe batch orchestration around it without schema changes.
+
+Document exact behavior.
+
+---
+
+# 40. NO D1 SCHEMA CHANGE
+
+Expected:
+
+```text
+No D1 migration
+No Wrangler schema change
+```
+
+AI-imported rows must use the same mirror structure as manually created content.
+
+---
+
+# 41. REALTIME / SOCKET INTEGRATION
+
+Inspect what the existing manual MCQ and Flashcard creation paths emit through Socket.io or other realtime mechanisms.
+
+Reuse the exact established content-refresh event(s).
+
+Do NOT invent:
+
+```text
+materials_updated
+```
+
+or another event unless that is actually the current production event.
+
+Use repository evidence.
+
+---
+
+# 42. CACHE INVALIDATION — BACKEND
+
+Inspect any backend cache involved in:
+
+* Lecture MCQs
+* Lecture Flashcards
+* Lecture detail/content
+
+Invalidate using existing mechanisms.
+
+Do not globally flush unrelated caches.
+
+---
+
+# 43. CACHE INVALIDATION — FRONTEND
+
+After a successful import:
+
+* invalidate/refetch only the relevant Lecture content caches
+* update Review Studio local state
+* reflect imported count
+
+Do NOT:
+
+```text
+window.location.reload()
+location.reload()
+full page refresh
+```
+
+No refresh.
+
+No route remount hack.
+
+No visual page jump.
+
+The import must feel native and instantaneous.
+
+---
+
+# 44. PRESERVE CONSOLE POSITION
+
+After import:
+
+* remain on the current Lecture
+* remain in the current MCQ/Flashcard Console area
+* do not reset the Console tree
+* do not scroll unexpectedly to page top
+* do not resize/reload the page
+
+---
+
+# 45. FRONTEND IMPORT FLOW
+
+Add a real action to Review Studio:
+
+```text
+Import Selected
+```
+
+It is enabled only when:
+
+* at least one candidate is selected
+* selected candidates are locally structurally valid
+* no check/commit operation is active
+
+---
+
+# 46. STEP 1 — IMPORT CHECK
+
+On:
+
+```text
+Import Selected
+```
+
+send selected, locally edited persistent fields to:
+
+```text
+/import/check
+```
+
+Do not send rejected/unselected candidates.
+
+---
+
+# 47. DUPLICATE ANALYSIS MODAL
+
+After check, present a confirmation experience.
+
+Example:
+
+```text
+Ready to import
+
+Selected                 100
+New                       94
+Exact duplicates           4
+Possible duplicates        2
+
+94 items will be imported.
+6 duplicates will be skipped.
+```
+
+Provide:
+
+```text
+Cancel
+Confirm Import
+```
+
+Nothing is written before explicit confirmation.
+
+---
+
+# 48. ZERO NEW ITEMS
+
+If duplicate check finds:
+
+```text
+newCount = 0
+```
+
+do not show an enabled commit action.
+
+Explain:
+
+```text
+All selected items already appear to exist in this Lecture.
+```
+
+---
+
+# 49. DUPLICATE DETAILS
+
+Allow the administrator to inspect the duplicate list.
+
+Show:
+
+* candidate text/front
+* exact vs possible
+* existing/batch duplicate
+* similarity percentage only for possible duplicate if useful
+
+Do not make the modal overwhelming.
+
+---
+
+# 50. CONFIRM IMPORT
+
+After explicit confirmation call:
+
+```text
+/import
+```
+
+using the selected candidate payload.
+
+The server independently re-checks duplicates.
+
+---
+
+# 51. STATE MAY CHANGE BETWEEN CHECK AND COMMIT
+
+The commit response is authoritative.
+
+Example:
+
+Check:
+
+```text
+94 new
+```
+
+Commit later:
+
+```text
+93 imported
+7 skipped
+```
+
+because another admin inserted one.
+
+Frontend must display the final server result correctly.
+
+---
+
+# 52. IMPORT SUCCESS UI
+
+Show a clear success summary:
+
+```text
+Imported 93 MCQs
+7 duplicates skipped
+```
+
+or Flashcards equivalent.
+
+Use toast plus inline result state where appropriate.
+
+---
+
+# 53. IMPORTED CANDIDATE STATE
+
+Candidates successfully imported should:
+
+* become visually marked `Imported`
+* become unselectable for another import
+* be removed from active selection
+* remain viewable until the administrator starts a new preview
+
+Do not erase them instantly.
+
+This gives confidence about what happened.
+
+---
+
+# 54. DUPLICATE-SKIPPED CANDIDATE STATE
+
+Candidates skipped as duplicates should:
+
+* remain in Review Studio
+* become unselected
+* show:
+
+  * Exact duplicate
+  * Possible duplicate
+* remain not imported
+
+Do not silently remove them.
+
+---
+
+# 55. IMPORT ERROR
+
+If commit fails atomically:
+
+* no new candidate should be marked imported
+* retain review edits/selections
+* show safe error
+* allow retry
+
+Do not discard the AI preview.
+
+---
+
+# 56. D1 SYNC WARNING
+
+If canonical PostgreSQL import succeeds but existing D1 synchronization reports a recoverable warning:
+
+frontend should not claim import failed if canonical write succeeded.
+
+Display a restrained admin warning only if the backend reports one.
+
+Example:
+
+```text
+Content was saved successfully. Mirror synchronization is pending.
+```
+
+Use wording matching actual sync semantics.
+
+---
+
+# 57. IMPORT API RESPONSE — CHECK
+
+Create an explicit safe check DTO.
+
+Conceptually:
+
+```ts
+{
+  requestId,
+  target,
+  lecture: {
+    id,
+    name
+  },
+
+  summary: {
+    submittedCount,
+    newCount,
+    exactDuplicateCount,
+    possibleDuplicateCount
+  },
+
+  items: [
+    {
+      clientKey,
+      status,
+      duplicateScope?,
+      similarity?,
+      matchedPreview?
+    }
+  ]
+}
+```
+
+No DB writes.
+
+---
+
+# 58. IMPORT API RESPONSE — COMMIT
+
+Conceptually:
+
+```ts
+{
+  requestId,
+  target,
+  lecture: {
+    id,
+    name
+  },
+
+  summary: {
+    submittedCount,
+    importedCount,
+    exactDuplicateSkipped,
+    possibleDuplicateSkipped
+  },
+
+  items: [
+    {
+      clientKey,
+      status: "imported" | "exact_duplicate" | "possible_duplicate",
+      createdId?
+    }
+  ],
+
+  sync: {
+    status: ...
+    warning?: ...
+  }
+}
+```
+
+Adapt to actual architecture.
+
+---
+
+# 59. SAFE RESPONSE PROJECTION
+
+As in Phase 6A, explicitly construct safe response DTOs.
+
+Do not expose:
+
+* raw Prisma records unnecessarily
+* internal SQL errors
+* D1 credentials
+* stack traces
+* provider data
+* unrelated user information
+
+---
+
+# 60. IMPORT ERROR MAPPING
+
+At minimum map:
+
+| Condition                                    |                                                    HTTP |
+| -------------------------------------------- | ------------------------------------------------------: |
+| invalid request                              |                                                     400 |
+| invalid candidate                            |                                                     400 |
+| Lecture not found                            |                                                     404 |
+| no new candidates on commit                  | 200 with zero-import summary OR safe conflict semantics |
+| forbidden                                    |                                           existing auth |
+| serialization conflict after allowed retries |             409 or 503 according to existing convention |
+| DB failure                                   |                                                     500 |
+| unexpected sync warning after DB commit      |          success response + warning, not false rollback |
+
+Choose consistent exact codes and report them.
+
+---
+
+# 61. DO NOT INVOKE GEMINI DURING IMPORT
+
+Neither:
+
+```text
+/import/check
+```
+
+nor:
+
+```text
+/import
+```
+
+may call Gemini.
+
+The AI work is already finished.
+
+Import is deterministic:
+
+```text
+validate
+→ deduplicate
+→ persist
+→ synchronize
+```
+
+---
+
+# 62. NO SOURCE FILE REQUIRED
+
+Import must not require the original:
+
+* PDF
+* images
+* pasted text
+
+The reviewed edited candidate payload is the persistence source.
+
+Do not re-upload source files.
+
+---
+
+# 63. NO CONFIDENCE GATE
+
+A human may deliberately select a low-confidence candidate after correcting it.
+
+Server import must NOT reject solely because:
+
+```text
+confidence < 0.85
+```
+
+Confidence is not part of the persisted payload.
+
+Structural correctness is the server requirement.
+
+---
+
+# 64. HUMAN CONTROL
+
+Only candidates explicitly selected in Review Studio are sent.
+
+Do not import:
+
+* all generated candidates
+* all ready candidates
+* removed candidates
+* unselected candidates
+
+unless the administrator selected them.
+
+---
+
+# 65. IMPORT CHECK MUST BE READ-ONLY
+
+Verify:
+
+```text
+/import/check
+```
+
+performs:
+
+* Lecture read
+* existing content read
+* duplicate analysis
+
+but:
+
+**ZERO writes**
+
+No D1 sync.
+
+No Socket event.
+
+No cache invalidation.
+
+---
+
+# 66. COMMIT TRANSACTION
+
+`/import` is the only new AI path that writes academic content.
+
+All DB writes must occur in a focused import service.
+
+Do not put large transaction logic directly in the route.
+
+Recommended:
+
+```text
+server/services/ai/import/
+  contracts.ts
+  schemas.ts
+  normalize.ts
+  duplicateDetection.ts
+  MCQImportService.ts
+  FlashcardImportService.ts
+  sync.ts
+  response.ts
+  index.ts
+```
+
+Exact names may vary.
+
+---
+
+# 67. ROUTE MODULE
+
+Extend the existing:
+
+```text
+server/services/ai/http/
+```
+
+or create a focused import router module.
+
+Do not put the implementation into `server.ts`.
+
+`server.ts` should only perform minimal router registration/dependency injection.
+
+---
+
+# 68. DB CAPABILITY BOUNDARY
+
+Prefer dependency injection with focused persistence interfaces rather than giving generic route code unrestricted Prisma access.
+
+Example concept:
+
+```ts
+interface MCQImportRepository {
+  findLectureMCQs(...)
+  importMCQsTransactionally(...)
+}
+```
+
+Keep database capability localized.
+
+---
+
+# 69. MANUAL WORKFLOW COMPATIBILITY
+
+Do not modify existing manual endpoints unless necessary to extract a tiny safe shared helper.
+
+Manual:
+
+```text
+POST /api/mcqs
+POST /api/flashcards
+```
+
+must continue behaving exactly as before.
+
+Test them.
+
+---
+
+# 70. DATABASE FIELD MAPPING — MCQ
+
+The final importer must map to the actual existing fields:
+
+```text
+question
+optionA
+optionB
+optionC
+optionD
+correctAnswer
+hint
+explanation
+difficulty
+sourceType
+sourceRef
+lectureId
+```
+
+But inspect the current schema and manual route before final implementation.
+
+Do not invent hidden columns.
+
+---
+
+# 71. DATABASE FIELD MAPPING — FLASHCARD
+
+Map only:
+
+```text
+clinicalConcept
+explanation
+lectureId
+```
+
+plus any truly existing required fields discovered from schema.
+
+No AI-only metadata.
+
+---
+
+# 72. NULL / EMPTY NORMALIZATION
+
+Follow existing application semantics.
+
+Examples to inspect:
+
+* `""` vs `null` for hint
+* `""` vs `null` for explanation
+* default difficulty
+* whitespace trimming
+
+AI import should not produce semantically different rows from manual creation unnecessarily.
+
+---
+
+# 73. TEST — CHECK HAS NO WRITES
+
+Explicit test:
+
+```text
+/import/check
+```
+
+must not call:
+
+* create
+* createMany
+* update
+* delete
+* D1 sync
+
+---
+
+# 74. TEST — SERVER REVALIDATION
+
+Bypass frontend intentionally in tests.
+
+Submit:
+
+* empty question
+* missing option
+* invalid answer
+* duplicate MCQ options
+* empty Flashcard front
+* empty Flashcard back
+* > 100 items
+* duplicate clientKey
+* invalid difficulty
+
+Confirm safe rejection.
+
+---
+
+# 75. TEST — BATCH DUPLICATES
+
+Test:
+
+* MCQ exact duplicate inside submitted batch
+* MCQ possible duplicate inside batch
+* Flashcard exact duplicate inside batch
+* Flashcard possible duplicate inside batch
+
+Confirm classification and skip behavior.
+
+---
+
+# 76. TEST — DATABASE DUPLICATES
+
+Mock/test existing Lecture rows.
+
+Test:
+
+* exact duplicate with existing MCQ
+* possible duplicate with existing MCQ
+* exact duplicate with existing Flashcard
+* possible duplicate with existing Flashcard
+* same content in DIFFERENT Lecture should not be considered duplicate for current Lecture
+
+unless current production semantics explicitly say otherwise.
+
+---
+
+# 77. TEST — ARABIC DUPLICATES
+
+Test Arabic duplicate normalization.
+
+Ensure:
+
+* whitespace variants detect correctly
+* Arabic is not corrupted
+* no transliteration required
+
+---
+
+# 78. TEST — NEAR-DUPLICATE THRESHOLD
+
+Test:
+
+* similarity just above threshold
+* clearly different question below threshold
+* short content does not trigger fuzzy false positives
+
+Threshold behavior must be deterministic.
+
+---
+
+# 79. TEST — DRY CHECK SUMMARY
+
+Test correct counts:
+
+```text
+submitted
+new
+exact
+possible
+```
+
+---
+
+# 80. TEST — TRANSACTION SUCCESS
+
+Import a multi-item batch.
+
+Verify:
+
+* one transaction
+* all new items inserted
+* duplicates excluded
+* response clientKey mapping correct
+
+---
+
+# 81. TEST — TRANSACTION FAILURE
+
+Simulate a DB failure inside bulk insertion.
+
+Verify:
+
+```text
+zero new rows committed
+```
+
+No candidate marked imported.
+
+---
+
+# 82. TEST — NETWORK RETRY / IDEMPOTENCY
+
+Simulate:
+
+1. import succeeds
+2. same payload is submitted again
+
+Second import should classify the previously inserted content as duplicate and create no duplicate rows.
+
+---
+
+# 83. TEST — CONCURRENT DUPLICATE SAFETY
+
+Where practical, test the chosen transaction/isolation strategy for concurrent same-Lecture imports.
+
+At minimum document behavior under:
+
+```text
+two admins
+same question
+same time
+```
+
+Do not claim race safety you did not test.
+
+---
+
+# 84. TEST — D1 SYNC
+
+Use fake/injected sync adapter if possible.
+
+Verify:
+
+* sync happens only after canonical DB success
+* sync is not called by check endpoint
+* all imported rows are synchronized/enqueued
+* duplicate-skipped rows are not newly synchronized
+* sync failure does not falsely roll back committed PostgreSQL data
+
+---
+
+# 85. TEST — SOCKET / CACHE INVALIDATION
+
+Verify existing production event/cache behavior occurs after successful import.
+
+Do not emit on:
+
+* check
+* failed transaction
+* zero imported candidates
+
+Use exact existing event names.
+
+---
+
+# 86. TEST — FRONTEND IMPORT CHECK
+
+Verify:
+
+* only selected candidates submitted
+* edited draft values submitted
+* unselected candidates omitted
+* rejected candidates omitted
+* invalid selected candidates block action
+* duplicate summary modal appears
+
+---
+
+# 87. TEST — FRONTEND CONFIRM
+
+Verify:
+
+* check itself does not mark imported
+* explicit Confirm required
+* commit button disabled during request
+* duplicate-skipped candidates not marked imported
+* successful candidates marked imported
+
+---
+
+# 88. TEST — FINAL STATE
+
+After import verify:
+
+* imported items unselected
+* imported items cannot import again from same Review Studio
+* duplicates remain visible
+* duplicates show reason
+* preview stays on screen
+* no page reload
+* no scroll reset
+
+---
+
+# 89. TEST — COMMIT ERROR
+
+Verify atomic server error:
+
+* keeps candidates
+* keeps edits
+* does not mark imported
+* allows retry
+
+---
+
+# 90. TEST — NO GEMINI CALL
+
+Import check and commit tests must prove no AI provider call occurs.
+
+Phase 7 import must not consume Gemini quota.
+
+---
+
+# 91. TEST — AUTHORIZATION
+
+All four import endpoints require:
+
+```text
+requireAdmin
+```
+
+Verify:
+
+* unauthenticated rejected
+* student/user rejected
+* admin allowed
+* owner allowed
+
+---
+
+# 92. RATE LIMITING
+
+Do not reuse AI generation rate limits for import unless existing infrastructure makes this unavoidable.
+
+Import does not consume Gemini.
+
+Normal authenticated mutation safeguards are sufficient.
+
+Prevent duplicate UI submission and use DB duplicate protection.
+
+---
+
+# 93. CACHE INVALIDATION WITHOUT REFRESH
+
+This is mandatory.
+
+After successful commit:
+
+```text
+DO NOT refresh the page.
+DO NOT reload the app.
+DO NOT remount the entire Console.
+```
+
+Use targeted cache invalidation/refetch/state update.
+
+The interaction should remain smooth.
+
+---
+
+# 94. FRONTEND IMPORT COMPONENTS
+
+Keep Phase 6B modular.
+
+Potential focused additions:
+
+```text
+ai/api/aiImportApi.ts
+ai/components/AIImportConfirmation.tsx
+ai/components/AIDuplicateSummary.tsx
+ai/types/aiImport.ts
+```
+
+Do not inflate `AIReviewStudio.tsx` into a monolith if avoidable.
+
+---
+
+# 95. NO PERSISTENT CLIENT IMPORT STATE
+
+Do not persist preview/import state into:
+
+* localStorage
+* IndexedDB
+* Cache API
+
+Same policy as Phase 6B.
+
+---
+
+# 96. NO NEW PACKAGES UNLESS NECESSARY
+
+Prefer:
+
+* existing Zod
+* Prisma
+* React
+* current UI components
+
+Do not add:
+
+* fuzzy-search package
+* vector DB
+* Redis
+* queue
+* ORM
+* transaction library
+
+Near-duplicate comparison can be implemented deterministically with focused utilities.
+
+---
+
+# 97. NO AGENT ARTIFACTS
+
+Do NOT create or modify:
+
+```text
+.agents/*
+```
+
+No:
+
+* memory
+* scratch
+* plan
+* implementation diary
+
+Strict requirement.
+
+---
+
+# 98. BUILD / REGRESSION COMMANDS
+
+Run:
+
+```text
+npm run test:ai
+npm run test:ai-input
+npm run test:ai-media
+npm run test:ai-mcq
+npm run test:ai-flashcard
+npx tsx --test tests/ai-admin-http.test.ts
+npx tsx --test tests/ai-review-validation.test.ts
+npm run test:auth
+```
+
+Add and run dedicated:
+
+* AI import backend tests
+* AI import frontend tests
+
+Also run:
+
+```text
+npm run build
+git diff --check
+```
+
+Run focused TypeScript and ESLint.
+
+Run repository-wide typecheck/lint for awareness.
+
+Do not repair unrelated pre-existing failures.
+
+---
+
+# 99. DEFINITION OF DONE
+
+Phase 7 is complete only when:
+
+* MCQ import check endpoint exists
+* MCQ import commit endpoint exists
+* Flashcard import check endpoint exists
+* Flashcard import commit endpoint exists
+* all require admin authorization
+* server revalidates candidates
+* Lecture scope validated
+* batch exact duplicates detected
+* batch possible duplicates detected
+* DB exact duplicates detected
+* DB possible duplicates detected
+* Arabic normalization works
+* check performs no writes
+* duplicates are shown before confirmation
+* commit rechecks duplicates
+* duplicates skipped safely
+* new candidates bulk-insert atomically
+* network retry does not create obvious duplicates
+* D1 sync uses existing architecture
+* canonical PostgreSQL remains authoritative
+* sync failure cannot fake DB rollback
+* existing realtime/cache behavior reused
+* frontend targeted cache invalidation works
+* no full-page refresh
+* imported candidates marked correctly
+* skipped duplicates remain visible
+* manual workflows preserved
+* no Gemini call during import
+* no Prisma migration
+* no AI metadata persisted
+* no agent artifacts
+* relevant tests pass
+* build passes
+
+---
+
+# 100. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly:
+
+# PHASE 7 FINAL IMPLEMENTATION REPORT
+
+## 1. Executive Summary
+
+State whether the complete safe bulk import system was implemented.
+
+## 2. Files Created
+
+| File | Purpose |
+| ---- | ------- |
+
+## 3. Files Modified
+
+| File | Exact Change | Why |
+| ---- | ------------ | --- |
+
+## 4. Dependencies Added
+
+Expected:
+
+**None**
+
+## 5. Final Import Architecture
+
+Show:
+
+```text
+Review Studio
+→ Import Selected
+→ duplicate check
+→ confirmation
+→ commit
+→ server revalidation
+→ duplicate re-check
+→ PostgreSQL transaction
+→ D1 sync
+→ cache/realtime invalidation
+→ frontend imported/skipped state
+```
+
+## 6. Routes Implemented
+
+| Method | Route | Auth | Writes? |
+| ------ | ----- | ---- | ------- |
+
+## 7. Import Request Contracts
+
+Report MCQ and Flashcard payload shapes.
+
+## 8. Server Revalidation
+
+List exact validation rules.
+
+## 9. Duplicate Normalization
+
+Explain Unicode/Arabic-safe normalization.
+
+## 10. Exact Duplicate Detection
+
+Explain batch and existing-Lecture behavior.
+
+## 11. Possible Duplicate Detection
+
+Report:
+
+* algorithm
+* threshold
+* minimum length
+* batch behavior
+* DB behavior
+
+## 12. Duplicate Check Response
+
+Show safe response structure and summary.
+
+## 13. Duplicate UX
+
+Explain confirmation modal and duplicate details.
+
+## 14. Duplicate Commit Policy
+
+Confirm exact and possible duplicates are skipped by default.
+
+## 15. PostgreSQL Transaction
+
+Explain:
+
+* bulk insertion mechanism
+* transaction boundary
+* isolation level
+* race handling
+* rollback behavior
+
+## 16. Network Retry Safety
+
+Explain how repeated commit avoids duplicate rows.
+
+## 17. MCQ DB Mapping
+
+Report exact final mapping including:
+
+* sourceType
+* sourceRef
+* difficulty/default behavior
+
+and explain why it matches existing production semantics.
+
+## 18. Flashcard DB Mapping
+
+Report exact mapping.
+
+## 19. D1 Synchronization
+
+Explain the exact EXISTING mechanism reused.
+
+Do not give a hypothetical answer.
+
+## 20. D1 Failure Semantics
+
+Explain canonical PostgreSQL behavior and warnings.
+
+## 21. Realtime / Socket Integration
+
+Report exact event/helper reused.
+
+## 22. Cache Invalidation
+
+Explain backend/frontend invalidation.
+
+Explicitly confirm:
+
+**No full-page refresh is used.**
+
+## 23. Frontend Import Workflow
+
+Explain:
+
+* Import Selected
+* check
+* confirmation
+* commit
+* final candidate states
+
+## 24. Imported Candidate State
+
+Explain behavior.
+
+## 25. Duplicate-Skipped Candidate State
+
+Explain behavior.
+
+## 26. Error UX
+
+Explain atomic failure and retry behavior.
+
+## 27. Database Impact
+
+Report:
+
+* rows written
+* models used
+* Prisma schema changes
+
+Expected schema changes:
+
+**None**
+
+## 28. Cloudflare Impact
+
+Explain D1 synchronization usage.
+
+Expected infrastructure/schema changes:
+
+**None**
+
+## 29. Gemini Impact
+
+Expected:
+
+**No Gemini calls during import**
+
+## 30. Manual Workflow Impact
+
+Confirm manual MCQ and Flashcard paths remain unchanged.
+
+## 31. Tests Added
+
+Detailed backend/frontend import coverage.
+
+## 32. Phase 2 Regression Results
+
+Exact result.
+
+## 33. Phase 3A Regression Results
+
+Exact result.
+
+## 34. Phase 3B Regression Results
+
+Exact result.
+
+## 35. Phase 4 Regression Results
+
+Exact result.
+
+## 36. Phase 5 Regression Results
+
+Exact result.
+
+## 37. Phase 6A Regression Results
+
+Exact result.
+
+## 38. Phase 6B Regression Results
+
+Exact result.
+
+## 39. Auth Regression Results
+
+Exact result.
+
+## 40. Commands Executed
+
+| Command | Result |
+| ------- | ------ |
+
+## 41. Existing Repository Failures
+
+Separate pre-existing failures from Phase 7 failures.
+
+## 42. Deviations From Prompt
+
+If none:
+
+**None**
+
+## 43. Blockers / Unknowns
+
+Anything Phase 8 must verify.
+
+## 44. Phase 8 Readiness
+
+State readiness for production hardening including:
+
+* real Gemini smoke tests
+* large-batch testing
+* failure/retry tests
+* production security
+* real authenticated iPad landscape
+* real authenticated iPad portrait
+* PWA
+* Capacitor
+* quota/rate behavior
+
+Do NOT implement Phase 8.
+
+## 45. Git Diff Summary
+
+Exact summary.
+
+## 46. Agent Artifact Verification
+
+State exactly:
+
+**No `.agents/*` file was created or modified by Phase 7.**
+
+## 47. Final Verification Checklist
+
+* [ ] MCQ import check exists
+* [ ] MCQ import commit exists
+* [ ] Flashcard import check exists
+* [ ] Flashcard import commit exists
+* [ ] All routes use requireAdmin
+* [ ] Lecture validated
+* [ ] Server candidate revalidation works
+* [ ] Max 100 enforced
+* [ ] Duplicate clientKey rejected
+* [ ] Batch exact duplicates detected
+* [ ] Batch possible duplicates detected
+* [ ] DB exact duplicates detected
+* [ ] DB possible duplicates detected
+* [ ] Arabic duplicate normalization works
+* [ ] Check performs no writes
+* [ ] Duplicate summary shown before write
+* [ ] Explicit confirmation required
+* [ ] Commit repeats duplicate detection
+* [ ] Exact duplicates skipped
+* [ ] Possible duplicates skipped
+* [ ] Bulk transaction atomic
+* [ ] DB rollback verified
+* [ ] Retry duplicate safety verified
+* [ ] D1 existing sync path reused
+* [ ] PostgreSQL remains canonical
+* [ ] D1 failure semantics safe
+* [ ] Existing realtime event reused
+* [ ] Cache invalidation targeted
+* [ ] No page refresh
+* [ ] Console position preserved
+* [ ] Imported candidates marked
+* [ ] Duplicate candidates retained
+* [ ] Manual MCQ preserved
+* [ ] Manual Flashcard preserved
+* [ ] No Gemini import call
+* [ ] No Prisma migration
+* [ ] No AI metadata persisted
+* [ ] No R2 change
+* [ ] No D1 schema change
+* [ ] No `.agents/*` changes
+* [ ] Phase 2 tests pass
+* [ ] Phase 3A tests pass
+* [ ] Phase 3B tests pass
+* [ ] Phase 4 tests pass
+* [ ] Phase 5 tests pass
+* [ ] Phase 6A tests pass
+* [ ] Phase 6B tests pass
+* [ ] Auth tests pass
+* [ ] Production build passes
+
+End exactly with:
+
+**PHASE 7 STATUS: IMPLEMENTATION COMPLETE — READY FOR ARCHITECT REVIEW**
+
+Do not begin Phase 8.
