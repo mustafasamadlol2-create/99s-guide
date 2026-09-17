@@ -592,7 +592,7 @@ const TRUST_PROXY_HOPS = (() => {
   return process.env.NODE_ENV === "production" ? 1 : 0;
 })();
 app.set("trust proxy", TRUST_PROXY_HOPS);
-const PORT = 3000;
+const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 const httpServer = createServer(app);
 
 // Securely configure CORS for production web domain and Capacitor mobile origins (iOS/Android)
