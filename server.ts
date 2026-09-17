@@ -615,8 +615,7 @@ const getCorsOrigins = (): (string | RegExp)[] => {
       `http://127.0.0.1:${PORT}`,
       /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/, // Allow local IP addresses dynamically (like 192.168.x.x)
       /\.trycloudflare\.com$/, // Allow Cloudflare secure tunnels (used for dev previews)
-      /\.replit\.dev$/, // Allow Replit preview domains
-      /\.pike\.replit\.dev$/ // Allow Replit pike preview domains
+      /\.replit\.dev(?::\d+)?$/ // Allow Replit preview domains, including proxied preview ports
     );
   }
 
