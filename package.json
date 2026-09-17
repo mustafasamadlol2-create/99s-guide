@@ -13,6 +13,7 @@
     "preview": "npm run build && wrangler dev",
     "clean": "node scripts/clean.cjs",
     "test:auth": "tsx --test tests/oauth-state.test.ts",
+    "test:ai": "tsx --test tests/ai-foundation.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-contracts.cjs",
@@ -41,6 +42,7 @@
     "@capacitor/push-notifications": "^8.1.2",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@google/genai": "^2.23.0",
     "@prisma/client": "^5.22.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/compression": "^1.8.1",
@@ -66,7 +68,8 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
-    "xss-clean": "^0.1.4"
+    "xss-clean": "^0.1.4",
+    "zod": "^4.6.5"
   },
   "overrides": {
     "tar": "^7.5.17"

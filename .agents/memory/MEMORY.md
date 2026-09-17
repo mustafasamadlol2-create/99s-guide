@@ -1,0 +1,1 @@
+- [Gemini structured schemas](gemini-structured-schemas.md) — sanitize generated JSON Schema to Gemini’s supported subset, then enforce full Zod validation after parsing.
