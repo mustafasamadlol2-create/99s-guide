@@ -21,7 +21,8 @@ const mcq = (clientKey: string, question: string): MCQImportCandidate => ({
   correctAnswer: "A",
   hint: null,
   explanation: "Explanation",
-  difficulty: null,
+  category: "AI_GENERATED",
+  difficulty: "Medium",
 });
 
 const flashcard = (clientKey: string, clinicalConcept: string): FlashcardImportCandidate => ({
@@ -169,5 +170,13 @@ test("request schema rejects unknown fields, duplicate client keys, and oversize
   assert.throws(() => parseMCQImportRequest({
     lectureId: "lecture-1",
     candidates: Array.from({ length: 101 }, (_, index) => mcq(`key-${index}`, `Question ${index}`)),
+  }));
+  assert.throws(() => parseMCQImportRequest({
+    lectureId: "lecture-1",
+    candidates: [{ ...mcq("invalid-category", "Question"), category: "ALL" }],
+  }));
+  assert.throws(() => parseMCQImportRequest({
+    lectureId: "lecture-1",
+    candidates: [{ ...mcq("missing-difficulty", "Question"), difficulty: null }],
   }));
 });

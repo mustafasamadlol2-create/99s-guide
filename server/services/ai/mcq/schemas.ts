@@ -36,6 +36,7 @@ export const mcqCandidateSchema = z.object({
   hint: nullableText,
   explanation: nullableText,
   difficulty: mcqDifficultySchema.nullable(),
+  category: z.enum(["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"]),
   provenance: z.enum(["extracted", "generated", "enhanced"]),
   source: mcqSourceEvidenceSchema.nullable(),
   confidence: z.number().finite().min(0).max(1),

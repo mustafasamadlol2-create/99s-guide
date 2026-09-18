@@ -12,7 +12,8 @@ export interface MCQImportCandidate {
   correctAnswer: "A" | "B" | "C" | "D";
   hint?: string | null;
   explanation?: string | null;
-  difficulty?: "Easy" | "Medium" | "Hard" | null;
+  category: "AI_GENERATED" | "PREVIOUS_YEAR" | "RESOURCE";
+  difficulty: "Easy" | "Medium" | "Hard";
 }
 
 export interface FlashcardImportCandidate {

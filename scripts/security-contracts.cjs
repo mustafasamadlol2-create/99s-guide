@@ -20,7 +20,7 @@ const checks = [
   ['Apple callback accepts only PKCE-bound cookie-less handoffs', server.includes('isOAuthStateBound(appleState, req.cookies?.oauth_state, appleStateRecord.codeChallenge)')],
   ['Apple redirect returns through the PKCE session handoff', server.includes('isRedirectFlow && appleStateRecord.codeChallenge') && server.includes('buildOAuthPendingQuery(appleState)')],
   ['Q&A votes have a unique user target key', schema.includes('@@unique([userId, targetType, targetId])')],
-  ['lecture material responses select metadata', server.includes('materials: { select: { id: true, title: true, type: true, fileUrlOrLink: true')],
+  ['lecture material responses select metadata', /materials:\s*\{\s*select:\s*\{\s*id:\s*true,\s*title:\s*true,\s*type:\s*true,\s*fileUrlOrLink:\s*true/s.test(server)],
   ['service worker bypasses auth routes', worker.includes("url.pathname.startsWith('/auth/')")],
   ['PDF range errors return 416', server.includes('return res.status(416).end()')],
 ];

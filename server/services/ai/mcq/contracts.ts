@@ -1,5 +1,6 @@
 import type { SafeProviderMetadata } from "../contracts.js";
 import type { AIInputKind, MCQAnswer, MCQQuestionStyle } from "../contracts.js";
+import type { MCQCategory } from "../../../../shared/mcqMetadata.js";
 
 export const MCQ_DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
 export type MCQDifficulty = (typeof MCQ_DIFFICULTIES)[number];
@@ -26,6 +27,7 @@ export interface AIMCQCandidate {
   hint: string | null;
   explanation: string | null;
   difficulty: MCQDifficulty | null;
+  category: MCQCategory;
   provenance: MCQProvenance;
   source: MCQSourceEvidence | null;
   confidence: number;
@@ -33,6 +35,11 @@ export interface AIMCQCandidate {
   needsReview: boolean;
   requiresHumanApproval: true;
   warnings: string[];
+}
+
+export interface MCQExtractOptions {
+  category: MCQCategory;
+  difficulty: MCQDifficulty;
 }
 
 export type SkippedMCQReason =
@@ -80,6 +87,8 @@ export interface MCQGenerationOptions {
 export interface MCQEnhancementOptions {
   hint?: boolean;
   explanation?: boolean;
+  category?: MCQCategory;
+  difficulty?: MCQDifficulty;
 }
 
 export interface MCQAIEngineInput {

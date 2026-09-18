@@ -14,6 +14,8 @@ test("MCQ validation requires all choices and an answer", () => {
     optionC: "",
     optionD: "Fourth",
     correctAnswer: null,
+    category: "AI_GENERATED",
+    difficulty: "Medium",
   });
 
   assert.equal(result.ready, false);
@@ -29,6 +31,8 @@ test("MCQ validation rejects obvious duplicate options", () => {
     optionC: "Another finding",
     optionD: "A third finding",
     correctAnswer: "A",
+    category: "AI_GENERATED",
+    difficulty: "Medium",
   });
 
   assert.equal(result.ready, false);
@@ -43,6 +47,8 @@ test("locally edited MCQ becomes ready after completing missing answer", () => {
     optionC: "Third",
     optionD: "Fourth",
     correctAnswer: "C",
+    category: "AI_GENERATED",
+    difficulty: "Medium",
   });
 
   assert.deepEqual(result, { ready: true, errors: [], warnings: [] });

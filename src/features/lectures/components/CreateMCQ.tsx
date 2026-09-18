@@ -12,6 +12,12 @@ import {
  Sparkles,
 } from "lucide-react";
 import { AIImportModeSelector, default as AIImportPanel } from "../ai/components/AIImportPanel";
+import {
+ MCQ_CATEGORIES,
+ MCQ_CATEGORY_LABELS,
+ MCQ_DIFFICULTIES,
+ MCQ_DIFFICULTY_LABELS,
+} from "../../../../shared/mcqMetadata";
 
 interface Lecture {
  id: string;
@@ -61,6 +67,8 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  const [correctAnswer, setCorrectAnswer] = useState("A");
  const [hint, setHint] = useState("");
  const [explanation, setExplanation] = useState("");
+  const [category, setCategory] = useState("");
+  const [difficulty, setDifficulty] = useState("");
 
  // Status state
  const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +141,15 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  });
  return;
  }
+  if (!category || !difficulty) {
+  setFeedback({
+  type: "error",
+  message: isRtl
+  ? "يرجى اختيار تصنيف السؤال ومستوى الصعوبة."
+  : "Choose an MCQ category and difficulty level.",
+  });
+  return;
+  }
 
  setIsSubmitting(true);
  setFeedback(null);
@@ -150,6 +167,8 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  correctAnswer,
  hint: hint.trim() || null,
  explanation: explanation.trim() || null,
+   category,
+  difficulty,
  lectureId: selectedLectureId,
  }),
  });
@@ -177,6 +196,8 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  setHint("");
  setExplanation("");
  setCorrectAnswer("A");
+  setCategory("");
+  setDifficulty("");
  onSuccess?.();
  } catch (err: any) {
  setFeedback({ type: "error", message: err.message });
@@ -424,6 +445,42 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  {/* ONLY RENDER THE FORMS IF A VALID LECTURE WAS SELECTIONABLE */}
  {selectedLectureId && (
  <>
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
+  <div className="space-y-2">
+  <label htmlFor="manual-mcq-category" className="text-subhead font-semibold text-neutral-800 dark:text-white">
+  {isRtl ? "تصنيف السؤال" : "Question category"}
+  </label>
+  <select
+  id="manual-mcq-category"
+  required
+  value={category}
+  onChange={(e) => setCategory(e.target.value)}
+  className="w-full min-h-12 px-4 py-3 bg-white dark:bg-[#1C1C1E] border border-neutral-300 dark:border-white/[0.12] text-neutral-800 dark:text-white rounded-lg font-medium text-caption outline-none focus:ring-1 focus:ring-rose-500"
+  >
+  <option value="" disabled>{isRtl ? "اختر تصنيف السؤال..." : "Choose a category..."}</option>
+  {MCQ_CATEGORIES.map((value) => (
+  <option key={value} value={value}>{MCQ_CATEGORY_LABELS[value][isRtl ? "ar" : "en"]}</option>
+  ))}
+  </select>
+  </div>
+  <div className="space-y-2">
+  <label htmlFor="manual-mcq-difficulty" className="text-subhead font-semibold text-neutral-800 dark:text-white">
+  {isRtl ? "مستوى الصعوبة" : "Difficulty level"}
+  </label>
+  <select
+  id="manual-mcq-difficulty"
+  required
+  value={difficulty}
+  onChange={(e) => setDifficulty(e.target.value)}
+  className="w-full min-h-12 px-4 py-3 bg-white dark:bg-[#1C1C1E] border border-neutral-300 dark:border-white/[0.12] text-neutral-800 dark:text-white rounded-lg font-medium text-caption outline-none focus:ring-1 focus:ring-rose-500"
+  >
+  <option value="" disabled>{isRtl ? "اختر مستوى الصعوبة..." : "Choose a difficulty..."}</option>
+  {MCQ_DIFFICULTIES.map((value) => (
+  <option key={value} value={value}>{MCQ_DIFFICULTY_LABELS[value][isRtl ? "ar" : "en"]}</option>
+  ))}
+  </select>
+  </div>
+  </div>
  <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-white/[0.08]">
  <div className="flex items-center gap-2 mb-1">
  <span className="w-icon-md h-icon-md rounded-full bg-neutral-100 dark:bg-[#2C2C2E] text-xs font-semibold text-neutral-600 dark:text-[#EBEBF599] flex items-center justify-center shrink-0">
@@ -623,7 +680,9 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
      optionA.trim() &&
      optionB.trim() &&
      optionC.trim() &&
-     optionD.trim()
+      optionD.trim() &&
+      category &&
+      difficulty
    )}
   >
  <button
@@ -634,7 +693,9 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  !optionA.trim() ||
  !optionB.trim() ||
  !optionC.trim() ||
- !optionD.trim()
+  !optionD.trim() ||
+  !category ||
+  !difficulty
  }
  className={`px-6 py-4 text-base font-semibold rounded-lg shadow-elevation-3 text-white transition select-none cursor-pointer flex items-center justify-center gap-2 ${
  question.trim() &&
@@ -642,6 +703,8 @@ function ManualCreateMCQ({ language = "en", onSuccess }: CreateMCQProps) {
  optionB.trim() &&
  optionC.trim() &&
  optionD.trim() &&
+  category &&
+  difficulty &&
  !isSubmitting
  ? "bg-rose-600 hover:bg-rose-500 shadow-rose-500/30"
  : "bg-neutral-200 dark:bg-[#2C2C2E] text-neutral-500 dark:text-[#EBEBF599] cursor-not-allowed border-none shadow-elevation-0"

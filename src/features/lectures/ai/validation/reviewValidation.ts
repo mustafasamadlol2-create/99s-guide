@@ -9,7 +9,7 @@ function normalized(value: string): string {
 }
 
 export function validateMCQCandidate(
-  candidate: Pick<AIMCQCandidate, "question" | "optionA" | "optionB" | "optionC" | "optionD" | "correctAnswer">,
+  candidate: Pick<AIMCQCandidate, "question" | "optionA" | "optionB" | "optionC" | "optionD" | "correctAnswer" | "category" | "difficulty">,
 ): LocalValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -19,6 +19,8 @@ export function validateMCQCandidate(
     if (!option.trim()) errors.push(`Option ${String.fromCharCode(65 + index)} is required.`);
   });
   if (!candidate.correctAnswer) errors.push("Choose the correct answer.");
+  if (!candidate.category) errors.push("Choose an MCQ category.");
+  if (!candidate.difficulty) errors.push("Choose a difficulty.");
   const normalizedOptions = options.map(normalized).filter(Boolean);
   if (new Set(normalizedOptions).size !== normalizedOptions.length) {
     errors.push("Options must not be duplicates.");

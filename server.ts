@@ -72,6 +72,12 @@ import {
   NoteLimitReachedError,
   noteLimitResponse,
 } from "./server/services/materialNotePolicy.js";
+import {
+  normalizeMCQCategory,
+  normalizeMCQDifficulty,
+  parseMCQCategory,
+  parseMCQDifficulty,
+} from "./shared/mcqMetadata.js";
 
 
 // --- Production-Grade In-Memory Caches for read-heavy operations ---
@@ -250,12 +256,24 @@ function toMcqContentRow(row: any): Record<string, unknown> {
     correctAnswer: row.correctAnswer,
     hint: row.hint ?? null,
     explanation: row.explanation ?? null,
-    sourceType: row.sourceType,
+    sourceType: normalizeMCQCategory(row.sourceType),
     sourceRef: row.sourceRef,
-    difficulty: row.difficulty,
+    difficulty: normalizeMCQDifficulty(row.difficulty),
     lectureId: row.lectureId,
     createdAt: row.createdAt,
   };
+}
+
+function normalizeMcqReadRow(row: any): any {
+  return {
+    ...row,
+    sourceType: normalizeMCQCategory(row?.sourceType),
+    difficulty: normalizeMCQDifficulty(row?.difficulty),
+  };
+}
+
+function normalizeMcqReadRows(rows: any[] | null | undefined): any[] {
+  return Array.isArray(rows) ? rows.map(normalizeMcqReadRow) : [];
 }
 
 function toFlashcardContentRow(row: any): Record<string, unknown> {
@@ -2386,7 +2404,10 @@ app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
         );
 
         res.setHeader("X-Content-Read-Source", "d1");
-        return res.json(lecture);
+        return res.json({
+          ...lecture,
+          mcqs: normalizeMcqReadRows(lecture?.mcqs),
+        });
       } catch (error: any) {
         // A 404 can occur briefly after a successful authoritative Supabase write
         // if the D1 mirror is queued for retry. Falling back keeps the public API
@@ -2439,11 +2460,15 @@ app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
       return res.status(404).json({ error: "Lecture not found" });
     }
 
+    const normalizedLecture = {
+      ...lecture,
+      mcqs: normalizeMcqReadRows(lecture.mcqs),
+    };
     res.setHeader(
       "X-Content-Read-Source",
       contentD1ReadsEnabled() ? "supabase-fallback" : "supabase",
     );
-    return res.json(lecture);
+    return res.json(normalizedLecture);
   } catch (error) {
     return res.status(500).json({ error: "Internal Server Error" });
   }
@@ -3048,7 +3073,10 @@ app.get("/api/materials/pdf/:id", requirePdfUser, pdfLimiter, catchAsync(async (
 // 3. Assessment Routes
 app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
   try {
-    const { question, optionA, optionB, optionC, optionD, correctAnswer, hint, explanation, lectureId } = req.body;
+    const {
+      question, optionA, optionB, optionC, optionD, correctAnswer, hint, explanation, lectureId,
+      category: requestedCategory, sourceType: requestedSourceType, difficulty: requestedDifficulty,
+    } = req.body;
     if (!question || !optionA || !optionB || !optionC || !optionD || !correctAnswer || !lectureId) {
       return res.status(400).json({ error: "Missing required fields for MCQ." });
     }
@@ -3056,6 +3084,24 @@ app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
     const normalizedAnswer = String(correctAnswer).toUpperCase();
     if (!['A', 'B', 'C', 'D'].includes(normalizedAnswer)) {
       return res.status(400).json({ error: "correctAnswer must be set to 'A', 'B', 'C', or 'D'." });
+    }
+
+    const rawCategory = requestedCategory ?? requestedSourceType;
+    const category = rawCategory === undefined ? "AI_GENERATED" : parseMCQCategory(rawCategory);
+    if (!category) {
+      return res.status(400).json({
+        error: "category must be AI_GENERATED, PREVIOUS_YEAR, or RESOURCE.",
+        code: "INVALID_MCQ_CATEGORY",
+      });
+    }
+    const difficulty = requestedDifficulty === undefined
+      ? "Medium"
+      : parseMCQDifficulty(requestedDifficulty);
+    if (!difficulty) {
+      return res.status(400).json({
+        error: "difficulty must be Easy, Medium, or Hard.",
+        code: "INVALID_MCQ_DIFFICULTY",
+      });
     }
 
     const prismaClient = getPrisma();
@@ -3077,6 +3123,8 @@ app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
         correctAnswer: normalizedAnswer,
         hint: hint || null,
         explanation: explanation || null,
+        sourceType: category,
+        difficulty,
         lectureId
       }
     });
@@ -3087,7 +3135,7 @@ app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
     invalidateMaterialsCache();
     io.to("authenticated").emit("materials_updated");
 
-    res.status(201).json(mcq);
+    res.status(201).json(normalizeMcqReadRow(mcq));
   } catch (err: any) {
     console.error("[Post MCQ Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
     res.status(500).json({ error: "Internal Server Error" });
@@ -3201,7 +3249,7 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
         };
 
         dbLectures = requireArray(d1Payload.lectures, "lectures");
-        dbMcqs = requireArray(d1Payload.mcqs, "mcqs");
+        dbMcqs = normalizeMcqReadRows(requireArray(d1Payload.mcqs, "mcqs"));
         dbFlashcards = requireArray(d1Payload.flashcards, "flashcards");
         dbMaterials = requireArray(d1Payload.materials, "materials");
         dbEvents = requireArray(d1Payload.events, "events");
@@ -3264,6 +3312,8 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
       ]);
     }
 
+    dbMcqs = normalizeMcqReadRows(dbMcqs);
+
     // Merge logic
     const mergedSubjects = JSON.parse(JSON.stringify(materials.subjects || []));
 
@@ -3324,7 +3374,7 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
     }
 
     const mcqMap = new Map<string, any>(
-      (materials.mcqs || []).map((m: any) => [m.id, m])
+      (materials.mcqs || []).map((m: any) => [m.id, normalizeMcqReadRow(m)])
     );
 
     for (const mcq of dbMcqs) {
@@ -3494,7 +3544,11 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
         }
 
         res.setHeader("X-Content-Search-Read-Source", "d1");
-        return res.json(results);
+        return res.json(results.map((result: any) =>
+          result?.type === "mcq" && result.raw
+            ? { ...result, raw: normalizeMcqReadRow(result.raw) }
+            : result,
+        ));
       } catch (error: any) {
         logger.warn(
           "[ContentRead]",
@@ -3509,7 +3563,7 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
       process.env.DATABASE_URL?.startsWith("postgresql");
     const modeConfig = isPostgres ? { mode: "insensitive" as const } : {};
 
-    const [lectures, materials, mcqs, flashcards] = await Promise.all([
+    const [lectures, materials, rawMcqs, flashcards] = await Promise.all([
       prismaClient.lecture.findMany({
         where: {
           OR: keywordFilters.flatMap(kw => [
@@ -3536,7 +3590,7 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
           })),
         },
         take: 10,
-        select: { id: true, question: true, lectureId: true },
+        select: { id: true, question: true, lectureId: true, sourceType: true, difficulty: true },
       }),
       prismaClient.flashcard.findMany({
         where: {
@@ -3550,6 +3604,7 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
       }),
     ]);
 
+    const mcqs = rawMcqs.map((mcq: any) => normalizeMcqReadRow(mcq));
     const resultsMap = new Map<string, any>();
     const lectureToSubjectMap = new Map<string, string>();
     lectures.forEach((l: any) => lectureToSubjectMap.set(l.id, l.mainSubject));

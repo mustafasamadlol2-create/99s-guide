@@ -218,9 +218,21 @@ test("extract preserves complete MCQs and does not rewrite source fields", async
   assert.equal(result.items[0]?.hint, "Think about the chamber connected to the aorta.");
   assert.equal(result.items[0]?.explanation, "The left ventricle ejects blood into the aorta.");
   assert.equal(result.items[0]?.difficulty, "Medium");
+  assert.equal(result.items[0]?.category, "AI_GENERATED");
   assert.equal(result.items[0]?.importReady, true);
   assert.equal(result.items[0]?.requiresHumanApproval, true);
   assert.equal(result.items[0]?.needsReview, false);
+});
+
+test("extract applies the administrator metadata defaults", async () => {
+  const provider = new QueueProvider([extractionResponse()]);
+  const result = await engineWith(provider).extractExistingMCQs(
+    preparedText(),
+    undefined,
+    { category: "PREVIOUS_YEAR", difficulty: "Hard" },
+  );
+  assert.equal(result.items[0]?.category, "PREVIOUS_YEAR");
+  assert.equal(result.items[0]?.difficulty, "Hard");
 });
 
 test("extract keeps an unstated answer null and marks the candidate for review", async () => {
@@ -342,6 +354,23 @@ test("generation quality gates flag duplicate options, low confidence and hint l
   assert.match(warnings, /below the review threshold/);
 });
 
+test("generation assigns AI category and requires model difficulty classification", async () => {
+  const provider = new QueueProvider([generationResponse([
+    generatedItem({ difficulty: null }),
+  ])]);
+  const result = await engineWith(provider).generateMCQs(preparedText(), {
+    count: 1,
+    questionStyle: "direct",
+    includeHints: false,
+    includeExplanations: false,
+  });
+  assert.equal(result.items[0]?.category, "AI_GENERATED");
+  assert.equal(result.items[0]?.importReady, false);
+  assert.ok(result.items[0]?.warnings.some((warning) => warning.includes("classify")));
+  assert.match(provider.calls[0]?.trustedSystemInstruction ?? "", /classify every generated item/i);
+  assert.doesNotMatch(provider.calls[0]?.trustedSystemInstruction ?? "", /Difficulty control:/i);
+});
+
 test("generation flags exact duplicate questions within the current result only", async () => {
   const provider = new QueueProvider([generationResponse([
     generatedItem(),
@@ -389,6 +418,29 @@ test("enhancement is two-stage and preserves immutable fields and existing field
   assert.equal(result.items[0]?.correctAnswer, "D");
   assert.equal(result.items[0]?.hint, "Existing hint must remain.");
   assert.equal(result.items[0]?.explanation, null);
+});
+
+test("enhancement preserves administrator-selected external metadata", async () => {
+  const provider = new QueueProvider([
+    extractionResponse([extractedItem({ hint: null, explanation: null })]),
+    {
+      items: [{
+        candidateId: crypto.randomUUID(),
+        explanation: "A generated explanation.",
+        confidence: 0.94,
+        uncertainties: [],
+      }],
+      uncertainties: [],
+    },
+  ]);
+  const result = await engineWith(provider).enhanceExistingMCQs(preparedText(), {
+    explanation: true,
+    category: "RESOURCE",
+    difficulty: "Hard",
+  });
+
+  assert.equal(result.items[0]?.category, "RESOURCE");
+  assert.equal(result.items[0]?.difficulty, "Hard");
 });
 
 test("enhancement does not run for extracted candidates without an explicit answer", async () => {

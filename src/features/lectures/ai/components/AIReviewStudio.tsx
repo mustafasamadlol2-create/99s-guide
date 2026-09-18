@@ -25,6 +25,7 @@ import type {
   LocalFlashcardCandidate,
   LocalMCQCandidate,
 } from "../types/aiPreview";
+import { MCQ_CATEGORIES, MCQ_CATEGORY_LABELS } from "../../../../../shared/mcqMetadata";
 
 type Filter = "all" | "ready" | "review" | "selected";
 
@@ -241,6 +242,24 @@ function MCQEditor({
           <option value="Medium">{aiText(language, "medium")}</option>
           <option value="Hard">{aiText(language, "hard")}</option>
         </select>
+      </label>
+      <label className="block max-w-xs space-y-1.5">
+        <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">{language === "ar" ? "الفئة" : "Category"}</span>
+        <select
+          value={draft.category}
+          disabled={draft.provenance === "generated"}
+          onChange={(event) => update({ category: event.target.value as AIMCQCandidate["category"] })}
+          className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white"
+        >
+          {MCQ_CATEGORIES.map((category) => (
+            <option key={category} value={category}>{MCQ_CATEGORY_LABELS[category][language === "ar" ? "ar" : "en"]}</option>
+          ))}
+        </select>
+        {draft.provenance === "generated" && (
+          <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            {language === "ar" ? "يتم تثبيت فئة الأسئلة المنشأة بالذكاء الاصطناعي." : "Generated MCQs are always AI Generated."}
+          </span>
+        )}
       </label>
     </div>
   );
@@ -475,6 +494,7 @@ export function AIReviewStudio({
           hint: draft.hint,
           explanation: draft.explanation,
           difficulty: draft.difficulty,
+          category: draft.category,
         }));
     }
     return flashcards

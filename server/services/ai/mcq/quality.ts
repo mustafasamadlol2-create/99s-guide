@@ -81,7 +81,9 @@ export function applyQualityWarnings(
     candidate.optionB.trim() &&
     candidate.optionC.trim() &&
     candidate.optionD.trim() &&
-    candidate.correctAnswer,
+    candidate.correctAnswer &&
+    candidate.category &&
+    candidate.difficulty,
   );
   return {
     ...candidate,

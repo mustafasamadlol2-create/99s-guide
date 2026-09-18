@@ -28,6 +28,7 @@ import type {
   AIPreviewRequest,
   AIPreviewResponse,
   MCQDifficulty,
+  MCQCategory,
   MCQQuestionStyle,
 } from "../types/aiPreview";
 
@@ -293,7 +294,8 @@ export default function AIImportPanel({
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate> | null>(null);
   const [mcqCount, setMcqCount] = useState(20);
-  const [mcqDifficulty, setMcqDifficulty] = useState<MCQDifficulty>("mixed");
+  const [mcqCategory, setMcqCategory] = useState<MCQCategory>("AI_GENERATED");
+  const [mcqExtractDifficulty, setMcqExtractDifficulty] = useState<Exclude<MCQDifficulty, "mixed">>("Medium");
   const [mcqStyle, setMcqStyle] = useState<MCQQuestionStyle>("mixed");
   const [includeHints, setIncludeHints] = useState(true);
   const [includeExplanations, setIncludeExplanations] = useState(true);
@@ -359,20 +361,25 @@ export default function AIImportPanel({
 
   const options = useMemo<AIPreviewOptions>(() => {
     if (target === "mcq") {
-      if (operation === "extract") return {} as Record<string, never>;
+      if (operation === "extract") return { category: mcqCategory, difficulty: mcqExtractDifficulty };
       if (operation === "generate") return {
         count: mcqCount,
-        difficulty: mcqDifficulty,
+        difficulty: "mixed",
         questionStyle: mcqStyle,
         includeHints,
         includeExplanations,
       };
-      return { hint: enhanceHint, explanation: enhanceExplanation };
+      return {
+        hint: enhanceHint,
+        explanation: enhanceExplanation,
+        category: mcqCategory,
+        difficulty: mcqExtractDifficulty,
+      };
     }
     if (operation === "generate") return { count: flashcardCount, focus: focus.trim() || null };
     if (operation === "enhance") return { explanation: true as const };
     return {} as Record<string, never>;
-  }, [enhanceExplanation, enhanceHint, focus, flashcardCount, includeExplanations, includeHints, mcqCount, mcqDifficulty, mcqStyle, operation, target]);
+  }, [enhanceExplanation, enhanceHint, focus, flashcardCount, includeExplanations, includeHints, mcqCategory, mcqCount, mcqExtractDifficulty, mcqStyle, operation, target]);
 
   const handleSubmit = async () => {
     setMessage("");
@@ -396,7 +403,22 @@ export default function AIImportPanel({
           : { inputKind, files: images },
     };
     const result = await submit(request);
-    if (result) setResponse(result);
+    if (result) {
+      if (target === "mcq") {
+        const category = operation === "generate" ? "AI_GENERATED" : mcqCategory;
+        setResponse({
+          ...result,
+          result: {
+            ...result.result,
+            items: result.result.items.map((item) =>
+              "question" in item ? { ...item, category } : item,
+            ),
+          },
+        } as AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>);
+      } else {
+        setResponse(result);
+      }
+    }
   };
 
   const friendlyError = (caught: AIPreviewError | null): string => {
@@ -502,15 +524,58 @@ export default function AIImportPanel({
           {target === "mcq" && operation === "generate" && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{aiText(language, "count")}<input type="number" min={1} max={100} value={mcqCount} onChange={(event) => setMcqCount(Number(event.target.value))} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal text-neutral-800 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white" /></label>
-              <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{aiText(language, "difficulty")}<select value={mcqDifficulty} onChange={(event) => setMcqDifficulty(event.target.value as MCQDifficulty)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white"><option value="mixed">{aiText(language, "mixed")}</option><option value="Easy">{aiText(language, "easy")}</option><option value="Medium">{aiText(language, "medium")}</option><option value="Hard">{aiText(language, "hard")}</option></select></label>
               <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{aiText(language, "style")}<select value={mcqStyle} onChange={(event) => setMcqStyle(event.target.value as MCQQuestionStyle)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white"><option value="mixed">{aiText(language, "mixed")}</option><option value="direct">{aiText(language, "direct")}</option><option value="understanding">{aiText(language, "understanding")}</option><option value="clinical">{aiText(language, "clinical")}</option></select></label>
               <div className="space-y-2 pt-5 text-xs text-neutral-700 dark:text-neutral-200"><label className="flex items-center gap-2"><input type="checkbox" checked={includeHints} onChange={(event) => setIncludeHints(event.target.checked)} className="accent-rose-500" />{aiText(language, "generateHints")}</label><label className="flex items-center gap-2"><input type="checkbox" checked={includeExplanations} onChange={(event) => setIncludeExplanations(event.target.checked)} className="accent-rose-500" />{aiText(language, "generateExplanations")}</label></div>
             </div>
           )}
           {target === "mcq" && operation === "enhance" && (
-            <div className="space-y-3 text-sm text-neutral-700 dark:text-neutral-200"><p className="text-xs text-neutral-500 dark:text-neutral-400">{aiText(language, "enhanceMcqNote")}</p><label className="flex items-center gap-2"><input type="checkbox" checked={enhanceHint} onChange={(event) => setEnhanceHint(event.target.checked)} className="accent-rose-500" />{aiText(language, "addMissingHints")}</label><label className="flex items-center gap-2"><input type="checkbox" checked={enhanceExplanation} onChange={(event) => setEnhanceExplanation(event.target.checked)} className="accent-rose-500" />{aiText(language, "addMissingExplanations")}</label></div>
+            <div className="space-y-3 text-sm text-neutral-700 dark:text-neutral-200">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{aiText(language, "enhanceMcqNote")}</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  {aiText(language, "category")}
+                  <select value={mcqCategory} onChange={(event) => setMcqCategory(event.target.value as MCQCategory)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white">
+                    <option value="AI_GENERATED">{language === "ar" ? "مولدة بالذكاء الاصطناعي" : "AI Generated"}</option>
+                    <option value="PREVIOUS_YEAR">{language === "ar" ? "السنوات السابقة" : "Previous Year"}</option>
+                    <option value="RESOURCE">{language === "ar" ? "المصادر" : "Resources"}</option>
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  {aiText(language, "difficulty")}
+                  <select value={mcqExtractDifficulty} onChange={(event) => setMcqExtractDifficulty(event.target.value as Exclude<MCQDifficulty, "mixed">)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white">
+                    <option value="Easy">{aiText(language, "easy")}</option>
+                    <option value="Medium">{aiText(language, "medium")}</option>
+                    <option value="Hard">{aiText(language, "hard")}</option>
+                  </select>
+                </label>
+              </div>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={enhanceHint} onChange={(event) => setEnhanceHint(event.target.checked)} className="accent-rose-500" />{aiText(language, "addMissingHints")}</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={enhanceExplanation} onChange={(event) => setEnhanceExplanation(event.target.checked)} className="accent-rose-500" />{aiText(language, "addMissingExplanations")}</label>
+            </div>
           )}
-          {target === "mcq" && operation === "extract" && <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">{aiText(language, "extractNote")}</p>}
+          {target === "mcq" && operation === "extract" && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  {aiText(language, "category")}
+                  <select value={mcqCategory} onChange={(event) => setMcqCategory(event.target.value as MCQCategory)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white">
+                    <option value="AI_GENERATED">{language === "ar" ? "مولدة بالذكاء الاصطناعي" : "AI Generated"}</option>
+                    <option value="PREVIOUS_YEAR">{language === "ar" ? "السنوات السابقة" : "Previous Year"}</option>
+                    <option value="RESOURCE">{language === "ar" ? "المصادر" : "Resources"}</option>
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  {aiText(language, "difficulty")}
+                  <select value={mcqExtractDifficulty} onChange={(event) => setMcqExtractDifficulty(event.target.value as Exclude<MCQDifficulty, "mixed">)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white">
+                    <option value="Easy">{aiText(language, "easy")}</option>
+                    <option value="Medium">{aiText(language, "medium")}</option>
+                    <option value="Hard">{aiText(language, "hard")}</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">{aiText(language, "extractNote")}</p>
+            </>
+          )}
           {target === "flashcard" && operation === "generate" && <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{aiText(language, "count")}<input type="number" min={1} max={100} value={flashcardCount} onChange={(event) => setFlashcardCount(Number(event.target.value))} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal text-neutral-800 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white" /></label><label className="space-y-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{aiText(language, "focus")}<input maxLength={200} value={focus} onChange={(event) => setFocus(event.target.value)} placeholder={aiText(language, "focusPlaceholder")} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-normal text-neutral-800 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white" /></label></div>}
           {target === "flashcard" && operation === "extract" && <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">{aiText(language, "extractNote")}</p>}
           {target === "flashcard" && operation === "enhance" && <p className="text-xs leading-5 text-neutral-500 dark:text-neutral-400">{aiText(language, "enhanceFlashcardNote")}</p>}

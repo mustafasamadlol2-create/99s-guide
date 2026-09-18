@@ -1,3 +1,8 @@
+import {
+  parseMCQCategory,
+  parseMCQDifficulty,
+} from "../../shared/mcqMetadata";
+
 type ContentEntity =
   | "Lecture"
   | "Material"
@@ -155,6 +160,10 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
       if (!["A", "B", "C", "D"].includes(correctAnswer)) {
         throw new Error("correctAnswer must be A, B, C, or D.");
       }
+      const sourceType = parseMCQCategory(data.sourceType);
+      if (!sourceType) throw new Error("sourceType must be AI_GENERATED, PREVIOUS_YEAR, or RESOURCE.");
+      const difficulty = parseMCQDifficulty(data.difficulty);
+      if (!difficulty) throw new Error("difficulty must be Easy, Medium, or Hard.");
 
       await env.DB.prepare(`
         INSERT INTO "Mcq"
@@ -185,9 +194,9 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
         correctAnswer,
         optionalText(data, "hint"),
         optionalText(data, "explanation"),
-        requireText(data, "sourceType"),
+         sourceType,
         typeof data.sourceRef === "string" ? data.sourceRef : "",
-        requireText(data, "difficulty"),
+         difficulty,
         validateMutationId(data.lectureId),
         requireIsoDate(data, "createdAt"),
       ).run();

@@ -59,6 +59,14 @@ import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
+import {
+  MCQ_CATEGORY_FILTERS,
+  MCQ_CATEGORY_LABELS,
+  MCQ_DIFFICULTY_LABELS,
+  normalizeMCQCategory,
+  normalizeMCQDifficulty,
+  type MCQCategoryFilter,
+} from "../../../../shared/mcqMetadata";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -349,7 +357,7 @@ export const LectureDetailView = function LectureDetailView({
     // Segment navigation mirrors physically in Arabic, exactly like every other
     // horizontal pager in the app. Keep this direction only for direct taps;
     // interactive swipes are driven 1:1 by the shared pager MotionValue.
-    setTabTransitionDirection(isRtl ? -logicalDirection : logicalDirection);
+    setTabTransitionDirection((isRtl ? -logicalDirection : logicalDirection) as 1 | -1);
     setActiveTab(nextTab);
   }, [activeTab, isRtl]);
 
@@ -665,9 +673,7 @@ export const LectureDetailView = function LectureDetailView({
  };
 
  // MCQ Section
- const [quizSource] = useState<
- "all" | "past_year" | "ai" | "book"
- >("all");
+  const [quizSource, setQuizSource] = useState<MCQCategoryFilter>("ALL");
  const [quizQuestions, setQuizQuestions] = useState<MCQ[]>([]);
  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
  const [answersMap, setAnswersMap] = useState<{
@@ -852,7 +858,7 @@ export const LectureDetailView = function LectureDetailView({
  // Prepare quiz questions (Rule 2)
   let relevantMCQs: MCQ[] = [];
    if (lecture.isDatabaseLecture && detailedLecture.mcqs && detailedLecture.mcqs.length > 0) {
-  relevantMCQs = detailedLecture.mcqs.map((m: any) => ({
+   relevantMCQs = detailedLecture.mcqs.map((m: any) => ({
   id: m.id,
   lectureId: lecture.id,
   question: m.question,
@@ -860,10 +866,10 @@ export const LectureDetailView = function LectureDetailView({
   optionB: m.optionB,
   optionC: m.optionC,
   optionD: m.optionD,
-  explanation: m.explanation || m.hint || undefined,
-  sourceType: "book",
-  sourceRef: undefined,
-  difficulty: "Medium",
+   explanation: m.explanation || m.hint || undefined,
+   sourceType: normalizeMCQCategory(m.sourceType),
+   sourceRef: m.sourceRef || "",
+   difficulty: normalizeMCQDifficulty(m.difficulty),
   }));
  } else {
  relevantMCQs = mcqs.filter((m) => m.lectureId === lecture.id);
@@ -1050,10 +1056,10 @@ export const LectureDetailView = function LectureDetailView({
  // Quiz submission — grading is authoritative on the server so the correct
  // answer key is never shipped to the client before submission.
  const handleQuizSubmit = async () => {
-  const total = quizQuestions.length;
+   const total = filteredQuizQuestions.length;
   if (total === 0) return;
 
-  const answers = quizQuestions.map((q) => ({
+   const answers = filteredQuizQuestions.map((q) => ({
   id: q.id,
   answer: answersMap[q.id] || null,
   }));
@@ -1099,7 +1105,7 @@ export const LectureDetailView = function LectureDetailView({
 
   setQuizResults(verifiedResults);
 
-  const correctCount = quizQuestions.reduce(
+   const correctCount = filteredQuizQuestions.reduce(
   (acc, q) => acc + (verifiedResults[q.id]?.correct ? 1 : 0),
   0,
   );
@@ -1596,12 +1602,51 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  };
 
  // Filter quiz questions by source
- const filteredQuizQuestions = useMemo(() => {
-   return quizQuestions.filter((q) => {
-     if (quizSource === "all") return true;
-     return q.sourceType === quizSource;
-   });
- }, [quizQuestions, quizSource]);
+  const filteredQuizQuestions = useMemo(() => {
+    const matching = quizQuestions.filter((q) =>
+      quizSource === "ALL" || normalizeMCQCategory(q.sourceType) === quizSource
+    );
+    if (quizSource !== "ALL") return matching;
+    // A deterministic order keeps the mixed session stable across renders while
+    // still avoiding a category-grouped All view.
+    return [...matching].sort((a, b) => {
+      const score = (id: string) => {
+        let hash = 2166136261;
+        for (const char of `${lecture.id}:${id}`) {
+          hash ^= char.charCodeAt(0);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      };
+      return score(a.id) - score(b.id);
+    });
+  }, [lecture.id, quizQuestions, quizSource]);
+
+  const mcqCategoryCounts = useMemo(() => MCQ_CATEGORY_FILTERS.reduce<Record<string, number>>((counts, category) => {
+    counts[category] = category === "ALL"
+      ? quizQuestions.length
+      : quizQuestions.filter((question) => normalizeMCQCategory(question.sourceType) === category).length;
+    return counts;
+  }, {}), [quizQuestions]);
+  const safeCurrentQuestionIndex = Math.min(
+    currentQuestionIndex,
+    Math.max(0, filteredQuizQuestions.length - 1),
+  );
+
+  useEffect(() => {
+    setQuizSource("ALL");
+    setCurrentQuestionIndex(0);
+    setQuizSubmitted(false);
+    setAnswersMap({});
+    setQuizResults({});
+  }, [lecture.id]);
+
+  useEffect(() => {
+    setCurrentQuestionIndex(0);
+    setQuizSubmitted(false);
+    setAnswersMap({});
+    setQuizResults({});
+  }, [quizSource]);
 
  const lectureTabOrder = useMemo(
    () => ["pdf", "notes", "mcqs", "flashcards", "videos", "qa"] as const,
@@ -2190,6 +2235,32 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  initial={false}
  className="quiz-tab-panel p-6 space-y-section flex-1 flex flex-col justify-between w-full overflow-x-clip"
  >
+  <div className="w-full overflow-x-auto pb-1" role="tablist" aria-label={isRtl ? "تصنيف أسئلة MCQ" : "MCQ categories"}>
+    <div className="flex min-w-max gap-2">
+      {MCQ_CATEGORY_FILTERS.map((category) => {
+        const active = quizSource === category;
+        const label = category === "ALL"
+          ? (isRtl ? "الكل" : "All")
+          : MCQ_CATEGORY_LABELS[category][isRtl ? "ar" : "en"];
+        return (
+          <button
+            key={category}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setQuizSource(category)}
+            className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              active
+                ? "border-rose-500 bg-rose-500 text-white shadow-sm"
+                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-white/[0.12] dark:bg-[#1C1C1E] dark:text-neutral-200 dark:hover:bg-white/[0.08]"
+            }`}
+          >
+            {label} <span className="ms-1 opacity-75">({mcqCategoryCounts[category] ?? 0})</span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
  {filteredQuizQuestions.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
  <div className="relative mb-6">
@@ -2199,12 +2270,19 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  </div>
  <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
- {isRtl ? "لا توجد أسئلة MCQ" : "No MCQs Available"}
+  {isRtl
+    ? `لا توجد أسئلة ${quizSource === "ALL" ? "MCQ" : MCQ_CATEGORY_LABELS[quizSource][isRtl ? "ar" : "en"]}`
+    : `No ${quizSource === "ALL" ? "MCQs" : MCQ_CATEGORY_LABELS[quizSource][isRtl ? "ar" : "en"]} Available`}
  </h3>
  <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
- {isRtl
- ? "لا توجد أسئلة خيارات متعددة لهذه المحاضرة بعد."
- : "No MCQs available for this lecture yet."}
+  {isRtl
+  ? (quizSource === "ALL"
+    ? "لا توجد أسئلة خيارات متعددة لهذه المحاضرة بعد."
+    : "لا توجد أسئلة في هذا التصنيف لهذه المحاضرة.")
+  : (quizSource === "ALL"
+    ? "No MCQs available for this lecture yet."
+    : "No questions are available in this category.")
+  }
  </p>
  </div>
  ) : !quizSubmitted ? (
@@ -2223,7 +2301,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      borderColor: `rgba(${flashcardTheme.rgb}, 0.24)`,
    }}
  >
- {isRtl ? "السؤال" : "Question"} {currentQuestionIndex + 1} {isRtl ? "من" : "of"}{" "}
+  {isRtl ? "السؤال" : "Question"} {safeCurrentQuestionIndex + 1} {isRtl ? "من" : "of"}{" "}
  {filteredQuizQuestions.length}
  </span>
  </div>
@@ -2251,12 +2329,23 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
            {isRtl ? "سؤال سريري" : "MCQ CONCEPT"}
          </span>
        </div>
+        <span
+          className={`mb-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+            filteredQuizQuestions[safeCurrentQuestionIndex].difficulty === "Easy"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200"
+              : filteredQuizQuestions[safeCurrentQuestionIndex].difficulty === "Hard"
+                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200"
+                : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+          }`}
+        >
+          {MCQ_DIFFICULTY_LABELS[normalizeMCQDifficulty(filteredQuizQuestions[safeCurrentQuestionIndex].difficulty)][isRtl ? "ar" : "en"]}
+        </span>
        <h3
          dir="auto"
          className="text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-neutral-900 dark:text-white font-semibold leading-[1.58] sm:leading-[1.62] text-start"
          style={{ textWrap: "balance" }}
        >
-         {filteredQuizQuestions[currentQuestionIndex].question}
+         {filteredQuizQuestions[safeCurrentQuestionIndex].question}
        </h3>
      </div>
    </div>
@@ -2266,12 +2355,12 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="grid grid-cols-1 gap-3 pt-2">
  {(["A", "B", "C", "D"] as const).map((optionKey) => {
  const optionText =
- filteredQuizQuestions[currentQuestionIndex][
+ filteredQuizQuestions[safeCurrentQuestionIndex][
  `option${optionKey}` as keyof MCQ
  ];
  const isSelected =
  answersMap[
- filteredQuizQuestions[currentQuestionIndex].id
+  filteredQuizQuestions[safeCurrentQuestionIndex].id
  ] === optionKey;
 
  return (
@@ -2281,7 +2370,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  onClick={() => {
  setAnswersMap({
  ...answersMap,
- [filteredQuizQuestions[currentQuestionIndex]
+  [filteredQuizQuestions[safeCurrentQuestionIndex]
  .id]: optionKey,
  });
  }}
@@ -2320,9 +2409,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="quiz-actions-group flex gap-2">
  <button
  type="button"
- disabled={currentQuestionIndex === 0}
+ disabled={safeCurrentQuestionIndex === 0}
  onClick={() => {
- setCurrentQuestionIndex(currentQuestionIndex - 1);
+ setCurrentQuestionIndex(safeCurrentQuestionIndex - 1);
  setShowHint(false);
  }}
  className="quiz-nav-btn h-btn px-6 py-2 text-caption font-semibold rounded-md border border-neutral-200 dark:border-white/[0.12] text-neutral-600 dark:text-[var(--text-secondary)] hover:bg-neutral-50 dark:hover:bg-white/[0.12] disabled:opacity-50 cursor-pointer transition-colors"
@@ -2353,10 +2442,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  type="button"
  onClick={() => {
  if (
- currentQuestionIndex <
+ safeCurrentQuestionIndex <
  filteredQuizQuestions.length - 1
  ) {
- setCurrentQuestionIndex(currentQuestionIndex + 1);
+ setCurrentQuestionIndex(safeCurrentQuestionIndex + 1);
  setShowHint(false);
  } else {
  handleQuizSubmit();
@@ -2370,7 +2459,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    boxShadow: `0 1px 2px rgba(${flashcardTheme.rgb}, 0.08)`,
  }}
  >
- {currentQuestionIndex === filteredQuizQuestions.length - 1
+ {safeCurrentQuestionIndex === filteredQuizQuestions.length - 1
  ? isRtl
  ? "تسليم الإجابات ✓"
  : "Submit Answers ✓"
@@ -2406,8 +2495,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="w-2 rounded-full bg-gradient-to-b from-[#FF9500] to-[#FFCC00] shrink-0" />
  <div className="space-y-1 text-start flex-1">
  <p className="font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
- {filteredQuizQuestions[currentQuestionIndex]?.explanation
- ? filteredQuizQuestions[currentQuestionIndex].explanation
+ {filteredQuizQuestions[safeCurrentQuestionIndex]?.explanation
+ ? filteredQuizQuestions[safeCurrentQuestionIndex].explanation
  : isRtl
  ? "فكر بعناية في الخيارات المتاحة."
  : "Think carefully about the available options."}
@@ -2451,7 +2540,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <h4 className="font-semibold text-caption uppercase text-neutral-500 dark:text-[#EBEBF599]">
  {isRtl ? "سجل مراجعة الإجابات:" : "Clinical Verification Log:"}
  </h4>
-  {quizQuestions.map((q, idx) => {
+   {filteredQuizQuestions.map((q, idx) => {
   const selected = answersMap[q.id];
   const verified = quizResults[q.id];
   const correct = verified?.correctAnswer ?? q.correctAnswer;

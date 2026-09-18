@@ -3,6 +3,7 @@ import type {
   AIMCQCandidate,
   MCQAIEngineInput,
   MCQDifficulty,
+  MCQExtractOptions,
   MCQSourceEvidence,
   SkippedMCQSourceItem,
 } from "./contracts.js";
@@ -37,6 +38,7 @@ export function normalizeExtractedItems(
   response: MCQExtractionProviderResponse,
   input: PreparedAIInput | MCQAIEngineInput,
   candidateId: () => string,
+  metadata: MCQExtractOptions = { category: "AI_GENERATED", difficulty: "Medium" },
 ): { items: AIMCQCandidate[]; skippedItems: SkippedMCQSourceItem[] } {
   const skippedItems: SkippedMCQSourceItem[] = response.skippedItems.map((item) => {
     const validated = sourceWarnings(item.source, input);
@@ -70,8 +72,7 @@ export function normalizeExtractedItems(
       continue;
     }
     if (!item.correctAnswer) warnings.push("The source did not explicitly establish a correct answer.");
-    const difficulty = normalizeDifficulty(item.difficulty);
-    if (item.difficulty && !difficulty) warnings.push("Difficulty was not an accepted application value and was omitted.");
+    const difficulty = metadata.difficulty;
     const normalized = applyQualityWarnings({
       candidateId: candidateId(),
       question: item.question,
@@ -83,6 +84,7 @@ export function normalizeExtractedItems(
       hint: item.hint,
       explanation: item.explanation,
       difficulty,
+      category: metadata.category,
       provenance: "extracted",
       source: validatedSource.source,
       confidence: item.confidence,
@@ -116,11 +118,11 @@ export function normalizeGeneratedItems(
       ...uncertaintiesToWarnings(item.uncertainties),
       ...validatedSource.warnings,
     ];
-    const difficulty = normalizeDifficulty(item.difficulty)
-      ?? (options.difficulty && options.difficulty !== "mixed" ? normalizeDifficulty(options.difficulty) : null);
+    const difficulty = normalizeDifficulty(item.difficulty);
     if (item.difficulty && !normalizeDifficulty(item.difficulty)) {
       warnings.push("Difficulty was not an accepted application value and was omitted.");
     }
+    if (!difficulty) warnings.push("The model must classify every generated question as Easy, Medium, or Hard.");
     const normalized = {
       candidateId: candidateId(),
       question: item.question,
@@ -132,6 +134,7 @@ export function normalizeGeneratedItems(
       hint: options.includeHints ? item.hint : null,
       explanation: options.includeExplanations ? item.explanation : null,
       difficulty,
+      category: "AI_GENERATED" as const,
       provenance: "generated" as const,
       source: validatedSource.source,
       confidence: item.confidence,

@@ -8,6 +8,7 @@ import type {
   MCQEnhancementOptions,
   MCQGenerationOptions,
   MCQOperationResult,
+  MCQExtractOptions,
   SkippedMCQSourceItem,
 } from "./contracts.js";
 import {
@@ -64,7 +65,7 @@ function requiredGenerationOptions(
   };
 }
 
-function requiredEnhancementOptions(options: MCQEnhancementOptions): Required<MCQEnhancementOptions> {
+function requiredEnhancementOptions(options: MCQEnhancementOptions): Required<Pick<MCQEnhancementOptions, "hint" | "explanation">> {
   if (options.hint !== true && options.explanation !== true) {
     throw new AIServiceError("AI_VALIDATION_ERROR", {
       publicMessage: "Select at least one MCQ enhancement field.",
@@ -126,11 +127,11 @@ export class MCQAIEngine {
     private readonly candidateId: () => string = randomUUID,
   ) {}
 
-  async extractExistingMCQs(input: PreparedAIInput, signal?: AbortSignal): Promise<MCQOperationResult> {
-    return this.extractFromEngineInput(inputForPrepared(input), signal);
+  async extractExistingMCQs(input: PreparedAIInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
+    return this.extractFromEngineInput(inputForPrepared(input), signal, metadata);
   }
 
-  private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal): Promise<MCQOperationResult> {
+  private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const response = await this.contentService.generateStructured({
       contents: input.contents,
@@ -144,6 +145,7 @@ export class MCQAIEngine {
       response.data,
       input,
       this.candidateId,
+      metadata,
     );
     let items = applyBatchDuplicateWarnings(normalized.items);
     const skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
@@ -197,7 +199,10 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const selected = requiredEnhancementOptions(options);
-    const extraction = await this.extractExistingMCQs(input, signal);
+    const extraction = await this.extractExistingMCQs(input, signal, {
+      category: options.category ?? "AI_GENERATED",
+      difficulty: options.difficulty ?? "Medium",
+    });
     const candidates = extraction.items.map((item) => ({ ...item }));
     const eligible = candidates.filter((item) =>
       item.correctAnswer !== null &&
@@ -250,7 +255,7 @@ export class MCQAIEngine {
     candidates: AIMCQCandidate[],
     eligible: AIMCQCandidate[],
     response: MCQEnhancementProviderResponse,
-    options: Required<MCQEnhancementOptions>,
+    options: Required<Pick<MCQEnhancementOptions, "hint" | "explanation">>,
     warnings: string[],
   ): AIMCQCandidate[] {
     const eligibleIds = new Set(eligible.map((candidate) => candidate.candidateId));

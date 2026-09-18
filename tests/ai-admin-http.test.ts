@@ -33,6 +33,7 @@ function mcqResult(operation: MCQOperationResult["operation"] = "generate"): MCQ
       correctAnswer: "A",
       hint: null,
       explanation: "It pumps oxygenated blood into systemic circulation.",
+      category: "AI_GENERATED",
       difficulty: "Easy",
       provenance: operation === "extract" ? "extracted" : operation === "enhance" ? "enhanced" : "generated",
       source: { inputType: "text", section: "Cardiology" },

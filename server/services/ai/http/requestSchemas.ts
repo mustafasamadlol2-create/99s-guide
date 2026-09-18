@@ -7,7 +7,7 @@ import {
   type AIOperation,
   type MCQQuestionStyle,
 } from "../contracts.js";
-import type { MCQDifficulty, MCQEnhancementOptions, MCQGenerationOptions } from "../mcq/contracts.js";
+import type { MCQDifficulty, MCQEnhancementOptions, MCQGenerationOptions, MCQExtractOptions } from "../mcq/contracts.js";
 import type { FlashcardEnhancementOptions, FlashcardGenerationOptions } from "../flashcard/contracts.js";
 import { AI_HTTP_MAX_OPTIONS_BYTES } from "./limits.js";
 import { AIHttpError } from "./errors.js";
@@ -21,6 +21,10 @@ const baseRequestSchema = z.object({
 }).strict();
 
 const emptyOptionsSchema = z.object({}).strict();
+const mcqExtractOptionsSchema = z.object({
+  category: z.enum(["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"]).default("AI_GENERATED"),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]).default("Medium"),
+}).strict();
 const mcqGenerationOptionsSchema = z.object({
   count: z.number().int().min(1).max(100).optional(),
   difficulty: z.enum(["Easy", "Medium", "Hard", "mixed"]).nullable().optional(),
@@ -31,6 +35,8 @@ const mcqGenerationOptionsSchema = z.object({
 const mcqEnhancementOptionsSchema = z.object({
   hint: z.boolean().optional(),
   explanation: z.boolean().optional(),
+  category: z.enum(["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"]).default("AI_GENERATED"),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]).default("Medium"),
 }).strict().refine((value) => value.hint === true || value.explanation === true, {
   message: "Select at least one MCQ enhancement field.",
 });
@@ -49,7 +55,7 @@ export type ParsedPreviewRequest =
     operation: AIOperation;
     inputKind: AIInputKind;
     text?: string;
-    options: Record<string, never> | MCQGenerationOptions | MCQEnhancementOptions;
+    options: Record<string, never> | MCQExtractOptions | MCQGenerationOptions | MCQEnhancementOptions;
   }
   | {
     target: "flashcard";
@@ -91,7 +97,7 @@ export function parsePreviewRequest(target: "mcq" | "flashcard", value: unknown)
   const options = base.options;
   if (target === "mcq") {
     if (base.operation === "extract") {
-      return { ...base, target, options: emptyOptionsSchema.parse(options ?? {}) };
+      return { ...base, target, options: mcqExtractOptionsSchema.parse(options ?? {}) };
     }
     if (base.operation === "generate") {
       return { ...base, target, options: mcqGenerationOptionsSchema.parse(options ?? {}) };

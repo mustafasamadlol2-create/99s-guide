@@ -43,6 +43,16 @@ function validateMCQOptions(candidates: MCQImportCandidate[]): void {
         field: `candidates.${index}`,
       });
     }
+    if (!["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"].includes(candidate.category)) {
+      throw new AIImportError(400, "AI_IMPORT_INVALID_CANDIDATE", "MCQ category is invalid.", {
+        field: `candidates.${index}.category`,
+      });
+    }
+    if (!["Easy", "Medium", "Hard"].includes(candidate.difficulty)) {
+      throw new AIImportError(400, "AI_IMPORT_INVALID_CANDIDATE", "MCQ difficulty is invalid.", {
+        field: `candidates.${index}.difficulty`,
+      });
+    }
   }
 }
 

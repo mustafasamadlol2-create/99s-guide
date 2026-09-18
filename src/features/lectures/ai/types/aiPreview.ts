@@ -3,6 +3,7 @@ export type AIPreviewOperation = "extract" | "generate" | "enhance";
 export type AIPreviewInputKind = "pdf" | "image" | "text";
 
 export type MCQDifficulty = "Easy" | "Medium" | "Hard" | "mixed";
+export type MCQCategory = "AI_GENERATED" | "PREVIOUS_YEAR" | "RESOURCE";
 export type MCQQuestionStyle = "direct" | "understanding" | "clinical" | "mixed";
 export type MCQAnswer = "A" | "B" | "C" | "D";
 
@@ -14,9 +15,16 @@ export interface MCQGenerationOptions {
   includeExplanations: boolean;
 }
 
+export interface MCQExtractOptions {
+  category: MCQCategory;
+  difficulty: Exclude<MCQDifficulty, "mixed">;
+}
+
 export interface MCQEnhancementOptions {
   hint: boolean;
   explanation: boolean;
+  category?: MCQCategory;
+  difficulty?: Exclude<MCQDifficulty, "mixed">;
 }
 
 export interface FlashcardGenerationOptions {
@@ -30,6 +38,7 @@ export interface FlashcardEnhancementOptions {
 
 export type AIPreviewOptions =
   | Record<string, never>
+  | MCQExtractOptions
   | MCQGenerationOptions
   | MCQEnhancementOptions
   | FlashcardGenerationOptions
@@ -72,6 +81,7 @@ export interface AIMCQCandidate {
   hint: string | null;
   explanation: string | null;
   difficulty: "Easy" | "Medium" | "Hard" | null;
+  category: MCQCategory;
   provenance: AIProvenance;
   source: AISourceEvidence | null;
   confidence: number;
@@ -178,7 +188,8 @@ export interface AIImportMCQCandidate {
   correctAnswer: MCQAnswer;
   hint: string | null;
   explanation: string | null;
-  difficulty: "Easy" | "Medium" | "Hard" | null;
+  difficulty: "Easy" | "Medium" | "Hard";
+  category: MCQCategory;
 }
 
 export interface AIImportFlashcardCandidate {

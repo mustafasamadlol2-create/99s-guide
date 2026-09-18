@@ -63,7 +63,8 @@ export function createPrismaAIImportRepository(getPrisma: () => any): AIImportRe
               correctAnswer: candidate.correctAnswer,
               hint: candidate.hint?.trim() || null,
               explanation: candidate.explanation?.trim() || null,
-              ...(candidate.difficulty ? { difficulty: candidate.difficulty } : {}),
+              sourceType: candidate.category,
+              difficulty: candidate.difficulty,
               lectureId,
             }));
             const clientKeyById = new Map<string, string>(data.map((row, index) => [row.id, newCandidates[index]!.clientKey]));

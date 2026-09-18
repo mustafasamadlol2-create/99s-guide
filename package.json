@@ -21,6 +21,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/security-contracts.cjs",
+    "backfill:mcq-metadata": "tsx scripts/backfill-mcq-metadata.ts",
     "cap:sync": "node scripts/validate-capacitor-env.cjs && npm run build && npx cap sync",
     "cap:add:ios": "npx cap add ios",
     "cap:add:android": "npx cap add android",

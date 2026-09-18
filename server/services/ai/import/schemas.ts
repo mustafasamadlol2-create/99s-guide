@@ -17,7 +17,8 @@ const mcqCandidateSchema = z.object({
   correctAnswer: z.enum(["A", "B", "C", "D"]),
   hint: z.string().trim().max(IMPORT_TEXT_MAX).nullable(),
   explanation: z.string().trim().max(IMPORT_TEXT_MAX).nullable(),
-  difficulty: z.enum(["Easy", "Medium", "Hard"]).nullable().optional(),
+  category: z.enum(["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"]),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]),
 }).strict();
 
 const flashcardCandidateSchema = z.object({

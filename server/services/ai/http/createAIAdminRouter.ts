@@ -193,7 +193,11 @@ async function dispatch(
 ): Promise<MCQOperationResult | FlashcardOperationResult> {
   if (parsed.target === "mcq") {
     const engine = engines.mcq;
-    if (parsed.operation === "extract") return engine.extractExistingMCQs(prepared, signal);
+    if (parsed.operation === "extract") return engine.extractExistingMCQs(
+      prepared,
+      signal,
+      parsed.options as import("../mcq/contracts.js").MCQExtractOptions,
+    );
     if (parsed.operation === "generate") {
       return engine.generateMCQs(prepared, parsed.options as MCQGenerationOptions, signal);
     }

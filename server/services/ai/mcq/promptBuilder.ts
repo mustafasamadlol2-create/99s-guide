@@ -15,8 +15,8 @@ export function buildMCQExtractInstruction(): string {
   return [
     commonInstruction,
     "Extract existing four-option MCQs faithfully from the source.",
-    "Preserve question wording, option wording and order, stated answer, existing hint, existing explanation, and explicitly stated difficulty.",
-    "Do not improve grammar, solve questions, infer missing answers, generate missing hints or explanations, or change difficulty.",
+    "Preserve question wording, option wording and order, stated answer, existing hint, and existing explanation.",
+    "Do not improve grammar, solve questions, infer missing answers, or generate missing hints or explanations. Difficulty and category are assigned by the administrator after extraction.",
     "Set correctAnswer to null unless the source explicitly states or unambiguously marks the answer.",
     "Report unsupported items such as true/false, three-option, five-option, matching, essay, unreadable, or non-MCQ content in skippedItems.",
     "Do not fabricate PDF pages, text sections, image indexes, or excerpts.",
@@ -24,11 +24,11 @@ export function buildMCQExtractInstruction(): string {
 }
 
 export function buildMCQGenerateInstruction(options: Required<MCQGenerationOptions>): string {
-  const difficulty = options.difficulty ?? "mixed";
   return [
     commonInstruction,
     `Generate up to ${options.count} new source-grounded four-option MCQs.`,
-    `Question style: ${options.questionStyle}. Difficulty control: ${difficulty}.`,
+    `Question style: ${options.questionStyle}. Classify every generated item independently as exactly one of Easy, Medium, or Hard.`,
+    "Never omit difficulty. Do not use Normal, mixed, beginner, intermediate, advanced, or any other difficulty label.",
     "Use the supplied educational source as the factual basis. Return fewer items when the source cannot support the requested count; do not fill the count with unsupported material.",
     "Each item must have one clearly best answer, four distinct plausible options, concise parallel wording, and no trick wording or answer-length giveaway.",
     "Avoid All of the above, None of the above, and compound answer options unless the source specifically requires them.",
@@ -39,7 +39,7 @@ export function buildMCQGenerateInstruction(options: Required<MCQGenerationOptio
   ].join(" ");
 }
 
-export function buildMCQEnhanceInstruction(options: Required<MCQEnhancementOptions>): string {
+export function buildMCQEnhanceInstruction(options: Required<Pick<MCQEnhancementOptions, "hint" | "explanation">>): string {
   const fields = [
     options.hint ? "hint" : "",
     options.explanation ? "explanation" : "",
