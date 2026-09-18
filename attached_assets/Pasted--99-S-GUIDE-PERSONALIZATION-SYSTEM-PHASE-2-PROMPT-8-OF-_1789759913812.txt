@@ -1,0 +1,1619 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 2 / PROMPT 8 OF ~22
+## LECTURE & CONTENT-SURFACE CLASSIC 99 TOKENIZATION
+### Lecture List/Detail Neutral Shell + PDF/Notes/Video/Q&A Generic Presentation
+### HIGH-RISK FEATURE — COLOR/TOKEN ONLY
+### NO MCQ / FLASHCARD / CALENDAR TOKENIZATION
+### NO ALTERNATE THEMES YET
+
+Phase 0 is APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 / Prompt 5B:
+CLASSIC 99 TOKEN FOUNDATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 6B:
+CORE CHROME CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 7:
+LOW-RISK FEATURE-SURFACE CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+We are now tokenizing a HIGH-RISK application area:
+
+LECTURES AND THEIR GENERIC CONTENT SURFACES.
+
+This prompt must remain presentation-only.
+
+The primary rule remains:
+
+BEFORE
+=
+AFTER
+=
+CLASSIC 99
+
+No intentional visual redesign.
+
+No application behavior change.
+
+No alternate theme rendering yet.
+
+---
+
+# 1. EXACT PROMPT 8 SCOPE
+
+Audit and selectively token-convert GENERIC PRESENTATION COLORS in:
+
+1. Lecture list/cards where applicable.
+2. Lecture detail outer page/shell.
+3. Lecture detail neutral content sections.
+4. PDF generic surrounding chrome.
+5. Notes generic surrounding chrome.
+6. Video generic surrounding chrome.
+7. Q&A / Answers generic surrounding chrome.
+
+Do NOT interpret this as permission to broadly rewrite LectureDetailView.
+
+Only exact generic surface/text/border/icon color substitutions are allowed.
+
+---
+
+# 2. ABSOLUTE HIGH-RISK RULE
+
+LectureDetailView and related lecture pages have received extensive production fixes.
+
+DO NOT modify:
+
+- layout geometry
+- content height
+- scroll ownership
+- tab sizing
+- iPad tab dimensions
+- mobile tab dimensions
+- responsive breakpoints
+- sticky positioning
+- fixed positioning
+- z-index
+- overflow
+- swipe behavior
+- swipe-back behavior
+- transition layers
+- page stacking
+- white/black underlays
+- scroll restoration
+- navigation
+- route state
+- PDF lifecycle
+- Notes behavior
+- MCQ flow
+- Flashcard behavior
+- Video behavior
+- Q&A behavior
+
+COLOR/TOKEN SOURCE ONLY.
+
+---
+
+# 3. NO MASS REFACTOR
+
+Do NOT rewrite LectureDetailView.
+
+Do NOT split it into new components merely for personalization.
+
+Do NOT clean up unrelated code.
+
+Do NOT reorder class strings unnecessarily.
+
+Keep the diff surgical and reviewable.
+
+---
+
+# 4. NO ALTERNATE THEMES
+
+Still no visual palette for:
+
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Only Classic 99 remains visually implemented.
+
+`committed.themeId` stays visually inert.
+
+---
+
+# 5. NO RUNTIME THEME SWITCHING
+
+Do NOT add:
+
+document.documentElement.dataset.theme
+theme classes
+style.setProperty
+dynamic CSS variables from React
+theme-driven component keys
+reload()
+location.reload()
+
+No runtime theme switching in Prompt 8.
+
+---
+
+# 6. AUDIT FIRST
+
+Before editing, identify the actual files for:
+
+- Lecture list
+- Lecture list item/card
+- Lecture detail
+- PDF presentation/chrome
+- Notes presentation
+- Video presentation
+- Q&A / Answers presentation
+- Lecture tab/navigation presentation
+
+Classify all visual color usages as:
+
+A. GENERIC THEMEABLE PRESENTATION
+B. FIXED SEMANTIC STATUS
+C. SUBJECT / ACADEMIC IDENTITY
+D. MCQ SEMANTIC
+E. FLASHCARD IDENTITY / REVIEW STATE
+F. BRAND / DECORATIVE
+G. UNKNOWN / HIGH-RISK
+
+Only A is the primary migration target.
+
+When uncertain:
+LEAVE IT UNCHANGED.
+
+---
+
+# 7. EXISTING SEMANTIC TOKENS FIRST
+
+Reuse already-approved tokens whenever exact:
+
+- semantic-background-page
+- semantic-background-grouped
+- semantic-surface-primary
+- semantic-surface-elevated
+- semantic-surface-muted
+- semantic-content-primary
+- semantic-content-secondary
+- semantic-content-subtle
+- semantic-chrome-content-primary
+- semantic-chrome-content-secondary
+- semantic-chrome-content-subtle
+- semantic-chrome-content-muted
+- semantic-border-default
+- semantic-border-strong
+- semantic-action-accent
+- semantic-action-accent-soft
+- semantic-focus-ring
+- semantic-chrome-surface-active
+- semantic-chrome-surface-hover
+- semantic-navigation-tab-active
+- semantic-navigation-tab-inactive
+- semantic-glass-surface
+- semantic-glass-border
+
+Use actual names in source.
+
+Do NOT invent duplicate aliases when an exact existing role already exists.
+
+---
+
+# 8. NEW TOKEN LIMIT
+
+New tokens are allowed ONLY if all are true:
+
+1. Exact existing Light/Dark value has no compatible semantic token.
+2. Role is clearly generic presentation.
+3. Role is expected to be theme-responsive later.
+4. It is not subject/domain/semantic state.
+5. Reusing an existing token would visibly change Classic 99.
+
+Maximum expected new token roles in Prompt 8:
+
+approximately 6–8.
+
+If more appear necessary:
+
+STOP expanding.
+
+Defer the remaining values.
+
+---
+
+# 9. LECTURE LIST
+
+Audit actual Lecture list/card implementation.
+
+Tokenize only safe generic roles such as:
+
+- outer neutral background
+- card neutral surface
+- primary lecture title text
+- generic secondary metadata text
+- neutral border
+- generic icon/button chrome
+
+ONLY where exact parity exists.
+
+---
+
+# 10. LECTURE LIST — PRESERVE IDENTITY
+
+Do NOT change:
+
+- subject identity colors
+- completion/progress semantics
+- bookmark semantic state
+- PDF/video/MCQ/Anki availability states
+- difficulty/status colors
+- module identity
+- lecture type/category semantics
+
+Do not convert meaningful colors into theme accent.
+
+---
+
+# 11. LECTURE DETAIL OUTER CANVAS
+
+Generic page canvas may use approved semantic background token if exact.
+
+Do NOT change:
+
+height
+min-height
+overflow
+position
+stacking
+safe area
+scroll container
+route underlay
+
+This page has historical swipe/back and white-screen fixes.
+
+---
+
+# 12. LECTURE DETAIL CONTENT SURFACES
+
+Tokenize only neutral/generic:
+
+- section backgrounds
+- cards
+- separators
+- generic primary text
+- secondary descriptions
+- neutral icon buttons
+- neutral borders
+
+Do NOT change structural classes.
+
+---
+
+# 13. CRITICAL — LECTURE TAB BAR
+
+The Lecture tab/navigation bar includes:
+
+- PDF
+- Notes
+- MCQ
+- Anki/Flashcards
+- Video
+- Q&A / Answers
+
+This bar has received prior iPad/mobile production fixes.
+
+DO NOT modify:
+
+- width
+- gap
+- padding
+- height
+- font size
+- icon size
+- flex rules
+- overflow
+- scroll behavior
+- distribution
+- responsive breakpoint
+- touch target
+- active-tab switching
+- swipe logic
+- route logic
+
+Only exact generic COLOR source substitution is allowed.
+
+---
+
+# 14. TAB BAR ACTIVE STATE
+
+Audit whether active tab color is:
+
+A. generic navigation presentation
+or
+B. feature-specific identity.
+
+If generic:
+it may use an approved semantic navigation/action token if exact.
+
+If current Light/Dark differs from approved tokens:
+leave unchanged or add one narrowly justified token.
+
+Do not approximate.
+
+---
+
+# 15. TAB BAR INACTIVE STATE
+
+Same rule.
+
+Preserve exact current Light/Dark text/icon color.
+
+No opacity change.
+
+---
+
+# 16. TAB BAR BACKGROUND
+
+If the tab container currently uses generic neutral/glass surface:
+
+migrate only if the exact semantic surface/glass token matches.
+
+Do NOT change blur/backdrop-filter.
+
+`glassStyle` remains unwired.
+
+---
+
+# 17. PDF — GENERIC SURROUNDING CHROME ONLY
+
+Prompt 8 may tokenize:
+
+- PDF page surrounding app surface
+- neutral toolbar text
+- neutral toolbar icon background
+- neutral separators
+- generic loading shell if purely presentational
+
+Do NOT modify the PDF document rendering itself.
+
+---
+
+# 18. PDF BEHAVIOR FREEZE
+
+Do NOT change:
+
+- PDF URL
+- signed URL behavior
+- authentication
+- PDF viewer
+- zoom rules
+- native-like zoom disabling
+- scroll
+- loading
+- download/open behavior
+- cache
+- Notes/PDF switching
+- page lifecycle
+- swipe back
+- white/black background layering
+
+---
+
+# 19. PDF SECURITY
+
+Do NOT alter:
+
+- PDF authorization
+- signed access
+- private URLs
+- security checks
+- resource fetching
+
+No server changes.
+
+---
+
+# 20. NOTES — GENERIC SURFACE ONLY
+
+Tokenize only generic:
+
+- Notes list shell
+- neutral card surfaces
+- generic titles
+- secondary metadata
+- neutral borders
+- generic empty state
+
+where exact.
+
+---
+
+# 21. NOTES BEHAVIOR FREEZE
+
+Do NOT change:
+
+- multiple-note support
+- NOTE Material filtering
+- max-10 policy
+- upload behavior
+- open behavior
+- per-note Material IDs
+- legacy notes fallback
+- deletion
+- ordering semantics
+- API calls
+
+---
+
+# 22. NOTES STATUS/SEMANTIC COLORS
+
+Any:
+
+- upload status
+- error
+- success
+- warning
+- destructive delete
+
+must remain fixed semantics.
+
+Do not theme them.
+
+---
+
+# 23. VIDEO — GENERIC SURROUNDING CHROME
+
+Tokenize only:
+
+- neutral outer surface
+- generic title/subtitle
+- neutral controls supplied by app shell
+
+Do NOT alter embedded/native player presentation if controlled externally.
+
+---
+
+# 24. VIDEO BEHAVIOR FREEZE
+
+Do NOT change:
+
+- YouTube URL handling
+- player loading
+- embedded behavior
+- native opening
+- video selection
+- progress
+- navigation
+
+---
+
+# 25. Q&A / ANSWERS — GENERIC SURFACE ONLY
+
+Tokenize safe neutral presentation such as:
+
+- page/list surface
+- neutral cards
+- generic primary/secondary text
+- neutral border/separators
+- generic nonsemantic icons
+
+ONLY where exact.
+
+---
+
+# 26. Q&A SEMANTIC SAFETY
+
+Do NOT theme:
+
+- report state
+- moderation state
+- owner/admin badges
+- banned/muted indicators
+- vote semantic states
+- destructive delete
+- warning/error/success
+- online/offline
+
+---
+
+# 27. Q&A BEHAVIOR FREEZE
+
+Do NOT alter:
+
+- posting
+- voting
+- unique votes
+- reporting
+- moderation
+- mute
+- ban
+- delete
+- replies
+- ownership
+- authorization
+- socket behavior
+- data fetching
+
+---
+
+# 28. MCQ IS OUT OF SCOPE
+
+Even though MCQ appears inside LectureDetailView:
+
+DO NOT token-convert MCQ feature UI in Prompt 8.
+
+Preserve:
+
+- question
+- option states
+- correctness colors
+- category
+- difficulty
+- hints
+- explanation
+- progress
+- bookmarks
+- points
+- answer flow
+
+Only the outer shared Lecture shell may affect MCQ indirectly if exact Classic parity is guaranteed.
+
+No direct MCQ edits.
+
+---
+
+# 29. FLASHCARDS / ANKI ARE OUT OF SCOPE
+
+Do NOT token-convert:
+
+- clinical concept card
+- explanation card
+- flip surfaces
+- subject theme
+- review state
+- difficulty
+- progress
+- card transitions
+
+No direct Flashcard styling edits.
+
+---
+
+# 30. CALENDAR OUT OF SCOPE
+
+No direct Calendar edits.
+
+---
+
+# 31. MODULES OUT OF SCOPE
+
+Prompt 7 closed safe Module surfaces.
+
+Do not expand Module work here.
+
+---
+
+# 32. HOME/HERO OUT OF SCOPE
+
+No HomeDashboard changes.
+
+No Hero changes.
+
+No particles.
+
+No motto changes.
+
+---
+
+# 33. PROFILE/SETTINGS/NOTIFICATIONS
+
+Prompt 7 closed those areas.
+
+Do not reopen them except if a truly shared component import automatically picks up an existing semantic token.
+
+No new direct edits expected.
+
+---
+
+# 34. CONSOLE OUT OF SCOPE
+
+No Console feature-surface tokenization yet.
+
+---
+
+# 35. SUBJECT COLORS
+
+Search Lecture surfaces for subject-derived styling.
+
+Examples may include:
+
+- subject accent
+- lecture category colors
+- Flashcard subject colors
+- badges
+
+Do NOT make those generic theme-responsive in Prompt 8.
+
+---
+
+# 36. RESOURCE TYPE COLORS
+
+If PDF/Notes/Video/MCQ/Anki/Q&A tabs use colors identifying resource types:
+
+do not automatically replace them.
+
+Determine whether they are:
+
+generic active navigation
+or
+content-type identity.
+
+Preserve if identity-bearing.
+
+---
+
+# 37. PROGRESS COLORS
+
+If lecture completion/progress uses meaningful color:
+
+do not genericize it.
+
+Keep success/progress semantics independent.
+
+---
+
+# 38. BOOKMARK COLORS
+
+Audit bookmark selected state.
+
+If yellow/gold is semantic state:
+leave unchanged.
+
+Do not make Bookmarked state equal user theme accent without deliberate later design.
+
+---
+
+# 39. EMPTY STATES
+
+Generic empty-state:
+
+text/surface/icon neutral colors
+
+may migrate if exact.
+
+Do not alter wording/content.
+
+---
+
+# 40. LOADING STATES
+
+Generic neutral skeleton background may be themeable later.
+
+But Prompt 8 should migrate only if exact approved tokens exist.
+
+Do NOT alter:
+
+animation
+timing
+spinner behavior
+skeleton dimensions
+
+---
+
+# 41. ERROR STATES
+
+Never map error state to generic theme accent.
+
+Keep fixed error semantics.
+
+---
+
+# 42. SUCCESS STATES
+
+Same.
+
+---
+
+# 43. WARNING STATES
+
+Same.
+
+---
+
+# 44. DESTRUCTIVE ACTIONS
+
+Delete note/question/etc remains destructive.
+
+Future Emerald theme must not turn Delete into Emerald.
+
+---
+
+# 45. GENERIC ACTION BUTTONS
+
+Generic nonsemantic primary actions may use approved generic action accent ONLY when current production source matches exactly.
+
+No broad button redesign.
+
+---
+
+# 46. LIGHT MODE PARITY
+
+For every changed class/value:
+
+record:
+
+previous Light source
+→ new semantic token
+→ resolved Classic Light value
+
+Must be exact.
+
+---
+
+# 47. DARK MODE PARITY
+
+Same for Dark.
+
+---
+
+# 48. SYSTEM MODE
+
+Unchanged:
+
+app_theme
+→ OS preference
+→ html.dark
+→ semantic values
+
+No provider integration.
+
+---
+
+# 49. RTL SAFETY
+
+Do not change:
+
+- text direction
+- tab direction
+- chevrons
+- back direction
+- swipe direction
+- padding/margin
+- flex order
+- text alignment
+
+Arabic behavior must remain identical.
+
+---
+
+# 50. IPHONE SAFETY
+
+No changes to:
+
+- safe areas
+- bottom nav relationship
+- tab-bar layout
+- full-page navigation
+- swipe back
+- PDF page sizing
+- scroll ownership
+
+---
+
+# 51. IPAD SAFETY — CRITICAL
+
+The Lecture tab bar previously required specific iPad fixes.
+
+Do NOT modify:
+
+- tab bar available width
+- right/left empty space
+- item sizing
+- responsive distribution
+- PDF/Notes/MCQ/Anki/Video/Q&A sizing
+- landscape behavior
+- portrait behavior
+
+Color-token only.
+
+If a class string combines color + geometry:
+replace only the color class.
+
+---
+
+# 52. DESKTOP/PWA SAFETY
+
+Do not change:
+
+- max widths
+- layout columns
+- sidebar relationship
+- scroll containers
+- keyboard shortcuts
+- hover geometry
+
+---
+
+# 53. SWIPE-BACK SAFETY
+
+No edits to:
+
+useSwipeBack
+gesture hooks
+touch tracking
+transition state
+page underlays
+
+---
+
+# 54. PDF → BACK SAFETY
+
+Historical white/black-screen fixes must remain intact.
+
+Do not modify:
+
+background underlays
+layer ownership
+exit timing
+navigation stack
+
+---
+
+# 55. MY PROFILE SCROLL SAFETY
+
+Unrelated but ensure no shared layout refactor affects it.
+
+No layout architecture changes.
+
+---
+
+# 56. NO TOKEN-DRIVEN REMOUNT
+
+No dynamic key based on:
+
+themeId
+resource tab
+personalization state
+
+---
+
+# 57. NO CSS VARIABLE WRITES FROM REACT
+
+Still forbidden.
+
+CSS token consumption occurs through CSS/Tailwind classes only.
+
+---
+
+# 58. TOKEN METADATA
+
+If new token names are added:
+
+update:
+
+src/features/personalization/classic99Tokens.ts
+
+metadata only.
+
+Do NOT put actual color values there.
+
+CSS remains color source of truth.
+
+---
+
+# 59. INDEX.CSS
+
+May receive a small number of exact new Classic semantic tokens.
+
+No:
+
+layout changes
+breakpoint changes
+animation changes
+global selector rewrites
+
+---
+
+# 60. NO HARD-CODED COLOR BAN
+
+Do NOT try to eliminate all colors.
+
+Many should remain untouched.
+
+Selective migration only.
+
+---
+
+# 61. EXPECTED FILE SCOPE
+
+Audit first.
+
+Likely candidates include some of:
+
+- src/features/lectures/components/LectureDetailView.tsx
+- actual Lecture list/card component(s)
+- PDF-related presentation component(s)
+- Notes-related presentation component(s)
+- Video-related presentation component(s)
+- Q&A-related presentation component(s)
+- src/index.css
+- classic99Tokens.ts
+- tests
+
+Do not assume every file must change.
+
+Aim for approximately:
+
+4–10 runtime files.
+
+If work spreads into a large portion of the repo:
+STOP and narrow scope.
+
+---
+
+# 62. LECTUREDETAILVIEW DIFF LIMIT
+
+If LectureDetailView.tsx changes:
+
+every Prompt 8 edit must be class/color/token only.
+
+No:
+
+JavaScript branch change
+state change
+effect change
+handler change
+callback change
+render ordering change
+conditional change
+DOM structure change
+
+unless strictly required to substitute a color source, which should almost never be necessary.
+
+---
+
+# 63. SOURCE SAFETY TESTS
+
+Add focused source/contract tests for actual files.
+
+Create or extend something like:
+
+tests/personalization-lecture-surfaces.test.ts
+
+Verify at minimum:
+
+- generic Lecture canvas consumes semantic token
+- safe generic Lecture text/surface roles consume semantic tokens
+- Lecture tab geometry classes remain untouched
+- direct MCQ semantic colors remain untouched
+- direct Flashcard identity remains untouched
+- PDF behavior code remains untouched
+- Notes behavior/API path remains untouched
+- Q&A moderation/destructive semantics remain independent
+- no runtime theme DOM mutation introduced
+
+Avoid brittle full-file snapshots.
+
+---
+
+# 64. TAB BAR GEOMETRY GUARD
+
+Because this is historically high risk, add a maintainable invariant if practical ensuring Prompt 8 did NOT remove/alter the important tab container/item geometry classes.
+
+Do not overfit line numbers.
+
+The test may check that required known layout classes or responsive contracts still exist.
+
+If current project tests already protect this:
+reuse them.
+
+---
+
+# 65. NOTES POLICY REGRESSION
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+
+Mandatory.
+
+---
+
+# 66. PDF ACCESS REGRESSION
+
+Search for existing PDF access/security tests.
+
+Run the relevant focused test(s).
+
+If the known baseline negative-expiry fixture still fails:
+report it as pre-existing.
+
+Do not "fix" security tests unrelated to color migration.
+
+---
+
+# 67. CLIENT NAVIGATION REGRESSION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Mandatory.
+
+---
+
+# 68. MCQ REGRESSION
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+
+and:
+
+npm run test:ai-mcq
+
+Even though MCQ UI is out of scope, LectureDetail is shared.
+
+---
+
+# 69. FLASHCARD REGRESSION
+
+Run:
+
+npm run test:ai-flashcard
+
+---
+
+# 70. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+
+---
+
+# 71. MODULE RESOURCE REGRESSION
+
+Because shared routing/layout may be indirectly affected:
+
+run existing Module Resource focused test if present.
+
+Otherwise source-audit only.
+
+No Module Resource source changes expected.
+
+---
+
+# 72. ALL PERSONALIZATION TESTS
+
+Run all existing personalization suites:
+
+- personalization.test.ts
+- personalization-state.test.ts
+- personalization-storage.test.ts
+- personalization-runtime.test.tsx
+- personalization-tokens.test.ts
+- Prompt 7 surface tests
+- new Prompt 8 lecture-surface tests
+
+Report total.
+
+---
+
+# 73. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+---
+
+# 74. TYPESCRIPT / ESLINT
+
+Run targeted TS/ESLint for touched files.
+
+Do not repair the known unrelated:
+
+- moduleVisuals `.webp` declarations
+- `.local/skills` lint
+- supabaseStorage lint
+- SmoothAutoHeight warning
+
+---
+
+# 75. VISUAL VERIFICATION
+
+If authenticated preview is available:
+
+inspect at least:
+
+LIGHT:
+- Lecture list
+- Lecture detail
+- PDF tab shell
+- Notes list/shell
+- Video shell
+- Q&A shell
+
+DARK:
+same where practical.
+
+Pay special attention to:
+
+- tab bar
+- iPad/desktop widths
+- background
+- text hierarchy
+- borders
+- semantic states
+
+If authenticated preview is unavailable:
+state that explicitly.
+
+Do not claim visual verification that was not performed.
+
+---
+
+# 76. IPAD VISUAL VERIFICATION
+
+If iPad viewport preview is possible:
+
+inspect at least one Lecture detail at:
+
+portrait-ish tablet width
+and
+landscape-ish tablet width
+
+Do not alter anything based merely on aesthetic preference.
+
+Only detect regressions.
+
+If unavailable:
+report device gate.
+
+---
+
+# 77. MOBILE VISUAL VERIFICATION
+
+If possible inspect Lecture detail at phone width.
+
+Especially:
+
+- tab strip
+- bottom bar interaction
+- page background
+- content cards
+
+No geometry changes expected.
+
+---
+
+# 78. NO SCREENSHOT ARTIFACTS
+
+Do not commit preview screenshots.
+
+Temporary files must be removed.
+
+---
+
+# 79. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Review every changed line.
+
+Separate pre-existing user input/artifacts.
+
+---
+
+# 80. NO `.agents/*`
+
+No `.agents/*` file may be created or modified.
+
+---
+
+# 81. DEFERRED VALUES ARE EXPECTED
+
+Report generic-looking Lecture/content colors deliberately left unchanged because:
+
+- no exact semantic token exists
+- intent is ambiguous
+- subject identity
+- semantic state
+- high-risk component
+- visual parity uncertain
+
+Do not force migration.
+
+---
+
+# 82. NO BUSINESS LOGIC
+
+Explicitly verify zero modifications to:
+
+auth
+roles
+permissions
+lecture APIs
+material APIs
+PDF access
+Notes policy
+MCQ logic
+Flashcard logic
+Video logic
+Q&A logic
+points
+notifications
+sockets
+moderation
+
+---
+
+# 83. NO NETWORK / PERSISTENCE CHANGE
+
+State:
+
+ZERO new personalization network calls.
+
+No SQL.
+No D1.
+No R2.
+No KV.
+
+---
+
+# 84. DEFINITION OF DONE
+
+Prompt 8 passes only if:
+
+- Lecture generic shell tokenization is selective and exact.
+- Lecture list generic surfaces are exact where changed.
+- Lecture detail geometry is unchanged.
+- Lecture tab geometry is unchanged.
+- PDF behavior/security is unchanged.
+- Notes behavior/policy is unchanged.
+- Video behavior is unchanged.
+- Q&A behavior/moderation is unchanged.
+- MCQ direct UI is untouched.
+- Flashcard direct UI is untouched.
+- Calendar untouched.
+- Module identity untouched.
+- semantic/status colors remain independent.
+- Classic Light parity preserved.
+- Classic Dark parity preserved.
+- alternate themes remain unimplemented.
+- provider remains visually inert.
+- no Home/Settings/Profile/Notifications reopening.
+- no gestures changed.
+- no navigation changed.
+- no runtime theme switching.
+- no KV/SQL/D1/R2.
+- build passes.
+- tests pass.
+- diff scoped and clean.
+
+---
+
+# 85. MANDATORY FINAL IMPLEMENTATION REPORT
+
+The task is incomplete without this report.
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 2 PROMPT 8 REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. Visual Impact
+
+State exactly:
+
+NO INTENTIONAL VISUAL CHANGE
+
+Then state exact visual verification performed.
+
+## 3. Files Audited
+
+| File | Area | Changed? |
+|---|---|---|
+
+## 4. Files Modified
+
+| File | Exact Tokenization | Why Safe |
+|---|---|---|
+
+## 5. Files Created
+
+| File | Purpose |
+|---|---|
+
+## 6. Lecture List Audit
+
+Describe actual components and classifications.
+
+## 7. Lecture List Migration
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 8. Lecture Detail Audit
+
+Describe actual generic vs semantic/domain regions.
+
+## 9. Lecture Detail Migration
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 10. Lecture Tab Bar Audit
+
+List exact files/classes.
+
+Confirm NO geometry/behavior change.
+
+## 11. Lecture Tab Color Migration
+
+List exact active/inactive/container substitutions, if any.
+
+## 12. iPad Tab Safety
+
+Confirm widths/gaps/sizing/breakpoints unchanged.
+
+## 13. Mobile Tab Safety
+
+Confirm touch/scroll/layout unchanged.
+
+## 14. PDF Audit
+
+Describe generic presentation vs viewer/security behavior.
+
+## 15. PDF Migration
+
+List only visual token changes.
+
+## 16. PDF Behavior/Security Safety
+
+Confirm all access/viewer/zoom/cache/back behavior unchanged.
+
+## 17. Notes Audit
+
+Describe generic presentation vs NOTE Material behavior.
+
+## 18. Notes Migration
+
+List visual changes.
+
+## 19. Notes Policy Safety
+
+Confirm multi-note behavior, IDs, max policy, upload/open/delete unchanged.
+
+## 20. Video Audit
+
+Describe actual presentation scope.
+
+## 21. Video Migration
+
+List visual changes.
+
+## 22. Video Behavior Safety
+
+Confirm unchanged.
+
+## 23. Q&A Audit
+
+Describe generic surfaces vs moderation/vote/status semantics.
+
+## 24. Q&A Migration
+
+List visual changes.
+
+## 25. Q&A Behavior Safety
+
+Confirm post/vote/report/mute/ban/delete/reply/auth/socket unchanged.
+
+## 26. New Tokens
+
+If added:
+
+| Token | Light | Dark | Previous Source | Why Needed |
+|---|---|---|---|---|
+
+If none:
+state NONE.
+
+## 27. Token Proliferation
+
+State number of new roles.
+
+## 28. Deferred Lecture Values
+
+List and explain.
+
+## 29. Deferred PDF Values
+
+List and explain.
+
+## 30. Deferred Notes Values
+
+List and explain.
+
+## 31. Deferred Video Values
+
+List and explain.
+
+## 32. Deferred Q&A Values
+
+List and explain.
+
+## 33. Subject Identity Safety
+
+Confirm untouched.
+
+## 34. Progress/Bookmark Safety
+
+Confirm semantics unchanged.
+
+## 35. MCQ Safety
+
+Confirm no direct MCQ tokenization.
+
+## 36. Flashcard Safety
+
+Confirm no direct Flashcard tokenization.
+
+## 37. Calendar Safety
+
+Confirm untouched.
+
+## 38. Module Safety
+
+Confirm module identity/resources unchanged.
+
+## 39. Fixed Semantic Safety
+
+Confirm error/success/warning/destructive/validation/status remain independent.
+
+## 40. Light/Dark/System
+
+Confirm architecture unchanged.
+
+## 41. Theme Runtime
+
+Confirm themeId remains visually inert.
+
+## 42. Hero / Glass / Motion / Reading
+
+Confirm still unwired.
+
+## 43. Provider
+
+Confirm unchanged.
+
+## 44. Navigation / Swipe Safety
+
+Confirm no route/swipe/back/pager changes.
+
+## 45. RTL Safety
+
+Confirm no directional/layout changes.
+
+## 46. Accessibility
+
+Confirm focus/reduced-motion/reduced-transparency/forced-colors preserved.
+
+## 47. Initial Paint
+
+Confirm preload/index/LaunchScreen untouched.
+
+## 48. Tests Added/Updated
+
+List exact Prompt 8 invariants.
+
+## 49. Personalization Test Results
+
+Report total pass count.
+
+## 50. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 51. PDF Test Result
+
+Report exact focused PDF test result and any known baseline issue.
+
+## 52. Visual Verification
+
+State exactly:
+
+- authentication state
+- viewport(s)
+- Light/Dark
+- screens actually observed
+
+Do not overclaim.
+
+## 53. iPad Verification
+
+State exact result or device gate.
+
+## 54. Existing Baseline Issues
+
+List separately.
+
+## 55. Git Diff Summary
+
+Exact changed files/stat.
+
+## 56. High-Risk LectureDetail Review
+
+If LectureDetailView changed:
+confirm every Prompt 8 modification was class/color/token-only.
+
+## 57. Forbidden Functional Scope Verification
+
+Confirm no changes to:
+
+auth
+roles
+permissions
+lecture/material APIs
+PDF security
+Notes behavior
+MCQ logic
+Flashcard logic
+Video logic
+Q&A logic
+moderation
+points
+notifications
+sockets
+personalization provider
+
+## 58. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+## 59. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 60. Prompt 9 Readiness
+
+If everything passes, state exactly:
+
+LECTURE & CONTENT-SURFACE CLASSIC 99 TOKENIZATION: CLOSED AND APPROVED
+
+REMAINING HIGH-RISK CLASSIC 99 TOKENIZATION: APPROVED TO CONTINUE
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 2 PROMPT 8 STATUS: COMPLETE — READY FOR PROMPT 9
+
+or:
+
+PERSONALIZATION PHASE 2 PROMPT 8 STATUS: BLOCKED — REPAIR REQUIRED
