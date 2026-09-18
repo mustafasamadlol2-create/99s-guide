@@ -197,8 +197,22 @@ test("Ocean defines exactly all 29 themeable tokens in Light and Dark", () => {
 
 test("Ocean uses only the two intended selectors and never overrides fixed semantics", () => {
   assert.equal((css.match(/data-app-theme="ocean"/g) ?? []).length, 2);
-  assert.equal((css.match(/:root\[data-app-theme="ocean"\]\s*\{/g) ?? []).length, 1);
-  assert.equal((css.match(/\.dark\[data-app-theme="ocean"\]\s*\{/g) ?? []).length, 1);
+  assert.equal(
+    (
+      css.match(
+        /:root\[data-app-theme="ocean"\],\s*\[data-personalization-preview-theme="ocean"\]\s*\{/g,
+      ) ?? []
+    ).length,
+    1,
+  );
+  assert.equal(
+    (
+      css.match(
+        /\.dark\[data-app-theme="ocean"\],\s*\.dark \[data-personalization-preview-theme="ocean"\]\s*\{/g,
+      ) ?? []
+    ).length,
+    1,
+  );
   const oceanCss = `${block(':root[data-app-theme="ocean"]')}\n${block('.dark[data-app-theme="ocean"]')}`;
   for (const tokenName of FIXED_SEMANTIC_TOKEN_NAMES) {
     assert.doesNotMatch(oceanCss, new RegExp(`--${tokenName}\\s*:`));

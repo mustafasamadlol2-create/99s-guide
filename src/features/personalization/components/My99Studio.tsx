@@ -24,8 +24,6 @@ import {
 } from "../personalizationCatalog";
 import type { ImplementedThemeId } from "../classic99Tokens";
 
-const PREVIEW_ATTRIBUTE = "data-personalization-preview-theme";
-
 interface My99StudioProps {
   language: Language;
   onBack: () => void;
@@ -69,7 +67,7 @@ const ThemeMiniPreview = memo(function ThemeMiniPreview({
     <div
       aria-hidden="true"
       className="my99-theme-mini-preview"
-      {...{ [PREVIEW_ATTRIBUTE]: themeId }}
+      data-personalization-preview-theme={themeId}
     >
       <span className="my99-theme-mini-preview-bar" />
       <span className="my99-theme-mini-preview-card" />
@@ -289,7 +287,7 @@ const My99Studio = memo(function My99Studio({
         </div>
         <div
           className="my99-main-preview overflow-hidden rounded-xl border border-semantic-border-default bg-semantic-background-page"
-          {...{ [PREVIEW_ATTRIBUTE]: draft.themeId }}
+          data-personalization-preview-theme={draft.themeId}
         >
           <div className="my99-main-preview-topbar">
             <span className="my99-main-preview-dot" />

@@ -152,12 +152,26 @@ test("alternate theme selectors are exact, feature-free, and do not use !importa
     const escapeRegExp = (value: string) =>
       value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     assert.equal(
-      (css.match(new RegExp(`${escapeRegExp(lightSelector)}\\s*\\{`, "g")) ?? [])
+      (
+        css.match(
+          new RegExp(
+            `${escapeRegExp(lightSelector)},\\s*\\[data-personalization-preview-theme="${themeId}"\\]\\s*\\{`,
+            "g",
+          ),
+        ) ?? []
+      )
         .length,
       1,
     );
     assert.equal(
-      (css.match(new RegExp(`${escapeRegExp(darkSelector)}\\s*\\{`, "g")) ?? [])
+      (
+        css.match(
+          new RegExp(
+            `${escapeRegExp(darkSelector)},\\s*\\.dark \\[data-personalization-preview-theme="${themeId}"\\]\\s*\\{`,
+            "g",
+          ),
+        ) ?? []
+      )
         .length,
       1,
     );

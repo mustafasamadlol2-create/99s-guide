@@ -1891,6 +1891,8 @@ function AppContent({
     (activeLecture !== null || activeSubjectId !== null || activeModuleId !== null);
 
   const isStandaloneLegalPage = ["privacy", "terms", "support", "disclaimer"].includes(activeTab);
+  const isStandaloneSettingsDetailPage =
+    isStandaloneLegalPage || activeTab === "my99";
 
   // Notifications opened from the Profile bell use their own native-style page
   // layer. The real Profile page stays mounted underneath, while Back belongs
@@ -1909,7 +1911,7 @@ function AppContent({
 
   const legalReturnsToProfileSettings =
     device.isPhone &&
-    isStandaloneLegalPage &&
+    isStandaloneSettingsDetailPage &&
     navigationStackTop?.activeTab === "settings" &&
     navigationStackRef.current.some((entry) => entry.activeTab === "profile");
 
@@ -1975,7 +1977,7 @@ function AppContent({
     surfaceSelector: '#root-navigation-page-layer',
     isEnabled:
       navigationStackTop !== null &&
-      !isStandaloneLegalPage &&
+      !isStandaloneSettingsDetailPage &&
       !isCommandPaletteOpen &&
       !hasNestedHomeBack &&
       !hasNestedSubjectBack &&
@@ -2014,7 +2016,7 @@ function AppContent({
     direction: swipeDirection,
     surfaceSelector: '[data-legal-swipe-surface="true"]',
     allowedStartSelector: '[data-legal-swipe-surface="true"]',
-    isEnabled: isStandaloneLegalPage && !isCommandPaletteOpen,
+    isEnabled: isStandaloneSettingsDetailPage && !isCommandPaletteOpen,
     onSwipeBack: handleLegalBack,
   });
 
@@ -2029,7 +2031,7 @@ function AppContent({
 
     scroller.dataset.programmaticScrollRestore = "true";
 
-    if (isStandaloneLegalPage) {
+    if (isStandaloneSettingsDetailPage) {
       scroller.scrollTop = 0;
     } else if (activeTab === "settings") {
       const requested = pendingSettingsOverlayScrollRestoreRef.current;
@@ -2046,7 +2048,7 @@ function AppContent({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeTab, isStandaloneLegalPage, profileSettingsOverlayActive]);
+  }, [activeTab, isStandaloneSettingsDetailPage, profileSettingsOverlayActive]);
 
   // Parallax for the parent page that is already mounted below a Lecture.
   // Only transform/opacity are animated, keeping the interactive path GPU-only.
@@ -6807,7 +6809,7 @@ const handleSignOut = useCallback(async () => {
               data-swipe-back-surface={settingsReturnsToProfile ? "true" : undefined}
               style={{
                 display:
-                  activeTab === "settings" || isStandaloneLegalPage
+                    activeTab === "settings" || isStandaloneSettingsDetailPage
                     ? "block"
                     : "none",
                 // On iPhone Settings/Legal is a genuine viewport page, not a
@@ -6853,22 +6855,22 @@ const handleSignOut = useCallback(async () => {
                 style={{ minHeight: navigationSurfaceMinHeight }}
               >
                 <motion.div
-                  aria-hidden={isStandaloneLegalPage || undefined}
+                  aria-hidden={isStandaloneSettingsDetailPage || undefined}
                   className="w-full min-h-full isolate bg-semantic-background-page"
                   style={{
                     gridArea: "1 / 1 / 2 / 2",
                     zIndex: 0,
                     pointerEvents: activeTab === "settings" ? "auto" : "none",
                     minHeight: navigationSurfaceMinHeight,
-                    x: isStandaloneLegalPage ? legalSettingsUnderlayX : 0,
-                    y: isStandaloneLegalPage ? -legalParentScrollTopRef.current : 0,
+                    x: isStandaloneSettingsDetailPage ? legalSettingsUnderlayX : 0,
+                    y: isStandaloneSettingsDetailPage ? -legalParentScrollTopRef.current : 0,
                     willChange: legalBackGesture.isInteracting ? "transform" : "auto",
                   }}
                 >
                   {/* On iPhone the native large Settings title normally sits
                       outside this route. Keep an identical copy in the parent
                       while a legal page is pushed so the reveal is complete. */}
-                  {usePhoneLayout && (activeTab === "settings" || isStandaloneLegalPage || settingsReturnsToProfile) && (
+                  {usePhoneLayout && (activeTab === "settings" || isStandaloneSettingsDetailPage || settingsReturnsToProfile) && (
                     <div className="mb-6 pt-2 select-none">
                       <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
                         {language === "ar" ? "الإعدادات" : "Settings"}
@@ -6895,6 +6897,14 @@ const handleSignOut = useCallback(async () => {
                             updatePreference("pushAlerts", val)
                           }
                           onAccountDeleted={handleAccountSelfDelete}
+                          onOpenMy99={() => {
+                            const canvas = document.getElementById("main-scroll-canvas");
+                            legalParentScrollTopRef.current = profileSettingsOverlayActive
+                              ? (profileSettingsOverlayScrollRef.current?.scrollTop ?? 0)
+                              : (canvas?.scrollTop ?? 0);
+                            pushNavigationStack();
+                            setActiveTab("my99");
+                          }}
                           onNavigateToLegal={(tab) => {
                             const canvas = document.getElementById("main-scroll-canvas");
                             legalParentScrollTopRef.current = profileSettingsOverlayActive
@@ -6909,9 +6919,9 @@ const handleSignOut = useCallback(async () => {
                   </motion.div>
                 </motion.div>
 
-                {isStandaloneLegalPage && (
+                {isStandaloneSettingsDetailPage && (
                   <motion.div
-                    key={`legal-detail-${activeTab}`}
+                    key={`settings-detail-${activeTab}`}
                     data-legal-swipe-surface="true"
                     data-swipe-back-surface="true"
                     className="relative isolate w-full min-h-full overflow-hidden bg-semantic-background-page"
@@ -6941,6 +6951,12 @@ const handleSignOut = useCallback(async () => {
                         )}
                         {activeTab === "disclaimer" && (
                           <MedicalDisclaimerView onBack={legalBackGesture.triggerBack} language={language} />
+                        )}
+                        {activeTab === "my99" && (
+                          <My99Studio
+                            onBack={legalBackGesture.triggerBack}
+                            language={language}
+                          />
                         )}
                       </ErrorBoundary>
                     </Suspense>

@@ -378,7 +378,8 @@
 
 
 /* iOS Safe Area adaptive layout utilities */
-:root {
+:root,
+[data-personalization-preview-theme="classic-99"] {
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
@@ -438,7 +439,8 @@
   --validation-error: #ff3b30;
 }
 
-.dark {
+.dark,
+.dark [data-personalization-preview-theme="classic-99"] {
   --bg-base: #000000;
   --bg-surface-1: #1C1C1E;
   --bg-surface-2: #2C2C2E;
@@ -492,7 +494,8 @@
   --shadow-elevation-3: 0 8px 24px rgba(0,0,0,0.5);
 }
 
-:root[data-app-theme="ocean"] {
+:root[data-app-theme="ocean"],
+[data-personalization-preview-theme="ocean"] {
   --semantic-background-page: #f3f8fc;
   --semantic-background-grouped: #eaf3f8;
   --semantic-surface-primary: #f8fcfe;
@@ -524,7 +527,8 @@
   --semantic-navigation-tab-inactive: #5e7985;
 }
 
-.dark[data-app-theme="ocean"] {
+.dark[data-app-theme="ocean"],
+.dark [data-personalization-preview-theme="ocean"] {
   --semantic-background-page: #061116;
   --semantic-background-grouped: #08191f;
   --semantic-surface-primary: #08191f;
@@ -556,7 +560,8 @@
   --semantic-navigation-tab-inactive: rgba(225, 245, 249, 0.68);
 }
 
-:root[data-app-theme="midnight"] {
+:root[data-app-theme="midnight"],
+[data-personalization-preview-theme="midnight"] {
   --semantic-background-page: #f5f6fa;
   --semantic-background-grouped: #eceef5;
   --semantic-surface-primary: #fafbff;
@@ -588,7 +593,8 @@
   --semantic-navigation-tab-inactive: #626b80;
 }
 
-.dark[data-app-theme="midnight"] {
+.dark[data-app-theme="midnight"],
+.dark [data-personalization-preview-theme="midnight"] {
   --semantic-background-page: #080a12;
   --semantic-background-grouped: #0d101c;
   --semantic-surface-primary: #0d101c;
@@ -620,7 +626,8 @@
   --semantic-navigation-tab-inactive: rgba(232, 236, 255, 0.68);
 }
 
-:root[data-app-theme="emerald"] {
+:root[data-app-theme="emerald"],
+[data-personalization-preview-theme="emerald"] {
   --semantic-background-page: #f3f8f6;
   --semantic-background-grouped: #e8f2ee;
   --semantic-surface-primary: #f8fcfa;
@@ -652,7 +659,8 @@
   --semantic-navigation-tab-inactive: #5d776e;
 }
 
-.dark[data-app-theme="emerald"] {
+.dark[data-app-theme="emerald"],
+.dark [data-personalization-preview-theme="emerald"] {
   --semantic-background-page: #06130f;
   --semantic-background-grouped: #091d17;
   --semantic-surface-primary: #091d17;
@@ -684,7 +692,8 @@
   --semantic-navigation-tab-inactive: rgba(226, 247, 239, 0.68);
 }
 
-:root[data-app-theme="rose"] {
+:root[data-app-theme="rose"],
+[data-personalization-preview-theme="rose"] {
   --semantic-background-page: #fcf5f7;
   --semantic-background-grouped: #f8eaef;
   --semantic-surface-primary: #fffafd;
@@ -716,7 +725,8 @@
   --semantic-navigation-tab-inactive: #815b69;
 }
 
-.dark[data-app-theme="rose"] {
+.dark[data-app-theme="rose"],
+.dark [data-personalization-preview-theme="rose"] {
   --semantic-background-page: #17090e;
   --semantic-background-grouped: #210d14;
   --semantic-surface-primary: #210d14;
@@ -748,7 +758,8 @@
   --semantic-navigation-tab-inactive: rgba(255, 229, 238, 0.68);
 }
 
-:root[data-app-theme="amber"] {
+:root[data-app-theme="amber"],
+[data-personalization-preview-theme="amber"] {
   --semantic-background-page: #fbf7f0;
   --semantic-background-grouped: #f6edde;
   --semantic-surface-primary: #fdfaf4;
@@ -780,7 +791,8 @@
   --semantic-navigation-tab-inactive: #796344;
 }
 
-.dark[data-app-theme="amber"] {
+.dark[data-app-theme="amber"],
+.dark [data-personalization-preview-theme="amber"] {
   --semantic-background-page: #171006;
   --semantic-background-grouped: #211708;
   --semantic-surface-primary: #211708;
@@ -812,7 +824,8 @@
   --semantic-navigation-tab-inactive: rgba(255, 240, 211, 0.68);
 }
 
-:root[data-app-theme="violet"] {
+:root[data-app-theme="violet"],
+[data-personalization-preview-theme="violet"] {
   --semantic-background-page: #f8f5fc;
   --semantic-background-grouped: #f0eaf8;
   --semantic-surface-primary: #fcfaff;
@@ -844,7 +857,8 @@
   --semantic-navigation-tab-inactive: #705c81;
 }
 
-.dark[data-app-theme="violet"] {
+.dark[data-app-theme="violet"],
+.dark [data-personalization-preview-theme="violet"] {
   --semantic-background-page: #100a18;
   --semantic-background-grouped: #170e22;
   --semantic-surface-primary: #170e22;
@@ -876,7 +890,8 @@
   --semantic-navigation-tab-inactive: rgba(240, 229, 255, 0.68);
 }
 
-:root[data-app-theme="monochrome"] {
+:root[data-app-theme="monochrome"],
+[data-personalization-preview-theme="monochrome"] {
   --semantic-background-page: #f7f7f7;
   --semantic-background-grouped: #eeeeef;
   --semantic-surface-primary: #fbfbfb;
@@ -908,7 +923,8 @@
   --semantic-navigation-tab-inactive: #66666a;
 }
 
-.dark[data-app-theme="monochrome"] {
+.dark[data-app-theme="monochrome"],
+.dark [data-personalization-preview-theme="monochrome"] {
   --semantic-background-page: #090909;
   --semantic-background-grouped: #111111;
   --semantic-surface-primary: #111111;
@@ -938,6 +954,110 @@
   --semantic-chrome-surface-hover: rgba(229, 229, 234, 0.07);
   --semantic-navigation-tab-active: #e5e5ea;
   --semantic-navigation-tab-inactive: rgba(235, 235, 245, 0.68);
+}
+
+/* My 99 contained previews use the same semantic theme variables as the
+   application. These shapes are intentionally generic and do not define a
+   second palette or a feature-specific theme system. */
+.my99-main-preview {
+  color: var(--semantic-content-primary);
+  box-shadow: inset 0 0 0 1px var(--semantic-border-default);
+}
+
+.my99-main-preview-topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding-inline: 16px;
+  background: var(--semantic-surface-elevated);
+  border-bottom: 1px solid var(--semantic-border-default);
+}
+
+.my99-main-preview-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--semantic-content-subtle);
+}
+
+.my99-theme-card {
+  display: block;
+  width: 100%;
+  min-height: 176px;
+  padding: 14px;
+  text-align: start;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 16px;
+  box-shadow: var(--semantic-shadow-generic);
+  transition:
+    border-color 180ms ease-out,
+    background-color 180ms ease-out,
+    transform 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+.my99-theme-card:hover {
+  transform: translateY(-1px);
+}
+
+.my99-theme-card:focus-visible {
+  outline: 2px solid var(--semantic-focus-ring);
+  outline-offset: 2px;
+}
+
+.my99-theme-mini-preview {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 112px;
+  overflow: hidden;
+  border: 1px solid var(--semantic-border-default);
+  border-radius: 12px;
+  background: var(--semantic-background-page);
+}
+
+.my99-theme-mini-preview-bar {
+  display: block;
+  height: 18px;
+  background: var(--semantic-surface-elevated);
+  border-bottom: 1px solid var(--semantic-border-default);
+}
+
+.my99-theme-mini-preview-card {
+  display: block;
+  width: 62px;
+  height: 30px;
+  margin: 13px auto 0;
+  border-radius: 7px;
+  background: var(--semantic-surface-primary);
+  box-shadow: inset 0 0 0 1px var(--semantic-border-default);
+}
+
+.my99-theme-mini-preview-card-short {
+  width: 46px;
+  height: 8px;
+  margin-top: 7px;
+  background: var(--semantic-content-subtle);
+  box-shadow: none;
+}
+
+.my99-theme-mini-preview-accent {
+  position: absolute;
+  right: 12px;
+  bottom: 11px;
+  left: 12px;
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--semantic-action-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .my99-theme-card {
+    transition-duration: 1ms;
+  }
 }
 
 .dark [class*="shadow-"],

@@ -61,8 +61,13 @@ test("themeable token names are unique and have light/dark CSS declarations", ()
     THEMEABLE_TOKEN_NAMES.length,
   );
 
-  const rootStart = css.indexOf("\n:root {");
-  const darkStart = css.indexOf("\n.dark {", rootStart);
+  const rootStart = css.indexOf(
+    '\n:root,\n[data-personalization-preview-theme="classic-99"] {',
+  );
+  const darkStart = css.indexOf(
+    '\n.dark,\n.dark [data-personalization-preview-theme="classic-99"] {',
+    rootStart,
+  );
   const oceanStart = css.indexOf('\n:root[data-app-theme="ocean"]', darkStart);
   assert.equal(rootStart >= 0, true);
   assert.equal(darkStart > rootStart, true);
@@ -154,8 +159,14 @@ test("centralized existing surface and shadow roles remain the parity sources", 
   assert.match(css, /--semantic-surface-elevated:\s*#ffffff/);
   assert.match(css, /--semantic-surface-muted:\s*#e5e5ea/);
   assert.match(css, /--semantic-shadow-generic:\s*var\(--shadow-elevation-1\)/);
-  assert.match(css, /\.dark\s*\{[\s\S]*--semantic-surface-primary:\s*#000000/);
-  assert.match(css, /\.dark\s*\{[\s\S]*--semantic-shadow-generic:\s*var\(--shadow-elevation-1\)/);
+  assert.match(
+    css,
+    /\.dark,\s*\.dark \[data-personalization-preview-theme="classic-99"\]\s*\{[\s\S]*--semantic-surface-primary:\s*#000000/,
+  );
+  assert.match(
+    css,
+    /\.dark,\s*\.dark \[data-personalization-preview-theme="classic-99"\]\s*\{[\s\S]*--semantic-shadow-generic:\s*var\(--shadow-elevation-1\)/,
+  );
 });
 
 test("core chrome consumes semantic presentation tokens", () => {
