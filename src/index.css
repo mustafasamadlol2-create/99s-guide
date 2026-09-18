@@ -171,6 +171,31 @@
   --color-surface-card: var(--surface-card);
   --color-surface-interactive: var(--surface-interactive);
 
+  /* Prompt 5 — Classic 99 semantic presentation baseline.
+     These aliases expose the current production values without changing any
+     component styling. Alternate theme palettes are intentionally absent. */
+  --color-semantic-background-page: var(--semantic-background-page);
+  --color-semantic-background-grouped: var(--semantic-background-grouped);
+  --color-semantic-surface-primary: var(--semantic-surface-primary);
+  --color-semantic-surface-elevated: var(--semantic-surface-elevated);
+  --color-semantic-surface-muted: var(--semantic-surface-muted);
+  --color-semantic-content-primary: var(--semantic-content-primary);
+  --color-semantic-content-secondary: var(--semantic-content-secondary);
+  --color-semantic-content-subtle: var(--semantic-content-subtle);
+  --color-semantic-border-default: var(--semantic-border-default);
+  --color-semantic-border-strong: var(--semantic-border-strong);
+  --color-semantic-action-accent: var(--semantic-action-accent);
+  --color-semantic-action-accent-soft: var(--semantic-action-accent-soft);
+  --color-semantic-focus-ring: var(--semantic-focus-ring);
+  --color-semantic-navigation-active-background: var(--semantic-navigation-active-background);
+  --color-semantic-navigation-active-foreground: var(--semantic-navigation-active-foreground);
+  --color-semantic-glass-surface: var(--semantic-glass-surface);
+  --color-semantic-glass-border: var(--semantic-glass-border);
+  --color-semantic-shadow-generic: var(--semantic-shadow-generic);
+  --color-semantic-hero-background: var(--semantic-hero-background);
+  --color-semantic-hero-glow-primary: var(--semantic-hero-glow-primary);
+  --color-semantic-hero-glow-secondary: var(--semantic-hero-glow-secondary);
+
   /* Custom palette matching the sleek modern task list layout */
   --color-med-bg: #f2f2f7; /* Soft cool light blue-ish white */
   --color-med-cream: #e5e5ea; /* Elegant light gray-blue */
@@ -363,6 +388,39 @@
   --surface-sidebar: #f2f2f7;
   --surface-card: #fbfbfd;
   --surface-interactive: #e4e6eb;
+
+  /* Themeable generic presentation roles — Classic 99 light baseline. */
+  --semantic-background-page: #fafafa;
+  --semantic-background-grouped: #eef0f5;
+  --semantic-surface-primary: #fbfbfd;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #e5e5ea;
+  --semantic-content-primary: #1c1c1e;
+  --semantic-content-secondary: #8e8e93;
+  --semantic-content-subtle: rgba(60, 60, 67, 0.6);
+  --semantic-border-default: rgba(0, 0, 0, 0.04);
+  --semantic-border-strong: rgba(0, 0, 0, 0.08);
+  --semantic-action-accent: #007aff;
+  --semantic-action-accent-soft: rgba(0, 122, 255, 0.1);
+  --semantic-focus-ring: #007aff;
+  --semantic-navigation-active-background: rgba(229, 229, 234, 0.8);
+  --semantic-navigation-active-foreground: #1c1c1e;
+  --semantic-glass-surface: rgba(255, 255, 255, 0.6);
+  --semantic-glass-border: rgba(0, 0, 0, 0.05);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #05070b;
+  --semantic-hero-glow-primary: rgba(30, 58, 110, 0.52);
+  --semantic-hero-glow-secondary: rgba(180, 120, 30, 0.26);
+
+  /* Fixed semantic status/domain roles. These are not theme palette inputs. */
+  --status-error: #ff3b30;
+  --status-success: #34c759;
+  --status-warning: #ff9500;
+  --status-offline: #8e8e93;
+  --status-online: #34c759;
+  --action-destructive: #ff3b30;
+  --validation-error: #ff3b30;
+  --domain-academic-gold: #d4af37;
 }
 
 .dark {
@@ -381,6 +439,29 @@
   --text-primary: #FFFFFF;
   --text-secondary: rgba(235, 235, 245, 0.72);
   --text-muted: rgba(235, 235, 245, 0.46);
+
+  /* Themeable generic presentation roles — Classic 99 dark baseline. */
+  --semantic-background-page: #000000;
+  --semantic-background-grouped: #000000;
+  --semantic-surface-primary: #000000;
+  --semantic-surface-elevated: #1c1c1e;
+  --semantic-surface-muted: #2c2c2e;
+  --semantic-content-primary: #ffffff;
+  --semantic-content-secondary: rgba(235, 235, 245, 0.72);
+  --semantic-content-subtle: rgba(235, 235, 245, 0.46);
+  --semantic-border-default: rgba(255, 255, 255, 0.06);
+  --semantic-border-strong: rgba(255, 255, 255, 0.12);
+  --semantic-action-accent: #007aff;
+  --semantic-action-accent-soft: rgba(0, 122, 255, 0.1);
+  --semantic-focus-ring: #007aff;
+  --semantic-navigation-active-background: rgba(255, 255, 255, 0.12);
+  --semantic-navigation-active-foreground: #ffffff;
+  --semantic-glass-surface: rgba(34, 34, 36, 0.55);
+  --semantic-glass-border: rgba(255, 255, 255, 0.05);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #05070b;
+  --semantic-hero-glow-primary: rgba(30, 58, 110, 0.52);
+  --semantic-hero-glow-secondary: rgba(180, 120, 30, 0.26);
 
   --shadow-elevation-0: none;
   --shadow-elevation-1: 0 1px 4px rgba(0,0,0,0.3);
