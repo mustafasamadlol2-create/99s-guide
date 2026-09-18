@@ -1,0 +1,2360 @@
+# 99'S GUIDE — MCQ CATEGORIES + QUESTION DIFFICULTY LEVELS
+## Production Implementation — MCQ Only
+### Database + Backend + Console + AI Import + Student MCQ Experience
+
+The current application is production software.
+
+Implement this feature ONLY for MCQs.
+
+DO NOT modify Flashcards/Anki behavior.
+
+DO NOT redesign unrelated application areas.
+
+The goal is to add:
+
+1. Three persistent MCQ categories:
+   - Previous Year
+   - AI Generated
+   - Resources
+
+2. One virtual student filter:
+   - All
+
+3. Three question difficulty levels:
+   - Easy
+   - Normal
+   - Hard
+
+4. Backfill ALL MCQs that currently exist in the application as:
+   - Category = AI Generated
+   - Difficulty = Normal
+
+The implementation must work consistently across:
+
+- PostgreSQL / Prisma
+- D1 mirror
+- Backend APIs
+- Manual Console MCQ creation
+- AI MCQ Generate
+- AI MCQ Extract
+- AI MCQ Enhance
+- AI Review Studio
+- AI transactional import
+- Student MCQ page
+- Arabic / RTL
+- Desktop
+- iPad
+- Mobile
+
+Do not change unrelated application behavior.
+
+---
+
+# 1. FIRST — AUDIT CURRENT MCQ DATA MODEL
+
+Inspect the current production repository before modifying anything.
+
+The current MCQ model is expected to already contain fields similar to:
+
+question
+optionA
+optionB
+optionC
+optionD
+correctAnswer
+hint
+explanation
+difficulty
+sourceType
+sourceRef
+lectureId
+
+Verify actual Prisma schema and all production usages.
+
+Expected architecture:
+
+- Reuse existing `sourceType` as the persisted MCQ category field.
+- Reuse existing `difficulty` field.
+- Do NOT create another category column unless repository evidence proves `sourceType` cannot safely represent the requested category.
+
+Expected result:
+
+No Prisma schema change.
+No new MCQ table.
+No category JSON field.
+No difficulty migration.
+
+If current schema already supports this, use it.
+
+---
+
+# 2. CANONICAL MCQ CATEGORY VALUES
+
+Create centralized MCQ category constants/types.
+
+Persist ONLY these canonical values for new MCQs:
+
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+
+Student-facing labels:
+
+AI_GENERATED
+→ "AI Generated"
+
+PREVIOUS_YEAR
+→ "Previous Year"
+
+RESOURCE
+→ "Resources"
+
+Arabic:
+
+AI_GENERATED
+→ "مولدة بالذكاء الاصطناعي"
+
+PREVIOUS_YEAR
+→ "السنوات السابقة"
+
+RESOURCE
+→ "المصادر"
+
+Do NOT persist:
+
+ALL
+
+`ALL` is a frontend/query filter only.
+
+---
+
+# 3. ALL IS VIRTUAL
+
+The fourth student option is:
+
+ALL
+
+It means:
+
+AI_GENERATED
++
+PREVIOUS_YEAR
++
+RESOURCE
+
+No database row should ever contain:
+
+sourceType = "ALL"
+
+No API create/import request should persist "ALL".
+
+---
+
+# 4. LEGACY SOURCE-TYPE NORMALIZATION
+
+Inspect old MCQ values currently present in production.
+
+There may already be values such as:
+
+ai
+AI
+manual
+empty
+null
+or other legacy strings
+
+Because the user explicitly requires ALL MCQs that exist BEFORE this feature to become AI Generated, perform a controlled one-time backfill.
+
+After backfill:
+
+ALL existing MCQs
+→ sourceType = AI_GENERATED
+
+Do not change `sourceRef` unnecessarily.
+
+Also implement safe read normalization for any legacy row that somehow remains:
+
+legacy/unknown pre-feature MCQ
+→ treat as AI_GENERATED
+
+Do not crash student UI on an unknown legacy value.
+
+---
+
+# 5. DIFFICULTY — INTERNAL CONTRACT
+
+The existing application already uses:
+
+Easy
+Medium
+Hard
+
+Preserve this internal/database/API representation where possible.
+
+Do NOT introduce a fourth persisted value named `Normal` if doing so would break existing contracts.
+
+User-facing mapping:
+
+Easy
+→ Easy
+
+Medium
+→ Normal
+
+Hard
+→ Hard
+
+Arabic:
+
+Easy
+→ سهل
+
+Medium
+→ متوسط
+
+Hard
+→ صعب
+
+Therefore:
+
+User selects "Normal"
+→ persist/send "Medium"
+
+This compatibility mapping must be centralized.
+
+---
+
+# 6. EXISTING MCQ DIFFICULTY BACKFILL
+
+The user explicitly requires every MCQ currently in the application to become:
+
+Difficulty = Normal
+
+Internally this means:
+
+difficulty = "Medium"
+
+Perform a controlled one-time backfill:
+
+ALL MCQs that existed before this feature
+→ difficulty = "Medium"
+
+Do not affect future newly categorized rows if the backfill command is accidentally run again.
+
+The backfill mechanism must be safe/idempotent.
+
+Do NOT create startup logic that resets every MCQ to AI Generated / Medium on every server restart.
+
+---
+
+# 7. BACKFILL IMPLEMENTATION
+
+Implement a focused, explicit maintenance/backfill command or service.
+
+It must:
+
+1. Count existing MCQs first.
+2. Update current pre-feature MCQs to:
+   - sourceType = AI_GENERATED
+   - difficulty = Medium
+3. Preserve:
+   - question
+   - options
+   - answer
+   - hint
+   - explanation
+   - sourceRef
+   - lectureId
+4. Never delete MCQs.
+5. Never recreate IDs.
+6. Never duplicate MCQs.
+7. Never alter Flashcards.
+
+If `createdAt` is available, use a fixed feature-cutoff boundary so rerunning the backfill later does NOT overwrite future PREVIOUS_YEAR or RESOURCE MCQs.
+
+If `createdAt` is unavailable, implement another safe one-time/versioned guard.
+
+Do not use an unguarded:
+
+updateMany(all MCQs)
+
+that could destroy future category assignments on rerun.
+
+---
+
+# 8. BACKFILL D1 MIRROR
+
+PostgreSQL remains canonical.
+
+After canonical backfill, ensure D1 mirrors the resulting canonical MCQ metadata using the EXISTING content-sync architecture.
+
+Do NOT create a second D1 mechanism.
+
+If existing sync supports batching, use it.
+
+If only per-record upsert exists:
+
+- process in bounded batches
+- do not create thousands of uncontrolled concurrent requests
+- do not emit one unnecessary UI refresh per MCQ
+
+At the end, use the normal cache/realtime invalidation pattern once where appropriate.
+
+If D1 is unavailable:
+
+- PostgreSQL backfill must remain successful
+- use existing outbox/pending behavior if available
+- report exact behavior
+
+---
+
+# 9. NEW MCQ CREATION MUST ALWAYS HAVE CATEGORY
+
+From this feature onward, every newly created MCQ must have one canonical category:
+
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+
+New UI must never intentionally create an uncategorized MCQ.
+
+Server must validate category.
+
+For backward compatibility with an older already-installed admin client, if the old manual API omits category entirely, the backend may safely fall back to:
+
+AI_GENERATED
+
+rather than breaking the old application.
+
+But the NEW Console UI must require an explicit category for manual creation.
+
+---
+
+# 10. NEW MCQ CREATION MUST ALWAYS HAVE DIFFICULTY
+
+Every newly created MCQ must have:
+
+Easy
+Medium
+Hard
+
+The new Console UI must require it where the administrator is responsible for setting it.
+
+Legacy requests that omit difficulty may continue to safely default to:
+
+Medium
+
+to avoid breaking older deployed clients.
+
+Do not create null difficulty for new MCQs.
+
+---
+
+# 11. MANUAL MCQ CREATION — CONSOLE
+
+Modify the existing Manual MCQ creation UI.
+
+Add:
+
+Category
+Difficulty
+
+Category selector:
+
+Previous Year
+AI Generated
+Resources
+
+No `All`.
+
+Difficulty selector:
+
+Easy
+Normal
+Hard
+
+The administrator must explicitly choose both in the NEW UI.
+
+Recommended:
+
+Select category
+Select difficulty
+
+as initial placeholders.
+
+Disable submission until valid selections exist.
+
+Do not silently preselect a category in the new manual form.
+
+Do not silently preselect a difficulty in the new manual form.
+
+---
+
+# 12. MANUAL API
+
+Update the existing manual:
+
+POST /api/mcqs
+
+to accept category/source type and difficulty safely.
+
+Frontend request may use a semantic field named:
+
+category
+
+if that is cleaner.
+
+Backend maps:
+
+category = AI_GENERATED
+→ sourceType = AI_GENERATED
+
+category = PREVIOUS_YEAR
+→ sourceType = PREVIOUS_YEAR
+
+category = RESOURCE
+→ sourceType = RESOURCE
+
+Never trust arbitrary sourceType strings from the browser.
+
+Validate against the canonical enum.
+
+---
+
+# 13. MANUAL EDITING
+
+If the Console currently supports editing an existing MCQ:
+
+allow admin to change:
+
+- Category
+- Difficulty
+
+using the same canonical controls.
+
+If there is no existing MCQ edit workflow, do NOT invent a large new editor solely for this task.
+
+---
+
+# 14. AI GENERATE — CATEGORY RULE
+
+This rule is mandatory.
+
+When the administrator chooses:
+
+AI Import
+→ Generate MCQs
+
+every generated MCQ automatically receives:
+
+Category = AI_GENERATED
+
+The administrator must NOT be asked whether generated MCQs are:
+
+Previous Year
+Resource
+AI Generated
+
+because generated MCQs are, by definition:
+
+AI_GENERATED
+
+The category should be visible in Review Studio as:
+
+AI Generated
+
+but should be locked/read-only for generated candidates.
+
+Do not allow generated candidates to be reclassified as Previous Year or Resource during the Generate workflow.
+
+---
+
+# 15. AI GENERATE — DIFFICULTY RULE
+
+For:
+
+AI Generate
+
+the AI must determine the difficulty of EACH generated question.
+
+Do not require the administrator to manually choose:
+
+Easy / Normal / Hard
+
+before generation.
+
+Remove or hide the current generation difficulty selector if it exists.
+
+Internally request:
+
+mixed / AI-decides
+
+and explicitly instruct the MCQ AI engine:
+
+For every generated MCQ classify its difficulty as exactly one of:
+
+Easy
+Medium
+Hard
+
+based on the medical reasoning/knowledge complexity required to answer it.
+
+The generated candidate must contain a valid difficulty.
+
+If provider output lacks a valid difficulty:
+
+- do NOT silently invent one
+- mark the candidate as needing review / not locally import-ready
+- allow admin to assign difficulty manually in Review Studio
+
+The administrator may correct the AI-selected difficulty in Review Studio before import.
+
+---
+
+# 16. AI GENERATE — DIFFICULTY SEMANTICS
+
+Use practical medical-question difficulty semantics.
+
+Easy:
+- direct recall
+- obvious single fact
+- little integration
+
+Medium / displayed as Normal:
+- understanding
+- moderate integration
+- standard exam reasoning
+
+Hard:
+- multi-step reasoning
+- subtle distinctions
+- difficult clinical integration
+
+Do not claim difficulty is objectively guaranteed.
+
+It is an AI-generated educational classification that remains editable by admin.
+
+---
+
+# 17. AI EXTRACT — CATEGORY
+
+For:
+
+AI Import
+→ Extract Existing MCQs
+
+the uploaded PDF/image/text contains questions that already exist in some source.
+
+Therefore the ADMIN must select the category before preview/import:
+
+Previous Year
+AI Generated
+Resources
+
+Do NOT automatically classify extracted content as AI Generated merely because AI performed the extraction.
+
+AI is only extracting existing content.
+
+---
+
+# 18. AI EXTRACT — DIFFICULTY
+
+For Extract Existing:
+
+the administrator must select a default difficulty:
+
+Easy
+Normal
+Hard
+
+Apply that selected default to extracted candidates.
+
+The admin may then change difficulty individually in Review Studio.
+
+Do NOT let AI extraction override the administrator-selected default unless the product explicitly displays and allows that behavior.
+
+The user's requirement is that imported existing MCQs are categorized and leveled deliberately.
+
+---
+
+# 19. AI ENHANCE — CATEGORY
+
+Very important:
+
+Enhancing an MCQ with AI does NOT make it an AI Generated MCQ.
+
+Do NOT change an MCQ from:
+
+PREVIOUS_YEAR
+
+or:
+
+RESOURCE
+
+to:
+
+AI_GENERATED
+
+because AI added a hint or explanation.
+
+For the current upload-based Enhance workflow:
+
+require/administer the correct category exactly like Extract:
+
+Previous Year
+AI Generated
+Resources
+
+If Enhance is operating on an existing application MCQ that already has metadata:
+
+preserve its existing category.
+
+---
+
+# 20. AI ENHANCE — DIFFICULTY
+
+Enhance must not automatically reclassify difficulty.
+
+If existing MCQ metadata is available:
+
+preserve it.
+
+For uploaded external MCQs without existing application metadata:
+
+require the administrator to choose:
+
+Easy
+Normal
+Hard
+
+before preview/import.
+
+Enhancement may add approved missing fields only.
+
+---
+
+# 21. AI REVIEW STUDIO — MCQ ONLY
+
+Extend MCQ Review Studio local draft state with:
+
+category
+difficulty
+
+Flashcard Review Studio must remain untouched.
+
+For generated MCQ:
+
+Category:
+AI Generated
+read-only
+
+Difficulty:
+AI-selected
+editable
+
+For extracted/enhanced external MCQ:
+
+Category:
+administrator-selected
+editable if appropriate
+
+Difficulty:
+administrator-selected default
+editable per candidate
+
+Local validation must require:
+
+valid category
+valid difficulty
+
+before MCQ can be selected/imported.
+
+---
+
+# 22. AI IMPORT REQUEST
+
+Extend the Phase 7 MCQ import payload to include canonical category.
+
+Conceptually:
+
+{
+  clientKey,
+  question,
+  optionA,
+  optionB,
+  optionC,
+  optionD,
+  correctAnswer,
+  hint,
+  explanation,
+  difficulty,
+  category
+}
+
+Do not include category in Flashcard imports.
+
+Server revalidates:
+
+category ∈
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+
+difficulty ∈
+Easy
+Medium
+Hard
+
+Persist category through the existing MCQ source field.
+
+---
+
+# 23. AI IMPORT — NO TRUST OF UI LABELS
+
+Do not persist strings such as:
+
+"AI Generated"
+"Previous Year"
+"Resources"
+"Normal"
+"سهل"
+"متوسط"
+
+Persist canonical machine values only.
+
+UI labels are translations.
+
+---
+
+# 24. AI IMPORT — DEDUPE MUST REMAIN UNCHANGED
+
+Do NOT change Phase 7 duplicate semantics.
+
+MCQ duplicate key remains based on normalized question.
+
+Two identical questions with different categories are still duplicates within the same Lecture according to the current duplicate policy unless existing production behavior explicitly says otherwise.
+
+Do not allow duplicate rows merely because category differs.
+
+---
+
+# 25. SOURCE REF
+
+Do not destroy existing `sourceRef`.
+
+Do not require new sourceRef metadata for this feature unless existing production behavior already does.
+
+Category is represented by the canonical source/category value.
+
+The requested feature does NOT require adding:
+
+- year field
+- resource-name field
+- textbook field
+
+Do not add scope.
+
+---
+
+# 26. STUDENT MCQ PAGE — CATEGORY SELECTOR
+
+Add a premium category selector to the student MCQ experience.
+
+Order:
+
+All
+Previous Year
+AI Generated
+Resources
+
+Desktop/iPad:
+segmented tabs/chips appropriate to existing design.
+
+Mobile:
+responsive, touch-friendly.
+
+If width is insufficient:
+
+- use horizontal scrolling or compact responsive layout
+- no clipping
+- no overlapping labels
+
+Do not redesign the entire MCQ page.
+
+---
+
+# 27. DEFAULT STUDENT CATEGORY
+
+Default:
+
+All
+
+when entering the MCQ section for a Lecture.
+
+Changing Lecture should reset category to:
+
+All
+
+unless current application navigation conventions strongly favor preserving it.
+
+Do not persist the filter to localStorage unless existing MCQ filters already do so.
+
+---
+
+# 28. ALL CATEGORY BEHAVIOR
+
+When:
+
+All
+
+is selected:
+
+include MCQs from:
+
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+
+The combined question set must be mixed together.
+
+Do NOT group:
+
+all AI Generated first
+then Previous Year
+then Resources
+
+The All session should feel like a mixed exam/revision set.
+
+Use the application's existing shuffle mechanism if one exists.
+
+Otherwise use a proper one-time Fisher-Yates shuffle.
+
+Do NOT use:
+
+sort(() => Math.random() - 0.5)
+
+if implementing new shuffle logic.
+
+---
+
+# 29. ALL SHUFFLE MUST BE STABLE DURING SESSION
+
+Do not reshuffle on every React render.
+
+Generate the All-session order:
+
+once when the session/filter becomes active
+
+and preserve it while the user answers questions.
+
+Do not make the current question unexpectedly change because unrelated state rerendered.
+
+---
+
+# 30. ALL MUST HIDE CATEGORY ORIGIN
+
+This is an explicit user requirement.
+
+When the student is solving with:
+
+All
+
+selected:
+
+DO NOT show per-question labels such as:
+
+AI Generated
+Previous Year
+Resource
+
+The student should experience it as one mixed exam/revision set.
+
+Do not visually reveal where each question came from.
+
+Difficulty/level may still be shown.
+
+---
+
+# 31. CATEGORY-SPECIFIC FILTERS
+
+When the student selects:
+
+Previous Year
+
+show ONLY:
+
+PREVIOUS_YEAR MCQs
+
+When:
+
+AI Generated
+
+show ONLY:
+
+AI_GENERATED MCQs
+
+When:
+
+Resources
+
+show ONLY:
+
+RESOURCE MCQs
+
+Do not duplicate rows across category-specific views.
+
+Every persisted MCQ belongs to exactly one category.
+
+All is the only combined view.
+
+---
+
+# 32. CATEGORY BADGES IN STUDENT QUESTIONS
+
+Do not clutter the student question card with redundant category badges.
+
+The selected category tab already provides context.
+
+Especially:
+
+All
+→ NEVER show origin category per question.
+
+For category-specific views, a per-question category badge is not required.
+
+Keep student solving UI clean.
+
+Category metadata may be visible in administrative/Console interfaces.
+
+---
+
+# 33. CATEGORY COUNTS
+
+Where practical, show category counts in the selector without making the UI noisy.
+
+Example:
+
+All 42
+Previous Year 11
+AI Generated 25
+Resources 6
+
+Counts must derive from the actual Lecture MCQ set.
+
+If responsive layout becomes crowded, counts may move to small badges or be omitted on narrow mobile.
+
+Do not sacrifice usability merely to show counts.
+
+---
+
+# 34. EMPTY CATEGORY
+
+If a Lecture has no MCQs in a selected category:
+
+show a clean empty state.
+
+Example:
+
+No Previous Year MCQs are available for this lecture yet.
+
+Arabic translation required.
+
+Do not fall back to All automatically without telling the user.
+
+---
+
+# 35. DIFFICULTY BADGE — EVERY QUESTION
+
+Every MCQ shown to a student must visibly show its level.
+
+Display labels:
+
+Easy
+Normal
+Hard
+
+Arabic:
+
+سهل
+متوسط
+صعب
+
+Internal Medium displays as:
+
+Normal
+
+Do not display "Medium" to English users in the new MCQ level UI.
+
+---
+
+# 36. DIFFICULTY COLORS
+
+Use restrained accessible badges.
+
+Easy:
+green
+
+Normal:
+orange / amber
+
+Hard:
+red
+
+Example visual intent:
+
+Easy
+→ subtle green background/border/text
+
+Normal
+→ subtle amber/orange background/border/text
+
+Hard
+→ subtle red background/border/text
+
+Support:
+
+light mode
+dark mode
+
+Do not use color alone:
+
+the text label must always remain visible.
+
+---
+
+# 37. DIFFICULTY BADGE PLACEMENT
+
+Place the difficulty badge in a stable, unobtrusive location in the MCQ question UI.
+
+Recommended:
+
+question header / metadata row
+
+Do not cover:
+
+- question text
+- answer options
+- progress indicator
+- navigation controls
+
+The badge must not cause layout jumps when text changes.
+
+---
+
+# 38. EXISTING MCQ DISPLAY
+
+After the one-time backfill:
+
+every existing question should display:
+
+Normal
+
+and belong to:
+
+AI Generated
+
+unless it was created AFTER the feature/backfill cutoff with explicit new metadata.
+
+This includes MCQs originally imported from the application's existing Excel/data population.
+
+Audit all current MCQ sources/seeds/imports.
+
+Do not leave a second static MCQ source uncategorized.
+
+---
+
+# 39. MCQ API READ NORMALIZATION
+
+All MCQ read endpoints must return canonical metadata.
+
+For every MCQ exposed to the frontend, guarantee:
+
+category resolves to one canonical category
+difficulty resolves to Easy/Medium/Hard
+
+Legacy row fallback:
+
+unknown/legacy category
+→ AI_GENERATED
+
+missing/legacy difficulty
+→ Medium
+
+Do not mutate the database merely during GET.
+
+Normalize response safely.
+
+---
+
+# 40. BACKEND CATEGORY FILTER
+
+Inspect the existing MCQ retrieval path.
+
+If the server already supports filters/query parameters, add optional category filtering cleanly.
+
+Recommended semantics:
+
+category=AI_GENERATED
+category=PREVIOUS_YEAR
+category=RESOURCE
+
+For:
+
+category=ALL
+
+either:
+
+- omit category filtering
+or
+- interpret ALL as no category filter
+
+Never query DB for sourceType = ALL.
+
+If the client already fetches a small per-Lecture MCQ list and filtering client-side is simpler and safer, retaining client filtering is acceptable.
+
+Do not redesign pagination unnecessarily.
+
+---
+
+# 41. CONSOLE MCQ MANAGEMENT
+
+In the admin/Console MCQ area:
+
+show the category and difficulty for MCQs where management rows/cards already exist.
+
+Admin-facing metadata may use small badges:
+
+AI Generated
+Previous Year
+Resources
+
+and:
+
+Easy
+Normal
+Hard
+
+Do not redesign the entire Console.
+
+---
+
+# 42. CONSOLE FILTERS
+
+If there is an existing MCQ list/filter toolbar in Console, add:
+
+Category:
+All / Previous Year / AI Generated / Resources
+
+Difficulty:
+All / Easy / Normal / Hard
+
+Only do this where a management list already exists.
+
+Do not create a huge new management page solely to satisfy filtering.
+
+---
+
+# 43. SEARCH BEHAVIOR
+
+Do not change global application search semantics unnecessarily.
+
+If MCQ search currently searches question text:
+
+continue to do so.
+
+Category/difficulty may optionally be used as admin filters but do not pollute normal search results.
+
+---
+
+# 44. D1 MCQ MAPPING
+
+Audit MCQ serialization to D1.
+
+Ensure D1 Material/MCQ representation includes canonical:
+
+sourceType/category
+difficulty
+
+Do not add new D1 columns if the existing schema already stores these fields.
+
+If the current D1 table already stores:
+
+sourceType
+difficulty
+
+reuse them.
+
+If the read response is generic JSON, preserve the canonical fields.
+
+Do not create duplicate category metadata.
+
+---
+
+# 45. REALTIME / CACHE
+
+MCQ create/update/import/backfill should reuse existing cache and realtime behavior.
+
+Do not invent another event.
+
+Continue using the production event/invalidation mechanism already established for MCQs.
+
+Backfill should not emit thousands of browser events.
+
+Use one final invalidation/event after successful bulk backfill where appropriate.
+
+---
+
+# 46. NO FLASHCARD CHANGES
+
+Mandatory scope boundary.
+
+Do NOT change:
+
+Flashcard schema
+Flashcard UI
+Flashcard Review Studio
+Flashcard import payload
+Flashcard AI engine
+Flashcard categories
+Flashcard difficulty
+
+This entire feature is MCQ-only.
+
+---
+
+# 47. NO NOTE / PDF FEATURE CHANGES
+
+Do not modify the recently approved multi-NOTE PDF implementation.
+
+Do not modify:
+
+Material NOTE behavior
+10-note limit
+PDF access
+R2
+Notes UI
+
+unless compilation requires an import-only adjustment with no behavior change.
+
+---
+
+# 48. NO AI PROVIDER CHANGES
+
+Cloudflare Workers AI is already production-primary and approved.
+
+Do NOT modify:
+
+Cloudflare provider selection
+Cloudflare credentials
+Markdown Conversion
+Gemini fallback behavior
+HEIC handling
+
+The MCQ engine may receive a prompt/schema change solely to guarantee generated difficulty.
+
+Do not redesign provider infrastructure.
+
+---
+
+# 49. AI GENERATE SCHEMA
+
+For generated MCQs, ensure provider/application candidate schema requires or strongly expects:
+
+difficulty:
+Easy | Medium | Hard
+
+The AI prompt must instruct the model to classify each generated question.
+
+Do not send:
+
+Normal
+
+to the provider if the application canonical enum is Medium.
+
+Provider uses:
+
+Medium
+
+Frontend displays:
+
+Normal
+
+---
+
+# 50. AI EXTRACT / ENHANCE DIFFICULTY OVERRIDE
+
+If the extract engine currently preserves a difficulty found in source content:
+
+the new user-selected default must be authoritative for the imported batch according to this product requirement.
+
+Do not let a random printed label inside a PDF silently override the admin's selected level.
+
+The admin can adjust individual candidates later.
+
+Enhance must preserve/administer the selected/existing difficulty, not let enrichment mutate it.
+
+---
+
+# 51. LOCAL REVIEW VALIDATION
+
+An MCQ candidate is locally import-ready only if it has:
+
+question
+A
+B
+C
+D
+correctAnswer
+category
+difficulty
+
+plus existing validation requirements.
+
+Category values:
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+
+Difficulty:
+Easy
+Medium
+Hard
+
+---
+
+# 52. IMPORT SERVER VALIDATION
+
+Phase 7 import endpoint must independently validate:
+
+category
+difficulty
+
+Do not trust Review Studio.
+
+Reject invalid machine values.
+
+Do not persist:
+
+All
+Normal
+Arabic labels
+unknown strings
+
+---
+
+# 53. MCQ DATABASE WRITE MAPPING
+
+New MCQ write must explicitly set:
+
+sourceType = canonical category
+difficulty = Easy | Medium | Hard
+
+Do not rely on old Prisma defaults for new UI/API paths.
+
+Preserve `sourceRef` according to existing behavior.
+
+---
+
+# 54. LEGACY CLIENT BACKWARD COMPATIBILITY
+
+99's Guide already exists in production.
+
+Do not make the backend unnecessarily incompatible with older installed clients.
+
+For legacy manual-create requests that omit new category/difficulty fields:
+
+safe compatibility behavior:
+
+category → AI_GENERATED
+difficulty → Medium
+
+But all NEW application forms must send explicit metadata where required.
+
+AI import paths created in the new version may use strict required fields.
+
+Document this distinction.
+
+---
+
+# 55. CATEGORY TRANSLATIONS
+
+Add scoped translations through the existing i18n system.
+
+English:
+
+All
+Previous Year
+AI Generated
+Resources
+
+Arabic:
+
+الكل
+السنوات السابقة
+مولدة بالذكاء الاصطناعي
+المصادر
+
+Use polished existing app terminology if established translations already exist.
+
+Do not hardcode Arabic strings throughout components.
+
+---
+
+# 56. DIFFICULTY TRANSLATIONS
+
+English UI:
+
+Easy
+Normal
+Hard
+
+Arabic UI:
+
+سهل
+متوسط
+صعب
+
+Internal:
+
+Easy
+Medium
+Hard
+
+Centralize the mapping.
+
+---
+
+# 57. RESPONSIVE — MOBILE
+
+At narrow/mobile widths:
+
+Category selector must remain usable.
+
+No:
+
+- clipped tab text
+- overlapping chips
+- tiny touch targets
+- horizontal page overflow
+
+A horizontally scrollable category strip is acceptable if implemented smoothly and intentionally.
+
+Difficulty badge must fit without reducing answer option width unnecessarily.
+
+---
+
+# 58. RESPONSIVE — IPAD
+
+Verify:
+
+iPad portrait
+iPad landscape
+
+Especially:
+
+- category selector
+- question header
+- difficulty badge
+- progress
+- option buttons
+- Console manual selectors
+- AI Import metadata selectors
+- Review Studio
+
+No giant empty areas or overlapping controls.
+
+Do not globally redesign iPad layout.
+
+---
+
+# 59. RESPONSIVE — DESKTOP
+
+Desktop/laptop should use available width cleanly.
+
+Category selector should not stretch awkwardly across enormous space.
+
+Keep aligned with current MCQ container width.
+
+---
+
+# 60. ACCESSIBILITY
+
+Category controls:
+
+- proper button/tab semantics
+- keyboard accessible
+- `aria-selected` or equivalent
+- not color-only
+
+Difficulty badge:
+
+- textual label always included
+
+Manual selectors:
+
+- associated labels
+- accessible validation messages
+
+---
+
+# 61. STUDENT CATEGORY STATE
+
+When changing category:
+
+avoid stale current-index bugs.
+
+If category change changes the question set:
+
+reset current question index safely.
+
+Do not preserve an index that is outside the new filtered set.
+
+If changing category mid-session would discard current quiz state, follow existing application UX:
+
+- either reset cleanly
+- or request confirmation if meaningful answered progress would be lost
+
+Do not silently show the wrong question.
+
+---
+
+# 62. SESSION SHUFFLE
+
+For All:
+
+mix categories.
+
+Preserve stable order throughout the current session.
+
+If existing MCQ flow already has a question shuffle mechanism:
+
+reuse it.
+
+Do not introduce two competing shuffle systems.
+
+---
+
+# 63. BOOKMARK / HINT / ANSWER REGRESSION
+
+Existing features must continue working regardless of category:
+
+- answer selection
+- correctness
+- hint
+- explanation
+- bookmark
+- next/previous
+- filters
+- progress
+- completion
+- points
+
+Do not reset category simply because a question is bookmarked.
+
+---
+
+# 64. DATA BACKFILL TEST
+
+Create focused test data representing:
+
+existing pre-feature rows with:
+
+sourceType = "ai"
+sourceType = ""
+sourceType = null
+sourceType = legacy value
+
+difficulty:
+Easy
+Medium
+Hard
+null
+
+Run the authorized backfill.
+
+Verify all pre-feature rows become:
+
+AI_GENERATED
+Medium
+
+Verify question content and IDs are unchanged.
+
+---
+
+# 65. BACKFILL RERUN SAFETY TEST
+
+After backfill, create NEW rows:
+
+PREVIOUS_YEAR / Easy
+RESOURCE / Hard
+
+Run the backfill command again.
+
+Verify those future/new rows remain:
+
+PREVIOUS_YEAR / Easy
+RESOURCE / Hard
+
+This is mandatory.
+
+The one-time migration must not destroy future classifications.
+
+---
+
+# 66. MANUAL CREATE TESTS
+
+Test new manual UI/API:
+
+Previous Year + Easy
+AI Generated + Normal
+Resource + Hard
+
+Verify persistence:
+
+PREVIOUS_YEAR / Easy
+AI_GENERATED / Medium
+RESOURCE / Hard
+
+Test invalid category.
+
+Test invalid difficulty.
+
+Test legacy omitted fields compatibility separately.
+
+---
+
+# 67. AI GENERATE TESTS
+
+Verify:
+
+Generate
+→ category automatically AI_GENERATED
+
+No category selector.
+
+AI returns difficulty for each generated candidate.
+
+Review Studio shows:
+
+AI Generated
+difficulty
+
+Admin can edit difficulty.
+
+Admin cannot reclassify generated candidate category in Generate mode.
+
+Import persists canonical values.
+
+---
+
+# 68. AI EXTRACT TESTS
+
+Verify:
+
+Extract requires user category + level.
+
+Example:
+
+Previous Year + Normal
+
+All extracted candidates initially receive:
+
+PREVIOUS_YEAR
+Medium
+
+Admin can edit individual difficulty before import.
+
+No candidate automatically becomes AI_GENERATED merely because AI extracted it.
+
+---
+
+# 69. AI ENHANCE TESTS
+
+Verify:
+
+Previous Year question enhanced with AI
+→ remains PREVIOUS_YEAR
+
+Resource question enhanced
+→ remains RESOURCE
+
+Difficulty is preserved/admin-controlled.
+
+AI hint/explanation enhancement does not alter category/difficulty.
+
+---
+
+# 70. STUDENT FILTER TESTS
+
+With one Lecture containing:
+
+2 PREVIOUS_YEAR
+3 AI_GENERATED
+4 RESOURCE
+
+verify:
+
+All = 9
+
+Previous Year = 2
+
+AI Generated = 3
+
+Resources = 4
+
+No duplicate candidate appears merely because All exists.
+
+---
+
+# 71. ALL MIXING TEST
+
+Verify All does not concatenate categories in grouped order.
+
+The session must be shuffled/mixed using stable one-time ordering.
+
+Test that rerender does not reshuffle.
+
+Do not write a flaky randomness assertion.
+
+Use deterministic injectable shuffle in tests if necessary.
+
+---
+
+# 72. ALL ORIGIN-HIDING TEST
+
+When All is active:
+
+verify student question UI contains NO visible:
+
+AI Generated
+Previous Year
+Resources
+
+origin label on the current question card.
+
+Difficulty remains visible.
+
+---
+
+# 73. DIFFICULTY UI TEST
+
+Verify:
+
+Easy
+→ green badge
+
+Medium
+→ displays "Normal"
+→ orange/amber badge
+
+Hard
+→ red badge
+
+Test dark/light class behavior where practical.
+
+Arabic labels:
+
+سهل
+متوسط
+صعب
+
+---
+
+# 74. EXISTING DATA UI TEST
+
+After backfill, representative old MCQ:
+
+category UI:
+AI Generated
+
+difficulty UI:
+Normal
+
+Do not display legacy:
+
+ai
+Medium
+
+to student-facing UI.
+
+---
+
+# 75. D1 TESTS
+
+Verify new MCQ sync carries:
+
+canonical sourceType
+canonical difficulty
+
+Backfill sync reflects updated metadata.
+
+D1 failure follows existing canonical PostgreSQL/outbox semantics.
+
+No new D1 architecture.
+
+---
+
+# 76. SECURITY
+
+No new public unauthenticated write path.
+
+Manual/create/import endpoints retain existing auth.
+
+Category query parameters must be allowlisted.
+
+Do not permit arbitrary sourceType injection.
+
+No unsafe HTML from category labels.
+
+---
+
+# 77. PERFORMANCE
+
+Per-Lecture category filtering must remain fast.
+
+Do not make one network request per category if all data is already available efficiently.
+
+Avoid:
+
+All request
+Previous Year request
+AI request
+Resource request
+
+simultaneously unless current pagination architecture genuinely requires it.
+
+Prefer one Lecture MCQ dataset and efficient local categorization when practical.
+
+---
+
+# 78. SOURCE FILE SCOPE
+
+Expected likely areas:
+
+Prisma schema — inspect only, ideally unchanged
+
+server MCQ create/read/import mapping
+
+AI MCQ contracts/prompts/review/import
+
+MCQ student page/components
+
+CreateMCQ Console UI
+
+translations/types
+
+focused backfill script/service
+
+focused tests
+
+Do not expand unrelated giant files unnecessarily.
+
+Prefer small helper modules for:
+
+category constants
+difficulty display mapping
+normalization
+
+---
+
+# 79. DO NOT REWRITE SERVER.TS
+
+If `server.ts` needs a small integration change, keep it small.
+
+Do not add hundreds of lines of category logic directly into server.ts.
+
+Create focused helpers/services where appropriate.
+
+The user explicitly wants to avoid giant files.
+
+---
+
+# 80. NO DATABASE SCHEMA CHANGE EXPECTED
+
+Expected:
+
+No Prisma migration required.
+
+Because:
+
+sourceType already stores category-like metadata.
+difficulty already exists.
+
+If repository evidence proves this assumption wrong:
+
+do not silently create a broad migration.
+
+Explain exactly why in the final report.
+
+---
+
+# 81. CURRENT DATA AUTHORIZATION
+
+The user explicitly authorizes this one-time semantic reclassification:
+
+ALL MCQs that existed before this feature
+→ AI_GENERATED
+→ Medium / displayed Normal
+
+This is intentional.
+
+Do not try to infer their real historical source.
+
+Do not preserve an old category for pre-feature records.
+
+---
+
+# 82. DO NOT TOUCH QUESTION CONTENT
+
+Backfill must not rewrite:
+
+question
+options
+answers
+hints
+explanations
+
+Only category/source metadata and difficulty.
+
+---
+
+# 83. NO AUTOMATIC AI RECLASSIFICATION
+
+Do not run Cloudflare AI over old MCQs just to classify them.
+
+Existing rows are directly assigned:
+
+AI_GENERATED
+Medium
+
+No model calls.
+
+No cost.
+
+---
+
+# 84. NO PROVIDER CALL DURING FILTERING
+
+Student category filtering is deterministic application logic.
+
+Zero Cloudflare/Gemini calls.
+
+---
+
+# 85. BUILD / TEST REGRESSION
+
+Run all relevant MCQ tests plus:
+
+npm run test:ai
+npm run test:ai-input
+npm run test:ai-media
+npm run test:ai-mcq
+npm run test:ai-flashcard
+npx tsx --test tests/cloudflare-ai-provider.test.ts
+npx tsx --test tests/ai-admin-http.test.ts
+npx tsx --test tests/ai-review-validation.test.ts
+npx tsx --test tests/ai-import.test.ts
+npm run test:auth
+npm run build
+git diff --check
+
+Run existing client navigation tests.
+
+Run focused MCQ category/difficulty tests.
+
+Run focused TypeScript and ESLint for modified files.
+
+Existing unrelated repository failures may remain documented.
+
+---
+
+# 86. CAPACITOR / PWA
+
+Run:
+
+npx cap sync ios
+
+if supported in the current environment.
+
+Verify:
+
+- category UI compiles into iOS web assets
+- no provider secrets
+- no MCQ metadata loss
+- PWA service worker behavior unchanged
+
+No native configuration changes are expected.
+
+---
+
+# 87. LIVE APP VERIFICATION
+
+Using a safe test Lecture:
+
+Create manually:
+
+1 Previous Year / Easy
+1 AI Generated / Normal
+1 Resource / Hard
+
+Verify student filters.
+
+Then AI Generate 2 MCQs.
+
+Verify:
+
+- both auto AI Generated
+- AI difficulty assigned
+
+Then Extract a tiny synthetic set as:
+
+Previous Year / Normal
+
+Verify imported candidates get those values.
+
+Do not pollute important production Lecture data.
+
+---
+
+# 88. BACKFILL REPORT
+
+Before/after counts must be reported.
+
+Example:
+
+Existing MCQs found: 1240
+Backfilled category to AI_GENERATED: 1240
+Backfilled difficulty to Medium: 1240
+Content rows deleted: 0
+IDs changed: 0
+
+If backfill was not executed against production/current canonical DB, state exactly what remains to be run.
+
+Do not claim production data migrated if only tests were changed.
+
+---
+
+# 89. DEFINITION OF DONE
+
+This feature is complete only when:
+
+- three canonical persisted MCQ categories exist
+- All is virtual only
+- existing MCQs are AI_GENERATED
+- existing MCQs are Normal/Medium
+- manual MCQ requires category and difficulty in new UI
+- AI Generate auto-category = AI_GENERATED
+- AI Generate AI-selects difficulty
+- AI Extract requires category + difficulty
+- AI Enhance does not relabel as AI Generated
+- Review Studio carries metadata
+- import persists metadata
+- student category tabs work
+- All mixes categories
+- All hides origin metadata
+- every MCQ displays difficulty
+- Normal displays amber/orange
+- Easy green
+- Hard red
+- D1 sync correct
+- legacy clients remain safe
+- Flashcards untouched
+- no schema migration unless absolutely proven necessary
+- production build passes
+
+---
+
+# 90. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly:
+
+# MCQ CATEGORIES & DIFFICULTY FINAL IMPLEMENTATION REPORT
+
+## 1. Executive Summary
+
+State whether the feature is fully implemented.
+
+## 2. Final Data Model
+
+Report:
+
+- persisted category field
+- canonical category values
+- persisted difficulty values
+- UI difficulty labels
+- whether Prisma changed
+
+## 3. Files Created
+
+| File | Purpose |
+|---|---|
+
+## 4. Files Modified
+
+| File | Exact Change | Why |
+|---|---|---|
+
+## 5. Dependencies Added
+
+Expected:
+
+None
+
+## 6. Category Architecture
+
+Explain:
+
+AI_GENERATED
+PREVIOUS_YEAR
+RESOURCE
+ALL virtual
+
+## 7. Difficulty Architecture
+
+Explain:
+
+Easy
+Medium → Normal
+Hard
+
+## 8. Existing Data Backfill
+
+Report:
+
+- cutoff/version mechanism
+- rows detected
+- rows updated
+- D1 behavior
+- rerun safety
+
+## 9. Manual MCQ Workflow
+
+Explain category/difficulty selection.
+
+## 10. Legacy Manual API Compatibility
+
+Explain missing-field defaults for old clients.
+
+## 11. AI Generate
+
+Confirm:
+
+- auto AI_GENERATED
+- no category selector
+- AI determines difficulty
+- admin can correct difficulty
+- generated category cannot be changed
+
+## 12. AI Extract
+
+Explain admin-selected category and difficulty.
+
+## 13. AI Enhance
+
+Explain category/difficulty preservation and confirm no auto AI reclassification.
+
+## 14. Review Studio
+
+Explain MCQ metadata editing/validation.
+
+## 15. Import Pipeline
+
+Explain server validation and DB mapping.
+
+## 16. Student Category Selector
+
+Explain:
+
+All
+Previous Year
+AI Generated
+Resources
+
+## 17. All Behavior
+
+Confirm:
+
+- combined categories
+- mixed/shuffled
+- stable during session
+- no source/category origin shown per question
+
+## 18. Category-Specific Behavior
+
+Report exact filtering.
+
+## 19. Difficulty Badge
+
+Report:
+
+- Easy green
+- Normal orange
+- Hard red
+- Arabic labels
+- placement
+
+## 20. Console UI
+
+Report category/difficulty controls and management display.
+
+## 21. D1
+
+Explain category/difficulty sync and backfill behavior.
+
+## 22. Database Impact
+
+Expected:
+
+No Prisma schema change.
+No migration.
+
+If otherwise, explain precisely.
+
+## 23. Cloudflare AI Impact
+
+Confirm provider architecture unchanged.
+
+## 24. Flashcard Impact
+
+Expected:
+
+None
+
+## 25. Notes / Material Impact
+
+Expected:
+
+None
+
+## 26. Responsive Verification
+
+| View | Result |
+|---|---|
+| Mobile | |
+| iPad portrait | |
+| iPad landscape | |
+| Desktop | |
+
+## 27. Arabic / RTL
+
+Report result.
+
+## 28. Tests Added
+
+Detailed tests.
+
+## 29. Backfill Tests
+
+Report initial run and rerun-safety tests.
+
+## 30. Manual Creation Tests
+
+Report canonical persistence.
+
+## 31. AI Generate Tests
+
+Report category + difficulty behavior.
+
+## 32. AI Extract Tests
+
+Report metadata behavior.
+
+## 33. AI Enhance Tests
+
+Report preservation behavior.
+
+## 34. Student Filter Tests
+
+Report counts and All behavior.
+
+## 35. Difficulty UI Tests
+
+Report Normal mapping and color behavior.
+
+## 36. Regression Results
+
+| Suite | Result |
+|---|---|
+
+## 37. Live Verification
+
+Report actual safe test-Lecture behavior.
+
+## 38. Production Backfill Status
+
+State ONE clearly:
+
+PRODUCTION/CANONICAL DB BACKFILL COMPLETE
+
+or
+
+PRODUCTION/CANONICAL DB BACKFILL NOT YET RUN
+
+Do not be ambiguous.
+
+## 39. Existing Unrelated Failures
+
+Separate them clearly.
+
+## 40. Git Diff Summary
+
+Exact summary.
+
+## 41. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 42. Final Verification Checklist
+
+- [ ] sourceType reused safely
+- [ ] AI_GENERATED canonical
+- [ ] PREVIOUS_YEAR canonical
+- [ ] RESOURCE canonical
+- [ ] ALL not persisted
+- [ ] existing MCQs backfilled to AI_GENERATED
+- [ ] existing MCQs backfilled to Medium/Normal
+- [ ] backfill rerun cannot overwrite future categories
+- [ ] manual category required in new UI
+- [ ] manual difficulty required in new UI
+- [ ] legacy manual requests remain compatible
+- [ ] AI Generate auto AI_GENERATED
+- [ ] AI Generate has no manual category choice
+- [ ] AI determines generated difficulty
+- [ ] generated difficulty editable in review
+- [ ] AI Extract requires category
+- [ ] AI Extract requires difficulty
+- [ ] AI Enhance preserves category
+- [ ] AI Enhance preserves/administers difficulty
+- [ ] Review Studio validates category
+- [ ] Review Studio validates difficulty
+- [ ] Import server validates category
+- [ ] Import server validates difficulty
+- [ ] Dedupe unchanged
+- [ ] All contains all three categories
+- [ ] All mixes/shuffles questions
+- [ ] All does not expose category origin
+- [ ] Previous Year filter correct
+- [ ] AI Generated filter correct
+- [ ] Resources filter correct
+- [ ] Easy badge green
+- [ ] Normal badge orange
+- [ ] Hard badge red
+- [ ] Medium displays as Normal
+- [ ] Arabic labels correct
+- [ ] D1 metadata correct
+- [ ] Flashcards untouched
+- [ ] Notes untouched
+- [ ] Cloudflare provider untouched
+- [ ] no page reload added
+- [ ] mobile verified
+- [ ] iPad portrait verified
+- [ ] iPad landscape verified
+- [ ] desktop verified
+- [ ] production build passes
+- [ ] no `.agents/*` changes
+
+End exactly with:
+
+MCQ CATEGORIES & DIFFICULTY STATUS: IMPLEMENTATION COMPLETE — READY FOR ARCHITECT REVIEW
