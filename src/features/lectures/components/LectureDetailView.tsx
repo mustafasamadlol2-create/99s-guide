@@ -2252,7 +2252,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
             className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
               active
                 ? "border-rose-500 bg-rose-500 text-white shadow-sm"
-                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-white/[0.12] dark:bg-[#1C1C1E] dark:text-neutral-200 dark:hover:bg-white/[0.08]"
+                : "border-neutral-200 bg-semantic-surface-elevated text-neutral-700 hover:bg-neutral-50 dark:border-white/[0.12] dark:text-neutral-200 dark:hover:bg-white/[0.08]"
             }`}
           >
             {label} <span className="ms-1 opacity-75">({mcqCategoryCounts[category] ?? 0})</span>
@@ -2265,7 +2265,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
  <div className="relative mb-6">
  
- <div className="relative w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
+ <div className="relative w-20 h-20 rounded-full bg-semantic-surface-elevated flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
  <HelpCircle className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
@@ -2292,7 +2292,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  >
  <div className="space-y-4">
  {/* Subject and progress metrics */}
- <div className="flex justify-between items-center text-caption text-neutral-500 dark:text-[#EBEBF599]" style={flashcardThemeVars}>
+ <div className="flex justify-between items-center text-caption text-semantic-chrome-content-secondary" style={flashcardThemeVars}>
  <span
    className="font-semibold uppercase font-mono px-3 py-1.5 rounded-full border"
    style={{
@@ -2342,7 +2342,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
         </span>
        <h3
          dir="auto"
-         className="text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-neutral-900 dark:text-white font-semibold leading-[1.58] sm:leading-[1.62] text-start"
+         className="text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-semantic-chrome-content-primary font-semibold leading-[1.58] sm:leading-[1.62] text-start"
          style={{ textWrap: "balance" }}
        >
          {filteredQuizQuestions[safeCurrentQuestionIndex].question}
@@ -2377,7 +2377,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  className={`quiz-option w-full p-4 sm:p-4.5 text-left text-caption rounded-xl border transition-[background-color,border-color,box-shadow,transform] duration-200 flex items-center gap-3 cursor-pointer ${
  isSelected
  ? "font-semibold shadow-[0_8px_22px_rgba(0,0,0,0.06)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.20)]"
- : "bg-white border-black/[0.07] hover:bg-neutral-50/60 text-neutral-700 dark:bg-[#1C1C1E] dark:border-white/[0.10] dark:text-[var(--text-secondary)]"
+ : "bg-semantic-surface-elevated border-black/[0.07] hover:bg-neutral-50/60 text-neutral-700 dark:border-white/[0.10] dark:text-[var(--text-secondary)]"
  }`}
  style={isSelected ? {
    backgroundColor: `rgba(${flashcardTheme.rgb}, 0.11)`,
@@ -2746,10 +2746,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
               <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
+              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-semantic-chrome-content-primary">
                 {isRtl ? "اكتملت الجلسة" : "Session Complete"}
               </h3>
-              <p className="text-sm text-neutral-500 dark:text-[#EBEBF599]">
+              <p className="text-sm text-semantic-chrome-content-secondary">
                 {isRtl ? "عمل رائع! لقد راجعت جميع البطاقات." : "Great work! You've reviewed all cards."}
               </p>
             </div>
@@ -2908,7 +2908,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
                   <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
                     <div className="w-full max-w-[820px] px-1">
-                      <h3 className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-neutral-900 dark:text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)]`}>
+                      <h3 className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-semantic-chrome-content-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)]`}>
                         {currentFlashcard?.front}
                       </h3>
                     </div>
@@ -2971,7 +2971,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
           aria-hidden={!isFlipped}
           className={`min-h-[110px] sm:min-h-[118px] pt-2 sm:pt-3 space-y-2 antialiased transition-opacity duration-200 ${isFlipped ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"}`}
         >
-          <p className="text-xs font-bold tracking-[0.16em] text-neutral-500 dark:text-[#EBEBF599] uppercase text-center mb-1">
+          <p className="text-xs font-bold tracking-[0.16em] text-semantic-chrome-content-secondary uppercase text-center mb-1">
             {isRtl ? "كيف كان مستوى تذكّرك للمفهوم؟" : "How easily did you recall this?"}
           </p>
           <div
