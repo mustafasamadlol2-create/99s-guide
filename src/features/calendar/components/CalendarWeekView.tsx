@@ -67,8 +67,8 @@ const WeekDayCell = memo(function WeekDayCell({
   let cellBgClass = "bg-white/90 dark:bg-[#1C1C1E]/80 backdrop-blur-sm";
   let cellBorderClass = "border-neutral-200/50 dark:border-white/[0.05]";
   const badgeBgClass = "bg-transparent";
-  let badgeClass = "text-neutral-500 dark:text-[#EBEBF599] font-sans font-semibold";
-  let dayNameClass = "text-neutral-500 dark:text-[#EBEBF599] font-sans";
+  let badgeClass = "text-semantic-chrome-content-secondary font-sans font-semibold";
+  let dayNameClass = "text-semantic-chrome-content-secondary font-sans";
   
   let ringClass = isDaySelected ? "ring-2 ring-neutral-400/30 dark:ring-white/10 z-10 shadow-sm bg-white dark:bg-[#2C2C2E]" : (disableDayHover ? "" : "hover:bg-white dark:hover:bg-white/[0.12]/90 hover:shadow-sm");
 
@@ -152,7 +152,7 @@ const WeekDayCell = memo(function WeekDayCell({
         </span>
         <div className="h-4 flex items-center justify-center">
           {dayEvents.length > 0 ? (
-            <span className="text-[0.5625rem] font-semibold uppercase px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/[0.12] text-neutral-500 dark:text-[#EBEBF599]">
+            <span className="text-[0.5625rem] font-semibold uppercase px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/[0.12] text-semantic-chrome-content-secondary">
               {dayEvents.length} {dayEvents.length === 1 ? (isRtl ? "محاضرة" : "ev") : (isRtl ? "محاضرات" : "evs")}
             </span>
           ) : null}

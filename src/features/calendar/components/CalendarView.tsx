@@ -106,7 +106,7 @@ const MobileAgendaItem = memo(function MobileAgendaItem({ ev, isRtl }: MobileAge
 
  const containerClass = isEvExam
  ? `ios-staggered-card macos-interactive relative group flex flex-col justify-between w-full p-4 sm:p-5 bg-red-100 dark:bg-[#2C2C2E] rounded-xl cursor-pointer select-none overflow-hidden shadow-elevation-1 ring-1 ring-red-300 dark:ring-red-500/40 transition duration-normal ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[2px] hover:shadow-elevation-3 z-10`
- : `ios-staggered-card macos-interactive relative group flex flex-col justify-between w-full p-4 sm:p-5 bg-white dark:bg-[#1C1C1E] rounded-xl cursor-pointer select-none overflow-hidden shadow-elevation-1 ring-1 ring-black/[0.03] dark:ring-white/10 transition duration-normal ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-elevation-3 dark:hover:shadow-elevation-3 hover:ring-black/[0.08] dark:hover:ring-white/[0.1]`;
+ : `ios-staggered-card macos-interactive relative group flex flex-col justify-between w-full p-4 sm:p-5 bg-semantic-surface-elevated rounded-xl cursor-pointer select-none overflow-hidden shadow-elevation-1 ring-1 ring-black/[0.03] dark:ring-white/10 transition duration-normal ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-elevation-3 dark:hover:shadow-elevation-3 hover:ring-black/[0.08] dark:hover:ring-white/[0.1]`;
 
  const titleSize = isEvExam ? "text-base sm:text-lg font-semibold" : "text-caption sm:text-body font-semibold";
  const borderClass = isEvExam ? "w-2" : "w-1";
@@ -478,7 +478,7 @@ const CalendarView = memo(function CalendarView({
  onClick={(e) => e.stopPropagation()}
  >
  <div className="flex items-center justify-between mb-3 px-1">
- <span className="font-semibold text-body text-neutral-900 dark:text-[var(--text-primary)]">
+ <span className="font-semibold text-body text-semantic-chrome-content-primary">
  {monthNames[currentMonth]} {currentYear}
  </span>
  <div className="flex items-center gap-1">
@@ -626,7 +626,7 @@ const CalendarView = memo(function CalendarView({
  ref={isPhone ? calendarViewPager.surfaceRef : undefined}
  id="left_middle_deck"
  data-root-pager-ignore={isPhone ? "true" : undefined}
- className={`w-full bg-white dark:bg-[#1C1C1E] border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition-colors duration-normal ${isPhone ? "calendar-phone-deck p-3 rounded-[18px] space-y-3" : "p-card-padding rounded-lg space-y-section"}`}
+ className={`w-full bg-semantic-surface-elevated border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition-colors duration-normal ${isPhone ? "calendar-phone-deck p-3 rounded-[18px] space-y-3" : "p-card-padding rounded-lg space-y-section"}`}
  style={{ overflowAnchor: "none" }}
  >
  {/* NAVIGATION BAR - MONTHS */}
@@ -654,7 +654,7 @@ const CalendarView = memo(function CalendarView({
  (isRtl
    ? `اليوم المختار • ${pLocalDate.toLocaleDateString("ar-IQ-u-nu-latn", { day: "numeric", month: "long", year: "numeric" })}`
    : `Timeline for ${pLocalDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`)}
- <ChevronDown className="w-icon-md h-icon-md ms-2 text-neutral-500 dark:text-[#EBEBF599]" />
+ <ChevronDown className="w-icon-md h-icon-md ms-2 text-semantic-chrome-content-secondary" />
  </span>
  {renderMiniCalendar()}
  </div>
@@ -732,7 +732,7 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key={`calendar-phone-target-${calendarViewPager.targetView}`}
  aria-hidden="true"
- className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E] pointer-events-none"
+ className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-semantic-surface-elevated pointer-events-none"
  style={{
  x: calendarViewPager.targetX,
  zIndex: 0,
@@ -749,7 +749,7 @@ const CalendarView = memo(function CalendarView({
  role="tabpanel"
  aria-labelledby={`${activeView}-tab`}
  data-calendar-view-pager-disabled={activeView === "week" ? "true" : undefined}
- className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+ className="calendar-phone-pager-page absolute inset-0 w-full min-w-0 bg-semantic-surface-elevated"
  style={{
  x: calendarViewPager.x,
  zIndex: 1,
@@ -778,7 +778,7 @@ const CalendarView = memo(function CalendarView({
  <motion.div
  key={`calendar-target-${calendarViewPager.targetView}`}
  aria-hidden="true"
- className="absolute inset-0 w-full min-w-0 bg-white dark:bg-[#1C1C1E] pointer-events-none"
+ className="absolute inset-0 w-full min-w-0 bg-semantic-surface-elevated pointer-events-none"
  style={{
  gridArea: "1 / 1",
  x: calendarViewPager.targetX,
@@ -795,7 +795,7 @@ const CalendarView = memo(function CalendarView({
  id={`${activeView}-panel`}
  role="tabpanel"
  aria-labelledby={`${activeView}-tab`}
- className="relative w-full min-w-0 bg-white dark:bg-[#1C1C1E]"
+ className="relative w-full min-w-0 bg-semantic-surface-elevated"
  style={{
  gridArea: "1 / 1",
  x: calendarViewPager.x,

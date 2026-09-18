@@ -117,7 +117,7 @@ const DayStripItem = memo(function DayStripItem({
  const topPriority = sortedEvents.length > 0 ? getEventPriority(sortedEvents[0]) : null;
 
  let cellBgClass = "hover:bg-neutral-100 dark:hover:bg-white/[0.06] bg-neutral-50/40 dark:bg-[#1C1C1E]/20 border border-neutral-200/40 dark:border-white/[0.04]";
- let dayNameClass = "text-neutral-500 dark:text-[#EBEBF599] font-semibold";
+ let dayNameClass = "text-semantic-chrome-content-secondary font-semibold";
  const dateBgClass = "bg-transparent";
   let dateTextClass = "text-neutral-700 dark:text-[#EBEBF599] font-medium";
 

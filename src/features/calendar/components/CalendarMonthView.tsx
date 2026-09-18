@@ -66,7 +66,7 @@ const MonthDayCell = memo(function MonthDayCell({
  let cellBorderClass = isPhone
    ? "border border-black/[0.035] dark:border-white/[0.055]"
    : "border border-neutral-200/40 dark:border-white/[0.04]";
- let badgeClass = "text-neutral-500 dark:text-[#EBEBF599] font-semibold text-sm font-sans";
+ let badgeClass = "text-semantic-chrome-content-secondary font-semibold text-sm font-sans";
  let ringClass = isSelected
    ? (isPhone
      ? "ring-1 ring-inset ring-neutral-900/10 dark:ring-white/12 z-10 shadow-[0_2px_8px_rgba(0,0,0,0.045)]"
@@ -140,7 +140,7 @@ const MonthDayCell = memo(function MonthDayCell({
             {day}
           </span>
            {!isPhone && dayEvents.length > 0 && (
-             <span className="calendar-event-count text-[9px] font-medium px-1.5 text-neutral-500 dark:text-[#EBEBF599] bg-black/5 dark:bg-white/[0.12] py-0.5 rounded-full mt-0.5 whitespace-nowrap">
+             <span className="calendar-event-count text-[9px] font-medium px-1.5 text-semantic-chrome-content-secondary bg-black/5 dark:bg-white/[0.12] py-0.5 rounded-full mt-0.5 whitespace-nowrap">
                <span>{dayEvents.length}</span>{" "}
                <span className="calendar-event-count-label">{isRtl ? (dayEvents.length === 1 ? "حدث" : "أحداث") : (dayEvents.length === 1 ? "Event" : "Events")}</span>
              </span>
@@ -199,7 +199,7 @@ const MonthDayCell = memo(function MonthDayCell({
  e.stopPropagation();
  setShowPopover((prev) => !prev);
  }}
- className="text-[11px] text-neutral-500 hover:text-neutral-700 dark:text-[#EBEBF599] dark:hover:text-neutral-200 font-medium px-1 shrink-0 text-start transition-colors"
+ className="text-[11px] text-semantic-chrome-content-secondary hover:text-neutral-700 dark:hover:text-neutral-200 font-medium px-1 shrink-0 text-start transition-colors"
  >
  +{hiddenCount} {isRtl ? "أخرى" : "more"}
  </button>
@@ -221,7 +221,7 @@ const MonthDayCell = memo(function MonthDayCell({
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 5, scale: 0.95 }}
  transition={{ duration: 0.15 }}
- className="absolute top-[80%] left-1/2 -translate-x-1/2 mt-2 w-56 max-h-64 overflow-y-auto no-scrollbar bg-white dark:bg-[#1C1C1E] border border-neutral-200 dark:border-white/[0.12] rounded-lg shadow-elevation-3 z-50 p-2 flex flex-col gap-1 overscroll-y-contain"
+ className="absolute top-[80%] left-1/2 -translate-x-1/2 mt-2 w-56 max-h-64 overflow-y-auto no-scrollbar bg-semantic-surface-elevated border border-neutral-200 dark:border-white/[0.12] rounded-lg shadow-elevation-3 z-50 p-2 flex flex-col gap-1 overscroll-y-contain"
  >
                 {chronologicalEvents.map((ev) => {
                   const { textColorClass, titleWeight, cardClass } = getEventCardStyles(ev);
@@ -307,7 +307,7 @@ export const CalendarMonthView = memo(function CalendarMonthView({
  return (
  <div id="calendar_month_grid_deck" tabIndex={0} role="application" aria-label={isRtl ? "تقويم شهري تفاعلي" : "Interactive monthly calendar"} className={`${isPhone ? `calendar-month-phone calendar-month-phone-weeks-${weekRows} px-0 py-0.5` : "p-1"} font-sans select-none`}>
  {/* Week Day Labels (iOS Minimalist Header style) */}
-  <div className={`calendar-month-weekdays grid grid-cols-7 ${isPhone ? "gap-1 mb-2 text-[10px] tracking-[0.055em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase`}>
+ <div className={`calendar-month-weekdays grid grid-cols-7 ${isPhone ? "gap-1 mb-2 text-[10px] tracking-[0.055em]" : "gap-3 mb-4 text-xs tracking-[0.08em]"} text-center font-semibold text-semantic-chrome-content-secondary uppercase`}>
   {[
     ["أحد", "الأحد", "Sun"],
     ["اثن", "الاثنين", "Mon"],
