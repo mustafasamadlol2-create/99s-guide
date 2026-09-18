@@ -4597,47 +4597,58 @@ input:-webkit-autofill:active {
    text-caption is 0.75rem/1rem, while the MCQ question keeps its current
    responsive 1.02/1.18/1.32rem and 1.58/1.62 line-height values. */
 .personalization-reading-body {
-  font-size: calc(0.75rem * var(--personalization-reading-scale));
-  line-height: calc(1rem * var(--personalization-reading-scale));
+  font-size: calc(
+    0.75rem * var(--app-text-scale, 1) * var(--personalization-reading-scale)
+  );
+  line-height: 1.333333em;
 }
 
 .personalization-reading-question {
-  font-size: calc(1.02rem * var(--personalization-reading-scale));
+  font-size: calc(
+    1.02rem * var(--app-text-scale, 1) * var(--personalization-reading-scale)
+  );
   line-height: 1.58;
 }
 
 @media (min-width: 640px) {
   .personalization-reading-question {
-    font-size: calc(1.18rem * var(--personalization-reading-scale));
+    font-size: calc(
+      1.18rem * var(--app-text-scale, 1) * var(--personalization-reading-scale)
+    );
     line-height: 1.62;
   }
 }
 
 @media (min-width: 1024px) {
   .personalization-reading-question {
-    font-size: calc(1.32rem * var(--personalization-reading-scale));
+    font-size: calc(
+      1.32rem * var(--app-text-scale, 1) * var(--personalization-reading-scale)
+    );
   }
 }
 
 .personalization-reading-preview-body {
-  font-size: calc(0.875rem * var(--personalization-reading-scale));
-  line-height: calc(1.25rem * var(--personalization-reading-scale));
+  font-size: calc(
+    0.875rem * var(--app-text-scale, 1) * var(--personalization-reading-scale)
+  );
+  line-height: 1.428571em;
 }
 
 /* Fluid flashcard text keeps its existing length-aware base size and scales
    through a child element, so no transform or layout measurement is needed. */
 .personalization-reading-fluid {
   display: inline;
+  font-size: calc(100% * var(--app-text-scale, 1));
 }
 
 [data-app-reading-size="small"] .personalization-reading-fluid,
 [data-personalization-preview-reading-size="small"] .personalization-reading-fluid {
-  font-size: 94%;
+  font-size: calc(94% * var(--app-text-scale, 1));
 }
 
 [data-app-reading-size="large"] .personalization-reading-fluid,
 [data-personalization-preview-reading-size="large"] .personalization-reading-fluid {
-  font-size: 110%;
+  font-size: calc(110% * var(--app-text-scale, 1));
 }
 
 /* Accessibility is the final authority. These rules intentionally come after

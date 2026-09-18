@@ -5975,7 +5975,8 @@ const handleSignOut = useCallback(async () => {
       className={`h-full max-h-full w-full max-w-full bg-semantic-background-page text-semantic-content-primary font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
       style={{
         fontSize: `${textScale}rem`,
-      }}
+        "--app-text-scale": textScale,
+      } as React.CSSProperties}
     >
       {/* Stable viewport host for iPhone pushed pages. It is intentionally a
           direct child of the app shell, outside the transformed scroll canvas. */}

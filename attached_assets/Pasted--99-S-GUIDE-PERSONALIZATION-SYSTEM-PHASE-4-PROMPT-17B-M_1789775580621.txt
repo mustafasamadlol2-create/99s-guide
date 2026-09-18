@@ -1,0 +1,839 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 4 / PROMPT 17B
+## MOTION + READING — TEXT-SCALE COMPOSITION & REGRESSION CLOSURE
+### VERIFY app_text_scale × Reading Size COMPOSITION
+### COMPLETE MISSING REGRESSION EVIDENCE
+### REPAIR ONLY IF A REAL DEFECT EXISTS
+### DO NOT BEGIN PROMPT 18
+
+Prompt 17 implementation is provisionally approved.
+
+Two closure requirements remain insufficiently proven:
+
+1. The mandatory regression commands requested by Prompt 17 were not individually reported in the final report.
+
+2. The report states:
+   - `app_text_scale` is applied as an inline `fontSize` on the application shell.
+   - Reading Size uses explicit reading typography whose base values include `rem`.
+
+This requires a precise composition audit.
+
+CSS `rem` resolves against the document root font size, not an arbitrary ancestor font size.
+
+Therefore, if `app_text_scale` is applied only to a non-root App shell while Prompt 17 reading typography uses explicit `rem` values, Reading Size may bypass or partially bypass the existing device-local text scale.
+
+DO NOT ASSUME this defect exists.
+
+Inspect the actual source and computed architecture first.
+
+Prompt 17B exists to:
+
+A. prove the two systems compose correctly,
+or
+B. repair only that composition if it is actually broken,
+
+and then run the missing mandatory regression matrix.
+
+Do NOT redesign Motion.
+Do NOT redesign Reading.
+Do NOT begin Home Subject Order.
+Do NOT modify `.agents/*`.
+
+---
+
+# 1. AUDIT app_text_scale EXACTLY
+
+Inspect the actual implementation.
+
+Report:
+
+- storage key
+- default value
+- allowed values/range
+- exact source file
+- exact React element receiving the inline `fontSize`
+- whether that element is:
+  - `<html>`
+  - `<body>`
+  - React root
+  - App wrapper
+  - another descendant
+- exact CSS unit/value applied
+- how existing child typography currently inherits or overrides it
+
+Do not paraphrase loosely.
+
+---
+
+# 2. AUDIT READING TYPOGRAPHY EXACTLY
+
+Inspect all Prompt 17 reading hooks in:
+
+`src/features/lectures/components/LectureDetailView.tsx`
+
+and corresponding CSS in:
+
+`src/index.css`
+
+For each eligible role report:
+
+- previous font-size declaration
+- previous line-height
+- new declaration
+- unit used:
+  - rem
+  - em
+  - px
+  - inherited
+  - calc(...)
+- where `--personalization-reading-scale` enters the calculation
+
+Include:
+
+- MCQ question
+- MCQ result question
+- MCQ explanation
+- Flashcard front
+- Flashcard explanation/back
+- Q&A question
+- Q&A answer
+
+---
+
+# 3. DETERMINE ACTUAL COMPOSITION
+
+Answer this exact question:
+
+Does changing `app_text_scale` materially scale every Prompt-17 Reading Size eligible text role while Reading Size independently applies its 0.94 / 1 / 1.10 multiplier?
+
+Prove it from actual CSS inheritance/unit behavior.
+
+Do not answer based on intention.
+
+---
+
+# 4. REQUIRED EFFECTIVE MODEL
+
+The required conceptual behavior is:
+
+```text
+effective study reading size
+=
+existing app_text_scale behavior
+× existing base study size
+× personalization readingSize multiplier
+
+This does NOT require literal numerical multiplication in one CSS declaration.
+
+It does require both independent preferences to remain observable and composable.
+
+5. IF CURRENT IMPLEMENTATION ALREADY COMPOSES
+
+If actual source proves correct composition:
+
+DO NOT change production typography.
+
+Add only focused tests proving the behavior.
+
+Report:
+
+NO READING COMPOSITION REPAIR REQUIRED.
+
+6. IF CURRENT IMPLEMENTATION DOES NOT COMPOSE
+
+Repair only the Reading typography layer.
+
+Do NOT modify:
+
+storage key
+Settings UI for app_text_scale
+app_text_scale persistence
+its allowed values
+App appearance architecture
+personalization contract
+provider
+schema
+
+The existing device-local setting remains authoritative.
+
+7. SAFE REPAIR PRINCIPLE
+
+If the problem is explicit rem sizing bypassing an ancestor fontSize, use a typography architecture that preserves:
+
+current Default visual size when app_text_scale is at its production default
+existing app_text_scale influence
+Reading Small = 0.94
+Reading Default = 1
+Reading Large = 1.10
+
+Potential safe approaches include:
+
+inherited/em-based local typography
+a derived local CSS variable based on the actual inherited font size
+another minimal CSS composition that genuinely respects the existing ancestor scaling
+
+Use actual architecture to choose.
+
+Do NOT blindly convert every rem in LectureDetailView.
+
+8. DEFAULT PARITY IS MANDATORY
+
+After any repair:
+
+app_text_scale = production default
+readingSize = default
+
+must produce exactly the pre-Prompt-17 typography.
+
+For each touched reading role report:
+
+Role	Before Prompt 17	Prompt 17B Default	Parity
+
+Font size and line-height both matter.
+
+9. NONDEFAULT COMPOSITION TEST
+
+Test at least three combinations.
+
+Example conceptual matrix:
+
+app_text_scale = default
+readingSize = large
+
+app_text_scale = non-default larger value
+readingSize = default
+
+app_text_scale = same non-default larger value
+readingSize = large
+
+Prove the third result reflects BOTH preferences.
+
+Also test:
+
+app_text_scale = non-default
+readingSize = small
+
+to prove Reading Small does not reset device-local scale.
+
+Use the actual available app_text_scale values.
+
+Do NOT invent unsupported settings.
+
+10. LINE-HEIGHT COMPOSITION
+
+Verify line-height remains readable and behaves consistently.
+
+Do not accidentally:
+
+double-scale line height
+leave it fixed too tightly for Large
+create extreme spacing for combined large settings
+
+Default line-height parity remains mandatory.
+
+11. FLASHCARD DYNAMIC TYPOGRAPHY
+
+Flashcards already have length-aware dynamic typography.
+
+Audit especially carefully.
+
+Reading Size must compose with that existing dynamic sizing.
+
+Do NOT replace:
+
+length thresholds
+dynamic sizing logic
+flip behavior
+progress
+keyboard handling
+
+Only ensure the Reading multiplier genuinely layers on top.
+
+12. NO CHROME SPILLOVER
+
+Verify changing Reading Size and app_text_scale composition does NOT accidentally attach Reading-specific scaling to:
+
+Sidebar
+tab bar
+Settings
+My 99 controls
+Calendar
+buttons
+badges
+metadata
+inputs
+toasts
+Hero heading
+
+Existing app_text_scale may continue affecting whatever it already affected before Prompt 17.
+
+Prompt 17B must not change its scope.
+
+13. PDF REMAINS EXCLUDED
+
+No Reading Size typography class/variable may enter:
+
+PDF viewer
+PDF zoom
+PDF canvas/rendering
+signed PDF flow
+
+Expected PDF production diff:
+
+ZERO.
+
+14. MOTION IS NOT THE REPAIR TARGET
+
+Do not change Motion Style unless a test reveals an actual Prompt-17 defect.
+
+Existing accepted state remains:
+
+Full
+Subtle
+Reduced
+
+OS:
+
+prefers-reduced-motion: reduce
+
+always wins.
+
+15. CANVAS LIMITATION REMAINS ACCEPTABLE
+
+Prompt 17 disclosed:
+
+User Reduced Motion visually suppresses StarField but does not stop its requestAnimationFrame loop unless OS reduced-motion is enabled.
+
+This limitation is accepted for Motion Style V1.
+
+Do NOT rewrite StarField in Prompt 17B.
+
+16. VERIFY OS REDUCED-MOTION AGAIN
+
+Run/retain the source-level invariant proving:
+
+Full
+Subtle
+Reduced
+
+cannot override:
+
+prefers-reduced-motion: reduce
+
+No production change expected.
+
+17. VERIFY FIVE GLOBAL ATTRIBUTES
+
+Ensure Prompt 17 runtime still maps:
+
+Theme:
+data-app-theme
+
+Hero:
+data-app-hero-style
+
+Glass:
+data-app-glass-style
+
+Motion:
+data-app-motion-style
+
+Reading:
+data-app-reading-size
+
+Defaults remain attribute-absent.
+
+18. VERIFY FIVE-AXIS DRAFT ISOLATION
+
+Representative:
+
+Committed:
+Ocean / Night / Clear / Reduced / Large
+
+Draft:
+Rose / Aurora / Frosted / Full / Small
+
+Before Apply:
+
+global remains committed.
+
+Preview remains draft.
+
+No repair may weaken this.
+
+19. MISSING REGRESSION — NAVIGATION
+
+Run exactly:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Report exact pass/fail count.
+
+20. MISSING REGRESSION — AUTH
+
+Run exactly:
+
+npm run test:auth
+
+Report exact result.
+
+21. MISSING REGRESSION — NOTES / MCQ METADATA
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts tests/mcq-metadata.test.ts
+
+Report exact counts.
+
+22. MISSING REGRESSION — AI MCQ
+
+Run:
+
+npm run test:ai-mcq
+
+Report exact result.
+
+23. MISSING REGRESSION — AI FLASHCARD
+
+Run:
+
+npm run test:ai-flashcard
+
+Report exact result.
+
+24. FEATURE PERSONALIZATION REGRESSIONS
+
+Explicitly run:
+
+tests/personalization-lecture-surfaces.test.ts
+tests/personalization-calendar-surfaces.test.ts
+tests/personalization-mcq-flashcard-surfaces.test.ts
+
+Report each result separately.
+
+25. PRESENTATION REGRESSION
+
+Run:
+
+npx tsx --test tests/personalization-presentation.test.ts
+
+Prompt 16/16B/17 invariants must pass.
+
+26. STUDIO REGRESSION
+
+Run:
+
+npx tsx --test tests/personalization-studio.test.ts
+27. THEME ENGINE REGRESSION
+
+Explicitly run:
+
+tests/personalization-theme-runtime.test.ts
+tests/personalization-theme-library.test.ts
+tests/personalization-theme-closure.test.ts
+tests/personalization-tokens.test.ts
+
+Report aggregate and/or individual counts.
+
+28. ALL PERSONALIZATION TESTS
+
+Run the complete current personalization matrix.
+
+Prior Prompt 17 reported:
+
+110 passed
+0 failed
+
+Prompt 17B may increase this if new composition tests are added.
+
+Report exact current total.
+
+29. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+30. TARGETED TYPESCRIPT
+
+Run targeted TypeScript validation on any Prompt 17B touched source/tests.
+
+No new errors.
+
+Full project baseline may still contain only the seven known missing .webp module artwork imports.
+
+31. TARGETED ESLINT
+
+Run targeted lint on Prompt 17/17B touched files.
+
+Do not repair unrelated repository lint.
+
+32. PDF BASELINE
+
+Because Reading Size explicitly excludes PDF, run the current PDF suite if practical.
+
+If unchanged known result remains:
+
+2 pass
+1 known fixture failure:
+pdf_download_expiry_invalid
+
+report it as baseline.
+
+Do NOT repair it.
+
+If not run:
+state clearly that it was not run.
+
+33. NO BUSINESS LOGIC CHANGE
+
+Prompt 17B must not alter:
+
+MCQ logic
+Flashcard logic
+Q&A behavior
+Calendar
+Notes
+PDF
+navigation
+auth
+points
+moderation
+AI
+sockets
+
+Typography-only repair if required.
+
+34. NO PROVIDER / CONTRACT CHANGE
+
+Expected:
+
+ZERO changes to:
+
+PersonalizationProvider
+shared PersonalizationConfigV1
+storage schema
+cache version
+reducer semantics
+Apply semantics
+35. NO NEW NETWORK / BACKEND
+
+Still exactly:
+
+ZERO new personalization network calls.
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+36. NO HOME ORDER
+
+Prompt 18 has NOT started.
+
+home.subjectOrder remains unwired.
+
+37. NO APP ICON
+
+Still unimplemented.
+
+38. THEME / HERO / GLASS FREEZE
+
+No palette or style redesign.
+
+All eight themes remain unchanged.
+
+Hero styles remain unchanged.
+
+Glass styles and Prompt 16B compatibility remain unchanged.
+
+39. NO .agents/*
+
+ABSOLUTE.
+
+Do not create/modify/delete anything under .agents/*.
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+Expected:
+no output.
+
+40. NO DOCUMENTATION ARTIFACT
+
+Do not create memory/planning Markdown.
+
+Final report is sufficient.
+
+41. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Prompt 17B should be small.
+
+If composition was already correct:
+expected production diff may be ZERO.
+
+If repair required:
+expected production source changes should remain tightly limited to Reading typography/CSS.
+
+42. DEFINITION OF DONE
+
+Prompt 17B passes only if:
+
+actual app_text_scale architecture is precisely documented
+actual Reading typography units are precisely documented
+composition is proven, not assumed
+if broken, composition is repaired minimally
+app_text_scale itself remains unchanged
+Default Reading parity remains exact
+Small remains 0.94
+Large remains 1.10 unless objectively justified otherwise
+Flashcard dynamic sizing remains intact
+PDF remains excluded
+chrome remains Reading-excluded
+no business logic changes
+Motion implementation remains intact
+OS reduced-motion precedence remains intact
+all mandatory regressions are actually run and reported
+complete personalization suite passes
+build passes
+no new TS/lint errors
+no backend/network work
+no Home order work
+no App Icon work
+no .agents/*
+diff is truthful and scoped
+43. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 4 PROMPT 17B CLOSURE REPORT
+1. Status
+
+PASS / FAIL
+
+2. Closure Reason
+
+Explain the two Prompt 17 evidence gaps:
+
+app_text_scale × Reading Size composition
+missing explicit regression evidence
+3. app_text_scale Architecture
+
+Report:
+
+storage key
+source file
+exact receiving element
+exact CSS/inline mechanism
+unit/value model
+current scope
+4. Reading Typography Audit
+Reading Role	Previous Size/Line Height	Prompt 17 Declaration	Unit	Reading Multiplier
+5. Composition Finding
+
+State exactly one:
+
+COMPOSITION WAS ALREADY CORRECT
+
+or
+
+COMPOSITION DEFECT FOUND AND REPAIRED
+
+Then explain why.
+
+6. Composition Repair
+
+If none:
+state NONE.
+
+If repaired:
+
+File	Previous Behavior	Repair	Why
+7. Default Reading Parity
+Role	Before Prompt 17	Prompt 17B Default	Result
+8. Nondefault Composition Verification
+
+Use actual app_text_scale values:
+
+app_text_scale	Reading Size	Effective Behavior	Result
+
+Include Default/Large/Small combinations.
+
+9. Line-Height Safety
+
+Report.
+
+10. Flashcard Dynamic Typography
+
+Explain exact composition and confirm original length-aware behavior remains.
+
+11. Chrome Exclusion
+
+Confirm.
+
+12. PDF Exclusion
+
+Confirm.
+
+13. Motion Integrity
+
+Confirm Prompt 17 Motion behavior unchanged.
+
+14. OS Reduced-Motion Precedence
+
+Report verification.
+
+15. Five-Axis Runtime Integrity
+
+Confirm Theme/Hero/Glass/Motion/Reading attributes remain correct.
+
+16. Five-Axis Draft Isolation
+
+Report representative committed/draft result.
+
+17. Files Modified
+File	Exact Reason
+18. Files Created
+
+List or NONE.
+
+19. Personalization Tests
+
+Report exact total passed/failed.
+
+20. Navigation Regression
+
+Report exact command/result.
+
+21. Auth Regression
+
+Report exact command/result.
+
+22. Notes / MCQ Metadata Regression
+
+Report exact command/result.
+
+23. AI MCQ Regression
+
+Report.
+
+24. AI Flashcard Regression
+
+Report.
+
+25. Lecture Personalization Regression
+
+Report.
+
+26. Calendar Personalization Regression
+
+Report.
+
+27. MCQ / Flashcard Personalization Regression
+
+Report.
+
+28. Presentation Regression
+
+Report.
+
+29. Studio Regression
+
+Report.
+
+30. Theme Engine Regression
+
+Report.
+
+31. Build
+
+Report.
+
+32. TypeScript
+
+Report targeted result and known full-project baseline.
+
+33. ESLint
+
+Report targeted result and unrelated baseline separately.
+
+34. PDF Baseline
+
+Report exact run result or state NOT RUN.
+
+35. Provider / Contract Integrity
+
+Confirm unchanged.
+
+36. Theme / Hero / Glass Integrity
+
+Confirm unchanged.
+
+37. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+38. Future Feature Safety
+
+Confirm:
+
+Home subjectOrder remains unwired.
+App Icons remain unimplemented.
+
+39. Git Diff Summary
+
+Report exact files/stat.
+
+Confirm:
+
+git diff --check: PASS
+
+40. .agents/* Verification
+
+Report:
+
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+41. Prompt 18 Readiness
+
+If everything passes, state exactly:
+
+MOTION STYLE CUSTOMIZATION: CLOSED AND APPROVED
+
+READING SIZE CUSTOMIZATION: CLOSED AND APPROVED
+
+app_text_scale × READING SIZE COMPOSITION: VERIFIED
+
+SYSTEM REDUCED-MOTION PRECEDENCE: VERIFIED
+
+MY 99 FIVE-FIELD DRAFT/APPLY WORKFLOW: VERIFIED
+
+HOME SUBJECT ORDER CUSTOMIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 4 PROMPT 17B STATUS: COMPLETE — READY FOR PROMPT 18
+
+or:
+
+PERSONALIZATION PHASE 4 PROMPT 17B STATUS: BLOCKED — REPAIR REQUIRED
