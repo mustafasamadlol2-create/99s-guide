@@ -72,7 +72,7 @@ export interface PersonalizationConfigV1 {
   motionStyle: MotionStyle;
   readingSize: ReadingSize;
   home: {
-    subjectOrder: SubjectId[];
+    readonly subjectOrder: readonly SubjectId[];
   };
 }
 
@@ -90,7 +90,16 @@ export type PersonalizationValidationResult =
   | PersonalizationValidationSuccess
   | PersonalizationValidationFailure;
 
-const CLASSIC_99_SUBJECT_ORDER: SubjectId[] = [...PERSONALIZATION_SUBJECT_IDS];
+/**
+ * Accessibility is a higher-priority contract than personalization:
+ * prefers-reduced-motion must override motionStyle = "full", and reduced
+ * transparency must override any user-selected glassStyle. Runtime handling
+ * belongs to a later integration phase.
+ */
+
+export const MAX_PERSONALIZATION_PAYLOAD_BYTES = 16 * 1024;
+
+const CLASSIC_99_SUBJECT_ORDER: readonly SubjectId[] = PERSONALIZATION_SUBJECT_IDS;
 
 type DeepReadonly<T> = T extends readonly (infer U)[]
   ? readonly DeepReadonly<U>[]
@@ -98,7 +107,7 @@ type DeepReadonly<T> = T extends readonly (infer U)[]
     ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
     : T;
 
-export const DEFAULT_PERSONALIZATION_CONFIG: DeepReadonly<PersonalizationConfigV1> =
+export const DEFAULT_PERSONALIZATION_V1: DeepReadonly<PersonalizationConfigV1> =
   Object.freeze({
     version: PERSONALIZATION_VERSION,
     themeId: "classic-99",
@@ -110,6 +119,9 @@ export const DEFAULT_PERSONALIZATION_CONFIG: DeepReadonly<PersonalizationConfigV
       subjectOrder: Object.freeze([...CLASSIC_99_SUBJECT_ORDER]),
     }),
   });
+
+// Compatibility alias for callers using the original Phase 1 name.
+export const DEFAULT_PERSONALIZATION_CONFIG = DEFAULT_PERSONALIZATION_V1;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -129,6 +141,52 @@ function hasOnlyKeys(
   return Object.keys(value).every((key) => allowedKeys.includes(key));
 }
 
+function utf8ByteLength(value: string): number {
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(value).byteLength;
+  }
+
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    let codePoint = value.charCodeAt(index);
+    if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (next - 0xdc00);
+        index += 1;
+      } else {
+        codePoint = 0xfffd;
+      }
+    } else if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
+      codePoint = 0xfffd;
+    }
+
+    if (codePoint <= 0x7f) byteLength += 1;
+    else if (codePoint <= 0x7ff) byteLength += 2;
+    else if (codePoint <= 0xffff) byteLength += 3;
+    else byteLength += 4;
+  }
+  return byteLength;
+}
+
+/**
+ * Returns the UTF-8 byte size of a JSON-serializable payload. A null result
+ * means the value could not be serialized safely.
+ */
+export function personalizationPayloadByteLength(value: unknown): number | null {
+  try {
+    const serialized = typeof value === "string" ? value : JSON.stringify(value);
+    return serialized === undefined ? null : utf8ByteLength(serialized);
+  } catch {
+    return null;
+  }
+}
+
+export function isPersonalizationPayloadWithinLimit(value: unknown): boolean {
+  const byteLength = personalizationPayloadByteLength(value);
+  return byteLength !== null && byteLength <= MAX_PERSONALIZATION_PAYLOAD_BYTES;
+}
+
 function isCompleteSubjectOrder(value: unknown): value is SubjectId[] {
   if (!Array.isArray(value) || value.length !== PERSONALIZATION_SUBJECT_IDS.length) {
     return false;
@@ -144,16 +202,29 @@ function isCompleteSubjectOrder(value: unknown): value is SubjectId[] {
   });
 }
 
+function hasValidV1Fields(value: Record<string, unknown>): boolean {
+  return (
+    value.version === PERSONALIZATION_VERSION &&
+    isOneOf(PERSONALIZATION_THEME_IDS, value.themeId) &&
+    isOneOf(PERSONALIZATION_HERO_STYLES, value.heroStyle) &&
+    isOneOf(PERSONALIZATION_GLASS_STYLES, value.glassStyle) &&
+    isOneOf(PERSONALIZATION_MOTION_STYLES, value.motionStyle) &&
+    isOneOf(PERSONALIZATION_READING_SIZES, value.readingSize) &&
+    isRecord(value.home) &&
+    isCompleteSubjectOrder(value.home.subjectOrder)
+  );
+}
+
 function cloneDefaultPersonalization(): PersonalizationConfigV1 {
   return {
-    version: DEFAULT_PERSONALIZATION_CONFIG.version,
-    themeId: DEFAULT_PERSONALIZATION_CONFIG.themeId,
-    heroStyle: DEFAULT_PERSONALIZATION_CONFIG.heroStyle,
-    glassStyle: DEFAULT_PERSONALIZATION_CONFIG.glassStyle,
-    motionStyle: DEFAULT_PERSONALIZATION_CONFIG.motionStyle,
-    readingSize: DEFAULT_PERSONALIZATION_CONFIG.readingSize,
+    version: DEFAULT_PERSONALIZATION_V1.version,
+    themeId: DEFAULT_PERSONALIZATION_V1.themeId,
+    heroStyle: DEFAULT_PERSONALIZATION_V1.heroStyle,
+    glassStyle: DEFAULT_PERSONALIZATION_V1.glassStyle,
+    motionStyle: DEFAULT_PERSONALIZATION_V1.motionStyle,
+    readingSize: DEFAULT_PERSONALIZATION_V1.readingSize,
     home: {
-      subjectOrder: [...DEFAULT_PERSONALIZATION_CONFIG.home.subjectOrder],
+      subjectOrder: [...DEFAULT_PERSONALIZATION_V1.home.subjectOrder],
     },
   };
 }
@@ -188,6 +259,11 @@ export function validatePersonalizationConfig(
 
   if (!hasOnlyKeys(value, topLevelKeys)) {
     errors.push("Personalization config contains unknown fields.");
+  }
+  if (!isPersonalizationPayloadWithinLimit(value)) {
+    errors.push(
+      `Personalization payload must be at most ${MAX_PERSONALIZATION_PAYLOAD_BYTES} UTF-8 bytes.`,
+    );
   }
   if (value.version !== PERSONALIZATION_VERSION) {
     errors.push(`Personalization config version must be ${PERSONALIZATION_VERSION}.`);
@@ -248,33 +324,25 @@ export function isPersonalizationConfigV1(
 /**
  * Normalizes untrusted input into a complete safe V1 document.
  *
- * Invalid fields fall back independently. Subject order is all-or-nothing:
- * only a complete valid permutation is accepted.
+ * A complete valid V1 document is copied while irrelevant unknown keys are
+ * stripped. Any invalid or unsupported V1 input falls back to Classic 99.
+ * Subject order is all-or-nothing: only a complete valid permutation is
+ * accepted.
  */
 export function normalizePersonalizationConfig(
   value: unknown,
 ): PersonalizationConfigV1 {
   const fallback = cloneDefaultPersonalization();
-  if (!isRecord(value)) return fallback;
+  if (!isRecord(value) || !hasValidV1Fields(value)) return fallback;
 
-  const home = isRecord(value.home) ? value.home : {};
+  const home = value.home as { subjectOrder: SubjectId[] };
   return {
     version: PERSONALIZATION_VERSION,
-    themeId: isOneOf(PERSONALIZATION_THEME_IDS, value.themeId)
-      ? value.themeId
-      : fallback.themeId,
-    heroStyle: isOneOf(PERSONALIZATION_HERO_STYLES, value.heroStyle)
-      ? value.heroStyle
-      : fallback.heroStyle,
-    glassStyle: isOneOf(PERSONALIZATION_GLASS_STYLES, value.glassStyle)
-      ? value.glassStyle
-      : fallback.glassStyle,
-    motionStyle: isOneOf(PERSONALIZATION_MOTION_STYLES, value.motionStyle)
-      ? value.motionStyle
-      : fallback.motionStyle,
-    readingSize: isOneOf(PERSONALIZATION_READING_SIZES, value.readingSize)
-      ? value.readingSize
-      : fallback.readingSize,
+    themeId: value.themeId as ThemeId,
+    heroStyle: value.heroStyle as HeroStyle,
+    glassStyle: value.glassStyle as GlassStyle,
+    motionStyle: value.motionStyle as MotionStyle,
+    readingSize: value.readingSize as ReadingSize,
     home: {
       subjectOrder: normalizeSubjectOrder(home.subjectOrder),
     },
