@@ -1,111 +1,55 @@
 /**
- * Classic 99 semantic token contract.
+ * Classic 99 semantic token metadata.
  *
- * Prompt 5 deliberately defines one production baseline only. The alternate
- * theme IDs remain part of the V1 personalization contract, but they do not
- * receive visual token values here.
+ * CSS is the only source of actual render values. This module deliberately
+ * contains names, categories, and implementation metadata only so a future
+ * theme engine cannot drift from the stylesheet by maintaining a second
+ * palette in TypeScript.
  */
 
-export type Classic99Appearance = "light" | "dark";
+export const IMPLEMENTED_THEME_IDS = ["classic-99"] as const;
+export type ImplementedThemeId = (typeof IMPLEMENTED_THEME_IDS)[number];
 
-export interface Classic99SemanticTokens {
-  backgroundPage: string;
-  backgroundGrouped: string;
-  surfacePrimary: string;
-  surfaceElevated: string;
-  surfaceMuted: string;
-  contentPrimary: string;
-  contentSecondary: string;
-  contentSubtle: string;
-  borderDefault: string;
-  borderStrong: string;
-  actionAccent: string;
-  actionAccentSoft: string;
-  focusRing: string;
-  navigationActiveBackground: string;
-  navigationActiveForeground: string;
-  glassSurface: string;
-  glassBorder: string;
-  genericShadow: string;
-  heroBackground: string;
-  heroGlowPrimary: string;
-  heroGlowSecondary: string;
-}
+export const THEMEABLE_TOKEN_NAMES = [
+  "semantic-background-page",
+  "semantic-background-grouped",
+  "semantic-surface-primary",
+  "semantic-surface-elevated",
+  "semantic-surface-muted",
+  "semantic-content-primary",
+  "semantic-content-secondary",
+  "semantic-content-subtle",
+  "semantic-border-default",
+  "semantic-border-strong",
+  "semantic-action-accent",
+  "semantic-action-accent-soft",
+  "semantic-focus-ring",
+  "semantic-navigation-active-background",
+  "semantic-navigation-active-foreground",
+  "semantic-glass-surface",
+  "semantic-glass-border",
+  "semantic-shadow-generic",
+  "semantic-hero-background",
+  "semantic-hero-glow-primary",
+  "semantic-hero-glow-secondary",
+] as const;
+
+export type ThemeableTokenName = (typeof THEMEABLE_TOKEN_NAMES)[number];
 
 /**
- * These values are intentionally explicit rather than derived from a future
- * theme palette. They document the current Classic 99 light/dark appearance
- * that the CSS semantic variables expose.
+ * These roles are intentionally outside the appearance token list. They
+ * retain status/domain meaning and must not be derived from a future theme
+ * accent.
  */
-export const CLASSIC_99_SEMANTIC_TOKENS: Readonly<
-  Record<Classic99Appearance, Classic99SemanticTokens>
-> = Object.freeze({
-  light: Object.freeze({
-    backgroundPage: "#fafafa",
-    backgroundGrouped: "#eef0f5",
-    surfacePrimary: "#fbfbfd",
-    surfaceElevated: "#ffffff",
-    surfaceMuted: "#e5e5ea",
-    contentPrimary: "#1c1c1e",
-    contentSecondary: "#8e8e93",
-    contentSubtle: "rgba(60, 60, 67, 0.6)",
-    borderDefault: "rgba(0, 0, 0, 0.04)",
-    borderStrong: "rgba(0, 0, 0, 0.08)",
-    actionAccent: "#007aff",
-    actionAccentSoft: "rgba(0, 122, 255, 0.1)",
-    focusRing: "#007aff",
-    navigationActiveBackground: "rgba(229, 229, 234, 0.8)",
-    navigationActiveForeground: "#1c1c1e",
-    glassSurface: "rgba(255, 255, 255, 0.6)",
-    glassBorder: "rgba(0, 0, 0, 0.05)",
-    genericShadow:
-      "0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.02)",
-    heroBackground: "#05070b",
-    heroGlowPrimary: "rgba(30, 58, 110, 0.52)",
-    heroGlowSecondary: "rgba(180, 120, 30, 0.26)",
-  }),
-  dark: Object.freeze({
-    backgroundPage: "#000000",
-    backgroundGrouped: "#000000",
-    surfacePrimary: "#000000",
-    surfaceElevated: "#1c1c1e",
-    surfaceMuted: "#2c2c2e",
-    contentPrimary: "#ffffff",
-    contentSecondary: "rgba(235, 235, 245, 0.72)",
-    contentSubtle: "rgba(235, 235, 245, 0.46)",
-    borderDefault: "rgba(255, 255, 255, 0.06)",
-    borderStrong: "rgba(255, 255, 255, 0.12)",
-    actionAccent: "#007aff",
-    actionAccentSoft: "rgba(0, 122, 255, 0.1)",
-    focusRing: "#007aff",
-    navigationActiveBackground: "rgba(255, 255, 255, 0.12)",
-    navigationActiveForeground: "#ffffff",
-    glassSurface: "rgba(34, 34, 36, 0.55)",
-    glassBorder: "rgba(255, 255, 255, 0.05)",
-    genericShadow: "0 1px 4px rgba(0, 0, 0, 0.3)",
-    heroBackground: "#05070b",
-    heroGlowPrimary: "rgba(30, 58, 110, 0.52)",
-    heroGlowSecondary: "rgba(180, 120, 30, 0.26)",
-  }),
-});
+export const FIXED_SEMANTIC_TOKEN_NAMES = [
+  "status-error",
+  "status-success",
+  "status-warning",
+  "status-offline",
+  "status-online",
+  "action-destructive",
+  "validation-error",
+] as const;
 
-/**
- * Fixed semantic colors are intentionally outside the appearance map. Future
- * theme implementations must not override these status or domain meanings.
- */
-export const CLASSIC_99_FIXED_SEMANTIC_TOKENS = Object.freeze({
-  statusError: "#ff3b30",
-  statusSuccess: "#34c759",
-  statusWarning: "#ff9500",
-  statusOffline: "#8e8e93",
-  statusOnline: "#34c759",
-  actionDestructive: "#ff3b30",
-  validationError: "#ff3b30",
-  domainAcademicGold: "#d4af37",
-});
-
-export function getClassic99SemanticTokens(
-  appearance: Classic99Appearance,
-): Classic99SemanticTokens {
-  return CLASSIC_99_SEMANTIC_TOKENS[appearance];
-}
+export type FixedSemanticTokenName =
+  (typeof FIXED_SEMANTIC_TOKEN_NAMES)[number];
