@@ -20,6 +20,7 @@ import { accountStorageKey, clearAccountData, getActiveAccountId, setActiveAccou
 import { useDeviceProfile } from "./core/hooks/useDeviceProfile";
 import { useUserPreferences } from "./core/hooks/useUserPreferences";
 import { NativeBridge } from "./core/device/capacitor/nativeBridge";
+import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import {
   Home,
   BookOpen,
@@ -5945,12 +5946,13 @@ const handleSignOut = useCallback(async () => {
   };
 
   return (
-    <div
-      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
-      style={{
-        fontSize: `${textScale}rem`,
-      }}
-    >
+    <PersonalizationProvider key={currentUser.id} userId={currentUser.id}>
+      <div
+        className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
+        style={{
+          fontSize: `${textScale}rem`,
+        }}
+      >
       {/* Stable viewport host for iPhone pushed pages. It is intentionally a
           direct child of the app shell, outside the transformed scroll canvas. */}
       <div id="phone-viewport-page-portal" className="contents" />
@@ -7240,6 +7242,7 @@ const handleSignOut = useCallback(async () => {
           </motion.div>
         )}
       </>
-    </div>
+      </div>
+    </PersonalizationProvider>
   );
 }
