@@ -19,6 +19,10 @@ function effectiveScale(appTextScale: number, readingScale: number): number {
   return appTextScale * readingScale;
 }
 
+function assertNearlyEqual(actual: number, expected: number): void {
+  assert.ok(Math.abs(actual - expected) < Number.EPSILON * 8);
+}
+
 test("app_text_scale architecture is preserved and exposed to Reading CSS", () => {
   assert.match(app, /localStorage\.getItem\("app_text_scale"\)/);
   assert.match(app, /saved \? parseFloat\(saved\) : 1\.0/);
@@ -31,10 +35,10 @@ test("app_text_scale architecture is preserved and exposed to Reading CSS", () =
 test("Reading Size composes with actual numeric app_text_scale values", () => {
   const appTextScale = 1.1;
 
-  assert.equal(effectiveScale(1, READING_SCALE.large), 1.1);
-  assert.equal(effectiveScale(appTextScale, READING_SCALE.default), 1.1);
-  assert.equal(effectiveScale(appTextScale, READING_SCALE.large), 1.21);
-  assert.equal(effectiveScale(appTextScale, READING_SCALE.small), 1.034);
+  assertNearlyEqual(effectiveScale(1, READING_SCALE.large), 1.1);
+  assertNearlyEqual(effectiveScale(appTextScale, READING_SCALE.default), 1.1);
+  assertNearlyEqual(effectiveScale(appTextScale, READING_SCALE.large), 1.21);
+  assertNearlyEqual(effectiveScale(appTextScale, READING_SCALE.small), 1.034);
   assert.ok(
     effectiveScale(appTextScale, READING_SCALE.large) >
       effectiveScale(appTextScale, READING_SCALE.default),
