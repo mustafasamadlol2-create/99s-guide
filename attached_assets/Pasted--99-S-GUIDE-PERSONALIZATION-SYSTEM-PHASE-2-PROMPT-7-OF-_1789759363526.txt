@@ -1,0 +1,1838 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 2 / PROMPT 7 OF ~22
+## LOW-RISK FEATURE-SURFACE CLASSIC 99 TOKENIZATION
+### Settings + Profile Shell + Notifications Shell + Safe Module Detail Surfaces
+### CLASSIC 99 PARITY ONLY
+### NO ALTERNATE THEMES YET
+
+Phase 0 is APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 / Prompt 5B:
+CLASSIC 99 TOKEN FOUNDATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 6B:
+CORE CHROME CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+The application now has:
+
+- semantic Classic 99 token infrastructure
+- exact Light/Dark Classic values
+- semantic core chrome
+- tokenized App canvas
+- tokenized Sidebar generic presentation
+- tokenized bottom navigation generic presentation
+- tokenized generic shell/header chrome
+- fixed semantic/domain colors isolated
+- stable PersonalizationProvider
+- no alternate theme rendering
+- no KV
+- no SQL personalization
+
+We are now extending Classic 99 semantic-token usage into a SMALL SET OF LOW-RISK FEATURE SURFACES.
+
+The goal remains:
+
+BEFORE
+=
+AFTER
+=
+CLASSIC 99
+
+This is NOT a redesign.
+
+---
+
+# 1. PRIMARY SCOPE
+
+Prompt 7 may token-convert generic presentation surfaces in these areas only:
+
+1. Settings
+2. Profile shell
+3. Notifications shell
+4. Safe generic Module-detail page surfaces
+
+Only generic PRESENTATION colors may move to semantic tokens.
+
+No product functionality changes.
+
+---
+
+# 2. ABSOLUTE VISUAL PARITY RULE
+
+Every migrated value must preserve its current production result exactly in:
+
+- Light
+- Dark
+
+Do NOT approximate.
+
+Do NOT "improve" inconsistent colors.
+
+Do NOT normalize similar colors merely because they look close.
+
+If no existing semantic token maps exactly:
+
+LEAVE THE VALUE UNCHANGED
+
+or add a narrowly justified Classic semantic token only if absolutely necessary.
+
+Precision is more important than coverage.
+
+---
+
+# 3. NO ALTERNATE THEMES
+
+Still do NOT visually implement:
+
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Only Classic 99 has real visual values.
+
+Do not wire `committed.themeId`.
+
+---
+
+# 4. PERSONALIZATION PROVIDER REMAINS VISUALLY INERT
+
+Do NOT add runtime styling based on:
+
+- committed.themeId
+- draft.themeId
+- heroStyle
+- glassStyle
+- motionStyle
+- readingSize
+- home.subjectOrder
+
+No DOM theme attribute.
+
+No class switching.
+
+No CSS variable writes from JavaScript.
+
+No theme-driven remount.
+
+---
+
+# 5. SETTINGS SCOPE
+
+Audit the actual Settings implementation first.
+
+Expected primary file may include:
+
+src/features/settings/components/SettingsView.tsx
+
+and directly related Settings subviews/components.
+
+Tokenize only GENERIC presentation such as:
+
+- page surface
+- grouped surface
+- cards
+- generic primary text
+- generic secondary text
+- subtle descriptions
+- neutral borders
+- generic icon surfaces
+- generic chevrons
+- generic separators
+- generic nonsemantic selected state
+- generic focus state
+
+Do NOT modify Settings functionality.
+
+---
+
+# 6. SETTINGS — DO NOT TOUCH
+
+Do NOT alter:
+
+- Appearance Light/Dark/System behavior
+- language behavior
+- push/academic alert behavior
+- privacy navigation
+- security navigation
+- support links
+- medical disclaimer
+- blocked users navigation
+- report navigation
+- account deletion
+- logout
+- user preference API behavior
+- route/back behavior
+
+No My 99 UI yet.
+
+---
+
+# 7. SETTINGS APPEARANCE CONTROL
+
+The existing appearance selector is NOT the future Theme Pack selector.
+
+Preserve:
+
+Light
+Dark
+Auto/System
+
+exactly.
+
+You may token-convert generic neutral surface/text of the existing selector if parity is exact.
+
+Do NOT alter:
+
+app_theme
+useUserPreferences
+html.dark
+matchMedia
+
+Do NOT add theme-pack options here yet.
+
+---
+
+# 8. SETTINGS DESTRUCTIVE ZONE
+
+Account deletion / destructive settings must remain FIXED destructive semantics.
+
+Do NOT convert destructive red into:
+
+semantic action accent
+navigation active
+theme pack accent
+
+Use existing destructive styling or approved fixed destructive token.
+
+Future Ocean/Emerald/etc must never recolor Delete Account as a normal themed action.
+
+---
+
+# 9. SETTINGS STATUS / TOGGLE SAFETY
+
+If toggles or status controls use colors that convey:
+
+enabled
+disabled
+warning
+error
+success
+
+classify them before migration.
+
+Do not assume every blue/green/gray color is generic.
+
+If meaning is ambiguous:
+
+leave it unchanged.
+
+---
+
+# 10. PROFILE SCOPE
+
+Audit current Profile components.
+
+Tokenize only generic Profile shell presentation:
+
+- page background
+- generic cards
+- generic borders
+- neutral text
+- secondary/subtle text
+- generic buttons
+- neutral separators
+- generic header surfaces
+- generic icon buttons
+- generic accent ring ONLY if it is truly a presentation accent and exact parity is available
+
+Do not redesign the Profile.
+
+---
+
+# 11. PROFILE — DO NOT TOUCH
+
+Do NOT alter:
+
+- avatar behavior
+- image upload
+- user name
+- email
+- academic group
+- signature behavior
+- admin/owner information
+- role semantics
+- points
+- report access
+- blocked-user access
+- edit behavior
+- profile persistence
+- auth/account logic
+
+No new customization controls inside Profile.
+
+---
+
+# 12. PROFILE ROLE COLORS
+
+Owner/Admin/User badges or labels may convey role identity.
+
+Do NOT replace them with generic theme accent unless repository semantics prove they are purely decorative.
+
+Preserve role-specific colors.
+
+---
+
+# 13. PROFILE SIGNATURE
+
+Do NOT alter:
+
+- signature alignment
+- Arabic/LTR handling
+- signature content
+- signature position
+- signature persistence
+
+Only surrounding generic surfaces may be tokenized.
+
+---
+
+# 14. PROFILE AVATAR / STATUS
+
+Do not alter functional:
+
+- online indicators
+- status indicators
+- avatar fallback identity colors
+
+unless a surrounding neutral border/surface is clearly generic.
+
+Status meanings remain fixed.
+
+---
+
+# 15. NOTIFICATIONS SCOPE
+
+Audit the actual Notifications page/shell.
+
+Tokenize generic presentation only:
+
+- page background
+- card/list-row neutral surfaces
+- generic text
+- secondary timestamps/text
+- neutral borders/separators
+- generic headers
+- generic icon-button chrome
+- generic All/Unread tab chrome ONLY if the color is presentational rather than semantic
+
+Do not alter notification functionality.
+
+---
+
+# 16. NOTIFICATIONS — CRITICAL BEHAVIOR FREEZE
+
+Do NOT change:
+
+- All / Unread state logic
+- swipe between All/Unread
+- tab synchronization
+- read/unread logic
+- mark-read behavior
+- delete behavior
+- notification filtering
+- group targeting
+- local notification storage
+- notification cleanup
+- native notification behavior
+- scroll behavior
+- mobile full-page behavior
+- back swipe restrictions
+- header-only swipe-back behavior
+- page-stack behavior
+
+This page has historical gesture fixes.
+
+COLOR/TOKEN ONLY.
+
+---
+
+# 17. READ / UNREAD VISUAL SEMANTICS
+
+Audit unread styling carefully.
+
+An unread dot/badge/highlight may encode state.
+
+Do NOT blindly convert it to a generic theme accent.
+
+Classify:
+
+A. generic selected presentation
+or
+B. semantic unread-state indication
+
+If it is state-significant, preserve its existing semantics for now.
+
+Prompt 7 does not need to decide whether unread markers become theme-responsive later.
+
+When uncertain:
+
+defer.
+
+---
+
+# 18. NOTIFICATION TYPE COLORS
+
+If notification types use colors to indicate:
+
+- warning
+- success
+- important
+- admin
+- error
+- category
+
+do NOT convert them into generic theme tokens.
+
+Only neutral shell presentation is in scope.
+
+---
+
+# 19. NOTIFICATION BADGES
+
+Preserve notification count/unread badges where their red/rose coloring conveys attention/state.
+
+Do NOT turn them into generic theme accent.
+
+---
+
+# 20. NOTIFICATION SWIPE ACTIONS
+
+Delete/archive/read swipe actions are behavior-sensitive.
+
+Do not change:
+
+- action geometry
+- gesture threshold
+- direction
+- animation
+- action meaning
+
+Do not recolor destructive swipe action to theme accent.
+
+---
+
+# 21. BLOCKED USERS / MY REPORTS
+
+These are Settings-related pages but historically have custom mobile page behavior.
+
+Do NOT automatically expand scope into them.
+
+Only touch them if:
+
+- they share the exact same safe generic surface component
+- changing that shared token source has exact parity
+
+Do not individually refactor them unless necessary.
+
+Report whether they were affected indirectly.
+
+---
+
+# 22. MODULE DETAIL SCOPE
+
+Audit current Module detail pages for the seven canonical modules:
+
+- CA
+- ID
+- RM
+- NT
+- ImD
+- PHC
+- SSC
+
+Prompt 7 may token-convert only GENERIC surrounding surfaces such as:
+
+- page canvas
+- generic content card surface
+- neutral border
+- generic primary/secondary text
+- neutral separators
+- generic resource-section surrounding shell
+
+ONLY where this does not interfere with module identity.
+
+---
+
+# 23. MODULE IDENTITY IS SACROSANCT
+
+Do NOT change:
+
+src/features/modules/moduleVisuals.ts
+
+unless absolutely required only for importing a generic neutral token, which is not expected.
+
+Do NOT alter:
+
+- module accent colors
+- artwork
+- gradients
+- icon identity
+- module title identity treatment
+- module-specific RGB values
+- module semantic colors
+
+A student selecting Emerald theme later must still distinguish the seven module identities.
+
+---
+
+# 24. MODULE CONTENT
+
+Do NOT alter:
+
+- module names
+- credits
+- goals
+- content
+- lectures
+- resources
+- PDFs
+- resource titles
+- resource opening
+- upload/delete
+- server calls
+
+Presentation tokenization only.
+
+---
+
+# 25. MODULE RESOURCE SAFETY
+
+Module Resources are a recently implemented production feature.
+
+Do NOT change:
+
+- resource API
+- upload flow
+- R2 presign
+- multipart upload
+- progress
+- retries
+- delete
+- signed-open flow
+- resource IDs
+- ModuleResource database behavior
+- status handling
+
+Only generic neutral outer card/surface presentation may be tokenized if exact.
+
+---
+
+# 26. MODULE RESOURCE STATUS
+
+If READY/PENDING/error states use semantic colors:
+
+do not replace them with generic theme colors.
+
+---
+
+# 27. MODULE DETAIL NAVIGATION BAR
+
+There were previous iPad-sensitive fixes around Lecture detail navigation/tab bars.
+
+Do NOT use Prompt 7 to refactor or resize these.
+
+If a Module detail top bar is shared with high-risk lecture navigation:
+
+leave it unchanged unless migration is literally an exact color variable substitution with zero geometry impact.
+
+---
+
+# 28. NO LECTURE DETAIL TOKENIZATION
+
+Do NOT broadly modify:
+
+LectureDetailView.tsx
+
+in Prompt 7.
+
+That file contains:
+
+- PDF
+- Notes
+- MCQ
+- Anki/Flashcards
+- Video
+- Q&A
+- subject identity
+- progress/review semantics
+
+It receives later dedicated work.
+
+---
+
+# 29. NO MCQ TOKENIZATION
+
+Do NOT modify MCQ-specific components or colors.
+
+Preserve:
+
+Easy
+Normal
+Hard
+Correct
+Incorrect
+answer selection
+categories
+difficulty badges
+
+---
+
+# 30. NO FLASHCARD TOKENIZATION
+
+Do not modify Flashcard identity or state visuals.
+
+---
+
+# 31. NO CALENDAR TOKENIZATION
+
+Calendar remains completely out of scope for Prompt 7.
+
+No:
+
+event colors
+today color
+week/day/month tabs
+calendar pager surfaces
+
+unless a truly global root semantic token affects it indirectly with exact existing parity.
+
+No direct Calendar edits.
+
+---
+
+# 32. NO HOME TOKENIZATION
+
+Do NOT directly modify HomeDashboard in Prompt 7.
+
+Home/Hero receive dedicated work.
+
+---
+
+# 33. NO AUTH TOKENIZATION
+
+Do NOT modify Auth pages.
+
+Initial paint/Auth/LaunchScreen will receive separate handling.
+
+---
+
+# 34. NO CONSOLE FEATURE TOKENIZATION
+
+Console remains out of direct Prompt 7 scope.
+
+Core global tokens from Prompt 6 may already affect generic shell.
+
+Do not directly refactor Console feature surfaces yet.
+
+---
+
+# 35. REUSE APPROVED TOKENS FIRST
+
+Before creating any token, try existing approved roles:
+
+- semantic-background-page
+- semantic-background-grouped
+- semantic-surface-primary
+- semantic-surface-elevated
+- semantic-surface-muted
+- semantic-content-primary
+- semantic-content-secondary
+- semantic-content-subtle
+- semantic-chrome-content-primary
+- semantic-chrome-content-secondary
+- semantic-chrome-content-subtle
+- semantic-chrome-content-muted
+- semantic-border-default
+- semantic-border-strong
+- semantic-action-accent
+- semantic-action-accent-soft
+- semantic-focus-ring
+- semantic-chrome-surface-active
+- semantic-chrome-surface-hover
+- semantic-navigation-tab-active
+- semantic-navigation-tab-inactive
+- semantic-glass-surface
+- semantic-glass-border
+
+Use exact actual names from source.
+
+---
+
+# 36. DO NOT FORCE A WRONG TOKEN
+
+Example:
+
+Existing Profile text:
+#525252
+
+Approved secondary:
+#8e8e93
+
+These are NOT equivalent.
+
+Do not substitute just because both are "secondary."
+
+Use an exact compatible chrome token if semantically appropriate, or defer.
+
+---
+
+# 37. NEW FEATURE-SURFACE TOKEN POLICY
+
+New semantic tokens may be added only when:
+
+1. The same generic visual role appears repeatedly.
+2. No existing approved token matches exact Light/Dark production values.
+3. The role is clearly themeable presentation.
+4. It is not semantic/domain identity.
+5. It will be useful across more than one isolated literal or there is strong architectural justification.
+
+Do not create a token for every hardcoded value.
+
+---
+
+# 38. TOKEN PROLIFERATION LIMIT
+
+If Prompt 7 would require more than approximately 8–10 genuinely new semantic token roles:
+
+STOP.
+
+Do not invent an enormous taxonomy.
+
+Report that the remaining values should stay deferred.
+
+Expected outcome should primarily REUSE existing Prompt 5/6 tokens.
+
+---
+
+# 39. SETTINGS CARD SURFACES
+
+Audit repeated Settings cards/groups.
+
+Where exact:
+
+use semantic surface tokens.
+
+Do not alter:
+
+radius
+shadow
+padding
+spacing
+group separators
+
+---
+
+# 40. PROFILE CARD SURFACES
+
+Same.
+
+Color source only.
+
+No card geometry changes.
+
+---
+
+# 41. NOTIFICATION ROW SURFACES
+
+Same.
+
+Do not change row height or list behavior.
+
+---
+
+# 42. MODULE GENERIC CARDS
+
+Same.
+
+Preserve module-specific accents layered above/around them.
+
+---
+
+# 43. BUTTONS
+
+Tokenize only generic neutral/primary actions.
+
+Do not token-convert:
+
+- Delete
+- Block
+- Report
+- Ban
+- Unban
+- destructive resource delete
+- warning actions
+- success actions
+
+to generic app accent.
+
+---
+
+# 44. CHEVRONS / ICONS
+
+Neutral navigation chevrons/icons may use generic secondary/subtle tokens if exact.
+
+Do not alter:
+
+- directional transform
+- RTL logic
+- icon size
+- icon identity
+
+---
+
+# 45. SEPARATORS
+
+Generic separators may use exact semantic border tokens.
+
+If existing opacity differs:
+
+leave unchanged.
+
+Do not visually thicken or darken separators.
+
+---
+
+# 46. GLASS
+
+Prompt 7 may reuse the current Classic glass semantic tokens only where the feature surface already uses that exact glass value.
+
+Do NOT wire:
+
+glassStyle
+
+No change to blur/saturation/backdrop filter.
+
+---
+
+# 47. FOCUS
+
+Generic focus may use semantic focus ring.
+
+Validation/destructive focus remains fixed.
+
+No keyboard behavior changes.
+
+---
+
+# 48. LIGHT MODE PARITY
+
+For every migrated value record:
+
+previous Light source
+→ semantic token
+→ resolved Classic Light value
+
+Must be exact.
+
+---
+
+# 49. DARK MODE PARITY
+
+Same for Dark.
+
+---
+
+# 50. SYSTEM MODE
+
+No new System handling.
+
+Current:
+
+app_theme
+→ prefers-color-scheme
+→ html.dark
+→ semantic tokens
+
+remains unchanged.
+
+---
+
+# 51. RTL
+
+No direction/layout changes.
+
+Especially verify:
+
+Settings rows
+Profile rows
+Notifications tabs
+Module cards
+
+No changes to:
+
+flex direction
+text alignment
+chevrons
+margins
+padding
+swipe direction
+
+Color/token only.
+
+---
+
+# 52. MOBILE FULL-PAGE SETTINGS/NOTIFICATIONS
+
+Do not change the existing mobile full-page architecture.
+
+No:
+
+background layering changes that affect opacity
+fixed positioning changes
+height changes
+safe-area changes
+z-index changes
+
+Token substitutions must preserve opaque/stack behavior.
+
+This is important because these pages previously had swipe/back layering issues.
+
+---
+
+# 53. SWIPE-BACK SAFETY
+
+Prompt 7 must not touch:
+
+useSwipeBack
+gesture handlers
+drag controls
+pointer capture
+route transition state
+
+No gesture code edits.
+
+---
+
+# 54. PROFILE SCROLL SAFETY
+
+There was previous Profile scroll-reset work.
+
+Do NOT touch:
+
+scroll restoration
+scroll container identity
+mount/unmount behavior
+
+---
+
+# 55. NOTIFICATIONS SWIPE SAFETY
+
+There was previous All/Unread swipe work.
+
+Do NOT touch:
+
+pager state
+touch tracking
+thresholds
+tab index
+animation
+
+---
+
+# 56. MODULE BOTTOM-SPACE SAFETY
+
+There was a previous Module-detail excessive bottom-scroll fix.
+
+Do NOT touch:
+
+absolute underlay architecture
+layout height ownership
+detail/overview stacking
+scroll container height
+
+Color/token substitutions only.
+
+---
+
+# 57. MODULE RESOURCE UPLOAD SAFETY
+
+Do NOT touch upload-related source unless a generic CSS class is shared and the exact change is visual-only.
+
+No XHR changes.
+No timeout changes.
+No CORS changes.
+No progress changes.
+
+---
+
+# 58. APPEARANCE SETTING IS DEVICE LOCAL
+
+Do not change account personalization contract.
+
+No `appearance` field.
+
+No synchronization.
+
+No migration of `app_theme`.
+
+---
+
+# 59. TEXT SCALE
+
+Do not consume `readingSize`.
+
+`app_text_scale` remains untouched.
+
+---
+
+# 60. HERO / MOTION / GLASS PREFERENCES
+
+All remain unwired.
+
+No behavior changes.
+
+---
+
+# 61. HOME SUBJECT ORDER
+
+Remains unwired.
+
+No Home changes.
+
+---
+
+# 62. APP ICON
+
+No app icon work.
+
+---
+
+# 63. NO KV
+
+No KV namespace.
+No Worker.
+No Render endpoint.
+No network sync.
+
+---
+
+# 64. NO SQL
+
+No Prisma.
+No migrations.
+No PostgreSQL personalization writes.
+
+---
+
+# 65. NO D1 / R2
+
+No D1.
+No R2.
+
+---
+
+# 66. NO AI
+
+No AI changes.
+
+---
+
+# 67. FILE SCOPE
+
+Target a small set of feature files.
+
+Expected candidates may include:
+
+Settings:
+src/features/settings/components/SettingsView.tsx
+
+Profile:
+actual current Profile view/components
+
+Notifications:
+actual current Notifications view/components
+
+Modules:
+actual current module-detail view/components
+
+plus:
+
+src/index.css
+src/features/personalization/classic99Tokens.ts
+tests
+
+ONLY if token additions/tests are required.
+
+Do not blindly use these names if repository differs.
+
+---
+
+# 68. MAXIMUM PRACTICAL SCOPE
+
+Aim for approximately:
+
+4–10 runtime files
+
+depending on component organization.
+
+If tokenization spreads into dozens of files:
+
+STOP and narrow scope.
+
+This is not a mass refactor.
+
+---
+
+# 69. APP.TSX
+
+Prompt 7 should ideally NOT modify App.tsx.
+
+Core shell work is already closed.
+
+If App.tsx appears necessary merely because it contains a feature shell:
+
+prefer leaving it for a later explicit prompt unless the change is trivially exact.
+
+No behavioral App.tsx changes are allowed.
+
+---
+
+# 70. INDEX.CSS
+
+Only add/reuse semantic aliases.
+
+No layout changes.
+No breakpoint changes.
+No animation changes.
+No global behavior changes.
+
+---
+
+# 71. CLASSIC99TOKENS.TS
+
+Metadata only.
+
+Do not reintroduce color values into TypeScript.
+
+If new themeable token names are added:
+
+add metadata only.
+
+CSS remains source of actual render values.
+
+---
+
+# 72. SOURCE CONTRACT TESTS
+
+Extend/add focused tests to assert that actual low-risk feature surfaces consume semantic tokens.
+
+Suggested coverage:
+
+Settings:
+- generic page/group surface
+- primary/secondary text
+- neutral border
+- destructive remains destructive
+
+Profile:
+- generic shell surface/text
+- role/status semantics remain independent
+
+Notifications:
+- generic shell/list text/surface
+- destructive swipe/action remains destructive
+- unread state not incorrectly genericized
+
+Modules:
+- generic neutral outer surface
+- moduleVisuals remains identity source
+- module identities do not resolve through theme accent
+
+Avoid brittle full-file snapshots.
+
+---
+
+# 73. NO HARD-CODED-COLOR BAN
+
+Do NOT require:
+
+"zero hex colors"
+
+in these features.
+
+Many literals legitimately remain because they are:
+
+semantic
+domain identity
+brand/decorative
+not yet safely classified
+
+Prompt 7 is selective.
+
+---
+
+# 74. DEFERRED VALUE REPORT
+
+For each feature, list important generic-looking colors you deliberately left unchanged because:
+
+- no exact token exists
+- semantic intent is unclear
+- it belongs to a higher-risk component
+- changing it could affect visual parity
+
+This is expected and healthy.
+
+---
+
+# 75. SETTINGS SAFETY TEST
+
+Where feasible verify source-level invariants:
+
+- Appearance control still references current theme preference behavior.
+- Delete Account still uses destructive semantics.
+- No My 99 section has been added.
+- No personalization runtime consumption has been added.
+
+---
+
+# 76. PROFILE SAFETY TEST
+
+Verify:
+
+- no profile data flow changed
+- no role behavior changed
+- no signature logic changed
+- no avatar logic changed
+
+Only presentation classes changed.
+
+---
+
+# 77. NOTIFICATIONS SAFETY TEST
+
+Verify:
+
+- All/Unread behavior source is unchanged
+- swipe handlers unchanged
+- read/unread logic unchanged
+- destructive action styling remains fixed
+
+---
+
+# 78. MODULE SAFETY TEST
+
+Verify:
+
+- `moduleVisuals.ts` unchanged
+- Module Resource APIs unchanged
+- module IDs unchanged
+- module resources routing/opening unchanged
+
+---
+
+# 79. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+---
+
+# 80. ALL PERSONALIZATION TESTS
+
+Run all:
+
+personalization.test.ts
+personalization-state.test.ts
+personalization-storage.test.ts
+personalization-runtime.test.tsx
+personalization-tokens.test.ts
+
+plus any new feature-surface test.
+
+Report total count.
+
+---
+
+# 81. NAVIGATION REGRESSION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Mandatory.
+
+---
+
+# 82. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+
+---
+
+# 83. MCQ REGRESSION
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+
+No MCQ changes expected.
+
+---
+
+# 84. NOTES REGRESSION
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+
+---
+
+# 85. AI REGRESSION
+
+Run:
+
+npm run test:ai-mcq
+npm run test:ai-flashcard
+
+---
+
+# 86. MODULE RESOURCE REGRESSION
+
+Search for existing Module Resource-focused tests.
+
+Run them if present.
+
+If no dedicated tests exist:
+
+perform source-level verification of:
+
+- API imports unchanged
+- upload flow unchanged
+- resource open/delete unchanged
+
+Report exact result.
+
+---
+
+# 87. NOTIFICATION TESTS
+
+If existing notification tests exist:
+
+run relevant focused suite.
+
+Do not create large new behavioral tests solely for color migration.
+
+---
+
+# 88. TYPESCRIPT / ESLINT
+
+Run targeted checks for touched TS/TSX files.
+
+Known baseline issues remain:
+
+- missing `.webp` module declarations in `moduleVisuals.ts`
+- unrelated project-wide lint issues
+- unrelated server/storage lint
+- SmoothAutoHeight warning
+
+Do not repair them.
+
+---
+
+# 89. VISUAL VERIFICATION
+
+Use available preview.
+
+If authenticated access is available, inspect at least:
+
+LIGHT:
+- Settings
+- Profile
+- Notifications
+- one Module detail
+
+DARK:
+- same where practical
+
+Check:
+
+- surfaces
+- text
+- separators
+- generic controls
+- semantic/destructive states
+
+If authenticated preview is unavailable:
+
+state so explicitly and rely on exact source parity + tests.
+
+Do not claim screens were visually verified if not opened.
+
+---
+
+# 90. IPHONE SAFETY
+
+Where preview/device exists:
+
+ensure full-page Settings/Notifications surface still covers correctly.
+
+Do not change geometry.
+
+---
+
+# 91. IPAD SAFETY
+
+Do not change:
+
+sidebar/main split geometry
+module detail heights
+top navigation dimensions
+safe areas
+
+Only visual token values.
+
+---
+
+# 92. DESKTOP SAFETY
+
+Do not change:
+
+sidebar
+page width
+scroll ownership
+hover geometry
+keyboard navigation
+
+---
+
+# 93. INITIAL PAINT
+
+Still untouched:
+
+public/theme-preload.js
+index.html
+LaunchScreen.tsx
+
+Known mismatch remains deferred.
+
+---
+
+# 94. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Review every Prompt 7 line.
+
+Separate pre-existing user files/input artifacts.
+
+No unrelated cleanup.
+
+---
+
+# 95. `.agents/*`
+
+No `.agents/*` file may be created or modified.
+
+---
+
+# 96. NO TEMP ARTIFACTS
+
+Do not leave:
+
+screenshots
+temporary reports
+generated prompt files
+debug logs
+
+as implementation artifacts.
+
+User-provided attached prompt documents are not implementation files.
+
+---
+
+# 97. DEFINITION OF DONE
+
+Prompt 7 passes only if:
+
+- Settings generic surfaces use semantic tokens where exact.
+- Settings functionality remains identical.
+- Settings destructive semantics remain fixed.
+- Profile generic shell uses semantic tokens where exact.
+- Profile functionality remains identical.
+- Profile role/status semantics remain fixed.
+- Notifications generic shell uses semantic tokens where exact.
+- Notifications All/Unread/swipe/read state behavior remains identical.
+- Notification destructive semantics remain fixed.
+- Safe generic Module-detail surfaces use semantic tokens where exact.
+- Module identity remains unchanged.
+- Module Resources behavior remains unchanged.
+- Classic 99 Light parity preserved.
+- Classic 99 Dark parity preserved.
+- No alternate themes.
+- No runtime theme switching.
+- No personalization UI.
+- No Home changes.
+- No MCQ changes.
+- No Calendar changes.
+- No Flashcard changes.
+- No gesture changes.
+- No navigation changes.
+- No layout geometry changes.
+- No provider changes.
+- No KV.
+- No SQL.
+- No D1.
+- No R2.
+- Build passes.
+- Tests pass.
+- Diff is scoped and clean.
+
+---
+
+# 98. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 2 PROMPT 7 REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. Visual Impact
+
+State exactly:
+
+NO INTENTIONAL VISUAL CHANGE
+
+Then state exactly what was visually verified.
+
+## 3. Files Modified
+
+| File | Feature | Exact Tokenization | Why Safe |
+|---|---|---|---|
+
+## 4. Files Created
+
+| File | Purpose |
+|---|---|
+
+## 5. Settings Audit
+
+List actual Settings components/files audited.
+
+## 6. Settings Migration
+
+Table:
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 7. Settings Behavior Safety
+
+Confirm unchanged:
+
+- appearance
+- language
+- alerts
+- privacy/security
+- support/legal
+- blocked/report navigation
+- deletion/logout
+
+## 8. Settings Destructive Safety
+
+Explain Delete Account/destructive styling.
+
+## 9. Profile Audit
+
+List actual Profile components/files.
+
+## 10. Profile Migration
+
+Table:
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 11. Profile Behavior Safety
+
+Confirm unchanged:
+
+avatar
+signature
+group
+roles
+points
+profile persistence
+blocked/report behavior
+
+## 12. Profile Role/Status Safety
+
+Explain fixed role/status colors.
+
+## 13. Notifications Audit
+
+List actual files/components.
+
+## 14. Notifications Migration
+
+Table:
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 15. Notifications Behavior Safety
+
+Confirm unchanged:
+
+All/Unread
+swipe
+read/unread
+delete
+filtering
+native cleanup
+mobile full-page behavior
+
+## 16. Notification Semantic Safety
+
+Explain:
+
+unread markers
+badges
+destructive swipe actions
+type/status colors
+
+## 17. Module Detail Audit
+
+List actual Module-detail files audited.
+
+## 18. Module Generic Surface Migration
+
+Table:
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 19. Module Identity Safety
+
+Confirm all seven module identity colors/art remain unchanged.
+
+## 20. Module Resources Safety
+
+Confirm unchanged:
+
+API
+upload
+R2
+progress
+retry
+open
+delete
+DB status semantics
+
+## 21. New Tokens
+
+If any were added:
+
+| Token | Light | Dark | Previous Source | Why Existing Token Was Insufficient |
+|---|---|---|---|---|
+
+If none:
+state NONE.
+
+## 22. Token Proliferation Review
+
+State total number of new token roles added in Prompt 7.
+
+## 23. Deferred Settings Values
+
+List and explain.
+
+## 24. Deferred Profile Values
+
+List and explain.
+
+## 25. Deferred Notification Values
+
+List and explain.
+
+## 26. Deferred Module Values
+
+List and explain.
+
+## 27. Fixed Semantic Safety
+
+Confirm unchanged:
+
+error
+success
+warning
+online
+offline
+destructive
+validation
+
+## 28. MCQ Safety
+
+Confirm untouched.
+
+## 29. Flashcard Safety
+
+Confirm untouched.
+
+## 30. Calendar Safety
+
+Confirm untouched.
+
+## 31. Home/Hero Safety
+
+Confirm untouched.
+
+## 32. Theme Runtime
+
+Confirm themeId remains visually inert.
+
+## 33. Hero / Glass / Motion / Reading
+
+Confirm all remain unwired.
+
+## 34. Appearance
+
+Confirm Light/Dark/System architecture unchanged.
+
+## 35. Provider
+
+Confirm unchanged.
+
+## 36. Navigation / Gesture Safety
+
+Confirm no route/swipe/back/pager logic changes.
+
+## 37. Mobile Safety
+
+Explain Settings/Notifications full-page and swipe layering remained unchanged.
+
+## 38. iPad Safety
+
+Explain Module/Profile/Settings geometry remained unchanged.
+
+## 39. RTL Safety
+
+Confirm no directional/layout logic changed.
+
+## 40. Accessibility
+
+Confirm focus/reduced-motion/reduced-transparency/forced-colors behavior preserved.
+
+## 41. Initial Paint
+
+Confirm preload/index/LaunchScreen untouched.
+
+## 42. Tests Added/Updated
+
+List exact feature-surface/token invariants.
+
+## 43. Personalization Test Results
+
+Report total passed.
+
+## 44. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 45. Module Resource Verification
+
+Report dedicated test result or source-level verification.
+
+## 46. Visual Verification
+
+State exactly:
+
+- viewport
+- mode
+- authentication state
+- screens actually observed
+
+No overclaiming.
+
+## 47. Existing Baseline Issues
+
+List separately.
+
+## 48. Git Diff Summary
+
+Exact Prompt 7 files/stat.
+
+## 49. High-Risk File Review
+
+If any historically high-risk mobile/iPad file changed:
+explain why every change is color/token-only.
+
+## 50. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+## 51. Forbidden Scope Verification
+
+Confirm no functional changes to:
+
+auth
+roles
+navigation
+gestures
+lectures
+Notes/PDF
+MCQ
+Flashcards
+Calendar
+Module Resources
+notifications behavior
+Profile behavior
+AI
+Console behavior
+personalization provider
+
+## 52. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 53. Prompt 8 Readiness
+
+If all requirements pass, state exactly:
+
+LOW-RISK FEATURE-SURFACE CLASSIC 99 TOKENIZATION: CLOSED AND APPROVED
+
+HIGHER-RISK FEATURE TOKENIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 2 PROMPT 7 STATUS: COMPLETE — READY FOR PROMPT 8
+
+or:
+
+PERSONALIZATION PHASE 2 PROMPT 7 STATUS: BLOCKED — REPAIR REQUIRED
