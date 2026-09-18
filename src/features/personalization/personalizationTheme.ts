@@ -2,25 +2,27 @@ import {
   IMPLEMENTED_THEME_IDS,
   type ImplementedThemeId,
 } from "./classic99Tokens";
-import type { ThemeId } from "../../../shared/personalization";
 
 export const PERSONALIZATION_THEME_ATTRIBUTE = "data-app-theme";
 
 export function isImplementedThemeId(
-  requested: ThemeId,
+  requested: unknown,
 ): requested is ImplementedThemeId {
-  return IMPLEMENTED_THEME_IDS.includes(requested as ImplementedThemeId);
+  return (
+    typeof requested === "string" &&
+    IMPLEMENTED_THEME_IDS.includes(requested as ImplementedThemeId)
+  );
 }
 
 export function resolveVisualThemeId(
-  requested: ThemeId,
+  requested: unknown,
 ): ImplementedThemeId {
   return isImplementedThemeId(requested) ? requested : "classic-99";
 }
 
 export function getPersonalizationThemeAttribute(
-  requested: ThemeId,
-): "ocean" | null {
+  requested: unknown,
+): Exclude<ImplementedThemeId, "classic-99"> | null {
   const visualTheme = resolveVisualThemeId(requested);
   return visualTheme === "classic-99" ? null : visualTheme;
 }
@@ -33,7 +35,7 @@ export interface ThemeAttributeTarget {
 
 export function synchronizePersonalizationTheme(
   target: ThemeAttributeTarget,
-  requested: ThemeId,
+  requested: unknown,
 ): void {
   const desiredAttribute = getPersonalizationThemeAttribute(requested);
   const currentAttribute = target.getAttribute(PERSONALIZATION_THEME_ATTRIBUTE);

@@ -41,18 +41,18 @@ const moduleDetail = readFileSync(
   "utf8",
 );
 
-test("Classic 99 remains the base and Ocean is the only alternate implementation", () => {
-  assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
-  for (const futureThemeId of [
+test("Classic 99 remains the base and all curated themes are implemented", () => {
+  assert.deepEqual(IMPLEMENTED_THEME_IDS, [
+    "classic-99",
     "midnight",
+    "ocean",
     "emerald",
     "rose",
     "amber",
     "violet",
     "monochrome",
-  ]) {
-    assert.equal(semanticCss.includes(futureThemeId), false);
-  }
+  ]);
+  assert.equal(semanticCss.includes("classic-99"), false);
 });
 
 test("themeable token names are unique and have light/dark CSS declarations", () => {

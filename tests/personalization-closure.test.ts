@@ -52,12 +52,18 @@ const futureThemeIds = PERSONALIZATION_THEME_IDS.filter(
   (themeId) => !IMPLEMENTED_THEME_IDS.includes(themeId as (typeof IMPLEMENTED_THEME_IDS)[number]),
 );
 
-test("Classic 99 remains the base and Ocean is the only alternate implementation", () => {
-  assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
-  assert.deepEqual(
-    futureThemeIds,
-    ["midnight", "emerald", "rose", "amber", "violet", "monochrome"],
-  );
+test("Classic 99 remains the base and all curated themes are implemented", () => {
+  assert.deepEqual(IMPLEMENTED_THEME_IDS, [
+    "classic-99",
+    "midnight",
+    "ocean",
+    "emerald",
+    "rose",
+    "amber",
+    "violet",
+    "monochrome",
+  ]);
+  assert.deepEqual(futureThemeIds, []);
 
   const semanticCss = css.match(
     /--(?:color-)?semantic-[a-z-]+\s*:[^;]+;/g,

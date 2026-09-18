@@ -124,28 +124,31 @@ function makeTarget(initial: string | null = null) {
   };
 }
 
-test("resolver implements only Classic 99 and Ocean", () => {
-  assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
-  assert.equal(resolveVisualThemeId("classic-99"), "classic-99");
-  assert.equal(resolveVisualThemeId("ocean"), "ocean");
-  for (const themeId of PERSONALIZATION_THEME_IDS.filter((id) => !IMPLEMENTED_THEME_IDS.includes(id as never))) {
-    assert.equal(resolveVisualThemeId(themeId), "classic-99");
+test("resolver implements all eight curated themes and safely falls back", () => {
+  assert.deepEqual(IMPLEMENTED_THEME_IDS, PERSONALIZATION_THEME_IDS);
+  for (const themeId of PERSONALIZATION_THEME_IDS) {
+    assert.equal(resolveVisualThemeId(themeId), themeId);
   }
+  assert.equal(resolveVisualThemeId("garbage"), "classic-99");
+  assert.equal(resolveVisualThemeId(null), "classic-99");
 });
 
-test("attribute mapping removes Classic/fallback and selects Ocean", () => {
+test("attribute mapping removes Classic and selects each alternate theme", () => {
   assert.equal(getPersonalizationThemeAttribute("classic-99"), null);
-  assert.equal(getPersonalizationThemeAttribute("ocean"), "ocean");
-  assert.equal(getPersonalizationThemeAttribute("emerald"), null);
+  for (const themeId of PERSONALIZATION_THEME_IDS.slice(1)) {
+    assert.equal(getPersonalizationThemeAttribute(themeId), themeId);
+  }
+  assert.equal(getPersonalizationThemeAttribute("garbage"), null);
 });
 
-test("attribute synchronization is scoped, idempotent, and StrictMode-safe", () => {
+test("attribute synchronization supports direct switches and is StrictMode-safe", () => {
   const target = makeTarget("ocean");
   synchronizePersonalizationTheme(target.target, "ocean");
+  synchronizePersonalizationTheme(target.target, "midnight");
   synchronizePersonalizationTheme(target.target, "emerald");
   synchronizePersonalizationTheme(target.target, "classic-99");
   synchronizePersonalizationTheme(target.target, "classic-99");
-  assert.deepEqual(target.calls, ["remove"]);
+  assert.deepEqual(target.calls, ["set:midnight", "set:emerald", "remove"]);
   assert.equal(target.value(), null);
 
   const ocean = makeTarget(null);
@@ -209,11 +212,13 @@ test("draft and transactional Apply semantics control when Ocean can appear", ()
   assert.equal(oceanDraftConfig().themeId, "ocean");
 });
 
-test("Classic fallback clears Ocean across account boundaries and logout", () => {
+test("Classic fallback clears alternate themes across account boundaries and logout", () => {
   const target = makeTarget("ocean");
   synchronizePersonalizationTheme(target.target, "emerald");
+  assert.equal(target.value(), "emerald");
+  synchronizePersonalizationTheme(target.target, "garbage");
   assert.equal(target.value(), null);
   synchronizePersonalizationTheme(target.target, "classic-99");
   assert.equal(target.value(), null);
-  assert.deepEqual(target.calls, ["remove"]);
+  assert.deepEqual(target.calls, ["set:emerald", "remove"]);
 });

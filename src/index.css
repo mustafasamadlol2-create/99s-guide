@@ -556,6 +556,390 @@
   --semantic-navigation-tab-inactive: rgba(225, 245, 249, 0.68);
 }
 
+:root[data-app-theme="midnight"] {
+  --semantic-background-page: #f5f6fa;
+  --semantic-background-grouped: #eceef5;
+  --semantic-surface-primary: #fafbff;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #e1e4ee;
+  --semantic-content-primary: #181d2a;
+  --semantic-content-secondary: #5f687d;
+  --semantic-content-subtle: rgba(49, 58, 80, 0.60);
+  --semantic-border-default: rgba(63, 81, 181, 0.08);
+  --semantic-border-strong: rgba(63, 81, 181, 0.15);
+  --semantic-action-accent: #3f51b5;
+  --semantic-action-accent-soft: rgba(63, 81, 181, 0.11);
+  --semantic-focus-ring: #3f51b5;
+  --semantic-navigation-active-background: rgba(63, 81, 181, 0.12);
+  --semantic-navigation-active-foreground: #29387f;
+  --semantic-glass-surface: rgba(250, 251, 255, 0.70);
+  --semantic-glass-border: rgba(63, 81, 181, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #080b18;
+  --semantic-hero-glow-primary: rgba(80, 95, 210, 0.42);
+  --semantic-hero-glow-secondary: rgba(72, 151, 220, 0.20);
+  --semantic-chrome-content-primary: #171b27;
+  --semantic-chrome-content-secondary: #626b80;
+  --semantic-chrome-content-subtle: #9097a8;
+  --semantic-chrome-content-muted: #485168;
+  --semantic-chrome-surface-active: rgba(63, 81, 181, 0.12);
+  --semantic-chrome-surface-hover: rgba(63, 81, 181, 0.07);
+  --semantic-navigation-tab-active: #3f51b5;
+  --semantic-navigation-tab-inactive: #626b80;
+}
+
+.dark[data-app-theme="midnight"] {
+  --semantic-background-page: #080a12;
+  --semantic-background-grouped: #0d101c;
+  --semantic-surface-primary: #0d101c;
+  --semantic-surface-elevated: #141827;
+  --semantic-surface-muted: #20263a;
+  --semantic-content-primary: #f5f7ff;
+  --semantic-content-secondary: rgba(232, 236, 255, 0.72);
+  --semantic-content-subtle: rgba(232, 236, 255, 0.48);
+  --semantic-border-default: rgba(155, 169, 255, 0.08);
+  --semantic-border-strong: rgba(155, 169, 255, 0.15);
+  --semantic-action-accent: #8ea0ff;
+  --semantic-action-accent-soft: rgba(142, 160, 255, 0.13);
+  --semantic-focus-ring: #8ea0ff;
+  --semantic-navigation-active-background: rgba(142, 160, 255, 0.15);
+  --semantic-navigation-active-foreground: #eef1ff;
+  --semantic-glass-surface: rgba(20, 24, 39, 0.72);
+  --semantic-glass-border: rgba(155, 169, 255, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #04050c;
+  --semantic-hero-glow-primary: rgba(84, 99, 225, 0.42);
+  --semantic-hero-glow-secondary: rgba(72, 160, 220, 0.20);
+  --semantic-chrome-content-primary: #f5f7ff;
+  --semantic-chrome-content-secondary: rgba(232, 236, 255, 0.70);
+  --semantic-chrome-content-subtle: rgba(232, 236, 255, 0.48);
+  --semantic-chrome-content-muted: #b4bddb;
+  --semantic-chrome-surface-active: rgba(142, 160, 255, 0.15);
+  --semantic-chrome-surface-hover: rgba(142, 160, 255, 0.08);
+  --semantic-navigation-tab-active: #8ea0ff;
+  --semantic-navigation-tab-inactive: rgba(232, 236, 255, 0.68);
+}
+
+:root[data-app-theme="emerald"] {
+  --semantic-background-page: #f3f8f6;
+  --semantic-background-grouped: #e8f2ee;
+  --semantic-surface-primary: #f8fcfa;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #dcebe4;
+  --semantic-content-primary: #123329;
+  --semantic-content-secondary: #58766b;
+  --semantic-content-subtle: rgba(43, 85, 70, 0.62);
+  --semantic-border-default: rgba(8, 122, 85, 0.08);
+  --semantic-border-strong: rgba(8, 122, 85, 0.15);
+  --semantic-action-accent: #087a55;
+  --semantic-action-accent-soft: rgba(8, 122, 85, 0.11);
+  --semantic-focus-ring: #087a55;
+  --semantic-navigation-active-background: rgba(8, 122, 85, 0.12);
+  --semantic-navigation-active-foreground: #07553d;
+  --semantic-glass-surface: rgba(248, 253, 251, 0.70);
+  --semantic-glass-border: rgba(8, 122, 85, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #041c15;
+  --semantic-hero-glow-primary: rgba(8, 150, 103, 0.42);
+  --semantic-hero-glow-secondary: rgba(46, 180, 150, 0.20);
+  --semantic-chrome-content-primary: #112f26;
+  --semantic-chrome-content-secondary: #5d776e;
+  --semantic-chrome-content-subtle: #879d95;
+  --semantic-chrome-content-muted: #456a5d;
+  --semantic-chrome-surface-active: rgba(8, 122, 85, 0.12);
+  --semantic-chrome-surface-hover: rgba(8, 122, 85, 0.07);
+  --semantic-navigation-tab-active: #087a55;
+  --semantic-navigation-tab-inactive: #5d776e;
+}
+
+.dark[data-app-theme="emerald"] {
+  --semantic-background-page: #06130f;
+  --semantic-background-grouped: #091d17;
+  --semantic-surface-primary: #091d17;
+  --semantic-surface-elevated: #102820;
+  --semantic-surface-muted: #193a30;
+  --semantic-content-primary: #f1fbf7;
+  --semantic-content-secondary: rgba(226, 247, 239, 0.72);
+  --semantic-content-subtle: rgba(226, 247, 239, 0.48);
+  --semantic-border-default: rgba(115, 224, 181, 0.08);
+  --semantic-border-strong: rgba(115, 224, 181, 0.15);
+  --semantic-action-accent: #5ed7ad;
+  --semantic-action-accent-soft: rgba(94, 215, 173, 0.13);
+  --semantic-focus-ring: #5ed7ad;
+  --semantic-navigation-active-background: rgba(94, 215, 173, 0.15);
+  --semantic-navigation-active-foreground: #e0fff3;
+  --semantic-glass-surface: rgba(16, 40, 32, 0.72);
+  --semantic-glass-border: rgba(115, 224, 181, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #020c09;
+  --semantic-hero-glow-primary: rgba(30, 175, 125, 0.40);
+  --semantic-hero-glow-secondary: rgba(60, 190, 165, 0.20);
+  --semantic-chrome-content-primary: #f1fbf7;
+  --semantic-chrome-content-secondary: rgba(226, 247, 239, 0.70);
+  --semantic-chrome-content-subtle: rgba(226, 247, 239, 0.48);
+  --semantic-chrome-content-muted: #a8d1c2;
+  --semantic-chrome-surface-active: rgba(94, 215, 173, 0.15);
+  --semantic-chrome-surface-hover: rgba(94, 215, 173, 0.08);
+  --semantic-navigation-tab-active: #5ed7ad;
+  --semantic-navigation-tab-inactive: rgba(226, 247, 239, 0.68);
+}
+
+:root[data-app-theme="rose"] {
+  --semantic-background-page: #fcf5f7;
+  --semantic-background-grouped: #f8eaef;
+  --semantic-surface-primary: #fffafd;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #f2dce4;
+  --semantic-content-primary: #3a1724;
+  --semantic-content-secondary: #805968;
+  --semantic-content-subtle: rgba(100, 49, 67, 0.60);
+  --semantic-border-default: rgba(180, 35, 90, 0.08);
+  --semantic-border-strong: rgba(180, 35, 90, 0.15);
+  --semantic-action-accent: #b4235a;
+  --semantic-action-accent-soft: rgba(180, 35, 90, 0.10);
+  --semantic-focus-ring: #b4235a;
+  --semantic-navigation-active-background: rgba(180, 35, 90, 0.11);
+  --semantic-navigation-active-foreground: #7f1d43;
+  --semantic-glass-surface: rgba(255, 250, 253, 0.70);
+  --semantic-glass-border: rgba(180, 35, 90, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #240711;
+  --semantic-hero-glow-primary: rgba(190, 45, 95, 0.42);
+  --semantic-hero-glow-secondary: rgba(166, 82, 128, 0.22);
+  --semantic-chrome-content-primary: #351520;
+  --semantic-chrome-content-secondary: #815b69;
+  --semantic-chrome-content-subtle: #a68792;
+  --semantic-chrome-content-muted: #6c4755;
+  --semantic-chrome-surface-active: rgba(180, 35, 90, 0.11);
+  --semantic-chrome-surface-hover: rgba(180, 35, 90, 0.06);
+  --semantic-navigation-tab-active: #b4235a;
+  --semantic-navigation-tab-inactive: #815b69;
+}
+
+.dark[data-app-theme="rose"] {
+  --semantic-background-page: #17090e;
+  --semantic-background-grouped: #210d14;
+  --semantic-surface-primary: #210d14;
+  --semantic-surface-elevated: #2a121b;
+  --semantic-surface-muted: #3b1a27;
+  --semantic-content-primary: #fff4f7;
+  --semantic-content-secondary: rgba(255, 229, 238, 0.72);
+  --semantic-content-subtle: rgba(255, 229, 238, 0.48);
+  --semantic-border-default: rgba(255, 143, 179, 0.08);
+  --semantic-border-strong: rgba(255, 143, 179, 0.15);
+  --semantic-action-accent: #ff7da9;
+  --semantic-action-accent-soft: rgba(255, 125, 169, 0.13);
+  --semantic-focus-ring: #ff7da9;
+  --semantic-navigation-active-background: rgba(255, 125, 169, 0.15);
+  --semantic-navigation-active-foreground: #fff0f5;
+  --semantic-glass-surface: rgba(42, 18, 27, 0.72);
+  --semantic-glass-border: rgba(255, 143, 179, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #0d0407;
+  --semantic-hero-glow-primary: rgba(215, 55, 115, 0.42);
+  --semantic-hero-glow-secondary: rgba(180, 80, 140, 0.22);
+  --semantic-chrome-content-primary: #fff4f7;
+  --semantic-chrome-content-secondary: rgba(255, 229, 238, 0.70);
+  --semantic-chrome-content-subtle: rgba(255, 229, 238, 0.48);
+  --semantic-chrome-content-muted: #d8adb9;
+  --semantic-chrome-surface-active: rgba(255, 125, 169, 0.15);
+  --semantic-chrome-surface-hover: rgba(255, 125, 169, 0.08);
+  --semantic-navigation-tab-active: #ff7da9;
+  --semantic-navigation-tab-inactive: rgba(255, 229, 238, 0.68);
+}
+
+:root[data-app-theme="amber"] {
+  --semantic-background-page: #fbf7f0;
+  --semantic-background-grouped: #f6edde;
+  --semantic-surface-primary: #fdfaf4;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #efe1c8;
+  --semantic-content-primary: #35230c;
+  --semantic-content-secondary: #786243;
+  --semantic-content-subtle: rgba(95, 70, 35, 0.62);
+  --semantic-border-default: rgba(154, 91, 0, 0.08);
+  --semantic-border-strong: rgba(154, 91, 0, 0.15);
+  --semantic-action-accent: #9a5b00;
+  --semantic-action-accent-soft: rgba(154, 91, 0, 0.10);
+  --semantic-focus-ring: #9a5b00;
+  --semantic-navigation-active-background: rgba(154, 91, 0, 0.11);
+  --semantic-navigation-active-foreground: #684000;
+  --semantic-glass-surface: rgba(255, 252, 246, 0.70);
+  --semantic-glass-border: rgba(154, 91, 0, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #201203;
+  --semantic-hero-glow-primary: rgba(190, 120, 20, 0.42);
+  --semantic-hero-glow-secondary: rgba(225, 165, 60, 0.20);
+  --semantic-chrome-content-primary: #302009;
+  --semantic-chrome-content-secondary: #796344;
+  --semantic-chrome-content-subtle: #9f8c70;
+  --semantic-chrome-content-muted: #654e2d;
+  --semantic-chrome-surface-active: rgba(154, 91, 0, 0.11);
+  --semantic-chrome-surface-hover: rgba(154, 91, 0, 0.06);
+  --semantic-navigation-tab-active: #9a5b00;
+  --semantic-navigation-tab-inactive: #796344;
+}
+
+.dark[data-app-theme="amber"] {
+  --semantic-background-page: #171006;
+  --semantic-background-grouped: #211708;
+  --semantic-surface-primary: #211708;
+  --semantic-surface-elevated: #281d0c;
+  --semantic-surface-muted: #3a2b13;
+  --semantic-content-primary: #fff8e9;
+  --semantic-content-secondary: rgba(255, 240, 211, 0.72);
+  --semantic-content-subtle: rgba(255, 240, 211, 0.48);
+  --semantic-border-default: rgba(248, 189, 85, 0.08);
+  --semantic-border-strong: rgba(248, 189, 85, 0.15);
+  --semantic-action-accent: #f8bd55;
+  --semantic-action-accent-soft: rgba(248, 189, 85, 0.13);
+  --semantic-focus-ring: #f8bd55;
+  --semantic-navigation-active-background: rgba(248, 189, 85, 0.15);
+  --semantic-navigation-active-foreground: #fff5dc;
+  --semantic-glass-surface: rgba(40, 29, 12, 0.72);
+  --semantic-glass-border: rgba(248, 189, 85, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #0c0802;
+  --semantic-hero-glow-primary: rgba(220, 145, 30, 0.42);
+  --semantic-hero-glow-secondary: rgba(240, 190, 75, 0.20);
+  --semantic-chrome-content-primary: #fff8e9;
+  --semantic-chrome-content-secondary: rgba(255, 240, 211, 0.70);
+  --semantic-chrome-content-subtle: rgba(255, 240, 211, 0.48);
+  --semantic-chrome-content-muted: #d7bf93;
+  --semantic-chrome-surface-active: rgba(248, 189, 85, 0.15);
+  --semantic-chrome-surface-hover: rgba(248, 189, 85, 0.08);
+  --semantic-navigation-tab-active: #f8bd55;
+  --semantic-navigation-tab-inactive: rgba(255, 240, 211, 0.68);
+}
+
+:root[data-app-theme="violet"] {
+  --semantic-background-page: #f8f5fc;
+  --semantic-background-grouped: #f0eaf8;
+  --semantic-surface-primary: #fcfaff;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #e8dff3;
+  --semantic-content-primary: #291b3a;
+  --semantic-content-secondary: #6e5a80;
+  --semantic-content-subtle: rgba(74, 51, 96, 0.60);
+  --semantic-border-default: rgba(109, 60, 198, 0.08);
+  --semantic-border-strong: rgba(109, 60, 198, 0.15);
+  --semantic-action-accent: #6d3cc6;
+  --semantic-action-accent-soft: rgba(109, 60, 198, 0.10);
+  --semantic-focus-ring: #6d3cc6;
+  --semantic-navigation-active-background: rgba(109, 60, 198, 0.11);
+  --semantic-navigation-active-foreground: #4e2494;
+  --semantic-glass-surface: rgba(252, 250, 255, 0.70);
+  --semantic-glass-border: rgba(109, 60, 198, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #160a24;
+  --semantic-hero-glow-primary: rgba(120, 70, 210, 0.42);
+  --semantic-hero-glow-secondary: rgba(168, 95, 205, 0.20);
+  --semantic-chrome-content-primary: #271936;
+  --semantic-chrome-content-secondary: #705c81;
+  --semantic-chrome-content-subtle: #9788a5;
+  --semantic-chrome-content-muted: #5a426d;
+  --semantic-chrome-surface-active: rgba(109, 60, 198, 0.11);
+  --semantic-chrome-surface-hover: rgba(109, 60, 198, 0.06);
+  --semantic-navigation-tab-active: #6d3cc6;
+  --semantic-navigation-tab-inactive: #705c81;
+}
+
+.dark[data-app-theme="violet"] {
+  --semantic-background-page: #100a18;
+  --semantic-background-grouped: #170e22;
+  --semantic-surface-primary: #170e22;
+  --semantic-surface-elevated: #1d142a;
+  --semantic-surface-muted: #2c203d;
+  --semantic-content-primary: #faf5ff;
+  --semantic-content-secondary: rgba(240, 229, 255, 0.72);
+  --semantic-content-subtle: rgba(240, 229, 255, 0.48);
+  --semantic-border-default: rgba(185, 156, 255, 0.08);
+  --semantic-border-strong: rgba(185, 156, 255, 0.15);
+  --semantic-action-accent: #b99cff;
+  --semantic-action-accent-soft: rgba(185, 156, 255, 0.13);
+  --semantic-focus-ring: #b99cff;
+  --semantic-navigation-active-background: rgba(185, 156, 255, 0.15);
+  --semantic-navigation-active-foreground: #f4ecff;
+  --semantic-glass-surface: rgba(29, 20, 42, 0.72);
+  --semantic-glass-border: rgba(185, 156, 255, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #08040d;
+  --semantic-hero-glow-primary: rgba(130, 82, 220, 0.42);
+  --semantic-hero-glow-secondary: rgba(182, 100, 205, 0.22);
+  --semantic-chrome-content-primary: #faf5ff;
+  --semantic-chrome-content-secondary: rgba(240, 229, 255, 0.70);
+  --semantic-chrome-content-subtle: rgba(240, 229, 255, 0.48);
+  --semantic-chrome-content-muted: #c5b3d8;
+  --semantic-chrome-surface-active: rgba(185, 156, 255, 0.15);
+  --semantic-chrome-surface-hover: rgba(185, 156, 255, 0.08);
+  --semantic-navigation-tab-active: #b99cff;
+  --semantic-navigation-tab-inactive: rgba(240, 229, 255, 0.68);
+}
+
+:root[data-app-theme="monochrome"] {
+  --semantic-background-page: #f7f7f7;
+  --semantic-background-grouped: #eeeeef;
+  --semantic-surface-primary: #fbfbfb;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #e2e2e4;
+  --semantic-content-primary: #1c1c1e;
+  --semantic-content-secondary: #66666a;
+  --semantic-content-subtle: rgba(60, 60, 67, 0.60);
+  --semantic-border-default: rgba(0, 0, 0, 0.06);
+  --semantic-border-strong: rgba(0, 0, 0, 0.12);
+  --semantic-action-accent: #3a3a3c;
+  --semantic-action-accent-soft: rgba(58, 58, 60, 0.09);
+  --semantic-focus-ring: #3a3a3c;
+  --semantic-navigation-active-background: rgba(58, 58, 60, 0.10);
+  --semantic-navigation-active-foreground: #1c1c1e;
+  --semantic-glass-surface: rgba(255, 255, 255, 0.72);
+  --semantic-glass-border: rgba(0, 0, 0, 0.08);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #111113;
+  --semantic-hero-glow-primary: rgba(180, 180, 188, 0.18);
+  --semantic-hero-glow-secondary: rgba(255, 255, 255, 0.08);
+  --semantic-chrome-content-primary: #1c1c1e;
+  --semantic-chrome-content-secondary: #66666a;
+  --semantic-chrome-content-subtle: #929296;
+  --semantic-chrome-content-muted: #4f4f53;
+  --semantic-chrome-surface-active: rgba(58, 58, 60, 0.10);
+  --semantic-chrome-surface-hover: rgba(58, 58, 60, 0.05);
+  --semantic-navigation-tab-active: #3a3a3c;
+  --semantic-navigation-tab-inactive: #66666a;
+}
+
+.dark[data-app-theme="monochrome"] {
+  --semantic-background-page: #090909;
+  --semantic-background-grouped: #111111;
+  --semantic-surface-primary: #111111;
+  --semantic-surface-elevated: #1c1c1e;
+  --semantic-surface-muted: #2c2c2e;
+  --semantic-content-primary: #f5f5f7;
+  --semantic-content-secondary: rgba(235, 235, 245, 0.72);
+  --semantic-content-subtle: rgba(235, 235, 245, 0.46);
+  --semantic-border-default: rgba(255, 255, 255, 0.07);
+  --semantic-border-strong: rgba(255, 255, 255, 0.14);
+  --semantic-action-accent: #e5e5ea;
+  --semantic-action-accent-soft: rgba(229, 229, 234, 0.12);
+  --semantic-focus-ring: #e5e5ea;
+  --semantic-navigation-active-background: rgba(229, 229, 234, 0.14);
+  --semantic-navigation-active-foreground: #ffffff;
+  --semantic-glass-surface: rgba(28, 28, 30, 0.74);
+  --semantic-glass-border: rgba(255, 255, 255, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #050505;
+  --semantic-hero-glow-primary: rgba(210, 210, 218, 0.14);
+  --semantic-hero-glow-secondary: rgba(255, 255, 255, 0.07);
+  --semantic-chrome-content-primary: #f5f5f7;
+  --semantic-chrome-content-secondary: rgba(235, 235, 245, 0.70);
+  --semantic-chrome-content-subtle: rgba(235, 235, 245, 0.46);
+  --semantic-chrome-content-muted: #b4b4b8;
+  --semantic-chrome-surface-active: rgba(229, 229, 234, 0.14);
+  --semantic-chrome-surface-hover: rgba(229, 229, 234, 0.07);
+  --semantic-navigation-tab-active: #e5e5ea;
+  --semantic-navigation-tab-inactive: rgba(235, 235, 245, 0.68);
+}
+
 .dark [class*="shadow-"],
 .dark .ios-widget,
 .dark .edge-light,

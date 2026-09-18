@@ -1,0 +1,2368 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 3 / PROMPT 13 OF ~22
+## COMPLETE CURATED THEME PACK LIBRARY
+### Add MIDNIGHT + EMERALD + ROSE + AMBER + VIOLET + MONOCHROME
+### OCEAN RUNTIME ARCHITECTURE IS FROZEN
+### CSS TOKEN OVERRIDES ONLY
+### NO SETTINGS UI YET
+### NO KV YET
+
+Phase 0 is CLOSED AND APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 is CLOSED AND APPROVED.
+
+Phase 3 / Prompt 12 is CLOSED AND APPROVED.
+
+Prompt 12 established and verified:
+
+- Classic 99 is the unscoped CSS base/fallback.
+- `data-app-theme` is the ONLY Theme Pack DOM attribute.
+- `committed.themeId` is the only global Theme Pack source.
+- Draft does NOT recolor the application.
+- Theme Pack and Light/Dark/System are orthogonal.
+- No reload.
+- No React remount.
+- No JavaScript palette-variable writes.
+- No account-unscoped Theme Pack cache.
+- Ocean is fully implemented through all 29 semantic tokens.
+- Fixed semantic/domain colors remain outside Theme Pack palettes.
+- Ocean works without feature-specific CSS selectors.
+- Ocean is currently the only alternate implemented theme.
+
+Current valid ThemeIds:
+
+1. `classic-99`
+2. `midnight`
+3. `ocean`
+4. `emerald`
+5. `rose`
+6. `amber`
+7. `violet`
+8. `monochrome`
+
+Current visually implemented themes:
+
+- `classic-99`
+- `ocean`
+
+This prompt must implement the remaining SIX curated Theme Packs:
+
+- `midnight`
+- `emerald`
+- `rose`
+- `amber`
+- `violet`
+- `monochrome`
+
+After Prompt 13, all eight valid ThemeIds will be visually implemented.
+
+DO NOT begin Settings/My 99 UI.
+
+DO NOT begin KV synchronization.
+
+DO NOT implement App Icons.
+
+DO NOT wire Hero Style, Glass Style, Motion Style, Reading Size, or Home ordering.
+
+---
+
+# 1. PRIMARY GOAL
+
+After this prompt:
+
+```text
+classic-99
+→ Classic 99
+
+midnight
+→ Midnight
+
+ocean
+→ Ocean
+
+emerald
+→ Emerald
+
+rose
+→ Rose
+
+amber
+→ Amber
+
+violet
+→ Violet
+
+monochrome
+→ Monochrome
+
+Every theme must support:
+
+Light
+Dark
+System → Light
+System → Dark
+
+All themes must use exactly the same semantic-token architecture.
+
+No feature-specific theme CSS.
+
+2. CRITICAL ARCHITECTURE FREEZE
+
+The Prompt 12 theme runtime is APPROVED.
+
+Do NOT redesign it.
+
+The architecture must remain:
+
+committed.themeId
+        ↓
+resolveVisualThemeId()
+        ↓
+data-app-theme
+        ↓
+CSS semantic-token overrides
+
+Do NOT replace this with:
+
+React palette objects
+Context palette objects
+CSS-in-JS
+inline styles
+style.setProperty
+feature-specific theme classes
+multiple theme attributes
+body classes
+reloads
+theme-based React keys
+3. CLASSIC 99 REMAINS UNSCOPED BASE
+
+Classic 99 must continue to live under the existing base:
+
+:root {
+  ...
+}
+
+.dark {
+  ...
+}
+
+Do NOT create:
+
+[data-app-theme="classic-99"]
+
+Do NOT duplicate Classic values.
+
+No theme attribute must still mean:
+
+Classic 99
+
+This remains the fail-safe rendering state.
+
+4. OCEAN IS FROZEN
+
+Do NOT redesign Ocean.
+
+Do NOT adjust Ocean simply to make the new themes aesthetically symmetrical.
+
+The approved Ocean selectors and values remain authoritative.
+
+Only modify Ocean if a genuine bug is discovered during shared architecture testing.
+
+If that occurs:
+
+STOP and clearly document it rather than silently changing the palette.
+
+Expected:
+
+NO Ocean palette changes.
+
+5. RUNTIME RESOLVER AUDIT
+
+Inspect the actual implementation of:
+
+src/features/personalization/personalizationTheme.ts
+
+Prompt 12 may currently have logic specialized around:
+
+classic-99
+ocean
+
+Now that every valid ThemeId will become implemented, make the resolver GENERIC against implemented-theme metadata if necessary.
+
+Preferred architecture conceptually:
+
+const IMPLEMENTED_THEME_IDS = [
+  "classic-99",
+  "midnight",
+  "ocean",
+  "emerald",
+  "rose",
+  "amber",
+  "violet",
+  "monochrome",
+] as const;
+
+Then:
+
+resolveVisualThemeId(requested)
+
+must resolve every valid implemented ID to itself.
+
+Do NOT create a growing switch statement duplicated across runtime files if metadata can remain authoritative.
+
+6. SAFE FALLBACK STILL REQUIRED
+
+Even though all CURRENT valid ThemeIds become implemented, retain defensive fallback behavior.
+
+An unexpected runtime value must not create:
+
+data-app-theme="garbage"
+
+The safe visual fallback remains:
+
+classic-99
+
+Do not weaken safe normalization or storage validation.
+
+7. FINAL IMPLEMENTED THEME IDS
+
+After Prompt 13, metadata must contain exactly:
+
+classic-99
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+No additional IDs.
+
+No aliases such as:
+
+purple
+green
+black
+default
+classic
+8. DOM ATTRIBUTE CONTRACT
+
+Continue using ONLY:
+
+data-app-theme
+
+Expected DOM behavior:
+
+Classic 99
+→ no attribute
+
+Midnight
+→ data-app-theme="midnight"
+
+Ocean
+→ data-app-theme="ocean"
+
+Emerald
+→ data-app-theme="emerald"
+
+Rose
+→ data-app-theme="rose"
+
+Amber
+→ data-app-theme="amber"
+
+Violet
+→ data-app-theme="violet"
+
+Monochrome
+→ data-app-theme="monochrome"
+
+Do not add additional theme attributes.
+
+9. COMMITTED-ONLY RULE
+
+The global application continues to read:
+
+committed.themeId
+
+ONLY.
+
+Never:
+
+draft.themeId
+
+Draft theme changes remain visually inert globally.
+
+No Settings UI exists yet.
+
+10. EACH THEME MUST DEFINE ALL 29 TOKENS
+
+Every newly implemented theme must define:
+
+29 Light values
++
+29 Dark values.
+
+No partial theme.
+
+No accidental inheritance of themeable roles from Classic.
+
+Each theme must explicitly define every entry from:
+
+THEMEABLE_TOKEN_NAMES
+
+in both its Light and Dark scope.
+
+11. EXACT SELECTOR ARCHITECTURE
+
+Use:
+
+:root[data-app-theme="midnight"] { ... }
+.dark[data-app-theme="midnight"] { ... }
+
+:root[data-app-theme="emerald"] { ... }
+.dark[data-app-theme="emerald"] { ... }
+
+:root[data-app-theme="rose"] { ... }
+.dark[data-app-theme="rose"] { ... }
+
+:root[data-app-theme="amber"] { ... }
+.dark[data-app-theme="amber"] { ... }
+
+:root[data-app-theme="violet"] { ... }
+.dark[data-app-theme="violet"] { ... }
+
+:root[data-app-theme="monochrome"] { ... }
+.dark[data-app-theme="monochrome"] { ... }
+
+Ocean continues using its existing equivalent scopes.
+
+Do NOT use !important.
+
+12. ABSOLUTELY NO FEATURE-SPECIFIC THEME SELECTORS
+
+Forbidden examples:
+
+[data-app-theme="rose"] .sidebar
+[data-app-theme="emerald"] .mcq-card
+[data-app-theme="violet"] .settings-card
+[data-app-theme="amber"] .calendar-event
+[data-app-theme="midnight"] .lecture-card
+
+The themes must work ONLY by replacing the semantic variables.
+
+If a new theme looks incomplete because a feature still contains a deliberately fixed/hardcoded color:
+
+DO NOT patch it with theme-specific CSS.
+
+That color was intentionally classified during Phase 2.
+
+13. FIXED SEMANTIC TOKENS ARE FORBIDDEN INSIDE THEME SCOPES
+
+No Theme Pack may redefine:
+
+status-error
+status-success
+status-warning
+status-offline
+status-online
+action-destructive
+validation-error
+
+Likewise no Theme Pack may override:
+
+MCQ Easy
+MCQ Normal
+MCQ Hard
+correct
+incorrect
+Calendar Today semantics
+Calendar event/exam semantics
+Module identity
+Flashcard subject identity
+role/status identity
+destructive actions
+unread/attention semantics
+14. DESIGN PRINCIPLE
+
+Each Theme Pack should feel like the SAME APPLICATION in a different curated visual environment.
+
+Do NOT make themes feel like separate apps.
+
+Across themes preserve:
+
+spacing
+typography
+radius
+blur
+shadows geometry
+hierarchy
+density
+gestures
+navigation
+animation
+artwork
+iconography
+semantic colors
+
+Only semantic presentation palette changes.
+
+15. MIDNIGHT DESIGN LANGUAGE
+
+Midnight should feel:
+
+premium
+academic
+sophisticated
+indigo/slate
+slightly cinematic
+restrained
+elegant
+suitable for long study sessions
+
+It is NOT:
+
+pure black everywhere
+cyberpunk
+neon purple
+gaming UI
+
+Midnight Light should still clearly be a Light appearance.
+
+Midnight Dark should be deeper and more atmospheric than Classic Dark.
+
+16. MIDNIGHT LIGHT — CANONICAL PALETTE
+--semantic-background-page: #f5f6fa;
+--semantic-background-grouped: #eceef5;
+
+--semantic-surface-primary: #fafbff;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #e1e4ee;
+
+--semantic-content-primary: #181d2a;
+--semantic-content-secondary: #5f687d;
+--semantic-content-subtle: rgba(49, 58, 80, 0.60);
+
+--semantic-border-default: rgba(63, 81, 181, 0.08);
+--semantic-border-strong: rgba(63, 81, 181, 0.15);
+
+--semantic-action-accent: #3f51b5;
+--semantic-action-accent-soft: rgba(63, 81, 181, 0.11);
+--semantic-focus-ring: #3f51b5;
+
+--semantic-navigation-active-background: rgba(63, 81, 181, 0.12);
+--semantic-navigation-active-foreground: #29387f;
+
+--semantic-glass-surface: rgba(250, 251, 255, 0.70);
+--semantic-glass-border: rgba(63, 81, 181, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #080b18;
+--semantic-hero-glow-primary: rgba(80, 95, 210, 0.42);
+--semantic-hero-glow-secondary: rgba(72, 151, 220, 0.20);
+
+--semantic-chrome-content-primary: #171b27;
+--semantic-chrome-content-secondary: #626b80;
+--semantic-chrome-content-subtle: #9097a8;
+--semantic-chrome-content-muted: #485168;
+
+--semantic-chrome-surface-active: rgba(63, 81, 181, 0.12);
+--semantic-chrome-surface-hover: rgba(63, 81, 181, 0.07);
+
+--semantic-navigation-tab-active: #3f51b5;
+--semantic-navigation-tab-inactive: #626b80;
+17. MIDNIGHT DARK — CANONICAL PALETTE
+--semantic-background-page: #080a12;
+--semantic-background-grouped: #0d101c;
+
+--semantic-surface-primary: #0d101c;
+--semantic-surface-elevated: #141827;
+--semantic-surface-muted: #20263a;
+
+--semantic-content-primary: #f5f7ff;
+--semantic-content-secondary: rgba(232, 236, 255, 0.72);
+--semantic-content-subtle: rgba(232, 236, 255, 0.48);
+
+--semantic-border-default: rgba(155, 169, 255, 0.08);
+--semantic-border-strong: rgba(155, 169, 255, 0.15);
+
+--semantic-action-accent: #8ea0ff;
+--semantic-action-accent-soft: rgba(142, 160, 255, 0.13);
+--semantic-focus-ring: #8ea0ff;
+
+--semantic-navigation-active-background: rgba(142, 160, 255, 0.15);
+--semantic-navigation-active-foreground: #eef1ff;
+
+--semantic-glass-surface: rgba(20, 24, 39, 0.72);
+--semantic-glass-border: rgba(155, 169, 255, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #04050c;
+--semantic-hero-glow-primary: rgba(84, 99, 225, 0.42);
+--semantic-hero-glow-secondary: rgba(72, 160, 220, 0.20);
+
+--semantic-chrome-content-primary: #f5f7ff;
+--semantic-chrome-content-secondary: rgba(232, 236, 255, 0.70);
+--semantic-chrome-content-subtle: rgba(232, 236, 255, 0.48);
+--semantic-chrome-content-muted: #b4bddb;
+
+--semantic-chrome-surface-active: rgba(142, 160, 255, 0.15);
+--semantic-chrome-surface-hover: rgba(142, 160, 255, 0.08);
+
+--semantic-navigation-tab-active: #8ea0ff;
+--semantic-navigation-tab-inactive: rgba(232, 236, 255, 0.68);
+18. EMERALD DESIGN LANGUAGE
+
+Emerald should feel:
+
+clean
+calm
+fresh
+medical
+natural
+premium
+muted green/teal
+
+It must NOT turn the entire application bright green.
+
+Important:
+
+Theme accent green is generic presentation.
+
+Existing fixed success green remains semantically independent.
+
+The two concepts must not be merged in source.
+
+19. EMERALD LIGHT — CANONICAL PALETTE
+--semantic-background-page: #f3f8f6;
+--semantic-background-grouped: #e8f2ee;
+
+--semantic-surface-primary: #f8fcfa;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #dcebe4;
+
+--semantic-content-primary: #123329;
+--semantic-content-secondary: #58766b;
+--semantic-content-subtle: rgba(43, 85, 70, 0.62);
+
+--semantic-border-default: rgba(8, 122, 85, 0.08);
+--semantic-border-strong: rgba(8, 122, 85, 0.15);
+
+--semantic-action-accent: #087a55;
+--semantic-action-accent-soft: rgba(8, 122, 85, 0.11);
+--semantic-focus-ring: #087a55;
+
+--semantic-navigation-active-background: rgba(8, 122, 85, 0.12);
+--semantic-navigation-active-foreground: #07553d;
+
+--semantic-glass-surface: rgba(248, 253, 251, 0.70);
+--semantic-glass-border: rgba(8, 122, 85, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #041c15;
+--semantic-hero-glow-primary: rgba(8, 150, 103, 0.42);
+--semantic-hero-glow-secondary: rgba(46, 180, 150, 0.20);
+
+--semantic-chrome-content-primary: #112f26;
+--semantic-chrome-content-secondary: #5d776e;
+--semantic-chrome-content-subtle: #879d95;
+--semantic-chrome-content-muted: #456a5d;
+
+--semantic-chrome-surface-active: rgba(8, 122, 85, 0.12);
+--semantic-chrome-surface-hover: rgba(8, 122, 85, 0.07);
+
+--semantic-navigation-tab-active: #087a55;
+--semantic-navigation-tab-inactive: #5d776e;
+20. EMERALD DARK — CANONICAL PALETTE
+--semantic-background-page: #06130f;
+--semantic-background-grouped: #091d17;
+
+--semantic-surface-primary: #091d17;
+--semantic-surface-elevated: #102820;
+--semantic-surface-muted: #193a30;
+
+--semantic-content-primary: #f1fbf7;
+--semantic-content-secondary: rgba(226, 247, 239, 0.72);
+--semantic-content-subtle: rgba(226, 247, 239, 0.48);
+
+--semantic-border-default: rgba(115, 224, 181, 0.08);
+--semantic-border-strong: rgba(115, 224, 181, 0.15);
+
+--semantic-action-accent: #5ed7ad;
+--semantic-action-accent-soft: rgba(94, 215, 173, 0.13);
+--semantic-focus-ring: #5ed7ad;
+
+--semantic-navigation-active-background: rgba(94, 215, 173, 0.15);
+--semantic-navigation-active-foreground: #e0fff3;
+
+--semantic-glass-surface: rgba(16, 40, 32, 0.72);
+--semantic-glass-border: rgba(115, 224, 181, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #020c09;
+--semantic-hero-glow-primary: rgba(30, 175, 125, 0.40);
+--semantic-hero-glow-secondary: rgba(60, 190, 165, 0.20);
+
+--semantic-chrome-content-primary: #f1fbf7;
+--semantic-chrome-content-secondary: rgba(226, 247, 239, 0.70);
+--semantic-chrome-content-subtle: rgba(226, 247, 239, 0.48);
+--semantic-chrome-content-muted: #a8d1c2;
+
+--semantic-chrome-surface-active: rgba(94, 215, 173, 0.15);
+--semantic-chrome-surface-hover: rgba(94, 215, 173, 0.08);
+
+--semantic-navigation-tab-active: #5ed7ad;
+--semantic-navigation-tab-inactive: rgba(226, 247, 239, 0.68);
+21. ROSE DESIGN LANGUAGE
+
+Rose should feel:
+
+warm
+elegant
+soft
+premium
+sophisticated
+restrained berry/rose
+
+It must NOT look childish or candy-like.
+
+It must NOT recolor:
+
+destructive red
+error red
+Hard difficulty
+incorrect answers
+
+Those remain separate fixed semantics.
+
+22. ROSE LIGHT — CANONICAL PALETTE
+--semantic-background-page: #fcf5f7;
+--semantic-background-grouped: #f8eaef;
+
+--semantic-surface-primary: #fffafd;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #f2dce4;
+
+--semantic-content-primary: #3a1724;
+--semantic-content-secondary: #805968;
+--semantic-content-subtle: rgba(100, 49, 67, 0.60);
+
+--semantic-border-default: rgba(180, 35, 90, 0.08);
+--semantic-border-strong: rgba(180, 35, 90, 0.15);
+
+--semantic-action-accent: #b4235a;
+--semantic-action-accent-soft: rgba(180, 35, 90, 0.10);
+--semantic-focus-ring: #b4235a;
+
+--semantic-navigation-active-background: rgba(180, 35, 90, 0.11);
+--semantic-navigation-active-foreground: #7f1d43;
+
+--semantic-glass-surface: rgba(255, 250, 253, 0.70);
+--semantic-glass-border: rgba(180, 35, 90, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #240711;
+--semantic-hero-glow-primary: rgba(190, 45, 95, 0.42);
+--semantic-hero-glow-secondary: rgba(166, 82, 128, 0.22);
+
+--semantic-chrome-content-primary: #351520;
+--semantic-chrome-content-secondary: #815b69;
+--semantic-chrome-content-subtle: #a68792;
+--semantic-chrome-content-muted: #6c4755;
+
+--semantic-chrome-surface-active: rgba(180, 35, 90, 0.11);
+--semantic-chrome-surface-hover: rgba(180, 35, 90, 0.06);
+
+--semantic-navigation-tab-active: #b4235a;
+--semantic-navigation-tab-inactive: #815b69;
+23. ROSE DARK — CANONICAL PALETTE
+--semantic-background-page: #17090e;
+--semantic-background-grouped: #210d14;
+
+--semantic-surface-primary: #210d14;
+--semantic-surface-elevated: #2a121b;
+--semantic-surface-muted: #3b1a27;
+
+--semantic-content-primary: #fff4f7;
+--semantic-content-secondary: rgba(255, 229, 238, 0.72);
+--semantic-content-subtle: rgba(255, 229, 238, 0.48);
+
+--semantic-border-default: rgba(255, 143, 179, 0.08);
+--semantic-border-strong: rgba(255, 143, 179, 0.15);
+
+--semantic-action-accent: #ff7da9;
+--semantic-action-accent-soft: rgba(255, 125, 169, 0.13);
+--semantic-focus-ring: #ff7da9;
+
+--semantic-navigation-active-background: rgba(255, 125, 169, 0.15);
+--semantic-navigation-active-foreground: #fff0f5;
+
+--semantic-glass-surface: rgba(42, 18, 27, 0.72);
+--semantic-glass-border: rgba(255, 143, 179, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #0d0407;
+--semantic-hero-glow-primary: rgba(215, 55, 115, 0.42);
+--semantic-hero-glow-secondary: rgba(180, 80, 140, 0.22);
+
+--semantic-chrome-content-primary: #fff4f7;
+--semantic-chrome-content-secondary: rgba(255, 229, 238, 0.70);
+--semantic-chrome-content-subtle: rgba(255, 229, 238, 0.48);
+--semantic-chrome-content-muted: #d8adb9;
+
+--semantic-chrome-surface-active: rgba(255, 125, 169, 0.15);
+--semantic-chrome-surface-hover: rgba(255, 125, 169, 0.08);
+
+--semantic-navigation-tab-active: #ff7da9;
+--semantic-navigation-tab-inactive: rgba(255, 229, 238, 0.68);
+24. AMBER DESIGN LANGUAGE
+
+Amber should feel:
+
+warm
+premium
+scholarly
+bronze/gold
+refined
+understated
+
+It must NOT look like:
+
+a warning screen
+orange everywhere
+yellow neon
+
+Special caution:
+
+status-warning remains fixed and semantically separate from Amber Theme Pack accent.
+
+Do not merge their variables even if some hues are visually related.
+
+25. AMBER LIGHT — CANONICAL PALETTE
+--semantic-background-page: #fbf7f0;
+--semantic-background-grouped: #f6edde;
+
+--semantic-surface-primary: #fdfaf4;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #efe1c8;
+
+--semantic-content-primary: #35230c;
+--semantic-content-secondary: #786243;
+--semantic-content-subtle: rgba(95, 70, 35, 0.62);
+
+--semantic-border-default: rgba(154, 91, 0, 0.08);
+--semantic-border-strong: rgba(154, 91, 0, 0.15);
+
+--semantic-action-accent: #9a5b00;
+--semantic-action-accent-soft: rgba(154, 91, 0, 0.10);
+--semantic-focus-ring: #9a5b00;
+
+--semantic-navigation-active-background: rgba(154, 91, 0, 0.11);
+--semantic-navigation-active-foreground: #684000;
+
+--semantic-glass-surface: rgba(255, 252, 246, 0.70);
+--semantic-glass-border: rgba(154, 91, 0, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #201203;
+--semantic-hero-glow-primary: rgba(190, 120, 20, 0.42);
+--semantic-hero-glow-secondary: rgba(225, 165, 60, 0.20);
+
+--semantic-chrome-content-primary: #302009;
+--semantic-chrome-content-secondary: #796344;
+--semantic-chrome-content-subtle: #9f8c70;
+--semantic-chrome-content-muted: #654e2d;
+
+--semantic-chrome-surface-active: rgba(154, 91, 0, 0.11);
+--semantic-chrome-surface-hover: rgba(154, 91, 0, 0.06);
+
+--semantic-navigation-tab-active: #9a5b00;
+--semantic-navigation-tab-inactive: #796344;
+26. AMBER DARK — CANONICAL PALETTE
+--semantic-background-page: #171006;
+--semantic-background-grouped: #211708;
+
+--semantic-surface-primary: #211708;
+--semantic-surface-elevated: #281d0c;
+--semantic-surface-muted: #3a2b13;
+
+--semantic-content-primary: #fff8e9;
+--semantic-content-secondary: rgba(255, 240, 211, 0.72);
+--semantic-content-subtle: rgba(255, 240, 211, 0.48);
+
+--semantic-border-default: rgba(248, 189, 85, 0.08);
+--semantic-border-strong: rgba(248, 189, 85, 0.15);
+
+--semantic-action-accent: #f8bd55;
+--semantic-action-accent-soft: rgba(248, 189, 85, 0.13);
+--semantic-focus-ring: #f8bd55;
+
+--semantic-navigation-active-background: rgba(248, 189, 85, 0.15);
+--semantic-navigation-active-foreground: #fff5dc;
+
+--semantic-glass-surface: rgba(40, 29, 12, 0.72);
+--semantic-glass-border: rgba(248, 189, 85, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #0c0802;
+--semantic-hero-glow-primary: rgba(220, 145, 30, 0.42);
+--semantic-hero-glow-secondary: rgba(240, 190, 75, 0.20);
+
+--semantic-chrome-content-primary: #fff8e9;
+--semantic-chrome-content-secondary: rgba(255, 240, 211, 0.70);
+--semantic-chrome-content-subtle: rgba(255, 240, 211, 0.48);
+--semantic-chrome-content-muted: #d7bf93;
+
+--semantic-chrome-surface-active: rgba(248, 189, 85, 0.15);
+--semantic-chrome-surface-hover: rgba(248, 189, 85, 0.08);
+
+--semantic-navigation-tab-active: #f8bd55;
+--semantic-navigation-tab-inactive: rgba(255, 240, 211, 0.68);
+27. VIOLET DESIGN LANGUAGE
+
+Violet should feel:
+
+premium
+expressive
+sophisticated
+modern
+deep violet/plum
+polished
+
+It must NOT become:
+
+neon purple
+gaming UI
+oversaturated gradient UI
+28. VIOLET LIGHT — CANONICAL PALETTE
+--semantic-background-page: #f8f5fc;
+--semantic-background-grouped: #f0eaf8;
+
+--semantic-surface-primary: #fcfaff;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #e8dff3;
+
+--semantic-content-primary: #291b3a;
+--semantic-content-secondary: #6e5a80;
+--semantic-content-subtle: rgba(74, 51, 96, 0.60);
+
+--semantic-border-default: rgba(109, 60, 198, 0.08);
+--semantic-border-strong: rgba(109, 60, 198, 0.15);
+
+--semantic-action-accent: #6d3cc6;
+--semantic-action-accent-soft: rgba(109, 60, 198, 0.10);
+--semantic-focus-ring: #6d3cc6;
+
+--semantic-navigation-active-background: rgba(109, 60, 198, 0.11);
+--semantic-navigation-active-foreground: #4e2494;
+
+--semantic-glass-surface: rgba(252, 250, 255, 0.70);
+--semantic-glass-border: rgba(109, 60, 198, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #160a24;
+--semantic-hero-glow-primary: rgba(120, 70, 210, 0.42);
+--semantic-hero-glow-secondary: rgba(168, 95, 205, 0.20);
+
+--semantic-chrome-content-primary: #271936;
+--semantic-chrome-content-secondary: #705c81;
+--semantic-chrome-content-subtle: #9788a5;
+--semantic-chrome-content-muted: #5a426d;
+
+--semantic-chrome-surface-active: rgba(109, 60, 198, 0.11);
+--semantic-chrome-surface-hover: rgba(109, 60, 198, 0.06);
+
+--semantic-navigation-tab-active: #6d3cc6;
+--semantic-navigation-tab-inactive: #705c81;
+29. VIOLET DARK — CANONICAL PALETTE
+--semantic-background-page: #100a18;
+--semantic-background-grouped: #170e22;
+
+--semantic-surface-primary: #170e22;
+--semantic-surface-elevated: #1d142a;
+--semantic-surface-muted: #2c203d;
+
+--semantic-content-primary: #faf5ff;
+--semantic-content-secondary: rgba(240, 229, 255, 0.72);
+--semantic-content-subtle: rgba(240, 229, 255, 0.48);
+
+--semantic-border-default: rgba(185, 156, 255, 0.08);
+--semantic-border-strong: rgba(185, 156, 255, 0.15);
+
+--semantic-action-accent: #b99cff;
+--semantic-action-accent-soft: rgba(185, 156, 255, 0.13);
+--semantic-focus-ring: #b99cff;
+
+--semantic-navigation-active-background: rgba(185, 156, 255, 0.15);
+--semantic-navigation-active-foreground: #f4ecff;
+
+--semantic-glass-surface: rgba(29, 20, 42, 0.72);
+--semantic-glass-border: rgba(185, 156, 255, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #08040d;
+--semantic-hero-glow-primary: rgba(130, 82, 220, 0.42);
+--semantic-hero-glow-secondary: rgba(182, 100, 205, 0.22);
+
+--semantic-chrome-content-primary: #faf5ff;
+--semantic-chrome-content-secondary: rgba(240, 229, 255, 0.70);
+--semantic-chrome-content-subtle: rgba(240, 229, 255, 0.48);
+--semantic-chrome-content-muted: #c5b3d8;
+
+--semantic-chrome-surface-active: rgba(185, 156, 255, 0.15);
+--semantic-chrome-surface-hover: rgba(185, 156, 255, 0.08);
+
+--semantic-navigation-tab-active: #b99cff;
+--semantic-navigation-tab-inactive: rgba(240, 229, 255, 0.68);
+30. MONOCHROME DESIGN LANGUAGE
+
+Monochrome should feel:
+
+minimal
+editorial
+premium
+calm
+highly focused
+grayscale
+
+It is NOT:
+
+accessibility high-contrast mode
+forced-colors replacement
+pure black/white everywhere
+
+Surface hierarchy must remain visible.
+
+Fixed semantic colors must REMAIN colored.
+
+Important:
+
+Monochrome Theme Pack does NOT make:
+
+errors gray
+success gray
+warning gray
+MCQ difficulty gray
+correct/incorrect gray
+Calendar semantic colors gray
+module identities gray
+
+Only generic presentation becomes monochrome.
+
+31. MONOCHROME LIGHT — CANONICAL PALETTE
+--semantic-background-page: #f7f7f7;
+--semantic-background-grouped: #eeeeef;
+
+--semantic-surface-primary: #fbfbfb;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #e2e2e4;
+
+--semantic-content-primary: #1c1c1e;
+--semantic-content-secondary: #66666a;
+--semantic-content-subtle: rgba(60, 60, 67, 0.60);
+
+--semantic-border-default: rgba(0, 0, 0, 0.06);
+--semantic-border-strong: rgba(0, 0, 0, 0.12);
+
+--semantic-action-accent: #3a3a3c;
+--semantic-action-accent-soft: rgba(58, 58, 60, 0.09);
+--semantic-focus-ring: #3a3a3c;
+
+--semantic-navigation-active-background: rgba(58, 58, 60, 0.10);
+--semantic-navigation-active-foreground: #1c1c1e;
+
+--semantic-glass-surface: rgba(255, 255, 255, 0.72);
+--semantic-glass-border: rgba(0, 0, 0, 0.08);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #111113;
+--semantic-hero-glow-primary: rgba(180, 180, 188, 0.18);
+--semantic-hero-glow-secondary: rgba(255, 255, 255, 0.08);
+
+--semantic-chrome-content-primary: #1c1c1e;
+--semantic-chrome-content-secondary: #66666a;
+--semantic-chrome-content-subtle: #929296;
+--semantic-chrome-content-muted: #4f4f53;
+
+--semantic-chrome-surface-active: rgba(58, 58, 60, 0.10);
+--semantic-chrome-surface-hover: rgba(58, 58, 60, 0.05);
+
+--semantic-navigation-tab-active: #3a3a3c;
+--semantic-navigation-tab-inactive: #66666a;
+32. MONOCHROME DARK — CANONICAL PALETTE
+--semantic-background-page: #090909;
+--semantic-background-grouped: #111111;
+
+--semantic-surface-primary: #111111;
+--semantic-surface-elevated: #1c1c1e;
+--semantic-surface-muted: #2c2c2e;
+
+--semantic-content-primary: #f5f5f7;
+--semantic-content-secondary: rgba(235, 235, 245, 0.72);
+--semantic-content-subtle: rgba(235, 235, 245, 0.46);
+
+--semantic-border-default: rgba(255, 255, 255, 0.07);
+--semantic-border-strong: rgba(255, 255, 255, 0.14);
+
+--semantic-action-accent: #e5e5ea;
+--semantic-action-accent-soft: rgba(229, 229, 234, 0.12);
+--semantic-focus-ring: #e5e5ea;
+
+--semantic-navigation-active-background: rgba(229, 229, 234, 0.14);
+--semantic-navigation-active-foreground: #ffffff;
+
+--semantic-glass-surface: rgba(28, 28, 30, 0.74);
+--semantic-glass-border: rgba(255, 255, 255, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #050505;
+--semantic-hero-glow-primary: rgba(210, 210, 218, 0.14);
+--semantic-hero-glow-secondary: rgba(255, 255, 255, 0.07);
+
+--semantic-chrome-content-primary: #f5f5f7;
+--semantic-chrome-content-secondary: rgba(235, 235, 245, 0.70);
+--semantic-chrome-content-subtle: rgba(235, 235, 245, 0.46);
+--semantic-chrome-content-muted: #b4b4b8;
+
+--semantic-chrome-surface-active: rgba(229, 229, 234, 0.14);
+--semantic-chrome-surface-hover: rgba(229, 229, 234, 0.07);
+
+--semantic-navigation-tab-active: #e5e5ea;
+--semantic-navigation-tab-inactive: rgba(235, 235, 245, 0.68);
+33. CANONICAL VALUES POLICY
+
+The supplied palettes are the canonical starting values.
+
+Do NOT casually tweak colors.
+
+Adjust a value ONLY if:
+
+contrast materially fails,
+the existing component usage makes it inaccessible,
+or there is a genuine CSS technical problem.
+
+For every adjustment, report:
+
+Theme
+Token
+Original value
+Final value
+Reason
+Measured contrast before/after
+
+No silent palette changes.
+
+34. CONTRAST VALIDATION — MANDATORY
+
+For EACH of the six new themes, validate BOTH Light and Dark.
+
+At minimum test:
+
+content-primary on background-page
+content-primary on surface-elevated
+content-secondary on surface-elevated
+chrome-content-primary on appropriate navigation surface
+navigation-active-foreground on composited navigation-active background
+action-accent as text on surface-elevated
+action-accent as text on background-page
+
+For translucent values:
+
+calculate their effective composited color where practical.
+
+Do not fabricate contrast ratios.
+
+Normal readable text should target WCAG AA.
+
+35. AMBER SEMANTIC-DISTINCTION CHECK
+
+Because Amber generic accent is close to warning hues:
+
+specifically inspect:
+
+generic Amber action
+status-warning
+Hard/danger
+success
+destructive
+
+They must remain semantically distinguishable by the app's existing:
+
+labels
+icons
+context
+shape
+fixed semantic colors
+
+Do NOT rewrite warning semantics.
+
+If generic Amber accent and warning become dangerously indistinguishable in a real existing component, adjust ONLY the generic Amber Theme Pack accent conservatively and report it.
+
+36. EMERALD SEMANTIC-DISTINCTION CHECK
+
+Because Emerald generic accent is green:
+
+specifically verify:
+
+generic action
+success
+Easy difficulty
+Correct answer
+
+remain behaviorally and semantically distinct.
+
+Do NOT rewrite success/MCQ semantics.
+
+If necessary, only adjust the generic Theme Pack accent.
+
+37. ROSE SEMANTIC-DISTINCTION CHECK
+
+Because Rose accent is close to destructive/error families:
+
+verify:
+
+generic Rose action
+error
+destructive
+Hard
+incorrect
+
+remain distinguishable through existing semantic styling/context.
+
+Do not make destructive/error theme-dependent.
+
+38. MONOCHROME SEMANTIC-DISTINCTION CHECK
+
+Verify Monochrome does NOT neutralize meaning-bearing colors.
+
+Under Monochrome:
+
+Success → remains green
+Error → remains red
+Warning → remains warning-colored
+Easy → remains green
+Normal → remains amber
+Hard → remains red
+Correct → remains green
+Incorrect → remains red
+Calendar semantics → remain colored
+Modules → retain identity
+Flashcards → retain subject identity
+
+This is a mandatory invariant.
+
+39. THEME UNIQUENESS
+
+Each Theme Pack must have a distinct overall palette signature.
+
+Test that no two complete theme palettes are accidentally identical.
+
+It is acceptable for individual roles to share values, such as:
+
+surface-elevated = #ffffff
+
+But complete Light/Dark token sets must not be duplicates.
+
+40. NO TOKEN ADDITIONS EXPECTED
+
+The current 29 themeable roles should be sufficient.
+
+Expected new Theme Pack token names:
+
+NONE
+
+If a 30th themeable token appears necessary to make these themes function:
+
+STOP and report why.
+
+Do NOT expand the token contract casually during palette population.
+
+41. CSS ORGANIZATION
+
+Keep all actual palette values CSS-owned.
+
+You may organize the theme scopes clearly in src/index.css, for example:
+
+Classic base
+Ocean
+Midnight
+Emerald
+Rose
+Amber
+Violet
+Monochrome
+
+or another readable ordering.
+
+Do NOT create duplicate palette files unless current CSS architecture strongly requires it.
+
+Do not put palette values into TS.
+
+42. NO FEATURE COMPONENT EDITS
+
+Expected direct feature-component modifications:
+
+ZERO
+
+Do not modify:
+
+Calendar
+MCQ
+Flashcards
+Lectures
+Modules
+Settings
+Profile
+Notifications
+Home
+Console
+Auth
+
+for theme-specific styling.
+
+If a theme appears incomplete:
+
+the correct action is to inspect semantic-token coverage, NOT add theme-specific component classes.
+
+43. THEME RUNTIME SHOULD REQUIRE MINIMAL CHANGE
+
+Ideally Prompt 13 only needs runtime change in:
+
+implemented-theme metadata
+resolver if it was hardcoded specifically for Ocean
+
+Do NOT alter:
+
+bridge lifecycle
+provider lifecycle
+hydration
+storage
+Apply
+account switching
+generation guards
+44. GENERIC RESOLVER REQUIREMENT
+
+After all current ThemeIds are implemented:
+
+resolveVisualThemeId("classic-99") === "classic-99"
+resolveVisualThemeId("midnight") === "midnight"
+resolveVisualThemeId("ocean") === "ocean"
+resolveVisualThemeId("emerald") === "emerald"
+resolveVisualThemeId("rose") === "rose"
+resolveVisualThemeId("amber") === "amber"
+resolveVisualThemeId("violet") === "violet"
+resolveVisualThemeId("monochrome") === "monochrome"
+
+Unknown/invalid runtime data must safely resolve to Classic where the helper accepts unknown values.
+
+Do not weaken shared contract validation.
+
+45. ATTRIBUTE SYNCHRONIZATION
+
+Verify exact resulting attributes:
+
+classic-99
+→ attribute absent
+
+midnight
+→ midnight
+
+ocean
+→ ocean
+
+emerald
+→ emerald
+
+rose
+→ rose
+
+amber
+→ amber
+
+violet
+→ violet
+
+monochrome
+→ monochrome
+
+No stale previous-theme value may remain after switching.
+
+46. THEME-TO-THEME SWITCHING
+
+Test direct transitions WITHOUT passing through reload:
+
+Ocean → Midnight
+Midnight → Emerald
+Emerald → Rose
+Rose → Amber
+Amber → Violet
+Violet → Monochrome
+Monochrome → Classic
+Classic → Ocean
+
+Expected:
+
+single attribute value replacement/removal.
+
+No remount.
+
+No navigation reset.
+
+No persistence beyond explicit Apply.
+
+47. RAPID SWITCH SAFETY
+
+At runtime, committed changes may happen after explicit Applies/account hydration.
+
+Attribute synchronization must be idempotent and safe for sequential changes.
+
+No stale selector state.
+
+No multiple theme classes.
+
+48. LIGHT/DARK ORTHOGONALITY FOR EVERY THEME
+
+For each:
+
+Midnight
+Ocean
+Emerald
+Rose
+Amber
+Violet
+Monochrome
+
+verify:
+
+Light:
+attribute remains theme ID
+html.dark absent
+
+Dark:
+attribute remains theme ID
+html.dark present
+
+System:
+attribute remains theme ID
+html.dark follows OS
+
+Theme Pack must never alter html.dark.
+
+49. CLASSIC BEHAVIOR
+
+Classic continues to remove data-app-theme.
+
+No Classic palette duplication.
+
+No Classic scoped selector.
+
+50. ACCOUNT BOUNDARY
+
+Do not alter Phase-1 account semantics.
+
+Example:
+
+A = Rose
+B = Emerald
+
+On switch:
+
+A Rose
+→ immediate Classic boundary
+→ B Emerald after hydration
+
+This intentional brief Classic boundary prevents cross-account theme leakage.
+
+Test at runtime/controller/bridge level where existing test harness permits.
+
+51. LOGOUT
+
+Any alternate Theme Pack:
+
+Midnight / Ocean / Emerald / Rose / Amber / Violet / Monochrome
+
+logout:
+
+→ committed Classic
+→ data-app-theme removed
+
+No alternate theme leaks into anonymous state.
+
+52. APPLY FAILURE
+
+For any new theme:
+
+Committed Classic
+Draft Violet
+Apply fails
+
+Expected:
+
+committed Classic
+draft Violet
+dirty true
+visual Classic
+attribute absent
+
+Do not duplicate Apply logic per theme.
+
+One representative non-Ocean Theme test is sufficient in addition to the existing Ocean test.
+
+53. DRAFT REMAINS VISUALLY INERT
+
+Test a new theme, for example:
+
+Committed Ocean
+Draft Rose
+
+Before Apply:
+
+Visual Ocean
+data-app-theme="ocean"
+
+Draft Rose must not recolor the app.
+
+54. NO THEME-SPECIFIC STORAGE
+
+Do NOT create separate keys such as:
+
+ocean_theme
+rose_theme
+violet_theme
+
+The persisted config already contains:
+
+themeId
+
+No schema change.
+
+55. NO GLOBAL THEME CACHE
+
+Still no:
+
+last_theme
+last_theme_pack
+device_theme_pack
+
+Account-scoped personalization cache remains authoritative after authentication.
+
+56. INITIAL PAINT REMAINS DEFERRED
+
+Do NOT modify:
+
+public/theme-preload.js
+index.html
+LaunchScreen.tsx
+
+Startup remains safely Classic before account personalization hydrates.
+
+We will solve first-paint harmonization deliberately later.
+
+57. HERO COLORATION
+
+Each Theme Pack may change:
+
+semantic Hero background
+primary glow
+secondary glow
+
+through tokens.
+
+Do NOT change:
+
+heroStyle
+Hero DOM
+particles
+text
+motto
+animation
+geometry
+58. GLASS COLORATION
+
+Each Theme Pack may change:
+
+semantic glass surface
+semantic glass border
+
+Do NOT change:
+
+blur
+saturation
+backdrop-filter
+glassStyle
+59. MOTION
+
+No theme may change motion.
+
+motionStyle remains unwired.
+
+60. READING SIZE
+
+Unwired.
+
+No typography-size changes.
+
+61. HOME ORDER
+
+Unwired.
+
+No subject reorder.
+
+62. APP ICON
+
+No App Icon work.
+
+Do not touch:
+
+Info.plist
+AppIcon assets
+Capacitor configuration
+manifest icons
+63. SETTINGS / MY 99 UI
+
+Still NO personalization UI.
+
+Do not add:
+
+theme swatches
+theme names
+preview cards
+Apply button
+Reset button
+My 99 page
+
+Phase 4 will expose the already-built runtime safely.
+
+64. KV
+
+Still no KV.
+
+No Worker.
+
+No API endpoint.
+
+No network synchronization.
+
+65. SQL / D1 / R2
+
+No changes.
+
+66. FIXED-SEMANTIC CSS SCAN
+
+For every alternate Theme Pack scope, verify none declares any fixed semantic token.
+
+Automated test should scan all seven alternate themes, not Ocean only.
+
+67. DOMAIN-IDENTITY TESTS
+
+Retain all approved tests proving independence for:
+
+MCQ difficulty
+MCQ correctness
+Flashcard identity
+Calendar semantics
+Module identity
+iOS destructive actions
+Settings destructive actions
+Notification semantic states
+Profile roles/status
+
+No need to duplicate every test if existing suites already cover it.
+
+Run them.
+
+68. COMPLETE THEME CSS TEST
+
+Build a maintainable test that parses each implemented alternate Theme Pack.
+
+For each Theme ID except Classic:
+
+verify:
+
+29 Light declarations
+29 Dark declarations
+exact names match THEMEABLE_TOKEN_NAMES
+no missing names
+no unknown themeable names
+no duplicate names
+no fixed semantic names
+
+This should include Ocean too.
+
+69. IMPLEMENTED-THEME METADATA TEST
+
+Verify metadata exactly equals the canonical eight ThemeIds after Prompt 13.
+
+Order should preferably follow the shared canonical ordering.
+
+Do not rely on accidental Set ordering unless explicit.
+
+70. THEME ATTRIBUTE TESTS
+
+Test all eight theme resolutions and corresponding DOM attribute values.
+
+Classic:
+
+null attribute
+
+All seven alternatives:
+
+exact theme ID.
+
+71. COMPLETE FALLBACK TEST
+
+If resolver receives unsupported runtime data through a defensive boundary:
+
+fallback:
+
+classic-99
+
+If the function accepts only ThemeId at compile time, test the actual defensive normalization layer that protects runtime input rather than weakening types just for the test.
+
+72. NO FEATURE SELECTOR TEST
+
+Search alternate theme scopes.
+
+Reject selectors targeting application feature classes/components.
+
+Allowed selectors should be limited to theme scope declarations themselves.
+
+No:
+
+.calendar-*
+.mcq-*
+.module-*
+.sidebar-*
+etc.
+
+73. NO JS PALETTE TEST
+
+Retain invariant:
+
+no style.setProperty palette mechanism.
+
+74. NO RELOAD / REMOUNT TEST
+
+Retain:
+
+no reload
+no theme key
+no App key
+no provider key
+75. STRICTMODE
+
+Theme attribute synchronization remains idempotent.
+
+No change required unless generic resolver update breaks this.
+
+76. PERSONALIZATION RUNTIME TESTS
+
+Rerun all Phase-1 runtime tests:
+
+anonymous
+hydration
+A/B
+A/B/A
+stale hydration
+logout
+Apply success
+Apply failure
+retry
+no-op Apply
+switch during Apply
+logout during Apply
+storage failures
+
+No regression.
+
+77. ALL PERSONALIZATION TESTS
+
+Run all current suites including:
+
+contracts
+state
+storage
+runtime
+token architecture
+Phase-2 closure
+feature-surface
+Lecture
+Calendar
+MCQ/Flashcards
+Ocean runtime
+new complete-theme-library tests
+
+Report exact total.
+
+78. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+79. AUTH
+
+Run:
+
+npm run test:auth
+80. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+81. NOTES
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+82. MCQ
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+83. FLASHCARDS
+
+Run:
+
+npm run test:ai-flashcard
+84. CALENDAR SUITE
+
+Run Prompt 9 Calendar personalization tests.
+
+85. LECTURE SUITE
+
+Run Prompt 8 Lecture personalization tests.
+
+86. MCQ/FLASHCARD PERSONALIZATION SUITE
+
+Run Prompt 10 tests.
+
+87. PDF BASELINE
+
+If run:
+
+expected unchanged baseline:
+
+2 passed
+1 known fixture failure
+pdf_download_expiry_invalid
+
+No PDF code should change.
+
+A different failure blocks Prompt 13.
+
+88. TYPESCRIPT
+
+Run targeted typecheck for:
+
+theme metadata
+resolver
+runtime tests
+any changed personalization code
+
+Full typecheck may still contain ONLY the known seven .webp baseline errors.
+
+Any new TypeScript error:
+
+FAIL.
+
+89. ESLINT
+
+Run targeted lint on touched files.
+
+Do not fix unrelated baseline lint.
+
+90. CONTRAST TEST IMPLEMENTATION
+
+Prefer a small reusable test/helper rather than manually eyeballing all themes.
+
+Calculate actual contrast.
+
+For alpha colors:
+
+composite correctly over the relevant base surface before calculating contrast.
+
+Do not use approximate online claims.
+
+No internet dependency is necessary.
+
+91. CONTRAST REPORT
+
+For EACH new Theme Pack provide a summary table.
+
+At minimum:
+
+Theme
+Light minimum tested normal-text ratio
+Dark minimum tested normal-text ratio
+PASS/FAIL
+Any adjustment
+
+Then provide detailed pair table for any theme that required adjustment.
+
+Do not fabricate.
+
+92. VISUAL VERIFICATION
+
+If authenticated preview becomes available:
+
+sample ALL newly added themes at least once.
+
+You do not need to inspect every route.
+
+Suggested representative screen:
+
+Home/App shell with:
+
+Sidebar/bottom bar
+Hero
+subject surface
+
+Then sample a semantic-heavy screen such as:
+
+MCQ or Calendar
+
+for at least:
+
+Emerald
+Rose
+Amber
+Monochrome
+
+to verify semantic colors survive.
+
+Check Light + Dark where practical.
+
+If auth remains unavailable:
+
+report the gate honestly.
+
+Do not add a production debug switcher.
+
+93. NO TEST-ONLY PRODUCTION BACKDOOR
+
+Do not add:
+
+?theme=
+hidden localStorage theme override
+debug theme dropdown
+keyboard theme changer
+
+to production source.
+
+94. EXPECTED FILES
+
+Likely modified:
+
+src/index.css
+src/features/personalization/classic99Tokens.ts
+src/features/personalization/personalizationTheme.ts
+tests/personalization-theme-runtime.test.ts
+
+Potentially create:
+
+tests/personalization-theme-library.test.ts
+
+if cleaner.
+
+Expected feature-component edits:
+
+ZERO
+
+Expected provider/bridge behavioral changes:
+
+ZERO
+
+unless resolver generalization requires a tiny type/import adjustment.
+
+95. FILE-SCOPE STOP CONDITION
+
+If implementing these themes requires touching:
+
+Calendar
+MCQ
+Flashcards
+Lecture
+Settings
+Profile
+Notifications
+Modules
+Home
+Console
+
+STOP.
+
+Do not patch around semantic architecture.
+
+Report the blocker instead.
+
+The purpose of Phase 2 was specifically to avoid this.
+
+96. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Review every change.
+
+No unrelated modifications.
+
+97. NO .agents/*
+
+No .agents/* file may be created or modified.
+
+98. DEFINITION OF DONE
+
+Prompt 13 passes only if:
+
+Midnight implemented.
+Ocean remains unchanged.
+Emerald implemented.
+Rose implemented.
+Amber implemented.
+Violet implemented.
+Monochrome implemented.
+Classic remains the unscoped base.
+All eight ThemeIds are visually implemented.
+Every alternate theme has all 29 Light tokens.
+Every alternate theme has all 29 Dark tokens.
+CSS remains palette source of truth.
+TypeScript contains metadata only.
+Resolver handles all eight IDs cleanly.
+Defensive fallback remains Classic.
+One data-app-theme attribute remains the only runtime switch.
+Classic removes the attribute.
+No feature-specific theme selectors.
+No feature-component theme edits.
+No fixed semantic override.
+MCQ semantics protected.
+Calendar semantics protected.
+Module identities protected.
+Flashcard identities protected.
+Notification semantics protected.
+role/destructive semantics protected.
+Light/Dark/System remains orthogonal.
+Draft remains globally inert.
+Apply remains transactional.
+account boundary remains safe.
+logout clears alternate theme.
+no reload.
+no remount.
+no JS palette writes.
+no global Theme Pack cache.
+no My 99 UI.
+no KV.
+no SQL.
+no D1.
+no R2.
+no App Icon work.
+heroStyle remains unwired.
+glassStyle remains unwired.
+motionStyle remains unwired.
+readingSize remains unwired.
+Home subject order remains unwired.
+required contrast checks pass.
+build passes.
+tests pass except explicitly accepted unchanged baselines.
+diff remains scoped.
+99. MANDATORY FINAL IMPLEMENTATION REPORT
+
+This prompt is INCOMPLETE without the following report.
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 3 PROMPT 13 REPORT
+1. Status
+
+PASS / FAIL
+
+2. Implemented Theme Library
+
+List all eight ThemeIds and implementation status.
+
+3. Files Created
+File	Purpose
+4. Files Modified
+File	Exact Change	Why
+5. Final Runtime Architecture
+
+Confirm the Prompt 12 architecture remains:
+
+committed
+→ resolver
+→ data-app-theme
+→ CSS semantic tokens
+
+6. Resolver Generalization
+
+Explain whether Prompt 12 had Ocean-specific resolver logic and how it now handles the complete implemented-theme set.
+
+7. Final Implemented Theme IDs
+
+Print exact metadata.
+
+8. DOM Attribute Mapping
+Theme	Attribute
+
+Classic should report attribute absent.
+
+9. Classic 99
+
+Confirm:
+
+unscoped base
+unchanged palette
+safe fallback
+10. Ocean
+
+Confirm:
+
+unchanged from Prompt 12
+full 29/29 Light
+full 29/29 Dark
+11. Midnight Light Palette
+
+Print all 29 final values.
+
+12. Midnight Dark Palette
+
+Print all 29 final values.
+
+13. Emerald Light Palette
+
+Print all 29 final values.
+
+14. Emerald Dark Palette
+
+Print all 29 final values.
+
+15. Rose Light Palette
+
+Print all 29 final values.
+
+16. Rose Dark Palette
+
+Print all 29 final values.
+
+17. Amber Light Palette
+
+Print all 29 final values.
+
+18. Amber Dark Palette
+
+Print all 29 final values.
+
+19. Violet Light Palette
+
+Print all 29 final values.
+
+20. Violet Dark Palette
+
+Print all 29 final values.
+
+21. Monochrome Light Palette
+
+Print all 29 final values.
+
+22. Monochrome Dark Palette
+
+Print all 29 final values.
+
+23. Palette Adjustments
+
+For every changed canonical value:
+
+Theme	Token	Supplied	Final	Reason	Contrast Before	Contrast After
+
+If none:
+
+NONE.
+
+24. Token Completeness
+
+Table:
+
+Theme	Light Tokens	Dark Tokens	Missing	Extra	Result
+
+Expected every alternate theme:
+
+29 / 29 / 0 / 0 / PASS
+
+25. Selector Architecture
+
+Print exact theme selectors.
+
+Confirm there are no feature-specific theme selectors.
+
+26. CSS Source of Truth
+
+Confirm palette values live only in CSS.
+
+27. Theme Uniqueness
+
+Confirm no two complete palettes are duplicates.
+
+28. Light/Dark/System Orthogonality
+
+Explain behavior across all alternate themes.
+
+29. Theme-to-Theme Switching
+
+Report tested direct transitions.
+
+Confirm no reload/remount.
+
+30. Draft vs Committed
+
+Report a representative:
+
+Committed Ocean
+Draft Rose
+→ global Ocean until Apply
+
+31. Apply Success
+
+Report representative new-theme Apply.
+
+32. Apply Failure
+
+Report representative failed new-theme Apply.
+
+33. Account Switching
+
+Report representative:
+
+A Rose → B Emerald
+
+including Classic hydration boundary.
+
+34. Logout
+
+Confirm all alternate themes clear to Classic.
+
+35. Fixed Semantic CSS Safety
+
+Confirm no alternate Theme Pack overrides:
+
+error
+success
+warning
+online
+offline
+destructive
+validation
+36. MCQ Safety
+
+Confirm:
+
+Easy
+Normal
+Hard
+Correct
+Incorrect
+selected/category semantics
+
+remain independent.
+
+37. Emerald vs Success Safety
+
+Report findings.
+
+38. Rose vs Destructive Safety
+
+Report findings.
+
+39. Amber vs Warning Safety
+
+Report findings.
+
+40. Monochrome Semantic Safety
+
+Confirm meaning-bearing colors remain colored.
+
+41. Calendar Safety
+
+Confirm Today/events/exams/current-time remain independent.
+
+42. Module Safety
+
+Confirm all seven identities remain independent.
+
+43. Flashcard Safety
+
+Confirm subject/review identity remains independent.
+
+44. Notifications / Profile / Settings
+
+Confirm semantic/role/destructive states remain independent.
+
+45. Hero
+
+Confirm only token coloration changes and heroStyle remains unwired.
+
+46. Glass
+
+Confirm only token coloration changes and glassStyle remains unwired.
+
+47. Motion
+
+Confirm motionStyle remains unwired.
+
+48. Reading Size
+
+Confirm readingSize remains unwired.
+
+49. Home Order
+
+Confirm subjectOrder remains unwired.
+
+50. App Icon
+
+Confirm untouched.
+
+51. My 99 UI
+
+Confirm not implemented.
+
+52. Initial Paint
+
+Confirm preload/index/LaunchScreen remain untouched.
+
+Explain Classic-before-hydration behavior.
+
+53. Global Theme Cache
+
+Confirm none exists.
+
+54. Contrast Summary
+Theme	Light Minimum Tested Ratio	Dark Minimum Tested Ratio	Result	Adjusted?
+
+Include:
+
+Midnight
+Ocean
+Emerald
+Rose
+Amber
+Violet
+Monochrome
+
+Ocean may reuse validated Prompt 12 results if its palette remained byte-for-byte unchanged, but state that explicitly.
+
+55. Detailed Contrast Adjustments
+
+Only if needed.
+
+56. Tests Added/Updated
+
+List exact theme-library invariants.
+
+57. Personalization Test Results
+
+Report exact total passed/failed.
+
+58. Regression Results
+Command	Result
+59. Existing Baselines
+
+Report separately:
+
+PDF fixture
+seven .webp TypeScript errors
+unrelated lint baseline
+60. Visual Verification
+
+State exactly:
+
+authentication state
+viewport(s)
+themes actually observed
+Light/Dark actually observed
+screens actually observed
+
+Do not overclaim.
+
+61. Feature Component Diff Verification
+
+Expected exact statement:
+
+NO THEME-SPECIFIC FEATURE COMPONENT EDITS.
+
+If not true:
+explain every exception.
+
+62. Provider / Bridge Diff Verification
+
+Explain whether either changed.
+
+Expected:
+no behavioral change.
+
+63. Backend / Business Logic Verification
+
+Confirm no changes to application business/data semantics.
+
+64. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+65. Git Diff Summary
+
+Exact files/stat.
+
+Confirm:
+
+git diff --check: PASS
+
+66. Agent Artifact Verification
+
+State exactly:
+
+No .agents/* file was created or modified.
+
+67. Phase 3 Closure Readiness
+
+If everything passes, state exactly:
+
+COMPLETE CURATED THEME LIBRARY: IMPLEMENTED
+
+ALL EIGHT THEME IDS: VISUALLY IMPLEMENTED
+
+THEME RUNTIME ARCHITECTURE: STABLE
+
+PHASE 3 THEME IMPLEMENTATION: READY FOR FINAL CLOSURE AUDIT
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 3 PROMPT 13 STATUS: COMPLETE — READY FOR PHASE 3 CLOSURE AUDIT
+
+or:
+
+PERSONALIZATION PHASE 3 PROMPT 13 STATUS: BLOCKED — REPAIR REQUIRED

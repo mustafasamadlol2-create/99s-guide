@@ -7,7 +7,16 @@
  * palette in TypeScript.
  */
 
-export const IMPLEMENTED_THEME_IDS = ["classic-99", "ocean"] as const;
+export const IMPLEMENTED_THEME_IDS = [
+  "classic-99",
+  "midnight",
+  "ocean",
+  "emerald",
+  "rose",
+  "amber",
+  "violet",
+  "monochrome",
+] as const;
 export type ImplementedThemeId = (typeof IMPLEMENTED_THEME_IDS)[number];
 
 export const THEMEABLE_TOKEN_NAMES = [
