@@ -62,11 +62,47 @@ test("themeable token names are unique and have light/dark CSS declarations", ()
     THEMEABLE_TOKEN_NAMES.length,
   );
 
+  const rootStart = css.indexOf("\n:root {");
+  const darkStart = css.indexOf("\n.dark {", rootStart);
+  const darkEnd = css.indexOf('\n.dark [class*="shadow-"]', darkStart);
+  assert.equal(rootStart >= 0, true);
+  assert.equal(darkStart > rootStart, true);
+  assert.equal(darkEnd > darkStart, true);
+  const lightTokenLayer = css.slice(rootStart, darkStart);
+  const darkTokenLayer = css.slice(darkStart, darkEnd);
+
   for (const tokenName of THEMEABLE_TOKEN_NAMES) {
-    const declarationCount = css.match(
-      new RegExp(`--${tokenName}:`, "g"),
-    )?.length ?? 0;
-    assert.equal(declarationCount, 2, tokenName);
+    assert.equal(
+      lightTokenLayer.match(new RegExp(`--${tokenName}\\s*:`, "g"))?.length ?? 0,
+      1,
+      `${tokenName} light declaration`,
+    );
+    assert.equal(
+      darkTokenLayer.match(new RegExp(`--${tokenName}\\s*:`, "g"))?.length ?? 0,
+      1,
+      `${tokenName} dark declaration`,
+    );
+    assert.equal(
+      css.match(new RegExp(`--${tokenName}\\s*:`, "g"))?.length ?? 0,
+      2,
+      `${tokenName} total declarations`,
+    );
+    assert.equal(
+      css.match(
+        new RegExp(`--color-${tokenName}\\s*:\\s*var\\(--${tokenName}\\)`, "g"),
+      )?.length ?? 0,
+      1,
+      `${tokenName} Tailwind alias`,
+    );
+  }
+
+  const themeableNameSet = new Set<string>(THEMEABLE_TOKEN_NAMES);
+  for (const match of css.matchAll(/var\(--(semantic-[a-z-]+)\)/g)) {
+    assert.equal(
+      themeableNameSet.has(match[1]),
+      true,
+      `CSS references undefined themeable token ${match[1]}`,
+    );
   }
 });
 
