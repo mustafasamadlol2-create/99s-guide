@@ -133,6 +133,116 @@ test("Balanced Glass and Classic Hero defaults retain the audited production bas
   assert.match(css, /backdrop-filter: blur\(var\(--personalization-glass-regular-blur\)\) !important;/);
 });
 
+test("Clear and Frosted Glass use semantic fallbacks with guarded modern enhancements", () => {
+  const supportStart = css.indexOf(
+    "@supports (color: color-mix(in srgb, black, white))",
+  );
+  const supportEnd = css.indexOf("/* A local Balanced preview", supportStart);
+  assert.ok(supportStart > 0);
+  assert.ok(supportEnd > supportStart);
+
+  const fallbackSource = css.slice(
+    css.indexOf(':root[data-app-glass-style="clear"]'),
+    supportStart,
+  );
+  const enhancementSource = css.slice(supportStart, supportEnd);
+  assert.doesNotMatch(fallbackSource, /color-mix\(/);
+  assert.match(
+    fallbackSource,
+    /--personalization-glass-regular-surface:\s*var\(--semantic-glass-surface\);/,
+  );
+  assert.match(
+    fallbackSource,
+    /--personalization-glass-regular-border:\s*var\(--semantic-glass-border\);/,
+  );
+  assert.match(
+    fallbackSource,
+    /:root\[data-app-glass-style="frosted"\][\s\S]*--personalization-glass-thin-surface:\s*var\(--semantic-glass-surface\);/,
+  );
+  assert.match(
+    fallbackSource,
+    /:root\[data-app-glass-style="frosted"\][\s\S]*--personalization-glass-header-border:\s*var\(--semantic-glass-border\);/,
+  );
+  assert.equal((enhancementSource.match(/color-mix\(/g) ?? []).length, 19);
+  assert.match(enhancementSource, /data-personalization-preview-glass-style="clear"/);
+  assert.match(enhancementSource, /data-personalization-preview-glass-style="frosted"/);
+});
+
+test("unsupported color-mix capability leaves valid Glass and preview declarations", () => {
+  const supportStart = css.indexOf(
+    "@supports (color: color-mix(in srgb, black, white))",
+  );
+  const supportEnd = css.indexOf("/* A local Balanced preview", supportStart);
+  const unsupportedSource = css.slice(0, supportStart) + css.slice(supportEnd);
+
+  assert.doesNotMatch(unsupportedSource, /color-mix\(/);
+  for (const variable of [
+    "thin-surface",
+    "regular-surface",
+    "thick-surface",
+    "tabbar-surface",
+    "header-surface",
+  ]) {
+    assert.match(
+      unsupportedSource,
+      new RegExp(
+        `--personalization-glass-${variable}:\\s*var\\(--semantic-glass-surface\\);`,
+      ),
+    );
+  }
+  for (const variable of [
+    "thin-border",
+    "regular-border",
+    "thick-border",
+    "tabbar-border",
+    "header-border",
+  ]) {
+    assert.match(
+      unsupportedSource,
+      new RegExp(
+        `--personalization-glass-${variable}:\\s*var\\(--semantic-glass-border\\);`,
+      ),
+    );
+  }
+  assert.match(unsupportedSource, /--personalization-glass-regular-blur:\s*7px;/);
+  assert.match(unsupportedSource, /--personalization-glass-regular-blur:\s*18px;/);
+  assert.match(
+    unsupportedSource,
+    /\.personalization-glass-specimen[\s\S]*background-color: var\(--personalization-glass-regular-surface\);/,
+  );
+  assert.match(
+    unsupportedSource,
+    /\.my99-glass-mini-preview-surface[\s\S]*background: var\(--personalization-glass-regular-surface\);/,
+  );
+});
+
+test("Glass compatibility keeps accessibility and mobile cascade precedence", () => {
+  const supportStart = css.indexOf(
+    "@supports (color: color-mix(in srgb, black, white))",
+  );
+  const mobileStart = css.indexOf("@media (hover: none) and (pointer: coarse)");
+  const reducedStart = css.lastIndexOf(
+    "@media (prefers-reduced-transparency: reduce)",
+  );
+  const forcedColorsStart = css.lastIndexOf("@media (forced-colors: active)");
+
+  assert.ok(mobileStart > 0 && mobileStart < supportStart);
+  assert.ok(reducedStart > supportStart);
+  assert.ok(forcedColorsStart > supportStart);
+  assert.doesNotMatch(
+    css.slice(supportStart, css.indexOf("/* A local Balanced preview", supportStart)),
+    /tabbar-mobile-blur|header-mobile-blur/,
+  );
+  assert.match(
+    css.slice(reducedStart),
+    /backdrop-filter:\s*none\s*!important;[\s\S]*background-color:\s*#f2f2f7\s*!important;/,
+  );
+  assert.match(
+    css.slice(forcedColorsStart),
+    /forced-color-adjust:\s*auto;/,
+  );
+});
+
 test("Studio exposes three localized single-choice groups without future placeholders", () => {
   assert.equal((studio.match(/role="radiogroup"/g) ?? []).length, 3);
   assert.match(studio, /data-personalization-preview-hero-style=\{draft\.heroStyle\}/);
