@@ -1,0 +1,1032 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 2 / PROMPT 6B
+## CORE CHROME TOKENIZATION — PARITY & SAFETY CLOSURE
+### VERIFY FIRST — REPAIR ONLY IF REQUIRED
+### DO NOT BEGIN PROMPT 7
+
+Prompt 6 implemented semantic-token migration for core application chrome.
+
+Do NOT expand tokenization.
+
+Do NOT begin feature-surface tokenization.
+
+Do NOT add alternate themes.
+
+This task exists only to inspect the ACTUAL Prompt 6 implementation and prove that:
+
+CORE CHROME BEFORE
+=
+CORE CHROME AFTER
+=
+CLASSIC 99
+
+with zero navigation/functionality regressions.
+
+If the implementation is already correct:
+make no unnecessary runtime changes.
+
+If a genuine Prompt 6 violation is found:
+repair only that violation.
+
+---
+
+# 1. INSPECT ACTUAL PROMPT 6 DIFF
+
+Inspect:
+
+git diff
+git diff --stat
+git status --short
+
+Identify every file changed by Prompt 6.
+
+Do not rely on the previous summary.
+
+Report exact files.
+
+Separate pre-existing repository changes from Prompt 6 changes.
+
+---
+
+# 2. EXPECTED SCOPE
+
+Prompt 6 was allowed to touch only minimal core-chrome areas such as:
+
+- app/root canvas
+- App shell
+- Sidebar
+- mobile bottom navigation
+- generic shared chrome
+- generic tabs/controls where clearly safe
+- semantic token CSS/metadata/tests
+
+If Prompt 6 unexpectedly modified:
+
+- Home content
+- MCQ
+- Calendar
+- Modules
+- Flashcards
+- Profile behavior
+- Notifications behavior
+- Console behavior
+- Auth behavior
+- personalization runtime/provider
+
+inspect carefully and revert unrelated scope unless absolutely justified.
+
+---
+
+# 3. CLASSIFY EVERY MIGRATION
+
+For every runtime color/class replacement made by Prompt 6, classify it as:
+
+A. GENERIC THEMEABLE CHROME
+B. FIXED STATUS/SEMANTIC
+C. DOMAIN/ACADEMIC IDENTITY
+D. BRAND/DECORATIVE
+E. NOT ACTUALLY COLOR-ONLY
+
+Only A should generally have moved to generic themeable semantic tokens.
+
+B and C must remain independent.
+
+D should only have moved when intentionally part of generic Classic chrome.
+
+E must not have been changed by Prompt 6.
+
+---
+
+# 4. ROOT / APP CANVAS PARITY
+
+Audit every root/app-canvas migration.
+
+For each, record:
+
+Previous class/value
+→ semantic token/alias
+→ Classic Light resolved value
+→ Classic Dark resolved value
+
+The values must match production exactly.
+
+Do not approximate.
+
+---
+
+# 5. SIDEBAR PARITY
+
+Audit all Sidebar changes.
+
+For every migrated:
+
+- surface
+- text
+- muted text
+- hover
+- active background
+- active foreground
+- border
+- focus
+
+record before/after.
+
+Confirm absolutely no changes to:
+
+- width
+- collapse logic
+- item order
+- active-route logic
+- roles/permissions
+- hover geometry
+- pointer behavior
+- keyboard handling
+- motion
+- safe-area behavior
+
+---
+
+# 6. BOTTOM NAVIGATION PARITY
+
+Audit every bottom-bar change.
+
+Confirm no changes to:
+
+- floating geometry
+- width
+- positioning
+- safe-area padding
+- resize behavior
+- scroll-collapse/expand behavior
+- active icon animation
+- Motion configuration
+- layout IDs
+- touch targets
+- navigation callbacks
+- icon size
+- labels
+
+Only presentation color/source substitutions are allowed.
+
+---
+
+# 7. BOTTOM NAV ACTIVE/INACTIVE TOKENS
+
+Prompt 6 reportedly added exact tokens for:
+
+- active bottom-nav color
+- inactive bottom-nav color
+
+Verify both Light and Dark values against the previous production sources.
+
+Do not invent cleaner colors.
+
+If these tokens are component-specific, confirm why they are necessary rather than duplicating an existing generic navigation token.
+
+Avoid redundant token proliferation.
+
+---
+
+# 8. NEW CHROME TOKENS AUDIT
+
+Prompt 6 reportedly added tokens for:
+
+- primary chrome text
+- secondary chrome text
+- subtle chrome text
+- muted chrome text
+- active surface
+- hover surface
+- bottom-nav active
+- bottom-nav inactive
+
+List every newly added token exactly.
+
+For each, report:
+
+- semantic purpose
+- Light value
+- Dark value
+- previous production source
+- why an existing Prompt 5 token could not be reused
+
+If two tokens are actually equivalent and one is unnecessary:
+do NOT consolidate if that would risk visual change unless the duplication is clearly accidental.
+
+Report rather than over-refactor.
+
+---
+
+# 9. TOKEN NAMING
+
+Ensure new tokens use the established app-specific semantic namespace.
+
+Do not introduce competing conventions.
+
+Do not redefine standard Tailwind palette names.
+
+---
+
+# 10. TAILWIND STANDARD COLOR SAFETY
+
+Confirm Prompt 6 did NOT redefine:
+
+red
+green
+blue
+amber
+orange
+rose
+emerald
+violet
+slate
+
+Existing utilities such as:
+
+text-red-*
+bg-emerald-*
+border-amber-*
+
+must continue to mean exactly what they meant before.
+
+---
+
+# 11. SHARED IOS ALERT AUDIT — CRITICAL
+
+Prompt 6 reportedly:
+
+"Updated shared iOS alert headings and action colors."
+
+Inspect the exact component(s).
+
+List every migrated iOS alert role.
+
+Classify each action as:
+
+GENERIC ACTION
+DESTRUCTIVE ACTION
+CANCEL ACTION
+WARNING ACTION
+SUCCESS ACTION
+OTHER SEMANTIC ACTION
+
+Only GENERIC ACTION styling may use the generic themeable action accent.
+
+Destructive actions MUST continue using:
+
+fixed destructive/error semantics
+
+and must NOT become:
+
+--semantic-action-accent
+
+Warning/success actions must also preserve their semantics.
+
+---
+
+# 12. IOS ALERT HEADING
+
+If generic heading text was moved to:
+
+semantic content primary
+
+verify Light/Dark parity.
+
+Do not change:
+
+font weight
+size
+line height
+alignment
+layout
+
+---
+
+# 13. IOS ALERT ACTION TEST
+
+Add/verify a focused invariant proving:
+
+generic alert action
+→ may use app accent
+
+destructive alert action
+→ fixed destructive token/color
+
+No future theme may turn "Delete" into Ocean/Green/etc simply because the selected theme accent changes.
+
+---
+
+# 14. FIXED STATUS SAFETY
+
+Search all Prompt 6 changed lines.
+
+Confirm no generic token replaced:
+
+- error
+- validation error
+- destructive
+- warning
+- success
+- online
+- offline
+
+If any did:
+repair.
+
+---
+
+# 15. MCQ SAFETY
+
+Confirm Prompt 6 did not alter:
+
+- Easy
+- Normal
+- Hard
+- correct
+- incorrect
+- selected-answer semantic states
+
+No MCQ semantic state may depend on:
+
+generic action accent
+generic navigation active
+generic chrome text
+
+unless it is purely neutral surrounding chrome.
+
+---
+
+# 16. MODULE SAFETY
+
+Confirm:
+
+`src/features/modules/moduleVisuals.ts`
+
+and all seven module identity colors remain unchanged.
+
+No core-chrome migration may override them.
+
+---
+
+# 17. FLASHCARD SAFETY
+
+Confirm subject-specific Flashcard color identity remains unchanged.
+
+---
+
+# 18. CALENDAR SAFETY
+
+Confirm Calendar status/event colors remain unchanged.
+
+Generic outer shell may eventually be themed later, but event meaning must not have changed here.
+
+---
+
+# 19. GOLD SAFETY
+
+Search Prompt 6 diff for:
+
+gold
+med-gold
+#d4af37
+#ff9500
+related gold values/classes
+
+Confirm no mass replacement with generic app accent.
+
+Brand/decorative gold should remain intact unless an exact generic core-chrome role was intentionally migrated.
+
+---
+
+# 20. FOCUS RINGS
+
+Audit every focus-ring migration.
+
+Generic controls may use:
+
+semantic focus ring.
+
+But:
+
+validation/error focus
+destructive focus
+special semantic focus
+
+must remain independent.
+
+No keyboard behavior changes.
+
+---
+
+# 21. HOVER SURFACES
+
+Prompt 6 reportedly added/used generic hover surfaces.
+
+Verify each migrated hover value matches existing Light/Dark behavior exactly.
+
+If an exact parity token did not exist, the original value should have remained.
+
+---
+
+# 22. ACTIVE SURFACES
+
+Same rule for generic active surfaces.
+
+Do not make role/status active controls all use the same generic active surface.
+
+---
+
+# 23. TEXT ROLES
+
+Verify:
+
+primary
+secondary
+subtle
+muted
+
+were applied according to actual visual semantics.
+
+Do not accidentally recolor:
+
+badges
+statuses
+module labels
+role labels
+warning labels
+
+into neutral text.
+
+---
+
+# 24. DARK MODE
+
+Verify all changed core chrome in Dark mode:
+
+- app/root canvas
+- Sidebar
+- bottom bar
+- active nav
+- inactive nav
+- generic text
+- generic hover
+- focus
+
+resolves to exact prior Classic values.
+
+---
+
+# 25. LIGHT MODE
+
+Perform the equivalent verification for Light.
+
+---
+
+# 26. SYSTEM MODE
+
+Confirm unchanged architecture:
+
+app_theme = system
+→ prefers-color-scheme
+→ html.dark
+→ semantic tokens
+
+No personalization-provider involvement.
+
+---
+
+# 27. PROVIDER REMAINS VISUALLY INERT
+
+Search actual source.
+
+Confirm Prompt 6 did NOT add runtime use of:
+
+committed.themeId
+draft.themeId
+
+for:
+
+DOM classes
+data attributes
+CSS-variable writes
+theme switching
+component keys
+
+---
+
+# 28. NO THEME-BASED REMOUNT
+
+Confirm no:
+
+key={themeId}
+key={userId}
+
+was reintroduced for personalization.
+
+Phase 1 safety architecture must remain intact.
+
+---
+
+# 29. ALTERNATE THEMES STILL ABSENT
+
+Confirm no visual palette was added for:
+
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+Only Classic 99 remains visually implemented.
+
+---
+
+# 30. HOME
+
+Confirm:
+
+HomeDashboard content and canonical subject order remain unchanged.
+
+No `home.subjectOrder` runtime consumption yet.
+
+---
+
+# 31. HERO
+
+Confirm:
+
+heroStyle remains unwired.
+
+Do not count generic root chrome tokenization as Hero customization.
+
+---
+
+# 32. GLASS PREFERENCE
+
+Confirm:
+
+glassStyle remains unwired.
+
+Existing blur/transparency behavior must be identical.
+
+---
+
+# 33. MOTION
+
+Confirm:
+
+motionStyle remains unwired.
+
+No animation durations, springs, transitions, gestures, or scrolling were modified.
+
+---
+
+# 34. READING SIZE
+
+Confirm:
+
+readingSize remains unwired.
+
+`app_text_scale` untouched.
+
+---
+
+# 35. SETTINGS
+
+Confirm no My 99 / Personalization UI exists yet.
+
+---
+
+# 36. IPAD SAFETY
+
+Identify every file touched that influences iPad shell/navigation.
+
+Confirm Prompt 6 did NOT alter:
+
+- iPad sidebar width
+- iPad top/header dimensions
+- safe areas
+- portrait/landscape breakpoints
+- scroll ownership
+- overlay layers
+- swipe-back mechanics
+- module navigation
+- empty-space fixes
+
+Only color/source substitutions are allowed.
+
+---
+
+# 37. MOBILE SAFETY
+
+For mobile bottom navigation confirm:
+
+- no scroll detection changes
+- no bar height changes
+- no search-collapse changes
+- no active animation changes
+- no icon movement changes
+- no pointer/touch changes
+
+---
+
+# 38. RTL SAFETY
+
+Confirm no changes to:
+
+direction
+left/right logic
+RTL chevrons
+navigation order
+swipe direction
+margin/padding direction
+transform direction
+
+---
+
+# 39. ACCESSIBILITY
+
+Confirm intact:
+
+prefers-reduced-motion
+reduced transparency
+forced-colors
+focus-visible
+ARIA
+keyboard behavior
+
+---
+
+# 40. INITIAL PAINT
+
+Confirm untouched:
+
+public/theme-preload.js
+index.html
+LaunchScreen.tsx
+
+The known initial-paint mismatch remains intentionally deferred.
+
+---
+
+# 41. APP.TSX DIFF — IF TOUCHED
+
+If `src/App.tsx` changed, provide a line-by-line logical classification of Prompt 6 changes.
+
+Every Prompt 6 change inside App.tsx must be:
+
+COLOR/TOKEN ONLY
+
+No:
+
+state changes
+effect changes
+navigation changes
+provider changes
+auth changes
+gesture changes
+layout changes
+
+If any nonvisual change accidentally occurred:
+revert it.
+
+---
+
+# 42. TOKEN TESTS
+
+Update focused tests so they now verify:
+
+- root canvas consumes semantic token
+- actual Sidebar generic active/hover uses semantic tokens
+- actual bottom nav surface/text uses semantic tokens
+- actual bottom-nav active/inactive roles are tokenized
+- generic iOS alert actions use generic accent only
+- destructive iOS alert actions remain destructive
+- no standard Tailwind palette redefinition
+- no alternate-theme palette
+- no theme-driven DOM mutation
+- no theme/user React key reintroduced
+
+Avoid brittle entire-file snapshots.
+
+---
+
+# 43. REGRESSION TESTS
+
+Run all personalization tests.
+
+Then:
+
+npm run build
+
+npm run test:auth
+
+npx tsx --test tests/client-navigation.test.ts
+
+npx tsx --test tests/mcq-metadata.test.ts
+
+npx tsx --test tests/material-note-policy.test.ts
+
+npm run test:ai-mcq
+
+npm run test:ai-flashcard
+
+Run any existing Module Resources-focused test if present.
+
+Run targeted TypeScript/ESLint for Prompt 6 touched TS/TSX files.
+
+Run:
+
+git diff --check
+
+Do not fix unrelated baseline issues.
+
+---
+
+# 44. VISUAL VERIFICATION
+
+Perform browser preview where available.
+
+Record EXACTLY:
+
+- Light or Dark
+- viewport
+- authenticated or unauthenticated
+- exact visible chrome inspected
+
+If authenticated access is available, inspect:
+
+- Sidebar
+- bottom navigation where possible
+- generic alert if safely triggerable
+- root canvas
+
+If unavailable:
+state limitation.
+
+Do not claim visual verification of screens you did not open.
+
+---
+
+# 45. NO NEW FEATURE
+
+Do not add or change any application function.
+
+This is a closure audit only.
+
+---
+
+# 46. NO KV / SQL / D1 / R2 / NETWORK
+
+Confirm:
+
+ZERO new personalization network calls.
+
+No SQL.
+No D1.
+No R2.
+No KV.
+
+---
+
+# 47. NO `.agents/*`
+
+No `.agents/*` file may be created or modified.
+
+---
+
+# 48. DEFINITION OF DONE
+
+Prompt 6B passes only if:
+
+- actual Prompt 6 diff is fully accounted for
+- all migrations are generic presentation-only
+- Classic Light parity proven
+- Classic Dark parity proven
+- Sidebar geometry/behavior untouched
+- bottom bar geometry/behavior untouched
+- generic iOS actions correctly tokenized
+- destructive iOS actions remain destructive
+- fixed semantics remain isolated
+- MCQ colors untouched
+- module identities untouched
+- flashcard identities untouched
+- Calendar semantics untouched
+- gold not mass-replaced
+- provider remains visually inert
+- no alternate palettes exist
+- no Home/Settings customization exists
+- no gesture/layout regressions
+- tests pass
+- build passes
+- diff is clean/scoped
+
+---
+
+# 49. MANDATORY FINAL REPORT
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 2 PROMPT 6B CLOSURE REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. Actual Prompt 6 Files
+
+| File | Exact Change Category |
+|---|---|
+
+## 3. Prompt 6 Diff Scope
+
+Summarize actual implementation.
+
+## 4. New Chrome Tokens
+
+| Token | Light | Dark | Previous Source | Reason Needed |
+|---|---|---|---|---|
+
+## 5. Root/App Canvas
+
+| Before | After | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 6. Sidebar
+
+List exact migrations and confirm behavior/geometry unchanged.
+
+## 7. Bottom Navigation
+
+List exact migrations and confirm behavior/geometry unchanged.
+
+## 8. Generic Headers/Tabs/Controls
+
+List exact migrations.
+
+## 9. iOS Alert Audit
+
+List every affected role.
+
+Explicitly separate:
+
+generic
+cancel
+destructive
+warning
+success
+
+## 10. Destructive Action Safety
+
+Confirm destructive actions do NOT use generic user-theme accent.
+
+## 11. Focus Safety
+
+Explain generic vs validation/error focus.
+
+## 12. Hover/Active Surface Parity
+
+Report exact values.
+
+## 13. Text Role Audit
+
+Explain primary/secondary/subtle/muted mappings.
+
+## 14. Fixed Semantic Safety
+
+Confirm error/success/warning/online/offline/destructive/validation isolation.
+
+## 15. MCQ Safety
+
+Confirm unchanged.
+
+## 16. Module Identity Safety
+
+Confirm unchanged.
+
+## 17. Flashcard Identity Safety
+
+Confirm unchanged.
+
+## 18. Calendar Safety
+
+Confirm unchanged.
+
+## 19. Gold Safety
+
+Report findings.
+
+## 20. Tailwind Safety
+
+Confirm standard palette names unchanged.
+
+## 21. Light/Dark/System
+
+Confirm unchanged architecture.
+
+## 22. Provider / Runtime Theme
+
+Confirm visually inert and stable.
+
+## 23. Alternate Themes
+
+Confirm no palettes exist yet.
+
+## 24. Home
+
+Confirm unchanged.
+
+## 25. Hero / Glass / Motion / Reading
+
+Confirm all four remain unwired.
+
+## 26. Settings
+
+Confirm no personalization UI.
+
+## 27. Navigation Geometry
+
+Confirm no geometry, gesture, touch, animation, or route behavior change.
+
+## 28. iPad Review
+
+State exact affected files and safety findings.
+
+## 29. Mobile Bottom-Bar Review
+
+State exact safety findings.
+
+## 30. RTL Review
+
+Confirm no direction changes.
+
+## 31. Accessibility Review
+
+Confirm preserved behavior.
+
+## 32. Initial Paint
+
+Confirm unchanged and mismatch still deferred.
+
+## 33. Token/Chrome Tests
+
+List new/updated invariants.
+
+## 34. Personalization Test Results
+
+Report total count and pass/fail.
+
+## 35. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 36. Visual Verification
+
+State exact observed screens/viewports/modes.
+
+## 37. Existing Baseline Issues
+
+List separately.
+
+## 38. Git Diff Summary
+
+Exact files/stat and diff-check result.
+
+## 39. App.tsx High-Risk Review
+
+If touched, explain every logical Prompt 6 change and confirm color/token-only.
+
+## 40. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+## 41. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 42. Prompt 7 Readiness
+
+If all requirements pass, state exactly:
+
+CORE CHROME CLASSIC 99 TOKENIZATION: CLOSED AND APPROVED
+
+FEATURE-SURFACE CLASSIC 99 TOKENIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 2 PROMPT 6B STATUS: COMPLETE — READY FOR PROMPT 7
+
+or:
+
+PERSONALIZATION PHASE 2 PROMPT 6B STATUS: BLOCKED — REPAIR REQUIRED
