@@ -1,0 +1,165 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 1 / PROMPT 2 OF ~22
+## PERSONALIZATION FOUNDATION
+### Contracts + Defaults + Validation + Versioning
+### NO VISUAL CHANGE — NO UI — NO KV YET
+
+Phase 0 audit is APPROVED.
+
+We are now beginning Phase 1 of the 99's Guide Personalization System.
+
+This prompt implements ONLY the safe, pure foundation required by later phases.
+
+This prompt must NOT visibly change the application.
+
+After this prompt:
+
+99's Guide must look and behave exactly as it did before.
+
+There must be:
+
+- no new Settings UI
+- no theme selector
+- no new colors
+- no new Home content
+- no Cloudflare KV connection
+- no SQL migration
+- no icon switching
+- no App.tsx personalization wiring
+- no theme-token refactor
+- no runtime visual redesign
+
+The purpose is to create:
+
+1. Canonical personalization contracts.
+2. Classic 99 defaults.
+3. Strict validation/normalization.
+4. Versioning/migration framework.
+5. Safe fallback behavior.
+6. Pure tests.
+
+---
+
+# 1. ABSOLUTE PRODUCT BOUNDARY
+
+Personalization may eventually modify only PRESENTATION of EXISTING application functionality.
+
+It must never create new application/product functionality.
+
+DO NOT add:
+
+- upcoming lectures
+- new study widgets
+- continue studying
+- recommendations
+- exam mode
+- study identity
+- quick actions if no such area currently exists
+- new Home sections
+- new navigation destinations
+- new academic systems
+- new progress systems
+- new profile functionality
+- new algorithms
+- new content types
+
+This prompt is foundation-only.
+
+---
+
+# 2. PHASE 0 FACTS ARE AUTHORITATIVE
+
+Use these verified Phase 0 findings:
+
+Current Home contains ONLY these top-level areas:
+
+1. Welcome/Hero
+2. Upcoming event alert
+3. Search/Schedule area
+4. Medical Specialties / Subjects list
+
+The first three are LOCKED_CORE.
+
+The Subjects area already exists.
+
+Do NOT model nonexistent Home widgets.
+
+Current appearance:
+
+light | dark | system
+
+is DEVICE-LOCAL by future design.
+
+Current app theme:
+
+Classic 99
+
+must remain the exact safe fallback.
+
+Current academic/semantic colors must remain outside arbitrary theming.
+
+---
+
+# 3. NO RUNTIME VISUAL CHANGE
+
+Mandatory acceptance criterion:
+
+After this phase:
+
+- screenshots should be identical
+- light mode remains identical
+- dark mode remains identical
+- system mode remains identical
+- Home remains identical
+- Console remains identical
+- Modules remain identical
+- MCQ remains identical
+- Flashcards remain identical
+- Calendar remains identical
+- Profile remains identical
+- Notifications remain identical
+
+Do NOT wire the new contract into live rendering yet.
+
+---
+
+# 4. CREATE A SHARED PERSONALIZATION CONTRACT
+
+Create a small shared runtime-safe contract module.
+
+Preferred location:
+
+shared/personalization.ts
+
+or another existing shared-contract location if repository architecture strongly favors it.
+
+This module must have ZERO React dependencies.
+
+It must be safely importable by:
+
+- frontend
+- backend
+- tests
+
+Do not import browser APIs into it.
+
+---
+
+# 5. ACCOUNT-SYNCED PERSONALIZATION V1
+
+Define the future account-synced personalization shape.
+
+Recommended semantic shape:
+
+```ts
+type PersonalizationConfigV1 = {
+  version: 1;
+  themeId: ThemeId;
+  heroStyle: HeroStyle;
+  glassStyle: GlassStyle;
+  motionStyle: MotionStyle;
+  readingSize: ReadingSize;
+  home: {
+    subjectOrder: SubjectId[];
+  };
+};
