@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_PERSONALIZATION_CONFIG,
   PERSONALIZATION_SUBJECT_IDS,
+  createDefaultPersonalization,
   isPersonalizationConfigV1,
   migratePersonalizationConfig,
   normalizePersonalizationConfig,
@@ -10,7 +11,7 @@ import {
   validatePersonalizationConfig,
 } from "../shared/personalization.js";
 
-test("Classic 99 defaults are complete and immutable by returned copies", () => {
+test("Classic 99 defaults are complete and factory results are independent", () => {
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.version, 1);
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.themeId, "classic-99");
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.heroStyle, "classic");
@@ -22,8 +23,16 @@ test("Classic 99 defaults are complete and immutable by returned copies", () => 
     PERSONALIZATION_SUBJECT_IDS,
   );
 
-  const normalized = normalizePersonalizationConfig(DEFAULT_PERSONALIZATION_CONFIG);
-  normalized.home.subjectOrder.reverse();
+  const a = createDefaultPersonalization();
+  const b = createDefaultPersonalization();
+  a.home.subjectOrder.reverse();
+  a.themeId = "ocean";
+  assert.notDeepEqual(a, b);
+  assert.deepEqual(
+    b.home.subjectOrder,
+    PERSONALIZATION_SUBJECT_IDS,
+  );
+  assert.equal(b.themeId, "classic-99");
   assert.deepEqual(
     DEFAULT_PERSONALIZATION_CONFIG.home.subjectOrder,
     PERSONALIZATION_SUBJECT_IDS,
@@ -90,20 +99,21 @@ test("normalization falls back safely without throwing", () => {
   });
 });
 
-test("normalization preserves valid partial subject order and appends omissions", () => {
+test("normalization rejects partial, duplicate, and unknown subject orders wholesale", () => {
   const normalized = normalizePersonalizationConfig({
     home: { subjectOrder: ["NT", "PHC", "NT", "invalid", "RM"] },
   });
 
-  assert.deepEqual(normalized.home.subjectOrder, [
-    "NT",
-    "PHC",
-    "RM",
-    "CA",
-    "SSC",
-    "ImD",
-    "ID",
-  ]);
+  assert.deepEqual(normalized.home.subjectOrder, PERSONALIZATION_SUBJECT_IDS);
+});
+
+test("normalization accepts only a complete subject permutation", () => {
+  const subjectOrder = [...PERSONALIZATION_SUBJECT_IDS].reverse();
+  const normalized = normalizePersonalizationConfig({
+    home: { subjectOrder },
+  });
+
+  assert.deepEqual(normalized.home.subjectOrder, subjectOrder);
 });
 
 test("normalization ignores unknown fields and invalid nested shapes", () => {
@@ -128,15 +138,7 @@ test("migration uses V1 normalization and Classic 99 for unsupported versions", 
     home: { subjectOrder: ["SSC"] },
   });
   assert.equal(migrated.themeId, "emerald");
-  assert.deepEqual(migrated.home.subjectOrder, [
-    "SSC",
-    "PHC",
-    "RM",
-    "CA",
-    "ImD",
-    "ID",
-    "NT",
-  ]);
+  assert.deepEqual(migrated.home.subjectOrder, PERSONALIZATION_SUBJECT_IDS);
 
   assert.deepEqual(migratePersonalizationConfig({ version: 0 }), {
     version: 1,

@@ -49,17 +49,17 @@ export type ReadingSize = (typeof PERSONALIZATION_READING_SIZES)[number];
 
 /**
  * These IDs intentionally match the existing SubjectId union. The order is
- * the current Classic 99 module presentation order and is the only safe
- * default for a future Home subject-order preference.
+ * the current production Home seed order and is the only safe default for a
+ * future Home subject-order preference.
  */
 export const PERSONALIZATION_SUBJECT_IDS = [
-  "PHC",
-  "RM",
-  "CA",
-  "SSC",
-  "ImD",
   "ID",
   "NT",
+  "RM",
+  "CA",
+  "PHC",
+  "ImD",
+  "SSC",
 ] as const;
 export type SubjectId = (typeof PERSONALIZATION_SUBJECT_IDS)[number];
 
@@ -158,24 +158,9 @@ function cloneDefaultPersonalization(): PersonalizationConfigV1 {
 }
 
 function normalizeSubjectOrder(value: unknown): SubjectId[] {
-  if (!Array.isArray(value)) {
-    return [...CLASSIC_99_SUBJECT_ORDER];
-  }
-
-  const order: SubjectId[] = [];
-  const seen = new Set<SubjectId>();
-  for (const subjectId of value) {
-    if (isOneOf(PERSONALIZATION_SUBJECT_IDS, subjectId) && !seen.has(subjectId)) {
-      seen.add(subjectId);
-      order.push(subjectId);
-    }
-  }
-
-  for (const subjectId of PERSONALIZATION_SUBJECT_IDS) {
-    if (!seen.has(subjectId)) order.push(subjectId);
-  }
-
-  return order;
+  return isCompleteSubjectOrder(value)
+    ? [...value]
+    : [...CLASSIC_99_SUBJECT_ORDER];
 }
 
 /**
@@ -260,10 +245,10 @@ export function isPersonalizationConfigV1(
 }
 
 /**
- * Normalizes untrusted or partial input into a complete safe V1 document.
+ * Normalizes untrusted input into a complete safe V1 document.
  *
- * Invalid fields fall back independently. Partial subject orders preserve
- * valid requested items and append any omitted canonical subjects.
+ * Invalid fields fall back independently. Subject order is all-or-nothing:
+ * only a complete valid permutation is accepted.
  */
 export function normalizePersonalizationConfig(
   value: unknown,
@@ -293,6 +278,14 @@ export function normalizePersonalizationConfig(
       subjectOrder: normalizeSubjectOrder(home.subjectOrder),
     },
   };
+}
+
+/**
+ * Returns a fresh mutable V1 default. No caller can mutate the shared
+ * frozen default or affect a later factory call.
+ */
+export function createDefaultPersonalization(): PersonalizationConfigV1 {
+  return cloneDefaultPersonalization();
 }
 
 /**
