@@ -99,6 +99,22 @@ model Material {
   @@index([storagePath])
 }
 
+model ModuleResource {
+  id                 String   @id @default(uuid())
+  moduleId           String
+  title              String
+  storagePath        String   @unique
+  fileSizeBytes      Int
+  status             String   @default("PENDING")
+  multipartUploadId  String?
+  uploadExpiresAt    DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([moduleId, status, createdAt])
+  @@index([status, uploadExpiresAt])
+}
+
 model Mcq {
   id            String   @id @default(uuid())
   question      String

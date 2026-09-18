@@ -6,6 +6,7 @@ import { NativeBridge } from "../../core/device/capacitor/nativeBridge";
 function getEndpointTtl(url: string): number {
   if (url.includes("/api/lectures")) return 5 * 60_000;
   if (url.includes("/api/materials")) return 3 * 60_000;
+  if (url.includes("/api/module-resources/")) return 60_000;
   if (url.includes("/api/calendar/events")) return 2 * 60_000;
   if (url.includes("/api/notifications")) return 1 * 60_000;
   if (url.includes("/api/users")) return 3 * 60_000;
@@ -103,6 +104,8 @@ function invalidateRelatedCache(method: string, url: string): void {
     ApiCache.invalidate("/api/materials");
     ApiCache.invalidate("/api/subjects");
     ApiCache.invalidate("/api/lectures");
+  } else if (url.includes("/api/module-resources")) {
+    ApiCache.invalidate("/api/module-resources");
   } else if (url.includes("/api/flashcards")) {
     ApiCache.invalidate("/api/materials");
   } else if (url.includes("/api/calendar")) {
@@ -145,7 +148,7 @@ export async function apiClient(
   const isApiCall = url.includes("/api/") || url.startsWith("api/");
   const isGet = method === "GET";
   const isSensitivePdfViewerUrl =
-    /\/api\/materials\/pdf\/[^/?#]+\/external-url(?:[?#]|$)/.test(url);
+    /\/api\/(?:materials\/pdf\/[^/?#]+\/external-url|module-resources\/[^/?#]+\/pdf)(?:[?#]|$)/.test(url);
 
   // Signed viewer URLs are user-authorized capabilities. Never store them in
   // the generic URL-only cache, which could survive an in-app account switch.

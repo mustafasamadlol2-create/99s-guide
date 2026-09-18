@@ -2,10 +2,15 @@ import {
   parseMCQCategory,
   parseMCQDifficulty,
 } from "../../shared/mcqMetadata";
+import {
+  MODULE_RESOURCE_MODULES,
+  MAX_MODULE_RESOURCE_PDF_BYTES,
+} from "../../shared/moduleResources";
 
 type ContentEntity =
   | "Lecture"
   | "Material"
+  | "ModuleResource"
   | "Mcq"
   | "Flashcard"
   | "DailyMotto"
@@ -69,6 +74,16 @@ function normalizeTargetGroups(value: unknown): string {
   }
   if (typeof value === "string" && value.trim()) return value;
   throw new Error("targetGroups must be a non-empty string or array.");
+}
+
+function validateModuleResourceModuleId(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !(MODULE_RESOURCE_MODULES as readonly string[]).includes(value)
+  ) {
+    throw new Error("moduleId must be one of the supported modules.");
+  }
+  return value;
 }
 
 function validateMutationId(value: unknown): string {
@@ -148,6 +163,44 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
         requireText(data, "type"),
         requireText(data, "fileUrlOrLink"),
         validateMutationId(data.lectureId),
+        requireIsoDate(data, "createdAt"),
+        optionalText(data, "storagePath"),
+      ).run();
+      return;
+    }
+
+    case "ModuleResource": {
+      const id = validateMutationId(data.id);
+      const fileSizeBytes = Number(data.fileSizeBytes);
+      if (
+        !Number.isSafeInteger(fileSizeBytes) ||
+        fileSizeBytes <= 0 ||
+        fileSizeBytes > MAX_MODULE_RESOURCE_PDF_BYTES
+      ) {
+        throw new Error("fileSizeBytes must be a valid Module Resource PDF size.");
+      }
+      const status = requireText(data, "status");
+      if (status !== "READY") {
+        throw new Error("Only READY ModuleResource rows may be mirrored.");
+      }
+
+      await env.DB.prepare(`
+        INSERT INTO "ModuleResource"
+          ("id","moduleId","title","fileSizeBytes","status","createdAt","storagePath")
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT("id") DO UPDATE SET
+          "moduleId"=excluded."moduleId",
+          "title"=excluded."title",
+          "fileSizeBytes"=excluded."fileSizeBytes",
+          "status"=excluded."status",
+          "createdAt"=excluded."createdAt",
+          "storagePath"=excluded."storagePath"
+      `).bind(
+        id,
+        validateModuleResourceModuleId(data.moduleId),
+        requireText(data, "title"),
+        fileSizeBytes,
+        status,
         requireIsoDate(data, "createdAt"),
         optionalText(data, "storagePath"),
       ).run();
@@ -301,6 +354,7 @@ async function deleteContentRow(env: any, entity: ContentEntity, id: string): Pr
   const tableByEntity: Record<ContentEntity, string> = {
     Lecture: "Lecture",
     Material: "Material",
+    ModuleResource: "ModuleResource",
     Mcq: "Mcq",
     Flashcard: "Flashcard",
     DailyMotto: "DailyMotto",
@@ -369,6 +423,7 @@ async function handleInternalContentSync(request: Request, env: any): Promise<Re
   const validEntities: ContentEntity[] = [
     "Lecture",
     "Material",
+    "ModuleResource",
     "Mcq",
     "Flashcard",
     "DailyMotto",

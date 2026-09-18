@@ -47,6 +47,22 @@ CREATE INDEX IF NOT EXISTS "Material_lectureId_idx"
 CREATE INDEX IF NOT EXISTS "Material_lecture_type_idx"
   ON "Material" ("lectureId", "type");
 
+CREATE TABLE IF NOT EXISTS "ModuleResource" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "moduleId" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "fileSizeBytes" INTEGER NOT NULL,
+  "status" TEXT NOT NULL,
+  "createdAt" TEXT NOT NULL,
+  "storagePath" TEXT
+);
+
+CREATE INDEX IF NOT EXISTS "ModuleResource_module_status_createdAt_idx"
+  ON "ModuleResource" ("moduleId", "status", "createdAt");
+
+CREATE INDEX IF NOT EXISTS "ModuleResource_status_idx"
+  ON "ModuleResource" ("status");
+
 
 CREATE TABLE IF NOT EXISTS "Mcq" (
   "id" TEXT PRIMARY KEY NOT NULL,

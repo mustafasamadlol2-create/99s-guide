@@ -1,8 +1,13 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "node:crypto";
@@ -49,7 +54,7 @@ function getConfig() {
   };
 }
 
-function getR2Client(): { client: S3Client; bucket: string } {
+export function getR2Client(): { client: S3Client; bucket: string } {
   const config = getConfig();
   const clientConfigKey = [
     config.endpoint,
@@ -73,7 +78,7 @@ function getR2Client(): { client: S3Client; bucket: string } {
   return { client: cachedClient, bucket: config.bucket };
 }
 
-function assertSafeStoragePath(storagePath: string): void {
+export function assertSafeStoragePath(storagePath: string): void {
   if (!storagePath || storagePath.startsWith("/") || storagePath.includes("..")) {
     throw new Error("Invalid storage path.");
   }

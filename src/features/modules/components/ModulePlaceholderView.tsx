@@ -1,4 +1,4 @@
-import React, { memo, useLayoutEffect, useRef, type ComponentType } from "react";
+import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import {
   BookOpen,
   ChartPie,
@@ -15,8 +15,15 @@ import {
 } from "lucide-react";
 import type { Subject, SubjectId } from "../../../core/types";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
+import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 
 import { MODULE_VISUALS } from "../moduleVisuals";
+import {
+  formatModuleResourceSize,
+  listModuleResources,
+  resolveModuleResourcePdfUrl,
+  type ModuleResource,
+} from "../moduleResourcesApi";
 
 interface ModulePlaceholderViewProps {
   subject: Subject;
@@ -307,6 +314,58 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
   const iconInfo = getSubjectIconInfo(subject.id);
   const SubjectIcon = iconInfo.icon;
   const rootRef = useRef<HTMLElement | null>(null);
+  const [resources, setResources] = useState<ModuleResource[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [resourceError, setResourceError] = useState("");
+  const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setResources([]);
+    setResourcesLoading(true);
+    setResourceError("");
+    void listModuleResources(subject.id)
+      .then((nextResources) => {
+        if (mounted) setResources(nextResources);
+      })
+      .catch((error: any) => {
+        if (mounted) {
+          setResourceError(
+            error?.message ||
+              (language === "ar" ? "تعذر تحميل المصادر." : "Could not load resources."),
+          );
+        }
+      })
+      .finally(() => {
+        if (mounted) setResourcesLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [language, subject.id]);
+
+  const handleOpenResource = async (resource: ModuleResource) => {
+    let popupWindow: Window | null = null;
+    if (!NativeBridge.isNativePlatform()) {
+      popupWindow = window.open("about:blank", "_blank");
+    }
+    setOpeningResourceId(resource.id);
+    setResourceError("");
+    try {
+      const url = await resolveModuleResourcePdfUrl(resource.id);
+      await NativeBridge.openPdfUrl(url, popupWindow);
+    } catch (error: any) {
+      if (popupWindow && !popupWindow.closed) popupWindow.close();
+      setResourceError(
+        error?.message ||
+          (language === "ar"
+            ? "تعذر فتح ملف PDF. تحقق من الاتصال وحاول مرة أخرى."
+            : "Could not open this PDF. Check your connection and try again."),
+      );
+    } finally {
+      setOpeningResourceId(null);
+    }
+  };
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -445,6 +504,85 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
             </div>
           </section>
         </div>
+
+        <section
+          className="rounded-[22px] border border-black/[0.055] bg-[#FCFDFE] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.065)] dark:border-white/[0.075] dark:bg-[#0B0D10] dark:shadow-none sm:rounded-[24px] sm:border-black/[0.07] sm:bg-white sm:p-5 sm:shadow-[0_10px_30px_rgba(15,23,42,0.035)]"
+          aria-labelledby="module-resources-heading"
+        >
+          <div id="module-resources-heading">
+            <SectionHeading
+              icon={FileText}
+              title={language === "ar" ? "المصادر" : "Resources"}
+              accent={config.accent}
+              accentRgb={config.accentRgb}
+            />
+          </div>
+          {resourcesLoading ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[0, 1].map((item) => (
+                <div key={item} className="h-24 animate-pulse rounded-2xl bg-neutral-100 dark:bg-white/[0.06]" />
+              ))}
+            </div>
+          ) : resources.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-center text-sm font-medium text-neutral-500 dark:border-white/[0.12] dark:text-neutral-400">
+              {language === "ar"
+                ? "لم تتم إضافة مصادر لهذا الموديول بعد."
+                : "No resources have been added for this module yet."}
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {resources.map((resource) => {
+                const isOpening = openingResourceId === resource.id;
+                return (
+                  <article
+                    key={resource.id}
+                    className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-black/[0.055] bg-white p-4 dark:border-white/[0.09] dark:bg-white/[0.03]"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
+                        style={{
+                          color: config.accent,
+                          borderColor: `rgba(${config.accentRgb},0.25)`,
+                          backgroundColor: `rgba(${config.accentRgb},0.10)`,
+                        }}
+                      >
+                        <FileText className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="break-words text-[15px] font-semibold leading-6 text-neutral-900 dark:text-white">
+                          {resource.title}
+                        </h3>
+                        <p className="mt-1 text-xs font-medium text-neutral-500 dark:text-neutral-400" dir="ltr">
+                          {formatModuleResourceSize(resource.fileSizeBytes)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenResource(resource)}
+                      disabled={Boolean(openingResourceId)}
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                      style={{ backgroundColor: config.accent }}
+                    >
+                      {isOpening ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      {language === "ar" ? "فتح PDF" : "Open PDF"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          {resourceError && (
+            <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+              {resourceError}
+            </p>
+          )}
+        </section>
       </div>
     </section>
   );

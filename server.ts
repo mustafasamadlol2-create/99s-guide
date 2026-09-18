@@ -68,6 +68,25 @@ import {
   uploadPdfToSupabaseStorage,
 } from "./server/services/supabaseStorage.js";
 import {
+  abortModuleResourceMultipartUpload,
+  buildModuleResourceStoragePath,
+  completeModuleResourceMultipartUpload,
+  createModuleResourceMultipartUpload,
+  createModuleResourcePartUrl,
+  createModuleResourcePutUrl,
+  deleteModuleResourceObject,
+  verifyModuleResourcePdf,
+} from "./server/services/moduleResourceStorage.js";
+import {
+  isModuleResourceModuleId,
+  MAX_MODULE_RESOURCE_PDF_BYTES,
+  MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
+  MODULE_RESOURCE_MULTIPART_THRESHOLD_BYTES,
+  MODULE_RESOURCE_TITLE_MAX_LENGTH,
+  MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS,
+  type ModuleResourceModuleId,
+} from "./shared/moduleResources.js";
+import {
   MAX_NOTE_MATERIALS,
   NoteLimitReachedError,
   noteLimitResponse,
@@ -125,6 +144,7 @@ function fetchWithTimeout(
 type ContentSyncEntity =
   | "Lecture"
   | "Material"
+  | "ModuleResource"
   | "Mcq"
   | "Flashcard"
   | "DailyMotto"
@@ -241,6 +261,18 @@ function toMaterialContentRow(row: any): Record<string, unknown> {
     fileUrlOrLink: row.fileUrlOrLink,
     lectureId: row.lectureId,
     createdAt: row.createdAt,
+    storagePath: row.storagePath ?? null,
+  };
+}
+
+function toModuleResourceContentRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    moduleId: row.moduleId,
+    title: row.title,
+    fileSizeBytes: row.fileSizeBytes,
+    createdAt: row.createdAt,
+    status: row.status,
     storagePath: row.storagePath ?? null,
   };
 }
@@ -2582,6 +2614,496 @@ const uploadLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many uploads. Please retry later." },
 });
+
+const moduleResourceUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 24,
+  skip: () => process.env.NODE_ENV !== "production",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many resource uploads. Please retry later." },
+});
+
+function moduleResourceErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.trim();
+  if (!message) return fallback;
+  return message.slice(0, 300);
+}
+
+function normalizeModuleResourceTitle(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const title = value.trim();
+  if (!title || title.length > MODULE_RESOURCE_TITLE_MAX_LENGTH) return null;
+  return title;
+}
+
+function serializeModuleResource(row: any) {
+  return {
+    id: row.id,
+    moduleId: row.moduleId,
+    title: row.title,
+    fileSizeBytes: row.fileSizeBytes,
+    createdAt: row.createdAt,
+  };
+}
+
+async function cleanupExpiredModuleResourceUploads(): Promise<void> {
+  const prismaClient = getPrisma();
+  const expired = await prismaClient.moduleResource.findMany({
+    where: {
+      status: "PENDING",
+      uploadExpiresAt: { lt: new Date() },
+    },
+    orderBy: { uploadExpiresAt: "asc" },
+    take: 25,
+  });
+
+  for (const resource of expired) {
+    if (resource.multipartUploadId) {
+      try {
+        await abortModuleResourceMultipartUpload(
+          resource.storagePath,
+          resource.multipartUploadId,
+        );
+      } catch (error) {
+        logger.warn(
+          "[ModuleResource]",
+          `Failed to abort expired multipart upload: ${moduleResourceErrorMessage(error, "unknown error")}`,
+        );
+      }
+    } else {
+      try {
+        await deleteModuleResourceObject(resource.storagePath);
+      } catch (_) {
+        // A single PUT may never have created an object. Cleanup is best effort.
+      }
+    }
+
+    try {
+      await prismaClient.moduleResource.delete({ where: { id: resource.id } });
+    } catch (error) {
+      logger.warn(
+        "[ModuleResource]",
+        `Failed to remove expired upload reservation: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+    }
+  }
+}
+
+// Module Resources intentionally use a separate direct-to-R2 flow. This keeps
+// the existing 50 MiB Material/Notes multer route unchanged.
+app.post(
+  "/api/admin/module-resources/upload/init",
+  requireAdmin,
+  moduleResourceUploadLimiter,
+  catchAsync(async (req, res) => {
+    await cleanupExpiredModuleResourceUploads();
+
+    const moduleId = req.body?.moduleId;
+    const title = normalizeModuleResourceTitle(req.body?.title);
+    const fileSizeBytes = Number(req.body?.fileSizeBytes);
+    const mimeType = String(req.body?.mimeType || "").trim().toLowerCase();
+
+    if (!isModuleResourceModuleId(moduleId)) {
+      return res.status(400).json({ error: "Invalid module." });
+    }
+    if (!title) {
+      return res.status(400).json({
+        error: `Resource title is required and must be at most ${MODULE_RESOURCE_TITLE_MAX_LENGTH} characters.`,
+      });
+    }
+    if (
+      !Number.isSafeInteger(fileSizeBytes) ||
+      fileSizeBytes <= 0 ||
+      fileSizeBytes > MAX_MODULE_RESOURCE_PDF_BYTES
+    ) {
+      return res.status(413).json({
+        error: "File is too large. Maximum allowed size is 200 MiB.",
+        code: "MODULE_RESOURCE_FILE_TOO_LARGE",
+      });
+    }
+    if (mimeType !== "application/pdf") {
+      return res.status(400).json({
+        error: "Only PDF files are accepted.",
+        code: "MODULE_RESOURCE_INVALID_MIME",
+      });
+    }
+
+    const resourceId = crypto.randomUUID();
+    const storagePath = buildModuleResourceStoragePath(
+      moduleId as ModuleResourceModuleId,
+      resourceId,
+    );
+    const isMultipart =
+      fileSizeBytes >= MODULE_RESOURCE_MULTIPART_THRESHOLD_BYTES;
+    const uploadExpiresAt = new Date(
+      Date.now() + MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS * 1000,
+    );
+    let multipartUploadId: string | null = null;
+
+    try {
+      if (isMultipart) {
+        multipartUploadId = await createModuleResourceMultipartUpload(storagePath);
+      }
+
+      const resource = await getPrisma().moduleResource.create({
+        data: {
+          id: resourceId,
+          moduleId,
+          title,
+          storagePath,
+          fileSizeBytes,
+          status: "PENDING",
+          multipartUploadId,
+          uploadExpiresAt,
+        },
+      });
+
+      let uploadUrl: string | undefined;
+      if (!isMultipart) {
+        try {
+          uploadUrl = await createModuleResourcePutUrl(storagePath);
+        } catch (error) {
+          await getPrisma().moduleResource.delete({ where: { id: resourceId } });
+          throw error;
+        }
+      }
+
+      return res.status(201).json({
+        resourceId,
+        uploadType: isMultipart ? "multipart" : "single",
+        uploadUrl,
+        partSizeBytes: isMultipart
+          ? MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES
+          : undefined,
+        expiresAt: uploadExpiresAt.toISOString(),
+        resource: serializeModuleResource(resource),
+      });
+    } catch (error) {
+      if (multipartUploadId) {
+        try {
+          await abortModuleResourceMultipartUpload(storagePath, multipartUploadId);
+        } catch (_) {}
+      }
+      logger.error(
+        "[ModuleResource]",
+        `Upload initialization failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The resource upload could not be prepared. Please try again.",
+        code: "MODULE_RESOURCE_INIT_FAILED",
+      });
+    }
+  }),
+);
+
+app.post(
+  "/api/admin/module-resources/upload/:resourceId/part-url",
+  requireAdmin,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const partNumber = Number(req.body?.partNumber);
+    const resource = await getPrisma().moduleResource.findUnique({
+      where: { id: resourceId },
+    });
+
+    if (
+      !resource ||
+      resource.status !== "PENDING" ||
+      !resource.multipartUploadId
+    ) {
+      return res.status(404).json({ error: "Upload reservation not found." });
+    }
+    if (
+      resource.uploadExpiresAt &&
+      resource.uploadExpiresAt.getTime() <= Date.now()
+    ) {
+      return res.status(410).json({ error: "Upload expired. Please retry." });
+    }
+
+    const maxPartNumber = Math.ceil(
+      resource.fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
+    );
+    if (
+      !Number.isSafeInteger(partNumber) ||
+      partNumber < 1 ||
+      partNumber > maxPartNumber
+    ) {
+      return res.status(400).json({ error: "Invalid upload part." });
+    }
+
+    try {
+      const uploadUrl = await createModuleResourcePartUrl(
+        resource.storagePath,
+        resource.multipartUploadId,
+        partNumber,
+      );
+      return res.json({
+        partNumber,
+        uploadUrl,
+        expiresAt: resource.uploadExpiresAt?.toISOString() ?? null,
+      });
+    } catch (error) {
+      logger.error(
+        "[ModuleResource]",
+        `Part URL creation failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The upload service is temporarily unavailable. Please retry.",
+        code: "MODULE_RESOURCE_PART_URL_FAILED",
+      });
+    }
+  }),
+);
+
+app.post(
+  "/api/admin/module-resources/upload/:resourceId/complete",
+  requireAdmin,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const prismaClient = getPrisma();
+    const resource = await prismaClient.moduleResource.findUnique({
+      where: { id: resourceId },
+    });
+
+    if (!resource || resource.status !== "PENDING") {
+      return res.status(404).json({ error: "Upload reservation not found." });
+    }
+    if (
+      resource.uploadExpiresAt &&
+      resource.uploadExpiresAt.getTime() <= Date.now()
+    ) {
+      return res.status(410).json({ error: "Upload expired. Please retry." });
+    }
+
+    const expectedPartCount = resource.multipartUploadId
+      ? Math.ceil(
+          resource.fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
+        )
+      : 0;
+    const inputParts = Array.isArray(req.body?.parts) ? req.body.parts : [];
+    const parts = inputParts.map((part: any) => ({
+      PartNumber: Number(part?.partNumber),
+      ETag: typeof part?.etag === "string" ? part.etag : "",
+    }));
+
+    if (resource.multipartUploadId) {
+      const validParts =
+        parts.length === expectedPartCount &&
+        parts.every(
+          (part: { PartNumber: number; ETag: string }, index: number) =>
+            part.PartNumber === index + 1 &&
+            part.ETag.length > 0 &&
+            part.ETag.length <= 200,
+        );
+      if (!validParts) {
+        return res.status(400).json({ error: "Uploaded parts are incomplete." });
+      }
+    } else if (inputParts.length > 0) {
+      return res.status(400).json({ error: "Unexpected multipart parts." });
+    }
+
+    let multipartCompleted = false;
+    try {
+      if (resource.multipartUploadId) {
+        await completeModuleResourceMultipartUpload(
+          resource.storagePath,
+          resource.multipartUploadId,
+          parts,
+        );
+        multipartCompleted = true;
+      }
+
+      const verified = await verifyModuleResourcePdf(
+        resource.storagePath,
+        resource.fileSizeBytes,
+      );
+      const ready = await prismaClient.moduleResource.update({
+        where: { id: resource.id },
+        data: {
+          status: "READY",
+          fileSizeBytes: verified.sizeBytes,
+          multipartUploadId: null,
+          uploadExpiresAt: null,
+        },
+      });
+
+      await syncContentUpsert(
+        "ModuleResource",
+        toModuleResourceContentRow(ready),
+      );
+      io.to("authenticated").emit("module_resources_updated", {
+        moduleId: ready.moduleId,
+      });
+      return res.status(201).json({
+        success: true,
+        resource: serializeModuleResource(ready),
+      });
+    } catch (error) {
+      if (resource.multipartUploadId && !multipartCompleted) {
+        try {
+          await abortModuleResourceMultipartUpload(
+            resource.storagePath,
+            resource.multipartUploadId,
+          );
+        } catch (_) {}
+      }
+      try {
+        await deleteModuleResourceObject(resource.storagePath);
+      } catch (_) {}
+      try {
+        await prismaClient.moduleResource.delete({ where: { id: resource.id } });
+      } catch (_) {}
+
+      logger.error(
+        "[ModuleResource]",
+        `Upload completion failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(400).json({
+        error: moduleResourceErrorMessage(
+          error,
+          "The uploaded file could not be verified as a PDF.",
+        ),
+        code: "MODULE_RESOURCE_VERIFICATION_FAILED",
+      });
+    }
+  }),
+);
+
+app.post(
+  "/api/admin/module-resources/upload/:resourceId/abort",
+  requireAdmin,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const prismaClient = getPrisma();
+    const resource = await prismaClient.moduleResource.findUnique({
+      where: { id: resourceId },
+    });
+    if (!resource) return res.json({ success: true });
+
+    if (resource.multipartUploadId) {
+      try {
+        await abortModuleResourceMultipartUpload(
+          resource.storagePath,
+          resource.multipartUploadId,
+        );
+      } catch (error) {
+        logger.warn(
+          "[ModuleResource]",
+          `Multipart abort failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+        );
+      }
+    } else {
+      try {
+        await deleteModuleResourceObject(resource.storagePath);
+      } catch (_) {}
+    }
+    await prismaClient.moduleResource.delete({ where: { id: resourceId } });
+    return res.json({ success: true });
+  }),
+);
+
+app.get(
+  "/api/module-resources/:moduleId",
+  requireUser,
+  catchAsync(async (req, res) => {
+    const moduleId = req.params.moduleId;
+    if (!isModuleResourceModuleId(moduleId)) {
+      return res.status(400).json({ error: "Invalid module." });
+    }
+    const resources = await getPrisma().moduleResource.findMany({
+      where: { moduleId, status: "READY" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        moduleId: true,
+        title: true,
+        fileSizeBytes: true,
+        createdAt: true,
+      },
+    });
+    return res.json({ resources });
+  }),
+);
+
+app.get(
+  "/api/module-resources/:resourceId/pdf",
+  requireUser,
+  pdfLimiter,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const resource = await getPrisma().moduleResource.findUnique({
+      where: { id: resourceId },
+      select: { storagePath: true, status: true },
+    });
+    if (!resource || resource.status !== "READY") {
+      return res.status(404).json({ error: "PDF not found." });
+    }
+
+    try {
+      const url = await createSupabaseSignedUrl(resource.storagePath, 300);
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({
+        url,
+        delivery: "storage-direct",
+        expiresAt: Date.now() + 240_000,
+      });
+    } catch (error) {
+      logger.error(
+        "[ModuleResource]",
+        `Signed URL creation failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "PDF storage is temporarily unavailable.",
+        code: "MODULE_RESOURCE_OPEN_FAILED",
+      });
+    }
+  }),
+);
+
+app.delete(
+  "/api/admin/module-resources/:id",
+  requireAdmin,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.id || "");
+    const prismaClient = getPrisma();
+    const resource = await prismaClient.moduleResource.findUnique({
+      where: { id: resourceId },
+    });
+    if (!resource) {
+      await syncContentDelete("ModuleResource", resourceId);
+      return res.json({ success: true, storageDeleted: false });
+    }
+
+    if (resource.status === "PENDING" && resource.multipartUploadId) {
+      try {
+        await abortModuleResourceMultipartUpload(
+          resource.storagePath,
+          resource.multipartUploadId,
+        );
+      } catch (_) {}
+    }
+    await prismaClient.moduleResource.delete({ where: { id: resourceId } });
+
+    let storageDeleted = true;
+    try {
+      await deleteModuleResourceObject(resource.storagePath);
+    } catch (error) {
+      storageDeleted = false;
+      logger.warn(
+        "[ModuleResource]",
+        `Resource object delete failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+    }
+
+    await syncContentDelete("ModuleResource", resourceId);
+    io.to("authenticated").emit("module_resources_updated", {
+      moduleId: resource.moduleId,
+    });
+    return res.json({ success: true, storageDeleted });
+  }),
+);
 
 let activeUploads = 0;
 

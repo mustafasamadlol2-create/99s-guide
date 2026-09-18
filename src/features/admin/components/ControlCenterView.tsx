@@ -40,6 +40,7 @@ import {
   MicOff,
   ShieldOff,
   ClipboardList,
+  BookOpen,
 } from "lucide-react";
 
 // ── Sidebar nav button (md+ vertical list) ──────────────────────────────────
@@ -143,6 +144,7 @@ import CreateLecture from "../../lectures/components/CreateLecture";
 // Suspense gap that otherwise makes the first swipe to a never-opened tab feel
 // like a web page instead of a native pager.
 const loadUploadMaterial = () => import("../../lectures/components/UploadMaterial");
+const loadUploadModuleResource = () => import("../../modules/components/UploadModuleResource");
 const loadCreateMCQ = () => import("../../lectures/components/CreateMCQ");
 const loadCreateAnki = () => import("../../lectures/components/CreateAnki");
 const loadSendNotification = () => import("../../bulletin/components/SendNotification");
@@ -155,6 +157,7 @@ const loadBannedUsersView = () => import("../../moderation/components/BannedUser
 const loadModerationHistoryView = () => import("../../moderation/components/ModerationHistoryView");
 
 const UploadMaterial = lazy(loadUploadMaterial);
+const UploadModuleResource = lazy(loadUploadModuleResource);
 const CreateMCQ = lazy(loadCreateMCQ);
 const CreateAnki = lazy(loadCreateAnki);
 const SendNotification = lazy(loadSendNotification);
@@ -198,6 +201,7 @@ type SubTab =
   | "lecture"
   | "pdf"
   | "note"
+  | "resources"
   | "video"
   | "mcq"
   | "anki"
@@ -259,6 +263,7 @@ const ControlCenterView = function ControlCenterView({
     // cached by the module loader.
     void Promise.allSettled([
       loadUploadMaterial(),
+      loadUploadModuleResource(),
       loadCreateMCQ(),
       loadCreateAnki(),
       loadSendNotification(),
@@ -409,6 +414,13 @@ const ControlCenterView = function ControlCenterView({
       pillLabel:      isRtl ? "ملخص" : "Note",
       Icon: FileText,
       iconColorClass: "text-teal-500",
+    },
+    {
+      id: "resources" as SubTab,
+      sidebarLabel:   isRtl ? "مصادر الموديولات" : "Resources",
+      pillLabel:      isRtl ? "مصادر" : "Resources",
+      Icon: BookOpen,
+      iconColorClass: "text-rose-500",
     },
     {
       id: "video" as SubTab,
@@ -816,6 +828,8 @@ const ControlCenterView = function ControlCenterView({
         return <div className={panelClassName}><UploadMaterial initialType="PDF" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
       case "note":
         return <div className={panelClassName}><UploadMaterial initialType="NOTE" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
+      case "resources":
+        return <div className={panelClassName}><UploadModuleResource language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
       case "video":
         return <div className={panelClassName}><UploadMaterial initialType="VIDEO" language={language === "ar" ? "ar" : "en"} onSuccess={handleRefreshSubjects} /></div>;
       case "mcq":
