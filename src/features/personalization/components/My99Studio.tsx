@@ -3,9 +3,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Droplets,
   Palette,
   RotateCcw,
   Save,
+  Sparkles,
   X,
 } from "lucide-react";
 import { HapticFeedback } from "../../../core/device/haptic";
@@ -19,10 +21,15 @@ import {
   type PersonalizationRuntimeApplyResult,
 } from "../PersonalizationProvider";
 import {
+  PERSONALIZATION_GLASS_CATALOG,
+  PERSONALIZATION_HERO_CATALOG,
   PERSONALIZATION_THEME_CATALOG,
+  type PersonalizationGlassCatalogItem,
+  type PersonalizationHeroCatalogItem,
   type PersonalizationThemeCatalogItem,
 } from "../personalizationCatalog";
 import type { ImplementedThemeId } from "../classic99Tokens";
+import type { GlassStyle, HeroStyle } from "../../../../shared/personalization";
 
 interface My99StudioProps {
   language: Language;
@@ -165,6 +172,150 @@ const ThemeCard = memo(function ThemeCard({
   );
 });
 
+const PresentationMiniPreview = memo(function PresentationMiniPreview({
+  kind,
+  id,
+  themeId,
+  draftHeroStyle,
+  draftGlassStyle,
+}: {
+  kind: "hero" | "glass";
+  id: HeroStyle | GlassStyle;
+  themeId: ImplementedThemeId;
+  draftHeroStyle: HeroStyle;
+  draftGlassStyle: GlassStyle;
+}) {
+  if (kind === "hero") {
+    return (
+      <div
+        aria-hidden="true"
+        className="my99-presentation-mini-preview my99-hero-mini-preview"
+        data-personalization-preview-theme={themeId}
+        data-personalization-preview-hero-style={id}
+        data-personalization-preview-glass-style={draftGlassStyle}
+      >
+        <span className="my99-hero-mini-preview-glow" />
+        <span className="my99-hero-mini-preview-content" />
+        <span className="my99-hero-mini-preview-line" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="my99-presentation-mini-preview my99-glass-mini-preview personalization-glass-specimen"
+      data-personalization-preview-theme={themeId}
+      data-personalization-preview-hero-style={draftHeroStyle}
+      data-personalization-preview-glass-style={id}
+    >
+      <span className="my99-glass-mini-preview-backdrop" />
+      <span className="my99-glass-mini-preview-surface" />
+    </div>
+  );
+});
+
+const PresentationCard = memo(function PresentationCard({
+  item,
+  kind,
+  language,
+  name,
+  description,
+  isDraft,
+  isCurrent,
+  themeId,
+  draftHeroStyle,
+  draftGlassStyle,
+  onSelect,
+}: {
+  item: PersonalizationHeroCatalogItem | PersonalizationGlassCatalogItem;
+  kind: "hero" | "glass";
+  language: Language;
+  name: string;
+  description: string;
+  isDraft: boolean;
+  isCurrent: boolean;
+  themeId: ImplementedThemeId;
+  draftHeroStyle: HeroStyle;
+  draftGlassStyle: GlassStyle;
+  onSelect: () => void;
+}) {
+  const status =
+    isDraft && isCurrent
+      ? language === "ar"
+        ? "الحالي والمحدد"
+        : "Current and selected"
+      : isDraft
+        ? language === "ar"
+          ? "المحدد"
+          : "Selected"
+        : isCurrent
+          ? language === "ar"
+            ? "الحالي"
+            : "Current"
+          : "";
+
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={isDraft}
+      aria-label={`${name}${status ? ` — ${status}` : ""}`}
+      onClick={() => {
+        onSelect();
+        HapticFeedback.selection();
+      }}
+      className={`my99-theme-card group ${
+        isDraft
+          ? "border-semantic-action-accent bg-semantic-action-accent-soft shadow-elevation-1"
+          : "border-semantic-border-default bg-semantic-surface-elevated hover:border-semantic-border-strong"
+      }`}
+      dir={language === "ar" ? "rtl" : "ltr"}
+    >
+      <div className="flex items-start gap-3">
+        <PresentationMiniPreview
+          kind={kind}
+          id={item.id}
+          themeId={themeId}
+          draftHeroStyle={draftHeroStyle}
+          draftGlassStyle={draftGlassStyle}
+        />
+        <div className="min-w-0 flex-1 text-start">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-base font-semibold text-semantic-content-primary">
+              {name}
+            </span>
+            <span
+              className={`mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full ${
+                isDraft
+                  ? "bg-semantic-action-accent text-white"
+                  : "border border-semantic-border-strong text-transparent"
+              }`}
+              aria-hidden="true"
+            >
+              <Check className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+          </div>
+          <p className="mt-1 text-sm leading-5 text-semantic-content-secondary">
+            {description}
+          </p>
+          {status && (
+            <span
+              className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                isDraft
+                  ? "bg-semantic-action-accent-soft text-semantic-action-accent"
+                  : "bg-semantic-surface-muted text-semantic-content-secondary"
+              }`}
+            >
+              {status}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+});
+
 const My99Studio = memo(function My99Studio({
   language,
   onBack,
@@ -193,6 +344,20 @@ const My99Studio = memo(function My99Studio({
   const handleSelect = useCallback(
     (themeId: ImplementedThemeId) => {
       updateDraft({ type: "setThemeId", value: themeId });
+    },
+    [updateDraft],
+  );
+
+  const handleHeroSelect = useCallback(
+    (heroStyle: HeroStyle) => {
+      updateDraft({ type: "setHeroStyle", value: heroStyle });
+    },
+    [updateDraft],
+  );
+
+  const handleGlassSelect = useCallback(
+    (glassStyle: GlassStyle) => {
+      updateDraft({ type: "setGlassStyle", value: glassStyle });
     },
     [updateDraft],
   );
@@ -288,12 +453,23 @@ const My99Studio = memo(function My99Studio({
         <div
           className="my99-main-preview overflow-hidden rounded-xl border border-semantic-border-default bg-semantic-background-page"
           data-personalization-preview-theme={draft.themeId}
+          data-personalization-preview-hero-style={draft.heroStyle}
+          data-personalization-preview-glass-style={draft.glassStyle}
         >
           <div className="my99-main-preview-topbar">
             <span className="my99-main-preview-dot" />
             <span className="my99-main-preview-dot" />
             <span className="my99-main-preview-dot" />
             <span className="ms-auto h-2 w-16 rounded-full bg-semantic-content-subtle" />
+          </div>
+          <div className="my99-preview-hero home-hero-banner relative mx-4 mt-4 overflow-hidden rounded-xl p-4 sm:mx-6">
+            <div className="my99-preview-hero-glow hero-aurora-layer" aria-hidden="true" />
+            <div className="my99-preview-hero-gold hero-gold-motes" aria-hidden="true" />
+            <div className="my99-preview-hero-copy relative z-[1]">
+              <div className="h-2 w-24 rounded-full bg-white/55" />
+              <div className="mt-3 h-6 w-2/3 rounded-lg bg-white/90" />
+              <div className="mt-2 h-2 w-4/5 rounded-full bg-white/35" />
+            </div>
           </div>
           <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1.25fr)_minmax(180px,0.75fr)] sm:p-6">
             <div className="rounded-xl bg-semantic-surface-primary p-4">
@@ -306,7 +482,7 @@ const My99Studio = memo(function My99Studio({
                 <span className="h-9 w-20 rounded-lg bg-semantic-surface-muted" />
               </div>
             </div>
-            <div className="rounded-xl bg-semantic-surface-elevated p-4">
+            <div className="personalization-glass-specimen rounded-xl bg-semantic-surface-elevated p-4">
               <div className="mb-4 h-3 w-20 rounded-full bg-semantic-content-subtle" />
               <div className="space-y-3">
                 <div className="h-10 rounded-lg bg-semantic-action-accent-soft" />
@@ -348,6 +524,92 @@ const My99Studio = memo(function My99Studio({
               isDraft={draft.themeId === item.id}
               isCurrent={committed.themeId === item.id}
               onSelect={() => handleSelect(item.id)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section
+        className="mt-6"
+        aria-labelledby="my99-hero-heading"
+        aria-busy={hydration.phase === "loading"}
+      >
+        <div className="mb-3 flex items-start gap-2">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <div>
+            <h2
+              id="my99-hero-heading"
+              className="text-base font-semibold text-semantic-content-primary"
+            >
+              {t("my99HeroStyleTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-semantic-content-secondary">
+              {t("my99HeroStyleDescription")}
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          role="radiogroup"
+          aria-labelledby="my99-hero-heading"
+        >
+          {PERSONALIZATION_HERO_CATALOG.map((item) => (
+            <PresentationCard
+              key={item.id}
+              item={item}
+              kind="hero"
+              language={language}
+              name={t(item.nameKey)}
+              description={t(item.descriptionKey)}
+              isDraft={draft.heroStyle === item.id}
+              isCurrent={committed.heroStyle === item.id}
+              themeId={draft.themeId}
+              draftHeroStyle={draft.heroStyle}
+              draftGlassStyle={draft.glassStyle}
+              onSelect={() => handleHeroSelect(item.id)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section
+        className="mt-6"
+        aria-labelledby="my99-glass-heading"
+        aria-busy={hydration.phase === "loading"}
+      >
+        <div className="mb-3 flex items-start gap-2">
+          <Droplets className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <div>
+            <h2
+              id="my99-glass-heading"
+              className="text-base font-semibold text-semantic-content-primary"
+            >
+              {t("my99GlassStyleTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-semantic-content-secondary">
+              {t("my99GlassStyleDescription")}
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid gap-3 sm:grid-cols-3"
+          role="radiogroup"
+          aria-labelledby="my99-glass-heading"
+        >
+          {PERSONALIZATION_GLASS_CATALOG.map((item) => (
+            <PresentationCard
+              key={item.id}
+              item={item}
+              kind="glass"
+              language={language}
+              name={t(item.nameKey)}
+              description={t(item.descriptionKey)}
+              isDraft={draft.glassStyle === item.id}
+              isCurrent={committed.glassStyle === item.id}
+              themeId={draft.themeId}
+              draftHeroStyle={draft.heroStyle}
+              draftGlassStyle={draft.glassStyle}
+              onSelect={() => handleGlassSelect(item.id)}
             />
           ))}
         </div>

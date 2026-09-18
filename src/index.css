@@ -1682,93 +1682,130 @@ textarea::placeholder {
   background: #2d3644;
 }
 
+:root {
+  /* Balanced values are the untouched production glass treatment. Alternate
+     styles replace these variables at the document or preview scope. */
+  --personalization-glass-thin-surface: rgba(255, 255, 255, 0.45);
+  --personalization-glass-thin-border: rgba(0, 0, 0, 0.04);
+  --personalization-glass-thin-blur: 8px;
+  --personalization-glass-regular-surface: rgba(255, 255, 255, 0.6);
+  --personalization-glass-regular-border: rgba(0, 0, 0, 0.05);
+  --personalization-glass-regular-blur: 12px;
+  --personalization-glass-thick-surface: rgba(255, 255, 255, 0.75);
+  --personalization-glass-thick-border: rgba(0, 0, 0, 0.06);
+  --personalization-glass-thick-blur: 16px;
+  --personalization-glass-tabbar-surface: rgba(248, 248, 250, 0.72);
+  --personalization-glass-tabbar-border: rgba(255, 255, 255, 0.58);
+  --personalization-glass-tabbar-blur: 32px;
+  --personalization-glass-tabbar-mobile-blur: 12px;
+  --personalization-glass-tabbar-saturation: 1.45;
+  --personalization-glass-header-surface: rgba(255, 255, 255, 0.65);
+  --personalization-glass-header-border: rgba(0, 0, 0, 0.06);
+  --personalization-glass-header-blur: 16px;
+  --personalization-glass-header-mobile-blur: 12px;
+}
+
+.dark {
+  --personalization-glass-thin-surface: rgba(30, 30, 32, 0.45);
+  --personalization-glass-thin-border: rgba(255, 255, 255, 0.03);
+  --personalization-glass-regular-surface: rgba(34, 34, 36, 0.55);
+  --personalization-glass-regular-border: rgba(255, 255, 255, 0.05);
+  --personalization-glass-thick-surface: rgba(28, 28, 30, 0.7);
+  --personalization-glass-thick-border: rgba(255, 255, 255, 0.08);
+  --personalization-glass-tabbar-surface: rgba(20, 20, 22, 0.76);
+  --personalization-glass-tabbar-border: rgba(255, 255, 255, 0.11);
+  --personalization-glass-tabbar-saturation: 1.2;
+  --personalization-glass-header-surface: rgba(24, 24, 26, 0.65);
+  --personalization-glass-header-border: rgba(255, 255, 255, 0.06);
+}
+
 .liquid-glass-thin {
-  background-color: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  background-color: var(--personalization-glass-thin-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-thin-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-thin-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
-  border: 0.5px solid rgba(0, 0, 0, 0.04) !important;
+  border: 0.5px solid var(--personalization-glass-thin-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-thin {
-  background-color: rgba(30, 30, 32, 0.45) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  background-color: var(--personalization-glass-thin-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-thin-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-thin-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.03) !important;
+  border: 0.5px solid var(--personalization-glass-thin-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 
 .liquid-glass-regular {
-  background-color: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background-color: var(--personalization-glass-regular-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-regular-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-regular-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.04),
     inset 0 0 0 1px rgba(255, 255, 255, 0.4),
     inset 0 1px 1px rgba(255, 255, 255, 0.7) !important;
-  border: 0.5px solid rgba(0, 0, 0, 0.05) !important;
+  border: 0.5px solid var(--personalization-glass-regular-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-regular {
-  background-color: rgba(34, 34, 36, 0.55) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background-color: var(--personalization-glass-regular-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-regular-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-regular-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.05) !important;
+  border: 0.5px solid var(--personalization-glass-regular-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 
 .liquid-glass-thick {
-  background-color: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: var(--personalization-glass-thick-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-thick-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-thick-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.08),
     inset 0 0 0 1px rgba(255, 255, 255, 0.5),
     inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
-  border: 0.5px solid rgba(0, 0, 0, 0.06) !important;
+  border: 0.5px solid var(--personalization-glass-thick-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-thick {
-  background-color: rgba(28, 28, 30, 0.7) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: var(--personalization-glass-thick-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-thick-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-thick-blur)) !important;
   transform: translateZ(0) !important;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.4),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1),
     inset 0 1px 2px rgba(255, 255, 255, 0.2) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  border: 0.5px solid var(--personalization-glass-thick-border) !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 
 .liquid-glass-tabbar {
-  background-color: rgba(248, 248, 250, 0.72) !important;
-  backdrop-filter: blur(32px) saturate(1.45) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(1.45) !important;
+  background-color: var(--personalization-glass-tabbar-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-tabbar-blur)) saturate(var(--personalization-glass-tabbar-saturation)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-tabbar-blur)) saturate(var(--personalization-glass-tabbar-saturation)) !important;
   transform: translateZ(0) !important;
-  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  border: 1px solid var(--personalization-glass-tabbar-border) !important;
   border-radius: 26px !important;
   box-shadow:
     0 12px 30px -6px rgba(0, 0, 0, 0.18),
@@ -1779,11 +1816,11 @@ textarea::placeholder {
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-tabbar {
-  background-color: rgba(20, 20, 22, 0.76) !important;
-  backdrop-filter: blur(32px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(1.2) !important;
+  background-color: var(--personalization-glass-tabbar-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-tabbar-blur)) saturate(var(--personalization-glass-tabbar-saturation)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-tabbar-blur)) saturate(var(--personalization-glass-tabbar-saturation)) !important;
   transform: translateZ(0) !important;
-  border: 1px solid rgba(255, 255, 255, 0.11) !important;
+  border: 1px solid var(--personalization-glass-tabbar-border) !important;
   border-radius: 26px !important;
   box-shadow:
     0 14px 34px -8px rgba(0, 0, 0, 0.68),
@@ -2103,11 +2140,11 @@ textarea::placeholder {
 }
 
 .liquid-glass-header {
-  background-color: rgba(255, 255, 255, 0.65) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: var(--personalization-glass-header-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-header-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-header-blur)) !important;
   transform: translateZ(0) !important;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06) !important;
+  border-bottom: 0.5px solid var(--personalization-glass-header-border) !important;
   box-shadow:
     inset 0 -1px 0 rgba(255, 255, 255, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
@@ -2116,11 +2153,11 @@ textarea::placeholder {
   transform: translate3d(0, 0, 0);
 }
 .dark .liquid-glass-header {
-  background-color: rgba(24, 24, 26, 0.65) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  background-color: var(--personalization-glass-header-surface) !important;
+  backdrop-filter: blur(var(--personalization-glass-header-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--personalization-glass-header-blur)) !important;
   transform: translateZ(0) !important;
-  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06) !important;
+  border-bottom: 0.5px solid var(--personalization-glass-header-border) !important;
   box-shadow:
     inset 0 -1px 0 rgba(255, 255, 255, 0.05),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
@@ -4143,20 +4180,20 @@ a, button, input, select, textarea, [role="button"], [role="tab"], .cursor-point
    reduces GPU compositing cost while preserving the glass effect. */
 @media (hover: none) and (pointer: coarse) {
   .liquid-glass-tabbar {
-    backdrop-filter: blur(12px) saturate(1.1) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+    backdrop-filter: blur(var(--personalization-glass-tabbar-mobile-blur)) saturate(1.1) !important;
+    -webkit-backdrop-filter: blur(var(--personalization-glass-tabbar-mobile-blur)) saturate(1.1) !important;
   }
   .dark .liquid-glass-tabbar {
-    backdrop-filter: blur(12px) saturate(1.1) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+    backdrop-filter: blur(var(--personalization-glass-tabbar-mobile-blur)) saturate(1.1) !important;
+    -webkit-backdrop-filter: blur(var(--personalization-glass-tabbar-mobile-blur)) saturate(1.1) !important;
   }
   .liquid-glass-header {
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(var(--personalization-glass-header-mobile-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--personalization-glass-header-mobile-blur)) !important;
   }
   .dark .liquid-glass-header {
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(var(--personalization-glass-header-mobile-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--personalization-glass-header-mobile-blur)) !important;
   }
 }
 
@@ -4348,6 +4385,32 @@ input:-webkit-autofill:active {
   }
 }
 
+/* Keep the accessibility override last so it also wins over the existing
+   coarse-pointer mobile blur optimization. */
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass-thin,
+  .liquid-glass-regular,
+  .liquid-glass-thick,
+  .liquid-glass-tabbar,
+  .liquid-glass-header,
+  .ios-sheet,
+  .personalization-glass-specimen {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: #f2f2f7 !important;
+  }
+
+  .dark .liquid-glass-thin,
+  .dark .liquid-glass-regular,
+  .dark .liquid-glass-thick,
+  .dark .liquid-glass-tabbar,
+  .dark .liquid-glass-header,
+  .dark .ios-sheet,
+  .dark .personalization-glass-specimen {
+    background-color: #1c1c1e !important;
+  }
+}
+
 /* ─── Hero Banner animations ─────────────────────────────────────────────── */
 @keyframes wave {
   0%   { transform: rotate(  0deg); }
@@ -4366,9 +4429,9 @@ input:-webkit-autofill:active {
      Previously the translate was only in keyframes — on iOS Safari the brief pre-keyframe
      frame on display:none→block showed the element un-translated, causing the colour-shift
      bug. The individual `rotate` property composes additively with the base `transform`. */
-  0%   { rotate: 0deg;   opacity: 0.045; }
-  50%  { rotate: 180deg; opacity: 0.08; }
-  100% { rotate: 360deg; opacity: 0.045; }
+  0%   { rotate: 0deg;   opacity: calc(0.045 * var(--personalization-hero-aurora-strength, 1)); }
+  50%  { rotate: 180deg; opacity: calc(0.08 * var(--personalization-hero-aurora-strength, 1)); }
+  100% { rotate: 360deg; opacity: calc(0.045 * var(--personalization-hero-aurora-strength, 1)); }
 }
 /* Aurora element — backface-visibility keeps GPU compositing stable.
    will-change removed: the animation is 28 s / low-frequency; a permanent compositing
@@ -6308,4 +6371,343 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 .mobile-phone-layout .ios-floating-tabbar[data-main-tab-swipe-sync="true"]
   .ios-floating-tabbar-icon-glyph-active {
   animation: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   My 99 Prompt 16 — presentation-only Hero and Glass styles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-personalization-preview-hero-style="classic"] {
+  --personalization-hero-aurora-strength: 1;
+  --personalization-hero-star-opacity: 0.48;
+  --personalization-hero-ambient-opacity: 1;
+  --personalization-hero-gold-opacity: 1;
+  --personalization-hero-current-opacity: 1;
+  --personalization-hero-overlay-opacity: 0.9;
+  --personalization-hero-grain-opacity: 0.032;
+}
+
+:root[data-app-hero-style="minimal"],
+[data-personalization-preview-hero-style="minimal"] {
+  --personalization-hero-aurora-strength: 0.55;
+  --personalization-hero-star-opacity: 0.16;
+  --personalization-hero-ambient-opacity: 0.55;
+  --personalization-hero-gold-opacity: 0.25;
+  --personalization-hero-current-opacity: 0.22;
+  --personalization-hero-overlay-opacity: 0.78;
+  --personalization-hero-grain-opacity: 0.018;
+}
+
+:root[data-app-hero-style="night"],
+[data-personalization-preview-hero-style="night"] {
+  --personalization-hero-aurora-strength: 0.66;
+  --personalization-hero-star-opacity: 0.28;
+  --personalization-hero-ambient-opacity: 0.7;
+  --personalization-hero-gold-opacity: 0.42;
+  --personalization-hero-current-opacity: 0.4;
+  --personalization-hero-overlay-opacity: 0.96;
+  --personalization-hero-grain-opacity: 0.018;
+}
+
+:root[data-app-hero-style="aurora"],
+[data-personalization-preview-hero-style="aurora"] {
+  --personalization-hero-aurora-strength: 1.35;
+  --personalization-hero-star-opacity: 0.58;
+  --personalization-hero-ambient-opacity: 1.1;
+  --personalization-hero-gold-opacity: 1.08;
+  --personalization-hero-current-opacity: 1.08;
+  --personalization-hero-overlay-opacity: 0.76;
+  --personalization-hero-grain-opacity: 0.04;
+}
+
+.home-hero-banner {
+  background-color: var(--semantic-hero-background) !important;
+}
+
+.home-hero-banner .home-hero-starfield {
+  opacity: var(--personalization-hero-star-opacity) !important;
+}
+
+.home-hero-banner .hero-aurora-layer {
+  background: conic-gradient(
+    from var(--hero-aurora-start, 0deg),
+    transparent 0deg,
+    var(--semantic-hero-glow-primary) 60deg,
+    transparent 120deg,
+    var(--semantic-hero-glow-secondary) 200deg,
+    transparent 280deg
+  ) !important;
+}
+
+.home-hero-banner .hero-ambient-glow,
+.home-hero-banner .hero-ambient-nebula,
+.home-hero-banner .hero-ambient-gold,
+.home-hero-banner .hero-ambient-blue {
+  opacity: var(--personalization-hero-ambient-opacity);
+}
+
+.home-hero-banner .hero-gold-motes {
+  opacity: var(--personalization-hero-gold-opacity);
+}
+
+.home-hero-banner .hero-gold-current {
+  filter: opacity(var(--personalization-hero-current-opacity));
+}
+
+.home-hero-banner .home-hero-overlay {
+  opacity: var(--personalization-hero-overlay-opacity) !important;
+}
+
+.home-hero-banner .home-hero-grain {
+  opacity: var(--personalization-hero-grain-opacity) !important;
+}
+
+/* Glass variables preserve every Balanced baseline above. The alternate
+   surfaces are derived from the active theme's semantic glass tokens. */
+:root[data-app-glass-style="clear"],
+[data-personalization-preview-glass-style="clear"] {
+  --personalization-glass-thin-blur: 4px;
+  --personalization-glass-regular-blur: 7px;
+  --personalization-glass-thick-blur: 10px;
+  --personalization-glass-tabbar-blur: 16px;
+  --personalization-glass-tabbar-mobile-blur: 8px;
+  --personalization-glass-tabbar-saturation: 1.1;
+  --personalization-glass-header-blur: 9px;
+  --personalization-glass-header-mobile-blur: 8px;
+  --personalization-glass-thin-surface: var(--semantic-glass-surface);
+  --personalization-glass-regular-surface: var(--semantic-glass-surface);
+  --personalization-glass-thick-surface: var(--semantic-glass-surface);
+  --personalization-glass-tabbar-surface: var(--semantic-glass-surface);
+  --personalization-glass-header-surface: var(--semantic-glass-surface);
+  --personalization-glass-thin-border: var(--semantic-glass-border);
+  --personalization-glass-regular-border: var(--semantic-glass-border);
+  --personalization-glass-thick-border: var(--semantic-glass-border);
+  --personalization-glass-tabbar-border: var(--semantic-glass-border);
+  --personalization-glass-header-border: var(--semantic-glass-border);
+}
+
+:root[data-app-glass-style="frosted"],
+[data-personalization-preview-glass-style="frosted"] {
+  --personalization-glass-thin-blur: 12px;
+  --personalization-glass-regular-blur: 18px;
+  --personalization-glass-thick-blur: 24px;
+  --personalization-glass-tabbar-blur: 40px;
+  --personalization-glass-tabbar-mobile-blur: 16px;
+  --personalization-glass-tabbar-saturation: 1.55;
+  --personalization-glass-header-blur: 24px;
+  --personalization-glass-header-mobile-blur: 16px;
+  --personalization-glass-thin-surface: var(--semantic-glass-surface);
+  --personalization-glass-regular-surface: var(--semantic-glass-surface);
+  --personalization-glass-thick-surface: var(--semantic-glass-surface);
+  --personalization-glass-tabbar-surface: var(--semantic-glass-surface);
+  --personalization-glass-header-surface: var(--semantic-glass-surface);
+  --personalization-glass-thin-border: var(--semantic-glass-border);
+  --personalization-glass-regular-border: var(--semantic-glass-border);
+  --personalization-glass-thick-border: var(--semantic-glass-border);
+  --personalization-glass-tabbar-border: var(--semantic-glass-border);
+  --personalization-glass-header-border: var(--semantic-glass-border);
+}
+
+/* Clear/Frosted retain semantic fallbacks above for Safari/iOS 16.0–16.1.
+   Only supported browsers receive the approved density enhancements. */
+@supports (color: color-mix(in srgb, black, white)) {
+  :root[data-app-glass-style="clear"],
+  [data-personalization-preview-glass-style="clear"] {
+    --personalization-glass-thin-surface: color-mix(in srgb, var(--semantic-glass-surface) 58%, transparent);
+    --personalization-glass-regular-surface: color-mix(in srgb, var(--semantic-glass-surface) 68%, transparent);
+    --personalization-glass-thick-surface: color-mix(in srgb, var(--semantic-glass-surface) 78%, transparent);
+    --personalization-glass-tabbar-surface: color-mix(in srgb, var(--semantic-glass-surface) 78%, transparent);
+    --personalization-glass-header-surface: color-mix(in srgb, var(--semantic-glass-surface) 68%, transparent);
+    --personalization-glass-thin-border: color-mix(in srgb, var(--semantic-glass-border) 72%, transparent);
+    --personalization-glass-regular-border: color-mix(in srgb, var(--semantic-glass-border) 82%, transparent);
+    --personalization-glass-thick-border: color-mix(in srgb, var(--semantic-glass-border) 92%, transparent);
+    --personalization-glass-tabbar-border: color-mix(in srgb, var(--semantic-glass-border) 92%, transparent);
+    --personalization-glass-header-border: color-mix(in srgb, var(--semantic-glass-border) 82%, transparent);
+  }
+
+  :root[data-app-glass-style="frosted"],
+  [data-personalization-preview-glass-style="frosted"] {
+    --personalization-glass-thin-surface: color-mix(in srgb, var(--semantic-glass-surface) 88%, var(--semantic-background-page) 12%);
+    --personalization-glass-regular-surface: color-mix(in srgb, var(--semantic-glass-surface) 96%, var(--semantic-background-page) 4%);
+    --personalization-glass-thick-surface: color-mix(in srgb, var(--semantic-glass-surface) 100%, var(--semantic-background-page) 0%);
+    --personalization-glass-tabbar-surface: color-mix(in srgb, var(--semantic-glass-surface) 100%, var(--semantic-background-page) 0%);
+    --personalization-glass-header-surface: color-mix(in srgb, var(--semantic-glass-surface) 96%, var(--semantic-background-page) 4%);
+    --personalization-glass-thin-border: color-mix(in srgb, var(--semantic-glass-border) 88%, transparent);
+    --personalization-glass-regular-border: color-mix(in srgb, var(--semantic-glass-border) 94%, transparent);
+    --personalization-glass-header-border: color-mix(in srgb, var(--semantic-glass-border) 94%, transparent);
+  }
+}
+
+/* A local Balanced preview must win over an alternate committed document
+   style, while inheriting the correct light/dark baseline from its preview
+   theme. */
+[data-personalization-preview-glass-style="balanced"] {
+  --personalization-glass-thin-surface: rgba(255, 255, 255, 0.45);
+  --personalization-glass-thin-border: rgba(0, 0, 0, 0.04);
+  --personalization-glass-thin-blur: 8px;
+  --personalization-glass-regular-surface: rgba(255, 255, 255, 0.6);
+  --personalization-glass-regular-border: rgba(0, 0, 0, 0.05);
+  --personalization-glass-regular-blur: 12px;
+  --personalization-glass-thick-surface: rgba(255, 255, 255, 0.75);
+  --personalization-glass-thick-border: rgba(0, 0, 0, 0.06);
+  --personalization-glass-thick-blur: 16px;
+  --personalization-glass-tabbar-surface: rgba(248, 248, 250, 0.72);
+  --personalization-glass-tabbar-border: rgba(255, 255, 255, 0.58);
+  --personalization-glass-tabbar-blur: 32px;
+  --personalization-glass-tabbar-mobile-blur: 12px;
+  --personalization-glass-tabbar-saturation: 1.45;
+  --personalization-glass-header-surface: rgba(255, 255, 255, 0.65);
+  --personalization-glass-header-border: rgba(0, 0, 0, 0.06);
+  --personalization-glass-header-blur: 16px;
+  --personalization-glass-header-mobile-blur: 12px;
+}
+
+.dark [data-personalization-preview-glass-style="balanced"] {
+  --personalization-glass-thin-surface: rgba(30, 30, 32, 0.45);
+  --personalization-glass-thin-border: rgba(255, 255, 255, 0.03);
+  --personalization-glass-regular-surface: rgba(34, 34, 36, 0.55);
+  --personalization-glass-regular-border: rgba(255, 255, 255, 0.05);
+  --personalization-glass-thick-surface: rgba(28, 28, 30, 0.7);
+  --personalization-glass-thick-border: rgba(255, 255, 255, 0.08);
+  --personalization-glass-tabbar-surface: rgba(20, 20, 22, 0.76);
+  --personalization-glass-tabbar-border: rgba(255, 255, 255, 0.11);
+  --personalization-glass-tabbar-blur: 32px;
+  --personalization-glass-tabbar-mobile-blur: 12px;
+  --personalization-glass-tabbar-saturation: 1.2;
+  --personalization-glass-header-surface: rgba(24, 24, 26, 0.65);
+  --personalization-glass-header-border: rgba(255, 255, 255, 0.06);
+  --personalization-glass-header-blur: 16px;
+  --personalization-glass-header-mobile-blur: 12px;
+}
+
+.personalization-glass-specimen {
+  background-color: var(--personalization-glass-regular-surface);
+  border: 1px solid var(--personalization-glass-regular-border);
+  backdrop-filter: blur(var(--personalization-glass-regular-blur));
+  -webkit-backdrop-filter: blur(var(--personalization-glass-regular-blur));
+}
+
+.my99-preview-hero {
+  min-height: 128px;
+}
+
+.my99-preview-hero-glow {
+  position: absolute;
+  inset: -80%;
+  pointer-events: none;
+  animation: hero-aurora 28s linear infinite;
+}
+
+.my99-preview-hero-gold {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.my99-presentation-mini-preview {
+  position: relative;
+  display: block;
+  width: 76px;
+  height: 58px;
+  flex: 0 0 76px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--semantic-background-page);
+}
+
+.my99-hero-mini-preview {
+  background: var(--semantic-hero-background);
+}
+
+.my99-hero-mini-preview-glow,
+.my99-hero-mini-preview-content,
+.my99-hero-mini-preview-line {
+  position: absolute;
+  display: block;
+}
+
+.my99-hero-mini-preview-glow {
+  inset: -60%;
+  background: radial-gradient(circle, var(--semantic-hero-glow-primary), transparent 65%);
+}
+
+.my99-hero-mini-preview-content {
+  inset: 18px 15px auto;
+  height: 15px;
+  border-radius: 5px;
+  background: var(--semantic-hero-glow-secondary);
+}
+
+.my99-hero-mini-preview-line {
+  inset: 39px 15px auto;
+  height: 4px;
+  width: 34px;
+  border-radius: 999px;
+  background: var(--semantic-content-subtle);
+}
+
+.my99-hero-mini-preview[data-personalization-preview-hero-style="minimal"] .my99-hero-mini-preview-glow {
+  opacity: 0.35;
+}
+
+.my99-hero-mini-preview[data-personalization-preview-hero-style="night"] .my99-hero-mini-preview-glow {
+  opacity: 0.55;
+}
+
+.my99-hero-mini-preview[data-personalization-preview-hero-style="aurora"] .my99-hero-mini-preview-glow {
+  opacity: 1.25;
+}
+
+.my99-glass-mini-preview {
+  background: var(--semantic-background-page);
+}
+
+.my99-glass-mini-preview-backdrop,
+.my99-glass-mini-preview-surface {
+  position: absolute;
+  display: block;
+  border-radius: 9px;
+}
+
+.my99-glass-mini-preview-backdrop {
+  inset: 0;
+  background:
+    linear-gradient(135deg, var(--semantic-action-accent-soft), transparent 60%),
+    var(--semantic-background-grouped);
+}
+
+.my99-glass-mini-preview-surface {
+  inset: 12px 10px;
+  background: var(--personalization-glass-regular-surface);
+  border: 1px solid var(--personalization-glass-regular-border);
+  backdrop-filter: blur(var(--personalization-glass-regular-blur));
+  -webkit-backdrop-filter: blur(var(--personalization-glass-regular-blur));
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .personalization-glass-specimen,
+  [data-personalization-preview-glass-style] .my99-glass-mini-preview-surface {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: #f2f2f7 !important;
+  }
+
+  .dark .personalization-glass-specimen,
+  .dark [data-personalization-preview-glass-style] .my99-glass-mini-preview-surface {
+    background-color: #1c1c1e !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .home-hero-banner {
+    background: Canvas !important;
+    color: CanvasText !important;
+  }
+
+  .home-hero-banner > *,
+  .personalization-glass-specimen,
+  .my99-glass-mini-preview-surface {
+    forced-color-adjust: auto;
+  }
 }

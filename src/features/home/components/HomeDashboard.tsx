@@ -370,7 +370,7 @@ const StarField = ({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={`absolute inset-0 w-full h-full pointer-events-none z-0 ${opacity}`}
+      className={`home-hero-starfield absolute inset-0 w-full h-full pointer-events-none z-0 ${opacity}`}
       style={{ willChange: "transform" }}
     />
   );
@@ -401,15 +401,15 @@ const RadialGradient = ({
 const AmbientGlow = ({ isRtl }: { isRtl: boolean }) => (
   <>
     {/* Subtle midnight blue radial gradient behind the title */}
-    <div
-      className={`absolute top-1/2 ${isRtl ? "right-[0%]" : "left-[0%]"} -translate-y-1/2 w-[85%] h-[160%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0C1731]/35 via-[#070D1C]/12 to-transparent pointer-events-none z-0`}
-    />
+      <div
+        className={`hero-ambient-glow absolute top-1/2 ${isRtl ? "right-[0%]" : "left-[0%]"} -translate-y-1/2 w-[85%] h-[160%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0C1731]/35 via-[#070D1C]/12 to-transparent pointer-events-none z-0`}
+      />
     {/* Very faint deep navy nebula texture spanning the hero */}
-    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#09112A]/25 via-[#050914]/8 to-transparent pointer-events-none z-0" />
+    <div className="hero-ambient-nebula absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#09112A]/25 via-[#050914]/8 to-transparent pointer-events-none z-0" />
     {/* Gold ember nebula — bottom-left warmth */}
-    <div className="absolute bottom-0 left-0 w-[55%] h-[65%] bg-[radial-gradient(ellipse_at_bottom_left,_rgba(212,175,55,0.14)_0%,_transparent_68%)] pointer-events-none z-0 animate-gold-nebula" />
+    <div className="hero-ambient-gold absolute bottom-0 left-0 w-[55%] h-[65%] bg-[radial-gradient(ellipse_at_bottom_left,_rgba(212,175,55,0.14)_0%,_transparent_68%)] pointer-events-none z-0 animate-gold-nebula" />
     {/* Faint blue-violet accent — top-right depth */}
-    <div className="absolute top-0 right-0 w-[45%] h-[55%] bg-[radial-gradient(ellipse_at_top_right,_rgba(56,100,210,0.12)_0%,_transparent_65%)] pointer-events-none z-0 animate-blue-nebula" />
+    <div className="hero-ambient-blue absolute top-0 right-0 w-[45%] h-[55%] bg-[radial-gradient(ellipse_at_top_right,_rgba(56,100,210,0.12)_0%,_transparent_65%)] pointer-events-none z-0 animate-blue-nebula" />
   </>
 );
 
@@ -789,8 +789,8 @@ const HeroBanner = memo(({
             className="absolute inset-[-10%] opacity-90"
             style={{ background: `radial-gradient(ellipse at center, ${timeNebulaColor} 0%, #05070B 100%)` }}
           />
-          <RadialGradient position="ellipse_at_top_right" from="from-[#0E1624]/80" via="via-[#09111D]/80" to="to-[#05070B]/80" />
-          <RadialGradient position="circle_at_bottom_left" from="from-[#09111D]" via="via-[#09111D]" to="to-[#05070B]" />
+          <RadialGradient className="home-hero-primary-gradient" position="ellipse_at_top_right" from="from-[#0E1624]/80" via="via-[#09111D]/80" to="to-[#05070B]/80" />
+          <RadialGradient className="home-hero-secondary-gradient" position="circle_at_bottom_left" from="from-[#09111D]" via="via-[#09111D]" to="to-[#05070B]" />
           <StarField opacity="opacity-[0.48]" isActive={isActive} />
         </div>
 
@@ -813,21 +813,21 @@ const HeroBanner = memo(({
             className="hero-aurora-layer absolute top-1/2 left-1/2 w-[220%] h-[220%] pointer-events-none"
             style={{
               transform: "translate(-50%, -50%)",
-              background: `conic-gradient(from ${auroraStartDeg}deg, transparent 0deg, rgba(30,58,110,0.52) 60deg, transparent 120deg, rgba(180,120,30,0.26) 200deg, transparent 280deg)`,
+              "--hero-aurora-start": `${auroraStartDeg}deg`,
               animation: "hero-aurora 28s linear infinite",
-            }}
+            } as React.CSSProperties}
           />
         </div>
 
         {/* L3: contrast vignette — smooth multi-stop gradient, no abrupt jump */}
         <div className="absolute inset-0 z-[2]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_28%,_#05070B_160%)]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#05070B]/55 via-[#05070B]/12 to-transparent opacity-90" />
+          <div className="home-hero-overlay absolute inset-0 bg-gradient-to-t from-[#05070B]/55 via-[#05070B]/12 to-transparent opacity-90" />
         </div>
 
         {/* L4: film grain */}
         <div
-          className="absolute inset-0 opacity-[0.032]"
+          className="home-hero-grain absolute inset-0 opacity-[0.032]"
           style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }}
         />
 
