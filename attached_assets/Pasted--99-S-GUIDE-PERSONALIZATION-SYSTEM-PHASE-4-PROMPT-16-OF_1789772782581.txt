@@ -1,0 +1,2886 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 4 / PROMPT 16 OF ~22
+## HERO STYLE + GLASS STYLE CUSTOMIZATION
+### Runtime Wiring + Contained Draft Preview + My 99 Controls
+### DEFAULTS MUST PRESERVE CURRENT PRODUCTION EXACTLY
+### NO MOTION / READING / HOME ORDER / APP ICON YET
+### NO KV / BACKEND SYNC YET
+
+Phase 0 is CLOSED AND APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 is CLOSED AND APPROVED.
+
+Phase 3 is CLOSED AND APPROVED.
+
+Phase 4 / Prompt 15 + 15B is CLOSED AND APPROVED.
+
+Current production state:
+
+- My 99 Studio exists.
+- Theme Pack UI exists.
+- Eight Theme Packs are implemented.
+- Theme selection is Draft-only until Apply.
+- Main contained Draft Preview exists.
+- Theme-card mini previews exist.
+- Apply / Cancel / Reset use the approved provider state machine.
+- `PersonalizationThemeBridge` owns global `data-app-theme`.
+- Preview uses `data-personalization-preview-theme`.
+- Light / Dark / System remains separate and device-local.
+- No KV.
+- No personalization backend.
+- No `.agents/*` modifications are permitted.
+
+Current personalization contract already includes:
+
+```ts
+heroStyle:
+  | "classic"
+  | "minimal"
+  | "night"
+  | "aurora"
+
+glassStyle:
+  | "clear"
+  | "balanced"
+  | "frosted"
+
+Current defaults:
+
+heroStyle = classic
+glassStyle = balanced
+
+Both are currently unwired.
+
+Prompt 16 must implement them completely and safely.
+
+1. PRIMARY GOAL
+
+Implement two real personalization dimensions:
+
+Hero Style
+Classic
+Minimal
+Night
+Aurora
+Glass Style
+Clear
+Balanced
+Frosted
+
+Then expose them in My 99 using the EXISTING:
+
+Draft
+→ contained preview
+→ Apply
+→ persisted Committed
+→ runtime visual update
+
+architecture.
+
+No new persistence model.
+
+No new backend.
+
+2. ABSOLUTE PRESENTATION-ONLY RULE
+
+Hero Style and Glass Style may affect PRESENTATION only.
+
+Do NOT modify application business logic.
+
+Do NOT alter:
+
+authentication
+roles
+permissions
+navigation
+lectures
+PDF
+Notes
+MCQ
+Flashcards
+Calendar logic
+Module Resources
+Q&A
+notifications behavior
+Profile behavior
+points
+moderation
+AI
+sockets
+database logic
+3. CRITICAL DEFAULT-PARITY REQUIREMENT
+
+These defaults are production fallback values:
+
+heroStyle = classic
+glassStyle = balanced
+
+They MUST render exactly like the current production application before Prompt 16.
+
+Therefore:
+
+Classic Hero
+
+current production Hero
+
+Balanced Glass
+
+current production glass treatment
+
+No visual redesign is permitted for the defaults.
+
+This must be proven through source parity and focused tests.
+
+4. DO NOT REBUILD THE PERSONALIZATION STATE MACHINE
+
+The contract already contains these fields.
+
+Use the existing:
+
+committed
+draft
+isDirty
+updateDraft
+applyDraft
+cancelDraft
+resetDraft
+
+Do NOT create:
+
+separate Hero storage
+separate Glass storage
+local persisted state
+new schema version
+new cache keys
+5. GLOBAL COMMITTED VS LOCAL DRAFT
+
+Global application presentation follows:
+
+committed.heroStyle
+committed.glassStyle
+
+ONLY.
+
+My 99 contained preview follows:
+
+draft.heroStyle
+draft.glassStyle
+
+Clicking a Hero Style or Glass Style option must NOT immediately change the global application.
+
+Exactly the same rule used for Theme Pack applies.
+
+6. GLOBAL RUNTIME ATTRIBUTES
+
+Introduce dedicated presentation attributes on <html>.
+
+Use:
+
+data-app-hero-style
+data-app-glass-style
+
+Do NOT reuse:
+
+data-app-theme
+
+These are separate personalization axes.
+
+7. DEFAULT ATTRIBUTE POLICY
+
+Preserve fail-safe production rendering.
+
+Preferred:
+
+heroStyle = classic
+→ NO data-app-hero-style attribute
+
+glassStyle = balanced
+→ NO data-app-glass-style attribute
+
+Alternate values:
+
+minimal
+→ data-app-hero-style="minimal"
+
+night
+→ data-app-hero-style="night"
+
+aurora
+→ data-app-hero-style="aurora"
+
+clear
+→ data-app-glass-style="clear"
+
+frosted
+→ data-app-glass-style="frosted"
+
+This allows missing JS/runtime state to render the production defaults.
+
+8. INVALID-RUNTIME FALLBACK
+
+Even though the persisted contract validates these enums, runtime helpers must remain defensive.
+
+Unexpected Hero Style:
+
+→ classic
+
+Unexpected Glass Style:
+
+→ balanced
+
+Do not write garbage attribute values to <html>.
+
+9. RUNTIME ARCHITECTURE
+
+Do NOT make feature components read personalization context directly.
+
+Preferred architecture:
+
+committed.heroStyle
+        ↓
+visual presentation bridge
+        ↓
+data-app-hero-style
+
+committed.glassStyle
+        ↓
+visual presentation bridge
+        ↓
+data-app-glass-style
+
+Feature presentation reacts through CSS.
+
+10. THEME BRIDGE OWNERSHIP
+
+PersonalizationThemeBridge remains authoritative ONLY for:
+
+data-app-theme
+
+Do not make My99Studio mutate global attributes directly.
+
+For Hero/Glass use either:
+
+A. a small new focused bridge such as:
+
+PersonalizationPresentationBridge.tsx
+
+or:
+
+B. a carefully named generalized visual bridge if repository architecture strongly favors it.
+
+Prefer the smallest modular approach.
+
+Do NOT create another giant provider.
+
+11. BRIDGE MUST READ COMMITTED ONLY
+
+Global runtime bridge reads:
+
+committed.heroStyle
+committed.glassStyle
+
+Never:
+
+draft.heroStyle
+draft.glassStyle
+
+Mandatory invariant.
+
+12. NO THEME-BRIDGE REWRITE
+
+Prompt 12–15 theme behavior is approved.
+
+Do not rewrite or merge Theme Pack architecture unnecessarily.
+
+Theme Pack remains:
+
+data-app-theme
+
+Hero remains:
+
+data-app-hero-style
+
+Glass remains:
+
+data-app-glass-style
+13. NO RELOAD
+
+Hero/Glass changes after successful Apply must be instantaneous.
+
+No:
+
+location.reload()
+window.location.reload()
+14. NO REMOUNT
+
+Do NOT use:
+
+key={heroStyle}
+key={glassStyle}
+
+on:
+
+App
+Router
+provider
+Hero
+page shell
+navigation
+preview
+
+CSS should handle visual updates.
+
+15. NO JS CSS-PALETTE WRITES
+
+Do not write styling values using:
+
+style.setProperty(...)
+
+for Hero/Glass customization.
+
+JavaScript should only synchronize stable enum attributes.
+
+Actual styling remains CSS-owned.
+
+16. HERO AUDIT FIRST
+
+Before editing Hero:
+
+identify the actual current Home Hero implementation.
+
+Audit:
+
+Hero root
+background
+semantic Hero background token
+primary glow
+secondary glow
+particles/stars
+overlay
+glass content if any
+decorative pseudo-elements
+animation
+responsive sizing
+text/content
+status/achievement elements
+
+Report exact files/components.
+
+Do NOT assume names from this prompt.
+
+17. HERO CONTENT FREEZE
+
+All Hero styles must preserve the SAME Hero content.
+
+Do NOT change:
+
+Welcome text
+student name
+Today message
+motto
+announcements
+achievements
+progress
+buttons
+dates
+academic data
+subject data
+
+Hero Style is only presentation.
+
+18. HERO GEOMETRY FREEZE
+
+Do NOT alter by Hero Style:
+
+Hero height
+width
+radius
+padding
+content alignment
+breakpoints
+text size
+text wrapping
+safe areas
+hit targets
+DOM ordering
+
+Hero styles must not cause layout shift.
+
+19. HERO MOTION BOUNDARY
+
+motionStyle is still unwired.
+
+Therefore Hero Style must NOT change:
+
+animation duration
+spring
+Framer/Motion config
+particle animation speed
+transition timing
+scroll animation
+entry animation
+
+Hero Style MAY change decorative VISIBILITY/OPACITY through CSS.
+
+It may not change the motion engine.
+
+20. HERO THEME RELATIONSHIP
+
+Hero Style and Theme Pack are orthogonal.
+
+Theme Pack supplies semantic Hero colors:
+
+semantic-hero-background
+semantic-hero-glow-primary
+semantic-hero-glow-secondary
+
+Hero Style determines how those SAME theme-provided colors are composed/presented.
+
+Do NOT create:
+
+Ocean Aurora colors
+Rose Night colors
+Emerald Minimal colors
+
+No theme × Hero combinatorial CSS.
+
+21. NO HERO PALETTE DUPLICATION
+
+Hero Style CSS must use semantic Hero variables.
+
+Do NOT hardcode separate blue/purple/green Hero palettes.
+
+Example conceptual relationship:
+
+Theme Pack
+→ provides Hero colors
+
+Hero Style
+→ controls glow prominence,
+   overlay intensity,
+   decoration visibility,
+   composition
+22. HERO STYLE — CLASSIC
+
+classic is the exact current production Hero.
+
+Requirements:
+
+Same Hero semantic background.
+Same current primary glow treatment.
+Same secondary glow treatment.
+Same current particle visibility.
+Same overlays.
+Same borders.
+Same blur.
+Same content presentation.
+Same animation behavior.
+
+Preferred runtime:
+
+NO data-app-hero-style
+
+No visual change.
+
+23. HERO STYLE — MINIMAL
+
+Minimal should feel:
+
+cleaner
+calmer
+flatter
+less decorative
+focused
+premium
+
+But still unmistakably the same Hero.
+
+Allowed presentation direction:
+
+Reduce decorative glow prominence.
+Reduce decorative particle/star prominence.
+Reduce secondary decoration.
+Keep Hero background and content hierarchy.
+Preserve readable contrast.
+Preserve all content.
+
+Do NOT:
+
+remove content
+alter layout
+disable functional elements
+modify animation implementation
+change Hero dimensions
+
+Use opacity/composition only.
+
+24. MINIMAL PARTICLE RULE
+
+If the current Hero contains particles/stars:
+
+Minimal may visually suppress them through presentation CSS such as opacity.
+
+Do NOT:
+
+delete particle DOM
+stop/create timers
+rewrite animation
+change particle generation logic
+
+This keeps Hero Style separate from Motion Style.
+
+25. HERO STYLE — NIGHT
+
+Night should feel:
+
+deeper
+cinematic
+concentrated
+premium
+calm for study
+
+Night is NOT the same thing as Dark Appearance.
+
+Night must work under:
+
+Light appearance
+Dark appearance
+every Theme Pack
+
+Allowed direction:
+
+stronger dark/depth overlay
+more restrained secondary glow
+controlled primary glow
+subtle vignette/depth
+lower decorative brightness
+
+Use existing semantic Hero colors.
+
+Do NOT hardcode a universal black/navy palette that destroys Theme Pack identity.
+
+26. NIGHT ACCESSIBILITY
+
+Night must maintain readable Hero text and controls.
+
+Do not reduce text contrast.
+
+Do not make existing interactive Hero controls disappear visually.
+
+27. HERO STYLE — AURORA
+
+Aurora should feel:
+
+richer
+atmospheric
+premium
+colorful through the selected Theme Pack
+sophisticated rather than neon
+
+Use:
+
+semantic Hero primary glow
+semantic Hero secondary glow
+layered radial-gradient composition where appropriate
+existing particle decoration
+
+No new arbitrary third theme color.
+
+Do NOT create neon gaming visuals.
+
+28. AURORA MOTION RULE
+
+Aurora may be visually more layered.
+
+But it must NOT add a new animation engine.
+
+Prefer static/layered CSS glow composition around the existing animated Hero decoration.
+
+No new infinite CSS animation solely for Aurora in Prompt 16.
+
+Motion Style comes later.
+
+29. HERO STYLE IMPLEMENTATION MODEL
+
+Prefer local Hero-style variables.
+
+Example architecture:
+
+:root {
+  --hero-style-primary-strength: ...current classic...
+  --hero-style-secondary-strength: ...current classic...
+  --hero-style-decoration-opacity: ...current classic...
+  --hero-style-overlay-strength: ...current classic...
+}
+
+Then:
+
+[data-app-hero-style="minimal"] { ... }
+[data-app-hero-style="night"] { ... }
+[data-app-hero-style="aurora"] { ... }
+
+Exact variable names may differ.
+
+Do NOT create per-theme Hero Style variables.
+
+30. CLASSIC HERO DEFAULT VARIABLES
+
+Any new Hero-style CSS variable defaults must exactly reproduce the current Hero.
+
+Audit actual current values.
+
+Do not guess.
+
+Report:
+
+previous source
+→ new variable
+→ default value
+→ parity result
+
+31. HERO COMPONENT EDIT LIMIT
+
+If Hero component must change:
+
+only presentation plumbing is allowed.
+
+Examples:
+
+replace literal opacity with CSS variable
+add stable semantic class/data hook
+route background intensity through CSS variable
+
+Forbidden:
+
+state changes
+effects
+data fetching
+event handlers
+content changes
+conditional product behavior
+animation algorithm changes
+32. HERO STYLE ATTRIBUTE SELECTORS
+
+Global selectors may target the actual Hero presentation.
+
+Unlike Theme Pack palettes, Hero Style is intentionally Hero-specific.
+
+This is allowed.
+
+BUT selectors must be style-driven, NOT Theme-Pack-driven.
+
+Allowed conceptually:
+
+[data-app-hero-style="minimal"] .home-hero ...
+
+Forbidden:
+
+[data-app-theme="ocean"][data-app-hero-style="minimal"] ...
+
+No theme × Hero pair selectors.
+
+33. HERO PREVIEW ATTRIBUTE
+
+Inside My 99 contained previews use:
+
+data-personalization-preview-hero-style
+
+Values:
+
+classic
+minimal
+night
+aurora
+
+For default Classic preview:
+
+attribute may be absent OR explicitly classic locally if needed for preview isolation.
+
+Choose architecture that makes preview deterministic.
+
+34. HERO PREVIEW MUST NOT MUTATE GLOBAL HERO
+
+Selecting:
+
+Draft Hero = Aurora
+
+must NOT set:
+
+data-app-hero-style="aurora"
+
+on <html> before successful Apply.
+
+Only the local preview changes.
+
+35. HERO PREVIEW + THEME PREVIEW COMPOSITION
+
+Main My 99 preview now reflects:
+
+draft.themeId
+draft.heroStyle
+draft.glassStyle
+
+simultaneously.
+
+Example:
+
+Global committed:
+Ocean + Classic Hero + Balanced Glass
+
+Draft:
+Rose + Aurora Hero + Frosted Glass
+
+Expected:
+
+Outer Studio:
+Ocean / Classic / Balanced
+
+Main contained preview:
+Rose / Aurora / Frosted
+
+
+---
+
+# 36. HERO STYLE CARDS
+
+Add a Hero Style section to My 99.
+
+Exact order:
+
+1. Classic
+2. Minimal
+3. Night
+4. Aurora
+
+Each option changes:
+
+```text
+draft.heroStyle
+
+ONLY.
+
+37. HERO STYLE DISPLAY METADATA
+
+Add typed UI metadata.
+
+May contain:
+
+HeroStyle enum value
+translation key
+description key
+canonical display order
+
+Must NOT contain:
+
+CSS colors
+Theme Pack values
+styling objects duplicating CSS behavior
+38. HERO STYLE CARD PREVIEW
+
+Each Hero Style option should contain a small Hero specimen.
+
+The specimen should use:
+
+draft.themeId
+
+for its Theme Pack,
+
+the candidate Hero Style for that card,
+
+and preferably:
+
+draft.glassStyle
+
+for any glass specimen inside it.
+
+This shows style differences in the user's currently selected Theme Pack.
+
+No network/data components.
+
+39. HERO STYLE CURRENT VS SELECTED
+
+Same model as Theme Packs:
+
+committed.heroStyle
+→ Current
+
+draft.heroStyle
+→ Selected
+
+If they differ:
+both states remain clear.
+
+40. HERO STYLE ACCESSIBILITY
+
+Use one accessible single-choice group.
+
+Support:
+
+radio semantics
+aria-checked
+keyboard
+visible focus
+Current indicator
+Selected indicator
+
+Do not rely on appearance alone.
+
+41. GLASS AUDIT FIRST
+
+Audit actual generic Glass architecture.
+
+Identify all current consumers of:
+
+semantic-glass-surface
+semantic-glass-border
+
+and all relevant generic backdrop-filter / backdrop-blur presentation.
+
+Classify them:
+
+A. GENERIC PERSONALIZATION-ELIGIBLE GLASS
+B. FEATURE-SPECIFIC TRANSLUCENT UI
+C. STATUS/SEMANTIC OVERLAY
+D. TECHNICAL UNDERLAY
+E. UNKNOWN/HIGH-RISK
+
+Only A should be controlled by glassStyle.
+
+42. GLASS V1 SCOPE
+
+Glass Style V1 should affect generic app glass presentation such as eligible:
+
+core glass chrome
+generic navigation glass
+generic floating/glass surface
+generic semantic glass panels
+
+ONLY where the existing structure can be safely parameterized.
+
+Do NOT force Glass Style onto every transparent surface in the application.
+
+43. GLASS DEFAULT — BALANCED
+
+Balanced must be the exact current production glass treatment.
+
+This includes existing values for eligible surfaces:
+
+blur
+saturation
+transparency
+border
+backdrop behavior
+
+Do not visually change current production under:
+
+glassStyle = balanced
+
+Preferred global runtime:
+
+NO data-app-glass-style
+44. GLASS STYLE — CLEAR
+
+Clear should feel:
+
+lighter
+more transparent
+less frosted
+crisp
+premium
+
+Compared with Balanced:
+
+less backdrop blur
+lower frosting strength
+greater background visibility
+
+Do NOT make it fully transparent.
+
+Content must remain readable.
+
+45. GLASS STYLE — FROSTED
+
+Frosted should feel:
+
+more opaque
+softer
+more blurred
+premium Apple-like frosted glass
+
+Compared with Balanced:
+
+stronger blur
+stronger separation from background
+slightly denser glass presentation
+
+Do not create solid opaque cards unless Reduced Transparency accessibility requires it.
+
+46. GLASS STYLE MUST REMAIN THEME-AWARE
+
+Glass Style should derive from the currently selected Theme Pack's:
+
+semantic-glass-surface
+semantic-glass-border
+
+Do NOT hardcode:
+
+Clear Ocean
+Clear Rose
+Frosted Violet
+etc.
+
+No combinatorial palette.
+
+47. GLASS STYLE VARIABLES
+
+Prefer a generic styling layer.
+
+Example conceptual variables:
+
+--personalization-glass-blur
+--personalization-glass-saturate
+--personalization-glass-opacity-factor
+
+Actual names may differ.
+
+The default values must reproduce existing Balanced glass exactly.
+
+48. GLASS SURFACE COLOR DERIVATION
+
+If transparency variation requires a derived surface:
+
+prefer CSS-only derivation from:
+
+var(--semantic-glass-surface)
+
+For example with modern CSS color-mix() where safe.
+
+Do NOT store separate Light/Dark/Theme-specific Glass palette values in TypeScript.
+
+49. GLASS CSS COMPATIBILITY
+
+Do not introduce a fragile CSS feature unless supported by the project's minimum iOS/browser targets.
+
+Project targets include iOS 16+.
+
+If using color-mix() or another CSS primitive:
+
+confirm practical compatibility with the current supported browser baseline.
+
+If uncertain:
+use a safer CSS architecture.
+
+50. MULTIPLE EXISTING GLASS BLURS
+
+If current eligible glass surfaces use DIFFERENT blur amounts:
+
+do NOT normalize them all merely to simplify customization.
+
+Preserve baseline geometry/effect differences.
+
+Possible safe architecture:
+
+each eligible surface retains its base class/variable while Glass Style provides a style tier.
+
+If a surface cannot be safely parameterized:
+
+defer it and report it.
+
+Balanced parity is more important than 100% coverage.
+
+51. DO NOT ALTER GLASS GEOMETRY
+
+Glass Style must not alter:
+
+width
+height
+padding
+radius
+position
+safe areas
+z-index
+hit target
+scroll
+stacking
+
+Optical treatment only.
+
+52. REDUCED TRANSPARENCY — CRITICAL
+
+Existing accessibility handling for reduced transparency must take precedence over user Glass Style.
+
+If OS/app accessibility requires reduced transparency:
+
+the accessible opaque/simplified presentation wins.
+
+User selecting Clear or Frosted must NOT defeat the accessibility override.
+
+Audit current source.
+
+Preserve precedence.
+
+53. FORCED COLORS
+
+Glass Style must not break forced-colors/high-contrast handling.
+
+Do not force translucent decorative styling when forced-colors is active.
+
+54. GLASS MOTION BOUNDARY
+
+Glass Style does NOT alter motion.
+
+No animation changes.
+
+55. GLASS PREVIEW ATTRIBUTE
+
+Use local preview attribute:
+
+data-personalization-preview-glass-style
+
+Values:
+
+clear
+balanced
+frosted
+
+Do not use the global attribute inside preview subtrees.
+
+56. GLASS STYLE CARDS
+
+Add a Glass Style section.
+
+Canonical order:
+
+Clear
+Balanced
+Frosted
+
+Each option changes:
+
+draft.glassStyle
+
+ONLY.
+
+57. GLASS STYLE CARD PREVIEW
+
+Each option should show a compact glass specimen.
+
+Use:
+
+draft.themeId
+
+as its Theme Pack.
+
+Use the candidate Glass Style.
+
+Prefer using:
+
+draft.heroStyle
+
+as surrounding context if useful.
+
+No fake feature data.
+
+58. GLASS CURRENT VS SELECTED
+
+Same architecture:
+
+committed.glassStyle
+→ Current
+
+draft.glassStyle
+→ Selected
+59. GLASS ACCESSIBILITY
+
+Single-choice accessible group.
+
+Use:
+
+radio semantics
+keyboard
+visible focus
+selected state not color-only
+Current indication
+60. MY 99 SECTION ORDER
+
+Preserve the existing Studio architecture.
+
+Recommended order:
+
+Main Draft Preview
+Theme Pack
+Hero Style
+Glass Style
+action area
+
+Do not introduce future empty sections.
+
+61. NO FUTURE PLACEHOLDERS
+
+Do NOT show:
+
+Motion
+Reading Size
+Home Order
+App Icon
+
+as disabled/Coming Soon controls.
+
+Only working options appear.
+
+62. MAIN PREVIEW UPDATE
+
+Upgrade the existing main Draft Preview so it demonstrates:
+
+current draft Theme Pack
+draft Hero Style
+draft Glass Style
+
+Still use lightweight abstract presentation only.
+
+No real Home component mounting.
+
+63. MAIN PREVIEW HERO SPECIMEN
+
+The preview should contain a small Hero-like region capable of visibly showing:
+
+Classic
+Minimal
+Night
+Aurora
+
+using the same CSS style rules/variables as production.
+
+Do not duplicate style behavior in React.
+
+64. MAIN PREVIEW GLASS SPECIMEN
+
+Include at least one generic glass surface that clearly shows:
+
+Clear
+Balanced
+Frosted
+
+while using the draft Theme Pack.
+
+Again:
+
+semantic CSS only.
+
+65. PREVIEW ATTRIBUTE COMPOSITION
+
+Main preview subtree may contain:
+
+data-personalization-preview-theme="<draft theme>"
+data-personalization-preview-hero-style="<draft hero>"
+data-personalization-preview-glass-style="<draft glass>"
+
+on the same preview root if architecture supports it cleanly.
+
+This is encouraged.
+
+66. PREVIEW DEFAULT ISOLATION
+
+Classic Hero and Balanced Glass previews must remain deterministic even when the outer global app uses alternate Hero/Glass values.
+
+Example:
+
+Global:
+
+Hero = Aurora
+Glass = Frosted
+
+Draft:
+
+Hero = Classic
+Glass = Balanced
+
+Expected:
+
+Outer Studio:
+Aurora / Frosted
+
+Contained preview:
+Classic / Balanced
+
+No inheritance leakage.
+
+67. DEFAULT PREVIEW SCOPING
+
+For Classic Hero / Balanced Glass:
+
+the preview subtree may need explicit local reset variables even though global default attrs are absent.
+
+Do NOT assume absence of local preview attributes is enough when the outer <html> has alternate Hero/Glass attributes.
+
+This is critical.
+
+68. LOCAL PREVIEW OVERRIDE PRIORITY
+
+Local preview selectors must override inherited global Hero/Glass style variables inside the preview subtree.
+
+But only inside the subtree.
+
+They must not affect siblings or parent Studio UI.
+
+69. HERO PRODUCTION VS PREVIEW RULE SHARING
+
+Prefer shared CSS declarations.
+
+Do NOT maintain separate visual implementations for:
+
+production Hero
+Hero Style cards
+main preview
+
+They should consume shared style variables/rules.
+
+A miniature preview may have separate geometry, but Style semantics must be shared.
+
+70. GLASS PRODUCTION VS PREVIEW RULE SHARING
+
+Same rule.
+
+Avoid separate:
+
+preview-frosted-look
+production-frosted-look
+
+with duplicated constants.
+
+Use shared Glass Style variables.
+
+71. UI METADATA
+
+Extend personalization catalog architecture cleanly.
+
+Possible exported catalogs:
+
+THEME_PACK_OPTIONS
+HERO_STYLE_OPTIONS
+GLASS_STYLE_OPTIONS
+
+Names may differ.
+
+No palette/effect values in metadata.
+
+Only IDs/order/i18n keys.
+
+72. LOCALIZATION — HERO
+
+Add English + Arabic for:
+
+Hero Style
+Hero Style description
+Classic
+Minimal
+Night
+Aurora
+descriptions for each
+
+Suggested concepts:
+
+Classic:
+The original 99 hero.
+
+Minimal:
+Clean and distraction-free.
+
+Night:
+Deeper, calmer focus.
+
+Aurora:
+Layered ambient glow.
+
+Translate professionally.
+
+73. LOCALIZATION — GLASS
+
+Add English + Arabic for:
+
+Glass Style
+Glass Style description
+Clear
+Balanced
+Frosted
+descriptions for each
+
+Suggested concepts:
+
+Clear:
+Light and transparent.
+
+Balanced:
+The original balanced glass.
+
+Frosted:
+Soft, richer blur.
+
+Do not expose technical blur values to users.
+
+74. NO ENGLISH LEAK IN ARABIC
+
+Ensure every new Hero/Glass user-visible string is localized.
+
+No:
+
+"Hero Style"
+"Glass Style"
+"Current"
+"Selected"
+
+English leak in Arabic mode.
+
+Use existing shared Current/Selected keys if already available.
+
+75. RTL
+
+Hero/Glass option cards must support RTL naturally.
+
+Do not reverse canonical option order manually.
+
+Use logical positioning for:
+
+selected indicator
+current badge
+text
+card alignment
+76. CARD COMPONENT REUSE
+
+Do not duplicate large ThemeCard code.
+
+If practical, extract/reuse a focused generic personalization option-card primitive.
+
+For example:
+
+PersonalizationChoiceCard
+
+It may support:
+
+accessible radio semantics
+current
+selected
+title
+description
+preview child
+
+Keep it small.
+
+77. DO NOT OVER-REFACTOR
+
+If extracting a generic choice card would require broad risky rewrites of the existing Theme Pack UI:
+
+do not force it.
+
+Small duplication is preferable to destabilizing Prompt 15.
+
+78. APPLY REMAINS ONE BUTTON
+
+Do NOT add separate:
+
+Apply Theme
+Apply Hero
+Apply Glass
+
+The Studio uses one Draft and one Apply action.
+
+A user may change all three then Apply once.
+
+Expected:
+
+ONE persistence write.
+
+79. MULTI-FIELD APPLY TEST
+
+Mandatory:
+
+Committed:
+
+Theme = Classic
+Hero = Classic
+Glass = Balanced
+
+Draft:
+
+Theme = Ocean
+Hero = Aurora
+Glass = Frosted
+
+Before Apply:
+
+Global remains:
+
+Classic / Classic / Balanced
+
+Preview shows:
+
+Ocean / Aurora / Frosted
+
+Successful Apply:
+
+Committed = Ocean / Aurora / Frosted
+
+ONE persistence write.
+
+Global attributes update accordingly.
+
+80. MULTI-FIELD APPLY FAILURE
+
+Same scenario but persistence fails.
+
+Expected:
+
+Committed:
+
+Classic / Classic / Balanced
+
+Global:
+
+Classic / Classic / Balanced
+
+Draft remains:
+
+Ocean / Aurora / Frosted
+
+Dirty remains true.
+
+No partial commit.
+
+81. CANCEL MULTI-FIELD
+
+Committed:
+
+Midnight / Night / Frosted
+
+Draft:
+
+Rose / Minimal / Clear
+
+Cancel:
+
+Draft returns to:
+
+Midnight / Night / Frosted
+
+Zero writes.
+
+82. RESET MULTI-FIELD
+
+Reset must still use the canonical defaults:
+
+themeId = classic-99
+heroStyle = classic
+glassStyle = balanced
+motionStyle = full
+readingSize = default
+home.subjectOrder = canonical
+
+No write until Apply.
+
+83. RESET GLOBAL SAFETY
+
+If committed is:
+
+Violet / Aurora / Frosted
+
+Reset:
+
+Global remains:
+
+Violet / Aurora / Frosted
+
+Preview becomes:
+
+Classic / Classic / Balanced
+
+Apply then changes global to defaults.
+
+84. APPLY ATTRIBUTE RESULT
+
+Example successful Apply:
+
+Theme = Rose
+Hero = Night
+Glass = Clear
+
+Expected <html>:
+
+data-app-theme="rose"
+data-app-hero-style="night"
+data-app-glass-style="clear"
+
+Default attributes remain omitted.
+
+85. DEFAULT RESULT
+
+Committed defaults:
+
+Classic 99
+Classic Hero
+Balanced Glass
+
+Expected <html>:
+
+NO data-app-theme
+NO data-app-hero-style
+NO data-app-glass-style
+
+This is the fail-safe production state.
+
+86. PARTIAL DEFAULT RESULT
+
+Example:
+
+Theme = Ocean
+Hero = Classic
+Glass = Frosted
+
+Expected:
+
+data-app-theme="ocean"
+NO data-app-hero-style
+data-app-glass-style="frosted"
+87. ACCOUNT SWITCH ATTRIBUTES
+
+Representative:
+
+A:
+
+Rose / Aurora / Frosted
+
+B:
+
+Ocean / Minimal / Clear
+
+Required boundary:
+
+A attributes
+→ immediate default boundary:
+   Classic / Classic / Balanced
+   all three attributes removed
+→ B attributes after hydration
+
+No cross-account presentation leakage.
+
+88. SAME-PREFERENCES ACCOUNT SWITCH
+
+Even if:
+
+A and B both use:
+
+Ocean / Aurora / Frosted
+
+the provider account boundary remains authoritative.
+
+Expected:
+
+alternate
+→ default boundary
+→ alternate
+
+Do not optimize away the boundary.
+
+89. LOGOUT
+
+Logout from any nondefault combination must remove:
+
+data-app-theme
+data-app-hero-style
+data-app-glass-style
+
+Anonymous UI becomes default presentation.
+
+90. STALE HYDRATION
+
+A late old-account hydration must not restore:
+
+old Theme
+old Hero Style
+old Glass Style
+
+after a newer account becomes active.
+
+Existing generation guard remains authoritative.
+
+91. STRICTMODE
+
+Attribute synchronization must remain idempotent.
+
+Do not repeatedly write an already-correct attribute.
+
+No effect loops.
+
+92. ATTRIBUTE OWNERSHIP
+
+Document clearly:
+
+PersonalizationThemeBridge
+→ data-app-theme
+
+Presentation bridge
+→ data-app-hero-style
+→ data-app-glass-style
+
+My99Studio owns NONE of the global attributes.
+
+93. PREVIEW OWNERSHIP
+
+My99Studio may declaratively render:
+
+data-personalization-preview-theme
+data-personalization-preview-hero-style
+data-personalization-preview-glass-style
+
+inside its own subtree.
+
+No document.* calls.
+
+94. NO DIRECT STORAGE
+
+My99Studio still must not import/use:
+
+localStorage
+Capacitor Preferences
+personalizationStorage
+95. NO NETWORK
+
+Preview and selections:
+
+ZERO network calls.
+
+Apply uses existing local persistence only.
+
+No new network call.
+
+96. GLASS CONSUMER TEST
+
+Add a focused inventory/invariant for the generic glass surfaces Prompt 16 intentionally makes customizable.
+
+Report exact consumers.
+
+Do not claim application-wide glass coverage if only certain semantic glass consumers are eligible.
+
+97. BALANCED PARITY TEST
+
+For every modified generic glass consumer:
+
+prove:
+
+Before Prompt 16
+
+Balanced after Prompt 16
+
+for:
+
+background
+border
+blur
+saturation/backdrop behavior
+
+where applicable.
+
+No default visual regression.
+
+98. CLASSIC HERO PARITY TEST
+
+Likewise prove:
+
+Before Prompt 16 Hero
+
+Classic Hero after Prompt 16
+
+No change to default appearance.
+
+99. HERO STYLE INVARIANT TEST
+
+Verify:
+
+Classic uses default/no attribute.
+Minimal maps to minimal.
+Night maps to night.
+Aurora maps to aurora.
+invalid maps to Classic.
+100. GLASS STYLE INVARIANT TEST
+
+Verify:
+
+Balanced uses default/no attribute.
+Clear maps to clear.
+Frosted maps to frosted.
+invalid maps to Balanced.
+101. BRIDGE COMMITTED-ONLY TEST
+
+Verify presentation bridge reads:
+
+committed.heroStyle
+committed.glassStyle
+
+not Draft.
+
+102. PREVIEW DRAFT-ONLY TEST
+
+Verify local preview attributes use:
+
+draft.heroStyle
+draft.glassStyle
+103. PREVIEW DEFAULT OVERRIDE TEST
+
+Mandatory scenario:
+
+Global:
+
+Aurora / Frosted
+
+Preview:
+
+Classic / Balanced
+
+Verify local preview CSS restores Classic/Balanced and does not inherit global variants.
+
+104. THEME + HERO + GLASS COMBINATION TEST
+
+Do NOT test all:
+
+8 × 4 × 3 = 96
+
+combinations individually.
+
+Architecture should make them composable.
+
+Test representative combinations including:
+
+Classic / Classic / Balanced
+Ocean / Aurora / Frosted
+Rose / Night / Clear
+Monochrome / Minimal / Balanced
+
+and verify no coupled selector is required.
+
+105. NO COMBINATORIAL SELECTORS TEST
+
+Reject selectors such as:
+
+[data-app-theme="ocean"][data-app-hero-style="aurora"]
+[data-app-theme="rose"][data-app-glass-style="clear"]
+
+Theme / Hero / Glass must compose independently.
+
+106. NO NEW THEME TOKENS
+
+Prompt 16 must NOT expand the 29 Theme Pack token contract merely to implement Hero/Glass style.
+
+Hero/Glass style-specific variables are a separate presentation layer.
+
+Keep:
+
+THEMEABLE_TOKEN_NAMES = 29
+
+unchanged.
+
+107. FIXED SEMANTIC SAFETY
+
+Hero/Glass must not alter:
+
+error
+success
+warning
+online
+offline
+destructive
+validation
+108. MCQ SAFETY
+
+No direct MCQ edits.
+
+Correctness/difficulty unaffected.
+
+109. CALENDAR SAFETY
+
+No direct Calendar edits.
+
+Event/Today semantics unaffected.
+
+110. MODULE SAFETY
+
+No Module identity change.
+
+111. FLASHCARD SAFETY
+
+No subject/review identity change.
+
+112. NOTIFICATION / PROFILE SAFETY
+
+No direct edits.
+
+113. SETTINGS DESTRUCTIVE SAFETY
+
+No changes to destructive actions.
+
+114. ACCESSIBILITY — REDUCED TRANSPARENCY TEST
+
+Explicitly verify:
+
+Reduced Transparency override
+
+user Glass Style.
+
+Test source/cascade ordering.
+
+115. ACCESSIBILITY — REDUCED MOTION
+
+Hero Style does not bypass reduced-motion behavior.
+
+Any opacity transition added must respect the current reduced-motion architecture.
+
+116. ACCESSIBILITY — FORCED COLORS
+
+Hero/Glass rules must not override forced-colors accessibility rules incorrectly.
+
+117. CONTRAST
+
+Hero Style variants must preserve text readability.
+
+Glass Clear must not reduce readable contrast on eligible controls/surfaces below acceptable levels.
+
+Perform representative contrast/source inspection.
+
+Do not fabricate numerical ratios if complex backdrop pixels make static contrast impossible.
+
+For translucent dynamic backdrops:
+
+state limitation and verify conservative surface fallback/accessibility path.
+
+118. IOS/IPADOS PERFORMANCE
+
+Avoid expensive new stacked backdrop-filter layers.
+
+Glass customization should reuse existing glass surfaces.
+
+Do not multiply blur layers unnecessarily.
+
+Audit for iOS performance.
+
+119. HERO PERFORMANCE
+
+Do not increase particle count.
+
+Do not add JavaScript animated decorations.
+
+Aurora must remain lightweight.
+
+120. PREVIEW PERFORMANCE
+
+Hero/Glass card previews are static lightweight specimens.
+
+Do not mount production Hero repeatedly.
+
+Do not create real particle systems for each card.
+
+Use presentation-only miniature CSS.
+
+121. NO FAKE CONTENT
+
+Hero/Glass preview cards should not introduce fake study information.
+
+Abstract preview primitives only.
+
+122. FILE ORGANIZATION
+
+Keep components modular.
+
+Likely candidates:
+
+src/features/personalization/
+  personalizationPresentation.ts
+  PersonalizationPresentationBridge.tsx
+
+src/features/personalization/components/
+  HeroStyleCard.tsx
+  GlassStyleCard.tsx
+
+or a reusable choice-card structure.
+
+Do not create giant files.
+
+Use repository conventions.
+
+123. EXPECTED HERO SOURCE EDIT
+
+One actual Hero presentation source may need a surgical change to consume Hero-style variables.
+
+This is allowed.
+
+Do not modify unrelated Home content.
+
+124. EXPECTED GLASS SOURCE EDITS
+
+Only actual eligible generic glass consumers should be touched if needed.
+
+Keep exact file count small.
+
+If customization requires editing dozens of components:
+
+STOP.
+
+The glass abstraction is wrong.
+
+125. APP.TSX
+
+May require mounting the new presentation bridge beside the existing Theme bridge.
+
+Allowed change:
+
+presentation bridge mounting only.
+
+No routing/nav/business change expected.
+
+Do not reopen My 99 routing.
+
+126. PERSONALIZATION PROVIDER
+
+Expected modifications:
+
+ZERO.
+
+Do not rewrite provider.
+
+Contract already supports these values.
+
+127. SHARED CONTRACT
+
+Expected modifications:
+
+ZERO.
+
+HeroStyle and GlassStyle IDs already exist.
+
+No schema version change.
+
+128. INDEX.CSS
+
+Expected to receive:
+
+Hero style variables/selectors
+Glass style variables/selectors
+local preview scopes
+optional reusable utility for eligible semantic glass
+
+Do NOT alter Theme Pack palettes.
+
+129. THEME PALETTE FREEZE
+
+All eight Theme Pack values from Phase 3 remain unchanged.
+
+Prompt 16 must not redesign:
+
+Classic
+Midnight
+Ocean
+Emerald
+Rose
+Amber
+Violet
+Monochrome
+130. MY 99 ACTION AREA
+
+Reuse the existing single:
+
+Reset
+Cancel
+Apply
+
+area.
+
+Do not duplicate actions per section.
+
+131. DIRTY STATE
+
+Changing Hero Style or Glass Style must participate in existing deep config dirty comparison.
+
+Expected:
+
+change Hero
+→ isDirty true
+
+change Glass
+→ isDirty true
+
+change back to committed value
+→ isDirty reflects actual whole-config equality
+
+Do not add manual dirty flags.
+
+132. APPLY DISABLED
+
+Existing Apply disabled logic must still work for changes in:
+
+Theme Pack
+Hero Style
+Glass Style
+
+Do not special-case Theme only.
+
+133. SUCCESS TOAST
+
+Reuse existing Personalization applied toast.
+
+Do not generate separate:
+
+Hero applied
+Glass applied
+
+messages.
+
+One config Apply.
+
+134. FAILURE TOAST
+
+Same existing generic failure message.
+
+135. PAGE REOPEN
+
+Unsaved Hero/Glass Draft remains in provider memory during same authenticated session.
+
+Do not reset on Studio mount.
+
+136. ACCOUNT ISOLATION WITH NEW FIELDS
+
+Draft Hero/Glass changes must not cross user boundaries.
+
+Test alongside Theme.
+
+137. LOCALIZATION TEST
+
+Extend Prompt 15 localization invariant to cover every Hero/Glass string in both English and Arabic.
+
+138. ACCESSIBILITY TEST
+
+Extend Studio tests to verify:
+
+Theme radiogroup
+Hero radiogroup
+Glass radiogroup
+
+Each has exact expected options.
+
+No click-only div controls.
+
+139. CATALOG TEST
+
+Verify exact orders:
+
+Theme:
+
+classic-99
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+Hero:
+
+classic
+minimal
+night
+aurora
+
+Glass:
+
+clear
+balanced
+frosted
+
+No hidden extra options.
+
+140. GLOBAL ATTRIBUTE TESTS
+
+Add focused test for all Hero and Glass values.
+
+Verify default omission behavior.
+
+141. ATTRIBUTE CLEANUP
+
+Switch:
+
+Aurora
+→ Classic
+
+must remove:
+
+data-app-hero-style
+
+Frosted
+→ Balanced
+
+must remove:
+
+data-app-glass-style
+
+No stale alternate attribute.
+
+142. DIRECT ALTERNATE SWITCH
+
+Hero:
+
+Minimal → Night → Aurora
+
+Glass:
+
+Clear → Frosted
+
+should replace one attribute value.
+
+No transient extra class.
+
+143. ALL PERSONALIZATION TESTS
+
+Run EVERY current personalization suite including:
+
+contract
+state
+storage
+runtime
+tokens
+Phase-2 closure
+feature surfaces
+Lecture
+Calendar
+MCQ/Flashcards
+Theme runtime
+Theme library
+Phase-3 closure
+Studio
+new Prompt 16 presentation tests
+
+Report exact total.
+
+144. THEME ENGINE TESTS
+
+Explicitly rerun:
+
+personalization-theme-runtime
+personalization-theme-library
+personalization-theme-closure
+personalization-tokens
+
+All Phase-3 palettes must remain unchanged.
+
+145. STUDIO TESTS
+
+Run:
+
+tests/personalization-studio.test.ts
+
+plus Prompt 16 new tests.
+
+146. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+147. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+My 99 navigation must remain stable.
+
+148. AUTH
+
+Run:
+
+npm run test:auth
+149. STUDY REGRESSIONS
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+npm run test:ai-flashcard
+150. FEATURE PERSONALIZATION REGRESSIONS
+
+Run existing:
+
+Lecture surface suite
+Calendar surface suite
+MCQ/Flashcard surface suite
+151. PDF BASELINE
+
+If current PDF suite is run:
+
+accepted baseline remains:
+
+2 pass
+1 known fixture failure
+pdf_download_expiry_invalid
+
+No PDF change is expected.
+
+152. TYPESCRIPT
+
+Run targeted typecheck for all Prompt 16 files.
+
+Full project typecheck may still contain ONLY:
+
+seven known missing .webp imports in:
+
+src/features/modules/moduleVisuals.ts
+
+No new error allowed.
+
+153. ESLINT
+
+Run targeted lint.
+
+Do not fix unrelated baseline lint.
+
+154. VISUAL VERIFICATION — AUTHENTICATED IF AVAILABLE
+
+If authenticated preview is available, inspect My 99.
+
+Test at least:
+
+Hero:
+
+Classic
+Minimal
+Night
+Aurora
+
+Glass:
+
+Clear
+Balanced
+Frosted
+
+in both:
+
+contained Draft preview
+after committed Apply for representative choices
+155. VISUAL DEFAULT-PARITY CHECK
+
+Authenticated preview if available:
+
+Classic Hero + Balanced Glass should look identical to current production baseline.
+
+Do not claim pixel-perfect if no comparison capture exists.
+
+Report exact method.
+
+156. VISUAL DRAFT ISOLATION
+
+Representative:
+
+Global:
+
+Ocean / Classic / Balanced
+
+Draft:
+
+Rose / Aurora / Frosted
+
+Before Apply:
+
+Outer app must remain:
+
+Ocean / Classic / Balanced
+
+Main preview:
+
+Rose / Aurora / Frosted
+157. VISUAL APPLY
+
+After Apply:
+
+Outer Studio should adopt:
+
+Rose / Aurora / Frosted
+
+without:
+
+reload
+route reset
+scroll reset
+remount
+158. VISUAL RESET
+
+From alternate committed combination:
+
+Reset:
+
+global stays alternate.
+
+Preview goes:
+
+Classic / Classic / Balanced
+159. PHONE VIEW
+
+If authenticated preview available:
+
+inspect Hero/Glass sections at phone width.
+
+Check:
+
+card layout
+action area
+scroll
+safe area
+preview size
+readable descriptions
+160. IPAD VIEW
+
+Check:
+
+option-card density
+preview
+no oversized blank space
+Settings split/full-page behavior
+
+No geometry change elsewhere.
+
+161. DESKTOP VIEW
+
+Ensure sections do not become excessively wide.
+
+Follow existing Studio max-width.
+
+162. ARABIC / RTL VISUAL
+
+If available inspect:
+
+Hero Style section
+Glass Style section
+Current/Selected badges
+descriptions
+action area
+
+Do not overclaim if unavailable.
+
+163. NO SCREENSHOT ARTIFACTS
+
+Do not commit preview screenshots.
+
+164. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Classify all files.
+
+No unrelated changes.
+
+165. ABSOLUTE .agents/* RULE
+
+Prompt 15 required a repair because .agents/* was modified.
+
+DO NOT repeat this.
+
+No .agents/* file may be:
+
+created
+modified
+deleted
+rewritten
+indexed
+used for memory notes
+
+by Prompt 16.
+
+No exception.
+
+Do not create "durable implementation memory."
+
+166. .agents/* FINAL CHECK
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+There must be ZERO Prompt 16 changes.
+
+167. NO DOCUMENTATION ARTIFACTS
+
+Do not create:
+
+prompt notes
+implementation summaries
+planning markdown
+memory documents
+
+unless they are actual required product documentation already part of the repository contract.
+
+Expected:
+
+NONE.
+
+The final report is sufficient.
+
+168. DEFINITION OF DONE
+
+Prompt 16 passes only if:
+
+Hero Style runtime is implemented.
+Glass Style runtime is implemented.
+Classic Hero is exact production default.
+Balanced Glass is exact production default.
+Minimal works.
+Night works.
+Aurora works.
+Clear works.
+Frosted works.
+default values remove runtime attrs.
+invalid values safely fall back.
+committed drives global Hero/Glass.
+Draft remains globally inert.
+preview uses Draft.
+preview default styles override outer alternate globals.
+Theme × Hero × Glass compose independently.
+no combinatorial selectors.
+no Theme Pack palette changed.
+29-theme-token contract unchanged.
+My 99 exposes Hero Style.
+My 99 exposes Glass Style.
+canonical options/order correct.
+English/Arabic complete.
+accessible radiogroups.
+Current vs Selected clear.
+one Apply action for all config.
+multi-field Apply uses one write.
+multi-field failure is atomic.
+Cancel works.
+Reset works.
+no provider rewrite.
+no schema change.
+no direct storage from UI.
+no global DOM mutation from UI.
+ThemeBridge ownership preserved.
+presentation bridge owns Hero/Glass attrs.
+reduced transparency overrides Glass Style.
+forced-colors preserved.
+reduced-motion preserved.
+no layout change from Hero Style.
+no motionStyle wiring.
+no readingSize wiring.
+no Home order wiring.
+no App Icon implementation.
+no KV.
+no SQL.
+no D1.
+no R2.
+ZERO new personalization network calls.
+no .agents/* change.
+build passes.
+personalization suites pass.
+Theme Engine suites pass.
+navigation/auth/study regressions pass.
+diff remains scoped.
+169. MANDATORY FINAL IMPLEMENTATION REPORT
+
+The task is incomplete without this report.
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 4 PROMPT 16 REPORT
+1. Status
+
+PASS / FAIL
+
+2. User-Facing Result
+
+Explain exactly what Hero Style and Glass Style can now do.
+
+3. Files Created
+File	Purpose
+4. Files Modified
+File	Exact Change	Why
+5. Hero Architecture Audit
+
+List actual production Hero files/elements audited.
+
+6. Hero Runtime Architecture
+
+Explain:
+
+committed.heroStyle
+→ presentation bridge
+→ data-app-hero-style
+→ Hero CSS presentation
+
+7. Hero Attribute Mapping
+Hero Style	Global Attribute
+
+Classic should be absent.
+
+8. Hero Invalid Fallback
+
+Explain defensive behavior.
+
+9. Classic Hero Parity
+
+Provide:
+
+Previous Source	New Variable/Rule	Default Value	Parity
+
+Confirm exact production appearance preserved.
+
+10. Minimal Hero
+
+Explain exact presentation differences.
+
+11. Night Hero
+
+Explain exact presentation differences.
+
+12. Aurora Hero
+
+Explain exact presentation differences.
+
+13. Hero Content / Geometry Safety
+
+Confirm content/layout/data unchanged.
+
+14. Hero Motion Safety
+
+Confirm animation system unchanged and motionStyle still unwired.
+
+15. Hero Theme Independence
+
+Confirm no Theme × Hero selectors.
+
+16. Glass Architecture Audit
+
+List actual eligible glass consumers and deferred glass-like surfaces.
+
+17. Glass Runtime Architecture
+
+Explain:
+
+committed.glassStyle
+→ presentation bridge
+→ data-app-glass-style
+→ semantic glass styling
+
+18. Glass Attribute Mapping
+Glass Style	Global Attribute
+
+Balanced should be absent.
+
+19. Glass Invalid Fallback
+
+Explain defensive behavior.
+
+20. Balanced Glass Parity
+
+For each modified eligible glass class/surface:
+
+Surface	Before	Balanced After	Parity
+21. Clear Glass
+
+Report exact optical changes.
+
+22. Frosted Glass
+
+Report exact optical changes.
+
+23. Glass Theme Independence
+
+Confirm styles derive from Theme Pack glass tokens.
+
+24. Reduced Transparency
+
+Explain precedence and verification.
+
+25. Forced Colors
+
+Explain preservation.
+
+26. Presentation Bridge
+
+List exact responsibilities.
+
+27. Global Attribute Ownership
+
+State:
+
+ThemeBridge → data-app-theme
+
+PresentationBridge → data-app-hero-style + data-app-glass-style
+
+My99Studio → no global DOM mutation
+
+28. Default Global State
+
+Report expected DOM for:
+
+Classic Theme / Classic Hero / Balanced Glass.
+
+29. Alternate Global State
+
+Report example:
+
+Rose / Night / Clear.
+
+30. Account Boundary
+
+Report representative:
+
+A Rose/Aurora/Frosted
+→ default boundary
+→ B Ocean/Minimal/Clear
+
+31. Logout
+
+Confirm all presentation attrs clear.
+
+32. StrictMode / Idempotency
+
+Report.
+
+33. My 99 Section Architecture
+
+List final visible sections.
+
+34. Hero Style Catalog
+
+Print exact order.
+
+35. Glass Style Catalog
+
+Print exact order.
+
+36. Catalog Metadata Safety
+
+Confirm no colors/effect constants in UI metadata.
+
+37. Hero Style Accessibility
+
+Report radio semantics/focus/current/selected.
+
+38. Glass Style Accessibility
+
+Report.
+
+39. Localization
+
+List new English/Arabic keys.
+
+40. Main Preview
+
+Explain Theme + Hero + Glass draft composition.
+
+41. Preview Attributes
+
+State exact three local preview attributes.
+
+42. Preview Default Isolation
+
+Report:
+
+Global Aurora/Frosted
+Preview Classic/Balanced
+
+and explain why no inheritance leak occurs.
+
+43. Hero Card Previews
+
+Explain.
+
+44. Glass Card Previews
+
+Explain.
+
+45. Draft vs Committed
+
+Report representative differing state.
+
+46. Multi-Field Apply Success
+
+Report:
+
+Theme + Hero + Glass
+write count
+committed result
+global attributes
+
+47. Multi-Field Apply Failure
+
+Report atomic failure behavior.
+
+48. Cancel
+
+Report multi-field behavior and writes.
+
+49. Reset
+
+Report Draft default behavior and global state.
+
+50. Reset + Apply
+
+Report resulting default global attrs.
+
+51. Dirty State
+
+Explain existing deep config behavior.
+
+52. Storage Safety
+
+Confirm no direct Studio storage access.
+
+53. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+54. Theme Pack Integrity
+
+Confirm all eight Phase-3 palettes remain unchanged.
+
+55. Token Contract
+
+Confirm Theme Pack token count remains exactly 29.
+
+56. No Combinatorial CSS
+
+Confirm no Theme × Hero or Theme × Glass selectors.
+
+57. Semantic Safety
+
+Confirm fixed status/domain colors unaffected.
+
+58. Motion Style
+
+Confirm still unwired.
+
+59. Reading Size
+
+Confirm still unwired.
+
+60. Home Subject Order
+
+Confirm still unwired.
+
+61. App Icons
+
+Confirm unimplemented.
+
+62. Tests Added/Updated
+
+List exact Prompt 16 invariants.
+
+63. Personalization Test Results
+
+Report exact total passed/failed.
+
+64. Theme Engine Results
+
+Report runtime/library/closure/token suites.
+
+65. Studio Results
+
+Report Prompt 15 + Prompt 16 Studio/presentation suites.
+
+66. Regression Results
+Command	Result
+67. Existing Baselines
+
+Report separately:
+
+PDF fixture
+seven .webp TypeScript errors
+unrelated lint baseline
+68. Visual Verification
+
+State exactly:
+
+authentication state
+viewport(s)
+language(s)
+appearance(s)
+Hero styles actually observed
+Glass styles actually observed
+Draft isolation actually observed
+Apply/Cancel/Reset actually observed
+
+Do not overclaim.
+
+69. Performance Review
+
+Report Hero and Glass implementation cost/risk, especially iOS backdrop-filter layering.
+
+70. Responsive Review
+
+Report mobile/iPad/desktop result or visual gate.
+
+71. RTL Review
+
+Report result or visual gate.
+
+72. Feature Diff Verification
+
+Confirm no direct styling/business edits to unrelated features.
+
+73. Provider / Contract Verification
+
+Confirm no provider/state/schema rewrite.
+
+74. Business Logic Verification
+
+Confirm unchanged.
+
+75. Git Diff Summary
+
+Exact files/stat.
+
+Confirm:
+
+git diff --check: PASS
+
+76. .agents/* Verification
+
+Report:
+
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+77. Prompt 17 Readiness
+
+If everything passes, state exactly:
+
+HERO STYLE CUSTOMIZATION: CLOSED AND APPROVED
+
+GLASS STYLE CUSTOMIZATION: CLOSED AND APPROVED
+
+MY 99 MULTI-FIELD DRAFT/APPLY WORKFLOW: VERIFIED
+
+MOTION STYLE & READING SIZE CUSTOMIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 4 PROMPT 16 STATUS: COMPLETE — READY FOR PROMPT 17
+
+or:
+
+PERSONALIZATION PHASE 4 PROMPT 16 STATUS: BLOCKED — REPAIR REQUIRED
