@@ -1,0 +1,770 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 4 / PROMPT 15B
+## MY 99 STUDIO — AGENT-ARTIFACT REPAIR & FINAL CLOSURE
+### REVERT `.agents/*` CHANGES ONLY
+### PRESERVE THE APPROVED MY 99 IMPLEMENTATION
+### DO NOT BEGIN PROMPT 16
+
+Prompt 15 product implementation is functionally APPROVED pending one repository-scope violation.
+
+The Prompt 15 report explicitly states that these `.agents/*` paths were changed:
+
+- `.agents/memory/personalization-preview-scoping.md`
+- `.agents/memory/MEMORY.md`
+
+This violates the mandatory project rule:
+
+NO `.agents/*` FILE MAY BE CREATED OR MODIFIED.
+
+The explanation that these changes were "required durable agent memory updates" is NOT an allowed exception.
+
+This Prompt 15B exists ONLY to remove/revert those agent-artifact changes and prove that the approved My 99 implementation remains intact.
+
+Do NOT redesign My 99.
+
+Do NOT begin Hero Style.
+
+Do NOT begin Glass Style.
+
+Do NOT modify product behavior unless an actual regression caused by removing the `.agents/*` changes is discovered, which is not expected.
+
+---
+
+# 1. INSPECT CURRENT GIT STATE FIRST
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Inspect specifically:
+
+.agents/
+.agents/memory/
+.agents/memory/MEMORY.md
+.agents/memory/personalization-preview-scoping.md
+
+Determine:
+
+- which `.agents/*` file existed before Prompt 15
+- which was newly created
+- exactly what Prompt 15 added or modified
+
+Do not guess.
+
+---
+
+# 2. REVERT ALL PROMPT-15 `.agents/*` CHANGES
+
+Restore every `.agents/*` path to its exact pre-Prompt-15 state.
+
+Expected likely actions:
+
+- Remove newly created:
+  `.agents/memory/personalization-preview-scoping.md`
+
+- Revert Prompt-15 additions in:
+  `.agents/memory/MEMORY.md`
+
+BUT use Git/current repository history as authority.
+
+Do not delete pre-existing `.agents/*` content that existed before Prompt 15.
+
+The goal is:
+
+PROMPT 15 CONTRIBUTED ZERO `.agents/*` CHANGES.
+
+---
+
+# 3. DO NOT REPLACE THE MEMORY NOTE ELSEWHERE
+
+Do NOT move the agent memory note into:
+
+- docs/
+- README
+- source comments
+- tests
+- another hidden directory
+- attached_assets
+- temporary files
+
+The existing implementation and tests are sufficient documentation.
+
+No replacement artifact is needed.
+
+---
+
+# 4. PRESERVE THE APPROVED PRODUCT IMPLEMENTATION
+
+Do NOT revert these legitimate Prompt 15 product changes:
+
+- My 99 Settings entry
+- My 99 Settings routing
+- My99Studio
+- Theme cards
+- Theme catalog
+- Draft preview
+- preview CSS scoping
+- Apply
+- Cancel
+- Reset
+- localization
+- accessibility
+- Studio tests
+- updated theme-engine tests
+
+Only `.agents/*` is the repair target.
+
+---
+
+# 5. VERIFY EXPECTED PRODUCT FILES
+
+Audit actual current source and confirm the My 99 implementation remains present.
+
+Expected relevant files include actual repository equivalents of:
+
+- `src/features/personalization/components/My99Studio.tsx`
+- Theme card component
+- Theme mini-preview component
+- personalization catalog
+- Settings view
+- App Settings detail integration
+- `src/index.css`
+- localization resources
+- `tests/personalization-studio.test.ts`
+
+Use actual repository names.
+
+Do not create duplicates.
+
+---
+
+# 6. TEST FILE MUST REMAIN
+
+Prompt 15 created:
+
+`tests/personalization-studio.test.ts`
+
+This is an intended PRODUCT TEST.
+
+Do NOT remove it merely because it is/was untracked.
+
+It must remain part of the intended implementation.
+
+Report its exact final Git status.
+
+---
+
+# 7. VERIFY PREVIEW SCOPING STILL EXISTS
+
+Confirm the removal of `.agents/*` does NOT affect:
+
+`data-personalization-preview-theme`
+
+or any preview CSS architecture.
+
+The implementation must still support:
+
+- all eight theme mini-previews
+- main Draft preview
+- Classic preview under alternate global theme
+- Dark preview scopes
+- committed outer theme / draft inner theme isolation
+
+No source repair should be required.
+
+---
+
+# 8. VERIFY GLOBAL THEME OWNERSHIP
+
+Confirm:
+
+`PersonalizationThemeBridge`
+
+remains the ONLY owner of global:
+
+`data-app-theme`
+
+My99Studio must not directly mutate it.
+
+---
+
+# 9. VERIFY DRAFT-ONLY SELECTION
+
+Theme-card selection still:
+
+updates Draft only
+
+and performs:
+
+ZERO persistence writes
+ZERO global theme writes
+
+before Apply.
+
+---
+
+# 10. VERIFY APPLY
+
+Successful changed Apply must still:
+
+- perform exactly one persistence write
+- commit Draft
+- update global theme through ThemeBridge
+- clear dirty state
+- require no reload/remount
+
+---
+
+# 11. VERIFY APPLY FAILURE
+
+Failure must still preserve:
+
+- previous Committed config
+- previous global theme
+- new Draft selection
+- dirty = true
+
+No false success.
+
+---
+
+# 12. VERIFY CANCEL
+
+Cancel:
+
+- Draft ← Committed
+- dirty false
+- zero writes
+- preview returns to Committed
+
+---
+
+# 13. VERIFY RESET
+
+Reset remains Draft-only:
+
+- Draft → DEFAULT_PERSONALIZATION_CONFIG
+- Committed unchanged
+- global theme unchanged
+- zero writes
+
+Reset + Apply:
+
+- commits Classic 99
+- removes global `data-app-theme`
+
+---
+
+# 14. VERIFY SETTINGS LOCATION
+
+My 99 must still appear:
+
+after Account & System Preferences
+before Privacy & Security
+
+No Settings reorder.
+
+---
+
+# 15. VERIFY LOCALIZATION
+
+English + Arabic Prompt 15 strings must remain complete.
+
+Do not rewrite wording unless removal of `.agents/*` somehow affected it, which is not expected.
+
+---
+
+# 16. VERIFY ACCESSIBILITY
+
+Retain:
+
+- radiogroup
+- radio/card semantics
+- aria-checked
+- native keyboard behavior
+- visible focus
+- Current vs Selected accessible distinction
+- accessible Apply disabled state
+
+---
+
+# 17. VERIFY RESPONSIVE / RTL SOURCE SAFETY
+
+No Prompt 15B changes should affect:
+
+- mobile layout
+- iPad layout
+- desktop layout
+- RTL
+- safe areas
+- navigation
+- swipe back
+- action bar
+
+Expected product diff for Prompt 15B:
+
+ZERO.
+
+---
+
+# 18. DO NOT TOUCH FEATURE AREAS
+
+No direct edits to:
+
+- Home
+- Calendar
+- Lectures
+- PDF
+- Notes
+- MCQ
+- Flashcards
+- Modules
+- Profile
+- Notifications
+- Console
+- Auth
+- Q&A
+
+---
+
+# 19. DO NOT BEGIN FUTURE CUSTOMIZATION
+
+Do NOT expose or wire:
+
+- heroStyle
+- glassStyle
+- motionStyle
+- readingSize
+- home.subjectOrder
+- App Icons
+- presets
+- arbitrary colors
+- fonts
+- backgrounds
+
+Prompt 16 has not started.
+
+---
+
+# 20. NO BACKEND / SYNC
+
+Still:
+
+ZERO new personalization network calls.
+
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+---
+
+# 21. RUN STUDIO TEST
+
+Run:
+
+npx tsx --test tests/personalization-studio.test.ts
+
+Must pass.
+
+---
+
+# 22. RUN ALL PERSONALIZATION TESTS
+
+Run all current personalization tests including:
+
+- contracts
+- state
+- storage
+- runtime
+- token tests
+- Phase-2 closure
+- feature surfaces
+- Lecture
+- Calendar
+- MCQ/Flashcards
+- theme runtime
+- theme library
+- theme closure
+- Studio
+
+Report exact total.
+
+The prior Prompt 15 result was:
+
+98 passed, 0 failed
+
+If current repository test count differs because of test discovery:
+report exact result and explain.
+
+No new failure allowed.
+
+---
+
+# 23. THEME ENGINE TESTS
+
+Explicitly run/confirm:
+
+- `tests/personalization-theme-runtime.test.ts`
+- `tests/personalization-theme-library.test.ts`
+- `tests/personalization-theme-closure.test.ts`
+
+All must remain PASS.
+
+---
+
+# 24. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+---
+
+# 25. NAVIGATION REGRESSION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Mandatory because My 99 navigation was added in Prompt 15.
+
+---
+
+# 26. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+
+---
+
+# 27. STUDY REGRESSIONS
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+npm run test:ai-flashcard
+
+No regression expected.
+
+---
+
+# 28. TYPESCRIPT
+
+Run targeted TypeScript checks for Prompt 15 product files.
+
+Full project typecheck may retain ONLY the known baseline:
+
+seven missing `.webp` imports from:
+
+`src/features/modules/moduleVisuals.ts`
+
+No new error.
+
+---
+
+# 29. ESLINT
+
+Run targeted ESLint for Prompt 15 files.
+
+Do not repair unrelated baseline lint.
+
+---
+
+# 30. GIT DIFF CHECK
+
+Run:
+
+git diff --check
+
+Must pass.
+
+---
+
+# 31. FINAL `.agents/*` VERIFICATION — MANDATORY
+
+After the repair, inspect:
+
+git status --short -- .agents
+
+and:
+
+git diff -- .agents
+
+There must be ZERO Prompt-15/15B changes under `.agents/*`.
+
+If `.agents/*` contains pre-existing repository differences unrelated to Prompt 15:
+identify them explicitly and prove Prompt 15 did not create them.
+
+Do NOT falsely state clean if Git says otherwise.
+
+---
+
+# 32. NO NEW AGENT ARTIFACT
+
+Prompt 15B itself must NOT create:
+
+- `.agents/*`
+- agent memory
+- prompt notes
+- planning files
+- summaries
+- durable memory files
+
+No exception.
+
+---
+
+# 33. USER ATTACHMENTS
+
+Do not modify attached prompt specification files.
+
+They are not implementation artifacts.
+
+---
+
+# 34. GIT FINAL REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Classify every remaining changed/untracked file as:
+
+A. intended Prompt 15 product implementation
+B. intended Prompt 15 test
+C. user attachment
+D. pre-existing unrelated repository state
+
+There must be NO category:
+
+E. Prompt 15 `.agents/*` artifact
+
+---
+
+# 35. DEFINITION OF DONE
+
+Prompt 15B passes only if:
+
+- all Prompt-15 `.agents/*` changes are reverted
+- no `.agents/*` replacement artifact is created
+- My 99 product implementation remains unchanged
+- My 99 Settings entry remains
+- Studio remains
+- 8 Theme cards remain
+- Draft preview remains
+- preview scoping remains
+- Classic preview remains correct
+- Apply/Cancel/Reset remain correct
+- localization remains complete
+- accessibility remains intact
+- navigation remains intact
+- ThemeBridge remains global theme owner
+- no direct storage use from Studio
+- no backend/sync work
+- all personalization tests pass
+- theme-engine suites pass
+- build passes
+- navigation regression passes
+- diff check passes
+- final Git state is reported truthfully
+
+---
+
+# 36. MANDATORY FINAL REPORT
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 4 PROMPT 15B CLOSURE REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. Reason For Repair
+
+State exactly which Prompt 15 rule was violated.
+
+## 3. `.agents/*` Before Repair
+
+| File | Prompt 15 Change | Pre-existing? |
+|---|---|---|
+
+## 4. `.agents/*` Repair
+
+Explain exactly what was removed/reverted.
+
+## 5. `.agents/*` Final State
+
+Report output/meaning of:
+
+`git status --short -- .agents`
+
+and:
+
+`git diff -- .agents`
+
+Confirm there are ZERO Prompt-15/15B agent-artifact changes.
+
+## 6. Product Implementation Preservation
+
+Confirm My 99 production source was not reverted.
+
+## 7. Product Files
+
+List actual My 99 implementation files still present.
+
+## 8. Studio Test File Status
+
+Report exact status of:
+
+`tests/personalization-studio.test.ts`
+
+Confirm it remains part of the intended implementation.
+
+## 9. Settings Entry
+
+Confirm correct placement.
+
+## 10. Navigation
+
+Confirm existing Settings detail/swipe architecture remains intact.
+
+## 11. Theme Catalog
+
+Confirm all eight Theme IDs in canonical order.
+
+## 12. Draft Selection
+
+Confirm Draft-only behavior and zero writes.
+
+## 13. Preview
+
+Confirm contained preview architecture remains intact.
+
+## 14. Classic Preview
+
+Confirm Classic preview works under alternate committed theme.
+
+## 15. Apply
+
+Report successful Apply semantics and write count.
+
+## 16. Apply Failure
+
+Report semantics.
+
+## 17. Cancel
+
+Report state/write behavior.
+
+## 18. Reset
+
+Report state/write behavior.
+
+## 19. Localization
+
+Confirm English + Arabic intact.
+
+## 20. Accessibility
+
+Confirm radio/card semantics and keyboard/focus intact.
+
+## 21. Theme Engine Regression
+
+Report runtime/library/closure suite results.
+
+## 22. Personalization Test Results
+
+Report total passed/failed.
+
+## 23. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 24. Existing Baselines
+
+Report separately:
+
+- PDF fixture
+- seven `.webp` TypeScript errors
+- unrelated lint baseline
+
+## 25. Build
+
+Report.
+
+## 26. Git Diff Check
+
+Report.
+
+## 27. Final Git Classification
+
+| File | Category | Reason |
+|---|---|---|
+
+Categories allowed:
+
+- Prompt 15 product implementation
+- Prompt 15 test
+- user attachment
+- pre-existing unrelated
+
+No Prompt-15 `.agents/*` artifact may remain.
+
+## 28. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+## 29. Future Feature Safety
+
+Confirm Prompt 16 work has NOT started:
+
+- Hero Style unwired
+- Glass Style unwired
+- Motion Style unwired
+- Reading Size unwired
+- Home subjectOrder unwired
+- App Icons unimplemented
+
+## 30. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified by the final Prompt 15 implementation.
+
+## 31. Prompt 16 Readiness
+
+If everything passes, state exactly:
+
+MY 99 STUDIO FOUNDATION: CLOSED AND APPROVED
+
+THEME PACK USER EXPERIENCE: CLOSED AND APPROVED
+
+AGENT ARTIFACT VIOLATION: REPAIRED AND CLOSED
+
+HERO STYLE & GLASS STYLE CUSTOMIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 4 PROMPT 15B STATUS: COMPLETE — READY FOR PROMPT 16
+
+or:
+
+PERSONALIZATION PHASE 4 PROMPT 15B STATUS: BLOCKED — REPAIR REQUIRED
