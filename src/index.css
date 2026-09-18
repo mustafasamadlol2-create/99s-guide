@@ -4385,6 +4385,285 @@ input:-webkit-autofill:active {
   }
 }
 
+/* ==========================================================================
+   PERSONALIZATION PHASE 4 — MOTION STYLE + READING SIZE
+   --------------------------------------------------------------------------
+   Motion rules are intentionally limited to decorative presentation layers.
+   Reading rules scale only explicitly opted-in study text. The default values
+   keep the existing production declarations as the effective baseline.
+   ========================================================================== */
+:root {
+  --personalization-decorative-motion-play-state: running;
+  --personalization-decorative-motion-opacity: 1;
+  --personalization-reading-scale: 1;
+}
+
+:root[data-app-motion-style="subtle"],
+[data-personalization-preview-motion-style="subtle"] {
+  --personalization-decorative-motion-play-state: running;
+  --personalization-decorative-motion-opacity: 0.68;
+}
+
+:root[data-app-motion-style="reduced"],
+[data-personalization-preview-motion-style="reduced"] {
+  --personalization-decorative-motion-play-state: paused;
+  --personalization-decorative-motion-opacity: 0.18;
+}
+
+:root[data-app-reading-size="small"],
+[data-personalization-preview-reading-size="small"] {
+  --personalization-reading-scale: 0.94;
+}
+
+:root[data-app-reading-size="large"],
+[data-personalization-preview-reading-size="large"] {
+  --personalization-reading-scale: 1.1;
+}
+
+/* The Hero canvas is decorative. User Reduced suppresses its visibility but
+   deliberately does not add a second JS animation controller. */
+:root[data-app-motion-style="subtle"] .home-hero-banner .home-hero-starfield,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .home-hero-starfield {
+  opacity: 0.36 !important;
+}
+
+:root[data-app-motion-style="reduced"] .home-hero-banner .home-hero-starfield,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .home-hero-starfield {
+  opacity: 0.08 !important;
+}
+
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-ambient-gold,
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-ambient-blue,
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-aurora-layer,
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-gold-motes,
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-gold-current,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-ambient-gold,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-ambient-blue,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-aurora-layer,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-gold-motes,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-gold-current {
+  opacity: var(--personalization-decorative-motion-opacity) !important;
+  animation-play-state: var(--personalization-decorative-motion-play-state);
+}
+
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-ambient-glow,
+:root[data-app-motion-style="subtle"] .home-hero-banner .hero-ambient-nebula,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-ambient-glow,
+[data-personalization-preview-motion-style="subtle"] .home-hero-banner .hero-ambient-nebula {
+  opacity: 0.68 !important;
+}
+
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-ambient-gold,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-ambient-blue,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-aurora-layer,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-motes,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-current,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-ambient-gold,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-ambient-blue,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-aurora-layer,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-motes,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-current {
+  opacity: var(--personalization-decorative-motion-opacity) !important;
+  animation-play-state: var(--personalization-decorative-motion-play-state);
+}
+
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-ambient-glow,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-ambient-nebula,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-ambient-glow,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-ambient-nebula {
+  opacity: 0.18 !important;
+}
+
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-motes::before,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-motes::after,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-current::before,
+:root[data-app-motion-style="reduced"] .home-hero-banner .hero-gold-current::after,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-motes::before,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-motes::after,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-current::before,
+[data-personalization-preview-motion-style="reduced"] .home-hero-banner .hero-gold-current::after {
+  animation-play-state: paused;
+}
+
+[data-personalization-preview-motion-style="subtle"] .my99-preview-hero-glow {
+  opacity: 0.68;
+  animation-duration: 42s;
+  animation-play-state: running;
+}
+
+[data-personalization-preview-motion-style="reduced"] .my99-preview-hero-glow {
+  opacity: 0.18;
+  animation-play-state: paused;
+}
+
+/* Local Studio-only specimen. It is decorative, CSS-only, and has no
+   relationship to the production Hero animation loop. */
+.my99-motion-mini-preview {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 112px;
+  overflow: hidden;
+  border: 1px solid var(--semantic-border-default);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 30% 30%, var(--semantic-action-accent-soft), transparent 58%),
+    var(--semantic-background-page);
+}
+
+.my99-motion-mini-preview-orbit,
+.my99-motion-mini-preview-dot {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.my99-motion-mini-preview-orbit {
+  inset: 25px 18px;
+  border: 1px solid var(--semantic-action-accent);
+  opacity: 0.42;
+  animation: personalization-preview-drift 4.8s ease-in-out infinite;
+  animation-play-state: var(--personalization-decorative-motion-play-state);
+}
+
+.my99-motion-mini-preview-dot {
+  top: 42px;
+  left: 39px;
+  width: 10px;
+  height: 10px;
+  background: var(--semantic-action-accent);
+  box-shadow: 0 0 16px var(--semantic-action-accent);
+  animation: personalization-preview-dot 3s ease-in-out infinite;
+  animation-play-state: var(--personalization-decorative-motion-play-state);
+}
+
+[data-personalization-preview-motion-style="subtle"] .my99-motion-mini-preview-orbit,
+[data-personalization-preview-motion-style="subtle"] .my99-motion-mini-preview-dot {
+  opacity: 0.52;
+  animation-duration: 6.8s;
+}
+
+[data-personalization-preview-motion-style="reduced"] .my99-motion-mini-preview-orbit,
+[data-personalization-preview-motion-style="reduced"] .my99-motion-mini-preview-dot {
+  opacity: 0.28;
+  animation-play-state: paused;
+}
+
+@keyframes personalization-preview-drift {
+  0%, 100% { transform: translate3d(-7px, 4px, 0) scale(0.96); }
+  50% { transform: translate3d(8px, -5px, 0) scale(1.04); }
+}
+
+@keyframes personalization-preview-dot {
+  0%, 100% { transform: translate3d(-7px, 3px, 0); opacity: 0.55; }
+  50% { transform: translate3d(9px, -4px, 0); opacity: 1; }
+}
+
+.my99-reading-mini-preview {
+  display: flex;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 112px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--semantic-border-default);
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--semantic-content-primary);
+  background: var(--semantic-background-page);
+}
+
+.my99-reading-mini-preview .personalization-reading-preview-body {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.my99-reading-mini-preview-line {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--semantic-content-subtle);
+}
+
+.my99-reading-mini-preview-line-short {
+  width: 68%;
+}
+
+/* These utilities preserve the current rem/line-height pairs at scale 1:
+   text-caption is 0.75rem/1rem, while the MCQ question keeps its current
+   responsive 1.02/1.18/1.32rem and 1.58/1.62 line-height values. */
+.personalization-reading-body {
+  font-size: calc(0.75rem * var(--personalization-reading-scale));
+  line-height: calc(1rem * var(--personalization-reading-scale));
+}
+
+.personalization-reading-question {
+  font-size: calc(1.02rem * var(--personalization-reading-scale));
+  line-height: 1.58;
+}
+
+@media (min-width: 640px) {
+  .personalization-reading-question {
+    font-size: calc(1.18rem * var(--personalization-reading-scale));
+    line-height: 1.62;
+  }
+}
+
+@media (min-width: 1024px) {
+  .personalization-reading-question {
+    font-size: calc(1.32rem * var(--personalization-reading-scale));
+  }
+}
+
+.personalization-reading-preview-body {
+  font-size: calc(0.875rem * var(--personalization-reading-scale));
+  line-height: calc(1.25rem * var(--personalization-reading-scale));
+}
+
+/* Fluid flashcard text keeps its existing length-aware base size and scales
+   through a child element, so no transform or layout measurement is needed. */
+.personalization-reading-fluid {
+  display: inline;
+}
+
+[data-app-reading-size="small"] .personalization-reading-fluid,
+[data-personalization-preview-reading-size="small"] .personalization-reading-fluid {
+  font-size: 94%;
+}
+
+[data-app-reading-size="large"] .personalization-reading-fluid,
+[data-personalization-preview-reading-size="large"] .personalization-reading-fluid {
+  font-size: 110%;
+}
+
+/* Accessibility is the final authority. These rules intentionally come after
+   all user and preview selectors and cannot be re-enabled by Motion Style. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-app-motion-style] .home-hero-banner .hero-aurora-layer,
+  :root[data-app-motion-style] .home-hero-banner .hero-gold-motes::before,
+  :root[data-app-motion-style] .home-hero-banner .hero-gold-motes::after,
+  :root[data-app-motion-style] .home-hero-banner .hero-gold-current,
+  :root[data-app-motion-style] .home-hero-banner .hero-gold-current::before,
+  :root[data-app-motion-style] .home-hero-banner .hero-gold-current::after,
+  [data-personalization-preview-motion-style] .my99-preview-hero-glow,
+  [data-personalization-preview-motion-style] .my99-motion-mini-preview-orbit,
+  [data-personalization-preview-motion-style] .my99-motion-mini-preview-dot {
+    animation: none !important;
+    animation-play-state: paused !important;
+  }
+
+  :root[data-app-motion-style] .home-hero-banner .hero-ambient-gold,
+  :root[data-app-motion-style] .home-hero-banner .hero-ambient-blue,
+  [data-personalization-preview-motion-style] .my99-motion-mini-preview-orbit,
+  [data-personalization-preview-motion-style] .my99-motion-mini-preview-dot {
+    opacity: 0.18 !important;
+  }
+}
+
 /* Keep the accessibility override last so it also wins over the existing
    coarse-pointer mobile blur optimization. */
 @media (prefers-reduced-transparency: reduce) {

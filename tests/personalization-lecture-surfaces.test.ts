@@ -74,3 +74,10 @@ test("Prompt 8 introduces no runtime theme DOM mutation", () => {
     assert.doesNotMatch(source, /dataset\.theme|style\.setProperty|location\.reload/);
   }
 });
+
+test("Prompt 17 scopes Reading Size to audited study text only", () => {
+  assert.match(lectureDetail, /personalization-reading-question/);
+  assert.match(lectureDetail, /personalization-reading-body/);
+  assert.match(lectureDetail, /personalization-reading-fluid/);
+  assert.doesNotMatch(lectureDetail, /data-app-reading-size|app_text_scale|text-size-adjust/);
+});

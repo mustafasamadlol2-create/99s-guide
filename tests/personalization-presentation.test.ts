@@ -4,10 +4,14 @@ import test from "node:test";
 import {
   PERSONALIZATION_GLASS_STYLES,
   PERSONALIZATION_HERO_STYLES,
+  PERSONALIZATION_MOTION_STYLES,
+  PERSONALIZATION_READING_SIZES,
 } from "../shared/personalization.js";
 import {
   PERSONALIZATION_GLASS_CATALOG,
   PERSONALIZATION_HERO_CATALOG,
+  PERSONALIZATION_MOTION_CATALOG,
+  PERSONALIZATION_READING_CATALOG,
 } from "../src/features/personalization/personalizationCatalog.js";
 import {
   synchronizePersonalizationPresentation,
@@ -51,7 +55,7 @@ const translations = readFileSync(
   "utf8",
 );
 
-test("Hero and Glass catalogs preserve the canonical runtime orders", () => {
+test("presentation catalogs preserve the canonical runtime orders", () => {
   assert.deepEqual(
     PERSONALIZATION_HERO_CATALOG.map(({ id }) => id),
     [...PERSONALIZATION_HERO_STYLES],
@@ -59,6 +63,14 @@ test("Hero and Glass catalogs preserve the canonical runtime orders", () => {
   assert.deepEqual(
     PERSONALIZATION_GLASS_CATALOG.map(({ id }) => id),
     [...PERSONALIZATION_GLASS_STYLES],
+  );
+  assert.deepEqual(
+    PERSONALIZATION_MOTION_CATALOG.map(({ id }) => id),
+    [...PERSONALIZATION_MOTION_STYLES],
+  );
+  assert.deepEqual(
+    PERSONALIZATION_READING_CATALOG.map(({ id }) => id),
+    [...PERSONALIZATION_READING_SIZES],
   );
 });
 
@@ -106,18 +118,62 @@ test("alternate runtime attributes are strict, idempotent, and transition indepe
   assert.equal(target.value("data-app-glass-style"), "frosted");
 });
 
+test("Motion and Reading defaults remove optional attributes and alternates are committed-only", () => {
+  const target = makeTarget({
+    "data-app-motion-style": "reduced",
+    "data-app-reading-size": "large",
+  });
+  const element = target.target as unknown as HTMLElement;
+
+  synchronizePersonalizationPresentation(element, "classic", "balanced", "full", "default");
+  assert.deepEqual(target.calls, [
+    "remove:data-app-motion-style",
+    "remove:data-app-reading-size",
+  ]);
+  assert.equal(target.value("data-app-motion-style"), null);
+  assert.equal(target.value("data-app-reading-size"), null);
+
+  synchronizePersonalizationPresentation(element, "classic", "balanced", "subtle", "large");
+  synchronizePersonalizationPresentation(element, "classic", "balanced", "reduced", "small");
+  synchronizePersonalizationPresentation(element, "classic", "balanced", "invalid", "invalid");
+
+  assert.deepEqual(target.calls, [
+    "remove:data-app-motion-style",
+    "remove:data-app-reading-size",
+    "set:data-app-motion-style=subtle",
+    "set:data-app-reading-size=large",
+    "set:data-app-motion-style=reduced",
+    "set:data-app-reading-size=small",
+    "remove:data-app-motion-style",
+    "remove:data-app-reading-size",
+  ]);
+});
+
 test("the runtime bridge reads committed state and the preview owns all three axes", () => {
   assert.match(bridge, /const \{ committed \} = usePersonalization\(\)/);
   assert.doesNotMatch(bridge, /\bdraft\b/);
   assert.match(css, /data-personalization-preview-theme/);
   assert.match(css, /data-personalization-preview-hero-style/);
   assert.match(css, /data-personalization-preview-glass-style/);
+  assert.match(css, /data-personalization-preview-motion-style/);
+  assert.match(css, /data-personalization-preview-reading-size/);
+  assert.match(bridge, /committed\.motionStyle/);
+  assert.match(bridge, /committed\.readingSize/);
   assert.match(css, /--semantic-hero-glow-primary/);
   assert.match(css, /--semantic-glass-surface/);
   assert.doesNotMatch(
     css,
     /data-app-theme="[^"]+"\][^{]*data-app-(?:hero|glass)-style/,
   );
+});
+
+test("OS reduced motion remains the final accessibility precedence layer", () => {
+  const osReducedStart = css.lastIndexOf("@media (prefers-reduced-motion: reduce)");
+  assert.ok(osReducedStart > 0);
+  const osReducedSource = css.slice(osReducedStart);
+  assert.match(osReducedSource, /animation:\s*none\s*!important/);
+  assert.match(osReducedSource, /animation-play-state:\s*paused\s*!important/);
+  assert.doesNotMatch(osReducedSource, /animation-play-state:\s*running/);
 });
 
 test("Balanced Glass and Classic Hero defaults retain the audited production baselines", () => {
@@ -243,10 +299,12 @@ test("Glass compatibility keeps accessibility and mobile cascade precedence", ()
   );
 });
 
-test("Studio exposes three localized single-choice groups without future placeholders", () => {
-  assert.equal((studio.match(/role="radiogroup"/g) ?? []).length, 3);
+test("Studio exposes five localized single-choice groups without future placeholders", () => {
+  assert.equal((studio.match(/role="radiogroup"/g) ?? []).length, 5);
   assert.match(studio, /data-personalization-preview-hero-style=\{draft\.heroStyle\}/);
   assert.match(studio, /data-personalization-preview-glass-style=\{draft\.glassStyle\}/);
+  assert.match(studio, /data-personalization-preview-motion-style=\{draft\.motionStyle\}/);
+  assert.match(studio, /data-personalization-preview-reading-size=\{draft\.readingSize\}/);
   for (const key of [
     "my99HeroStyleTitle",
     "my99HeroStyleDescription",
@@ -259,6 +317,16 @@ test("Studio exposes three localized single-choice groups without future placeho
     "my99GlassClearName",
     "my99GlassBalancedName",
     "my99GlassFrostedName",
+    "my99MotionStyleTitle",
+    "my99MotionStyleDescription",
+    "my99MotionFullName",
+    "my99MotionSubtleName",
+    "my99MotionReducedName",
+    "my99ReadingSizeTitle",
+    "my99ReadingSizeDescription",
+    "my99ReadingSmallName",
+    "my99ReadingDefaultName",
+    "my99ReadingLargeName",
   ]) {
     assert.equal(
       (translations.match(new RegExp(`\\b${key}:`, "g")) ?? []).length,
@@ -266,5 +334,5 @@ test("Studio exposes three localized single-choice groups without future placeho
       `${key} should be present in English and Arabic`,
     );
   }
-  assert.doesNotMatch(studio, /Motion|Reading Size|Home Order|App Icon|Coming Soon/);
+  assert.doesNotMatch(studio, /Home Order|App Icon|Coming Soon/);
 });

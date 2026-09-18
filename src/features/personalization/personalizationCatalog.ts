@@ -5,8 +5,12 @@ import {
 import {
   PERSONALIZATION_GLASS_STYLES,
   PERSONALIZATION_HERO_STYLES,
+  PERSONALIZATION_MOTION_STYLES,
+  PERSONALIZATION_READING_SIZES,
   type GlassStyle,
   type HeroStyle,
+  type MotionStyle,
+  type ReadingSize,
 } from "../../../shared/personalization";
 
 export type PersonalizationThemeCatalogItem = {
@@ -156,6 +160,76 @@ export const PERSONALIZATION_GLASS_CATALOG: readonly PersonalizationGlassCatalog
     },
   ] as const;
 
+export type PersonalizationMotionCatalogItem = {
+  id: MotionStyle;
+  nameKey: PersonalizationMotionNameKey;
+  descriptionKey: PersonalizationMotionDescriptionKey;
+};
+
+export type PersonalizationMotionNameKey =
+  | "my99MotionFullName"
+  | "my99MotionSubtleName"
+  | "my99MotionReducedName";
+
+export type PersonalizationMotionDescriptionKey =
+  | "my99MotionFullDescription"
+  | "my99MotionSubtleDescription"
+  | "my99MotionReducedDescription";
+
+export const PERSONALIZATION_MOTION_CATALOG: readonly PersonalizationMotionCatalogItem[] =
+  [
+    {
+      id: "full",
+      nameKey: "my99MotionFullName",
+      descriptionKey: "my99MotionFullDescription",
+    },
+    {
+      id: "subtle",
+      nameKey: "my99MotionSubtleName",
+      descriptionKey: "my99MotionSubtleDescription",
+    },
+    {
+      id: "reduced",
+      nameKey: "my99MotionReducedName",
+      descriptionKey: "my99MotionReducedDescription",
+    },
+  ] as const;
+
+export type PersonalizationReadingCatalogItem = {
+  id: ReadingSize;
+  nameKey: PersonalizationReadingNameKey;
+  descriptionKey: PersonalizationReadingDescriptionKey;
+};
+
+export type PersonalizationReadingNameKey =
+  | "my99ReadingSmallName"
+  | "my99ReadingDefaultName"
+  | "my99ReadingLargeName";
+
+export type PersonalizationReadingDescriptionKey =
+  | "my99ReadingSmallDescription"
+  | "my99ReadingDefaultDescription"
+  | "my99ReadingLargeDescription";
+
+export const PERSONALIZATION_READING_CATALOG: readonly PersonalizationReadingCatalogItem[] =
+  [
+    {
+      id: "small",
+      nameKey: "my99ReadingSmallName",
+      descriptionKey: "my99ReadingSmallDescription",
+    },
+    {
+      id: "default",
+      nameKey: "my99ReadingDefaultName",
+      descriptionKey: "my99ReadingDefaultDescription",
+    },
+    {
+      id: "large",
+      nameKey: "my99ReadingLargeName",
+      descriptionKey: "my99ReadingLargeDescription",
+    },
+  ] as const;
+
 if (
   PERSONALIZATION_HERO_CATALOG.map(({ id }) => id).join("|") !==
   PERSONALIZATION_HERO_STYLES.join("|")
@@ -168,6 +242,20 @@ if (
   PERSONALIZATION_GLASS_STYLES.join("|")
 ) {
   throw new Error("Personalization glass catalog order must match the runtime glass order.");
+}
+
+if (
+  PERSONALIZATION_MOTION_CATALOG.map(({ id }) => id).join("|") !==
+  PERSONALIZATION_MOTION_STYLES.join("|")
+) {
+  throw new Error("Personalization motion catalog order must match the runtime motion order.");
+}
+
+if (
+  PERSONALIZATION_READING_CATALOG.map(({ id }) => id).join("|") !==
+  PERSONALIZATION_READING_SIZES.join("|")
+) {
+  throw new Error("Personalization reading catalog order must match the runtime reading order.");
 }
 
 if (

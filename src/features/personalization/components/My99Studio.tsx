@@ -23,13 +23,22 @@ import {
 import {
   PERSONALIZATION_GLASS_CATALOG,
   PERSONALIZATION_HERO_CATALOG,
+  PERSONALIZATION_MOTION_CATALOG,
+  PERSONALIZATION_READING_CATALOG,
   PERSONALIZATION_THEME_CATALOG,
   type PersonalizationGlassCatalogItem,
   type PersonalizationHeroCatalogItem,
+  type PersonalizationMotionCatalogItem,
+  type PersonalizationReadingCatalogItem,
   type PersonalizationThemeCatalogItem,
 } from "../personalizationCatalog";
 import type { ImplementedThemeId } from "../classic99Tokens";
-import type { GlassStyle, HeroStyle } from "../../../../shared/personalization";
+import type {
+  GlassStyle,
+  HeroStyle,
+  MotionStyle,
+  ReadingSize,
+} from "../../../../shared/personalization";
 
 interface My99StudioProps {
   language: Language;
@@ -316,6 +325,138 @@ const PresentationCard = memo(function PresentationCard({
   );
 });
 
+const MotionMiniPreview = memo(function MotionMiniPreview({
+  themeId,
+  motionStyle,
+}: {
+  themeId: ImplementedThemeId;
+  motionStyle: MotionStyle;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="my99-motion-mini-preview"
+      data-personalization-preview-theme={themeId}
+      data-personalization-preview-motion-style={motionStyle}
+    >
+      <span className="my99-motion-mini-preview-orbit" />
+      <span className="my99-motion-mini-preview-dot" />
+    </div>
+  );
+});
+
+const ReadingMiniPreview = memo(function ReadingMiniPreview({
+  themeId,
+  readingSize,
+}: {
+  themeId: ImplementedThemeId;
+  readingSize: ReadingSize;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="my99-reading-mini-preview"
+      data-personalization-preview-theme={themeId}
+      data-personalization-preview-reading-size={readingSize}
+    >
+      <span className="personalization-reading-preview-body">
+        Aa
+      </span>
+      <span className="my99-reading-mini-preview-line" />
+      <span className="my99-reading-mini-preview-line my99-reading-mini-preview-line-short" />
+    </div>
+  );
+});
+
+const PreferenceCard = memo(function PreferenceCard({
+  item,
+  language,
+  name,
+  description,
+  isDraft,
+  isCurrent,
+  preview,
+  onSelect,
+}: {
+  item: PersonalizationMotionCatalogItem | PersonalizationReadingCatalogItem;
+  language: Language;
+  name: string;
+  description: string;
+  isDraft: boolean;
+  isCurrent: boolean;
+  preview: React.ReactNode;
+  onSelect: () => void;
+}) {
+  const status =
+    isDraft && isCurrent
+      ? language === "ar"
+        ? "الحالي والمحدد"
+        : "Current and selected"
+      : isDraft
+        ? language === "ar"
+          ? "المحدد"
+          : "Selected"
+        : isCurrent
+          ? language === "ar"
+            ? "الحالي"
+            : "Current"
+          : "";
+
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={isDraft}
+      aria-label={`${name}${status ? ` — ${status}` : ""}`}
+      onClick={() => {
+        onSelect();
+        HapticFeedback.selection();
+      }}
+      className={`my99-theme-card group ${
+        isDraft
+          ? "border-semantic-action-accent bg-semantic-action-accent-soft shadow-elevation-1"
+          : "border-semantic-border-default bg-semantic-surface-elevated hover:border-semantic-border-strong"
+      }`}
+      dir={language === "ar" ? "rtl" : "ltr"}
+    >
+      <div className="flex items-start gap-3">
+        {preview}
+        <div className="min-w-0 flex-1 text-start">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-base font-semibold text-semantic-content-primary">
+              {name}
+            </span>
+            <span
+              className={`mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full ${
+                isDraft
+                  ? "bg-semantic-action-accent text-white"
+                  : "border border-semantic-border-strong text-transparent"
+              }`}
+              aria-hidden="true"
+            >
+              <Check className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+          </div>
+          <p className="mt-1 text-sm leading-5 text-semantic-content-secondary">
+            {description}
+          </p>
+          {status && (
+            <span
+              className={`mt-3 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                isDraft
+                  ? "bg-semantic-action-accent-soft text-semantic-action-accent"
+                  : "bg-semantic-surface-muted text-semantic-content-secondary"
+              }`}
+            >
+              {status}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+});
+
 const My99Studio = memo(function My99Studio({
   language,
   onBack,
@@ -358,6 +499,20 @@ const My99Studio = memo(function My99Studio({
   const handleGlassSelect = useCallback(
     (glassStyle: GlassStyle) => {
       updateDraft({ type: "setGlassStyle", value: glassStyle });
+    },
+    [updateDraft],
+  );
+
+  const handleMotionSelect = useCallback(
+    (motionStyle: MotionStyle) => {
+      updateDraft({ type: "setMotionStyle", value: motionStyle });
+    },
+    [updateDraft],
+  );
+
+  const handleReadingSelect = useCallback(
+    (readingSize: ReadingSize) => {
+      updateDraft({ type: "setReadingSize", value: readingSize });
     },
     [updateDraft],
   );
@@ -455,6 +610,8 @@ const My99Studio = memo(function My99Studio({
           data-personalization-preview-theme={draft.themeId}
           data-personalization-preview-hero-style={draft.heroStyle}
           data-personalization-preview-glass-style={draft.glassStyle}
+          data-personalization-preview-motion-style={draft.motionStyle}
+          data-personalization-preview-reading-size={draft.readingSize}
         >
           <div className="my99-main-preview-topbar">
             <span className="my99-main-preview-dot" />
@@ -477,6 +634,9 @@ const My99Studio = memo(function My99Studio({
               <div className="h-8 w-3/4 rounded-lg bg-semantic-content-primary/90" />
               <div className="mt-3 h-3 w-full rounded-full bg-semantic-content-subtle" />
               <div className="mt-2 h-3 w-5/6 rounded-full bg-semantic-content-subtle" />
+              <p className="personalization-reading-preview-body mt-4 max-w-[34rem] text-semantic-content-secondary">
+                {t("my99ReadingPreviewText")}
+              </p>
               <div className="mt-6 flex gap-2">
                 <span className="h-9 w-24 rounded-lg bg-semantic-action-accent" />
                 <span className="h-9 w-20 rounded-lg bg-semantic-surface-muted" />
@@ -610,6 +770,96 @@ const My99Studio = memo(function My99Studio({
               draftHeroStyle={draft.heroStyle}
               draftGlassStyle={draft.glassStyle}
               onSelect={() => handleGlassSelect(item.id)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section
+        className="mt-6"
+        aria-labelledby="my99-motion-heading"
+        aria-busy={hydration.phase === "loading"}
+      >
+        <div className="mb-3 flex items-start gap-2">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <div>
+            <h2
+              id="my99-motion-heading"
+              className="text-base font-semibold text-semantic-content-primary"
+            >
+              {t("my99MotionStyleTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-semantic-content-secondary">
+              {t("my99MotionStyleDescription")}
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid gap-3 sm:grid-cols-3"
+          role="radiogroup"
+          aria-labelledby="my99-motion-heading"
+        >
+          {PERSONALIZATION_MOTION_CATALOG.map((item) => (
+            <PreferenceCard
+              key={item.id}
+              item={item}
+              language={language}
+              name={t(item.nameKey)}
+              description={t(item.descriptionKey)}
+              isDraft={draft.motionStyle === item.id}
+              isCurrent={committed.motionStyle === item.id}
+              preview={
+                <MotionMiniPreview
+                  themeId={draft.themeId}
+                  motionStyle={item.id}
+                />
+              }
+              onSelect={() => handleMotionSelect(item.id)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section
+        className="mt-6"
+        aria-labelledby="my99-reading-heading"
+        aria-busy={hydration.phase === "loading"}
+      >
+        <div className="mb-3 flex items-start gap-2">
+          <Palette className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <div>
+            <h2
+              id="my99-reading-heading"
+              className="text-base font-semibold text-semantic-content-primary"
+            >
+              {t("my99ReadingSizeTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-semantic-content-secondary">
+              {t("my99ReadingSizeDescription")}
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid gap-3 sm:grid-cols-3"
+          role="radiogroup"
+          aria-labelledby="my99-reading-heading"
+        >
+          {PERSONALIZATION_READING_CATALOG.map((item) => (
+            <PreferenceCard
+              key={item.id}
+              item={item}
+              language={language}
+              name={t(item.nameKey)}
+              description={t(item.descriptionKey)}
+              isDraft={draft.readingSize === item.id}
+              isCurrent={committed.readingSize === item.id}
+              preview={
+                <ReadingMiniPreview
+                  themeId={draft.themeId}
+                  readingSize={item.id}
+                />
+              }
+              onSelect={() => handleReadingSelect(item.id)}
             />
           ))}
         </div>

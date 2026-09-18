@@ -6,7 +6,7 @@ const usePresentationEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
- * Runtime owner for committed Hero Style and Glass Style presentation.
+ * Runtime owner for committed Hero, Glass, Motion, and Reading presentation.
  * Draft values stay inside My 99 until the provider reports a successful Apply.
  */
 export function PersonalizationPresentationBridge() {
@@ -18,8 +18,15 @@ export function PersonalizationPresentationBridge() {
       document.documentElement,
       committed.heroStyle,
       committed.glassStyle,
+      committed.motionStyle,
+      committed.readingSize,
     );
-  }, [committed.heroStyle, committed.glassStyle]);
+  }, [
+    committed.heroStyle,
+    committed.glassStyle,
+    committed.motionStyle,
+    committed.readingSize,
+  ]);
 
   return null;
 }

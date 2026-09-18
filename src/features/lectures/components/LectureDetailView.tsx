@@ -2342,7 +2342,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
         </span>
        <h3
          dir="auto"
-         className="text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-semantic-chrome-content-primary font-semibold leading-[1.58] sm:leading-[1.62] text-start"
+          className="personalization-reading-question text-[1.02rem] sm:text-[1.18rem] lg:text-[1.32rem] font-sans text-semantic-chrome-content-primary font-semibold leading-[1.58] sm:leading-[1.62] text-start"
          style={{ textWrap: "balance" }}
        >
          {filteredQuizQuestions[safeCurrentQuestionIndex].question}
@@ -2494,7 +2494,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="p-4 flex gap-3 text-start">
  <div className="w-2 rounded-full bg-gradient-to-b from-[#FF9500] to-[#FFCC00] shrink-0" />
  <div className="space-y-1 text-start flex-1">
- <p className="font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
+  <p className="personalization-reading-body font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
  {filteredQuizQuestions[safeCurrentQuestionIndex]?.explanation
  ? filteredQuizQuestions[safeCurrentQuestionIndex].explanation
  : isRtl
@@ -2606,7 +2606,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </span>
  </div>
 
- <p dir="auto" className="text-caption font-semibold text-neutral-800 dark:text-white mt-2 font-sans text-start">
+  <p dir="auto" className="personalization-reading-body text-caption font-semibold text-neutral-800 dark:text-white mt-2 font-sans text-start">
  {q.question}
  </p>
 
@@ -2629,7 +2629,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   <span className="font-semibold text-neutral-900 dark:text-white">
   {isRtl ? "الشرح:" : "Explanation:"}
   </span>{" "}
-  <span dir="auto">{verified?.explanation || q.explanation}</span>
+   <span dir="auto" className="personalization-reading-body">{verified?.explanation || q.explanation}</span>
   </div>
  </div>
  );
@@ -2909,7 +2909,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
                   <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
                     <div className="w-full max-w-[820px] px-1">
                       <h3 className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-semantic-chrome-content-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)]`}>
-                        {currentFlashcard?.front}
+                        <span className="personalization-reading-fluid">{currentFlashcard?.front}</span>
                       </h3>
                     </div>
                   </div>
@@ -2957,7 +2957,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
                   <div className="flex flex-1 items-center justify-center py-5 sm:py-7">
                     <div className="w-full max-w-[820px] px-1">
                       <div className={`${flashcardBodyTypography} font-medium tracking-normal text-center text-balance text-neutral-800 dark:text-white/92`}>
-                        {currentFlashcard?.back}
+                        <span className="personalization-reading-fluid">{currentFlashcard?.back}</span>
                       </div>
                     </div>
                   </div>
@@ -3681,7 +3681,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  </div>
  ) : (
- <p className="mt-1 font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
+ <p className="personalization-reading-body mt-1 font-sans text-caption text-neutral-700 dark:text-[var(--text-secondary)] font-normal">
  {ans.content}
  </p>
  )}
