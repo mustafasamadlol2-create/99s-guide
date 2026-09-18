@@ -91,6 +91,7 @@ import {
   ProfileView,
   ControlCenterView,
   SettingsView,
+  My99Studio,
   PrivacyPolicyView,
   TermsOfServiceView,
   SupportView,

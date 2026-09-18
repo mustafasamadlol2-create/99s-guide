@@ -22,6 +22,7 @@ import {
  X,
  Bell,
  BellOff,
+  Palette,
   FileText,
   LifeBuoy,
   Book,
@@ -39,6 +40,7 @@ interface SettingsViewProps {
  onPushAlertsChange: (val: boolean) => void;
   onAccountDeleted?: (confirmation: string) => Promise<boolean>;
   onNavigateToLegal?: (tab: "privacy" | "terms" | "support" | "disclaimer") => void;
+  onOpenMy99?: () => void;
 }
 
 const SettingsActionItem = memo(({
@@ -98,6 +100,7 @@ const SettingsView = function SettingsView({
  onPushAlertsChange,
  onAccountDeleted,
  onNavigateToLegal,
+  onOpenMy99,
 }: SettingsViewProps) {
  const { t } = useTranslation(language);
 
@@ -368,6 +371,23 @@ const SettingsView = function SettingsView({
  </div>
  </div>
  </div>
+
+  {/* My 99 personalization */}
+  <div className="bg-white dark:bg-[#2C2C2E] border border-neutral-200/40 dark:border-white/[0.10] p-4 rounded-lg shadow-elevation-1 space-y-1">
+  <SettingsActionItem
+   onClick={() => {
+    onOpenMy99?.();
+    HapticFeedback.selection();
+   }}
+   Icon={Palette}
+   title={t("my99EntryTitle")}
+   subtitle={t("my99EntryDescription")}
+   gradientFrom="from-indigo-50 dark:from-indigo-500/20"
+   gradientTo="to-indigo-100/50 dark:to-indigo-500/10"
+   iconColor="text-indigo-500 dark:text-indigo-400"
+   isRtl={isRtl}
+  />
+  </div>
 
  {/* 2. Privacy & Security */}
  <div className="bg-white dark:bg-[#2C2C2E] border border-neutral-200/40 dark:border-white/[0.10] p-4 rounded-lg shadow-elevation-1 space-y-1">

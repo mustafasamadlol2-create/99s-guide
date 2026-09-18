@@ -1,0 +1,2892 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 4 / PROMPT 15 OF ~22
+## MY 99 PERSONALIZATION STUDIO — FOUNDATION + THEME PACK UI
+### Settings Entry + Contained Draft Preview + 8 Theme Cards
+### Apply / Cancel / Reset
+### GLOBAL APP MUST CONTINUE TO FOLLOW COMMITTED ONLY
+### NO KV YET
+### NO HERO / GLASS / MOTION / READING / HOME CONTROLS YET
+
+Phase 0 is CLOSED AND APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 is CLOSED AND APPROVED.
+
+Phase 3 is CLOSED AND APPROVED.
+
+Final approved Phase-3 state:
+
+EIGHT-THEME PERSONALIZATION ENGINE: CLOSED AND APPROVED
+
+CLASSIC 99 FALLBACK: VERIFIED
+
+THEME RUNTIME: VERIFIED
+
+SEMANTIC COLOR BOUNDARIES: VERIFIED
+
+PHASE 4 MY 99 PERSONALIZATION STUDIO: APPROVED TO BEGIN
+
+Current ThemeIds:
+
+- classic-99
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Current runtime architecture:
+
+committed.themeId
+→ resolveVisualThemeId()
+→ data-app-theme
+→ CSS semantic tokens
+
+Critical approved behavior:
+
+- Global app follows COMMITTED only.
+- Draft is globally visually inert.
+- Apply persists transactionally and commits only after persistence succeeds.
+- Cancel restores Draft from Committed.
+- Reset restores Classic 99 defaults into Draft and DOES NOT persist automatically.
+- Classic 99 is the safe CSS fallback.
+- Light/Dark/System remains separate and device-local.
+- No KV yet.
+- No SQL personalization storage.
+- No D1/R2 personalization storage.
+
+Prompt 15 exposes this existing architecture safely to the user.
+
+---
+
+# 1. PRIMARY GOAL
+
+Create the first production-facing version of:
+
+# My 99
+
+inside Settings.
+
+Prompt 15 must provide:
+
+1. A Settings entry for My 99.
+2. A dedicated My 99 Personalization Studio page.
+3. A contained Draft Preview.
+4. Eight Theme Pack cards.
+5. Clear Current vs Draft-selected state.
+6. Apply button.
+7. Cancel button.
+8. Reset to Classic 99 button.
+9. English + Arabic localization.
+10. Responsive iPhone / iPad / desktop presentation.
+11. Accessibility and keyboard support.
+12. ZERO global theme change until successful Apply.
+
+This is UI exposure of EXISTING personalization functionality.
+
+Do not create new product/study features.
+
+---
+
+# 2. PROMPT 15 FEATURE SCOPE
+
+The ONLY editable personalization field exposed in Prompt 15 is:
+
+themeId
+
+Do NOT expose controls yet for:
+
+- heroStyle
+- glassStyle
+- motionStyle
+- readingSize
+- home.subjectOrder
+- App Icon
+
+Those remain stored in the contract but hidden from the UI for now.
+
+---
+
+# 3. SETTINGS ENTRY POSITION
+
+Audit the actual current Settings structure first.
+
+Add My 99 in the Settings hierarchy:
+
+AFTER:
+
+Account & System Preferences
+
+and BEFORE:
+
+Privacy & Security
+
+or the exact equivalent groups in the actual current repository.
+
+Do NOT reorder unrelated Settings items.
+
+Do NOT redesign Settings.
+
+---
+
+# 4. SETTINGS ENTRY CONTENT
+
+Add one clear Settings row/card:
+
+Title:
+
+My 99
+
+Recommended subtitle concept:
+
+Personalize the look and feel of 99's Guide.
+
+Use professional Arabic localization.
+
+Suggested Arabic meaning:
+
+خصّص مظهر 99's Guide بما يناسبك
+
+Use the repository's existing localization architecture and terminology.
+
+Do not hardcode a parallel translation system.
+
+---
+
+# 5. SETTINGS ENTRY ICON
+
+Use one existing Lucide icon appropriate for personalization.
+
+Preferred examples:
+
+Palette
+or
+Sparkles
+
+Choose ONE based on the existing Settings icon style.
+
+Do not add an icon library.
+
+Do not use a multicolor custom asset.
+
+---
+
+# 6. SETTINGS NAVIGATION ARCHITECTURE
+
+Audit how existing Settings subpages are opened.
+
+Use the CURRENT Settings/navigation architecture.
+
+Do NOT introduce a new router system merely for My 99.
+
+If Settings currently uses:
+
+- internal page state
+- route IDs
+- subview stack
+- App-level view IDs
+
+follow that pattern exactly.
+
+Do NOT modify unrelated navigation behavior.
+
+---
+
+# 7. MOBILE PAGE BEHAVIOR
+
+On iPhone/mobile:
+
+My 99 should behave like the existing production Settings subpages.
+
+Use the same:
+
+- full-page model
+- header architecture
+- safe areas
+- swipe-back behavior
+- page stacking
+- underlay
+- navigation transition
+
+Do NOT write a new swipe-back implementation.
+
+---
+
+# 8. IPAD / DESKTOP PAGE BEHAVIOR
+
+Follow current Settings responsive behavior.
+
+Do NOT alter:
+
+- Sidebar width
+- Settings split layout
+- desktop page width
+- safe areas
+- scroll ownership
+- top header dimensions
+
+My 99 should fit naturally into the existing Settings architecture.
+
+---
+
+# 9. PAGE TITLE
+
+Primary title:
+
+My 99
+
+Suggested subtitle:
+
+Make 99's Guide feel like yours.
+
+Use a professional Arabic equivalent.
+
+Do not overfill the header.
+
+---
+
+# 10. APPEARANCE IS NOT THEME PACK
+
+Do NOT move or duplicate the existing:
+
+Light
+Dark
+System
+
+Appearance control.
+
+The existing Appearance setting stays where it currently lives.
+
+My 99 Theme Pack is a separate axis.
+
+The Studio may show a small explanatory note:
+
+Preview follows your current Light/Dark appearance.
+
+Arabic equivalent required.
+
+Do NOT add another Light/Dark/System selector here.
+
+---
+
+# 11. THEME PACK SECTION
+
+Create a section titled:
+
+Theme Pack
+
+Arabic equivalent required.
+
+Render ALL eight canonical themes in this exact order:
+
+1. Classic 99
+2. Midnight
+3. Ocean
+4. Emerald
+5. Rose
+6. Amber
+7. Violet
+8. Monochrome
+
+Order must come from stable metadata, not accidental object iteration.
+
+---
+
+# 12. THEME DISPLAY METADATA
+
+Create a small typed UI metadata layer if needed.
+
+Recommended:
+
+src/features/personalization/personalizationCatalog.ts
+
+It may contain:
+
+- ThemeId
+- translation key for name
+- translation key for description
+- stable display order
+
+It must NOT contain:
+
+- palette hex values
+- CSS colors
+- duplicate token definitions
+
+CSS remains the palette source of truth.
+
+---
+
+# 13. THEME NAMES
+
+User-facing English names:
+
+Classic 99
+Midnight
+Ocean
+Emerald
+Rose
+Amber
+Violet
+Monochrome
+
+Use professional Arabic translations/transliterations consistent with the app.
+
+Do not change the underlying ThemeId strings.
+
+---
+
+# 14. THEME DESCRIPTIONS
+
+Each card may have ONE short description.
+
+Keep descriptions restrained.
+
+Suggested semantic direction:
+
+Classic 99
+Original 99's Guide look
+
+Midnight
+Deep indigo focus
+
+Ocean
+Calm blue-teal
+
+Emerald
+Fresh green-teal
+
+Rose
+Warm refined rose
+
+Amber
+Scholarly bronze warmth
+
+Violet
+Deep polished violet
+
+Monochrome
+Minimal grayscale focus
+
+Translate professionally to Arabic.
+
+Descriptions are presentation copy only.
+
+---
+
+# 15. CARD INTERACTION MODEL
+
+Each Theme card changes:
+
+DRAFT.themeId
+
+ONLY.
+
+Clicking/tapping a card must NOT:
+
+- call Apply
+- write storage
+- mutate `data-app-theme`
+- reload
+- remount
+- change committed config
+
+The global app remains on the committed theme.
+
+---
+
+# 16. ACCESSIBLE THEME SELECTION
+
+The Theme Pack cards should behave as one accessible single-selection group.
+
+Preferred semantics:
+
+radiogroup
++
+radio-like cards
+
+or another equivalent accessible existing pattern.
+
+Support:
+
+- keyboard focus
+- Enter/Space
+- clear focus-visible
+- screen-reader selected state
+
+Do not use click-only divs.
+
+---
+
+# 17. DRAFT-SELECTED STATE
+
+The card corresponding to:
+
+draft.themeId
+
+must have a clear selected presentation.
+
+Use existing semantic theme presentation where possible.
+
+Recommended cues:
+
+- visible border/ring
+- checkmark
+- `aria-checked` / equivalent
+
+Do not rely on color alone.
+
+---
+
+# 18. CURRENT / COMMITTED STATE
+
+The card corresponding to:
+
+committed.themeId
+
+must be identifiable independently of Draft selection.
+
+This is important when:
+
+Committed = Ocean
+Draft = Rose
+
+Expected:
+
+Ocean
+→ Current / Applied indicator
+
+Rose
+→ Draft-selected/check indicator
+
+Do not confuse the two states.
+
+Use concise labels.
+
+English concepts:
+
+Current
+Selected
+
+Arabic equivalents required.
+
+---
+
+# 19. SAME CURRENT + DRAFT
+
+If:
+
+committed.themeId === draft.themeId
+
+the card should not display confusing duplicate badges.
+
+Use one coherent visual treatment.
+
+For example:
+
+checkmark
++
+small Current indicator
+
+or an equivalent accessible pattern.
+
+Do not visually clutter the card.
+
+---
+
+# 20. CONTAINED DRAFT PREVIEW — REQUIRED
+
+Create a contained preview area inside My 99.
+
+The preview reflects:
+
+draft.themeId
+
+NOT committed.themeId.
+
+This is the ONLY place where Draft may be rendered visually before Apply.
+
+The global application must remain committed.
+
+---
+
+# 21. PREVIEW ATTRIBUTE
+
+Use a separate scoped preview attribute.
+
+Recommended exact name:
+
+data-personalization-preview-theme
+
+Example:
+
+<div data-personalization-preview-theme="rose">
+
+Do NOT use:
+
+data-app-theme
+
+inside preview cards.
+
+`data-app-theme` remains reserved for the GLOBAL committed theme on `<html>`.
+
+---
+
+# 22. PREVIEW CSS ARCHITECTURE
+
+The preview must use the SAME actual semantic palette values as the production themes.
+
+Do NOT create a JavaScript palette object.
+
+Do NOT hardcode theme colors into React.
+
+Do NOT create a second TS palette.
+
+Preferred architecture:
+
+extend the existing CSS theme selector lists so the same declaration block also scopes to the preview attribute.
+
+Conceptually:
+
+:root[data-app-theme="ocean"],
+[data-personalization-preview-theme="ocean"] {
+  ... SAME Ocean Light 29 declarations ...
+}
+
+.dark[data-app-theme="ocean"],
+.dark [data-personalization-preview-theme="ocean"] {
+  ... SAME Ocean Dark declarations ...
+}
+
+This keeps one CSS declaration block per theme/appearance.
+
+Apply equivalent preview scoping to:
+
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Do not duplicate their value blocks.
+
+---
+
+# 23. CLASSIC 99 PREVIEW — CRITICAL
+
+Classic 99 is the unscoped runtime base.
+
+However, a contained Classic preview must still work when the GLOBAL committed theme is an alternate theme.
+
+Example:
+
+Global committed = Rose
+Draft preview = Classic 99
+
+The preview must show Classic 99, not inherit Rose.
+
+Implement a safe Classic preview scope.
+
+PREFERRED:
+
+If the 29 Classic themeable variables are already isolated cleanly, use one selector-list declaration block such as:
+
+:root,
+[data-personalization-preview-theme="classic-99"] {
+  ... Classic Light themeable variables ...
+}
+
+and the corresponding Dark block.
+
+BUT:
+
+Do NOT accidentally apply unrelated root-only variables to preview containers.
+
+If the existing `:root` block contains mixed unrelated/fixed variables:
+
+do NOT blindly add the preview selector to the entire root block.
+
+Instead:
+
+- isolate ONLY the 29 themeable Classic variables into an exact shared declaration block,
+- preserve all values,
+- preserve cascade order,
+- leave fixed/root-only variables in their existing appropriate scope.
+
+No visual Classic change is allowed.
+
+---
+
+# 24. CLASSIC PREVIEW FALLBACK OPTION
+
+If restructuring the Classic declaration block would materially increase risk:
+
+a narrowly-scoped Classic preview mirror is acceptable ONLY as a last resort.
+
+If used:
+
+- CSS remains the only value source
+- values must exactly equal current Classic 29 values
+- add an automated parity test
+- report the duplication explicitly
+
+Preferred outcome remains no duplicated values.
+
+---
+
+# 25. PREVIEW FOLLOWS CURRENT APPEARANCE
+
+Prompt 15 does NOT add Light/Dark controls to preview.
+
+The contained preview follows the current application appearance.
+
+If `html.dark` is present:
+
+preview uses each theme's Dark values.
+
+If not:
+
+preview uses Light values.
+
+This keeps:
+
+Appearance
+and
+Theme Pack
+
+orthogonal.
+
+---
+
+# 26. PREVIEW MUST NOT MUTATE html.dark
+
+The preview does not change:
+
+- `app_theme`
+- `html.dark`
+- OS appearance
+- System mode
+
+It simply responds to the existing appearance state.
+
+---
+
+# 27. PREVIEW CONTENT
+
+The Draft Preview should be a stylized MINIATURE of generic 99's Guide presentation.
+
+Do NOT insert fake study/product features.
+
+Use abstract presentation primitives only, for example:
+
+- small hero/header surface
+- title bars
+- elevated card
+- secondary text lines
+- active navigation pill
+- muted surface
+- generic accent button/indicator
+
+Do not invent:
+
+- fake lectures
+- fake exams
+- fake grades
+- fake recommendations
+- fake progress data
+- fake Quick Actions
+
+This is a visual theme specimen, not a dashboard.
+
+---
+
+# 28. PREVIEW SEMANTIC TOKENS
+
+The preview primitives must use existing semantic utilities/tokens such as:
+
+- background-page
+- surface-elevated
+- surface-muted
+- content-primary
+- content-secondary
+- border-default
+- action-accent
+- action-accent-soft
+- navigation active
+- glass
+
+Do not hardcode per-theme colors.
+
+---
+
+# 29. PREVIEW FIXED SEMANTIC SAMPLE
+
+Optional but useful:
+
+include a very small noninteractive semantic strip showing:
+
+success
+warning
+error
+
+ONLY if it uses the existing FIXED semantic tokens.
+
+Purpose:
+
+visually demonstrate that semantic statuses remain unchanged across Theme Packs.
+
+Do not add academic content.
+
+Do not make this dominant.
+
+If it complicates the UI:
+omit it.
+
+---
+
+# 30. THEME CARD MINI PREVIEWS
+
+Each Theme card should visually communicate its palette.
+
+Preferred:
+
+use the same contained preview attribute on the Theme card or an inner miniature specimen.
+
+This allows all 8 theme cards to display their own palette simultaneously while the global app remains committed.
+
+Again:
+
+NO React color objects.
+
+NO hardcoded Theme Pack colors.
+
+---
+
+# 31. RESPONSIVE THEME GRID
+
+Use a responsive layout appropriate to actual Settings width.
+
+Target behavior:
+
+iPhone:
+2 cards per row where practical
+
+iPad:
+3–4 cards per row depending on available width
+
+Desktop:
+3–4 cards per row
+
+Do NOT force these numbers if actual Settings container width makes them poor.
+
+Use responsive grid based on current design system.
+
+---
+
+# 32. CARD GEOMETRY
+
+Theme cards should feel premium but compact.
+
+Do not make them huge.
+
+Maintain:
+
+- consistent aspect
+- readable theme name
+- enough preview visibility
+- comfortable touch target
+
+Do not alter app-global typography or radius tokens.
+
+---
+
+# 33. NO USER COLOR PICKER
+
+Do NOT add:
+
+- arbitrary color picker
+- hex input
+- gradient editor
+- custom theme builder
+
+Curated Theme Packs only.
+
+---
+
+# 34. ACTION AREA
+
+Add a clear Studio action area with:
+
+- Reset
+- Cancel
+- Apply
+
+Use existing button patterns.
+
+Do not invent an unrelated control system.
+
+---
+
+# 35. APPLY BUTTON
+
+Apply must call the EXISTING personalization Apply operation.
+
+Do NOT create a second persistence implementation.
+
+Expected:
+
+Draft changed
+→ user presses Apply
+→ exactly one persistence write
+→ if success, committed updates
+→ ThemeBridge changes global app theme
+→ isDirty false
+
+---
+
+# 36. APPLY DISABLED STATE
+
+Apply should be disabled when:
+
+- `isDirty === false`
+- Apply is already in progress
+- existing runtime indicates personalization is unavailable/not ready, if such a state exists
+
+Do not allow double-submit.
+
+---
+
+# 37. APPLY LOADING STATE
+
+Use a subtle existing loading state.
+
+Do not alter button geometry dramatically.
+
+No spinner library.
+
+Use existing project pattern.
+
+---
+
+# 38. APPLY SUCCESS
+
+On successful Apply:
+
+- committed updates
+- global theme updates automatically through ThemeBridge
+- Draft remains aligned with committed
+- isDirty false
+- Current indicator moves to new theme
+
+A concise success toast is acceptable using the existing toast system.
+
+Suggested English:
+
+Personalization applied.
+
+Professional Arabic equivalent required.
+
+Do not reload.
+
+---
+
+# 39. APPLY FAILURE
+
+On persistence failure:
+
+- committed remains unchanged
+- global theme remains unchanged
+- Draft remains user's selection
+- isDirty remains true
+- Current indicator remains old theme
+- Draft selected indicator remains new theme
+
+Show concise existing-style error feedback.
+
+Suggested English:
+
+Couldn't apply your changes. Try again.
+
+Arabic equivalent required.
+
+No false success.
+
+---
+
+# 40. CANCEL BUTTON
+
+Cancel uses the EXISTING Cancel state operation.
+
+Expected:
+
+draft ← committed
+isDirty → false
+
+No persistence write.
+
+No global theme mutation required because global theme already follows committed.
+
+Preview immediately returns to committed theme.
+
+---
+
+# 41. RESET BUTTON
+
+Reset must use the EXISTING reset-to-defaults Draft operation.
+
+Expected:
+
+draft → DEFAULT_PERSONALIZATION_CONFIG
+
+which includes:
+
+themeId = classic-99
+
+But:
+
+Reset does NOT persist.
+
+Reset does NOT commit.
+
+Reset does NOT change global theme.
+
+It only changes the contained Draft Preview and Draft controls.
+
+---
+
+# 42. RESET WHEN COMMITTED IS ALTERNATE
+
+Example:
+
+Committed:
+Violet
+
+User presses Reset.
+
+Expected:
+
+Global application:
+Violet
+
+Draft preview:
+Classic 99
+
+isDirty:
+true
+
+Apply:
+enabled
+
+Only after successful Apply:
+
+Global:
+Classic 99
+
+data-app-theme removed
+
+---
+
+# 43. RESET CONFIRMATION
+
+Do NOT add a confirmation modal in Prompt 15 unless the existing Settings pattern clearly requires it.
+
+Reset is still Draft-only and reversible with Cancel.
+
+Therefore confirmation is not necessary.
+
+---
+
+# 44. CANCEL AFTER RESET
+
+Example:
+
+Committed Violet
+Reset → Draft Classic
+Cancel
+
+Expected:
+
+Committed Violet
+Draft Violet
+Global Violet
+isDirty false
+
+Mandatory test.
+
+---
+
+# 45. NAVIGATING AWAY WITH DIRTY DRAFT
+
+Do NOT auto-apply.
+
+Do NOT silently persist.
+
+Do NOT add a complex navigation blocker in Prompt 15.
+
+Default behavior:
+
+Draft may remain in provider memory if user leaves My 99 and returns during the same authenticated session.
+
+Global app remains committed.
+
+Explicit Cancel discards Draft.
+
+Logout/account switch continues to reset according to existing runtime architecture.
+
+Report actual implemented behavior.
+
+---
+
+# 46. PAGE REOPEN
+
+If the user leaves My 99 with unsaved Draft and returns in the same session:
+
+show the current Draft state if the provider still contains it.
+
+Do not recreate Draft from committed on every page mount.
+
+The provider owns state.
+
+---
+
+# 47. NO MOUNT RESET
+
+My 99 component must NOT call:
+
+cancel()
+reset()
+hydrate()
+load()
+
+on mount merely to initialize itself.
+
+It consumes existing provider state.
+
+This is critical.
+
+---
+
+# 48. PROVIDER API
+
+Use the existing personalization context/runtime API.
+
+Do NOT duplicate:
+
+- committed
+- draft
+- isDirty
+- updateDraft
+- apply
+- cancel
+- reset
+
+in local component state except ephemeral UI state such as:
+
+- apply pending
+- temporary toast handling if necessary
+
+Theme choice itself belongs to Draft.
+
+---
+
+# 49. APPLY PENDING OWNERSHIP
+
+If the provider already exposes Apply pending status:
+use it.
+
+If not:
+
+a local UI pending boolean around the async Apply call is acceptable.
+
+Do not modify provider architecture solely for button cosmetics unless necessary.
+
+---
+
+# 50. NO DIRECT STORAGE ACCESS FROM UI
+
+The My 99 page must NOT directly call:
+
+localStorage
+Capacitor Preferences
+personalizationStorage
+
+It talks to the approved provider/runtime abstraction.
+
+---
+
+# 51. NO DIRECT DOM THEME MUTATION FROM UI
+
+The Studio must NEVER call:
+
+setAttribute("data-app-theme", ...)
+removeAttribute("data-app-theme")
+style.setProperty(...)
+
+Global theme remains owned by:
+
+PersonalizationThemeBridge
+
+Contained preview is declarative through its preview attribute only.
+
+---
+
+# 52. PREVIEW ATTRIBUTE IS LOCAL ONLY
+
+`data-personalization-preview-theme`
+
+may appear only in the Personalization Studio preview/theme-card subtree and CSS preview scopes.
+
+It is NOT persistence state.
+
+It is NOT a global theme mechanism.
+
+It is derived directly from the Draft/card ThemeId.
+
+---
+
+# 53. NO NEW PERSISTED FIELDS
+
+Do not change:
+
+PersonalizationConfigV1
+
+No schema version bump.
+
+No additional theme-preview property.
+
+No UI state persisted for:
+
+selected card
+preview
+open section
+scroll position
+
+---
+
+# 54. LOCALIZATION
+
+All new user-visible strings require:
+
+English
+Arabic
+
+including:
+
+- My 99
+- subtitle
+- Theme Pack
+- Preview
+- Preview follows appearance note
+- theme names/descriptions where localized
+- Current
+- Selected if shown
+- Apply
+- Cancel
+- Reset
+- success/error feedback
+- unsaved changes indicator if shown
+
+Use existing i18n implementation.
+
+---
+
+# 55. RTL
+
+Arabic My 99 UI must correctly support:
+
+- card text
+- action area
+- labels
+- header/back navigation
+- grid
+- checkmark/badge placement
+- preview layout
+
+Do NOT manually reverse theme order.
+
+Canonical theme order remains the same logical order.
+
+Let existing RTL layout rules handle direction where appropriate.
+
+---
+
+# 56. ARABIC THEME NAMES
+
+Do not translate underlying IDs.
+
+Only display labels.
+
+Keep them professional and recognizable.
+
+Do not create slang labels.
+
+---
+
+# 57. ACCESSIBILITY
+
+Required:
+
+- semantic heading hierarchy
+- theme selection accessible as single choice
+- selected state not color-only
+- Current state not color-only
+- visible focus
+- keyboard navigation
+- Apply disabled semantics
+- loading state announced where existing patterns permit
+- preview not required to be individually screen-reader navigable
+
+Decorative miniature preview may use:
+
+aria-hidden="true"
+
+provided the theme card itself has an accessible name/description.
+
+---
+
+# 58. REDUCED MOTION
+
+Do not introduce required animation.
+
+If subtle card/preview transitions are used:
+
+they must respect the existing reduced-motion architecture.
+
+Do NOT wire `motionStyle`.
+
+---
+
+# 59. PREVIEW TRANSITIONS
+
+Keep any theme-preview transition subtle.
+
+No:
+
+- bouncing
+- spinning
+- large scale
+- page reload
+- cross-app flash
+
+A simple color/surface transition is sufficient if already supported.
+
+No transition is also acceptable.
+
+---
+
+# 60. CURRENT APP MUST NOT FLASH DRAFT THEME
+
+When clicking rapidly:
+
+Ocean
+Rose
+Amber
+Violet
+
+only the contained preview/cards may change.
+
+The global app/root must remain the committed Theme Pack.
+
+Mandatory source/runtime test.
+
+---
+
+# 61. LIGHT/DARK PREVIEW
+
+If app appearance changes while My 99 is open:
+
+the preview should naturally switch Light/Dark through CSS ancestor state.
+
+No extra React synchronization should be needed.
+
+Do not duplicate Appearance state inside the Studio.
+
+---
+
+# 62. PREVIEW UNDER ALTERNATE GLOBAL THEME
+
+Mandatory scenario:
+
+Global committed:
+Emerald
+
+Draft:
+Rose
+
+Expected:
+
+Outer My 99 page:
+Emerald
+
+Contained Draft Preview:
+Rose
+
+Other Theme cards:
+each shows its own theme
+
+This proves preview scoping is correctly isolated.
+
+---
+
+# 63. CLASSIC PREVIEW UNDER ALTERNATE GLOBAL THEME
+
+Mandatory:
+
+Global:
+Midnight
+
+Draft:
+Classic 99
+
+Expected:
+
+Outer Studio:
+Midnight
+
+Contained preview:
+Classic 99
+
+Classic preview must NOT inherit Midnight semantic variables.
+
+---
+
+# 64. NESTING SAFETY
+
+Preview-scoped custom properties must remain contained to their preview subtree.
+
+They must not leak to:
+
+- sibling cards
+- Studio header
+- action area
+- global Settings shell
+- root document
+
+---
+
+# 65. FIXED SEMANTIC PREVIEW SAFETY
+
+Theme preview scopes should override ONLY the 29 THEMEABLE tokens.
+
+They must NOT override fixed semantics.
+
+This ensures even preview examples using fixed status colors remain fixed.
+
+---
+
+# 66. PREVIEW SELECTOR TEST
+
+Add a test verifying every theme has a valid contained preview scope.
+
+For all eight ThemeIds:
+
+- Light preview scope exists
+- Dark preview behavior exists
+- exact 29 themeable roles resolve
+- fixed semantics excluded
+
+For Classic:
+ensure preview values match Classic runtime values exactly.
+
+---
+
+# 67. PREVIEW NO DUPLICATION TEST
+
+Where selector-list reuse is used:
+
+verify alternate theme values are not duplicated in separate preview declaration blocks.
+
+For Classic:
+
+report exact architecture.
+
+If Classic duplication was unavoidable:
+strict parity test mandatory.
+
+---
+
+# 68. THEME CARD DATA TEST
+
+Verify UI metadata contains exactly:
+
+classic-99
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+in canonical order.
+
+No hidden theme.
+
+No missing theme.
+
+No palette values in UI metadata.
+
+---
+
+# 69. SETTINGS ORDER TEST
+
+Where maintainable:
+
+add source-level invariant verifying My 99 is located in Settings after the existing Account/System area and before Privacy/Security.
+
+Do not create a brittle whole-file snapshot.
+
+---
+
+# 70. SETTINGS FUNCTIONAL SAFETY
+
+Adding My 99 must not alter:
+
+- Appearance
+- Language
+- alerts
+- support
+- privacy
+- security
+- blocked users
+- reports
+- logout
+- delete account
+
+No Settings business behavior change.
+
+---
+
+# 71. BACK NAVIGATION SAFETY
+
+My 99 must use existing back navigation.
+
+Do NOT alter:
+
+- global swipe back
+- header-only swipe rules
+- page stack
+- route history
+- transition layering
+
+Test existing navigation suite.
+
+---
+
+# 72. PROFILE / NOTIFICATIONS SAFETY
+
+No direct edits expected.
+
+Do not reopen them.
+
+---
+
+# 73. HOME SAFETY
+
+No Home modifications.
+
+Theme changes already propagate through semantic tokens after Apply.
+
+No Home customization yet.
+
+---
+
+# 74. HERO STYLE
+
+Still unwired.
+
+The Studio must NOT show Hero Style controls yet.
+
+Do not show disabled placeholders.
+
+Only expose implemented controls.
+
+---
+
+# 75. GLASS STYLE
+
+Still unwired.
+
+No controls/placeholders.
+
+---
+
+# 76. MOTION STYLE
+
+Still unwired.
+
+No controls/placeholders.
+
+---
+
+# 77. READING SIZE
+
+Still unwired.
+
+No controls/placeholders.
+
+---
+
+# 78. HOME SUBJECT ORDER
+
+Still unwired.
+
+No controls/placeholders.
+
+---
+
+# 79. APP ICONS
+
+Still not implemented.
+
+No App Icon section or placeholder in Prompt 15.
+
+---
+
+# 80. NO "COMING SOON" CLUTTER
+
+Do NOT add cards for future options labeled Coming Soon.
+
+My 99 should expose only working production controls.
+
+---
+
+# 81. NO PRESETS YET
+
+Do not add:
+
+Classic preset
+Night Study
+Minimal
+Fresh
+
+Presets remain later work.
+
+---
+
+# 82. NO ARBITRARY BACKGROUND
+
+No user uploads.
+
+No background picker.
+
+No image picker.
+
+---
+
+# 83. NO CUSTOM FONT
+
+No font picker.
+
+No arbitrary typography customization.
+
+---
+
+# 84. NO BOTTOM NAV CUSTOMIZATION
+
+No icon/order/visibility controls.
+
+---
+
+# 85. NO KV
+
+Still:
+
+NO KV.
+
+No Cloudflare Worker.
+
+No Render personalization endpoint.
+
+No network sync.
+
+---
+
+# 86. CURRENT PERSISTENCE MODEL
+
+Apply continues to persist through the EXISTING account-scoped LOCAL personalization storage.
+
+Do not describe it in UI as cloud-synced.
+
+Do not display misleading "Synced" labels.
+
+---
+
+# 87. NO SQL / D1 / R2
+
+No backend/storage architecture change.
+
+---
+
+# 88. NO AUTH CHANGE
+
+No authentication changes.
+
+---
+
+# 89. NO APP.TSX BUSINESS CHANGE
+
+If App.tsx must change only to expose a My 99 Settings subview:
+
+keep the diff minimal.
+
+No:
+
+- auth change
+- provider change
+- routing architecture rewrite
+- page stack rewrite
+- gesture rewrite
+- theme bridge rewrite
+
+Prefer existing Settings navigation ownership.
+
+---
+
+# 90. EXPECTED NEW FILES
+
+Likely useful files may include:
+
+src/features/personalization/components/PersonalizationStudio.tsx
+
+src/features/personalization/components/ThemePackCard.tsx
+
+src/features/personalization/components/ThemePreview.tsx
+
+src/features/personalization/personalizationCatalog.ts
+
+tests/personalization-studio.test.ts
+
+Actual organization should follow repository conventions.
+
+Do NOT place everything in one giant component.
+
+---
+
+# 91. FILE SIZE DISCIPLINE
+
+Avoid another large monolithic file.
+
+PersonalizationStudio should orchestrate.
+
+ThemePackCard should own one card.
+
+ThemePreview should own the visual specimen.
+
+Metadata should remain separate.
+
+Keep modules focused.
+
+---
+
+# 92. EXPECTED MODIFIED FILES
+
+Likely:
+
+SettingsView.tsx
+localization resource(s)
+src/index.css
+
+and possibly minimal navigation/type files required by current Settings architecture.
+
+Do not touch feature files unrelated to Settings/Personalization.
+
+---
+
+# 93. NO FEATURE THEME EDITS
+
+Do not modify:
+
+Calendar
+Lecture
+MCQ
+Flashcards
+Modules
+Profile
+Notifications
+Home
+Console
+Auth
+
+for Theme Pack styling.
+
+Theme engine is already complete.
+
+---
+
+# 94. PREVIEW CSS MUST NOT ALTER RUNTIME ATTRIBUTE CONTRACT
+
+Global Theme Pack remains:
+
+data-app-theme
+
+Contained Studio preview remains:
+
+data-personalization-preview-theme
+
+Keep them strictly separate.
+
+---
+
+# 95. THEME ENGINE REGRESSION
+
+All Prompt 12/13/14 theme-engine tests must continue passing.
+
+The Preview CSS extension must not change:
+
+- runtime attribute behavior
+- theme values
+- contrast
+- Classic fallback
+- fixed semantics
+- selector safety outside the explicit approved preview scope
+
+Update closure tests to recognize the intentional preview selectors rather than falsely classifying them as feature-specific hacks.
+
+---
+
+# 96. SELECTOR SAFETY UPDATE
+
+Phase-3 tests previously allowed only:
+
+:root[data-app-theme="theme"]
+.dark[data-app-theme="theme"]
+
+Prompt 15 intentionally introduces preview scopes.
+
+Update tests carefully so the ONLY new allowed theme selectors are:
+
+[data-personalization-preview-theme="<theme>"]
+
+and corresponding Dark descendant form.
+
+Do NOT loosen the rule into allowing arbitrary theme-specific selectors.
+
+Explicit allowlist only.
+
+---
+
+# 97. NO FEATURE-SPECIFIC PREVIEW SELECTORS
+
+Forbidden:
+
+[data-personalization-preview-theme="rose"] .theme-card-title
+[data-personalization-preview-theme="ocean"] .preview-button
+
+The preview should consume generic semantic tokens through normal child utilities.
+
+Theme scope declares variables only.
+
+---
+
+# 98. STUDIO OUTER SURFACE
+
+The Studio page itself follows COMMITTED theme, like the rest of the app.
+
+Do not wrap the whole Studio in Draft preview scope.
+
+Only:
+
+- dedicated preview specimen
+- individual Theme card miniature specimen
+
+may use preview scopes.
+
+---
+
+# 99. CURRENT VS PREVIEW EXAMPLE
+
+If:
+
+Committed = Emerald
+Draft = Violet
+
+Expected:
+
+Settings shell:
+Emerald
+
+My 99 page:
+Emerald
+
+Action area:
+Emerald
+
+Theme card UI chrome:
+Emerald
+
+Contained main preview:
+Violet
+
+Violet card miniature:
+Violet
+
+Ocean card miniature:
+Ocean
+
+Classic card miniature:
+Classic
+
+No cross-scope leakage.
+
+---
+
+# 100. APPLY RESULT
+
+After Apply succeeds:
+
+Committed becomes Violet.
+
+Global ThemeBridge:
+
+data-app-theme="violet"
+
+The Studio outer page transitions naturally to Violet because it is part of the global app.
+
+The Draft preview remains Violet.
+
+No route reset.
+
+No scroll reset.
+
+No component remount.
+
+---
+
+# 101. SCROLL SAFETY
+
+Applying a Theme Pack while My 99 is open must not unexpectedly reset Studio scroll position.
+
+No theme key/remount.
+
+Test/source-audit this.
+
+---
+
+# 102. FOCUS SAFETY AFTER APPLY
+
+Applying theme should not unnecessarily lose focus because of a remount.
+
+Do not rebuild the entire page tree.
+
+---
+
+# 103. IOS/IPADOS SAFE AREAS
+
+Use existing Settings page safe-area architecture.
+
+No new:
+
+100vh hacks
+manual inset constants
+fixed bottom padding hacks
+
+unless the existing Settings shell requires them.
+
+---
+
+# 104. ACTION BAR MOBILE SAFETY
+
+If using a sticky action area:
+
+ensure it:
+
+- respects bottom safe area
+- does not overlap app bottom navigation where that navigation exists
+- follows existing Settings subpage full-page rules
+- does not introduce scroll blank space
+
+Prefer existing project patterns.
+
+---
+
+# 105. ACTION AREA DESKTOP
+
+On desktop/iPad:
+
+do not stretch action buttons absurdly across large widths.
+
+Use the existing content width/layout conventions.
+
+---
+
+# 106. BUTTON ORDER
+
+Use platform-appropriate clear hierarchy.
+
+Suggested:
+
+Reset
+Cancel
+Apply
+
+with Apply visually primary.
+
+Do not style Reset as destructive red.
+
+Reset is not destructive persistence until Apply.
+
+---
+
+# 107. RESET VISUAL ROLE
+
+Reset should be neutral/secondary.
+
+Do NOT use:
+
+action-destructive
+
+for Reset.
+
+It merely changes Draft.
+
+---
+
+# 108. CANCEL VISUAL ROLE
+
+Cancel is neutral/secondary.
+
+Apply is generic primary action.
+
+---
+
+# 109. UNSAVED CHANGES INDICATOR
+
+A subtle indicator is acceptable when `isDirty`.
+
+Suggested concept:
+
+Unsaved changes
+
+Arabic equivalent required.
+
+Do not create a blocking warning banner.
+
+Keep it subtle.
+
+---
+
+# 110. NO MODAL FOR BASIC THEME SELECTION
+
+Use the dedicated Studio page.
+
+Do not make Theme Pack selection a modal or bottom sheet.
+
+---
+
+# 111. PERFORMANCE
+
+Eight preview cards + one main preview must be lightweight.
+
+Do not:
+
+- mount full app screens inside each card
+- render real Calendar/MCQ instances
+- fetch data
+- create iframes
+- run timers
+
+Use pure presentational primitives.
+
+---
+
+# 112. ZERO PREVIEW NETWORK CALLS
+
+Theme previews must issue:
+
+ZERO network calls.
+
+---
+
+# 113. ZERO PREVIEW STORAGE WRITES
+
+Theme card selection and preview changes issue:
+
+ZERO writes.
+
+Only successful explicit Apply writes.
+
+---
+
+# 114. APPLY WRITE COUNT TEST
+
+For:
+
+Committed Classic
+Draft Ocean
+Apply success
+
+verify:
+
+exactly one persistence write.
+
+Do not write when each card is clicked.
+
+---
+
+# 115. CANCEL WRITE COUNT TEST
+
+Cancel:
+
+zero writes.
+
+---
+
+# 116. RESET WRITE COUNT TEST
+
+Reset:
+
+zero writes.
+
+Reset + Apply:
+
+one write.
+
+---
+
+# 117. CARD CLICK WRITE COUNT TEST
+
+Click/select:
+
+Midnight
+Ocean
+Rose
+Amber
+
+before Apply:
+
+zero writes.
+
+Mandatory.
+
+---
+
+# 118. ACCOUNT ISOLATION WITH STUDIO
+
+A:
+Draft Rose, not applied.
+
+Switch to B.
+
+Existing provider/account boundary must prevent A's Draft from appearing in B's Studio.
+
+Do not add separate component cleanup logic unless needed.
+
+Use provider as authority.
+
+---
+
+# 119. LOGOUT WITH DIRTY DRAFT
+
+If user has:
+
+Committed Ocean
+Draft Rose
+dirty true
+
+then logout:
+
+existing provider reset semantics apply.
+
+Anonymous state:
+Classic.
+
+No Rose/Ocean global leak.
+
+---
+
+# 120. LOCALIZATION TEST
+
+Add a focused test/source invariant confirming every Prompt 15 user-visible key has both:
+
+English
+Arabic
+
+Do not assert exact prose unless necessary.
+
+---
+
+# 121. RTL TEST
+
+Where practical test:
+
+- no hardcoded `left:`/`right:` introduced for selected badge where logical positioning should be used
+- preview/card layout remains direction-safe
+
+Use CSS logical properties/utilities where appropriate.
+
+---
+
+# 122. ACCESSIBILITY TEST
+
+Protect:
+
+- radiogroup semantics
+- each Theme card accessible name
+- selected state
+- disabled Apply
+- Current indicator accessibility
+- no click-only noninteractive div
+
+Use source-level tests if DOM testing infrastructure is limited.
+
+Do not add a huge testing library.
+
+---
+
+# 123. THEME PREVIEW TEST
+
+Test representative case:
+
+Global/root theme does not matter to preview scope.
+
+At source/CSS level verify:
+
+Rose preview has all Rose tokens.
+Classic preview has all Classic tokens.
+Dark preview resolves through Dark preview scope.
+
+---
+
+# 124. CURRENT THEME TEST
+
+Verify committed and Draft can differ without confusion:
+
+Committed Ocean
+Draft Rose
+
+UI state should expose both correctly.
+
+Do not require screenshot testing if unavailable.
+
+---
+
+# 125. RESET TEST
+
+Mandatory:
+
+Committed Violet
+Draft Violet
+
+Reset:
+Draft Classic
+Committed Violet
+dirty true
+visual global Violet
+
+Cancel:
+Draft Violet
+dirty false
+
+Reset + Apply success:
+Committed Classic
+attribute absent
+
+---
+
+# 126. APPLY FAILURE UI TEST
+
+If actual component testing is practical:
+
+verify failure does not:
+
+- move Current badge
+- clear dirty state
+- globally apply Draft
+
+If component harness is too expensive:
+runtime/state tests plus source-level UI binding is acceptable.
+
+---
+
+# 127. ALL PERSONALIZATION TESTS
+
+Run EVERY existing personalization suite plus Prompt 15 Studio tests.
+
+This includes:
+
+- contract
+- state
+- storage
+- runtime
+- tokens
+- Phase-2 closure
+- feature surfaces
+- Lecture
+- Calendar
+- MCQ/Flashcards
+- theme runtime
+- theme library
+- Phase-3 closure
+- Studio tests
+
+Report total.
+
+---
+
+# 128. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+---
+
+# 129. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+
+---
+
+# 130. NAVIGATION REGRESSION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Mandatory because Settings navigation changes.
+
+---
+
+# 131. NOTES REGRESSION
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+
+---
+
+# 132. MCQ REGRESSION
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+
+---
+
+# 133. FLASHCARD REGRESSION
+
+Run:
+
+npm run test:ai-flashcard
+
+---
+
+# 134. CALENDAR / LECTURE / MCQ-FLASHCARD PERSONALIZATION SUITES
+
+Run all three existing focused suites.
+
+No regression expected.
+
+---
+
+# 135. THEME ENGINE SUITES
+
+Run:
+
+- personalization-theme-runtime
+- personalization-theme-library
+- personalization-theme-closure
+
+Mandatory.
+
+---
+
+# 136. PDF BASELINE
+
+If running current PDF suite:
+
+accepted existing baseline remains:
+
+2 pass
+1 known fixture failure
+pdf_download_expiry_invalid
+
+Do not repair it here.
+
+---
+
+# 137. TYPESCRIPT
+
+Run targeted typecheck for all new/modified Studio files.
+
+Run full project typecheck if practical.
+
+Accepted baseline remains only the known seven missing `.webp` imports.
+
+No new TypeScript errors allowed.
+
+---
+
+# 138. ESLINT
+
+Run targeted ESLint.
+
+Do not fix unrelated baseline issues.
+
+---
+
+# 139. VISUAL VERIFICATION — IMPORTANT
+
+If authenticated preview is available, Prompt 15 should be manually inspected.
+
+At minimum:
+
+iPhone-ish width:
+- Settings entry
+- My 99 page
+- theme grid
+- Draft preview
+- action area
+
+iPad-ish width:
+- My 99 layout
+- card grid
+- preview sizing
+
+Desktop:
+- content width
+- card density
+
+Check both English and Arabic if possible.
+
+Check current Light/Dark appearance if accessible.
+
+---
+
+# 140. DRAFT VISUAL VERIFICATION
+
+If authenticated preview available:
+
+Committed Classic
+Select Ocean
+
+Before Apply:
+- outer page remains Classic
+- preview becomes Ocean
+- Ocean card selected
+- Current remains Classic
+- unsaved indicator visible
+- Apply enabled
+
+Then Cancel:
+- preview returns Classic
+- dirty clears
+
+---
+
+# 141. APPLY VISUAL VERIFICATION
+
+If possible:
+
+Select a different Theme.
+Apply.
+
+Confirm:
+
+- no reload
+- no route reset
+- no scroll reset
+- outer Studio recolors after commit
+- Current indicator updates
+- dirty clears
+
+---
+
+# 142. RESET VISUAL VERIFICATION
+
+If possible:
+
+Committed alternate Theme
+Reset
+
+Confirm:
+
+- global remains alternate
+- preview becomes Classic
+- Apply enabled
+
+Then Cancel or Apply accordingly.
+
+---
+
+# 143. AUTHENTICATED PREVIEW GATE
+
+If authenticated preview remains unavailable:
+
+do NOT fabricate UI observations.
+
+Report:
+
+- source validation
+- tests
+- build
+- unauthenticated boot
+
+and clearly state the visual gate.
+
+---
+
+# 144. NO SCREENSHOT ARTIFACTS
+
+Do not commit screenshots.
+
+---
+
+# 145. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Separate:
+
+- Prompt 15 implementation
+- unrelated baseline
+- user attachments
+
+---
+
+# 146. NO `.agents/*`
+
+No `.agents/*` file may be created or modified.
+
+---
+
+# 147. DEFINITION OF DONE
+
+Prompt 15 passes only if:
+
+- My 99 Settings entry exists.
+- Correct Settings placement.
+- Dedicated Studio exists.
+- Only Theme Pack is exposed.
+- All 8 Theme cards exist in canonical order.
+- UI metadata contains no palette values.
+- Draft selection changes Draft only.
+- Global app remains committed before Apply.
+- Contained preview follows Draft.
+- Preview uses CSS semantic tokens.
+- Preview does not write global `data-app-theme`.
+- Theme card mini previews use scoped semantic variables.
+- Classic preview works inside alternate committed theme.
+- Preview follows current Light/Dark appearance.
+- Current vs Draft selection is clear.
+- Apply uses existing transactional Apply.
+- Exactly one write on successful changed Apply.
+- No writes on card selection.
+- No writes on Cancel.
+- No writes on Reset.
+- Failed Apply keeps committed/global theme unchanged.
+- Cancel restores Draft from Committed.
+- Reset sets Classic defaults into Draft only.
+- Apply disabled when clean/pending.
+- No reload.
+- No remount.
+- No scroll reset architecture.
+- No provider rewrite.
+- No direct storage use from UI.
+- No direct global DOM theme mutation from UI.
+- English + Arabic complete.
+- RTL safe.
+- accessible single-choice interaction.
+- responsive iPhone/iPad/desktop.
+- no Hero control.
+- no Glass control.
+- no Motion control.
+- no Reading control.
+- no Home order control.
+- no App Icon control.
+- no presets.
+- no arbitrary colors/fonts/backgrounds.
+- no KV.
+- no SQL.
+- no D1.
+- no R2.
+- no new personalization network calls.
+- build passes.
+- personalization tests pass.
+- navigation regression passes.
+- diff is scoped.
+
+---
+
+# 148. MANDATORY FINAL IMPLEMENTATION REPORT
+
+The task is incomplete without this report.
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 4 PROMPT 15 REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. User-Facing Result
+
+Describe exactly what a user can now do in My 99.
+
+## 3. Files Created
+
+| File | Purpose |
+|---|---|
+
+## 4. Files Modified
+
+| File | Exact Change | Why |
+|---|---|---|
+
+## 5. Settings Placement
+
+Explain exact My 99 location relative to existing Settings groups.
+
+## 6. Settings Navigation
+
+Explain how My 99 opens using existing navigation architecture.
+
+## 7. Mobile Navigation Safety
+
+Confirm existing full-page/back/swipe architecture reused.
+
+## 8. iPad/Desktop Safety
+
+Confirm existing layout architecture reused.
+
+## 9. Studio Architecture
+
+List components and responsibilities.
+
+## 10. Theme Catalog
+
+Print exact canonical UI order.
+
+Confirm metadata contains no palette colors.
+
+## 11. Localization
+
+List English/Arabic keys added.
+
+Confirm no missing Prompt 15 user-visible string.
+
+## 12. Theme Card Interaction
+
+Explain Draft-only selection behavior.
+
+## 13. Accessibility
+
+Report radio/single-selection semantics, focus, keyboard, accessible names, selected/current indicators.
+
+## 14. Current vs Draft State
+
+Explain UI behavior for:
+
+Committed Ocean
+Draft Rose
+
+## 15. Main Draft Preview
+
+Explain contained preview architecture.
+
+## 16. Preview Attribute
+
+State exact attribute:
+
+data-personalization-preview-theme
+
+Confirm it is never used as the global runtime attribute.
+
+## 17. Preview CSS Architecture
+
+Explain how existing theme token declaration blocks were reused.
+
+## 18. Classic Preview Architecture
+
+Explain exactly how Classic 99 preview works under an alternate global theme.
+
+State whether any Classic value duplication was necessary.
+
+## 19. Preview Light/Dark Behavior
+
+Confirm preview follows existing html.dark state.
+
+## 20. Preview Isolation
+
+Confirm preview variables do not leak outside subtree.
+
+## 21. Theme Card Mini Previews
+
+Explain implementation.
+
+## 22. Global Theme Safety
+
+Confirm Draft never mutates global `data-app-theme`.
+
+## 23. Apply
+
+Explain exact call path.
+
+## 24. Apply Write Count
+
+Report exact changed-Apply persistence write count.
+
+## 25. Apply Success
+
+Report state and visual result.
+
+## 26. Apply Failure
+
+Report state and visual result.
+
+## 27. Cancel
+
+Report:
+
+state
+dirty flag
+persistence writes
+preview behavior
+
+## 28. Reset
+
+Report:
+
+state before Apply
+global visual state
+write count
+
+## 29. Reset + Cancel
+
+Report representative Violet → Reset → Cancel result.
+
+## 30. Reset + Apply
+
+Report resulting committed Classic state and DOM attribute.
+
+## 31. No-op Apply
+
+Report actual behavior.
+
+## 32. Card-Selection Write Test
+
+Report sequence:
+
+Midnight
+Ocean
+Rose
+Amber
+
+before Apply.
+
+Expected storage writes:
+0
+
+## 33. Page Reopen With Dirty Draft
+
+Report implemented same-session behavior.
+
+## 34. Account Isolation
+
+Report Draft behavior across account switch.
+
+## 35. Logout With Dirty Draft
+
+Report.
+
+## 36. Provider Safety
+
+Confirm no state-machine duplication or hydration rewrite.
+
+## 37. Storage Safety
+
+Confirm Studio never calls storage directly.
+
+## 38. DOM Theme Ownership
+
+Confirm ThemeBridge remains sole owner of global `data-app-theme`.
+
+## 39. Appearance Separation
+
+Confirm no Light/Dark/System duplication.
+
+## 40. Theme Preview Under Alternate Global Theme
+
+Report representative:
+
+Global Emerald
+Draft Rose
+→ outer Emerald / preview Rose
+
+## 41. Classic Preview Under Alternate Global Theme
+
+Report representative:
+
+Global Midnight
+Draft Classic
+→ outer Midnight / preview Classic
+
+## 42. Responsive Layout
+
+Report actual mobile/iPad/desktop grid/layout behavior.
+
+## 43. RTL
+
+Report Arabic layout handling.
+
+## 44. Reduced Motion / Animation
+
+Report.
+
+## 45. Hero Style
+
+Confirm not exposed/unwired.
+
+## 46. Glass Style
+
+Confirm not exposed/unwired.
+
+## 47. Motion Style
+
+Confirm not exposed/unwired.
+
+## 48. Reading Size
+
+Confirm not exposed/unwired.
+
+## 49. Home Subject Order
+
+Confirm not exposed/unwired.
+
+## 50. App Icons
+
+Confirm not exposed/unimplemented.
+
+## 51. Presets / Arbitrary Customization
+
+Confirm none added.
+
+## 52. KV / Backend
+
+State exactly:
+
+ZERO new personalization network calls.
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+## 53. Preview Selector Safety
+
+Report allowed preview selectors and confirm no feature-specific theme-preview selectors.
+
+## 54. Theme Engine Regression
+
+Confirm all eight runtime Theme Packs remain unchanged.
+
+## 55. Tests Added/Updated
+
+List exact Prompt 15 invariants.
+
+## 56. Personalization Test Results
+
+Report total passed/failed.
+
+## 57. Theme Engine Test Results
+
+Report runtime/library/closure suites separately.
+
+## 58. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 59. Existing Baselines
+
+Report separately:
+
+- PDF fixture
+- seven `.webp` TypeScript errors
+- unrelated lint baseline
+
+## 60. Visual Verification
+
+State exactly:
+
+- auth state
+- viewport(s)
+- language(s)
+- appearance(s)
+- Settings/My 99 screens actually observed
+- Draft/Apply/Cancel/Reset interactions actually observed
+
+Do not overclaim.
+
+## 61. High-Risk Navigation Review
+
+If App.tsx or Settings navigation infrastructure changed:
+explain every logical change and confirm it is limited to exposing My 99.
+
+## 62. Feature Component Diff Verification
+
+Confirm no direct edits to:
+
+Calendar
+Lecture
+MCQ
+Flashcards
+Modules
+Profile
+Notifications
+Home
+Console
+Auth
+
+unless an existing shared Settings/navigation wrapper required a minimal change.
+
+## 63. Business Logic Verification
+
+Confirm no academic/product business logic changed.
+
+## 64. Git Diff Summary
+
+Exact files/stat.
+
+Confirm:
+
+git diff --check: PASS
+
+## 65. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 66. Prompt 16 Readiness
+
+If all requirements pass, state exactly:
+
+MY 99 STUDIO FOUNDATION: CLOSED AND APPROVED
+
+THEME PACK USER EXPERIENCE: CLOSED AND APPROVED
+
+HERO STYLE & GLASS STYLE CUSTOMIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 4 PROMPT 15 STATUS: COMPLETE — READY FOR PROMPT 16
+
+or:
+
+PERSONALIZATION PHASE 4 PROMPT 15 STATUS: BLOCKED — REPAIR REQUIRED

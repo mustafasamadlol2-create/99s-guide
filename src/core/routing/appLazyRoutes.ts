@@ -36,6 +36,7 @@ export const CalendarView = lazyWithPreload(() => import("../../features/calenda
 export const ProfileView = lazyWithPreload(() => import("../../features/profile/components/ProfileView"));
 export const ControlCenterView = lazyWithPreload(() => import("../../features/admin/components/ControlCenterView"));
 export const SettingsView = lazyWithPreload(() => import("../../features/settings/components/SettingsView"));
+export const My99Studio = lazyWithPreload(() => import("../../features/personalization/components/My99Studio"));
 export const PrivacyPolicyView = lazyWithPreload(() => import("../../features/legal/components/PrivacyPolicyView"));
 export const TermsOfServiceView = lazyWithPreload(() => import("../../features/legal/components/TermsOfServiceView"));
 export const SupportView = lazyWithPreload(() => import("../../features/legal/components/SupportView"));
