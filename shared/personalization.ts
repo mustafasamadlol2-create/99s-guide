@@ -21,8 +21,9 @@ export type ThemeId = (typeof PERSONALIZATION_THEME_IDS)[number];
 
 export const PERSONALIZATION_HERO_STYLES = [
   "classic",
-  "ambient",
   "minimal",
+  "night",
+  "aurora",
 ] as const;
 export type HeroStyle = (typeof PERSONALIZATION_HERO_STYLES)[number];
 
