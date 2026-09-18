@@ -41,7 +41,7 @@ const moduleDetail = readFileSync(
   "utf8",
 );
 
-test("Classic 99 is the only visually implemented theme", () => {
+test("Classic 99 remains the base and Ocean is the only alternate implementation", () => {
   assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
   for (const futureThemeId of [
     "midnight",
@@ -82,9 +82,11 @@ test("themeable token names are unique and have light/dark CSS declarations", ()
       `${tokenName} dark declaration`,
     );
     assert.equal(
-      css.match(new RegExp(`--${tokenName}\\s*:`, "g"))?.length ?? 0,
+      `${lightTokenLayer}\n${darkTokenLayer}`.match(
+        new RegExp(`--${tokenName}\\s*:`, "g"),
+      )?.length ?? 0,
       2,
-      `${tokenName} total declarations`,
+      `${tokenName} Classic base declarations`,
     );
     assert.equal(
       css.match(

@@ -163,7 +163,7 @@ test("Ocean defines exactly all 29 themeable tokens in Light and Dark", () => {
 });
 
 test("Ocean uses only the two intended selectors and never overrides fixed semantics", () => {
-  assert.equal((css.match(/(?:^|\n)(?:\.dark)?\[?data-app-theme="ocean"/g) ?? []).length, 0);
+  assert.equal((css.match(/data-app-theme="ocean"/g) ?? []).length, 2);
   assert.equal((css.match(/:root\[data-app-theme="ocean"\]\s*\{/g) ?? []).length, 1);
   assert.equal((css.match(/\.dark\[data-app-theme="ocean"\]\s*\{/g) ?? []).length, 1);
   const oceanCss = `${block(':root[data-app-theme="ocean"]')}\n${block('.dark[data-app-theme="ocean"]')}`;
@@ -176,7 +176,7 @@ test("Ocean uses only the two intended selectors and never overrides fixed seman
 test("bridge reads committed only and mutates only data-app-theme", () => {
   assert.match(bridge, /const \{ committed \} = usePersonalization\(\)/);
   assert.doesNotMatch(bridge, /\bdraft\b/);
-  assert.match(bridge, /data-app-theme/);
+  assert.match(bridge, /synchronizePersonalizationTheme/);
   assert.doesNotMatch(bridge, /style\.setProperty|location\.reload|key\s*=/);
   assert.doesNotMatch(bridge, /classList|html\.dark|theme-color/);
 });
@@ -184,7 +184,11 @@ test("bridge reads committed only and mutates only data-app-theme", () => {
 function oceanDraftConfig(): PersonalizationConfigV1 {
   let state = createPersonalizationState();
   state = reducePersonalizationState(state, { type: "setThemeId", value: "ocean" });
-  return applyPersonalizationDraft(state).config;
+  const result = applyPersonalizationDraft(state);
+  if (!result.ok) {
+    throw new Error("Expected the Ocean draft to be valid");
+  }
+  return result.config;
 }
 
 test("draft and transactional Apply semantics control when Ocean can appear", () => {

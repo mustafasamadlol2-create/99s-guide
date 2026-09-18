@@ -4,7 +4,6 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   IMPLEMENTED_THEME_IDS,
-  IMPLEMENTED_THEME_IDS,
   THEMEABLE_TOKEN_NAMES,
 } from "../src/features/personalization/classic99Tokens.js";
 import {
@@ -57,7 +56,7 @@ test("Classic 99 remains the base and Ocean is the only alternate implementation
   assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
   assert.deepEqual(
     futureThemeIds,
-    ["midnight", "ocean", "emerald", "rose", "amber", "violet", "monochrome"],
+    ["midnight", "emerald", "rose", "amber", "violet", "monochrome"],
   );
 
   const semanticCss = css.match(
