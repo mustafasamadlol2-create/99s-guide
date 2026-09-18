@@ -272,6 +272,7 @@ export async function uploadModuleResource(
         ),
       );
       onStage("verifying");
+      onStage("saving");
       return await completeModuleResourceUpload(resourceId, completedParts);
     }
 

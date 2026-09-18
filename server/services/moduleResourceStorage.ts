@@ -134,7 +134,10 @@ export async function deleteModuleResourceObject(storagePath: string): Promise<v
       }),
     );
   } catch (error) {
-    throw new Error(`Cloudflare R2 module resource delete failed: ${storageErrorMessage(error)}`);
+    throw new Error(
+      `Cloudflare R2 module resource delete failed: ${storageErrorMessage(error)}`,
+      { cause: error },
+    );
   }
 }
 
@@ -150,7 +153,10 @@ export async function verifyModuleResourcePdf(
       new HeadObjectCommand({ Bucket: bucket, Key: storagePath }),
     );
   } catch (error) {
-    throw new Error(`Cloudflare R2 module resource verification failed: ${storageErrorMessage(error)}`);
+    throw new Error(
+      `Cloudflare R2 module resource verification failed: ${storageErrorMessage(error)}`,
+      { cause: error },
+    );
   }
 
   const sizeBytes = Number(head.ContentLength ?? 0);
