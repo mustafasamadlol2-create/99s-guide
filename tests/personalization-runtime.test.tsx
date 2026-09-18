@@ -7,7 +7,12 @@ import {
   PersonalizationProvider,
   isCurrentPersonalizationHydration,
   resolvePersonalizationHydration,
+  resolvePersonalizationCommit,
 } from "../src/features/personalization/PersonalizationProvider.js";
+import {
+  createPersonalizationState,
+  reducePersonalizationState,
+} from "../src/features/personalization/personalizationState.js";
 
 function config(): PersonalizationConfigV1 {
   return {
@@ -89,4 +94,36 @@ test("late hydration from an older request cannot update a newer account", () =>
     isCurrentPersonalizationHydration(2, 2, "usr_a", null),
     false,
   );
+});
+
+test("persistence failure does not authorize an in-memory Apply commit", () => {
+  let state = createPersonalizationState();
+  state = reducePersonalizationState(state, {
+    type: "setThemeId",
+    value: "ocean",
+  });
+  const applied = {
+    ok: true as const,
+    state: {
+      ...state,
+      committed: { ...state.draft },
+      draft: { ...state.draft },
+      isDirty: false,
+    },
+    config: { ...state.draft },
+  };
+
+  const decision = resolvePersonalizationCommit(applied, {
+    ok: false,
+    error: "storage-error",
+  });
+
+  assert.deepEqual(decision, {
+    commit: false,
+    error: "persistence-failed",
+    reason: "storage-error",
+  });
+  assert.equal(state.committed.themeId, "classic-99");
+  assert.equal(state.draft.themeId, "ocean");
+  assert.equal(state.isDirty, true);
 });

@@ -43,26 +43,31 @@ export type PersonalizationApplyStatus =
   | { phase: "saving"; userId: string }
   | { phase: "saved"; userId: string; savedAt: string }
   | {
-      phase: "memory-only";
+      phase: "error";
       userId: string;
-      error: PersonalizationCacheWriteError;
+      error: "persistence-failed";
+      reason: PersonalizationCacheWriteError;
     }
   | {
       phase: "error";
       userId: string | null;
-      error: "invalid-draft" | "not-authenticated";
+      error: "invalid-draft" | "not-authenticated" | "not-hydrated";
     };
 
 export type PersonalizationRuntimeApplyResult =
   | {
       ok: true;
       config: PersonalizationConfigV1;
-      persistence: "saved" | "memory-only";
-      error?: PersonalizationCacheInvalidReason;
+      persistence: "saved";
     }
   | {
       ok: false;
-      error: "invalid-draft" | "not-authenticated";
+      error: "invalid-draft" | "not-authenticated" | "not-hydrated";
+    }
+  | {
+      ok: false;
+      error: "persistence-failed";
+      reason: PersonalizationCacheWriteError;
     };
 
 export interface PersonalizationRuntimeValue {
@@ -138,6 +143,44 @@ export function isCurrentPersonalizationHydration(
   return requestId === activeRequestId && userId === activeUserId;
 }
 
+export type PersonalizationCommitDecision =
+  | { commit: false; error: "invalid-draft" }
+  | {
+      commit: false;
+      error: "persistence-failed";
+      reason: PersonalizationCacheWriteError;
+    }
+  | {
+      commit: true;
+      state: PersonalizationState;
+      config: PersonalizationConfigV1;
+      savedAt: string;
+    };
+
+export function resolvePersonalizationCommit(
+  stateResult: StateApplyResult,
+  writeResult: PersonalizationCacheWriteResult,
+): PersonalizationCommitDecision {
+  if (!stateResult.ok) {
+    return { commit: false, error: "invalid-draft" };
+  }
+
+  if (writeResult.ok === false) {
+    return {
+      commit: false,
+      error: "persistence-failed",
+      reason: writeResult.error,
+    };
+  }
+
+  return {
+    commit: true,
+    state: stateResult.state,
+    config: stateResult.config,
+    savedAt: writeResult.savedAt,
+  };
+}
+
 export function PersonalizationProvider({
   userId,
   storage,
@@ -155,15 +198,37 @@ export function PersonalizationProvider({
   const requestIdRef = useRef(0);
   const stateRef = useRef(state);
   const userIdRef = useRef(userId);
+  const stateOwnerUserIdRef = useRef<string | null>(userId);
+  const hydrationRef = useRef(hydration);
 
   stateRef.current = state;
   userIdRef.current = userId;
+  hydrationRef.current = hydration;
+
+  const hasCurrentUserState = stateOwnerUserIdRef.current === userId;
+  const visibleState = hasCurrentUserState ? state : createPersonalizationState();
+  const visibleHydration =
+    userId &&
+    hasCurrentUserState &&
+    hydration.phase !== "signed-out" &&
+    hydration.userId === userId
+      ? hydration
+      : userId
+        ? { phase: "loading" as const, userId }
+        : { phase: "signed-out" as const };
+  const visibleApplyStatus =
+    userId &&
+    hasCurrentUserState &&
+    (applyStatus.phase === "idle" || applyStatus.userId === userId)
+      ? applyStatus
+      : { phase: "idle" as const };
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
     if (!userId) {
+      stateOwnerUserIdRef.current = null;
       setState(createPersonalizationState());
       setHydration({ phase: "signed-out" });
       setApplyStatus({ phase: "idle" });
@@ -171,6 +236,7 @@ export function PersonalizationProvider({
     }
 
     let active = true;
+    stateOwnerUserIdRef.current = userId;
     setState(createPersonalizationState());
     setHydration({ phase: "loading", userId });
     setApplyStatus({ phase: "idle" });
@@ -199,15 +265,27 @@ export function PersonalizationProvider({
   }, [storage, userId]);
 
   const updateDraft = useCallback((action: PersonalizationDraftAction) => {
-    setState((current) => reducePersonalizationState(current, action));
+    if (stateOwnerUserIdRef.current !== userIdRef.current) return;
+    setState((current) => {
+      if (stateOwnerUserIdRef.current !== userIdRef.current) return current;
+      return reducePersonalizationState(current, action);
+    });
   }, []);
 
   const cancelDraft = useCallback(() => {
-    setState((current) => cancelPersonalizationDraft(current));
+    if (stateOwnerUserIdRef.current !== userIdRef.current) return;
+    setState((current) => {
+      if (stateOwnerUserIdRef.current !== userIdRef.current) return current;
+      return cancelPersonalizationDraft(current);
+    });
   }, []);
 
   const resetDraft = useCallback(() => {
-    setState((current) => resetPersonalizationDraft(current));
+    if (stateOwnerUserIdRef.current !== userIdRef.current) return;
+    setState((current) => {
+      if (stateOwnerUserIdRef.current !== userIdRef.current) return current;
+      return resetPersonalizationDraft(current);
+    });
   }, []);
 
   const applyDraft = useCallback(async (): Promise<PersonalizationRuntimeApplyResult> => {
@@ -219,6 +297,20 @@ export function PersonalizationProvider({
         error: "not-authenticated",
       });
       return { ok: false, error: "not-authenticated" };
+    }
+
+    if (
+      stateOwnerUserIdRef.current !== activeUserId ||
+      hydrationRef.current.phase === "loading" ||
+      hydrationRef.current.phase === "signed-out" ||
+      hydrationRef.current.userId !== activeUserId
+    ) {
+      setApplyStatus({
+        phase: "error",
+        userId: activeUserId,
+        error: "not-hydrated",
+      });
+      return { ok: false, error: "not-hydrated" };
     }
 
     const stateResult: StateApplyResult = applyPersonalizationDraft(
@@ -234,7 +326,6 @@ export function PersonalizationProvider({
     }
 
     const requestId = requestIdRef.current;
-    setState(stateResult.state);
     setApplyStatus({ phase: "saving", userId: activeUserId });
 
     const writeResult = await writeCachedPersonalization(
@@ -247,55 +338,74 @@ export function PersonalizationProvider({
       requestId === requestIdRef.current &&
       activeUserId === userIdRef.current;
     if (!stillCurrent) {
-      return writeResult.ok
-        ? {
-            ok: true,
-            config: stateResult.config,
-            persistence: "saved" as const,
-            ...(writeResult.savedAt ? { savedAt: writeResult.savedAt } : {}),
-          }
-        : {
-            ok: true,
-            config: stateResult.config,
-            persistence: "memory-only" as const,
-            error: writeResult.error,
-          };
-    }
+      if (writeResult.ok) {
+        return {
+          ok: true,
+          config: stateResult.config,
+          persistence: "saved",
+        };
+      }
 
-    if (writeResult.ok) {
-      setApplyStatus({
-        phase: "saved",
-        userId: activeUserId,
-        savedAt: writeResult.savedAt,
-      });
+      const failedWrite = writeResult as Extract<
+        PersonalizationCacheWriteResult,
+        { ok: false }
+      >;
       return {
-        ok: true,
-        config: stateResult.config,
-        persistence: "saved",
+        ok: false,
+        error: "persistence-failed",
+        reason: failedWrite.error,
       };
     }
 
+    const commit = resolvePersonalizationCommit(stateResult, writeResult);
+    if (commit.commit === false) {
+      if (commit.error === "invalid-draft") {
+        setApplyStatus({
+          phase: "error",
+          userId: activeUserId,
+          error: "invalid-draft",
+        });
+        return { ok: false, error: "invalid-draft" };
+      }
+
+      if (commit.error !== "persistence-failed") {
+        return { ok: false, error: "invalid-draft" };
+      }
+
+      setApplyStatus({
+        phase: "error",
+        userId: activeUserId,
+        error: "persistence-failed",
+        reason: commit.reason,
+      });
+      return {
+        ok: false,
+        error: "persistence-failed",
+        reason: commit.reason,
+      };
+    }
+
+    setState(commit.state);
     setApplyStatus({
-      phase: "memory-only",
+      phase: "saved",
       userId: activeUserId,
-      error: writeResult.error,
+      savedAt: commit.savedAt,
     });
     return {
       ok: true,
-      config: stateResult.config,
-      persistence: "memory-only",
-      error: writeResult.error,
+      config: commit.config,
+      persistence: "saved",
     };
   }, [storage]);
 
   const value = useMemo<PersonalizationRuntimeValue>(
     () => ({
       userId,
-      committed: state.committed,
-      draft: state.draft,
-      isDirty: state.isDirty,
-      hydration,
-      applyStatus,
+      committed: visibleState.committed,
+      draft: visibleState.draft,
+      isDirty: visibleState.isDirty,
+      hydration: visibleHydration,
+      applyStatus: visibleApplyStatus,
       updateDraft,
       cancelDraft,
       resetDraft,
@@ -303,13 +413,13 @@ export function PersonalizationProvider({
     }),
     [
       applyDraft,
-      applyStatus,
       cancelDraft,
-      hydration,
       resetDraft,
-      state.committed,
-      state.draft,
-      state.isDirty,
+      visibleHydration,
+      visibleState.committed,
+      visibleState.draft,
+      visibleState.isDirty,
+      visibleApplyStatus,
       updateDraft,
       userId,
     ],

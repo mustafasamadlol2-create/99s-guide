@@ -162,6 +162,25 @@ type BanInfo = { reason: string | null; isPermanent: boolean; endTime: string | 
 type AuthState = "INITIALIZING" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ERROR";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  return (
+    <PersonalizationProvider userId={currentUser?.id ?? null}>
+      <AppContent
+        currentUser={currentUser}
+        setCurrentUser={setCurrentUser}
+      />
+    </PersonalizationProvider>
+  );
+}
+
+function AppContent({
+  currentUser,
+  setCurrentUser,
+}: {
+  currentUser: User | null;
+  setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
+}) {
   const device = useDeviceProfile();
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
@@ -221,7 +240,6 @@ export default function App() {
   }, []);
 
   // --- Core Session States ---
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   // Socket callbacks read this ref so profile/group updates are visible without
   // tearing down and recreating the connection for the same authenticated user.
   const currentUserRef = useRef<User | null>(currentUser);
@@ -5946,13 +5964,12 @@ const handleSignOut = useCallback(async () => {
   };
 
   return (
-    <PersonalizationProvider key={currentUser.id} userId={currentUser.id}>
-      <div
-        className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
-        style={{
-          fontSize: `${textScale}rem`,
-        }}
-      >
+    <div
+      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
+      style={{
+        fontSize: `${textScale}rem`,
+      }}
+    >
       {/* Stable viewport host for iPhone pushed pages. It is intentionally a
           direct child of the app shell, outside the transformed scroll canvas. */}
       <div id="phone-viewport-page-portal" className="contents" />
@@ -7242,7 +7259,6 @@ const handleSignOut = useCallback(async () => {
           </motion.div>
         )}
       </>
-      </div>
-    </PersonalizationProvider>
+    </div>
   );
 }
