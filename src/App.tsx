@@ -21,6 +21,7 @@ import { useDeviceProfile } from "./core/hooks/useDeviceProfile";
 import { useUserPreferences } from "./core/hooks/useUserPreferences";
 import { NativeBridge } from "./core/device/capacitor/nativeBridge";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
+import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import {
   Home,
   BookOpen,
@@ -166,6 +167,7 @@ export default function App() {
 
   return (
     <PersonalizationProvider userId={currentUser?.id ?? null}>
+      <PersonalizationThemeBridge />
       <AppContent
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}

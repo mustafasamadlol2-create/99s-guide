@@ -492,6 +492,70 @@
   --shadow-elevation-3: 0 8px 24px rgba(0,0,0,0.5);
 }
 
+:root[data-app-theme="ocean"] {
+  --semantic-background-page: #f3f8fc;
+  --semantic-background-grouped: #eaf3f8;
+  --semantic-surface-primary: #f8fcfe;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #ddecf4;
+  --semantic-content-primary: #102b38;
+  --semantic-content-secondary: #587482;
+  --semantic-content-subtle: rgba(34, 72, 91, 0.62);
+  --semantic-border-default: rgba(13, 104, 135, 0.08);
+  --semantic-border-strong: rgba(13, 104, 135, 0.15);
+  --semantic-action-accent: #007c91;
+  --semantic-action-accent-soft: rgba(0, 124, 145, 0.11);
+  --semantic-focus-ring: #007c91;
+  --semantic-navigation-active-background: rgba(0, 124, 145, 0.12);
+  --semantic-navigation-active-foreground: #07586a;
+  --semantic-glass-surface: rgba(248, 253, 255, 0.68);
+  --semantic-glass-border: rgba(16, 105, 135, 0.10);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #031a24;
+  --semantic-hero-glow-primary: rgba(0, 150, 190, 0.42);
+  --semantic-hero-glow-secondary: rgba(45, 190, 170, 0.20);
+  --semantic-chrome-content-primary: #0f2833;
+  --semantic-chrome-content-secondary: #5e7985;
+  --semantic-chrome-content-subtle: #829aa4;
+  --semantic-chrome-content-muted: #456572;
+  --semantic-chrome-surface-active: rgba(0, 124, 145, 0.12);
+  --semantic-chrome-surface-hover: rgba(0, 124, 145, 0.07);
+  --semantic-navigation-tab-active: #007c91;
+  --semantic-navigation-tab-inactive: #5e7985;
+}
+
+.dark[data-app-theme="ocean"] {
+  --semantic-background-page: #061116;
+  --semantic-background-grouped: #08191f;
+  --semantic-surface-primary: #08191f;
+  --semantic-surface-elevated: #0d252e;
+  --semantic-surface-muted: #153640;
+  --semantic-content-primary: #f2fbfd;
+  --semantic-content-secondary: rgba(225, 245, 249, 0.72);
+  --semantic-content-subtle: rgba(225, 245, 249, 0.48);
+  --semantic-border-default: rgba(139, 224, 238, 0.08);
+  --semantic-border-strong: rgba(139, 224, 238, 0.15);
+  --semantic-action-accent: #4cc9e7;
+  --semantic-action-accent-soft: rgba(76, 201, 231, 0.13);
+  --semantic-focus-ring: #4cc9e7;
+  --semantic-navigation-active-background: rgba(76, 201, 231, 0.15);
+  --semantic-navigation-active-foreground: #ddf8ff;
+  --semantic-glass-surface: rgba(13, 37, 46, 0.72);
+  --semantic-glass-border: rgba(122, 213, 232, 0.12);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --semantic-hero-background: #020b10;
+  --semantic-hero-glow-primary: rgba(0, 145, 190, 0.42);
+  --semantic-hero-glow-secondary: rgba(28, 175, 165, 0.22);
+  --semantic-chrome-content-primary: #f2fbfd;
+  --semantic-chrome-content-secondary: rgba(225, 245, 249, 0.70);
+  --semantic-chrome-content-subtle: rgba(225, 245, 249, 0.48);
+  --semantic-chrome-content-muted: #a8c8d0;
+  --semantic-chrome-surface-active: rgba(76, 201, 231, 0.15);
+  --semantic-chrome-surface-hover: rgba(76, 201, 231, 0.08);
+  --semantic-navigation-tab-active: #4cc9e7;
+  --semantic-navigation-tab-inactive: rgba(225, 245, 249, 0.68);
+}
+
 .dark [class*="shadow-"],
 .dark .ios-widget,
 .dark .edge-light,

@@ -42,10 +42,9 @@ const moduleDetail = readFileSync(
 );
 
 test("Classic 99 is the only visually implemented theme", () => {
-  assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99"]);
+  assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99", "ocean"]);
   for (const futureThemeId of [
     "midnight",
-    "ocean",
     "emerald",
     "rose",
     "amber",
@@ -64,12 +63,12 @@ test("themeable token names are unique and have light/dark CSS declarations", ()
 
   const rootStart = css.indexOf("\n:root {");
   const darkStart = css.indexOf("\n.dark {", rootStart);
-  const darkEnd = css.indexOf('\n.dark [class*="shadow-"]', darkStart);
+  const oceanStart = css.indexOf('\n:root[data-app-theme="ocean"]', darkStart);
   assert.equal(rootStart >= 0, true);
   assert.equal(darkStart > rootStart, true);
-  assert.equal(darkEnd > darkStart, true);
+  assert.equal(oceanStart > darkStart, true);
   const lightTokenLayer = css.slice(rootStart, darkStart);
-  const darkTokenLayer = css.slice(darkStart, darkEnd);
+  const darkTokenLayer = css.slice(darkStart, oceanStart);
 
   for (const tokenName of THEMEABLE_TOKEN_NAMES) {
     assert.equal(

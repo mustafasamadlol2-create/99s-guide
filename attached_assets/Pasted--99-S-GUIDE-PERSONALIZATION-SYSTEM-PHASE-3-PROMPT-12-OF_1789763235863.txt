@@ -1,0 +1,1876 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 3 / PROMPT 12 OF ~22
+## RUNTIME THEME RESOLVER + FIRST REAL THEME PACK
+### Implement OCEAN Only
+### Classic 99 Remains the Base/Fallback Layer
+### No Settings UI Yet
+### No KV Yet
+
+Phase 0 is CLOSED AND APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 is CLOSED AND APPROVED.
+
+The final Phase-2 state is authoritative:
+
+CLASSIC 99 SEMANTIC TOKENIZATION: CLOSED AND APPROVED
+CLASSIC 99 IS THE VERIFIED SAFE VISUAL FALLBACK
+PHASE 3 ALTERNATE THEME IMPLEMENTATION: APPROVED TO BEGIN
+
+Current personalization contract ThemeIds:
+
+- classic-99
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Current visually implemented ThemeIds:
+
+- classic-99 ONLY
+
+Current themeable semantic token count:
+
+29
+
+Current architecture:
+
+- CSS is the only source of actual visual palette values.
+- `classic99Tokens.ts` contains metadata only.
+- Light/Dark/System remains device-local through `app_theme`.
+- `html.dark` remains authoritative for appearance mode.
+- Personalization `themeId` is account-scoped.
+- Provider/runtime is stable across account switching.
+- Classic 99 is currently the base CSS layer.
+- No theme runtime DOM mutation exists yet.
+- No KV exists yet.
+- No My 99 UI exists yet.
+
+We will now implement the FIRST actual alternate theme:
+
+OCEAN.
+
+Do NOT implement the other six themes.
+
+---
+
+# 1. PRIMARY GOAL
+
+Implement:
+
+1. A safe runtime visual-theme resolver.
+2. A single stable DOM theme attribute.
+3. Classic 99 fallback semantics.
+4. Ocean Light palette.
+5. Ocean Dark palette.
+6. Automatic switching when COMMITTED `themeId` changes.
+7. Immediate Classic fallback during logout/account switching/hydration barriers.
+8. No reload/remount.
+9. No effect from DRAFT theme changes.
+10. Strong automated invariants.
+11. Visual/runtime verification.
+
+After Prompt 12:
+
+```text
+committed.themeId = classic-99
+→ existing Classic 99 appearance
+
+committed.themeId = ocean
+→ Ocean appearance
+
+committed.themeId = midnight / emerald / rose / amber / violet / monochrome
+→ Classic 99 visual fallback
+
+because those themes are still not visually implemented.
+
+2. ABSOLUTE PRODUCT BOUNDARY
+
+This is still PRESENTATION ONLY.
+
+Do NOT change:
+
+academic content
+auth
+roles
+permissions
+navigation
+lectures
+Notes
+PDF
+Module Resources
+Calendar logic
+MCQ logic
+Flashcard logic
+points
+Q&A
+notifications behavior
+profile behavior
+moderation
+AI
+sockets
+database semantics
+
+No new product feature.
+
+3. ONLY ONE NEW THEME
+
+Prompt 12 may visually implement:
+
+ocean
+
+ONLY.
+
+Do NOT add visual palettes/selectors for:
+
+midnight
+emerald
+rose
+amber
+violet
+monochrome
+
+Their contract IDs remain valid.
+
+Their visual behavior after Prompt 12 must still fall back to Classic 99.
+
+4. CLASSIC 99 MUST REMAIN BASE CSS
+
+CRITICAL architecture rule:
+
+Do NOT move Classic 99 into:
+
+[data-app-theme="classic-99"]
+
+Do NOT duplicate all Classic values into another selector.
+
+The existing:
+
+:root
+.dark
+
+Classic declarations remain the base/fallback layer.
+
+This guarantees safe fallback if:
+
+personalization fails
+attribute is missing
+theme is unimplemented
+JS fails
+account is anonymous
+
+Classic 99 must remain what CSS renders with no alternate-theme selector.
+
+5. THEME DOM ATTRIBUTE
+
+Introduce ONE explicit attribute for implemented alternate Theme Packs.
+
+Preferred:
+
+<html data-app-theme="ocean">
+
+Attribute name:
+
+data-app-theme
+
+Do NOT use generic:
+
+data-theme
+
+because appearance mode is a separate concept.
+
+Do NOT use:
+
+data-color-scheme
+
+Do NOT encode Light/Dark in this attribute.
+
+6. CLASSIC ATTRIBUTE BEHAVIOR
+
+For Classic 99:
+
+preferred runtime state is:
+
+NO data-app-theme attribute
+
+because base CSS is Classic.
+
+Do NOT require:
+
+data-app-theme="classic-99"
+
+unless repository architecture presents a compelling reason.
+
+Preferred:
+
+if visualTheme === "classic-99" {
+  document.documentElement.removeAttribute("data-app-theme");
+}
+
+This keeps fallback simple and fail-safe.
+
+7. UNIMPLEMENTED THEME FALLBACK
+
+For:
+
+midnight
+emerald
+rose
+amber
+violet
+monochrome
+
+runtime resolver must produce:
+
+classic-99
+
+VISUALLY.
+
+Do NOT write:
+
+data-app-theme="emerald"
+
+before Emerald has a real palette.
+
+The resolver must understand the distinction between:
+
+valid persisted ThemeId
+visually implemented ThemeId
+8. IMPLEMENTED THEME METADATA
+
+Update:
+
+IMPLEMENTED_THEME_IDS
+
+from:
+
+["classic-99"]
+
+to:
+
+["classic-99", "ocean"]
+
+Keep it typed against the existing ThemeId contract.
+
+Do not duplicate palette values in TypeScript.
+
+9. VISUAL THEME RESOLVER
+
+Create a small pure helper.
+
+Recommended:
+
+src/features/personalization/personalizationTheme.ts
+
+or equivalent.
+
+Conceptually:
+
+type ImplementedThemeId = "classic-99" | "ocean";
+
+function resolveVisualThemeId(
+  requested: ThemeId
+): ImplementedThemeId {
+  return isImplementedTheme(requested)
+    ? requested
+    : "classic-99";
+}
+
+Do not hardcode this logic independently in multiple React components.
+
+10. THEME DOM SYNCHRONIZER
+
+Create a small focused runtime bridge/component/hook.
+
+Possible name:
+
+PersonalizationThemeBridge.tsx
+
+Responsibilities ONLY:
+
+read COMMITTED personalization theme
+resolve implemented visual theme
+synchronize data-app-theme
+cleanly remove attribute for Classic/fallback
+
+It must NOT:
+
+own personalization state
+authenticate user
+write preferences
+touch storage
+fetch
+manage appearance mode
+alter html.dark
+render visible UI
+11. USE COMMITTED ONLY
+
+Global application theme must follow:
+
+committed.themeId
+
+NOT:
+
+draft.themeId
+
+This is mandatory.
+
+Future Settings live preview will render Draft in a contained preview area.
+
+Changing a draft selector must NOT recolor the whole app before Apply.
+
+12. EXPLICIT APPLY FLOW
+
+Future behavior must be:
+
+User edits draft:
+Ocean
+→ global app remains current committed theme
+
+User presses Apply successfully:
+committed becomes Ocean
+→ runtime theme bridge switches global theme
+
+If Apply persistence fails:
+committed remains old theme
+→ global visual theme remains old theme
+
+This follows Phase-1 transactional semantics automatically.
+
+Do not bypass it.
+
+13. ACCOUNT SWITCH BARRIER
+
+Critical.
+
+Scenario:
+
+User A:
+Ocean
+
+Switch to User B.
+
+Phase-1 runtime immediately resets committed personalization to Classic while B hydrates.
+
+The visual bridge must therefore immediately remove:
+
+data-app-theme="ocean"
+
+and show Classic during B hydration.
+
+Then:
+
+B cache = Ocean
+→ Ocean returns
+
+or:
+
+B cache = Classic/unimplemented/missing
+→ Classic remains
+
+No cross-account theme leakage.
+
+14. LOGOUT
+
+If Ocean user logs out:
+
+provider committed state becomes Classic.
+
+Theme bridge must remove:
+
+data-app-theme
+
+No Ocean styling may remain on the anonymous/auth screen.
+
+Do not delete the account cache.
+
+15. STALE HYDRATION SAFETY
+
+Rely on the approved Phase-1 generation barrier.
+
+Do not create a second account-race system inside the theme bridge.
+
+The theme bridge should simply reflect the CURRENT committed provider state.
+
+This separation is important.
+
+16. NO REMOUNT
+
+Never use:
+
+key={themeId}
+key={visualTheme}
+
+on:
+
+App
+PersonalizationProvider
+Router
+Query provider
+socket provider
+page shell
+
+Theme switching must be CSS-only.
+
+17. NO RELOAD
+
+Never use:
+
+location.reload()
+window.location.reload()
+
+Theme switching must be instant.
+
+18. NO JAVASCRIPT PALETTE WRITES
+
+Do NOT write all 29 CSS variables from JS.
+
+Forbidden architecture:
+
+root.style.setProperty("--semantic-...", ...)
+
+The JS runtime may only switch the semantic theme SCOPE through the single data-app-theme attribute.
+
+Actual colors remain CSS-owned.
+
+19. APPEARANCE MODE REMAINS ORTHOGONAL
+
+Light/Dark/System remains:
+
+app_theme
+→ current appearance resolver
+→ html.dark
+
+Theme Pack becomes:
+
+committed.themeId
+→ visual theme resolver
+→ data-app-theme
+
+These axes must remain completely separate.
+
+Examples after Prompt 12:
+
+Appearance Light + Ocean
+Appearance Dark + Ocean
+Appearance System(light) + Ocean
+Appearance System(dark) + Ocean
+
+All must work.
+
+20. CSS SELECTOR ARCHITECTURE
+
+Recommended Ocean selectors:
+
+:root[data-app-theme="ocean"] {
+  ...
+}
+
+.dark[data-app-theme="ocean"] {
+  ...
+}
+
+Since the attribute lives on <html>, this should naturally combine with current appearance architecture.
+
+Ensure selectors appear AFTER Classic base token declarations so Ocean overrides the semantic variables intentionally.
+
+Do not use !important.
+
+21. OCEAN MUST OVERRIDE TOKENS — NOT COMPONENTS
+
+CRITICAL.
+
+Do NOT write:
+
+[data-app-theme="ocean"] .sidebar { ... }
+[data-app-theme="ocean"] .mcq-card { ... }
+[data-app-theme="ocean"] .calendar { ... }
+
+Ocean must work by overriding the existing 29 semantic tokens.
+
+This is the proof that Phase 2 architecture is correct.
+
+Feature-specific selectors are forbidden unless a clearly documented exceptional technical reason exists.
+
+Expected:
+
+NONE.
+
+22. OCEAN TOKEN COVERAGE
+
+Ocean should define ALL 29 THEMEABLE TOKENS.
+
+Do not create a half theme that inherits random Classic themeable roles.
+
+The only acceptable deliberate inheritance is where the value is intentionally identical and still explicitly defined or formally documented.
+
+Preferred:
+
+define every themeable variable in both Ocean Light and Ocean Dark.
+
+This ensures complete predictable palette behavior.
+
+23. FIXED SEMANTIC TOKENS MUST NOT BE OVERRIDDEN
+
+Ocean selectors must NOT redefine:
+
+status-error
+status-success
+status-warning
+status-offline
+status-online
+action-destructive
+validation-error
+
+Do not redefine:
+
+MCQ difficulty
+MCQ correctness
+module identities
+Flashcard subject identities
+Calendar event/exam semantics
+role/status semantics
+24. OCEAN DESIGN LANGUAGE
+
+Ocean should feel:
+
+premium
+calm
+medical/academic
+modern Apple-like
+deep blue / blue-teal
+clean
+restrained
+not neon
+not gaming-oriented
+not cyberpunk
+not childish
+
+It should clearly look different from Classic 99 while preserving readability and hierarchy.
+
+25. OCEAN LIGHT DIRECTION
+
+Use a cool ocean-tinted Light environment.
+
+Target feel:
+
+very pale blue/aqua canvas
+clean near-white surfaces
+restrained blue-teal accent
+deep blue-gray primary content
+cool muted secondary content
+subtle aqua-tinted borders
+soft ocean-tinted active/hover surfaces
+premium translucent glass
+
+Do not make the entire interface saturated blue.
+
+26. OCEAN DARK DIRECTION
+
+Use a deep ocean-dark environment.
+
+Target feel:
+
+very deep navy/ocean canvas
+slightly lifted blue-charcoal surfaces
+bright but restrained cyan-blue accent
+cool near-white content
+desaturated aqua secondary content
+subtle blue-tinted borders
+premium dark translucent glass
+
+Do NOT use pure blue backgrounds everywhere.
+
+Maintain surface hierarchy.
+
+27. OCEAN PALETTE — INITIAL CANONICAL VALUES
+
+Use the following values as the intended starting palette.
+
+Small adjustments are allowed ONLY if needed to meet contrast/accessibility or to fit exact token role behavior.
+
+If any adjustment is made, report it explicitly.
+
+OCEAN LIGHT
+--semantic-background-page: #f3f8fc;
+--semantic-background-grouped: #eaf3f8;
+
+--semantic-surface-primary: #f8fcfe;
+--semantic-surface-elevated: #ffffff;
+--semantic-surface-muted: #ddecf4;
+
+--semantic-content-primary: #102b38;
+--semantic-content-secondary: #587482;
+--semantic-content-subtle: rgba(34, 72, 91, 0.62);
+
+--semantic-border-default: rgba(13, 104, 135, 0.08);
+--semantic-border-strong: rgba(13, 104, 135, 0.15);
+
+--semantic-action-accent: #007c91;
+--semantic-action-accent-soft: rgba(0, 124, 145, 0.11);
+--semantic-focus-ring: #007c91;
+
+--semantic-navigation-active-background: rgba(0, 124, 145, 0.12);
+--semantic-navigation-active-foreground: #07586a;
+
+--semantic-glass-surface: rgba(248, 253, 255, 0.68);
+--semantic-glass-border: rgba(16, 105, 135, 0.10);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #031a24;
+--semantic-hero-glow-primary: rgba(0, 150, 190, 0.42);
+--semantic-hero-glow-secondary: rgba(45, 190, 170, 0.20);
+
+--semantic-chrome-content-primary: #0f2833;
+--semantic-chrome-content-secondary: #5e7985;
+--semantic-chrome-content-subtle: #829aa4;
+--semantic-chrome-content-muted: #456572;
+
+--semantic-chrome-surface-active: rgba(0, 124, 145, 0.12);
+--semantic-chrome-surface-hover: rgba(0, 124, 145, 0.07);
+
+--semantic-navigation-tab-active: #007c91;
+--semantic-navigation-tab-inactive: #5e7985;
+28. OCEAN DARK — INITIAL CANONICAL VALUES
+--semantic-background-page: #061116;
+--semantic-background-grouped: #08191f;
+
+--semantic-surface-primary: #08191f;
+--semantic-surface-elevated: #0d252e;
+--semantic-surface-muted: #153640;
+
+--semantic-content-primary: #f2fbfd;
+--semantic-content-secondary: rgba(225, 245, 249, 0.72);
+--semantic-content-subtle: rgba(225, 245, 249, 0.48);
+
+--semantic-border-default: rgba(139, 224, 238, 0.08);
+--semantic-border-strong: rgba(139, 224, 238, 0.15);
+
+--semantic-action-accent: #4cc9e7;
+--semantic-action-accent-soft: rgba(76, 201, 231, 0.13);
+--semantic-focus-ring: #4cc9e7;
+
+--semantic-navigation-active-background: rgba(76, 201, 231, 0.15);
+--semantic-navigation-active-foreground: #ddf8ff;
+
+--semantic-glass-surface: rgba(13, 37, 46, 0.72);
+--semantic-glass-border: rgba(122, 213, 232, 0.12);
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+--semantic-hero-background: #020b10;
+--semantic-hero-glow-primary: rgba(0, 145, 190, 0.42);
+--semantic-hero-glow-secondary: rgba(28, 175, 165, 0.22);
+
+--semantic-chrome-content-primary: #f2fbfd;
+--semantic-chrome-content-secondary: rgba(225, 245, 249, 0.70);
+--semantic-chrome-content-subtle: rgba(225, 245, 249, 0.48);
+--semantic-chrome-content-muted: #a8c8d0;
+
+--semantic-chrome-surface-active: rgba(76, 201, 231, 0.15);
+--semantic-chrome-surface-hover: rgba(76, 201, 231, 0.08);
+
+--semantic-navigation-tab-active: #4cc9e7;
+--semantic-navigation-tab-inactive: rgba(225, 245, 249, 0.68);
+29. SHADOW GEOMETRY SAFETY
+
+Ocean currently keeps:
+
+--semantic-shadow-generic: var(--shadow-elevation-1);
+
+Do NOT alter shadow geometry in Prompt 12.
+
+If future themes need tinted shadows, that can be handled later.
+
+30. HERO SAFETY
+
+Ocean may override the approved:
+
+hero background
+primary glow
+secondary glow
+
+semantic variables.
+
+Do NOT alter:
+
+Hero DOM
+Hero particles
+animations
+motto
+status pills
+responsive geometry
+heroStyle
+
+heroStyle remains unwired.
+
+This is Theme Pack coloration only.
+
+31. GLASS SAFETY
+
+Ocean may override:
+
+glass surface
+glass border
+
+because these are established themeable semantic roles.
+
+Do NOT alter:
+
+blur amount
+backdrop filter
+saturation
+transparency preference
+component geometry
+
+glassStyle remains unwired.
+
+32. CHROME SAFETY
+
+Ocean should naturally affect already-tokenized:
+
+Sidebar
+bottom navigation
+headers
+generic tabs
+generic controls
+
+through semantic variables only.
+
+Do not directly edit these components for Ocean.
+
+If Ocean requires component-specific edits:
+STOP and investigate token coverage instead.
+
+33. FEATURE-SURFACE SAFETY
+
+Ocean should naturally affect the principal generic surfaces already tokenized in:
+
+Settings
+Profile
+Notifications
+Modules neutral shell
+Lectures neutral shell
+Calendar neutral shell
+MCQ neutral shell
+Flashcard neutral shell
+
+through tokens only.
+
+Do not add Ocean classes into those components.
+
+34. SEMANTIC COLOR PROTECTION
+
+Under Ocean verify visually/source-wise that:
+
+MCQ:
+
+Easy still green
+Normal still amber
+Hard still red
+Correct still green
+Incorrect still red
+
+Calendar:
+
+Today remains its existing semantic treatment
+exam/event colors remain distinct
+
+Modules:
+
+seven module identities remain distinct
+
+Flashcards:
+
+subject identity remains distinct
+
+Status:
+
+error/success/warning remain fixed
+
+Destructive:
+
+remains red/destructive
+35. CONTRAST VALIDATION
+
+Perform automated contrast checks for important Ocean text pairs.
+
+At minimum check both Light and Dark:
+
+content-primary on background-page
+content-primary on surface-elevated
+content-secondary on surface-elevated
+chrome-content-primary on relevant navigation surface
+navigation-active-foreground on navigation-active-background
+action accent used as text where applicable on elevated/background surfaces
+
+Aim for WCAG AA where the role is normal readable text.
+
+If the supplied value fails materially:
+
+make the smallest adjustment necessary.
+
+Report exact original and adjusted value.
+
+Do not change fixed semantic colors merely to fit Ocean.
+
+36. ACCENT CONTRAST CAUTION
+
+Do not assume Ocean accent is always used as filled-button background.
+
+Audit existing semantic-action-accent consumers.
+
+If a foreground-on-accent role exists:
+
+ensure semantic-content-on-accent is not missing from the actual architecture.
+
+Do NOT invent a new token unless real consumers require it.
+
+If current architecture uses white directly on accent-filled controls:
+test that actual combination.
+
+Report findings.
+
+37. LIGHT/DARK SWITCH WHILE OCEAN ACTIVE
+
+Mandatory runtime behavior:
+
+Ocean committed.
+
+User changes:
+
+Light → Dark
+or
+Dark → Light
+or
+System changes OS appearance
+
+Expected:
+
+data-app-theme="ocean" remains.
+
+Only:
+
+html.dark
+
+changes.
+
+CSS automatically resolves Ocean Light/Dark block.
+
+No theme reapply/reload needed.
+
+38. THEME CHANGE WHILE DARK
+
+Example:
+
+Appearance Dark
+Classic → Ocean
+
+Expected:
+
+html remains:
+
+dark
+
+and only:
+
+data-app-theme
+
+changes.
+
+No appearance-mode mutation.
+
+39. OCEAN → CLASSIC
+
+When committed changes:
+
+Ocean → Classic
+
+remove:
+
+data-app-theme
+
+Do not set inline Classic variables.
+
+Base CSS immediately restores Classic.
+
+40. OCEAN → UNIMPLEMENTED THEME
+
+Example:
+
+Ocean → Emerald
+
+Since Emerald is not visually implemented yet:
+
+visual resolver returns Classic.
+
+Remove Ocean attribute.
+
+Result:
+Classic 99.
+
+Do NOT leave stale Ocean attribute.
+
+Mandatory test.
+
+41. UNIMPLEMENTED → OCEAN
+
+Example:
+
+Emerald stored but visually Classic.
+
+Then committed becomes Ocean.
+
+Expected:
+
+Ocean attribute applied.
+
+42. ACCOUNT A/B THEME TEST
+
+A:
+Ocean
+
+B:
+Classic
+
+Flow:
+
+A ready
+→ Ocean
+
+switch B
+→ immediately Classic during hydration
+→ B Classic
+
+No Ocean leak.
+
+Also test:
+
+A Ocean
+→ B Ocean
+
+During boundary:
+Classic
+then Ocean after B hydration.
+
+This is intentional privacy/account isolation.
+
+43. LOGOUT THEME TEST
+
+Ocean authenticated user logs out.
+
+Expected:
+
+provider anonymous Classic
+data-app-theme removed
+auth/launch UI displays Classic
+
+No account theme leak.
+
+44. APPLY FAILURE THEME TEST
+
+Committed Classic.
+
+Draft Ocean.
+
+Apply persistence fails.
+
+Expected:
+
+committed remains Classic
+data-app-theme remains absent
+app remains Classic
+draft stays Ocean/dirty
+
+The bridge must never follow Draft.
+
+45. APPLY SUCCESS THEME TEST
+
+Committed Classic.
+
+Draft Ocean.
+
+Apply succeeds.
+
+Expected:
+
+committed Ocean
+one persistence write
+data-app-theme="ocean"
+no reload/remount
+46. DRAFT CHANGE TEST
+
+Committed Classic.
+
+Draft Ocean.
+
+Before Apply:
+
+DOM remains Classic.
+
+Mandatory.
+
+47. STRICTMODE SAFETY
+
+React StrictMode must not create:
+
+duplicate storage writes
+duplicate theme persistence
+flicker loops
+attribute thrashing
+provider remount
+
+Theme attribute synchronization must be idempotent.
+
+48. DOM WRITE SCOPE
+
+The new theme bridge may mutate ONLY:
+
+document.documentElement[data-app-theme]
+
+for Theme Pack purposes.
+
+Do NOT mutate:
+
+body classes
+root inline color variables
+meta theme-color
+status bar
+html.dark
+
+in Prompt 12.
+
+49. INITIAL PAINT
+
+Do NOT modify:
+
+public/theme-preload.js
+index.html
+LaunchScreen.tsx
+
+The first-paint issue remains deliberately deferred.
+
+Important consequence:
+
+Before authenticated account hydration, Classic remains the startup appearance.
+
+After authenticated personalization hydrates:
+Ocean may activate.
+
+This temporary architecture is acceptable for Prompt 12.
+
+Do NOT introduce an unscoped "last user theme" cache to eliminate this.
+
+That could leak themes across accounts.
+
+50. NO ACCOUNT-UNSCOPED THEME CACHE
+
+Do not create:
+
+last_theme
+last_user_theme
+global_theme_pack
+app_theme_pack
+
+Theme pack remains account-scoped through the approved personalization cache.
+
+Classic before account hydration is the safe behavior.
+
+51. NO SETTINGS UI
+
+There is still no My 99 UI.
+
+Do NOT add:
+
+Ocean selector
+theme cards
+preview
+Apply button
+presets
+
+Testing can manipulate runtime/controller state through tests/dev harnesses without production UI.
+
+52. NO DEVELOPMENT THEME SWITCHER IN PRODUCTION
+
+Do not add hidden:
+
+query parameter
+debug button
+keyboard shortcut
+localStorage override
+
+to switch Ocean in production.
+
+Tests may use pure helpers/provider test harness.
+
+53. NO KV
+
+No Cloudflare KV.
+
+No Worker.
+
+No API endpoint.
+
+No sync.
+
+Local account cache remains current persistence.
+
+54. NO SQL / D1 / R2
+
+No backend preference storage.
+
+55. NO APP ICON WORK
+
+No native asset changes.
+
+56. NO HERO STYLE
+
+Ocean theme colors may affect semantic Hero palette.
+
+But:
+
+heroStyle = classic/minimal/night/aurora
+
+remains unwired.
+
+Do not confuse Theme Pack with Hero Style.
+
+57. NO GLASS STYLE
+
+Ocean glass palette may change through theme tokens.
+
+But:
+
+glassStyle = clear/balanced/frosted
+
+remains unwired.
+
+58. NO MOTION STYLE
+
+Unwired.
+
+Theme changes must not affect motion.
+
+59. NO READING SIZE
+
+Unwired.
+
+60. NO HOME ORDER
+
+Unwired.
+
+61. THEME RESOLVER TESTS
+
+Add focused tests for:
+
+classic-99 → classic-99
+ocean → ocean
+
+midnight → classic-99
+emerald → classic-99
+rose → classic-99
+amber → classic-99
+violet → classic-99
+monochrome → classic-99
+
+Use actual typed contract IDs.
+
+62. IMPLEMENTED THEME TEST
+
+Verify metadata exactly:
+
+classic-99
+ocean
+
+No other implemented theme.
+
+63. CSS COMPLETENESS TEST
+
+For Ocean verify:
+
+all 29 themeable tokens exist in Ocean Light
+all 29 exist in Ocean Dark
+no duplicates/conflicts
+no missing token
+no unknown token
+no fixed semantic token overridden
+64. SELECTOR TEST
+
+Verify Ocean only uses intended theme scopes:
+
+:root[data-app-theme="ocean"]
+.dark[data-app-theme="ocean"]
+
+or equivalent exact safe architecture.
+
+No feature-specific Ocean selector.
+
+65. CLASSIC BASE TEST
+
+Verify Classic values remain under existing base scopes.
+
+No classic-99 selector required for normal rendering.
+
+Removing data-app-theme must yield Classic.
+
+66. RUNTIME BRIDGE TEST
+
+Test DOM attribute synchronization with minimal existing test infrastructure.
+
+If JSDOM is unavailable:
+
+extract/test a small pure function that calculates the desired attribute value and statically verify the bridge implementation.
+
+Do NOT add a large React testing dependency.
+
+67. DRAFT VS COMMITTED TEST
+
+Mandatory architectural invariant:
+
+global theme bridge reads only committed.
+
+No draft theme consumption.
+
+68. NO JS CSS VARIABLE TEST
+
+Verify personalization theme runtime contains no:
+
+style.setProperty
+
+for palette variables.
+
+69. NO REMOUNT TEST
+
+Verify no theme-driven React key.
+
+70. NO RELOAD TEST
+
+Verify no reload.
+
+71. FIXED SEMANTIC TEST
+
+Ensure Ocean CSS contains no declarations for:
+
+status-error
+status-success
+status-warning
+status-online
+status-offline
+action-destructive
+validation-error
+
+72. DOMAIN SEMANTIC REGRESSIONS
+
+Rerun/retain Phase-2 invariants for:
+
+MCQ
+Flashcards
+Calendar
+Modules
+iOS destructive alerts
+Notifications
+Settings destructive actions
+73. PERSONALIZATION RUNTIME TESTS
+
+Rerun:
+
+account isolation
+stale hydration
+logout
+Apply success
+Apply failure
+no-op Apply
+storage failure
+race safety
+
+Theme bridge must not weaken any of them.
+
+74. ALL PERSONALIZATION TESTS
+
+Run ALL current personalization suites plus new Phase-3/Ocean tests.
+
+Report total.
+
+75. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+76. AUTH
+
+Run:
+
+npm run test:auth
+77. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+78. NOTES
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+79. MCQ
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+80. FLASHCARD
+
+Run:
+
+npm run test:ai-flashcard
+81. CALENDAR PERSONALIZATION SUITE
+
+Run Prompt 9 Calendar tests.
+
+82. LECTURE PERSONALIZATION SUITE
+
+Run Prompt 8 Lecture tests.
+
+83. MCQ/FLASHCARD PERSONALIZATION SUITE
+
+Run Prompt 10 tests.
+
+84. PDF BASELINE
+
+Run existing PDF access test if part of normal closure verification.
+
+Expected known baseline may remain:
+
+2 pass
+1 expired-token fixture failure
+
+Do not repair it.
+
+Any NEW failure must block Prompt 12.
+
+85. TYPESCRIPT
+
+Run targeted typecheck for:
+
+new theme resolver
+theme bridge
+metadata/tests
+any touched runtime integration file
+
+Run full typecheck if practical.
+
+Known seven module .webp errors remain baseline.
+
+No new error allowed.
+
+86. ESLINT
+
+Run targeted lint.
+
+No unrelated baseline repairs.
+
+87. VISUAL VERIFICATION — OCEAN
+
+If authenticated preview can be established safely, inspect representative Ocean screens.
+
+At minimum if possible:
+
+LIGHT OCEAN:
+
+Home/App shell
+Sidebar or bottom nav
+one generic card/surface
+Calendar or Lecture
+MCQ state with semantics
+
+DARK OCEAN:
+same representative subset.
+
+Verify:
+
+Ocean is visibly different from Classic
+content remains readable
+surface hierarchy remains clear
+semantic red/green/amber remain distinct
+module/subject identity remains visible
+
+If authenticated preview is unavailable:
+state the gate honestly.
+
+88. RUNTIME THEME VERIFICATION
+
+If environment allows a test harness:
+
+verify switching:
+
+Classic → Ocean
+Ocean → Classic
+Ocean → unimplemented
+Light ↔ Dark while Ocean active
+
+without:
+
+reload
+React remount
+route reset
+console error
+
+Do not add a production debug switcher.
+
+89. CONTRAST REPORT
+
+Return calculated contrast ratios for key opaque text/background pairs.
+
+For alpha colors:
+calculate the effective composite where practical, or clearly state that alpha pair is reviewed through computed effective color.
+
+Do not fabricate ratios.
+
+90. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Review every changed file.
+
+No unrelated modifications.
+
+91. EXPECTED FILES
+
+Likely new:
+
+src/features/personalization/personalizationTheme.ts
+src/features/personalization/PersonalizationThemeBridge.tsx
+tests/personalization-theme-runtime.test.ts
+
+Likely modified:
+
+src/features/personalization/classic99Tokens.ts
+src/index.css
+
+And ONE minimal runtime integration file if required to mount the bridge.
+
+Do not modify dozens of feature components.
+
+Ocean should work through the token layer.
+
+92. PROVIDER MODIFICATION POLICY
+
+Prefer NOT to rewrite PersonalizationProvider.
+
+If mounting the bridge inside/near it requires a tiny change:
+
+keep it surgical.
+
+Do not alter:
+
+hydration
+Apply
+draft
+storage
+account switching
+generation guards
+
+Report exact change.
+
+93. APP.TSX POLICY
+
+Avoid App.tsx changes if bridge can mount cleanly in the existing personalization boundary.
+
+If App.tsx must change:
+
+only add the theme bridge at the safe existing provider boundary.
+
+No routing/layout/navigation change.
+
+94. NO FEATURE COMPONENT EDIT POLICY
+
+Expected direct edits to:
+
+Calendar
+MCQ
+Flashcards
+Lecture
+Settings
+Profile
+Notifications
+Modules
+
+should be ZERO.
+
+If Ocean requires one:
+STOP and explain why token coverage failed instead of patching theme-specific feature CSS.
+
+95. NO .agents/*
+
+No .agents/* file may be created or modified.
+
+96. DEFINITION OF DONE
+
+Prompt 12 passes only if:
+
+Classic remains base CSS/fallback.
+Ocean is the only new visual theme.
+Ocean defines all 29 themeable roles in Light.
+Ocean defines all 29 themeable roles in Dark.
+No fixed semantic token is overridden.
+No domain identity is overridden.
+Theme resolver falls unimplemented IDs back to Classic.
+DOM uses one data-app-theme attribute.
+Classic removes the attribute.
+Global theme follows committed only.
+Draft does not recolor app.
+Failed Apply does not recolor app.
+Successful Apply recolors app.
+Account switch clears prior theme immediately.
+Logout clears alternate theme.
+No JS palette variable writes.
+No reload.
+No remount.
+Light/Dark/System remains independent.
+No first-paint change.
+No global unscoped theme cache.
+No Settings UI.
+No KV.
+No SQL.
+No D1.
+No R2.
+No app icon work.
+No Hero Style wiring.
+No Glass Style wiring.
+No Motion wiring.
+No Reading Size wiring.
+No Home reorder wiring.
+Contrast is acceptable.
+Build passes.
+Tests pass except explicitly accepted unchanged baselines.
+Diff is scoped.
+97. MANDATORY FINAL IMPLEMENTATION REPORT
+
+The task is incomplete without this report.
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 3 PROMPT 12 REPORT
+1. Status
+
+PASS / FAIL
+
+2. Runtime Visual Change
+
+State:
+
+OCEAN THEME IMPLEMENTED
+
+Then describe actual visual verification performed.
+
+3. Files Created
+File	Purpose
+4. Files Modified
+File	Exact Change	Why
+5. Theme Runtime Architecture
+
+Explain:
+
+committed ThemeId
+→ visual resolver
+→ data-app-theme
+→ CSS token scope
+
+6. DOM Attribute
+
+State exact attribute name and behavior for:
+
+Classic
+Ocean
+unimplemented theme
+
+7. Classic 99 Fallback
+
+Explain why removing the attribute guarantees Classic.
+
+8. Implemented Theme IDs
+
+Expected:
+
+classic-99
+ocean
+
+9. Unimplemented Theme Resolution
+
+Table:
+
+Requested	Visual Result
+midnight	classic-99
+emerald	classic-99
+rose	classic-99
+amber	classic-99
+violet	classic-99
+monochrome	classic-99
+10. Ocean Light Palette
+
+Print all 29 final values.
+
+11. Ocean Dark Palette
+
+Print all 29 final values.
+
+12. Palette Adjustments
+
+List any changes from the supplied canonical Ocean values and why.
+
+If none:
+state NONE.
+
+13. CSS Selector Architecture
+
+Print exact selectors used.
+
+Confirm no Ocean feature-specific selectors.
+
+14. CSS Source of Truth
+
+Confirm actual Ocean palette values live only in CSS.
+
+15. Theme Metadata
+
+Explain implemented-theme metadata change.
+
+16. Committed vs Draft
+
+Confirm global UI reads committed only.
+
+17. Draft Change Test
+
+Report:
+
+Classic committed
+Ocean draft
+before Apply
+→ Classic visual
+
+18. Apply Success Test
+
+Report result and DOM attribute.
+
+19. Apply Failure Test
+
+Report result and visual state.
+
+20. Ocean → Classic
+
+Report attribute removal/fallback.
+
+21. Ocean → Unimplemented
+
+Report fallback behavior.
+
+22. Appearance Orthogonality
+
+Report:
+
+Ocean Light
+Ocean Dark
+Ocean System behavior
+
+Confirm html.dark remains independent.
+
+23. Account Switch
+
+Report:
+
+A Ocean → B Classic
+
+including hydrating boundary.
+
+24. A Ocean → B Ocean
+
+Report boundary and final behavior.
+
+25. Logout
+
+Confirm Ocean attribute is removed.
+
+26. Stale Hydration
+
+Confirm Phase-1 guard remains authoritative.
+
+27. StrictMode
+
+Explain idempotency.
+
+28. No Remount
+
+Confirm no theme-driven React key.
+
+29. No Reload
+
+Confirm.
+
+30. No JS Palette Writes
+
+Confirm no style.setProperty palette mechanism.
+
+31. Fixed Semantic Safety
+
+Confirm Ocean does not override:
+
+error
+success
+warning
+online
+offline
+destructive
+validation
+
+32. MCQ Semantic Safety
+
+Confirm Easy/Normal/Hard and correct/incorrect remain independent.
+
+33. Calendar Semantic Safety
+
+Confirm Today/event/exam/current-time remain independent.
+
+34. Module Identity Safety
+
+Confirm seven identities remain independent.
+
+35. Flashcard Identity Safety
+
+Confirm subject/review identities remain independent.
+
+36. Notification / Profile / Settings Safety
+
+Confirm fixed semantic/role/destructive colors remain independent.
+
+37. Hero
+
+Explain Ocean theme-token changes only.
+
+Confirm heroStyle remains unwired.
+
+38. Glass
+
+Explain Ocean theme-token changes only.
+
+Confirm glassStyle remains unwired.
+
+39. Motion
+
+Confirm unwired.
+
+40. Reading Size
+
+Confirm unwired.
+
+41. Home Subject Order
+
+Confirm unwired.
+
+42. App Icon
+
+Confirm untouched.
+
+43. Settings UI
+
+Confirm no My 99 UI yet.
+
+44. Initial Paint
+
+Confirm preload/index/LaunchScreen untouched.
+
+Explain Classic-before-auth-hydration behavior.
+
+45. No Global Theme Cache
+
+Confirm no account-unscoped Theme Pack storage.
+
+46. Contrast Verification
+
+Table:
+
+Pair	Light Ratio	Dark Ratio	Result
+
+Include the required pairs.
+
+47. Tests Added
+
+List all new Phase-3/Ocean tests.
+
+48. Personalization Test Results
+
+Report total passing.
+
+49. Regression Results
+Command	Result
+50. Existing Baselines
+
+Report PDF fixture and .webp typecheck baseline separately.
+
+51. Visual Verification
+
+State exactly:
+
+auth state
+viewport
+appearance mode
+screens observed
+switching actually observed or not
+
+Do not overclaim.
+
+52. Feature Component Diff Verification
+
+Expected:
+
+NO Ocean-specific feature component edits.
+
+List any exception if it exists.
+
+53. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+54. Git Diff Summary
+
+Exact files/stat and git diff --check.
+
+55. Agent Artifact Verification
+
+State exactly:
+
+No .agents/* file was created or modified.
+
+56. Prompt 13 Readiness
+
+If all requirements pass, state exactly:
+
+OCEAN PILOT THEME: CLOSED AND APPROVED
+
+THEME RUNTIME ARCHITECTURE: VERIFIED
+
+REMAINING CURATED THEME PACKS: APPROVED TO IMPLEMENT
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 3 PROMPT 12 STATUS: COMPLETE — READY FOR PROMPT 13
+
+or:
+
+PERSONALIZATION PHASE 3 PROMPT 12 STATUS: BLOCKED — REPAIR REQUIRED
