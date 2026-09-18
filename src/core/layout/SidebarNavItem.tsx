@@ -44,18 +44,18 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
     const iconColorClass = isActive
       ? hasCustomColor
         ? ""                                    // inherits from button's colorClass
-        : "text-neutral-900 dark:text-white"
+        : "text-semantic-chrome-content-primary"
       : hasCustomColor
         ? `${colorClass} opacity-70 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-700 dark:group-hover:text-neutral-300";
+        : "text-semantic-chrome-content-secondary group-hover:text-neutral-700 dark:group-hover:text-neutral-300";
 
     const labelColorClass = isActive
       ? hasCustomColor
         ? ""                                    // inherits from button's colorClass
-        : "text-neutral-900 dark:text-white"
+        : "text-semantic-chrome-content-primary"
       : hasCustomColor
         ? `${colorClass} opacity-70 group-hover:opacity-100`
-        : "text-neutral-500 dark:text-[#EBEBF599] opacity-80 group-hover:opacity-100";
+        : "text-semantic-chrome-content-secondary opacity-80 group-hover:opacity-100";
 
     return (
       <motion.div variants={itemVariants}>
@@ -73,11 +73,11 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
               ? "justify-center p-1"
               : "px-4 py-2 text-left",
             // focus ring
-            "focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
+            "focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2",
             "dark:focus-visible:ring-offset-neutral-950",
             // active/inactive text color
             isActive
-              ? `font-semibold ${hasCustomColor ? colorClass : "text-neutral-900 dark:text-white"}`
+              ? `font-semibold ${hasCustomColor ? colorClass : "text-semantic-chrome-content-primary"}`
               : "font-medium",
             // subtle press feedback via CSS active state
             "active:scale-[0.965] active:opacity-[0.88]",
@@ -91,7 +91,7 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
               layoutId="sidebar-active-pill"
               className={[
                 "absolute inset-0 rounded-xl",
-                hasCustomBg ? bgClass : "bg-neutral-200/80 dark:bg-white/[0.12]",
+                hasCustomBg ? bgClass : "bg-semantic-chrome-surface-active",
               ].filter(Boolean).join(" ")}
               initial={false}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
@@ -103,7 +103,7 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
             <span
               aria-hidden="true"
               className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100
-                         bg-neutral-100/70 dark:bg-white/[0.05]
+                          bg-semantic-chrome-surface-hover
                          transition-opacity duration-150 ease-out"
             />
           )}

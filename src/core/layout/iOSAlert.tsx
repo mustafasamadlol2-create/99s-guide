@@ -68,7 +68,7 @@ export default function IOSAlert() {
  >
  {/* Title & Message Panel */}
  <div className="px-5 pt-5 pb-4 space-y-2">
- <h3 className="text-body font-semibold text-neutral-900 dark:text-white">
+  <h3 className="text-body font-semibold text-semantic-chrome-content-primary">
  {alertData.title}
  </h3>
  {alertData.message && (
@@ -87,11 +87,11 @@ export default function IOSAlert() {
  const isDestructive = act.style === "destructive";
 
  // Apply appropriate label styling
- let labelClass =
- "text-body font-normal text-med-blue dark:text-blue-400";
+  let labelClass =
+  "text-body font-normal text-semantic-navigation-tab-active";
  if (isCancel) {
- labelClass =
- "text-body font-semibold text-med-blue dark:text-blue-400";
+  labelClass =
+  "text-body font-semibold text-semantic-navigation-tab-active";
  } else if (isDestructive) {
  labelClass =
  "text-body font-normal text-med-error dark:text-red-400";

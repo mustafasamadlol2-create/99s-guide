@@ -32,6 +32,14 @@ export const THEMEABLE_TOKEN_NAMES = [
   "semantic-hero-background",
   "semantic-hero-glow-primary",
   "semantic-hero-glow-secondary",
+  "semantic-chrome-content-primary",
+  "semantic-chrome-content-secondary",
+  "semantic-chrome-content-subtle",
+  "semantic-chrome-content-muted",
+  "semantic-chrome-surface-active",
+  "semantic-chrome-surface-hover",
+  "semantic-navigation-tab-active",
+  "semantic-navigation-tab-inactive",
 ] as const;
 
 export type ThemeableTokenName = (typeof THEMEABLE_TOKEN_NAMES)[number];

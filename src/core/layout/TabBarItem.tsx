@@ -33,8 +33,8 @@ export const TabBarItem: React.FC<TabBarItemProps> = memo(
     isCompactHeight: _isCompactHeight,
     isEngaged = true,
     onClick,
-    colorClass = "text-neutral-500 dark:text-[#EBEBF599]",
-    activeColorClass = "text-med-blue dark:text-blue-400",
+    colorClass = "text-semantic-navigation-tab-inactive",
+    activeColorClass = "text-semantic-navigation-tab-active",
     suspendSharedIndicatorMotion = false,
   }) => {
     return (

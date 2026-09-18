@@ -5914,7 +5914,7 @@ const handleSignOut = useCallback(async () => {
       >
         {tab === "profile" ? (
           <div className="flex items-center justify-between">
-            <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+            <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
               {title}
             </h1>
             <button
@@ -5934,7 +5934,7 @@ const handleSignOut = useCallback(async () => {
             </button>
           </div>
         ) : (
-          <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+          <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
             {title}
           </h1>
         )}
@@ -5965,7 +5965,7 @@ const handleSignOut = useCallback(async () => {
 
   return (
     <div
-      className={`h-full max-h-full w-full max-w-full bg-neutral-50 dark:bg-[#000000] text-[#1C1C1E] dark:text-white font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
+      className={`h-full max-h-full w-full max-w-full bg-semantic-background-page text-semantic-content-primary font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
       style={{
         fontSize: `${textScale}rem`,
       }}
@@ -6034,10 +6034,10 @@ const handleSignOut = useCallback(async () => {
                 isAsideCollapsed ? "sidebar-brand-collapsed" : "sidebar-brand-expanded"
               }`}
             >
-              <h2 className={`${"text-[14.5px]"} font-semibold text-neutral-900 dark:text-white leading-none tracking-[-0.3px] truncate antialiased`}>
+              <h2 className={`${"text-[14.5px]"} font-semibold text-semantic-chrome-content-primary leading-none tracking-[-0.3px] truncate antialiased`}>
                 {"99's Guide"}
               </h2>
-              <p className={`${"text-[11.5px]"} text-neutral-400 dark:text-[#EBEBF560] font-medium leading-none tracking-[0.01em] truncate antialiased mt-[6px]`}>
+              <p className={`${"text-[11.5px]"} text-semantic-chrome-content-subtle font-medium leading-none tracking-[0.01em] truncate antialiased mt-[6px]`}>
                 {language === "ar"
                   ? "مساحة العمل الأكاديمية"
                   : "Academic Workspace"}
@@ -6061,9 +6061,9 @@ const handleSignOut = useCallback(async () => {
                 aria-expanded={!isSidebarCollapsed}
                 className={[
                   "shrink-0 flex items-center justify-center rounded-lg",
-                  "text-neutral-400 dark:text-[#EBEBF560]",
+                  "text-semantic-chrome-content-subtle",
                   "hover:text-neutral-600 dark:hover:text-neutral-200",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2",
+                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2",
                   "dark:focus-visible:ring-offset-neutral-950",
                   "sidebar-toggle",
                   "w-11 h-11",
@@ -6150,7 +6150,7 @@ const handleSignOut = useCallback(async () => {
             <button
               onClick={() => handleSidebarTabClick("profile")}
               className={`sidebar-profile-button flex items-center ${"gap-3.5"} cursor-pointer outline-none
-                focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2
+                 focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2
                 dark:focus-visible:ring-offset-neutral-950 min-w-0 group rounded-lg
                 active:scale-[0.97] active:opacity-80 transition-transform duration-75
                 ${isAsideCollapsed ? "hover:scale-105" : "flex-1 text-left"}`}
@@ -6168,10 +6168,10 @@ const handleSignOut = useCallback(async () => {
               </div>
               {!isAsideCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <h4 className={`${"text-[15px]"} font-semibold text-neutral-900 dark:text-white leading-none truncate antialiased`}>
+                   <h4 className={`${"text-[15px]"} font-semibold text-semantic-chrome-content-primary leading-none truncate antialiased`}>
                     {currentUser.name}
                   </h4>
-                  <p className={`${"text-[12.5px]"} font-medium text-neutral-400 dark:text-[#EBEBF560] truncate antialiased mt-[5px]`}>
+                   <p className={`${"text-[12.5px]"} font-medium text-semantic-chrome-content-subtle truncate antialiased mt-[5px]`}>
                     {(currentUser as any).profileEmail || currentUser.email}
                   </p>
                 </div>
@@ -6182,10 +6182,10 @@ const handleSignOut = useCallback(async () => {
             <motion.button
               onClick={handleSignOut}
               className={`sidebar-signout-button rounded-xl flex items-center justify-center shrink-0 outline-none
-                text-neutral-400 dark:text-[#EBEBF560]
+                text-semantic-chrome-content-subtle
                 hover:text-rose-500 dark:hover:text-rose-400
                 hover:bg-rose-50/70 dark:hover:bg-rose-500/10
-                focus-visible:ring-2 focus-visible:ring-med-blue focus-visible:ring-offset-2
+                focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2
                 dark:focus-visible:ring-offset-neutral-950
                 transition-colors duration-200 ease-out
                 ${isAsideCollapsed ? "w-11 h-11 bg-neutral-100/70 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.07]" : "w-11 h-11"}`}
@@ -6206,7 +6206,7 @@ const handleSignOut = useCallback(async () => {
         <main
           id="main-scroll-canvas"
           onScroll={handlePhoneTabBarVerticalScroll}
-          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-neutral-50 dark:bg-[#000000] ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-semantic-background-page ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
             paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
             // The phone scroll inset is supplied by .ios-main-scroll so it
@@ -6221,7 +6221,7 @@ const handleSignOut = useCallback(async () => {
           <motion.div
             id="root-navigation-page-layer"
             data-swipe-back-region="true"
-            className="relative w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+            className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: rootBackGesture.x,
               minHeight: navigationSurfaceMinHeight,
@@ -6233,7 +6233,7 @@ const handleSignOut = useCallback(async () => {
           >
           <motion.div
             id="main-tab-motion-stage"
-            className="relative w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+            className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: usePhoneLayout ? mainTabSwipeX : 0,
               minHeight: navigationSurfaceMinHeight,
@@ -6309,12 +6309,12 @@ const handleSignOut = useCallback(async () => {
                   top. The moving child can therefore never expose the raw root
                   window/canvas on iPad. */}
               <div
-                className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                className="relative grid grid-cols-1 grid-rows-1 w-full min-h-full overflow-hidden bg-semantic-background-page"
                 style={{ minHeight: navigationSurfaceMinHeight }}
               >
                 <motion.div
                   aria-hidden={activeHomeSubjectId !== null ? "true" : undefined}
-                  className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+                  className="w-full min-h-full bg-semantic-background-page"
                   style={{
                     gridArea: "1 / 1 / 2 / 2",
                     zIndex: 0,
@@ -6367,7 +6367,7 @@ const handleSignOut = useCallback(async () => {
                     className={`relative z-10 isolate overflow-hidden w-full min-h-full ${
                       activeHomeLecture !== null && lectureDetailSource === "dashboard"
                         ? "bg-transparent"
-                        : "bg-neutral-50 dark:bg-[#000000]"
+                        : "bg-semantic-background-page"
                     }`}
                     style={{
                       gridArea: "1 / 1 / 2 / 2",
@@ -6401,7 +6401,7 @@ const handleSignOut = useCallback(async () => {
                             ? "transform, opacity"
                             : "auto",
                         }}
-                        className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+                        className="w-full min-h-full isolate bg-semantic-background-page"
                       >
                         <Suspense fallback={iOSLoadingFallback}>
                           <ErrorBoundary>
@@ -6491,7 +6491,7 @@ const handleSignOut = useCallback(async () => {
                      alive under a pushed module page so interactive Back always
                      reveals the true previous screen, never the root canvas. */
                   <div
-                    className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                    className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-hidden bg-semantic-background-page"
                     style={{ minHeight: navigationSurfaceMinHeight }}
                   >
                     <motion.div
@@ -6510,7 +6510,7 @@ const handleSignOut = useCallback(async () => {
                             ? "transform"
                             : "auto",
                       }}
-                      className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+                      className="w-full min-h-full isolate bg-semantic-background-page"
                     >
                       {/* Root-page title now belongs to the persistent Modules
                           page itself, so the complete page can travel beside its
@@ -6543,7 +6543,7 @@ const handleSignOut = useCallback(async () => {
                         key={`module-detail-${activeModuleId}`}
                         data-module-swipe-surface="true"
                         data-swipe-back-surface="true"
-                        className="relative isolate w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                        className="relative isolate w-full min-h-full overflow-hidden bg-semantic-background-page"
                         style={{
                           gridArea: "1 / 1 / 2 / 2",
                           zIndex: 10,
@@ -6579,7 +6579,7 @@ const handleSignOut = useCallback(async () => {
                     key="subject-details-wrapper"
                     data-legacy-subject-swipe-surface="true"
                     data-swipe-back-surface="true"
-                    className="relative isolate overflow-hidden w-full bg-neutral-50 dark:bg-[#000000]"
+                    className="relative isolate overflow-hidden w-full bg-semantic-background-page"
                     style={{
                       x: activeLecture === null ? subjectsBackGesture.x : 0,
                       willChange: subjectsBackGesture.isInteracting ? "transform" : "auto",
@@ -6598,7 +6598,7 @@ const handleSignOut = useCallback(async () => {
                           opacity: activeLecture !== null ? lectureUnderlayOpacity : 1,
                           willChange: activeLecture !== null ? "transform, opacity" : "auto",
                         }}
-                        className="w-full isolate bg-neutral-50 dark:bg-[#000000]"
+                        className="w-full isolate bg-semantic-background-page"
                       >
                         <Suspense fallback={iOSLoadingFallback}>
                           <ErrorBoundary>
@@ -6758,7 +6758,7 @@ const handleSignOut = useCallback(async () => {
                 WebkitBackfaceVisibility: "hidden",
                 backfaceVisibility: "hidden",
               }}
-              className="w-full bg-neutral-50 dark:bg-[#000000]"
+              className="w-full bg-semantic-background-page"
             >
               {renderPhoneRootTabHeader("profile")}
               <motion.div
@@ -6843,15 +6843,15 @@ const handleSignOut = useCallback(async () => {
                 backfaceVisibility: "hidden",
                 touchAction: settingsReturnsToProfile ? "pan-y" : undefined,
               }}
-              className="relative z-10 w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000] ios-scrollable"
+              className="relative z-10 w-full min-h-full isolate bg-semantic-background-page ios-scrollable"
             >
               <div
-                className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
+                className="relative grid w-full min-h-full grid-cols-1 grid-rows-1 overflow-x-hidden bg-semantic-background-page"
                 style={{ minHeight: navigationSurfaceMinHeight }}
               >
                 <motion.div
                   aria-hidden={isStandaloneLegalPage || undefined}
-                  className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+                  className="w-full min-h-full isolate bg-semantic-background-page"
                   style={{
                     gridArea: "1 / 1 / 2 / 2",
                     zIndex: 0,
@@ -6911,7 +6911,7 @@ const handleSignOut = useCallback(async () => {
                     key={`legal-detail-${activeTab}`}
                     data-legal-swipe-surface="true"
                     data-swipe-back-surface="true"
-                    className="relative isolate w-full min-h-full overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+                    className="relative isolate w-full min-h-full overflow-hidden bg-semantic-background-page"
                     style={{
                       gridArea: "1 / 1 / 2 / 2",
                       zIndex: 10,
@@ -7072,11 +7072,11 @@ const handleSignOut = useCallback(async () => {
                     }
                   : {}),
               }}
-              className="w-full ios-scrollable bg-neutral-50 dark:bg-[#000000]"
+              className="w-full ios-scrollable bg-semantic-background-page"
             >
               <div
                 style={{ minHeight: navigationSurfaceMinHeight }}
-                className="w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+                className="w-full min-h-full bg-semantic-background-page"
               >
                 <Suspense fallback={iOSLoadingFallback}>
 <ErrorBoundary>
@@ -7214,8 +7214,8 @@ const handleSignOut = useCallback(async () => {
                         isActiveItem ? "ios-floating-tabbar-icon-glyph-active" : ""
                       } ${
                         isActiveItem
-                          ? (item.activeColorClass ?? "text-med-blue dark:text-blue-400")
-                          : "text-neutral-500 dark:text-[#EBEBF599]"
+                           ? (item.activeColorClass ?? "text-semantic-navigation-tab-active")
+                           : "text-semantic-navigation-tab-inactive"
                       }`}
                     >
                       <Icon

@@ -195,6 +195,14 @@
   --color-semantic-hero-background: var(--semantic-hero-background);
   --color-semantic-hero-glow-primary: var(--semantic-hero-glow-primary);
   --color-semantic-hero-glow-secondary: var(--semantic-hero-glow-secondary);
+  --color-semantic-chrome-content-primary: var(--semantic-chrome-content-primary);
+  --color-semantic-chrome-content-secondary: var(--semantic-chrome-content-secondary);
+  --color-semantic-chrome-content-subtle: var(--semantic-chrome-content-subtle);
+  --color-semantic-chrome-content-muted: var(--semantic-chrome-content-muted);
+  --color-semantic-chrome-surface-active: var(--semantic-chrome-surface-active);
+  --color-semantic-chrome-surface-hover: var(--semantic-chrome-surface-hover);
+  --color-semantic-navigation-tab-active: var(--semantic-navigation-tab-active);
+  --color-semantic-navigation-tab-inactive: var(--semantic-navigation-tab-inactive);
 
   /* Custom palette matching the sleek modern task list layout */
   --color-med-bg: #f2f2f7; /* Soft cool light blue-ish white */
@@ -411,6 +419,14 @@
   --semantic-hero-background: #05070b;
   --semantic-hero-glow-primary: rgba(30, 58, 110, 0.52);
   --semantic-hero-glow-secondary: rgba(180, 120, 30, 0.26);
+  --semantic-chrome-content-primary: #171717;
+  --semantic-chrome-content-secondary: #737373;
+  --semantic-chrome-content-subtle: #a3a3a3;
+  --semantic-chrome-content-muted: #525252;
+  --semantic-chrome-surface-active: rgba(229, 229, 229, 0.8);
+  --semantic-chrome-surface-hover: rgba(245, 245, 245, 0.7);
+  --semantic-navigation-tab-active: #007aff;
+  --semantic-navigation-tab-inactive: #737373;
 
   /* Fixed semantic status/domain roles. These are not theme palette inputs. */
   --status-error: #ff3b30;
@@ -461,6 +477,14 @@
   --semantic-hero-background: #05070b;
   --semantic-hero-glow-primary: rgba(30, 58, 110, 0.52);
   --semantic-hero-glow-secondary: rgba(180, 120, 30, 0.26);
+  --semantic-chrome-content-primary: #ffffff;
+  --semantic-chrome-content-secondary: #EBEBF599;
+  --semantic-chrome-content-subtle: #EBEBF560;
+  --semantic-chrome-content-muted: #a3a3a3;
+  --semantic-chrome-surface-active: rgba(255, 255, 255, 0.12);
+  --semantic-chrome-surface-hover: rgba(255, 255, 255, 0.05);
+  --semantic-navigation-tab-active: #60a5fa;
+  --semantic-navigation-tab-inactive: #EBEBF599;
 
   --shadow-elevation-0: none;
   --shadow-elevation-1: 0 1px 4px rgba(0,0,0,0.3);
