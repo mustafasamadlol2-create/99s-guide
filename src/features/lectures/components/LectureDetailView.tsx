@@ -1839,7 +1839,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {lecture.category}
  </span>
  </div>
- <h1 className="text-lg sm:text-2xl leading-[1.25] font-display font-semibold text-neutral-900 dark:text-[var(--text-primary)] mt-1 antialiased whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
+ <h1 className="text-lg sm:text-2xl leading-[1.25] font-display font-semibold text-semantic-chrome-content-primary mt-1 antialiased whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
  {lecture.title}
  </h1>
 
@@ -1998,7 +1998,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   >
   <div
     style={{ transformOrigin: "top center" }}
-    className="bg-white dark:bg-[#1C1C1E] border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
+    className="bg-semantic-surface-elevated border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
   >
   {/* Keep one opaque shell mounted permanently. The shell never auto-resizes
       through a scripted height animation, so switching PDF/Notes/MCQ/etc.
@@ -2022,7 +2022,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       transition={lectureTabPager.isInteracting
         ? { duration: 0 }
         : IOS_SWIPE_MOTION.completionSpring}
-      className="relative isolate bg-white dark:bg-[#1C1C1E] w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col [backface-visibility:hidden]"
+      className="relative isolate bg-semantic-surface-elevated w-full min-h-[clamp(430px,58svh,650px)] flex-1 flex flex-col [backface-visibility:hidden]"
     >
   {/* TAB 1: ORIGINAL PDF VIEWING SLIDES - NOW A PRISTINE PDF DIRECT-CLICK LINK ENGAGE CARD */}
  {activeTab === "pdf" && (
@@ -2049,7 +2049,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <FileText className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
  {isRtl ? "لا توجد ملفات PDF" : "No PDF File"}
  </h3>
  <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
@@ -2139,7 +2139,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <BookMarked className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
  {isRtl ? "لا توجد ملخصات معتمدة" : "No Summary Notes"}
  </h3>
  <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
@@ -2269,7 +2269,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <HelpCircle className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
   {isRtl
     ? `لا توجد أسئلة ${quizSource === "ALL" ? "MCQ" : MCQ_CATEGORY_LABELS[quizSource][isRtl ? "ar" : "en"]}`
     : `No ${quizSource === "ALL" ? "MCQs" : MCQ_CATEGORY_LABELS[quizSource][isRtl ? "ar" : "en"]} Available`}
@@ -2658,7 +2658,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <Layers className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
  {isRtl
  ? "لا توجد بطاقات استذكار"
  : "No Flashcards Available"}
@@ -3074,7 +3074,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <PlayCircle className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
  {isRtl ? "لا توجد فيديوهات مضافة" : "No Videos Added"}
  </h3>
  <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
@@ -3191,7 +3191,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <MessageSquare className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
  </div>
  </div>
- <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+ <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
  {isRtl ? "لا توجد نقاشات" : "No Discussions Yet"}
  </h3>
  <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">

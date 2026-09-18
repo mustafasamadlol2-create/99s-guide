@@ -73,7 +73,7 @@ interface LectureListItemProps {
  <div className="flex items-start justify-between gap-4 relative z-10">
  <div className="flex-1 min-w-0">
  <div className="flex flex-wrap items-center gap-2 mb-2">
- <span className="text-xs font-semibold uppercase text-neutral-500 dark:text-[#EBEBF599]">
+ <span className="text-xs font-semibold uppercase text-semantic-chrome-content-secondary">
  {isRtl ? `المحاضرة ${lecture.orderNumber}` : `Lecture ${lecture.orderNumber}`}
  </span>
  {dateBadge && (
@@ -86,7 +86,7 @@ interface LectureListItemProps {
  </>
  )}
   </div>
- <h4 className="text-base font-semibold text-neutral-900 dark:text-white transition-colors leading-snug break-words [overflow-wrap:anywhere]">
+ <h4 className="text-base font-semibold text-semantic-chrome-content-primary transition-colors leading-snug break-words [overflow-wrap:anywhere]">
  {lecture.title}
  </h4>
  </div>
@@ -156,7 +156,7 @@ interface LectureListItemProps {
  </motion.button>
  </div>
  <div className="flex items-center gap-3 shrink-0">
- <span className="text-xs font-medium text-neutral-500 dark:text-[#EBEBF599] hidden sm:block">{isRtl ? "شوهدت مؤخراً" : "Progress"}</span>
+ <span className="text-xs font-medium text-semantic-chrome-content-secondary hidden sm:block">{isRtl ? "شوهدت مؤخراً" : "Progress"}</span>
  <div className="relative w-9 h-9 flex items-center justify-center bg-neutral-50 dark:bg-[#2C2C2E] rounded-full ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-sm">
  <svg
  className="w-full h-full -rotate-90 transform drop-shadow-sm"

@@ -160,7 +160,7 @@ export const VideoCard = ({
       ref={cardRef}
       type="button"
       onClick={handleVideoPress}
-      className="group flex w-full flex-row items-center bg-white dark:bg-[#1C1C1E] border border-neutral-200/80 dark:border-white/[0.10] rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 p-4 sm:p-5 gap-4 sm:gap-5 cursor-pointer text-start appearance-none"
+      className="group flex w-full flex-row items-center bg-semantic-surface-elevated border border-neutral-200/80 dark:border-white/[0.10] rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 p-4 sm:p-5 gap-4 sm:gap-5 cursor-pointer text-start appearance-none"
       dir={isRtl ? "rtl" : "ltr"}
       aria-label={`${isRtl ? "مشاهدة" : "Watch"} ${video?.title || (isRtl ? "فيديو يوتيوب" : "YouTube video")}`}
     >
@@ -175,7 +175,7 @@ export const VideoCard = ({
           />
         ) : (
           <span className="w-full h-full flex items-center justify-center">
-            <PlayCircle className="w-8 h-8 text-neutral-400" />
+            <PlayCircle className="w-8 h-8 text-semantic-chrome-content-subtle" />
           </span>
         )}
 
@@ -189,7 +189,7 @@ export const VideoCard = ({
       </span>
 
       <span className="flex-1 min-w-0 py-1 text-start">
-        <span className="block text-base sm:text-lg font-semibold text-neutral-900 dark:text-white transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
+        <span className="block text-base sm:text-lg font-semibold text-semantic-chrome-content-primary transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
           {video?.title}
         </span>
 
