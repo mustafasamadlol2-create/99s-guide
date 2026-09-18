@@ -1,0 +1,156 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 2 / PROMPT 6 OF ~22
+## CORE CHROME SEMANTIC TOKENIZATION
+### App Shell + Sidebar + Bottom Navigation + Generic Headers/Tabs/Controls
+### CLASSIC 99 PARITY REQUIRED
+### NO ALTERNATE THEMES YET
+
+Phase 0 is APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 / Prompt 5B is CLOSED AND APPROVED.
+
+The repository now has:
+
+- Canonical PersonalizationConfig V1.
+- Stable PersonalizationProvider.
+- Local account-scoped personalization cache.
+- Transactional local Apply.
+- Classic 99 semantic token foundation.
+- CSS as the single source of actual Classic 99 token values.
+- TypeScript token metadata only.
+- `classic-99` as the ONLY visually implemented theme.
+- Fixed semantic/domain colors isolated from generic theme accent.
+- No KV yet.
+- No SQL personalization.
+- No alternate theme rendering yet.
+
+We are now expanding semantic-token usage into the application's CORE CHROME.
+
+The goal is NOT to visually redesign anything.
+
+The goal is:
+
+EXISTING CORE CHROME
+→ SAME EXACT CLASSIC 99 APPEARANCE
+→ USING SEMANTIC TOKENS INSTEAD OF GENERIC HARDCODED PRESENTATION COLORS
+
+---
+
+# 1. ABSOLUTE ACCEPTANCE RULE
+
+After Prompt 6:
+
+The following must visually remain Classic 99:
+
+- application canvas
+- desktop/iPad shell
+- sidebar
+- mobile bottom navigation
+- generic top/header chrome
+- generic tab chrome
+- generic reusable buttons where safe
+- generic surfaces/borders/text used by core shell
+
+No intentional visual difference is allowed.
+
+Do NOT:
+
+- redesign
+- adjust spacing
+- change geometry
+- change blur
+- change radius
+- change shadows unless only replacing their color source exactly
+- change animation
+- change gestures
+- change navigation behavior
+- change typography
+- change content
+
+This is semantic token migration only.
+
+---
+
+# 2. PROMPT 6 SCOPE
+
+Tokenize ONLY generic presentation colors in core application chrome.
+
+Expected primary areas may include:
+
+- `src/App.tsx`
+- `src/core/layout/SidebarNavItem.tsx`
+- `src/core/layout/TabBarItem.tsx`
+- sidebar shell/components
+- mobile bottom-bar shell/components
+- generic root/page canvas rules in `src/index.css`
+- generic header/sheet chrome if truly shared
+- generic tab styling if truly shared
+- reusable generic buttons if their colors are purely presentational
+
+Actual repository structure is authoritative.
+
+Do not blindly modify every file named above.
+
+Audit first.
+
+---
+
+# 3. OUT OF SCOPE
+
+Do NOT broadly tokenize:
+
+- HomeDashboard content
+- Hero internals
+- Calendar
+- MCQ
+- Flashcards
+- Modules
+- Module Resources
+- Lecture details
+- Notes
+- PDF UI
+- Video
+- Q&A
+- Notifications content
+- Profile content
+- Console feature content
+- Auth page visual redesign
+- AI Import
+- moderation semantics
+
+Those receive dedicated later prompts.
+
+---
+
+# 4. NO ALTERNATE THEME PALETTES
+
+Still do NOT implement visual values for:
+
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Only Classic 99 is visually implemented.
+
+Do not sneak future colors into Prompt 6.
+
+---
+
+# 5. NO RUNTIME THEME SWITCHING YET
+
+Do NOT make:
+
+`committed.themeId`
+
+change CSS yet.
+
+Do NOT add:
+
+```ts
+document.documentElement.dataset.theme = ...
