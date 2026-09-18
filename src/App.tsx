@@ -6063,7 +6063,7 @@ const handleSignOut = useCallback(async () => {
                   "shrink-0 flex items-center justify-center rounded-lg",
                   "text-semantic-chrome-content-subtle",
                   "hover:text-neutral-600 dark:hover:text-neutral-200",
-                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2",
                   "dark:focus-visible:ring-offset-neutral-950",
                   "sidebar-toggle",
                   "w-11 h-11",
@@ -6188,7 +6188,7 @@ const handleSignOut = useCallback(async () => {
                 focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2
                 dark:focus-visible:ring-offset-neutral-950
                 transition-colors duration-200 ease-out
-                ${isAsideCollapsed ? "w-11 h-11 bg-neutral-100/70 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.07]" : "w-11 h-11"}`}
+                ${isAsideCollapsed ? "w-11 h-11 bg-semantic-chrome-surface-hover border border-black/[0.04] dark:border-white/[0.07]" : "w-11 h-11"}`}
               title={language === "ar" ? "تسجيل الخروج" : "Sign Out"}
               aria-label={language === "ar" ? "تسجيل الخروج" : "Sign Out"}
               whileHover={{ scale: 1.025 }}
@@ -6252,7 +6252,7 @@ const handleSignOut = useCallback(async () => {
             >
               {visibleLargeTitleTab === "profile" && usePhoneLayout ? (
                 <div className="flex items-center justify-between">
-                  <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                  <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
                     {language === "ar" ? "ملف الطالب" : "Profile"}
                   </h1>
                   <button
@@ -6261,14 +6261,14 @@ const handleSignOut = useCallback(async () => {
                     className={`relative flex items-center justify-center w-10 h-10 ${isRtl ? "-ml-2" : "-mr-2"} rounded-full active:bg-neutral-200 dark:active:bg-white/10 transition-colors`}
                     aria-label={language === "ar" ? "التنبيهات" : "Notifications"}
                   >
-                    <Bell className="w-[22px] h-[22px] text-neutral-600 dark:text-neutral-400" />
+                    <Bell className="w-[22px] h-[22px] text-semantic-chrome-content-muted" />
                     {unreadNotificationsCount > 0 && (
                       <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-[1.5px] border-white dark:border-neutral-950" />
                     )}
                   </button>
                 </div>
               ) : (
-                <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
                   {visibleLargeTitleTab === "subjects"
                     ? language === "ar"
                       ? "الموديولات"
@@ -6867,7 +6867,7 @@ const handleSignOut = useCallback(async () => {
                       while a legal page is pushed so the reveal is complete. */}
                   {usePhoneLayout && (activeTab === "settings" || isStandaloneLegalPage || settingsReturnsToProfile) && (
                     <div className="mb-6 pt-2 select-none">
-                      <h1 className="text-large-title font-display font-semibold text-neutral-900 dark:text-white">
+                      <h1 className="text-large-title font-display font-semibold text-semantic-chrome-content-primary">
                         {language === "ar" ? "الإعدادات" : "Settings"}
                       </h1>
                     </div>

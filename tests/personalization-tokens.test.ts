@@ -11,6 +11,19 @@ const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
 const semanticCss = (css.match(
   /--(?:color-)?semantic-[a-z-]+\s*:[^;]+;/g,
 ) ?? []).join("\n");
+const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const sidebar = readFileSync(
+  new URL("../src/core/layout/SidebarNavItem.tsx", import.meta.url),
+  "utf8",
+);
+const tabBar = readFileSync(
+  new URL("../src/core/layout/TabBarItem.tsx", import.meta.url),
+  "utf8",
+);
+const iosAlert = readFileSync(
+  new URL("../src/core/layout/iOSAlert.tsx", import.meta.url),
+  "utf8",
+);
 
 test("Classic 99 is the only visually implemented theme", () => {
   assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99"]);
@@ -90,4 +103,27 @@ test("centralized existing surface and shadow roles remain the parity sources", 
   assert.match(css, /--semantic-shadow-generic:\s*var\(--shadow-elevation-1\)/);
   assert.match(css, /\.dark\s*\{[\s\S]*--semantic-surface-primary:\s*#000000/);
   assert.match(css, /\.dark\s*\{[\s\S]*--semantic-shadow-generic:\s*var\(--shadow-elevation-1\)/);
+});
+
+test("core chrome consumes semantic presentation tokens", () => {
+  assert.match(app, /bg-semantic-background-page/);
+  assert.match(app, /text-semantic-content-primary/);
+  assert.match(app, /text-semantic-chrome-content-primary/);
+  assert.match(app, /text-semantic-chrome-content-muted/);
+  assert.match(app, /text-semantic-navigation-tab-active/);
+  assert.match(app, /text-semantic-navigation-tab-inactive/);
+  assert.match(sidebar, /bg-semantic-chrome-surface-active/);
+  assert.match(sidebar, /bg-semantic-chrome-surface-hover/);
+  assert.match(sidebar, /text-semantic-chrome-content-secondary/);
+  assert.match(sidebar, /ring-semantic-focus-ring/);
+  assert.match(tabBar, /colorClass = "text-semantic-navigation-tab-inactive"/);
+  assert.match(tabBar, /activeColorClass = "text-semantic-navigation-tab-active"/);
+});
+
+test("iOS alert generic and destructive actions stay semantically isolated", () => {
+  assert.match(iosAlert, /text-semantic-navigation-tab-active/);
+  const destructiveBranch =
+    iosAlert.split("} else if (isDestructive) {")[1]?.split("}")[0] ?? "";
+  assert.equal(destructiveBranch.includes("text-med-error dark:text-red-400"), true);
+  assert.equal(destructiveBranch.includes("semantic-navigation-tab-active"), false);
 });
