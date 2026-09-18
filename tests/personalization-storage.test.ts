@@ -105,7 +105,7 @@ test("A/B account isolation survives reads and removing only account A", async (
 
 test("write creates a versioned envelope and snapshots the caller config", async () => {
   const storage = new MemoryStorage();
-  const config = { ...validConfig(), themeId: "ocean" as const };
+  const config: PersonalizationConfigV1 = { ...validConfig(), themeId: "ocean" };
   const result = await writeCachedPersonalization(userA, config, storage);
 
   assert.equal(result.ok, true);

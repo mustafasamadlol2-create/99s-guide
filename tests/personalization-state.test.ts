@@ -191,6 +191,11 @@ test("equality is canonical and subject-order sensitive", () => {
   const right = validConfig();
   assert.equal(personalizationConfigsEqual(left, right), true);
 
-  right.home.subjectOrder = [...PERSONALIZATION_SUBJECT_IDS].reverse();
-  assert.equal(personalizationConfigsEqual(left, right), false);
+  const reordered = {
+    ...right,
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+    },
+  };
+  assert.equal(personalizationConfigsEqual(left, reordered), false);
 });

@@ -145,8 +145,12 @@ export function reducePersonalizationState(
       return statesDraft(state, draft);
     case "setSubjectOrder":
       if (!isCompleteSubjectOrder(action.value)) return state;
-      draft.home.subjectOrder = [...action.value];
-      return statesDraft(state, draft);
+      return statesDraft(state, {
+        ...draft,
+        home: {
+          subjectOrder: [...action.value],
+        },
+      });
   }
 }
 
