@@ -24,6 +24,22 @@ const iosAlert = readFileSync(
   new URL("../src/core/layout/iOSAlert.tsx", import.meta.url),
   "utf8",
 );
+const settings = readFileSync(
+  new URL("../src/features/settings/components/SettingsView.tsx", import.meta.url),
+  "utf8",
+);
+const profile = readFileSync(
+  new URL("../src/features/profile/components/ProfileView.tsx", import.meta.url),
+  "utf8",
+);
+const bulletin = readFileSync(
+  new URL("../src/features/bulletin/components/BulletinCenter.tsx", import.meta.url),
+  "utf8",
+);
+const moduleDetail = readFileSync(
+  new URL("../src/features/modules/components/ModulePlaceholderView.tsx", import.meta.url),
+  "utf8",
+);
 
 test("Classic 99 is the only visually implemented theme", () => {
   assert.deepEqual(IMPLEMENTED_THEME_IDS, ["classic-99"]);
@@ -126,4 +142,35 @@ test("iOS alert generic and destructive actions stay semantically isolated", () 
     iosAlert.split("} else if (isDestructive) {")[1]?.split("}")[0] ?? "";
   assert.equal(destructiveBranch.includes("text-med-error dark:text-red-400"), true);
   assert.equal(destructiveBranch.includes("semantic-navigation-tab-active"), false);
+});
+
+test("Prompt 7 low-risk feature shells consume exact generic tokens", () => {
+  assert.match(settings, /text-semantic-chrome-content-primary/);
+  assert.match(settings, /text-semantic-chrome-content-secondary/);
+  assert.match(settings, /bg-semantic-surface-elevated/);
+
+  assert.match(profile, /bg-semantic-background-page/);
+  assert.match(profile, /text-semantic-chrome-content-primary/);
+  assert.match(profile, /text-semantic-chrome-content-secondary/);
+
+  assert.match(bulletin, /bg-semantic-background-page/);
+  assert.match(bulletin, /bg-semantic-surface-elevated/);
+  assert.match(bulletin, /text-semantic-chrome-content-primary/);
+  assert.match(bulletin, /text-semantic-chrome-content-secondary/);
+
+  assert.match(moduleDetail, /text-semantic-chrome-content-primary/);
+  assert.doesNotMatch(moduleDetail, /semantic-action-accent|semantic-navigation-tab-active/);
+});
+
+test("Prompt 7 preserves feature-specific status and destructive colors", () => {
+  assert.match(settings, /text-med-error dark:text-red-400/);
+  assert.match(settings, /bg-red-50 dark:bg-med-error\/10/);
+
+  assert.match(profile, /text-amber-500/);
+  assert.match(profile, /text-blue-500/);
+
+  assert.match(bulletin, /bg-blue-500 dark:bg-blue-400/);
+  assert.match(bulletin, /bg-red-500 dark:bg-red-600/);
+  assert.match(bulletin, /isDestructive: true/);
+  assert.match(bulletin, /hover:text-red-600 dark:hover:text-red-400/);
 });

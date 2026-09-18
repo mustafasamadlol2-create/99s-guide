@@ -329,17 +329,17 @@ export const BulletinCenter = function BulletinCenter({
    isUnderlay: boolean,
  ) => (
    <div
-     className="w-full min-h-full px-2 md:px-4 pt-2 pb-6 bg-neutral-50 dark:bg-[#000000]"
+      className="w-full min-h-full px-2 md:px-4 pt-2 pb-6 bg-semantic-background-page"
      aria-hidden={isUnderlay || undefined}
    >
      {segmentNotifications.length === 0 ? (
        <div className="flex flex-col items-center justify-center py-24 px-6 text-center w-full antialiased">
          <div className="relative mb-6">
-           <div className="relative w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.04] shadow-elevation-1 dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+            <div className="relative w-20 h-20 rounded-full bg-semantic-surface-elevated flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.04] shadow-elevation-1 dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
              <Inbox className="w-10 h-10 text-neutral-500 dark:text-[var(--text-muted)]" />
            </div>
          </div>
-         <h3 className="font-display text-xl font-semibold text-neutral-900 dark:text-[var(--text-primary)] mb-2">
+          <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
            {isRtl ? "لا توجد منشورات أو تنبيهات" : "Your slate is clean"}
          </h3>
          <p className="text-base font-medium text-neutral-500 dark:text-[var(--text-secondary)] max-w-[280px] text-balance">
@@ -368,7 +368,7 @@ export const BulletinCenter = function BulletinCenter({
  <div
  ref={segmentPager.surfaceRef}
  data-bulletin-segment-swipe-surface="true"
- className={`bulletin-root w-full flex flex-col relative overflow-x-hidden bg-neutral-50 dark:bg-[#000000] ${fullPageMobile ? "min-h-[100dvh]" : ""}`}
+  className={`bulletin-root w-full flex flex-col relative overflow-x-hidden bg-semantic-background-page ${fullPageMobile ? "min-h-[100dvh]" : ""}`}
  style={{
  direction: isRtl ? "rtl" : "ltr",
  paddingBottom: fullPageMobile
@@ -378,7 +378,7 @@ export const BulletinCenter = function BulletinCenter({
  }}
  >
  {/* ENHANCED iOS HEADER */}
-        <header className={`${fullPageMobile ? "px-4 pt-2" : "px-4 md:px-6 pt-5"} pb-4 flex flex-col gap-4 shrink-0 safe-top bg-neutral-50 dark:bg-[#000000]`}>
+         <header className={`${fullPageMobile ? "px-4 pt-2" : "px-4 md:px-6 pt-5"} pb-4 flex flex-col gap-4 shrink-0 safe-top bg-semantic-background-page`}>
           {fullPageMobile && (
             <div data-bulletin-back-zone="true" className="relative flex items-center justify-center min-h-11">
               {onBack && (
@@ -395,7 +395,7 @@ export const BulletinCenter = function BulletinCenter({
                   )}
                 </button>
               )}
-              <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-neutral-900 dark:text-white">
+              <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-semantic-chrome-content-primary">
                 {isRtl ? "الإشعارات" : "Notifications"}
               </h1>
             </div>
@@ -413,7 +413,7 @@ export const BulletinCenter = function BulletinCenter({
                 <button
                   key={segment}
                   onClick={() => selectSegment(segment)}
-                  className="bulletin-seg-btn relative flex-1 h-full flex items-center justify-center text-[14px] rounded-[8px] z-10 text-neutral-900 dark:text-white font-semibold"
+                  className="bulletin-seg-btn relative flex-1 h-full flex items-center justify-center text-[14px] rounded-[8px] z-10 text-semantic-chrome-content-primary font-semibold"
                 >
                   <motion.span
                     className="relative z-10 flex items-center gap-1.5"
@@ -436,7 +436,7 @@ export const BulletinCenter = function BulletinCenter({
                 <div className={`flex items-center gap-1 ${isRtl ? "mr-1" : "ml-1"}`}>
                   <button
                     onClick={onMarkAllRead}
-                    className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 dark:text-[#EBEBF599] hover:bg-neutral-100 dark:hover:bg-white/[0.08] hover:text-neutral-900 dark:hover:text-white active:scale-95 transition-all duration-200"
+                    className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-semantic-chrome-content-secondary hover:bg-neutral-100 dark:hover:bg-white/[0.08] hover:text-semantic-chrome-content-primary active:scale-95 transition-all duration-200"
                     title={isRtl ? "تعليم الكل كمقروء" : "Mark all read"}
                   >
                     <Check className="w-[18px] h-[18px]" strokeWidth={2.5} />
@@ -444,7 +444,7 @@ export const BulletinCenter = function BulletinCenter({
                   <button
                     onClick={onClearAll}
                     data-haptic="warning"
-                    className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 dark:text-[#EBEBF599] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
+                    className="bulletin-icon-btn w-8 h-8 flex items-center justify-center rounded-full text-semantic-chrome-content-secondary hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
                     title={isRtl ? "مسح الكل" : "Clear all"}
                   >
                     <Trash2 className="w-[18px] h-[18px]" strokeWidth={2} />
@@ -467,10 +467,10 @@ export const BulletinCenter = function BulletinCenter({
                   onClick={() => {
                     setSelectedCategory(cat);
                   }}
-                  className={`bulletin-chip px-4 h-[32px] flex items-center justify-center text-[13px] font-semibold rounded-full border whitespace-nowrap cursor-pointer transition-all duration-200 ${
+                    className={`bulletin-chip px-4 h-[32px] flex items-center justify-center text-[13px] font-semibold rounded-full border whitespace-nowrap cursor-pointer transition-all duration-200 ${
                     isSelected
                       ? "bg-med-blue border-blue-500 text-white shadow-elevation-1 dark:bg-[#2C2C2E] dark:border-white/20 dark:text-white"
-                      : "bg-white dark:bg-[#1C1C1E] border-neutral-200 dark:border-white/[0.08] text-neutral-500 dark:text-[var(--text-secondary)] hover:bg-neutral-50 dark:hover:bg-white/[0.12]"
+                      : "bg-semantic-surface-elevated border-neutral-200 dark:border-white/[0.08] text-neutral-500 dark:text-[var(--text-secondary)] hover:bg-neutral-50 dark:hover:bg-white/[0.12]"
                   }`}
                 >
                   {label}
@@ -483,7 +483,7 @@ export const BulletinCenter = function BulletinCenter({
  {/* NOTIFICATIONS LIST SECTION — two real stacked pages. The inactive
       segment stays mounted underneath so an interactive swipe never exposes
       the root canvas or a blank frame. */}
- <main className="flex-1 relative grid grid-cols-1 grid-rows-1 overflow-hidden bg-neutral-50 dark:bg-[#000000]">
+  <main className="flex-1 relative grid grid-cols-1 grid-rows-1 overflow-hidden bg-semantic-background-page">
    <motion.div
      className="w-full min-h-full pointer-events-none select-none"
      style={{
@@ -497,7 +497,7 @@ export const BulletinCenter = function BulletinCenter({
    </motion.div>
 
    <motion.div
-     className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#000000]"
+      className="w-full min-h-full isolate bg-semantic-background-page"
      style={{
        gridArea: "1 / 1 / 2 / 2",
        zIndex: 10,
@@ -621,7 +621,7 @@ export const BulletinCenter = function BulletinCenter({
  ]}
  >
  <div
- className={`relative z-10 p-4 bg-white dark:bg-[#1C1C1E] border transition cursor-default select-none rounded-xl ${
+  className={`relative z-10 p-4 bg-semantic-surface-elevated border transition cursor-default select-none rounded-xl ${
  notif.read
  ? "border-neutral-100 dark:border-white/[0.08] opacity-75"
  : "border-blue-250 dark:border-white/[0.15] shadow-sm ring-1 ring-blue-500/5 dark:ring-white/10 dark:shadow-[0_4px_24px_rgba(0,0,0,0.6)]"
@@ -679,11 +679,11 @@ export const BulletinCenter = function BulletinCenter({
  
  <div className="mt-1">
  {/* Headline */}
- <h4 className="text-[16px] leading-snug font-semibold text-neutral-900 dark:text-white">
+  <h4 className="text-[16px] leading-snug font-semibold text-semantic-chrome-content-primary">
  {getDisplayTitle(notif, isRtl)}
  </h4>
  {/* Subtitle */}
- <p className="text-[14px] leading-snug text-neutral-500 dark:text-[#EBEBF599] mt-0.5 whitespace-pre-wrap">
+  <p className="text-[14px] leading-snug text-semantic-chrome-content-secondary mt-0.5 whitespace-pre-wrap">
  {getFormattedSubtitle(notif, isRtl)}
  </p>
  </div>
@@ -691,7 +691,7 @@ export const BulletinCenter = function BulletinCenter({
               <div className="flex items-center gap-1 mt-2.5 pt-2.5 border-t border-neutral-100 dark:border-white/[0.08]">
                 <button
                   onClick={(e) => handleMarkItemReadState(notif.id, !notif.read, e)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded-md text-neutral-500 dark:text-[#EBEBF599] bg-transparent hover:bg-neutral-100 dark:hover:bg-white/[0.08] hover:text-neutral-900 dark:hover:text-white active:scale-95 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded-md text-semantic-chrome-content-secondary bg-transparent hover:bg-neutral-100 dark:hover:bg-white/[0.08] hover:text-semantic-chrome-content-primary active:scale-95 transition-all duration-200"
                 >
                   <Check className="w-3.5 h-3.5" />
                   {isRtl ? (notif.read ? "تعليم كغير مقروء" : "تعليم كمقروء") : (notif.read ? "Mark unread" : "Mark read")}
@@ -699,7 +699,7 @@ export const BulletinCenter = function BulletinCenter({
                 <button
                   onClick={(e) => handleDeleteItem(notif.id, e)}
                   data-haptic="warning"
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded-md text-neutral-500 dark:text-[#EBEBF599] bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded-md text-semantic-chrome-content-secondary bg-transparent hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 active:scale-95 transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {isRtl ? "حذف" : "Delete"}

@@ -71,17 +71,17 @@ const SettingsActionItem = memo(({
         <Icon className={`w-icon-md h-icon-md ${iconColor}`} />
       </div>
       <div className="flex flex-col">
-        <span className={`text-base font-medium ${isDanger ? 'text-med-error dark:text-red-400' : 'text-neutral-900 dark:text-white'}`}>
+        <span className={`text-base font-medium ${isDanger ? 'text-med-error dark:text-red-400' : 'text-semantic-chrome-content-primary'}`}>
           {title}
         </span>
-        <span className={`text-sm mt-1 ${isDanger ? 'text-red-400 dark:text-med-error/80' : 'text-neutral-500 dark:text-[#EBEBF599]'}`}>
+        <span className={`text-sm mt-1 ${isDanger ? 'text-red-400 dark:text-med-error/80' : 'text-semantic-chrome-content-secondary'}`}>
           {subtitle}
         </span>
       </div>
     </div>
     <div className="shrink-0 ms-4">
       <ChevronRight
-        className={`w-icon-md h-icon-md transition-colors ${isDanger ? 'text-red-300 dark:text-red-900/60 group-hover:text-med-error' : 'text-neutral-500 dark:text-[#EBEBF599] group-hover:text-neutral-500'}`}
+        className={`w-icon-md h-icon-md transition-colors ${isDanger ? 'text-red-300 dark:text-red-900/60 group-hover:text-med-error' : 'text-semantic-chrome-content-secondary group-hover:text-neutral-500'}`}
         style={{ transform: isRtl ? "rotate(180deg)" : "none" }}
       />
     </div>
@@ -274,10 +274,10 @@ const SettingsView = function SettingsView({
  <Moon className="w-icon-md h-icon-md text-indigo-400 hidden dark:block" />
  </div>
  <div className="flex flex-col">
- <span className="text-base font-medium text-neutral-900 dark:text-white">
+ <span className="text-base font-medium text-semantic-chrome-content-primary">
  {isRtl ? "مظهر الواجهة" : "Interface Theme"}
  </span>
- <span className="text-sm text-neutral-500 dark:text-[#EBEBF599] mt-1">
+ <span className="text-sm text-semantic-chrome-content-secondary mt-1">
  {isRtl ? "تخصيص ألوان التطبيق" : "Customize application colors"}
  </span>
  </div>
@@ -285,19 +285,19 @@ const SettingsView = function SettingsView({
  <div className="settings-segment shrink-0 ms-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
  <button
  onClick={handleThemeLight}
- className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "light" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
+ className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "light" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-semantic-chrome-content-primary" : "hover:text-neutral-700 dark:hover:text-neutral-500 text-semantic-chrome-content-secondary"}`}
  >
  {isRtl ? "فاتح" : "Light"}
  </button>
  <button
  onClick={handleThemeDark}
- className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "dark" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
+ className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "dark" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-semantic-chrome-content-primary" : "hover:text-neutral-700 dark:hover:text-neutral-500 text-semantic-chrome-content-secondary"}`}
  >
  {isRtl ? "داكن" : "Dark"}
  </button>
  <button
  onClick={handleThemeSystem}
- className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "system" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
+ className={`px-3 py-2 rounded-md settings-segment-btn transition ${theme === "system" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-semantic-chrome-content-primary" : "hover:text-neutral-700 dark:hover:text-neutral-500 text-semantic-chrome-content-secondary"}`}
  >
  {isRtl ? "تلقائي" : "Auto"}
  </button>
@@ -313,10 +313,10 @@ const SettingsView = function SettingsView({
  <Languages className="w-icon-md h-icon-md text-med-blue dark:text-blue-400" />
  </div>
  <div className="flex flex-col">
- <span className="text-base font-medium text-neutral-900 dark:text-white">
+ <span className="text-base font-medium text-semantic-chrome-content-primary">
  {isRtl ? "لغة التطبيق السريرية" : "Clinical Language"}
  </span>
- <span className="text-sm text-neutral-500 dark:text-[#EBEBF599] mt-1">
+ <span className="text-sm text-semantic-chrome-content-secondary mt-1">
  {isRtl ? "اختر لغة الواجهة" : "Select interface language"}
  </span>
  </div>
@@ -324,13 +324,13 @@ const SettingsView = function SettingsView({
  <div className="settings-segment shrink-0 ms-4 flex bg-neutral-100 dark:bg-[#2C2C2E]/80 p-1 rounded-lg text-sm font-medium">
  <button
  onClick={handleLangEn}
- className={`px-3 py-2 rounded-md settings-segment-btn transition ${language === "en" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
+ className={`px-3 py-2 rounded-md settings-segment-btn transition ${language === "en" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-semantic-chrome-content-primary" : "hover:text-neutral-700 dark:hover:text-neutral-500 text-semantic-chrome-content-secondary"}`}
  >
  English
  </button>
  <button
  onClick={handleLangAr}
- className={`px-3 py-2 rounded-md settings-segment-btn transition ${language === "ar" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-neutral-900 dark:text-white" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-500 dark:text-[#EBEBF599]"}`}
+ className={`px-3 py-2 rounded-md settings-segment-btn transition ${language === "ar" ? "bg-white dark:bg-neutral-700 shadow-elevation-1 text-semantic-chrome-content-primary" : "hover:text-neutral-700 dark:hover:text-neutral-500 text-semantic-chrome-content-secondary"}`}
  >
  العربية
  </button>
@@ -349,14 +349,14 @@ const SettingsView = function SettingsView({
  {pushAlerts ? (
  <Bell className="w-icon-md h-icon-md text-emerald-500 dark:text-emerald-400" />
  ) : (
- <BellOff className="w-icon-md h-icon-md text-neutral-500 dark:text-[#EBEBF599]" />
+ <BellOff className="w-icon-md h-icon-md text-semantic-chrome-content-secondary" />
  )}
  </div>
  <div className="flex flex-col">
- <span className="text-base font-medium text-neutral-900 dark:text-white">
+ <span className="text-base font-medium text-semantic-chrome-content-primary">
  {isRtl ? "تنبيهات أكاديمية" : "Academic Alerts"}
  </span>
- <span className="text-sm text-neutral-500 dark:text-[#EBEBF599] mt-1">
+ <span className="text-sm text-semantic-chrome-content-secondary mt-1">
  {isRtl ? "تلقي الإشعارات الهامة" : "Receive important notifications"}
  </span>
  </div>
@@ -544,14 +544,14 @@ const SettingsView = function SettingsView({
  className="mobile-dialog-panel relative z-[1] w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
  >
  <div className="flex justify-between items-start mb-4">
- <h3 className="font-semibold text-base text-neutral-900 dark:text-white">
+  <h3 className="font-semibold text-base text-semantic-chrome-content-primary">
  {isRtl ? "تأكيد حذف الحساب" : "Confirm Account Deletion"}
  </h3>
  <button
  aria-label={isRtl ? "إلغاء" : "Cancel"}
  type="button"
  onClick={cancelDelete}
- className="min-h-11 min-w-11 p-2 -mr-2 -mt-2 flex items-center justify-center text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+  className="min-h-11 min-w-11 p-2 -mr-2 -mt-2 flex items-center justify-center text-semantic-chrome-content-secondary hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
  >
  <X className="w-icon-md h-icon-md" />
  </button>
@@ -582,7 +582,7 @@ const SettingsView = function SettingsView({
  autoCapitalize="characters"
  spellCheck={false}
  disabled={isDeleting}
- className="w-full px-3 py-3 rounded-lg border border-neutral-300 dark:border-white/[0.15] bg-white dark:bg-[#1C1C1E] text-sm text-neutral-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-shadow"
+  className="w-full px-3 py-3 rounded-lg border border-neutral-300 dark:border-white/[0.15] bg-semantic-surface-elevated text-sm text-semantic-chrome-content-primary focus:outline-hidden focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-shadow"
  />
  {deleteError && (
  <p className="text-xs text-med-error font-medium leading-none mt-2">
@@ -652,25 +652,25 @@ const SettingsView = function SettingsView({
  className="relative z-[1] w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#2C2C2E] rounded-2xl p-6 shadow-elevation-3 border border-neutral-200/50 dark:border-white/[0.10]"
  >
  <div className="flex justify-between items-start mb-4">
- <h3 className="font-display font-semibold text-body text-neutral-900 dark:text-white">
+  <h3 className="font-display font-semibold text-body text-semantic-chrome-content-primary">
  {privacyModalInfo.title}
  </h3>
  <button
  aria-label={isRtl ? "إغلاق" : "Close"}
  type="button"
  onClick={closePrivacyModal}
- className="p-1 -mr-2 -mt-2 text-neutral-500 dark:text-[#EBEBF599] hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+  className="p-1 -mr-2 -mt-2 text-semantic-chrome-content-secondary hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
  >
  <X className="w-icon-md h-icon-md" />
  </button>
  </div>
- <p className="text-caption text-neutral-600 dark:text-[#EBEBF599] max-h-[60vh] overflow-y-auto overscroll-y-contain">
+  <p className="text-caption text-neutral-600 dark:text-[#EBEBF599] max-h-[60vh] overflow-y-auto overscroll-y-contain">
  {privacyModalInfo.desc}
  </p>
  <button
  type="button"
  onClick={closePrivacyModal}
- className="w-full mt-6 py-3 bg-neutral-900 dark:bg-white !text-white dark:!text-neutral-900 font-semibold text-base rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-100 transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1 dark:hover:shadow-elevation-1 shadow-elevation-1"
+  className="w-full mt-6 py-3 bg-semantic-chrome-content-primary !text-white dark:!text-neutral-900 font-semibold text-base rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-100 transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1 dark:hover:shadow-elevation-1 shadow-elevation-1"
  >
  {isRtl ? "إغلاق" : "Close"}
  </button>

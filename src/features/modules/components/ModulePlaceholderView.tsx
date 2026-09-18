@@ -302,7 +302,7 @@ function AssessmentCard({ item, language }: { item: AssessmentItem; language: "e
         <Icon className="h-[22px] w-[22px]" />
       </span>
       <div className="relative min-w-0">
-        <div className="text-[15px] font-semibold leading-[1.25] text-neutral-900 dark:text-white sm:text-[16px]">{localizeModuleLabel(item.label, language)}</div>
+        <div className="text-[15px] font-semibold leading-[1.25] text-semantic-chrome-content-primary sm:text-[16px]">{localizeModuleLabel(item.label, language)}</div>
         <div className="mt-2 text-[15px] font-semibold" style={{ color: tone.text }}>{language === "ar" ? `${item.marks} درجة` : `${item.marks} marks`}</div>
       </div>
     </div>
@@ -497,7 +497,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
                       <span className="whitespace-nowrap font-medium text-neutral-700 dark:text-[#E4E4E7]">{localizeModuleLabel(item.label, language)}</span>
                       <span className="h-px min-w-[24px] flex-1 border-t border-dotted border-neutral-300 dark:border-white/20" />
                     </div>
-                    <span className="whitespace-nowrap font-semibold text-neutral-900 dark:text-white">{localizeHoursValue(item.value, language)}</span>
+                    <span className="whitespace-nowrap font-semibold text-semantic-chrome-content-primary">{localizeHoursValue(item.value, language)}</span>
                   </div>
                 ))}
               </div>
@@ -550,7 +550,7 @@ export const ModulePlaceholderView = memo(function ModulePlaceholderView({ subje
                         <FileText className="h-5 w-5" />
                       </span>
                       <div className="min-w-0">
-                        <h3 className="break-words text-[15px] font-semibold leading-6 text-neutral-900 dark:text-white">
+                        <h3 className="break-words text-[15px] font-semibold leading-6 text-semantic-chrome-content-primary">
                           {resource.title}
                         </h3>
                         <p className="mt-1 text-xs font-medium text-neutral-500 dark:text-neutral-400" dir="ltr">

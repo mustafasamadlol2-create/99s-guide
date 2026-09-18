@@ -133,7 +133,7 @@ const SettingsItem = memo(({
           {title}
         </span>
         {subtitle && (
-          <span className="text-[13px] text-neutral-500 dark:text-[#EBEBF599] truncate mt-0.5">
+          <span className="text-[13px] text-semantic-chrome-content-secondary truncate mt-0.5">
             {subtitle}
           </span>
         )}
@@ -343,7 +343,7 @@ export const ProfileView = function ProfileView({
               animate={{ opacity: 1, y: 0 }}
               className="flex flex-col items-center mt-5"
             >
-              <h1 className="text-[24px] tracking-tight font-semibold text-neutral-900 dark:text-white flex items-center justify-center gap-2">
+              <h1 className="text-[24px] tracking-tight font-semibold text-semantic-chrome-content-primary flex items-center justify-center gap-2">
                 {user.name}
                 {user.role === 'owner' ? (
                   <Crown className="w-5 h-5 text-amber-500 drop-shadow-sm" />
@@ -354,7 +354,7 @@ export const ProfileView = function ProfileView({
                 )}
               </h1>
               <p
-                className="text-[15px] text-neutral-500 dark:text-[#EBEBF599] mt-1 font-medium"
+                className="text-[15px] text-semantic-chrome-content-secondary mt-1 font-medium"
                 aria-label={tr(`Academic Group ${academicGroupLabel}`, `المجموعة الدراسية ${academicGroupLabel}`)}
               >
                 {academicGroupLabel}
@@ -379,7 +379,7 @@ export const ProfileView = function ProfileView({
             className="w-full max-w-[320px] mt-8 space-y-4"
           >
             <div className={`space-y-1.5 ${isRtl ? "text-right" : "text-left"}`}>
-              <label className={`text-[13px] font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
+              <label className={`text-[13px] font-semibold text-semantic-chrome-content-secondary uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
                 {tr("Full Name", "الاسم الكامل")}
               </label>
               <input aria-label="Input field"
@@ -390,17 +390,17 @@ export const ProfileView = function ProfileView({
                 autoCorrect="off"
                 spellCheck={false}
                 enterKeyHint="done"
-                className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-neutral-900 dark:text-white outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm"
+                className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-semantic-chrome-content-primary outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm"
               />
             </div>
             <div className={`space-y-1.5 ${isRtl ? "text-right" : "text-left"}`}>
-              <label className={`text-[13px] font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
+              <label className={`text-[13px] font-semibold text-semantic-chrome-content-secondary uppercase tracking-wider ${isRtl ? "mr-1" : "ml-1"}`}>
                 {tr("Academic Group", "المجموعة الدراسية")}
               </label>
               <select
                 value={editGroup}
                 onChange={handleGroupChange}
-                className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-neutral-900 dark:text-white outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm appearance-none cursor-pointer"
+                className="w-full bg-white/60 dark:bg-[#1C1C1E]/40 backdrop-blur-sm border border-neutral-200/50 dark:border-white/[0.06] rounded-2xl px-4 py-3.5 text-[15px] font-medium text-semantic-chrome-content-primary outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 focus:border-blue-500/50 transition shadow-sm appearance-none cursor-pointer"
               >
                 <option value="A">{tr("Group A", "المجموعة A")}</option>
                 <option value="B">{tr("Group B", "المجموعة B")}</option>
@@ -412,7 +412,7 @@ export const ProfileView = function ProfileView({
             
             <div className="space-y-1.5 text-left">
               <label
-                className="text-[13px] ml-1 font-semibold text-neutral-500 dark:text-[#EBEBF599] uppercase tracking-wider flex justify-between items-center text-left"
+                className="text-[13px] ml-1 font-semibold text-semantic-chrome-content-secondary uppercase tracking-wider flex justify-between items-center text-left"
                 dir="ltr"
               >
                 {/* Explicit product requirement: in Arabic the Signature label
@@ -662,12 +662,12 @@ export const ProfileView = function ProfileView({
 
  return (
    <div
-     className="relative w-full min-h-full overflow-x-hidden bg-neutral-50 dark:bg-[#000000]"
+     className="relative w-full min-h-full overflow-x-hidden bg-semantic-background-page"
      dir={isRtl ? "rtl" : "ltr"}
    >
      <motion.div
        aria-hidden={subView !== null || undefined}
-       className="relative z-0 w-full min-h-full bg-neutral-50 dark:bg-[#000000]"
+        className="relative z-0 w-full min-h-full bg-semantic-background-page"
        style={{
          pointerEvents: subView !== null ? "none" : "auto",
          x: subView !== null ? profileUnderlayX : 0,
@@ -682,7 +682,7 @@ export const ProfileView = function ProfileView({
          key={`profile-subview-${subView}`}
          data-profile-subview-swipe-surface="true"
          data-swipe-back-surface="true"
-         className="fixed inset-0 z-40 w-full overflow-y-auto overflow-x-hidden overscroll-y-contain ios-scrollable isolate bg-neutral-50 dark:bg-[#000000]"
+          className="fixed inset-0 z-40 w-full overflow-y-auto overflow-x-hidden overscroll-y-contain ios-scrollable isolate bg-semantic-background-page"
          dir={isRtl ? "rtl" : "ltr"}
          style={{
            x: profileBackGesture.x,
