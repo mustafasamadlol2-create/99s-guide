@@ -157,6 +157,36 @@ test("attribute synchronization supports direct switches and is StrictMode-safe"
   assert.deepEqual(ocean.calls, ["set:ocean"]);
 });
 
+test("attribute synchronization supports the full direct theme transition chain", () => {
+  const target = makeTarget();
+  const transitions = [
+    "ocean",
+    "midnight",
+    "emerald",
+    "rose",
+    "amber",
+    "violet",
+    "monochrome",
+    "classic-99",
+  ] as const;
+
+  for (const themeId of transitions) {
+    synchronizePersonalizationTheme(target.target, themeId);
+  }
+
+  assert.deepEqual(target.calls, [
+    "set:ocean",
+    "set:midnight",
+    "set:emerald",
+    "set:rose",
+    "set:amber",
+    "set:violet",
+    "set:monochrome",
+    "remove",
+  ]);
+  assert.equal(target.value(), null);
+});
+
 test("Ocean defines exactly all 29 themeable tokens in Light and Dark", () => {
   assert.deepEqual(declarations(block(':root[data-app-theme="ocean"]')), OCEAN_LIGHT);
   assert.deepEqual(declarations(block('.dark[data-app-theme="ocean"]')), OCEAN_DARK);
@@ -210,6 +240,19 @@ test("draft and transactional Apply semantics control when Ocean can appear", ()
   }
   assert.equal(target.value(), "ocean");
   assert.equal(oceanDraftConfig().themeId, "ocean");
+});
+
+test("a failed non-Ocean Apply leaves Classic visual while Violet remains Draft", () => {
+  let state = createPersonalizationState();
+  state = reducePersonalizationState(state, { type: "setThemeId", value: "violet" });
+  const target = makeTarget();
+
+  synchronizePersonalizationTheme(target.target, state.committed.themeId);
+
+  assert.equal(state.committed.themeId, "classic-99");
+  assert.equal(state.draft.themeId, "violet");
+  assert.equal(state.isDirty, true);
+  assert.equal(target.value(), null);
 });
 
 test("Classic fallback clears alternate themes across account boundaries and logout", () => {
