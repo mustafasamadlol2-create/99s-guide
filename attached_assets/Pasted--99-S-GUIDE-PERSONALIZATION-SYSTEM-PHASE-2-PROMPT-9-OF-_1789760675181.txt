@@ -1,0 +1,1691 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 2 / PROMPT 9 OF ~22
+## CALENDAR CLASSIC 99 SEMANTIC TOKENIZATION
+### Neutral Calendar Shell Only
+### DAY / WEEK / MONTH BEHAVIOR FROZEN
+### EVENT / TODAY / EXAM SEMANTICS PROTECTED
+### NO ALTERNATE THEMES YET
+
+Phase 0 is APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 / Prompt 5B:
+CLASSIC 99 TOKEN FOUNDATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 6B:
+CORE CHROME CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 7:
+LOW-RISK FEATURE-SURFACE CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+Phase 2 / Prompt 8:
+LECTURE & CONTENT-SURFACE CLASSIC 99 TOKENIZATION — CLOSED AND APPROVED.
+
+We are now working ONLY on the Calendar presentation layer.
+
+This is a HIGH-RISK feature because Calendar contains:
+
+- Month view
+- Week view
+- Day view
+- horizontal paging
+- RTL-aware paging
+- academic-group filtering
+- event-type semantics
+- exam/event status colors
+- today highlighting
+- Baghdad date/time behavior
+- previously repaired swipe/page transitions
+
+Therefore Prompt 9 is strictly:
+
+GENERIC NEUTRAL CALENDAR PRESENTATION
+→ CLASSIC 99 SEMANTIC TOKENS
+
+while preserving all functional and semantic Calendar behavior.
+
+The required result is:
+
+BEFORE
+=
+AFTER
+=
+CLASSIC 99
+
+No intentional visual redesign.
+
+---
+
+# 1. EXACT PROMPT 9 SCOPE
+
+Audit and selectively token-convert GENERIC presentation colors in the Calendar system only.
+
+Potentially in scope:
+
+- Calendar page/root neutral canvas
+- Calendar generic cards/surfaces
+- Month/Week/Day neutral container surfaces
+- generic primary text
+- generic secondary text
+- generic subtle text
+- neutral separators
+- generic borders
+- neutral toolbar/header chrome
+- generic nonsemantic buttons
+- generic selected-tab presentation IF it is not carrying event/date semantics
+- neutral empty states
+- generic scroll/pager surrounding surfaces
+
+Only migrate values where Classic Light and Classic Dark parity can be proven exactly.
+
+---
+
+# 2. ABSOLUTE BEHAVIOR FREEZE
+
+Do NOT change:
+
+- Calendar data
+- Calendar event objects
+- event filtering
+- academic group filtering
+- current selected date
+- day/week/month state
+- date calculations
+- Baghdad timezone behavior
+- event sorting
+- event grouping
+- event navigation
+- exam behavior
+- schedule behavior
+- Calendar routing
+- Calendar query logic
+- Calendar API calls
+- pager mechanics
+- swipe recognition
+- RTL pager direction
+- animation logic
+- drag thresholds
+- touch handling
+- hover rules
+- scroll restoration
+
+COLOR/TOKEN SOURCE ONLY.
+
+---
+
+# 3. NO ALTERNATE THEMES
+
+Do NOT visually implement:
+
+- midnight
+- ocean
+- emerald
+- rose
+- amber
+- violet
+- monochrome
+
+Classic 99 remains the only visually implemented theme.
+
+Do not wire:
+
+committed.themeId
+draft.themeId
+
+to Calendar or DOM.
+
+---
+
+# 4. NO RUNTIME THEME SWITCHING
+
+Still forbidden:
+
+document.documentElement.dataset.theme
+classList theme mutation
+style.setProperty theme mutation
+dynamic palette objects
+theme-driven React keys
+reload()
+location.reload()
+
+No alternate theme behavior in Prompt 9.
+
+---
+
+# 5. AUDIT CALENDAR FILES FIRST
+
+Identify the actual Calendar architecture before editing.
+
+Inspect all relevant current files, likely including some of:
+
+- Calendar root view
+- CalendarDayView
+- CalendarWeekView
+- CalendarMonthView
+- event/card components
+- date headers
+- view selector
+- filter controls
+- useCalendarViewPager
+- any Calendar-specific hooks/styles
+
+Do NOT assume file names from this prompt if repository differs.
+
+Return the exact audited file list.
+
+---
+
+# 6. CLASSIFY EVERY CALENDAR COLOR
+
+Before changing a value, classify it:
+
+A. GENERIC THEMEABLE PRESENTATION
+
+Examples:
+neutral page background
+neutral card
+generic text
+generic border
+generic muted icon
+
+B. DATE SEMANTIC
+
+Examples:
+Today
+selected day
+weekend if meaningful
+past/future distinction if meaningful
+
+C. EVENT TYPE SEMANTIC
+
+Examples:
+lecture
+exam
+clinical
+academic event
+deadline
+holiday
+other event categories
+
+D. STATUS SEMANTIC
+
+Examples:
+danger
+warning
+success
+cancelled
+current/live
+completed
+
+E. GROUP / ACADEMIC IDENTITY
+
+F. BRAND / DECORATIVE
+
+G. UNKNOWN / HIGH RISK
+
+Only A should normally migrate in Prompt 9.
+
+If classification is uncertain:
+LEAVE IT UNCHANGED.
+
+---
+
+# 7. EXISTING TOKENS FIRST
+
+Reuse exact approved semantic tokens when possible:
+
+- semantic-background-page
+- semantic-background-grouped
+- semantic-surface-primary
+- semantic-surface-elevated
+- semantic-surface-muted
+- semantic-content-primary
+- semantic-content-secondary
+- semantic-content-subtle
+- semantic-chrome-content-primary
+- semantic-chrome-content-secondary
+- semantic-chrome-content-subtle
+- semantic-chrome-content-muted
+- semantic-border-default
+- semantic-border-strong
+- semantic-action-accent
+- semantic-action-accent-soft
+- semantic-focus-ring
+- semantic-chrome-surface-active
+- semantic-chrome-surface-hover
+- semantic-navigation-tab-active
+- semantic-navigation-tab-inactive
+- semantic-glass-surface
+- semantic-glass-border
+
+Use actual repository names.
+
+Do not invent duplicate equivalents.
+
+---
+
+# 8. NEW TOKEN POLICY
+
+A new Calendar-neutral semantic token may be added ONLY if:
+
+1. Current Light and Dark pair is exact and known.
+2. No existing approved token represents it.
+3. The value is generic presentation, not Calendar semantics.
+4. It appears enough to justify a semantic role.
+5. Future theme packs should reasonably control it.
+6. Classic 99 parity would otherwise be impossible.
+
+Expected:
+
+0–6 new token roles.
+
+If significantly more appear necessary:
+STOP expanding and defer.
+
+Do not create:
+
+--calendar-day-1-gray
+--calendar-row-2-border
+
+style micro-tokens.
+
+---
+
+# 9. CALENDAR ROOT CANVAS
+
+Audit Calendar outer page/root background.
+
+If it already inherits the semantic App canvas:
+do not duplicate work.
+
+If Calendar explicitly hardcodes the same Classic canvas:
+migrate only if exact.
+
+Do NOT alter:
+
+min-height
+height
+overflow
+safe areas
+position
+display
+flex
+grid
+scroll ownership
+
+---
+
+# 10. CALENDAR HEADER
+
+Generic header presentation may be tokenized:
+
+- title
+- subtitle
+- generic neutral button
+- neutral background
+- neutral border
+
+Do NOT alter:
+
+date controls
+previous/next logic
+Today action behavior
+month/week/day switching
+group selector behavior
+filter behavior
+
+---
+
+# 11. TODAY CONTROL VS TODAY SEMANTIC
+
+Distinguish:
+
+A. a generic button labeled "Today"
+
+from:
+
+B. the visual semantic meaning of the actual current calendar day.
+
+A generic control surface may be themeable.
+
+The actual TODAY date indicator is semantic Calendar state and must be preserved.
+
+Do NOT make the current date visually indistinguishable from normal dates.
+
+---
+
+# 12. TODAY COLOR — PROTECTED
+
+Phase 0 identified Calendar Today/danger usage including existing red such as:
+
+#ff3b30
+
+Audit current source.
+
+Do NOT automatically migrate Today red to:
+
+semantic-action-accent
+navigation active
+theme accent
+
+If current Today treatment is semantically significant:
+leave it fixed in Prompt 9.
+
+Future theme design can reconsider it only deliberately.
+
+---
+
+# 13. MONTH VIEW
+
+Tokenize only neutral Month-view presentation:
+
+- generic grid/background
+- generic date text
+- secondary neutral text
+- neutral borders
+- blank-day/empty-cell neutral surfaces
+- generic header text
+
+Do NOT alter:
+
+- date calculation
+- first-day offset
+- month transition
+- selected-date logic
+- today marker
+- event dots
+- event category colors
+- exam colors
+- weekend semantics
+- disabled/out-of-month semantics
+
+---
+
+# 14. MONTH GRID GEOMETRY
+
+Absolutely do NOT alter:
+
+grid columns
+row size
+cell height
+cell width
+gap
+padding
+overflow
+touch target
+responsive breakpoints
+
+Color/token only.
+
+---
+
+# 15. OUT-OF-MONTH DAYS
+
+Audit faded previous/next-month days.
+
+These may look like neutral/subtle text but can encode date state.
+
+Do NOT blindly map them to generic subtle token.
+
+If current opacity/color pair is exact and semantic meaning is preserved:
+tokenization may be safe.
+
+Otherwise defer.
+
+---
+
+# 16. SELECTED DATE
+
+The selected date may represent interaction state.
+
+Audit whether its current color is:
+
+generic selected navigation
+or Calendar-specific state.
+
+Do not automatically theme it.
+
+If exact generic active token is truly appropriate:
+document why.
+
+Otherwise leave unchanged.
+
+---
+
+# 17. EVENT DOTS
+
+Do NOT convert event dots to generic theme accent.
+
+Event dots may encode category or event type.
+
+Keep event colors independent.
+
+---
+
+# 18. WEEK VIEW
+
+Tokenize generic neutral:
+
+- outer surface
+- day column neutral background
+- generic headings
+- secondary text
+- neutral borders/separators
+- empty timeslot surface
+
+Do NOT alter:
+
+- day column count
+- hour rail
+- event positioning
+- event overlap
+- scroll
+- selected day
+- current time
+- pager logic
+- hover behavior
+
+---
+
+# 19. WEEK DAY HEADERS
+
+Generic date/day labels may use semantic text tokens if exact.
+
+But preserve:
+
+today
+selected
+exam/status indicators
+
+if they have special color.
+
+---
+
+# 20. WEEK HOVER SAFETY
+
+There was prior work removing inappropriate hover behavior on iPhone/iPad.
+
+Do NOT modify hover conditions.
+
+Do NOT reintroduce:
+
+desktop hover styling on touch surfaces
+
+through class refactoring.
+
+If replacing a hover color:
+preserve the exact existing media/device condition.
+
+---
+
+# 21. DAY VIEW
+
+Audit `CalendarDayView` carefully.
+
+Prompt 0 identified direct semantic color usage in this area.
+
+Tokenize only:
+
+- generic background
+- generic neutral text
+- generic card shell
+- neutral borders
+- neutral metadata
+
+Do NOT alter semantic rails/events/current-date indicators.
+
+---
+
+# 22. DAY VIEW CURRENT TIME
+
+If current-time marker/rail exists:
+
+do NOT theme it generically unless it is clearly decorative.
+
+Preserve its semantic visibility.
+
+No positional or timing logic changes.
+
+---
+
+# 23. EVENT CARDS
+
+Calendar event cards are HIGH RISK.
+
+Only their neutral base shell may be tokenized IF event identity is layered separately and exact.
+
+Do NOT change:
+
+- event accent stripe
+- exam color
+- lecture color
+- event type color
+- status color
+- group color
+- deadline color
+- icon identity
+
+When uncertain:
+leave entire event card color structure unchanged.
+
+---
+
+# 24. EXAM SEMANTICS
+
+Exam-related:
+
+red
+rose
+amber
+warning/danger
+
+must not become user theme accent.
+
+Preserve current semantics.
+
+---
+
+# 25. LECTURE/EVENT TYPE SEMANTICS
+
+If Lecture/Clinical/Other event types have defined colors:
+
+preserve them.
+
+No generic theme accent substitution.
+
+---
+
+# 26. CALENDAR FILTERS
+
+Audit filter controls.
+
+Generic neutral shell may use semantic tokens.
+
+But filter chips may use color to represent:
+
+active filter
+event type
+group
+status
+
+Do not convert identity/semantic filter colors blindly.
+
+Behavior remains frozen.
+
+---
+
+# 27. GROUP SELECTOR
+
+Do NOT alter:
+
+academic group data
+selection logic
+persistence
+filtering
+
+Only generic neutral chrome may be tokenized.
+
+---
+
+# 28. MONTH/WEEK/DAY SELECTOR
+
+Audit current segmented control/tab presentation.
+
+If selected state is a generic view-selection interaction:
+it may be eligible for generic navigation/active tokens IF parity is exact.
+
+Do NOT change:
+
+- selector ordering
+- swipe synchronization
+- active state calculation
+- label
+- responsive layout
+
+---
+
+# 29. VIEW SELECTOR RTL
+
+No changes to ordering/direction in Arabic.
+
+Colors only.
+
+---
+
+# 30. CALENDAR PAGER — CRITICAL
+
+Inspect:
+
+useCalendarViewPager.ts
+
+and related pager integration.
+
+Prompt 9 must NOT alter this hook unless absolutely no runtime change is required.
+
+Expected:
+NO CHANGE.
+
+Do NOT modify:
+
+- axis lock
+- direction
+- threshold
+- delta calculations
+- velocity logic
+- animations
+- drag state
+- pointer events
+- RTL multiplication
+- pager index
+
+---
+
+# 31. PREVIOUSLY REMOVED PAGE SWIPES
+
+Prior production work removed certain unwanted left/right week/day/month page transitions.
+
+Do NOT restore or modify them.
+
+Respect current production pager behavior exactly.
+
+---
+
+# 32. CALENDAR VIEW TRANSITIONS
+
+Do not change:
+
+Motion
+opacity
+transform
+spring
+duration
+layering
+
+Even if classes combine colors with transition utilities:
+replace only color segment.
+
+---
+
+# 33. CALENDAR STACK / UNDERLAY SAFETY
+
+Prior navigation fixes used persistent layers/underlays to prevent blank or overlapping screens.
+
+Do not touch:
+
+absolute positioning
+background ownership
+stack order
+z-index
+mount strategy
+underlay structure
+
+---
+
+# 34. EMPTY STATES
+
+Generic Calendar empty-state title/body may use semantic text tokens where exact.
+
+Do not change copy.
+
+Do not add content.
+
+---
+
+# 35. ADD/EDIT EVENT CONTROLS
+
+If normal students do not create events, do not invent such functionality.
+
+If admin Calendar controls exist:
+Prompt 9 may only token-convert generic neutral presentation when located in current Calendar components.
+
+Do not change permissions or forms.
+
+---
+
+# 36. CONSOLE CALENDAR OUT OF SCOPE
+
+Do NOT expand into Console Calendar administration merely because it shares Calendar data.
+
+Prompt 9 is user-facing Calendar presentation.
+
+Console gets separate generic treatment later if needed.
+
+---
+
+# 37. STATUS COLORS PROTECTED
+
+Keep independent:
+
+- error
+- success
+- warning
+- danger
+- current/live
+- cancelled
+- completed
+- offline/online if present
+
+Do not map these to theme accent.
+
+---
+
+# 38. DATE SEMANTICS PROTECTED
+
+Keep intentional distinction for:
+
+- today
+- selected date
+- out-of-month
+- disabled date
+- event date
+
+unless exact neutral tokenization preserves semantics.
+
+---
+
+# 39. DARK MODE PARITY
+
+Every migrated value must prove:
+
+previous Dark value
+=
+new semantic token resolved Dark value
+
+No approximate conversion.
+
+---
+
+# 40. LIGHT MODE PARITY
+
+Same for Light.
+
+---
+
+# 41. SYSTEM MODE
+
+No new system-mode code.
+
+Current architecture remains:
+
+app_theme
+→ prefers-color-scheme
+→ html.dark
+→ semantic token resolution
+
+---
+
+# 42. NO PROVIDER CHANGE
+
+Do not modify:
+
+PersonalizationProvider
+personalizationRuntime
+personalizationStorage
+personalizationState
+
+Calendar must not consume personalization configuration yet.
+
+---
+
+# 43. NO THEME-ID CONSUMPTION
+
+Search touched Calendar files.
+
+They must not import/use:
+
+ThemeId
+committed.themeId
+draft.themeId
+
+No theme branching.
+
+---
+
+# 44. HERO / GLASS / MOTION / READING
+
+All remain unwired.
+
+Important:
+
+Do NOT use `motionStyle` to alter Calendar animation.
+
+Calendar motion remains exactly current production.
+
+---
+
+# 45. NO HOME SUBJECT ORDER
+
+No Home changes.
+
+---
+
+# 46. NO MCQ / FLASHCARD
+
+Do not modify any MCQ or Flashcard files.
+
+---
+
+# 47. NO LECTURE WORK
+
+Prompt 8 closed Lecture surfaces.
+
+Do not reopen Lecture files.
+
+---
+
+# 48. NO MODULE WORK
+
+Prompt 7 closed safe Module surfaces.
+
+Do not reopen module files.
+
+---
+
+# 49. NO SETTINGS/PROFILE/NOTIFICATIONS WORK
+
+Closed.
+
+No direct edits.
+
+---
+
+# 50. NO AUTH / LAUNCH WORK
+
+Do not modify:
+
+Auth
+theme-preload
+index.html
+LaunchScreen
+
+Initial-paint mismatch remains deferred.
+
+---
+
+# 51. NO SQL / KV / D1 / R2 / NETWORK
+
+No persistence/backend work.
+
+ZERO personalization network calls.
+
+---
+
+# 52. TOKEN SOURCE OF TRUTH
+
+Actual color values remain CSS-only.
+
+If new token metadata is necessary:
+
+`classic99Tokens.ts`
+contains names/categories only.
+
+Do NOT duplicate palette values in TypeScript.
+
+---
+
+# 53. INDEX.CSS CHANGES
+
+If new token(s) genuinely required:
+
+add only precise Light/Dark declarations and Tailwind-compatible aliases.
+
+No:
+
+layout CSS
+Calendar grid changes
+media query changes
+animation changes
+global selector rewrites
+
+---
+
+# 54. FILE SCOPE
+
+Expected likely runtime files:
+
+Calendar root/view
+CalendarMonthView
+CalendarWeekView
+CalendarDayView
+small Calendar presentational components
+
+plus token metadata/CSS/tests only if required.
+
+Aim:
+
+3–8 runtime files.
+
+If Calendar code is more consolidated:
+touch fewer.
+
+If changes begin spreading beyond Calendar:
+STOP.
+
+---
+
+# 55. NO HARD-CODED COLOR PURGE
+
+Hardcoded Calendar colors will remain intentionally.
+
+Do NOT attempt to remove every:
+
+hex
+Tailwind palette class
+rgba
+
+Many encode semantics.
+
+---
+
+# 56. TEST FILE
+
+Add:
+
+tests/personalization-calendar-surfaces.test.ts
+
+or equivalent.
+
+Keep it focused and maintainable.
+
+---
+
+# 57. TEST — GENERIC SHELL TOKENIZATION
+
+Verify actual generic Calendar shell uses semantic tokens where Prompt 9 migrated it.
+
+Examples based on actual files only:
+
+- root neutral background
+- generic primary text
+- generic secondary text
+- generic border/surface
+
+Do not assert nonexistent components.
+
+---
+
+# 58. TEST — TODAY SEMANTIC ISOLATION
+
+Verify Today/current-date semantic styling does NOT resolve through future generic user accent unless that behavior explicitly remained unchanged and was already generic.
+
+Expected conservative outcome:
+
+Today semantic remains independent.
+
+---
+
+# 59. TEST — EVENT COLOR ISOLATION
+
+Verify event/category/exam colors are not mapped to:
+
+semantic-action-accent
+semantic-navigation-tab-active
+future user theme IDs
+
+---
+
+# 60. TEST — PAGER SAFETY
+
+Verify Calendar pager source still contains current critical behavior/invariants.
+
+At minimum protect:
+
+- RTL-aware direction behavior
+- existing view state handling
+- no personalization imports
+- no theme branch
+
+Do not build a brittle line-number snapshot.
+
+---
+
+# 61. TEST — MONTH/WEEK/DAY LOGIC UNCHANGED
+
+Source-level invariant should show that Prompt 9 changed presentation only.
+
+Do not rewrite logic merely to make it testable.
+
+---
+
+# 62. TEST — NO THEME DOM MUTATION
+
+Existing global personalization test may already cover this.
+
+Extend only if useful.
+
+No Calendar file may mutate global theme state.
+
+---
+
+# 63. TEST — NO STANDARD TAILWIND PALETTE REDEFINITION
+
+Preserve existing token safety test.
+
+No need to duplicate unnecessarily if already covered globally.
+
+---
+
+# 64. CLIENT NAVIGATION TEST
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Mandatory.
+
+---
+
+# 65. CALENDAR-SPECIFIC EXISTING TESTS
+
+Search repository for existing tests involving:
+
+calendar
+schedule
+pager
+date
+academic group
+
+Run all relevant focused suites.
+
+Report exact names/results.
+
+Do not invent test commands for files that do not exist.
+
+---
+
+# 66. TIMEZONE SAFETY
+
+Inspect but do NOT change current Baghdad/local date handling.
+
+No timezone refactor.
+
+No `Date` cleanup.
+
+No date-library change.
+
+Report source-level unchanged status.
+
+---
+
+# 67. AUTH TEST
+
+Run:
+
+npm run test:auth
+
+No auth changes expected.
+
+---
+
+# 68. PERSONALIZATION TESTS
+
+Run all current personalization suites:
+
+- personalization.test.ts
+- personalization-state.test.ts
+- personalization-storage.test.ts
+- personalization-runtime.test.tsx
+- personalization-tokens.test.ts
+- Prompt 7 feature-surface tests
+- Prompt 8 lecture-surface tests
+- new Prompt 9 Calendar tests
+
+Report total.
+
+---
+
+# 69. MCQ REGRESSION
+
+Run:
+
+npx tsx --test tests/mcq-metadata.test.ts
+npm run test:ai-mcq
+
+Calendar must not affect MCQ.
+
+---
+
+# 70. FLASHCARD REGRESSION
+
+Run:
+
+npm run test:ai-flashcard
+
+---
+
+# 71. NOTES REGRESSION
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts
+
+---
+
+# 72. PDF REGRESSION
+
+No PDF changes expected.
+
+If running pdf-access suite, report the known baseline expired-token fixture separately.
+
+Do not fix it.
+
+---
+
+# 73. MODULE RESOURCES
+
+No changes expected.
+
+If an existing focused test exists:
+run it.
+
+Otherwise source-level no-change verification is enough.
+
+---
+
+# 74. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+---
+
+# 75. TYPESCRIPT / ESLINT
+
+Run targeted TypeScript and ESLint against touched Calendar/test/token files.
+
+Do NOT repair known unrelated:
+
+- seven `.webp` import errors
+- `.local` lint issues
+- supabaseStorage lint
+- SmoothAutoHeight warning
+
+---
+
+# 76. VISUAL VERIFICATION
+
+If authenticated Calendar preview is available:
+
+inspect:
+
+LIGHT:
+- Month
+- Week
+- Day
+
+DARK:
+- Month
+- Week
+- Day
+
+At minimum inspect:
+
+- page background
+- generic cards
+- text hierarchy
+- borders
+- selected/today states
+- event colors
+
+Confirm semantic states still visually distinct.
+
+If authenticated preview unavailable:
+state explicitly.
+
+Do not overclaim.
+
+---
+
+# 77. PHONE VERIFICATION
+
+If available inspect Calendar on phone width.
+
+Especially:
+
+- view selector
+- day/week/month layout
+- scroll
+- touch/pager surface
+
+No geometry changes should exist.
+
+---
+
+# 78. IPAD VERIFICATION
+
+If available inspect:
+
+portrait-ish tablet width
+landscape-ish tablet width
+
+Check:
+
+- week/day columns
+- headers
+- sidebar relationship
+- no hover regression
+- no blank underlays
+
+No visual redesign.
+
+---
+
+# 79. DESKTOP VERIFICATION
+
+If available inspect:
+
+- Calendar width
+- hover behavior
+- keyboard accessibility
+- Sidebar relationship
+
+---
+
+# 80. RTL VERIFICATION
+
+If Arabic preview available:
+
+verify:
+
+- calendar direction
+- Month/Week/Day control
+- day headings
+- pager direction
+- chevrons
+
+No directional code changes are expected.
+
+---
+
+# 81. ACCESSIBILITY
+
+Do not alter:
+
+focus-visible
+keyboard controls
+forced-colors
+prefers-reduced-motion
+reduced transparency
+ARIA labels
+
+No motion preference integration yet.
+
+---
+
+# 82. DEFERRED VALUE INVENTORY
+
+Report Calendar values left unchanged because they are:
+
+- today semantics
+- selected date semantics
+- event identity
+- exam status
+- group identity
+- current-time indicator
+- exact token unavailable
+- high-risk pager/view styling
+
+This is expected.
+
+---
+
+# 83. HIGH-RISK DIFF REVIEW
+
+For every touched Calendar runtime file:
+
+classify all Prompt 9 modifications.
+
+Every modification must be:
+
+COLOR/TOKEN ONLY
+
+No logic changes.
+
+If any non-presentation diff appears:
+revert it.
+
+---
+
+# 84. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+No unrelated changes.
+
+User-provided prompt attachments are not implementation files.
+
+---
+
+# 85. NO `.agents/*`
+
+No `.agents/*` file may be created or modified.
+
+---
+
+# 86. DEFINITION OF DONE
+
+Prompt 9 passes only if:
+
+- Generic Calendar presentation is tokenized selectively.
+- Classic Light parity is exact.
+- Classic Dark parity is exact.
+- Month behavior is unchanged.
+- Week behavior is unchanged.
+- Day behavior is unchanged.
+- Pager behavior is unchanged.
+- RTL pager behavior is unchanged.
+- Baghdad date/time behavior is unchanged.
+- Group filtering is unchanged.
+- Today semantics remain distinct.
+- Selected-date semantics remain distinct.
+- Event colors remain semantic/domain-specific.
+- Exam colors remain independent.
+- Current-time semantics remain independent.
+- No alternate theme exists.
+- themeId remains visually inert.
+- provider unchanged.
+- motionStyle remains unwired.
+- no layout change.
+- no gesture change.
+- no navigation change.
+- no SQL.
+- no KV.
+- no D1.
+- no R2.
+- no network changes.
+- build passes.
+- personalization tests pass.
+- Calendar tests pass.
+- diff is scoped and clean.
+
+---
+
+# 87. MANDATORY FINAL IMPLEMENTATION REPORT
+
+The task is NOT complete without this report.
+
+Return exactly:
+
+# 99'S GUIDE PERSONALIZATION — PHASE 2 PROMPT 9 REPORT
+
+## 1. Status
+
+PASS / FAIL
+
+## 2. Visual Impact
+
+State exactly:
+
+NO INTENTIONAL VISUAL CHANGE
+
+Then report exact visual verification performed.
+
+## 3. Calendar Architecture Audit
+
+List actual files/components/hooks for:
+
+- root
+- Month
+- Week
+- Day
+- view selector
+- event rendering
+- pager
+- filters/group controls
+
+## 4. Files Modified
+
+| File | Exact Tokenization | Why Safe |
+|---|---|---|
+
+## 5. Files Created
+
+| File | Purpose |
+|---|---|
+
+## 6. Calendar Color Classification
+
+Summarize actual:
+
+- generic presentation
+- date semantics
+- event semantics
+- status semantics
+- group/domain identity
+
+## 7. Root/Calendar Shell Migration
+
+| Previous Value/Class | Semantic Token | Light Parity | Dark Parity |
+|---|---|---|---|
+
+## 8. Header Migration
+
+Same table or state none.
+
+## 9. Month View Migration
+
+List exact safe changes.
+
+## 10. Month Geometry Safety
+
+Confirm all layout/date logic unchanged.
+
+## 11. Week View Migration
+
+List exact safe changes.
+
+## 12. Week Geometry/Hover Safety
+
+Confirm column/hover/touch behavior unchanged.
+
+## 13. Day View Migration
+
+List exact safe changes.
+
+## 14. Day Current-Time Safety
+
+Confirm indicator/time logic unchanged.
+
+## 15. View Selector
+
+Explain any color-token changes.
+
+Confirm switching logic unchanged.
+
+## 16. Pager Safety
+
+Explain exact current pager mechanism and confirm no Prompt 9 behavior modifications.
+
+## 17. RTL Pager Safety
+
+Confirm unchanged.
+
+## 18. Baghdad Date/Time Safety
+
+Confirm unchanged.
+
+## 19. Today Semantic Safety
+
+Report exact current styling and why it remains independent from user-theme accent.
+
+## 20. Selected-Date Safety
+
+Report exact treatment.
+
+## 21. Event Color Safety
+
+List event/category identity colors or sources preserved.
+
+## 22. Exam Semantic Safety
+
+Confirm unchanged.
+
+## 23. Current-Time Semantic Safety
+
+Confirm unchanged.
+
+## 24. Group/Filter Safety
+
+Confirm filtering/data semantics unchanged.
+
+## 25. New Tokens
+
+If any:
+
+| Token | Light | Dark | Previous Source | Why Needed |
+|---|---|---|---|---|
+
+If none:
+state NONE.
+
+## 26. Token Proliferation
+
+State number of new roles.
+
+## 27. Deferred Calendar Values
+
+List all important deferred values and why.
+
+## 28. Fixed Semantic Safety
+
+Confirm error/success/warning/destructive/status remain independent.
+
+## 29. Light/Dark/System
+
+Confirm appearance architecture unchanged.
+
+## 30. Theme Runtime
+
+Confirm themeId remains visually inert.
+
+## 31. Motion
+
+Confirm motionStyle remains unwired and Calendar animations unchanged.
+
+## 32. Provider
+
+Confirm unchanged.
+
+## 33. Other Features
+
+Confirm no direct edits to:
+
+Home
+Lectures
+PDF/Notes
+MCQ
+Flashcards
+Modules
+Settings
+Profile
+Notifications
+Console
+Auth
+
+## 34. Navigation/Gesture Safety
+
+Confirm no route/swipe/touch/pager logic changes.
+
+## 35. RTL
+
+Confirm no layout/direction changes.
+
+## 36. Accessibility
+
+Confirm focus/reduced-motion/reduced-transparency/forced-colors/ARIA unchanged.
+
+## 37. Initial Paint
+
+Confirm preload/index/LaunchScreen unchanged.
+
+## 38. Tests Added/Updated
+
+List Prompt 9 Calendar invariants.
+
+## 39. Calendar-Specific Existing Tests
+
+List exact test files/commands/results found.
+
+## 40. Personalization Test Results
+
+Report total passing count.
+
+## 41. Regression Results
+
+| Command | Result |
+|---|---|
+
+## 42. Visual Verification
+
+State exactly:
+
+- auth state
+- viewport(s)
+- Light/Dark
+- Month/Week/Day screens actually observed
+
+Do not overclaim.
+
+## 43. Phone Verification
+
+State result or gate.
+
+## 44. iPad Verification
+
+State result or gate.
+
+## 45. RTL Verification
+
+State result or gate.
+
+## 46. Existing Baseline Issues
+
+List separately.
+
+## 47. Git Diff Summary
+
+Exact changed files/stat.
+
+## 48. High-Risk Calendar Diff Review
+
+Confirm every runtime change is color/token-only.
+
+## 49. Network / Persistence
+
+State exactly:
+
+ZERO new personalization network calls.
+No SQL change.
+No D1 change.
+No R2 change.
+No KV yet.
+
+## 50. Agent Artifact Verification
+
+State exactly:
+
+No `.agents/*` file was created or modified.
+
+## 51. Prompt 10 Readiness
+
+If everything passes, state exactly:
+
+CALENDAR CLASSIC 99 TOKENIZATION: CLOSED AND APPROVED
+
+MCQ & FLASHCARD CLASSIC 99 TOKENIZATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 2 PROMPT 9 STATUS: COMPLETE — READY FOR PROMPT 10
+
+or:
+
+PERSONALIZATION PHASE 2 PROMPT 9 STATUS: BLOCKED — REPAIR REQUIRED
