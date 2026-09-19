@@ -1798,7 +1798,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {/* 1. Header Toolbar */}
   <div
     data-lecture-swipe-back-header="true"
-    className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-sm p-4 sm:p-5 border border-black/[0.04] dark:border-white/[0.06] rounded-xl shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
+     className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-semantic-glass-surface backdrop-blur-sm p-4 sm:p-5 border border-semantic-glass-border rounded-xl shadow-elevation-1"
   >
  <div className="lecture-detail-title-cluster flex items-center gap-3 w-full sm:w-auto -ms-1">
  <motion.button
@@ -1810,7 +1810,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  initial={{ x: isRtl ? 15 : -15, opacity: 0 }}
  animate={{ x: 0, opacity: 1 }}
  transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
- className="lecture-detail-back flex items-center gap-1 text-med-blue hover:text-med-blue dark:text-blue-400 font-medium px-2 py-2 rounded-lg transition-colors cursor-pointer/40 shrink-0"
+  className="lecture-detail-back flex items-center gap-1 text-semantic-navigation-tab-active hover:text-semantic-action-accent font-medium px-2 py-2 rounded-lg transition-colors cursor-pointer/40 shrink-0"
  title={isRtl ? "رجوع" : "Back"}
  >
  {isRtl ? (
@@ -1832,10 +1832,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
         )}
   <div className="flex flex-col min-w-0 pr-1">
  <div className="flex items-center gap-2 overflow-hidden">
- <span className="text-xs font-semibold font-mono text-neutral-500 dark:text-[var(--text-secondary)] bg-black/[0.04] dark:bg-white/[0.06] px-2 py-1 rounded-md shrink-0 antialiased">
+  <span className="text-xs font-semibold font-mono text-semantic-chrome-content-secondary bg-semantic-chrome-surface-hover px-2 py-1 rounded-md shrink-0 antialiased">
  {isRtl ? "المحاضرة" : "LECTURE"} {lecture.orderNumber}
  </span>
- <span className="text-sm font-medium text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)] truncate min-w-0 antialiased">
+  <span className="text-sm font-medium text-semantic-chrome-content-secondary truncate min-w-0 antialiased">
  {lecture.category}
  </span>
  </div>
@@ -1876,13 +1876,13 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  : matchedEvent.time;
 
  return (
- <div className="flex items-center gap-2 mt-4 text-xs font-medium text-neutral-700 dark:text-[#EBEBF599] bg-white/60 dark:bg-[#1C1C1E]/60 backdrop-blur-sm px-3 py-2 rounded-full border border-black/5 dark:border-white/[0.12] w-fit shadow-elevation-1 antialiased hover:shadow-elevation-1 transition cursor-default group/schedule">
+  <div className="flex items-center gap-2 mt-4 text-xs font-medium text-semantic-chrome-content-secondary bg-semantic-glass-surface backdrop-blur-sm px-3 py-2 rounded-full border border-semantic-glass-border w-fit shadow-elevation-1 antialiased hover:shadow-elevation-1 transition cursor-default group/schedule">
  <div className="w-icon-md h-icon-md rounded-full bg-blue-100 dark:bg-med-blue/20 flex items-center justify-center shrink-0">
  <Calendar className="w-3 h-3 text-med-blue dark:text-blue-400 group-hover/schedule:scale-110 transition-transform" />
  </div>
- <span className="flex items-center gap-2 opacity-90">
+  <span className="flex items-center gap-2 opacity-90">
  {isRtl ? "وقت الجلسة المجدول:" : "Scheduled Session"}
- <span className="font-semibold text-neutral-900 dark:text-white bg-black/5 dark:bg-white/[0.12] px-2 py-1 rounded-md">{dateStr} • {timeStr}</span>
+  <span className="font-semibold text-semantic-chrome-content-primary bg-semantic-chrome-surface-hover px-2 py-1 rounded-md">{dateStr} • {timeStr}</span>
  </span>
  </div>
  );
@@ -1895,13 +1895,13 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     ref={lectureTabbarRef}
     data-swipe-back-disabled="true"
     data-lecture-section-tabs="true"
-    className="lecture-tabbar relative isolate bg-black/[0.04] dark:bg-white/[0.06] p-[3px] rounded-[14px] grid grid-cols-6 sm:flex items-center select-none h-[44px] sm:h-[40px] w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
+     className="lecture-tabbar relative isolate bg-semantic-chrome-surface-hover p-[3px] rounded-[14px] grid grid-cols-6 sm:flex items-center select-none h-[44px] sm:h-[40px] w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:flex-[0_0_420px] shrink-0 antialiased overflow-hidden"
     style={{ direction: isRtl ? "rtl" : "ltr" }}
   >
   {!isRtl && (
     <motion.div
       aria-hidden="true"
-      className="absolute top-[5px] bottom-[5px] sm:top-[4px] sm:bottom-[4px] rounded-[11px] bg-white dark:bg-neutral-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.30)] border border-black/[0.045] dark:border-white/[0.10] z-0 pointer-events-none"
+       className="absolute top-[5px] bottom-[5px] sm:top-[4px] sm:bottom-[4px] rounded-[11px] bg-semantic-navigation-active-background shadow-elevation-1 border border-semantic-border-default z-0 pointer-events-none"
       initial={false}
       animate={{
         x: lectureTabPill.left,
@@ -1946,8 +1946,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
        tab.id === "qa" ? "px-[5px]" : "px-[7px] min-[390px]:px-[8px]"
      } ${
        isActive
-         ? "bg-white dark:bg-neutral-700 text-black dark:text-white font-semibold shadow-[0_2px_7px_rgba(0,0,0,0.075)] dark:shadow-[0_2px_9px_rgba(0,0,0,0.28)] border-black/[0.045] dark:border-white/[0.10]"
-         : "bg-transparent text-neutral-500 dark:text-[var(--text-secondary)] font-medium border-transparent shadow-none"
+          ? "bg-semantic-navigation-active-background text-semantic-navigation-active-foreground font-semibold shadow-elevation-1 border-semantic-border-default"
+          : "bg-transparent text-semantic-navigation-tab-inactive font-medium border-transparent shadow-none"
      }`}
      style={{
        width: "max-content",
@@ -1964,8 +1964,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
      data-lecture-tab-label
      className={`relative z-20 inline-flex w-max flex-none h-full items-center justify-center text-center whitespace-nowrap leading-none opacity-100 transition-colors duration-150 ${
        isActive
-         ? "text-black dark:text-white font-semibold"
-         : "text-neutral-500 dark:text-[var(--text-secondary)] hover:text-neutral-800 dark:hover:text-neutral-200"
+          ? "text-semantic-navigation-active-foreground font-semibold"
+          : "text-semantic-navigation-tab-inactive hover:text-semantic-chrome-content-primary"
      }`}
      style={{
        opacity: 1,
@@ -1979,7 +1979,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </button>
 
  {showDivider && (
- <div className={`absolute ${isRtl ? "left-0" : "right-0"} top-[20%] bottom-[20%] w-px bg-black/[0.08] dark:bg-white/[0.08] z-0`} />
+  <div className={`absolute ${isRtl ? "left-0" : "right-0"} top-[20%] bottom-[20%] w-px bg-semantic-border-default z-0`} />
  )}
  </div>
  );
@@ -1998,7 +1998,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
   >
   <div
     style={{ transformOrigin: "top center" }}
-    className="bg-semantic-surface-elevated border border-med-beige/60 dark:border-transparent rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
+     className="bg-semantic-surface-elevated border border-semantic-border-default rounded-lg shadow-elevation-1 min-h-[clamp(430px,58svh,650px)] flex flex-col relative isolate [overflow-anchor:none] overflow-hidden"
   >
   {/* Keep one opaque shell mounted permanently. The shell never auto-resizes
       through a scripted height animation, so switching PDF/Notes/MCQ/etc.
@@ -2045,8 +2045,8 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="flex flex-col items-center justify-center py-16 px-6 text-center w-full antialiased">
  <div className="relative mb-6">
  
- <div className="relative w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] flex items-center justify-center ring-1 ring-black/[0.04] dark:ring-white/[0.06] shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)]">
- <FileText className="w-10 h-10 text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />
+  <div className="relative w-20 h-20 rounded-full bg-semantic-surface-elevated flex items-center justify-center ring-1 ring-semantic-border-default shadow-elevation-1">
+  <FileText className="w-10 h-10 text-semantic-chrome-content-secondary" />
  </div>
  </div>
  <h3 className="font-display text-xl font-semibold text-semantic-chrome-content-primary mb-2">
@@ -2063,7 +2063,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
     <button
       type="button"
       onClick={handlePdfButtonActivate}
-      className="document-open-button w-full sm:w-auto px-8 py-4 bg-med-blue text-white rounded-lg text-base font-semibold flex items-center justify-center gap-3 cursor-pointer shadow-elevation-1 antialiased"
+       className="document-open-button w-full sm:w-auto px-8 py-4 bg-semantic-action-accent text-semantic-navigation-active-foreground rounded-lg text-base font-semibold flex items-center justify-center gap-3 cursor-pointer shadow-elevation-1 antialiased"
     >
       <ExternalLink className="w-icon-sm h-icon-sm pointer-events-none" />{" "}
       {isRtl

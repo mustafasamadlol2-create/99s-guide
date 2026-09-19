@@ -1932,7 +1932,7 @@ textarea::placeholder {
   align-items: center;
   justify-content: center;
   border-radius: 9999px !important;
-  color: #111214;
+  color: var(--semantic-navigation-tab-active);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition:
@@ -1944,7 +1944,7 @@ textarea::placeholder {
 }
 
 .dark .ios-floating-search-button {
-  color: #f5f5f7;
+  color: var(--semantic-navigation-tab-active);
 }
 
 .ios-floating-search-button > svg {
@@ -2025,19 +2025,17 @@ textarea::placeholder {
    controlled by each tab (including the yellow Console state). */
 .ios-tabbar-active-indicator {
   inset: 4px 5px;
-  background: rgba(0, 0, 0, 0.065);
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  background: var(--semantic-navigation-active-background);
+  border: 1px solid var(--semantic-glass-border);
   box-shadow:
-    0 1px 5px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    0 1px 5px var(--semantic-shadow-generic),
+    inset 0 1px 0 var(--semantic-glass-border);
 }
 
 .dark .ios-tabbar-active-indicator {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 1px 7px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: var(--semantic-navigation-active-background);
+  border-color: var(--semantic-glass-border);
+  box-shadow: 0 1px 7px var(--semantic-shadow-generic);
 }
 
 /* Global scroll clearance for the fixed floating navigation. */
@@ -6730,11 +6728,128 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   ) !important;
 }
 
+.home-hero-primary-gradient {
+  background:
+    radial-gradient(
+      ellipse at top right,
+      var(--semantic-hero-glow-primary) 0%,
+      transparent 68%
+    );
+  opacity: 0.86;
+}
+
+.home-hero-secondary-gradient {
+  background:
+    radial-gradient(
+      circle at bottom left,
+      var(--semantic-hero-glow-secondary) 0%,
+      transparent 72%
+    );
+  opacity: 0.72;
+}
+
+.home-hero-greeting-glow {
+  background:
+    radial-gradient(
+      ellipse at center,
+      var(--semantic-hero-glow-primary) 0%,
+      transparent 72%
+    );
+  opacity: 0.58;
+}
+
+.home-hero-vignette {
+  background:
+    radial-gradient(
+      circle at center,
+      transparent 28%,
+      var(--semantic-hero-background) 160%
+    );
+}
+
+.home-hero-overlay {
+  background:
+    linear-gradient(
+      to top,
+      var(--semantic-hero-background),
+      transparent
+    );
+}
+
+.home-hero-bottom-line {
+  background:
+    linear-gradient(
+      to right,
+      transparent,
+      var(--semantic-glass-border),
+      transparent
+    );
+}
+
+.home-hero-stage-pill {
+  background: var(--semantic-chrome-surface-hover);
+  color: var(--semantic-chrome-content-primary);
+  border: 1px solid var(--semantic-border-default);
+}
+
+.home-hero-stage-pill:hover {
+  background: var(--semantic-navigation-active-background);
+  border-color: var(--semantic-border-strong);
+}
+
+.home-hero-batch-pill {
+  background: var(--semantic-chrome-surface-hover);
+  color: var(--semantic-chrome-content-secondary);
+  border: 1px solid var(--semantic-border-default);
+}
+
+.home-hero-batch-pill:hover {
+  background: var(--semantic-navigation-active-background);
+  color: var(--semantic-chrome-content-primary);
+  border-color: var(--semantic-border-strong);
+}
+
 .home-hero-banner .hero-ambient-glow,
 .home-hero-banner .hero-ambient-nebula,
 .home-hero-banner .hero-ambient-gold,
 .home-hero-banner .hero-ambient-blue {
   opacity: var(--personalization-hero-ambient-opacity);
+}
+
+.home-hero-banner .hero-ambient-glow {
+  background:
+    radial-gradient(
+      ellipse at center,
+      var(--semantic-hero-glow-primary) 0%,
+      transparent 72%
+    );
+}
+
+.home-hero-banner .hero-ambient-nebula {
+  background:
+    radial-gradient(
+      ellipse at top right,
+      var(--semantic-hero-glow-primary) 0%,
+      transparent 74%
+    );
+}
+
+.home-hero-banner .hero-ambient-gold {
+  background:
+    radial-gradient(
+      ellipse at bottom left,
+      var(--semantic-hero-glow-secondary) 0%,
+      transparent 68%
+    );
+}
+
+.home-hero-banner .hero-ambient-blue {
+  background:
+    radial-gradient(
+      ellipse at top right,
+      var(--semantic-hero-glow-primary) 0%,
+      transparent 65%
+    );
 }
 
 .home-hero-banner .hero-gold-motes {

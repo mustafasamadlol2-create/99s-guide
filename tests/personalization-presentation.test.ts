@@ -150,7 +150,10 @@ test("Motion and Reading defaults remove optional attributes and alternates are 
 });
 
 test("the runtime bridge reads committed state and the preview owns all three axes", () => {
-  assert.match(bridge, /const \{ committed \} = usePersonalization\(\)/);
+  assert.match(
+    bridge,
+    /const \{ committed(?:, hydration, userId)? \} = usePersonalization\(\)/,
+  );
   assert.doesNotMatch(bridge, /\bdraft\b/);
   assert.match(css, /data-personalization-preview-theme/);
   assert.match(css, /data-personalization-preview-hero-style/);

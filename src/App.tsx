@@ -6461,7 +6461,7 @@ const handleSignOut = useCallback(async () => {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 1 }}
                           transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                          className="w-full min-h-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                           className="w-full min-h-full isolate bg-semantic-background-page shadow-elevation-1 rounded-xl"
                         >
                           <Suspense fallback={iOSLoadingFallback}>
                             <ErrorBoundary>
@@ -6653,7 +6653,7 @@ const handleSignOut = useCallback(async () => {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 1 }}
                           transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                          className="w-full isolate bg-neutral-50 dark:bg-[#1C1C1E] shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl"
+                           className="w-full isolate bg-semantic-background-page shadow-elevation-1 rounded-xl"
                         >
                           <Suspense fallback={iOSLoadingFallback}>
                             <ErrorBoundary>

@@ -12,12 +12,17 @@ const useThemeEffect =
  * personalization editor until a successful transactional Apply.
  */
 export function PersonalizationThemeBridge() {
-  const { committed } = usePersonalization();
+  const { committed, hydration, userId } = usePersonalization();
 
   useThemeEffect(() => {
     if (typeof document === "undefined") return;
+    // Keep the last committed visual state on screen while the same account's
+    // local envelope is being read. Resetting the bridge to the Classic
+    // default during this window causes an alternate theme to flash, then
+    // appear to revert before hydration completes.
+    if (hydration.phase === "loading") return;
     synchronizePersonalizationTheme(document.documentElement, committed.themeId);
-  }, [committed.themeId]);
+  }, [committed.themeId, hydration.phase, userId]);
 
   return null;
 }

@@ -221,7 +221,10 @@ test("Ocean uses only the two intended selectors and never overrides fixed seman
 });
 
 test("bridge reads committed only and mutates only data-app-theme", () => {
-  assert.match(bridge, /const \{ committed \} = usePersonalization\(\)/);
+  assert.match(
+    bridge,
+    /const \{ committed(?:, hydration, userId)? \} = usePersonalization\(\)/,
+  );
   assert.doesNotMatch(bridge, /\bdraft\b/);
   assert.match(bridge, /synchronizePersonalizationTheme/);
   assert.doesNotMatch(bridge, /style\.setProperty|location\.reload|key\s*=/);

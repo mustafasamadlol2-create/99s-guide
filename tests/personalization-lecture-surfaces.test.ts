@@ -29,7 +29,9 @@ test("lecture list and video surfaces use only exact generic presentation tokens
 test("lecture detail generic shells consume approved tokens", () => {
   assert.match(lectureDetail, /bg-semantic-surface-elevated/);
   assert.match(lectureDetail, /text-semantic-chrome-content-primary/);
-  assert.doesNotMatch(lectureDetail, /semantic-action-accent|semantic-navigation-tab-active/);
+  assert.match(lectureDetail, /bg-semantic-action-accent/);
+  assert.match(lectureDetail, /text-semantic-navigation-tab-active/);
+  assert.match(lectureDetail, /bg-semantic-navigation-active-background/);
 });
 
 test("lecture tab geometry and navigation contracts remain unchanged", () => {

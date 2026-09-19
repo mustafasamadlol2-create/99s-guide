@@ -105,6 +105,20 @@ const StarField = ({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    let particleColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--semantic-hero-glow-primary")
+        .trim() || "#ffffff";
+    const themeObserver = new MutationObserver(() => {
+      particleColor =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--semantic-hero-glow-primary")
+          .trim() || "#ffffff";
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-app-theme"],
+    });
 
     const appShell = document.getElementById("root")?.firstElementChild as HTMLElement | null;
     const mainTabStage = document.getElementById("main-tab-motion-stage");
@@ -223,14 +237,16 @@ const StarField = ({
     const drawStaticFrame = () => {
       ctx.clearRect(0, 0, width, height);
       stars.forEach((star) => {
-        ctx.fillStyle = `rgba(255,255,255,${star.baseOpacity * 0.7})`;
+        ctx.fillStyle = particleColor;
+        ctx.globalAlpha = star.baseOpacity * 0.7;
         ctx.shadowBlur = star.isBlurred ? 3 : 0;
-        ctx.shadowColor = `rgba(255,255,255,${star.baseOpacity * 0.5})`;
+        ctx.shadowColor = particleColor;
         ctx.beginPath();
         ctx.arc(star.xPct * width, star.yPct * height, star.size, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
     };
 
     if (prefersReducedMotion || !isActive) {
@@ -238,6 +254,7 @@ const StarField = ({
       drawStaticFrame();
       return () => {
         resizeObserver.disconnect();
+        themeObserver.disconnect();
       };
     }
 
@@ -306,11 +323,12 @@ const StarField = ({
           Math.min(1, star.baseOpacity + breathing + twinkleBoost),
         );
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        ctx.fillStyle = particleColor;
+        ctx.globalAlpha = opacity;
 
         if (star.isBlurred) {
           ctx.shadowBlur = 4;
-          ctx.shadowColor = `rgba(255, 255, 255, ${opacity * 0.8})`;
+          ctx.shadowColor = particleColor;
         } else {
           ctx.shadowBlur = 0;
         }
@@ -343,11 +361,13 @@ const StarField = ({
         const drawX = dust.xPct * width;
         const drawY = dust.yPct * height;
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${dust.opacity})`;
+        ctx.fillStyle = particleColor;
+        ctx.globalAlpha = dust.opacity;
         ctx.beginPath();
         ctx.arc(drawX, drawY, dust.size, 0, Math.PI * 2);
         ctx.fill();
       });
+      ctx.globalAlpha = 1;
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -378,40 +398,15 @@ const StarField = ({
   );
 };
 
-const RadialGradient = ({
-  className = "",
-  position,
-  from,
-  via,
-  to,
-  blendMode = "",
-  opacity = "opacity-100",
-}: {
-  className?: string;
-  position: string;
-  from: string;
-  via: string;
-  to: string;
-  blendMode?: string;
-  opacity?: string;
-}) => (
-  <div
-    className={`absolute inset-0 bg-[radial-gradient(${position},_var(--tw-gradient-stops))] ${from} ${via} ${to} pointer-events-none z-0 ${blendMode} ${opacity} ${className}`}
-  />
-);
-
 const AmbientGlow = ({ isRtl }: { isRtl: boolean }) => (
   <>
-    {/* Subtle midnight blue radial gradient behind the title */}
+    {/* Theme-owned Hero glows; Hero Style controls composition/opacity only. */}
       <div
-        className={`hero-ambient-glow absolute top-1/2 ${isRtl ? "right-[0%]" : "left-[0%]"} -translate-y-1/2 w-[85%] h-[160%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#0C1731]/35 via-[#070D1C]/12 to-transparent pointer-events-none z-0`}
+        className={`hero-ambient-glow absolute top-1/2 ${isRtl ? "right-[0%]" : "left-[0%]"} -translate-y-1/2 w-[85%] h-[160%] pointer-events-none z-0`}
       />
-    {/* Very faint deep navy nebula texture spanning the hero */}
-    <div className="hero-ambient-nebula absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#09112A]/25 via-[#050914]/8 to-transparent pointer-events-none z-0" />
-    {/* Gold ember nebula — bottom-left warmth */}
-    <div className="hero-ambient-gold absolute bottom-0 left-0 w-[55%] h-[65%] bg-[radial-gradient(ellipse_at_bottom_left,_rgba(212,175,55,0.14)_0%,_transparent_68%)] pointer-events-none z-0 animate-gold-nebula" />
-    {/* Faint blue-violet accent — top-right depth */}
-    <div className="hero-ambient-blue absolute top-0 right-0 w-[45%] h-[55%] bg-[radial-gradient(ellipse_at_top_right,_rgba(56,100,210,0.12)_0%,_transparent_65%)] pointer-events-none z-0 animate-blue-nebula" />
+    <div className="hero-ambient-nebula absolute inset-0 pointer-events-none z-0" />
+    <div className="hero-ambient-gold absolute bottom-0 left-0 w-[55%] h-[65%] pointer-events-none z-0 animate-gold-nebula" />
+    <div className="hero-ambient-blue absolute top-0 right-0 w-[45%] h-[55%] pointer-events-none z-0 animate-blue-nebula" />
   </>
 );
 
@@ -776,10 +771,10 @@ const HeroBanner = memo(({
   return (
     <div
       className={[
-        "relative rounded-xl md:rounded-xl bg-[#05070B] text-white isolate home-hero-banner overflow-hidden",
+        "relative rounded-xl md:rounded-xl bg-semantic-hero-background text-white isolate home-hero-banner overflow-hidden",
         layout.heightClass, layout.paddingClass,
         "shadow-[0_4px_32px_rgba(0,0,0,0.55),0_1px_0_rgba(212,175,55,0.06)_inset] border flex flex-col justify-center group transition-[border-color,box-shadow] duration-500",
-        "border-white/[0.07]",
+        "border-semantic-glass-border",
       ].join(" ")}
     >
       {/* ── Background Layers ─────────────────────────────────────────────── */}
@@ -788,11 +783,11 @@ const HeroBanner = memo(({
         {/* L1: time-aware base gradient + stars */}
         <div className="absolute inset-0 z-0">
           <div
-            className="absolute inset-[-10%] opacity-90"
-            style={{ background: `radial-gradient(ellipse at center, ${timeNebulaColor} 0%, #05070B 100%)` }}
+            className="home-hero-time-nebula absolute inset-[-10%] opacity-90"
+            style={{ background: `radial-gradient(ellipse at center, ${timeNebulaColor} 0%, var(--semantic-hero-background) 100%)` }}
           />
-          <RadialGradient className="home-hero-primary-gradient" position="ellipse_at_top_right" from="from-[#0E1624]/80" via="via-[#09111D]/80" to="to-[#05070B]/80" />
-          <RadialGradient className="home-hero-secondary-gradient" position="circle_at_bottom_left" from="from-[#09111D]" via="via-[#09111D]" to="to-[#05070B]" />
+          <div className="home-hero-primary-gradient absolute inset-0 pointer-events-none" />
+          <div className="home-hero-secondary-gradient absolute inset-0 pointer-events-none" />
           <StarField opacity="opacity-[0.48]" isActive={isActive} />
         </div>
 
@@ -823,8 +818,8 @@ const HeroBanner = memo(({
 
         {/* L3: contrast vignette — smooth multi-stop gradient, no abrupt jump */}
         <div className="absolute inset-0 z-[2]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_28%,_#05070B_160%)]" />
-          <div className="home-hero-overlay absolute inset-0 bg-gradient-to-t from-[#05070B]/55 via-[#05070B]/12 to-transparent opacity-90" />
+          <div className="home-hero-vignette absolute inset-0" />
+          <div className="home-hero-overlay absolute inset-0 opacity-90" />
         </div>
 
         {/* L4: film grain */}
@@ -834,7 +829,7 @@ const HeroBanner = memo(({
         />
 
         {/* Bottom subtle line */}
-        <div className="absolute bottom-0 left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-white/[0.04] to-transparent z-[3]" />
+        <div className="home-hero-bottom-line absolute bottom-0 left-[15%] right-[15%] h-px z-[3]" />
       </div>
 
       {/* ── Foreground ────────────────────────────────────────────────────── */}
@@ -866,11 +861,10 @@ const HeroBanner = memo(({
             >
               <div
                 className={`absolute top-[-10%] ${isRtl ? "right-[-5%]" : "left-[-5%]"} w-[115%] h-[80%]
-                  bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))]
-                  from-[#0A1633]/30 via-[#050B1A]/10 to-transparent
+                   home-hero-greeting-glow
                   pointer-events-none rounded-[100%] z-0`}
               />
-              <h2 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}>
+               <h2 className={`${layout.titleClass} font-display text-white select-none leading-[1.1] antialiased relative z-10 drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)] pb-0 flex flex-col`}>
                 <span className="font-normal text-white/75 mb-0 md:mb-0.5" style={{ fontSize: "0.65em" }}>
                   {smartGreeting.greeting}
                 </span>
@@ -920,7 +914,7 @@ const HeroBanner = memo(({
                 aria-label={t("dailyMotto")}
                 aria-live="polite"
                 aria-atomic="true"
-                className={[
+              className={[
                   "relative z-10 mt-2 mb-1",
                   isRtl
                     ? "border-r-[1.5px] border-[#D4AF37]/52 pr-4 md:pr-5"
@@ -979,7 +973,7 @@ const HeroBanner = memo(({
               role="listitem"
               aria-label="Stage 3"
               variants={heroPillVariant(1)}
-              className={`${layout.pillsClass} home-hero-identity-pill home-hero-stage-pill flex items-center gap-2 uppercase font-semibold bg-white/[0.07] hover:bg-white/[0.14] text-white/90 border border-white/[0.14] hover:border-white/[0.32] hover:shadow-[0_0_16px_2px_rgba(255,255,255,0.09)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
+              className={`${layout.pillsClass} home-hero-identity-pill home-hero-stage-pill flex items-center gap-2 uppercase font-semibold font-mono transition-all duration-300 ease-out cursor-default antialiased`}
             >
               <BookOpen className="w-4 h-4 opacity-85" aria-hidden="true" />
               <span className="home-hero-pill-label">{t("stage3")}</span>
@@ -990,7 +984,7 @@ const HeroBanner = memo(({
               role="listitem"
               aria-label="Batch 99"
               variants={heroPillVariant(2)}
-              className={`${layout.pillsClass} home-hero-identity-pill home-hero-batch-pill flex items-center gap-2 uppercase font-semibold bg-white/[0.055] hover:bg-white/[0.12] text-white/65 hover:text-white/88 border border-white/[0.11] hover:border-white/[0.26] hover:shadow-[0_0_14px_2px_rgba(255,255,255,0.07)] font-mono transition-all duration-300 ease-out cursor-default antialiased`}
+              className={`${layout.pillsClass} home-hero-identity-pill home-hero-batch-pill flex items-center gap-2 uppercase font-semibold font-mono transition-all duration-300 ease-out cursor-default antialiased`}
             >
               <Users className="w-4 h-4 opacity-75" aria-hidden="true" />
               <span className="home-hero-pill-label">{t("batch99")}</span>

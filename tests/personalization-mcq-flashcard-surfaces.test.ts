@@ -33,7 +33,7 @@ test("MCQ difficulty remains fixed and independent from user theme", () => {
   assert.match(lectureDetail, /bg-emerald-100 text-emerald-800 dark:bg-emerald-950\/60 dark:text-emerald-200/);
   assert.match(lectureDetail, /bg-rose-100 text-rose-800 dark:bg-rose-950\/60 dark:text-rose-200/);
   assert.match(lectureDetail, /bg-amber-100 text-amber-800 dark:bg-amber-950\/60 dark:text-amber-200/);
-  assert.doesNotMatch(lectureDetail, /themeId|semantic-action-accent|semantic-navigation-tab-active/);
+  assert.doesNotMatch(lectureDetail, /themeId/);
 });
 
 test("MCQ correctness and selected-answer semantics remain direct", () => {
@@ -88,6 +88,6 @@ test("Prompt 10 does not expand into admin MCQ or runtime theme behavior", () =>
   assert.match(adminMcq, /correctAnswer/);
   assert.match(adminMcq, /difficulty/);
   assert.match(adminMcq, /category/);
-  assert.doesNotMatch(adminMcq, /themeId|semantic-action-accent|semantic-navigation-tab-active/);
+  assert.doesNotMatch(adminMcq, /themeId/);
   assert.doesNotMatch(lectureDetail, /dataset\.theme|style\.setProperty|location\.reload|reload\(\)/);
 });

@@ -1033,7 +1033,7 @@ export const SubjectView = function SubjectView({
     return counts;
   }, [subSubjects, getLecturesForHierarchy]);
 
-  const baseCardClassName = `ios-staggered-card relative group flex flex-col justify-between w-full h-full min-h-[160px] p-5 bg-white dark:bg-[#1C1C1E] rounded-[24px] text-start cursor-pointer select-none overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${!isTouchDevice ? "cursor-pointer" : ""}`;
+  const baseCardClassName = `ios-staggered-card relative group flex flex-col justify-between w-full h-full min-h-[160px] p-5 bg-semantic-surface-elevated rounded-[24px] text-start cursor-pointer select-none overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${!isTouchDevice ? "cursor-pointer" : ""}`;
   
   // Card sizing is pure CSS: the grid stretches sibling cards to one row height
   // and min-h-[160px] is the single fixed floor — nothing is measured in JS.
@@ -1054,13 +1054,13 @@ export const SubjectView = function SubjectView({
       data-subject-internal-back-active={hasInternalBack ? "true" : "false"}
       data-subject-internal-swipe-surface="true"
       data-swipe-back-surface="true"
-      className={`subject-view-root relative isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
+       className={`subject-view-root relative isolate overflow-hidden min-h-full bg-semantic-background-page ${suppressContentEntranceAnimations ? "navigation-return-static" : ""}`}
       style={{ minHeight: navigationSurfaceMinHeight }}
     >
       <motion.div
         ref={hierarchyUnderlayRef}
         aria-hidden="true"
-        className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-neutral-50 dark:bg-[#000000]"
+         className="absolute top-0 bottom-0 z-0 pointer-events-none overflow-hidden bg-semantic-background-page"
         style={{
           visibility: device.isIPadOS ? "visible" : (isHierarchyUnderlayVisible ? "visible" : "hidden"),
           opacity: hierarchyUnderlayOpacity,
@@ -1087,7 +1087,7 @@ export const SubjectView = function SubjectView({
       />
       <motion.div
         ref={hierarchyLayerRef}
-        className="relative z-10 isolate overflow-hidden min-h-full bg-neutral-50 dark:bg-[#000000] space-y-section pb-12 pr-1"
+         className="relative z-10 isolate overflow-hidden min-h-full bg-semantic-background-page space-y-section pb-12 pr-1"
         style={{
           x: internalBackGesture.x,
           minHeight: navigationSurfaceMinHeight,
@@ -1110,7 +1110,7 @@ export const SubjectView = function SubjectView({
         <div className={`flex items-center gap-1 mb-4 ${isRtl ? "-mr-2" : "-ml-2"}`}>
           <button
             onClick={handleNavBack}
-            className="subject-back flex items-center gap-1 text-med-blue hover:text-med-blue dark:text-blue-400 font-medium px-2 py-2 rounded-lg transition-colors cursor-pointer/40"
+             className="subject-back flex items-center gap-1 text-semantic-navigation-tab-active hover:text-semantic-action-accent font-medium px-2 py-2 rounded-lg transition-colors cursor-pointer/40"
             title={isRtl ? "رجوع" : "Back"}
             aria-label={isRtl ? "رجوع" : "Back"}
           >
@@ -1129,11 +1129,11 @@ export const SubjectView = function SubjectView({
               setActiveSubSubject(null);
               onBack();
             }}
-            className="ms-auto text-neutral-500 dark:text-[#EBEBF599] disabled:opacity-50 hover:bg-neutral-900/5 dark:hover:bg-white/[0.12] p-3 rounded-full transition-colors cursor-pointer"
+             className="ms-auto text-semantic-chrome-content-secondary disabled:opacity-50 hover:bg-semantic-chrome-surface-hover p-3 rounded-full transition-colors cursor-pointer"
             title={isRtl ? "الرئيسية" : "Syllabus Library Root"}
             aria-label={isRtl ? "الرئيسية" : "Home"}
           >
-            <Home className="w-6 h-6 sm:w-7 sm:h-7 text-neutral-500 dark:text-[var(--text-secondary)]" />
+             <Home className="w-6 h-6 sm:w-7 sm:h-7 text-semantic-chrome-content-secondary" />
           </button>
         </div>
 
@@ -1314,7 +1314,7 @@ export const SubjectView = function SubjectView({
                       >
                         <SubIcon className="w-icon-md h-icon-md" />
                       </div>
-                      <span className="text-xs font-semibold font-mono px-3 py-1 bg-black/[0.03] dark:bg-white/[0.08] rounded-lg text-neutral-600 dark:text-[var(--text-secondary)] antialiased">
+           <span className="text-xs font-semibold font-mono px-3 py-1 bg-semantic-chrome-surface-hover rounded-lg text-semantic-chrome-content-secondary antialiased">
                         {subject.id}-{subCode}
                       </span>
                     </div>
@@ -1326,18 +1326,18 @@ export const SubjectView = function SubjectView({
 
                       <div className="mt-3 flex justify-between items-center text-sm font-medium text-neutral-500 dark:text-[var(--text-secondary)] w-full antialiased">
                         <span className="flex items-center gap-2 opacity-80">
-                          <BookOpen className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />{" "}
+                       <BookOpen className="w-icon-sm h-icon-sm text-semantic-chrome-content-secondary" />{" "}
                           {totalLecs} {isRtl ? "محاضرة" : "lecs"}
                         </span>
                         {(theoryLecs > 0 || practicalLecs > 0) && (
                           <div className="flex gap-2 opacity-70">
                             {theoryLecs > 0 && (
-                              <span className="bg-black/[0.04] dark:bg-white/[0.06] px-2 py-1 rounded-md text-xs font-semibold">
+                               <span className="bg-semantic-chrome-surface-hover px-2 py-1 rounded-md text-xs font-semibold">
                                 T:{theoryLecs}
                               </span>
                             )}
                             {practicalLecs > 0 && (
-                              <span className="bg-black/[0.04] dark:bg-white/[0.06] px-2 py-1 rounded-md text-xs font-semibold">
+                               <span className="bg-semantic-chrome-surface-hover px-2 py-1 rounded-md text-xs font-semibold">
                                 P:{practicalLecs}
                               </span>
                             )}
@@ -1376,7 +1376,7 @@ export const SubjectView = function SubjectView({
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 bg-blue-50 dark:bg-[rgba(191,219,254,0.15)] text-med-blue dark:text-[rgba(191,219,254,1)] shadow-elevation-1 bg-opacity-80 backdrop-blur-sm">
                     <Book className="w-icon-md h-icon-md" />
                   </div>
-                  <span className="text-xs font-semibold font-mono px-3 py-1 bg-black/[0.03] dark:bg-white/[0.08] rounded-lg text-neutral-600 dark:text-[var(--text-secondary)] antialiased">
+                   <span className="text-xs font-semibold font-mono px-3 py-1 bg-semantic-chrome-surface-hover rounded-lg text-semantic-chrome-content-secondary antialiased">
                     THEORY
                   </span>
                 </div>
@@ -1384,7 +1384,7 @@ export const SubjectView = function SubjectView({
                 <div className="mt-5 relative z-10 pointer-events-none flex-1 flex flex-col justify-end">
                   <div className="mt-3 flex justify-between items-center text-sm font-medium text-neutral-500 dark:text-[var(--text-secondary)] w-full antialiased">
                     <span className="flex items-center gap-2 opacity-80">
-                      <Book className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />{" "}
+                     <Book className="w-icon-sm h-icon-sm text-semantic-chrome-content-secondary" />{" "}
                       {
                         getLecturesForHierarchy(activeSubSubject, "Theory")
                           .length
@@ -1409,7 +1409,7 @@ export const SubjectView = function SubjectView({
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0 bg-emerald-50 dark:bg-[rgba(94,234,212,0.15)] text-emerald-600 dark:text-[rgba(94,234,212,1)] shadow-elevation-1 bg-opacity-80 backdrop-blur-sm">
                     <Activity className="w-icon-md h-icon-md" />
                   </div>
-                  <span className="text-xs font-semibold font-mono px-3 py-1 bg-black/[0.03] dark:bg-white/[0.08] rounded-lg text-neutral-600 dark:text-[var(--text-secondary)] antialiased">
+                   <span className="text-xs font-semibold font-mono px-3 py-1 bg-semantic-chrome-surface-hover rounded-lg text-semantic-chrome-content-secondary antialiased">
                     {["RM", "PHC", "ImD", "SSC"].includes(subject.id)
                       ? "TBL"
                       : "PRACTICAL"}
@@ -1419,7 +1419,7 @@ export const SubjectView = function SubjectView({
                 <div className="mt-5 relative z-10 pointer-events-none flex-1 flex flex-col justify-end">
                   <div className="mt-3 flex justify-between items-center text-sm font-medium text-neutral-500 dark:text-[var(--text-secondary)] w-full antialiased">
                     <span className="flex items-center gap-2 opacity-80">
-                      <Activity className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />{" "}
+                     <Activity className="w-icon-sm h-icon-sm text-semantic-chrome-content-secondary" />{" "}
                       {
                         getLecturesForHierarchy(activeSubSubject, "Practical")
                           .length
@@ -1478,7 +1478,7 @@ export const SubjectView = function SubjectView({
                           >
                             <DeptIcon className="w-icon-md h-icon-md text-neutral-600 dark:text-[var(--text-secondary)]" />
                           </div>
-                          <span className="text-xs font-semibold font-mono px-3 py-1 bg-black/[0.03] dark:bg-white/[0.08] rounded-lg text-neutral-600 dark:text-[var(--text-secondary)] antialiased">
+                           <span className="text-xs font-semibold font-mono px-3 py-1 bg-semantic-chrome-surface-hover rounded-lg text-semantic-chrome-content-secondary antialiased">
                             {dept.badge}
                           </span>
                         </div>
@@ -1490,7 +1490,7 @@ export const SubjectView = function SubjectView({
 
                           <div className="mt-3 flex justify-between items-center text-sm font-medium text-neutral-500 dark:text-[var(--text-secondary)] w-full antialiased">
                             <span className="flex items-center gap-2 opacity-80">
-                              <BookOpen className="w-icon-sm h-icon-sm text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)]" />{" "}
+                             <BookOpen className="w-icon-sm h-icon-sm text-semantic-chrome-content-secondary" />{" "}
                               {totalLecs} {isRtl ? "محاضرة" : "lecs"}
                             </span>
                           </div>
@@ -1514,8 +1514,8 @@ export const SubjectView = function SubjectView({
               transition={{ duration: 0 }}
               className="space-y-4"
             >
-              <div className="flex items-center justify-end border-b border-black/[0.06] dark:border-white/[0.08] pb-3 mb-3 px-2 antialiased">
-                <span className="text-xs font-semibold text-neutral-500 dark:text-[#EBEBF599] dark:text-[var(--text-muted)] uppercase pointer-events-none select-none font-mono">
+               <div className="flex items-center justify-end border-b border-semantic-border-default pb-3 mb-3 px-2 antialiased">
+                 <span className="text-xs font-semibold text-semantic-chrome-content-muted uppercase pointer-events-none select-none font-mono">
                   {isRtl ? "المحاضرات" : "SYLLABUS LECTURES"}
                 </span>
               </div>
