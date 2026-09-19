@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SafeProviderMetadata } from "../contracts.js";
+import { AIServiceError } from "../errors.js";
 import type { AIMCQCandidate, MCQOperationResult, SkippedMCQSourceItem } from "../mcq/contracts.js";
 import type { AIFlashcardCandidate, FlashcardOperationResult, SkippedFlashcardSourceItem } from "../flashcard/contracts.js";
 
@@ -15,7 +16,7 @@ const providerSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
   responseId: z.string().nullable().optional(),
-  transport: z.enum(["inline", "files_api"]).optional(),
+  transport: z.enum(["inline", "files_api", "markdown_conversion"]).optional(),
   mediaCount: z.number().int().nonnegative().optional(),
   cleanupWarning: z.literal("provider_media_cleanup_failed").optional(),
 }).strict();
@@ -174,5 +175,13 @@ export function buildAIAdminResponse(
       processing: { ...result.processing },
     },
   };
-  return aiAdminResponseSchema.parse(response);
+  const parsed = aiAdminResponseSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new AIServiceError("AI_INVALID_RESPONSE", {
+      publicMessage: "The AI preview response could not be prepared.",
+      diagnosticMessage: `AI admin response projection failed validation with ${parsed.error.issues.length} issue(s).`,
+      cause: parsed.error,
+    });
+  }
+  return parsed.data;
 }
