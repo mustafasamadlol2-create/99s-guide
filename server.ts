@@ -48,13 +48,12 @@ import { execFile } from "child_process";
 import {
   getPersonalizationFromCloud,
   personalizationCloudSyncEnabled,
-  PersonalizationSyncError,
   putPersonalizationToCloud,
 } from "./server/services/personalizationSync.js";
 import {
-  MAX_PERSONALIZATION_CLOUD_RECORD_BYTES,
-  parsePersonalizationConfig,
-} from "./shared/personalization.js";
+  createPersonalizationRouter,
+  createPersonalizationJsonParser,
+} from "./server/routes/personalization.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -983,6 +982,14 @@ app.use((req, res, next) => {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
   xss()(req, res, next);
 });
+
+// The personalization API has a literal 32 KiB HTTP request limit. This parser
+// must run before the broader global JSON parser below so the limit applies to
+// received bytes, not only to a reserialized parsed object.
+app.use(
+  "/api/personalization",
+  createPersonalizationJsonParser(),
+);
 
 app.use(compression());
 app.use(express.json({ limit: "20mb" }));
@@ -6943,75 +6950,15 @@ async function requireUser(req: express.Request, res: express.Response, next: ex
   }
 }
 
-app.get("/api/personalization", requireUser, async (req, res) => {
-  if (!personalizationCloudSyncEnabled()) {
-    return res.json({ status: "disabled", record: null });
-  }
-
-  try {
-    const result = await getPersonalizationFromCloud((req as any).user.id);
-    return res.json(result);
-  } catch (error) {
-    if (error instanceof PersonalizationSyncError) {
-      const headers: Record<string, string> = {};
-      if (error.retryAfter) headers["Retry-After"] = error.retryAfter;
-      return res.status(error.status).set(headers).json({
-        error: error.message,
-        retryable: error.retryable,
-      });
-    }
-    return res.status(503).json({ error: "Personalization sync is unavailable.", retryable: true });
-  }
-});
-
-app.put("/api/personalization", requireUser, async (req, res) => {
-  if (!personalizationCloudSyncEnabled()) {
-    return res.json({ status: "disabled" });
-  }
-
-  const body = req.body;
-  let bodyBytes = 0;
-  try {
-    bodyBytes = Buffer.byteLength(JSON.stringify(body ?? null), "utf8");
-  } catch {
-    return res.status(400).json({ error: "Invalid personalization payload." });
-  }
-  if (bodyBytes > MAX_PERSONALIZATION_CLOUD_RECORD_BYTES) {
-    return res.status(413).json({ error: "Personalization record is too large." });
-  }
-  if (
-    !body ||
-    typeof body !== "object" ||
-    Array.isArray(body) ||
-    Object.keys(body).some((key) => !["config", "intentId", "knownRevision"].includes(key)) ||
-    typeof body.intentId !== "string" ||
-    !/^[A-Za-z0-9._:-]{8,160}$/.test(body.intentId) ||
-    (body.knownRevision !== null && typeof body.knownRevision !== "string")
-  ) {
-    return res.status(400).json({ error: "Invalid personalization payload." });
-  }
-  const config = parsePersonalizationConfig(body.config);
-  if (!config) return res.status(400).json({ error: "Invalid personalization config." });
-
-  try {
-    const result = await putPersonalizationToCloud((req as any).user.id, {
-      config,
-      intentId: body.intentId,
-      knownRevision: body.knownRevision,
-    });
-    return res.json(result);
-  } catch (error) {
-    if (error instanceof PersonalizationSyncError) {
-      const headers: Record<string, string> = {};
-      if (error.retryAfter) headers["Retry-After"] = error.retryAfter;
-      return res.status(error.status).set(headers).json({
-        error: error.message,
-        retryable: error.retryable,
-      });
-    }
-    return res.status(503).json({ error: "Personalization sync is unavailable.", retryable: true });
-  }
-});
+app.use(
+  "/api/personalization",
+  createPersonalizationRouter({
+    requireUser,
+    isEnabled: personalizationCloudSyncEnabled,
+    getCloud: getPersonalizationFromCloud,
+    putCloud: putPersonalizationToCloud,
+  }),
+);
 
 /**
  * Role changes are stricter than general owner access. The persisted

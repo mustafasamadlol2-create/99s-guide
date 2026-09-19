@@ -84,10 +84,15 @@ async function callWorker(
     let body: unknown = null;
     try { body = await response.json(); } catch { /* handled below */ }
     if (!response.ok) {
+      const isWorkerAuthFailure = response.status === 401 || response.status === 403;
       throw new PersonalizationSyncError(
-        isRecord(body) && typeof body.error === "string" ? body.error : "Personalization sync failed.",
-        response.status,
-        response.status === 429 || response.status >= 500,
+        isWorkerAuthFailure
+          ? "Personalization sync is unavailable."
+          : isRecord(body) && typeof body.error === "string"
+            ? body.error
+            : "Personalization sync failed.",
+        isWorkerAuthFailure ? 503 : response.status,
+        isWorkerAuthFailure || response.status === 429 || response.status >= 500,
         response.headers.get("retry-after") || undefined,
       );
     }
