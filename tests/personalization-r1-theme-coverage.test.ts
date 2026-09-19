@@ -14,6 +14,9 @@ const themeBridge = read("src/features/personalization/PersonalizationThemeBridg
 const presentationBridge = read(
   "src/features/personalization/PersonalizationPresentationBridge.tsx",
 );
+const lifecycle = read(
+  "src/features/personalization/personalizationDocumentLifecycle.ts",
+);
 
 test("R1 repairs reusable Subject and Module application surfaces", () => {
   assert.match(subject, /bg-semantic-background-page/);
@@ -72,11 +75,13 @@ test("R1 makes Hero layers and particles consume semantic theme colors", () => {
 
 test("R1 preserves the committed theme and presentation attributes during hydration", () => {
   for (const bridge of [themeBridge, presentationBridge]) {
+    assert.match(bridge, /shouldPreservePersonalizationDuringHydration/);
     assert.match(bridge, /hydration\.phase === "loading"/);
-    assert.match(bridge, /return;/);
+    assert.match(bridge, /appliedOwnerUserIdRef/);
     assert.match(bridge, /committed/);
     assert.doesNotMatch(bridge, /draft/);
   }
+  assert.match(lifecycle, /previousOwnerUserId === activeUserId/);
   assert.match(themeBridge, /synchronizePersonalizationTheme/);
   assert.match(presentationBridge, /synchronizePersonalizationPresentation/);
 });

@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePersonalization } from "./PersonalizationProvider";
+import { shouldPreservePersonalizationDuringHydration } from "./personalizationDocumentLifecycle";
 import { synchronizePersonalizationPresentation } from "./personalizationPresentation";
 
 const usePresentationEffect =
@@ -11,20 +12,30 @@ const usePresentationEffect =
  */
 export function PersonalizationPresentationBridge() {
   const { committed, hydration, userId } = usePersonalization();
+  const appliedOwnerUserIdRef = useRef<string | null>(null);
 
   usePresentationEffect(() => {
     if (typeof document === "undefined") return;
-    // Preserve committed Hero/Glass presentation during local-cache hydration.
-    // The next ready/fallback state is authoritative and synchronizes all
-    // presentation attributes together.
-    if (hydration.phase === "loading") return;
+    if (
+      shouldPreservePersonalizationDuringHydration(
+        appliedOwnerUserIdRef.current,
+        userId,
+        hydration.phase,
+      )
+    ) {
+      return;
+    }
+
+    // A different account or logout must cross the safe default boundary
+    // before a new account's Hero/Glass/Motion/Reading state is applied.
     synchronizePersonalizationPresentation(
       document.documentElement,
-      committed.heroStyle,
-      committed.glassStyle,
-      committed.motionStyle,
-      committed.readingSize,
+      hydration.phase === "loading" ? "classic" : committed.heroStyle,
+      hydration.phase === "loading" ? "balanced" : committed.glassStyle,
+      hydration.phase === "loading" ? "full" : committed.motionStyle,
+      hydration.phase === "loading" ? "default" : committed.readingSize,
     );
+    appliedOwnerUserIdRef.current = userId;
   }, [
     committed.heroStyle,
     committed.glassStyle,

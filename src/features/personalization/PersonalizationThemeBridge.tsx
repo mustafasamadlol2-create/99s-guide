@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePersonalization } from "./PersonalizationProvider";
+import { shouldPreservePersonalizationDuringHydration } from "./personalizationDocumentLifecycle";
 import { synchronizePersonalizationTheme } from "./personalizationTheme";
 
 const useThemeEffect =
@@ -13,15 +14,27 @@ const useThemeEffect =
  */
 export function PersonalizationThemeBridge() {
   const { committed, hydration, userId } = usePersonalization();
+  const appliedOwnerUserIdRef = useRef<string | null>(null);
 
   useThemeEffect(() => {
     if (typeof document === "undefined") return;
-    // Keep the last committed visual state on screen while the same account's
-    // local envelope is being read. Resetting the bridge to the Classic
-    // default during this window causes an alternate theme to flash, then
-    // appear to revert before hydration completes.
-    if (hydration.phase === "loading") return;
-    synchronizePersonalizationTheme(document.documentElement, committed.themeId);
+    if (
+      shouldPreservePersonalizationDuringHydration(
+        appliedOwnerUserIdRef.current,
+        userId,
+        hydration.phase,
+      )
+    ) {
+      return;
+    }
+
+    // A different account or logout must cross the safe Classic boundary
+    // before any new account cache is allowed to affect the document.
+    synchronizePersonalizationTheme(
+      document.documentElement,
+      hydration.phase === "loading" ? "classic-99" : committed.themeId,
+    );
+    appliedOwnerUserIdRef.current = userId;
   }, [committed.themeId, hydration.phase, userId]);
 
   return null;
