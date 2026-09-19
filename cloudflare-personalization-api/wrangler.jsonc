@@ -7,5 +7,16 @@
       "binding": "PERSONALIZATION_KV",
       "id": "replace-with-personalization-kv-id"
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "cloudflare-personalization-api-staging",
+      "kv_namespaces": [
+        {
+          "binding": "PERSONALIZATION_KV",
+          "id": "replace-with-staging-personalization-kv-id"
+        }
+      ]
+    }
+  }
 }
