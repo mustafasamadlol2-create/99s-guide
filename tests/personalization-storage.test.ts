@@ -9,6 +9,7 @@ import {
   PERSONALIZATION_CACHE_PREFIX,
   type PersonalizationKeyValueStorage,
   getPersonalizationCacheKey,
+  getLegacyPersonalizationCacheKey,
   readCachedPersonalization,
   removeCachedPersonalization,
   writeCachedPersonalization,
@@ -264,6 +265,39 @@ test("storage get, set, and remove failures are structured and nonfatal", async 
     ok: false,
     error: "storage-error",
   });
+});
+
+test("failed V1 migration keeps V1 durable and never reports an undurable V2", async () => {
+  const storage = new MemoryStorage();
+  const legacyKey = getLegacyPersonalizationCacheKey(userA)!;
+  const currentKey = getPersonalizationCacheKey(userA)!;
+  storage.values.set(
+    legacyKey,
+    JSON.stringify({
+      cacheVersion: 1,
+      savedAt: "2026-09-18T12:00:00Z",
+      config: {
+        version: 1,
+        themeId: "rose",
+        heroStyle: "aurora",
+        glassStyle: "frosted",
+        motionStyle: "subtle",
+        readingSize: "large",
+        home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+      },
+    }),
+  );
+  storage.failSet = true;
+
+  const result = await readCachedPersonalization(userA, storage);
+
+  assert.deepEqual(result, {
+    status: "invalid",
+    config: createDefaultPersonalization(),
+    reason: "storage-error",
+  });
+  assert.equal(storage.values.has(currentKey), false);
+  assert.equal(storage.values.has(legacyKey), true);
 });
 
 test("strict writes reject unknown fields and invalid subject orders", async () => {

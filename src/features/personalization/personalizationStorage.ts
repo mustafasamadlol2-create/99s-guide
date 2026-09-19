@@ -329,12 +329,10 @@ async function migrateLegacyCache(
   try {
     await storage.setItem(getPersonalizationCacheKey(userId)!, serialized);
   } catch {
-    return {
-      status: "found",
-      config: cloneConfig(migratedConfig),
-      savedAt: legacy.savedAt,
-      migrated: false,
-    };
+    // The legacy record is still the durable authority. Do not expose the
+    // in-memory V2 candidate as a found cache entry: the Provider would
+    // otherwise mark an undurable migration as committed ownership.
+    return fallbackInvalid("storage-error");
   }
 
   try {

@@ -1,3 +1,4 @@
 - [Gemini structured schemas](gemini-structured-schemas.md) — sanitize generated JSON Schema to Gemini’s supported subset, then enforce full Zod validation after parsing.
 - [Flashcard AI semantics](flashcard-ai-semantics.md) — clinicalConcept is the canonical front, explanation is the canonical back, and enhancement fills missing explanations only.
 - [Consolidated lecture surfaces](consolidated-lecture-surfaces.md) — repeated utility classes span tabs, so color-only edits need nearby context to avoid changing another lecture surface.
+- [Personalization migration durability](personalization-migration-durability.md) — a failed V1→V2 write must resolve as fallback/invalid, never as a found committed V2.
