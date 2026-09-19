@@ -1,0 +1,11 @@
+{
+  "name": "cloudflare-personalization-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-01",
+  "kv_namespaces": [
+    {
+      "binding": "PERSONALIZATION_KV",
+      "id": "replace-with-personalization-kv-id"
+    }
+  ]
+}

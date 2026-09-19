@@ -133,8 +133,10 @@ test("write creates a versioned envelope and snapshots the caller config", async
   const raw = storage.values.get(getPersonalizationCacheKey(userA)!);
   assert.ok(raw);
   const envelope = JSON.parse(raw);
-  assert.equal(envelope.cacheVersion, 1);
+  assert.equal(envelope.cacheVersion, 2);
   assert.equal(envelope.config.version, 1);
+  assert.equal(envelope.sync.pending, null);
+  assert.equal(envelope.sync.lastSyncState, "never");
   assert.equal("userId" in envelope, false);
 });
 

@@ -98,6 +98,47 @@ export type PersonalizationValidationResult =
  */
 
 export const MAX_PERSONALIZATION_PAYLOAD_BYTES = 16 * 1024;
+export const MAX_PERSONALIZATION_LOCAL_ENVELOPE_BYTES = 48 * 1024;
+export const MAX_PERSONALIZATION_CLOUD_RECORD_BYTES = 32 * 1024;
+
+export const PERSONALIZATION_SYNC_STATES = [
+  "never",
+  "clean",
+  "retryable-failure",
+  "disabled",
+  "unsupported",
+] as const;
+export type PersonalizationSyncState = (typeof PERSONALIZATION_SYNC_STATES)[number];
+
+export interface PersonalizationPendingIntent {
+  intentId: string;
+  config: PersonalizationConfigV1;
+  createdAt: string;
+}
+
+export interface PersonalizationLocalEnvelopeV2 {
+  cacheVersion: 2;
+  savedAt: string;
+  config: PersonalizationConfigV1;
+  sync: {
+    knownCloudRevision: string | null;
+    pending: PersonalizationPendingIntent | null;
+    lastSyncState: PersonalizationSyncState;
+    lastSuccessfulGetAt: string | null;
+  };
+}
+
+export interface PersonalizationCloudRecord {
+  config: PersonalizationConfigV1;
+  revision: string;
+  updatedAt: string;
+  lastIntentId: string;
+}
+
+export type PersonalizationCloudResponse =
+  | { status: "ok"; record: PersonalizationCloudRecord }
+  | { status: "empty"; record: null }
+  | { status: "disabled"; record: null };
 
 const CLASSIC_99_SUBJECT_ORDER: readonly SubjectId[] = PERSONALIZATION_SUBJECT_IDS;
 

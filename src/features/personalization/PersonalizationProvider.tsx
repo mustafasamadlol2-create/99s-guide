@@ -18,14 +18,28 @@ import {
   type PersonalizationState,
 } from "./personalizationState";
 import {
+  acknowledgePersonalizationCloudRecord,
+  createPersonalizationEnvelope,
+  getPersonalizationCloud,
+  persistSyncState,
+  putPersonalizationCloud,
+  reconcilePersonalization,
+  writePendingPersonalization,
+  writePersonalizationEnvelope,
+} from "./personalizationCloudSync";
+import {
   readCachedPersonalization,
-  writeCachedPersonalization,
   type PersonalizationCacheInvalidReason,
   type PersonalizationCacheReadResult,
   type PersonalizationKeyValueStorage,
   type PersonalizationCacheWriteResult,
+  type PersonalizationCacheEnvelope,
 } from "./personalizationStorage";
-import type { PersonalizationConfigV1 } from "../../../shared/personalization";
+import type {
+  PersonalizationCloudRecord,
+  PersonalizationConfigV1,
+} from "../../../shared/personalization";
+import { personalizationConfigsEqual } from "./personalizationState";
 
 type PersonalizationCacheWriteError = Extract<
   PersonalizationCacheWriteResult,
@@ -200,6 +214,14 @@ export function PersonalizationProvider({
   const userIdRef = useRef(userId);
   const stateOwnerUserIdRef = useRef<string | null>(userId);
   const hydrationRef = useRef(hydration);
+  const envelopeRef = useRef<PersonalizationCacheEnvelope | null>(null);
+  const confirmationRef = useRef<{
+    userId: string;
+    candidate: PersonalizationConfigV1;
+    record: PersonalizationCloudRecord | null;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const syncInFlightRef = useRef(false);
 
   stateRef.current = state;
   userIdRef.current = userId;
@@ -223,11 +245,182 @@ export function PersonalizationProvider({
       ? applyStatus
       : { phase: "idle" as const };
 
+  const clearConfirmation = useCallback(() => {
+    if (confirmationRef.current) clearTimeout(confirmationRef.current.timer);
+    confirmationRef.current = null;
+  }, []);
+
+  const attemptPendingPut = useCallback(async (activeUserId: string, requestId: number) => {
+    const local = await readCachedPersonalization(activeUserId, storage);
+    if (local.status !== "found" || !local.envelope.sync.pending) return false;
+    const pending = local.envelope.sync.pending;
+    try {
+      const record = await putPersonalizationCloud(
+        pending,
+        local.envelope.sync.knownCloudRevision,
+      );
+      if (!record || requestId !== requestIdRef.current || userIdRef.current !== activeUserId) {
+        return false;
+      }
+      const latest = await readCachedPersonalization(activeUserId, storage);
+      if (latest.status !== "found" || latest.envelope.sync.pending?.intentId !== pending.intentId) {
+        return false;
+      }
+      const acknowledged = await acknowledgePersonalizationCloudRecord(
+        activeUserId,
+        record,
+        latest.envelope,
+        storage,
+      );
+      if (!acknowledged.ok) return false;
+      envelopeRef.current = acknowledged.envelope;
+      setState(createPersonalizationState(record.config));
+      setHydration({
+        phase: "ready",
+        userId: activeUserId,
+        source: "cache",
+        savedAt: acknowledged.savedAt,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [storage]);
+
+  const scheduleConfirmation = useCallback((
+    activeUserId: string,
+    candidate: PersonalizationConfigV1,
+    record: PersonalizationCloudRecord | null,
+    requestId: number,
+  ) => {
+    clearConfirmation();
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (requestId !== requestIdRef.current || userIdRef.current !== activeUserId) return;
+        const local = await readCachedPersonalization(activeUserId, storage);
+        if (local.status !== "found" || local.envelope.sync.pending) return;
+        const remote = await getPersonalizationCloud().catch(() => null);
+        const sameCandidate = personalizationConfigsEqual(local.config, candidate);
+        const sameRemote =
+          (remote?.status === "empty" && record === null) ||
+          (remote?.status === "ok" && record?.revision === remote.record.revision);
+        if (!sameCandidate || !sameRemote) return;
+
+        if (remote?.status === "empty") {
+          const pendingWrite = await writePendingPersonalization(
+            activeUserId,
+            local.config,
+            local.envelope,
+            storage,
+          );
+          if (pendingWrite.ok) {
+            envelopeRef.current = pendingWrite.envelope;
+            await attemptPendingPut(activeUserId, requestId);
+          }
+          return;
+        }
+
+        if (remote?.status === "ok") {
+          const acknowledged = await acknowledgePersonalizationCloudRecord(
+            activeUserId,
+            remote.record,
+            local.envelope,
+            storage,
+          );
+          if (acknowledged.ok) {
+            envelopeRef.current = acknowledged.envelope;
+            setState(createPersonalizationState(remote.record.config));
+          }
+        }
+      })();
+    }, 45_000);
+    confirmationRef.current = { userId: activeUserId, candidate, record, timer };
+  }, [attemptPendingPut, clearConfirmation, storage]);
+
+  const runCloudSync = useCallback(async (activeUserId: string, requestId: number) => {
+    if (syncInFlightRef.current || requestId !== requestIdRef.current) return;
+    syncInFlightRef.current = true;
+    try {
+      const local = await readCachedPersonalization(activeUserId, storage);
+      if (local.status === "found" && local.envelope) envelopeRef.current = local.envelope;
+      if (local.status === "found" && local.envelope.sync.pending) {
+        await attemptPendingPut(activeUserId, requestId);
+        return;
+      }
+      const remote = await getPersonalizationCloud();
+      let localForReconciliation = local;
+      if (local.status === "found" && remote.status !== "disabled") {
+        const stampedEnvelope = {
+          ...local.envelope,
+          savedAt: new Date().toISOString(),
+          sync: {
+            ...local.envelope.sync,
+            lastSuccessfulGetAt: new Date().toISOString(),
+          },
+        };
+        const stamped = await writePersonalizationEnvelope(
+          activeUserId,
+          stampedEnvelope,
+          storage,
+        );
+        if (stamped.ok) {
+          envelopeRef.current = stamped.envelope;
+          localForReconciliation = {
+            ...local,
+            envelope: stamped.envelope,
+            savedAt: stamped.savedAt,
+          };
+        }
+      }
+      const decision = reconcilePersonalization(localForReconciliation, remote);
+      if (decision.action === "upload-pending") {
+        await attemptPendingPut(activeUserId, requestId);
+      } else if (decision.action === "adopt") {
+        const base = local.status === "found"
+          ? local.envelope
+          : createPersonalizationEnvelope(decision.record.config, {
+            lastSuccessfulGetAt: new Date().toISOString(),
+          });
+        const acknowledged = await acknowledgePersonalizationCloudRecord(
+          activeUserId,
+          decision.record,
+          base,
+          storage,
+        );
+        if (acknowledged.ok && requestId === requestIdRef.current && userIdRef.current === activeUserId) {
+          envelopeRef.current = acknowledged.envelope;
+          setState(createPersonalizationState(decision.record.config));
+          setHydration({
+            phase: "ready",
+            userId: activeUserId,
+            source: "cache",
+            savedAt: acknowledged.savedAt,
+          });
+        }
+      } else if (decision.action === "confirm" && localForReconciliation.status === "found") {
+        scheduleConfirmation(activeUserId, decision.candidate, decision.record, requestId);
+      } else if (
+        decision.action === "none" &&
+        localForReconciliation.status === "found" &&
+        localForReconciliation.envelope &&
+        decision.state
+      ) {
+        await persistSyncState(activeUserId, localForReconciliation.envelope, decision.state, storage);
+      }
+    } catch {
+      // Cloud failure never blocks local hydration or Apply.
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  }, [attemptPendingPut, scheduleConfirmation, storage]);
+
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
     if (!userId) {
+      clearConfirmation();
+      envelopeRef.current = null;
       stateOwnerUserIdRef.current = null;
       setState(createPersonalizationState());
       setHydration({ phase: "signed-out" });
@@ -237,6 +430,8 @@ export function PersonalizationProvider({
 
     let active = true;
     stateOwnerUserIdRef.current = userId;
+    clearConfirmation();
+    envelopeRef.current = null;
     setState(createPersonalizationState());
     setHydration({ phase: "loading", userId });
     setApplyStatus({ phase: "idle" });
@@ -255,14 +450,35 @@ export function PersonalizationProvider({
       }
 
       const resolution = resolvePersonalizationHydration(userId, result);
+      if (result.status === "found" && result.envelope) envelopeRef.current = result.envelope;
       setState(createPersonalizationState(resolution.config));
       setHydration(resolution.status);
+      void runCloudSync(userId, requestId);
     });
 
     return () => {
       active = false;
+      clearConfirmation();
     };
-  }, [storage, userId]);
+  }, [clearConfirmation, runCloudSync, storage, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const requestId = requestIdRef.current;
+    const run = () => void runCloudSync(userId, requestId);
+    const onlineHandler = () => run();
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    window.addEventListener("online", onlineHandler);
+    document.addEventListener("visibilitychange", visibilityHandler);
+    const timer = window.setInterval(run, 15 * 60_000);
+    return () => {
+      window.removeEventListener("online", onlineHandler);
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      window.clearInterval(timer);
+    };
+  }, [runCloudSync, userId]);
 
   const updateDraft = useCallback((action: PersonalizationDraftAction) => {
     if (stateOwnerUserIdRef.current !== userIdRef.current) return;
@@ -328,9 +544,15 @@ export function PersonalizationProvider({
     const requestId = requestIdRef.current;
     setApplyStatus({ phase: "saving", userId: activeUserId });
 
-    const writeResult = await writeCachedPersonalization(
+    let currentCache = envelopeRef.current;
+    if (!currentCache) {
+      const currentRead = await readCachedPersonalization(activeUserId, storage);
+      currentCache = currentRead.status === "found" ? currentRead.envelope ?? null : null;
+    }
+    const writeResult = await writePendingPersonalization(
       activeUserId,
       stateResult.config,
+      currentCache,
       storage,
     );
 
@@ -385,6 +607,7 @@ export function PersonalizationProvider({
       };
     }
 
+    if (writeResult.ok) envelopeRef.current = writeResult.envelope;
     setState(commit.state);
     setApplyStatus({
       phase: "saved",
@@ -396,7 +619,9 @@ export function PersonalizationProvider({
       config: commit.config,
       persistence: "saved",
     };
-  }, [storage]);
+    // The durable pending intent is the only source for the network PUT.
+    void attemptPendingPut(activeUserId, requestId);
+  }, [attemptPendingPut, storage]);
 
   const value = useMemo<PersonalizationRuntimeValue>(
     () => ({

@@ -219,7 +219,7 @@ test("six-axis Apply, failure, Cancel, and Reset preserve transactional behavior
 });
 
 test("bridges stay committed-only and account hydration remains guarded", () => {
-  assert.match(providerSource, /const writeResult = await writeCachedPersonalization\(/);
+  assert.match(providerSource, /const writeResult = await writePendingPersonalization\(/);
   assert.match(providerSource, /setState\(commit\.state\)/);
   assert.match(providerSource, /setHydration\(\{ phase: "loading", userId \}\)/);
   assert.equal(isCurrentPersonalizationHydration(1, 2, "usr_a", "usr_b"), false);
