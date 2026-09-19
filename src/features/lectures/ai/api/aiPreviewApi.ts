@@ -7,6 +7,8 @@ import type {
   AIPreviewResponse,
 } from "../types/aiPreview";
 
+const AI_PREVIEW_TIMEOUT_MS = 600_000;
+
 export class AIPreviewError extends Error {
   readonly code?: string;
   readonly requestId?: string;
@@ -103,7 +105,7 @@ export async function requestAIPreview(
       signal,
       bypassCache: true,
       retries: 0,
-      timeoutMs: 180_000,
+      timeoutMs: AI_PREVIEW_TIMEOUT_MS,
     });
     return await response.json() as AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>;
   } catch (error) {
