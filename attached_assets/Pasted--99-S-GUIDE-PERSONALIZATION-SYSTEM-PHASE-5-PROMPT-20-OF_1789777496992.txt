@@ -1,0 +1,2110 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 5 / PROMPT 20 OF ~22
+## ACCOUNT PERSONALIZATION SYNC — ARCHITECTURE AUDIT & FINAL SYNC CONTRACT
+### CLOUD BACKUP / MULTI-DEVICE SYNC DESIGN ONLY
+### NO IMPLEMENTATION YET
+### NO APP ICON WORK
+### NO SQL PERSONALIZATION STORAGE
+### DO NOT MODIFY PRODUCTION BEHAVIOR
+
+Phase 4 is CLOSED AND APPROVED.
+
+Final My 99 account-scoped personalization axes:
+
+1. Theme Pack
+2. Hero Style
+3. Glass Style
+4. Motion Style
+5. Reading Size
+6. Home Subject Order
+
+Current persisted contract:
+
+```ts
+PersonalizationConfigV1 = {
+  version: 1;
+  themeId;
+  heroStyle;
+  glassStyle;
+  motionStyle;
+  readingSize;
+  home: {
+    subjectOrder;
+  };
+}
+
+Current persistence architecture:
+
+local-first
+account-scoped
+Web: localStorage abstraction
+Native: Capacitor Preferences abstraction
+no personalization network calls
+no KV
+no SQL personalization storage
+no D1 personalization storage
+no R2 personalization storage
+explicit Apply is transactional locally
+account boundary resets to safe defaults
+stale hydration is generation-guarded
+
+Phase 5 architectural direction:
+
+ACCOUNT PERSONALIZATION SYNC FIRST.
+
+App Icon customization remains a separate DEVICE-LOCAL future concern and MUST NOT be designed into this cloud-sync contract.
+
+This Prompt 20 is AUDIT + ARCHITECTURE ONLY.
+
+DO NOT IMPLEMENT THE NETWORK PATH YET.
+
+1. PRIMARY GOAL
+
+Design the exact production architecture for synchronizing the existing six-axis PersonalizationConfigV1 across a user's devices.
+
+The architecture must preserve:
+
+current local-first behavior
+current My 99 Draft/Apply workflow
+account isolation
+no personalization dependency for app startup
+offline usability
+no SQL preference storage
+no client-controlled arbitrary user IDs
+safe failure behavior
+existing local cache as first-line persistence
+
+The output of Prompt 20 must be an implementation-ready contract for Prompt 21.
+
+2. ARCHITECTURE DECISION
+
+Use this target architecture unless the current repository audit proves a concrete blocker:
+
+Client
+  ↓ authenticated existing API
+Render / Express
+  ↓ authenticated server-to-server personalization sync
+Cloudflare Worker / KV
+  ↓
+Workers KV
+
+The client must NOT call KV directly.
+
+The client must NOT supply an arbitrary target user ID.
+
+The authenticated backend must derive the user identity from the existing verified session/auth context.
+
+3. LOCAL CACHE REMAINS PRIMARY FOR STARTUP
+
+Cloud sync must NOT become required to render the application.
+
+Startup path remains:
+
+authenticated account becomes known
+→ account-scoped local cache hydration
+→ immediate local committed personalization
+→ optional remote reconciliation
+
+If remote sync is:
+
+slow
+unavailable
+offline
+returns 5xx
+Worker unavailable
+KV unavailable
+
+the application must still work from:
+
+local account cache
+
+or, if no valid cache exists:
+
+factory defaults.
+
+Never block app startup waiting for KV.
+
+4. NO CLOUD-ONLY PERSONALIZATION
+
+Do not design:
+
+login
+→ wait for KV
+→ then render My 99/Home
+
+That architecture is rejected.
+
+Local-first remains authoritative for responsiveness and offline use.
+
+5. AUDIT CURRENT AUTH FIRST
+
+Inspect the actual backend authentication architecture.
+
+Report:
+
+how authenticated user identity reaches Express
+current middleware used for authenticated endpoints
+exact canonical user ID type
+whether IDs are:
+usr_...
+UUID
+both
+another format
+how Google/Apple/email accounts converge to one user
+existing req.user / session structure
+existing session invalidation behavior
+whether owner/admin/user roles matter here
+
+Personalization sync is USER-SCOPED, not role-scoped.
+
+6. NO EMAIL KV KEYS
+
+Cloud personalization keys must NEVER use:
+
+email
+name
+Google subject
+Apple email
+display name
+
+Use only the canonical opaque application user ID.
+
+7. CANONICAL KV KEY
+
+Preferred exact key shape:
+
+personalization:<opaque-user-id>
+
+Examples conceptually:
+
+personalization:usr_...
+personalization:<uuid>
+
+The backend constructs this key.
+
+The client never sends the complete KV key.
+
+8. ACCOUNT ID VALIDATION
+
+The current local storage reportedly supports:
+
+usr_ IDs
+valid UUID-shaped legacy IDs
+
+Audit the exact canonical backend ID reality.
+
+The remote architecture must support only legitimate application account-ID formats.
+
+Do NOT weaken validation to:
+
+"any nonempty string"
+
+Do NOT allow:
+
+../../../
+email@example.com
+another-user-id supplied by body
+
+to become arbitrary KV keys.
+
+9. CLIENT MUST NOT SELECT USER
+
+Forbidden request architecture:
+
+{
+  "userId": "...",
+  "config": ...
+}
+
+if userId is used as authority.
+
+The authenticated endpoint derives user ID from auth.
+
+Client payload should carry personalization data only.
+
+10. SYNCED DATA SCOPE
+
+Cloud sync contains ONLY:
+
+PersonalizationConfigV1
+
+plus minimal sync metadata required for reconciliation.
+
+Do NOT sync:
+
+app_theme
+app_text_scale
+device appearance
+App Icon choice
+notification permissions
+push token
+language unless already intentionally part of another account system
+temporary Draft
+My 99 open state
+preview state
+scroll position
+11. APP ICON EXCLUSION — MANDATORY
+
+App Icon remains device-local.
+
+Do NOT add:
+
+appIcon
+
+to PersonalizationConfigV1.
+
+Do NOT design KV to synchronize future alternate icon choice.
+
+Reason:
+
+an icon choice may differ legitimately between:
+
+iPhone
+iPad
+PWA
+another device
+
+and native icon support differs by platform.
+
+12. APPEARANCE EXCLUSION
+
+Do NOT sync:
+
+app_theme
+
+Light / Dark / System stays device-local.
+
+A user may intentionally use:
+
+Dark on iPhone
+System on iPad
+Light on desktop
+
+while sharing the same Theme Pack.
+
+13. TEXT SCALE EXCLUSION
+
+Do NOT sync:
+
+app_text_scale
+
+It remains device-local accessibility/presentation configuration.
+
+My 99 Reading Size remains account-scoped and IS synced because it is part of PersonalizationConfigV1.
+
+14. DRAFT MUST NOT SYNC
+
+Only successfully APPLIED personalization may sync.
+
+Never upload:
+
+draft
+
+Changing cards/moving subjects before Apply:
+
+ZERO network calls.
+
+Cancel:
+
+ZERO network calls.
+
+Reset without Apply:
+
+ZERO network calls.
+
+15. APPLY IS THE CLOUD SYNC TRIGGER
+
+Explicit successful Apply is the only user-edit event that creates a new account personalization revision.
+
+Conceptual flow:
+
+Draft
+→ explicit Apply
+→ local transactional persistence
+→ committed update
+→ remote sync attempt
+
+But Prompt 20 must determine exact ordering semantics before implementation.
+
+16. LOCAL SUCCESS MUST NOT DEPEND ON CLOUD AVAILABILITY
+
+Cloud outage must not prevent the user from personalizing the current device.
+
+Required principle:
+
+If local persistence succeeds but remote sync cannot be reached:
+
+local Apply should remain successful
+committed config should remain applied locally
+user should not lose customization
+remote state should remain eligible for later reconciliation
+
+Do NOT rollback a successful local Apply solely because KV is offline.
+
+17. DEFINE APPLY RESULT SEMANTICS
+
+Prompt 20 must explicitly separate:
+
+A. LOCAL APPLY SUCCESS
+
+from:
+
+B. CLOUD SYNC SUCCESS
+
+Current My 99 Apply success means:
+
+the configuration was safely persisted for this account on this device and committed.
+
+Do not redefine Apply as failed merely because cloud backup failed.
+
+18. NO MISLEADING CLOUD SUCCESS UI YET
+
+Prompt 20 should NOT add:
+
+Syncing...
+Synced
+Cloud backup
+Last synced
+warning badges
+
+No UI implementation in this prompt.
+
+Prompt 21/22 can decide whether any subtle sync status is actually needed.
+
+19. LAST EXPLICIT APPLY WINS
+
+Required conflict policy:
+
+LAST EXPLICIT APPLY WINS
+
+But do NOT base global ordering solely on unreliable client wall clocks.
+
+Design a server-authoritative revision model.
+
+20. SERVER-AUTHORITATIVE REVISION
+
+Preferred concept:
+
+Cloud record includes metadata similar to:
+
+{
+  recordVersion: 1;
+  config: PersonalizationConfigV1;
+  revision: ...;
+  updatedAt: ...;
+}
+
+Prompt 20 must choose exact representation.
+
+Requirements:
+
+server creates authoritative update metadata
+client cannot claim arbitrary newer timestamps
+equal/stale writes are handled deterministically
+future schema evolution remains possible
+21. DO NOT OVERLOAD config.version
+
+Important:
+
+PersonalizationConfigV1.version = 1
+
+is the CONFIG SCHEMA VERSION.
+
+It must NOT become the sync revision counter.
+
+Use separate sync metadata.
+
+22. REVISION DESIGN
+
+Audit available infrastructure and choose a safe model.
+
+Possible architecture:
+
+server-generated integer revision
+server timestamp + deterministic write semantics
+another clearly justified monotonic server-side revision
+
+Do NOT rely solely on:
+
+Date.now() from client
+
+for cross-device conflict ordering.
+
+23. KV CONSISTENCY REALITY
+
+Workers KV is appropriate for preference synchronization, not transactional relational state.
+
+Design with its consistency model in mind.
+
+Do not assume relational-database semantics.
+
+The app must tolerate:
+
+stale remote read
+propagation delay
+temporary remote unavailability
+
+Local cache + explicit reconciliation must prevent user-facing breakage.
+
+24. AUDIT CLOUDFLARE INTEGRATION SURFACE
+
+Inspect the current repository for:
+
+existing Cloudflare Worker(s)
+Wrangler config
+existing KV namespaces/bindings
+D1 bindings
+R2 bindings
+Worker deployment architecture
+Cloudflare Pages/Workers boundaries
+existing server-to-Worker authentication mechanism if any
+
+Do NOT create anything yet.
+
+Report what already exists.
+
+25. CHOOSE WORKER OWNERSHIP
+
+Determine where personalization KV logic should live.
+
+Preferred:
+
+a small dedicated personalization Worker/module or a well-isolated route in an existing suitable Worker.
+
+Avoid mixing it into unrelated storage logic.
+
+Do NOT force a new Worker if an existing architecture provides a clean private server-only path.
+
+Prompt 20 must justify the choice.
+
+26. SERVER-TO-WORKER AUTHENTICATION
+
+The Cloudflare personalization endpoint must not be publicly writable without authentication.
+
+Design an authenticated server-to-server mechanism.
+
+Examples conceptually:
+
+shared secret header stored only in Render + Worker secrets
+signed request
+existing trusted internal mechanism
+
+Do not expose the secret to frontend bundles.
+
+27. FRONTEND MUST NOT KNOW WORKER SECRET
+
+No:
+
+VITE_...
+
+secret.
+
+No Worker secret in:
+
+client env
+JS bundle
+Capacitor bundle
+localStorage
+
+Server-side only.
+
+28. WORKER MUST NOT TRUST USER ID FROM PUBLIC CLIENT
+
+Even if Worker accepts a user key internally, it must receive that request only from authenticated/trusted Render backend.
+
+Do not expose a general:
+
+GET /personalization/:userId
+PUT /personalization/:userId
+
+to arbitrary public users without trusted internal auth.
+
+29. EXPRESS ENDPOINT DESIGN
+
+Design the authenticated frontend-facing API.
+
+Preferred conceptual endpoints:
+
+GET /api/personalization
+PUT /api/personalization
+
+or repository-standard equivalent.
+
+No user ID route parameter.
+
+Use existing authenticated middleware.
+
+Prompt 20 should choose exact path based on current API conventions.
+
+30. GET SEMANTICS
+
+Authenticated GET should mean:
+
+"Return the cloud personalization record for the current authenticated account."
+
+Possible results:
+
+record exists
+no cloud record yet
+service unavailable
+invalid/corrupt stored record
+
+Define exact response semantics.
+
+31. PUT SEMANTICS
+
+Authenticated PUT should:
+
+derive user ID from auth
+accept only a validated PersonalizationConfigV1 payload
+enforce maximum payload size
+reject malformed/unknown versions
+write a new server-authoritative revision
+return normalized cloud record metadata
+
+No partial patch is required for V1.
+
+Prefer whole-config replacement because Apply already operates on complete config.
+
+32. SERVER VALIDATION
+
+Do not trust frontend contract validation alone.
+
+The backend/Worker boundary must validate:
+
+version
+themeId
+heroStyle
+glassStyle
+motionStyle
+readingSize
+exact Home SubjectId permutation
+
+No arbitrary JSON persistence.
+
+33. SHARED CONTRACT REUSE
+
+Audit whether the existing shared personalization validator can safely be reused server-side.
+
+Preferred:
+
+one canonical parser/validator shared between client and server.
+
+Avoid parallel drifting validation.
+
+If import boundaries prevent this:
+design a small shared server-safe module.
+
+Do not duplicate constants manually unless unavoidable.
+
+34. PAYLOAD SIZE
+
+Existing local contract uses a maximum personalization payload size.
+
+Audit exact current value.
+
+Prior design target:
+
+16384 bytes.
+
+Cloud API should enforce the same or stricter bound.
+
+No unlimited arbitrary KV blob.
+
+35. RECORD SHAPE
+
+Design a cloud envelope separate from local cache envelope.
+
+Do NOT blindly upload the local storage envelope if it contains device-specific metadata.
+
+Choose exact cloud shape.
+
+Recommended concept:
+
+type PersonalizationCloudRecordV1 = {
+  recordVersion: 1;
+  config: PersonalizationConfigV1;
+  revision: number | string;
+  updatedAt: string;
+};
+
+Exact revision type must be justified.
+
+36. LOCAL CACHE ENVELOPE REMAINS LOCAL
+
+Current local cache reportedly resembles:
+
+{
+  cacheVersion: 1;
+  savedAt;
+  config;
+}
+
+Do not automatically replace it with the cloud envelope.
+
+Local and cloud metadata serve different purposes.
+
+Preserve compatibility.
+
+37. LOCAL SYNC METADATA
+
+Determine whether the client needs minimal account-scoped metadata such as:
+
+last known cloud revision
+pending upload state
+last attempted sync
+
+If required, keep it within the same account-scoped personalization storage architecture.
+
+Do NOT introduce global unscoped sync keys.
+
+38. MINIMIZE SYNC METADATA
+
+Do not build an offline queue framework for one preference record unless genuinely necessary.
+
+A simple deterministic reconciliation design is preferred.
+
+39. FIRST CLOUD SYNC — EXISTING USERS
+
+Critical migration scenario.
+
+At Phase 5 launch, existing users may have:
+
+A. valid local personalization
+B. no cloud record
+
+The architecture must NOT replace their customization with factory defaults.
+
+Preferred migration principle:
+
+valid local record + no cloud record
+→ upload local applied config as initial cloud record
+
+after authentication/sync opportunity.
+
+40. CLOUD RECORD + NO LOCAL RECORD
+
+Scenario:
+
+new device
+or cleared storage.
+
+Valid cloud record exists.
+
+Expected:
+
+no local personalization
++ cloud personalization
+→ accept cloud config
+→ persist locally
+→ commit cloud config
+
+subject to active-user/generation guards.
+
+41. BOTH LOCAL AND CLOUD EXIST
+
+This is the key reconciliation case.
+
+Prompt 20 must define deterministic behavior based on sync metadata/revision.
+
+Do NOT arbitrarily prefer local every launch.
+
+Do NOT arbitrarily prefer cloud every launch.
+
+42. LEGACY LOCAL RECORD WITHOUT CLOUD REVISION
+
+Existing Phase-4 local caches may not contain cloud metadata.
+
+Design migration semantics.
+
+A legacy valid local record should not be discarded.
+
+Prompt 20 must state exactly how first reconciliation determines precedence without unreliable guesses.
+
+43. SAFE FIRST-RECONCILIATION POLICY
+
+Preferred direction to evaluate:
+
+If local config exists from before cloud-sync deployment and cloud record also exists unexpectedly:
+
+avoid silently overwriting recent local customization
+establish a deterministic migration policy
+
+Since this should be rare at initial rollout, prefer a conservative user-data-preserving rule.
+
+Prompt 20 must choose and justify it.
+
+44. EXPLICIT APPLY AFTER SYNC LAUNCH
+
+After sync architecture is active:
+
+each explicit Apply should produce a cloud synchronization attempt with a new authoritative revision.
+
+This becomes the clean conflict boundary.
+
+45. OFFLINE APPLY
+
+Scenario:
+
+Device A offline.
+
+User applies Rose/Aurora/etc locally.
+
+Required:
+
+local Apply succeeds
+committed local config updates
+config is marked/reconcilable as newer local intent
+no data loss
+when connectivity later returns, the system can resolve against cloud predictably
+
+Design exact pending-state semantics.
+
+46. MULTI-DEVICE OFFLINE CONFLICT
+
+Scenario:
+
+Cloud revision 5.
+
+Device A goes offline.
+Device B goes offline.
+
+A applies config X.
+B applies config Y.
+
+Later both reconnect.
+
+"Last explicit Apply wins" cannot safely mean client clock order if both were offline.
+
+Prompt 20 must define the supported semantics honestly.
+
+Possible acceptable V1 interpretation:
+
+"Last successfully synchronized explicit Apply wins in cloud."
+
+A device with unsynced local intent may later overwrite cloud when its pending Apply sync succeeds.
+
+If this is the chosen V1 rule:
+state it exactly.
+
+Do not claim impossible total ordering of offline events.
+
+47. CONFLICT CLAIM ACCURACY
+
+Do NOT promise:
+
+"chronologically last tap across all offline devices always wins"
+
+unless infrastructure truly supports it.
+
+Prefer precise semantics.
+
+48. CLOUD READ AFTER LOGIN
+
+Determine when remote reconciliation should run.
+
+Candidate:
+
+after:
+
+authenticated user ID known
+local personalization hydration completed
+
+Then asynchronously:
+
+fetch cloud
+reconcile
+update local/committed only if appropriate
+
+Do not block authentication completion.
+
+49. CLOUD READ FREQUENCY
+
+Avoid fetching on every page/view.
+
+Likely triggers:
+
+authenticated session/account initialization
+explicit Apply
+possibly app foreground/manual refresh only if justified
+
+Prompt 20 should define minimal V1 triggers.
+
+50. NO POLLING
+
+No recurring personalization polling is needed.
+
+Do not add:
+
+intervals
+WebSocket
+Socket.io personalization channel
+
+for one preference document.
+
+51. APPLY NETWORK BEHAVIOR
+
+Prompt 20 must choose whether remote upload occurs:
+
+A. after local Apply and in background
+
+or
+
+B. local Apply awaits a short remote attempt but local success remains independent
+
+Prefer responsive UX and simple error semantics.
+
+Explain tradeoff.
+
+52. DO NOT DUPLICATE APPLY
+
+Do not create:
+
+applyLocal()
+and
+applyCloud()
+
+as separate user actions.
+
+One user Apply.
+
+Sync is system behavior after that explicit intent.
+
+53. APPLY WRITE COUNT TERMINOLOGY
+
+Phase 4 "one persistence write" referred to LOCAL personalization persistence.
+
+Phase 5 may add:
+
+one local persistence write
+one remote sync request
+
+Do not falsely report this as "two local writes."
+
+Keep terminology precise.
+
+54. CLOUD FAILURE
+
+If remote upload fails:
+
+local committed config remains
+dirty remains false if local Apply succeeded
+no rollback
+pending/retry metadata remains accurate
+user can continue using app
+
+Define retry behavior.
+
+55. RETRY STRATEGY
+
+Keep V1 simple.
+
+Possible triggers:
+
+next authenticated startup
+next successful explicit Apply
+next foreground/session initialization
+
+No aggressive retry loop.
+
+No exponential background service required unless existing architecture already provides one.
+
+56. REMOTE VALIDATION FAILURE
+
+If cloud record is malformed/corrupt:
+
+do not apply it
+keep valid local config
+do not crash
+log safely
+optionally overwrite it only after a future explicit/local-authoritative reconciliation according to chosen policy
+
+Never render invalid config.
+
+57. CLOUD VERSION FUTURE-PROOFING
+
+If future config version is newer than this client understands:
+
+do NOT silently coerce unknown future settings into V1 and overwrite cloud immediately.
+
+Define safe behavior:
+
+ignore unsupported remote config
+preserve local compatible state
+avoid destructive downgrade
+
+Prompt 20 must specify.
+
+58. OLD CLIENT BEHAVIOR
+
+Consider:
+
+newer future app writes PersonalizationConfigV2.
+
+older app supports only V1.
+
+The old client should not destroy V2 cloud config simply by launching.
+
+This strongly influences cloud record/version semantics.
+
+Design for it now.
+
+59. PUT VERSION SAFETY
+
+An old client PUT should not overwrite a newer incompatible cloud schema without explicit server policy.
+
+Design a safe rejection/conflict response.
+
+60. CONCURRENCY / CAS
+
+Determine whether V1 needs optimistic concurrency.
+
+Preferred candidate:
+
+client supplies last-known cloud revision on PUT.
+
+Server/Worker performs compare-and-set semantics if feasible.
+
+But Workers KV does not provide relational CAS.
+
+Prompt 20 must assess actual feasibility honestly.
+
+Do not pretend KV supports atomic CAS if it does not.
+
+61. IF KV CAS IS NOT AVAILABLE
+
+Design a practical V1 alternative.
+
+Possible approach:
+
+server-authoritative overwrite
+latest successful write becomes cloud record
+revision metadata returned for observability/reconciliation
+conflict safety focuses on valid complete records rather than impossible transactional CAS
+
+Explain limitations clearly.
+
+62. WHY KV IS ACCEPTABLE
+
+Prompt 20 must explicitly evaluate whether Workers KV is still appropriate for this record.
+
+Factors:
+
+tiny payload
+infrequent writes
+read-mostly preference
+tolerance for eventual propagation
+local-first fallback
+no monetary transaction
+no relational joins
+
+If audit reveals KV is unsuitable:
+STOP and explain.
+
+Do not switch storage implementation without approval.
+
+63. NO D1 FALLBACK IMPLEMENTATION
+
+Even if D1 could provide stronger transaction semantics:
+
+Prompt 20 must not implement D1.
+
+The user-selected architecture is currently:
+
+KV for account personalization.
+
+If architecture audit recommends changing it:
+report the rationale and BLOCK implementation pending decision.
+
+64. PRIVACY
+
+Cloud record should contain only curated personalization config.
+
+No:
+
+medical study history
+search history
+lecture progress
+user email
+OAuth tokens
+push token
+IP data stored in KV payload
+
+User ID exists in the KV key only as required for account scoping.
+
+65. LOGGING
+
+Do not log complete personalization blobs at normal info level unnecessarily.
+
+Safe diagnostics may log:
+
+user ID in existing protected server logging pattern
+record version
+sync outcome
+error category
+
+Follow existing privacy/logging architecture.
+
+66. RATE LIMITING
+
+Audit existing API rate limiting.
+
+Personalization PUT is user-triggered and low-frequency.
+
+Design appropriate protection against abusive repeated writes.
+
+Do not add a complex separate rate-limit system if current authenticated API middleware is sufficient.
+
+67. MAX REQUEST SIZE
+
+Ensure Express route and Worker route do not permit oversized personalization payloads.
+
+Use contract-size guard.
+
+68. CORS
+
+Client talks to the existing authenticated Render API.
+
+Do NOT broaden Worker CORS for direct browser access.
+
+Worker should not need normal public frontend CORS if it is server-to-server only.
+
+69. CSRF / AUTH MODEL
+
+Audit current auth transport:
+
+httpOnly cookie
+Bearer
+native token
+web auth
+
+Ensure the planned frontend-facing personalization API uses the same protections as other authenticated mutations.
+
+Do not invent a parallel auth mechanism.
+
+70. NATIVE APP
+
+Capacitor iOS must use the same API-base architecture as existing authenticated requests.
+
+No direct Cloudflare KV/Worker URL in native UI code.
+
+71. PWA
+
+Same principle.
+
+PWA uses existing API layer.
+
+No public KV namespace details.
+
+72. OFFLINE NATIVE
+
+Native app must continue to use local Capacitor Preferences if network unavailable.
+
+Cloud sync cannot make Preferences optional.
+
+73. ACCOUNT SWITCH DURING CLOUD FETCH
+
+Critical race.
+
+A cloud GET initiated for A must not update:
+
+B committed
+B Draft
+B cache
+
+after account switch.
+
+Reuse/extending existing generation/active-user guards is preferred.
+
+74. LOGOUT DURING CLOUD FETCH
+
+Late cloud response after logout:
+
+must be ignored.
+
+Anonymous state remains factory defaults.
+
+75. ACCOUNT SWITCH DURING CLOUD PUT
+
+A remote Apply sync initiated for A may finish after switching to B.
+
+It may update A's remote record.
+
+It must NOT:
+
+mutate B local config
+show B success/failure UI for A
+update B revision metadata
+
+Design request scoping.
+
+76. LOGOUT DURING CLOUD PUT
+
+A's server write may complete remotely.
+
+Local anonymous state must remain defaults.
+
+No response may rehydrate A after logout.
+
+77. STRICTMODE
+
+Remote initialization must not accidentally issue duplicate GET/PUT requests due to React StrictMode effect replay.
+
+Design idempotent session sync orchestration.
+
+Do not put an unguarded fetch in a repeatedly replayed component effect.
+
+78. SYNC OWNER
+
+Determine which layer owns cloud reconciliation.
+
+Possible candidates:
+
+PersonalizationProvider
+focused PersonalizationSync service/hook
+app auth/session coordinator
+
+Preferred:
+keep Provider state authority but extract network/reconciliation logic into focused modules rather than bloating Provider.
+
+Prompt 20 must recommend exact modular ownership.
+
+79. PROVIDER SIZE DISCIPLINE
+
+Do NOT plan a giant Provider rewrite.
+
+Recommended modules may include conceptually:
+
+personalizationCloud.ts
+personalizationSync.ts
+personalizationReconciliation.ts
+
+Names may differ.
+
+Keep pure reconciliation logic testable independently.
+
+80. API CLIENT MODULE
+
+Use existing API fetch/auth utilities.
+
+Do not create raw scattered fetch() calls inside My99Studio.
+
+My99Studio should remain unaware of cloud details.
+
+81. MY 99 UI SHOULD REMAIN SIMPLE
+
+Prompt 21 cloud implementation must not require rewriting:
+
+Theme cards
+Hero cards
+Glass cards
+Motion cards
+Reading cards
+Home order editor
+
+Cloud sync is below the Studio UI.
+
+82. CURRENT SUCCESS TOAST
+
+Architecture must decide whether existing:
+
+"Personalization applied."
+
+remains correct when:
+
+local Apply succeeds
+remote upload fails.
+
+Recommended interpretation:
+
+Yes, because local personalization was applied successfully.
+
+Do NOT falsely say "Synced to cloud."
+
+83. CLOUD FAILURE USER FEEDBACK
+
+For V1, determine whether remote failure should:
+
+remain silent and retry later
+or
+show a subtle nonblocking sync warning
+
+Do not implement UI yet.
+
+Prefer no alarming error if local Apply succeeded.
+
+Prompt 20 should recommend behavior.
+
+84. FIRST CLOUD RECORD CREATION
+
+Define exact behavior:
+
+existing local valid config
++
+no cloud record
+
+→ create cloud record asynchronously.
+
+Do not require user to press Apply again merely to seed sync if a safe migration strategy exists.
+
+85. FACTORY-DEFAULT USERS
+
+If:
+
+no local personalization
+and
+no cloud record
+
+do NOT necessarily create a KV record immediately.
+
+Factory defaults can remain implicit.
+
+Evaluate whether avoiding unnecessary KV writes is preferable.
+
+86. DEFAULT APPLY
+
+If user explicitly resets and Applies factory defaults:
+
+determine whether cloud should:
+
+A. store explicit factory config
+or
+B. delete cloud record / represent default absence
+
+Prefer simplicity and correct multi-device propagation.
+
+Analyze carefully.
+
+87. CLOUD DELETE VS EXPLICIT DEFAULT
+
+Strong candidate:
+
+store explicit applied default config as a normal cloud record.
+
+Why:
+
+an explicit Reset + Apply is user intent
+deleting could become indistinguishable from "never configured"
+multi-device reconciliation becomes clearer
+
+Prompt 20 must choose.
+
+88. LOCAL CACHE DELETE VS DEFAULT RECORD
+
+Do not change current local behavior without need.
+
+Audit whether local Apply of factory defaults stores the config or removes cache.
+
+Cloud architecture must interoperate with actual existing behavior.
+
+89. REVISION AFTER RESET
+
+Reset alone:
+no cloud revision.
+
+Reset + Apply:
+new cloud revision.
+
+Mandatory.
+
+90. CANCEL
+
+Cancel:
+ZERO network calls.
+
+91. DRAFT CARD CHANGES
+
+Theme/Hero/Glass/Motion/Reading/Home moves:
+ZERO network calls.
+
+92. READ SYNC SHOULD NEVER MAKE DRAFT DIRTY
+
+Remote reconciliation updating committed/local state on session initialization should result in:
+
+committed = accepted remote/local winner
+draft = same accepted config
+isDirty = false
+
+unless there was already an active intentional local Draft that architecture explicitly protects.
+
+93. REMOTE UPDATE WHILE DIRTY DRAFT EXISTS
+
+Critical scenario:
+
+User has opened My 99 and made unsaved Draft changes.
+
+A cloud reconciliation result arrives.
+
+Do NOT silently destroy Draft.
+
+Design exact behavior.
+
+Strong preference:
+
+account initialization reconciliation completes before normal editing opportunity where possible
+if late remote update occurs while Draft is dirty, preserve user Draft and avoid silently replacing it
+
+Prompt 20 must define.
+
+94. CLOUD APPLY WHILE DIRTY
+
+Only committed/applied config syncs.
+
+Unsaved Draft never leaves device.
+
+95. HOME ORDER CLOUD SAFETY
+
+Remote validation must preserve exact complete seven-subject permutation.
+
+No partial Home order accepted.
+
+96. READING CLOUD SAFETY
+
+Only:
+
+small
+default
+large
+
+No app_text_scale.
+
+97. MOTION CLOUD SAFETY
+
+Only:
+
+full
+subtle
+reduced
+
+System prefers-reduced-motion is never synced.
+
+98. GLASS CLOUD SAFETY
+
+Only:
+
+clear
+balanced
+frosted
+
+OS Reduced Transparency is never synced.
+
+99. HERO CLOUD SAFETY
+
+Only:
+
+classic
+minimal
+night
+aurora
+
+100. THEME CLOUD SAFETY
+
+Only the eight canonical Theme IDs.
+
+Light/Dark/System Appearance remains excluded.
+
+101. TEST ARCHITECTURE PLAN
+
+Prompt 20 must define the exact test categories needed for Prompt 21.
+
+At minimum:
+
+cloud record validation
+API auth scoping
+no arbitrary user ID
+local-only startup
+no-cloud fallback
+local-only migration
+cloud-only new-device hydration
+both-present reconciliation
+offline Apply
+failed remote PUT
+retry
+account switch during GET
+logout during GET
+account switch during PUT
+logout during PUT
+stale response protection
+invalid cloud record
+unsupported future config version
+Reset + Apply
+Cancel zero network
+Draft zero network
+no direct Worker access from client
+102. TEST — CROSS-DEVICE
+
+Define representative Device A / Device B tests.
+
+Example:
+
+A applies Ocean/Aurora/etc.
+Cloud receives revision.
+B starts with no local config.
+B retrieves cloud.
+B persists locally.
+B committed/Draft become cloud config.
+
+103. TEST — NEWER DEVICE APPLY
+
+B later applies another config.
+
+Cloud changes.
+
+A next startup reconciliation receives B's cloud state according to chosen conflict policy.
+
+104. TEST — OFFLINE LOCAL
+
+A offline Applies config.
+
+Local state changes.
+
+Remote remains old.
+
+Next sync opportunity handles pending local intent according to chosen rules.
+
+105. TEST — INVALID REMOTE
+
+Malformed config:
+
+must not replace valid local state.
+
+106. TEST — FUTURE VERSION
+
+Cloud:
+
+config.version = 2
+
+V1 client:
+
+must not overwrite/downgrade it merely by startup.
+
+Define expected API/client behavior.
+
+107. SECURITY TEST PLAN
+
+Define tests proving:
+
+unauthenticated GET rejected
+unauthenticated PUT rejected
+user A cannot fetch/write B by request body/path
+malformed payload rejected
+oversized payload rejected
+internal Worker secret required
+frontend has no Worker secret
+108. WORKER BINDING NAME
+
+Prompt 20 should propose a stable KV binding name.
+
+Example:
+
+PERSONALIZATION_KV
+
+Use repository naming conventions if an established style exists.
+
+Do NOT create the binding yet.
+
+109. ENVIRONMENT VARIABLES
+
+Design required server/Worker env/secrets.
+
+Examples conceptually:
+
+Render:
+
+personalization Worker internal URL
+internal auth secret
+
+Worker:
+
+matching secret
+KV namespace binding
+
+Do NOT put secrets in .env.example values beyond placeholder names.
+
+No implementation yet.
+
+110. DEVELOPMENT MODE
+
+Design local/dev behavior.
+
+The app should be able to run locally without mandatory Cloudflare KV credentials.
+
+Possible behavior:
+
+cloud sync disabled when sync env is absent
+local personalization remains fully functional
+
+Do not make developer startup fail because KV is not configured.
+
+111. TEST ENVIRONMENT
+
+Cloud tests should use mocked/in-memory boundary where practical.
+
+Do NOT make normal CI tests depend on live Cloudflare KV.
+
+112. DEPLOYMENT ORDER
+
+Prompt 20 must propose safe production rollout order.
+
+Likely:
+
+deploy Worker/KV support
+deploy Render backend route
+deploy frontend sync client
+
+or another safe order.
+
+Ensure older clients remain compatible during rollout.
+
+113. ROLLBACK SAFETY
+
+If cloud sync must be disabled after rollout:
+
+local personalization must continue working unchanged.
+
+Design a kill-switch/config behavior.
+
+114. FEATURE FLAG
+
+Evaluate whether Phase 5 needs a server/env feature flag such as:
+
+PERSONALIZATION_CLOUD_SYNC_ENABLED
+
+Prefer a simple server-side rollout switch if useful.
+
+Do not create UI feature flags.
+
+115. OLD CLIENT COMPATIBILITY
+
+Older App Store clients without cloud sync continue using local personalization.
+
+New server/Worker deployment must not break them.
+
+116. NEW CLIENT WITH OLD SERVER
+
+During staged rollout, a new client may hit a server version without personalization sync endpoint.
+
+It must fall back to local behavior safely.
+
+No startup breakage.
+
+117. HTTP RESPONSE CONTRACT
+
+Prompt 20 must propose exact response schemas.
+
+For example conceptually:
+
+GET success:
+
+{
+  "status": "ok",
+  "record": {
+    "recordVersion": 1,
+    "config": { ... },
+    "revision": "...",
+    "updatedAt": "..."
+  }
+}
+
+No record:
+
+{
+  "status": "empty",
+  "record": null
+}
+
+PUT:
+returns normalized stored record.
+
+Exact shape should follow existing API conventions.
+
+118. HTTP STATUS CONTRACT
+
+Define recommended status codes for:
+
+unauthenticated
+valid GET
+no record
+invalid payload
+oversized payload
+unsupported version
+Worker/KV unavailable
+internal auth failure
+
+Do not misuse 404 if repository conventions prefer explicit empty success.
+
+119. ERROR CLASSIFICATION
+
+Client needs to distinguish at least:
+
+no cloud record
+retryable service/network failure
+invalid/unsupported remote record
+auth/session failure
+
+Do not make every error a generic "null."
+
+120. TELEMETRY / LOGGING
+
+If current server logging exists, design minimal logs for:
+
+sync GET success/empty
+PUT success
+validation rejection
+upstream unavailable
+
+No new analytics vendor.
+
+121. NO USER TRACKING
+
+Personalization sync does not justify additional behavioral telemetry.
+
+No event stream of every card click.
+
+Only Apply matters for persistence.
+
+122. APP ICON PHASE SEPARATION
+
+Prompt 20 final architecture must explicitly state:
+
+App Icon personalization remains a later device-local phase.
+
+It does NOT block cloud sync.
+
+It is NOT part of KV.
+
+123. NO PRODUCT UI CHANGE
+
+Prompt 20 production source changes should ideally be:
+
+ZERO.
+
+This is an architecture/audit prompt.
+
+Tests/docs should not be created unless they are truly required to capture the architecture—and per project workflow, prefer the final report rather than new planning artifacts.
+
+124. NO .agents/*
+
+ABSOLUTE.
+
+No .agents/* file may be:
+
+created
+modified
+deleted
+
+No memory note.
+
+No exception.
+
+125. NO PLANNING DOCUMENT ARTIFACT
+
+Do NOT create:
+
+architecture markdown
+prompt notes
+plan file
+implementation report file
+
+The final response itself is the architecture report.
+
+126. GIT EXPECTATION
+
+Because this Prompt is audit/design only, expected product Git diff:
+
+ZERO
+
+If the audit discovers a critical pre-existing defect that blocks architecture design:
+
+report it.
+
+Do NOT silently repair production source in Prompt 20.
+
+127. DEFINITION OF DONE
+
+Prompt 20 passes only if it provides a complete implementation-ready architecture covering:
+
+current auth identity derivation
+current local cache architecture
+Cloudflare integration inventory
+exact KV ownership
+exact KV key format
+internal server-to-Worker authentication
+frontend-facing authenticated API
+exact cloud record envelope
+schema version vs sync revision separation
+local-first startup
+first-sync migration
+local-only / cloud-only / both-present reconciliation
+offline Apply
+cloud failure
+retry behavior
+multi-device conflicts
+honest KV consistency limitations
+unsupported future versions
+old/new client compatibility
+account-switch race handling
+logout race handling
+dirty Draft protection
+exact test plan
+staged deployment
+rollback/disable behavior
+App Icon exclusion
+Appearance exclusion
+app_text_scale exclusion
+no SQL/D1/R2 personalization storage
+no production implementation changes
+no .agents/*
+128. MANDATORY FINAL ARCHITECTURE REPORT
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 5 PROMPT 20 ARCHITECTURE REPORT
+1. Status
+
+PASS / BLOCKED
+
+2. Architecture Decision
+
+State the selected account-sync architecture.
+
+3. Why Sync Before App Icons
+
+Explain separation.
+
+4. Current Auth Architecture
+
+Report exact user identity derivation and authenticated middleware.
+
+5. Canonical User ID
+
+Report actual accepted account ID formats.
+
+6. Current Local Persistence
+
+Report exact Web/Native architecture and current account key shape.
+
+7. Cloudflare Inventory
+
+List existing Worker/KV/D1/R2 infrastructure relevant to this design.
+
+8. Selected KV Ownership
+
+State exact Worker/module placement and why.
+
+9. KV Binding
+
+Proposed binding name.
+
+10. KV Key
+
+Print exact key format.
+
+11. Privacy
+
+List exact data included/excluded.
+
+12. Synced Contract
+
+Print exact synced PersonalizationConfigV1 fields.
+
+13. Device-Local Exclusions
+
+Explicitly list:
+
+app_theme
+app_text_scale
+App Icon
+Draft
+temporary UI state
+14. Cloud Record Envelope
+
+Print exact proposed structure.
+
+15. Config Version vs Sync Revision
+
+Explain separation.
+
+16. Revision Model
+
+State exact chosen model.
+
+17. KV Consistency Limitations
+
+Explain accurately.
+
+18. Conflict Semantics
+
+State EXACTLY what "last explicit Apply wins" means in V1.
+
+Do not overclaim offline chronology.
+
+19. Client → Backend API
+
+State exact proposed endpoint(s).
+
+20. Auth Scoping
+
+Explain why client cannot target another user.
+
+21. Backend → Worker Authentication
+
+State selected mechanism.
+
+22. Worker Exposure
+
+Explain whether public browser access exists.
+
+23. GET Contract
+
+Print request/auth assumptions and exact response shapes/status behavior.
+
+24. PUT Contract
+
+Print payload/response/version behavior.
+
+25. Server Validation
+
+List exact validators.
+
+26. Payload Limit
+
+State exact maximum.
+
+27. Startup Sequence
+
+Step-by-step local-first initialization.
+
+28. Remote Reconciliation Timing
+
+State when GET runs.
+
+29. Local Only / No Cloud Record
+
+State migration behavior.
+
+30. Cloud Only / No Local Record
+
+State behavior.
+
+31. Both Local + Cloud
+
+State deterministic reconciliation algorithm.
+
+32. Legacy Local Record
+
+State first-sync migration behavior.
+
+33. Factory Defaults / No Records
+
+State whether KV record is created.
+
+34. Reset + Apply
+
+State explicit default cloud behavior.
+
+35. Offline Apply
+
+State local behavior and sync metadata.
+
+36. Remote PUT Failure
+
+State behavior.
+
+37. Retry Strategy
+
+State exact V1 retry triggers.
+
+38. Multi-Device Example
+
+Device A → cloud → Device B.
+
+39. Offline Multi-Device Conflict
+
+State honest V1 semantics.
+
+40. Invalid Cloud Record
+
+State fallback.
+
+41. Future Config Version
+
+State V1-client behavior.
+
+42. Old Client Compatibility
+
+State behavior.
+
+43. New Client / Old Server Compatibility
+
+State behavior.
+
+44. Dirty Draft During Remote Reconciliation
+
+State protection rule.
+
+45. Account Switch During GET
+
+State race handling.
+
+46. Logout During GET
+
+State race handling.
+
+47. Account Switch During PUT
+
+State race handling.
+
+48. Logout During PUT
+
+State race handling.
+
+49. StrictMode
+
+State duplicate-request prevention architecture.
+
+50. Sync Ownership
+
+State exact modules/layers planned for Prompt 21.
+
+51. Provider Impact
+
+State expected minimal Provider changes.
+
+52. My 99 UI Impact
+
+Expected V1 UI changes or NONE.
+
+53. Apply Semantics
+
+Distinguish local success from cloud success.
+
+54. Network Call Triggers
+
+List every planned GET/PUT trigger.
+
+55. Zero-Network Actions
+
+Confirm:
+
+card selection
+Hero selection
+Glass selection
+Motion selection
+Reading selection
+Home moves
+Cancel
+Reset before Apply
+
+produce zero network calls.
+
+56. Security
+
+Summarize auth, secret, user isolation, validation, payload size.
+
+57. CORS
+
+State exact architecture.
+
+58. Rate Limiting
+
+State recommended handling.
+
+59. Native / PWA
+
+Explain both paths.
+
+60. Development Without KV
+
+Explain behavior.
+
+61. Feature Flag / Kill Switch
+
+State decision.
+
+62. Deployment Order
+
+List exact safe rollout sequence.
+
+63. Rollback Safety
+
+Explain.
+
+64. Test Plan
+
+List exact Prompt 21 test suites/invariants.
+
+65. Cross-Device Tests
+
+List representative cases.
+
+66. Security Tests
+
+List representative cases.
+
+67. Backend / Worker Files Expected
+
+List likely files, but do not create them.
+
+68. Frontend Files Expected
+
+List likely files, but do not create them.
+
+69. Database Impact
+
+State exactly:
+
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+70. App Icon Separation
+
+State exactly why it remains device-local and outside sync.
+
+71. Production Diff
+
+Expected exact statement:
+
+NO PRODUCTION SOURCE CHANGE IN PROMPT 20.
+
+72. Git Review
+
+Report:
+
+git status --short
+git diff --stat
+git diff --check
+
+73. .agents/* Verification
+
+Report:
+
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+74. Prompt 21 Readiness
+
+If architecture is implementation-ready, state exactly:
+
+ACCOUNT PERSONALIZATION SYNC ARCHITECTURE: CLOSED AND APPROVED
+
+LOCAL-FIRST OFFLINE BEHAVIOR: VERIFIED BY DESIGN
+
+AUTHENTICATED USER ISOLATION: VERIFIED BY DESIGN
+
+APP ICON PERSONALIZATION: CONFIRMED DEVICE-LOCAL AND OUTSIDE KV
+
+PROMPT 21 CLOUD SYNC IMPLEMENTATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 5 PROMPT 20 STATUS: COMPLETE — READY FOR PROMPT 21
+
+Otherwise:
+
+PERSONALIZATION PHASE 5 PROMPT 20 STATUS: BLOCKED — ARCHITECTURE DECISION REQUIRED
