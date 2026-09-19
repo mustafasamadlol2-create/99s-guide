@@ -1,0 +1,2634 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 4 / PROMPT 19 OF ~22
+## FINAL MY 99 PERSONALIZATION STUDIO CLOSURE AUDIT
+### Six-Axis End-to-End Verification
+### Theme + Hero + Glass + Motion + Reading + Home Subject Order
+### VERIFY FIRST — REPAIR ONLY IF A REAL DEFECT EXISTS
+### DO NOT BEGIN KV, APP ICONS, OR ANY PHASE-5 FEATURE
+
+Phase 0 is CLOSED AND APPROVED.
+
+Phase 1 is CLOSED AND APPROVED.
+
+Phase 2 is CLOSED AND APPROVED.
+
+Phase 3 is CLOSED AND APPROVED.
+
+Phase 4 completed implementation work:
+
+- Prompt 15 / 15B
+  My 99 Studio + Theme Pack
+
+- Prompt 16 / 16B
+  Hero Style + Glass Style + iOS 16+ Glass compatibility
+
+- Prompt 17 / 17B
+  Motion Style + Reading Size + app_text_scale composition repair
+
+- Prompt 18
+  Home Subject Order
+
+This Prompt 19 is the FINAL PHASE-4 CLOSURE AUDIT.
+
+DO NOT add another personalization feature.
+
+DO NOT begin:
+
+- KV
+- Worker sync
+- Express personalization sync
+- SQL personalization storage
+- D1 personalization storage
+- R2 personalization storage
+- App Icon customization
+- presets
+- arbitrary colors
+- custom fonts
+- custom backgrounds
+- new Home widgets
+- subject hiding
+- new study features
+
+VERIFY FIRST.
+
+REPAIR ONLY actual defects discovered by this audit.
+
+---
+
+# 1. PRIMARY CLOSURE QUESTION
+
+Prove that My 99 is now a coherent production-ready personalization system across exactly these SIX exposed axes:
+
+1. Theme Pack
+2. Hero Style
+3. Glass Style
+4. Motion Style
+5. Reading Size
+6. Home Subject Order
+
+The final Phase-4 decision must establish that:
+
+- Draft behavior is safe
+- preview behavior is isolated
+- Apply is transactional
+- Cancel is correct
+- Reset is correct
+- account isolation is correct
+- accessibility is preserved
+- defaults preserve production
+- no business logic was altered
+- no hidden persistence/backend mechanism was introduced
+- no incomplete controls are exposed
+
+---
+
+# 2. AUDIT ACTUAL CURRENT SOURCE
+
+Do NOT rely only on Prompt 15–18 reports.
+
+Inspect actual repository source.
+
+At minimum audit:
+
+- `shared/personalization.ts`
+- `src/App.tsx`
+- `src/index.css`
+- `src/core/i18n/translations.ts`
+
+- `src/features/personalization/PersonalizationProvider.tsx`
+- `src/features/personalization/personalizationState.ts`
+- `src/features/personalization/personalizationStorage.ts`
+- `src/features/personalization/personalizationRuntime.ts` if present
+
+- `src/features/personalization/personalizationTheme.ts`
+- `src/features/personalization/PersonalizationThemeBridge.tsx`
+- `src/features/personalization/personalizationPresentation.ts`
+- `src/features/personalization/PersonalizationPresentationBridge.tsx`
+
+- `src/features/personalization/personalizationCatalog.ts`
+- `src/features/personalization/components/My99Studio.tsx`
+- `src/features/personalization/components/HomeSubjectOrderEditor.tsx`
+- `src/features/personalization/homeSubjectOrder.ts`
+
+- actual Hero implementation
+- actual Home subject-list boundary
+- actual Reading Size study-text hooks
+- actual generic Glass consumers
+
+- every personalization test currently present
+
+Use actual filenames if repository names differ.
+
+---
+
+# 3. FINAL PERSONALIZATION CONTRACT
+
+Verify `PersonalizationConfigV1` remains version 1 and contains exactly the intended fields:
+
+```ts
+{
+  version: 1;
+  themeId;
+  heroStyle;
+  glassStyle;
+  motionStyle;
+  readingSize;
+  home: {
+    subjectOrder;
+  };
+}
+
+No Prompt 15–18 field should have created another persisted property.
+
+No preview/UI-only state belongs in this contract.
+
+4. FINAL FACTORY DEFAULT
+
+Verify the exact factory default remains:
+
+version = 1
+
+themeId = classic-99
+
+heroStyle = classic
+
+glassStyle = balanced
+
+motionStyle = full
+
+readingSize = default
+
+home.subjectOrder =
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+This exact configuration is the safe production fallback.
+
+5. SIX-AXIS UI INVENTORY
+
+Inspect My 99.
+
+The user-facing editable controls must be exactly:
+
+Theme Pack
+Hero Style
+Glass Style
+Motion Style
+Reading Size
+Home Subject Order
+
+No hidden seventh personalization axis.
+
+No incomplete production control.
+
+No "Coming Soon" clutter.
+
+No App Icon section yet.
+
+6. FINAL STUDIO SECTION ORDER
+
+Audit the actual rendered/source order.
+
+Expected:
+
+Main Draft Preview
+Theme Pack
+Hero Style
+Glass Style
+Motion Style
+Reading Size
+Home Subject Order
+Shared action area
+
+Report the actual shared action-button order separately.
+
+Do not change it merely because an earlier report described the order inconsistently unless there is an actual UX defect.
+
+7. SETTINGS PLACEMENT
+
+Verify My 99 remains:
+
+AFTER:
+Account & System Preferences
+
+BEFORE:
+Privacy & Security
+
+No unrelated Settings order changes.
+
+8. SETTINGS NAVIGATION
+
+Verify My 99 still uses the existing Settings/App detail architecture.
+
+No second router.
+
+No custom navigation stack.
+
+No new swipe engine.
+
+No route reload.
+
+9. GLOBAL STATE OWNERSHIP
+
+Verify:
+
+PersonalizationProvider
+
+remains the single source of:
+
+committed
+draft
+isDirty
+hydration
+Apply
+Cancel
+Reset
+
+My99Studio must not duplicate these.
+
+10. GLOBAL THEME OWNERSHIP
+
+Verify:
+
+PersonalizationThemeBridge
+
+owns only:
+
+data-app-theme
+
+and reads:
+
+committed.themeId
+
+only.
+
+11. GLOBAL PRESENTATION OWNERSHIP
+
+Verify:
+
+PersonalizationPresentationBridge
+
+owns only:
+
+data-app-hero-style
+data-app-glass-style
+data-app-motion-style
+data-app-reading-size
+
+and reads committed values only.
+
+12. HOME ORDER OWNERSHIP
+
+Verify production Home ordering reads:
+
+committed.home.subjectOrder
+
+at the subject-list presentation boundary.
+
+No DOM attribute.
+
+No CSS variable.
+
+No bridge involvement.
+
+13. STUDIO GLOBAL DOM SAFETY
+
+Search My99Studio and its child components.
+
+They must NOT call:
+
+document.documentElement.setAttribute
+document.documentElement.removeAttribute
+style.setProperty
+location.reload
+window.location.reload
+
+for personalization.
+
+Preview state must remain declarative.
+
+14. STUDIO STORAGE SAFETY
+
+My99Studio and its UI children must NOT directly access:
+
+localStorage
+Capacitor Preferences
+personalizationStorage
+IndexedDB
+backend API
+
+They use Provider operations only.
+
+15. FINAL GLOBAL ATTRIBUTE DEFAULT STATE
+
+For the full factory default:
+
+Classic Theme
+Classic Hero
+Balanced Glass
+Full Motion
+Default Reading
+Canonical Home order
+
+expected document personalization attributes:
+
+NO data-app-theme
+NO data-app-hero-style
+NO data-app-glass-style
+NO data-app-motion-style
+NO data-app-reading-size
+
+Home order is data, not an attribute.
+
+16. ALTERNATE GLOBAL ATTRIBUTE STATE
+
+Verify representative:
+
+Theme = rose
+Hero = night
+Glass = clear
+Motion = subtle
+Reading = large
+
+results in:
+
+data-app-theme="rose"
+data-app-hero-style="night"
+data-app-glass-style="clear"
+data-app-motion-style="subtle"
+data-app-reading-size="large"
+
+Home order remains structured committed data.
+
+17. INVALID RUNTIME FALLBACKS
+
+Verify defensive visual fallback behavior:
+
+Invalid Theme:
+→ Classic 99
+
+Invalid Hero:
+→ Classic
+
+Invalid Glass:
+→ Balanced
+
+Invalid Motion:
+→ Full
+
+Invalid Reading:
+→ Default
+
+Invalid Home subject order:
+→ complete deterministic canonical/safe order
+
+No invalid value may cause:
+
+missing Home subject
+garbage DOM attribute
+incomplete CSS state
+18. DRAFT GLOBAL INERTNESS
+
+Create/source-test a representative six-axis difference.
+
+Committed:
+
+Ocean
+Night
+Clear
+Reduced
+Large
+ID NT RM CA PHC ImD SSC
+
+Draft:
+
+Rose
+Aurora
+Frosted
+Full
+Small
+SSC ImD PHC CA RM NT ID
+
+Before Apply:
+
+global theme = Ocean
+global Hero = Night
+global Glass = Clear
+global Motion = Reduced
+global Reading = Large
+production Home = canonical committed sequence shown above
+My 99 preview/editor = Draft state
+
+No global leakage.
+
+19. MAIN PREVIEW — FINAL SIX-AXIS MODEL
+
+Audit the contained preview.
+
+It should represent Draft:
+
+Theme
+Hero
+Glass
+Motion
+Reading
+Home order
+
+The first five use local preview attributes.
+
+Home order uses React data ordering.
+
+20. PREVIEW ATTRIBUTES
+
+Verify exact local attributes:
+
+data-personalization-preview-theme
+data-personalization-preview-hero-style
+data-personalization-preview-glass-style
+data-personalization-preview-motion-style
+data-personalization-preview-reading-size
+
+There must be NO:
+
+data-personalization-preview-subject-order
+21. PREVIEW DEFAULT ISOLATION
+
+Mandatory representative:
+
+Global:
+
+Violet
+Aurora
+Frosted
+Reduced
+Large
+custom Home order
+
+Draft preview:
+
+Classic 99
+Classic
+Balanced
+Full
+Default
+canonical Home order
+
+Prove the preview does not inherit alternate global presentation values.
+
+22. PREVIEW ALTERNATE ISOLATION
+
+Representative:
+
+Global:
+
+Emerald / Minimal / Clear / Subtle / Small
+
+Preview:
+
+Rose / Night / Frosted / Reduced / Large
+
+Each preview axis must use its Draft value.
+
+23. PREVIEW HOME ORDER ISOLATION
+
+Committed Home:
+
+ID NT RM CA PHC ImD SSC
+
+Draft Home:
+
+SSC ImD PHC CA RM NT ID
+
+Production Home remains committed.
+
+Preview/editor shows reversed Draft.
+
+24. THEME PACK FINAL AUDIT
+
+Verify all eight:
+
+classic-99
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+remain implemented.
+
+Canonical order remains unchanged.
+
+25. THEME TOKEN CONTRACT
+
+Verify:
+
+29 themeable tokens
+
+still exactly.
+
+No Prompt 15–18 change expanded the Theme Pack token contract.
+
+26. THEME CSS COMPLETENESS
+
+Re-run the current Theme Pack completeness invariant.
+
+For every alternate theme:
+
+29 Light
+29 Dark
+no missing
+no extra
+no duplicate
+no fixed semantic overrides
+
+Classic remains unscoped fallback.
+
+27. THEME PALETTE FREEZE
+
+Compare current values against approved Phase-3 palettes.
+
+Prompt 15–18 must not have silently redesigned any Theme Pack.
+
+Expected:
+
+NO palette repairs in Phase 4 except none.
+
+28. THEME SELECTOR SAFETY
+
+Approved global theme selectors remain palette-scope selectors.
+
+Approved local My 99 preview selectors are allowed.
+
+No feature-specific Theme Pack selector hacks.
+
+29. HERO FINAL AUDIT
+
+Verify Hero styles:
+
+classic
+minimal
+night
+aurora
+
+remain implemented.
+
+Classic must equal current production default.
+
+No Hero content/data changes.
+
+No Hero geometry changes.
+
+30. HERO DEFAULT PARITY
+
+Re-run source parity for Classic Hero.
+
+Report whether Prompt 17/18 changed any Classic default values.
+
+Expected:
+
+NO.
+
+31. HERO × THEME INDEPENDENCE
+
+Verify no hardcoded pair selectors such as:
+
+Ocean + Aurora
+Rose + Night
+
+Theme provides Hero semantic color.
+
+Hero Style provides composition.
+
+32. HERO × MOTION INDEPENDENCE
+
+Verify Motion modifies only eligible nonessential motion.
+
+It does not redefine Hero Style palettes/composition as separate pair-specific presets.
+
+No combinatorial style matrix.
+
+33. GLASS FINAL AUDIT
+
+Verify:
+
+clear
+balanced
+frosted
+
+remain implemented.
+
+Balanced remains production default.
+
+34. GLASS DEFAULT PARITY
+
+Re-run the existing Balanced parity invariant for eligible surfaces.
+
+No Prompt 17/18 change may have altered:
+
+Thin baseline
+Regular baseline
+Thick baseline
+Tab bar baseline
+Header baseline
+35. IOS 16+ GLASS COMPATIBILITY
+
+Re-audit Prompt 16B.
+
+Verify:
+
+semantic fallback outside capability guard
+color-mix() enhancement guarded
+iOS 16.0/16.1 fallback model remains valid
+Reduced Transparency wins
+forced-colors handling preserved
+mobile/coarse-pointer optimization preserved
+
+Do NOT redesign it.
+
+36. MOTION FINAL AUDIT
+
+Verify:
+
+full
+subtle
+reduced
+
+remain implemented.
+
+Full remains production default.
+
+37. MOTION FUNCTIONAL BOUNDARY
+
+Verify Prompt 17 did NOT make Motion Style control:
+
+route navigation
+swipe-back
+Calendar pager
+MCQ functional transitions
+Flashcard functional behavior
+loading meaning
+progress meaning
+
+Only nonessential/decorative motion.
+
+38. OS REDUCED-MOTION PRECEDENCE
+
+Mandatory final proof:
+
+prefers-reduced-motion: reduce
+
+wins over:
+
+Full
+Subtle
+Reduced
+global selectors
+preview selectors
+
+No later rule re-enables disabled decorative motion.
+
+39. STARFIELD DISCLOSED LIMITATION
+
+Retain the accepted V1 limitation:
+
+User-selected Reduced Motion may visually suppress the JS StarField while its existing RAF loop continues unless OS reduced-motion is active.
+
+Do NOT repair this in Prompt 19.
+
+Report it accurately as accepted V1 behavior.
+
+40. READING FINAL AUDIT
+
+Verify:
+
+small = 0.94
+default = 1
+large = 1.10
+
+unless current source proves otherwise.
+
+Default remains production study typography.
+
+41. app_text_scale FINAL AUDIT
+
+Verify existing device-local:
+
+app_text_scale
+
+remains unchanged in:
+
+storage key
+parsing
+writer behavior
+App inline fontSize
+
+Prompt 17B may only have added the exposed composition variable.
+
+42. READING COMPOSITION
+
+Re-run the Prompt 17B invariant.
+
+Required conceptual behavior:
+
+effective study reading
+=
+app_text_scale
+× base study typography
+× Reading Size
+
+Verify:
+
+fixed MCQ/Q&A reading
+Flashcard dynamic typography
+
+still compose.
+
+43. READING SCOPE
+
+Reading Size remains limited to approved study content.
+
+Verify it does NOT directly control:
+
+app chrome
+Settings
+My 99 buttons
+navigation
+Calendar labels
+Hero headline
+metadata
+badges
+PDF
+44. PDF EXCLUSION
+
+Verify no Reading Size / My 99 source entered PDF viewer or zoom logic.
+
+45. HOME ORDER FINAL AUDIT
+
+Verify canonical set exactly:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+Count:
+
+7
+
+No hide/add/disable.
+
+46. HOME DEFAULT ORDER
+
+Verify factory order exactly:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+47. HOME ORDER HELPER
+
+Audit final helper.
+
+Must remain:
+
+pure
+deterministic
+immutable
+O(n)
+defensive
+complete
+
+No silent filtering.
+
+48. INVALID HOME ORDER
+
+Re-run cases:
+
+duplicate
+missing
+unknown
+partial
+too short
+too long
+
+No subject may disappear.
+
+49. UNEXPECTED HOME SOURCE
+
+Verify helper behavior if runtime Home source is not the exact canonical seven-subject set.
+
+Expected safe behavior:
+
+preserve original source order rather than silently dropping domain entities.
+
+50. HOME REACT KEYS
+
+Production subject cards remain keyed by stable SubjectId.
+
+No array-index key.
+
+Editor also stable.
+
+51. HOME BUSINESS CONTENT FREEZE
+
+Verify Prompt 18 did not alter:
+
+Hero existence
+Today/Schedule
+search
+upcoming event
+subject routes
+subject entity data
+progress
+lecture counts
+academic logic
+
+Order only.
+
+52. HOME GEOMETRY FREEZE
+
+Subject card:
+
+size
+gap
+grid columns
+radius
+responsive breakpoints
+
+unchanged.
+
+53. HOME ORDER EDITOR FINAL AUDIT
+
+Verify all seven rows always visible.
+
+Controls:
+
+Move Up
+Move Down
+
+No hide/remove/add.
+
+54. DRAG DECISION
+
+Current implementation reports:
+
+NO drag behavior.
+
+Verify this is true.
+
+Decorative grip icon must not imply an inaccessible functional drag action in a misleading way.
+
+If the grip is purely decorative:
+ensure it is hidden appropriately from assistive technologies where needed.
+
+Do NOT add drag in Prompt 19.
+
+55. ORDER EDITOR ACCESSIBILITY
+
+Verify:
+
+semantic <ol> / list
+semantic list items
+native buttons
+localized accessible labels
+boundary disabled states
+keyboard operation
+visible focus
+no drag-only dependency
+56. REORDER FOCUS SAFETY
+
+Source-audit that stable SubjectId keys preserve row identity during reordering.
+
+Do not introduce remount keys.
+
+57. HOME ORDER RTL SEMANTICS
+
+Persisted SubjectId sequence remains language-independent.
+
+No locale sorting.
+
+No automatic reverse on Arabic.
+
+58. LANGUAGE SWITCH SAFETY
+
+Changing English ↔ Arabic must not mutate:
+
+home.subjectOrder
+
+Only labels/direction change.
+
+59. FINAL CATALOG INVENTORY
+
+Audit personalizationCatalog.ts.
+
+Expected UI catalogs:
+
+Theme:
+
+classic-99
+midnight
+ocean
+emerald
+rose
+amber
+violet
+monochrome
+
+Hero:
+
+classic
+minimal
+night
+aurora
+
+Glass:
+
+clear
+balanced
+frosted
+
+Motion:
+
+full
+subtle
+reduced
+
+Reading:
+
+small
+default
+large
+
+Home order does not need a catalog enum beyond canonical SubjectIds.
+
+60. CATALOG VALUE SAFETY
+
+Catalog metadata must NOT contain:
+
+palette colors
+blur constants
+animation durations
+typography multipliers
+persistence behavior
+
+Presentation constants stay in appropriate CSS/runtime layers.
+
+61. FINAL LOCALIZATION AUDIT
+
+Audit every My 99 visible string.
+
+Both:
+
+English
+Arabic
+
+must exist.
+
+Include:
+
+Settings entry
+Studio title/subtitle
+Current
+Selected
+Preview
+Theme Pack
+all Theme names/descriptions
+Hero Style and options
+Glass Style and options
+Motion Style and options
+Reading Size and options
+reading preview sample
+Home Subject Order
+Move Up
+Move Down
+subject names
+Apply
+Applying
+Cancel
+Reset
+success/error toast
+any dirty/unsaved label actually rendered
+
+No English leakage in Arabic mode.
+
+62. RTL FINAL AUDIT
+
+Source-audit:
+
+My 99 root direction
+option cards
+current/selected indicators
+Home order editor
+move controls
+preview
+back navigation
+
+Do not manually reverse canonical option arrays.
+
+63. FIVE SINGLE-CHOICE GROUPS
+
+Verify accessibility structure contains exactly five single-choice personalization groups:
+
+Theme
+Hero
+Glass
+Motion
+Reading
+
+Home Subject Order is NOT a radiogroup.
+
+64. HOME ORDER ACCESSIBILITY TYPE
+
+Verify Home order is represented as list/reorder controls, not radio semantics.
+
+65. CURRENT VS SELECTED
+
+For each of the five single-choice groups:
+
+Committed value:
+→ Current
+
+Draft value:
+→ Selected
+
+When same:
+avoid confusing duplicate state.
+
+66. APPLY BUTTON DIRTY LOGIC
+
+Verify Apply is enabled for any Draft difference in:
+
+Theme
+Hero
+Glass
+Motion
+Reading
+Home order
+
+and disabled if complete Draft equals Committed.
+
+No Theme-only dirty logic.
+
+67. SIX-AXIS DIRTY EQUALITY
+
+Re-run actual deep equality behavior.
+
+Changing only Home order must set dirty.
+
+Returning array to exact committed sequence must clear that difference.
+
+Order must not be compared as Set equality.
+
+68. SIX-AXIS APPLY — SUCCESS
+
+Test a full nondefault Draft:
+
+themeId = violet
+heroStyle = aurora
+glassStyle = frosted
+motionStyle = subtle
+readingSize = large
+home.subjectOrder =
+SSC
+ImD
+PHC
+CA
+RM
+NT
+ID
+
+Successful Apply must:
+
+perform exactly ONE persistence write
+commit entire config
+clear dirty
+update all global presentation attributes
+update Home order from committed config
+not reload
+not remount App
+not navigate away from My 99
+69. SIX-AXIS APPLY — FAILURE
+
+Same Draft but persistence fails.
+
+Must preserve:
+
+old Committed config
+old global theme
+old Hero
+old Glass
+old Motion
+old Reading
+old production Home order
+
+Draft remains new six-axis state.
+
+Dirty remains true.
+
+No partial commit.
+
+70. CANCEL FINAL AUDIT
+
+With differences across all six axes:
+
+Cancel:
+
+draft ← committed
+
+Zero writes.
+
+Preview/editor immediately returns to Committed.
+
+Global app remains unchanged.
+
+71. RESET FINAL AUDIT
+
+Reset:
+
+Draft becomes exact factory config.
+
+ZERO writes.
+
+Global committed app remains unchanged.
+
+Home remains committed.
+
+Preview shows factory defaults.
+
+72. RESET + CANCEL
+
+Committed custom six-axis config.
+
+Reset.
+
+Cancel.
+
+Expected:
+
+Draft returns exactly to committed custom config.
+
+Zero writes.
+
+73. RESET + APPLY
+
+Committed custom config.
+
+Reset.
+
+Apply success.
+
+Expected:
+
+factory defaults committed.
+
+One write.
+
+All optional visual attributes removed.
+
+Home order canonical.
+
+74. NO-OP APPLY
+
+Inspect actual UI/runtime behavior.
+
+Expected UI:
+
+Apply disabled when clean.
+
+No persistence write.
+
+Report exact behavior.
+
+75. CARD / MOVE ACTION WRITE COUNT
+
+Before Apply:
+
+Theme card changes:
+0 writes.
+
+Hero changes:
+0.
+
+Glass:
+0.
+
+Motion:
+0.
+
+Reading:
+0.
+
+Home moves:
+0.
+
+Explicit successful Apply:
+1 write.
+
+76. APPLY PENDING SAFETY
+
+Verify double submission is prevented.
+
+No duplicate persistence write while Apply pending.
+
+77. APPLY SUCCESS FEEDBACK
+
+Verify existing localized success feedback remains one generic personalization success.
+
+No six separate success messages.
+
+78. APPLY FAILURE FEEDBACK
+
+Verify localized generic failure feedback.
+
+No false Current-state movement.
+
+79. SAME-SESSION DIRTY DRAFT
+
+Leaving My 99 and returning within same authenticated session should retain Provider Draft if that remains current architecture.
+
+Do NOT reset on mount.
+
+Verify no Studio mount effect calls:
+
+reset
+cancel
+hydrate
+storage load
+80. ACCOUNT A → B
+
+Test representative full personalization states.
+
+A:
+custom six-axis config
+
+B:
+different custom six-axis config
+
+Required:
+
+A committed
+→ immediate factory/default account boundary
+→ B committed after B hydration
+
+No A Theme/Hero/Glass/Motion/Reading/Home order leakage.
+
+81. A → B SAME VALUES
+
+Even if A and B have identical personalization values:
+
+existing account boundary should still reset before B hydration.
+
+Do not optimize away account isolation.
+
+82. A → B → A
+
+Verify A account-scoped local cache restores A’s own committed config on return.
+
+No B contamination.
+
+83. DIRTY DRAFT ACCOUNT SWITCH
+
+A has unsaved Draft.
+
+Switch to B.
+
+B must not see A Draft.
+
+No persistence of unsaved A Draft.
+
+84. LOGOUT WITH CUSTOM COMMITTED CONFIG
+
+Logout:
+
+visual presentation returns defaults
+Home order canonical
+anonymous state does not retain account personalization
+85. LOGOUT WITH DIRTY DRAFT
+
+Committed custom config.
+Draft different.
+
+Logout:
+
+anonymous/default factory state.
+
+Neither committed account customization nor dirty Draft leaks anonymously.
+
+86. STALE HYDRATION
+
+Re-run generation-guard test.
+
+A stale previous-user hydration must not overwrite:
+
+committed
+draft
+visual attrs
+Home order
+
+for the newer active user.
+
+87. APPLY DURING ACCOUNT SWITCH
+
+Re-run existing race test.
+
+Pending account A Apply must not commit into B.
+
+Do not rewrite race architecture.
+
+88. LOGOUT DURING APPLY
+
+Re-run existing runtime test.
+
+No stale attributes/Home order after logout.
+
+89. STRICTMODE
+
+Verify both bridges remain idempotent.
+
+No:
+
+attribute churn
+effect loop
+repeated persistence
+remount
+reload
+90. STORAGE ARCHITECTURE FINAL AUDIT
+
+The only personalization persistence remains existing account-scoped local storage abstraction.
+
+Verify:
+
+Web:
+existing account-scoped localStorage path
+
+Native:
+existing Capacitor Preferences path
+
+No additional persistence.
+
+91. STORAGE KEY SAFETY
+
+Audit for forbidden extra keys such as:
+
+last_theme
+theme_pack
+hero_style
+glass_style
+motion_style
+reading_size
+home_subject_order
+subject_order
+my99_draft
+
+outside approved storage abstraction.
+
+Expected:
+
+none.
+
+Do not confuse existing app_theme and app_text_scale with My 99.
+
+92. app_theme SEPARATION
+
+Existing device-local:
+
+app_theme
+
+continues to own Light/Dark/System.
+
+My 99 Theme Pack does not replace it.
+
+93. app_text_scale SEPARATION
+
+Existing device-local:
+
+app_text_scale
+
+continues to exist unchanged.
+
+My 99 Reading Size composes with it.
+
+No storage merge.
+
+94. INITIAL PAINT
+
+Initial personalization account hydration behavior remains intentionally deferred.
+
+Confirm Prompt 15–18 did not add an account-unscoped preload cache.
+
+Startup may render safe Classic/default presentation before account hydration.
+
+Accept this.
+
+Do NOT repair it in Prompt 19.
+
+95. public/theme-preload.js
+
+Confirm no Phase-4 customization code was added there.
+
+Existing Appearance preload remains separate.
+
+96. index.html / LaunchScreen
+
+Confirm no My 99 account personalization preload was added.
+
+97. NO KV
+
+Search actual repository changes/current implementation.
+
+Confirm:
+
+No Cloudflare KV personalization integration.
+
+98. NO PERSONALIZATION API
+
+Confirm no new Express endpoint such as:
+
+/api/personalization
+/api/user/personalization
+
+was added.
+
+99. NO SQL PERSONALIZATION STORAGE
+
+Confirm no Prisma/schema/migration personalization table or column was added for My 99.
+
+Legacy unrelated User.preferences must not be repurposed for this system.
+
+100. NO D1 / R2 PERSONALIZATION
+
+Confirm none.
+
+101. ZERO NEW PERSONALIZATION NETWORK CALLS
+
+Search source.
+
+My 99 must remain local account-scoped persistence only at Phase 4 closure.
+
+102. APP ICONS
+
+Confirm still NOT implemented.
+
+No:
+
+alternate icon assets
+Info.plist alternate icon configuration
+native runtime icon switching
+PWA manifest icon switching
+My 99 App Icon control
+103. NO PRESETS
+
+No preset layer.
+
+No "Night Study preset".
+
+No combined one-tap profiles.
+
+104. NO ARBITRARY CUSTOMIZATION
+
+Confirm no:
+
+arbitrary hex colors
+color picker
+custom gradient
+uploaded background
+font picker
+arbitrary blur slider
+custom motion slider
+
+Curated options only.
+
+105. NO SUBJECT HIDING
+
+Search Home/My99.
+
+Confirm no visibility flag/toggle/filter allowing user to hide one of the seven subjects.
+
+106. NO NEW HOME CONTENT
+
+Confirm Prompt 18 added no new production Home widget/content.
+
+Only subject card order changed.
+
+107. BUSINESS LOGIC FINAL AUDIT
+
+Verify Phase 4 did not modify semantics for:
+
+auth
+roles
+permissions
+lecture data
+PDF access
+Notes
+Module Resources
+MCQ scoring
+Flashcard review
+Calendar logic
+Q&A
+notifications behavior
+Profile behavior
+moderation
+points
+AI
+sockets
+
+Presentation/customization only.
+
+108. GEOMETRY REVIEW
+
+Theme/Hero/Glass/Motion should not alter unrelated layout geometry.
+
+Reading may intentionally alter eligible study-text vertical flow.
+
+Home order intentionally changes card sequence only.
+
+Audit for unintended:
+
+global width
+global height
+safe area
+app shell radius
+nav dimensions
+breakpoint changes
+109. NAVIGATION / GESTURE REVIEW
+
+Verify Phase 4 did not alter:
+
+global swipe-back mechanics
+Calendar pager
+Lecture pager
+Settings page stack
+route architecture
+bottom navigation behavior
+
+My 99 uses existing architecture.
+
+110. RESPONSIVE SOURCE AUDIT
+
+Review My 99 for:
+
+phone
+iPad/tablet
+desktop
+
+Ensure no obvious:
+
+horizontal overflow
+impossible card widths
+sticky action overlap
+unsafe fixed heights
+100vh hacks
+safe-area regressions
+
+Do not claim live visual verification if unavailable.
+
+111. IOS / IPADOS REVIEW
+
+Source-audit:
+
+touch targets
+Home move controls
+My 99 action area
+Glass compatibility
+swipe-back coexistence
+no drag conflicts
+112. ACCESSIBILITY FINAL INVENTORY
+
+Verify:
+
+Five radiogroups:
+
+Theme
+Hero
+Glass
+Motion
+Reading
+
+Home:
+
+ordered list
+Move buttons
+
+Other:
+
+visible focus
+disabled semantics
+non-color Current/Selected
+reduced-motion
+reduced-transparency
+forced-colors
+113. REDUCED TRANSPARENCY
+
+Re-run source/cascade invariant.
+
+Accessibility must beat:
+
+Clear
+Balanced
+Frosted
+
+including preview.
+
+114. FORCED COLORS
+
+Re-run invariant.
+
+Theme/Hero/Glass decorative customization must not defeat forced-colors output.
+
+115. TEXT ACCESSIBILITY
+
+Verify:
+
+no CSS zoom for Reading
+no transform scaling for reading text
+no disabled text-size adjustment
+normal browser/device zoom remains available
+116. LOCALIZATION FINAL TEST
+
+Add/retain a maintainable invariant proving every My 99 key actually referenced by Studio/reorder editor has values in:
+
+English
+Arabic
+
+Do not require exact copy snapshots unnecessarily.
+
+117. RTL FINAL TEST
+
+Protect absence of inappropriate new hardcoded directional positioning in My 99/reorder controls.
+
+Use logical positioning where needed.
+
+118. PHASE-4 CLOSURE TEST
+
+Create:
+
+tests/personalization-phase4-closure.test.ts
+
+unless an equivalent dedicated Phase-4 closure suite already exists.
+
+This test should protect high-level six-axis contracts without duplicating every existing low-level test.
+
+119. CLOSURE TEST — SIX AXES
+
+Verify exactly six exposed user-customizable axes.
+
+No App Icon.
+
+No hidden future option.
+
+120. CLOSURE TEST — FACTORY DEFAULT
+
+Protect exact full factory config.
+
+121. CLOSURE TEST — ATTRIBUTE DEFAULTS
+
+Protect all five optional presentation/theme attributes absent under defaults.
+
+122. CLOSURE TEST — DRAFT ISOLATION
+
+Protect six-axis committed-vs-Draft separation.
+
+123. CLOSURE TEST — ONE-WRITE APPLY
+
+Protect multi-field Apply transactional write count.
+
+124. CLOSURE TEST — APPLY FAILURE
+
+Protect all-or-nothing behavior.
+
+125. CLOSURE TEST — CANCEL
+
+Protect zero-write Draft restoration.
+
+126. CLOSURE TEST — RESET
+
+Protect zero-write factory Draft reset.
+
+127. CLOSURE TEST — ACCOUNT BOUNDARY
+
+Protect default boundary between users.
+
+128. CLOSURE TEST — LOCALIZATION
+
+Protect EN/AR My 99 completeness.
+
+129. CLOSURE TEST — ACCESSIBILITY
+
+Protect:
+
+five radiogroups
+Home ordered list
+Home move controls
+no drag-only behavior
+130. CLOSURE TEST — NO BACKEND
+
+Protect absence of My 99 network/persistence additions where maintainable.
+
+Do not write a brittle repository-wide snapshot.
+
+131. CLOSURE TEST — NO .agents/*
+
+This remains a process requirement, not necessarily a source test.
+
+Do not create .agents artifacts.
+
+132. RUN ALL PERSONALIZATION TESTS
+
+Run every current personalization test including:
+
+contract
+state
+storage
+runtime
+tokens
+Phase-2 closure
+feature surfaces
+Lecture
+Calendar
+MCQ/Flashcard
+Theme runtime
+Theme library
+Theme closure/current closure
+Studio
+Presentation
+Reading composition
+Home subject order
+new Phase-4 closure
+
+Prompt 18 accepted baseline:
+
+122 passed
+0 failed
+
+New total should be >= 122.
+
+Report exact total.
+
+133. RUN STUDIO SUITE
+
+Run:
+
+npx tsx --test tests/personalization-studio.test.ts
+134. RUN PRESENTATION SUITE
+
+Run:
+
+npx tsx --test tests/personalization-presentation.test.ts
+135. RUN READING COMPOSITION
+
+Run:
+
+npx tsx --test tests/personalization-reading-composition.test.ts
+136. RUN HOME ORDER SUITE
+
+Run:
+
+npx tsx --test tests/personalization-home-subject-order.test.ts
+137. RUN THEME ENGINE
+
+Run actual current files:
+
+tests/personalization-theme-runtime.test.ts
+tests/personalization-theme-library.test.ts
+tests/personalization-tokens.test.ts
+tests/personalization-closure.test.ts
+
+Do NOT invent personalization-theme-closure.test.ts if it does not exist.
+
+Report actual files.
+
+138. NAVIGATION REGRESSION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+139. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+140. NOTES / MCQ METADATA
+
+Run:
+
+npx tsx --test tests/material-note-policy.test.ts tests/mcq-metadata.test.ts
+141. AI MCQ
+
+Run:
+
+npm run test:ai-mcq
+142. AI FLASHCARD
+
+Run:
+
+npm run test:ai-flashcard
+143. FEATURE PERSONALIZATION REGRESSIONS
+
+Explicitly run:
+
+tests/personalization-lecture-surfaces.test.ts
+tests/personalization-calendar-surfaces.test.ts
+tests/personalization-mcq-flashcard-surfaces.test.ts
+144. PDF BASELINE
+
+Run:
+
+npx tsx --test tests/pdf-access.test.ts
+
+Accepted unchanged baseline:
+
+2 passed
+1 known failure
+pdf_download_expiry_invalid
+
+Any DIFFERENT failure blocks closure.
+
+Do NOT repair the fixture here.
+
+145. BUILD
+
+Run:
+
+npm run build
+
+Must pass.
+
+146. TYPESCRIPT
+
+Run:
+
+npm run typecheck
+
+Accepted baseline only:
+
+seven missing .webp module artwork imports in:
+
+src/features/modules/moduleVisuals.ts
+
+Any additional TypeScript error blocks closure.
+
+147. TARGETED ESLINT
+
+Run targeted lint on all Phase-4 affected files.
+
+No new issue.
+
+Full repository unrelated baseline may remain separately documented.
+
+148. GIT DIFF CHECK
+
+Run:
+
+git diff --check
+
+Must pass.
+
+149. VISUAL VERIFICATION — AUTHENTICATED IF AVAILABLE
+
+Attempt actual authenticated My 99/Home verification if the environment permits.
+
+If available, sample:
+
+Theme selection
+Hero selection
+Glass selection
+Motion selection
+Reading selection
+Home reorder
+Reset
+Cancel
+Apply
+
+Do NOT add a debug login/switcher merely for this audit.
+
+150. REPRESENTATIVE LIVE DRAFT TEST
+
+If authenticated:
+
+Committed:
+Classic / Classic / Balanced / Full / Default / canonical Home
+
+Draft:
+Ocean / Aurora / Frosted / Subtle / Large / reversed Home
+
+Before Apply verify:
+
+outer app committed
+preview Draft
+Home production committed
+dirty true
+151. REPRESENTATIVE LIVE APPLY
+
+If authenticated:
+
+Apply Draft.
+
+Verify:
+
+no reload
+no navigation reset
+outer Studio updates
+Home order updates when Home viewed
+current indicators update
+dirty clears
+152. REPRESENTATIVE LIVE CANCEL
+
+Change multiple fields.
+
+Cancel.
+
+Verify preview/editor return to Committed without global change.
+
+153. REPRESENTATIVE LIVE RESET
+
+Committed alternate config.
+
+Reset.
+
+Verify:
+
+outer app remains committed
+preview/editor show factory defaults
+Apply enabled
+
+Do not auto-commit.
+
+154. PHONE VISUAL
+
+If available:
+inspect My 99 at phone width.
+
+Focus on:
+
+action area
+Home order controls
+card grids
+preview
+no horizontal overflow
+155. IPAD VISUAL
+
+If available:
+inspect My 99 at iPad width.
+
+Focus on:
+
+grid density
+Home order editor
+preview sizing
+empty space
+Settings page behavior
+156. DESKTOP VISUAL
+
+If available:
+inspect max width and card density.
+
+157. LIGHT / DARK
+
+If authenticated:
+sample My 99 in current Light and Dark Appearance modes.
+
+Remember:
+
+Appearance is device-local and separate from Theme Pack.
+
+158. ARABIC / RTL
+
+If available:
+sample Arabic My 99.
+
+Check:
+
+all sections
+Home move controls
+subject labels
+Current/Selected
+action area
+back navigation
+159. VISUAL GATE HONESTY
+
+If authentication remains unavailable:
+
+state this clearly.
+
+Do not claim:
+
+actual six-axis interaction
+actual Home reorder
+actual responsive authenticated views
+actual Arabic Studio
+
+when not observed.
+
+Source/tests/build verification remains acceptable but must be described accurately.
+
+160. PERFORMANCE REVIEW
+
+Final Phase-4 source review should confirm:
+
+Theme:
+CSS variables only.
+
+Hero:
+existing decorative systems reused.
+
+Glass:
+existing eligible blur layers reused.
+
+Motion:
+no new JS animation controller.
+
+Reading:
+CSS typography only.
+
+Home order:
+O(7) ordering.
+
+No obvious personalization performance regression.
+
+161. FILE SIZE / MODULARITY REVIEW
+
+Review new Phase-4 personalization files.
+
+Ensure no unnecessary giant monolithic component was created.
+
+My99Studio should orchestrate rather than own all complex behavior.
+
+Report unusually large files if relevant.
+
+Do NOT refactor solely for aesthetics in closure audit.
+
+162. GIT STATUS
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Classify every changed/untracked file.
+
+Do not falsely claim a clean working tree.
+
+163. .agents/* ABSOLUTE RULE
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+Expected:
+
+NO OUTPUT.
+
+Prompt 19 must NOT:
+
+create
+modify
+delete
+
+anything under .agents/*.
+
+No memory note.
+
+No exception.
+
+164. NO DOCUMENTATION ARTIFACT
+
+Do not create:
+
+implementation-report Markdown
+prompt summary files
+agent memory
+planning docs
+
+unless an already-required product file must genuinely change.
+
+Final response is the report.
+
+165. REPAIR POLICY
+
+Prompt 19 is primarily an audit.
+
+Allowed repairs are limited to actual discovered defects such as:
+
+broken Draft/Committed binding
+missing localization key
+accessibility semantic defect
+invalid default fallback
+subject-order completeness defect
+CSS cascade regression
+broken account isolation invariant
+missing test coverage
+
+Forbidden work:
+
+new personalization feature
+new visual redesign
+new Theme Pack
+App Icon
+KV
+sync API
+Home widgets
+presets
+new motion engine
+broad refactor
+166. PHASE-4 CLOSURE REQUIREMENTS
+
+Phase 4 may close only if:
+
+six exposed axes are complete
+no incomplete UI option exists
+defaults reproduce safe production state
+Draft is globally inert
+preview is isolated
+Apply is transactional
+one write applies full config
+Apply failure is atomic
+Cancel is zero-write
+Reset is Draft-only
+account isolation works
+logout clears account personalization
+stale hydration is guarded
+Light/Dark/System remains separate
+app_text_scale remains separate and composes with Reading
+OS reduced-motion beats user Motion preference
+reduced transparency beats Glass preference
+forced colors preserved
+Home always renders complete seven-subject set
+subject hiding/addition is impossible
+no business logic changes
+no backend personalization work
+no KV
+no SQL/D1/R2 personalization storage
+no App Icon customization
+tests pass
+build passes
+only accepted unrelated baselines remain
+no .agents/*
+167. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 4 FINAL CLOSURE REPORT
+1. Status
+
+PASS / FAIL
+
+2. Phase 4 Summary
+
+Summarize Prompts 15–18 and Prompt 19 audit.
+
+3. Final User-Facing Axes
+
+List exactly six.
+
+4. Final Personalization Contract
+
+Print exact V1 structure.
+
+5. Factory Default
+
+Print exact default config.
+
+6. Settings Placement
+
+Confirm.
+
+7. Studio Section Order
+
+Print actual order.
+
+8. Shared Action Area
+
+Print actual button order and behavior.
+
+9. State Ownership
+
+Explain Provider ownership.
+
+10. ThemeBridge Ownership
+
+Confirm exact attribute.
+
+11. PresentationBridge Ownership
+
+Confirm four attributes.
+
+12. Home Order Ownership
+
+Confirm committed data path and no DOM attribute.
+
+13. Global Default DOM
+
+Print expected personalization attributes.
+
+14. Alternate Global DOM
+
+Print representative nondefault attributes.
+
+15. Draft Global Inertness
+
+Report representative six-axis case.
+
+16. Main Preview Composition
+
+Explain all six axes.
+
+17. Preview Attributes
+
+List exact five local attributes.
+
+18. Preview Default Isolation
+
+Report.
+
+19. Theme Library
+
+List all eight themes and status.
+
+20. Theme Token Contract
+
+Report 29-token integrity.
+
+21. Theme Palette Integrity
+
+Confirm unchanged.
+
+22. Hero Styles
+
+List four and confirm Classic parity.
+
+23. Hero Safety
+
+Content/geometry/motion boundaries.
+
+24. Glass Styles
+
+List three and confirm Balanced parity.
+
+25. iOS 16+ Glass Compatibility
+
+Report fallback/enhancement architecture.
+
+26. Reduced Transparency
+
+Confirm precedence.
+
+27. Forced Colors
+
+Confirm preservation.
+
+28. Motion Styles
+
+List three.
+
+29. Functional Motion Boundary
+
+Report protected mechanics.
+
+30. OS Reduced-Motion
+
+Confirm highest precedence.
+
+31. StarField V1 Limitation
+
+State accepted limitation accurately.
+
+32. Reading Sizes
+
+List values.
+
+33. app_text_scale Architecture
+
+Summarize exact separation/composition.
+
+34. Reading Composition
+
+Report verified model.
+
+35. Reading Scope
+
+List eligible/deferred/excluded surfaces.
+
+36. PDF Safety
+
+Confirm.
+
+37. Home Subject Set
+
+Print exact seven IDs.
+
+38. Home Default Order
+
+Print exact order.
+
+39. Home Ordering Architecture
+
+Explain committed → helper → Home.
+
+40. Home Defensive Fallback
+
+Report invalid-order behavior.
+
+41. Home Business Content Freeze
+
+Confirm.
+
+42. Home Reorder UI
+
+Explain Move controls and no drag.
+
+43. Home Accessibility
+
+Report.
+
+44. Home RTL / Language Semantics
+
+Report.
+
+45. Catalog Inventory
+
+Print Theme/Hero/Glass/Motion/Reading orders.
+
+46. Localization
+
+Confirm complete English/Arabic coverage.
+
+47. Accessibility Inventory
+
+Report five radiogroups + Home list controls.
+
+48. Current vs Selected
+
+Explain.
+
+49. Dirty State
+
+Explain six-axis equality.
+
+50. Apply Success
+
+Report six-axis transactional behavior and exact write count.
+
+51. Apply Failure
+
+Report atomicity.
+
+52. Cancel
+
+Report state and writes.
+
+53. Reset
+
+Report Draft behavior and writes.
+
+54. Reset + Cancel
+
+Report.
+
+55. Reset + Apply
+
+Report.
+
+56. No-op Apply
+
+Report.
+
+57. Account Switching
+
+Report A → default boundary → B.
+
+58. Same-Value Account Switching
+
+Report.
+
+59. A/B/A Restoration
+
+Report.
+
+60. Dirty Draft Account Switch
+
+Report.
+
+61. Logout
+
+Report committed + dirty-Draft behavior.
+
+62. Stale Hydration
+
+Confirm generation guard.
+
+63. Apply / Account-Switch Race
+
+Report.
+
+64. Logout During Apply
+
+Report.
+
+65. StrictMode
+
+Report bridge/runtime idempotency.
+
+66. Persistence Architecture
+
+Explain account-scoped local-only persistence.
+
+67. Device Appearance Separation
+
+Report app_theme.
+
+68. Device Text Scale Separation
+
+Report app_text_scale.
+
+69. Initial Paint
+
+Explain accepted safe-default-before-hydration behavior.
+
+70. KV / Backend
+
+State exactly:
+
+No KV.
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+ZERO new personalization network calls.
+
+71. App Icons
+
+Confirm unimplemented.
+
+72. Presets / Arbitrary Customization
+
+Confirm absent.
+
+73. Subject Hiding / New Home Content
+
+Confirm absent.
+
+74. Business Logic Verification
+
+Report.
+
+75. Navigation / Gesture Verification
+
+Report.
+
+76. Responsive Source Review
+
+Report.
+
+77. Performance Review
+
+Report.
+
+78. Phase-4 Closure Tests Added/Updated
+
+List exact invariants.
+
+79. Personalization Test Results
+
+Report exact total passed/failed.
+
+80. Studio Test Result
+
+Report.
+
+81. Presentation Test Result
+
+Report.
+
+82. Reading Composition Test Result
+
+Report.
+
+83. Home Subject Order Test Result
+
+Report.
+
+84. Theme Engine Test Results
+
+Report actual files/counts.
+
+85. Navigation Regression
+
+Report.
+
+86. Auth Regression
+
+Report.
+
+87. Notes / MCQ Metadata Regression
+
+Report.
+
+88. AI MCQ Regression
+
+Report.
+
+89. AI Flashcard Regression
+
+Report.
+
+90. Feature Personalization Regression
+
+Report Lecture/Calendar/MCQ-Flashcard.
+
+91. PDF Baseline
+
+Report exact result.
+
+92. Build
+
+Report.
+
+93. TypeScript
+
+Report accepted baseline and no new errors.
+
+94. ESLint
+
+Report targeted result and unrelated baseline.
+
+95. Visual Verification
+
+State exactly what was actually observed.
+
+No overclaim.
+
+96. Files Changed In Prompt 19
+File	Exact Reason
+
+If test-only:
+say so.
+
+If no source repair:
+state:
+
+NO PRODUCTION SOURCE REPAIR REQUIRED.
+
+97. File / Modularity Review
+
+Report any relevant large-file concern without unrelated refactor.
+
+98. Git Review
+
+Report:
+
+git status --short
+git diff --stat
+git diff --check
+
+Classify remaining files accurately.
+
+99. .agents/* Verification
+
+Report:
+
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+100. Final Phase-4 Decision
+
+If everything passes, state exactly:
+
+MY 99 PERSONALIZATION STUDIO: CLOSED AND APPROVED
+
+SIX-AXIS PERSONALIZATION WORKFLOW: VERIFIED
+
+DRAFT / PREVIEW / APPLY / CANCEL / RESET: VERIFIED
+
+ACCOUNT ISOLATION: VERIFIED
+
+ACCESSIBILITY PRECEDENCE: VERIFIED
+
+HOME SEVEN-SUBJECT COMPLETENESS: VERIFIED
+
+PHASE 4: CLOSED AND APPROVED
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 4 STATUS: COMPLETE — READY FOR PHASE 5 ARCHITECTURE DECISION
+
+Otherwise:
+
+PERSONALIZATION PHASE 4 STATUS: BLOCKED — REPAIR REQUIRED
