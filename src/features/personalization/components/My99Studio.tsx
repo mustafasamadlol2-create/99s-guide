@@ -38,7 +38,9 @@ import type {
   HeroStyle,
   MotionStyle,
   ReadingSize,
+  SubjectId,
 } from "../../../../shared/personalization";
+import { HomeSubjectOrderEditor } from "./HomeSubjectOrderEditor";
 
 interface My99StudioProps {
   language: Language;
@@ -517,6 +519,13 @@ const My99Studio = memo(function My99Studio({
     [updateDraft],
   );
 
+  const handleSubjectOrderChange = useCallback(
+    (subjectOrder: SubjectId[]) => {
+      updateDraft({ type: "setSubjectOrder", value: subjectOrder });
+    },
+    [updateDraft],
+  );
+
   const handleApply = useCallback(async () => {
     if (!canApply) return;
     HapticFeedback.selection();
@@ -651,6 +660,27 @@ const My99Studio = memo(function My99Studio({
               </div>
             </div>
           </div>
+          <section
+            className="border-t border-semantic-border-default p-4 sm:p-6"
+            aria-labelledby="my99-preview-subject-order-heading"
+          >
+            <h3
+              id="my99-preview-subject-order-heading"
+              className="text-sm font-semibold text-semantic-content-primary"
+            >
+              {t("my99HomeSubjectOrderPreviewTitle")}
+            </h3>
+            <ol className="mt-3 flex flex-wrap gap-2">
+              {draft.home.subjectOrder.map((subjectId, index) => (
+                <li
+                  key={subjectId}
+                  className="rounded-full bg-semantic-action-accent-soft px-3 py-1.5 text-xs font-semibold text-semantic-action-accent"
+                >
+                  {index + 1}. {subjectId}
+                </li>
+              ))}
+            </ol>
+          </section>
         </div>
       </section>
 
@@ -863,6 +893,28 @@ const My99Studio = memo(function My99Studio({
             />
           ))}
         </div>
+      </section>
+
+      <section
+        className="mt-6"
+        aria-labelledby="my99-home-subject-order-heading"
+      >
+        <div className="mb-3">
+          <h2
+            id="my99-home-subject-order-heading"
+            className="text-base font-semibold text-semantic-content-primary"
+          >
+            {t("my99HomeSubjectOrderTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-semantic-content-secondary">
+            {t("my99HomeSubjectOrderDescription")}
+          </p>
+        </div>
+        <HomeSubjectOrderEditor
+          language={language}
+          subjectOrder={draft.home.subjectOrder}
+          onChange={handleSubjectOrderChange}
+        />
       </section>
 
       <div className="sticky bottom-0 z-10 -mx-2 mt-6 border-t border-semantic-border-default bg-semantic-background-page/95 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-6 sm:backdrop-blur-none">

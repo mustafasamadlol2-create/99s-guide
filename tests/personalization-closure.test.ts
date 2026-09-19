@@ -31,6 +31,10 @@ const themePreload = readFileSync(
   join(workspaceRoot, "public/theme-preload.js"),
   "utf8",
 );
+const homeDashboard = readFileSync(
+  join(srcRoot, "features/home/components/HomeDashboard.tsx"),
+  "utf8",
+);
 
 function sourceFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -89,14 +93,15 @@ test("future ThemeIds remain visually inert outside personalization state", () =
   assert.doesNotMatch(provider, /className|data-theme|style\.setProperty|key=/);
 });
 
-test("appearance storage remains separate from the unwired personalization contract", () => {
+test("appearance storage remains separate from the wired Home order contract", () => {
   assert.match(app, /localStorage\.getItem\("app_theme"\)/);
   assert.match(app, /localStorage\.setItem\("app_theme"/);
   assert.match(app, /localStorage\.getItem\("app_text_scale"\)/);
   assert.match(themePreload, /localStorage\.getItem\("app_theme"\)/);
   assert.doesNotMatch(app, /themeId|readingSize|heroStyle|glassStyle|motionStyle|subjectOrder/);
   assert.doesNotMatch(themePreload, /themeId|Personalization|semantic-/);
-  assert.equal(runtimeSourceText.includes("usePersonalization("), false);
+  assert.equal(runtimeSourceText.includes("usePersonalization("), true);
+  assert.match(homeDashboard, /committed\.home\.subjectOrder/);
 });
 
 test("personalization contract retains future values without creating visual palettes", () => {
