@@ -1,0 +1,1256 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 5 / PROMPT 23
+## DEVICE-LOCAL APP ICON PERSONALIZATION — NATIVE ARCHITECTURE AUDIT
+### iOS / iPadOS FIRST
+### CAPACITOR NATIVE BRIDGE
+### DEVICE-LOCAL ONLY
+### NO IMPLEMENTATION YET
+### NO ICON ASSET CREATION YET
+### NO CLOUD SYNC
+### NO PERSONALIZATIONCONFIGV1 CHANGE
+### NO `.agents/*`
+
+Prompt 21 / 21B / 21C are CLOSED AND APPROVED.
+
+Prompt 22 live Cloudflare deployment is intentionally DEFERRED until the full project is exported from Replit to the user's local Windows machine.
+
+Prompt 22R is CLOSED AND APPROVED:
+
+- personalization cloud-sync code complete
+- project export portability verified
+- no live Cloudflare authentication required inside Replit
+- no staging/production resources created
+- subsequent CODE-ONLY prompts are approved to continue
+
+We now begin the previously deferred APP ICON personalization work.
+
+Prompt 23 is ARCHITECTURE / REPOSITORY AUDIT ONLY.
+
+DO NOT implement the feature yet.
+
+DO NOT generate icon artwork.
+
+DO NOT modify Xcode project files.
+
+DO NOT modify Info.plist.
+
+DO NOT modify asset catalogs.
+
+DO NOT create Swift plugin code.
+
+DO NOT modify My99Studio.
+
+DO NOT modify PersonalizationConfigV1.
+
+DO NOT modify cloud synchronization.
+
+DO NOT modify `.agents/*`.
+
+---
+
+# 1. PRODUCT GOAL
+
+Add user-selectable App Icon personalization to 99's Guide.
+
+The eventual feature should allow supported native Apple installations to switch the icon displayed by the operating system.
+
+Primary platform scope:
+
+- iPhone native Capacitor app
+- iPad native Capacitor app
+
+Minimum app target remains:
+
+```text
+iOS 16+
+
+Prompt 23 must determine the safest exact implementation architecture before any code or asset change.
+
+2. HARD ARCHITECTURAL RULE
+
+APP ICON PERSONALIZATION IS DEVICE-LOCAL.
+
+It MUST NOT become part of:
+
+PersonalizationConfigV1
+
+It MUST NOT be synchronized by:
+
+Workers KV
+Express personalization GET/PUT
+PersonalizationLocalEnvelopeV2 cloud config
+SQL
+D1
+R2
+
+It MUST NOT participate in the six account-scoped synchronized axes:
+
+Theme Pack
+Hero Style
+Glass Style
+Motion Style
+Reading Size
+Home Subject Order
+
+Those six remain unchanged.
+
+3. DEVICE VS ACCOUNT SEMANTICS
+
+Audit and confirm the correct model.
+
+The OS app icon belongs to the installed application on a DEVICE.
+
+Therefore App Icon should conceptually be:
+
+installation/device scoped
+
+not:
+
+account scoped
+
+Expected behavior:
+
+User selects alternate icon on Device A.
+Device A changes icon.
+Device B does not change.
+Logging into another account on Device A does not automatically change the OS icon.
+Logging out does not reset the icon.
+Cloud synchronization never transports icon state.
+
+Prompt 23 must confirm or challenge this based on actual platform behavior.
+
+4. OS AS SOURCE OF TRUTH
+
+On iOS/iPadOS, prefer the operating system as the source of truth for current icon state.
+
+Architecture should investigate using:
+
+UIApplication.shared.supportsAlternateIcons
+UIApplication.shared.alternateIconName
+UIApplication.shared.setAlternateIconName(...)
+
+Conceptually:
+
+supportsAlternateIcons
+→ can this installation switch icons?
+
+alternateIconName
+→ which alternate icon is currently active?
+→ nil means primary icon
+
+setAlternateIconName
+→ request icon change
+
+Determine whether a separate persistent JavaScript/localStorage key is needed at all.
+
+Strong preference:
+
+DO NOT create redundant app-icon persistence if native OS state can be queried reliably.
+
+5. OFFICIAL APPLE REQUIREMENTS
+
+Verify current official Apple behavior/documentation.
+
+Audit requirements around:
+
+CFBundleIcons
+CFBundlePrimaryIcon
+CFBundleAlternateIcons
+
+and/or asset-catalog-generated equivalents.
+
+Also audit:
+
+ASSETCATALOG_COMPILER_APPICON_NAME
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS
+
+Do not assume manual Info.plist entries are required if the existing Xcode/project asset-catalog configuration can generate them.
+
+Determine the best approach for THIS repository.
+
+6. CURRENT CAPACITOR VERSION
+
+Inspect:
+
+package.json
+package-lock.json / pnpm lock if applicable
+capacitor.config.*
+ios/
+
+Report exact:
+
+@capacitor/core
+@capacitor/ios
+@capacitor/cli
+
+versions.
+
+Do not rely on current public latest version.
+
+The project’s installed version is authoritative for implementation compatibility.
+
+7. CURRENT NATIVE IOS PROJECT
+
+Audit actual:
+
+ios/
+
+Report:
+
+iOS app target name
+Xcode project/workspace names
+minimum deployment target
+Swift / Objective-C usage
+existing custom Capacitor plugins
+existing native bridge conventions
+current Info.plist location
+current asset catalog location
+primary AppIcon set
+current icon asset configuration
+whether alternate icon sets already exist
+
+Do not change anything.
+
+8. CHECK IF ios/ IS EXPORT-SAFE
+
+Confirm all native iOS source/project files required for future implementation are normal Replit project files and will be included when the user downloads the project.
+
+If iOS native project is absent or incomplete:
+report BLOCKED for implementation architecture.
+
+Do not fabricate it.
+
+9. CURRENT PRIMARY ICON
+
+Inspect existing asset catalog.
+
+Report:
+
+primary icon set name
+Contents.json structure
+whether 1024 marketing icon exists
+whether icons use single-size/universal modern Xcode model or multiple legacy slots
+whether current icon source files are present
+whether any existing design variants already exist
+
+Do not alter or generate assets.
+
+10. CURRENT INFOPLIST ICON CONFIGURATION
+
+Inspect actual built-source configuration.
+
+Report whether the repository currently contains:
+
+CFBundleIcons
+CFBundlePrimaryIcon
+CFBundleAlternateIcons
+
+directly.
+
+If not:
+determine whether Xcode asset-catalog build settings are expected to generate them.
+
+Do not manually add them in Prompt 23.
+
+11. XCODE BUILD SETTINGS AUDIT
+
+Inspect:
+
+project.pbxproj
+
+carefully.
+
+Find actual values if present for:
+
+ASSETCATALOG_COMPILER_APPICON_NAME
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS
+
+Report per relevant configuration:
+
+Debug
+Release
+
+Do not modify.
+
+12. CHOOSE FUTURE IOS CONFIGURATION STRATEGY
+
+Prompt 23 must recommend ONE future strategy based on repo state:
+
+A.
+
+Use multiple AppIcon asset sets and configure:
+
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+
+letting Xcode generate the alternate icon Info.plist metadata.
+
+or:
+
+B.
+
+Explicit Info.plist configuration only if the actual project/toolchain requires it.
+
+Prefer native Xcode asset-catalog configuration when supported by the repository.
+
+Explain why.
+
+13. CAPACITOR NATIVE BRIDGE STRATEGY
+
+Determine the best exact bridge.
+
+Strong preferred architecture:
+
+a very small FIRST-PARTY custom Capacitor plugin inside the iOS project.
+
+Conceptually:
+
+AppIcon
+
+with methods similar to:
+
+getState(): Promise<{
+  supported: boolean;
+  currentIcon: string | null;
+}>
+
+setIcon(options: {
+  iconName: string | null;
+}): Promise<{
+  currentIcon: string | null;
+}>
+
+null should conceptually mean primary/default icon.
+
+Do NOT install a third-party app-icon plugin unless repository constraints make the first-party bridge inappropriate.
+
+Prompt 23 must inspect existing plugin patterns before deciding.
+
+14. WHY FIRST-PARTY BRIDGE IS PREFERRED
+
+Audit whether a custom bridge can stay very small:
+
+Native Swift responsibilities:
+
+check supportsAlternateIcons
+read alternateIconName
+validate requested icon against approved catalog
+call setAlternateIconName
+return result/error safely
+
+TypeScript responsibilities:
+
+typed plugin interface
+supported-platform guard
+no native API details in Studio
+
+Do not implement yet.
+
+15. NATIVE METHOD SAFETY
+
+Future native implementation must NOT accept arbitrary icon names from untrusted UI state.
+
+Create an allowlisted icon-ID catalog.
+
+Conceptually:
+
+type AppIconId =
+  | "primary"
+  | ...
+
+The JS/native bridge must map approved IDs to native icon-set names.
+
+Do not pass unchecked strings directly into native icon switching.
+
+Prompt 23 must define where the canonical mapping should live.
+
+16. ICON IDs VS NATIVE NAMES
+
+Keep product-facing IDs separate from Xcode asset-set names where useful.
+
+Example concept only:
+
+Product AppIconId:
+classic
+
+Native icon name:
+AppIconClassic
+
+Do not lock exact names until repository/assets are audited.
+
+Prompt 23 must recommend exact naming convention for future implementation.
+
+17. PRIMARY ICON SEMANTICS
+
+Primary/default icon must map to:
+
+setAlternateIconName(nil)
+
+at native level.
+
+Do not invent an alternate duplicate of the primary icon merely to represent Default.
+
+Prompt 23 must confirm.
+
+18. supportsAlternateIcons
+
+Future feature must query platform support.
+
+If:
+
+supportsAlternateIcons = false
+
+the UI must not claim switching succeeded.
+
+Prompt 23 must recommend fallback UX.
+
+19. CURRENT ICON HYDRATION
+
+When My99 App Icon UI opens on native iOS/iPadOS:
+
+expected architecture:
+
+query native current icon
+→ map alternateIconName to AppIconId
+→ render Current state
+
+Do not infer current icon only from old JavaScript state.
+
+OS value should be authoritative.
+
+20. NO ACCOUNT HYDRATION DEPENDENCY
+
+App icon hydration must NOT wait for:
+
+Personalization cloud GET
+Local Envelope V2
+account personalization Provider hydration
+
+If My99 itself requires login to be visible, that is fine.
+
+But the icon state remains device/system state independent of cloud synchronization.
+
+21. ACCOUNT SWITCH
+
+Future expected behavior:
+
+Account A chooses alternate icon.
+
+Then logs out / Account B logs in.
+
+Device retains the selected system icon unless user explicitly changes it.
+
+No account switch listener should reset/reapply icon.
+
+Audit and confirm.
+
+22. LOGOUT
+
+Logout must NOT restore primary icon automatically.
+
+Icon remains device-level.
+
+23. APP REINSTALL
+
+Prompt 23 should state expected semantics conservatively.
+
+Do not promise preservation across:
+
+uninstall
+reinstall
+device restore
+
+unless OS behavior explicitly guarantees it.
+
+V1 only promises the selected icon for the current installation as managed by the OS.
+
+24. WEB / PWA SUPPORT AUDIT
+
+Audit current PWA architecture.
+
+Determine whether 99's Guide should support runtime installed-PWA icon changes.
+
+Do not pretend web manifest mutation guarantees that an already-installed PWA icon changes.
+
+Preferred V1 product scope:
+
+native iOS/iPadOS icon switching only
+
+On ordinary web/PWA:
+
+supported = false
+
+unless a reliable installed-app API actually exists in the current target environment.
+
+Do not add hacks involving:
+
+rewriting manifest at runtime
+service-worker cache tricks
+asking users to reinstall automatically
+25. ANDROID STATUS
+
+Audit whether this repository currently includes:
+
+android/
+
+and whether Android is a current shipping target.
+
+Do NOT implement Android alternate icons in Prompt 23.
+
+Report one of:
+
+ANDROID APP ICON PERSONALIZATION: OUT OF V1 SCOPE
+
+or, if project requirements clearly demand it:
+
+ANDROID REQUIRES SEPARATE ARCHITECTURE
+
+Do not let Android complexity block iOS V1 without a real requirement.
+
+26. VISIONOS / MAC
+
+Do not expand scope automatically.
+
+Report current relevant targets.
+
+No visionOS-specific implementation.
+
+No Mac Catalyst implementation unless the current iOS target actually uses it and repository evidence makes it relevant.
+
+27. MY99 STUDIO PLACEMENT
+
+Audit current My99Studio structure.
+
+Current account-scoped sections are:
+
+Main Draft Preview
+Theme Pack
+Hero Style
+Glass Style
+Motion Style
+Reading Size
+Home Subject Order
+shared action area
+
+Determine best placement for device-local App Icon.
+
+Preferred:
+
+after Home Subject Order
+and BEFORE shared account-personalization action area,
+
+BUT visually separated/labeled as:
+
+Device
+
+or equivalent localized concept.
+
+However App Icon must NOT become part of shared Draft/Apply.
+
+Prompt 23 must inspect actual UI and recommend exact placement.
+
+28. APP ICON APPLY SEMANTICS
+
+Because App Icon is native device state, it should NOT be controlled by the six-axis shared:
+
+Apply
+Cancel
+Reset
+
+buttons.
+
+Prompt 23 must recommend a separate interaction.
+
+Preferred model:
+
+Tap/select an icon card.
+Explicit per-section button such as:
+Use This Icon
+Native operation occurs only from that explicit action.
+On success, refresh OS current-icon state.
+On failure, retain previous current icon.
+Shared My99 Apply remains exclusively for six account-scoped axes.
+
+Do not implement yet.
+
+29. DO NOT AUTO-COUPLE ICON TO THEME
+
+Changing Theme Pack must NOT automatically change App Icon.
+
+Changing App Icon must NOT change Theme Pack.
+
+Even if future icon designs visually correspond to themes, they are independent preferences.
+
+Prompt 23 must confirm.
+
+30. UI STATE MODEL
+
+Recommend minimal UI state such as:
+
+currentIcon
+selectedIcon
+isSupported
+isChanging
+error
+
+This UI state is ephemeral.
+
+Do not put it in:
+
+PersonalizationConfigV1
+Local Envelope V2
+Workers KV
+31. NO REDUNDANT LOCAL PERSISTENCE
+
+Audit whether native:
+
+alternateIconName
+
+is enough to restore Current state.
+
+Strong preference:
+
+No:
+
+app_icon
+99s:app-icon...
+
+localStorage/Capacitor Preferences key in V1.
+
+If you believe a local key is necessary:
+justify exactly why OS state is insufficient.
+
+32. ERROR MODEL
+
+Future bridge should distinguish at least conceptually:
+
+unsupported
+invalid-icon
+native-change-failed
+
+Do not expose raw native error internals unnecessarily.
+
+UI failure must NOT pretend icon changed.
+
+33. RAPID REPEATED TAPS
+
+Architecture must guard against concurrent:
+
+setAlternateIconName
+
+requests.
+
+While isChanging:
+
+disable repeated icon-change button
+no parallel native mutations
+
+Do not add complex queueing.
+
+Latest selection may be allowed before explicit action, but only one native request runs.
+
+34. APP BACKGROUND / RETURN
+
+Future UI should re-query native current icon after appropriate lifecycle restoration or when App Icon section is reopened if necessary.
+
+Do not rely permanently on optimistic JS state.
+
+Audit minimal strategy.
+
+35. NATIVE ERROR / CANCEL SEMANTICS
+
+If native icon change fails:
+
+previous OS icon remains source of truth
+re-query current icon where practical
+selected preview may remain selected or reset according to UX recommendation
+do not affect account personalization
+
+Prompt 23 must recommend deterministic behavior.
+
+36. ACCESSIBILITY
+
+Future App Icon selector must support:
+
+accessible names
+selected/current distinction
+keyboard navigation on environments where selector is rendered
+
+= current mobile touch-target standards
+
+VoiceOver-friendly state
+
+Even though actual switching is native-only.
+
+37. ARABIC / RTL
+
+Future App Icon UI must support:
+
+English
+Arabic
+existing RTL system
+
+Icon asset orientation itself should not be mirrored automatically unless artwork explicitly requires a separate asset.
+
+No localization of native asset-set identifiers.
+
+38. PREVIEW ARTWORK
+
+Prompt 23 must audit whether existing app icon image can be reused as preview for primary icon.
+
+Do NOT generate alternates.
+
+Future App Icon cards should use preview assets derived from the actual app icons, not unrelated mockups.
+
+39. ICON CATALOG SIZE
+
+Do NOT decide a huge icon catalog arbitrarily.
+
+Audit design system and recommend a reasonable V1 count.
+
+Potential conceptual model:
+
+Primary / Classic
+a small set of premium alternates
+
+Do NOT assume all eight Theme Packs need eight alternate icons.
+
+If recommending a count:
+justify bundle size, design workload, UI clarity, and native configuration complexity.
+
+40. ICON ASSET REQUIREMENTS
+
+For future implementation, report what Xcode requires for each alternate app icon asset set in this project's toolchain.
+
+Do not generate images.
+
+Report:
+
+file/set structure
+required scales/sizes if applicable
+whether one 1024 source can feed current asset catalog model
+App Store validation considerations visible from project structure
+
+Do not invent unsupported sizes.
+
+41. PRIMARY ICON MUST REMAIN VALID
+
+Future alternate-icon work must not disturb:
+
+existing App Store primary icon
+App Store Connect metadata
+launch screen
+splash screen
+favicon/PWA icons
+
+Prompt 23 must identify boundaries.
+
+42. NO PWA MANIFEST REGRESSION
+
+Do not edit manifest in Prompt 23.
+
+Future iOS alternate icon feature must not silently rewrite:
+
+PWA icons
+manifest icon list
+service-worker caching
+
+unless explicitly approved separately.
+
+43. CAPACITOR SYNC SAFETY
+
+Audit how:
+
+npx cap sync ios
+
+affects custom native source/project settings in this repository.
+
+Critical question:
+
+Will custom Swift plugin files / asset catalog / pbxproj icon settings survive normal Capacitor sync?
+
+Prompt 23 must answer from repository structure/conventions.
+
+Future implementation must not rely on edits that Capacitor regeneration destroys.
+
+44. XCODE PROJECT MUTATION STRATEGY
+
+If future implementation needs project.pbxproj changes:
+
+recommend the smallest reproducible method.
+
+Do not rely on manual Xcode clicks only if the exported repo must preserve configuration.
+
+At the same time:
+do not write fragile ad-hoc pbxproj manipulation scripts unless necessary.
+
+Prompt 23 should recommend whether committed Xcode project settings are sufficient.
+
+45. IOS BUILD VERIFICATION LIMITATION IN REPLIT
+
+Current environment is REPLIT.
+
+Prompt 23 must classify which future verification can happen here versus later on the user's Mac/Xcode environment.
+
+Expected distinction:
+
+REPLIT CAN VERIFY:
+
+TS
+React UI
+catalog contracts
+native source existence
+static project config
+tests/build unrelated to actual iOS compile
+
+MAC/XCODE REQUIRED TO VERIFY:
+
+actual iOS native compilation
+asset catalog compilation
+supportsAlternateIcons
+real icon switching
+App Store archive validation
+
+Do not claim native runtime verification inside Replit.
+
+46. FUTURE IMPLEMENTATION PHASING
+
+Prompt 23 must propose a safe implementation sequence.
+
+Likely:
+
+A. typed icon catalog + platform abstraction
+B. first-party Capacitor iOS plugin
+C. native asset-set/project configuration
+D. My99 device-local selector
+E. web unsupported fallback
+F. unit/static tests in Replit
+G. later Mac/Xcode runtime verification after export
+
+Do NOT execute these in Prompt 23.
+
+47. TEST ARCHITECTURE
+
+Define future tests.
+
+At minimum:
+
+AppIconId validation
+arbitrary native name rejection
+primary → null mapping
+native supported state
+web unsupported state
+current alternate icon hydration
+successful switch
+native failure
+concurrent request prevention
+account switch does not change icon
+logout does not reset icon
+Theme change does not change icon
+App Icon change does not change Theme
+cloud serializers exclude app icon
+PersonalizationConfigV1 excludes app icon
+Local Envelope V2 excludes app icon
+My99 shared Apply unaffected
+Arabic/RTL selector safety
+no direct cloud request
+48. CLOUD REGRESSION GUARD
+
+Explicitly inspect:
+
+shared/personalization.ts
+personalizationStorage.ts
+personalizationCloudSync.ts
+server/routes/personalization.ts
+cloudflare-personalization-api/
+
+Prompt 23 must prove future App Icon work should require ZERO changes to account cloud schema.
+
+49. VERSIONING DECISION
+
+No:
+
+PersonalizationConfigV2
+
+for App Icon.
+
+No cloud record schema bump.
+
+No Local Envelope V3 merely for App Icon.
+
+If the audit believes otherwise:
+BLOCK and justify.
+
+Expected:
+none required.
+
+50. NO INFRASTRUCTURE
+
+Prompt 23 performs no:
+
+Wrangler login
+Cloudflare deployment
+KV creation
+Render changes
+Xcode build
+App Store action
+51. NO FILE CHANGES
+
+Prompt 23 is audit only.
+
+Expected:
+
+NO PRODUCTION SOURCE CHANGE
+NO TEST CHANGE
+NO IOS PROJECT CHANGE
+NO ASSET CHANGE
+
+Do not create architecture docs.
+
+Report in final response only.
+
+52. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Prompt 23 itself must create no repo modification.
+
+The existing attached Prompt text file may remain unrelated.
+
+53. .agents/*
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+Expected no output.
+
+No .agents/* change.
+
+54. DEFINITION OF DONE
+
+Prompt 23 passes only if it determines:
+
+actual Capacitor versions
+actual iOS deployment target
+actual Xcode/icon configuration
+whether alternate icons already exist
+exact Info.plist state
+exact pbxproj icon settings
+recommended alternate-icon asset configuration method
+recommended first-party Capacitor bridge strategy
+native API mapping
+primary/null behavior
+supported/current icon hydration
+device-global semantics
+account switch/logout semantics
+whether redundant local storage is unnecessary
+web/PWA behavior
+Android scope
+exact My99 placement
+separation from six-axis Apply
+no auto theme coupling
+accessibility/RTL requirements
+asset requirements
+Capacitor sync survival strategy
+Replit vs Mac/Xcode verification boundary
+future implementation/test sequence
+no cloud schema change
+no repository change
+no .agents/*
+55. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE PERSONALIZATION — PHASE 5 PROMPT 23 APP ICON ARCHITECTURE AUDIT REPORT
+1. Status
+
+PASS / BLOCKED
+
+2. Product Scope
+
+State exact intended V1 platforms.
+
+3. Device vs Account Scope
+
+State whether App Icon is device-global or account-scoped and why.
+
+4. Cloud Exclusion
+
+Confirm App Icon remains outside all cloud personalization.
+
+5. Current Capacitor Versions
+
+Report:
+
+core
+ios
+cli
+6. iOS Native Project
+
+Report exact project/workspace/target structure.
+
+7. iOS Deployment Target
+
+Report exact current value.
+
+8. Native Language / Plugin Pattern
+
+Report Swift/ObjC and existing custom-plugin conventions.
+
+9. Info.plist
+
+Report exact location and current icon keys.
+
+10. Asset Catalog
+
+Report exact catalog path and primary AppIcon set.
+
+11. Existing Alternate Icons
+
+Report:
+YES / NO
+
+List if present.
+
+12. Primary Icon Asset State
+
+Report current asset structure.
+
+13. Xcode Icon Build Settings
+
+Report actual:
+ASSETCATALOG_COMPILER_APPICON_NAME
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS
+
+for relevant configurations.
+
+14. Recommended Native Icon Configuration
+
+Choose exact future strategy and justify.
+
+15. Native APIs
+
+Report use of:
+supportsAlternateIcons
+alternateIconName
+setAlternateIconName
+
+16. Primary Icon Mapping
+
+Confirm primary maps to native nil.
+
+17. Native Bridge Strategy
+
+Choose first-party custom Capacitor plugin or justified alternative.
+
+18. Proposed Plugin Interface
+
+Print conceptual TypeScript interface only.
+
+19. Native Allowlist
+
+Explain how arbitrary native icon names will be prevented.
+
+20. AppIconId Naming
+
+Recommend canonical product IDs and native-name convention without inventing final artwork.
+
+21. Source of Truth
+
+State whether OS alternateIconName is sufficient.
+
+22. Local Persistence
+
+State:
+REQUIRED / NOT REQUIRED
+
+Justify.
+
+23. Account Switch
+
+Report expected behavior.
+
+24. Logout
+
+Report expected behavior.
+
+25. Reinstall Limitation
+
+Report conservative semantics.
+
+26. Web / PWA
+
+State exact support/fallback behavior.
+
+27. Android
+
+State exact V1 scope.
+
+28. Other Apple Targets
+
+Report Mac/Catalyst/visionOS relevance.
+
+29. My99 Studio Placement
+
+Report exact recommended placement.
+
+30. Shared Apply Separation
+
+Explain why App Icon is not part of shared Apply/Cancel/Reset.
+
+31. Proposed App Icon Interaction
+
+Report exact future interaction model.
+
+32. Theme Independence
+
+Confirm no automatic theme ↔ icon coupling.
+
+33. UI State
+
+List ephemeral state.
+
+34. Failure Behavior
+
+Report deterministic behavior.
+
+35. Concurrent Request Safety
+
+Report.
+
+36. Lifecycle Refresh
+
+Report when native state should be re-read.
+
+37. Accessibility
+
+Report requirements.
+
+38. Arabic / RTL
+
+Report requirements.
+
+39. Existing Primary Preview Asset
+
+Report whether reusable.
+
+40. Recommended V1 Icon Count
+
+Give a conservative recommendation and rationale.
+
+Do NOT design icons.
+
+41. Asset Requirements
+
+Report current-toolchain requirements.
+
+42. Primary Icon / App Store Safety
+
+Report boundaries.
+
+43. PWA Manifest Safety
+
+Confirm no runtime manifest coupling.
+
+44. Capacitor Sync Safety
+
+Explain whether future native changes survive npx cap sync ios.
+
+45. Xcode Project Persistence
+
+Explain how future settings should be committed reproducibly.
+
+46. Replit Verification Boundary
+
+List what can be verified here.
+
+47. Mac / Xcode Verification Boundary
+
+List what must wait until local Apple development environment.
+
+48. Future Implementation Sequence
+
+List ordered implementation gates.
+
+49. Future Test Plan
+
+List critical tests.
+
+50. Cloud Schema Impact
+
+State exactly:
+
+PersonalizationConfigV1 change: NO
+PersonalizationLocalEnvelopeV2 cloud-config change: NO
+Workers KV record schema change: NO
+Express personalization API change: NO
+Cloudflare Worker personalization schema change: NO
+
+51. Database Impact
+
+State exactly:
+
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+52. Prompt 23 Production Diff
+
+State exactly:
+
+NO PRODUCTION SOURCE CHANGE IN PROMPT 23.
+
+53. Git Review
+
+Report:
+git status --short
+git diff --stat
+git diff --check
+
+54. .agents/* Verification
+
+Report:
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+55. Prompt 24 Readiness
+
+If implementation architecture is fully resolved, state exactly:
+
+APP ICON PERSONALIZATION ARCHITECTURE: CLOSED AND APPROVED
+
+APP ICON SCOPE: DEVICE-LOCAL
+
+IOS / IPADOS NATIVE API STRATEGY: VERIFIED
+
+FIRST-PARTY CAPACITOR BRIDGE STRATEGY: VERIFIED
+
+ACCOUNT PERSONALIZATION CLOUD SCHEMA: UNCHANGED
+
+APP ICON / THEME COUPLING: NONE
+
+WEB / PWA UNSUPPORTED FALLBACK: DEFINED
+
+REPLIT / XCODE VERIFICATION BOUNDARY: DEFINED
+
+PROMPT 24 APP ICON IMPLEMENTATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION PHASE 5 PROMPT 23 STATUS: COMPLETE — READY FOR PROMPT 24
+
+Otherwise:
+
+PERSONALIZATION PHASE 5 PROMPT 23 STATUS: BLOCKED — ARCHITECTURE DECISION REQUIRED
