@@ -12,6 +12,7 @@ import {
   type PersonalizationKeyValueStorage,
 } from "../src/features/personalization/personalizationStorage.js";
 import { reconcilePersonalization } from "../src/features/personalization/personalizationCloudSync.js";
+import { getPersonalizationConfirmationDelayMs } from "../src/features/personalization/PersonalizationProvider.js";
 
 class MemoryStorage implements PersonalizationKeyValueStorage {
   values = new Map<string, string>();
@@ -37,6 +38,7 @@ const config: PersonalizationConfigV1 = {
 
 function record(overrides: Partial<PersonalizationCloudRecord> = {}): PersonalizationCloudRecord {
   return {
+    recordVersion: 1,
     config,
     revision: "opaque-revision",
     updatedAt: "2026-09-19T00:00:00.000Z",
@@ -137,4 +139,10 @@ test("different config and revision requires confirmation rather than ordering r
     record: record({ config: { ...config, themeId: "ocean" }, revision: "0000000000000000000000000000000000000000000000000000000000000000" }),
   });
   assert.equal(decision.action, "confirm");
+});
+
+test("confirmation delay is randomized within the approved 40-50 second window", () => {
+  assert.equal(getPersonalizationConfirmationDelayMs(() => 0), 40_000);
+  assert.equal(getPersonalizationConfirmationDelayMs(() => 1), 50_000);
+  assert.equal(getPersonalizationConfirmationDelayMs(() => 0.5), 45_000);
 });

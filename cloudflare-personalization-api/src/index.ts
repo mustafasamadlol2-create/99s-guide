@@ -28,6 +28,7 @@ interface Config {
 }
 
 interface RecordValue {
+  recordVersion: 1;
   config: Config;
   revision: string;
   updatedAt: string;
@@ -67,7 +68,9 @@ function validConfig(value: unknown): value is Config {
 function validRecord(value: unknown): value is RecordValue {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const data = value as Record<string, unknown>;
-  return validConfig(data.config) &&
+  return data.recordVersion === 1 &&
+    Object.keys(data).every((key) => ["recordVersion", "config", "revision", "updatedAt", "lastIntentId"].includes(key)) &&
+    validConfig(data.config) &&
     typeof data.revision === "string" && data.revision.length > 0 && data.revision.length <= 256 &&
     typeof data.updatedAt === "string" && Number.isFinite(Date.parse(data.updatedAt)) &&
     typeof data.lastIntentId === "string" && INTENT_ID.test(data.lastIntentId) &&
@@ -143,6 +146,7 @@ export default {
       return json({ status: "ok", record: current });
     }
     const record: RecordValue = {
+      recordVersion: 1,
       config: data.config as Config,
       revision: newRevision(),
       updatedAt: new Date().toISOString(),

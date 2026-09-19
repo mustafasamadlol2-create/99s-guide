@@ -218,6 +218,19 @@ test("oversized cached configs are rejected without throwing", async () => {
   if (result.status === "invalid") assert.equal(result.reason, "oversized-config");
 });
 
+test("oversized raw local envelopes are rejected before parsing", async () => {
+  const storage = new MemoryStorage();
+  const key = getPersonalizationCacheKey(userA)!;
+  storage.values.set(key, "x".repeat(48 * 1024 + 1));
+
+  const result = await readCachedPersonalization(userA, storage);
+  assert.deepEqual(result, {
+    status: "invalid",
+    config: createDefaultPersonalization(),
+    reason: "oversized-envelope",
+  });
+});
+
 test("storage get, set, and remove failures are structured and nonfatal", async () => {
   const getFailure = new MemoryStorage();
   getFailure.failGet = true;

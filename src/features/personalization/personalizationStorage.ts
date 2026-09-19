@@ -384,6 +384,9 @@ export async function acknowledgePersonalizationCloudRecord(
   if ("reason" in parsed || !record.revision || !isValidSavedAt(record.updatedAt) || !INTENT_ID.test(record.lastIntentId)) {
     return { ok: false, error: "invalid-sync" };
   }
+  if (record.recordVersion !== 1) {
+    return { ok: false, error: "invalid-sync" };
+  }
   const envelope = createCleanEnvelope(parsed.config, {
     knownCloudRevision: record.revision,
     pending: null,

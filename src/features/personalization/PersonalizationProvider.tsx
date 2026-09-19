@@ -41,6 +41,26 @@ import type {
 } from "../../../shared/personalization";
 import { personalizationConfigsEqual } from "./personalizationState";
 
+const PERSONALIZATION_DISCOVERY_INTERVAL_MS = 15 * 60_000;
+const PERSONALIZATION_CONFIRMATION_MIN_MS = 40_000;
+const PERSONALIZATION_CONFIRMATION_MAX_MS = 50_000;
+
+export function getPersonalizationConfirmationDelayMs(
+  random = Math.random,
+): number {
+  const boundedRandom = Math.min(0.999999999, Math.max(0, random()));
+  return PERSONALIZATION_CONFIRMATION_MIN_MS +
+    Math.floor(
+      boundedRandom *
+        (PERSONALIZATION_CONFIRMATION_MAX_MS - PERSONALIZATION_CONFIRMATION_MIN_MS + 1),
+    );
+}
+
+type CloudSyncTrigger = "initial" | "lifecycle";
+type PendingPutResult =
+  | { ok: true }
+  | { ok: false; retryable: boolean; retryAfterMs?: number };
+
 type PersonalizationCacheWriteError = Extract<
   PersonalizationCacheWriteResult,
   { ok: false }
@@ -215,13 +235,24 @@ export function PersonalizationProvider({
   const stateOwnerUserIdRef = useRef<string | null>(userId);
   const hydrationRef = useRef(hydration);
   const envelopeRef = useRef<PersonalizationCacheEnvelope | null>(null);
+  const pendingPutOperationsRef = useRef(new Map<string, Promise<PendingPutResult>>());
   const confirmationRef = useRef<{
     userId: string;
     candidate: PersonalizationConfigV1;
     record: PersonalizationCloudRecord | null;
     timer: ReturnType<typeof setTimeout>;
   } | null>(null);
-  const syncInFlightRef = useRef(false);
+  const syncInFlightRef = useRef<number | null>(null);
+  const lifecycleProbeAtRef = useRef(new Map<number, number>());
+  const unsupportedSessionRef = useRef<number | null>(null);
+  const disabledSessionRef = useRef<number | null>(null);
+  const pendingRetryRef = useRef<{
+    userId: string;
+    requestId: number;
+    intentId: string;
+    attempt: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   stateRef.current = state;
   userIdRef.current = userId;
@@ -250,42 +281,122 @@ export function PersonalizationProvider({
     confirmationRef.current = null;
   }, []);
 
-  const attemptPendingPut = useCallback(async (activeUserId: string, requestId: number) => {
+  const clearPendingRetry = useCallback(() => {
+    if (pendingRetryRef.current) clearTimeout(pendingRetryRef.current.timer);
+    pendingRetryRef.current = null;
+  }, []);
+
+  const attemptPendingPut = useCallback(async (
+    activeUserId: string,
+    requestId: number,
+  ): Promise<PendingPutResult> => {
     const local = await readCachedPersonalization(activeUserId, storage);
-    if (local.status !== "found" || !local.envelope.sync.pending) return false;
+    if (local.status !== "found" || !local.envelope.sync.pending) return { ok: true };
     const pending = local.envelope.sync.pending;
+    const operationKey = `${activeUserId}:${pending.intentId}`;
+    const existing = pendingPutOperationsRef.current.get(operationKey);
+    if (existing) return existing;
+
+    const operation: Promise<PendingPutResult> = (async () => {
+      try {
+        const record = await putPersonalizationCloud(
+          pending,
+          local.envelope.sync.knownCloudRevision,
+        );
+        if (
+          !record ||
+          record.lastIntentId !== pending.intentId ||
+          requestId !== requestIdRef.current ||
+          userIdRef.current !== activeUserId
+        ) {
+          return { ok: false, retryable: false };
+        }
+        const latest = await readCachedPersonalization(activeUserId, storage);
+        if (
+          latest.status !== "found" ||
+          latest.envelope.sync.pending?.intentId !== pending.intentId ||
+          requestId !== requestIdRef.current ||
+          userIdRef.current !== activeUserId
+        ) {
+          return { ok: false, retryable: false };
+        }
+        const acknowledged = await acknowledgePersonalizationCloudRecord(
+          activeUserId,
+          record,
+          latest.envelope,
+          storage,
+        );
+        if (!acknowledged.ok) return { ok: false, retryable: false };
+        if (requestId !== requestIdRef.current || userIdRef.current !== activeUserId) {
+          return { ok: false, retryable: false };
+        }
+        envelopeRef.current = acknowledged.envelope;
+        setState(createPersonalizationState(record.config));
+        setHydration({
+          phase: "ready",
+          userId: activeUserId,
+          source: "cache",
+          savedAt: acknowledged.savedAt,
+        });
+        return { ok: true };
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        const rawRetryAfter = Number((error as { retryAfter?: string }).retryAfter);
+        return {
+          ok: false,
+          retryable: status === 429 || (typeof status === "number" && status >= 500),
+          retryAfterMs: Number.isFinite(rawRetryAfter) && rawRetryAfter > 0
+            ? rawRetryAfter * 1_000
+            : undefined,
+        };
+      }
+    })();
+    pendingPutOperationsRef.current.set(operationKey, operation);
     try {
-      const record = await putPersonalizationCloud(
-        pending,
-        local.envelope.sync.knownCloudRevision,
-      );
-      if (!record || requestId !== requestIdRef.current || userIdRef.current !== activeUserId) {
-        return false;
+      return await operation;
+    } finally {
+      if (pendingPutOperationsRef.current.get(operationKey) === operation) {
+        pendingPutOperationsRef.current.delete(operationKey);
       }
-      const latest = await readCachedPersonalization(activeUserId, storage);
-      if (latest.status !== "found" || latest.envelope.sync.pending?.intentId !== pending.intentId) {
-        return false;
-      }
-      const acknowledged = await acknowledgePersonalizationCloudRecord(
-        activeUserId,
-        record,
-        latest.envelope,
-        storage,
-      );
-      if (!acknowledged.ok) return false;
-      envelopeRef.current = acknowledged.envelope;
-      setState(createPersonalizationState(record.config));
-      setHydration({
-        phase: "ready",
-        userId: activeUserId,
-        source: "cache",
-        savedAt: acknowledged.savedAt,
-      });
-      return true;
-    } catch {
-      return false;
     }
   }, [storage]);
+
+  const schedulePendingRetry = useCallback((
+    activeUserId: string,
+    requestId: number,
+    intentId: string,
+    result: PendingPutResult,
+  ) => {
+    if (result.ok) return;
+    if (!("retryable" in result) || !result.retryable) return;
+    const existing = pendingRetryRef.current;
+    const attempt = existing?.userId === activeUserId &&
+      existing.requestId === requestId &&
+      existing.intentId === intentId
+      ? existing.attempt + 1
+      : 1;
+    if (attempt > 3) return;
+    clearPendingRetry();
+    const delay = result.retryAfterMs ?? Math.min(15_000, 1_000 * 2 ** (attempt - 1));
+    const timer = setTimeout(() => {
+      pendingRetryRef.current = null;
+      if (requestId !== requestIdRef.current || userIdRef.current !== activeUserId) return;
+      void attemptPendingPut(activeUserId, requestId).then((next) => {
+        if (!next.ok) {
+          void readCachedPersonalization(activeUserId, storage).then((current) => {
+            const currentIntentId =
+              current.status === "found"
+                ? current.envelope.sync.pending?.intentId
+                : undefined;
+            if (currentIntentId) {
+              schedulePendingRetry(activeUserId, requestId, currentIntentId, next);
+            }
+          });
+        }
+      });
+    }, delay);
+    pendingRetryRef.current = { userId: activeUserId, requestId, intentId, attempt, timer };
+  }, [attemptPendingPut, clearPendingRetry, storage]);
 
   const scheduleConfirmation = useCallback((
     activeUserId: string,
@@ -298,8 +409,13 @@ export function PersonalizationProvider({
       void (async () => {
         if (requestId !== requestIdRef.current || userIdRef.current !== activeUserId) return;
         const local = await readCachedPersonalization(activeUserId, storage);
-        if (local.status !== "found" || local.envelope.sync.pending) return;
+        if (
+          local.status !== "found" ||
+          local.envelope.sync.pending ||
+          stateRef.current.isDirty
+        ) return;
         const remote = await getPersonalizationCloud().catch(() => null);
+        if (stateRef.current.isDirty) return;
         const sameCandidate = personalizationConfigsEqual(local.config, candidate);
         const sameRemote =
           (remote?.status === "empty" && record === null) ||
@@ -315,7 +431,8 @@ export function PersonalizationProvider({
           );
           if (pendingWrite.ok) {
             envelopeRef.current = pendingWrite.envelope;
-            await attemptPendingPut(activeUserId, requestId);
+            const result = await attemptPendingPut(activeUserId, requestId);
+            schedulePendingRetry(activeUserId, requestId, pendingWrite.envelope.sync.pending!.intentId, result);
           }
           return;
         }
@@ -329,27 +446,77 @@ export function PersonalizationProvider({
           );
           if (acknowledged.ok) {
             envelopeRef.current = acknowledged.envelope;
-            setState(createPersonalizationState(remote.record.config));
+            if (!stateRef.current.isDirty) {
+              setState(createPersonalizationState(remote.record.config));
+            }
           }
         }
       })();
-    }, 45_000);
+    }, getPersonalizationConfirmationDelayMs());
     confirmationRef.current = { userId: activeUserId, candidate, record, timer };
-  }, [attemptPendingPut, clearConfirmation, storage]);
+  }, [attemptPendingPut, clearConfirmation, schedulePendingRetry, storage]);
 
-  const runCloudSync = useCallback(async (activeUserId: string, requestId: number) => {
-    if (syncInFlightRef.current || requestId !== requestIdRef.current) return;
-    syncInFlightRef.current = true;
+  const runCloudSync = useCallback(async (
+    activeUserId: string,
+    requestId: number,
+    trigger: CloudSyncTrigger = "initial",
+  ) => {
+    if (syncInFlightRef.current === requestId || requestId !== requestIdRef.current) return;
+    let local: PersonalizationCacheReadResult | null = null;
+    if (trigger === "lifecycle") {
+      if (
+        unsupportedSessionRef.current === requestId ||
+        disabledSessionRef.current === requestId
+      ) return;
+      local = await readCachedPersonalization(activeUserId, storage);
+      if (local.status === "found") {
+        if (local.envelope.sync.pending) {
+          await attemptPendingPut(activeUserId, requestId);
+          return;
+        }
+        if (local.envelope.sync.lastSyncState === "disabled") return;
+        const lastSuccessfulGetAt = local.envelope.sync.lastSuccessfulGetAt;
+        const lastGetAt = lastSuccessfulGetAt ? Date.parse(lastSuccessfulGetAt) : NaN;
+        const now = Date.now();
+        const lastAttemptAt = lifecycleProbeAtRef.current.get(requestId) ?? 0;
+        if (
+          (Number.isFinite(lastGetAt) && now - lastGetAt < PERSONALIZATION_DISCOVERY_INTERVAL_MS) ||
+          (lastAttemptAt > 0 && now - lastAttemptAt < PERSONALIZATION_DISCOVERY_INTERVAL_MS)
+        ) {
+          return;
+        }
+      }
+      lifecycleProbeAtRef.current.set(requestId, Date.now());
+    }
+
+    syncInFlightRef.current = requestId;
     try {
-      const local = await readCachedPersonalization(activeUserId, storage);
+      local ??= await readCachedPersonalization(activeUserId, storage);
       if (local.status === "found" && local.envelope) envelopeRef.current = local.envelope;
       if (local.status === "found" && local.envelope.sync.pending) {
-        await attemptPendingPut(activeUserId, requestId);
+        const result = await attemptPendingPut(activeUserId, requestId);
+        if (!result.ok && requestId === requestIdRef.current && userIdRef.current === activeUserId) {
+          await persistSyncState(activeUserId, local.envelope, "retryable-failure", storage);
+          schedulePendingRetry(
+            activeUserId,
+            requestId,
+            local.envelope.sync.pending.intentId,
+            result,
+          );
+        }
         return;
       }
       const remote = await getPersonalizationCloud();
+      if (requestId !== requestIdRef.current || userIdRef.current !== activeUserId) return;
+      if (remote.status === "disabled") {
+        disabledSessionRef.current = requestId;
+        if (local.status === "found") {
+          await persistSyncState(activeUserId, local.envelope, "disabled", storage);
+        }
+        return;
+      }
       let localForReconciliation = local;
-      if (local.status === "found" && remote.status !== "disabled") {
+      if (local.status === "found") {
         const stampedEnvelope = {
           ...local.envelope,
           savedAt: new Date().toISOString(),
@@ -389,7 +556,9 @@ export function PersonalizationProvider({
         );
         if (acknowledged.ok && requestId === requestIdRef.current && userIdRef.current === activeUserId) {
           envelopeRef.current = acknowledged.envelope;
-          setState(createPersonalizationState(decision.record.config));
+          if (!stateRef.current.isDirty) {
+            setState(createPersonalizationState(decision.record.config));
+          }
           setHydration({
             phase: "ready",
             userId: activeUserId,
@@ -407,12 +576,22 @@ export function PersonalizationProvider({
       ) {
         await persistSyncState(activeUserId, localForReconciliation.envelope, decision.state, storage);
       }
-    } catch {
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status === 404) unsupportedSessionRef.current = requestId;
+      if (
+        local?.status === "found" &&
+        requestId === requestIdRef.current &&
+        userIdRef.current === activeUserId
+      ) {
+        const nextState = status === 404 ? "unsupported" : "retryable-failure";
+        await persistSyncState(activeUserId, local.envelope, nextState, storage);
+      }
       // Cloud failure never blocks local hydration or Apply.
     } finally {
-      syncInFlightRef.current = false;
+      if (syncInFlightRef.current === requestId) syncInFlightRef.current = null;
     }
-  }, [attemptPendingPut, scheduleConfirmation, storage]);
+  }, [attemptPendingPut, schedulePendingRetry, scheduleConfirmation, storage]);
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
@@ -420,6 +599,8 @@ export function PersonalizationProvider({
 
     if (!userId) {
       clearConfirmation();
+      clearPendingRetry();
+      pendingPutOperationsRef.current.clear();
       envelopeRef.current = null;
       stateOwnerUserIdRef.current = null;
       setState(createPersonalizationState());
@@ -431,6 +612,10 @@ export function PersonalizationProvider({
     let active = true;
     stateOwnerUserIdRef.current = userId;
     clearConfirmation();
+    clearPendingRetry();
+    unsupportedSessionRef.current = null;
+    disabledSessionRef.current = null;
+    lifecycleProbeAtRef.current.clear();
     envelopeRef.current = null;
     setState(createPersonalizationState());
     setHydration({ phase: "loading", userId });
@@ -453,30 +638,28 @@ export function PersonalizationProvider({
       if (result.status === "found" && result.envelope) envelopeRef.current = result.envelope;
       setState(createPersonalizationState(resolution.config));
       setHydration(resolution.status);
-      void runCloudSync(userId, requestId);
+      void runCloudSync(userId, requestId, "initial");
     });
 
     return () => {
       active = false;
       clearConfirmation();
     };
-  }, [clearConfirmation, runCloudSync, storage, userId]);
+  }, [clearConfirmation, clearPendingRetry, runCloudSync, storage, userId]);
 
   useEffect(() => {
     if (!userId) return;
     const requestId = requestIdRef.current;
-    const run = () => void runCloudSync(userId, requestId);
+    const run = () => void runCloudSync(userId, requestId, "lifecycle");
     const onlineHandler = () => run();
     const visibilityHandler = () => {
       if (document.visibilityState === "visible") run();
     };
     window.addEventListener("online", onlineHandler);
     document.addEventListener("visibilitychange", visibilityHandler);
-    const timer = window.setInterval(run, 15 * 60_000);
     return () => {
       window.removeEventListener("online", onlineHandler);
       document.removeEventListener("visibilitychange", visibilityHandler);
-      window.clearInterval(timer);
     };
   }, [runCloudSync, userId]);
 
@@ -542,6 +725,7 @@ export function PersonalizationProvider({
     }
 
     const requestId = requestIdRef.current;
+    clearConfirmation();
     setApplyStatus({ phase: "saving", userId: activeUserId });
 
     let currentCache = envelopeRef.current;
@@ -614,14 +798,23 @@ export function PersonalizationProvider({
       userId: activeUserId,
       savedAt: commit.savedAt,
     });
+    // The durable pending intent is the only source for the network PUT.
+    void attemptPendingPut(activeUserId, requestId).then((result) => {
+      if (!result.ok && writeResult.ok && writeResult.envelope.sync.pending) {
+        schedulePendingRetry(
+          activeUserId,
+          requestId,
+          writeResult.envelope.sync.pending.intentId,
+          result,
+        );
+      }
+    });
     return {
       ok: true,
       config: commit.config,
       persistence: "saved",
     };
-    // The durable pending intent is the only source for the network PUT.
-    void attemptPendingPut(activeUserId, requestId);
-  }, [attemptPendingPut, storage]);
+  }, [attemptPendingPut, clearConfirmation, schedulePendingRetry, storage]);
 
   const value = useMemo<PersonalizationRuntimeValue>(
     () => ({

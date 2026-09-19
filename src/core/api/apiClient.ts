@@ -294,6 +294,7 @@ export async function apiClient(
           throw Object.assign(new Error(errorMsg), {
             status: response.status,
             body: parsedBody,
+            retryAfter: response.headers.get("retry-after") || undefined,
           });
         }
 

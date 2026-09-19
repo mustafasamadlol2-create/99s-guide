@@ -129,6 +129,7 @@ export interface PersonalizationLocalEnvelopeV2 {
 }
 
 export interface PersonalizationCloudRecord {
+  recordVersion: 1;
   config: PersonalizationConfigV1;
   revision: string;
   updatedAt: string;

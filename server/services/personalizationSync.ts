@@ -44,12 +44,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function validateRecord(value: unknown): PersonalizationCloudRecord | null {
   if (!isRecord(value)) return null;
   const config = parsePersonalizationConfig(value.config);
-  if (!config || typeof value.revision !== "string" || !value.revision ||
+  if (value.recordVersion !== 1 || !config || typeof value.revision !== "string" || !value.revision ||
       typeof value.updatedAt !== "string" || !Number.isFinite(Date.parse(value.updatedAt)) ||
-      typeof value.lastIntentId !== "string" || !value.lastIntentId) {
+      typeof value.lastIntentId !== "string" || !/^[A-Za-z0-9._:-]{8,160}$/.test(value.lastIntentId)) {
     return null;
   }
   const record = {
+    recordVersion: 1 as const,
     config,
     revision: value.revision,
     updatedAt: value.updatedAt,
