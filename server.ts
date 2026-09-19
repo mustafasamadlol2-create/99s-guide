@@ -85,12 +85,14 @@ import {
   createModuleResourcePutUrl,
   deleteModuleResourceObject,
   verifyModuleResourcePdf,
+  uploadModuleResourcePdfBytes,
 } from "./server/services/moduleResourceStorage.js";
 import {
   isModuleResourceModuleId,
   MAX_MODULE_RESOURCE_PDF_BYTES,
   MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
   MODULE_RESOURCE_MULTIPART_THRESHOLD_BYTES,
+  MODULE_RESOURCE_PROXY_UPLOAD_MAX_BYTES,
   MODULE_RESOURCE_TITLE_MAX_LENGTH,
   MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS,
   type ModuleResourceModuleId,
@@ -2810,6 +2812,86 @@ app.post(
       return res.status(502).json({
         error: "The resource upload could not be prepared. Please try again.",
         code: "MODULE_RESOURCE_INIT_FAILED",
+      });
+    }
+  }),
+);
+
+app.post(
+  "/api/admin/module-resources/upload/:resourceId/proxy",
+  requireAdmin,
+  moduleResourceUploadLimiter,
+  express.raw({
+    type: ["application/pdf", "application/octet-stream"],
+    limit: MODULE_RESOURCE_PROXY_UPLOAD_MAX_BYTES,
+  }),
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const prismaClient = getPrisma();
+    const resource = await prismaClient.moduleResource.findUnique({
+      where: { id: resourceId },
+    });
+
+    if (!resource || resource.status !== "PENDING") {
+      return res.status(404).json({ error: "Upload reservation not found." });
+    }
+    if (resource.multipartUploadId) {
+      return res.status(409).json({
+        error: "This resource must use multipart direct upload.",
+        code: "MODULE_RESOURCE_PROXY_NOT_AVAILABLE",
+      });
+    }
+    if (
+      resource.uploadExpiresAt &&
+      resource.uploadExpiresAt.getTime() <= Date.now()
+    ) {
+      return res.status(410).json({ error: "Upload expired. Please retry." });
+    }
+    if (
+      resource.fileSizeBytes <= 0 ||
+      resource.fileSizeBytes > MODULE_RESOURCE_PROXY_UPLOAD_MAX_BYTES
+    ) {
+      return res.status(413).json({
+        error: "This PDF is too large for the protected proxy upload path.",
+        code: "MODULE_RESOURCE_PROXY_TOO_LARGE",
+      });
+    }
+    if (!Buffer.isBuffer(req.body)) {
+      return res.status(400).json({
+        error: "A PDF request body is required.",
+        code: "MODULE_RESOURCE_PROXY_INVALID_BODY",
+      });
+    }
+    if (req.body.byteLength !== resource.fileSizeBytes) {
+      return res.status(400).json({
+        error: "Uploaded PDF size does not match the reserved file size.",
+        code: "MODULE_RESOURCE_PROXY_SIZE_MISMATCH",
+      });
+    }
+    if (
+      req.body.byteLength < 5 ||
+      req.body.subarray(0, 5).toString("ascii") !== "%PDF-"
+    ) {
+      return res.status(400).json({
+        error: "The uploaded file is not a valid PDF.",
+        code: "MODULE_RESOURCE_PROXY_INVALID_PDF",
+      });
+    }
+
+    try {
+      await uploadModuleResourcePdfBytes(
+        resource.storagePath,
+        new Uint8Array(req.body),
+      );
+      return res.status(204).end();
+    } catch (error) {
+      logger.error(
+        "[ModuleResource]",
+        `Protected proxy upload failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The PDF could not be uploaded to storage. Please retry.",
+        code: "MODULE_RESOURCE_PROXY_UPLOAD_FAILED",
       });
     }
   }),

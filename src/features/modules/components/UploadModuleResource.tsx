@@ -13,6 +13,7 @@ import {
   formatModuleResourceSize,
   listModuleResources,
   uploadModuleResource,
+  ModuleResourceDirectUploadError,
   type ModuleResource,
   type ModuleResourceUploadStage,
 } from "../moduleResourcesApi";
@@ -51,16 +52,24 @@ export default function UploadModuleResource({
   const [stage, setStage] = useState<ModuleResourceUploadStage | "idle">("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const [resourcesError, setResourcesError] = useState("");
+  const [resourcesErrorCode, setResourcesErrorCode] = useState("");
   const [dragging, setDragging] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadResources = useCallback(async () => {
     setLoadingResources(true);
+    setResourcesError("");
+    setResourcesErrorCode("");
     try {
       setResources(await listModuleResources(moduleId));
     } catch (loadError: any) {
-      setError(loadError?.message || (isRtl ? "تعذر تحميل المصادر." : "Could not load resources."));
+      setResources([]);
+      setResourcesErrorCode(String(loadError?.body?.code || ""));
+      setResourcesError(
+        loadError?.message || (isRtl ? "تعذر تحميل المصادر." : "Could not load resources."),
+      );
     } finally {
       setLoadingResources(false);
     }
@@ -122,7 +131,15 @@ export default function UploadModuleResource({
         setStage("cancelled");
       } else {
         setStage("error");
-        setError(uploadError?.message || (isRtl ? "فشل رفع المصدر." : "Upload failed."));
+        if (uploadError instanceof ModuleResourceDirectUploadError) {
+          setError(
+            isRtl
+              ? `تعذر بدء الرفع المباشر إلى Cloudflare R2 من هذا التطبيق (${uploadError.origin}). يجب السماح بهذا الـ Origin في CORS الخاصة بحاوية R2 مع PUT و Content-Type، وإظهار ETag للرفع متعدد الأجزاء.`
+              : uploadError.message,
+          );
+        } else {
+          setError(uploadError?.message || (isRtl ? "فشل رفع المصدر." : "Upload failed."));
+        }
       }
     } finally {
       abortRef.current = null;
@@ -149,6 +166,7 @@ export default function UploadModuleResource({
   };
 
   const busy = stage !== "idle" && stage !== "completed" && stage !== "cancelled" && stage !== "error";
+  const databaseNotReady = resourcesErrorCode === "MODULE_RESOURCE_DATABASE_NOT_READY";
   const selectedLabel = MODULE_RESOURCE_LABELS[moduleId][language === "ar" ? "ar" : "en"];
 
   return (
@@ -248,7 +266,7 @@ export default function UploadModuleResource({
           <button
             type="button"
             onClick={() => void handleUpload()}
-            disabled={busy || !file || !title.trim()}
+            disabled={busy || databaseNotReady || !file || !title.trim()}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -270,7 +288,23 @@ export default function UploadModuleResource({
           </h4>
           {loadingResources && <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />}
         </div>
-        {resources.length === 0 && !loadingResources ? (
+        {resourcesError && !loadingResources ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.07] dark:text-amber-100">
+            <p className="font-semibold">
+              {databaseNotReady
+                ? (isRtl ? "ميزة مصادر الموديولات تحتاج تحديث قاعدة البيانات على الخادم." : "Module Resources needs its database migration applied on the server.")
+                : (isRtl ? "تعذر تحميل المصادر." : "Could not load resources.")}
+            </p>
+            {!databaseNotReady && <p className="mt-1 opacity-80">{resourcesError}</p>}
+            <button
+              type="button"
+              onClick={() => void loadResources()}
+              className="mt-3 rounded-lg border border-current/20 px-3 py-2 text-xs font-semibold"
+            >
+              {isRtl ? "إعادة المحاولة" : "Retry"}
+            </button>
+          </div>
+        ) : resources.length === 0 && !loadingResources ? (
           <div className="rounded-2xl border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-500 dark:border-white/[0.12] dark:text-neutral-400">
             {isRtl ? "لم تتم إضافة مصادر لهذا الموديول بعد." : "No resources have been added for this module yet."}
           </div>

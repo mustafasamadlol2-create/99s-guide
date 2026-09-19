@@ -1,5 +1,5 @@
 import { AIServiceError } from "../errors.js";
-import type { CloudflareConfig } from "../config.js";
+import { type CloudflareConfig } from "../config.js";
 
 export interface CloudflareRunMessage {
   role: "system" | "user";
@@ -132,6 +132,7 @@ export class CloudflareClient {
     };
   }
 
+
   async toMarkdown(
     bytes: Uint8Array,
     mimeType: string,
@@ -140,6 +141,12 @@ export class CloudflareClient {
   ): Promise<CloudflareMarkdownResult> {
     const form = new FormData();
     form.append("files", new Blob([Buffer.from(bytes)], { type: mimeType }), filename);
+    if (mimeType === "application/pdf") {
+      // Metadata can make an image-only PDF look non-empty even when there is
+      // no readable page text. Excluding it lets the converter reliably detect
+      // scanned documents and invoke the vision transcription fallback.
+      form.append("conversionOptions", JSON.stringify({ pdf: { metadata: false } }));
+    }
     const response = await this.fetchImpl(
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/tomarkdown`,
       {

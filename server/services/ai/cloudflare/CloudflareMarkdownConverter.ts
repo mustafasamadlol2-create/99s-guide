@@ -6,6 +6,7 @@ import type {
 } from "../input/contracts.js";
 import { isTrustedAIStagedFileCapability } from "../input/temporaryFiles.js";
 import { CloudflareClient } from "./CloudflareClient.js";
+import { extractEmbeddedJpegsFromPdf, hasMeaningfulPdfText } from "./scannedPdf.js";
 
 export interface CloudflareExistingResourceResolver {
   resolve(resourceId: string): Promise<{
@@ -55,6 +56,40 @@ async function normalizeHeic(
   }
 }
 
+async function transcribeScannedPdf(
+  client: CloudflareClient,
+  bytes: Uint8Array,
+  signal: AbortSignal,
+): Promise<string | null> {
+  const pageImages = extractEmbeddedJpegsFromPdf(bytes);
+  if (pageImages.length === 0) return null;
+
+  // Keep a small concurrency window so multi-page scans do not serialize every
+  // image-conversion request while also avoiding a burst of dozens of model calls.
+  const transcriptions = new Array<string>(pageImages.length);
+  let nextPage = 0;
+  const workers = Array.from({ length: Math.min(3, pageImages.length) }, async () => {
+    while (true) {
+      const index = nextPage++;
+      if (index >= pageImages.length) return;
+      if (signal.aborted) throw signal.reason ?? new Error("aborted");
+      const result = await client.toMarkdown(
+        pageImages[index]!.bytes,
+        "image/jpeg",
+        `scanned-pdf-page-${index + 1}.jpg`,
+        signal,
+      );
+      transcriptions[index] = result.data.trim();
+    }
+  });
+  await Promise.all(workers);
+
+  const combined = transcriptions
+    .map((text, index) => `[PDF page ${index + 1}]\n${text}`)
+    .join("\n\n");
+  return combined.trim() || null;
+}
+
 export class CloudflareMarkdownConverter {
   constructor(
     private readonly client: CloudflareClient,
@@ -82,21 +117,67 @@ export class CloudflareMarkdownConverter {
       } catch (error) {
         throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
           publicMessage: "The AI provider could not read the media.",
-          diagnosticMessage: "Validated AI media could not be read for Markdown Conversion.",
+          diagnosticMessage: "Validated AI media could not be read for Cloudflare processing.",
           cause: error,
         });
       }
       const normalized = await normalizeHeic(bytes, part.mimeType, signal);
-      const markdown = await this.client.toMarkdown(
-        normalized.bytes,
-        normalized.mimeType,
-        safeFilename(part, normalized.mimeType),
-        signal,
-      );
-      converted.push({
-        text: markdown.data,
-        inputType: part.inputType,
-        ...(part.inputType === "image" ? { imageIndex: part.source.imageIndex } : {}),
+
+      if (part.inputType === "image") {
+        const markdown = await this.client.toMarkdown(
+          normalized.bytes,
+          normalized.mimeType,
+          safeFilename(part, normalized.mimeType),
+          signal,
+        );
+        converted.push({
+          text: markdown.data,
+          inputType: "image",
+          imageIndex: part.source.imageIndex,
+        });
+        continue;
+      }
+
+      let markdownText = "";
+      let conversionError: unknown;
+      try {
+        const markdown = await this.client.toMarkdown(
+          normalized.bytes,
+          normalized.mimeType,
+          safeFilename(part, normalized.mimeType),
+          signal,
+        );
+        markdownText = markdown.data.trim();
+        if (hasMeaningfulPdfText(markdownText)) {
+          converted.push({ text: markdownText, inputType: "pdf" });
+          continue;
+        }
+      } catch (error) {
+        conversionError = error;
+      }
+
+      // Cloudflare's normal PDF conversion extracts the PDF text layer. Many
+      // exam handouts are actually full-page scanned JPEGs with no text layer.
+      // When that happens, convert the embedded page JPEGs through Cloudflare's
+      // documented image-to-Markdown vision pipeline instead of silently
+      // returning zero MCQs.
+      const scannedText = await transcribeScannedPdf(this.client, normalized.bytes, signal);
+      if (scannedText) {
+        converted.push({ text: scannedText, inputType: "pdf" });
+        continue;
+      }
+
+      if (markdownText) {
+        // Preserve short but legitimate text-only PDFs when no scan fallback is
+        // available. The downstream extraction model can decide what is usable.
+        converted.push({ text: markdownText, inputType: "pdf" });
+        continue;
+      }
+
+      if (conversionError) throw conversionError;
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "This PDF does not contain readable text or a supported scanned-page image.",
+        diagnosticMessage: "PDF conversion returned no meaningful text and no DCT/JPEG page images were available for vision transcription.",
       });
     }
     return converted;

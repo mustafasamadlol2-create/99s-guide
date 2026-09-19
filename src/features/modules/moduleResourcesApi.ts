@@ -3,6 +3,7 @@ import { apiClient } from "../../core/api/apiClient";
 import {
   MAX_MODULE_RESOURCE_PART_UPLOAD_CONCURRENCY,
   MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
+  MODULE_RESOURCE_PROXY_UPLOAD_MAX_BYTES,
   MODULE_RESOURCE_TITLE_MAX_LENGTH,
   type ModuleResourceModuleId,
 } from "../../../shared/moduleResources";
@@ -55,6 +56,8 @@ export async function listModuleResources(
     bypassCache: true,
     ttl: 60_000,
     requestKey: `module-resources:${moduleId}`,
+    retries: 0,
+    silent: true,
   });
   const data = await parseJson<{ resources?: ModuleResource[] }>(response);
   return Array.isArray(data.resources) ? data.resources : [];
@@ -89,6 +92,7 @@ export async function initModuleResourceUpload(
   const response = await apiClient("/api/admin/module-resources/upload/init", {
     method: "POST",
     timeoutMs: 20_000,
+    silent: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       moduleId,
@@ -101,6 +105,24 @@ export async function initModuleResourceUpload(
   return parseJson<UploadInitResponse>(response);
 }
 
+export async function proxyModuleResourceUpload(
+  resourceId: string,
+  file: File,
+  signal: AbortSignal,
+): Promise<void> {
+  await apiClient(
+    `/api/admin/module-resources/upload/${encodeURIComponent(resourceId)}/proxy`,
+    {
+      method: "POST",
+      timeoutMs: 180_000,
+      silent: true,
+      headers: { "Content-Type": "application/pdf" },
+      body: file,
+      signal,
+    },
+  );
+}
+
 export async function getModuleResourcePartUrl(
   resourceId: string,
   partNumber: number,
@@ -110,6 +132,7 @@ export async function getModuleResourcePartUrl(
     {
       method: "POST",
       timeoutMs: 20_000,
+      silent: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ partNumber }),
     },
@@ -126,6 +149,7 @@ export async function completeModuleResourceUpload(
     {
       method: "POST",
       timeoutMs: 45_000,
+      silent: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ parts }),
     },
@@ -151,6 +175,7 @@ export async function deleteModuleResource(resourceId: string): Promise<void> {
   await apiClient(`/api/admin/module-resources/${encodeURIComponent(resourceId)}`, {
     method: "DELETE",
     timeoutMs: 20_000,
+    silent: true,
   });
 }
 
@@ -168,6 +193,35 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+export class ModuleResourceDirectUploadError extends Error {
+  readonly code = "MODULE_RESOURCE_DIRECT_UPLOAD_BLOCKED";
+  readonly origin: string;
+
+  constructor(message: string, origin: string) {
+    super(message);
+    this.name = "ModuleResourceDirectUploadError";
+    this.origin = origin;
+  }
+}
+
+function currentUploadOrigin(): string {
+  try {
+    return window.location.origin && window.location.origin !== "null"
+      ? window.location.origin
+      : `${window.location.protocol}//${window.location.host}`;
+  } catch {
+    return "unknown-origin";
+  }
+}
+
+function uploadTimeoutMs(bytes: number): number {
+  // Allow very slow mobile connections without permitting a stalled R2/CORS
+  // request to sit at 0% forever. The calculation assumes ~128 KiB/s and is
+  // bounded between 2 and 15 minutes per PUT/part.
+  const estimated = Math.ceil(bytes / (128 * 1024)) * 1000;
+  return Math.max(120_000, Math.min(15 * 60_000, estimated));
+}
+
 function putWithProgress(
   url: string,
   body: Blob,
@@ -176,24 +230,121 @@ function putWithProgress(
 ): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.withCredentials = false;
-    xhr.setRequestHeader("Content-Type", "application/pdf");
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress(event.loaded);
+    const origin = currentUploadOrigin();
+    let settled = false;
+    let uploadedBytes = 0;
+    let firstByteTimer: number | null = null;
+
+    const cleanup = () => {
+      if (firstByteTimer !== null) {
+        window.clearTimeout(firstByteTimer);
+        firstByteTimer = null;
+      }
+      signal.removeEventListener("abort", abort);
+      xhr.upload.onprogress = null;
+      xhr.onload = null;
+      xhr.onerror = null;
+      xhr.onabort = null;
+      xhr.ontimeout = null;
     };
+
+    const finishResolve = (etag: string | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(etag);
+    };
+
+    const finishReject = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    const blockedError = (reason: string) =>
+      new ModuleResourceDirectUploadError(
+        `${reason} Direct Cloudflare R2 upload could not start from ${origin}. ` +
+          "The R2 bucket CORS policy must allow this exact app origin, PUT, and Content-Type; multipart uploads also require ETag to be exposed.",
+        origin,
+      );
+
+    const abort = () => xhr.abort();
+
+    xhr.open("PUT", url, true);
+    xhr.withCredentials = false;
+    xhr.timeout = uploadTimeoutMs(body.size);
+    xhr.setRequestHeader("Content-Type", "application/pdf");
+
+    xhr.upload.onprogress = (event) => {
+      uploadedBytes = event.loaded;
+      if (uploadedBytes > 0 && firstByteTimer !== null) {
+        window.clearTimeout(firstByteTimer);
+        firstByteTimer = null;
+      }
+      // WebKit does not always set lengthComputable for uploads. event.loaded
+      // is still useful and keeps the UI moving whenever bytes are sent.
+      onProgress(Math.min(event.loaded, body.size));
+    };
+
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.getResponseHeader("ETag"));
+        onProgress(body.size);
+        finishResolve(xhr.getResponseHeader("ETag"));
+        return;
+      }
+      finishReject(
+        new Error(
+          `Cloudflare R2 rejected the upload with HTTP ${xhr.status}. ` +
+            "Check the bucket CORS policy and the presigned upload configuration.",
+        ),
+      );
+    };
+
+    xhr.onerror = () => {
+      if (uploadedBytes === 0) {
+        finishReject(blockedError("The browser could not send the first upload bytes."));
       } else {
-        reject(new Error(`Storage upload failed with HTTP ${xhr.status}.`));
+        finishReject(new Error("Network interruption during the Cloudflare R2 upload."));
       }
     };
-    xhr.onerror = () => reject(new Error("Network interruption during upload."));
-    xhr.onabort = () => reject(new DOMException("The upload was cancelled.", "AbortError"));
-    const abort = () => xhr.abort();
+
+    xhr.ontimeout = () => {
+      if (uploadedBytes === 0) {
+        finishReject(blockedError("The upload stayed at 0% until it timed out."));
+      } else {
+        finishReject(new Error("The Cloudflare R2 upload timed out before completion."));
+      }
+    };
+
+    xhr.onabort = () =>
+      finishReject(new DOMException("The upload was cancelled.", "AbortError"));
+
     signal.addEventListener("abort", abort, { once: true });
-    xhr.send(body);
+
+    // A valid direct R2 request should begin transmitting quickly. If WebKit
+    // remains at exactly 0 bytes for 30 seconds, the most common cause is a
+    // failed R2 CORS preflight. Fail explicitly instead of leaving the admin
+    // screen stuck at 0% forever.
+    firstByteTimer = window.setTimeout(() => {
+      if (settled || uploadedBytes > 0) return;
+      finishReject(
+        blockedError("The upload remained at 0% for 30 seconds."),
+      );
+      try {
+        xhr.abort();
+      } catch (_) {}
+    }, 30_000);
+
+    try {
+      xhr.send(body);
+    } catch (error) {
+      finishReject(
+        error instanceof Error
+          ? error
+          : new Error("The direct storage upload could not be started."),
+      );
+    }
   });
 }
 
@@ -211,7 +362,16 @@ async function putWithRetries(
       return await putWithProgress(url, body, signal, onProgress);
     } catch (error) {
       lastError = error;
-      if (signal.aborted || attempt === 2) throw error;
+      // A request blocked before its first byte (typically R2 CORS in a
+      // browser/WebView) is deterministic. Retrying the same presigned URL
+      // only makes the UI appear frozen for several minutes.
+      if (
+        signal.aborted ||
+        error instanceof ModuleResourceDirectUploadError ||
+        attempt === 2
+      ) {
+        throw error;
+      }
       await sleep(500 * 2 ** attempt, signal);
     }
   }
@@ -231,10 +391,19 @@ export async function uploadModuleResource(
   try {
     onStage("uploading");
     if (init.uploadType === "single") {
-      if (!init.uploadUrl) throw new Error("The upload URL was not returned.");
-      await putWithRetries(init.uploadUrl, file, signal, (loaded) => {
-        onProgress(loaded, file.size);
-      });
+      if (file.size <= MODULE_RESOURCE_PROXY_UPLOAD_MAX_BYTES) {
+        // Small PDFs use the authenticated backend as a storage proxy. This
+        // avoids browser/WebView CORS false failures against presigned R2 URLs
+        // while keeping large files on the direct-to-R2 path.
+        onProgress(0, file.size);
+        await proxyModuleResourceUpload(resourceId, file, signal);
+        onProgress(file.size, file.size);
+      } else {
+        if (!init.uploadUrl) throw new Error("The upload URL was not returned.");
+        await putWithRetries(init.uploadUrl, file, signal, (loaded) => {
+          onProgress(loaded, file.size);
+        });
+      }
     } else {
       const partSize = init.partSizeBytes || MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES;
       const partCount = Math.ceil(file.size / partSize);

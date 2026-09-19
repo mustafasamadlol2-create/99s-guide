@@ -6,7 +6,7 @@ export const DEFAULT_AI_TIMEOUT_MS = 240_000;
 export const MIN_AI_TIMEOUT_MS = 10_000;
 export const MAX_AI_TIMEOUT_MS = 600_000;
 export const DEFAULT_CLOUDFLARE_CHUNK_CHARS = 40_000;
-export const DEFAULT_CLOUDFLARE_MAX_OUTPUT_TOKENS = 4_096;
+export const DEFAULT_CLOUDFLARE_MAX_OUTPUT_TOKENS = 8_192;
 
 export interface GeminiConfig {
   apiKey: string;

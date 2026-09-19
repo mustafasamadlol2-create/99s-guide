@@ -36,6 +36,24 @@ export function buildModuleResourceStoragePath(
   return storagePath;
 }
 
+export async function uploadModuleResourcePdfBytes(
+  storagePath: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  assertSafeStoragePath(storagePath);
+  const { client, bucket } = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: storagePath,
+      Body: Buffer.from(bytes),
+      ContentType: PDF_CONTENT_TYPE,
+      ContentDisposition: "inline",
+      CacheControl: "private, max-age=3600",
+    }),
+  );
+}
+
 export async function createModuleResourcePutUrl(
   storagePath: string,
 ): Promise<string> {
@@ -46,9 +64,11 @@ export async function createModuleResourcePutUrl(
     new PutObjectCommand({
       Bucket: bucket,
       Key: storagePath,
+      // Keep the browser PUT contract intentionally minimal. Content-Type is
+      // the only request header the presigned URL requires, which keeps R2
+      // CORS simple and avoids signature mismatches when WebKit omits optional
+      // metadata headers such as Content-Disposition or Cache-Control.
       ContentType: PDF_CONTENT_TYPE,
-      ContentDisposition: "inline",
-      CacheControl: "private, max-age=3600",
     }),
     { expiresIn: MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS },
   );
