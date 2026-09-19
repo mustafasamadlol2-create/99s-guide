@@ -1798,7 +1798,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  {/* 1. Header Toolbar */}
   <div
     data-lecture-swipe-back-header="true"
-     className="lecture-detail-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-semantic-glass-surface backdrop-blur-sm p-4 sm:p-5 border border-semantic-glass-border rounded-xl shadow-elevation-1"
+     className="lecture-detail-header liquid-glass-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-semantic-glass-surface backdrop-blur-sm p-4 sm:p-5 border border-semantic-glass-border rounded-xl shadow-elevation-1"
   >
  <div className="lecture-detail-title-cluster flex items-center gap-3 w-full sm:w-auto -ms-1">
  <motion.button

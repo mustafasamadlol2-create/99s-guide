@@ -109,15 +109,34 @@ const StarField = ({
       getComputedStyle(document.documentElement)
         .getPropertyValue("--semantic-hero-glow-primary")
         .trim() || "#ffffff";
-    const themeObserver = new MutationObserver(() => {
+    let userReducedMotion =
+      document.documentElement.getAttribute("data-app-motion-style") === "reduced";
+    const presentationObserver = new MutationObserver(() => {
       particleColor =
         getComputedStyle(document.documentElement)
           .getPropertyValue("--semantic-hero-glow-primary")
           .trim() || "#ffffff";
+      const nextUserReducedMotion =
+        document.documentElement.getAttribute("data-app-motion-style") === "reduced";
+      if (nextUserReducedMotion === userReducedMotion) return;
+      userReducedMotion = nextUserReducedMotion;
+      if (userReducedMotion) {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = 0;
+        drawStaticFrame();
+      } else if (
+        isIntersecting &&
+        isActive &&
+        document.visibilityState === "visible" &&
+        !animationFrameId
+      ) {
+        lastTimestamp = 0;
+        animationFrameId = requestAnimationFrame(render);
+      }
     });
-    themeObserver.observe(document.documentElement, {
+    presentationObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-app-theme"],
+      attributeFilter: ["data-app-theme", "data-app-motion-style"],
     });
 
     const appShell = document.getElementById("root")?.firstElementChild as HTMLElement | null;
@@ -249,12 +268,12 @@ const StarField = ({
       ctx.globalAlpha = 1;
     };
 
-    if (prefersReducedMotion || !isActive) {
+    if (prefersReducedMotion || userReducedMotion || !isActive) {
       // Draw once and skip the animation loop entirely
       drawStaticFrame();
       return () => {
         resizeObserver.disconnect();
-        themeObserver.disconnect();
+        presentationObserver.disconnect();
       };
     }
 
@@ -277,7 +296,12 @@ const StarField = ({
     let time = 0;
     let lastTimestamp = 0;
     const render = (timestamp = performance.now()) => {
-      if (!isIntersecting || !isActive || document.visibilityState !== "visible") {
+      if (
+        !isIntersecting ||
+        !isActive ||
+        userReducedMotion ||
+        document.visibilityState !== "visible"
+      ) {
         animationFrameId = 0;
         return;
       }
@@ -372,7 +396,12 @@ const StarField = ({
       animationFrameId = requestAnimationFrame(render);
     };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && isActive && !animationFrameId) {
+      if (
+        document.visibilityState === "visible" &&
+        isActive &&
+        !userReducedMotion &&
+        !animationFrameId
+      ) {
         lastTimestamp = 0;
         animationFrameId = requestAnimationFrame(render);
       }
@@ -384,6 +413,7 @@ const StarField = ({
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
+      presentationObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isActive]);
