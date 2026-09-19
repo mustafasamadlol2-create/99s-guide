@@ -1,0 +1,186 @@
+# 99'S GUIDE — PERSONALIZATION SYSTEM
+# PHASE 5 / PROMPT 20B
+## ACCOUNT SYNC ARCHITECTURE — CONSISTENCY & CONTRACT REPAIR
+### FIX KV STALE-READ SAFETY + MIGRATION PRECEDENCE + EXACT CONTRACTS
+### ARCHITECTURE ONLY — ZERO PRODUCTION IMPLEMENTATION
+### DO NOT BEGIN PROMPT 21
+
+Prompt 20 is provisionally approved.
+
+The overall architecture remains:
+
+Client
+→ authenticated Render / Express API
+→ private server-to-server Personalization Worker
+→ Workers KV
+
+The following parts are ALREADY APPROVED and must remain:
+
+- local-first startup
+- existing account-scoped local cache remains essential
+- cloud never blocks app startup
+- six-axis PersonalizationConfigV1 is the only synced user configuration
+- Draft never syncs
+- app_theme remains device-local
+- app_text_scale remains device-local
+- App Icon remains device-local
+- no SQL personalization storage
+- no D1 personalization storage
+- no R2 personalization storage
+- client never talks directly to KV
+- client never chooses target user ID
+- Express derives identity from req.user.id
+- Worker requires private backend authentication
+- cloud failure never rolls back a successful local Apply
+- Prompt 20B remains architecture/design only
+
+Prompt 20B exists because the first Prompt 20 report contains several implementation-critical inconsistencies.
+
+DO NOT implement production source.
+
+DO NOT create Worker code.
+
+DO NOT create Express routes.
+
+DO NOT create frontend sync modules.
+
+DO NOT modify `.agents/*`.
+
+---
+
+# 1. REPAIR GOAL
+
+Produce one internally consistent, implementation-ready V1 synchronization contract that is safe under Workers KV's eventual-consistency model.
+
+The repaired design must specifically eliminate:
+
+1. stale remote GET rollback
+2. ambiguous legacy migration overwrite behavior
+3. KV-key-format inconsistency
+4. incorrect fixed-tuple Home order type
+5. incorrect same-origin CORS assumption
+6. request-size/config-size ambiguity
+7. retry ambiguity around Workers KV per-key write throttling
+8. misleading "last explicit Apply wins" wording beyond what KV can guarantee
+
+---
+
+# 2. VERIFY CURRENT CLOUDFLARE KV SEMANTICS
+
+Use current OFFICIAL Cloudflare documentation if internet access is available.
+
+At minimum verify:
+
+- Workers KV is eventually consistent.
+- Reads may temporarily return stale data.
+- Cross-location visibility can be delayed.
+- Same-key writes are rate-limited.
+- KV does not provide transactional compare-and-swap suitable for this architecture.
+- Stronger serialization would require another primitive such as Durable Objects.
+
+Do not rely on memory if official docs are available.
+
+If external documentation is unavailable:
+state that limitation explicitly.
+
+No repository source change.
+
+---
+
+# 3. KV REMAINS THE SELECTED STORE
+
+Prompt 20B must NOT silently switch the product to:
+
+- D1
+- SQL
+- R2
+- Durable Object storage
+- another database
+
+The current decision remains:
+
+Workers KV stores the personalization cloud record.
+
+However:
+
+the architecture must honestly operate within KV's weaker consistency model.
+
+If the audit concludes that the required product semantics CANNOT be safely delivered with KV alone:
+return BLOCKED and explain exactly why.
+
+Do not silently add Durable Objects.
+
+---
+
+# 4. CANONICAL KV KEY — FIX THE CONTRADICTION
+
+Prompt 20 stated:
+
+personalization:v1:<encodeURIComponent(canonicalUserId)>
+
+but examples used:
+
+personalization:v1/usr_abc123
+
+This must be resolved.
+
+Use EXACTLY:
+
+personalization:v1:<encodeURIComponent(canonicalUserId)>
+
+Examples:
+
+personalization:v1:usr_abc123
+
+personalization:v1:550e8400-e29b-41d4-a716-446655440000
+
+No slash variant.
+
+No email.
+
+No route path semantics inside the KV key.
+
+---
+
+# 5. KV KEY FUNCTION
+
+Prompt 21 should eventually implement one pure key builder conceptually:
+
+buildPersonalizationKvKey(userId)
+
+It must:
+
+- validate legitimate application ID shape first
+- encode the ID
+- prepend exactly `personalization:v1:`
+- reject unsupported identity formats
+- never accept email or arbitrary client body identity
+
+Prompt 20B defines this only.
+
+Do not implement it yet.
+
+---
+
+# 6. HOME SUBJECT ORDER TYPE — FIX
+
+Prompt 20 incorrectly printed:
+
+readonly [
+  "ID",
+  "NT",
+  "RM",
+  "CA",
+  "PHC",
+  "ImD",
+  "SSC"
+]
+
+That tuple type represents ONE fixed order and is incompatible with customization.
+
+The synchronized field remains conceptually:
+
+```ts
+home: {
+  subjectOrder: readonly SubjectId[];
+}
