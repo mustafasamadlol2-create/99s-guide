@@ -40,7 +40,10 @@ import type {
   ReadingSize,
   SubjectId,
 } from "../../../../shared/personalization";
-import { HomeSubjectOrderEditor } from "./HomeSubjectOrderEditor";
+import {
+  HOME_SUBJECT_NAME_KEYS,
+  HomeSubjectOrderEditor,
+} from "./HomeSubjectOrderEditor";
 
 interface My99StudioProps {
   language: Language;
@@ -676,7 +679,7 @@ const My99Studio = memo(function My99Studio({
                   key={subjectId}
                   className="rounded-full bg-semantic-action-accent-soft px-3 py-1.5 text-xs font-semibold text-semantic-action-accent"
                 >
-                  {index + 1}. {subjectId}
+                  {index + 1}. {t(HOME_SUBJECT_NAME_KEYS[subjectId])}
                 </li>
               ))}
             </ol>

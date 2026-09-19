@@ -59,6 +59,7 @@ function envelopeFor(config: unknown, extra: Record<string, unknown> = {}) {
 
 const userA = "usr_11111111-1111-4111-8111-111111111111";
 const userB = "usr_22222222-2222-4222-8222-222222222222";
+const legacyUuidUser = "33333333-3333-4333-8333-333333333333";
 
 test("cache keys are scoped, versioned, collision-safe, and email-free", () => {
   const keyA = getPersonalizationCacheKey(userA);
@@ -70,6 +71,17 @@ test("cache keys are scoped, versioned, collision-safe, and email-free", () => {
   assert.equal(getPersonalizationCacheKey("person@example.com"), null);
   assert.equal(getPersonalizationCacheKey(""), null);
   assert.equal(getPersonalizationCacheKey(null), null);
+});
+
+test("legacy UUID account IDs remain valid and isolated", async () => {
+  const storage = new MemoryStorage();
+  const key = getPersonalizationCacheKey(legacyUuidUser);
+
+  assert.equal(key?.startsWith(PERSONALIZATION_CACHE_PREFIX), true);
+  assert.equal((await writeCachedPersonalization(legacyUuidUser, validConfig(), storage)).ok, true);
+  const result = await readCachedPersonalization(legacyUuidUser, storage);
+
+  assert.equal(result.status, "found");
 });
 
 test("missing cache returns Classic 99 without throwing", async () => {

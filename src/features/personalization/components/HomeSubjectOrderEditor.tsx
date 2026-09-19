@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo } from "react";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import {
   useTranslation,
@@ -9,7 +9,7 @@ import {
 } from "../homeSubjectOrder";
 import type { SubjectId } from "../../../../shared/personalization";
 
-const SUBJECT_NAME_KEYS = {
+export const HOME_SUBJECT_NAME_KEYS = {
   ID: "my99SubjectIdName",
   NT: "my99SubjectNtName",
   RM: "my99SubjectRmName",
@@ -37,7 +37,7 @@ export const HomeSubjectOrderEditor = memo(function HomeSubjectOrderEditor({
       aria-label={t("my99HomeSubjectOrderTitle")}
     >
       {subjectOrder.map((subjectId, index) => {
-        const subjectName = t(SUBJECT_NAME_KEYS[subjectId]);
+        const subjectName = t(HOME_SUBJECT_NAME_KEYS[subjectId]);
         const isFirst = index === 0;
         const isLast = index === subjectOrder.length - 1;
 

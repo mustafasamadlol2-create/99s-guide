@@ -60,7 +60,8 @@ export interface PersonalizationKeyValueStorage {
   removeItem(key: string): void | Promise<void>;
 }
 
-const SAFE_USER_ID = /^usr_[A-Za-z0-9-]{1,120}$/;
+const SAFE_USER_ID =
+  /^(?:usr_[A-Za-z0-9-]{1,120}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 export function getPersonalizationCacheKey(userId: unknown): string | null {
   if (typeof userId !== "string") return null;
