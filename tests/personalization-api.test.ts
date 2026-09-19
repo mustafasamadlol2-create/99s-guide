@@ -17,17 +17,21 @@ const userB = "usr_api-user-b";
 const secret = "api-test-secret";
 
 const config = {
-  version: 1 as const,
+  version: 2 as const,
   themeId: "ocean" as const,
   heroStyle: "aurora" as const,
   glassStyle: "frosted" as const,
   motionStyle: "subtle" as const,
   readingSize: "large" as const,
-  home: { subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "ID"] as const },
+  home: {
+    subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "ID"] as const,
+    hiddenSubjectIds: ["NT"] as const,
+    semesterVisibility: { semester1: true, semester2: false },
+  },
 };
 
 const record: PersonalizationCloudRecord = {
-  recordVersion: 1,
+  recordVersion: 2,
   config,
   revision: "revision-a",
   updatedAt: "2026-09-19T00:00:00.000Z",
@@ -267,7 +271,7 @@ test("client userId injection and query identity cannot target User B", async ()
 test("invalid config, version, and Home order fail before Worker calls", async () => {
   const invalidBodies = [
     { config: { ...config, themeId: "not-a-theme" }, intentId: "pi_invalid-enum", knownRevision: null },
-    { config: { ...config, version: 2 }, intentId: "pi_invalid-version", knownRevision: null },
+    { config: { ...config, version: 1 }, intentId: "pi_invalid-version", knownRevision: null },
     { config: { ...config, home: { subjectOrder: ["SSC", "SSC", "PHC", "CA", "RM", "NT", "ID"] } }, intentId: "pi_duplicate", knownRevision: null },
     { config: { ...config, home: { subjectOrder: ["SSC", "ImD", "PHC"] } }, intentId: "pi_missing", knownRevision: null },
     { config: { ...config, home: { subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "XX"] } }, intentId: "pi_unknown", knownRevision: null },

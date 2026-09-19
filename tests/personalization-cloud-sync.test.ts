@@ -4,6 +4,7 @@ import {
   PERSONALIZATION_SUBJECT_IDS,
   type PersonalizationCloudRecord,
   type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../shared/personalization.js";
 import {
   readCachedPersonalization,
@@ -26,19 +27,23 @@ class MemoryStorage implements PersonalizationKeyValueStorage {
 }
 
 const userId = "usr_sync-test";
-const config: PersonalizationConfigV1 = {
-  version: 1,
+const config: PersonalizationConfigV2 = {
+  version: 2,
   themeId: "violet",
   heroStyle: "aurora",
   glassStyle: "frosted",
   motionStyle: "subtle",
   readingSize: "large",
-  home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+  home: {
+    subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+    hiddenSubjectIds: ["NT"],
+    semesterVisibility: { semester1: true, semester2: false },
+  },
 };
 
 function record(overrides: Partial<PersonalizationCloudRecord> = {}): PersonalizationCloudRecord {
   return {
-    recordVersion: 1,
+    recordVersion: 2,
     config,
     revision: "opaque-revision",
     updatedAt: "2026-09-19T00:00:00.000Z",
@@ -50,10 +55,19 @@ function record(overrides: Partial<PersonalizationCloudRecord> = {}): Personaliz
 test("V1 migration rewrites one active key to V2 while retaining legacy provenance", async () => {
   const storage = new MemoryStorage();
   const key = "99s:personalization:v1:" + encodeURIComponent(userId);
+  const legacyConfig: PersonalizationConfigV1 = {
+    version: 1,
+    themeId: "violet",
+    heroStyle: "aurora",
+    glassStyle: "frosted",
+    motionStyle: "subtle",
+    readingSize: "large",
+    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+  };
   storage.values.set(key, JSON.stringify({
     cacheVersion: 1,
     savedAt: "2026-09-18T12:00:00.000Z",
-    config,
+    config: legacyConfig,
   }));
 
   const migrated = await readCachedPersonalization(userId, storage);

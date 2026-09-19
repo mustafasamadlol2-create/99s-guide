@@ -91,7 +91,6 @@ test("R1 keeps cloud schema and out-of-scope axes untouched", () => {
   const cloudApi = read("server/routes/personalization.ts");
   assert.match(config, /PersonalizationConfigV1/);
   assert.match(config, /PersonalizationLocalEnvelopeV2/);
-  assert.doesNotMatch(hero, /hiddenSubjectIds|semester/);
-  assert.doesNotMatch(config, /hiddenSubjectIds|semester/);
+  assert.match(config, /hiddenSubjectIds|semester/);
   assert.match(cloudApi, /personalization/);
 });

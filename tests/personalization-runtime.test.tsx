@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PERSONALIZATION_SUBJECT_IDS, type PersonalizationConfigV1 } from "../shared/personalization.js";
+import { PERSONALIZATION_SUBJECT_IDS, type PersonalizationConfigV2 } from "../shared/personalization.js";
 import {
   PersonalizationProvider,
   isCurrentPersonalizationHydration,
@@ -14,15 +14,19 @@ import {
   reducePersonalizationState,
 } from "../src/features/personalization/personalizationState.js";
 
-function config(): PersonalizationConfigV1 {
+function config(): PersonalizationConfigV2 {
   return {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   };
 }
 

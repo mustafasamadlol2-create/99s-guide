@@ -3,7 +3,7 @@ import test from "node:test";
 import worker from "../cloudflare-personalization-api/src/index.js";
 import {
   PERSONALIZATION_SUBJECT_IDS,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../shared/personalization.js";
 import {
   acknowledgePersonalizationCloudRecord,
@@ -38,16 +38,20 @@ class MemoryKv {
 
 const secret = "cross-device-secret";
 const userId = "usr_cross-device";
-const configA: PersonalizationConfigV1 = {
-  version: 1,
+const configA: PersonalizationConfigV2 = {
+  version: 2,
   themeId: "ocean",
   heroStyle: "aurora",
   glassStyle: "frosted",
   motionStyle: "subtle",
   readingSize: "large",
-  home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+  home: {
+    subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+    hiddenSubjectIds: ["NT"],
+    semesterVisibility: { semester1: true, semester2: false },
+  },
 };
-const configB: PersonalizationConfigV1 = { ...configA, themeId: "violet" };
+const configB: PersonalizationConfigV2 = { ...configA, themeId: "violet" };
 
 test("Device A → Worker/KV → Device B → later divergent reconciliation", async () => {
   const kv = new MemoryKv();

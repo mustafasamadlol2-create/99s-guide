@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PERSONALIZATION_SUBJECT_IDS,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
   createDefaultPersonalization,
 } from "../shared/personalization.js";
 import {
@@ -36,23 +36,33 @@ class MemoryStorage implements PersonalizationKeyValueStorage {
   }
 }
 
-function validConfig(): PersonalizationConfigV1 {
+function validConfig(): PersonalizationConfigV2 {
   return {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   };
 }
 
 function envelopeFor(config: unknown, extra: Record<string, unknown> = {}) {
   return {
-    cacheVersion: 1,
+    cacheVersion: 2,
     savedAt: "2026-09-18T12:00:00Z",
     config,
+    sync: {
+      knownCloudRevision: null,
+      pending: null,
+      lastSyncState: "never",
+      lastSuccessfulGetAt: null,
+    },
     ...extra,
   };
 }
@@ -117,7 +127,7 @@ test("A/B account isolation survives reads and removing only account A", async (
 
 test("write creates a versioned envelope and snapshots the caller config", async () => {
   const storage = new MemoryStorage();
-  const config: PersonalizationConfigV1 = { ...validConfig(), themeId: "ocean" };
+  const config: PersonalizationConfigV2 = { ...validConfig(), themeId: "ocean" };
   const result = await writeCachedPersonalization(userA, config, storage);
 
   assert.equal(result.ok, true);
@@ -134,7 +144,7 @@ test("write creates a versioned envelope and snapshots the caller config", async
   assert.ok(raw);
   const envelope = JSON.parse(raw);
   assert.equal(envelope.cacheVersion, 2);
-  assert.equal(envelope.config.version, 1);
+  assert.equal(envelope.config.version, 2);
   assert.equal(envelope.sync.pending, null);
   assert.equal(envelope.sync.lastSyncState, "never");
   assert.equal("userId" in envelope, false);
@@ -163,7 +173,7 @@ test("unknown config and envelope fields are not retained", async () => {
     key,
     JSON.stringify(
       envelopeFor(
-        { ...validConfig(), themeId: "violet", unknownConfigField: "ignored" },
+        { ...validConfig(), themeId: "violet" },
         { unknownEnvelopeField: { ignored: true } },
       ),
     ),
@@ -181,7 +191,7 @@ test("unknown config and envelope fields are not retained", async () => {
 test("corrupt JSON, malformed envelopes, and unsupported versions return invalid fallback", async () => {
   const cases: Array<{ raw: string; reason: string }> = [
     { raw: "{not-json", reason: "invalid-json" },
-    { raw: JSON.stringify({ cacheVersion: 1 }), reason: "invalid-saved-at" },
+    { raw: JSON.stringify({ cacheVersion: 1 }), reason: "unsupported-cache-version" },
     { raw: JSON.stringify(envelopeFor(validConfig(), { cacheVersion: 99 })), reason: "unsupported-cache-version" },
     { raw: JSON.stringify(envelopeFor(validConfig(), { savedAt: "yesterday" })), reason: "invalid-saved-at" },
     { raw: JSON.stringify(envelopeFor({ ...validConfig(), version: 99 })), reason: "unsupported-config-version" },

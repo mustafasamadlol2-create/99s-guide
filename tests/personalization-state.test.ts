@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PERSONALIZATION_SUBJECT_IDS,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
   createDefaultPersonalization,
 } from "../shared/personalization.js";
 import {
@@ -14,15 +14,19 @@ import {
   resetPersonalizationDraft,
 } from "../src/features/personalization/personalizationState.js";
 
-function validConfig(): PersonalizationConfigV1 {
+function validConfig(): PersonalizationConfigV2 {
   return {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   };
 }
 
@@ -195,6 +199,8 @@ test("equality is canonical and subject-order sensitive", () => {
     ...right,
     home: {
       subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+      hiddenSubjectIds: [...right.home.hiddenSubjectIds],
+      semesterVisibility: { ...right.home.semesterVisibility },
     },
   };
   assert.equal(personalizationConfigsEqual(left, reordered), false);

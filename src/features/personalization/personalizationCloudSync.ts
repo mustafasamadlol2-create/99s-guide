@@ -10,7 +10,7 @@ import {
 } from "./personalizationStorage";
 import {
   type PersonalizationCloudRecord,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
   type PersonalizationLocalEnvelopeV2,
   type PersonalizationSyncState,
 } from "../../../shared/personalization";
@@ -25,7 +25,7 @@ export type PersonalizationReconciliation =
   | { action: "none"; state?: PersonalizationSyncState }
   | { action: "upload-pending"; pending: NonNullable<PersonalizationLocalEnvelopeV2["sync"]["pending"]> }
   | { action: "adopt"; record: PersonalizationCloudRecord }
-  | { action: "confirm"; candidate: PersonalizationConfigV1; record: PersonalizationCloudRecord | null };
+  | { action: "confirm"; candidate: PersonalizationConfigV2; record: PersonalizationCloudRecord | null };
 
 export async function getPersonalizationCloud(): Promise<PersonalizationCloudResult> {
   const response = await apiClient("/api/personalization", {

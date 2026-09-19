@@ -8,6 +8,11 @@ import {
   orderHomeSubjects,
 } from "../src/features/personalization/homeSubjectOrder";
 import type { SubjectId } from "../shared/personalization";
+import {
+  getHomeSubjectVisibilityReason,
+  isHomeSubjectEffectivelyVisible,
+  resolveHomeSubjectVisibility,
+} from "../src/features/personalization/homeSubjectVisibility";
 
 const homeSource = readFileSync(
   new URL("../src/features/home/components/HomeDashboard.tsx", import.meta.url),
@@ -123,22 +128,42 @@ test("moveSubject is immutable and safely handles boundaries", () => {
   assert.deepEqual(moveSubject(start, "SSC", "down"), start);
 });
 
+test("Home visibility combines manual hides and semester controls without changing stored order", () => {
+  const resolved = resolveHomeSubjectVisibility(
+    subjects,
+    reversed,
+    ["ID", "SSC"],
+    { semester1: false, semester2: true },
+  );
+  assert.deepEqual(
+    resolved.orderedSubjects.map((subject) => subject.id),
+    reversed,
+  );
+  assert.deepEqual(
+    resolved.visibleSubjects.map((subject) => subject.id),
+    ["ImD", "CA"],
+  );
+  assert.equal(getHomeSubjectVisibilityReason("NT", [], { semester1: false, semester2: true }), "hidden-by-semester-1");
+  assert.equal(getHomeSubjectVisibilityReason("ID", ["ID"], { semester1: true, semester2: true }), "hidden-manually");
+  assert.equal(isHomeSubjectEffectivelyVisible("CA", [], { semester1: false, semester2: false }), true);
+});
+
 test("Home reads committed order once at the subject-list boundary", () => {
   assert.match(homeSource, /usePersonalization/);
   assert.match(homeSource, /committed\.home\.subjectOrder/);
-  assert.match(homeSource, /orderHomeSubjects\(subjects, committed\.home\.subjectOrder\)/);
-  assert.match(homeSource, /orderedSubjects\.map/);
+  assert.match(homeSource, /resolveHomeSubjectVisibility/);
+  assert.match(homeSource, /visibleSubjects\.map/);
   assert.match(homeSource, /key=\{subject\.id\}/);
   assert.doesNotMatch(homeSource, /draft\.home\.subjectOrder/);
   assert.doesNotMatch(homeSource, /data-app-subject-order/);
 });
 
 test("Studio uses Draft order for the editor and contained preview only", () => {
-  assert.match(studioSource, /draft\.home\.subjectOrder\.map/);
+  assert.match(studioSource, /draft\.home\.subjectOrder/);
   assert.match(studioSource, /<HomeSubjectOrderEditor/);
   assert.match(studioSource, /type: "setSubjectOrder"/);
   assert.doesNotMatch(studioSource, /data-personalization-preview-subject-order/);
-  assert.doesNotMatch(editorSource, /trash|removeSubject|hideSubject|addSubject/i);
+   assert.match(editorSource, /hiddenSubjectIds/);
   assert.match(editorSource, /<ol/);
   assert.match(editorSource, /my99MoveUp/);
   assert.match(editorSource, /my99MoveDown/);
@@ -153,6 +178,11 @@ test("Prompt 18 labels are localized in English and Arabic", () => {
     "my99HomeSubjectOrderPreviewTitle",
     "my99MoveUp",
     "my99MoveDown",
+     "my99SemesterVisibilityTitle",
+     "my99Semester1",
+     "my99Semester2",
+     "my99ShownOnHome",
+     "my99HiddenManually",
     "my99SubjectIdName",
     "my99SubjectNtName",
     "my99SubjectRmName",

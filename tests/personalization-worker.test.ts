@@ -5,13 +5,17 @@ import worker from "../cloudflare-personalization-api/src/index.js";
 const secret = "test-personalization-secret";
 const userId = "usr_worker-test";
 const config = {
-  version: 1 as const,
+  version: 2 as const,
   themeId: "ocean" as const,
   heroStyle: "aurora" as const,
   glassStyle: "frosted" as const,
   motionStyle: "subtle" as const,
   readingSize: "large" as const,
-  home: { subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "ID"] },
+  home: {
+    subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "ID"],
+    hiddenSubjectIds: ["NT"],
+    semesterVisibility: { semester1: true, semester2: false },
+  },
 };
 
 class MemoryKv {
@@ -72,10 +76,10 @@ test("Worker uses the exact KV key, record shape, subject permutations, and idem
   const first = await call(kv, "PUT", undefined, payload);
   assert.equal(first.status, 200);
   const firstBody = await first.json() as { record: Record<string, unknown> };
-  assert.equal(firstBody.record.recordVersion, 1);
+  assert.equal(firstBody.record.recordVersion, 2);
   assert.equal(firstBody.record.lastIntentId, payload.intentId);
   assert.equal(kv.writes, 1);
-  assert.equal(kv.values.has("personalization:v1:" + encodeURIComponent(userId)), true);
+  assert.equal(kv.values.has("personalization:v2:" + encodeURIComponent(userId)), true);
 
   const duplicate = await call(kv, "PUT", undefined, payload);
   assert.equal(duplicate.status, 200);
@@ -84,7 +88,13 @@ test("Worker uses the exact KV key, record shape, subject permutations, and idem
   const reordered = {
     ...payload,
     intentId: "pi_worker-intent-2",
-    config: { ...config, home: { subjectOrder: [...config.home.subjectOrder].reverse() } },
+    config: {
+      ...config,
+      home: {
+        ...config.home,
+        subjectOrder: [...config.home.subjectOrder].reverse(),
+      },
+    },
   };
   assert.equal((await call(kv, "PUT", undefined, reordered)).status, 200);
   assert.equal(kv.writes, 2);

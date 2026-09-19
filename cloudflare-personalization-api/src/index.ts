@@ -9,6 +9,10 @@ const GLASS = ["clear", "balanced", "frosted"];
 const MOTION = ["full", "subtle", "reduced"];
 const READING = ["small", "default", "large"];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 interface Env {
   PERSONALIZATION_KV: {
     get(key: string, options?: { type: "json"; cacheTtl?: number }): Promise<unknown>;
@@ -18,17 +22,21 @@ interface Env {
 }
 
 interface Config {
-  version: 1;
+  version: 2;
   themeId: string;
   heroStyle: string;
   glassStyle: string;
   motionStyle: string;
   readingSize: string;
-  home: { subjectOrder: string[] };
+  home: {
+    subjectOrder: string[];
+    hiddenSubjectIds: string[];
+    semesterVisibility: { semester1: boolean; semester2: boolean };
+  };
 }
 
 interface RecordValue {
-  recordVersion: 1;
+  recordVersion: 2;
   config: Config;
   revision: string;
   updatedAt: string;
@@ -50,7 +58,7 @@ function validConfig(value: unknown): value is Config {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const data = value as Record<string, unknown>;
   const home = data.home as Record<string, unknown> | undefined;
-  return data.version === 1 &&
+  return data.version === 2 &&
     typeof data.themeId === "string" && THEMES.includes(data.themeId) &&
     typeof data.heroStyle === "string" && HEROES.includes(data.heroStyle) &&
     typeof data.glassStyle === "string" && GLASS.includes(data.glassStyle) &&
@@ -60,15 +68,23 @@ function validConfig(value: unknown): value is Config {
     home.subjectOrder.length === SUBJECTS.length &&
     new Set(home.subjectOrder).size === SUBJECTS.length &&
     home.subjectOrder.every((item) => typeof item === "string" && SUBJECTS.includes(item)) &&
+    Array.isArray(home.hiddenSubjectIds) &&
+    new Set(home.hiddenSubjectIds).size === home.hiddenSubjectIds.length &&
+    home.hiddenSubjectIds.every((item) => typeof item === "string" && SUBJECTS.includes(item)) &&
+    isRecord(home.semesterVisibility) &&
+    typeof (home.semesterVisibility as Record<string, unknown>).semester1 === "boolean" &&
+    typeof (home.semesterVisibility as Record<string, unknown>).semester2 === "boolean" &&
     bytes(value) <= MAX_CONFIG_BYTES &&
     Object.keys(data).every((key) => ["version", "themeId", "heroStyle", "glassStyle", "motionStyle", "readingSize", "home"].includes(key)) &&
-    Object.keys(home).every((key) => key === "subjectOrder");
+    Object.keys(home).every((key) => ["subjectOrder", "hiddenSubjectIds", "semesterVisibility"].includes(key)) &&
+    isRecord(home.semesterVisibility) &&
+    Object.keys(home.semesterVisibility).every((key) => ["semester1", "semester2"].includes(key));
 }
 
 function validRecord(value: unknown): value is RecordValue {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const data = value as Record<string, unknown>;
-  return data.recordVersion === 1 &&
+  return data.recordVersion === 2 &&
     Object.keys(data).every((key) => ["recordVersion", "config", "revision", "updatedAt", "lastIntentId"].includes(key)) &&
     validConfig(data.config) &&
     typeof data.revision === "string" && data.revision.length > 0 && data.revision.length <= 256 &&
@@ -97,7 +113,7 @@ function canonicalId(path: string): string | null {
 }
 
 function kvKey(id: string): string {
-  return `personalization:v1:${encodeURIComponent(id)}`;
+  return `personalization:v2:${encodeURIComponent(id)}`;
 }
 
 function newRevision(): string {
@@ -146,7 +162,7 @@ export default {
       return json({ status: "ok", record: current });
     }
     const record: RecordValue = {
-      recordVersion: 1,
+      recordVersion: 2,
       config: data.config as Config,
       revision: newRevision(),
       updatedAt: new Date().toISOString(),

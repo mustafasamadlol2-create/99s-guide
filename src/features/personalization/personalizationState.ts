@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PERSONALIZATION_V1,
+  DEFAULT_PERSONALIZATION_V2,
   PERSONALIZATION_GLASS_STYLES,
   PERSONALIZATION_HERO_STYLES,
   PERSONALIZATION_MOTION_STYLES,
@@ -9,7 +9,7 @@ import {
   type GlassStyle,
   type HeroStyle,
   type MotionStyle,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
   type ReadingSize,
   type SubjectId,
   type ThemeId,
@@ -18,8 +18,8 @@ import {
 } from "../../../shared/personalization";
 
 export interface PersonalizationState {
-  committed: PersonalizationConfigV1;
-  draft: PersonalizationConfigV1;
+  committed: PersonalizationConfigV2;
+  draft: PersonalizationConfigV2;
   isDirty: boolean;
 }
 
@@ -29,13 +29,15 @@ export type PersonalizationDraftAction =
   | { type: "setGlassStyle"; value: unknown }
   | { type: "setMotionStyle"; value: unknown }
   | { type: "setReadingSize"; value: unknown }
-  | { type: "setSubjectOrder"; value: unknown };
+  | { type: "setSubjectOrder"; value: unknown }
+  | { type: "setHiddenSubjectIds"; value: unknown }
+  | { type: "setSemesterVisibility"; value: unknown };
 
 export type PersonalizationApplyResult =
   | {
       ok: true;
       state: PersonalizationState;
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
     }
   | {
       ok: false;
@@ -43,7 +45,7 @@ export type PersonalizationApplyResult =
       error: "invalid-draft";
     };
 
-function cloneConfig(config: PersonalizationConfigV1): PersonalizationConfigV1 {
+function cloneConfig(config: PersonalizationConfigV2): PersonalizationConfigV2 {
   return {
     version: config.version,
     themeId: config.themeId,
@@ -53,6 +55,8 @@ function cloneConfig(config: PersonalizationConfigV1): PersonalizationConfigV1 {
     readingSize: config.readingSize,
     home: {
       subjectOrder: [...config.home.subjectOrder],
+      hiddenSubjectIds: [...config.home.hiddenSubjectIds],
+      semesterVisibility: { ...config.home.semesterVisibility },
     },
   };
 }
@@ -78,7 +82,27 @@ function isCompleteSubjectOrder(value: unknown): value is SubjectId[] {
   });
 }
 
-function statesDraft(state: PersonalizationState, draft: PersonalizationConfigV1): PersonalizationState {
+function isHiddenSubjectIds(value: unknown): value is SubjectId[] {
+  if (!Array.isArray(value)) return false;
+  const seen = new Set<SubjectId>();
+  return value.every((subjectId) => {
+    if (!isOneOf(PERSONALIZATION_SUBJECT_IDS, subjectId) || seen.has(subjectId)) return false;
+    seen.add(subjectId);
+    return true;
+  });
+}
+
+function isSemesterVisibility(value: unknown): value is { semester1: boolean; semester2: boolean } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as { semester1?: unknown }).semester1 === "boolean" &&
+    typeof (value as { semester2?: unknown }).semester2 === "boolean"
+  );
+}
+
+function statesDraft(state: PersonalizationState, draft: PersonalizationConfigV2): PersonalizationState {
   const nextDraft = cloneConfig(draft);
   return {
     committed: cloneConfig(state.committed),
@@ -88,8 +112,8 @@ function statesDraft(state: PersonalizationState, draft: PersonalizationConfigV1
 }
 
 export function personalizationConfigsEqual(
-  left: PersonalizationConfigV1,
-  right: PersonalizationConfigV1,
+  left: PersonalizationConfigV2,
+  right: PersonalizationConfigV2,
 ): boolean {
   return (
     left.version === right.version &&
@@ -101,14 +125,22 @@ export function personalizationConfigsEqual(
     left.home.subjectOrder.length === right.home.subjectOrder.length &&
     left.home.subjectOrder.every(
       (subjectId, index) => subjectId === right.home.subjectOrder[index],
-    )
+    ) &&
+    left.home.hiddenSubjectIds.length === right.home.hiddenSubjectIds.length &&
+    left.home.hiddenSubjectIds.every(
+      (subjectId, index) => subjectId === right.home.hiddenSubjectIds[index],
+    ) &&
+    left.home.semesterVisibility.semester1 === right.home.semesterVisibility.semester1 &&
+    left.home.semesterVisibility.semester2 === right.home.semesterVisibility.semester2
   );
 }
 
 export function createPersonalizationState(
   config?: unknown,
 ): PersonalizationState {
-  const normalized = normalizePersonalizationConfig(config ?? DEFAULT_PERSONALIZATION_V1);
+  const normalized = normalizePersonalizationConfig(
+    config ?? DEFAULT_PERSONALIZATION_V2,
+  );
   return {
     committed: cloneConfig(normalized),
     draft: cloneConfig(normalized),
@@ -149,6 +181,32 @@ export function reducePersonalizationState(
         ...draft,
         home: {
           subjectOrder: [...action.value],
+          hiddenSubjectIds: [...draft.home.hiddenSubjectIds],
+          semesterVisibility: { ...draft.home.semesterVisibility },
+        },
+      });
+    case "setHiddenSubjectIds":
+      if (!isHiddenSubjectIds(action.value)) return state;
+      return statesDraft(state, {
+        ...draft,
+        home: {
+          subjectOrder: [...draft.home.subjectOrder],
+          hiddenSubjectIds: [...action.value].sort(
+            (left, right) =>
+              PERSONALIZATION_SUBJECT_IDS.indexOf(left) -
+              PERSONALIZATION_SUBJECT_IDS.indexOf(right),
+          ),
+          semesterVisibility: { ...draft.home.semesterVisibility },
+        },
+      });
+    case "setSemesterVisibility":
+      if (!isSemesterVisibility(action.value)) return state;
+      return statesDraft(state, {
+        ...draft,
+        home: {
+          subjectOrder: [...draft.home.subjectOrder],
+          hiddenSubjectIds: [...draft.home.hiddenSubjectIds],
+          semesterVisibility: { ...action.value },
         },
       });
   }
@@ -168,7 +226,7 @@ export function cancelPersonalizationDraft(
 export function resetPersonalizationDraft(
   state: PersonalizationState,
 ): PersonalizationState {
-  return statesDraft(state, normalizePersonalizationConfig(DEFAULT_PERSONALIZATION_V1));
+  return statesDraft(state, normalizePersonalizationConfig(DEFAULT_PERSONALIZATION_V2));
 }
 
 export function applyPersonalizationDraft(

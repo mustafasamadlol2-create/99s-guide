@@ -8,7 +8,7 @@ import {
 } from "../src/features/personalization/classic99Tokens.js";
 import {
   PERSONALIZATION_THEME_IDS,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../shared/personalization.js";
 import {
   getPersonalizationThemeAttribute,
@@ -231,7 +231,7 @@ test("bridge reads committed only and mutates only data-app-theme", () => {
   assert.doesNotMatch(bridge, /classList|html\.dark|theme-color/);
 });
 
-function oceanDraftConfig(): PersonalizationConfigV1 {
+function oceanDraftConfig(): PersonalizationConfigV2 {
   let state = createPersonalizationState();
   state = reducePersonalizationState(state, { type: "setThemeId", value: "ocean" });
   const result = applyPersonalizationDraft(state);

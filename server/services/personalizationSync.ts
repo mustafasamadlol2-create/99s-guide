@@ -2,7 +2,7 @@ import {
   MAX_PERSONALIZATION_CLOUD_RECORD_BYTES,
   parsePersonalizationConfig,
   type PersonalizationCloudRecord,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../../shared/personalization.js";
 
 export type PersonalizationWorkerResult =
@@ -44,13 +44,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function validateRecord(value: unknown): PersonalizationCloudRecord | null {
   if (!isRecord(value)) return null;
   const config = parsePersonalizationConfig(value.config);
-  if (value.recordVersion !== 1 || !config || typeof value.revision !== "string" || !value.revision ||
+  if (value.recordVersion !== 2 || !config || typeof value.revision !== "string" || !value.revision ||
       typeof value.updatedAt !== "string" || !Number.isFinite(Date.parse(value.updatedAt)) ||
       typeof value.lastIntentId !== "string" || !/^[A-Za-z0-9._:-]{8,160}$/.test(value.lastIntentId)) {
     return null;
   }
   const record = {
-    recordVersion: 1 as const,
+    recordVersion: 2 as const,
     config,
     revision: value.revision,
     updatedAt: value.updatedAt,
@@ -117,7 +117,7 @@ export function getPersonalizationFromCloud(userId: string): Promise<Personaliza
 
 export function putPersonalizationToCloud(
   userId: string,
-  payload: { config: PersonalizationConfigV1; intentId: string; knownRevision: string | null },
+  payload: { config: PersonalizationConfigV2; intentId: string; knownRevision: string | null },
 ): Promise<PersonalizationWorkerResult> {
   return callWorker(userId, {
     method: "PUT",

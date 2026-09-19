@@ -37,7 +37,7 @@ import {
 } from "./personalizationStorage";
 import type {
   PersonalizationCloudRecord,
-  PersonalizationConfigV1,
+  PersonalizationConfigV2,
 } from "../../../shared/personalization";
 import { personalizationConfigsEqual } from "./personalizationState";
 
@@ -91,7 +91,7 @@ export type PersonalizationApplyStatus =
 export type PersonalizationRuntimeApplyResult =
   | {
       ok: true;
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
       persistence: "saved";
     }
   | {
@@ -106,8 +106,8 @@ export type PersonalizationRuntimeApplyResult =
 
 export interface PersonalizationRuntimeValue {
   userId: string | null;
-  committed: PersonalizationConfigV1;
-  draft: PersonalizationConfigV1;
+  committed: PersonalizationConfigV2;
+  draft: PersonalizationConfigV2;
   isDirty: boolean;
   hydration: PersonalizationHydrationStatus;
   applyStatus: PersonalizationApplyStatus;
@@ -127,7 +127,7 @@ const PersonalizationContext =
   createContext<PersonalizationRuntimeValue | null>(null);
 
 export interface PersonalizationHydrationResolution {
-  config: PersonalizationConfigV1;
+  config: PersonalizationConfigV2;
   status: PersonalizationHydrationStatus;
 }
 
@@ -187,7 +187,7 @@ export type PersonalizationCommitDecision =
   | {
       commit: true;
       state: PersonalizationState;
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
       savedAt: string;
     };
 
@@ -238,7 +238,7 @@ export function PersonalizationProvider({
   const pendingPutOperationsRef = useRef(new Map<string, Promise<PendingPutResult>>());
   const confirmationRef = useRef<{
     userId: string;
-    candidate: PersonalizationConfigV1;
+    candidate: PersonalizationConfigV2;
     record: PersonalizationCloudRecord | null;
     timer: ReturnType<typeof setTimeout>;
   } | null>(null);
@@ -400,7 +400,7 @@ export function PersonalizationProvider({
 
   const scheduleConfirmation = useCallback((
     activeUserId: string,
-    candidate: PersonalizationConfigV1,
+       candidate: PersonalizationConfigV2,
     record: PersonalizationCloudRecord | null,
     requestId: number,
   ) => {
@@ -610,6 +610,7 @@ export function PersonalizationProvider({
     }
 
     let active = true;
+    const isSameAccount = stateOwnerUserIdRef.current === userId;
     stateOwnerUserIdRef.current = userId;
     clearConfirmation();
     clearPendingRetry();
@@ -617,7 +618,7 @@ export function PersonalizationProvider({
     disabledSessionRef.current = null;
     lifecycleProbeAtRef.current.clear();
     envelopeRef.current = null;
-    setState(createPersonalizationState());
+    if (!isSameAccount) setState(createPersonalizationState());
     setHydration({ phase: "loading", userId });
     setApplyStatus({ phase: "idle" });
 

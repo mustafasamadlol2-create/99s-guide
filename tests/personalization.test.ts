@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_PERSONALIZATION_CONFIG,
   DEFAULT_PERSONALIZATION_V1,
+  DEFAULT_PERSONALIZATION_V2,
   MAX_PERSONALIZATION_PAYLOAD_BYTES,
   PERSONALIZATION_GLASS_STYLES,
   PERSONALIZATION_HERO_STYLES,
@@ -13,6 +14,7 @@ import {
   createDefaultPersonalization,
   isPersonalizationPayloadWithinLimit,
   isPersonalizationConfigV1,
+  isPersonalizationConfigV2,
   migratePersonalizationConfig,
   normalizePersonalizationConfig,
   personalizationPayloadByteLength,
@@ -22,19 +24,23 @@ import {
 
 function validConfig() {
   return {
-    version: 1 as const,
+    version: 2 as const,
     themeId: "classic-99" as const,
     heroStyle: "classic" as const,
     glassStyle: "balanced" as const,
     motionStyle: "full" as const,
     readingSize: "default" as const,
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   };
 }
 
 test("Classic 99 defaults are complete and factory results are independent", () => {
-  assert.equal(DEFAULT_PERSONALIZATION_CONFIG.version, 1);
-  assert.deepEqual(DEFAULT_PERSONALIZATION_CONFIG, DEFAULT_PERSONALIZATION_V1);
+  assert.equal(DEFAULT_PERSONALIZATION_CONFIG.version, 2);
+  assert.deepEqual(DEFAULT_PERSONALIZATION_CONFIG, DEFAULT_PERSONALIZATION_V2);
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.themeId, "classic-99");
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.heroStyle, "classic");
   assert.equal(DEFAULT_PERSONALIZATION_CONFIG.glassStyle, "balanced");
@@ -61,19 +67,23 @@ test("Classic 99 defaults are complete and factory results are independent", () 
   );
 });
 
-test("strict validation accepts a complete V1 document", () => {
+test("strict validation accepts a complete V2 document", () => {
   const result = validatePersonalizationConfig({
-    version: 1,
+    version: 2,
     themeId: "ocean",
     heroStyle: "aurora",
     glassStyle: "frosted",
     motionStyle: "subtle",
     readingSize: "large",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+      hiddenSubjectIds: ["SSC", "NT"],
+      semesterVisibility: { semester1: false, semester2: true },
+    },
   });
 
   assert.equal(result.success, true);
-  assert.equal(isPersonalizationConfigV1(result.success ? result.data : null), true);
+  assert.equal(isPersonalizationConfigV2(result.success ? result.data : null), true);
   assert.deepEqual(
     parsePersonalizationConfig(result.success ? result.data : null)?.home.subjectOrder,
     [...PERSONALIZATION_SUBJECT_IDS].reverse(),
@@ -82,13 +92,17 @@ test("strict validation accepts a complete V1 document", () => {
 
 test("strict validation rejects missing, unknown, and invalid fields", () => {
   const result = validatePersonalizationConfig({
-    version: 1,
+    version: 2,
     themeId: "not-a-theme",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: ["PHC", "PHC"] },
+    home: {
+      subjectOrder: ["PHC", "PHC"],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
     unexpected: true,
   });
 
@@ -111,13 +125,17 @@ test("normalization falls back safely without throwing", () => {
   });
 
   assert.deepEqual(normalized, {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: PERSONALIZATION_SUBJECT_IDS },
+    home: {
+      subjectOrder: PERSONALIZATION_SUBJECT_IDS,
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
 });
 
@@ -133,7 +151,11 @@ test("normalization accepts only a complete subject permutation", () => {
   const subjectOrder = [...PERSONALIZATION_SUBJECT_IDS].reverse();
   const normalized = normalizePersonalizationConfig({
     ...validConfig(),
-    home: { subjectOrder },
+    home: {
+      subjectOrder,
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
 
   assert.deepEqual(normalized.home.subjectOrder, subjectOrder);
@@ -144,6 +166,8 @@ test("normalization ignores unknown fields and invalid nested shapes", () => {
     ...validConfig(),
     home: {
       subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
       unknown: "ignored",
     },
     unknown: { value: true },
@@ -154,39 +178,68 @@ test("normalization ignores unknown fields and invalid nested shapes", () => {
   assert.equal("unknown" in normalized, false);
 });
 
-test("migration uses V1 normalization and Classic 99 for unsupported versions", () => {
+test("migration upgrades V1 and falls back safely for unsupported versions", () => {
   const migrated = migratePersonalizationConfig({
+    version: 1,
+    themeId: "classic-99",
+    heroStyle: "classic",
+    glassStyle: "balanced",
+    motionStyle: "full",
+    readingSize: "default",
+    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+  });
+  assert.equal(migrated.version, 2);
+  assert.deepEqual(migrated.home.hiddenSubjectIds, []);
+  assert.deepEqual(migrated.home.semesterVisibility, { semester1: true, semester2: true });
+
+  const normalized = migratePersonalizationConfig({
     ...validConfig(),
     themeId: "emerald",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse() },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS].reverse(),
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
-  assert.equal(migrated.themeId, "emerald");
-  assert.deepEqual(migrated.home.subjectOrder, [...PERSONALIZATION_SUBJECT_IDS].reverse());
+  assert.equal(normalized.themeId, "emerald");
+  assert.deepEqual(normalized.home.subjectOrder, [...PERSONALIZATION_SUBJECT_IDS].reverse());
 
   const invalidV1 = migratePersonalizationConfig({
-    ...validConfig(),
+    version: 1,
     themeId: "emerald",
+    heroStyle: "classic",
+    glassStyle: "balanced",
+    motionStyle: "full",
+    readingSize: "default",
     home: { subjectOrder: ["SSC"] },
   });
   assert.deepEqual(invalidV1, createDefaultPersonalization());
 
   assert.deepEqual(migratePersonalizationConfig({ version: 0 }), {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: PERSONALIZATION_SUBJECT_IDS },
+    home: {
+      subjectOrder: PERSONALIZATION_SUBJECT_IDS,
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
   assert.deepEqual(migratePersonalizationConfig("invalid"), {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: PERSONALIZATION_SUBJECT_IDS },
+    home: {
+      subjectOrder: PERSONALIZATION_SUBJECT_IDS,
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
 });
 

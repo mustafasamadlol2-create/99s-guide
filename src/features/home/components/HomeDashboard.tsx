@@ -65,7 +65,7 @@ import { Language, useTranslation } from "../../../core/i18n/translations";
 
 import { CommandPalette, SearchResultItem } from "../../../components/ui/CommandPalette";
 import { usePersonalization } from "../../personalization/PersonalizationProvider";
-import { orderHomeSubjects } from "../../personalization/homeSubjectOrder";
+import { resolveHomeSubjectVisibility } from "../../personalization/homeSubjectVisibility";
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1072,9 +1072,20 @@ const HomeDashboard = memo(function HomeDashboard({
   const isTouchDevice = useIsTouchDevice();
   const device = useDeviceProfile();
   const { committed } = usePersonalization();
-  const orderedSubjects = useMemo(
-    () => orderHomeSubjects(subjects, committed.home.subjectOrder),
-    [committed.home.subjectOrder, subjects],
+  const homeSubjectVisibility = useMemo(
+    () =>
+      resolveHomeSubjectVisibility(
+        subjects,
+        committed.home.subjectOrder,
+        committed.home.hiddenSubjectIds,
+        committed.home.semesterVisibility,
+      ),
+    [
+      committed.home.hiddenSubjectIds,
+      committed.home.semesterVisibility,
+      committed.home.subjectOrder,
+      subjects,
+    ],
   );
 
   const isMountedRef = useRef(true);
@@ -1490,7 +1501,7 @@ const HomeDashboard = memo(function HomeDashboard({
                 className="home-subject-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
                 style={{ direction: isRtl ? "rtl" : "ltr" }}
               >
-                {orderedSubjects.map((subject, index) => {
+                {homeSubjectVisibility.visibleSubjects.map((subject, index) => {
                   const lecturesCount = subjectLectureCounts[subject.id] || 0;
                   const iconInfo = getSubjectIconInfo(subject.id);
                   const IconComponent = iconInfo.icon;

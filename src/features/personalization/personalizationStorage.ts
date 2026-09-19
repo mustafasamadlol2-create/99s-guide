@@ -6,18 +6,23 @@ import {
   MAX_PERSONALIZATION_PAYLOAD_BYTES,
   PERSONALIZATION_VERSION,
   isPersonalizationPayloadWithinLimit,
+  parsePersonalizationConfigV1,
   parsePersonalizationConfig,
+  migratePersonalizationConfigV1ToV2,
   type PersonalizationCloudRecord,
   type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
   type PersonalizationLocalEnvelopeV2,
   type PersonalizationPendingIntent,
   type PersonalizationSyncState,
   normalizePersonalizationConfig,
+  validatePersonalizationConfigV1,
   validatePersonalizationConfig,
 } from "../../../shared/personalization";
 
 export const PERSONALIZATION_CACHE_VERSION = 2 as const;
-export const PERSONALIZATION_CACHE_PREFIX = "99s:personalization:v1:";
+export const PERSONALIZATION_CACHE_PREFIX = "99s:personalization:v2:";
+export const PERSONALIZATION_LEGACY_CACHE_PREFIX = "99s:personalization:v1:";
 
 export type PersonalizationCacheEnvelope = PersonalizationLocalEnvelopeV2;
 
@@ -37,18 +42,18 @@ export type PersonalizationCacheInvalidReason =
 export type PersonalizationCacheReadResult =
   | {
       status: "found";
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
       savedAt: string;
       envelope?: PersonalizationLocalEnvelopeV2;
       migrated?: boolean;
     }
   | {
       status: "missing";
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
     }
   | {
       status: "invalid";
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
       reason: PersonalizationCacheInvalidReason;
     };
 
@@ -77,6 +82,12 @@ export function getPersonalizationCacheKey(userId: unknown): string | null {
     return null;
   }
   return `${PERSONALIZATION_CACHE_PREFIX}${encodeURIComponent(normalizedUserId)}`;
+}
+
+export function getLegacyPersonalizationCacheKey(userId: unknown): string | null {
+  const current = getPersonalizationCacheKey(userId);
+  if (!current) return null;
+  return `${PERSONALIZATION_LEGACY_CACHE_PREFIX}${current.slice(PERSONALIZATION_CACHE_PREFIX.length)}`;
 }
 
 function createDefaultStorage(): PersonalizationKeyValueStorage {
@@ -116,35 +127,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function stripUnknownConfigFields(value: Record<string, unknown>): Record<string, unknown> {
-  const home = isRecord(value.home) ? value.home : {};
-  return {
-    version: value.version,
-    themeId: value.themeId,
-    heroStyle: value.heroStyle,
-    glassStyle: value.glassStyle,
-    motionStyle: value.motionStyle,
-    readingSize: value.readingSize,
-    home: { subjectOrder: home.subjectOrder },
-  };
-}
-
 function parseCachedConfig(value: unknown):
-  | { config: PersonalizationConfigV1 }
+  | { config: PersonalizationConfigV2 }
   | { reason: PersonalizationCacheInvalidReason } {
   if (!isRecord(value)) return { reason: "invalid-config" };
   if (value.version !== PERSONALIZATION_VERSION) return { reason: "unsupported-config-version" };
   if (!isPersonalizationPayloadWithinLimit(value)) return { reason: "oversized-config" };
-  const config = parsePersonalizationConfig(stripUnknownConfigFields(value));
+  const config = parsePersonalizationConfig(value);
   return config ? { config } : { reason: "invalid-config" };
 }
 
-function cloneConfig(config: PersonalizationConfigV1): PersonalizationConfigV1 {
+function cloneConfig(config: PersonalizationConfigV2): PersonalizationConfigV2 {
   return normalizePersonalizationConfig(config);
 }
 
 function createCleanEnvelope(
-  config: PersonalizationConfigV1,
+  config: PersonalizationConfigV2,
   options: Partial<PersonalizationLocalEnvelopeV2["sync"]> = {},
 ): PersonalizationLocalEnvelopeV2 {
   return {
@@ -161,7 +159,7 @@ function createCleanEnvelope(
 }
 
 export function createPersonalizationEnvelope(
-  config: PersonalizationConfigV1,
+  config: PersonalizationConfigV2,
   sync: Partial<PersonalizationLocalEnvelopeV2["sync"]> = {},
 ): PersonalizationLocalEnvelopeV2 {
   return createCleanEnvelope(config, sync);
@@ -226,6 +224,134 @@ function parseV2Envelope(value: Record<string, unknown>):
   }
 }
 
+function parseLegacyCachedConfig(value: unknown):
+  | { config: PersonalizationConfigV1 }
+  | { reason: PersonalizationCacheInvalidReason } {
+  if (!isRecord(value)) return { reason: "invalid-config" };
+  if (value.version !== 1) return { reason: "unsupported-config-version" };
+  if (!isPersonalizationPayloadWithinLimit(value)) return { reason: "oversized-config" };
+  const config = parsePersonalizationConfigV1(value);
+  return config ? { config } : { reason: "invalid-config" };
+}
+
+function parseLegacyEnvelope(value: Record<string, unknown>):
+  | {
+      savedAt: string;
+      config: PersonalizationConfigV1;
+      pending: { intentId: string; config: PersonalizationConfigV1; createdAt: string } | null;
+    }
+  | { reason: PersonalizationCacheInvalidReason } {
+  if (!isValidSavedAt(value.savedAt)) return { reason: "invalid-saved-at" };
+  const parsedConfig = parseLegacyCachedConfig(value.config);
+  if ("reason" in parsedConfig) return { reason: parsedConfig.reason };
+  if (value.cacheVersion === 1) {
+    return { savedAt: value.savedAt, config: parsedConfig.config, pending: null };
+  }
+  if (value.cacheVersion !== 2 || !isRecord(value.sync)) {
+    return { reason: "unsupported-cache-version" };
+  }
+
+  const sync = value.sync;
+  const knownCloudRevision = sync.knownCloudRevision;
+  const lastSuccessfulGetAt = sync.lastSuccessfulGetAt;
+  if (
+    (knownCloudRevision !== null && typeof knownCloudRevision !== "string") ||
+    (lastSuccessfulGetAt !== null && !isValidSavedAt(lastSuccessfulGetAt)) ||
+    !["never", "clean", "retryable-failure", "disabled", "unsupported"].includes(
+      String(sync.lastSyncState),
+    )
+  ) {
+    return { reason: "invalid-sync" };
+  }
+
+  let pending: { intentId: string; config: PersonalizationConfigV1; createdAt: string } | null = null;
+  if (sync.pending !== null) {
+    if (
+      !isRecord(sync.pending) ||
+      typeof sync.pending.intentId !== "string" ||
+      !INTENT_ID.test(sync.pending.intentId) ||
+      !isValidSavedAt(sync.pending.createdAt)
+    ) {
+      return { reason: "invalid-sync" };
+    }
+    const pendingConfig = parseLegacyCachedConfig(sync.pending.config);
+    if ("reason" in pendingConfig) return { reason: "invalid-sync" };
+    pending = {
+      intentId: sync.pending.intentId,
+      config: pendingConfig.config,
+      createdAt: sync.pending.createdAt,
+    };
+  }
+  return { savedAt: value.savedAt, config: parsedConfig.config, pending };
+}
+
+async function migrateLegacyCache(
+  userId: unknown,
+  raw: string,
+  legacyKey: string,
+  storage: PersonalizationKeyValueStorage,
+): Promise<PersonalizationCacheReadResult> {
+  try {
+    if (new TextEncoder().encode(raw).byteLength > MAX_PERSONALIZATION_LOCAL_ENVELOPE_BYTES) {
+      return fallbackInvalid("oversized-envelope");
+    }
+  } catch {
+    return fallbackInvalid("invalid-envelope");
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return fallbackInvalid("invalid-json");
+  }
+  if (!isRecord(value)) return fallbackInvalid("invalid-envelope");
+
+  const legacy = parseLegacyEnvelope(value);
+  if ("reason" in legacy) return fallbackInvalid(legacy.reason);
+  const migratedConfig = migratePersonalizationConfigV1ToV2(legacy.config);
+  const migratedPending = legacy.pending
+    ? {
+        intentId: legacy.pending.intentId,
+        config: migratePersonalizationConfigV1ToV2(legacy.pending.config),
+        createdAt: legacy.pending.createdAt,
+      }
+    : null;
+  const envelope = createCleanEnvelope(migratedConfig, {
+    knownCloudRevision: null,
+    pending: migratedPending,
+    lastSyncState: "never",
+    lastSuccessfulGetAt: null,
+  });
+  const serialized = serializeEnvelope(envelope);
+  if (!serialized) return fallbackInvalid("oversized-envelope");
+
+  try {
+    await storage.setItem(getPersonalizationCacheKey(userId)!, serialized);
+  } catch {
+    return {
+      status: "found",
+      config: cloneConfig(migratedConfig),
+      savedAt: legacy.savedAt,
+      migrated: false,
+    };
+  }
+
+  try {
+    await storage.removeItem(legacyKey);
+  } catch {
+    // V2 is authoritative after the durable write. A later read ignores V1.
+  }
+
+  return {
+    status: "found",
+    config: cloneConfig(envelope.config),
+    savedAt: envelope.savedAt,
+    envelope,
+    migrated: true,
+  };
+}
+
 function fallbackInvalid(reason: PersonalizationCacheInvalidReason): PersonalizationCacheReadResult {
   return { status: "invalid", config: normalizePersonalizationConfig(null), reason };
 }
@@ -246,14 +372,23 @@ export async function readCachedPersonalization(
   storage: PersonalizationKeyValueStorage = createDefaultStorage(),
 ): Promise<PersonalizationCacheReadResult> {
   const key = getPersonalizationCacheKey(userId);
-  if (!key) return fallbackInvalid("invalid-user-id");
+  const legacyKey = getLegacyPersonalizationCacheKey(userId);
+  if (!key || !legacyKey) return fallbackInvalid("invalid-user-id");
   let raw: string | null;
   try {
     raw = await storage.getItem(key);
   } catch {
     return fallbackInvalid("storage-error");
   }
-  if (raw === null) return { status: "missing", config: normalizePersonalizationConfig(null) };
+  if (raw === null) {
+    try {
+      raw = await storage.getItem(legacyKey);
+    } catch {
+      return fallbackInvalid("storage-error");
+    }
+    if (raw === null) return { status: "missing", config: normalizePersonalizationConfig(null) };
+    return migrateLegacyCache(userId, raw, legacyKey, storage);
+  }
   try {
     if (new TextEncoder().encode(raw).byteLength > MAX_PERSONALIZATION_LOCAL_ENVELOPE_BYTES) {
       return fallbackInvalid("oversized-envelope");
@@ -270,38 +405,9 @@ export async function readCachedPersonalization(
   }
   if (!isRecord(value)) return fallbackInvalid("invalid-envelope");
 
-  let envelope: PersonalizationLocalEnvelopeV2;
-  let migrated = false;
-  if (value.cacheVersion === 1) {
-    if (!isValidSavedAt(value.savedAt)) return fallbackInvalid("invalid-saved-at");
-    const parsedConfig = parseCachedConfig(value.config);
-    if ("reason" in parsedConfig) return fallbackInvalid(parsedConfig.reason);
-    envelope = {
-      cacheVersion: 2,
-      savedAt: value.savedAt,
-      config: parsedConfig.config,
-      sync: {
-        knownCloudRevision: null,
-        pending: null,
-        lastSyncState: "never",
-        lastSuccessfulGetAt: null,
-      },
-    };
-    migrated = true;
-    const serialized = serializeEnvelope(envelope);
-    if (serialized) {
-      try {
-        await storage.setItem(key, serialized);
-      } catch {
-        // The validated V1 value remains usable for this session. A later
-        // natural V2 write can retry the opportunistic migration.
-      }
-    }
-  } else {
-    const parsed = parseV2Envelope(value);
-    if ("reason" in parsed) return fallbackInvalid(parsed.reason);
-    envelope = parsed.envelope;
-  }
+  const parsed = parseV2Envelope(value);
+  if ("reason" in parsed) return fallbackInvalid(parsed.reason);
+  const envelope = parsed.envelope;
 
   return {
     status: "found",
@@ -317,7 +423,7 @@ export async function readCachedPersonalization(
           : null,
       },
     },
-    migrated,
+    migrated: false,
   };
 }
 
@@ -384,7 +490,7 @@ export async function acknowledgePersonalizationCloudRecord(
   if ("reason" in parsed || !record.revision || !isValidSavedAt(record.updatedAt) || !INTENT_ID.test(record.lastIntentId)) {
     return { ok: false, error: "invalid-sync" };
   }
-  if (record.recordVersion !== 1) {
+  if (record.recordVersion !== 2) {
     return { ok: false, error: "invalid-sync" };
   }
   const envelope = createCleanEnvelope(parsed.config, {

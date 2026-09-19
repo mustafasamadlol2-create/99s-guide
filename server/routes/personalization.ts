@@ -2,7 +2,7 @@ import express, { type RequestHandler } from "express";
 import {
   MAX_PERSONALIZATION_CLOUD_RECORD_BYTES,
   parsePersonalizationConfig,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../../shared/personalization.js";
 import {
   PersonalizationSyncError,
@@ -16,7 +16,7 @@ export interface PersonalizationRouteDependencies {
   putCloud: (
     userId: string,
     payload: {
-      config: PersonalizationConfigV1;
+      config: PersonalizationConfigV2;
       intentId: string;
       knownRevision: string | null;
     },

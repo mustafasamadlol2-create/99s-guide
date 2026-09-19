@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   DEFAULT_PERSONALIZATION_V1,
+  DEFAULT_PERSONALIZATION_V2,
   PERSONALIZATION_GLASS_STYLES,
   PERSONALIZATION_HERO_STYLES,
   PERSONALIZATION_MOTION_STYLES,
@@ -10,7 +11,7 @@ import {
   PERSONALIZATION_SUBJECT_IDS,
   PERSONALIZATION_THEME_IDS,
   createDefaultPersonalization,
-  type PersonalizationConfigV1,
+  type PersonalizationConfigV2,
 } from "../shared/personalization.js";
 import {
   applyPersonalizationDraft,
@@ -62,9 +63,9 @@ const translationsSource = readFileSync(
   "utf8",
 );
 
-function fullConfig(): PersonalizationConfigV1 {
+function fullConfig(): PersonalizationConfigV2 {
   return {
-    version: 1,
+    version: 2,
     themeId: "violet",
     heroStyle: "aurora",
     glassStyle: "frosted",
@@ -72,6 +73,8 @@ function fullConfig(): PersonalizationConfigV1 {
     readingSize: "large",
     home: {
       subjectOrder: ["SSC", "ImD", "PHC", "CA", "RM", "NT", "ID"],
+      hiddenSubjectIds: ["NT"],
+      semesterVisibility: { semester1: true, semester2: false },
     },
   };
 }
@@ -111,13 +114,17 @@ test("the final user-facing surface exposes exactly six axes", () => {
 
 test("factory defaults remain the complete safe production configuration", () => {
   assert.deepEqual(createDefaultPersonalization(), {
-    version: 1,
+    version: 2,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
     motionStyle: "full",
     readingSize: "default",
-    home: { subjectOrder: [...PERSONALIZATION_SUBJECT_IDS] },
+    home: {
+      subjectOrder: [...PERSONALIZATION_SUBJECT_IDS],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
   });
   assert.equal(DEFAULT_PERSONALIZATION_V1.version, 1);
   assert.deepEqual(
@@ -148,7 +155,7 @@ test("factory defaults remove all five optional global presentation attributes",
   }
 });
 
-test("draft changes across all six axes remain globally inert until Apply", () => {
+test("draft changes across all personalization axes remain globally inert until Apply", () => {
   let state = createPersonalizationState();
   const draft = fullConfig();
   for (const [type, value] of [
@@ -158,6 +165,8 @@ test("draft changes across all six axes remain globally inert until Apply", () =
     ["setMotionStyle", draft.motionStyle],
     ["setReadingSize", draft.readingSize],
     ["setSubjectOrder", draft.home.subjectOrder],
+    ["setHiddenSubjectIds", draft.home.hiddenSubjectIds],
+    ["setSemesterVisibility", draft.home.semesterVisibility],
   ] as const) {
     state = reducePersonalizationState(state, { type, value });
   }
@@ -171,7 +180,7 @@ test("draft changes across all six axes remain globally inert until Apply", () =
   assert.match(providerSource, /draft: visibleState\.draft/);
 });
 
-test("six-axis Apply, failure, Cancel, and Reset preserve transactional behavior", () => {
+test("Apply, failure, Cancel, and Reset preserve transactional behavior", () => {
   const initial = createPersonalizationState();
   let edited = initial;
   const draft = fullConfig();
@@ -182,6 +191,8 @@ test("six-axis Apply, failure, Cancel, and Reset preserve transactional behavior
     ["setMotionStyle", draft.motionStyle],
     ["setReadingSize", draft.readingSize],
     ["setSubjectOrder", draft.home.subjectOrder],
+    ["setHiddenSubjectIds", draft.home.hiddenSubjectIds],
+    ["setSemesterVisibility", draft.home.semesterVisibility],
   ] as const) {
     edited = reducePersonalizationState(edited, { type, value });
   }
@@ -212,7 +223,13 @@ test("six-axis Apply, failure, Cancel, and Reset preserve transactional behavior
   assert.equal(
     personalizationConfigsEqual(
       edited.draft,
-      { ...edited.draft, home: { subjectOrder: [...edited.draft.home.subjectOrder].reverse() } },
+      {
+        ...edited.draft,
+        home: {
+          ...edited.draft.home,
+          subjectOrder: [...edited.draft.home.subjectOrder].reverse(),
+        },
+      },
     ),
     false,
   );

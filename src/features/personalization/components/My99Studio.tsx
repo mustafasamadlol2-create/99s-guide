@@ -44,6 +44,7 @@ import {
   HOME_SUBJECT_NAME_KEYS,
   HomeSubjectOrderEditor,
 } from "./HomeSubjectOrderEditor";
+import { isHomeSubjectEffectivelyVisible } from "../homeSubjectVisibility";
 
 interface My99StudioProps {
   language: Language;
@@ -529,6 +530,26 @@ const My99Studio = memo(function My99Studio({
     [updateDraft],
   );
 
+  const handleHiddenSubjectIdsChange = useCallback(
+    (hiddenSubjectIds: SubjectId[]) => {
+      updateDraft({ type: "setHiddenSubjectIds", value: hiddenSubjectIds });
+    },
+    [updateDraft],
+  );
+
+  const handleSemesterVisibilityChange = useCallback(
+    (semester: "semester1" | "semester2") => {
+      updateDraft({
+        type: "setSemesterVisibility",
+        value: {
+          ...draft.home.semesterVisibility,
+          [semester]: !draft.home.semesterVisibility[semester],
+        },
+      });
+    },
+    [draft.home.semesterVisibility, updateDraft],
+  );
+
   const handleApply = useCallback(async () => {
     if (!canApply) return;
     HapticFeedback.selection();
@@ -674,14 +695,22 @@ const My99Studio = memo(function My99Studio({
               {t("my99HomeSubjectOrderPreviewTitle")}
             </h3>
             <ol className="mt-3 flex flex-wrap gap-2">
-              {draft.home.subjectOrder.map((subjectId, index) => (
+              {draft.home.subjectOrder
+                .filter((subjectId) =>
+                  isHomeSubjectEffectivelyVisible(
+                    subjectId,
+                    draft.home.hiddenSubjectIds,
+                    draft.home.semesterVisibility,
+                  ),
+                )
+                .map((subjectId, index) => (
                 <li
                   key={subjectId}
                   className="rounded-full bg-semantic-action-accent-soft px-3 py-1.5 text-xs font-semibold text-semantic-action-accent"
                 >
                   {index + 1}. {t(HOME_SUBJECT_NAME_KEYS[subjectId])}
                 </li>
-              ))}
+                ))}
             </ol>
           </section>
         </div>
@@ -913,10 +942,48 @@ const My99Studio = memo(function My99Studio({
             {t("my99HomeSubjectOrderDescription")}
           </p>
         </div>
+        <div className="mb-4 rounded-xl border border-semantic-border-default bg-semantic-surface-muted p-3">
+          <h3 className="text-sm font-semibold text-semantic-content-primary">
+            {t("my99SemesterVisibilityTitle")}
+          </h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {(["semester1", "semester2"] as const).map((semester) => {
+              const isShown = draft.home.semesterVisibility[semester];
+              return (
+                <button
+                  key={semester}
+                  type="button"
+                  role="switch"
+                  aria-checked={isShown}
+                  onClick={() => handleSemesterVisibilityChange(semester)}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-semantic-border-default bg-semantic-surface-primary px-3 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-semantic-content-primary">
+                      {t(semester === "semester1" ? "my99Semester1" : "my99Semester2")}
+                    </span>
+                    <span className="block text-xs text-semantic-content-secondary">
+                      {isShown ? t("my99ShownOnHome") : t("my99HiddenOnHome")}
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`h-5 w-9 rounded-full p-0.5 transition-colors ${isShown ? "bg-semantic-action-accent" : "bg-semantic-content-subtle"}`}
+                  >
+                    <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${isShown ? "translate-x-4" : ""}`} />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <HomeSubjectOrderEditor
           language={language}
           subjectOrder={draft.home.subjectOrder}
+          hiddenSubjectIds={draft.home.hiddenSubjectIds}
+          semesterVisibility={draft.home.semesterVisibility}
           onChange={handleSubjectOrderChange}
+          onHiddenSubjectIdsChange={handleHiddenSubjectIdsChange}
         />
       </section>
 

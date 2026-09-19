@@ -5,7 +5,8 @@
  * dependencies. It is safe to import from the frontend, backend, and tests.
  */
 
-export const PERSONALIZATION_VERSION = 1 as const;
+export const PERSONALIZATION_VERSION_V1 = 1 as const;
+export const PERSONALIZATION_VERSION = 2 as const;
 
 export const PERSONALIZATION_THEME_IDS = [
   "classic-99",
@@ -65,7 +66,7 @@ export const PERSONALIZATION_SUBJECT_IDS = [
 export type SubjectId = (typeof PERSONALIZATION_SUBJECT_IDS)[number];
 
 export interface PersonalizationConfigV1 {
-  version: typeof PERSONALIZATION_VERSION;
+  readonly version: typeof PERSONALIZATION_VERSION_V1;
   themeId: ThemeId;
   heroStyle: HeroStyle;
   glassStyle: GlassStyle;
@@ -76,9 +77,28 @@ export interface PersonalizationConfigV1 {
   };
 }
 
+export interface PersonalizationConfigV2 {
+  version: typeof PERSONALIZATION_VERSION;
+  themeId: ThemeId;
+  heroStyle: HeroStyle;
+  glassStyle: GlassStyle;
+  motionStyle: MotionStyle;
+  readingSize: ReadingSize;
+  home: {
+    readonly subjectOrder: readonly SubjectId[];
+    readonly hiddenSubjectIds: readonly SubjectId[];
+    readonly semesterVisibility: {
+      readonly semester1: boolean;
+      readonly semester2: boolean;
+    };
+  };
+}
+
+export type PersonalizationConfig = PersonalizationConfigV2;
+
 export interface PersonalizationValidationSuccess {
   success: true;
-  data: PersonalizationConfigV1;
+  data: PersonalizationConfigV2;
 }
 
 export interface PersonalizationValidationFailure {
@@ -112,14 +132,14 @@ export type PersonalizationSyncState = (typeof PERSONALIZATION_SYNC_STATES)[numb
 
 export interface PersonalizationPendingIntent {
   intentId: string;
-  config: PersonalizationConfigV1;
+  config: PersonalizationConfigV2;
   createdAt: string;
 }
 
 export interface PersonalizationLocalEnvelopeV2 {
   cacheVersion: 2;
   savedAt: string;
-  config: PersonalizationConfigV1;
+  config: PersonalizationConfigV2;
   sync: {
     knownCloudRevision: string | null;
     pending: PersonalizationPendingIntent | null;
@@ -129,8 +149,8 @@ export interface PersonalizationLocalEnvelopeV2 {
 }
 
 export interface PersonalizationCloudRecord {
-  recordVersion: 1;
-  config: PersonalizationConfigV1;
+  recordVersion: 2;
+  config: PersonalizationConfigV2;
   revision: string;
   updatedAt: string;
   lastIntentId: string;
@@ -151,7 +171,7 @@ type DeepReadonly<T> = T extends readonly (infer U)[]
 
 export const DEFAULT_PERSONALIZATION_V1: DeepReadonly<PersonalizationConfigV1> =
   Object.freeze({
-    version: PERSONALIZATION_VERSION,
+    version: PERSONALIZATION_VERSION_V1,
     themeId: "classic-99",
     heroStyle: "classic",
     glassStyle: "balanced",
@@ -162,8 +182,26 @@ export const DEFAULT_PERSONALIZATION_V1: DeepReadonly<PersonalizationConfigV1> =
     }),
   });
 
+export const DEFAULT_PERSONALIZATION_V2: DeepReadonly<PersonalizationConfigV2> =
+  Object.freeze({
+    version: PERSONALIZATION_VERSION,
+    themeId: "classic-99",
+    heroStyle: "classic",
+    glassStyle: "balanced",
+    motionStyle: "full",
+    readingSize: "default",
+    home: Object.freeze({
+      subjectOrder: Object.freeze([...CLASSIC_99_SUBJECT_ORDER]),
+      hiddenSubjectIds: Object.freeze([]),
+      semesterVisibility: Object.freeze({
+        semester1: true,
+        semester2: true,
+      }),
+    }),
+  });
+
 // Compatibility alias for callers using the original Phase 1 name.
-export const DEFAULT_PERSONALIZATION_CONFIG = DEFAULT_PERSONALIZATION_V1;
+export const DEFAULT_PERSONALIZATION_CONFIG = DEFAULT_PERSONALIZATION_V2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -244,9 +282,28 @@ function isCompleteSubjectOrder(value: unknown): value is SubjectId[] {
   });
 }
 
+function isHiddenSubjectIds(value: unknown): value is SubjectId[] {
+  if (!Array.isArray(value) || value.length > PERSONALIZATION_SUBJECT_IDS.length) {
+    return false;
+  }
+  const seen = new Set<string>();
+  return value.every((subjectId) => {
+    if (!isOneOf(PERSONALIZATION_SUBJECT_IDS, subjectId) || seen.has(subjectId)) {
+      return false;
+    }
+    seen.add(subjectId);
+    return true;
+  });
+}
+
+function canonicalizeHiddenSubjectIds(value: readonly SubjectId[]): SubjectId[] {
+  const hidden = new Set(value);
+  return PERSONALIZATION_SUBJECT_IDS.filter((subjectId) => hidden.has(subjectId));
+}
+
 function hasValidV1Fields(value: Record<string, unknown>): boolean {
   return (
-    value.version === PERSONALIZATION_VERSION &&
+    value.version === PERSONALIZATION_VERSION_V1 &&
     isOneOf(PERSONALIZATION_THEME_IDS, value.themeId) &&
     isOneOf(PERSONALIZATION_HERO_STYLES, value.heroStyle) &&
     isOneOf(PERSONALIZATION_GLASS_STYLES, value.glassStyle) &&
@@ -257,7 +314,37 @@ function hasValidV1Fields(value: Record<string, unknown>): boolean {
   );
 }
 
-function cloneDefaultPersonalization(): PersonalizationConfigV1 {
+function hasValidV2Fields(value: Record<string, unknown>): boolean {
+  const home = value.home;
+  const semesterVisibility = isRecord(home) ? home.semesterVisibility : null;
+  return (
+    hasOnlyKeys(value, [
+      "version",
+      "themeId",
+      "heroStyle",
+      "glassStyle",
+      "motionStyle",
+      "readingSize",
+      "home",
+    ]) &&
+    value.version === PERSONALIZATION_VERSION &&
+    isOneOf(PERSONALIZATION_THEME_IDS, value.themeId) &&
+    isOneOf(PERSONALIZATION_HERO_STYLES, value.heroStyle) &&
+    isOneOf(PERSONALIZATION_GLASS_STYLES, value.glassStyle) &&
+    isOneOf(PERSONALIZATION_MOTION_STYLES, value.motionStyle) &&
+    isOneOf(PERSONALIZATION_READING_SIZES, value.readingSize) &&
+    isRecord(home) &&
+    hasOnlyKeys(home, ["subjectOrder", "hiddenSubjectIds", "semesterVisibility"]) &&
+    isCompleteSubjectOrder(home.subjectOrder) &&
+    isHiddenSubjectIds(home.hiddenSubjectIds) &&
+    isRecord(semesterVisibility) &&
+    hasOnlyKeys(semesterVisibility, ["semester1", "semester2"]) &&
+    typeof semesterVisibility.semester1 === "boolean" &&
+    typeof semesterVisibility.semester2 === "boolean"
+  );
+}
+
+function cloneDefaultPersonalizationV1(): PersonalizationConfigV1 {
   return {
     version: DEFAULT_PERSONALIZATION_V1.version,
     themeId: DEFAULT_PERSONALIZATION_V1.themeId,
@@ -267,6 +354,25 @@ function cloneDefaultPersonalization(): PersonalizationConfigV1 {
     readingSize: DEFAULT_PERSONALIZATION_V1.readingSize,
     home: {
       subjectOrder: [...DEFAULT_PERSONALIZATION_V1.home.subjectOrder],
+    },
+  };
+}
+
+function cloneDefaultPersonalizationV2(): PersonalizationConfigV2 {
+  return {
+    version: DEFAULT_PERSONALIZATION_V2.version,
+    themeId: DEFAULT_PERSONALIZATION_V2.themeId,
+    heroStyle: DEFAULT_PERSONALIZATION_V2.heroStyle,
+    glassStyle: DEFAULT_PERSONALIZATION_V2.glassStyle,
+    motionStyle: DEFAULT_PERSONALIZATION_V2.motionStyle,
+    readingSize: DEFAULT_PERSONALIZATION_V2.readingSize,
+    home: {
+      subjectOrder: [...DEFAULT_PERSONALIZATION_V2.home.subjectOrder],
+      hiddenSubjectIds: [...DEFAULT_PERSONALIZATION_V2.home.hiddenSubjectIds],
+      semesterVisibility: {
+        semester1: DEFAULT_PERSONALIZATION_V2.home.semesterVisibility.semester1,
+        semester2: DEFAULT_PERSONALIZATION_V2.home.semesterVisibility.semester2,
+      },
     },
   };
 }
@@ -281,9 +387,9 @@ function normalizeSubjectOrder(value: unknown): SubjectId[] {
  * Strictly validates a complete V1 document. Unknown keys, missing fields,
  * invalid enum values, duplicate subjects, and incomplete subject orders fail.
  */
-export function validatePersonalizationConfig(
+export function validatePersonalizationConfigV1(
   value: unknown,
-): PersonalizationValidationResult {
+): { success: true; data: PersonalizationConfigV1 } | PersonalizationValidationFailure {
   if (!isRecord(value)) {
     return { success: false, errors: ["Personalization config must be an object."] };
   }
@@ -307,8 +413,8 @@ export function validatePersonalizationConfig(
       `Personalization payload must be at most ${MAX_PERSONALIZATION_PAYLOAD_BYTES} UTF-8 bytes.`,
     );
   }
-  if (value.version !== PERSONALIZATION_VERSION) {
-    errors.push(`Personalization config version must be ${PERSONALIZATION_VERSION}.`);
+  if (value.version !== PERSONALIZATION_VERSION_V1) {
+    errors.push(`Personalization config version must be ${PERSONALIZATION_VERSION_V1}.`);
   }
   if (!isOneOf(PERSONALIZATION_THEME_IDS, value.themeId)) {
     errors.push("Personalization config has an invalid themeId.");
@@ -344,7 +450,7 @@ export function validatePersonalizationConfig(
   return {
     success: true,
     data: {
-      version: PERSONALIZATION_VERSION,
+      version: PERSONALIZATION_VERSION_V1,
       themeId: value.themeId as ThemeId,
       heroStyle: value.heroStyle as HeroStyle,
       glassStyle: value.glassStyle as GlassStyle,
@@ -357,9 +463,105 @@ export function validatePersonalizationConfig(
   };
 }
 
+export function validatePersonalizationConfig(
+  value: unknown,
+): PersonalizationValidationResult {
+  if (!isRecord(value)) {
+    return { success: false, errors: ["Personalization config must be an object."] };
+  }
+
+  const errors: string[] = [];
+  const topLevelKeys = [
+    "version",
+    "themeId",
+    "heroStyle",
+    "glassStyle",
+    "motionStyle",
+    "readingSize",
+    "home",
+  ] as const;
+  if (!hasOnlyKeys(value, topLevelKeys)) {
+    errors.push("Personalization config contains unknown fields.");
+  }
+  if (!isPersonalizationPayloadWithinLimit(value)) {
+    errors.push(`Personalization payload must be at most ${MAX_PERSONALIZATION_PAYLOAD_BYTES} UTF-8 bytes.`);
+  }
+  if (value.version !== PERSONALIZATION_VERSION) {
+    errors.push(`Personalization config version must be ${PERSONALIZATION_VERSION}.`);
+  }
+  if (!isOneOf(PERSONALIZATION_THEME_IDS, value.themeId)) {
+    errors.push("Personalization config has an invalid themeId.");
+  }
+  if (!isOneOf(PERSONALIZATION_HERO_STYLES, value.heroStyle)) {
+    errors.push("Personalization config has an invalid heroStyle.");
+  }
+  if (!isOneOf(PERSONALIZATION_GLASS_STYLES, value.glassStyle)) {
+    errors.push("Personalization config has an invalid glassStyle.");
+  }
+  if (!isOneOf(PERSONALIZATION_MOTION_STYLES, value.motionStyle)) {
+    errors.push("Personalization config has an invalid motionStyle.");
+  }
+  if (!isOneOf(PERSONALIZATION_READING_SIZES, value.readingSize)) {
+    errors.push("Personalization config has an invalid readingSize.");
+  }
+
+  if (!isRecord(value.home)) {
+    errors.push("Personalization config home must be an object.");
+  } else {
+    if (!hasOnlyKeys(value.home, ["subjectOrder", "hiddenSubjectIds", "semesterVisibility"])) {
+      errors.push("Personalization config home contains unknown fields.");
+    }
+    if (!isCompleteSubjectOrder(value.home.subjectOrder)) {
+      errors.push("Personalization config home.subjectOrder must contain each subject exactly once.");
+    }
+    if (!isHiddenSubjectIds(value.home.hiddenSubjectIds)) {
+      errors.push("Personalization config home.hiddenSubjectIds must contain canonical subjects only.");
+    }
+    if (!isRecord(value.home.semesterVisibility) ||
+        !hasOnlyKeys(value.home.semesterVisibility, ["semester1", "semester2"]) ||
+        typeof value.home.semesterVisibility.semester1 !== "boolean" ||
+        typeof value.home.semesterVisibility.semester2 !== "boolean") {
+      errors.push("Personalization config home.semesterVisibility must contain boolean semester1 and semester2 values.");
+    }
+  }
+
+  if (errors.length > 0 || !hasValidV2Fields(value)) {
+    if (errors.length === 0) errors.push("Personalization config is invalid.");
+    return { success: false, errors };
+  }
+
+  const home = value.home as {
+    subjectOrder: SubjectId[];
+    hiddenSubjectIds: SubjectId[];
+    semesterVisibility: { semester1: boolean; semester2: boolean };
+  };
+  return {
+    success: true,
+    data: {
+      version: PERSONALIZATION_VERSION,
+      themeId: value.themeId as ThemeId,
+      heroStyle: value.heroStyle as HeroStyle,
+      glassStyle: value.glassStyle as GlassStyle,
+      motionStyle: value.motionStyle as MotionStyle,
+      readingSize: value.readingSize as ReadingSize,
+      home: {
+        subjectOrder: [...home.subjectOrder],
+        hiddenSubjectIds: canonicalizeHiddenSubjectIds(home.hiddenSubjectIds),
+        semesterVisibility: { ...home.semesterVisibility },
+      },
+    },
+  };
+}
+
 export function isPersonalizationConfigV1(
   value: unknown,
 ): value is PersonalizationConfigV1 {
+  return validatePersonalizationConfigV1(value).success;
+}
+
+export function isPersonalizationConfigV2(
+  value: unknown,
+): value is PersonalizationConfigV2 {
   return validatePersonalizationConfig(value).success;
 }
 
@@ -373,11 +575,15 @@ export function isPersonalizationConfigV1(
  */
 export function normalizePersonalizationConfig(
   value: unknown,
-): PersonalizationConfigV1 {
-  const fallback = cloneDefaultPersonalization();
-  if (!isRecord(value) || !hasValidV1Fields(value)) return fallback;
+): PersonalizationConfigV2 {
+  const fallback = cloneDefaultPersonalizationV2();
+  if (!isRecord(value) || !hasValidV2Fields(value)) return fallback;
 
-  const home = value.home as { subjectOrder: SubjectId[] };
+  const home = value.home as {
+    subjectOrder: SubjectId[];
+    hiddenSubjectIds: SubjectId[];
+    semesterVisibility: { semester1: boolean; semester2: boolean };
+  };
   return {
     version: PERSONALIZATION_VERSION,
     themeId: value.themeId as ThemeId,
@@ -387,29 +593,44 @@ export function normalizePersonalizationConfig(
     readingSize: value.readingSize as ReadingSize,
     home: {
       subjectOrder: normalizeSubjectOrder(home.subjectOrder),
+      hiddenSubjectIds: canonicalizeHiddenSubjectIds(home.hiddenSubjectIds),
+      semesterVisibility: { ...home.semesterVisibility },
     },
   };
 }
 
 /**
- * Returns a fresh mutable V1 default. No caller can mutate the shared
+ * Returns a fresh mutable V2 default. No caller can mutate the shared
  * frozen default or affect a later factory call.
  */
-export function createDefaultPersonalization(): PersonalizationConfigV1 {
-  return cloneDefaultPersonalization();
+export function createDefaultPersonalization(): PersonalizationConfigV2 {
+  return cloneDefaultPersonalizationV2();
 }
 
-/**
- * Migration entry point for future preference documents.
- *
- * V1 is currently the first supported shape. Unknown, missing, or unsupported
- * versions deliberately use Classic 99 rather than guessing at old semantics.
- */
+export function migratePersonalizationConfigV1ToV2(
+  value: PersonalizationConfigV1,
+): PersonalizationConfigV2 {
+  return {
+    version: PERSONALIZATION_VERSION,
+    themeId: value.themeId,
+    heroStyle: value.heroStyle,
+    glassStyle: value.glassStyle,
+    motionStyle: value.motionStyle,
+    readingSize: value.readingSize,
+    home: {
+      subjectOrder: [...value.home.subjectOrder],
+      hiddenSubjectIds: [],
+      semesterVisibility: { semester1: true, semester2: true },
+    },
+  };
+}
+
 export function migratePersonalizationConfig(
   value: unknown,
-): PersonalizationConfigV1 {
-  if (!isRecord(value) || value.version !== PERSONALIZATION_VERSION) {
-    return cloneDefaultPersonalization();
+): PersonalizationConfigV2 {
+  if (isRecord(value) && value.version === PERSONALIZATION_VERSION_V1) {
+    const legacy = validatePersonalizationConfigV1(value);
+    if (legacy.success) return migratePersonalizationConfigV1ToV2(legacy.data);
   }
   return normalizePersonalizationConfig(value);
 }
@@ -420,7 +641,14 @@ export function migratePersonalizationConfig(
  */
 export function parsePersonalizationConfig(
   value: unknown,
-): PersonalizationConfigV1 | null {
+): PersonalizationConfigV2 | null {
   const result = validatePersonalizationConfig(value);
+  return result.success ? result.data : null;
+}
+
+export function parsePersonalizationConfigV1(
+  value: unknown,
+): PersonalizationConfigV1 | null {
+  const result = validatePersonalizationConfigV1(value);
   return result.success ? result.data : null;
 }
