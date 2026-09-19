@@ -74,6 +74,9 @@ test("R2 Reading Size scales ordinary semantic typography and composes with app_
     assert.match(css, new RegExp(`${token}:`));
   }
   assert.match(css, /--text-body: calc\(1\.0625rem \* var\(--personalization-effective-reading-scale\)\)/);
+  assert.match(css, /\.personalization-reading-home-title/);
+  assert.match(home, /personalization-reading-home-title/);
+  assert.doesNotMatch(home, /titleClass:[\s\S]{0,120}text-\[(?:2rem|2\.5rem)\]/);
   const readingStart = css.indexOf("/* Reading Size scales semantic typography");
   const readingEnd = css.indexOf("/* OS reduced motion is", readingStart);
   assert.ok(readingStart > 0 && readingEnd > readingStart);

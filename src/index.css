@@ -7343,6 +7343,30 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   --text-3xl--line-height: var(--text-large-title--line-height);
 }
 
+/* The responsive Home Hero title keeps its existing size steps while making
+   every step part of the Reading Size composition. */
+.personalization-reading-home-title {
+  font-size: calc(1.75rem * var(--personalization-effective-reading-scale, 1));
+}
+
+@media (min-width: 640px) {
+  .personalization-reading-home-title {
+    font-size: calc(2.125rem * var(--personalization-effective-reading-scale, 1));
+  }
+}
+
+@media (min-width: 1200px) {
+  .personalization-reading-home-title {
+    font-size: calc(2rem * var(--personalization-effective-reading-scale, 1));
+  }
+}
+
+@media (min-width: 1600px) {
+  .personalization-reading-home-title {
+    font-size: calc(2.5rem * var(--personalization-effective-reading-scale, 1));
+  }
+}
+
 /* Compact rails remain readable and avoid forcing mobile tab labels to wrap. */
 :root[data-app-reading-size="large"] [data-lecture-section-tabs],
 [data-personalization-preview-reading-size="large"] [data-lecture-section-tabs] {
