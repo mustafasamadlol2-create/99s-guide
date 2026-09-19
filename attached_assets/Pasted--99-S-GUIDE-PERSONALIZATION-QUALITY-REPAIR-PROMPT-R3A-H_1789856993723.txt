@@ -1,0 +1,1437 @@
+# 99'S GUIDE — PERSONALIZATION QUALITY REPAIR
+# PROMPT R3A
+## HOME SUBJECT VISIBILITY + SEMESTER CONTROLS
+## ARCHITECTURE / MIGRATION / CLOUD-COMPATIBILITY AUDIT
+### AUDIT ONLY — NO IMPLEMENTATION YET
+### DEFINE EXACT DATA MODEL BEFORE MODIFYING PERSONALIZATION SCHEMA
+### DO NOT BEGIN R3B
+### DO NOT IMPLEMENT APP ICON
+### DO NOT MODIFY `.agents/*`
+
+R1 / R1B / R2 / R2B are CLOSED AND APPROVED.
+
+Current personalization quality baseline:
+
+- Theme Pack coverage repaired.
+- Hero persistence repaired.
+- Account-switch/logout boundaries verified.
+- Hero / Glass / Motion / Reading functional differentiation verified.
+- Reading Size full-app coverage verified.
+- Full personalization matrix:
+
+```text
+175 passed
+0 failed
+0 skipped
+0 cancelled
+
+R3 adds NEW Home personalization capability.
+
+Unlike R1/R2, this is not merely presentation rendering.
+
+It changes what Home subjects are visible and therefore requires a careful data-model, migration, persistence, and cloud compatibility decision BEFORE implementation.
+
+Prompt R3A is AUDIT / ARCHITECTURE ONLY.
+
+DO NOT modify production source.
+
+DO NOT modify tests.
+
+DO NOT modify personalization schemas.
+
+DO NOT implement the UI.
+
+Return an implementation-ready architecture report only.
+
+1. PRODUCT REQUIREMENT
+
+Current My99 Home personalization supports:
+
+Home Subject Order
+
+for exactly seven canonical subjects:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+R3 must eventually add:
+
+Manual Hide / Show for individual subjects.
+Semester 1 visibility control.
+Semester 2 visibility control.
+
+The resulting Home dashboard should show only the subjects that are effectively visible.
+
+2. CANONICAL SUBJECT SEMESTER MAPPING
+
+Use the following product mapping unless actual repository academic metadata contradicts it.
+
+Semester 1 only
+NT
+RM
+PHC
+Semester 2 only
+ImD
+SSC
+Present across both / not semester-exclusive
+ID
+CA
+
+Interpretation:
+
+ID  = Infectious Diseases
+CA  = Clinical Attachment
+NT  = Nutrition
+RM  = Research Methodology
+PHC = PHC
+ImD = Immunology / current ImD canonical subject
+SSC = SSC
+
+Audit actual subject metadata/names in the repository.
+
+If actual product data contradicts this mapping:
+STOP and report the exact mismatch.
+
+Do not silently invent another semester assignment.
+
+3. REQUIRED VISIBILITY SEMANTICS
+
+The intended model is:
+
+manual subject visibility
++
+semester visibility
+=
+effective Home visibility
+
+Manual hiding and semester filtering are INDEPENDENT.
+
+4. MANUAL HIDE / SHOW
+
+Every canonical subject should eventually have an individual:
+
+Hide / Show
+
+control.
+
+Manual hiding must be allowed for ANY of the seven subjects, including:
+
+ID
+CA
+
+A manually hidden subject remains hidden regardless of its semester toggle until manually shown again.
+
+5. SEMESTER 1 CONTROL
+
+When Semester 1 visibility is OFF:
+
+hide only:
+
+NT
+RM
+PHC
+
+Do NOT semester-hide:
+
+ID
+CA
+ImD
+SSC
+
+The Semester 1 switch must NOT mutate manual hidden state.
+
+6. SEMESTER 2 CONTROL
+
+When Semester 2 visibility is OFF:
+
+hide only:
+
+ImD
+SSC
+
+Do NOT semester-hide:
+
+ID
+CA
+NT
+RM
+PHC
+
+The Semester 2 switch must NOT mutate manual hidden state.
+
+7. BOTH-SEMESTER SUBJECTS
+
+Subjects:
+
+ID
+CA
+
+must remain unaffected by Semester 1 / Semester 2 visibility toggles.
+
+They disappear only when:
+
+manually hidden
+
+This is a critical invariant.
+
+8. EFFECTIVE VISIBILITY FORMULA
+
+The architecture should conceptually support:
+
+effectiveVisible(subject)
+=
+NOT manuallyHidden(subject)
+AND
+semesterAllows(subject)
+
+Where:
+
+semesterAllows(ID) = true
+semesterAllows(CA) = true
+
+semesterAllows(NT/RM/PHC)
+= semester1Visible
+
+semesterAllows(ImD/SSC)
+= semester2Visible
+
+Audit whether this should be implemented as a pure helper.
+
+Strong preference:
+
+YES.
+
+9. SEMESTER TOGGLE MUST NOT DESTROY MANUAL STATE
+
+Example:
+
+User manually hides NT.
+Semester 1 is ON.
+
+→ NT hidden.
+
+User turns Semester 1 OFF.
+
+→ NT remains hidden, along with RM and PHC.
+
+User turns Semester 1 ON again.
+
+→ RM and PHC return.
+→ NT stays hidden because its manual hidden state is preserved.
+
+This exact behavior is required.
+
+10. SUBJECT ORDER MUST REMAIN COMPLETE
+
+Current subjectOrder stores all seven canonical subjects.
+
+Do NOT remove hidden subjects from the stored order.
+
+Example:
+
+subjectOrder:
+SSC, ID, NT, CA, RM, PHC, ImD
+
+If SSC becomes hidden:
+
+the stored order remains complete.
+
+Home rendering simply filters effective visibility after resolving order.
+
+If SSC is shown later:
+
+it returns to its previously stored position.
+
+11. HOME ORDER EDITOR
+
+The future My99 editor should continue to list ALL seven subjects even when some are hidden.
+
+Otherwise a hidden subject could become difficult to restore/reorder.
+
+The future UI should distinguish:
+
+current order
+manually hidden
+hidden by semester
+effectively visible
+
+without deleting subjects from the editor.
+
+Audit the best interaction model.
+
+12. DRAFT / COMMITTED SEMANTICS
+
+All new Home visibility settings must follow existing My99 semantics:
+
+change Draft
+→ preview only
+→ Home runtime unchanged
+
+until:
+
+Apply
+
+Apply should commit:
+
+subject order
+manual visibility
+semester visibility
+
+together with the other My99 axes in the existing combined Apply operation.
+
+Cancel:
+
+restores Draft to committed.
+
+Reset:
+
+restores factory defaults in Draft only until Apply.
+
+13. FACTORY DEFAULTS
+
+Expected factory defaults:
+
+subjectOrder:
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+manual hidden subjects:
+none
+
+Semester 1:
+visible
+
+Semester 2:
+visible
+
+Therefore the upgraded default Home remains visually identical to the current seven-subject Home.
+
+Backward compatibility must preserve current behavior.
+
+14. RESET SEMANTICS
+
+Reset should produce Draft:
+
+canonical subject order
+no manual hidden subjects
+semester1Visible = true
+semester2Visible = true
+
+No global Home change until Apply.
+
+15. ALL SUBJECTS MAY BECOME HIDDEN
+
+Determine whether the architecture safely allows the user to hide all seven manually.
+
+Preferred V1 behavior:
+
+YES.
+
+Do not invent a forced-one-visible rule unless actual Home rendering would break.
+
+If zero subjects are visible:
+
+Home subject grid may render empty.
+
+Do NOT add a new study widget or replacement subject.
+
+Audit whether an existing empty-state component is already appropriate.
+
+Do not introduce unrelated Home content.
+
+16. HOME BUSINESS LOGIC SAFETY
+
+Visibility affects only:
+
+which existing subject cards render on Home
+
+It must NOT change:
+
+academic subject definitions
+Lecture availability
+Search results
+Calendar data
+Admin subject data
+MCQ availability
+Notes/PDF access
+subject routes
+permissions
+backend academic records
+
+Hidden means:
+
+hidden from Home presentation
+
+NOT:
+
+disabled/deleted subject
+17. SEARCH / DIRECT NAVIGATION
+
+A hidden Home subject must remain:
+
+searchable if Search currently finds it
+navigable by direct route
+accessible from Calendar/other existing surfaces
+fully functional
+
+R3 visibility applies ONLY to Home subject-card presentation unless explicitly approved later.
+
+18. MY99 PREVIEW
+
+Future contained preview should show the resulting visible Home subject list using Draft state.
+
+Example:
+
+semester2Visible = false
+manualHidden = [NT]
+
+Preview should show:
+
+ID
+RM
+CA
+PHC
+
+assuming canonical/default order.
+
+It should NOT show:
+
+NT
+ImD
+SSC
+
+Reason:
+
+NT manually hidden.
+ImD/SSC hidden by Semester 2.
+19. UI STRUCTURE AUDIT
+
+Audit current:
+
+HomeSubjectOrderEditor.tsx
+My99Studio.tsx
+
+and recommend exact future R3 UI.
+
+Strong preferred structure:
+
+Home Subject Order
+
+At top:
+
+Semester Visibility
+
+[ Semester 1 ]  Show/Hide
+[ Semester 2 ]  Show/Hide
+
+Then all seven subject rows.
+
+Each row includes:
+
+localized subject name
+current order
+Move Up
+Move Down
+manual Hide/Show control
+clear visual state if hidden by semester
+accessible current visibility description
+
+Do not implement yet.
+
+20. SEMESTER CONTROLS SHOULD BE REVERSIBLE
+
+Prefer switch/toggle semantics rather than destructive actions.
+
+Examples:
+
+Show Semester 1
+Show Semester 2
+
+or equivalent localized labels.
+
+Avoid ambiguous destructive wording.
+
+Audit best wording for:
+
+English
+Arabic
+
+Do not write final translations yet unless existing i18n keys need planning.
+
+21. MANUAL HIDE CONTROL
+
+Recommended interaction:
+
+eye / eye-off
+Hide
+Show
+
+Do not rely only on icon color.
+
+Must have accessible label/state.
+
+Future touch target must meet existing mobile standards.
+
+22. HIDDEN-BY-SEMESTER UI
+
+If:
+
+Semester 2 = hidden
+
+then ImD/SSC rows should remain in the editor but visibly indicate:
+
+Hidden by Semester 2
+
+Their manual hide state remains independently editable or at minimum visible.
+
+Audit which UX is least confusing.
+
+Strong preference:
+
+manual hidden state remains editable independently even while semester-hidden.
+
+23. NO AUTOMATIC ORDER MUTATION
+
+Toggling Semester 1/2 must NOT reorder subjectOrder.
+
+Manual Hide/Show must NOT reorder.
+
+Only existing Move Up/Down operations change order.
+
+24. PURE HELPER ARCHITECTURE
+
+Audit whether to extend:
+
+homeSubjectOrder.ts
+
+or add a focused helper such as:
+
+homeSubjectVisibility.ts
+
+Strong preference:
+
+pure helper(s) that receive:
+
+source subject list
+ordered IDs
+manual hidden IDs
+semester visibility
+
+and return:
+
+complete ordered subjects
+effective visible subjects
+
+with immutable behavior.
+
+25. INVALID DATA SAFETY
+
+Existing Home ordering helper has defensive behavior.
+
+New visibility helper must be equally defensive.
+
+Invalid visibility data must NEVER:
+
+crash Home
+silently delete all subjects due malformed input
+introduce unknown IDs
+hide unexpected source subjects accidentally
+
+Factory-safe fallback must exist.
+
+26. UNEXPECTED SOURCE SUBJECT SAFETY
+
+Existing approved R1/Phase4 behavior:
+
+if source subject list unexpectedly contains an unrecognized subject:
+
+do not silently drop it.
+
+Audit how visibility should treat unknown future source subjects.
+
+Preferred:
+
+unknown source subjects default VISIBLE unless explicitly supported by a future schema.
+
+Do not accidentally hide future subjects.
+
+27. CRITICAL SCHEMA DECISION
+
+The current account config is:
+
+PersonalizationConfigV1
+
+with:
+
+home: {
+  subjectOrder: readonly SubjectId[];
+}
+
+R3 needs additional Home personalization state.
+
+Prompt R3A MUST decide the correct versioning strategy.
+
+Do NOT implement before resolving this.
+
+28. TWO POSSIBLE SCHEMA STRATEGIES
+
+Audit both.
+
+Strategy A — backward-compatible additive V1 extension
+
+Conceptually:
+
+home: {
+  subjectOrder: readonly SubjectId[];
+  hiddenSubjectIds?: readonly SubjectId[];
+  semesterVisibility?: {
+    semester1: boolean;
+    semester2: boolean;
+  };
+}
+
+Input compatibility:
+
+old V1 configs missing the new fields normalize to:
+
+hiddenSubjectIds = []
+semester1 = true
+semester2 = true
+
+Canonical runtime/write form may include the fields.
+
+Advantages:
+
+smaller migration
+existing V1 local cache remains readable
+cloud has not been deployed live yet
+
+Risks:
+
+the previously approved V1 contract was intentionally strict
+old strict validators may reject new fields
+semantic schema changes while retaining version:1
+Strategy B — formal PersonalizationConfigV2
+
+Conceptually:
+
+version: 2
+
+with explicit migration from V1.
+
+Advantages:
+
+clean version semantics
+respects strict frozen V1 contract
+
+Costs:
+
+local migration
+provider changes
+Local Envelope implications
+cloud key/version implications
+Worker/backend/client upgrade
+more migration complexity
+
+Audit actual repository and prior architecture before selecting.
+
+29. DO NOT CHOOSE BASED ONLY ON CONVENIENCE
+
+The previous sync architecture intentionally discussed future schema isolation.
+
+Prompt R3A must inspect:
+
+shared/personalization.ts
+local validators
+personalizationStorage.ts
+PersonalizationProvider.tsx
+personalizationCloudSync.ts
+Express route validators
+backend sync service
+Cloudflare Worker validator
+tests
+current deployment state
+
+Then determine whether an additive V1 extension is genuinely safe and architecture-consistent.
+
+If not, recommend V2.
+
+30. IMPORTANT CURRENT INFRASTRUCTURE FACT
+
+Current status from Prompt 22R:
+
+Live Cloudflare KV: NOT CREATED
+Live Personalization Worker: NOT DEPLOYED
+Render production cloud-sync env: NOT CONFIGURED
+Production cloud sync: DISABLED
+
+Therefore there are NO live Workers-KV personalization records that need remote migration today.
+
+However:
+
+local V1 personalization caches may exist in browser/device installations.
+
+The schema decision must distinguish:
+
+local migration compatibility
+
+from:
+
+remote cloud migration
+31. LOCAL V1 CACHE COMPATIBILITY
+
+Current local records may contain:
+
+PersonalizationConfigV1
+
+with no visibility fields.
+
+After R3 implementation they MUST preserve:
+
+existing Theme
+Hero
+Glass
+Motion
+Reading
+subject order
+
+and default new visibility state to:
+
+all subjects visible
+both semesters visible
+
+No existing user should lose personalization.
+
+32. CLOUD SYNC FUTURE DEPLOYMENT
+
+Because live cloud infrastructure is not deployed yet:
+
+future staging/production should ideally launch with the FINAL R3-capable schema rather than deploying an obsolete schema first.
+
+Audit what this means for:
+
+Worker KV key format
+record version
+config version
+Express contracts
+Worker validation
+existing tests
+
+Do not deploy anything.
+
+33. CLOUD KEY DECISION
+
+If choosing ConfigV2:
+
+determine whether architecture requires:
+
+personalization:v2:<user>
+
+as previously designed for future schema isolation.
+
+If choosing additive V1:
+
+determine whether:
+
+personalization:v1:<user>
+
+remains valid and why strict compatibility is preserved.
+
+Do not leave this ambiguous.
+
+34. LOCAL STORAGE KEY DECISION
+
+Current local key:
+
+99s:personalization:v1:<user>
+
+If schema evolves:
+
+determine exact local migration/key behavior.
+
+Do NOT create ambiguous overlapping ownership.
+
+Report exact recommendation.
+
+35. LOCAL ENVELOPE DECISION
+
+Current:
+
+PersonalizationLocalEnvelopeV2
+
+Note carefully:
+
+cacheVersion: 2
+
+is local-envelope format and is NOT the same thing as:
+
+PersonalizationConfigV2
+
+Do not confuse these version numbers.
+
+Determine whether R3 needs:
+
+same local envelope cacheVersion
+new cacheVersion
+config migration only
+
+Strong preference:
+
+do not bump local envelope version unless its structural sync envelope changes.
+
+36. PENDING CLOUD INTENT MIGRATION
+
+Current local envelope may contain a pending cloud intent containing ConfigV1.
+
+Audit what happens if R3 code encounters:
+
+pending.config = old config
+
+before cloud infrastructure is enabled.
+
+Must not:
+
+lose pending local personalization
+accidentally upload obsolete/malformed schema
+overwrite new visibility settings later
+
+Define exact normalization/supersession behavior.
+
+37. APPLY AFTER MIGRATION
+
+If a user loads an old config then changes R3 visibility and presses Apply:
+
+the resulting durable pending config must contain the complete new canonical configuration.
+
+No mixed old/new config.
+
+38. CLOUD-DISABLED LOCAL BEHAVIOR
+
+Cloud remains disabled until later deployment.
+
+R3 must continue to work fully locally:
+
+Home visibility
+semester visibility
+subject order
+
+must persist in the account-scoped local cache even if no Worker exists.
+
+39. CONFIG SIZE
+
+The additional visibility fields are small.
+
+Audit existing:
+
+16,384-byte config limit
+49,152-byte local envelope limit
+32,768-byte cloud record limit
+
+Expected:
+
+no limit changes required.
+
+Confirm.
+
+40. DIRTY EQUALITY
+
+Current Provider isDirty / config equality is order-sensitive for subjectOrder.
+
+New equality must also detect changes in:
+
+manual hidden subject set/state
+Semester 1 visibility
+Semester 2 visibility
+
+Determine canonical representation so equivalent hidden sets do not become dirty merely due array ordering.
+
+Strong preference:
+
+store hidden IDs in a canonical deterministic order.
+
+41. HIDDEN SUBJECT CANONICAL ORDER
+
+If using:
+
+hiddenSubjectIds
+
+do NOT let arbitrary array order become semantic.
+
+Recommend canonicalization by the canonical subject sequence:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+or another deterministic approved order.
+
+Thus:
+
+[SSC, NT]
+
+and:
+
+[NT, SSC]
+
+must normalize identically.
+
+42. VALIDATION
+
+Manual hidden IDs must:
+
+contain only known SubjectId
+contain no duplicates after normalization
+allow zero through seven IDs
+
+Semester visibility must contain exact booleans.
+
+No string coercion.
+
+No unknown Home keys if strict schema remains intended.
+
+43. FACTORY CONFIG
+
+Report the exact proposed upgraded factory config.
+
+It must preserve all existing defaults plus:
+
+hiddenSubjectIds = []
+semester1 visible
+semester2 visible
+44. PREVIEW HELPER
+
+Draft preview should reuse the SAME pure visibility function as Home runtime.
+
+Do not create separate UI-only visibility logic that could disagree with Home.
+
+45. HOME RENDER PATH
+
+Audit actual Home rendering path.
+
+Current order behavior conceptually:
+
+source subjects
+→ homeSubjectOrder helper
+→ render
+
+Future should become conceptually:
+
+source subjects
+→ validated complete order
+→ effective visibility filter
+→ render
+
+or a combined pure helper.
+
+State exact recommended insertion point.
+
+Do not alter other Home content.
+
+46. PERFORMANCE
+
+Only seven subjects exist.
+
+No memoization complexity is required beyond normal React stability.
+
+No network request.
+
+No backend academic query.
+
+No effect loops.
+
+47. ACCESSIBILITY
+
+Future controls require:
+
+semantic switches/buttons
+visible label
+accessible state
+keyboard support
+touch target
+disabled-boundary Move Up/Down behavior preserved
+not relying on color alone
+
+Hidden rows should remain operable.
+
+48. ARABIC / RTL
+
+Audit how semester controls and Hide/Show integrate with existing Arabic localization.
+
+Requirements:
+
+subject IDs stay language-independent
+semester metadata stays language-independent
+persisted data never stores localized labels
+row layout supports RTL
+Eye icon itself need not mirror
+Move Up/Down semantics continue logical order, not Arabic visual reversal
+49. SEMESTER ORDER IS NOT LOCALE ORDER
+
+Semester membership and subjectOrder remain based on canonical IDs.
+
+Arabic UI must not reverse the stored Home order.
+
+This preserves existing approved behavior.
+
+50. HOME CARD ANIMATION
+
+Hiding/showing subjects after committed Apply may use existing React/layout animation if already present.
+
+Do not add a new heavy animation system.
+
+Motion Style should govern decorative transition if relevant.
+
+Reduced Motion must remain respected.
+
+Architecture report should state whether existing motion can handle this.
+
+51. NO IMMEDIATE HOME MUTATION FROM DRAFT
+
+Critical:
+
+Inside My99:
+
+turn Semester 2 off
+
+must NOT immediately hide ImD/SSC from the real Home screen until Apply.
+
+Only the contained preview changes.
+
+This preserves the existing personalization transaction model.
+
+52. APPLY FAILURE
+
+If local Apply persistence fails:
+
+current committed Home visibility remains unchanged.
+
+Draft visibility remains dirty.
+
+No partial Home filtering.
+
+No cloud PUT.
+
+Existing atomic Apply semantics must extend to the new fields.
+
+53. ACCOUNT SWITCH
+
+Home visibility is account-scoped if included in account personalization.
+
+Therefore:
+
+Account A may hide SSC.
+
+Account B may show SSC.
+
+A → B must use safe factory boundary during hydration, then B config.
+
+Audit whether current Provider lifecycle already handles this once the config fields exist.
+
+54. LOGOUT
+
+Anonymous/factory Home behavior should show all seven subjects in canonical order.
+
+No stale account hidden state should remain visible anonymously.
+
+55. STALE CLOUD / LOCAL GUARDS
+
+If visibility becomes cloud-synced, all existing:
+
+pending intent
+account generation
+stale GET
+remote adoption
+dirty Draft
+
+guards must automatically include the full upgraded config.
+
+Audit whether any helper currently selectively serializes only old Home fields.
+
+56. NO APP ICON
+
+App Icon remains independent.
+
+No R3A implementation.
+
+No Prompt 24 work.
+
+57. NO R4 WORK
+
+Do not perform final full-app QA sweep yet.
+
+R4 remains after R3 implementation.
+
+58. NO PRODUCTION SOURCE CHANGE
+
+Prompt R3A is audit-only.
+
+Expected:
+
+NO PRODUCTION SOURCE CHANGE
+NO TEST CHANGE
+NO CONFIG CHANGE
+NO CLOUD CHANGE
+NO DATABASE CHANGE
+
+Do not create documentation files.
+
+59. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Prompt R3A itself must create no changes.
+
+Existing R1/R2 work may already be committed/clean depending on workflow.
+
+Report honestly.
+
+60. .agents/*
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+Expected no output.
+
+No .agents/* modifications.
+
+61. DEFINITION OF DONE
+
+R3A passes only if it defines:
+
+exact semester membership
+exact manual hide semantics
+exact semester toggle semantics
+effective visibility formula
+complete subject order preservation
+editor behavior for hidden subjects
+Draft/Apply/Cancel/Reset behavior
+zero-visible behavior
+Home-only scope
+Search/direct-route preservation
+pure helper architecture
+unknown-source safety
+exact config schema strategy
+exact migration strategy
+local key impact
+local-envelope impact
+cloud key/version impact
+pending intent migration
+equality/canonicalization
+factory defaults
+account/logout behavior
+i18n/RTL behavior
+no implementation diff
+62. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PERSONALIZATION QUALITY REPAIR R3A REPORT
+HOME SUBJECT VISIBILITY / SEMESTER ARCHITECTURE AUDIT
+1. Status
+
+PASS / BLOCKED
+
+2. Product Behavior
+
+Summarize exact feature semantics.
+
+3. Canonical Subject Set
+
+Print all seven IDs/names.
+
+4. Semester Mapping
+
+Print exact:
+
+Semester 1 only
+Semester 2 only
+Both semesters
+
+5. Manual Hide Semantics
+
+Report.
+
+6. Semester 1 Semantics
+
+Report.
+
+7. Semester 2 Semantics
+
+Report.
+
+8. Both-Semester Subject Semantics
+
+Report.
+
+9. Effective Visibility Formula
+
+Print exact conceptual formula.
+
+10. Manual + Semester Interaction Example
+
+Use the NT example.
+
+11. Subject Order Preservation
+
+Report.
+
+12. Hidden Subject Editor Behavior
+
+Report.
+
+13. Zero Visible Subjects
+
+Report final decision.
+
+14. Home-Only Scope
+
+Confirm hidden subjects remain accessible elsewhere.
+
+15. My99 UI Recommendation
+
+Describe exact future structure.
+
+16. Draft Behavior
+
+Report.
+
+17. Apply Behavior
+
+Report.
+
+18. Cancel Behavior
+
+Report.
+
+19. Reset Behavior
+
+Report.
+
+20. Preview Behavior
+
+Report.
+
+21. Pure Helper Architecture
+
+List recommended helper(s) and responsibilities.
+
+22. Unknown Source Subjects
+
+Report safe behavior.
+
+23. Current Config Contract
+
+Print current relevant Home shape.
+
+24. Schema Strategies Audited
+
+Compare V1 additive extension vs ConfigV2.
+
+25. Selected Schema Strategy
+
+Choose ONE and justify deeply.
+
+26. Exact Proposed Config Type
+
+Print exact proposed TypeScript conceptual type.
+
+27. Factory Config
+
+Print exact proposed Home defaults.
+
+28. Validation Rules
+
+Report.
+
+29. Hidden ID Canonicalization
+
+Report exact deterministic order.
+
+30. Equality / isDirty
+
+Report.
+
+31. Existing Local V1 Migration
+
+Report exact behavior.
+
+32. Local Storage Key
+
+State whether it changes and exact key recommendation.
+
+33. Local Envelope Version
+
+State whether cacheVersion changes.
+
+Explain distinction from config version.
+
+34. Pending Intent Migration
+
+Report.
+
+35. Cloud Deployment Reality
+
+State:
+
+Live KV currently exists: YES / NO
+Live Worker currently deployed: YES / NO
+Production sync enabled: YES / NO
+
+Use known Prompt 22R state unless repository evidence contradicts it.
+
+36. Cloud Config Version
+
+Report recommendation.
+
+37. Cloud KV Key
+
+Print exact recommended future key.
+
+38. Cloud Record Version
+
+Report recommendation.
+
+39. Express API Impact
+
+Report exact expected change/no-change.
+
+40. Cloudflare Worker Impact
+
+Report exact expected change/no-change.
+
+41. Config / Envelope Size Limits
+
+State whether limits change.
+
+42. Apply Atomicity
+
+Explain how visibility joins existing one-write Apply.
+
+43. Persistence Failure
+
+Report.
+
+44. Account Switch
+
+Report.
+
+45. Logout
+
+Report.
+
+46. Stale Sync Guards
+
+Report.
+
+47. Search / Calendar / Direct Navigation
+
+Confirm behavior outside Home.
+
+48. Accessibility
+
+Report future control semantics.
+
+49. Arabic / RTL
+
+Report.
+
+50. Motion / Transition
+
+Report safe Home card transition behavior.
+
+51. R3B Implementation Scope
+
+List exact modules likely to change.
+
+52. R3B Test Plan
+
+List critical tests including migration/cloud compatibility.
+
+53. Database Impact
+
+State exactly:
+
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+54. App Icon Impact
+
+State:
+
+No App Icon implementation.
+
+55. R3A Production Diff
+
+State exactly:
+
+NO PRODUCTION SOURCE CHANGE IN R3A.
+
+56. Git Review
+
+Report:
+git status --short
+git diff --stat
+git diff --check
+
+57. .agents/* Verification
+
+Report:
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+58. R3B Readiness
+
+If architecture is fully resolved, state exactly:
+
+HOME SUBJECT MANUAL VISIBILITY: ARCHITECTURE CLOSED
+
+SEMESTER 1 / SEMESTER 2 VISIBILITY: ARCHITECTURE CLOSED
+
+BOTH-SEMESTER SUBJECT BEHAVIOR: VERIFIED
+
+HOME SUBJECT ORDER PRESERVATION: VERIFIED BY DESIGN
+
+DRAFT / APPLY / CANCEL / RESET SEMANTICS: VERIFIED BY DESIGN
+
+PERSONALIZATION SCHEMA EVOLUTION STRATEGY: CLOSED AND APPROVED
+
+LOCAL MIGRATION STRATEGY: CLOSED AND APPROVED
+
+CLOUD COMPATIBILITY STRATEGY: CLOSED AND APPROVED
+
+ACCOUNT ISOLATION: VERIFIED BY DESIGN
+
+R3B HOME VISIBILITY IMPLEMENTATION: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION QUALITY REPAIR R3A STATUS: COMPLETE — READY FOR R3B
+
+Otherwise:
+
+PERSONALIZATION QUALITY REPAIR R3A STATUS: BLOCKED — ARCHITECTURE DECISION REQUIRED
