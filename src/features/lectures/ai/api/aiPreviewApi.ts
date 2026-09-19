@@ -37,7 +37,11 @@ function appendScalar(form: FormData, request: AIPreviewRequest): void {
   form.append("lectureId", request.lectureId);
   form.append("operation", request.operation);
   form.append("inputKind", request.source.inputKind);
-  form.append("options", JSON.stringify(request.options));
+  // Omit empty options entirely. This keeps extraction requests compatible
+  // with older deployed preview routes that expect no extraction options.
+  if (Object.keys(request.options).length > 0) {
+    form.append("options", JSON.stringify(request.options));
+  }
 }
 
 function errorFromUnknown(error: unknown): AIPreviewError {
@@ -49,6 +53,7 @@ function errorFromUnknown(error: unknown): AIPreviewError {
   const candidate = error as Error & {
     status?: number;
     body?: AIHttpErrorPayload;
+    retryAfter?: string;
   };
   const payload = candidate.body;
   if (payload?.error) {
@@ -59,6 +64,7 @@ function errorFromUnknown(error: unknown): AIPreviewError {
         requestId: payload.requestId,
         retryable: payload.error.retryable,
         status: candidate.status,
+        retryAfter: candidate.retryAfter ?? null,
       },
     );
   }

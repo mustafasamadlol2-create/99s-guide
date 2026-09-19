@@ -361,7 +361,10 @@ export default function AIImportPanel({
 
   const options = useMemo<AIPreviewOptions>(() => {
     if (target === "mcq") {
-      if (operation === "extract") return { category: mcqCategory, difficulty: mcqExtractDifficulty };
+      // Keep extraction payload backwards-compatible with already-deployed AI routes.
+      // Category/difficulty are local review metadata and are applied to returned
+      // candidates below, so they do not need to be sent to the model endpoint.
+      if (operation === "extract") return {} as Record<string, never>;
       if (operation === "generate") return {
         count: mcqCount,
         difficulty: "mixed",
@@ -369,11 +372,11 @@ export default function AIImportPanel({
         includeHints,
         includeExplanations,
       };
+      // Older deployed enhancement routes only accept hint/explanation. Keep the
+      // wire contract minimal; review metadata is applied after the response.
       return {
         hint: enhanceHint,
         explanation: enhanceExplanation,
-        category: mcqCategory,
-        difficulty: mcqExtractDifficulty,
       };
     }
     if (operation === "generate") return { count: flashcardCount, focus: focus.trim() || null };
@@ -406,12 +409,19 @@ export default function AIImportPanel({
     if (result) {
       if (target === "mcq") {
         const category = operation === "generate" ? "AI_GENERATED" : mcqCategory;
+        const reviewDifficulty = operation === "generate" ? null : mcqExtractDifficulty;
         setResponse({
           ...result,
           result: {
             ...result.result,
             items: result.result.items.map((item) =>
-              "question" in item ? { ...item, category } : item,
+              "question" in item
+                ? {
+                    ...item,
+                    category,
+                    ...(reviewDifficulty ? { difficulty: reviewDifficulty } : {}),
+                  }
+                : item,
             ),
           },
         } as AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>);

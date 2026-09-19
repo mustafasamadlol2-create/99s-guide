@@ -26,10 +26,28 @@ interface ApiClientOptions extends RequestInit {
 }
 
 interface ApiErrorBody {
-  error?: string;
+  error?: string | {
+    code?: unknown;
+    message?: unknown;
+    retryable?: unknown;
+    details?: unknown;
+    [key: string]: unknown;
+  };
   message?: string;
   banned?: boolean;
+  retryable?: boolean;
   [key: string]: unknown;
+}
+
+function apiErrorMessage(body: ApiErrorBody | null): string | null {
+  if (!body) return null;
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  if (body.error && typeof body.error === "object") {
+    const nestedMessage = body.error.message;
+    if (typeof nestedMessage === "string" && nestedMessage.trim()) return nestedMessage;
+  }
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  return null;
 }
 
 class ApiCache {
@@ -274,7 +292,7 @@ export async function apiClient(
           let parsedBody: ApiErrorBody | null = null;
           try {
             parsedBody = await response.clone().json();
-            errorMsg = parsedBody?.error || parsedBody?.message || errorMsg;
+            errorMsg = apiErrorMessage(parsedBody) ?? errorMsg;
           } catch {
             if (response.status === 404) errorMsg = "The requested resource was not found.";
             else if (response.status === 413) errorMsg = "The file uploaded is too large. Please select a smaller file.";
