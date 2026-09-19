@@ -1,0 +1,1023 @@
+# 99'S GUIDE — PERSONALIZATION QUALITY REPAIR
+# PROMPT R4B
+## FINAL VISUAL + REPOSITORY CLEANLINESS CLOSURE
+### RESOLVE THE TWO REMAINING R4 ACCEPTANCE CONTRADICTIONS
+### ACTUALLY RENDER MY99 / HOME AT MOBILE + TABLET + DESKTOP
+### ENSURE ABSOLUTELY ZERO `.agents/*` PROJECT DIFF
+### REPAIR ONLY IF A REAL VISUAL DEFECT IS OBSERVED
+### DO NOT CHANGE PERSONALIZATION ARCHITECTURE
+### DO NOT ADD FEATURES
+### DO NOT DEPLOY CLOUD
+### DO NOT IMPLEMENT APP ICON
+
+R4 production logic and test implementation are provisionally accepted.
+
+The following are ALREADY CLOSED and must not be redesigned:
+
+- PersonalizationConfigV2
+- strict ConfigV1 migration boundary
+- V1 → V2 migration
+- migration durability repair
+- Theme
+- Hero
+- Glass
+- Motion
+- Reading
+- Home order
+- manual Home visibility
+- semester visibility
+- Draft / Apply / Cancel / Reset
+- account switch/logout boundaries
+- future V2 cloud source contract
+
+Entering personalization test baseline:
+
+```text
+181 passed
+0 failed
+0 skipped
+0 cancelled
+
+TypeScript:
+
+PASS
+0 errors
+
+Build:
+
+PASS
+
+R4B exists ONLY because the R4 report contained two unresolved acceptance contradictions.
+
+1. BLOCKER A — VISUAL VERIFICATION WAS NOT ACTUALLY COMPLETED
+
+The R4 report claimed:
+
+MOBILE / TABLET / DESKTOP PRESENTATION: VERIFIED
+
+but also stated:
+
+authenticated My99 did not render
+mobile My99 was not actually rendered
+tablet My99 was not actually rendered
+desktop My99 was not actually rendered
+Arabic My99 was not actually rendered
+the only actual app preview was the unauthenticated splash at 1280×720
+
+Therefore the final visual claim was too strong.
+
+R4B must actually render representative My99 and Home personalization surfaces in a SAFE TEST-ONLY environment.
+
+2. DO NOT USE REAL AUTH
+
+Do NOT:
+
+weaken authentication
+add an auth bypass
+use production credentials
+use real user credentials
+add a production debug route
+modify route security
+
+Use a disposable test-only visual harness.
+
+3. USE THE SUCCESSFUL R2B APPROACH
+
+R2B successfully rendered production personalization presentation through a disposable Vite/Chromium fixture.
+
+Use that same principle.
+
+Preferred architecture:
+
+tests/.r4b-visual-harness/
+
+or another temporary test-only directory.
+
+The harness may mock:
+
+authentication state
+personalization context
+academic subject data
+required app providers
+
+but it MUST render:
+
+actual My99 production component(s), or
+actual reusable production subcomponents wherever full My99 dependencies permit
+
+and:
+
+actual Home subject-card presentation or actual Home personalization rendering path
+
+Use:
+
+src/index.css
+
+through the real Vite/Tailwind pipeline.
+
+Do not recreate My99 styling manually.
+
+4. NO PRODUCTION ROUTE
+
+The visual fixture must NOT become reachable through the production application router.
+
+No:
+
+/debug
+/qa
+/test
+/r4
+
+production route.
+
+Temporary visual files must be removed before final closure unless they are intentionally committed test-only infrastructure.
+
+Strong preference:
+
+remove them.
+
+5. MY99 STATE A — FACTORY
+
+Actually render:
+
+Theme: classic-99
+Hero: classic
+Glass: balanced
+Motion: full
+Reading: default
+
+subjectOrder:
+ID NT RM CA PHC ImD SSC
+
+hiddenSubjectIds: []
+
+semester1: true
+semester2: true
+
+Verify:
+
+all sections render
+seven subject rows render
+both semester controls render
+Apply/Cancel/Reset area renders
+no horizontal overflow
+no clipped content
+6. MY99 STATE B — RICH PERSONALIZED
+
+Actually render Draft/preview representative state:
+
+Theme: rose
+Hero: aurora
+Glass: frosted
+Motion: subtle
+Reading: large
+
+subjectOrder:
+SSC ID NT CA RM PHC ImD
+
+hiddenSubjectIds:
+NT
+
+semester1: true
+semester2: false
+
+Verify:
+
+NT manual-hidden state is readable
+ImD and SSC semester-hidden state is readable where appropriate
+all seven editor rows STILL exist
+Move Up/Down remains available
+manual Hide/Show remains available
+preview reflects effective Home list
+controls do not collide
+7. MY99 STATE C — ACCESSIBILITY-ORIENTED
+
+Render:
+
+Theme: ocean
+Hero: minimal
+Glass: clear
+Motion: reduced
+Reading: large
+
+semester1: false
+semester2: true
+
+Verify:
+
+large reading remains layout-safe
+reduced-motion presentation remains coherent
+clear glass remains readable
+Semester 1 status remains obvious without relying only on color
+8. MY99 STATE D — MONOCHROME
+
+Render:
+
+Theme: monochrome
+Hero: night
+Glass: frosted
+Motion: full
+Reading: small
+
+hiddenSubjectIds:
+CA
+
+Verify contrast and readable state distinction.
+
+9. REQUIRED VIEWPORTS
+
+Actually render at least:
+
+Mobile:
+390 × 844
+
+If Chromium clamps width, use actual closest available width and report it.
+
+Also:
+
+Tablet:
+1024 × 1366
+
+Desktop:
+1440 × 900
+
+Do not call source inspection a rendered viewport.
+
+For each viewport report:
+
+requested size
+actual browser viewport size
+document scroll width
+whether horizontal overflow exists
+10. MOBILE MY99 CHECKLIST
+
+At the actual mobile viewport inspect:
+
+Theme Pack selector
+Hero Style selector
+Glass selector
+Motion selector
+Reading selector
+Semester Visibility
+seven subject rows
+Move Up
+Move Down
+Hide/Show
+visibility status
+Draft preview
+shared Apply / Cancel / Reset area
+
+Verify:
+
+no horizontal page overflow
+no clipped labels
+no overlapping controls
+no unusable touch targets
+11. TABLET / IPAD MY99 CHECKLIST
+
+At actual tablet viewport inspect:
+
+sensible max-width
+appropriate spacing
+no excessive empty right-side area
+cards not phone-sized and cramped
+subject rows use available width
+action area looks intentional
+preview is proportionate
+
+Do NOT redesign merely to create change.
+
+Only repair if a real visual issue is observed.
+
+12. DESKTOP / PWA MY99 CHECKLIST
+
+At actual desktop viewport inspect:
+
+section hierarchy
+container width
+information density
+Draft preview
+seven-row editor
+semester controls
+action area
+no unreasonable wasted space
+no stretched full-width cards unless intended
+13. HOME ACTUAL RENDER — FACTORY
+
+Render the Home subject presentation using actual production components/path where practical.
+
+Factory:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+Verify all seven visible.
+
+14. HOME ACTUAL RENDER — CUSTOMIZED
+
+Render:
+
+subjectOrder:
+SSC ID NT CA RM PHC ImD
+
+hiddenSubjectIds:
+NT
+
+semester1: true
+semester2: false
+
+Expected effective canonical subjects:
+
+ID
+CA
+RM
+PHC
+
+with custom ordering rules applied from the stored sequence.
+
+Important:
+
+SSC is absent because Semester 2 is disabled.
+NT is absent manually.
+ImD is absent because Semester 2 is disabled.
+
+Verify:
+
+no empty card placeholders
+grid closes gaps naturally
+no hidden card occupies layout space
+stored order remains intact internally
+15. HOME ZERO-VISIBLE VISUAL CHECK
+
+Render:
+
+hiddenSubjectIds:
+ID NT RM CA PHC ImD SSC
+
+Verify visually:
+
+no crash
+no giant broken blank card
+no phantom placeholder
+surrounding Home layout remains intact
+navigation remains present
+
+Then render only one visible subject and confirm it returns normally.
+
+16. READING LARGE ON MOBILE
+
+Use:
+
+readingSize = large
+
+at mobile viewport.
+
+Inspect:
+
+My99 section titles
+semester labels
+subject names
+status descriptions
+Move buttons
+Hide/Show
+sticky action labels
+Home subject cards
+
+No fixed-height clipping.
+
+17. ARABIC / RTL ACTUAL VISUAL RENDER
+
+This is required in R4B if the test harness can set the app localization/provider without weakening authentication.
+
+Render Arabic at least at:
+
+Mobile
+
+Prefer also tablet if straightforward.
+
+Inspect:
+
+My99 heading
+Theme
+Hero
+Glass
+Motion
+Reading
+Semester Visibility
+Semester 1 / 2
+subject rows
+Hide / Show
+status text
+Move Up / Down
+Apply / Cancel / Reset
+
+Verify:
+
+RTL direction correct
+no accidental subject order reversal
+no clipping
+no overlapping labels
+no broken wrapping
+no icon-direction mistake
+
+If the actual localization provider makes this technically impossible in the isolated harness:
+
+state the exact technical blocker.
+
+Do NOT falsely claim Arabic visual verification.
+
+But attempt it first.
+
+18. LIGHT / DARK ACTUAL CHECK
+
+Use representative states:
+
+Rose + Light
+Rose + Dark
+Ocean + Light
+Ocean + Dark
+Monochrome + Light
+Monochrome + Dark
+
+At least one real rendered My99/Home surface per pair.
+
+Verify:
+
+background
+cards
+glass chrome
+text
+state labels
+
+remain readable.
+
+19. GLASS ACTUAL CHECK
+
+On actual My99 or representative production glass:
+
+clear
+balanced
+frosted
+
+confirm visible treatment remains distinct.
+
+No need to redo R2 architecture.
+
+20. MOTION ACTUAL CHECK
+
+Where browser automation can inspect computed style:
+
+confirm:
+
+full
+subtle
+reduced
+
+have the existing R2 behavior.
+
+Do not require screenshot proof of animation frames.
+
+Computed/runtime verification is acceptable here because R2B already visually closed motion.
+
+21. DRAFT PREVIEW ACTUAL CHECK
+
+Interact with or programmatically update Draft in the rendered My99 fixture.
+
+Verify visibly:
+
+Draft changes
+→ preview changes
+→ real runtime fixture remains committed
+
+Do not only inspect source.
+
+22. RENDERED APPLY/CANCEL/RESET UX
+
+Verify the shared action area visually:
+
+readable
+not obscured by mobile viewport
+not overlapping content
+Apply busy/disabled state layout remains valid
+Cancel/Reset labels fit
+
+No need to actually write production storage from visual fixture if unit/integration tests already prove behavior.
+
+23. REPAIR RULE
+
+If visual verification finds:
+
+overlap
+clipping
+horizontal overflow
+unreadable state
+excessive empty tablet layout
+broken RTL
+hidden controls
+real theme mismatch
+
+repair the smallest production source necessary.
+
+Then rerun relevant tests/build.
+
+If no real defect exists:
+
+do not modify production source.
+
+24. BLOCKER B — .agents/* CONTRADICTION
+
+The R4 report said both:
+
+No `.agents/*` file was created or modified
+
+and:
+
+platform-required agent memory update recorded separately in `.agents/memory/`
+
+These statements cannot both satisfy the project requirement.
+
+The project requirement is absolute:
+
+NO `.agents/*` PROJECT MODIFICATION
+25. INSPECT .agents/* ACTUAL GIT STATE
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Also inspect untracked files under .agents if needed.
+
+Determine whether any .agents/* project file changed during R1–R4 work.
+
+26. IF .agents/* IS MODIFIED
+
+If an R4/R4B-generated .agents/* file is:
+
+modified
+created
+staged
+untracked
+
+restore/remove ONLY the personalization-work-generated change so .agents/* returns to its entering repository state.
+
+Do NOT delete legitimate pre-existing repository content.
+
+Do NOT modify unrelated agent configuration.
+
+Final requirement:
+
+git status --short -- .agents
+
+must show NO personalization-generated .agents/* diff.
+
+And:
+
+git diff -- .agents
+git diff --cached -- .agents
+
+must show no personalization-generated change.
+
+27. PLATFORM MEMORY VS PROJECT FILE
+
+If the coding platform maintains internal memory independently from the repository:
+
+that internal platform state is outside this repository requirement.
+
+But it must NOT be written as a tracked/untracked project file under:
+
+.agents/*
+
+for this task.
+
+Do not claim an exception merely because it is called memory.
+
+28. MIGRATION DURABILITY REGRESSION
+
+R4 fixed an important defect.
+
+Do NOT disturb it.
+
+Rerun:
+
+tests/personalization-storage.test.ts
+tests/personalization-r4-integration.test.ts
+
+Migration write failure must still:
+
+NOT expose undurable V2 as committed state
+preserve V1
+not delete V1
+29. FULL PERSONALIZATION MATRIX
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Entering baseline:
+
+181 passed
+0 failed
+0 skipped
+0 cancelled
+
+Required:
+
+0 failed
+30. TYPESCRIPT
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+31. BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+32. TARGETED ESLINT
+
+If R4B changes source/tests:
+
+run ESLint on modified TS/TSX/test files.
+
+Required:
+
+0 R4B errors
+
+If no source/test file changed:
+
+state that no additional targeted lint target was introduced.
+
+33. AUTH / SECURITY / NAVIGATION
+
+If production source changes during visual repair, rerun:
+
+npm run test:auth
+npm run security:check
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+Auth: 4 / 0
+Security: 13
+Navigation: 4 / 0
+
+If no relevant production source changed, existing R4 results may be reconfirmed or rerun.
+
+34. CLOUD
+
+Do not deploy anything.
+
+Final cloud reality remains:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+35. TEMPORARY VISUAL FILE CLEANUP
+
+Before closure remove:
+
+temporary Vite config
+temporary fixture files
+screenshots
+temporary HTML
+temporary mock data
+temporary route files
+
+unless an intentionally permanent test file is explicitly justified.
+
+Strong preference:
+
+repository clean of visual harness artifacts.
+
+36. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Clearly distinguish:
+
+any R4B production repair
+R4 tests/repairs already present
+unrelated/pre-existing files
+37. .agents/* FINAL HARD GATE
+
+Run exactly:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+The final report must state the ACTUAL result.
+
+Do NOT say .agents/* is unchanged if any project diff remains there.
+
+38. NO APP ICON
+
+APP ICON remains separate.
+
+No Swift.
+No Xcode.
+No assets.
+No App Icon UI.
+
+39. NO NEW FEATURES
+
+Do not add anything beyond visual repair if genuinely required.
+
+40. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PERSONALIZATION QUALITY REPAIR R4B REPORT
+FINAL VISUAL + REPOSITORY CLEANLINESS CLOSURE
+1. Status
+
+PASS / BLOCKED
+
+2. Why R4B Was Required
+
+Explain:
+
+R4 lacked actual My99/Home multi-viewport rendering
+.agents/* reporting was contradictory
+3. R4 Logic State
+
+Confirm R4 migration durability repair remains intact.
+
+4. Visual Harness Method
+
+Explain exact safe rendering architecture.
+
+5. Production Components Used
+
+List actual My99/Home production components or exact production subcomponents rendered.
+
+6. Production CSS
+
+Confirm actual src/index.css pipeline was used.
+
+7. Authentication Safety
+
+Confirm:
+
+no auth bypass
+no production credential
+no debug route
+no weakened security
+8. Mobile Viewport
+
+Report:
+requested size
+actual browser size
+document scroll width
+horizontal overflow YES/NO
+
+9. Mobile My99 Result
+
+Report actual visual observations.
+
+10. Tablet Viewport
+
+Report exact metrics.
+
+11. Tablet My99 Result
+
+Report actual observations.
+
+12. Desktop Viewport
+
+Report exact metrics.
+
+13. Desktop My99 Result
+
+Report actual observations.
+
+14. State A — Factory
+
+Report actual rendered result.
+
+15. State B — Rich Personalized
+
+Report actual rendered result.
+
+16. State C — Accessibility-Oriented
+
+Report actual rendered result.
+
+17. State D — Monochrome
+
+Report actual rendered result.
+
+18. Home Factory Render
+
+Report.
+
+19. Home Customized Render
+
+Report actual visible subject result.
+
+20. Zero-Visible Home Render
+
+Report.
+
+21. Reading Large Mobile
+
+Report.
+
+22. Arabic / RTL Visual Verification
+
+State exact actual rendered viewport(s) and observations.
+
+If genuinely technically impossible:
+state BLOCKER honestly unless the reason makes source-only verification explicitly unavoidable.
+
+23. Light / Dark Visual Matrix
+
+Report actual rendered/computed checks.
+
+24. Glass Visual Check
+
+Report.
+
+25. Motion Runtime Check
+
+Report.
+
+26. Draft Preview Visual Check
+
+Report.
+
+27. Apply / Cancel / Reset Layout
+
+Report.
+
+28. Visual Defects Found
+
+List exact defects.
+
+If none:
+
+NO VISUAL PRODUCTION DEFECT FOUND.
+
+29. R4B Production Repairs
+
+List exact repairs.
+
+If none:
+
+NO R4B PRODUCTION REPAIR REQUIRED.
+
+30. R4 Migration Durability Regression
+
+Report exact test result.
+
+31. .agents/* Investigation
+
+Explain what the previous .agents/memory/ statement referred to.
+
+32. .agents/* Final Repository State
+
+Print exact outputs/summary for:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state whether any personalization-generated .agents/* project change remains.
+
+33. Temporary Harness Cleanup
+
+List removed temporary files.
+
+34. Full Personalization Matrix
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+Entering:
+181 / 0 / 0 / 0
+
+35. TypeScript
+
+Report.
+
+36. Build
+
+Report.
+
+37. Targeted ESLint
+
+Report if applicable.
+
+38. Auth
+
+Report if rerun.
+
+39. Security
+
+Report if rerun.
+
+40. Navigation
+
+Report if rerun.
+
+41. Cloud State
+
+State exactly:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+NO PERSONALIZATION CLOUD DEPLOYMENT PERFORMED.
+
+42. Database Impact
+
+State exactly:
+
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+43. App Icon
+
+State exactly:
+
+APP ICON IMPLEMENTATION: NOT STARTED.
+
+44. Git Review
+
+Report:
+
+git status --short
+git diff --stat
+git diff --check
+
+45. Final Closure
+
+If and ONLY IF actual mobile/tablet/desktop visual verification passed AND no personalization-generated .agents/* repository diff remains, state exactly:
+
+ACTUAL MOBILE MY99 VISUAL QA: VERIFIED
+
+ACTUAL TABLET MY99 VISUAL QA: VERIFIED
+
+ACTUAL DESKTOP MY99 VISUAL QA: VERIFIED
+
+ACTUAL HOME PERSONALIZATION VISUAL QA: VERIFIED
+
+ARABIC / RTL VISUAL SAFETY: VERIFIED
+
+R4 MIGRATION DURABILITY REPAIR: PRESERVED
+
+PERSONALIZATION MATRIX: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+.agents/* PERSONALIZATION DIFF: NONE
+
+PERSONALIZATION CONFIG V2: PRODUCTION SOURCE VERIFIED
+
+THEME / HERO / GLASS / MOTION / READING: VERIFIED
+
+HOME ORDER / MANUAL VISIBILITY / SEMESTER VISIBILITY: VERIFIED
+
+ACCOUNT ISOLATION / LOGOUT BOUNDARY: VERIFIED
+
+LOCAL-OFFLINE PERSONALIZATION: VERIFIED
+
+FUTURE CLOUD V2 CONTRACT: VERIFIED IN SOURCE
+
+LIVE CLOUD SYNC: DEFERRED
+
+99'S GUIDE MY99 PERSONALIZATION QUALITY REPAIR: CLOSED AND APPROVED
+
+End EXACTLY:
+
+PERSONALIZATION QUALITY REPAIR R4B STATUS: COMPLETE — PRODUCTION CLOSURE APPROVED
+
+Otherwise end:
+
+PERSONALIZATION QUALITY REPAIR R4B STATUS: BLOCKED — FINAL CLOSURE NOT YET APPROVED
