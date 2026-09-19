@@ -1,0 +1,1234 @@
+# 99'S GUIDE — PERSONALIZATION QUALITY REPAIR
+# PROMPT R3C
+## R3B IMPLEMENTATION CLOSURE / EVIDENCE AUDIT
+### VERIFY CONFIG V2 + LOCAL MIGRATION + HOME HYDRATION + CLOUD V2 CONTRACT
+### DO NOT REDESIGN R3
+### REPAIR ONLY IF A REAL DEFECT IS FOUND
+### DO NOT BEGIN R4
+### DO NOT DEPLOY CLOUD INFRASTRUCTURE
+### DO NOT MODIFY `.agents/*`
+
+R3B implementation has been reported complete.
+
+Reported high-level results:
+
+- PersonalizationConfigV2 added.
+- Strict ConfigV1 preserved for migration.
+- V1 → V2 local migration added.
+- Hidden subjects and semester visibility implemented.
+- Home-only filtering implemented.
+- My99 controls implemented.
+- Future cloud contract upgraded to ConfigV2 / recordVersion 2 / v2 KV key.
+- Same-account hydration stability reportedly preserved.
+- Account switch/logout boundaries reportedly preserved.
+- English/Arabic translations added.
+- Personalization tests reported 176/176.
+- Auth 4/4.
+- Production build passed.
+- Typecheck now passes after adding `.webp` declarations.
+- Existing PDF fixture failure remains unrelated.
+- Existing unrelated global lint failures remain.
+- `.agents/*` unchanged.
+
+However, the previous response was a summary rather than the mandatory R3B implementation report.
+
+R3C is a VERIFICATION / CLOSURE task.
+
+Do not rewrite the architecture.
+
+Do not add new product features.
+
+Inspect actual source and produce evidence for the critical R3 invariants.
+
+If a real defect is found:
+repair only that defect and rerun affected checks.
+
+If no defect is found:
+make NO production change.
+
+---
+
+# 1. CONFIG V1 MUST STILL BE FROZEN
+
+Inspect the actual legacy V1 contract and parser.
+
+Prove:
+
+```text
+version = 1
+
+still accepts only the original V1 shape:
+
+themeId
+heroStyle
+glassStyle
+motionStyle
+readingSize
+home.subjectOrder
+
+V1 MUST reject V2-only fields such as:
+
+hiddenSubjectIds
+semesterVisibility
+
+Do not merely state that a V1 interface still exists.
+
+Verify the runtime parser/validator is strict.
+
+2. CONFIG V2 MUST BE THE ONLY CURRENT RUNTIME SHAPE
+
+After migration boundaries, verify application runtime uses one canonical current configuration:
+
+PersonalizationConfigV2
+
+Do not allow widespread runtime unions:
+
+ConfigV1 | ConfigV2
+
+Legacy V1 must terminate at migration/parsing boundaries.
+
+Report any intentional exception.
+
+3. PRINT THE ACTUAL CONFIG V2 SHAPE
+
+Confirm actual source implements:
+
+version: 2
+
+home: {
+  subjectOrder: readonly SubjectId[];
+  hiddenSubjectIds: readonly SubjectId[];
+  semesterVisibility: {
+    semester1: boolean;
+    semester2: boolean;
+  };
+}
+
+Confirm exact factory defaults.
+
+4. V1 → V2 CONFIG MIGRATION
+
+Inspect the actual migration function.
+
+Prove that it preserves:
+
+themeId
+heroStyle
+glassStyle
+motionStyle
+readingSize
+subjectOrder
+
+and adds:
+
+hiddenSubjectIds = []
+semester1 = true
+semester2 = true
+
+Prove the input is not mutated.
+
+5. LOCAL STORAGE KEY OWNERSHIP
+
+Confirm exact keys:
+
+Legacy:
+
+99s:personalization:v1:<encodedUserId>
+
+Current:
+
+99s:personalization:v2:<encodedUserId>
+
+Confirm canonical encoding logic is shared/reused.
+
+6. V2 READ PRECEDENCE
+
+Verify exact behavior:
+
+valid V2 exists
+→ V2 wins
+→ V1 is ignored
+
+No merging.
+
+No stale V1 resurrection.
+
+7. CORRUPT V2 BEHAVIOR
+
+The R3B summary stated:
+
+corrupt V2 precedence over legacy V1
+
+Explain EXACTLY what this means in source.
+
+Test the case:
+
+V2 key exists but is malformed/corrupt
+V1 key exists and is valid
+
+The system must NOT silently resurrect stale V1 as current state after V2 ownership has been established.
+
+State the exact fallback/factory/error behavior.
+
+This must be deterministic.
+
+8. WRITE-BEFORE-DELETE MIGRATION
+
+This is a release blocker.
+
+Prove actual sequence is:
+
+read valid V1
+→ construct V2
+→ successfully persist V2
+→ attempt V1 deletion
+
+Test:
+
+V2 write failure
+
+Expected:
+
+V1 remains
+V1 not deleted
+migration not committed
+V1 delete failure after successful V2 write
+
+Expected:
+
+V2 remains authoritative
+future reads use V2
+stale V1 cannot overwrite V2
+
+Do not infer this from comments.
+
+Use tests or inspect executed code path.
+
+9. LOCAL ENVELOPE VERSION DOMAIN
+
+Confirm:
+
+cacheVersion = 2
+
+remains the local envelope version.
+
+Explain separately:
+
+PersonalizationConfigV2.version = 2
+
+They are independent version domains.
+
+No unnecessary envelope version bump.
+
+10. LEGACY PENDING INTENT MIGRATION
+
+Verify a legacy envelope containing:
+
+pending.intentId
+pending.createdAt
+pending.config = ConfigV1
+
+becomes:
+
+same intentId
+same createdAt
+pending.config = complete ConfigV2
+
+And resets V1 cloud identity:
+
+knownCloudRevision = null
+lastSuccessfulGetAt = null
+
+Report final lastSyncState behavior.
+
+No pending intent may be silently discarded.
+
+11. NO MIXED V1/V2 UPLOAD
+
+Search all cloud sync paths.
+
+Prove no path can send:
+
+ConfigV1
+
+to the V2 cloud namespace.
+
+After migration, public PUT / worker PUT must receive ConfigV2 only.
+
+12. CLOUD KEY
+
+Confirm exact Worker key source:
+
+personalization:v2:<encodeURIComponent(canonicalUserId)>
+
+Verify there is no active fallback to:
+
+personalization:v1:
+
+for cloud reads/writes.
+
+Legacy v1 is LOCAL MIGRATION ONLY.
+
+13. CLOUD RECORD
+
+Confirm actual record contract:
+
+recordVersion: 2
+config: PersonalizationConfigV2
+revision: string
+lastIntentId: string
+updatedAt: string
+
+Revision remains identity only.
+
+No ordering semantics.
+
+14. EXPRESS API V2
+
+Verify:
+
+GET /api/personalization
+PUT /api/personalization
+
+remain unchanged as route paths.
+
+Confirm:
+
+requireUser unchanged
+req.user.id remains authoritative
+no userId in request controls target
+ConfigV2 validation active
+V1 PUT rejected
+32kb route body limit still mounted correctly
+structured error semantics preserved
+15. WORKER V2
+
+Verify Worker source:
+
+ConfigV2 validator
+recordVersion 2
+v2 key
+existing secret authentication
+canonical user ID
+existing size limits
+existing revision/intent rules
+
+Do NOT deploy.
+
+16. CLOUD REALITY
+
+Confirm repository/environment evidence still supports:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+
+Do not infer deployment merely because Worker source now supports V2.
+
+State:
+
+NO CLOUD DEPLOYMENT PERFORMED
+17. CANONICAL HIDDEN-ID NORMALIZATION
+
+Verify deterministic canonical ordering:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+Test:
+
+["SSC", "NT"]
+
+normalizes identically to:
+
+["NT", "SSC"]
+
+and does not cause false dirty state.
+
+18. SUBJECT ORDER
+
+Verify hidden/semester operations never modify:
+
+home.subjectOrder
+
+All seven IDs must remain exactly once.
+
+Test custom order:
+
+SSC
+ID
+NT
+CA
+RM
+PHC
+ImD
+
+Hide SSC.
+
+Show SSC.
+
+Order must remain unchanged throughout.
+
+19. SEMESTER MAPPING
+
+Verify actual centralized code uses EXACTLY:
+
+Semester 1 only:
+
+NT
+RM
+PHC
+
+Semester 2 only:
+
+ImD
+SSC
+
+Both:
+
+ID
+CA
+
+No duplicated semester membership logic in UI components.
+
+20. ID / CA INVARIANT
+
+Test:
+
+semester1 = false
+semester2 = false
+
+Expected:
+
+ID
+CA
+
+remain visible unless manually hidden.
+
+This is mandatory.
+
+21. MANUAL + SEMESTER INDEPENDENCE
+
+Test exact NT lifecycle:
+
+manually hide NT
+semester1 true
+→ NT hidden
+
+semester1 false
+→ NT/RM/PHC hidden
+
+semester1 true
+→ RM/PHC return
+→ NT remains hidden
+
+Semester toggles must never mutate hiddenSubjectIds.
+
+22. ALL SUBJECTS HIDDEN
+
+Confirm all seven manual hidden IDs are valid.
+
+Home runtime must not crash.
+
+No forced subject appears.
+
+No unrelated fallback widget introduced.
+
+23. UNKNOWN SOURCE SUBJECT
+
+Verify synthetic future source subject:
+
+remains visible
+does not enter subjectOrder
+does not enter hiddenSubjectIds
+is not silently dropped
+24. HOME-ONLY FILTER
+
+Search usage of the visibility helper.
+
+It should be consumed only by appropriate Home/My99 presentation paths.
+
+Verify it is NOT injected into:
+
+Search
+Calendar
+Modules global source
+subject route resolution
+Lecture
+Notes
+PDF
+Video
+MCQ
+Flashcards
+Q&A
+Admin
+permissions
+25. SAME-ACCOUNT HOME HYDRATION — RELEASE BLOCKER
+
+Inspect the actual Provider/Home state path.
+
+Test:
+
+Account A committed:
+
+subjectOrder =
+["SSC","ID","NT","CA","RM","PHC","ImD"]
+
+hiddenSubjectIds =
+["NT"]
+
+semesterVisibility:
+semester1 = true
+semester2 = false
+
+Trigger a same-account hydration/loading transition.
+
+Expected:
+
+custom committed Home state remains visible
+
+There must be NO transient:
+
+canonical seven-subject Home
+
+flash.
+
+Do not merely test document CSS attributes.
+
+This test must exercise the Home config/state selection path.
+
+26. ACCOUNT A → B HOME BOUNDARY
+
+Account A custom Home.
+
+Switch to B.
+
+Before B hydration resolves:
+
+expected:
+
+canonical subject order
+hiddenSubjectIds = []
+semester1 = true
+semester2 = true
+
+Then B config resolves.
+
+At no point may B display A's hidden/order state.
+
+27. LOGOUT HOME BOUNDARY
+
+Customized account → logout.
+
+Expected:
+
+canonical order
+all seven visible
+both semesters visible
+
+No stale Home state.
+
+28. STALE ASYNC HYDRATION
+
+Verify stale Account A hydration result cannot apply after B becomes active.
+
+Use existing generation/request-ID safety.
+
+Home state must be protected, not only presentation attributes.
+
+29. DRAFT INERTNESS
+
+Inside My99, before Apply:
+
+manual Hide/Show
+Semester 1
+Semester 2
+order changes
+
+must affect only Draft/preview.
+
+Verify:
+
+real Home unchanged
+committed config unchanged
+local persisted current config unchanged
+pending intent unchanged
+no cloud PUT
+30. APPLY ATOMICITY
+
+Verify one Apply writes one COMPLETE ConfigV2.
+
+No fragmented persistence.
+
+Required sequence remains:
+
+validate complete Draft
+→ durable local envelope
+→ commit runtime
+→ background cloud sync
+
+On persistence failure:
+
+committed unchanged
+real Home unchanged
+Draft dirty
+no cloud PUT
+31. CANCEL / RESET
+
+Cancel:
+
+Draft = complete committed ConfigV2
+
+Reset:
+
+Draft = factory ConfigV2
+
+Reset must not alter real Home until Apply.
+
+32. INTENT SUPERSESSION
+
+Verify:
+
+C1:
+
+hidden = ["NT"]
+semester2 = true
+
+C2:
+
+hidden = ["NT"]
+semester2 = false
+
+Late C1 acknowledgement must NOT clear C2 pending state.
+
+33. CLOUD DISABLED MODE
+
+With cloud sync disabled:
+
+Apply custom Home config.
+
+Reload/hydrate same account.
+
+Expected:
+
+local V2 restores order/visibility
+
+No Worker dependency.
+
+34. MY99 UI
+
+Inspect actual implementation.
+
+Confirm:
+
+seven canonical rows always shown
+manual state independently visible
+effective hidden-by-semester reason visible
+semester controls accessible
+Move Up/Down still available
+hidden row remains operable
+35. VISIBILITY REASON
+
+Confirm derived reasons are NOT persisted.
+
+Expected conceptual values may include:
+
+visible
+hidden-manually
+hidden-by-semester-1
+hidden-by-semester-2
+
+If manually hidden and semester-hidden simultaneously, report actual deterministic UI priority.
+
+36. ENGLISH / ARABIC
+
+Verify all new labels exist in both localization paths.
+
+List exact translation keys or equivalent architecture.
+
+No persisted localized labels.
+
+37. RTL
+
+Verify source/layout behavior:
+
+storage order not reversed
+Move Up/Down remains logical
+visibility icon not incorrectly mirrored
+controls wrap safely
+
+If actual Arabic visual preview was performed, report it separately.
+
+Do not claim it if not rendered.
+
+38. .WEBP DECLARATION CHANGE AUDIT
+
+R3B reported adding WebP TypeScript module declarations.
+
+This was outside the core R3 feature but may be an acceptable cleanup.
+
+Inspect exact file/change.
+
+Confirm it is ONLY a standard type declaration such as:
+
+declare module "*.webp";
+
+or equivalent.
+
+Confirm:
+
+no runtime asset substitution
+no fabricated files
+no altered moduleVisuals behavior
+no broad unsafe declare module "*" workaround
+
+If it is a safe narrow *.webp declaration:
+accept it and report the exact file.
+
+If it is broad/unsafe:
+repair it.
+
+39. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Because R3B reportedly fixed the WebP declaration baseline, expected now:
+
+0 errors
+
+If errors remain:
+report exact current output.
+
+40. PERSONALIZATION TEST MATRIX
+
+Run exactly:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Reported R3B baseline:
+
+176 passed
+0 failed
+
+Confirm exact:
+
+passed
+failed
+skipped
+cancelled
+
+If new verification tests are added, total may increase.
+
+41. REQUIRED R3-SPECIFIC TEST EVIDENCE
+
+Report exact test files and test counts for:
+
+Config V1 frozen
+Config V2
+migration
+storage key migration
+pending migration
+visibility
+semester invariants
+order preservation
+Home hydration boundaries
+Draft/Apply/Cancel/Reset
+Express V2
+Worker V2
+intent supersession
+
+Do not collapse everything into "176 passed."
+
+42. API TESTS
+
+Run dedicated personalization API tests.
+
+Report exact pass/fail total.
+
+No V2 API failure accepted.
+
+43. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+44. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+45. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+46. FEATURE SURFACES
+
+Run the existing personalization surface suites.
+
+Confirm no Home visibility leakage into non-Home study surfaces.
+
+47. BUILD
+
+Run:
+
+npm run build
+
+Must PASS.
+
+48. TARGETED ESLINT
+
+Run targeted ESLint on all actual R3B/R3C TS/TSX/test files.
+
+Required:
+
+0 R3B/R3C lint errors
+
+Unrelated repository-wide lint baseline remains accepted.
+
+49. PDF BASELINE
+
+Do NOT repair the known unrelated PDF expiry test in R3C.
+
+If full suite is reported, classify:
+
+305 passed
+1 known failure
+pdf_download_expiry_invalid
+
+or actual updated count.
+
+It does NOT block R3 closure.
+
+50. VISUAL VERIFICATION
+
+If previous R3B screenshot/preview only verified a generic preview screen, state that honestly.
+
+At minimum verify the My99 Home section using the safe existing preview/test harness if practical:
+
+manual hide/show visible
+Semester 1/2 controls visible
+hidden-by-semester state readable
+all seven rows remain
+preview updates
+
+Do not weaken auth.
+
+Do not create a production debug route.
+
+Temporary fixtures must be removed.
+
+51. NO CLOUD DEPLOYMENT
+
+Do NOT:
+
+create KV
+deploy Worker
+set secrets
+run Wrangler authenticated deployment
+modify Render production environment
+
+Source verification only.
+
+52. NO R4 IMPLEMENTATION
+
+Do not begin final R4 QA/repair.
+
+R3C only determines whether R3 is ready to close.
+
+53. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Separate:
+
+R3B implementation files
+any R3C repair files
+unrelated pre-existing files
+54. .agents/*
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+
+Expected no output.
+
+No .agents/* change.
+
+55. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PERSONALIZATION QUALITY REPAIR R3C REPORT
+CONFIG V2 / MIGRATION / HOME VISIBILITY CLOSURE
+1. Status
+
+PASS / BLOCKED
+
+2. R3B Summary Verified
+
+State which reported features were confirmed in source.
+
+3. Config V1 Frozen Contract
+
+Print exact verified behavior.
+
+4. Config V2 Runtime Contract
+
+Print exact implemented Home shape.
+
+5. Factory Config V2
+
+Print exact Home defaults.
+
+6. V1 → V2 Migration
+
+Report exact preservation/defaulting.
+
+7. V1 / V2 Runtime Boundary
+
+Explain where V1 terminates.
+
+8. Local Storage Keys
+
+Print exact V1 and V2 key formats.
+
+9. V2 Read Precedence
+
+Report.
+
+10. Corrupt V2 Behavior
+
+Report exact behavior.
+
+11. Write-Before-Delete Migration
+
+Report exact sequence.
+
+12. V2 Write Failure
+
+Report test result.
+
+13. V1 Delete Failure
+
+Report test result.
+
+14. Local Envelope Version
+
+Report.
+
+15. Pending Intent Migration
+
+Report preserved/reset fields.
+
+16. No Mixed V1/V2 Upload
+
+Report.
+
+17. Cloud Config V2
+
+Report.
+
+18. Cloud Record V2
+
+Report.
+
+19. Cloud KV Key
+
+Print exact key.
+
+20. Express V2
+
+Report.
+
+21. Worker V2
+
+Report.
+
+22. Cloud Deployment Reality
+
+State exactly:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+NO CLOUD DEPLOYMENT PERFORMED.
+
+23. Hidden ID Canonicalization
+
+Report.
+
+24. Semester Mapping
+
+Print exact mapping.
+
+25. Manual Visibility
+
+Report.
+
+26. ID / CA Invariant
+
+Report.
+
+27. Manual + Semester Independence
+
+Report NT scenario.
+
+28. Subject Order Preservation
+
+Report.
+
+29. All Subjects Hidden
+
+Report.
+
+30. Unknown Future Subject
+
+Report.
+
+31. Home-Only Scope
+
+Report.
+
+32. Same-Account Home Hydration
+
+Report exact tested lifecycle.
+
+33. Account A → B Home Boundary
+
+Report.
+
+34. Logout Home Boundary
+
+Report.
+
+35. Stale Hydration Protection
+
+Report.
+
+36. Draft Inertness
+
+Report.
+
+37. Apply Atomicity
+
+Report.
+
+38. Apply Failure
+
+Report.
+
+39. Cancel
+
+Report.
+
+40. Reset
+
+Report.
+
+41. Intent Supersession
+
+Report.
+
+42. Cloud-Disabled Local Mode
+
+Report.
+
+43. My99 UI
+
+Report exact implemented controls.
+
+44. Visibility Reasons
+
+Report derived status and priority.
+
+45. English / Arabic
+
+Report.
+
+46. RTL
+
+Report actual verification level.
+
+47. WebP Declaration Change
+
+Print exact file and exact declaration strategy.
+
+Confirm whether it is safe/narrow.
+
+48. R3C Repairs
+
+If none:
+
+NO ADDITIONAL R3C PRODUCTION REPAIR REQUIRED.
+
+Otherwise list exact repair.
+
+49. R3-Specific Tests
+
+List exact test files and pass counts.
+
+50. Full Personalization Matrix
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+51. Personalization API Tests
+
+Report exact total.
+
+52. Feature Surface Tests
+
+Report.
+
+53. Navigation
+
+Report.
+
+54. Auth
+
+Report.
+
+55. Security
+
+Report.
+
+56. TypeScript
+
+Report exact result.
+
+57. Build
+
+Report.
+
+58. Targeted ESLint
+
+Report.
+
+59. Known PDF Baseline
+
+Report but do not treat as blocker.
+
+60. Visual Verification
+
+Report only what was actually rendered.
+
+61. Performance
+
+Confirm:
+
+no polling
+no reload
+no remount loop
+no duplicate Home config store
+no new network request
+no heavy animation system
+62. Database Impact
+
+State exactly:
+
+No SQL personalization storage.
+No D1 personalization storage.
+No R2 personalization storage.
+
+63. App Icon
+
+State exactly:
+
+APP ICON IMPLEMENTATION: NOT STARTED.
+
+64. Git Review
+
+Report:
+git status --short
+git diff --stat
+git diff --check
+
+65. .agents/*
+
+Report:
+git status --short -- .agents
+git diff -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+66. R4 Readiness
+
+If every critical invariant is genuinely verified, state exactly:
+
+CONFIG V1 FROZEN LEGACY CONTRACT: VERIFIED
+
+PERSONALIZATION CONFIG V2: VERIFIED
+
+V1 → V2 WRITE-BEFORE-DELETE MIGRATION: VERIFIED
+
+CORRUPT V2 PRECEDENCE: VERIFIED
+
+PENDING INTENT V1 → V2 MIGRATION: VERIFIED
+
+NO MIXED V1/V2 CLOUD PAYLOAD: VERIFIED
+
+FUTURE CLOUD V2 CONTRACT: VERIFIED IN SOURCE
+
+HOME MANUAL VISIBILITY: VERIFIED
+
+SEMESTER VISIBILITY: VERIFIED
+
+ID / CA BOTH-SEMESTER INVARIANT: VERIFIED
+
+HOME SUBJECT ORDER PRESERVATION: VERIFIED
+
+SAME-ACCOUNT HOME HYDRATION FLICKER: ELIMINATED
+
+ACCOUNT-SWITCH HOME FACTORY BOUNDARY: VERIFIED
+
+LOGOUT HOME FACTORY BOUNDARY: VERIFIED
+
+HOME-ONLY VISIBILITY SCOPE: VERIFIED
+
+MY99 DRAFT / APPLY / CANCEL / RESET: VERIFIED
+
+R1 / R1B / R2 BEHAVIOR: PRESERVED
+
+R3 HOME PERSONALIZATION: CLOSED AND APPROVED
+
+R4 FINAL FULL-APP PERSONALIZATION QA: APPROVED TO BEGIN
+
+End EXACTLY:
+
+PERSONALIZATION QUALITY REPAIR R3C STATUS: COMPLETE — READY FOR R4
+
+Otherwise:
+
+PERSONALIZATION QUALITY REPAIR R3C STATUS: BLOCKED — REPAIR REQUIRED
