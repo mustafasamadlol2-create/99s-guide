@@ -1,0 +1,2049 @@
+# 99'S GUIDE — APP ICON IMPLEMENTATION
+# PROMPT 24
+## NATIVE iOS / iPadOS ALTERNATE APP ICON SYSTEM
+### DEVICE-LOCAL APP ICON SELECTION
+### MY99 INTEGRATION
+### FIRST-PARTY CAPACITOR BRIDGE
+### PRIMARY + THREE ALTERNATE ICONS
+### REPAIR PRIMARY APP ICON ASSET INTEGRITY
+### NO PERSONALIZATION CONFIG CHANGE
+### NO CLOUD / DATABASE STORAGE
+### NO PWA ICON CHANGES IN THIS PROMPT
+### DO NOT MODIFY `.agents/*`
+
+The complete My99 personalization quality-repair workstream is CLOSED AND APPROVED.
+
+Current personalization production baseline:
+
+```text
+PersonalizationConfigV2: verified
+Personalization matrix: 183 passed / 0 failed
+TypeScript: PASS / 0 errors
+Production build: PASS
+
+Theme:
+8 packs
+
+Hero:
+classic
+minimal
+night
+aurora
+
+Glass:
+clear
+balanced
+frosted
+
+Motion:
+full
+subtle
+reduced
+
+Reading:
+small
+default
+large
+
+Home:
+subject order
+manual visibility
+semester visibility
+
+Do NOT redesign or reopen that system.
+
+Prompt 24 implements the separate native App Icon workstream that was previously audited in Prompt 23.
+
+This is a PRODUCTION IMPLEMENTATION task.
+
+1. PROMPT 23 ARCHITECTURE DECISIONS ARE AUTHORITATIVE
+
+The prior App Icon architecture audit established:
+
+Platform scope:
+Native Capacitor iOS / iPadOS only
+
+Minimum supported iOS:
+iOS 16+
+
+Capacitor:
+8.5.0 family
+
+Native project:
+ios/App/App.xcodeproj
+
+Native target:
+App
+
+Bundle identifier:
+com.nine9sguide.app
+
+Primary icon set:
+ios/App/App/Assets.xcassets/AppIcon.appiconset
+
+Primary build setting:
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+The existing application uses Swift and the repository's current Capacitor plugin architecture.
+
+Follow the repository's ACTUAL native plugin pattern.
+
+Do not introduce a second native bridge architecture.
+
+2. APP ICON IS NOT ACCOUNT PERSONALIZATION
+
+This is the most important product rule.
+
+App Icon state is:
+
+installation/device-local
+
+NOT:
+
+account-scoped
+
+Therefore App Icon MUST NOT enter:
+
+PersonalizationConfigV2
+PersonalizationConfigV1
+PersonalizationLocalEnvelopeV2
+personalizationStorage
+personalizationCloudSync
+Express personalization API
+Cloudflare personalization Worker
+Workers KV
+SQL
+D1
+R2
+
+Do not add any icon field to ConfigV2.
+
+3. APP ICON IS NOT PART OF MY99 APPLY
+
+The existing My99 transaction remains:
+
+Draft
+→ Apply / Cancel / Reset
+
+for account personalization.
+
+App Icon must remain independent.
+
+Changing App Icon should execute immediately through native iOS.
+
+Therefore:
+
+select App Icon
+→ native icon request
+→ success/failure result
+
+It must NOT:
+
+mark My99 personalization Draft dirty
+enable Apply
+modify pending personalization intent
+write ConfigV2
+wait for Apply
+be affected by Cancel
+be affected by Reset
+4. ACCOUNT SWITCH MUST NOT CHANGE APP ICON
+
+Required:
+
+Account A
+→ select alternate App Icon
+→ logout
+→ icon remains
+
+Account B login
+→ icon remains
+
+Also:
+
+Theme change
+→ icon remains
+
+Reset My99 personalization
+→ icon remains
+
+App Icon belongs to this installation/device, not a user account.
+
+5. NATIVE OS STATE IS SOURCE OF TRUTH
+
+Do NOT store selected App Icon in:
+
+localStorage
+sessionStorage
+IndexedDB
+Personalization Config
+React persistence
+Cloud
+
+The authoritative source is:
+
+UIApplication.shared.alternateIconName
+
+Primary icon is represented natively by:
+
+nil
+
+When My99 opens, query native state.
+
+Do not assume the last UI selection is still correct.
+
+6. SUPPORTED ICON PRODUCT IDS
+
+Implement exactly these product-facing IDs:
+
+primary
+midnight
+rose
+monochrome
+
+These are product IDs.
+
+Do NOT expose Xcode asset-set names as persisted/user-facing IDs.
+
+Recommended native mapping:
+
+primary
+→ nil
+
+midnight
+→ AppIconMidnight
+
+rose
+→ AppIconRose
+
+monochrome
+→ AppIconMonochrome
+
+Use this mapping unless actual Xcode naming constraints require a technically equivalent set name.
+
+If names differ internally, keep the product IDs exactly:
+
+primary
+midnight
+rose
+monochrome
+7. DISPLAY LABELS
+
+User-facing English labels:
+
+Original
+Midnight
+Rose
+Monochrome
+
+Add professional Arabic localization using the existing translation architecture.
+
+Suggested meanings:
+
+Original   → الأصلي
+Midnight   → منتصف الليل
+Rose       → وردي
+Monochrome → أحادي اللون
+
+Use the repository's localization conventions.
+
+Do not persist labels.
+
+8. ICON DESIGNS — GENERAL RULE
+
+The four icon choices must remain recognizably:
+
+99's Guide
+
+Do NOT create:
+
+unrelated logos
+different brand symbols
+text-heavy icons
+emoji icons
+random AI-generated artwork
+third-party marks
+
+All variants must preserve the same core 99's Guide visual identity.
+
+9. PRIMARY ICON
+
+primary must remain the current production App Store identity.
+
+Do NOT redesign the primary icon.
+
+Do NOT change its core artwork merely because alternate icons are being added.
+
+Any primary-icon asset change in Prompt 24 must be limited to repairing asset-catalog integrity.
+
+10. MIDNIGHT ICON
+
+Create one premium alternate named conceptually:
+
+Midnight
+
+Use the existing 99's Guide mark/logo.
+
+Character:
+
+dark premium treatment
+deep neutral/navy presentation derived from existing application identity
+strong readable logo contrast
+minimal visual noise
+appropriate for iOS Home Screen
+
+Do not add small text.
+
+Do not redesign the mark.
+
+11. ROSE ICON
+
+Create one premium alternate named:
+
+Rose
+
+Use the same core mark/logo.
+
+Character:
+
+tasteful Rose-family treatment
+consistent with the app's existing Rose visual identity
+premium rather than saturated/neon
+clear icon contrast
+
+It is an icon option only.
+
+Selecting the Rose Theme must NOT automatically select the Rose App Icon.
+
+12. MONOCHROME ICON
+
+Create one premium alternate:
+
+Monochrome
+
+Use the same core mark/logo.
+
+Character:
+
+graphite / monochrome identity
+high contrast
+premium and minimal
+still immediately recognizable as 99's Guide
+
+Do not make it a generic black square.
+
+13. ICON SOURCE QUALITY
+
+Before creating variants, inspect the repository for the highest-quality existing App Icon / brand artwork.
+
+Prefer:
+
+Existing original vector/brand source if available.
+Existing highest-resolution production App Icon.
+Existing 1024×1024 source asset.
+
+Do NOT upscale a small screenshot if a proper source exists.
+
+Do NOT reconstruct the logo inaccurately.
+
+14. ICON BINARY REQUIREMENTS
+
+Every new iOS App Icon image must be:
+
+1024 × 1024
+PNG
+opaque
+no transparency
+no pre-rounded corners
+no external watermark
+
+Allow iOS to apply the icon mask.
+
+Do not add rounded corners into the bitmap.
+
+Do not leave transparent edges.
+
+Use an appropriate standard color profile.
+
+15. PRIMARY APP ICON DANGLING ASSET REPAIR
+
+Prompt 23 found that:
+
+ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
+
+references:
+
+AppIcon-Dark-512@2x.png
+
+but that file was missing.
+
+Inspect the actual asset catalog again.
+
+Repair the dangling reference correctly.
+
+Preferred decision order:
+
+A
+
+If the intended dark asset already exists elsewhere in the repository and is the correct production asset:
+
+use the real file.
+
+B
+
+If no separate approved dark artwork exists:
+
+use the current production primary icon artwork as the dark-appearance binary so the catalog is complete without inventing a new primary design.
+
+C
+
+If the current Contents.json dark appearance entry is invalid/unnecessary for the actual Xcode configuration:
+
+repair the catalog according to modern Xcode asset-catalog requirements.
+
+Do NOT leave any dangling filename reference.
+
+Do NOT fabricate a radically different dark primary icon.
+
+16. PRIMARY ICON INTEGRITY AUDIT
+
+After repair, verify every filename referenced by:
+
+AppIcon.appiconset/Contents.json
+
+exists.
+
+Verify no orphaned required slot is missing.
+
+Do not change:
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+17. ALTERNATE APP ICON ASSET SETS
+
+Create:
+
+ios/App/App/Assets.xcassets/AppIconMidnight.appiconset
+ios/App/App/Assets.xcassets/AppIconRose.appiconset
+ios/App/App/Assets.xcassets/AppIconMonochrome.appiconset
+
+Each must contain a valid:
+
+Contents.json
+
+and required icon image(s).
+
+Follow the same Xcode/app-icon asset-catalog format supported by the current project/Xcode generation.
+
+Do not copy an obsolete old-style catalog structure blindly.
+
+Inspect the current primary set first.
+
+18. NO MANUAL ICON CORNERS
+
+Important:
+
+App Store / iOS applies rounding/masking.
+
+Every icon bitmap should fill its square canvas appropriately.
+
+Do not bake in Apple's rounded rectangle.
+
+19. ICON VISUAL SAFE AREA
+
+Keep critical brand geometry away from the extreme edges.
+
+Verify all four icons remain recognizable under the iOS Home Screen mask.
+
+Avoid:
+
+tiny central logo
+excessively large cropped logo
+fine details that disappear at small Home Screen size
+20. XCODE ALTERNATE ICON BUILD SETTINGS
+
+Configure the Xcode target using asset-catalog build settings.
+
+Preferred architecture from Prompt 23:
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+and alternate app icon set names using:
+
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+
+for BOTH:
+
+Debug
+Release
+
+Include exactly the alternate native set names:
+
+AppIconMidnight
+AppIconRose
+AppIconMonochrome
+
+Use correct .pbxproj syntax.
+
+21. DO NOT MANUALLY DUPLICATE CFBundleIcons IF XCODE GENERATES IT
+
+Prompt 23 selected the Xcode-generated asset metadata strategy.
+
+Therefore:
+
+Do NOT manually create:
+
+CFBundleIcons
+CFBundleIcons~ipad
+CFBundleAlternateIcons
+
+in Info.plist
+
+unless actual current Xcode behavior absolutely requires it and the prior audit proves generated metadata cannot work.
+
+Strong expectation:
+
+NO MANUAL ICON DICTIONARY
+
+Use asset catalogs/build settings.
+
+22. INFO.PLIST SAFETY
+
+Do not remove unrelated existing keys.
+
+Do not modify authentication URL schemes.
+
+Do not change bundle ID.
+
+Do not alter:
+
+Google auth
+Apple auth
+Capacitor config
+orientation settings
+status bar config
+launch behavior
+
+Prompt 24 is App Icon only.
+
+23. FIRST-PARTY CAPACITOR PLUGIN
+
+Implement a small native first-party Capacitor plugin using the repository's current Capacitor 8 / Swift plugin pattern.
+
+Suggested product-facing JS plugin name:
+
+AppIcon
+
+or repository-consistent equivalent.
+
+Native implementation must expose only the minimum API.
+
+24. NATIVE METHOD — GET STATE
+
+Expose conceptually:
+
+getState(): Promise<{
+  supported: boolean;
+  iconId: "primary" | "midnight" | "rose" | "monochrome";
+}>
+
+On native iOS:
+
+UIApplication.shared.supportsAlternateIcons
+
+determines support.
+
+Read:
+
+UIApplication.shared.alternateIconName
+
+Map native asset name back to the closed product ID.
+
+If:
+
+alternateIconName == nil
+
+return:
+
+iconId = primary
+25. UNKNOWN NATIVE ICON STATE
+
+If alternateIconName unexpectedly contains an icon name not in the closed mapping:
+
+do NOT crash.
+
+Do NOT persist it.
+
+Use a safe explicit response/error strategy.
+
+Preferred:
+
+preserve native state untouched
+return primary/unknown-safe UI state only if necessary
+surface internal unsupported-native-name diagnostics safely
+
+Do not call setAlternateIconName(nil) merely because an unknown value was observed.
+
+26. NATIVE METHOD — SET ICON
+
+Expose conceptually:
+
+setIcon({
+  iconId:
+    | "primary"
+    | "midnight"
+    | "rose"
+    | "monochrome"
+}): Promise<{
+  iconId: ...
+}>
+
+Closed allowlist only.
+
+Map:
+
+primary
+→ nil
+
+midnight
+→ AppIconMidnight
+
+rose
+→ AppIconRose
+
+monochrome
+→ AppIconMonochrome
+
+Reject arbitrary native asset names.
+
+27. MAIN THREAD
+
+UIApplication.shared.setAlternateIconName(...)
+
+must execute safely on the main/UI thread according to Apple's API requirements and Swift concurrency conventions used by the project.
+
+Do not block the main thread with unrelated work.
+
+28. NATIVE COMPLETION
+
+Resolve the JavaScript promise only after the native completion handler reports success.
+
+On failure:
+
+reject/return structured error
+do not pretend the icon changed
+query/retain the actual native icon state
+keep UI synchronized with native truth
+29. SUPPORT CHECK
+
+Before attempting a change:
+
+UIApplication.shared.supportsAlternateIcons
+
+must be respected.
+
+If unsupported:
+
+return a clear structured unsupported result/error.
+
+Do not repeatedly attempt the change.
+
+30. DO NOT SUPPRESS SYSTEM UI USING PRIVATE APIS
+
+If iOS displays system confirmation UI for an App Icon change:
+
+that is native OS behavior.
+
+Do NOT:
+
+swizzle UIApplication
+use private selectors
+use private API
+fake/suppress system alerts
+
+App Store-safe public APIs only.
+
+31. NATIVE ALLOWLIST
+
+Native Swift must also validate the requested product ID.
+
+Do not rely only on TypeScript validation.
+
+Required closed mapping:
+
+primary
+midnight
+rose
+monochrome
+
+Anything else:
+
+reject.
+
+This protects the bridge from arbitrary native icon-name access.
+
+32. WEB / PWA FALLBACK
+
+Prompt 24 must NOT change PWA manifest icons.
+
+On:
+
+web
+PWA
+non-native browser
+
+native App Icon switching is unsupported.
+
+Do not throw an ugly plugin error into the UI.
+
+Expose a clean unsupported state.
+
+33. ANDROID
+
+Android App Icon switching is OUT OF SCOPE.
+
+Do not add Android activity aliases.
+
+Do not modify:
+
+android/
+
+for this feature.
+
+34. CATALYST / VISIONOS
+
+Out of scope for V1 App Icon feature.
+
+Do not claim support.
+
+35. TYPESCRIPT APP ICON DOMAIN
+
+Create a focused feature/module for the App Icon domain.
+
+Recommended organization conceptually:
+
+src/features/personalization/appIcon/
+  appIconTypes.ts
+  appIconCatalog.ts
+  appIconClient.ts
+
+or equivalent repository-consistent structure.
+
+Do not scatter native strings throughout My99Studio.tsx.
+
+36. APP ICON CATALOG
+
+Centralize:
+
+product icon ID
+localized display identity
+native asset-set mapping where JS needs it
+preview asset
+availability metadata
+
+But native mapping must ALSO be closed in Swift.
+
+Do not make Swift blindly trust JS native asset names.
+
+37. TYPE
+
+Use a strict type:
+
+type AppIconId =
+  | "primary"
+  | "midnight"
+  | "rose"
+  | "monochrome";
+
+No generic string API at the product layer.
+
+38. NATIVE DETECTION
+
+Use Capacitor's actual runtime API.
+
+Do not use user-agent sniffing.
+
+The selector should know whether it is:
+
+native iOS/iPadOS
+
+versus:
+
+web/PWA
+
+using existing Capacitor platform facilities.
+
+39. MY99 SECTION POSITION
+
+Add the App Icon section:
+
+AFTER:
+Home Subject Order / Visibility
+
+BEFORE:
+shared sticky Apply / Cancel / Reset actions
+
+Do not reorder the existing main personalization axes unnecessarily.
+
+Final conceptual order:
+
+Theme Pack
+Hero Style
+Glass Style
+Motion Style
+Reading Size
+Home Subject Order / Visibility
+App Icon — This device
+Apply / Cancel / Reset
+40. APP ICON SECTION IDENTITY
+
+Make it visually clear that App Icon is different from account-synced personalization.
+
+Display a compact badge/label:
+
+This device
+
+with Arabic equivalent.
+
+Also include a concise description meaning:
+
+Changes the icon on this iPhone or iPad only.
+It does not sync with your account.
+
+Do not overload the section with technical explanation.
+
+41. NATIVE UI
+
+On supported native iOS/iPadOS:
+
+show four choices:
+
+Original
+Midnight
+Rose
+Monochrome
+
+Each choice should include:
+
+actual icon preview
+localized name
+selected state
+accessible label
+
+The icon preview must use the real corresponding asset/artwork where practical.
+
+42. SELECTION UX
+
+When a user taps an App Icon option:
+
+tap
+→ disable conflicting repeated selection
+→ call native setIcon
+→ await native completion
+→ refresh/get native state
+→ selected checkmark updates
+
+Do NOT optimistically permanently mark the new icon before native success.
+
+A subtle temporary pending state is acceptable.
+
+43. SAME-ICON TAP
+
+If user taps the already-selected icon:
+
+do nothing.
+
+No unnecessary native request.
+
+No toast spam.
+
+44. FAILURE UX
+
+If native icon change fails:
+
+preserve current selected icon
+show the project's existing error toast style
+do not expose raw NSError internals
+no [object Object]
+do not dirty personalization
+do not alter local/cloud state
+45. SUCCESS UX
+
+After successful change:
+
+use subtle confirmation consistent with existing My99 UX.
+
+Do not create celebratory animation.
+
+The OS may already provide icon-change feedback.
+
+Do not duplicate excessive feedback.
+
+46. SOURCE-OF-TRUTH REFRESH
+
+When App Icon section mounts:
+
+query native state.
+
+Also refresh native state when returning to the screen/app if the existing app lifecycle utilities make that practical.
+
+Do NOT poll.
+
+No interval.
+
+No timer-based synchronization.
+
+47. NO LOCALSTORAGE
+
+Search after implementation.
+
+There must be no App Icon state stored using:
+
+localStorage
+sessionStorage
+IndexedDB
+
+Native OS remains source of truth.
+
+48. APPLY BUTTON MUST IGNORE APP ICON
+
+Critical regression:
+
+Start with clean My99 Draft.
+
+Change App Icon only.
+
+Expected:
+
+Personalization isDirty remains false.
+Apply button state does not change because of App Icon.
+
+Changing App Icon plus a Theme Draft change:
+
+icon changes immediately
+Theme remains Draft until Apply
+
+These two lifecycles must remain independent.
+
+49. CANCEL MUST NOT REVERT ICON
+
+Scenario:
+
+Current icon = primary
+
+select Midnight
+native success
+
+change Theme Draft to Rose
+
+press Cancel
+
+Expected:
+
+Theme Draft returns to committed
+App Icon remains Midnight
+50. RESET MUST NOT RESET ICON
+
+Scenario:
+
+App Icon = Rose
+personalization customized
+
+press Reset
+
+Expected:
+
+My99 account Draft becomes factory
+App Icon remains Rose
+
+Even after:
+
+Reset → Apply
+
+App Icon remains Rose.
+
+51. LOGOUT MUST NOT RESET ICON
+
+Scenario:
+
+App Icon = Monochrome
+logout
+
+Expected:
+
+native selected icon remains Monochrome
+
+No personalization logout cleanup may call App Icon reset.
+
+52. ACCOUNT SWITCH MUST NOT RESET ICON
+
+Scenario:
+
+A selects Midnight
+A → B
+
+Expected:
+
+Midnight remains current native App Icon
+
+No account ownership belongs to App Icon.
+
+53. THEME CHANGE MUST NOT CONTROL ICON
+
+Scenario:
+
+Theme = Rose
+Icon = Midnight
+
+valid.
+
+Then:
+
+Theme = Ocean
+
+Icon must remain Midnight.
+
+Do not bind icon automatically to Theme Pack.
+
+54. PREVIEW VS REAL ICON
+
+The App Icon section is not a Draft preview.
+
+It represents the actual device-native icon state.
+
+Do not place it inside the contained personalization Draft preview state.
+
+The small icon artwork displayed in the selector is only a visual choice thumbnail.
+
+55. PWA MY99 BEHAVIOR
+
+On PWA/web:
+
+Do not attempt native calls.
+
+Preferred UI behavior:
+
+Render the App Icon section in a clearly unsupported/device-specific state so users understand why it cannot be changed from PWA.
+
+For example:
+
+App Icon
+This device
+
+Available in the iPhone/iPad app.
+
+The exact copy should be polished and localized.
+
+Do not show four interactive fake icon choices on unsupported web.
+
+56. ACCESSIBILITY
+
+Native selector must have:
+
+keyboard-compatible buttons in browser/native WebView semantics
+visible selected state
+aria-pressed or equivalent
+accessible icon names
+pending/disabled state
+no color-only selection indication
+minimum touch targets
+readable text under Large Reading
+57. READING SIZE COMPOSITION
+
+The App Icon section's text must participate in existing Reading Size typography where appropriate.
+
+Large Reading must not cause:
+
+icon-card clipping
+labels overlap
+horizontal page overflow
+
+Do not scale the actual icon image excessively based on Reading Size.
+
+58. THEME / GLASS COMPOSITION
+
+App Icon selector chrome should use existing semantic:
+
+Theme
+Glass
+Reading
+Motion
+
+presentation systems where appropriate.
+
+But icon artwork itself remains fixed.
+
+Example:
+
+Rose Theme + Midnight App Icon
+
+The selector card chrome may be Rose-themed.
+
+The Midnight icon preview itself remains Midnight.
+
+59. MOTION
+
+Use subtle existing interaction motion only.
+
+Reduced Motion must remain respected.
+
+Do not add:
+
+spinning icon previews
+bouncing
+continuous icon animations
+60. ARABIC / RTL
+
+Add English + Arabic strings using existing i18n architecture.
+
+RTL requirements:
+
+icon card grid remains readable
+selection checkmark positioning is safe
+icon images themselves are NOT mirrored
+"This device" label is localized
+unsupported PWA message localized
+
+No persisted localized strings.
+
+61. IOS / IPAD RESPONSIVE UI
+
+The selector must be usable on:
+
+iPhone
+iPad
+
+Do not use giant phone-style full-width cards unnecessarily on iPad.
+
+Use existing responsive My99 layout architecture.
+
+62. PRIMARY ICON PREVIEW
+
+Use the real primary icon artwork for the Original choice.
+
+Do not substitute a generic app logo if the actual current icon asset is available.
+
+63. ALTERNATE ICON PREVIEWS
+
+Use the actual generated alternate icon artwork as selector previews where possible.
+
+Avoid maintaining a second divergent visual implementation of the same icons.
+
+64. BINARY-ASSET TEST
+
+Add a focused test or verification script under the existing test architecture.
+
+Verify:
+
+each referenced icon asset exists
+each alternate .appiconset/Contents.json parses
+every referenced filename exists
+alternate primary source images are 1024×1024 PNGs
+no referenced file is zero bytes
+
+If practical from Node, inspect PNG IHDR dimensions.
+
+Do not require Mac-only sips for repository unit tests.
+
+65. ALPHA SAFETY
+
+Verify newly generated alternate icon PNGs are opaque.
+
+Do not create transparent App Icon binaries.
+
+If repository tooling can inspect PNG color/alpha safely, test it.
+
+Otherwise perform deterministic generation as opaque RGB and document the verification method.
+
+66. XCODE PROJECT TEST
+
+Add a source-contract test verifying:
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+remains.
+
+And both relevant build configurations contain the alternate icon-set names:
+
+AppIconMidnight
+AppIconRose
+AppIconMonochrome
+
+Do not depend on manual visual inspection alone.
+
+67. NO MANUAL INFO.PLIST ICON DICTIONARY TEST
+
+Verify Prompt 24 did not introduce manual:
+
+CFBundleIcons
+CFBundleAlternateIcons
+
+unless a genuine Xcode requirement forced it.
+
+Expected:
+
+NO MANUAL ICON DICTIONARY ADDED
+68. SWIFT SOURCE TEST
+
+Add static/source-contract tests for:
+
+supportsAlternateIcons
+alternateIconName
+setAlternateIconName
+closed product-ID mapping
+primary maps to nil
+unknown ID rejected
+
+This does not replace real iOS runtime testing later.
+
+69. WEB FALLBACK TEST
+
+Verify:
+
+web/PWA
+→ unsupported state
+→ no native call
+→ no crash
+70. MY99 INDEPENDENCE TEST
+
+Add regression proving App Icon selection does not change:
+
+PersonalizationConfigV2
+isDirty
+Draft
+committed
+pending intent
+71. APPLY / CANCEL / RESET REGRESSION
+
+Protect:
+
+App Icon
+≠ shared Apply transaction
+
+Test conceptual behavior:
+
+icon change
+→ Cancel
+→ icon unchanged
+
+icon change
+→ Reset
+→ icon unchanged
+
+icon change
+→ Reset + Apply
+→ icon unchanged
+
+Use adapter/mock boundaries for browser tests.
+
+72. ACCOUNT LIFECYCLE REGRESSION
+
+Verify there is no call to:
+
+setIcon("primary")
+
+from:
+
+logout
+account switch
+personalization reset
+theme apply
+hydration
+73. PERSONALIZATION CONFIG SCHEMA SAFETY
+
+Explicitly verify no App Icon field exists in:
+
+PersonalizationConfigV2
+PersonalizationConfigV1
+PersonalizationLocalEnvelopeV2
+cloud records
+
+Do not bump Config version.
+
+Current remains:
+
+PersonalizationConfigV2
+version: 2
+74. PERSONALIZATION MATRIX
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Entering baseline:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+No failure accepted.
+
+App Icon tests may increase the total if named under the personalization test pattern.
+
+75. DEDICATED APP ICON TEST
+
+Prefer a focused file such as:
+
+tests/app-icon.test.ts
+
+or repository-consistent equivalent.
+
+Test:
+
+catalog IDs
+native mapping
+asset catalogs
+assets exist
+Xcode build settings
+no manual ConfigV2 field
+web unsupported behavior
+My99 independence
+native source contract
+76. TYPESCRIPT
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+77. PRODUCTION BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+78. CAPACITOR SYNC SAFETY
+
+If the current environment can safely run:
+
+npx cap sync ios
+
+without rewriting unrelated project state unexpectedly:
+
+run it and report exact result.
+
+If it would create noisy/uncontrolled changes in the Replit/Linux environment:
+
+do NOT force it merely for the report.
+
+Static project integration is acceptable until Mac validation.
+
+Do not claim native runtime verification from cap sync.
+
+79. XCODE BUILD LIMITATION
+
+If the current environment is not macOS/Xcode:
+
+do NOT claim:
+
+xcodebuild PASS
+
+Do not claim:
+
+alternate icon successfully changed on real iPhone
+
+Those are Prompt 25/native-release validation concerns.
+
+State the limitation explicitly.
+
+80. AUTH REGRESSION
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+
+No auth source should need modification.
+
+81. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+
+No security regression.
+
+82. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+83. TARGETED ESLINT
+
+Run ESLint on all new/modified TypeScript/TSX/test files.
+
+Required:
+
+0 Prompt 24 lint errors
+
+Swift is outside ESLint.
+
+84. PWA MANIFEST IS OUT OF SCOPE IN PROMPT 24
+
+Do NOT modify:
+
+manifest
+PWA install icons
+maskable icon config
+apple-touch-icon
+service worker icon caching
+
+unless a shared asset-reference change is absolutely required to keep the existing build valid.
+
+Prompt 25 performs the PWA/native asset closure.
+
+85. NO CLOUD CHANGE
+
+No personalization cloud changes.
+
+No deployment.
+
+No Worker edit solely for App Icon.
+
+No KV.
+
+No Render environment change.
+
+86. NO DATABASE CHANGE
+
+State exactly:
+
+No SQL App Icon storage.
+No D1 App Icon storage.
+No R2 App Icon storage.
+No KV App Icon storage.
+87. NO APP ICON ANALYTICS
+
+Do not add new analytics/tracking for icon selection.
+
+Not needed.
+
+88. NO NEW DEPENDENCY UNLESS ABSOLUTELY REQUIRED
+
+Prefer:
+
+UIKit
+Capacitor
+existing React stack
+existing image tooling during development only
+
+Do not add a third-party alternate-icon package if a small first-party plugin can implement the native API correctly.
+
+Prompt 23 explicitly selected first-party native integration.
+
+89. BUNDLE SIZE
+
+The icon binaries will increase native bundle size.
+
+Keep files appropriately compressed without degrading App Icon quality.
+
+Do not add huge intermediate Photoshop/source/export files to production bundle.
+
+Only necessary final icon binaries and asset catalogs belong in the project.
+
+90. DO NOT MODIFY .agents/*
+
+ABSOLUTE.
+
+Do not:
+
+write memory
+update MEMORY.md
+create an App Icon memory file
+create QA memory
+modify agent instructions
+
+Before final report run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+
+If the platform creates memory files automatically:
+
+restore/remove only Prompt-24-generated .agents changes before closure.
+
+91. USER-PROVIDED ATTACHMENTS / UNRELATED FILES
+
+Do not modify or stage unrelated files such as:
+
+attached_assets/*
+
+unless they are explicitly confirmed as the source artwork needed for App Icon generation.
+
+Do not delete unrelated user attachments merely to clean git status.
+
+Classify them separately in the report.
+
+92. GIT REVIEW
+
+Run:
+
+git status --short
+git diff --stat
+git diff --check
+
+Report:
+
+native files
+asset catalogs
+React/TS files
+translations
+tests
+unrelated/pre-existing files separately
+
+No temporary image-generation files should remain.
+
+93. TEMPORARY ICON GENERATION FILES
+
+If temporary scripts/files are used to generate the icon variants:
+
+remove them unless there is a compelling maintainability reason to keep a deterministic generator.
+
+Do not leave:
+
+temporary screenshots
+scratch PNGs
+.psd
+random source files
+experimental icons
+
+in production directories.
+
+94. FINAL ICON ASSET INVENTORY
+
+The final report must list:
+
+Primary:
+
+AppIcon
+
+Alternates:
+
+AppIconMidnight
+AppIconRose
+AppIconMonochrome
+
+For each:
+
+exact asset catalog directory
+exact PNG filenames
+dimensions
+opacity/alpha verification
+source artwork basis
+95. PROMPT 24 PASS DEFINITION
+
+Prompt 24 may PASS only if:
+
+Primary AppIcon catalog has no missing referenced file.
+Primary production visual identity is preserved.
+Three alternate app icon sets exist.
+Alternate binaries are valid and opaque.
+Xcode target includes alternate icon set names for Debug and Release.
+No unnecessary manual CFBundleIcons dictionary is introduced.
+First-party Capacitor Swift bridge exists.
+Native allowlist exists.
+Primary maps to nil.
+getState reads native source of truth.
+setIcon uses public UIApplication API.
+Web/PWA fails gracefully as unsupported.
+My99 shows device-local App Icon section.
+App Icon is independent from ConfigV2.
+App Icon does not affect dirty state.
+Apply/Cancel/Reset do not control App Icon.
+logout/account switch/theme change do not reset App Icon.
+English/Arabic strings exist.
+iPhone/iPad layout contracts are safe.
+personalization tests remain green.
+TypeScript passes.
+production build passes.
+no .agents/* diff exists.
+no cloud/database storage is added.
+96. IMPORTANT NATIVE VERIFICATION BOUNDARY
+
+Prompt 24 is allowed to conclude:
+
+SOURCE IMPLEMENTATION COMPLETE
+STATIC NATIVE CONTRACT VERIFIED
+
+without claiming:
+
+REAL IPHONE ICON SWITCH VERIFIED
+XCODE ARCHIVE VERIFIED
+
+if the current environment does not provide macOS/Xcode.
+
+Those native binary/runtime checks belong to the later release validation.
+
+Do not mark Prompt 24 BLOCKED solely because Replit/Linux cannot launch Xcode, provided all source-level implementation gates pass.
+
+97. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly:
+
+99'S GUIDE — APP ICON PROMPT 24 REPORT
+NATIVE iOS / iPadOS ALTERNATE APP ICON IMPLEMENTATION
+1. Status
+
+PASS / BLOCKED
+
+2. User-Visible Result
+
+Explain what the user can now do in My99.
+
+3. Platform Scope
+
+State supported and unsupported platforms.
+
+4. Files Modified
+
+Use:
+
+| File | Exact Change | Why |
+
+5. App Icon Product IDs
+
+Print exactly:
+
+primary
+midnight
+rose
+monochrome
+
+6. Native Asset Mapping
+
+Print product ID → native asset-set mapping.
+
+7. Primary App Icon
+
+Explain what was preserved.
+
+8. Missing Dark Asset Root Cause
+
+Report actual previous dangling reference.
+
+9. Missing Dark Asset Repair
+
+Explain exact repair.
+
+10. Primary AppIcon Catalog Integrity
+
+Report every referenced primary filename exists.
+
+11. Midnight Icon
+
+Describe source/design and final file.
+
+12. Rose Icon
+
+Describe source/design and final file.
+
+13. Monochrome Icon
+
+Describe source/design and final file.
+
+14. Final Native Asset Inventory
+
+For all four icon sets report:
+
+directory
+files
+dimensions
+alpha/opacity state
+15. Xcode Build Settings
+
+Report:
+
+ASSETCATALOG_COMPILER_APPICON_NAME
+
+and:
+
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+
+for Debug and Release.
+
+16. Info.plist
+
+State whether manual CFBundleIcons dictionaries were added.
+
+Expected:
+
+NO MANUAL ICON DICTIONARY ADDED.
+
+17. Native Plugin
+
+Report exact Swift file(s).
+
+18. Native Plugin Registration
+
+Explain how Capacitor discovers/registers it.
+
+19. getState
+
+Explain:
+
+supportsAlternateIcons
+alternateIconName
+product-ID mapping
+
+20. setIcon
+
+Explain public API call and completion semantics.
+
+21. Primary Mapping
+
+State exactly:
+
+primary → nil
+
+22. Native Allowlist
+
+Report.
+
+23. Unknown Product ID
+
+Report rejection behavior.
+
+24. Unknown Native Icon Name
+
+Report safe behavior.
+
+25. Main-Thread Safety
+
+Report.
+
+26. iOS System UI
+
+Confirm no private API/system-confirmation suppression.
+
+27. TypeScript App Icon Domain
+
+List files/types/catalog/client.
+
+28. Native Detection
+
+Report Capacitor runtime detection.
+
+29. Web / PWA Fallback
+
+Report actual behavior.
+
+30. Android
+
+State:
+
+NOT IMPLEMENTED — OUT OF PROMPT 24 SCOPE.
+
+31. My99 Placement
+
+Confirm:
+
+after Home Subject Order
+before shared Apply / Cancel / Reset
+
+32. Device-Local Label
+
+Report English/Arabic copy.
+
+33. Native Selector UI
+
+Describe four choices.
+
+34. Selection Lifecycle
+
+Report tap → native call → refresh → selected state.
+
+35. Failure UX
+
+Report.
+
+36. Same-Icon Behavior
+
+Report.
+
+37. OS Source of Truth
+
+Confirm no duplicate persisted icon state.
+
+38. localStorage / IndexedDB Audit
+
+State exactly whether App Icon is persisted anywhere in web storage.
+
+Expected:
+
+NO.
+
+39. PersonalizationConfigV2 Impact
+
+State exactly:
+
+NO APP ICON FIELD ADDED.
+
+40. PersonalizationConfigV1 Impact
+
+State exactly:
+
+NO CHANGE.
+
+41. Local Envelope Impact
+
+State exactly:
+
+NO CHANGE.
+
+42. Cloud Impact
+
+State exactly:
+
+NO APP ICON CLOUD STORAGE.
+
+43. Database Impact
+
+State exactly:
+
+No SQL App Icon storage.
+No D1 App Icon storage.
+No R2 App Icon storage.
+No KV App Icon storage.
+
+44. My99 Dirty State
+
+Report icon-only change behavior.
+
+45. Apply Independence
+
+Report.
+
+46. Cancel Independence
+
+Report.
+
+47. Reset Independence
+
+Report.
+
+48. Logout Independence
+
+Report.
+
+49. Account-Switch Independence
+
+Report.
+
+50. Theme Independence
+
+Report.
+
+51. Reading Size Safety
+
+Report.
+
+52. Motion / Reduced Motion
+
+Report.
+
+53. Arabic / RTL
+
+Report source/test verification.
+
+54. Accessibility
+
+Report.
+
+55. Asset Tests
+
+Report exact results.
+
+56. Xcode Project Contract Tests
+
+Report.
+
+57. Swift Source Contract Tests
+
+Report.
+
+58. Web Fallback Tests
+
+Report.
+
+59. My99 Independence Tests
+
+Report.
+
+60. Personalization Matrix
+
+Report exact:
+
+passed
+failed
+skipped
+cancelled
+
+Entering baseline:
+
+183 / 0 / 0 / 0
+
+61. Dedicated App Icon Tests
+
+Report exact test file and count.
+
+62. TypeScript
+
+Report exact result.
+
+63. Production Build
+
+Report.
+
+64. Capacitor Sync
+
+State:
+RUN / NOT RUN
+
+and exact reason/result.
+
+65. Native Xcode Runtime Verification
+
+State honestly:
+
+VERIFIED
+or
+NOT AVAILABLE IN CURRENT ENVIRONMENT
+
+Do not fabricate.
+
+66. Real iPhone/iPad Icon Switching
+
+State honestly:
+
+VERIFIED
+or
+DEFERRED TO NATIVE RELEASE VALIDATION
+
+67. Auth Regression
+
+Report.
+
+68. Security Regression
+
+Report.
+
+69. Navigation Regression
+
+Report.
+
+70. Targeted ESLint
+
+Report.
+
+71. PWA Asset Impact
+
+State exactly what Prompt 24 changed.
+
+Expected:
+
+NO PWA MANIFEST/INSTALL ICON CHANGE.
+
+72. Temporary File Cleanup
+
+Report temporary generation files removed.
+
+73. Bundle / Asset Size Review
+
+Report reasonable final icon asset footprint.
+
+74. Git Review
+
+Report:
+
+git status --short
+git diff --stat
+git diff --check
+
+Classify unrelated files separately.
+
+75. .agents/* Verification
+
+Report exact output for:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+76. Prompt 25 Readiness
+
+If every source-level Prompt 24 gate passes, state exactly:
+
+PRIMARY APP ICON ASSET CATALOG: VERIFIED
+
+PRIMARY DARK ASSET REFERENCE: REPAIRED
+
+MIDNIGHT ALTERNATE ICON: IMPLEMENTED
+
+ROSE ALTERNATE ICON: IMPLEMENTED
+
+MONOCHROME ALTERNATE ICON: IMPLEMENTED
+
+XCODE ALTERNATE ICON BUILD SETTINGS: IMPLEMENTED
+
+FIRST-PARTY CAPACITOR APP ICON BRIDGE: IMPLEMENTED
+
+NATIVE PRODUCT-ID ALLOWLIST: VERIFIED
+
+PRIMARY → NIL NATIVE MAPPING: VERIFIED
+
+MY99 DEVICE-LOCAL APP ICON SELECTOR: IMPLEMENTED
+
+APP ICON / CONFIGV2 ISOLATION: VERIFIED
+
+APP ICON / APPLY-CANCEL-RESET ISOLATION: VERIFIED
+
+ACCOUNT / LOGOUT / THEME INDEPENDENCE: VERIFIED
+
+WEB / PWA UNSUPPORTED FALLBACK: VERIFIED
+
+PERSONALIZATION REGRESSION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+NO CLOUD OR DATABASE APP ICON STORAGE: VERIFIED
+
+.agents/*: CLEAN
+
+PROMPT 25 APP ICON + PWA ASSET CLOSURE: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE APP ICON PROMPT 24 STATUS: COMPLETE — READY FOR PROMPT 25
+
+Otherwise:
+
+99'S GUIDE APP ICON PROMPT 24 STATUS: BLOCKED — REPAIR REQUIRED
