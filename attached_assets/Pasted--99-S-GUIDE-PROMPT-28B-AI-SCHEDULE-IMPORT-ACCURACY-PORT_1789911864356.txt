@@ -1,0 +1,1480 @@
+# 99'S GUIDE — PROMPT 28B
+## AI SCHEDULE IMPORT ACCURACY + PORTABILITY + REGRESSION CLOSURE
+### REPAIR SUBJECT CATALOG OMISSION
+### REMOVE UNSAFE EVENT-TYPE INFERENCE
+### VERIFY ACTUAL TARGET-GROUP CONTRACT
+### MAKE PDF PAGE COUNT PORTABLE AND DETERMINISTIC
+### RESTORE PERSONALIZATION BASELINE
+### VALIDATE DATABASE MIGRATION AGAINST A DISPOSABLE DATABASE IF AVAILABLE
+### HTTP/ADMIN ROUTE CONTRACT VERIFICATION
+### NO NEW FEATURE
+### DO NOT REDESIGN PROMPT 28
+### DO NOT DEPLOY
+### DO NOT APPLY MIGRATION TO PRODUCTION
+### DO NOT MODIFY `.agents/*`
+### COMPLETE THE ENTIRE TASK BEFORE RETURNING — NO INTERMEDIATE STATUS UPDATES
+
+Prompt 28 is provisionally accepted.
+
+The overall architecture is approved:
+
+upload
+→ persisted job
+→ bounded extraction
+→ deterministic normalization
+→ independent AI verification
+→ duplicate/conflict checks
+→ human review/edit
+→ explicit commit
+→ transactional Calendar persistence
+
+Preserve it.
+
+However Prompt 28 cannot close yet because its report exposed several accuracy and release-portability issues.
+
+This is a focused repair/closure prompt.
+
+Do NOT begin Prompt 29 until every gate below passes.
+
+---
+
+# 1. CRITICAL SUBJECT-CATALOG DEFECT
+
+Prompt 28 reported the Schedule Import allowlist as:
+
+```text
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+This is incomplete.
+
+The authoritative current production Phase 3 subject catalog contains exactly:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+Where:
+
+ID   = Infectious Diseases
+NT   = Nutrition
+RM   = Research Methodology
+CA   = Clinical Attachment
+PHC  = Public Health Care
+ImD  = Immune Disturbances
+SSC  = Student Selected Component
+
+ID MUST NOT be omitted.
+
+This omission would cause legitimate Infectious Diseases schedule events to become unresolved/NEEDS_REVIEW or lose their subject association.
+
+Repair this.
+
+2. DO NOT CREATE A SECOND SUBJECT CATALOG
+
+Do not merely append "ID" to a hardcoded Calendar-specific array if a canonical production subject source already exists.
+
+Audit:
+
+src/core/constants/seedData.ts
+shared personalization/subject constants
+other existing canonical subject catalogs
+
+The Schedule importer must derive or reuse the canonical stable subject IDs wherever practical.
+
+There should not be competing definitions such as:
+
+Personalization subjects = 7
+Calendar AI subjects = 6/7 independently maintained
+
+Prefer one authoritative source or a shared closed helper.
+
+3. VERIFY ALL SEVEN SUBJECTS
+
+Add deterministic tests proving Schedule Import accepts/resolves every production subject ID:
+
+ID
+NT
+RM
+CA
+PHC
+ImD
+SSC
+
+At minimum verify:
+
+Infectious Diseases → ID
+Nutrition → NT
+Research Methodology → RM
+Clinical Attachment → CA
+Public Health Care → PHC
+Immune Disturbances → ImD
+Student Selected Component → SSC
+
+Use actual accepted English/Arabic aliases from production where they already exist.
+
+Do not invent medical subjects outside the application catalog.
+
+4. ARABIC SUBJECT LABELS
+
+Audit actual Arabic production translations.
+
+If Schedule extraction/resolution supports Arabic schedule PDFs, use existing app labels/aliases rather than new invented translations.
+
+Do not persist localized labels as stable identity.
+
+Stable identity remains the subject ID.
+
+5. UNKNOWN SUBJECT SAFETY
+
+Preserve:
+
+unknown / ambiguous subject
+→ subjectId = null
+→ warning
+→ human review
+
+Do not fuzzy-force the nearest subject.
+
+6. UNSAFE EVENT-TYPE MAPPING
+
+Prompt 28 reported:
+
+TEST → EXAM
+
+This is too aggressive.
+
+The word:
+
+test
+
+by itself does NOT prove the product event type is EXAM.
+
+It might represent:
+
+a quiz
+an assessment
+a practical test
+an exam
+
+Accuracy is more important than field completion.
+
+Repair this mapping.
+
+7. EVENT-TYPE NORMALIZATION RULE
+
+Use deterministic mappings only where semantics are sufficiently explicit.
+
+Examples conceptually acceptable:
+
+exam
+midterm exam
+final exam
+→ EXAM
+
+quiz
+→ QUIZ
+
+lecture
+class
+session
+→ LECTURE
+
+assignment
+task
+→ TASK
+
+holiday
+→ HOLIDAY
+
+But ambiguous generic:
+
+test
+assessment
+evaluation
+
+must NOT automatically become EXAM unless the source context explicitly resolves the meaning.
+
+Preferred:
+
+eventType = null
+warning = ambiguous event type
+status = NEEDS_REVIEW
+
+Preserve rawEventType or equivalent source wording if already available.
+
+Do not use outside knowledge.
+
+8. EVENT-TYPE VERIFICATION TESTS
+
+Add tests proving:
+
+"Exam" → EXAM
+"Final Exam" → EXAM
+"Quiz" → QUIZ
+"Lecture" → LECTURE
+"Holiday" → HOLIDAY
+"Test" alone → null + NEEDS_REVIEW
+
+Also verify verifier disagreement cannot silently assign a type.
+
+9. TARGET-GROUP CONTRACT AUDIT
+
+Prompt 28 hardcoded:
+
+A
+B
+C
+D
+E
+ALL
+
+Do NOT assume this is authoritative merely because Prompt 28 implemented it.
+
+Audit the actual existing Calendar/manual event UI/API and any central cohort/group constants.
+
+Determine the real production target-group vocabulary.
+
+Use existing source as authority.
+
+10. TARGET-GROUP SINGLE SOURCE OF TRUTH
+
+If the application already defines valid target groups centrally:
+
+reuse that source/helper.
+
+Do not maintain a separate Schedule-AI-only target-group list.
+
+If the existing Calendar intentionally permits a broader string vocabulary:
+
+do NOT narrow it to A–E merely for AI.
+
+Instead create a deterministic resolver based on actual production options.
+
+11. TARGET-GROUP SAFETY
+
+AI must never invent an audience.
+
+Preserve:
+
+explicit source audience
+→ deterministic known group mapping
+
+no source audience
+→ administrator-selected default only
+
+unknown audience
+→ warning / review
+
+Do not silently map an unknown group to ALL.
+
+ALL may only be used when:
+
+explicitly present in source,
+or explicitly chosen by administrator according to existing product semantics.
+12. TEST REAL TARGET GROUPS
+
+Add tests against the actual current application vocabulary.
+
+Verify:
+
+known group accepted
+unknown group rejected/requires review
+default group applies only when source has no explicit audience
+explicit source audience overrides default where current design intends
+unknown source audience does NOT become ALL
+13. PDF PAGE COUNT PORTABILITY AUDIT
+
+Prompt 28 page count currently reports:
+
+1. pdfinfo
+2. fallback counting /Type /Page
+
+This requires a deeper portability check.
+
+The production deployment must NOT depend on the host OS having the pdfinfo executable unless the deployment image explicitly guarantees it.
+
+Current application deployment environments may not contain Poppler/pdfinfo.
+
+Audit actual runtime availability assumptions.
+
+14. NO FRAGILE REGEX PAGE COUNT AS AUTHORITATIVE FALLBACK
+
+Counting textual:
+
+/Type /Page
+
+markers is not sufficiently robust as the final authoritative strategy for arbitrary modern PDFs because PDFs may contain:
+
+compressed object streams
+unusual object formatting
+incremental revisions
+structures that are not safely interpreted with a naive text marker count
+
+A wrong page count breaks source grounding and can invalidate the accuracy promise.
+
+Do not rely on this regex strategy as the only portable fallback.
+
+15. PORTABLE SERVER-SIDE PAGE COUNT
+
+Use a deterministic server-side PDF library available from Node.
+
+First inspect already installed dependencies.
+
+Preferred decision order:
+
+Reuse an already installed safe PDF parser/library that can return page count.
+If none exists, add the smallest well-maintained server-side dependency required only for PDF metadata/page count.
+
+Do NOT add OCR.
+
+Do NOT render every page merely to count pages.
+
+Do NOT introduce a huge browser PDF runtime to the server unnecessarily.
+
+16. PDFINFO MAY REMAIN OPTIONAL
+
+If pdfinfo is useful as an optional fast path, it may remain ONLY if:
+
+absence of pdfinfo
+→ normal supported condition
+→ portable JS parser still gets correct page count
+
+No ENOENT should surface to the user.
+
+The application must work on a normal Node production host with no Poppler installed.
+
+17. REMOVE/DEMOTE STRUCTURAL REGEX FALLBACK
+
+If a reliable Node parser is implemented:
+
+remove the /Type /Page fallback or retain it only as non-authoritative diagnostic behavior if genuinely useful.
+
+Do not let it silently produce trusted page grounding.
+
+18. PAGE-COUNT TESTS
+
+Add deterministic fixtures covering:
+
+1-page PDF
+4-page PDF
+scanned/image-only multi-page PDF
+
+Verify exact page count.
+
+If practical include a PDF whose object formatting defeats naive /Type /Page counting.
+
+The portable Node path must succeed without pdfinfo.
+
+19. FORCE PDFINFO-ABSENT TEST
+
+Mock/spawn behavior so:
+
+pdfinfo → ENOENT
+
+Expected:
+
+portable parser succeeds
+correct page count returned
+
+No user-visible error.
+
+20. PAGE GROUNDING AFTER PAGE-COUNT REPAIR
+
+Re-run multi-page extraction tests.
+
+Required:
+
+sourcePage >= 1
+sourcePage <= actual page count
+
+No Page 0.
+
+No impossible page.
+
+No candidate should be VERIFIED if its source page is outside the actual document.
+
+21. EXTRACTION RANGE SAFETY
+
+Current extraction uses:
+
+1–3
+4–6
+...
+
+Preserve this if tests prove it reliable.
+
+But ensure:
+
+final chunk does not exceed page count
+provider instructions identify exact source range
+returned page references are validated against both:
+document page count
+active chunk range
+
+A candidate claiming Page 7 while processing pages 1–3 is invalid/needs review and must not be silently accepted.
+
+22. VERIFY PAGE GROUNDING, NOT JUST FILTER IT
+
+The AI verification pass should include source page/location as a critical field.
+
+If extractor reports:
+
+page 2
+
+but verifier cannot find the event on page 2:
+
+NEEDS_REVIEW
+
+Do not silently search another page and rewrite the page number.
+
+23. PERSONALIZATION REGRESSION COUNT DROP
+
+Prompt 28 reported:
+
+181 passed
+0 failed
+
+The established pre-Prompt-28 personalization baseline is:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+A reduction from 183 to 181 cannot be silently accepted.
+
+Investigate exactly why two tests disappeared.
+
+24. USE THE SAME AUTHORITATIVE COMMAND
+
+Run exactly:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Capture:
+
+discovered test files
+test count
+passed
+failed
+skipped
+cancelled
+
+Compare against the established 183-test baseline.
+
+25. NO PERSONALIZATION TEST DELETION
+
+Verify Prompt 28 did NOT:
+
+delete a personalization test
+rename a test outside the glob
+skip tests
+convert tests to .only
+change discovery patterns
+delete coverage indirectly
+modify ConfigV2 semantics
+
+If two tests truly disappeared:
+restore them.
+
+Do not fabricate two meaningless tests merely to reach 183.
+
+The goal is to restore actual prior coverage.
+
+26. PERSONALIZATION SOURCE MUST REMAIN UNCHANGED
+
+Prompt 28 should not need to modify:
+
+PersonalizationConfigV2
+personalization storage
+migration
+cloud sync
+theme
+hero
+glass
+motion
+reading
+home personalization
+
+If any were modified:
+investigate and restore the accepted behavior unless modification is demonstrably unrelated/required.
+
+27. REQUIRED PERSONALIZATION CLOSURE
+
+Required final result:
+
+passed: 183
+failed: 0
+skipped: 0
+cancelled: 0
+
+If the established test suite has legitimately changed for a proven non-regressive reason, do NOT simply assert that.
+
+Explain exact file/test identities and why the baseline is no longer comparable.
+
+Strong preference is restoring 183.
+
+28. MIGRATION EXECUTION VALIDATION
+
+Prompt 28 only ran:
+
+prisma validate
+prisma generate
+
+That proves schema validity but does not prove the SQL migration actually executes successfully.
+
+Prompt 28B should validate the new migration against a disposable/local PostgreSQL database if the environment provides one safely.
+
+Do NOT use production.
+
+29. DISPOSABLE MIGRATION TEST
+
+Preferred:
+
+fresh disposable PostgreSQL DB
+→ apply all repository migrations
+→ verify final schema
+
+or an equivalent safe migration-test flow.
+
+Verify the Prompt 28 migration creates:
+
+CalendarEvent.allDay
+provenance columns
+unique importFingerprint
+source hash index
+CalendarImportJob
+expected indexes/relations
+
+Do not use prisma db push as a substitute for migration-history validation.
+
+30. EXISTING MIGRATION BASELINE
+
+If applying the full historical migration chain to a clean DB fails due to a PRE-EXISTING unrelated migration issue:
+
+do not rewrite migration history casually.
+
+Instead:
+
+identify exact pre-existing blocker
+test Prompt 28 migration against a schema state equivalent to the prior production baseline
+report the distinction
+
+Do not apply anything to production.
+
+31. UNIQUE FINGERPRINT MIGRATION SAFETY
+
+Because importFingerprint is nullable and unique:
+
+verify PostgreSQL semantics allow multiple existing NULL rows as expected.
+
+Verify migration does NOT attempt a required backfill.
+
+Existing Calendar rows must remain unaffected.
+
+32. IMPORT JOB SOURCE PATH SECURITY
+
+Audit:
+
+CalendarImportJob.sourcePath
+
+This contains server-local temporary filesystem information.
+
+Confirm:
+
+it is never returned unnecessarily to the frontend
+it is not included in public API serialization
+it is not rendered in UI
+a client cannot modify it
+it cannot be used for arbitrary filesystem deletion
+
+If the API currently leaks it:
+remove it from public responses.
+
+The database may retain it internally while a job needs it.
+
+33. SOURCE PATH AFTER CLEANUP
+
+Once source cleanup completes:
+
+prefer clearing sourcePath from the persisted job if the job no longer needs it.
+
+This avoids retaining stale temporary filesystem paths.
+
+Do this only if compatible with the job lifecycle.
+
+34. JOB API RESPONSE WHITELIST
+
+Use an explicit API DTO/public schema for import jobs.
+
+Do not return raw Prisma CalendarImportJob objects.
+
+Public response should expose only what UI needs:
+
+id
+status
+stage
+progress
+source display name
+source page count
+candidates/review data when allowed
+safe error
+timestamps
+
+Not:
+
+sourcePath
+internal storage keys
+server stack
+provider internals
+35. IMPORT ROUTE HTTP SECURITY TESTS
+
+Prompt 28 focused tests appear mostly service-level.
+
+Add/verify HTTP route tests for:
+
+start/upload
+poll/get job
+review/update candidate
+commit
+cancel
+
+At minimum verify:
+
+unauthenticated → rejected
+ordinary student/user → rejected if admin-only
+admin → permitted
+invalid job ID → safe structured response
+unauthorized job access → rejected
+malformed payload → rejected
+sourcePath/internal data not leaked
+
+Use mocked provider/storage.
+
+No live AI.
+
+36. COMMIT HTTP TEST
+
+Through the real HTTP boundary, verify:
+
+preview
+→ zero Calendar events
+
+commit
+→ creates expected events
+
+Do not rely only on calling CalendarImportService.commit() directly.
+
+37. ALL-DAY MANUAL ROUTE COMPATIBILITY
+
+Audit existing ordinary:
+
+POST /api/calendar/events
+PUT /api/calendar/events/:id
+
+They must correctly return/retain allDay=false for old clients.
+
+If a manual all-day UI was NOT added:
+do not accidentally permit arbitrary malformed all-day semantics through manual payloads.
+
+If allDay is accepted:
+validate it consistently.
+
+38. ALL-DAY CONTENT SYNC
+
+Verify allDay survives:
+
+Prisma
+→ API
+→ content sync
+→ D1/read mirror or current sync target
+→ frontend Calendar
+
+Do not assume Prisma persistence alone is enough.
+
+Add test/source-contract coverage if current sync mapper could omit new fields.
+
+39. IMPORT PROVENANCE CONTENT SYNC
+
+Determine whether provenance needs to be mirrored through content sync.
+
+If yes:
+verify all required fields.
+
+If provenance is intentionally server/database-only:
+do not expose unnecessary fields.
+
+Document the choice.
+
+40. SOCKET EMISSION COUNT
+
+Prompt 28 requirement preferred one batch update rather than hundreds of redundant events.
+
+Audit actual implementation.
+
+Report exact behavior:
+
+one calendar_updated per batch
+
+or:
+
+N emissions for N events
+
+If currently emitting one socket event per imported event and a 500-event import can create 500 refresh events:
+repair to one coherent batch refresh/update notification where compatible with the existing frontend.
+
+Do not introduce stale Calendar state.
+
+41. CONTENT SYNC FAILURE SEMANTICS
+
+Audit transaction vs external content-sync ordering.
+
+If CalendarEvent transaction commits but syncContentUpsert fails afterward:
+
+ensure retrying commit does not duplicate events because fingerprints exist.
+
+Report behavior.
+
+Do not pretend external sync is transactionally atomic with Postgres if it is not.
+
+Use idempotency/reconciliation semantics.
+
+42. TARGET GROUP CONFLICT SHARED LOGIC
+
+Confirm Prompt 28 reused/refactored the exact existing Calendar conflict semantics.
+
+There should not be:
+
+manual create conflict logic A
+AI import conflict logic B
+
+with subtly different behavior.
+
+If duplicated:
+extract a focused shared helper and cover both paths.
+
+Do not make a broad Calendar redesign.
+
+43. VERIFY ALL SEMANTICS
+
+If the actual production audience vocabulary includes ALL:
+
+conflict calculation must understand:
+
+ALL overlaps every concrete group
+
+If ALL is not an actual existing production group:
+do not invent it.
+
+Use the result of the real target-group audit.
+
+44. REVIEW STATUS AFTER MANUAL EDIT
+
+When an administrator edits an ambiguous candidate:
+
+deterministic validation may make it importable.
+
+Do not automatically label it:
+
+AI VERIFIED
+
+if AI never verified the new human-edited value.
+
+Use semantically accurate state.
+
+For example:
+
+READY
+MANUALLY_REVIEWED
+
+or preserve NEEDS_REVIEW but allow explicit selection after valid human correction.
+
+Do not misrepresent human edits as AI source verification.
+
+Use the smallest change consistent with current status model.
+
+45. HUMAN OVERRIDE AUDIT TRAIL
+
+If a CONFLICT candidate is explicitly imported with allowConflicts:
+
+ensure it is deliberate and server-validated.
+
+Do not allow one global flag to accidentally import every conflict not explicitly selected.
+
+Only selected candidate IDs may be committed.
+
+46. allowConflicts SECURITY
+
+A client cannot use:
+
+allowConflicts: true
+
+to bypass:
+
+INVALID
+DUPLICATE
+incomplete candidate
+unknown job candidate
+malformed dates/times
+
+It may only control the intended existing conflict override rule.
+
+Test this.
+
+47. SOURCE-GROUNDING UI
+
+Verify Page/Image reference remains visible after candidate edits.
+
+Manual edit must not erase original source provenance.
+
+This gives the administrator the ability to compare the corrected value to the source.
+
+48. RESPONSIVE UI REAL QA
+
+Prompt 28 reported source-level responsive behavior but no actual viewport QA evidence.
+
+Perform focused real rendering/DOM QA for the importer where tooling permits.
+
+At minimum:
+
+iPhone-sized narrow viewport
+iPad/tablet viewport
+desktop viewport
+Arabic RTL narrow/tablet
+
+Verify:
+
+no horizontal page overflow
+candidate cards/rows readable
+time/date controls fit
+group selector usable
+status badges do not overlap
+source evidence expands safely
+bottom/confirm actions remain reachable
+long titles wrap
+Arabic labels do not disappear
+
+Temporary harness allowed.
+
+Remove it afterward.
+
+49. NO PRODUCTION AUTH BYPASS FOR VISUAL QA
+
+If a temporary component harness is needed:
+
+keep it completely outside normal production route/auth flow.
+
+Remove it before closure.
+
+Do not leave debug routes.
+
+50. SCANNED SCHEDULE REGRESSION
+
+Re-run:
+
+valid image-only schedule PDF
+→ existing AI input
+→ multi-page/page grounding
+→ review
+→ zero Calendar persistence
+
+No OCR dependency.
+
+51. AI TIMEOUT CONTRACT
+
+Must remain:
+
+Frontend AI: 600s
+Server/provider: 240s
+Gemini Files: 180s
+Cloudflare conversion: 180s
+Cleanup: 2s
+
+No Prompt 28B regression.
+
+52. MCQ / FLASHCARD
+
+Run:
+
+npm run test:ai-mcq
+npm run test:ai-flashcard
+
+Expected:
+
+MCQ: 18 passed / 0 failed
+Flashcard: 17 passed / 0 failed
+53. RESOURCE / AI INPUT
+
+Re-run Prompt 27B relevant suites.
+
+No failure.
+
+Preserve:
+
+RESOURCE PDF: SUPPORTED
+RESOURCE IMAGE: NOT A CURRENT PRODUCT CAPABILITY
+AI PDF: SUPPORTED
+AI IMAGE: SUPPORTED
+SCANNED PDF: SUPPORTED
+54. CALENDAR IMPORT TESTS
+
+Expand focused Calendar tests to cover repairs in this prompt.
+
+Strong expected categories:
+
+seven-subject catalog
+ambiguous TEST event type
+real target group vocabulary
+portable PDF page count
+pdfinfo unavailable
+page-range bounds
+page-verification disagreement
+migration schema
+sourcePath API secrecy
+HTTP admin security
+HTTP commit boundary
+ALL/group conflicts if applicable
+allowConflicts scope
+allDay content sync
+socket batch behavior
+
+No live Gemini call.
+
+55. PRISMA VALIDATE / GENERATE
+
+Run:
+
+npx prisma validate
+npx prisma generate
+
+or repository-safe equivalent with required env.
+
+Required:
+
+PASS.
+
+56. MIGRATION TEST
+
+Report separately:
+
+Migration syntax/schema validation
+Migration execution against disposable DB
+Production migration status
+
+Production status MUST remain:
+
+NOT APPLIED
+57. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+58. BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS.
+
+59. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+60. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected baseline:
+
+13 passed
+
+Add focused Calendar-import HTTP security tests separately.
+
+Do not weaken existing security checks.
+
+61. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+62. APP ICON / PWA
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Expected:
+
+15 passed
+0 failed
+63. PERSONALIZATION — HARD GATE
+
+Run exact command:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Required final:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+Do not mark Prompt 28B PASS with unexplained 181.
+
+64. TARGETED ESLINT
+
+Run ESLint on every Prompt 28/28B changed source/test file.
+
+Required:
+
+0 Prompt 28B lint errors
+65. NO CLOUD DEPLOYMENT
+
+Do not:
+
+apply production migration
+deploy Render
+deploy Cloudflare
+call live Gemini
+modify production database
+update OAuth settings
+push Git
+66. NO GIT MUTATION
+
+Do not:
+
+git add
+git commit
+git push
+git reset --hard
+67. .agents/* ABSOLUTE
+
+Run at completion:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT.
+
+68. GIT REVIEW
+
+Run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Required:
+
+git diff --check
+→ NO OUTPUT
+69. DO NOT RETURN INTERMEDIATE UPDATES
+
+Continue until all safe work is complete.
+
+Only stop early for a true blocker requiring user input.
+
+Otherwise final response must be the full report below.
+
+70. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PROMPT 28B REPORT
+AI SCHEDULE IMPORT ACCURACY + PORTABILITY + REGRESSION CLOSURE
+1. Status
+
+PASS / BLOCKED
+
+2. Subject Catalog Defect
+
+Explain the missing ID issue and repair.
+
+3. Authoritative Subject Source
+
+Report exact source/helper used.
+
+4. Final Subject IDs
+
+Print exactly the final production IDs.
+
+5. Infectious Diseases
+
+Confirm:
+
+Infectious Diseases → ID
+
+6. Arabic Subject Resolution
+
+Report.
+
+7. Subject Tests
+
+Report all seven.
+
+8. Event-Type Ambiguity
+
+Explain why generic TEST is no longer silently EXAM.
+
+9. Final Event-Type Mapping
+
+Report deterministic aliases.
+
+10. Generic Test Behavior
+
+State expected:
+
+TEST → NEEDS_REVIEW
+
+unless explicit context proves a stronger type.
+
+11. Target-Group Audit
+
+Report actual current production vocabulary/source.
+
+12. Target-Group Single Source
+
+Report.
+
+13. ALL Semantics
+
+Report whether ALL actually exists and exact conflict semantics.
+
+14. Default Audience Semantics
+
+Report.
+
+15. PDF Page Count Previous Risk
+
+Explain pdfinfo/regex portability issue.
+
+16. Final PDF Page Count Architecture
+
+Report exact Node/library implementation.
+
+17. pdfinfo Dependency
+
+State:
+
+OPTIONAL
+or
+REMOVED
+
+The app must not require it.
+
+18. Structural Regex Fallback
+
+State whether removed/demoted.
+
+19. Page Count Tests
+
+Report 1-page / multi-page / scanned results.
+
+20. pdfinfo-Absent Test
+
+Report.
+
+21. Extraction Page-Range Validation
+
+Report.
+
+22. Verification Page-Grounding
+
+Report.
+
+23. Personalization 181→183 Investigation
+
+Explain exactly which two tests were missing from the previous run/count.
+
+24. Personalization Final Result
+
+Required:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+25. Migration Validation
+
+Report prisma validate/generate.
+
+26. Disposable Migration Execution
+
+RUN / NOT AVAILABLE
+
+If RUN:
+report exact result.
+
+If unavailable:
+explain without claiming execution.
+
+27. Production Migration
+
+State exactly:
+
+PROMPT 28 DATABASE MIGRATION REMAINS NOT APPLIED TO PRODUCTION.
+
+28. importFingerprint Migration Safety
+
+Report nullable unique semantics.
+
+29. sourcePath Security
+
+Report DB/internal/API behavior.
+
+30. sourcePath Cleanup
+
+Report whether cleared after source cleanup.
+
+31. Public Job DTO
+
+List fields exposed and confirm internal path not exposed.
+
+32. Import HTTP Security Tests
+
+Report exact count/results.
+
+33. HTTP Preview / Commit Test
+
+State:
+
+PREVIEW CALENDAR WRITES = 0
+
+then report commit behavior.
+
+34. allDay Manual Compatibility
+
+Report.
+
+35. allDay Content Sync
+
+Report.
+
+36. Provenance Sync Policy
+
+Report.
+
+37. Socket Batch Behavior
+
+Report exact number/pattern.
+
+38. Content-Sync Failure / Retry Behavior
+
+Report truthfully.
+
+39. Shared Conflict Logic
+
+Report whether manual + AI use same helper.
+
+40. allowConflicts Scope
+
+Confirm it cannot bypass INVALID/DUPLICATE/etc.
+
+41. Human-Edited Candidate Semantics
+
+Explain how a corrected candidate becomes importable without falsely claiming AI verification.
+
+42. Source Provenance After Edit
+
+Report.
+
+43. Responsive Visual QA
+
+For each tested viewport report:
+
+viewport
+language/direction
+overflow
+key finding
+44. Temporary Visual QA Cleanup
+
+Report.
+
+45. Scanned Schedule Regression
+
+Report.
+
+46. Prompt 27B Timeout Contract
+
+Report exact:
+600 / 240 / 180 / 180 / 2
+
+47. Calendar Import Tests
+
+Report exact passed/failed.
+
+48. MCQ
+
+Report.
+
+49. Flashcard
+
+Report.
+
+50. Resource / AI Input
+
+Report.
+
+51. App Icon / PWA
+
+Report.
+
+52. Auth
+
+Report.
+
+53. Security
+
+Report.
+
+54. Navigation
+
+Report.
+
+55. TypeScript
+
+Report.
+
+56. Build
+
+Report.
+
+57. ESLint
+
+Report.
+
+58. Cloud / Production DB
+
+State:
+
+NO CLOUD DEPLOYMENT PERFORMED.
+NO PRODUCTION DATABASE MIGRATION APPLIED.
+
+59. Git Review
+
+Print:
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+60. .agents/*
+
+Print exact results:
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+61. Prompt 29 Readiness
+
+If every gate passes, state exactly:
+
+PRODUCTION SUBJECT CATALOG: VERIFIED — 7/7
+
+INFECTIOUS DISEASES ID: RESTORED AND VERIFIED
+
+AMBIGUOUS TEST → EXAM AUTO-MAPPING: REMOVED
+
+EVENT-TYPE AMBIGUITY SAFETY: VERIFIED
+
+TARGET-GROUP CONTRACT: VERIFIED AGAINST PRODUCTION SOURCE
+
+PDF PAGE COUNT: PORTABLE AND DETERMINISTIC
+
+PDFINFO: NOT REQUIRED FOR PRODUCTION CORRECTNESS
+
+SOURCE PAGE GROUNDING: VERIFIED
+
+PERSONALIZATION BASELINE: 183 / 0 / 0 / 0
+
+PROMPT 28 MIGRATION: VALIDATED
+
+PRODUCTION MIGRATION: NOT APPLIED
+
+IMPORT JOB INTERNAL PATH: NOT EXPOSED
+
+HTTP ADMIN ROUTE SECURITY: VERIFIED
+
+AI PREVIEW WRITES ZERO CALENDAR EVENTS: VERIFIED
+
+BULK COMMIT HTTP CONTRACT: VERIFIED
+
+ALL-DAY CONTENT SYNC: VERIFIED
+
+CONFLICT LOGIC: SHARED / VERIFIED
+
+IMPORT IDEMPOTENCY: VERIFIED
+
+SCANNED SCHEDULE PDF: VERIFIED
+
+PROMPT 27B TIMEOUT CONTRACT: PASS
+
+MCQ: PASS
+
+FLASHCARD: PASS
+
+RESOURCE / AI INPUT: PASS
+
+APP ICON / PWA: PASS
+
+AUTH: PASS
+
+SECURITY: PASS
+
+NAVIGATION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+.agents/*: CLEAN
+
+PROMPT 28: CLOSED
+
+PROMPT 29 FINAL REGRESSION + EXPORT RE-CLOSURE: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE PROMPT 28B STATUS: COMPLETE — READY FOR PROMPT 29
+
+Otherwise:
+
+99'S GUIDE PROMPT 28B STATUS: BLOCKED — REPAIR REQUIRED
