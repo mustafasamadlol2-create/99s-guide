@@ -181,7 +181,9 @@ const WeekDayCell = memo(function WeekDayCell({
                 <div className="absolute right-1.5 top-1.5 w-1.5 h-1.5 rounded-full bg-yellow-400 ring-2 ring-white/50 dark:ring-neutral-900/50 shadow-sm" />
               )}
               <div className="flex flex-col gap-0.5">
-                {getEventPriority(ev) === PRIORITY.HOLIDAY ? (
+                {ev.allDay ? (
+                  <span className={`text-[10px] uppercase font-semibold tracking-wider ${textColorClass}`}>{isRtl ? "طوال اليوم" : "All day"}</span>
+                ) : getEventPriority(ev) === PRIORITY.HOLIDAY ? (
  null
  ) : ev.time && (
                   <span className={`text-[10px] uppercase font-normal tracking-wider opacity-80 ${textColorClass}`}>

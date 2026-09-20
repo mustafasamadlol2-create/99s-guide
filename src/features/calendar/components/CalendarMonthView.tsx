@@ -177,7 +177,9 @@ const MonthDayCell = memo(function MonthDayCell({
            key={ev.id}
            className={`flex items-center gap-1 min-h-[22px] py-1 px-2 rounded-md overflow-hidden shrink-0 w-full ${cardClass} hover:opacity-80`}
          >
-           {getEventPriority(ev) === PRIORITY.HOLIDAY ? null : ev.time && (
+            {ev.allDay ? (
+              <span className={`text-[10px] font-semibold shrink-0 ${textColorClass}`}>{isRtl ? "طوال اليوم" : "All day"}</span>
+            ) : getEventPriority(ev) === PRIORITY.HOLIDAY ? null : ev.time && (
              <span className={`text-[10px] font-normal shrink-0 ${textColorClass}`}>
                {to12HourFormatStr(ev.time)}
              </span>
@@ -230,7 +232,9 @@ const MonthDayCell = memo(function MonthDayCell({
                       key={`popover-${ev.id}`}
                       className={`flex items-center gap-1 min-h-[24px] py-1 px-2 rounded-md shrink-0 w-full ${cardClass} md:hover:opacity-80`}
                     >
-                        {getEventPriority(ev) === PRIORITY.HOLIDAY ? (
+                        {ev.allDay ? (
+                          <span className={`text-[11px] font-semibold shrink-0 ${textColorClass}`}>{isRtl ? "طوال اليوم" : "All day"}</span>
+                        ) : getEventPriority(ev) === PRIORITY.HOLIDAY ? (
  null
  ) : ev.time && (
                           <span className={`text-[11px] font-normal shrink-0 ${textColorClass}`}>

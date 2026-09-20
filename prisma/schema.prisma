@@ -55,6 +55,7 @@ model User {
   emailVerificationTokens   EmailVerificationToken[]
   oauthIdentities           OAuthIdentity[]          @relation
   qaVotes                   QaVote[]
+  calendarImportJobs        CalendarImportJob[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -165,6 +166,12 @@ model CalendarEvent {
   notes         String?
   isPinned      Boolean  @default(false)
   isCompleted   Boolean  @default(false)
+  allDay        Boolean  @default(false)
+  importSource  String?
+  sourceDocumentName String?
+  sourceDocumentSha256 String?
+  sourcePage    Int?
+  importFingerprint String? @unique
   user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([startDateTime])
@@ -172,6 +179,34 @@ model CalendarEvent {
   @@index([userId])
   @@index([eventType])
   @@index([targetGroups])
+  @@index([sourceDocumentSha256])
+}
+
+model CalendarImportJob {
+  id                String   @id @default(uuid())
+  userId            String
+  status            String   @default("UPLOADED")
+  stage             String   @default("Uploading")
+  sourceFileName    String
+  sourceMime        String
+  sourceSha256      String
+  sourcePageCount   Int?
+  sourcePath        String?
+  timezone          String   @default("Asia/Baghdad")
+  defaultTargetGroups String  @default("ALL")
+  progressCurrent   Int      @default(0)
+  progressTotal     Int      @default(0)
+  previewData       Json?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  completedAt       DateTime?
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([status, updatedAt])
+  @@index([sourceSha256])
 }
 
 model PointsLog {

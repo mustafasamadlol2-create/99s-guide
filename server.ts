@@ -69,6 +69,7 @@ import { buildOAuthPendingQuery, isOAuthStateBound, isValidPkceCodeChallenge, pa
 import { getRevokedSessionKey, isRevocationActive } from "./server/services/sessionRevocation.js";
 import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
+import { createCalendarImportRouter, CalendarImportService } from "./server/services/calendarImport/index.js";
 import { AIImportService, createPrismaAIImportRepository } from "./server/services/ai/import/index.js";
 import {
   createSupabaseSignedUrl,
@@ -359,6 +360,12 @@ function toCalendarEventContentRow(row: any): Record<string, unknown> {
     notes: row.notes ?? null,
     isPinned: row.isPinned,
     isCompleted: row.isCompleted,
+    allDay: row.allDay ?? false,
+    importSource: row.importSource ?? null,
+    sourceDocumentName: row.sourceDocumentName ?? null,
+    sourceDocumentSha256: row.sourceDocumentSha256 ?? null,
+    sourcePage: row.sourcePage ?? null,
+    importFingerprint: row.importFingerprint ?? null,
   };
 }
 
@@ -6783,6 +6790,24 @@ app.use("/api/admin/ai", createAIImportRouter({
         : undefined;
     },
   ),
+}));
+
+const calendarImportSourceRoot = process.env.CALENDAR_IMPORT_TMP_DIR?.trim()
+  || path.join(os.tmpdir(), "99-guide-calendar-imports");
+app.use("/api/admin/calendar/import", createCalendarImportRouter({
+  requireAdmin,
+  sourceRoot: calendarImportSourceRoot,
+  service: new CalendarImportService({
+    prisma: getPrisma(),
+    sourceRoot: calendarImportSourceRoot,
+    onCalendarUpsert: async (event) => {
+      const syncResult = await syncContentUpsert("CalendarEvent", event);
+      if (syncResult === "pending") {
+        logger.warn("[CalendarImport]", "Calendar event saved; content mirror sync queued for retry.");
+      }
+      io.to("authenticated").emit("calendar_updated", { action: "upsert", event });
+    },
+  }),
 }));
 
 // Middleware to verify if the student has owner role credentials

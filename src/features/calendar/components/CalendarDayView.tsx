@@ -19,11 +19,13 @@ interface EventCardProps {
  duration: number;
  };
  isMulti?: boolean;
+  isRtl?: boolean;
 }
 
 const EventCard = memo(function EventCard({
  eventItem,
- isMulti
+  isMulti,
+  isRtl = false,
 }: EventCardProps) {
  const { event, endMin } = eventItem;
 
@@ -47,8 +49,9 @@ const EventCard = memo(function EventCard({
  }
  if (event.isCompleted) bgCard += " opacity-60 grayscale-[0.5]";
 
- const timeLabel =
-   `${to12HourFormatStr(event.time).replace(" AM","AM").replace(" PM","PM")} – ${formatMinutesTo12HourStr(endMin).replace(" AM","AM").replace(" PM","PM")}`;
+  const timeLabel = event.allDay
+    ? (isRtl ? "طوال اليوم" : "All day")
+    : `${to12HourFormatStr(event.time).replace(" AM","AM").replace(" PM","PM")} – ${formatMinutesTo12HourStr(endMin).replace(" AM","AM").replace(" PM","PM")}`;
 
  return (
    <div
@@ -263,12 +266,12 @@ export const CalendarDayView = memo(function CalendarDayView({
  }, [selectedDate]);
 
  // Compute chronologically sorted event clusters
- const holidayEvents = useMemo(() => {
-    return selectedDateEvents.filter((ev) => ev.eventType === "HOLIDAY" || ev.type === "holiday");
+  const holidayEvents = useMemo(() => {
+     return selectedDateEvents.filter((ev) => ev.allDay || ev.eventType === "HOLIDAY" || ev.type === "holiday");
   }, [selectedDateEvents]);
   
   const timedEvents = useMemo(() => {
-    return selectedDateEvents.filter((ev) => ev.eventType !== "HOLIDAY" && ev.type !== "holiday");
+     return selectedDateEvents.filter((ev) => !ev.allDay && ev.eventType !== "HOLIDAY" && ev.type !== "holiday");
   }, [selectedDateEvents]);
 
  const eventClusters = useMemo(() => {
@@ -387,7 +390,7 @@ export const CalendarDayView = memo(function CalendarDayView({
  {/* Event Cards side-by-side */}
   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
  {cluster.items.map((eventItem, j) => (
- <EventCard key={eventItem.event.id + '-' + j} eventItem={eventItem} isMulti={cluster.items.length > 1}
+  <EventCard key={eventItem.event.id + '-' + j} eventItem={eventItem} isMulti={cluster.items.length > 1} isRtl={isRtl}
  />
  ))}
  </div>

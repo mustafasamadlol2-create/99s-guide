@@ -175,6 +175,8 @@ export interface CalendarEvent {
   notes?: string;
   isPinned?: boolean;
   isCompleted?: boolean;
+  /** Explicit all-day semantics; never infer this from a missing time. */
+  allDay?: boolean;
 }
 
 export interface UserProgress {

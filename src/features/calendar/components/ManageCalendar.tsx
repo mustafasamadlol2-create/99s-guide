@@ -14,6 +14,7 @@ import {
 import { CalendarEvent } from "../../../core/types";
 import { formatToBaghdadISO, parseBaghdadDate } from "../../../core/utils/timezone";
 import { showiOSAlert } from "../../../core/device/alert";
+import CalendarScheduleImporter from "../import/CalendarScheduleImporter";
 
 interface ManageCalendarProps {
  language?: "en" | "ar";
@@ -192,6 +193,7 @@ export default function ManageCalendar({
  id="manage_calendar_form_container"
  className="space-y-section max-w-2xl mx-auto"
  >
+  <CalendarScheduleImporter language={language} onImported={onEventCreated} />
  <div className="border-b border-neutral-100 dark:border-white/[0.12] pb-3 flex items-center gap-2 group relative">
  <h3 className="text-headline font-display font-semibold text-neutral-800 dark:text-white flex items-center gap-2">
  <Calendar className="w-icon-md h-icon-md text-rose-500 shrink-0" />
