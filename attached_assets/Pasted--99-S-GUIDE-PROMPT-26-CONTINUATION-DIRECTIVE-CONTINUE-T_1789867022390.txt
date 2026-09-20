@@ -1,0 +1,1314 @@
+# 99'S GUIDE — PROMPT 26 CONTINUATION DIRECTIVE
+## CONTINUE THE CURRENT FINAL PRODUCTION / EXPORT READINESS GATE TO COMPLETION
+### DO NOT STOP AFTER EACH SUBTASK
+### DO NOT RETURN INTERMEDIATE STATUS UPDATES
+### COMPLETE ALL REMAINING PROMPT 26 WORK AND RETURN THE FULL FINAL REPORT
+### REPAIR SAFE RELEASE BLOCKERS WHEN JUSTIFIED
+### STOP ONLY FOR A TRUE BLOCKER THAT REQUIRES USER INPUT
+### NO NEW FEATURES
+### NO CLOUD DEPLOYMENT
+### NO GIT COMMIT / PUSH
+### DO NOT MODIFY `.agents/*`
+
+You are already executing Prompt 26.
+
+DO NOT restart Prompt 26 from the beginning.
+
+Continue from the CURRENT working tree and CURRENT completed work.
+
+The user does NOT want short progress updates after each command or small group of checks.
+
+From this point forward:
+
+```text
+KEEP WORKING
+→ inspect
+→ repair safe blockers
+→ rerun affected checks
+→ continue to next Prompt 26 gate
+→ finish the entire Prompt 26 checklist
+→ return ONE complete final Prompt 26 report
+
+Do NOT stop merely to say:
+
+"I found..."
+"I'm checking..."
+"I will now..."
+"The next step is..."
+"I applied..."
+"I am continuing..."
+
+Those are not final responses.
+
+Only stop early if there is a genuine blocker that cannot safely be resolved without a user decision, secret, external credential, destructive production action, or breaking architectural choice.
+
+If such a true blocker occurs, return:
+
+PROMPT 26 BLOCKER — USER DECISION REQUIRED
+
+and explain exactly why.
+
+Otherwise continue autonomously until Prompt 26 is fully complete.
+
+CURRENT PROMPT 26 PROGRESS — PRESERVE THIS WORK
+
+The following work has already been completed or is currently in progress.
+
+A. Package-lock external-registry repair
+
+A release blocker was found:
+
+package-lock.json contained 33 Replit-internal package-firewall tarball URLs
+
+including production/transitive dependencies.
+
+The narrow repair already performed was:
+
+replace only environment-specific Replit/internal resolved URL hosts
+with public npm registry URLs
+
+while preserving:
+
+package versions
+integrity hashes
+dependency graph
+lockfile structure
+
+Do NOT revert this.
+
+B. External clean install
+
+A disposable external-style clean install already passed:
+
+npm ci: PASS
+
+The lockfile remained byte-stable after the clean install.
+
+Do NOT unnecessarily regenerate the lockfile.
+
+C. Production dependency audit
+
+The first production audit reported:
+
+3 high
+7 moderate
+
+The current task is already investigating safe non-breaking fixes.
+
+D. Safe patch-level updates currently being applied
+
+Current intended safe updates include:
+
+Nodemailer 9.1.1
+Sharp 0.35.4
+Capacitor CLI patch updating transitive XML tooling
+
+No major upgrade.
+
+No forced audit fix.
+
+No:
+
+npm audit fix --force
+
+Continue this work to its conclusion.
+
+1. FINISH THE DEPENDENCY SECURITY WORK FIRST
+
+Complete the currently active security-update work.
+
+For each changed direct dependency:
+
+verify that the update is genuinely:
+
+patch/minor compatible
+non-breaking for this repository
+required or justified by the production audit
+
+Do not update unrelated packages merely to reduce an audit number.
+
+After updates, run:
+
+npm ci
+npm audit --omit=dev
+
+Use the public npm registry/environment-independent lockfile.
+
+2. DEPENDENCY AUDIT DISPOSITION
+
+For EVERY remaining HIGH or MODERATE production advisory after the safe updates, report internally before final closure:
+
+package
+severity
+direct or transitive
+production reachability
+fixed version available
+whether fix requires a major/breaking update
+action taken
+final disposition
+
+Do not print secret/environment values.
+
+A vulnerability does NOT automatically block release simply because npm reports it.
+
+But a reachable HIGH/CRITICAL production vulnerability without a safe mitigation MUST NOT be silently ignored.
+
+Required decision model:
+
+Safe patch/minor fix exists
+
+Apply it.
+
+Then rerun:
+
+npm ci
+typecheck
+build
+tests
+affected feature tests
+Fix requires breaking major upgrade
+
+Do NOT blindly upgrade.
+
+Investigate reachability and actual application use.
+
+If exploitable/reachable in this app:
+Prompt 26 may become BLOCKED.
+
+If not reachable in the shipped production path:
+document evidence and continue.
+
+Dev-only/transitive tooling issue
+
+Classify separately.
+
+Do not treat it as an application runtime exploit without evidence.
+
+3. SHARP REGRESSION CHECK
+
+Because sharp is being updated, explicitly test the image/binary code paths that use it.
+
+Search actual usage.
+
+Verify any current production behavior involving:
+
+image processing
+image validation
+thumbnailing
+avatar/media transforms
+App Icon/PWA asset-related tooling if runtime-relevant
+PDF/image AI preprocessing if sharp is involved
+
+Do NOT add new functionality.
+
+If Sharp is not used in a runtime path relevant to these features, state that in the final report.
+
+4. CAPACITOR CLI REGRESSION CHECK
+
+Because the Capacitor CLI patch is being updated, ensure the native project remains intact.
+
+At minimum recheck:
+
+ios/App/App/AppIcon.swift
+ios/App/App/Assets.xcassets/AppIcon.appiconset
+ios/App/App/Assets.xcassets/AppIconMidnight.appiconset
+ios/App/App/Assets.xcassets/AppIconRose.appiconset
+ios/App/App/Assets.xcassets/AppIconMonochrome.appiconset
+ios/App/App.xcodeproj/project.pbxproj
+
+If it is safe and useful after dependency updates, run:
+
+npx cap sync ios
+
+Then verify AGAIN:
+
+AppIcon.swift preserved
+alternate catalogs preserved
+primary dark icon preserved
+alternate build settings preserved
+AppIcon.swift target membership preserved
+
+Do not claim Xcode build success on Linux.
+
+5. DO NOT PAUSE AFTER SECURITY CHECKS
+
+Once dependency/security verification is complete, immediately continue through ALL remaining Prompt 26 gates.
+
+Do not return a progress message.
+
+6. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+
+If it fails:
+
+repair actual source errors if safe and in scope,
+then rerun until green.
+
+7. FRESH PRODUCTION BUILD
+
+Do not trust stale dist.
+
+Safely remove/move the previous build output and run the authoritative production build.
+
+Expected:
+
+npm run build
+
+or actual current authoritative script.
+
+Verify fresh output includes both frontend and backend artifacts where the repository build architecture requires them.
+
+Report actual artifact paths.
+
+8. BACKEND BUILD
+
+Verify the production backend artifact exists.
+
+Historically expected architecture:
+
+server.ts
+→ esbuild
+→ dist/server.cjs
+
+Use actual package scripts as authority.
+
+Verify no runtime import/module is missing.
+
+9. PRODUCTION SERVER SMOKE TEST
+
+Start the built server using safe local/test configuration.
+
+Do NOT perform destructive production calls.
+
+Verify:
+
+process starts
+configuration parses
+server does not crash immediately
+health endpoint works if available
+
+Then stop the temporary process.
+
+If a real database connection is required merely to boot, use the repository-supported safe/test configuration rather than inventing credentials.
+
+Do not expose secrets.
+
+10. FULL TEST SUITE
+
+Run the authoritative full repository test command.
+
+Do not stop when the first test fails.
+
+Collect the full result.
+
+The historically known failure was:
+
+pdf_download_expiry_invalid
+
+Prompt 26 MUST close this.
+
+11. PDF TEST FAILURE — RESOLVE IT NOW
+
+Inspect:
+
+tests/pdf-access.test.ts
+
+and the production function it tests.
+
+Determine which case applies:
+
+CASE A — Test fixture defect
+
+If the production token creator correctly rejects non-positive expiry and the test intended to exercise a later validation path:
+
+repair the test fixture ONLY.
+
+Use a valid construction approach that reaches the intended assertion.
+
+Do NOT weaken production expiry validation.
+
+CASE B — Production defect
+
+If production behavior is actually wrong:
+
+repair the smallest correct production bug.
+
+CASE C — Explicit expected-failure mechanism
+
+Only retain a failing test if the test runner explicitly marks it expected and the repository intentionally uses that mechanism.
+
+A normal failed test is NOT acceptable for final export.
+
+Strong required target:
+
+FULL TEST SUITE:
+0 failed
+
+After repair, rerun:
+
+focused PDF tests
+full test suite
+12. PERSONALIZATION
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Expected entering baseline:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+No regression accepted.
+
+13. APP ICON + PWA ASSET TESTS
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Expected entering baseline:
+
+15 passed
+0 failed
+
+No regression accepted.
+
+14. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+15. SECURITY CONTRACT
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+16. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+17. FEATURE-SURFACE REGRESSIONS
+
+Run the existing relevant suites for at least:
+
+Home
+Lecture
+Calendar
+MCQ
+Flashcards
+Personalization
+App Icon
+PWA assets
+PDF/resource access
+
+Do not skip existing available coverage merely because the build passed.
+
+18. PRODUCTION LINT
+
+Run repository lint, but classify results correctly.
+
+Separate:
+
+production frontend
+production backend
+shared
+tests
+.local/skills/tooling
+
+Required final production target:
+
+production application/server/shared ESLint errors = 0
+19. SUPABASE STORAGE LINT
+
+There was a previously known production lint finding in:
+
+server/services/supabaseStorage.ts
+
+Inspect it.
+
+If still an ERROR and a semantics-preserving fix is straightforward:
+
+repair it.
+
+Do NOT leave a production-source ESLint error merely because it is historical baseline.
+
+Rerun targeted lint afterwards.
+
+20. SMOOTHAUTOHEIGHT WARNING
+
+A historical warning may exist in:
+
+SmoothAutoHeight.tsx
+
+Inspect the actual current lint output.
+
+If it is only a harmless warning allowed by policy:
+classify it.
+
+If it is an error:
+repair it.
+
+Do not redesign the component.
+
+21. .local/skills LINT
+
+Do not rewrite local/tool skill code merely to make repository-global lint green.
+
+Classify .local/skills/* separately as non-runtime tooling if applicable.
+
+The final report must clearly separate it from shipped production code.
+
+22. CLEAN INSTALL RECONFIRMATION
+
+After dependency updates and any lockfile modifications:
+
+perform one final external/disposable:
+
+npm ci
+
+using the FINAL package.json/package-lock.json.
+
+Required:
+
+PASS
+
+Verify package-lock remains stable.
+
+23. NPM REGISTRY RECHECK
+
+Search final:
+
+package-lock.json
+package.json
+.npmrc
+
+for:
+
+Replit internal registry
+package firewall
+localhost registry
+temporary private registry
+
+Required:
+
+0 external-install-blocking registry URLs
+
+Legitimate standard npm registry URLs are expected.
+
+24. SECRET SCAN
+
+Audit export-relevant tracked source for accidental:
+
+DB password
+JWT secret
+service-role key
+OAuth client secret
+Apple private key
+Cloudflare token
+Render token
+Gemini/OpenAI server key
+session secret
+private certificate/key
+
+Do NOT print secret values.
+
+Final report must say:
+
+TRACKED PRODUCTION SECRET FOUND: YES / NO
+
+If YES and real:
+remove from tracked/exported source safely and rotate only if exposure requires it.
+
+Do not rotate external credentials without user instruction.
+
+25. ENV AUDIT
+
+Check:
+
+.env*
+
+tracked and untracked.
+
+Real secret env files must not be intended for GitHub.
+
+Sanitized .env.example is allowed.
+
+Report exact file names/status, not secret contents.
+
+26. CLIENT BUNDLE SECRET SCAN
+
+After the fresh production build, inspect frontend output for server-only secret variable names or obvious secret markers.
+
+Required:
+
+SERVER SECRET IN CLIENT BUNDLE: NO
+
+Do not print matched secret values if any suspicious result is found.
+
+27. VITE VARIABLES
+
+List actual client-visible:
+
+VITE_*
+
+variable names used in frontend code.
+
+Classify each by purpose.
+
+Do not output values.
+
+Remember every VITE variable is public/client-visible.
+
+28. PWA FINAL STATIC VALIDATION
+
+Serve the FRESH dist.
+
+Verify HTTP success for:
+
+/
+manifest.json
+sw.js
+icon-192.png
+icon-512.png
+icon-512-maskable.png
+apple-touch-icon.png
+favicon.ico
+favicon-16x16.png
+favicon-32x32.png
+/app-icons/primary.png
+/app-icons/midnight.png
+/app-icons/rose.png
+/app-icons/monochrome.png
+
+Use actual paths from source/build if different.
+
+29. SERVICE WORKER PRECACHE
+
+Parse the explicit precache list from the final service worker.
+
+Request every precache URL from the fresh build server.
+
+Required:
+
+requested = N
+successful = N
+failed = 0
+
+Any missing required precache asset is a release blocker.
+
+30. SERVICE WORKER UPDATE SAFETY
+
+Verify Prompt 25 icon changes can propagate through the current install/activate/cache behavior.
+
+No stale removed icon path should remain.
+
+Do not redesign the service worker unless an actual failure exists.
+
+31. MANIFEST
+
+Verify the final built manifest:
+
+valid JSON
+all icon files exist
+declared sizes match actual sizes
+purpose valid
+type valid
+start_url valid
+scope valid
+display valid
+
+Do not claim real-host installability yet.
+
+32. INDEX.HTML
+
+Verify final source/build metadata:
+
+viewport
+manifest link
+favicon
+apple-touch-icon
+theme metadata
+entry script
+
+No broken/duplicate conflicting link.
+
+33. SPA ROUTING
+
+Verify client routing remains valid.
+
+Distinguish:
+
+CLIENT ROUTING: VERIFIED
+HOST SPA FALLBACK: DEPLOYMENT-SPECIFIC
+
+Do not add Azure/Cloudflare-specific routing now unless already generic and required.
+
+34. API BASE
+
+Audit final source behavior:
+
+getApiBaseUrl()
+VITE_API_BASE_URL
+Capacitor native API URL
+web/PWA API URL
+
+Verify no accidental Replit preview or localhost value becomes production authority.
+
+Do not change intended production backend without evidence.
+
+35. CORS
+
+Inspect backend CORS architecture.
+
+Do not use wildcard.
+
+Report:
+
+current allowed/default origins
+where a new PWA deployment origin must be configured
+
+Do not invent the future deployment hostname.
+
+36. GOOGLE / APPLE OAUTH HOST ACTIONS
+
+Audit source/external assumptions.
+
+Determine what must be updated AFTER the new PWA hostname is known.
+
+Examples:
+
+Google authorized JavaScript origin
+Google redirect URI if applicable
+Apple Service ID domain/return URL if applicable
+backend CORS
+
+Do NOT modify provider consoles.
+
+This is a post-export action list.
+
+37. CAPACITOR FINAL CONFIG
+
+Verify:
+
+appId
+appName
+webDir
+server/native settings
+
+No temporary QA host.
+
+No test server embedded.
+
+38. NATIVE APP ICON FINAL INTEGRITY
+
+Reconfirm Prompt 24/25 implementation remains intact after dependency work.
+
+Required:
+
+AppIcon.swift exists
+primary AppIcon catalog valid
+primary dark icon exists
+Midnight catalog valid
+Rose catalog valid
+Monochrome catalog valid
+Xcode alternate names intact
+AppIcon.swift target membership intact
+
+If npx cap sync ios was run after Capacitor CLI update, explicitly report survival.
+
+39. NATIVE RUNTIME CLAIM
+
+Do NOT claim Xcode/device verification.
+
+Final state remains:
+
+DEFERRED TO MAC/XCODE RELEASE VALIDATION
+40. AI SOURCE SAFETY
+
+Perform Prompt-26 release audit only.
+
+Verify:
+
+AI API keys server-side
+no Gemini secret in frontend bundle
+admin protection remains where designed
+no temporary AI debug route
+current timeout settings remain intentional
+
+Do NOT perform live Gemini calls.
+
+Do NOT begin Prompt 27.
+
+The attached Prompt 27 file is reference material only.
+
+41. RESOURCE / STORAGE SAFETY
+
+Audit only current release state:
+
+PDF upload
+image upload
+R2/storage
+signed download
+
+Do not implement Prompt 27's upload repair yet.
+
+If Prompt 26 discovers a severe security/export blocker, fix only if clearly within release gate.
+
+Otherwise document it as Prompt 27 scope.
+
+42. PRISMA / MIGRATIONS
+
+Inspect:
+
+prisma/schema.prisma
+prisma/migrations/
+
+Report current migration inventory and whether repository source expects any migration not yet known to be production-applied.
+
+Do NOT run production migration.
+
+Do NOT create migration.
+
+43. DEBUG/HARNESS SCAN
+
+Search production source for accidental:
+
+debug route
+QA route
+visual harness
+auth bypass
+mock-only runtime route
+temporary test component
+
+No temporary R2B/R4B/R4C harness may remain.
+
+Legitimate files under tests/ are fine.
+
+44. TEMP ARTIFACT SCAN
+
+Search for temporary:
+
+screenshots
+contact sheets
+scratch files
+test browser profiles
+temporary Vite harnesses
+Prompt-26 output files
+
+Remove only Prompt-generated temporary artifacts.
+
+Do not delete user/reference attachments.
+
+45. CONSOLE DEBUG AUDIT
+
+Remove only obvious accidental production:
+
+console.log
+console.debug
+temporary trace output
+
+Do not remove intentional structured server logging.
+
+Never log tokens/secrets.
+
+46. TODO / FIXME
+
+Scan production source.
+
+Classify only true release blockers.
+
+Do NOT turn future roadmap comments into unnecessary Prompt 26 work.
+
+47. LARGE FILE SCAN
+
+Check required/untracked files for accidental large artifacts.
+
+Do not delete legitimate user media/reference files.
+
+Report:
+
+unexpected large production artifact: YES / NO
+48. SOURCE EXPORT CONTENT
+
+Create exact final include inventory.
+
+MUST include:
+
+frontend source
+server source
+shared source
+package.json
+package-lock.json
+tests
+public source assets
+Prisma schema/migrations
+ios/
+Capacitor config
+App Icon assets/plugin
+PWA manifest/service worker
+required configuration templates
+
+Do NOT omit ios/.
+
+49. EXPORT EXCLUDE INVENTORY
+
+Identify items that should not be part of a normal GitHub production commit/export, such as:
+
+node_modules/
+old dist/
+real .env secrets
+temporary logs
+temporary screenshots
+browser cache
+Prompt/reference attachments if they are not project source
+temporary clean-install copies
+
+Do not delete user-owned reference files merely for this audit.
+
+50. ATTACHED PROMPT 27
+
+The newly attached Prompt 27 material is REFERENCE ONLY during Prompt 26.
+
+Do not:
+
+execute Prompt 27
+modify its attachment
+treat it as runtime source
+mix Prompt 27 code into Prompt 26
+
+Classify it under:
+
+reference/user attachment
+51. FINAL GIT INVENTORY
+
+Run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Required:
+
+git diff --check = no output
+
+The working tree does NOT need to be clean because no commit is requested.
+
+But every required change must be identified.
+
+52. .agents/* FINAL HARD GATE
+
+At the end run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+
+If Prompt 26 or platform memory modified .agents/*, restore only those Prompt-26-generated changes before closure.
+
+No exceptions.
+
+53. DO NOT STOP UNTIL THE FULL REPORT IS READY
+
+Do not return another short update.
+
+Do not ask the user whether to continue.
+
+You have explicit permission to complete all safe, non-destructive Prompt 26 work autonomously.
+
+Only stop early for:
+
+required secret/credential
+destructive production operation
+major breaking dependency choice with real production impact
+unresolvable high/critical security blocker
+architectural conflict requiring user product decision
+
+Otherwise KEEP GOING.
+
+54. FINAL RESPONSE MUST BE THE COMPLETE PROMPT 26 REPORT
+
+Return the mandatory report requested by the original Prompt 26.
+
+Use exactly this report structure:
+
+99'S GUIDE — PROMPT 26 REPORT
+FINAL PRODUCTION + EXPORT READINESS
+1. Status
+
+PASS / BLOCKED
+
+2. Final Decision
+
+EXPORT READINESS: APPROVED
+
+or:
+
+EXPORT READINESS: BLOCKED
+
+3. Prompt 26 Repairs
+
+Include:
+
+package-lock registry repair
+dependency security patch updates
+PDF test repair if performed
+lint fixes if performed
+any other actual release repair
+4. Initial Working-Tree Classification
+5. Required Production Files
+6. Required Untracked Files for Future Git Commit
+7. Files That Should NOT Be Included in Production Git Commit
+8. Git Ignore Safety
+9. Secret Scan
+
+State exactly:
+
+TRACKED PRODUCTION SECRET FOUND: YES / NO
+
+10. Environment Files
+11. npm Registry / Lockfile
+
+Include final count of Replit/internal registry references.
+
+12. Clean npm ci
+13. Lockfile Stability
+14. Production Dependency Audit
+
+For every remaining HIGH/MODERATE include:
+
+package
+severity
+direct/transitive
+production reachability
+fixed version
+breaking upgrade required YES/NO
+final disposition
+
+Also report final severity totals.
+
+15. Build Scripts
+16. TypeScript
+17. Frontend Production Build
+18. Backend Production Build
+19. Production Server Smoke Test
+20. Fresh dist Build
+21. PWA Manifest
+22. PWA Install Icons
+23. Apple Touch Icon
+24. Favicon
+25. Service Worker
+26. Precache HTTP Verification
+
+Report:
+
+requested
+successful
+failed
+
+27. SPA / Deep-Link Readiness
+28. API Base URL
+29. Current CORS Architecture
+30. New PWA Host CORS Action
+
+REQUIRED / NOT REQUIRED
+
+31. OAuth Hostname Actions
+32. Capacitor Config
+33. Native App Icon Final Static Integrity
+34. Native Runtime Validation
+
+State:
+
+DEFERRED TO MAC/XCODE RELEASE VALIDATION
+
+35. App Icon / PWA Tests
+36. Personalization Matrix
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+37. Full Test Suite
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+Strong target:
+failed = 0
+
+38. PDF Test Closure
+
+Use one:
+
+TEST FIXTURE DEFECT REPAIRED
+
+PRODUCTION DEFECT REPAIRED
+
+EXPECTED FAILURE MECHANISM VERIFIED
+
+Explain.
+
+39. PDF Focused Tests
+40. Production Lint
+
+Report production errors/warnings.
+
+41. .local/skills Lint
+
+Classify separately.
+
+42. Supabase Storage Lint
+43. Frontend Lint
+44. Auth
+45. Security
+46. Navigation
+47. Feature Surface Tests
+48. AI Source Safety
+
+Include:
+
+client secret exposure
+admin protection
+debug routes
+live AI calls performed YES/NO
+
+49. Binary / Upload Storage Safety
+
+Do not implement Prompt 27.
+
+50. Prisma / Migration Inventory
+51. Frontend Bundle Secret Scan
+
+State:
+
+SERVER SECRET IN CLIENT BUNDLE: YES / NO
+
+52. VITE Environment Audit
+
+Names/purposes only.
+No values.
+
+53. Debug / Test Route Scan
+54. Temporary Artifact Scan
+55. Console Debug Scan
+56. TODO / FIXME Release Blockers
+57. Mock-Data Runtime Safety
+58. PWA Offline Verification Level
+59. PWA Cache Update Safety
+60. index.html
+61. Production URL Scan
+62. Personalization Cloud State
+
+State exactly:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+
+63. ConfigV2 Local Independence
+64. Version Information
+
+Include:
+
+application version
+Capacitor version
+iOS minimum target
+bundle identifier
+
+Do not bump.
+
+65. Toolchain
+
+Include actual:
+
+Node
+npm
+React
+Vite
+Capacitor
+Prisma
+
+66. Node Runtime Compatibility
+67. Case-Sensitivity
+68. Large / Accidental File Scan
+69. Final Native Icon Footprint
+70. Final PWA Icon / Preview Footprint
+71. CSP / Local Asset Safety
+72. Source Installability Contract
+
+Use:
+
+SOURCE INSTALLABILITY CONTRACT: VERIFIED
+
+or:
+
+SOURCE INSTALLABILITY CONTRACT: NOT VERIFIED
+
+73. Real Host Installability
+
+State:
+
+REAL HOST INSTALLABILITY: DEFERRED TO POST-EXPORT PWA DEPLOYMENT
+
+74. Post-Export Deployment Actions
+
+Use ordered steps:
+
+Commit required files to GitHub
+Configure frontend environment
+Configure backend CORS for new PWA hostname
+Configure OAuth provider hostname/redirects if needed
+Deploy PWA
+Test login/session
+Test installability/service worker
+Test major app flows
+Test My99 persistence
+After web acceptance proceed to Mac/Xcode native validation
+75. New-Hostname-Dependent Actions
+76. Export Include Inventory
+77. Export Exclude Inventory
+78. Tests Must Remain
+79. iOS Project Must Remain
+80. Git Status
+
+Print:
+
+git status --short --untracked-files=all
+
+81. Git Diff Stat
+
+Print:
+
+git diff --stat
+
+82. Git Diff Check
+83. .agents/*
+
+Print results of:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+84. Temporary Prompt 26 Cleanup
+85. Final GitHub Commit Checklist
+86. Native Validation Still Remaining AFTER PWA Acceptance
+
+List:
+
+Mac
+Xcode
+cap sync ios
+build
+iPhone
+iPad
+Original icon
+Midnight icon
+Rose icon
+Monochrome icon
+icon persistence
+Archive
+Validate
+TestFlight
+App Store update
+
+87. Final Release-Candidate Gate
+
+PASS only if every critical release gate genuinely passes.
+
+If PASS, state exactly:
+
+CLEAN EXTERNAL NPM INSTALL: VERIFIED
+
+TYPESCRIPT: PASS
+
+PRODUCTION FRONTEND BUILD: PASS
+
+PRODUCTION BACKEND BUILD: PASS
+
+PRODUCTION SERVER STARTUP: VERIFIED
+
+FULL TEST SUITE: PASS
+
+PRODUCTION SOURCE LINT: PASS
+
+AUTH: PASS
+
+SECURITY: PASS
+
+NAVIGATION: PASS
+
+PERSONALIZATION: PASS
+
+APP ICON + PWA ASSETS: PASS
+
+PWA MANIFEST: PASS
+
+SERVICE WORKER PRECACHE: PASS
+
+NO SERVER SECRET IN CLIENT BUNDLE: VERIFIED
+
+NO REQUIRED SOURCE FILE IGNORED: VERIFIED
+
+NATIVE APP ICON SOURCE: EXPORT-SAFE
+
+IOS PROJECT: EXPORT-SAFE
+
+PWA SOURCE: EXPORT-SAFE
+
+.agents/*: CLEAN
+
+SOURCE RELEASE CANDIDATE: APPROVED
+
+GITHUB EXPORT: APPROVED
+
+PWA DEPLOYMENT TESTING: APPROVED TO BEGIN
+
+NATIVE DEVICE VALIDATION: DEFERRED UNTIL AFTER PWA ACCEPTANCE
+
+Then end EXACTLY:
+
+99'S GUIDE PROMPT 26 STATUS: COMPLETE — DOWNLOAD / GITHUB EXPORT APPROVED
+
+If any true blocker remains, end:
+
+99'S GUIDE PROMPT 26 STATUS: BLOCKED — DO NOT DOWNLOAD RELEASE CANDIDATE YET
