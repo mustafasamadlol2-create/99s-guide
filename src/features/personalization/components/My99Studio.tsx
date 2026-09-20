@@ -694,7 +694,7 @@ const My99Studio = memo(function My99Studio({
             >
               {t("my99HomeSubjectOrderPreviewTitle")}
             </h3>
-            <ol className="mt-3 flex flex-wrap gap-2">
+            <ol className="mt-3 flex min-w-0 flex-wrap gap-2">
               {draft.home.subjectOrder
                 .filter((subjectId) =>
                   isHomeSubjectEffectivelyVisible(
@@ -706,7 +706,7 @@ const My99Studio = memo(function My99Studio({
                 .map((subjectId, index) => (
                 <li
                   key={subjectId}
-                  className="rounded-full bg-semantic-action-accent-soft px-3 py-1.5 text-xs font-semibold text-semantic-action-accent"
+                  className="max-w-full break-words whitespace-normal rounded-full bg-semantic-action-accent-soft px-3 py-1.5 text-xs font-semibold text-semantic-action-accent"
                 >
                   {index + 1}. {t(HOME_SUBJECT_NAME_KEYS[subjectId])}
                 </li>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { subjects as productionSubjects } from "../src/core/constants/seedData";
 import type { Subject } from "../src/core/types";
 import {
   CANONICAL_HOME_SUBJECT_ORDER,
@@ -146,6 +147,43 @@ test("Home visibility combines manual hides and semester controls without changi
   assert.equal(getHomeSubjectVisibilityReason("NT", [], { semester1: false, semester2: true }), "hidden-by-semester-1");
   assert.equal(getHomeSubjectVisibilityReason("ID", ["ID"], { semester1: true, semester2: true }), "hidden-manually");
   assert.equal(isHomeSubjectEffectivelyVisible("CA", [], { semester1: false, semester2: false }), true);
+});
+
+test("State B resolves production Home subjects by stable IDs and labels", () => {
+  const resolved = resolveHomeSubjectVisibility(
+    productionSubjects,
+    ["SSC", "ID", "NT", "CA", "RM", "PHC", "ImD"],
+    ["NT"],
+    { semester1: true, semester2: false },
+  );
+
+  assert.deepEqual(
+    resolved.visibleSubjects.map((subject) => subject.id),
+    ["ID", "CA", "RM", "PHC"],
+  );
+  assert.deepEqual(
+    resolved.visibleSubjects.map((subject) => subject.name),
+    [
+      "Infectious Diseases",
+      "Clinical Attachment",
+      "Research Methodology",
+      "Public Health Care",
+    ],
+  );
+});
+
+test("State D manually hides the production CA subject by ID", () => {
+  const clinicalAttachment = productionSubjects.find(
+    (subject) => subject.id === "CA",
+  );
+  assert.equal(clinicalAttachment?.name, "Clinical Attachment");
+  assert.equal(
+    getHomeSubjectVisibilityReason("CA", ["CA"], {
+      semester1: true,
+      semester2: true,
+    }),
+    "hidden-manually",
+  );
 });
 
 test("Home reads committed order once at the subject-list boundary", () => {
