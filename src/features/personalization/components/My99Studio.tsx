@@ -45,6 +45,7 @@ import {
   HomeSubjectOrderEditor,
 } from "./HomeSubjectOrderEditor";
 import { isHomeSubjectEffectivelyVisible } from "../homeSubjectVisibility";
+import { AppIconSelector } from "../appIcon/AppIconSelector";
 
 interface My99StudioProps {
   language: Language;
@@ -986,6 +987,8 @@ const My99Studio = memo(function My99Studio({
           onHiddenSubjectIdsChange={handleHiddenSubjectIdsChange}
         />
       </section>
+
+      <AppIconSelector language={language} />
 
       <div className="sticky bottom-0 z-10 -mx-2 mt-6 border-t border-semantic-border-default bg-semantic-background-page/95 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-6 sm:backdrop-blur-none">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">

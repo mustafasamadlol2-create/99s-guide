@@ -168,6 +168,24 @@ const translations = {
     my99SubjectPhcName: "Public Health Care",
     my99SubjectImdName: "Immune Disturbances",
     my99SubjectSscName: "Student-Selected Component",
+    my99AppIconTitle: "App Icon",
+    my99AppIconDeviceBadge: "This device",
+    my99AppIconDescription:
+      "Change the icon on this iPhone or iPad only. It does not sync with your account.",
+    my99AppIconOriginalName: "Original",
+    my99AppIconOriginalDescription: "The current 99's Guide icon.",
+    my99AppIconMidnightName: "Midnight",
+    my99AppIconMidnightDescription: "A deep navy treatment of the 99's Guide mark.",
+    my99AppIconRoseName: "Rose",
+    my99AppIconRoseDescription: "A premium rose treatment of the same mark.",
+    my99AppIconMonochromeName: "Monochrome",
+    my99AppIconMonochromeDescription:
+      "A graphite treatment with a crisp monochrome mark.",
+    my99AppIconUnsupported:
+      "App Icon changes are available in the iPhone and iPad app.",
+    my99AppIconApplying: "Updating icon…",
+    my99AppIconChanged: "App Icon updated.",
+    my99AppIconChangeFailed: "We couldn't update the App Icon.",
     // Dashboard
     uniBaghdad: "BAGHDAD MEDICAL COLLEGE",
     upcomingEventAlert: "Upcoming Event Alert:",
@@ -439,6 +457,24 @@ const translations = {
     my99SubjectPhcName: "الرعاية الصحية الأولية والوقائية",
     my99SubjectImdName: "اضطرابات المناعة",
     my99SubjectSscName: "المكوّن الذي يحدده الطالب",
+    my99AppIconTitle: "أيقونة التطبيق",
+    my99AppIconDeviceBadge: "هذا الجهاز",
+    my99AppIconDescription:
+      "غيّر الأيقونة على جهاز iPhone أو iPad هذا فقط. لا تتم مزامنتها مع حسابك.",
+    my99AppIconOriginalName: "الأصلي",
+    my99AppIconOriginalDescription: "أيقونة 99's Guide الحالية.",
+    my99AppIconMidnightName: "منتصف الليل",
+    my99AppIconMidnightDescription: "معالجة كحلية داكنة لعلامة 99's Guide.",
+    my99AppIconRoseName: "وردي",
+    my99AppIconRoseDescription: "معالجة وردية راقية للعلامة نفسها.",
+    my99AppIconMonochromeName: "أحادي اللون",
+    my99AppIconMonochromeDescription:
+      "معالجة فحمية بعلامة أحادية اللون واضحة.",
+    my99AppIconUnsupported:
+      "تغيير أيقونة التطبيق متاح في تطبيق iPhone وiPad.",
+    my99AppIconApplying: "جارٍ تحديث الأيقونة…",
+    my99AppIconChanged: "تم تحديث أيقونة التطبيق.",
+    my99AppIconChangeFailed: "تعذر تحديث أيقونة التطبيق.",
         // Dashboard
     uniBaghdad: "كلية الطب - جامعة بغداد",
     upcomingEventAlert: "تنبيه الفعالية القادمة:",

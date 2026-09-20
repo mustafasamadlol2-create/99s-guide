@@ -18,6 +18,7 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A9A1B0012F00000100000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000002 /* PrivacyInfo.xcprivacy */; };
 		A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000010 /* CapExternalOpener.swift */; };
+		A9A1B0012F00000100000021 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000020 /* AppIcon.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 		A9A1B0012F00000100000001 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		A9A1B0012F00000100000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A9A1B0012F00000100000010 /* CapExternalOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapExternalOpener.swift; sourceTree = "<group>"; };
+		A9A1B0012F00000100000020 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +73,7 @@
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				A9A1B0012F00000100000010 /* CapExternalOpener.swift */,
+				A9A1B0012F00000100000020 /* AppIcon.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -170,6 +173,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */,
+				A9A1B0012F00000100000021 /* AppIcon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +312,11 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
+		ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+			AppIconMidnight,
+			AppIconRose,
+			AppIconMonochrome,
+		);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -331,6 +340,11 @@
 		504EC3181FED79650016851F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+		ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+			AppIconMidnight,
+			AppIconRose,
+			AppIconMonochrome,
+		);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;

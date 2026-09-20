@@ -1,5 +1,3 @@
-import type { PluginListenerHandle } from "@capacitor/core";
-
 export const APP_ICON_IDS = [
   "primary",
   "midnight",
@@ -18,9 +16,3 @@ export interface NativeAppIconPlugin {
   getState(): Promise<AppIconState>;
   setIcon(options: { iconId: AppIconId }): Promise<{ iconId: AppIconId }>;
 }
-
-export type AppIconStateListenerCleanup = () => void;
-
-export type AppIconLifecycleListener = (
-  onActive: () => void,
-) => AppIconStateListenerCleanup | PluginListenerHandle;
