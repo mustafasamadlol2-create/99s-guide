@@ -136,7 +136,7 @@ export interface AIPreviewResponse<T extends AIMCQCandidate | AIFlashcardCandida
       provider: string;
       model: string;
       responseId?: string | null;
-      transport?: "inline" | "files_api";
+      transport?: "inline" | "files_api" | "markdown_conversion";
       mediaCount?: number;
       cleanupWarning?: "provider_media_cleanup_failed";
     };

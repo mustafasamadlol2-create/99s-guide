@@ -71,11 +71,14 @@ import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRout
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
 import { AIImportService, createPrismaAIImportRepository } from "./server/services/ai/import/index.js";
 import {
-  buildMaterialStoragePath,
   createSupabaseSignedUrl,
   deleteSupabaseStorageObject,
   uploadPdfToSupabaseStorage,
 } from "./server/services/supabaseStorage.js";
+import {
+  InvalidResourcePdfError,
+  uploadValidatedResourcePdf,
+} from "./server/services/materialUploadValidation.js";
 import {
   abortModuleResourceMultipartUpload,
   buildModuleResourceStoragePath,
@@ -3199,7 +3202,6 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
     const uniqueId = crypto.randomUUID();
     // Keep the public app contract unchanged: clients still open the authenticated
     // API endpoint, while the backend resolves the private Storage object.
-    const fileUrlOrLink = `/api/materials/pdf/${uniqueId}`;
 
     let fileBuffer: Buffer | null = null;
     if (req.file?.path) {
@@ -3210,14 +3212,13 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
       }
     }
 
-    if (!fileBuffer || fileBuffer.length < 5 || fileBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    if (!fileBuffer) {
       if (req.file?.path) {
         try { await fs.unlink(req.file.path); } catch (e) {}
       }
       return res.status(400).json({ error: "The uploaded file is not a valid PDF." });
     }
 
-    const storagePath = buildMaterialStoragePath(lectureId, uniqueId);
     const replacedMaterials = materialType === "PDF"
       ? await prismaClient.material.findMany({
           where: { lectureId, type: "PDF" },
@@ -3225,13 +3226,23 @@ app.post("/api/materials/upload", requireAdmin, uploadLimiter, (req: any, res: a
         })
       : [];
 
+    let storagePath: string;
+    let fileUrlOrLink: string;
     try {
-      await uploadPdfToSupabaseStorage(storagePath, fileBuffer);
-    } catch (storageError: any) {
+      ({ storagePath, fileUrlOrLink } = await uploadValidatedResourcePdf({
+        lectureId,
+        materialId: uniqueId,
+        bytes: fileBuffer,
+        upload: uploadPdfToSupabaseStorage,
+      }));
+    } catch (validationOrStorageError: any) {
       if (req.file?.path) {
         try { await fs.unlink(req.file.path); } catch (e) {}
       }
-      logger.error("[Storage]", `PDF upload failed: ${storageError?.message ?? "unknown error"}`);
+      if (validationOrStorageError instanceof InvalidResourcePdfError) {
+        return res.status(400).json({ error: validationOrStorageError.message });
+      }
+      logger.error("[Storage]", `PDF upload failed: ${validationOrStorageError?.message ?? "unknown error"}`);
       return res.status(502).json({
         error: "The PDF could not be saved to file storage. Please try again.",
         code: "STORAGE_UPLOAD_FAILED",

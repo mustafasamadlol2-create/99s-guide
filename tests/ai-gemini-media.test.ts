@@ -30,6 +30,16 @@ const output = {
 };
 
 const testStager = new AITemporaryFileManager(join(tmpdir(), "gemini-media-staged"));
+const SCANNED_PDF = Buffer.from(
+  "%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+  + "2 0 obj\n<< /Type /Pages /Count 1 /Kids [3 0 R] >>\nendobj\n"
+  + "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 4 0 R >> >> "
+  + "/MediaBox [0 0 612 792] /Contents 5 0 R >>\nendobj\n"
+  + "4 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB "
+  + "/BitsPerComponent 8 /Length 3 >>\nstream\n\u0000\u0000\u0000\nendstream\nendobj\n"
+  + "5 0 obj\n<< /Length 12 >>\nstream\nq /Im0 Do Q\nendstream\nendobj\n%%EOF",
+  "ascii",
+);
 
 async function imagePart(path: string, index: number, _sizeBytes = 3, mimeType = "image/png"): Promise<AIContentPart> {
   const staged = await testStager.stage(new Uint8Array(await readFile(path)));
@@ -255,6 +265,56 @@ test("GeminiProvider sends PDFs through Files API and deletes provider files", a
     const result = await provider.generateStructured({ contents: [await pdfPart(path)], responseSchema: aiMcqDraftSchema });
     assert.equal(result.meta.transport, "files_api");
     assert.deepEqual(files.deleted, ["files/1"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("image-only PDFs remain valid media and reach Gemini Files API with original bytes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "gemini-scanned-pdf-"));
+  try {
+    const files = new FakeFiles();
+    const uploadedBytes: Buffer[] = [];
+    const originalUpload = files.upload.bind(files);
+    files.upload = async (params) => {
+      uploadedBytes.push(await readFile(params.file));
+      return originalUpload(params);
+    };
+    const client: GeminiClient = {
+      files,
+      models: {
+        async generateContent(parameters) {
+          assert.equal((parameters.contents as any)[0].parts[0].fileData.mimeType, "application/pdf");
+          return { text: JSON.stringify(output) };
+        },
+      },
+    };
+    const provider = new GeminiProvider(
+      { apiKey: "test", model: "test-model", timeoutMs: 500 },
+      client,
+      { inlineImageMaxTotalBytes: 100, fileProcessingTimeoutMs: 100, filePollIntervalMs: 0 },
+    );
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    let preparedTransport: string | undefined;
+    await input.withPreparedInput(
+      {
+        kind: "pdf",
+        file: {
+          bytes: SCANNED_PDF,
+          claimedMimeType: "application/pdf",
+          originalFilename: "scan.pdf",
+        },
+      },
+      async (prepared) => {
+        const result = await provider.generateStructured({
+          contents: prepared.contents,
+          responseSchema: aiMcqDraftSchema,
+        });
+        preparedTransport = result.meta.transport;
+      },
+    );
+    assert.equal(preparedTransport, "files_api");
+    assert.deepEqual(uploadedBytes, [SCANNED_PDF]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -12,6 +12,7 @@ import {
   CloudflareAIProvider,
   splitBoundedText,
 } from "../server/services/ai/cloudflare/CloudflareAIProvider.js";
+import { aiProviderMetadataSchema } from "../server/services/ai/schemas.js";
 import {
   CloudflareClient,
   type CloudflareFetch,
@@ -165,6 +166,40 @@ test("Cloudflare provider validates every chunk with the original Zod schema", a
     ((calls[0]?.messages[0] as { role: string }).role),
     "system",
   );
+});
+
+test("Cloudflare binary transport metadata matches the shared response contract", async () => {
+  const fakeClient = {
+    run: async () => ({
+      text: JSON.stringify({ items: [{ value: "converted" }], uncertainties: [] }),
+      responseId: "ray-media",
+    }),
+  };
+  const converter = {
+    convert: async () => [{ inputType: "pdf" as const, text: "converted" }],
+  };
+  const provider = new CloudflareAIProvider(config, fakeClient as never, converter as never);
+  const result = await provider.generateStructured({
+    contents: [{
+      kind: "file",
+      inputType: "pdf",
+      mimeType: "application/pdf",
+      fileSource: {
+        kind: "existing_resource",
+        resourceId: "resource-1",
+        ownership: "borrowed",
+      },
+      source: { inputType: "pdf", label: "scan.pdf" },
+      sizeBytes: 10,
+      sha256: "a".repeat(64),
+    }],
+    responseSchema: z.object({
+      items: z.array(z.object({ value: z.string().min(1) })),
+      uncertainties: z.array(z.string()),
+    }),
+  });
+  assert.equal(result.meta.transport, "markdown_conversion");
+  assert.equal(aiProviderMetadataSchema.safeParse(result.meta).success, true);
 });
 
 test("Cloudflare provider maps rate limits without retrying or leaking provider bodies", async () => {

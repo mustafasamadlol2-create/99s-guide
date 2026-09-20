@@ -132,7 +132,7 @@ export const aiProviderMetadataSchema = z.object({
   provider: trimmedRequiredString,
   model: trimmedRequiredString,
   responseId: optionalTrimmedString,
-  transport: z.enum(["inline", "files_api"]).optional(),
+  transport: z.enum(["inline", "files_api", "markdown_conversion"]).optional(),
   mediaCount: z.number().int().nonnegative().optional(),
   cleanupWarning: z.literal("provider_media_cleanup_failed").optional(),
 }).strict();

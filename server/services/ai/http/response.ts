@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SafeProviderMetadata } from "../contracts.js";
+import { aiProviderMetadataSchema } from "../schemas.js";
 import type { AIMCQCandidate, MCQOperationResult, SkippedMCQSourceItem } from "../mcq/contracts.js";
 import type { AIFlashcardCandidate, FlashcardOperationResult, SkippedFlashcardSourceItem } from "../flashcard/contracts.js";
 
@@ -11,14 +12,7 @@ const sourceSchema = z.object({
   label: z.string().nullable().optional(),
   supportingExcerpt: z.string().nullable().optional(),
 }).strict().nullable();
-const providerSchema = z.object({
-  provider: z.string().min(1),
-  model: z.string().min(1),
-  responseId: z.string().nullable().optional(),
-  transport: z.enum(["inline", "files_api"]).optional(),
-  mediaCount: z.number().int().nonnegative().optional(),
-  cleanupWarning: z.literal("provider_media_cleanup_failed").optional(),
-}).strict();
+const providerSchema = aiProviderMetadataSchema;
 const mcqCandidateSchema = z.object({
   candidateId: z.string().uuid(),
   question: z.string(),
