@@ -50,6 +50,7 @@ const providerSourceSchema = mcqSourceEvidenceSchema.nullable().optional();
 const providerUncertaintiesSchema = z.array(uncertaintySchema).max(MAX_UNCERTAINTIES);
 
 export const mcqExtractionProviderItemSchema = z.object({
+  sourceOrdinal: z.number().int().positive().optional(),
   question: z.string().trim().max(MAX_CANDIDATE_TEXT_LENGTH).nullable(),
   options: z.array(boundedText).max(8),
   correctAnswer: answerSchema.nullable(),

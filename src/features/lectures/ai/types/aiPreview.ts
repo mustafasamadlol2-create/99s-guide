@@ -72,6 +72,7 @@ export type AIProvenance = "extracted" | "generated" | "enhanced";
 
 export interface AIMCQCandidate {
   candidateId: string;
+  sourceOrdinal?: number;
   question: string;
   optionA: string;
   optionB: string;

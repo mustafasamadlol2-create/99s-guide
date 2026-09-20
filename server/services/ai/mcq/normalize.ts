@@ -75,6 +75,7 @@ export function normalizeExtractedItems(
     const difficulty = metadata.difficulty;
     const normalized = applyQualityWarnings({
       candidateId: candidateId(),
+      ...(item.sourceOrdinal === undefined ? {} : { sourceOrdinal: item.sourceOrdinal }),
       question: item.question,
       optionA: item.options[0]!,
       optionB: item.options[1]!,

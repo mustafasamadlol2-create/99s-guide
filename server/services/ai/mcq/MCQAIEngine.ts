@@ -30,12 +30,15 @@ import {
 } from "./promptBuilder.js";
 import { applyBatchDuplicateWarnings, applyQualityWarnings, summarizeCounts } from "./quality.js";
 import { normalizeExtractedItems, normalizeGeneratedItems } from "./normalize.js";
+import { parseDeterministicMCQs } from "./deterministicExtract.js";
+import { runResilientBatches, shardTextContent } from "../reliability.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
     contents: input.contents,
     inputKind: input.input.kind,
     imageCount: input.input.kind === "image" ? input.input.images.length : undefined,
+    text: input.input.kind === "text" ? input.input.text.text : undefined,
   };
 }
 
@@ -133,32 +136,54 @@ export class MCQAIEngine {
 
   private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
     const startedAt = performance.now();
-    const response = await this.contentService.generateStructured({
-      contents: input.contents,
-      responseSchema: mcqExtractionProviderResponseSchema,
-      trustedSystemInstruction: buildMCQExtractInstruction(),
-      operation: "extract",
-      maxItems: this.config.extractionMaxCount,
+    const deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
+    const shards = deterministic ? [] : shardTextContent(input.contents);
+    const responses = deterministic ? [] : await runResilientBatches({
+      total: shards.length,
+      batchSize: 1,
       signal,
+      run: ({ start }) => this.contentService.generateStructured({
+        contents: shards[start]!,
+        responseSchema: mcqExtractionProviderResponseSchema,
+        trustedSystemInstruction: buildMCQExtractInstruction(),
+        operation: "extract",
+        maxItems: this.config.extractionMaxCount,
+        signal,
+      }),
     });
+    const responseData = deterministic ?? {
+      items: responses.flatMap((response) => response.data.items),
+      skippedItems: responses.flatMap((response) => response.data.skippedItems),
+      truncated: responses.some((response) => response.data.truncated),
+      uncertainties: responses.flatMap((response) => response.data.uncertainties),
+    };
+    const providerMeta = deterministic
+      ? { provider: "deterministic", model: "local-parser", transport: "inline" as const }
+      : responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
+    if (!responseData.items.length && input.text && (input.text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：-]/giu)?.length ?? 0) >= 2) {
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "The source contains question markers, but the AI extraction was incomplete.",
+        diagnosticMessage: "Non-empty numbered MCQ source produced zero candidates after the deterministic route was unavailable.",
+      });
+    }
     const normalized = normalizeExtractedItems(
-      response.data,
+      responseData,
       input,
       this.candidateId,
       metadata,
     );
     let items = applyBatchDuplicateWarnings(normalized.items);
     const skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
-    const warnings = [...response.data.uncertainties.map((value) => `Model uncertainty: ${value}`), ...response.data.items.length > this.config.extractionMaxCount
+    const warnings = [...responseData.uncertainties.map((value) => `Model uncertainty: ${value}`), ...responseData.items.length > this.config.extractionMaxCount
       ? ["Extraction exceeded the configured maximum and was truncated."]
       : []];
     if (normalized.skippedItems.length > this.config.maxSkippedItems) {
       warnings.push("Skipped source items exceeded the configured reporting limit.");
     }
-    const truncated = response.data.truncated || response.data.items.length > this.config.extractionMaxCount;
+    const truncated = responseData.truncated || responseData.items.length > this.config.extractionMaxCount;
     items = items.slice(0, this.config.extractionMaxCount);
     if (items.length < normalized.items.length) warnings.push("Extraction candidates were truncated to the configured maximum.");
-    return baseResult("extract", items, skippedItems, warnings, response.meta, startedAt, undefined, truncated);
+    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated);
   }
 
   async generateMCQs(
@@ -168,28 +193,60 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const response = await this.contentService.generateStructured({
-      contents: input.contents,
-      responseSchema: mcqGenerationProviderResponseSchema,
-      trustedSystemInstruction: buildMCQGenerateInstruction(selected),
-      operation: "generate",
-      requestedCount: selected.count,
-      maxItems: selected.count,
+    let responses = await runResilientBatches({
+      total: selected.count,
+      batchSize: 20,
       signal,
+      run: ({ count }) => this.contentService.generateStructured({
+        contents: input.contents,
+        responseSchema: mcqGenerationProviderResponseSchema,
+        trustedSystemInstruction: buildMCQGenerateInstruction({ ...selected, count }),
+        operation: "generate",
+        requestedCount: count,
+        maxItems: count,
+        signal,
+      }),
     });
-    const items = applyBatchDuplicateWarnings(normalizeGeneratedItems(
+    const returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
+    if (returnedBeforeRecovery < selected.count) {
+      const deficit = selected.count - returnedBeforeRecovery;
+      const recovery = await runResilientBatches({
+        total: deficit,
+        batchSize: 20,
+        signal,
+        run: ({ count }) => this.contentService.generateStructured({
+          contents: input.contents,
+          responseSchema: mcqGenerationProviderResponseSchema,
+          trustedSystemInstruction: [
+            buildMCQGenerateInstruction({ ...selected, count }),
+            "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier question.",
+          ].join("\n\n"),
+          operation: "generate",
+          requestedCount: count,
+          maxItems: count,
+          signal,
+        }),
+      });
+      responses = [...responses, ...recovery];
+    }
+    const provider = responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
+    const normalized = responses.flatMap((response) => normalizeGeneratedItems(
       response.data,
       input,
       selected,
       this.candidateId,
     ));
+    const items = applyBatchDuplicateWarnings(normalized);
     const warnings = [
-      ...response.data.uncertainties.map((value) => `Model uncertainty: ${value}`),
+      ...responses.flatMap((response) => response.data.uncertainties.map((value) => `Model uncertainty: ${value}`)),
     ];
+    if (items.some((item) => item.warnings.includes("Question duplicates another item in this result batch."))) {
+      warnings.push("Duplicate generated questions were retained for review and not counted as silently valid content.");
+    }
     if (items.length < selected.count) {
       warnings.push(`Requested ${selected.count} questions but only ${items.length} source-grounded questions were generated.`);
     }
-    return baseResult("generate", items, [], warnings, response.meta, startedAt, selected.count);
+    return baseResult("generate", items, [], warnings, provider, startedAt, selected.count);
   }
 
   async enhanceExistingMCQs(
@@ -213,17 +270,62 @@ export class MCQAIEngine {
     let provider = extraction.provider;
     const warnings = [...extraction.warnings];
     if (eligible.length > 0) {
-      const response = await this.contentService.generateStructured({
-        contents: input.contents,
-        responseSchema: createMCQEnhancementProviderResponseSchema(selected),
-        trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
-        additionalUntrustedContext: enhancementContext(eligible),
-        operation: "enhance",
-        maxItems: eligible.length,
+      const responses = await runResilientBatches({
+        total: eligible.length,
+        batchSize: 20,
         signal,
+        run: ({ start, count }) => {
+          const batch = eligible.slice(start, start + count);
+          return this.contentService.generateStructured({
+            contents: input.contents,
+            responseSchema: createMCQEnhancementProviderResponseSchema(selected),
+            trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
+            additionalUntrustedContext: enhancementContext(batch),
+            operation: "enhance",
+            maxItems: count,
+            signal,
+          });
+        },
+        onFailure: (batch) => {
+          warnings.push(`Enhancement batch ${batch.start + 1}-${batch.start + batch.count} could not be completed; original candidates were retained.`);
+        },
       });
-      provider = response.meta;
-      const merged = this.mergeEnhancements(candidates, eligible, response.data, selected, warnings);
+      provider = responses[0]?.meta ?? provider;
+      let mergedResponse: MCQEnhancementProviderResponse = {
+        items: responses.flatMap((response) => response.data.items),
+        uncertainties: responses.flatMap((response) => response.data.uncertainties),
+      };
+      const hasUnknownCandidateId = mergedResponse.items.some((item) =>
+        !eligible.some((candidate) => candidate.candidateId === item.candidateId));
+      const recoveredIds = new Set(mergedResponse.items.map((item) => item.candidateId));
+      const missing = eligible.filter((item) => !recoveredIds.has(item.candidateId));
+      if (missing.length > 0 && !hasUnknownCandidateId) {
+        const recovery = await runResilientBatches({
+          total: missing.length,
+          batchSize: 20,
+          signal,
+          run: ({ start, count }) => this.contentService.generateStructured({
+            contents: input.contents,
+            responseSchema: createMCQEnhancementProviderResponseSchema(selected),
+            trustedSystemInstruction: [
+              buildMCQEnhanceInstruction(selected),
+              "This is bounded missing-candidate recovery. Return only the requested candidate IDs.",
+            ].join("\n\n"),
+            additionalUntrustedContext: enhancementContext(missing.slice(start, start + count)),
+            operation: "enhance",
+            maxItems: count,
+            signal,
+          }),
+          onFailure: (batch) => {
+            warnings.push(`Missing enhancement recovery ${batch.start + 1}-${batch.start + batch.count} failed; original candidates were retained.`);
+          },
+        });
+        mergedResponse = {
+          items: [...mergedResponse.items, ...recovery.flatMap((response) => response.data.items)],
+          uncertainties: [...mergedResponse.uncertainties, ...recovery.flatMap((response) => response.data.uncertainties)],
+        };
+      }
+      const merged = this.mergeEnhancements(candidates, eligible, mergedResponse, selected, warnings);
       return baseResult(
         "enhance",
         applyBatchDuplicateWarnings(merged),

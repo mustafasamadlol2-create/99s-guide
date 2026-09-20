@@ -1,4 +1,9 @@
-import type { AIProvider, SafeProviderMetadata } from "./contracts.js";
+import type {
+  AIProvider,
+  SafeProviderMetadata,
+  StructuredGenerationRequest,
+  StructuredGenerationResult,
+} from "./contracts.js";
 import type { AIContentPart } from "./input/contracts.js";
 import { aiContentPartSchema } from "./input/schemas.js";
 import { AIServiceError, isAIServiceError } from "./errors.js";
@@ -32,6 +37,11 @@ export interface AIStructuredContentRequest<T> {
   signal?: AbortSignal;
 }
 
+export interface AIContentServiceOptions {
+  maxProviderAttempts?: number;
+  retryBaseDelayMs?: number;
+}
+
 function validateContentParts(contents: AIContentPart[]): AIContentPart[] {
   if (!Array.isArray(contents) || contents.length === 0) {
     throw new AIServiceError("AI_VALIDATION_ERROR", {
@@ -43,14 +53,54 @@ function validateContentParts(contents: AIContentPart[]): AIContentPart[] {
 }
 
 export class AIContentService {
-  constructor(private readonly provider: AIProvider) {}
+  private readonly maxProviderAttempts: number;
+  private readonly retryBaseDelayMs: number;
+
+  constructor(
+    private readonly provider: AIProvider,
+    options: AIContentServiceOptions = {},
+  ) {
+    this.maxProviderAttempts = options.maxProviderAttempts ?? 3;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
+    if (!Number.isInteger(this.maxProviderAttempts) || this.maxProviderAttempts < 1 || this.maxProviderAttempts > 5) {
+      throw new Error("maxProviderAttempts must be an integer between 1 and 5.");
+    }
+    if (!Number.isFinite(this.retryBaseDelayMs) || this.retryBaseDelayMs < 0 || this.retryBaseDelayMs > 10_000) {
+      throw new Error("retryBaseDelayMs must be between 0 and 10000 milliseconds.");
+    }
+  }
+
+  private async generateWithRetry<T>(
+    request: StructuredGenerationRequest<T>,
+  ): Promise<StructuredGenerationResult<T>> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.maxProviderAttempts; attempt += 1) {
+      if (request.signal?.aborted) throw new DOMException("The AI request was aborted.", "AbortError");
+      try {
+        return await this.provider.generateStructured(request);
+      } catch (error) {
+        lastError = error;
+        if (!isAIServiceError(error) || !error.retryable || attempt === this.maxProviderAttempts) throw error;
+        const delay = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, delay);
+          const abort = () => {
+            clearTimeout(timer);
+            reject(new DOMException("The AI request was aborted.", "AbortError"));
+          };
+          request.signal?.addEventListener("abort", abort, { once: true });
+        });
+      }
+    }
+    throw lastError;
+  }
 
   async generateStructured<T>(
     request: AIStructuredContentRequest<T>,
   ): Promise<{ data: T; meta: SafeProviderMetadata }> {
     try {
       const validatedContents = validateContentParts(request.contents);
-      return await this.provider.generateStructured({
+      return await this.generateWithRetry({
         ...request,
         contents: validatedContents,
       });

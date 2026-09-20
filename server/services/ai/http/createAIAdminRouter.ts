@@ -25,6 +25,7 @@ import {
   AI_HTTP_LIMITS,
 } from "./limits.js";
 import { AIAdminConcurrencyGate, AIAdminRateLimiter } from "./rateLimit.js";
+import { AIPreviewJobManager } from "./previewJobs.js";
 
 export interface AILectureResolver {
   findLecture(id: string): Promise<{ id: string; name: string } | null>;
@@ -43,6 +44,7 @@ export interface AIAdminRouterOptions {
   engineFactory?: () => AIAdminEngines;
   rateLimiter?: AIAdminRateLimiter;
   concurrencyGate?: AIAdminConcurrencyGate;
+  jobManager?: AIPreviewJobManager;
 }
 
 type UploadedFields = {
@@ -228,6 +230,7 @@ export function createAIAdminRouter(options: AIAdminRouterOptions): Router {
   const engineFactory = options.engineFactory ?? defaultEngineFactory;
   const rateLimiter = options.rateLimiter ?? new AIAdminRateLimiter();
   const concurrencyGate = options.concurrencyGate ?? new AIAdminConcurrencyGate();
+  const jobManager = options.jobManager ?? new AIPreviewJobManager();
   const upload = createAIUploadMiddleware(temporaryFiles) as AIUploadMiddleware;
 
   router.use((req, res, next) => {
@@ -305,12 +308,131 @@ export function createAIAdminRouter(options: AIAdminRouterOptions): Router {
     return res.status(200).json(responseBody);
   };
 
+  const handlePreviewJob = (target: "mcq" | "flashcard") => async (req: Request, res: Response) => {
+    const id = requestId(req);
+    const startedAt = performance.now();
+    let lease: { release(): void } | null = null;
+    let rawInput: RawAIInput | undefined;
+    let enqueued = false;
+    try {
+      const parsed = parsedRequest(target, req);
+      const owner = adminId(req);
+      const admission = rateLimiter.check(owner);
+      if (!admission.allowed) {
+        throw new AIHttpError(
+          429,
+          "APP_AI_RATE_LIMIT",
+          "AI preview request limit reached. Please try again later.",
+          true,
+          { field: String(admission.retryAfterSeconds) },
+        );
+      }
+      lease = concurrencyGate.tryAcquire(owner);
+      if (!lease) {
+        throw new AIHttpError(409, "AI_OPERATION_IN_PROGRESS", "An AI preview is already in progress for this administrator.");
+      }
+      const lecture = await options.lectureResolver.findLecture(parsed.lectureId);
+      if (!lecture) throw new AIHttpError(404, "LECTURE_NOT_FOUND", "The selected lecture was not found.");
+      rawInput = await rawInputFromRequest(req, parsed, temporaryFiles);
+      const acquiredLease = lease;
+      const job = jobManager.create({
+        ownerId: owner,
+        target,
+        operation: parsed.operation,
+        inputKind: parsed.inputKind,
+        lecture,
+        requestId: id,
+        rawInput,
+        inputService,
+        engineFactory,
+        releaseLease: () => acquiredLease?.release(),
+        options: parsed.options,
+        dispatch: (engines, jobParsed, prepared, signal) => dispatch(
+          engines,
+          { ...parsed, options: jobParsed.options } as ParsedPreviewRequest,
+          prepared,
+          signal,
+        ),
+        buildResponse: (requestIdValue, targetValue, lectureValue, inputKindValue, result) =>
+          buildAIAdminResponse(requestIdValue, targetValue, lectureValue, inputKindValue, result),
+      });
+      enqueued = true;
+      rawInput = undefined;
+      lease = null;
+      console.info(JSON.stringify({
+        category: "AI_PREVIEW_JOB",
+        requestId: id,
+        jobId: job.jobId,
+        adminId: owner,
+        target,
+        operation: parsed.operation,
+        inputKind: parsed.inputKind,
+        durationMs: Math.max(0, performance.now() - startedAt),
+      }));
+      return res.status(202).json({
+        requestId: id,
+        jobId: job.jobId,
+        state: job.state,
+        target: job.target,
+        operation: job.operation,
+        inputKind: job.inputKind,
+        progress: job.progress,
+      });
+    } catch (error) {
+      return sendAIError(res, id, error);
+    } finally {
+      if (!enqueued && rawInput) {
+        const adopted = rawInput.kind === "pdf"
+          ? [rawInput.file.adoptedFile]
+          : rawInput.kind === "image"
+            ? rawInput.files.map((file) => file.adoptedFile)
+            : [];
+        await Promise.allSettled(adopted.filter(Boolean).map((file) => file!.dispose()));
+      }
+      lease?.release();
+    }
+  };
+
+  const getPreviewJob = (req: Request, res: Response) => {
+    const job = jobManager.get(String(req.params.jobId), adminId(req));
+    if (!job) return res.status(404).json({
+      requestId: requestId(req),
+      error: { code: "AI_JOB_NOT_FOUND", message: "The AI preview job was not found." },
+    });
+    return res.status(200).json(job);
+  };
+
+  const cancelPreviewJob = (req: Request, res: Response) => {
+    const job = jobManager.cancel(String(req.params.jobId), adminId(req));
+    if (!job) return res.status(404).json({
+      requestId: requestId(req),
+      error: { code: "AI_JOB_NOT_FOUND", message: "The AI preview job was not found." },
+    });
+    return res.status(200).json(job);
+  };
+
   router.post(
     "/mcq/preview",
     options.requireAdmin,
     multipartParser,
     (req, res, next) => { void handlePreview("mcq")(req, res).catch(next); },
   );
+  router.post(
+    "/mcq/preview-jobs",
+    options.requireAdmin,
+    multipartParser,
+    (req, res, next) => { void handlePreviewJob("mcq")(req, res).catch(next); },
+  );
+  router.get("/mcq/preview-jobs/:jobId", options.requireAdmin, getPreviewJob);
+  router.delete("/mcq/preview-jobs/:jobId", options.requireAdmin, cancelPreviewJob);
+  router.post(
+    "/flashcards/preview-jobs",
+    options.requireAdmin,
+    multipartParser,
+    (req, res, next) => { void handlePreviewJob("flashcard")(req, res).catch(next); },
+  );
+  router.get("/flashcards/preview-jobs/:jobId", options.requireAdmin, getPreviewJob);
+  router.delete("/flashcards/preview-jobs/:jobId", options.requireAdmin, cancelPreviewJob);
   router.post(
     "/flashcards/preview",
     options.requireAdmin,

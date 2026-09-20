@@ -15,6 +15,7 @@ const sourceSchema = z.object({
 const providerSchema = aiProviderMetadataSchema;
 const mcqCandidateSchema = z.object({
   candidateId: z.string().uuid(),
+  sourceOrdinal: z.number().int().positive().optional(),
   question: z.string(),
   optionA: z.string(),
   optionB: z.string(),
@@ -97,6 +98,7 @@ function safeProvider(provider: SafeProviderMetadata): SafeProviderMetadata {
 function safeMCQ(item: AIMCQCandidate) {
   return {
     candidateId: item.candidateId,
+    ...(item.sourceOrdinal === undefined ? {} : { sourceOrdinal: item.sourceOrdinal }),
     question: item.question,
     optionA: item.optionA,
     optionB: item.optionB,

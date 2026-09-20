@@ -18,6 +18,7 @@ export type MCQProvenance = "extracted" | "generated" | "enhanced";
 
 export interface AIMCQCandidate {
   candidateId: string;
+  sourceOrdinal?: number;
   question: string;
   optionA: string;
   optionB: string;
@@ -95,4 +96,5 @@ export interface MCQAIEngineInput {
   contents: import("../input/contracts.js").AIContentPart[];
   inputKind: AIInputKind;
   imageCount?: number;
+  text?: string;
 }

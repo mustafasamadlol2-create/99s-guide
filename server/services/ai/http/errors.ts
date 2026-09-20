@@ -54,6 +54,7 @@ export function mapAIError(error: unknown): AIHttpError {
           return { status: 413, code: error.code, retryable: false };
         case "AI_INVALID_RESPONSE":
         case "AI_VALIDATION_ERROR":
+        case "AI_EXTRACTION_INCOMPLETE":
           return { status: 502, code: error.code, retryable: false };
         case "AI_RATE_LIMITED":
           return { status: 429, code: error.code, retryable: true };

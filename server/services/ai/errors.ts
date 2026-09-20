@@ -16,6 +16,7 @@ export const AI_ERROR_CODES = [
   "AI_MEDIA_PROCESSING_TIMEOUT",
   "AI_MEDIA_CLEANUP_FAILED",
   "AI_MEDIA_RESOLUTION_FAILED",
+  "AI_EXTRACTION_INCOMPLETE",
 ] as const;
 
 export type AIErrorCode = (typeof AI_ERROR_CODES)[number];

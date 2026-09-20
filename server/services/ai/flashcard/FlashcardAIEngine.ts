@@ -28,6 +28,8 @@ import {
 import { applyFlashcardBatchDuplicateWarnings, applyFlashcardQualityWarnings, summarizeFlashcardCounts } from "./quality.js";
 import { normalizeExtractedFlashcards, normalizeGeneratedFlashcards } from "./normalize.js";
 import { validateFlashcardSourceEvidence } from "./sourceValidation.js";
+import { runResilientBatches, shardTextContent } from "../reliability.js";
+import { parseDeterministicFlashcards } from "./deterministicExtract.js";
 
 function requiredGenerationOptions(
   options: FlashcardGenerationOptions | undefined,
@@ -110,33 +112,58 @@ export class FlashcardAIEngine {
 
   async extractExistingFlashcards(input: PreparedAIInput, signal?: AbortSignal): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
-    const response = await this.contentService.generateStructured({
-      contents: input.contents,
-      responseSchema: flashcardExtractionProviderResponseSchema,
-      trustedSystemInstruction: buildFlashcardExtractInstruction(),
-      operation: "extract",
-      maxItems: this.config.extractionMaxCount,
+    const deterministic = input.input.kind === "text"
+      ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
+      : null;
+    const shards = deterministic ? [] : shardTextContent(input.contents);
+    const responses = deterministic ? [] : await runResilientBatches({
+      total: shards.length,
+      batchSize: 1,
       signal,
+      run: ({ start }) => this.contentService.generateStructured({
+        contents: shards[start]!,
+        responseSchema: flashcardExtractionProviderResponseSchema,
+        trustedSystemInstruction: buildFlashcardExtractInstruction(),
+        operation: "extract",
+        maxItems: this.config.extractionMaxCount,
+        signal,
+      }),
     });
-    const normalized = normalizeExtractedFlashcards(response.data, input, this.candidateId);
+    const responseData = deterministic ?? {
+      items: responses.flatMap((response) => response.data.items),
+      skippedItems: responses.flatMap((response) => response.data.skippedItems),
+      truncated: responses.some((response) => response.data.truncated),
+      uncertainties: responses.flatMap((response) => response.data.uncertainties),
+    };
+    const providerMeta = deterministic
+      ? { provider: "deterministic", model: "local-parser", transport: "inline" as const }
+      : responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
+    if (!responseData.items.length && input.input.kind === "text" &&
+      (input.input.text.text.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "The source contains Flashcard markers, but the AI extraction was incomplete.",
+        diagnosticMessage: "Non-empty Flashcard source produced zero candidates after the deterministic route was unavailable.",
+      });
+    }
+    const normalized = normalizeExtractedFlashcards(responseData, input, this.candidateId);
     let items = applyFlashcardBatchDuplicateWarnings(normalized.items);
     const skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
     const warnings = [
       ...normalized.warnings,
-      ...response.data.uncertainties.map((value) => `Model uncertainty: ${value}`),
+      ...responseData.uncertainties.map((value) => `Model uncertainty: ${value}`),
     ];
     if (normalized.skippedItems.length > this.config.maxSkippedItems) {
       warnings.push("Skipped source items exceeded the configured reporting limit.");
     }
-    const truncated = response.data.truncated || response.data.items.length > this.config.extractionMaxCount;
-    if (response.data.items.length > this.config.extractionMaxCount) {
+    const truncated = responseData.truncated || responseData.items.length > this.config.extractionMaxCount;
+    if (responseData.items.length > this.config.extractionMaxCount) {
       warnings.push("Extraction exceeded the configured maximum and was truncated.");
     }
     items = items.slice(0, this.config.extractionMaxCount);
     if (items.length < normalized.items.length) {
       warnings.push("Extraction candidates were truncated to the configured maximum.");
     }
-    return baseResult("extract", items, skippedItems, warnings, response.meta, startedAt, undefined, truncated);
+    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated);
   }
 
   async generateFlashcards(
@@ -146,23 +173,58 @@ export class FlashcardAIEngine {
   ): Promise<FlashcardOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const response = await this.contentService.generateStructured({
-      contents: input.contents,
-      responseSchema: flashcardGenerationProviderResponseSchema,
-      trustedSystemInstruction: buildFlashcardGenerateInstruction(selected),
-      operation: "generate",
-      requestedCount: selected.count,
-      maxItems: selected.count,
+    let responses = await runResilientBatches({
+      total: selected.count,
+      batchSize: 20,
       signal,
+      run: ({ count }) => this.contentService.generateStructured({
+        contents: input.contents,
+        responseSchema: flashcardGenerationProviderResponseSchema,
+        trustedSystemInstruction: buildFlashcardGenerateInstruction({ ...selected, count }),
+        operation: "generate",
+        requestedCount: count,
+        maxItems: count,
+        signal,
+      }),
     });
+    const returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
+    if (returnedBeforeRecovery < selected.count) {
+      const deficit = selected.count - returnedBeforeRecovery;
+      const recovery = await runResilientBatches({
+        total: deficit,
+        batchSize: 20,
+        signal,
+        run: ({ count }) => this.contentService.generateStructured({
+          contents: input.contents,
+          responseSchema: flashcardGenerationProviderResponseSchema,
+          trustedSystemInstruction: [
+            buildFlashcardGenerateInstruction({ ...selected, count }),
+            "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier card.",
+          ].join("\n\n"),
+          operation: "generate",
+          requestedCount: count,
+          maxItems: count,
+          signal,
+        }),
+      });
+      responses = [...responses, ...recovery];
+    }
+    const normalized = responses.flatMap((response) => normalizeGeneratedFlashcards(
+      response.data,
+      input,
+      this.candidateId,
+    ));
     const items = applyFlashcardBatchDuplicateWarnings(
-      normalizeGeneratedFlashcards(response.data, input, this.candidateId),
+      normalized,
     );
-    const warnings = response.data.uncertainties.map((value) => `Model uncertainty: ${value}`);
+    const warnings = responses.flatMap((response) => response.data.uncertainties.map((value) => `Model uncertainty: ${value}`));
+    if (items.some((item) => item.warnings.includes("Flashcard front duplicates another item in this result batch."))) {
+      warnings.push("Duplicate generated Flashcards were retained for review rather than silently discarded.");
+    }
     if (items.length < selected.count) {
       warnings.push(`Requested ${selected.count} Flashcards but only ${items.length} source-grounded Flashcards were generated.`);
     }
-    return baseResult("generate", items, [], warnings, response.meta, startedAt, selected.count);
+    return baseResult("generate", items, [], warnings, responses[0]?.meta ?? { provider: "unknown", model: "unknown" }, startedAt, selected.count);
   }
 
   async enhanceExistingFlashcards(
@@ -194,27 +256,67 @@ export class FlashcardAIEngine {
       );
     }
 
-    const response = await this.contentService.generateStructured({
-      contents: input.contents,
-      responseSchema: flashcardEnhancementProviderResponseSchema,
-      trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
-      additionalUntrustedContext: enhancementContext(eligible),
-      operation: "enhance",
-      maxItems: eligible.length,
+    const responses = await runResilientBatches({
+      total: eligible.length,
+      batchSize: 20,
       signal,
+      run: ({ start, count }) => this.contentService.generateStructured({
+        contents: input.contents,
+        responseSchema: flashcardEnhancementProviderResponseSchema,
+        trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
+        additionalUntrustedContext: enhancementContext(eligible.slice(start, start + count)),
+        operation: "enhance",
+        maxItems: count,
+        signal,
+      }),
+      onFailure: (batch) => {
+        warnings.push(`Enhancement batch ${batch.start + 1}-${batch.start + batch.count} could not be completed; original cards were retained.`);
+      },
     });
+    let response: FlashcardEnhancementProviderResponse = {
+      items: responses.flatMap((result) => result.data.items),
+      uncertainties: responses.flatMap((result) => result.data.uncertainties),
+    };
+    const hasUnknownCandidateId = response.items.some((item) => !eligible.some((candidate) => candidate.candidateId === item.candidateId));
+    const recoveredIds = new Set(response.items.map((item) => item.candidateId));
+    const missing = eligible.filter((item) => !recoveredIds.has(item.candidateId));
+    if (missing.length > 0 && !hasUnknownCandidateId) {
+      const recovery = await runResilientBatches({
+        total: missing.length,
+        batchSize: 20,
+        signal,
+        run: ({ start, count }) => this.contentService.generateStructured({
+          contents: input.contents,
+          responseSchema: flashcardEnhancementProviderResponseSchema,
+          trustedSystemInstruction: [
+            buildFlashcardEnhanceInstruction(),
+            "This is bounded missing-candidate recovery. Return only the requested candidate IDs.",
+          ].join("\n\n"),
+          additionalUntrustedContext: enhancementContext(missing.slice(start, start + count)),
+          operation: "enhance",
+          maxItems: count,
+          signal,
+        }),
+        onFailure: (batch) => {
+          warnings.push(`Missing enhancement recovery ${batch.start + 1}-${batch.start + batch.count} failed; original cards were retained.`);
+        },
+      });
+      response = {
+        items: [...response.items, ...recovery.flatMap((result) => result.data.items)],
+        uncertainties: [...response.uncertainties, ...recovery.flatMap((result) => result.data.uncertainties)],
+      };
+    }
     const eligibleIds = new Set(eligible.map((candidate) => candidate.candidateId));
-    const hasUnknownCandidateId = response.data.items.some((item) => !eligibleIds.has(item.candidateId));
     if (hasUnknownCandidateId) {
       warnings.push("Enhancement response contained an unknown candidate ID.");
     }
-    const merged = this.mergeEnhancements(candidates, eligible, response.data, input);
+    const merged = this.mergeEnhancements(candidates, eligible, response, input);
     return baseResult(
       "enhance",
       applyFlashcardBatchDuplicateWarnings(merged),
       extraction.skippedItems,
-      warnings.concat(response.data.uncertainties.map((value) => `Model uncertainty: ${value}`)),
-      response.meta,
+      warnings.concat(response.uncertainties.map((value) => `Model uncertainty: ${value}`)),
+      responses[0]?.meta ?? extraction.provider,
       startedAt,
       undefined,
       extraction.truncated,

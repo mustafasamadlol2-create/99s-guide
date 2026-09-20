@@ -7,7 +7,10 @@ import type {
   AIPreviewResponse,
 } from "../types/aiPreview";
 
-export const AI_PREVIEW_TIMEOUT_MS = 600_000;
+export const AI_PREVIEW_POLL_TIMEOUT_MS = 20_000;
+export const AI_PREVIEW_POLL_INTERVAL_MS = 1_000;
+/** Compatibility export for older callers; the job client does not use an overall deadline. */
+export const AI_PREVIEW_TIMEOUT_MS = Number.POSITIVE_INFINITY;
 
 export class AIPreviewError extends Error {
   readonly code?: string;
@@ -67,48 +70,150 @@ function errorFromUnknown(error: unknown): AIPreviewError {
   });
 }
 
-export async function requestAIPreview(
-  request: AIPreviewRequest,
-  signal: AbortSignal,
-): Promise<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>> {
-  try {
-    const endpoint = request.target === "mcq"
-      ? "/api/admin/ai/mcq/preview"
-      : "/api/admin/ai/flashcards/preview";
-    let body: BodyInit;
-    const headers: HeadersInit = {};
+interface AIPreviewJobAccepted {
+  requestId: string;
+  jobId: string;
+  state: "queued" | "running";
+  target: AIPreviewRequest["target"];
+  operation: AIPreviewRequest["operation"];
+  inputKind: AIPreviewRequest["source"]["inputKind"];
+}
 
-    if (request.source.inputKind === "text") {
-      headers["Content-Type"] = "application/json";
-      body = JSON.stringify({
+interface AIPreviewJobStatus {
+  jobId: string;
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  target: AIPreviewRequest["target"];
+  operation: AIPreviewRequest["operation"];
+  inputKind: AIPreviewRequest["source"]["inputKind"];
+  progress: {
+    stage: string;
+    completedBatches: number;
+    totalBatches?: number;
+    itemsRecovered: number;
+  };
+  response?: AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>;
+  error?: { code?: string; message?: string; retryable?: boolean };
+}
+
+function requestBody(request: AIPreviewRequest): { body: BodyInit; headers: HeadersInit } {
+  if (request.source.inputKind === "text") {
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         lectureId: request.lectureId,
         operation: request.operation,
         inputKind: "text",
         text: request.source.text ?? "",
         options: request.options,
-      });
-    } else {
-      const form = new FormData();
-      appendScalar(form, request);
-      if (request.source.inputKind === "pdf" && request.source.file) {
-        form.append("file", request.source.file);
-      } else {
-        for (const file of request.source.files ?? []) form.append("files", file);
-      }
-      body = form;
-    }
+      }),
+    };
+  }
+  const form = new FormData();
+  appendScalar(form, request);
+  if (request.source.inputKind === "pdf" && request.source.file) {
+    form.append("file", request.source.file);
+  } else {
+    for (const file of request.source.files ?? []) form.append("files", file);
+  }
+  return { body: form, headers: {} };
+}
 
-    const response = await apiClient(endpoint, {
+function isRetryablePollFailure(error: unknown): boolean {
+  if (error instanceof AIPreviewError) return false;
+  const candidate = error as { status?: number; message?: string };
+  return candidate.status === undefined ||
+    candidate.status === 408 ||
+    candidate.status === 429 ||
+    candidate.status >= 500 ||
+    /network|fetch|timed out|too long|connect/i.test(candidate.message ?? "");
+}
+
+function waitForPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("The request was aborted.", "AbortError"));
+      return;
+    }
+    const timer = window.setTimeout(resolve, AI_PREVIEW_POLL_INTERVAL_MS);
+    signal.addEventListener("abort", () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("The request was aborted.", "AbortError"));
+    }, { once: true });
+  });
+}
+
+export async function requestAIPreview(
+  request: AIPreviewRequest,
+  signal: AbortSignal,
+  onProgress?: (status: AIPreviewJobStatus) => void,
+  onJobCreated?: (jobId: string) => void,
+): Promise<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>> {
+  try {
+    const endpoint = request.target === "mcq"
+      ? "/api/admin/ai/mcq/preview-jobs"
+      : "/api/admin/ai/flashcards/preview-jobs";
+    const requestPayload = requestBody(request);
+    const acceptedResponse = await apiClient(endpoint, {
       method: "POST",
-      headers,
-      body,
+      headers: requestPayload.headers,
+      body: requestPayload.body,
       signal,
       bypassCache: true,
       retries: 0,
-      timeoutMs: AI_PREVIEW_TIMEOUT_MS,
+      timeoutMs: 120_000,
     });
-    return await response.json() as AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>;
+    const accepted = await acceptedResponse.json() as AIPreviewJobAccepted;
+    onJobCreated?.(accepted.jobId);
+    while (true) {
+      try {
+        const statusResponse = await apiClient(
+          `${endpoint}/${encodeURIComponent(accepted.jobId)}`,
+          {
+            method: "GET",
+            signal,
+            bypassCache: true,
+            retries: 0,
+            timeoutMs: AI_PREVIEW_POLL_TIMEOUT_MS,
+          },
+        );
+        const status = await statusResponse.json() as AIPreviewJobStatus;
+        onProgress?.(status);
+        if (status.state === "succeeded" && status.response) return status.response;
+        if (status.state === "cancelled") {
+          throw new AIPreviewError("AI preview cancelled.", { code: "AI_JOB_CANCELLED" });
+        }
+        if (status.state === "failed") {
+          throw new AIPreviewError(
+            status.error?.message || "AI preview could not be completed.",
+            {
+              code: status.error?.code,
+              retryable: status.error?.retryable,
+            },
+          );
+        }
+      } catch (error) {
+        if (!isRetryablePollFailure(error)) throw error;
+        await waitForPoll(signal);
+        continue;
+      }
+      await waitForPoll(signal);
+    }
   } catch (error) {
     throw errorFromUnknown(error);
   }
+}
+
+export async function cancelAIPreviewJob(
+  request: Pick<AIPreviewRequest, "target">,
+  jobId: string,
+): Promise<void> {
+  const endpoint = request.target === "mcq"
+    ? "/api/admin/ai/mcq/preview-jobs"
+    : "/api/admin/ai/flashcards/preview-jobs";
+  await apiClient(`${endpoint}/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+    bypassCache: true,
+    retries: 0,
+    timeoutMs: AI_PREVIEW_POLL_TIMEOUT_MS,
+  });
 }
