@@ -1,0 +1,2085 @@
+# 99'S GUIDE — FINAL RELEASE PREPARATION
+# PROMPT 26
+## FINAL PRODUCTION + EXPORT READINESS GATE
+### LAST SOURCE-CODE GATE BEFORE DOWNLOADING THE RELEASE CANDIDATE
+### FULL FRONTEND / BACKEND / PWA / CAPACITOR / SECURITY / REPOSITORY AUDIT
+### CLEAN-INSTALL + BUILD + TEST + EXPORT-SAFETY VERIFICATION
+### REPAIR ONLY CONCRETE RELEASE BLOCKERS
+### NO NEW FEATURES
+### NO REDESIGN
+### NO CLOUD DEPLOYMENT
+### NO APP STORE RELEASE
+### NO GIT COMMIT
+### DO NOT MODIFY `.agents/*`
+
+Prompt 25 is CLOSED AND APPROVED.
+
+The complete implementation sequence now considered closed at the feature/source level is:
+
+```text
+R1 / R1B
+Theme coverage + hydration/account boundaries
+
+R2 / R2B
+Hero / Glass / Motion / Reading
+
+R3 / R3C
+Personalization ConfigV2
+Home order
+Manual subject visibility
+Semester visibility
+V1 → V2 migration
+
+R4 / R4B / R4C
+Final personalization QA
+Migration durability
+Actual responsive QA
+Production subject-data integrity
+
+Prompt 24
+Native iOS/iPadOS alternate App Icon implementation
+
+Prompt 25
+Native App Icon + PWA asset closure
+
+Entering verified baselines:
+
+Personalization:
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+App Icon:
+9 passed
+0 failed
+
+Prompt 25 PWA asset tests:
+6 passed
+0 failed
+
+TypeScript:
+PASS
+0 errors
+
+Production build:
+PASS
+
+Auth:
+4 passed
+0 failed
+
+Security:
+13 passed
+
+Navigation:
+4 passed
+0 failed
+
+Prompt 25 also successfully ran:
+
+npx cap sync ios
+
+and confirmed native App Icon source/assets/Xcode project settings survived.
+
+Native Xcode/device runtime remains intentionally deferred because the current environment is Linux.
+
+Prompt 26 is the FINAL SOURCE/EXPORT READINESS gate.
+
+After Prompt 26 PASS, the project should be ready to download as the release-candidate source tree and upload to GitHub for real PWA deployment testing.
+
+1. NO NEW FEATURES
+
+Do NOT add:
+
+new personalization options
+new App Icons
+Android alternate icons
+new AI features
+new lecture features
+new navigation
+new settings
+new database schema
+new cloud architecture
+new deployment provider integration
+
+Prompt 26 is audit, repair, verification, and export readiness only.
+
+2. RELEASE-CANDIDATE GOAL
+
+The goal is to answer one final question:
+
+Can the CURRENT repository be safely downloaded,
+committed to GitHub,
+clean-installed,
+built,
+deployed as the existing PWA,
+and later synchronized/opened on macOS for native validation?
+
+The final answer must be either:
+
+EXPORT READINESS: APPROVED
+
+or:
+
+EXPORT READINESS: BLOCKED
+
+No ambiguous middle state.
+
+3. PRESERVE ACCEPTED IMPLEMENTATION
+
+Do not reopen or redesign:
+
+PersonalizationConfigV2
+Theme
+Hero
+Glass
+Motion
+Reading
+Home personalization
+V1 → V2 migration
+App Icon architecture
+Native/PWA App Icon separation
+
+Repair only actual release blockers.
+
+4. WORKING-TREE INVENTORY FIRST
+
+Before changing anything run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Classify every current item into:
+
+A. Required production change
+B. Required test
+C. User/reference attachment
+D. Tool/generated output
+E. Temporary artifact
+F. Unrelated/pre-existing file
+
+Do not lose Prompt 24/25 work.
+
+Do not delete user files merely because they are untracked.
+
+5. REQUIRED GITHUB FILE SAFETY
+
+Verify every runtime/source asset needed by the application is either:
+
+tracked
+or
+untracked but not ignored and explicitly required for the final commit
+
+A required file that is silently ignored is a release blocker.
+
+Pay special attention to:
+
+public/icon-512.png
+tests/app-icon-pwa-assets.test.ts
+
+ios/App/App/AppIcon.swift
+ios/App/App/Assets.xcassets/AppIcon*.appiconset/
+
+src/features/personalization/appIcon/*
+public/app-icons/*
+
+Do not trust prior report wording; inspect actual current state.
+
+6. FINAL REQUIRED-COMMIT INVENTORY
+
+Produce a final report section listing every currently untracked REQUIRED file that must be included when the user later commits/uploads to GitHub.
+
+Do NOT run:
+
+git add
+git commit
+git push
+
+The user will perform Git actions after downloading/testing.
+
+7. USER / REFERENCE ATTACHMENTS
+
+Files under paths such as:
+
+attached_assets/Pasted-*.txt
+
+that are merely pasted prompt/reference material are NOT production runtime requirements.
+
+Do not modify them.
+
+Do not silently classify them as application source.
+
+In the final report, clearly state whether they should be excluded from the eventual GitHub production commit.
+
+8. .agents/* ABSOLUTE HARD GATE
+
+Run before and after all work:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+
+Do not create:
+
+.agents/memory/*
+
+Do not update MEMORY.md.
+
+If the platform automatically creates a Prompt-26 memory file, restore/remove only that Prompt-26-generated repository change before closure.
+
+9. SECRET / CREDENTIAL REPOSITORY AUDIT
+
+Audit TRACKED and export-relevant source for accidental secrets.
+
+Look for patterns such as:
+
+private keys
+service-role keys
+database passwords
+JWT secrets
+OAuth client secrets
+Apple private keys
+Cloudflare API tokens
+Render secrets
+Supabase service-role secrets
+Gemini/OpenAI secret API keys
+session secrets
+
+Do NOT print secret values in the report.
+
+Report only:
+
+file/path
+secret category
+safe/unsafe
+
+Client-safe public identifiers such as an intentionally public Supabase anon/publishable key must be classified correctly rather than automatically treated as a secret.
+
+Do not expose values in output.
+
+10. ENV FILE TRACKING
+
+Inspect:
+
+git ls-files ".env*"
+git status --short --untracked-files=all | grep -E '\.env'
+
+or equivalent.
+
+Verify real secret .env files are not intended for GitHub.
+
+Safe template files such as:
+
+.env.example
+
+may remain if sanitized.
+
+No real production secret may enter the export.
+
+11. GITIGNORE AUDIT
+
+Inspect .gitignore.
+
+Verify it safely excludes appropriate local/generated material such as:
+
+node_modules
+real .env secrets
+temporary logs
+local cache
+generated native web-copy directories where appropriate
+
+Do NOT broadly ignore required source/assets.
+
+Especially ensure Prompt 24/25 App Icon assets are not ignored.
+
+12. NPM REGISTRY / LOCKFILE RELEASE SAFETY
+
+A previous deployment issue involved package-lock entries resolving to environment-specific/internal registry URLs.
+
+Audit:
+
+package.json
+package-lock.json
+.npmrc
+
+Search for:
+
+replit
+internal registry domains
+localhost registry
+private temporary registry URLs
+
+Required:
+
+the repository must be installable outside Replit.
+
+Do NOT use:
+
+npm audit fix --force
+
+Do not rewrite dependency versions unnecessarily.
+
+13. CLEAN INSTALL
+
+Perform a clean-install verification using the repository lockfile.
+
+Preferred:
+
+npm ci
+
+If doing so in the active workspace risks destroying required environment state, create a temporary clean verification copy.
+
+The verification must use:
+
+package.json
+package-lock.json
+
+and not silently fall back to npm install.
+
+Report:
+
+PASS / FAIL
+
+and exact blocker if any.
+
+14. LOCKFILE STABILITY
+
+A clean:
+
+npm ci
+
+must NOT require modifying package-lock.json.
+
+If lockfile changes are required:
+
+investigate.
+
+Do not casually regenerate the entire lockfile.
+
+15. PRODUCTION DEPENDENCY SECURITY AUDIT
+
+Run an appropriate production dependency audit, such as:
+
+npm audit --omit=dev
+
+Do NOT automatically force upgrades.
+
+Classify:
+
+critical
+high
+moderate
+low
+
+If an exploitable high/critical production dependency issue exists:
+
+investigate and repair if a safe non-breaking resolution exists.
+
+If resolving requires a breaking major upgrade:
+
+do not blindly upgrade; report BLOCKED with exact package/context unless evidence shows it is not reachable/relevant.
+
+Do not treat dev-only tooling vulnerabilities as production runtime vulnerabilities.
+
+16. PACKAGE SCRIPTS AUDIT
+
+Inspect actual scripts in:
+
+package.json
+
+Identify exact commands for:
+
+development
+frontend build
+server build
+production start
+typecheck
+tests
+auth
+security
+
+Do not assume prior script names if repository changed.
+
+17. TYPESCRIPT
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+
+No accepted TypeScript baseline remains.
+
+18. FRONTEND PRODUCTION BUILD
+
+Run the actual production frontend build command.
+
+At minimum:
+
+npm run build
+
+if that is the authoritative script.
+
+Required:
+
+PASS
+
+Report final build artifacts.
+
+19. BACKEND PRODUCTION BUILD
+
+Determine whether the main build already produces the backend artifact.
+
+The known architecture historically uses:
+
+server.ts
+→ esbuild
+→ dist/server.cjs
+
+Use actual current scripts as authority.
+
+Verify the production server artifact is successfully produced.
+
+No missing runtime module.
+
+No development-only dependency accidentally required at runtime.
+
+20. PRODUCTION SERVER START SMOKE TEST
+
+Using safe local/test environment variables where appropriate, start the built production server or repository-equivalent production entrypoint.
+
+Do not connect destructively to production services.
+
+Verify at minimum that the process:
+
+starts
+does not crash immediately
+loads configuration as expected
+
+If a health endpoint can be safely called, verify it.
+
+Do not fake third-party service connectivity.
+
+Stop the temporary server afterwards.
+
+21. FRONTEND PRODUCTION PREVIEW
+
+Serve the actual built frontend using an appropriate production/static preview.
+
+Verify HTTP success for:
+
+/
+manifest
+service worker
+PWA icons
+apple-touch icon
+favicon
+App Icon preview assets
+
+Use built output, not only source/public files.
+
+22. PWA MANIFEST FINAL CHECK
+
+Reconfirm effective production manifest:
+
+valid JSON
+name
+short_name
+start_url
+scope
+display
+display_override
+theme_color
+background_color
+icons
+
+All referenced assets must exist in the final build.
+
+23. PWA INSTALL ICONS FINAL CHECK
+
+Verify built:
+
+192×192 any
+512×512 any
+512×512 maskable
+
+Declared sizes must equal actual sizes.
+
+No broken MIME type.
+
+No transparent/malformed install asset.
+
+24. APPLE TOUCH ICON FINAL CHECK
+
+Verify built Apple-touch icon exists and resolves.
+
+No alternate native icon should replace it dynamically.
+
+25. FAVICON FINAL CHECK
+
+Verify final source and build favicon references.
+
+No stale/broken old path.
+
+26. SERVICE WORKER FINAL CHECK
+
+Inspect final:
+
+public/sw.js
+
+and built equivalent.
+
+Verify:
+
+required shell/static icon references exist
+no removed icon path remains
+no malformed precache entry
+navigation behavior remains appropriate
+API/auth/PDF/upload bypass behavior remains as designed
+icon repair did not accidentally cache private/API content
+
+Do not redesign OfflineEngine.
+
+27. SERVICE WORKER UPDATE SAFETY
+
+Because Prompt 25 changed precache content, verify a new service-worker install/update can fetch every pre-cache URL successfully.
+
+One missing precache asset can fail service-worker installation.
+
+This is a release blocker.
+
+28. STATIC PRECACHE HTTP TEST
+
+Serve dist.
+
+For every explicit service-worker precache URL:
+
+perform an HTTP request.
+
+Required:
+
+all required precache requests return successful responses
+
+Report failures exactly.
+
+29. SPA NAVIGATION / DEEP-LINK AUDIT
+
+The application is a SPA/PWA.
+
+Verify source/build expectations for direct navigation to client-side routes.
+
+Do not claim a deployment host provides SPA fallback unless actually configured.
+
+Report:
+
+CLIENT ROUTING: VERIFIED
+HOST SPA FALLBACK: DEPLOYMENT-SPECIFIC
+
+if appropriate.
+
+Do NOT add Azure/ASP.NET/Cloudflare-specific fallback config unless the current repository already owns such config or a generic source defect exists.
+
+Deployment-provider routing configuration will be handled after export when the actual target URL/host is known.
+
+30. API BASE URL FINAL AUDIT
+
+Audit:
+
+getApiBaseUrl()
+VITE_API_BASE_URL
+native Capacitor production API behavior
+web/PWA API behavior
+
+Verify:
+
+production fallback is intentional
+no localhost production fallback can accidentally ship as authoritative
+native iOS still targets the intended production backend
+web deployment can use configured API base
+
+Do not change production URL without evidence.
+
+31. CORS DEPLOYMENT NOTE
+
+Audit backend CORS logic.
+
+Do NOT add wildcards.
+
+Determine how a future new PWA deployment origin must be added.
+
+Because the user's future GitHub/PWA/Azure test URL is not yet known, do NOT invent an origin.
+
+Final report must provide:
+
+NEW PWA DEPLOYMENT ORIGIN ACTION:
+REQUIRED / NOT REQUIRED
+
+and identify the exact configuration/code location that will need the real deployment URL if required.
+
+This is not necessarily a source-export blocker.
+
+32. OAUTH DEPLOYMENT NOTE
+
+Audit web Google/Apple OAuth configuration dependencies.
+
+Determine whether a new web deployment hostname will require external provider configuration such as:
+
+authorized JavaScript origin
+redirect URL
+service ID/return URL
+
+Do NOT invent URLs.
+
+Do NOT edit Apple/Google consoles.
+
+Final report must list provider-side deployment actions separately from source-code blockers.
+
+33. CAPACITOR CONFIG FINAL CHECK
+
+Inspect actual Capacitor configuration.
+
+Verify:
+
+appId
+appName
+webDir
+iOS-relevant settings
+server settings where applicable
+
+No test/debug host accidentally embedded.
+
+No temporary R4/R4B/R4C visual harness URL.
+
+34. CAPACITOR SYNC REGRESSION
+
+Prompt 25 successfully ran:
+
+npx cap sync ios
+
+Re-running is not mandatory unless Prompt 26 changes relevant web/native integration.
+
+If relevant files change and sync is rerun:
+
+verify native App Icon assets/settings survive again.
+
+35. NATIVE PROJECT STATIC FINAL CHECK
+
+Reconfirm:
+
+AppIcon.swift
+primary AppIcon catalog
+dark primary binary
+Midnight catalog
+Rose catalog
+Monochrome catalog
+alternate Xcode settings
+AppIcon.swift Sources membership
+
+No Prompt 26 work may regress them.
+
+36. NATIVE RUNTIME BOUNDARY
+
+Linux cannot close:
+
+xcodebuild
+Archive
+real iPhone icon switching
+real iPad icon switching
+App Store validation
+
+These must remain explicitly:
+
+DEFERRED TO MAC/XCODE RELEASE VALIDATION
+
+Do NOT block SOURCE EXPORT merely because Xcode is unavailable.
+
+37. APP ICON TESTS
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Entering:
+
+15 passed
+0 failed
+
+Required:
+
+0 failed
+38. PERSONALIZATION MATRIX
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Entering:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+Required:
+
+0 failed
+39. FULL TEST SUITE
+
+Run the authoritative full repository test command.
+
+Historically the only known remaining failure was:
+
+pdf_download_expiry_invalid
+
+with the test fixture passing a non-positive expiry to a creator that intentionally rejects non-positive values before the intended assertion.
+
+Prompt 26 MUST finally audit this.
+
+Do not automatically preserve a red full-suite baseline.
+
+40. PDF FAILURE DECISION
+
+Inspect:
+
+tests/pdf-access.test.ts
+
+and the production function it exercises.
+
+Choose one:
+
+CASE A — TEST FIXTURE DEFECT
+
+If production correctly rejects invalid expiry during token creation, while the test intended to test a later validation path:
+
+repair the TEST FIXTURE only.
+
+Use a valid construction path that reaches the intended assertion.
+
+Do NOT weaken production validation merely to make the test pass.
+
+CASE B — PRODUCTION DEFECT
+
+If the test reveals actual incorrect production behavior:
+
+repair the smallest correct production defect.
+
+CASE C — EXPECTED INTENTIONAL FAILURE
+
+Only retain a failing test if the repository explicitly treats it as an expected-failure mechanism.
+
+A normal red test is not an acceptable final-release state merely because it was previously known.
+
+Strong desired final gate:
+
+FULL TEST SUITE:
+0 failed
+41. PDF / RESOURCE REGRESSION SAFETY
+
+If the PDF test is repaired:
+
+run the relevant PDF/access tests fully.
+
+Do not alter:
+
+PDF authorization
+expiry security
+download permissions
+token verification
+
+unless an actual production bug is proven.
+
+42. PRODUCTION LINT GATE
+
+Run ESLint or the repository lint command.
+
+Separate:
+
+production source
+tests
+local tooling
+.local/skills
+
+A release candidate should have:
+
+0 ESLint errors in production application/server/shared source
+43. .local/skills LINT
+
+Known lint findings under:
+
+.local/skills/*
+
+are local tooling/environment files, not shipped application runtime.
+
+Do not rewrite third-party/tool skill code merely to make repository-wide lint green.
+
+Classify them separately.
+
+44. SERVER PRODUCTION LINT
+
+A previous known lint finding existed in:
+
+server/services/supabaseStorage.ts
+
+Prompt 26 must inspect it.
+
+If it is still a production lint ERROR:
+
+repair it if a semantics-preserving fix is straightforward.
+
+Do not leave an actual production-source ESLint error merely because it was previously classified as baseline.
+
+45. FRONTEND PRODUCTION LINT
+
+Inspect any remaining production warning/error such as historically noted:
+
+SmoothAutoHeight.tsx
+
+Errors must be resolved.
+
+A warning may remain only if:
+
+it is non-functional
+current lint policy permits warnings
+report explains it
+
+Do not perform unrelated component redesign.
+
+46. TARGETED FINAL LINT RESULT
+
+Final report must separately state:
+
+Production source errors:
+0
+
+Test errors:
+0 or exact justified state
+
+Local tooling/.local findings:
+<reported separately>
+47. AUTH SUITE
+
+Run:
+
+npm run test:auth
+
+Required:
+
+4 passed
+0 failed
+48. SECURITY CONTRACT
+
+Run:
+
+npm run security:check
+
+Required:
+
+13 passed
+
+No weakening for release convenience.
+
+49. NAVIGATION TESTS
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Required:
+
+4 passed
+0 failed
+50. KEY FEATURE-SURFACE TESTS
+
+Run existing tests covering at least:
+
+Home
+Lecture
+Calendar
+MCQ
+Flashcard
+Personalization
+App Icon
+PWA assets
+
+No release regression.
+
+51. AI FEATURE SOURCE SAFETY
+
+Do not redesign AI.
+
+Perform a release-oriented source audit for:
+
+API keys remain server-side
+Gemini/provider credentials are not shipped in client bundle
+AI routes remain admin-protected where designed
+current timeout values remain intentional
+no temporary AI debug route exists
+
+If current automated tests exist, run relevant focused tests.
+
+Do not attempt expensive/live Gemini generation.
+
+52. UPLOAD / BINARY STORAGE SOURCE SAFETY
+
+Audit current production source for:
+
+PDF upload
+image upload
+R2/object storage
+signed URLs
+resource download
+
+No test/debug storage endpoint.
+
+No hardcoded secret.
+
+Do not perform destructive live uploads.
+
+53. DATABASE MIGRATION INVENTORY
+
+Inspect:
+
+prisma/schema.prisma
+prisma/migrations/
+
+or actual current paths.
+
+Do not create a migration.
+
+Report whether source expects unapplied repository migrations for current production.
+
+Do not make destructive DB calls.
+
+54. DATABASE URL SAFETY
+
+Ensure no real database credential is tracked.
+
+Do not print it.
+
+55. FRONTEND BUNDLE SECRET SCAN
+
+After production build, inspect emitted frontend JS/text for known server-only environment variable names or obvious secret markers.
+
+Do NOT print secret contents.
+
+Required:
+
+no private server secret embedded in frontend bundle.
+
+56. VITE ENV AUDIT
+
+Audit all:
+
+VITE_*
+
+variables used by client code.
+
+Remember:
+
+VITE_* is client-visible
+
+No secret credential belongs there.
+
+Report any suspicious variable by NAME only.
+
+57. DEBUG / TEST ROUTE SCAN
+
+Search source for production-accessible routes/components named or behaving like:
+
+debug
+test
+qa
+harness
+mock
+dev-only bypass
+auth bypass
+
+Do not flag legitimate tests outside runtime source.
+
+No R2B/R4 visual harness should remain.
+
+58. TEMPORARY ARTIFACT SCAN
+
+Search repository for:
+
+r2b
+r4b
+r4c
+visual-harness
+contact-sheet
+scratch
+temp
+screenshots
+test-output
+
+Distinguish legitimate named tests from temporary QA assets.
+
+No temporary browser harness/source should ship.
+
+59. CONSOLE LOG REVIEW
+
+Audit production source for obvious accidental:
+
+console.log
+console.debug
+temporary debugging
+credential logging
+raw request logging
+
+Do not remove intentional structured server logging.
+
+Remove only accidental debug output.
+
+Never log auth tokens or secrets.
+
+60. TODO / FIXME RELEASE SCAN
+
+Search production source for:
+
+TODO
+FIXME
+HACK
+TEMP
+
+Do NOT automatically fix all comments.
+
+Classify only items that indicate:
+
+unfinished release-critical behavior
+
+Report benign future notes separately.
+
+61. MOCK DATA RELEASE SAFETY
+
+Ensure test/harness mock data is not accidentally wired into production runtime.
+
+Production seed data may remain if it is legitimate app data.
+
+Do not confuse legitimate seedData.ts with testing mocks.
+
+62. PWA OFFLINE STATIC SMOKE TEST
+
+Where practical:
+
+Serve built app.
+Load required shell/static assets.
+Confirm service worker script is valid and references existing assets.
+
+Do not claim complete offline behavior unless actually simulated.
+
+Report exact verification level.
+
+63. PWA CACHE VERSION / UPDATE PATH
+
+Inspect cache naming/versioning and install/activate behavior.
+
+Verify the Prompt 25 icon changes can propagate on a new service-worker deployment.
+
+No permanent stale icon path should remain.
+
+If cache naming is intentionally stable but install overwrites entries safely:
+document that.
+
+Repair only if actual stale-cache bug exists.
+
+64. PWA ZOOM / NATIVE-LIKE META SAFETY
+
+Audit current:
+
+viewport meta
+PWA standalone metadata
+
+against the existing native-like product behavior.
+
+Do not reopen previous UI work.
+
+Verify no accidental Prompt 25 HTML edit regressed viewport behavior.
+
+65. INDEX.HTML FINAL AUDIT
+
+Review:
+
+manifest link
+favicon
+apple-touch icon
+viewport
+theme metadata
+entry script
+
+No duplicate or broken entries.
+
+66. PRODUCTION URL SCAN
+
+Search production source for:
+
+localhost
+127.0.0.1
+replit preview domains
+temporary tunnel URLs
+old test hostnames
+
+Classify each.
+
+Legitimate development branches/fallbacks may remain when properly environment-gated.
+
+No hardcoded temporary host may become production authority.
+
+67. CORS ALLOWLIST REVIEW
+
+Report current source-configured/default allowed origins.
+
+Do NOT print sensitive data.
+
+Verify:
+
+Capacitor origins
+current production web origin
+local dev origins
+
+are intentional.
+
+If the user's NEXT PWA deployment will have a new hostname:
+
+report that it must be added before login/API calls from that hostname.
+
+Do not use *.
+
+68. NEW DEPLOYMENT HOST ACTION LIST
+
+Prompt 26 report must include a separate post-export checklist:
+
+Items that cannot be completed until the new PWA hostname is known
+
+Potential examples:
+
+backend CORS allowlist
+Google authorized web origin
+Google redirect URI if applicable
+Apple Service ID return URL if applicable
+Cloudflare/host SPA fallback
+environment variable for frontend API URL if host-specific
+
+Do not block source export merely because the future hostname does not yet exist.
+
+69. CURRENT PRODUCTION BACKEND CONTRACT
+
+Verify frontend and native source still target the intended API architecture.
+
+No temporary migration to another backend.
+
+Do not move databases or storage providers.
+
+70. SERVER BODY LIMIT / SECURITY REGRESSIONS
+
+Reconfirm prior sensitive route handling remains:
+
+public personalization PUT body limit
+auth middleware ordering
+upload limits
+structured errors
+
+Use existing security tests where available.
+
+71. PERSONALIZATION CLOUD STATE
+
+Reconfirm:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+
+Do not enable it in Prompt 26.
+
+The app must continue local personalization operation.
+
+72. LOCAL PERSONALIZATION EXPORT SAFETY
+
+ConfigV2 local behavior must not depend on Replit.
+
+Verify browser local storage keys/logic are environment-independent.
+
+No Replit-specific persistence path.
+
+73. APP ICON SOURCE EXPORT SAFETY
+
+Reconfirm all Native App Icon implementation files exist after clean-install/build work.
+
+Do not allow tooling cleanup to delete:
+
+AppIcon.swift
+alternate .appiconset directories
+primary dark asset
+pbxproj settings
+74. PWA APP ICON PREVIEW SOURCE SAFETY
+
+Verify:
+
+public/app-icons/*
+
+still resolve after clean build.
+
+75. NO BUILD OUTPUT AS SOURCE DEPENDENCY
+
+Application source must not require a pre-existing:
+
+dist/
+
+folder before build.
+
+Test:
+
+clean dist
+→ build
+→ app assets regenerate successfully
+
+Do not rely on stale dist output.
+
+76. DIST CLEAN BUILD
+
+Delete or move existing dist safely.
+
+Run production build from source.
+
+Required:
+
+fresh dist produced
+
+Then perform build-output checks.
+
+Do not delete source assets.
+
+77. EXPORT-SAFE SOURCE TREE
+
+The release source tree should NOT require shipping:
+
+node_modules
+old dist
+temporary screenshots
+test browser caches
+OS metadata
+local server logs
+secret .env files
+
+Report what should be excluded when downloading/committing.
+
+78. DO NOT DELETE TESTS
+
+Tests are source repository assets and should generally remain in GitHub.
+
+Do not strip tests merely to make the repository smaller.
+
+79. DO NOT DELETE NATIVE PROJECT
+
+The final source export must include:
+
+ios/
+
+even though initial PWA testing is web-focused.
+
+The user will later use the same source tree on macOS/Xcode.
+
+80. VERSION REPORT
+
+Report current versions only:
+
+package/app version
+Capacitor version
+native iOS minimum target
+bundle identifier
+
+Do NOT bump release version/build number in Prompt 26.
+
+Version bump belongs to actual App Store release preparation after PWA/native validation.
+
+81. BUILD TOOLCHAIN REPORT
+
+Report:
+
+Node version
+npm version
+Vite version
+React version
+Capacitor version
+Prisma version
+
+using actual repository/environment values.
+
+This helps reproduce the release candidate locally.
+
+82. NODE ENGINE COMPATIBILITY
+
+Inspect:
+
+engines
+.nvmrc
+tooling config
+deployment settings
+
+if present.
+
+Verify the source defines or clearly supports the intended Node runtime.
+
+Do not force a new Node major unless necessary.
+
+83. CASE-SENSITIVITY AUDIT
+
+Linux is case-sensitive.
+
+Audit recent new asset imports/paths for exact casing.
+
+Especially:
+
+app-icons
+AppIcon*.appiconset
+PNG filenames
+manifest paths
+
+No Windows-only casing dependency.
+
+84. LINE-ENDINGS / DIFF CHECK
+
+Run:
+
+git diff --check
+
+Required:
+
+NO OUTPUT
+
+No whitespace errors.
+
+85. LARGE ACCIDENTAL FILE SCAN
+
+Inspect untracked/new files for unexpectedly large artifacts such as:
+
+video
+raw screenshots
+database dumps
+huge logs
+temporary source images
+
+Do not remove user-owned files without classification.
+
+Required production assets may be large only when intentional.
+
+86. NATIVE ICON FOOTPRINT
+
+Prompt 25 reported a reasonable native icon footprint.
+
+Reconfirm no temporary full-resolution source duplicates were accidentally added during Prompt 26.
+
+87. PWA ASSET FOOTPRINT
+
+Report final install-icon and App Icon preview footprint.
+
+Do not optimize prematurely if reasonable.
+
+88. SOURCE MAP / BUILD DEBUG SAFETY
+
+Inspect production build configuration.
+
+Report whether production source maps are emitted publicly.
+
+Do not disable useful debugging automatically unless existing production policy says they should be off.
+
+Flag only actual sensitive exposure.
+
+89. SERVER ERROR DETAIL SAFETY
+
+Reconfirm production client responses do not expose raw stack traces/secrets for the touched systems.
+
+Do not redesign global error handling.
+
+90. HTML / CSP REGRESSION
+
+Verify Prompt 25 local images require no CSP relaxation.
+
+No external App Icon image host.
+
+No unsafe CSP change.
+
+91. INSTALLABILITY HOST REQUIREMENTS
+
+Static source checks cannot prove:
+
+HTTPS
+real service-worker scope
+real browser install prompt
+real host cache headers
+
+until deployment.
+
+Final report must distinguish:
+
+SOURCE INSTALLABILITY CONTRACT: VERIFIED
+REAL HOST INSTALLABILITY: TO BE VERIFIED AFTER GITHUB/PWA DEPLOYMENT
+92. RELEASE-CANDIDATE DEPLOYMENT TEST PLAN
+
+Do NOT perform the future deployment now.
+
+In the final report produce a concise ordered list for AFTER DOWNLOAD:
+
+1. Commit required files to GitHub
+2. Configure frontend environment
+3. Configure backend CORS for new PWA hostname
+4. Configure OAuth provider hostname/redirects if needed
+5. Deploy PWA
+6. Test login/session
+7. Test installability/service worker
+8. Test major app flows
+9. Test My99 persistence
+10. Only after web acceptance proceed to Mac/Xcode native validation
+
+This is report-only.
+
+93. NO AZURE/PROVIDER-SPECIFIC SOURCE CHANGE YET
+
+The user intends to test the PWA on another deployment environment after GitHub export.
+
+Do NOT add provider-specific production files unless the current repository already requires them generically.
+
+Wait for the actual hostname/provider setup after Prompt 26.
+
+94. FINAL FULL TEST TARGET
+
+Strong desired result:
+
+TypeScript: 0 errors
+Production source lint: 0 errors
+Full test suite: 0 failures
+Personalization: 0 failures
+App Icon/PWA assets: 0 failures
+Auth: 0 failures
+Navigation: 0 failures
+Security: PASS
+Production build: PASS
+Clean install: PASS
+
+If the only obstruction to a green full suite is a proven test-fixture defect:
+repair the test, not secure production behavior.
+
+95. FINAL GIT STATUS INTERPRETATION
+
+The working tree may legitimately remain modified/untracked because no commit is requested.
+
+PASS does NOT require:
+
+git status = completely clean
+
+PASS DOES require:
+
+every required change identified
+no required file ignored
+no temporary QA artifact
+no secret file intended for commit
+.agents/* clean
+exact future GitHub include/exclude inventory
+96. DO NOT CREATE RELEASE DOCUMENT FILES
+
+Do not add:
+
+RELEASE_REPORT.md
+EXPORT_REPORT.md
+PROMPT26.md
+
+Return the report in chat only.
+
+97. DO NOT CREATE ZIP YET
+
+Do NOT create a final release ZIP inside the repository during Prompt 26.
+
+Why:
+
+The user will download/export the repository after this audit.
+
+A ZIP inside the source tree risks recursive/duplicate source packaging and accidental Git inclusion.
+
+Prompt 26 only determines readiness.
+
+98. NO GIT MUTATION
+
+Do NOT:
+
+git add
+git commit
+git push
+git reset --hard
+
+Do not manipulate user history.
+
+Narrow file repairs are allowed.
+
+99. FINAL .agents/* CHECK
+
+At the very end run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+100. FINAL TEMPORARY-FILE CHECK
+
+At the end verify no Prompt 26 temporary files remain.
+
+Temporary clean-install copies outside the repository are fine and should be removed when practical.
+
+101. PROMPT 26 PASS DEFINITION
+
+Prompt 26 may PASS only if:
+
+All required Prompt 24/25 source/assets are present/export-safe.
+No required production file is accidentally ignored.
+No real secret is intended for GitHub.
+Lockfile works outside Replit.
+Clean npm ci works.
+TypeScript has 0 errors.
+Frontend production build passes.
+Backend production build/artifact is valid.
+Production server startup does not immediately crash under valid test configuration.
+PWA manifest/icons/service worker references are internally valid.
+Service-worker precache has no missing asset.
+Personalization suite has 0 failures.
+App Icon/PWA asset suite has 0 failures.
+Auth has 0 failures.
+Navigation has 0 failures.
+Security contracts pass.
+Full test suite has 0 unexplained failures.
+Known PDF red test is either safely repaired or proven intentional expected-failure behavior.
+Production application/server/shared lint has 0 errors.
+No production secret appears in frontend bundle.
+No temporary QA harness remains.
+No Replit-specific package registry blocks external installation.
+Native App Icon files remain intact.
+Native runtime validation is correctly deferred, not fabricated.
+New deployment-host actions are clearly identified.
+.agents/* has zero diff.
+Export include/exclude inventory is explicit.
+102. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PROMPT 26 REPORT
+FINAL PRODUCTION + EXPORT READINESS
+1. Status
+
+PASS / BLOCKED
+
+2. Final Decision
+
+State:
+
+EXPORT READINESS: APPROVED
+
+or:
+
+EXPORT READINESS: BLOCKED
+
+3. Prompt 26 Repairs
+
+List actual source/test repairs performed.
+
+If none:
+
+NO PROMPT 26 PRODUCTION REPAIR REQUIRED.
+
+4. Initial Working-Tree Classification
+
+Summarize production/test/reference/temporary items.
+
+5. Required Production Files
+
+Confirm all required production files are present.
+
+6. Required Untracked Files for Future Git Commit
+
+List every currently untracked REQUIRED runtime/test file.
+
+7. Files That Should NOT Be Included in Production Git Commit
+
+List reference/temp/secret/generated items.
+
+Do not include user-owned items in this list as deletion instructions; classify only.
+
+8. Git Ignore Safety
+
+Report.
+
+9. Secret Scan
+
+State:
+
+TRACKED PRODUCTION SECRET FOUND: YES / NO
+
+Do not print secret values.
+
+List only safe category/path findings if applicable.
+
+10. Environment Files
+
+Report tracked/untracked/sanitized state.
+
+11. npm Registry / Lockfile
+
+Report any Replit/private-registry finding.
+
+12. Clean npm ci
+
+Report exact result.
+
+13. Lockfile Stability
+
+Report.
+
+14. Production Dependency Audit
+
+Report counts by severity and disposition.
+
+15. Build Scripts
+
+Print authoritative current production scripts.
+
+16. TypeScript
+
+Report exact result.
+
+17. Frontend Production Build
+
+Report.
+
+18. Backend Production Build
+
+Report artifact/path.
+
+19. Production Server Smoke Test
+
+Report exact verification.
+
+20. Fresh dist Build
+
+Confirm build succeeded without relying on stale dist.
+
+21. PWA Manifest
+
+Report.
+
+22. PWA Install Icons
+
+Report 192/512/maskable final state.
+
+23. Apple Touch Icon
+
+Report.
+
+24. Favicon
+
+Report.
+
+25. Service Worker
+
+Report.
+
+26. Precache HTTP Verification
+
+Report requested/success/failed counts.
+
+27. SPA / Deep-Link Readiness
+
+Report client readiness and deployment-host dependency.
+
+28. API Base URL
+
+Report source behavior without exposing secrets.
+
+29. Current CORS Architecture
+
+Report.
+
+30. New PWA Host CORS Action
+
+State:
+
+REQUIRED / NOT REQUIRED
+
+and exact place to configure once hostname exists.
+
+31. OAuth Hostname Actions
+
+List Google/Apple external configuration that may be required after new hostname exists.
+
+32. Capacitor Config
+
+Report appId/appName/webDir and safety.
+
+33. Native App Icon Final Static Integrity
+
+Report.
+
+34. Native Runtime Validation
+
+State exactly:
+
+DEFERRED TO MAC/XCODE RELEASE VALIDATION
+
+unless actually available.
+
+35. App Icon / PWA Tests
+
+Report exact count.
+
+36. Personalization Matrix
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+37. Full Test Suite
+
+Report exact:
+passed
+failed
+skipped
+cancelled
+
+38. PDF Test Closure
+
+State:
+TEST FIXTURE DEFECT REPAIRED
+or
+PRODUCTION DEFECT REPAIRED
+or
+EXPECTED FAILURE MECHANISM VERIFIED
+
+Explain without weakening security.
+
+39. PDF Focused Tests
+
+Report.
+
+40. Production Lint
+
+State exact production source error/warning counts.
+
+41. .local/skills Lint
+
+Classify separately.
+
+42. Supabase Storage Lint
+
+Report whether the previous production lint issue remained or was repaired.
+
+43. Frontend Lint
+
+Report.
+
+44. Auth
+
+Report.
+
+45. Security
+
+Report.
+
+46. Navigation
+
+Report.
+
+47. Feature Surface Tests
+
+Report.
+
+48. AI Source Safety
+
+Report:
+client secret exposure
+admin protection
+debug routes
+live AI calls performed YES/NO
+
+49. Binary / Upload Storage Safety
+
+Report.
+
+50. Prisma / Migration Inventory
+
+Report whether repository contains unapplied source migrations requiring deployment attention.
+
+Do not perform migration.
+
+51. Frontend Bundle Secret Scan
+
+State:
+
+SERVER SECRET IN CLIENT BUNDLE: YES / NO
+
+Do not print secret content.
+
+52. VITE Environment Audit
+
+List client-visible variable names and classify safe/unsafe by name/purpose.
+
+Do not print secret values.
+
+53. Debug / Test Route Scan
+
+Report.
+
+54. Temporary Artifact Scan
+
+Report.
+
+55. Console Debug Scan
+
+Report.
+
+56. TODO / FIXME Release Blockers
+
+Report only release-critical findings.
+
+57. Mock-Data Runtime Safety
+
+Report.
+
+58. PWA Offline Verification Level
+
+State exactly what was and was not simulated.
+
+59. PWA Cache Update Safety
+
+Report.
+
+60. index.html
+
+Report final metadata/link integrity.
+
+61. Production URL Scan
+
+Report temporary/localhost findings and whether environment-gated.
+
+62. Personalization Cloud State
+
+State exactly:
+
+Live personalization KV: NO
+Live personalization Worker: NO
+Production personalization sync: DISABLED
+
+63. ConfigV2 Local Independence
+
+Report.
+
+64. Version Information
+
+Report current:
+application version
+Capacitor version
+iOS minimum target
+bundle identifier
+
+Do not bump.
+
+65. Toolchain
+
+Report actual:
+Node
+npm
+React
+Vite
+Capacitor
+Prisma
+
+66. Node Runtime Compatibility
+
+Report.
+
+67. Case-Sensitivity
+
+Report.
+
+68. Large / Accidental File Scan
+
+Report.
+
+69. Final Native Icon Footprint
+
+Report.
+
+70. Final PWA Icon / Preview Footprint
+
+Report.
+
+71. CSP / Local Asset Safety
+
+Report.
+
+72. Source Installability Contract
+
+State:
+
+SOURCE INSTALLABILITY CONTRACT: VERIFIED / NOT VERIFIED
+
+73. Real Host Installability
+
+State:
+
+REAL HOST INSTALLABILITY: DEFERRED TO POST-EXPORT PWA DEPLOYMENT
+
+74. Post-Export Deployment Actions
+
+Provide the ordered 10-step deployment/test list.
+
+75. New-Hostname-Dependent Actions
+
+List exact items that cannot be completed until deployment URL is known.
+
+76. Export Include Inventory
+
+List categories/files that MUST be included in the downloaded source/repository.
+
+77. Export Exclude Inventory
+
+List:
+node_modules
+old dist
+real .env secrets
+temporary outputs
+reference prompt attachments where appropriate
+other generated non-source items
+
+Do not exclude ios/.
+
+78. Tests Must Remain
+
+Confirm tests should remain in GitHub source repository.
+
+79. iOS Project Must Remain
+
+Confirm ios/ must be included.
+
+80. Git Status
+
+Print:
+
+git status --short --untracked-files=all
+
+81. Git Diff Stat
+
+Print:
+
+git diff --stat
+
+82. Git Diff Check
+
+Report exact result.
+
+83. .agents/*
+
+Print exact results of:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+84. Temporary Prompt 26 Cleanup
+
+Report.
+
+85. Final GitHub Commit Checklist
+
+Provide an exact concise checklist of what the user must verify/stage after downloading, but do not run Git mutation.
+
+86. Native Validation Still Remaining AFTER PWA Acceptance
+
+List:
+
+Mac
+Xcode
+cap sync ios
+build
+iPhone
+iPad
+primary icon
+Midnight/Rose/Monochrome switching
+persistence
+Archive
+Validate
+TestFlight/App Store update
+
+This is POST-PWA work, not an export blocker.
+
+87. Final Release-Candidate Gate
+
+If every source/export gate passes, state exactly:
+
+CLEAN EXTERNAL NPM INSTALL: VERIFIED
+
+TYPESCRIPT: PASS
+
+PRODUCTION FRONTEND BUILD: PASS
+
+PRODUCTION BACKEND BUILD: PASS
+
+PRODUCTION SERVER STARTUP: VERIFIED
+
+FULL TEST SUITE: PASS
+
+PRODUCTION SOURCE LINT: PASS
+
+AUTH: PASS
+
+SECURITY: PASS
+
+NAVIGATION: PASS
+
+PERSONALIZATION: PASS
+
+APP ICON + PWA ASSETS: PASS
+
+PWA MANIFEST: PASS
+
+SERVICE WORKER PRECACHE: PASS
+
+NO SERVER SECRET IN CLIENT BUNDLE: VERIFIED
+
+NO REQUIRED SOURCE FILE IGNORED: VERIFIED
+
+NATIVE APP ICON SOURCE: EXPORT-SAFE
+
+IOS PROJECT: EXPORT-SAFE
+
+PWA SOURCE: EXPORT-SAFE
+
+.agents/*: CLEAN
+
+SOURCE RELEASE CANDIDATE: APPROVED
+
+GITHUB EXPORT: APPROVED
+
+PWA DEPLOYMENT TESTING: APPROVED TO BEGIN
+
+NATIVE DEVICE VALIDATION: DEFERRED UNTIL AFTER PWA ACCEPTANCE
+
+Then end EXACTLY:
+
+99'S GUIDE PROMPT 26 STATUS: COMPLETE — DOWNLOAD / GITHUB EXPORT APPROVED
+
+Otherwise end:
+
+99'S GUIDE PROMPT 26 STATUS: BLOCKED — DO NOT DOWNLOAD RELEASE CANDIDATE YET
