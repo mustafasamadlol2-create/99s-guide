@@ -70,6 +70,7 @@ import { getRevokedSessionKey, isRevocationActive } from "./server/services/sess
 import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
 import { createCalendarImportRouter, CalendarImportService } from "./server/services/calendarImport/index.js";
+import { calendarTargetGroupsOverlap } from "./shared/calendarContracts.js";
 import { AIImportService, createPrismaAIImportRepository } from "./server/services/ai/import/index.js";
 import {
   createSupabaseSignedUrl,
@@ -6171,13 +6172,7 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
 
       // Group overlap check:
       const eventTargetGroups = typeof event.targetGroups === "string" ? event.targetGroups.split(",").filter(Boolean) : (event.targetGroups || []);
-      const newHasAll = targetGroups.includes("ALL");
-      const existHasAll = eventTargetGroups.includes("ALL");
-
-      if (newHasAll || existHasAll) return true;
-
-      // Check if they share any common target group
-      return targetGroups.some(g => eventTargetGroups.includes(g));
+      return calendarTargetGroupsOverlap(targetGroups, eventTargetGroups);
     });
 
     if (hasConflict) {
@@ -6314,8 +6309,7 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
       const isTimeOverlapping = nS < new Date(event.endDateTime) && nE > new Date(event.startDateTime);
       if (!isTimeOverlapping) return false;
       const eventTargetGroups = typeof event.targetGroups === "string" ? event.targetGroups.split(",").filter(Boolean) : (event.targetGroups || []);
-      if (targetGroups.includes("ALL") || eventTargetGroups.includes("ALL")) return true;
-      return targetGroups.some((g: string) => eventTargetGroups.includes(g));
+       return calendarTargetGroupsOverlap(targetGroups, eventTargetGroups);
     });
 
     if (hasConflict) {
@@ -6800,12 +6794,16 @@ app.use("/api/admin/calendar/import", createCalendarImportRouter({
   service: new CalendarImportService({
     prisma: getPrisma(),
     sourceRoot: calendarImportSourceRoot,
-    onCalendarUpsert: async (event) => {
-      const syncResult = await syncContentUpsert("CalendarEvent", event);
-      if (syncResult === "pending") {
+    onCalendarUpsert: async (events) => {
+      let syncPending = false;
+      for (const event of events) {
+        const syncResult = await syncContentUpsert("CalendarEvent", event);
+        syncPending ||= syncResult === "pending";
+      }
+      if (syncPending) {
         logger.warn("[CalendarImport]", "Calendar event saved; content mirror sync queued for retry.");
       }
-      io.to("authenticated").emit("calendar_updated", { action: "upsert", event });
+      io.to("authenticated").emit("calendar_updated", { action: "batch-upsert", events });
     },
   }),
 }));

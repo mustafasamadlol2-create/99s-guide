@@ -21,6 +21,7 @@ import {
 } from "./schemas.js";
 import { getPdfPageCount } from "./pdf.js";
 import { extractSchedule, verifySchedule } from "./extraction.js";
+import { isCalendarTargetGroup } from "../../../shared/calendarContracts.js";
 import {
   applyVerification,
   candidateDateTime,
@@ -50,7 +51,7 @@ export interface CalendarImportServiceOptions {
   prisma: PrismaClient;
   sourceRoot: string;
   providerFactory?: () => AIProvider;
-  onCalendarUpsert?: (event: Record<string, unknown>) => Promise<void> | void;
+  onCalendarUpsert?: (events: Array<Record<string, unknown>>) => Promise<void> | void;
 }
 
 export interface CommitResult {
@@ -200,7 +201,7 @@ export class CalendarImportService {
   ): Promise<Record<string, unknown>> {
     const validation = await this.validateUploads(uploads);
     const targetGroups = [...new Set(defaultTargetGroups.map((group) => group.trim().toUpperCase()).filter(Boolean))];
-    if (targetGroups.length === 0 || targetGroups.some((group) => !["A", "B", "C", "D", "E", "ALL"].includes(group))) {
+    if (targetGroups.length === 0 || targetGroups.some((group) => !isCalendarTargetGroup(group))) {
       throw new AIServiceError("AI_VALIDATION_ERROR", {
         publicMessage: "Select a valid default audience for schedule events.",
         diagnosticMessage: "Calendar import default target groups were invalid.",
@@ -393,11 +394,16 @@ export class CalendarImportService {
           progressCurrent: preview.candidates.length,
           progressTotal: preview.candidates.length,
           previewData: preview,
+          sourcePath: null,
         },
       });
       if (ready.count === 0) {
         await prepared.dispose();
         await this.cleanupSources(paths);
+        await this.options.prisma.calendarImportJob.updateMany({
+          where: { id },
+          data: { sourcePath: null },
+        });
         return;
       }
       await prepared.dispose();
@@ -417,6 +423,7 @@ export class CalendarImportService {
             stage: "Preparing source",
             errorCode: error instanceof AIServiceError ? error.code : "AI_IMPORT_FAILED",
             errorMessage: publicMessage,
+            sourcePath: null,
           },
         }).catch(() => {});
       }
@@ -437,7 +444,12 @@ export class CalendarImportService {
       where: { id, userId, status: { in: ["UPLOADED", "PROCESSING", "READY_FOR_REVIEW"] } },
       data: { status: "CANCELLED", stage: "Preparing source", errorCode: "AI_IMPORT_CANCELLED", errorMessage: "Schedule import cancelled." },
     });
-    await this.cleanupSources(safeJson<string[]>(job.sourcePath, []));
+    const paths = safeJson<string[]>(job.sourcePath, []);
+    await this.cleanupSources(paths);
+    await this.options.prisma.calendarImportJob.updateMany({
+      where: { id, userId },
+      data: { sourcePath: null },
+    });
     return updated.count > 0;
   }
 
@@ -468,11 +480,20 @@ export class CalendarImportService {
         candidateDateTime(parsed) &&
         (parsed.sourcePage !== null || parsed.sourceImageIndex !== null),
       );
+      const humanReview = valid
+        ? {
+            status: "AMBIGUOUS" as const,
+            issues: ["Candidate values were edited by an administrator and require human review."],
+          }
+        : original.verification;
       return {
         ...parsed,
-        status: valid ? "VERIFIED" as const : "INVALID" as const,
+        status: valid ? "NEEDS_REVIEW" as const : "INVALID" as const,
         selected: valid,
-        warnings: valid ? parsed.warnings : [...new Set([...parsed.warnings, "Review values are incomplete or invalid."])],
+        verification: humanReview,
+        warnings: valid
+          ? [...new Set([...parsed.warnings, "Candidate was edited by an administrator."])]
+          : [...new Set([...parsed.warnings, "Review values are incomplete or invalid."])],
       };
     });
     const next = { ...preview, candidates };
@@ -579,7 +600,7 @@ export class CalendarImportService {
       where: { id },
       data: { status: "COMPLETED", stage: "Completed", completedAt: new Date() },
     });
-    for (const event of result.events) await this.options.onCalendarUpsert?.(event);
+    if (result.events.length > 0) await this.options.onCalendarUpsert?.(result.events);
     return result;
   }
 }

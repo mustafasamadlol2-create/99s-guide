@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { PDFDocument } from "pdf-lib";
 import type { PrismaClient } from "@prisma/client";
 import type {
   AIProvider,
@@ -30,6 +31,8 @@ import {
 } from "../server/services/calendarImport/duplicateDetection.js";
 import { extractSchedule } from "../server/services/calendarImport/extraction.js";
 import { CalendarImportService } from "../server/services/calendarImport/service.js";
+import { getPdfPageCount } from "../server/services/calendarImport/pdf.js";
+import { MODULE_RESOURCE_LABELS } from "../shared/moduleResources.js";
 
 function rawCandidate(overrides: Partial<ExtractionCandidate> = {}): ExtractionCandidate {
   return extractionCandidateSchema.parse({
@@ -87,6 +90,12 @@ function makeJob(sourcePath: string, overrides: Record<string, unknown> = {}) {
     completedAt: null,
     ...overrides,
   };
+}
+
+async function writePdf(path: string, pageCount: number): Promise<void> {
+  const document = await PDFDocument.create();
+  for (let index = 0; index < pageCount; index += 1) document.addPage([600, 800]);
+  await writeFile(path, await document.save());
 }
 
 function makePrisma(job: Record<string, unknown>, options: { failOnCreate?: number } = {}) {
@@ -246,6 +255,54 @@ test("unknown subjects and event types remain unresolved", () => {
   assert.ok(normalized.candidate.warnings.some((warning) => warning.includes("Subject could not be resolved")));
 });
 
+test("resolves every production subject ID from canonical English and Arabic labels", () => {
+  const expected = [
+    ["ID", "Infectious Diseases", MODULE_RESOURCE_LABELS.ID.ar],
+    ["NT", "Nutrition", MODULE_RESOURCE_LABELS.NT.ar],
+    ["RM", "Research Methodology", MODULE_RESOURCE_LABELS.RM.ar],
+    ["CA", "Clinical Attachment", MODULE_RESOURCE_LABELS.CA.ar],
+    ["PHC", "Public Health Care", MODULE_RESOURCE_LABELS.PHC.ar],
+    ["ImD", "Immune Disturbances", MODULE_RESOURCE_LABELS.ImD.ar],
+    ["SSC", "Student Selected Components", MODULE_RESOURCE_LABELS.SSC.ar],
+  ] as const;
+  for (const [subjectId, label, arabicLabel] of expected) {
+    const english = normalize(rawCandidate({ subjectId: null, subjectLabelRaw: label }));
+    const arabic = normalize(rawCandidate({ subjectId: null, subjectLabelRaw: arabicLabel }));
+    assert.equal(english.candidate.subjectId, subjectId);
+    assert.equal(arabic.candidate.subjectId, subjectId);
+  }
+});
+
+test("ambiguous generic event types require review while explicit aliases normalize", () => {
+  const aliases: Array<[string, ExtractionCandidate["eventType"]]> = [
+    ["Exam", "EXAM"],
+    ["Final Exam", "EXAM"],
+    ["Quiz", "QUIZ"],
+    ["Lecture", "LECTURE"],
+    ["Holiday", "HOLIDAY"],
+  ];
+  for (const [rawType, expectedType] of aliases) {
+    assert.equal(normalize(rawCandidate({ eventType: rawType })).candidate.eventType, expectedType);
+  }
+  for (const rawType of ["Test", "Assessment", "Evaluation"]) {
+    const candidate = normalize(rawCandidate({ eventType: rawType }));
+    assert.equal(candidate.candidate.eventType, null);
+    assert.equal(candidate.candidate.status, "NEEDS_REVIEW");
+    assert.ok(candidate.candidate.warnings.some((warning) => warning.includes("ambiguous")));
+  }
+});
+
+test("target groups use production vocabulary and never turn unknown audiences into ALL", () => {
+  assert.equal(normalize(rawCandidate({ targetGroups: ["E"] })).candidate.targetGroups[0], "E");
+  assert.deepEqual(normalize(rawCandidate({ targetGroups: [] })).candidate.targetGroups, ["ALL"]);
+  const explicit = normalize(rawCandidate({ targetGroups: ["B"] }));
+  assert.deepEqual(explicit.candidate.targetGroups, ["B"]);
+  const unknown = normalize(rawCandidate({ targetGroups: ["UNKNOWN"] }));
+  assert.deepEqual(unknown.candidate.targetGroups, []);
+  assert.equal(unknown.candidate.status, "NEEDS_REVIEW");
+  assert.ok(unknown.candidate.warnings.some((warning) => warning.includes("target groups")));
+});
+
 test("verification disagreement removes automatic selection", () => {
   const normalized = normalize(rawCandidate());
   const reviewed = applyVerification(normalized, {
@@ -255,6 +312,31 @@ test("verification disagreement removes automatic selection", () => {
   assert.equal(reviewed.candidate.status, "NEEDS_REVIEW");
   assert.equal(reviewed.candidate.selected, false);
   assert.equal(reviewed.candidate.verification.status, "MISMATCH");
+  assert.equal(reviewed.candidate.eventType, null);
+});
+
+test("portable PDF page count is exact for one-page, four-page, and scanned multi-page PDFs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "calendar-pdf-"));
+  try {
+    const onePage = join(root, "one-page.pdf");
+    const fourPages = join(root, "four-pages.pdf");
+    const scanned = join(root, "scanned.pdf");
+    await writePdf(onePage, 1);
+    await writePdf(fourPages, 4);
+    await writePdf(scanned, 3);
+    assert.equal(await getPdfPageCount(onePage), 1);
+    assert.equal(await getPdfPageCount(fourPages), 4);
+    assert.equal(await getPdfPageCount(scanned), 3);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("portable page counting has no pdfinfo or structural-regex runtime dependency", async () => {
+  const pdfSource = await readFile("server/services/calendarImport/pdf.ts", "utf8");
+  assert.doesNotMatch(pdfSource, /pdfinfo/u);
+  assert.doesNotMatch(pdfSource, /\/Type\s+\/Page/u);
+  assert.match(pdfSource, /PDFDocument\.load/u);
 });
 
 test("duplicate and conflict checks follow half-open group semantics", () => {
@@ -347,6 +429,29 @@ test("extraction is page-grounded and uses bounded three-page batches", async ()
   assert.deepEqual(result.candidates.map((candidate) => candidate.sourcePage), [1, 4]);
 });
 
+test("extraction retains impossible active-range claims as reviewable evidence", async () => {
+  const provider: AIProvider = {
+    async generateStructured<T>(): Promise<StructuredGenerationResult<T>> {
+      return {
+        data: {
+          items: [rawCandidate({ sourcePage: 4 })],
+          warnings: [],
+        } as T,
+        meta: { provider: "test", model: "schedule-test" },
+      };
+    },
+  };
+  const result = await extractSchedule({
+    provider,
+    contents: [{} as AIContentPart],
+    sourcePageCount: 4,
+    inputKind: "pdf",
+  });
+  assert.equal(result.candidates.length, 2);
+  assert.ok(result.candidates[0]?.warnings.includes("Source location is outside the active extraction range."));
+  assert.equal(result.candidates[1]?.warnings.includes("Source location is outside the active extraction range."), false);
+});
+
 test("strict schemas reject forged pages, times, and unknown candidate fields", () => {
   assert.doesNotThrow(() => calendarCandidateSchema.parse({
     candidateId: "candidate-1",
@@ -382,7 +487,7 @@ test("strict schemas reject forged pages, times, and unknown candidate fields", 
 test("scanned PDF preview reaches review without OCR or Calendar persistence", async () => {
   const root = await mkdtemp(join(tmpdir(), "calendar-import-test-"));
   const sourcePath = join(root, "scanned-schedule.pdf");
-  await writeFile(sourcePath, Buffer.from("%PDF-1.4\n/Type /Page\n/Type /Page\n%%EOF\n"));
+  await writePdf(sourcePath, 2);
   const job = makeJob(sourcePath);
   const fake = makePrisma(job);
   const service = new CalendarImportService({
@@ -406,7 +511,7 @@ test("scanned PDF preview reaches review without OCR or Calendar persistence", a
 test("commit is fingerprint-idempotent and cancellation removes its source", async () => {
   const root = await mkdtemp(join(tmpdir(), "calendar-import-test-"));
   const sourcePath = join(root, "schedule.pdf");
-  await writeFile(sourcePath, Buffer.from("%PDF-1.4\n/Type /Page\n%%EOF\n"));
+   await writePdf(sourcePath, 1);
   const job = makeJob(sourcePath);
   const fake = makePrisma(job);
   const service = new CalendarImportService({
@@ -429,7 +534,7 @@ test("commit is fingerprint-idempotent and cancellation removes its source", asy
     assert.equal(fake.eventCreates, 1);
 
     const cancelSource = join(root, "cancel.pdf");
-    await writeFile(cancelSource, Buffer.from("%PDF-1.4\n/Type /Page\n%%EOF\n"));
+     await writePdf(cancelSource, 1);
     const cancelJob = makeJob(cancelSource, { id: "job-2", status: "PROCESSING" });
     const cancelFake = makePrisma(cancelJob);
     const cancelService = new CalendarImportService({ prisma: cancelFake.prisma, sourceRoot: root });
@@ -445,7 +550,7 @@ test("commit is fingerprint-idempotent and cancellation removes its source", asy
 test("commit transaction rolls back all writes on a later hard failure", async () => {
   const root = await mkdtemp(join(tmpdir(), "calendar-import-test-"));
   const sourcePath = join(root, "schedule.pdf");
-  await writeFile(sourcePath, Buffer.from("%PDF-1.4\n/Type /Page\n%%EOF\n"));
+   await writePdf(sourcePath, 1);
   const job = makeJob(sourcePath);
   const fake = makePrisma(job, { failOnCreate: 2 });
   const service = new CalendarImportService({
@@ -478,4 +583,25 @@ test("commit transaction rolls back all writes on a later hard failure", async (
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("calendar migration and content-sync contracts preserve nullable fingerprints, allDay, and provenance", async () => {
+  const migration = await readFile("prisma/migrations/20260920000000_add_calendar_schedule_import/migration.sql", "utf8");
+  assert.match(migration, /"allDay" BOOLEAN NOT NULL DEFAULT false/u);
+  assert.match(migration, /"sourceDocumentName" TEXT/u);
+  assert.match(migration, /"sourceDocumentSha256" TEXT/u);
+  assert.match(migration, /"sourcePage" INTEGER/u);
+  assert.match(migration, /"importFingerprint" TEXT/u);
+  assert.match(migration, /CREATE UNIQUE INDEX "CalendarEvent_importFingerprint_key"/u);
+  assert.doesNotMatch(migration, /importFingerprint[^;\n]*NOT NULL/u);
+  assert.match(migration, /CREATE TABLE "CalendarImportJob"/u);
+
+  const serverSource = await readFile("server.ts", "utf8");
+  assert.match(serverSource, /allDay: row\.allDay \?\? false/u);
+  assert.match(serverSource, /sourceDocumentSha256: row\.sourceDocumentSha256 \?\? null/u);
+  assert.match(serverSource, /sourcePage: row\.sourcePage \?\? null/u);
+  assert.match(serverSource, /action: "batch-upsert"/u);
+  const appSource = await readFile("src/App.tsx", "utf8");
+  assert.match(appSource, /batch-upsert/u);
+  assert.match(appSource, /payload\.events/u);
 });

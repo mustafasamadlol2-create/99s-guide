@@ -85,15 +85,21 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       signal: options.signal,
     });
     provider = result.meta;
-    const groundedItems = result.data.items.filter((item) => {
-      if (options.inputKind === "pdf") {
-        return item.sourcePage === null
-          ? unit === 0
-          : item.sourcePage >= pageRange.start && item.sourcePage <= pageRange.end;
+    const groundedItems = result.data.items.map((item) => {
+      const inActiveRange = options.inputKind === "pdf"
+        ? item.sourcePage !== null &&
+          item.sourcePage >= pageRange.start &&
+          item.sourcePage <= pageRange.end
+        : item.sourceImageIndex !== null &&
+          item.sourceImageIndex >= pageRange.start - 1 &&
+          item.sourceImageIndex < pageRange.end;
+      if (inActiveRange || (unit === 0 && item.sourcePage === null && item.sourceImageIndex === null)) {
+        return item;
       }
-      return item.sourceImageIndex === null
-        ? unit === 0
-        : item.sourceImageIndex >= pageRange.start - 1 && item.sourceImageIndex < pageRange.end;
+      return {
+        ...item,
+        warnings: [...item.warnings, "Source location is outside the active extraction range."],
+      };
     });
     candidates.push(...groundedItems);
     warnings.push(...result.data.warnings);

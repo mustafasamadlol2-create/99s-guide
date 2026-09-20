@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { CalendarEvent } from "../../../core/types";
 import { apiClient } from "../../../core/api/apiClient";
+import { CALENDAR_TARGET_GROUPS } from "../../../../shared/calendarContracts";
 import { formatToBaghdadISO, parseBaghdadDate } from "../../../core/utils/timezone";
 import { useSwipeDownDismiss } from "../../../core/hooks/useTouchSurfaceGestures";
 
@@ -23,7 +24,7 @@ interface EditCalendarEventProps {
   onBack: () => void;
 }
 
-const GROUPS = ["A", "B", "C", "D", "E", "ALL"];
+const GROUPS = CALENDAR_TARGET_GROUPS;
 const EVENT_TYPES = [
   { value: "LECTURE", label: "Lecture", labelAr: "محاضرة" },
   { value: "QUIZ", label: "Daily Quiz", labelAr: "امتحان يومي" },

@@ -1,5 +1,6 @@
 import type { CalendarCandidate } from "./schemas.js";
 import { candidateDateTime, candidateFingerprint } from "./normalize.js";
+import { calendarTargetGroupsOverlap } from "../../../shared/calendarContracts.js";
 
 export interface ExistingCalendarEvent {
   id: string;
@@ -28,8 +29,7 @@ function groups(value: string | string[]): string[] {
 }
 
 function groupOverlap(left: string[], right: string[]): boolean {
-  if (left.includes("ALL") || right.includes("ALL")) return true;
-  return left.some((group) => right.includes(group));
+  return calendarTargetGroupsOverlap(left, right);
 }
 
 export function intervalsOverlap(

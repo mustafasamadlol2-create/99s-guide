@@ -718,7 +718,12 @@ function AppContent({
     });
 
     // Instant calendar synchronization: apply mutations optimistically when possible
-    socket.on("calendar_updated", (payload?: { action: "delete" | "upsert", eventId?: string, event?: CalendarEvent }) => {
+    socket.on("calendar_updated", (payload?: {
+      action: "delete" | "upsert" | "batch-upsert";
+      eventId?: string;
+      event?: CalendarEvent;
+      events?: CalendarEvent[];
+    }) => {
       if (payload?.action === "delete" && payload.eventId) {
         setCalendarEventsDb((prev) => {
           const updated = prev.filter(e => e.id !== payload.eventId);
@@ -735,6 +740,15 @@ function AppContent({
           } else {
             updated = [...prev, payload.event!];
           }
+          localStorage.setItem("calendar_events", JSON.stringify(updated));
+          OfflineEngine.setCachedCalendarEvents(updated);
+          return updated;
+        });
+      } else if (payload?.action === "batch-upsert" && payload.events) {
+        setCalendarEventsDb((prev) => {
+          const byId = new Map(prev.map((event) => [event.id, event]));
+          for (const event of payload.events ?? []) byId.set(event.id, event);
+          const updated = [...byId.values()];
           localStorage.setItem("calendar_events", JSON.stringify(updated));
           OfflineEngine.setCachedCalendarEvents(updated);
           return updated;

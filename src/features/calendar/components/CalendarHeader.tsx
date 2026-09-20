@@ -14,6 +14,7 @@ import {
 import { motion, useTransform, type MotionValue } from "motion/react";
 import { CalendarEvent } from "../../../core/types";
 import { formatLocalDate } from "../../../core/utils/dateUtils";
+import { CALENDAR_TARGET_GROUPS } from "../../../../shared/calendarContracts";
 
 interface CalendarHeaderProps {
  t: (key: string) => string;
@@ -190,7 +191,7 @@ export function CalendarHeader({
 
                 {/* Academic Cohort Pill Row */}
                  <div className="flex flex-row flex-wrap gap-1.5 mt-3 max-w-full" role="group" aria-label={isRtl ? "المجموعات" : "Groups"}>
-                  {["A", "B", "C", "D", "E", "ALL"].map((group) => {
+                  {CALENDAR_TARGET_GROUPS.map((group) => {
                     const isActive = studentGroup === group;
                     return (
                       <button

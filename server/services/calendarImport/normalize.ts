@@ -11,6 +11,7 @@ import {
   type CalendarCandidate,
   type ExtractionCandidate,
 } from "./schemas.js";
+import { MODULE_RESOURCE_LABELS } from "../../../shared/moduleResources.js";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -55,7 +56,7 @@ function nextLocalDate(date: string): string {
 }
 
 function normalizeEventType(value: string | null): { value: CalendarCandidate["eventType"]; warning?: string } {
-  const normalized = value?.trim().toUpperCase();
+  const normalized = value?.trim().replace(/\s+/gu, " ").toUpperCase();
   if (!normalized) return { value: null, warning: "Event type is missing." };
   const aliases: Record<string, (typeof CALENDAR_EVENT_TYPES)[number]> = {
     SESSION: "LECTURE",
@@ -63,14 +64,18 @@ function normalizeEventType(value: string | null): { value: CalendarCandidate["e
     CLASS: "LECTURE",
     QUIZ: "QUIZ",
     EXAM: "EXAM",
-    TEST: "EXAM",
     TASK: "TASK",
     ASSIGNMENT: "TASK",
     PERSONAL: "PERSONAL",
     HOLIDAY: "HOLIDAY",
   };
   const mapped = aliases[normalized];
-  return mapped ? { value: mapped } : { value: null, warning: `Unknown event type: ${value}.` };
+  if (mapped) return { value: mapped };
+  if (normalized === "MIDTERM EXAM" || normalized === "FINAL EXAM") return { value: "EXAM" };
+  if (["TEST", "ASSESSMENT", "EVALUATION"].includes(normalized)) {
+    return { value: null, warning: "Event type is ambiguous and requires review." };
+  }
+  return { value: null, warning: `Unknown event type: ${value}.` };
 }
 
 function normalizeSubject(value: string | null, label: string | null): {
@@ -82,19 +87,18 @@ function normalizeSubject(value: string | null, label: string | null): {
     return { value: normalized as CalendarCandidate["subjectId"] };
   }
   const normalizedLabel = label?.trim().toLocaleLowerCase();
-  if (!normalizedLabel) return { value: null };
-  const aliases: Record<string, (typeof CALENDAR_SUBJECT_IDS)[number]> = {
-    nutrition: "NT",
-    "research methodology": "RM",
-    "clinical attachment": "CA",
-    "public health care": "PHC",
-    "immune disturbances": "ImD",
-    "student-selected component": "SSC",
-  };
-  const alias = aliases[normalizedLabel];
+  const aliases = Object.fromEntries(
+    Object.entries(MODULE_RESOURCE_LABELS).flatMap(([subjectId, labels]) => [
+      [labels.en.toLocaleLowerCase(), subjectId],
+      [labels.ar, subjectId],
+    ]),
+  ) as Record<string, (typeof CALENDAR_SUBJECT_IDS)[number]>;
+  aliases["student selected component"] = "SSC";
+  aliases["student-selected component"] = "SSC";
+  const alias = aliases[normalizedLabel ?? ""];
   return alias
     ? { value: alias }
-    : { value: null, warning: `Subject could not be resolved: ${label}.` };
+    : { value: null, warning: `Subject could not be resolved: ${label ?? value ?? "missing subject"}.` };
 }
 
 function normalizeGroups(raw: string[], defaults: string[]): { value: string[]; warning?: string } {
@@ -171,6 +175,8 @@ export function normalizeCandidate(
     "Source image is outside the uploaded image set.",
     "End time must be after start time.",
     "Target group is required.",
+    "Source page is outside the document.",
+    "Source image is outside the uploaded image set.",
   ].includes(warning));
   const reviewRequired = warnings.length > 0 || !date || !type.value || groups.value.length === 0 ||
     (!raw.allDay && (!startDateTime || !endDateTime)) ||
@@ -225,6 +231,7 @@ export function applyVerification(
     candidate.selected = false;
   }
   if (criticalMismatch) {
+    candidate.eventType = null;
     candidate.warnings = [...new Set([...candidate.warnings, ...verification.issues])].slice(0, 50);
   }
   return { ...normalized, candidate };

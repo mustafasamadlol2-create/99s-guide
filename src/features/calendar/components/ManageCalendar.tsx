@@ -15,6 +15,7 @@ import { CalendarEvent } from "../../../core/types";
 import { formatToBaghdadISO, parseBaghdadDate } from "../../../core/utils/timezone";
 import { showiOSAlert } from "../../../core/device/alert";
 import CalendarScheduleImporter from "../import/CalendarScheduleImporter";
+import { CALENDAR_TARGET_GROUPS } from "../../../../shared/calendarContracts";
 
 interface ManageCalendarProps {
  language?: "en" | "ar";
@@ -91,7 +92,7 @@ export default function ManageCalendar({
     };
  }, []);
 
- const groupsList = ["A", "B", "C", "D", "E", "ALL"];
+  const groupsList = CALENDAR_TARGET_GROUPS;
 
  const handleGroupToggle = (group: string) => {
  if (group === "ALL") {

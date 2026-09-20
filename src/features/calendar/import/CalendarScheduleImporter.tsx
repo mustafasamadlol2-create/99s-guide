@@ -4,6 +4,7 @@ import { cancelCalendarImportJob, createCalendarImportJob, commitCalendarImportJ
 import { useCalendarImportJob } from "./useCalendarImportJob";
 import { CalendarImportCandidate } from "./types";
 import { useTranslation } from "../../../core/i18n/translations";
+import { CALENDAR_TARGET_GROUPS } from "../../../../shared/calendarContracts";
 
 interface Props {
   language?: "en" | "ar";
@@ -116,7 +117,7 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
           <input type="file" multiple accept=".pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" className="sr-only" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
         </label>
         <div><p className="mb-1 text-xs font-semibold">{copy.groups}</p><div className="flex flex-wrap gap-2">
-          {["A", "B", "C", "D", "E", "ALL"].map((group) => <button type="button" key={group} onClick={() => toggleGroup(group)} className={`rounded-md px-3 py-1 text-xs ${groups.includes(group) ? "bg-rose-500 text-white" : "bg-neutral-200 dark:bg-white/10"}`}>{group}</button>)}
+           {CALENDAR_TARGET_GROUPS.map((group) => <button type="button" key={group} onClick={() => toggleGroup(group)} className={`rounded-md px-3 py-1 text-xs ${groups.includes(group) ? "bg-rose-500 text-white" : "bg-neutral-200 dark:bg-white/10"}`}>{group}</button>)}
         </div></div>
         <button type="button" disabled={!files.length || busy} onClick={submit} className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />}{copy.upload}</button>
       </div>}

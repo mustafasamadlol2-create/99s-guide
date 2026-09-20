@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CALENDAR_TARGET_GROUPS } from "../../../shared/calendarContracts.js";
+import { PERSONALIZATION_SUBJECT_IDS } from "../../../shared/personalization.js";
 
 export const CALENDAR_IMPORT_MAX_CANDIDATES = 500;
 export const CALENDAR_IMPORT_MAX_REVIEW_BATCH = 500;
@@ -44,8 +46,8 @@ export const CALENDAR_EVENT_TYPES = [
   "PERSONAL",
   "HOLIDAY",
 ] as const;
-export const CALENDAR_SUBJECT_IDS = ["NT", "RM", "CA", "PHC", "ImD", "SSC"] as const;
-export const CALENDAR_TARGET_GROUPS = ["A", "B", "C", "D", "E", "ALL"] as const;
+export const CALENDAR_SUBJECT_IDS = PERSONALIZATION_SUBJECT_IDS;
+export { CALENDAR_TARGET_GROUPS };
 
 const nullableString = (max: number) => z.string().trim().max(max).nullable().optional().default(null);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
