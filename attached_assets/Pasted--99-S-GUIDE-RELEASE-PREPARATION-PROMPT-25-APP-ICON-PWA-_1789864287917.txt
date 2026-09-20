@@ -1,0 +1,1536 @@
+# 99'S GUIDE — RELEASE PREPARATION
+# PROMPT 25
+## APP ICON + PWA ASSET FINAL CLOSURE
+### NATIVE ICON REPOSITORY INTEGRITY
+### PWA INSTALLABILITY ASSET AUDIT
+### MANIFEST / APPLE TOUCH / MASKABLE / SERVICE-WORKER ASSET CLOSURE
+### VERIFY PROMPT 24 FILES ARE ACTUALLY PRESENT AND EXPORTABLE
+### NO NEW FEATURES
+### NO APP ICON REDESIGN
+### NO CLOUD DEPLOYMENT
+### NO DATABASE CHANGE
+### DO NOT MODIFY `.agents/*`
+
+Prompt 24 is CLOSED at the source-implementation level.
+
+Prompt 24 reported:
+
+```text
+Primary App Icon catalog repaired
+Midnight alternate implemented
+Rose alternate implemented
+Monochrome alternate implemented
+Xcode alternate icon settings implemented
+First-party Capacitor App Icon bridge implemented
+My99 device-local selector implemented
+ConfigV2 isolation verified
+Web/PWA unsupported fallback verified
+Personalization matrix: 183 / 0 / 0 / 0
+Dedicated App Icon tests: 9 / 0
+TypeScript: PASS / 0 errors
+Production build: PASS
+
+Real Xcode/device runtime testing remains unavailable in the current Linux environment.
+
+Prompt 25 is the ASSET / REPOSITORY / PWA CLOSURE gate before the final Prompt 26 release-readiness audit.
+
+Do NOT add new product functionality.
+
+Repair only concrete asset/integration defects found.
+
+1. PROMPT 25 OBJECTIVES
+
+Prompt 25 must close exactly these areas:
+
+A. Prompt 24 repository/file integrity
+B. Native iOS App Icon asset integrity
+C. Native alternate-icon project metadata integrity
+D. My99 icon-preview asset integrity
+E. PWA manifest/install icon integrity
+F. Apple touch icon integrity
+G. Maskable icon integrity
+H. Service-worker/static asset behavior
+I. Build/export safety
+
+Do not redesign My99.
+
+Do not add another alternate icon.
+
+Do not change ConfigV2.
+
+2. CRITICAL REPOSITORY-INTEGRITY AUDIT
+
+The Prompt 24 report listed these implementation files:
+
+ios/App/App/AppIcon.swift
+
+ios/App/App/Assets.xcassets/AppIcon.appiconset/
+ios/App/App/Assets.xcassets/AppIconMidnight.appiconset/
+ios/App/App/Assets.xcassets/AppIconRose.appiconset/
+ios/App/App/Assets.xcassets/AppIconMonochrome.appiconset/
+
+public/app-icons/
+
+src/features/personalization/appIcon/appIconTypes.ts
+src/features/personalization/appIcon/appIconCatalog.ts
+src/features/personalization/appIcon/appIconClient.ts
+src/features/personalization/appIcon/AppIconSelector.tsx
+
+tests/app-icon.test.ts
+
+However Prompt 24 git status --short did NOT visibly list every reported new file/directory.
+
+This must be resolved conclusively.
+
+3. VERIFY EVERY PROMPT 24 FILE EXISTS
+
+For every file/directory above:
+
+verify:
+
+exists on disk
+non-zero where applicable
+correct path/casing
+not temporary
+not accidentally generated outside repository
+
+Print an exact inventory.
+
+Do not rely on the Prompt 24 report.
+
+Inspect the filesystem.
+
+4. VERIFY GIT TRACKABILITY
+
+For every Prompt 24 implementation file and binary asset, determine whether it is:
+
+tracked
+modified tracked
+untracked
+ignored
+missing
+
+Use appropriate commands such as:
+
+git status --short --untracked-files=all
+
+git ls-files -- \
+  ios/App/App/AppIcon.swift \
+  ios/App/App/Assets.xcassets \
+  public/app-icons \
+  src/features/personalization/appIcon \
+  tests/app-icon.test.ts
+
+git check-ignore -v \
+  ios/App/App/AppIcon.swift \
+  ios/App/App/Assets.xcassets/AppIconMidnight.appiconset/Contents.json \
+  ios/App/App/Assets.xcassets/AppIconMidnight.appiconset/AppIconMidnight-1024.png \
+  ios/App/App/Assets.xcassets/AppIconRose.appiconset/Contents.json \
+  ios/App/App/Assets.xcassets/AppIconRose.appiconset/AppIconRose-1024.png \
+  ios/App/App/Assets.xcassets/AppIconMonochrome.appiconset/Contents.json \
+  ios/App/App/Assets.xcassets/AppIconMonochrome.appiconset/AppIconMonochrome-1024.png
+
+Adjust exact paths to the actual repository.
+
+Do NOT run git add.
+
+Do NOT commit.
+
+This is inspection only.
+
+5. IGNORED IMPLEMENTATION FILES ARE A RELEASE BLOCKER
+
+If any required Prompt 24 production file is accidentally ignored:
+
+repair the narrow ignore rule only if necessary.
+
+Do NOT broadly remove useful .gitignore protections.
+
+Required result:
+
+all production App Icon source and required binaries must be exportable to Git/GitHub.
+
+A file existing only in Replit working storage but excluded from the exported repository is NOT acceptable.
+
+6. NATIVE PRIMARY ICON CATALOG
+
+Re-audit:
+
+ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
+
+Verify every referenced filename exists.
+
+Expected known files include:
+
+AppIcon-512@2x.png
+AppIcon-Dark-512@2x.png
+
+Use actual catalog contents as authority.
+
+No dangling filename.
+
+No zero-byte asset.
+
+No malformed JSON.
+
+7. PRIMARY VISUAL IDENTITY
+
+Primary App Icon must remain the existing production identity.
+
+The Prompt 24 dark-appearance repair must not have accidentally altered the original primary binary.
+
+If repository history/reference allows:
+
+compare existing primary checksum/identity.
+
+Do NOT redesign it.
+
+8. ALTERNATE NATIVE CATALOGS
+
+Verify all three:
+
+AppIconMidnight.appiconset
+AppIconRose.appiconset
+AppIconMonochrome.appiconset
+
+For each:
+
+Contents.json parses
+required filename exists
+dimensions = 1024 × 1024
+valid PNG
+opaque
+non-zero
+no baked rounded corners
+no transparent perimeter
+no dangling filename reference
+9. IMAGE COLOR TYPE / ALPHA
+
+Programmatically inspect native App Icon PNGs.
+
+Required:
+
+opaque image data
+
+No alpha channel capable of producing transparent pixels unless the actual format is still proven fully opaque and acceptable.
+
+Prefer final images encoded RGB.
+
+Do not merely trust filename or visual appearance.
+
+10. ICON VISUAL IDENTITY CHECK
+
+Render or inspect the four icons together:
+
+Original
+Midnight
+Rose
+Monochrome
+
+Verify:
+
+same core 99's Guide identity
+no accidental crop
+no tiny logo
+no edge clipping
+no pre-rounded outer corners
+no watermark
+no unexpected text
+Midnight visibly distinct
+Rose visibly distinct
+Monochrome visibly distinct
+
+Do not redesign if already good.
+
+11. SMALL-SIZE CHECK
+
+Create a temporary visual contact sheet or equivalent at representative Home Screen thumbnail sizes such as:
+
+180×180
+120×120
+60×60
+
+This is QA only.
+
+Verify the central mark remains recognizable.
+
+Remove temporary QA files before closure.
+
+12. XCODE PRIMARY SETTING
+
+Verify the target still has:
+
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+
+for relevant configurations.
+
+Do not change the primary set name.
+
+13. XCODE ALTERNATE SETTING
+
+Verify BOTH Debug and Release contain exactly the intended alternate sets:
+
+AppIconMidnight
+AppIconRose
+AppIconMonochrome
+
+No typo.
+
+No missing Release configuration.
+
+No duplicated malformed setting.
+
+14. XCODE SET NAMES MUST MATCH CATALOG DIRECTORIES
+
+Cross-check:
+
+build-setting alternate name
+↔
+.appiconset directory name
+↔
+Swift native mapping
+↔
+TypeScript product catalog
+
+Required mapping:
+
+midnight
+→ AppIconMidnight
+
+rose
+→ AppIconRose
+
+monochrome
+→ AppIconMonochrome
+
+primary
+→ nil
+
+All four layers must agree.
+
+15. INFO.PLIST
+
+Verify no Prompt 24 manual icon metadata was added unnecessarily.
+
+Expected:
+
+NO manually maintained CFBundleIcons dictionary
+NO manually maintained CFBundleAlternateIcons dictionary
+
+Do not remove unrelated Info.plist keys.
+
+16. NATIVE PLUGIN TARGET MEMBERSHIP
+
+Static source inspection must verify:
+
+AppIcon.swift
+
+is included exactly once in the App target Sources phase.
+
+No duplicate PBX build-file/source entry.
+
+No orphan source reference.
+
+17. NATIVE BRIDGE NAME MATCHING
+
+Cross-check exact bridge identity:
+
+Swift:
+
+identifier / jsName
+
+TypeScript:
+
+registerPlugin(...)
+
+My99 client:
+
+plugin call name
+
+All must resolve to the same plugin.
+
+A typo that compiles TypeScript but fails at runtime is a release blocker.
+
+18. CAPACITOR API REGISTRATION AUDIT
+
+Inspect the actual Capacitor 8 integration.
+
+Verify the TypeScript native plugin is registered using the correct Capacitor mechanism and that the Swift CAPBridgedPlugin implementation is discoverable/linked by the current native project structure.
+
+Do not merely verify string presence.
+
+Trace:
+
+AppIconSelector
+→ appIconClient
+→ Capacitor registerPlugin / equivalent
+→ native jsName
+→ AppIcon.swift
+
+Report exact chain.
+
+19. NATIVE METHOD CONTRACT CONSISTENCY
+
+Cross-check TypeScript and Swift for:
+
+getState
+setIcon
+
+Exact argument/result keys must agree.
+
+Verify:
+
+iconId
+supported
+
+and any structured errors.
+
+No TypeScript/native shape mismatch.
+
+20. UNKNOWN NATIVE STATE
+
+Reconfirm unknown alternateIconName:
+
+does not reset native icon
+does not crash
+does not persist fake state
+UI safely reports unsupported/unknown-equivalent state
+
+Do not change unless actual bug found.
+
+21. PUBLIC APP-ICON PREVIEW ASSETS
+
+Audit:
+
+public/app-icons/*
+
+These are selector thumbnails only.
+
+Verify:
+
+all catalog preview URLs resolve
+case-sensitive filenames match
+no broken link after Vite build
+real artwork corresponds to native icons
+no giant unnecessary duplicate/source images
+no accidental manifest reference
+22. BUILT PREVIEW-ASSET CHECK
+
+After production build:
+
+inspect output to ensure selector preview assets are emitted/available at their expected paths.
+
+Do not assume dev-server behavior equals production.
+
+23. PWA SCOPE
+
+Prompt 25 now explicitly audits the existing PWA install assets.
+
+Unlike Prompt 24, Prompt 25 MAY repair broken PWA asset references.
+
+Do NOT redesign the PWA brand unless required to repair integrity.
+
+24. LOCATE PWA MANIFEST SOURCE
+
+Determine the actual manifest architecture.
+
+Possible sources may include:
+
+public/manifest.json
+manifest.webmanifest
+Vite PWA config
+index.html manifest link
+generated manifest
+
+Use actual repository source.
+
+Do not assume a filename.
+
+25. MANIFEST VALIDITY
+
+Parse the effective PWA manifest.
+
+Verify at minimum:
+
+name
+short_name
+start_url
+display
+display_override where used
+theme_color
+background_color
+icons
+
+No malformed JSON.
+
+No missing referenced asset.
+
+No invalid relative path.
+
+26. PWA INSTALL ICON REQUIREMENTS
+
+Audit existing install icon inventory.
+
+At minimum, ensure appropriate standard install icons exist for the current manifest architecture, typically including:
+
+192 × 192
+512 × 512
+
+Do not blindly create duplicates if equivalent assets already exist.
+
+Use the actual manifest declaration as authority.
+
+27. MASKABLE ICON
+
+Audit whether the current PWA manifest declares a maskable icon.
+
+If yes:
+
+referenced file exists
+dimensions valid
+safe zone is appropriate
+purpose declaration valid
+
+If the project intentionally lacks maskable support:
+
+report it.
+
+If installability/quality requires it and the architecture already expects it:
+
+repair using existing primary identity.
+
+Do not invent a different logo.
+
+28. ANY / MASKABLE PURPOSE
+
+Check purpose values.
+
+Examples:
+
+any
+maskable
+any maskable
+
+Use valid manifest semantics.
+
+Do not create malformed custom values.
+
+29. APPLE TOUCH ICON
+
+Inspect:
+
+index.html
+
+and any current Apple-touch metadata.
+
+If:
+
+<link rel="apple-touch-icon" ...>
+
+exists:
+
+verify the file exists and is suitable.
+
+If the project architecture expects an Apple touch icon but the link/file is broken:
+
+repair it.
+
+Do not confuse native iOS App Icon switching with PWA Apple-touch icon behavior.
+
+30. APPLE TOUCH ICON VISUAL IDENTITY
+
+Apple touch icon should use the primary 99's Guide identity.
+
+Alternate native App Icons must NOT become PWA Apple-touch icon variants.
+
+PWA gets one normal install identity.
+
+31. FAVICON
+
+Audit existing favicon references.
+
+Verify:
+
+files exist
+no broken path
+no unrelated old brand asset
+
+Do not redesign if healthy.
+
+32. MANIFEST ICON FILE INTEGRITY
+
+For every icon referenced by the effective manifest:
+
+verify:
+
+exists
+non-zero
+valid image format
+declared sizes match actual dimensions
+
+A manifest claiming:
+
+512x512
+
+for a different-sized file is a defect.
+
+33. ICON MIME / TYPE
+
+If manifest entries specify:
+
+type
+
+verify it matches the binary format.
+
+Do not claim PNG for a JPEG/WebP.
+
+34. PWA PRIMARY BRAND CONSISTENCY
+
+PWA install icon should still represent the same primary 99's Guide identity as the native primary icon.
+
+Minor export differences are acceptable.
+
+Do not switch PWA icon based on My99 App Icon selection.
+
+35. APP ICON SELECTOR MUST NOT CHANGE PWA MANIFEST
+
+Critical:
+
+Selecting:
+
+Midnight
+Rose
+Monochrome
+
+inside native My99 must NOT dynamically rewrite:
+
+manifest
+apple-touch-icon
+favicon
+service worker install icon
+
+App Icon selection remains native-device-only.
+
+36. WEB/PWA MY99 UNSUPPORTED STATE
+
+Visually/source verify the My99 App Icon section on web/PWA.
+
+Required:
+
+section visible or intentionally informative according to Prompt 24 design
+localized unsupported explanation
+no four fake interactive selectors
+no native plugin error
+no broken image
+no Apply dirty-state change
+37. WEB UNSUPPORTED COPY
+
+Verify English and Arabic unsupported copy fits existing My99 UI.
+
+No raw technical wording such as:
+
+Capacitor plugin unavailable
+
+User-facing copy should simply explain availability in the iPhone/iPad app.
+
+38. PWA SERVICE WORKER
+
+Audit actual service-worker implementation.
+
+Determine whether static assets are:
+
+pre-cached
+runtime cached
+network fetched
+
+according to existing architecture.
+
+Do not rewrite the offline engine.
+
+39. MANIFEST / ICON CACHE SAFETY
+
+Verify install icons and required shell icon assets remain accessible with the current service-worker strategy.
+
+A new deployment must not reference an icon path that offline behavior immediately breaks.
+
+40. SELECTOR THUMBNAIL CACHE BEHAVIOR
+
+The App Icon selector thumbnails:
+
+public/app-icons/*
+
+are not critical PWA install metadata.
+
+Still verify they load normally on web build where the unsupported section might not use them.
+
+Do not unnecessarily precache large unused native-choice thumbnails if web UI does not render them.
+
+41. DEAD-ASSET AUDIT
+
+Look for obsolete/broken icon files referenced nowhere.
+
+Do NOT aggressively delete historic assets merely because they are unused.
+
+Only remove clearly Prompt-24/25 temporary or erroneous duplicate assets.
+
+Do not risk production brand regression.
+
+42. DUPLICATE ASSET REVIEW
+
+Check whether selector thumbnails duplicate native 1024 PNGs at full resolution unnecessarily.
+
+If the UI loads 1024×1024 images merely to display tiny thumbnails:
+
+consider using appropriately sized web preview copies.
+
+Do not degrade native assets.
+
+Keep preview quality crisp while avoiding unnecessary PWA transfer.
+
+If current preview files are reasonably optimized already:
+leave them.
+
+43. WEB PREVIEW IMAGE DIMENSIONS
+
+For public/app-icons/*, audit actual dimensions and byte sizes.
+
+For UI thumbnail use:
+
+a smaller web copy may be appropriate.
+
+Do not modify if already sensible.
+
+Report exact final footprint.
+
+44. CSP / ASSET LOADING
+
+Verify local App Icon preview assets are compatible with existing CSP.
+
+No new external image host should be needed.
+
+Do not loosen CSP for these icons.
+
+45. BASE PATH / DEPLOYMENT PATH
+
+The application is deployed in web/PWA environments.
+
+Verify manifest/icon/thumbnail paths work under the current configured deployment base.
+
+Do not hardcode a path that only works on Replit dev server.
+
+Use actual Vite/public asset semantics.
+
+46. PRODUCTION BUILD ASSET CHECK
+
+Run:
+
+npm run build
+
+Then inspect the resulting distribution for relevant public assets.
+
+Confirm:
+
+manifest exists or is generated as intended
+all manifest icon URLs resolve to files in build output
+Apple touch icon resolves if applicable
+favicon resolves
+App Icon unsupported UI doesn't reference missing files
+no temporary icon generator assets are bundled
+47. HTML LINK AUDIT
+
+Inspect built/source HTML for:
+
+manifest
+favicon
+apple-touch-icon
+theme metadata
+
+No broken links.
+
+No duplicate conflicting manifest links.
+
+No stale old-brand icon path.
+
+48. PWA INSTALLABILITY STATIC CONTRACT
+
+Without claiming a real browser installation if unavailable, verify the static installability prerequisites supported by the repository.
+
+If browser tooling can inspect the built app's manifest:
+
+do so.
+
+Do NOT fabricate Lighthouse results unless actually run.
+
+49. OPTIONAL BROWSER MANIFEST CHECK
+
+If Chromium tooling is available:
+
+open the built production app or appropriate preview and verify:
+
+manifest fetch succeeds
+manifest parses
+icons fetch successfully
+no icon-related browser console errors
+
+Report actual result.
+
+Do not require login.
+
+50. NATIVE PRIMARY / PWA PRIMARY SEPARATION
+
+Document clearly:
+
+Native primary App Icon asset catalog
+≠
+PWA manifest icon file
+
+They may share artwork but are separate deployment systems.
+
+Alternate native icons do not need PWA manifest entries.
+
+51. PROMPT 24 MY99 REGRESSION
+
+Re-run dedicated:
+
+npx tsx --test tests/app-icon.test.ts
+
+Entering:
+
+9 passed
+0 failed
+
+No regression.
+
+52. ADD PROMPT 25 ASSET TESTS IF NEEDED
+
+Extend tests/app-icon.test.ts or add a focused:
+
+tests/app-icon-pwa-assets.test.ts
+
+only if necessary.
+
+Tests should validate concrete asset contracts, not duplicate all Prompt 24 tests.
+
+Potential coverage:
+
+Prompt 24 required files exist
+no required file is ignored
+manifest icons resolve
+actual dimensions match manifest
+Apple touch icon resolves
+maskable declaration/file integrity
+native/PWA separation
+web selector preview URLs resolve
+53. GIT IGNORE CONTRACT TEST
+
+Do not normally embed git execution into production unit tests.
+
+For Prompt 25 QA, command-line inspection is enough.
+
+But final report must include actual trackability state.
+
+54. PERSONALIZATION MATRIX
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Entering baseline:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+Required:
+
+0 failed
+55. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+56. PRODUCTION BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+57. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+58. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+59. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+60. TARGETED ESLINT
+
+Run targeted ESLint across any Prompt-25-modified TS/TSX/tests.
+
+Also include the Prompt-24 App Icon TS/TSX files if practical.
+
+Required:
+
+0 Prompt 25/App Icon lint errors
+61. NATIVE STATIC CONTRACT TESTS
+
+Re-run App Icon native source/Xcode static tests.
+
+No failure accepted.
+
+62. NO XCODE RUNTIME CLAIM
+
+Current environment remains Linux unless proven otherwise.
+
+Do NOT claim:
+
+Xcode build verified
+real iPhone icon switch verified
+real iPad icon switch verified
+App Store archive verified
+
+without macOS/Xcode/device evidence.
+
+Prompt 25 is allowed to PASS at source/asset level.
+
+63. CAPACITOR SYNC DECISION
+
+Reassess whether:
+
+npx cap sync ios
+
+is safe/useful in the current environment.
+
+If run:
+
+report exact changed/generated files.
+
+Ensure it does NOT erase:
+
+AppIcon.swift
+alternate AppIcon asset catalogs
+pbxproj build settings
+
+This is critical.
+
+If not run:
+
+state why and defer to Mac/native release validation.
+
+64. CAPACITOR SYNC SURVIVABILITY
+
+Regardless of whether sync is run, audit whether the Prompt-24 native customizations live in locations that a normal:
+
+npx cap sync ios
+
+should preserve.
+
+App Icon native implementation must not live only in generated disposable web-copy directories.
+
+Report:
+
+expected to survive cap sync: YES / NO
+
+If NO:
+repair architecture.
+
+65. IOS PROJECT FILE VALIDITY
+
+Perform static sanity checks on:
+
+project.pbxproj
+
+No obvious malformed syntax.
+
+No duplicate UUID entry caused by manual edits.
+
+No duplicated AppIcon.swift Sources membership.
+
+Do not claim xcodebuild validation.
+
+66. NATIVE ASSET CATALOG JSON
+
+Parse every changed/new .appiconset/Contents.json.
+
+No JSON syntax error.
+
+67. PWA MANIFEST IS NOT APP ICON SELECTION STATE
+
+Add/retain explicit regression that Prompt-24 icon choices do NOT change the PWA manifest.
+
+No dynamic manifest mutation.
+
+68. NO PERSONALIZATION CONFIG CHANGE
+
+Reconfirm:
+
+ConfigV2 remains version 2
+no appIcon field
+
+Prompt 25 must not alter this.
+
+69. NO CLOUD
+
+No:
+
+Worker change
+KV change
+Express personalization schema change
+cloud record change
+
+for App Icon/PWA assets.
+
+70. NO DATABASE
+
+State:
+
+No SQL App Icon storage.
+No D1 App Icon storage.
+No R2 App Icon storage.
+No KV App Icon storage.
+71. NO ANDROID WORK
+
+Do not implement Android alternate icons.
+
+72. APP ICON UI WEB SCREENSHOT
+
+If safe browser tooling exists:
+
+render My99 App Icon section on web/PWA.
+
+Verify unsupported state is visually coherent.
+
+No need for authenticated production access; use a safe component harness if needed.
+
+Remove temporary harness afterwards.
+
+73. APP ICON NATIVE SELECTOR RESPONSIVE CONTRACT
+
+Without claiming actual native WebView runtime:
+
+inspect/render supported selector state via mocked native adapter if practical.
+
+Check:
+
+mobile
+tablet
+desktop-like test width
+
+for:
+
+four icons
+label wrapping
+selection checkmark
+Large Reading
+Arabic/RTL
+
+This is UI QA only.
+
+Do not claim native API execution.
+
+74. PROMPT 24 FILE INVENTORY MUST BE EXPORT-SAFE
+
+Before PASS, produce a final table of every required Prompt-24 file showing:
+
+path
+exists
+git state
+ignored YES/NO
+purpose
+
+Every production-required file must be capable of reaching GitHub/export.
+
+This is a hard Prompt 25 gate.
+
+75. ATTACHED PROMPT FILES
+
+If files such as:
+
+attached_assets/Pasted-...
+
+exist:
+
+classify them as unrelated user/reference assets.
+
+Do not count them as required runtime files.
+
+Do not modify them.
+
+Do not stage them.
+
+76. TEMPORARY QA FILES
+
+Remove:
+
+contact sheets
+screenshots
+temporary Vite harness
+temporary image inspection outputs
+temporary generation scripts
+temporary manifests
+
+unless an intentional committed test fixture is justified.
+
+No scratch assets at closure.
+
+77. .agents/*
+
+ABSOLUTE.
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+
+Do not write Prompt-25 memory.
+
+78. GIT REVIEW
+
+Run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Report every Prompt 24/25 production asset and source file.
+
+Prompt 26 depends on having a reliable repository inventory.
+
+79. DO NOT COMMIT
+
+Prompt 25 should inspect and repair the working tree.
+
+Do not create a Git commit unless the user explicitly requested one.
+
+Do not git add.
+
+80. PROMPT 25 PASS DEFINITION
+
+Prompt 25 may PASS only if:
+
+Every required Prompt-24 source/asset exists.
+Every required Prompt-24 file is exportable/not accidentally ignored.
+Primary native icon catalog is complete.
+Three alternate native catalogs are complete.
+Native mappings agree across Swift/TS/Xcode/assets.
+Xcode Debug and Release alternate settings are coherent.
+AppIcon.swift is included exactly once.
+Native bridge names/method shapes match.
+Prompt-24 icon-preview files resolve in production build.
+PWA manifest parses.
+Every PWA install icon reference resolves.
+Manifest-declared dimensions match actual files.
+Apple touch icon references are healthy if present.
+Maskable icon configuration is healthy if present.
+Favicon references are healthy.
+PWA does not attempt native icon switching.
+Native alternate selection does not modify PWA install metadata.
+Service-worker/static asset handling has no broken icon reference.
+No ConfigV2/cloud/database App Icon persistence exists.
+Personalization matrix remains green.
+App Icon tests remain green.
+TypeScript passes.
+Production build passes.
+no .agents/* diff exists.
+no temporary QA artifacts remain.
+81. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PROMPT 25 REPORT
+APP ICON + PWA ASSET FINAL CLOSURE
+1. Status
+
+PASS / BLOCKED
+
+2. Closure Scope
+
+Summarize what Prompt 25 audited/repaired.
+
+3. Prompt 24 File-Integrity Finding
+
+Explain whether any Prompt-24 file was missing, ignored, untracked, or incorrectly reported.
+
+4. Prompt 24 Required File Inventory
+
+Use a table:
+
+| Path | Exists | Git State | Ignored | Purpose |
+
+Include all native, frontend, preview, and test files.
+
+5. Export / GitHub Safety
+
+State whether every required production file will be present when the repository is committed/exported.
+
+6. Primary Native AppIcon
+
+Report catalog integrity.
+
+7. Primary Dark Asset
+
+Report.
+
+8. Midnight Native Asset
+
+Report.
+
+9. Rose Native Asset
+
+Report.
+
+10. Monochrome Native Asset
+
+Report.
+
+11. Native Image Binary Verification
+
+Report dimensions, PNG validity, opacity.
+
+12. Small-Size Visual QA
+
+Report.
+
+13. Native Mapping Consistency
+
+Print:
+
+primary → nil
+midnight → AppIconMidnight
+rose → AppIconRose
+monochrome → AppIconMonochrome
+
+Confirm agreement across Swift/TS/Xcode/assets.
+
+14. Xcode Primary Setting
+
+Report.
+
+15. Xcode Alternate Settings
+
+Report Debug and Release.
+
+16. AppIcon.swift Target Membership
+
+Report exact source-phase result.
+
+17. Capacitor Bridge Chain
+
+Print exact chain:
+
+My99
+→ selector
+→ client
+→ Capacitor plugin name
+→ Swift jsName
+→ UIKit
+
+18. Native Method Shape
+
+Report getState/setIcon compatibility.
+
+19. Info.plist
+
+State whether manual CFBundle icon dictionaries exist.
+
+20. Cap Sync Survivability
+
+State whether custom native implementation should survive normal npx cap sync ios.
+
+21. Capacitor Sync
+
+RUN / NOT RUN
+
+Report result/reason.
+
+22. Native Runtime Limitation
+
+State exactly what remains unverified without Xcode/iPhone/iPad.
+
+23. App Icon Preview Assets
+
+List final public/app-icons files, dimensions, byte sizes, and build-output resolution.
+
+24. Effective PWA Manifest Source
+
+Print exact source file/config.
+
+25. Manifest Validity
+
+Report.
+
+26. PWA Name / Short Name / Start URL / Display
+
+Report current effective values.
+
+27. PWA Install Icon Inventory
+
+List every manifest icon entry:
+
+path
+declared size
+actual size
+purpose
+type
+exists
+28. 192 Icon
+
+Report.
+
+29. 512 Icon
+
+Report.
+
+30. Maskable Icon
+
+Report actual current state.
+
+31. Apple Touch Icon
+
+Report actual source/link/file integrity.
+
+32. Favicon
+
+Report.
+
+33. Native Primary vs PWA Primary
+
+Explain separation.
+
+34. Alternate Native Icons vs PWA
+
+Confirm no alternate icon is added to PWA install metadata.
+
+35. Web/PWA My99 State
+
+Report unsupported UI behavior.
+
+36. Selector Preview Production-Build Test
+
+Report.
+
+37. Service Worker Icon/Asset Safety
+
+Report.
+
+38. Base Path / Deployment Safety
+
+Report.
+
+39. Browser Manifest Check
+
+RUN / NOT RUN
+
+Report actual result.
+
+40. Dead / Duplicate Asset Review
+
+Report only concrete findings.
+
+41. PWA Repairs Made
+
+List exact Prompt-25 production repairs.
+
+If none:
+
+NO PWA PRODUCTION REPAIR REQUIRED.
+
+42. Native Repairs Made
+
+List exact Prompt-25 native repairs.
+
+If none:
+
+NO ADDITIONAL NATIVE PRODUCTION REPAIR REQUIRED.
+
+43. App Icon Test Suite
+
+Report:
+
+tests/app-icon.test.ts
+
+exact passed/failed.
+
+44. Prompt 25 Asset Tests
+
+Report any added/updated tests.
+
+45. Personalization Matrix
+
+Report:
+
+passed
+failed
+skipped
+cancelled
+
+Entering baseline:
+
+183 / 0 / 0 / 0
+
+46. Personalization Config Impact
+
+State exactly:
+
+PersonalizationConfigV2 change: NO
+PersonalizationConfigV1 change: NO
+Local Envelope change: NO
+
+47. Cloud Impact
+
+State exactly:
+
+No App Icon cloud storage.
+No PWA icon cloud storage.
+No personalization Worker schema change.
+No personalization KV change.
+
+48. Database Impact
+
+State exactly:
+
+No SQL App Icon storage.
+No D1 App Icon storage.
+No R2 App Icon storage.
+No KV App Icon storage.
+
+49. TypeScript
+
+Report.
+
+50. Production Build
+
+Report.
+
+51. Auth
+
+Report.
+
+52. Security
+
+Report.
+
+53. Navigation
+
+Report.
+
+54. Targeted ESLint
+
+Report.
+
+55. Temporary QA Cleanup
+
+Report.
+
+56. Attached / Unrelated Files
+
+Classify separately.
+
+57. Git Review
+
+Report:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+58. .agents/*
+
+Report exact outputs of:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+59. Prompt 26 Readiness
+
+If every Prompt-25 gate genuinely passes, state exactly:
+
+PROMPT 24 FILE INVENTORY: VERIFIED AND EXPORT-SAFE
+
+PRIMARY NATIVE APP ICON: VERIFIED
+
+MIDNIGHT NATIVE APP ICON: VERIFIED
+
+ROSE NATIVE APP ICON: VERIFIED
+
+MONOCHROME NATIVE APP ICON: VERIFIED
+
+XCODE ALTERNATE ICON SOURCE CONTRACT: VERIFIED
+
+CAPACITOR APP ICON BRIDGE CONTRACT: VERIFIED
+
+NATIVE APP ICON RUNTIME TESTING: DEFERRED TO MAC/XCODE DEVICE VALIDATION
+
+PWA MANIFEST: VERIFIED
+
+PWA INSTALL ICONS: VERIFIED
+
+MASKABLE ICON STATE: VERIFIED
+
+APPLE TOUCH ICON: VERIFIED
+
+FAVICON: VERIFIED
+
+PWA SERVICE-WORKER ASSET REFERENCES: VERIFIED
+
+WEB/PWA APP ICON FALLBACK: VERIFIED
+
+NATIVE/PWA ICON SYSTEM SEPARATION: VERIFIED
+
+PERSONALIZATION REGRESSION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+.agents/*: CLEAN
+
+PROMPT 26 FINAL PRODUCTION / EXPORT READINESS: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE PROMPT 25 STATUS: COMPLETE — READY FOR PROMPT 26
+
+Otherwise:
+
+99'S GUIDE PROMPT 25 STATUS: BLOCKED — REPAIR REQUIRED
