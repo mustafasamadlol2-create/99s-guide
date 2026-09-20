@@ -77,7 +77,7 @@ export function SmoothAutoHeight({
     let settleTimer: number | null = null;
     let transitionFrame: number | null = null;
     let secondTransitionFrame: number | null = null;
-    let dependencyChanged = previousDependencyRef.current !== dependency;
+    const dependencyChanged = previousDependencyRef.current !== dependency;
     previousDependencyRef.current = dependency;
 
     const clearTimers = () => {

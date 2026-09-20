@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import jwt from "jsonwebtoken";
 
 import {
   createPdfDownloadToken,
@@ -30,7 +31,11 @@ test("rejects a scoped PDF token for a different material", () => {
 });
 
 test("rejects a tampered or expired scoped PDF token", () => {
-  const token = createPdfDownloadToken(claims, secret, -1);
+  const token = jwt.sign(
+    { ...claims, scope: "pdf-download" },
+    secret,
+    { algorithm: "HS256", expiresIn: -1 },
+  );
 
   assert.equal(verifyPdfDownloadToken(token, claims.materialId, secret), null);
   assert.equal(

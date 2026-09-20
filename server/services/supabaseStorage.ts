@@ -205,6 +205,7 @@ export async function uploadAvatarDataUrlToR2(
   } catch (error) {
     throw new Error(
       `Cloudflare R2 avatar upload failed: ${storageErrorMessage(error)}`,
+      { cause: error },
     );
   }
 
@@ -254,6 +255,7 @@ export async function deleteManagedAvatarByUrl(
   } catch (error) {
     throw new Error(
       `Cloudflare R2 avatar delete failed: ${storageErrorMessage(error)}`,
+      { cause: error },
     );
   }
 }
@@ -287,7 +289,7 @@ export async function uploadPdfToSupabaseStorage(
       }),
     );
   } catch (error) {
-    throw new Error(`Cloudflare R2 upload failed: ${storageErrorMessage(error)}`);
+    throw new Error(`Cloudflare R2 upload failed: ${storageErrorMessage(error)}`, { cause: error });
   }
 }
 
@@ -336,7 +338,7 @@ export async function createSupabaseSignedUrl(
     signedUrlCache.set(cacheKey, { url: signedUrl, expiresAt: now + reuseMs });
     return signedUrl;
   } catch (error) {
-    throw new Error(`Cloudflare R2 signed URL failed: ${storageErrorMessage(error)}`);
+    throw new Error(`Cloudflare R2 signed URL failed: ${storageErrorMessage(error)}`, { cause: error });
   }
 }
 
@@ -357,6 +359,6 @@ export async function deleteSupabaseStorageObject(storagePath: string): Promise<
     );
     clearSignedUrlCacheForPath(storagePath);
   } catch (error) {
-    throw new Error(`Cloudflare R2 delete failed: ${storageErrorMessage(error)}`);
+    throw new Error(`Cloudflare R2 delete failed: ${storageErrorMessage(error)}`, { cause: error });
   }
 }
