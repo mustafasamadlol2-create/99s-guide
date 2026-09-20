@@ -1,7 +1,7 @@
-import { DEFAULT_AI_TIMEOUT_MS } from "../config.js";
+import { DEFAULT_AI_TIMEOUT_MS, readBoundedTimeout } from "../config.js";
 
 export const DEFAULT_INLINE_IMAGE_MAX_TOTAL_BYTES = 10 * 1024 * 1024;
-export const DEFAULT_FILE_PROCESSING_TIMEOUT_MS = 30_000;
+export const DEFAULT_FILE_PROCESSING_TIMEOUT_MS = 180_000;
 export const DEFAULT_FILE_POLL_INTERVAL_MS = 750;
 export const DEFAULT_FILE_CLEANUP_TIMEOUT_MS = 2_000;
 
@@ -13,15 +13,15 @@ export interface GeminiMediaConfig {
 }
 
 export function getGeminiMediaConfig(environment: NodeJS.ProcessEnv = process.env): GeminiMediaConfig {
-  const number = (key: string, fallback: number, minimum: number) => {
-    const parsed = Number(environment[key]);
-    return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
-  };
+  const number = (key: string, fallback: number, minimum: number) =>
+    readBoundedTimeout(environment, key, fallback, minimum);
   return {
-    inlineImageMaxTotalBytes: number(
+    inlineImageMaxTotalBytes: readBoundedTimeout(
+      environment,
       "GEMINI_INLINE_IMAGE_MAX_TOTAL_BYTES",
       DEFAULT_INLINE_IMAGE_MAX_TOTAL_BYTES,
       1,
+      Number.MAX_SAFE_INTEGER,
     ),
     fileProcessingTimeoutMs: number(
       "GEMINI_FILE_PROCESSING_TIMEOUT_MS",

@@ -30,6 +30,14 @@ function createBoundedSignal(
   };
 }
 
+function timeoutError(message: string, diagnosticMessage: string): AIServiceError {
+  return new AIServiceError("AI_TIMEOUT", {
+    publicMessage: message,
+    diagnosticMessage,
+    retryable: true,
+  });
+}
+
 export function splitBoundedText(text: string, maxChars: number): string[] {
   if (text.length <= maxChars) return [text];
   const chunks: string[] = [];
@@ -143,11 +151,30 @@ export class CloudflareAIProvider implements AIProvider {
     const bounded = createBoundedSignal(request.timeoutMs ?? this.config.timeoutMs, request.signal);
     const isBinary = request.contents.some((part) => part.kind !== "text");
     try {
-      const source = isBinary
-        ? await this.converter.convert(request.contents, bounded.signal)
-        : request.contents
+      let source;
+      if (isBinary) {
+        const markdownBounded = createBoundedSignal(
+          Math.min(this.config.markdownTimeoutMs, request.timeoutMs ?? this.config.timeoutMs),
+          bounded.signal,
+        );
+        try {
+          source = await this.converter.convert(request.contents, markdownBounded.signal);
+        } catch (error) {
+          if (markdownBounded.signal.aborted && !bounded.signal.aborted && !request.signal?.aborted) {
+            throw timeoutError(
+              "The AI document conversion timed out.",
+              "Cloudflare Markdown Conversion exceeded its configured timeout.",
+            );
+          }
+          throw error;
+        } finally {
+          markdownBounded.cleanup();
+        }
+      } else {
+        source = request.contents
           .filter((part): part is AITextPart => part.kind === "text")
           .map((part) => ({ text: part.text, inputType: "text" as const }));
+      }
       const sourceText = source.map((part) => {
         if (part.inputType === "image") return `[Image ${part.imageIndex! + 1}]\n${part.text}`;
         if (part.inputType === "pdf") return `[Source document]\n${part.text}`;

@@ -23,6 +23,7 @@ const config = {
   apiToken: "token-test",
   model: DEFAULT_CLOUDFLARE_MODEL,
   timeoutMs: 5_000,
+  markdownTimeoutMs: 5_000,
   chunkChars: 10,
   maxOutputTokens: 4_096,
 };

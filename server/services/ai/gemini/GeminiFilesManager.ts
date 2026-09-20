@@ -26,6 +26,9 @@ export interface GeminiFilesManagerOptions {
   processingTimeoutMs: number;
   pollIntervalMs: number;
   cleanupTimeoutMs?: number;
+  /** Test-only clock hooks; production uses the platform clock and timers. */
+  now?: () => number;
+  sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 }
 
 function mediaError(code: "AI_MEDIA_UPLOAD_FAILED" | "AI_MEDIA_PROCESSING_FAILED" | "AI_MEDIA_PROCESSING_TIMEOUT", message: string, cause?: unknown): AIServiceError {
@@ -66,8 +69,13 @@ class GeminiProcessingDeadlineError extends Error {
   }
 }
 
-function raceDeadline<T>(operation: Promise<T>, deadline: number, signal?: AbortSignal): Promise<T> {
-  const remaining = Math.max(0, deadline - Date.now());
+function raceDeadline<T>(
+  operation: Promise<T>,
+  deadline: number,
+  signal?: AbortSignal,
+  now: () => number = Date.now,
+): Promise<T> {
+  const remaining = Math.max(0, deadline - now());
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<T>((_, reject) => {
     timer = setTimeout(() => reject(new GeminiProcessingDeadlineError()), remaining);
@@ -117,7 +125,8 @@ export class GeminiFilesManager {
   }
 
   private async waitUntilActive(initial: GeminiUploadedFile, signal?: AbortSignal): Promise<GeminiUploadedFile> {
-    const deadline = Date.now() + this.options.processingTimeoutMs;
+    const now = this.options.now ?? Date.now;
+    const deadline = now() + this.options.processingTimeoutMs;
     let current = initial;
     while (true) {
       if (signal?.aborted) throw mediaError("AI_MEDIA_PROCESSING_FAILED", "AI media processing was cancelled.", signal.reason);
@@ -131,25 +140,29 @@ export class GeminiFilesManager {
       if (current.state !== "PROCESSING") {
         throw mediaError("AI_MEDIA_PROCESSING_FAILED", "The AI provider returned an unknown media state.");
       }
-      if (Date.now() >= deadline) {
+      if (now() >= deadline) {
         throw mediaError("AI_MEDIA_PROCESSING_TIMEOUT", "The AI provider took too long to process the media.");
       }
-      await new Promise<void>((resolve, reject) => {
-        let settled = false;
-        const timer = setTimeout(() => {
-          settled = true;
-          signal?.removeEventListener("abort", abort);
-          resolve();
-        }, Math.min(this.options.pollIntervalMs, Math.max(0, deadline - Date.now())));
-        const abort = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          signal?.removeEventListener("abort", abort);
-          reject(signal?.reason ?? new Error("aborted"));
-        };
-        signal?.addEventListener("abort", abort, { once: true });
-      }).catch((error) => {
+      const waitMilliseconds = Math.min(this.options.pollIntervalMs, Math.max(0, deadline - now()));
+      const wait = this.options.sleep
+        ? this.options.sleep(waitMilliseconds, signal)
+        : new Promise<void>((resolve, reject) => {
+          let settled = false;
+          const timer = setTimeout(() => {
+            settled = true;
+            signal?.removeEventListener("abort", abort);
+            resolve();
+          }, waitMilliseconds);
+          const abort = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            signal?.removeEventListener("abort", abort);
+            reject(signal?.reason ?? new Error("aborted"));
+          };
+          signal?.addEventListener("abort", abort, { once: true });
+        });
+      await wait.catch((error) => {
         if (signal?.aborted) throw mediaError("AI_MEDIA_PROCESSING_FAILED", "AI media processing was cancelled.", error);
         throw error;
       });
@@ -158,6 +171,7 @@ export class GeminiFilesManager {
           this.files.get({ name: current.name!, config: { abortSignal: signal } }),
           deadline,
           signal,
+          now,
         );
       } catch (error) {
         if (error instanceof GeminiProcessingDeadlineError) {

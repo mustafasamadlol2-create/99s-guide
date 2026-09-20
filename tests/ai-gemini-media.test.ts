@@ -9,6 +9,7 @@ import { GeminiProvider, type GeminiClient } from "../server/services/ai/GeminiP
 import { AIContentService } from "../server/services/ai/AIContentService.js";
 import { GeminiFilesManager, type GeminiFilesClient } from "../server/services/ai/gemini/GeminiFilesManager.js";
 import { GeminiMediaTransport } from "../server/services/ai/gemini/GeminiMediaTransport.js";
+import { getGeminiMediaConfig } from "../server/services/ai/gemini/config.js";
 import { AITemporaryFileManager } from "../server/services/ai/input/temporaryFiles.js";
 import { AIInputService } from "../server/services/ai/input/AIInputService.js";
 import type { AIContentPart } from "../server/services/ai/input/contracts.js";
@@ -318,6 +319,28 @@ test("image-only PDFs remain valid media and reach Gemini Files API with origina
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("scanned-PDF polling can pass the old 30-second threshold under the production budget", async () => {
+  const mediaConfig = getGeminiMediaConfig({});
+  assert.equal(mediaConfig.fileProcessingTimeoutMs, 180_000);
+  assert.ok(mediaConfig.fileProcessingTimeoutMs > 30_000);
+
+  let currentTime = 0;
+  const files = new FakeFiles();
+  files.statuses = ["PROCESSING", "ACTIVE"];
+  const manager = new GeminiFilesManager(files, {
+    processingTimeoutMs: mediaConfig.fileProcessingTimeoutMs,
+    pollIntervalMs: 30_001,
+    now: () => currentTime,
+    sleep: async (milliseconds) => {
+      currentTime += milliseconds;
+    },
+  });
+  const staged = await testStager.stage(SCANNED_PDF);
+  const active = await manager.uploadAndActivate(staged.capability, "application/pdf");
+  assert.equal(active.name, "files/1");
+  assert.ok(currentTime > 30_000);
 });
 
 test("borrowed resources require a trusted resolver and never treat IDs as paths", async () => {
