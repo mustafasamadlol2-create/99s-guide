@@ -1,0 +1,1161 @@
+# 99'S GUIDE — PROMPT 27
+## RESOURCE UPLOAD + AI PDF/IMAGE INGESTION PRODUCTION PARITY REPAIR
+### RESTORE THE ACCEPTED LOCAL UPLOAD FIX INSIDE THE CURRENT REPLIT REPOSITORY
+### FIX RESOURCE PDF/IMAGE UPLOADS
+### FIX AI MCQ / FLASHCARD INPUT UPLOADS
+### SUPPORT TEXT PDFs + SCANNED/IMAGE-ONLY PDFs
+### PRESERVE THE EXISTING GEMINI AI ARCHITECTURE
+### NO CALENDAR AI IMPORT IMPLEMENTATION YET
+### NO NEW FEATURE BEYOND UPLOAD/INGESTION REPAIR
+### NO CLOUD DEPLOYMENT
+### DO NOT MODIFY `.agents/*`
+
+The application has reached release-candidate preparation, but one previously solved local repair was NOT incorporated into the current Replit repository.
+
+The user has repeatedly experienced a production-sensitive regression involving:
+
+1. Uploading lecture/resource files, especially PDFs.
+2. Uploading PDF/image input for AI MCQ / Flashcard generation or extraction.
+3. Scanned/image-only PDFs with no usable embedded text layer.
+4. Different behavior between the locally repaired source and the current Replit repository.
+
+The local repair worked, but the current Replit repository still needs the equivalent behavior implemented and verified.
+
+This prompt MUST repair the current repository itself.
+
+Do not rely on the existence of the user's separate local files.
+
+---
+
+# 1. SCOPE
+
+Prompt 27 covers ONLY:
+
+A. Resource file upload reliability.
+
+B. AI input upload reliability.
+
+C. PDF/image ingestion reliability.
+
+D. Scanned PDF support.
+
+E. Production/native/PWA parity for those upload paths.
+
+F. Regression tests.
+
+Do NOT implement the Calendar/Schedule AI importer yet.
+
+You may inspect the existing Calendar/Event architecture only enough to identify the integration point for Prompt 28.
+
+---
+
+# 2. DO NOT REDESIGN THE EXISTING AI FOUNDATION
+
+The existing AI system already has production architecture for:
+
+- provider abstraction
+- Gemini provider
+- structured output
+- universal AI input pipeline
+- PDF input
+- image input
+- pasted text
+- SHA-256/source metadata
+- Gemini media transport
+- Files API where appropriate
+- timeout/cancellation
+- MCQ generation/extraction
+- Flashcard generation/extraction
+- AI review workflows
+
+Reuse it.
+
+Do NOT create a parallel AI upload architecture.
+
+---
+
+# 3. FIRST: AUDIT THE ACTUAL CURRENT REPOSITORY
+
+Before editing, trace all relevant current paths.
+
+At minimum identify:
+
+```text
+Frontend resource upload
+→ API client
+→ backend route
+→ validation
+→ storage
+
+Frontend AI input upload
+→ API client
+→ AI input route
+→ staging
+→ media transport
+→ Gemini/provider
+
+PDF
+→ text-layer handling
+→ scanned/no-text behavior
+
+Use actual source as authority.
+
+Do not assume old file names.
+
+Report the real files/functions involved.
+
+4. IDENTIFY THE ACTUAL CURRENT FAILURE MODE
+
+Determine whether the Replit repository currently contains any of these problems:
+
+direct browser → object-storage upload where backend routing is required
+malformed multipart/form-data construction
+manually setting multipart Content-Type without boundary
+browser Blob/File converted incorrectly
+ArrayBuffer/Buffer corruption
+lost MIME type
+lost original filename
+request body parsing before Multer
+upload body-size mismatch
+R2/storage CORS dependency
+temporary upload lifecycle deletion before AI provider use
+PDF rejected because extracted text is empty
+scanned PDF treated as invalid/blank document
+PDF media never forwarded to Gemini
+image MIME rejected incorrectly
+wrong transport enum/value
+structured AI response rejected because transport metadata schema differs
+frontend only reading top-level error while server returns nested error.message
+timeout mismatch between browser/server/provider
+native Capacitor API base mismatch
+web/PWA and native using divergent upload URLs
+
+Do not guess the root cause.
+
+Trace it.
+
+5. RESOURCE UPLOAD INVARIANT
+
+Uploading a normal lecture Resource must work through the supported production backend path.
+
+Supported resource types should remain whatever the existing product already allows.
+
+For PDF/image resources:
+
+browser/native UI
+→ authenticated backend
+→ binary validation
+→ storage
+→ stable resource record/URL
+
+The frontend must NOT require privileged R2/Supabase credentials.
+
+No storage secret may enter the client.
+
+6. BACKEND-ROUTED SMALL RESOURCE UPLOAD
+
+The previously accepted local behavior included routing ordinary resource uploads through the backend rather than depending on a fragile direct browser-storage operation.
+
+Audit whether this behavior exists in current Replit.
+
+If current resource upload still uses a broken direct-storage path for ordinary PDF/image resources:
+
+implement the backend-routed upload behavior using the repository's existing storage service.
+
+Do NOT bypass authentication.
+
+Do NOT create a second storage system.
+
+Do NOT move storage providers.
+
+7. LARGE FILE BEHAVIOR
+
+Do not blindly proxy arbitrarily huge files through memory.
+
+Respect existing configured upload limits.
+
+If the architecture has separate handling for large uploads:
+
+preserve it.
+
+Report exact final file-size limits.
+
+Do not silently increase limits to unsafe values just to make tests pass.
+
+8. MULTIPART SAFETY
+
+For browser FormData:
+
+do NOT manually set:
+
+Content-Type: multipart/form-data
+
+if doing so would omit the generated boundary.
+
+Let the runtime generate the correct multipart boundary.
+
+Audit all touched frontend upload clients for this mistake.
+
+9. BINARY INTEGRITY
+
+A file received by the backend must preserve:
+
+byte length
+MIME type
+original filename
+extension where relevant
+
+Do not convert arbitrary binary input through UTF-8 strings.
+
+Do not base64 encode/decode unnecessarily.
+
+10. RESOURCE MIME VALIDATION
+
+Use:
+
+MIME validation
+extension validation where appropriate
+binary/signature validation where the existing input subsystem supports it
+
+Do not trust only a browser-provided MIME string.
+
+Do not broaden file acceptance unnecessarily.
+
+11. AI INPUTS
+
+AI input must continue to support the approved modes:
+
+PDF
+image
+pasted text
+
+This repair must support those same input types for:
+
+MCQ generation/extraction
+Flashcard generation/extraction
+enhancement workflows that use lecture/source input
+
+Do not create feature-specific upload implementations.
+
+12. TEXT PDF
+
+A normal PDF containing extractable text must continue to work.
+
+Expected:
+
+PDF accepted
+→ normalized source created
+→ relevant text/media passed to AI provider
+
+No regression.
+
+13. SCANNED / IMAGE-ONLY PDF — RELEASE CRITICAL
+
+A valid scanned PDF may contain:
+
+0 useful extracted text characters
+
+That MUST NOT automatically mean:
+
+invalid PDF
+empty lecture
+unsupported input
+
+A scanned/image-only PDF must continue through a visual/document-capable AI path.
+
+14. SCANNED PDF STRATEGY
+
+Use the existing Gemini media transport architecture.
+
+Preferred behavior:
+
+valid PDF
+→ detect insufficient/no useful text layer
+→ preserve original PDF as AI media input
+→ Gemini Files API / supported document vision path
+→ structured generation/extraction
+
+If the existing Gemini/model integration genuinely requires page images for this fallback:
+
+render PDF pages through the existing accepted library/path and submit page images.
+
+Do NOT introduce OCR as the primary solution unless absolutely necessary.
+
+Gemini document/vision understanding should remain the preferred path.
+
+15. DO NOT DESTROY SOURCE PAGINATION
+
+For scanned PDFs, preserve source metadata sufficient for future page-grounding.
+
+At minimum retain:
+
+source file identity
+page count where available
+media/input identity
+
+Do not flatten everything into one anonymous text string.
+
+This is especially important because Prompt 28 will reuse this ingestion architecture for Calendar schedule PDFs.
+
+16. PDF PAGE LIMITS
+
+Respect existing:
+
+maximum PDF pages
+file size
+Gemini Files API limits
+AI input limits
+
+Report exact final values.
+
+Do not create unbounded page rasterization.
+
+17. IMAGE INPUT
+
+Verify:
+
+JPEG
+PNG
+
+and any other currently supported image types still work.
+
+An image must reach the provider as binary image input.
+
+Do not convert it into placeholder text.
+
+18. GEMINI MEDIA TRANSPORT
+
+Audit current transport selection.
+
+Expected conceptual logic may include:
+
+small inline text/image
+→ inline transport
+
+PDF / large media
+→ Gemini Files API
+
+scanned PDF
+→ document/media vision path
+
+Use actual architecture as authority.
+
+Do not create a second Gemini client.
+
+19. TRANSPORT ENUM / RESPONSE CONTRACT REGRESSION
+
+A previous class of failure involved the provider returning transport metadata that did not match the response validator.
+
+Audit current values such as:
+
+inline
+files_api
+markdown_conversion
+
+or actual current equivalents.
+
+Provider output and Zod/runtime response schema MUST agree.
+
+Do not permit an otherwise-successful AI operation to become HTTP 400 merely because transport metadata uses an unrecognized internal enum.
+
+20. STRUCTURED AI RESPONSE
+
+Do not weaken final MCQ/Flashcard validation.
+
+The correct pattern remains:
+
+Gemini structured output
+→ parse
+→ strict Zod/domain validation
+→ review
+
+Fix transport/input bugs, not content-validation safety.
+
+21. ERROR RESPONSE NORMALIZATION
+
+Frontend must display meaningful backend errors.
+
+Support the actual server response contract.
+
+If server returns:
+
+{
+  "error": {
+    "message": "..."
+  }
+}
+
+the frontend must not show:
+
+[object Object]
+
+or a generic empty error.
+
+Preserve secure error redaction.
+
+22. AI TIMEOUTS
+
+Audit current timeout hierarchy.
+
+Previously accepted behavior included longer AI processing allowance.
+
+Ensure frontend timeout is longer than server/provider processing budget.
+
+Do not lower a working production timeout.
+
+Report exact final:
+
+frontend timeout
+server AI timeout
+Gemini upload/file processing timeout
+23. TEMPORARY FILE LIFECYCLE
+
+If AI media is staged temporarily:
+
+verify:
+
+stage
+→ provider upload/use
+→ processing complete/failure
+→ cleanup
+
+Do not delete the underlying file before Gemini finishes consuming it.
+
+Do not leak temporary files after normal failure.
+
+24. GEMINI FILE CLEANUP
+
+If Gemini Files API resources are created:
+
+retain current safe cleanup policy.
+
+Do not leave unnecessary provider-side temporary files indefinitely.
+
+But do not clean them before structured generation finishes.
+
+25. CANCELLATION
+
+User cancellation must not produce:
+
+orphan database records
+partial MCQs
+partial Flashcards
+resource corruption
+
+Preserve existing cancellation semantics.
+
+26. AI MUST NOT DIRECTLY PERSIST GENERATED QUESTIONS
+
+Do not change the approved review-before-persistence model.
+
+AI extraction/generation must continue producing reviewable results before database persistence.
+
+Prompt 27 is input repair, not persistence redesign.
+
+27. RESOURCE UPLOAD AND AI INPUT MUST BE SEPARATE SEMANTIC ACTIONS
+
+A lecture Resource upload:
+
+creates/stores a Resource
+
+An AI temporary input:
+
+feeds AI generation/extraction
+
+Do not accidentally create permanent lecture Resources every time a temporary AI source is uploaded unless that is already explicit product behavior.
+
+28. NATIVE / CAPACITOR API BASE
+
+Audit the touched upload clients under Capacitor.
+
+They must use the current production API base architecture.
+
+Do not introduce:
+
+relative /api only
+
+if native WKWebView requires the configured API base.
+
+Do not reintroduce historical empty-native-base failures.
+
+29. WEB / PWA API PATH
+
+Web/PWA upload must continue using the intended production API resolution.
+
+No Replit-specific hostname may become authoritative runtime configuration.
+
+30. STORAGE PROVIDER
+
+Use the current repository's storage abstraction.
+
+Do NOT:
+
+move resources to a new provider
+change Supabase database architecture
+redesign R2
+add a new bucket/provider
+
+Repair the current path only.
+
+31. AUTHORIZATION
+
+Resource upload and AI generation routes must retain their current authorization.
+
+If AI import/generation is admin-only:
+
+keep it admin-only.
+
+Do not loosen permissions to fix uploading.
+
+32. FILE OWNERSHIP / CLEANUP SECURITY
+
+Do not permit a client to request deletion/cleanup of arbitrary storage keys.
+
+Cleanup must operate only on server-known/staged resources belonging to the request flow.
+
+33. FILENAME SAFETY
+
+Sanitize filenames according to current architecture.
+
+Do not use raw user filenames as arbitrary filesystem paths.
+
+Prevent path traversal.
+
+34. TEST FIXTURES
+
+Add deterministic test fixtures for the repaired paths.
+
+Do NOT call live Gemini.
+
+Mock/provider-test the media transport.
+
+Required categories:
+
+A. Text PDF
+
+Valid small PDF with text.
+
+B. Scanned PDF
+
+Valid PDF whose pages contain image content and no useful text layer.
+
+C. Image
+
+Valid PNG/JPEG.
+
+D. Invalid binary
+
+MIME/extension mismatch or malformed file.
+
+35. SCANNED PDF TEST
+
+This is mandatory.
+
+Test must prove:
+
+valid image-only PDF
+→ NOT rejected as empty text
+→ routed to visual/document AI transport
+
+Do not merely test PDF MIME acceptance.
+
+36. RESOURCE UPLOAD TEST
+
+Add/extend test proving a normal resource PDF:
+
+frontend/backend contract
+→ binary accepted
+→ storage adapter called correctly
+→ result returned
+
+Use mocks for external object storage.
+
+Do not write to production storage.
+
+37. AI INPUT TEST
+
+Test:
+
+PDF/image binary
+→ input normalization
+→ staging
+→ provider media payload
+
+Verify byte/MIME preservation.
+
+38. MULTIPART TEST
+
+Where practical, verify the endpoint accepts realistic multipart requests.
+
+Do not unit-test only internal functions if the bug existed at HTTP boundaries.
+
+39. ERROR CONTRACT TEST
+
+Verify:
+
+oversized input
+invalid MIME
+malformed PDF
+provider failure
+timeout
+
+produce the existing structured error format.
+
+No raw stack.
+
+40. NO LIVE GEMINI CALL
+
+Do NOT consume real Gemini quota for Prompt 27 testing.
+
+Use mocked provider/media transport.
+
+41. EXISTING AI TEST SUITES
+
+Run relevant existing commands/suites.
+
+The repository has historically contained AI tests in areas such as:
+
+AI input
+AI media
+AI MCQ
+AI flashcard
+
+Determine actual current commands from package.json.
+
+Run all relevant ones.
+
+Do not invent command names if they changed.
+
+42. EXISTING RESOURCE/PDF TESTS
+
+Run relevant resource/PDF/upload tests.
+
+Do not weaken PDF access/security validation.
+
+43. PERSONALIZATION REGRESSION
+
+Prompt 27 must not affect My99.
+
+Run:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Expected current baseline:
+
+183 passed
+0 failed
+
+No failure accepted.
+
+44. APP ICON / PWA REGRESSION
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Expected entering baseline:
+
+15 passed
+0 failed
+
+No regression.
+
+45. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+46. BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+47. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+48. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+49. TARGETED ESLINT
+
+Run ESLint on all Prompt-27-modified TS/TSX/test files.
+
+Required:
+
+0 Prompt 27 lint errors
+
+Do not fix unrelated tooling lint merely for this task.
+
+50. NO CALENDAR AI IMPLEMENTATION
+
+Prompt 27 must NOT add:
+
+Schedule PDF upload UI
+Calendar AI extraction button
+Event review studio
+Event bulk persistence
+new Event DB fields
+new Calendar AI route
+
+Those belong to Prompt 28.
+
+51. CALENDAR READ-ONLY PREPARATION AUDIT
+
+You MAY inspect the existing Console/Event/Calendar architecture and report:
+
+Event model/schema
+event-create API
+current Console event editor
+required fields
+optional fields
+timezone/date representation
+recurrence support if any
+subject/course relation if any
+
+Do not modify it.
+
+This information will be used by Prompt 28.
+
+52. CRITICAL PROMPT 28 PREPARATION QUESTION
+
+Report whether the existing Event model can already represent schedule-PDF entries such as:
+
+date
+start time
+end time
+title
+event type
+subject/module
+location
+description
+all-day
+
+Do not add fields yet.
+
+Clearly state which fields already exist and which do not.
+
+53. SOURCE PAGE GROUNDING READINESS
+
+Report whether the current AI input pipeline can retain enough metadata for Prompt 28 to associate extracted Events with:
+
+source PDF
+source page number
+
+If not, identify the smallest future extension required.
+
+Do not implement it in Prompt 27 unless it is necessary for the upload repair itself.
+
+54. .agents/*
+
+ABSOLUTE.
+
+Do not modify:
+
+.agents/*
+
+At the end run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+55. NO DOC REPORT FILES
+
+Do not add Markdown/text reports to the repository.
+
+Return the report in chat.
+
+56. NO CLOUD DEPLOYMENT
+
+Do not:
+
+deploy Render
+deploy Cloudflare
+create KV
+modify production secrets
+run live storage migrations
+
+Source implementation/testing only.
+
+57. NO DATABASE MIGRATION
+
+Do not create a Prisma migration for Prompt 27.
+
+This task should repair transport/ingestion, not the data model.
+
+58. GIT REVIEW
+
+At completion run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Classify:
+
+Prompt 27 production files
+Prompt 27 tests
+unrelated/reference files
+
+Do not git add.
+Do not commit.
+Do not push.
+
+59. PASS DEFINITION
+
+Prompt 27 passes only if:
+
+normal Resource PDF upload path is correct
+image Resource upload remains correct
+AI PDF upload works
+AI image upload works
+scanned/image-only PDF is NOT rejected merely for lacking text
+scanned PDF reaches a document/vision-capable provider path
+binary/MIME integrity is preserved
+multipart behavior is correct
+no storage secret enters frontend
+error responses are meaningful
+existing review-before-persistence behavior remains
+native and web API resolution remain safe
+relevant AI tests pass
+resource/upload tests pass
+personalization regression passes
+App Icon/PWA regression passes
+TypeScript passes
+build passes
+auth/security remain green
+.agents/* remains clean
+60. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PROMPT 27 REPORT
+RESOURCE UPLOAD + AI PDF/IMAGE INGESTION PRODUCTION PARITY REPAIR
+1. Status
+
+PASS / BLOCKED
+
+2. Original Replit Failure
+
+Describe the exact current repository failure/root cause found.
+
+3. Local-Repair Parity
+
+Explain what behavior was missing from Replit and what was restored.
+
+4. Files Modified
+
+Use:
+
+| File | Exact Change | Why |
+
+5. Resource Upload Path
+
+Print the final production path:
+
+frontend
+→ backend
+→ validation
+→ storage
+→ response
+
+6. Direct Storage Upload Audit
+
+State whether ordinary resource upload uses direct browser-to-storage behavior.
+
+Explain final decision.
+
+7. Multipart Handling
+
+Report.
+
+8. Binary Integrity
+
+Report filename/MIME/byte preservation.
+
+9. Resource Validation
+
+Report accepted/rejected input behavior and limits.
+
+10. AI Input Path
+
+Print:
+
+frontend
+→ backend
+→ input normalization
+→ staging
+→ Gemini/media transport
+→ structured result
+
+11. Text PDF
+
+Report final behavior.
+
+12. Scanned PDF
+
+Report final behavior in detail.
+
+13. Scanned PDF Detection
+
+Explain how insufficient/no text is distinguished from invalid PDF.
+
+14. Scanned PDF AI Transport
+
+State exact media/document path used.
+
+15. PDF Page / Size Limits
+
+Report exact limits.
+
+16. Image Input
+
+Report.
+
+17. Gemini Media Transport
+
+Report final transport decision logic.
+
+18. Transport Metadata Contract
+
+Report validator/provider enum consistency.
+
+19. Structured AI Validation
+
+Confirm strict output validation remains intact.
+
+20. Error Contract
+
+Report frontend/server error normalization.
+
+21. Timeout Stack
+
+Print exact:
+frontend
+server
+provider/media
+
+22. Temporary File Lifecycle
+
+Report.
+
+23. Gemini File Cleanup
+
+Report.
+
+24. Cancellation
+
+Report.
+
+25. Storage Security
+
+Confirm no client storage secret.
+
+26. Authorization
+
+Report relevant route protection.
+
+27. Native Capacitor Upload Behavior
+
+Report API-base behavior.
+
+28. Web/PWA Upload Behavior
+
+Report.
+
+29. Resource Upload Tests
+
+List exact files/counts.
+
+30. AI Input Tests
+
+List exact files/counts.
+
+31. Scanned PDF Test
+
+State exact assertion proving no-text PDFs reach visual/document AI.
+
+32. Multipart HTTP Test
+
+Report.
+
+33. AI MCQ Regression
+
+Report.
+
+34. AI Flashcard Regression
+
+Report.
+
+35. PDF / Resource Regression
+
+Report.
+
+36. Personalization Regression
+
+Report exact:
+passed
+failed
+skipped
+cancelled
+
+Expected entering baseline:
+183 / 0 / 0 / 0
+
+37. App Icon / PWA Regression
+
+Report.
+
+38. TypeScript
+
+Report.
+
+39. Build
+
+Report.
+
+40. Auth
+
+Report.
+
+41. Security
+
+Report.
+
+42. Targeted ESLint
+
+Report.
+
+43. Calendar/Event Architecture — Read-Only Audit
+
+List actual files/components/routes/schema.
+
+44. Current Event Model
+
+Print existing fields relevant to Prompt 28.
+
+45. Current Event Creation Flow
+
+Report Console → API → persistence path.
+
+46. Existing Event Timezone / Date Semantics
+
+Report exactly.
+
+47. Existing Event Type / Subject / Location Support
+
+Report.
+
+48. Source Page Grounding Readiness
+
+State whether AI input architecture can support page-linked schedule extraction.
+
+49. Prompt 28 Architecture Readiness
+
+State whether the existing Event model can support the planned AI Schedule Import without a DB migration.
+
+Use:
+
+YES
+or
+NO — and explain exactly what is missing.
+
+Do NOT implement Prompt 28.
+
+50. Cloud / Database Impact
+
+State exactly:
+
+NO CLOUD DEPLOYMENT PERFORMED.
+NO DATABASE MIGRATION PERFORMED.
+
+51. Git Review
+
+Report:
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+52. .agents/*
+
+Report:
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+
+No .agents/* file was created or modified.
+
+53. Prompt 28 Readiness
+
+If all upload/AI ingestion gates pass, state exactly:
+
+RESOURCE PDF UPLOAD: VERIFIED
+
+RESOURCE IMAGE UPLOAD: VERIFIED
+
+AI PDF INPUT: VERIFIED
+
+AI IMAGE INPUT: VERIFIED
+
+SCANNED / IMAGE-ONLY PDF INPUT: VERIFIED
+
+SCANNED PDF VISUAL/DOCUMENT TRANSPORT: VERIFIED
+
+MULTIPART BINARY INTEGRITY: VERIFIED
+
+RESOURCE STORAGE SECURITY: VERIFIED
+
+AI STRUCTURED OUTPUT VALIDATION: PRESERVED
+
+AI REVIEW-BEFORE-PERSISTENCE: PRESERVED
+
+NATIVE CAPACITOR UPLOAD PATH: VERIFIED
+
+WEB / PWA UPLOAD PATH: VERIFIED
+
+PERSONALIZATION REGRESSION: PASS
+
+APP ICON / PWA REGRESSION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+.agents/*: CLEAN
+
+PROMPT 28 AI SCHEDULE / CALENDAR EVENT IMPORT: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE PROMPT 27 STATUS: COMPLETE — READY FOR PROMPT 28
+
+Otherwise:
+
+99'S GUIDE PROMPT 27 STATUS: BLOCKED — REPAIR REQUIRED
