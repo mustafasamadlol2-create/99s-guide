@@ -32,6 +32,7 @@ import { applyBatchDuplicateWarnings, applyQualityWarnings, summarizeCounts } fr
 import { normalizeExtractedItems, normalizeGeneratedItems } from "./normalize.js";
 import { parseDeterministicMCQs } from "./deterministicExtract.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
+import { contiguousIndexRanges, planNumberedMCQExtraction } from "./extractionPlan.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
@@ -123,6 +124,11 @@ function enhancementContext(items: AIMCQCandidate[]): string {
   });
 }
 
+function explicitlyImpliedAnswer(text: string | null | undefined): "A" | "B" | "C" | "D" | null {
+  const match = text?.match(/\b(?:correct\s+answer|answer|option)\s*(?:is|:|-)?\s*([A-D])\b/iu);
+  return match ? match[1]!.toUpperCase() as "A" | "B" | "C" | "D" : null;
+}
+
 export class MCQAIEngine {
   constructor(
     private readonly contentService: AIContentService,
@@ -137,29 +143,114 @@ export class MCQAIEngine {
   private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
-    const shards = deterministic ? [] : shardTextContent(input.contents);
-    const responses = deterministic ? [] : await runResilientBatches({
-      total: shards.length,
-      batchSize: 1,
-      signal,
-      run: ({ start }) => this.contentService.generateStructured({
-        contents: shards[start]!,
-        responseSchema: mcqExtractionProviderResponseSchema,
-        trustedSystemInstruction: buildMCQExtractInstruction(),
-        operation: "extract",
-        maxItems: this.config.extractionMaxCount,
+    const numberedPlan = deterministic ? null : planNumberedMCQExtraction(input.contents);
+    const shards = deterministic || numberedPlan ? [] : shardTextContent(input.contents);
+    let responses = deterministic ? [] : numberedPlan
+      ? await runResilientBatches({
+        total: numberedPlan.blocks.length,
+        batchSize: 25,
         signal,
-      }),
-    });
+        run: async (batch) => ({
+          batch,
+          result: await this.contentService.generateStructured({
+            contents: numberedPlan.contentsForRange(batch.start, batch.count),
+            responseSchema: mcqExtractionProviderResponseSchema,
+            trustedSystemInstruction: [
+              buildMCQExtractInstruction(),
+              `This bounded source range contains source ordinals ${numberedPlan.blocks.slice(batch.start, batch.start + batch.count).map((block) => block.ordinal).join(", ")}. Return sourceOrdinal for every extracted item.`,
+            ].join("\n\n"),
+            operation: "extract",
+            maxItems: batch.count,
+            signal,
+          }),
+        }),
+      })
+      : await runResilientBatches({
+        total: shards.length,
+        batchSize: 1,
+        signal,
+        run: async (batch) => ({
+          batch,
+          result: await this.contentService.generateStructured({
+            contents: shards[batch.start]!,
+            responseSchema: mcqExtractionProviderResponseSchema,
+            trustedSystemInstruction: buildMCQExtractInstruction(),
+            operation: "extract",
+            maxItems: this.config.extractionMaxCount,
+            signal,
+          }),
+        }),
+      });
+    if (numberedPlan) {
+      const withSafeOrdinals = responses.flatMap(({ batch, result }) =>
+        result.data.items.map((item, index) => ({
+          ...item,
+          ...(item.sourceOrdinal === undefined && result.data.items.length === batch.count
+            ? { sourceOrdinal: numberedPlan.blocks[batch.start + index]?.ordinal }
+            : {}),
+        })));
+      const found = new Set(withSafeOrdinals.map((item) => item.sourceOrdinal).filter((value): value is number => value !== undefined));
+      const missingIndexes = numberedPlan.blocks
+        .map((block, index) => found.has(block.ordinal) ? -1 : index)
+        .filter((index) => index >= 0);
+      for (const missingRange of contiguousIndexRanges(missingIndexes)) {
+        const recovered = await runResilientBatches({
+          total: missingRange.count,
+          batchSize: Math.min(25, missingRange.count),
+          signal,
+          run: async (batch) => {
+            const absolute = { start: missingRange.start + batch.start, count: batch.count };
+            return {
+              batch: absolute,
+              result: await this.contentService.generateStructured({
+                contents: numberedPlan.contentsForRange(absolute.start, absolute.count),
+                responseSchema: mcqExtractionProviderResponseSchema,
+                trustedSystemInstruction: [
+                  buildMCQExtractInstruction(),
+                  `Recover only missing source ordinals ${numberedPlan.blocks.slice(absolute.start, absolute.start + absolute.count).map((block) => block.ordinal).join(", ")}. Return sourceOrdinal for every item.`,
+                ].join("\n\n"),
+                operation: "extract",
+                maxItems: absolute.count,
+                signal,
+              }),
+            };
+          },
+        });
+        responses = [...responses, ...recovered];
+      }
+    }
+    const plannedItems = numberedPlan
+      ? responses.flatMap(({ batch, result }) => result.data.items.map((item, index) => ({
+        ...item,
+        ...(item.sourceOrdinal === undefined && result.data.items.length === batch.count
+          ? { sourceOrdinal: numberedPlan.blocks[batch.start + index]?.ordinal }
+          : {}),
+      })))
+      : responses.flatMap((response) => response.result.data.items);
+    const uniquePlannedItems = numberedPlan
+      ? [...new Map(plannedItems.filter((item) => item.sourceOrdinal !== undefined).map((item) => [item.sourceOrdinal, item])).values()]
+        .sort((left, right) => left.sourceOrdinal! - right.sourceOrdinal!)
+      : plannedItems;
+    if (numberedPlan) {
+      const recovered = new Set(uniquePlannedItems.map((item) => item.sourceOrdinal));
+      const missing = numberedPlan.blocks.filter((block) => !recovered.has(block.ordinal)).map((block) => block.ordinal);
+      if (missing.length) {
+        throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+          publicMessage: `The AI extraction remained incomplete. Missing source items: ${missing.join(", ")}.`,
+          diagnosticMessage: `Numbered MCQ recovery exhausted with ${missing.length} missing ordinal(s).`,
+          retryable: true,
+        });
+      }
+    }
     const responseData = deterministic ?? {
-      items: responses.flatMap((response) => response.data.items),
-      skippedItems: responses.flatMap((response) => response.data.skippedItems),
-      truncated: responses.some((response) => response.data.truncated),
-      uncertainties: responses.flatMap((response) => response.data.uncertainties),
+      items: uniquePlannedItems,
+      skippedItems: responses.flatMap((response) => response.result.data.skippedItems),
+      truncated: responses.some((response) => response.result.data.truncated),
+      uncertainties: responses.flatMap((response) => response.result.data.uncertainties),
     };
     const providerMeta = deterministic
       ? { provider: "deterministic", model: "local-parser", transport: "inline" as const }
-      : responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
+      : responses[0]?.result.meta ?? { provider: "unknown", model: "unknown" };
     if (!responseData.items.length && input.text && (input.text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：-]/giu)?.length ?? 0) >= 2) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
         publicMessage: "The source contains question markers, but the AI extraction was incomplete.",
@@ -193,19 +284,40 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
+    const coverageSources = shardTextContent(input.contents, 12_000);
+    const initialBatchCount = Math.ceil(selected.count / 20);
+    const coverage = (start: number, recovery = false) => {
+      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
+      const sourceIndex = coverageSources.length === 1
+        ? 0
+        : Math.min(
+          coverageSources.length - 1,
+          Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
+        );
+      return {
+        contents: coverageSources[sourceIndex]!,
+        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
+      };
+    };
     let responses = await runResilientBatches({
       total: selected.count,
       batchSize: 20,
       signal,
-      run: ({ count }) => this.contentService.generateStructured({
-        contents: input.contents,
-        responseSchema: mcqGenerationProviderResponseSchema,
-        trustedSystemInstruction: buildMCQGenerateInstruction({ ...selected, count }),
-        operation: "generate",
-        requestedCount: count,
-        maxItems: count,
-        signal,
-      }),
+      run: ({ start, count }) => {
+        const covered = coverage(start);
+        return this.contentService.generateStructured({
+          contents: covered.contents,
+          responseSchema: mcqGenerationProviderResponseSchema,
+          trustedSystemInstruction: [
+            buildMCQGenerateInstruction({ ...selected, count }),
+            covered.instruction,
+          ].join("\n\n"),
+          operation: "generate",
+          requestedCount: count,
+          maxItems: count,
+          signal,
+        });
+      },
     });
     const returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
     if (returnedBeforeRecovery < selected.count) {
@@ -214,18 +326,22 @@ export class MCQAIEngine {
         total: deficit,
         batchSize: 20,
         signal,
-        run: ({ count }) => this.contentService.generateStructured({
-          contents: input.contents,
-          responseSchema: mcqGenerationProviderResponseSchema,
-          trustedSystemInstruction: [
-            buildMCQGenerateInstruction({ ...selected, count }),
-            "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier question.",
-          ].join("\n\n"),
-          operation: "generate",
-          requestedCount: count,
-          maxItems: count,
-          signal,
-        }),
+        run: ({ start, count }) => {
+          const covered = coverage(start, true);
+          return this.contentService.generateStructured({
+            contents: covered.contents,
+            responseSchema: mcqGenerationProviderResponseSchema,
+            trustedSystemInstruction: [
+              buildMCQGenerateInstruction({ ...selected, count }),
+              covered.instruction,
+              "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier question.",
+            ].join("\n\n"),
+            operation: "generate",
+            requestedCount: count,
+            maxItems: count,
+            signal,
+          });
+        },
       });
       responses = [...responses, ...recovery];
     }
@@ -377,6 +493,10 @@ export class MCQAIEngine {
           if (options.hint && candidate.hint === null) hint = stage2.hint ?? null;
           if (options.explanation && candidate.explanation === null) explanation = stage2.explanation ?? null;
           candidateWarnings.push(...stage2.uncertainties.map((value) => `Model uncertainty: ${value}`));
+          const impliedAnswer = explicitlyImpliedAnswer(stage2.explanation);
+          if (candidate.correctAnswer && impliedAnswer && impliedAnswer !== candidate.correctAnswer) {
+            candidateWarnings.push(`The enhancement implies answer ${impliedAnswer}, but the source answer ${candidate.correctAnswer} was preserved.`);
+          }
           if (options.hint && candidate.hint === null && !stage2.hint) {
             candidateWarnings.push("The requested hint enhancement is missing.");
           }

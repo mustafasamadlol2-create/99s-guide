@@ -40,6 +40,13 @@ export interface AIStructuredContentRequest<T> {
 export interface AIContentServiceOptions {
   maxProviderAttempts?: number;
   retryBaseDelayMs?: number;
+  reusePreparedMedia?: boolean;
+  onBatchComplete?: (details: {
+    completedBatches: number;
+    itemsReturned: number;
+    provider: string;
+    model: string;
+  }) => void;
 }
 
 function validateContentParts(contents: AIContentPart[]): AIContentPart[] {
@@ -55,6 +62,9 @@ function validateContentParts(contents: AIContentPart[]): AIContentPart[] {
 export class AIContentService {
   private readonly maxProviderAttempts: number;
   private readonly retryBaseDelayMs: number;
+  private readonly reusePreparedMedia: boolean;
+  private readonly onBatchComplete?: AIContentServiceOptions["onBatchComplete"];
+  private completedBatches = 0;
 
   constructor(
     private readonly provider: AIProvider,
@@ -62,6 +72,8 @@ export class AIContentService {
   ) {
     this.maxProviderAttempts = options.maxProviderAttempts ?? 3;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
+    this.reusePreparedMedia = options.reusePreparedMedia ?? false;
+    this.onBatchComplete = options.onBatchComplete;
     if (!Number.isInteger(this.maxProviderAttempts) || this.maxProviderAttempts < 1 || this.maxProviderAttempts > 5) {
       throw new Error("maxProviderAttempts must be an integer between 1 and 5.");
     }
@@ -77,7 +89,22 @@ export class AIContentService {
     for (let attempt = 1; attempt <= this.maxProviderAttempts; attempt += 1) {
       if (request.signal?.aborted) throw new DOMException("The AI request was aborted.", "AbortError");
       try {
-        return await this.provider.generateStructured(request);
+        const result = await this.provider.generateStructured({
+          ...request,
+          reusePreparedMedia: this.reusePreparedMedia,
+        });
+        this.completedBatches += 1;
+        const itemsReturned = typeof result.data === "object" && result.data !== null &&
+          "items" in result.data && Array.isArray(result.data.items)
+          ? result.data.items.length
+          : 0;
+        this.onBatchComplete?.({
+          completedBatches: this.completedBatches,
+          itemsReturned,
+          provider: result.meta.provider,
+          model: result.meta.model,
+        });
+        return result;
       } catch (error) {
         lastError = error;
         if (!isAIServiceError(error) || !error.retryable || attempt === this.maxProviderAttempts) throw error;
@@ -93,6 +120,10 @@ export class AIContentService {
       }
     }
     throw lastError;
+  }
+
+  async dispose(): Promise<void> {
+    await this.provider.dispose?.();
   }
 
   async generateStructured<T>(

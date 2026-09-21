@@ -677,3 +677,88 @@ test("deferred aborts and outer deadlines preserve primary classification and cl
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(lateFiles.deleted, ["files/late"]);
 });
+
+test("reuses one prepared PDF across calls and disposes it once", async () => {
+  const files = new FakeFiles();
+  const uris: string[] = [];
+  let generations = 0;
+  const provider = new GeminiProvider(
+    { apiKey: "test", model: "test-model", timeoutMs: 500 },
+    {
+      files,
+      models: {
+        async generateContent(parameters) {
+          generations += 1;
+          uris.push((parameters.contents as any)[0].parts[0].fileData.fileUri);
+          return { text: JSON.stringify(output) };
+        },
+      },
+    },
+    { inlineImageMaxTotalBytes: 1, fileProcessingTimeoutMs: 100, filePollIntervalMs: 0 },
+  );
+  const contents = [await testPdfPart()];
+  for (let index = 0; index < 3; index += 1) {
+    await provider.generateStructured({
+      contents,
+      responseSchema: aiMcqDraftSchema,
+      reusePreparedMedia: true,
+    });
+  }
+  assert.equal(files.uploads.length, 1);
+  assert.ok(generations > 1);
+  assert.equal(new Set(uris).size, 1);
+  assert.equal(files.deleted.length, 0);
+  await provider.dispose();
+  assert.deepEqual(files.deleted, ["files/1"]);
+});
+
+test("reusable Gemini media is disposed after a generation failure", async () => {
+  const files = new FakeFiles();
+  const provider = new GeminiProvider(
+    { apiKey: "test", model: "test-model", timeoutMs: 500 },
+    {
+      files,
+      models: { async generateContent() { throw new Error("generation failed"); } },
+    },
+    { inlineImageMaxTotalBytes: 1, fileProcessingTimeoutMs: 100, filePollIntervalMs: 0 },
+  );
+  await assert.rejects(provider.generateStructured({
+    contents: [await testPdfPart()],
+    responseSchema: aiMcqDraftSchema,
+    reusePreparedMedia: true,
+  }));
+  assert.deepEqual(files.deleted, []);
+  await provider.dispose();
+  assert.deepEqual(files.deleted, ["files/1"]);
+});
+
+test("Gemini retry classification marks transient statuses and network resets retryable", async () => {
+  for (const status of [500, 502, 503, 504, 429]) {
+    const provider = new GeminiProvider(
+      { apiKey: "test", model: "test-model", timeoutMs: 500 },
+      { models: { async generateContent() { throw { status }; } } },
+    );
+    await assert.rejects(
+      provider.generateStructured({ contents: [{ kind: "text", text: "x", source: { inputType: "text" }, sizeBytes: 1, sha256: "x" }], responseSchema: aiMcqDraftSchema }),
+      (error: unknown) => error instanceof AIServiceError && error.retryable === true,
+    );
+  }
+  for (const status of [400, 401, 403]) {
+    const provider = new GeminiProvider(
+      { apiKey: "test", model: "test-model", timeoutMs: 500 },
+      { models: { async generateContent() { throw { status }; } } },
+    );
+    await assert.rejects(
+      provider.generateStructured({ contents: [{ kind: "text", text: "x", source: { inputType: "text" }, sizeBytes: 1, sha256: "x" }], responseSchema: aiMcqDraftSchema }),
+      (error: unknown) => error instanceof AIServiceError && error.retryable !== true,
+    );
+  }
+  const provider = new GeminiProvider(
+    { apiKey: "test", model: "test-model", timeoutMs: 500 },
+    { models: { async generateContent() { throw Object.assign(new Error("connection reset"), { code: "ECONNRESET" }); } } },
+  );
+  await assert.rejects(
+    provider.generateStructured({ contents: [{ kind: "text", text: "x", source: { inputType: "text" }, sizeBytes: 1, sha256: "x" }], responseSchema: aiMcqDraftSchema }),
+    (error: unknown) => error instanceof AIServiceError && error.retryable === true,
+  );
+});

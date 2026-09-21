@@ -39,7 +39,7 @@ export const mcqCandidateSchema = z.object({
   category: z.enum(["AI_GENERATED", "PREVIOUS_YEAR", "RESOURCE"]),
   provenance: z.enum(["extracted", "generated", "enhanced"]),
   source: mcqSourceEvidenceSchema.nullable(),
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   importReady: z.boolean(),
   needsReview: z.boolean(),
   requiresHumanApproval: z.literal(true),
@@ -58,7 +58,7 @@ export const mcqExtractionProviderItemSchema = z.object({
   explanation: nullableText,
   difficulty: z.string().trim().max(80).nullable(),
   source: providerSourceSchema,
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
@@ -92,7 +92,7 @@ export const mcqGenerationProviderItemSchema = z.object({
   explanation: nullableText,
   difficulty: z.string().trim().max(80).nullable(),
   source: providerSourceSchema,
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
@@ -110,7 +110,7 @@ export function createMCQEnhancementProviderResponseSchema(options: {
       candidateId: z.string().uuid(),
       ...(options.hint ? { hint: nullableText.optional() } : {}),
       ...(options.explanation ? { explanation: nullableText.optional() } : {}),
-      confidence: z.number().finite().min(0).max(1),
+      confidence: z.number().finite().min(0).max(1).default(0.5),
       uncertainties: providerUncertaintiesSchema,
     }).strict()).max(100),
     uncertainties: providerUncertaintiesSchema,

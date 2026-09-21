@@ -79,7 +79,7 @@ interface AIPreviewJobAccepted {
   inputKind: AIPreviewRequest["source"]["inputKind"];
 }
 
-interface AIPreviewJobStatus {
+export interface AIPreviewJobStatus {
   jobId: string;
   state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   target: AIPreviewRequest["target"];
@@ -118,7 +118,7 @@ function requestBody(request: AIPreviewRequest): { body: BodyInit; headers: Head
   return { body: form, headers: {} };
 }
 
-function isRetryablePollFailure(error: unknown): boolean {
+export function isRetryablePollFailure(error: unknown): boolean {
   if (error instanceof AIPreviewError) return false;
   const candidate = error as { status?: number; message?: string };
   return candidate.status === undefined ||
@@ -140,6 +140,42 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
       reject(new DOMException("The request was aborted.", "AbortError"));
     }, { once: true });
   });
+}
+
+export interface AIPreviewPollingDependencies {
+  readStatus(): Promise<AIPreviewJobStatus>;
+  wait(signal: AbortSignal): Promise<void>;
+}
+
+export async function pollAIPreviewJob(
+  signal: AbortSignal,
+  dependencies: AIPreviewPollingDependencies,
+  onProgress?: (status: AIPreviewJobStatus) => void,
+): Promise<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>> {
+  while (true) {
+    try {
+      const status = await dependencies.readStatus();
+      onProgress?.(status);
+      if (status.state === "succeeded" && status.response) return status.response;
+      if (status.state === "cancelled") {
+        throw new AIPreviewError("AI preview cancelled.", { code: "AI_JOB_CANCELLED" });
+      }
+      if (status.state === "failed") {
+        throw new AIPreviewError(
+          status.error?.message || "AI preview could not be completed.",
+          {
+            code: status.error?.code,
+            retryable: status.error?.retryable,
+          },
+        );
+      }
+    } catch (error) {
+      if (!isRetryablePollFailure(error)) throw error;
+      await dependencies.wait(signal);
+      continue;
+    }
+    await dependencies.wait(signal);
+  }
 }
 
 export async function requestAIPreview(
@@ -164,8 +200,8 @@ export async function requestAIPreview(
     });
     const accepted = await acceptedResponse.json() as AIPreviewJobAccepted;
     onJobCreated?.(accepted.jobId);
-    while (true) {
-      try {
+    return await pollAIPreviewJob(signal, {
+      readStatus: async () => {
         const statusResponse = await apiClient(
           `${endpoint}/${encodeURIComponent(accepted.jobId)}`,
           {
@@ -176,28 +212,10 @@ export async function requestAIPreview(
             timeoutMs: AI_PREVIEW_POLL_TIMEOUT_MS,
           },
         );
-        const status = await statusResponse.json() as AIPreviewJobStatus;
-        onProgress?.(status);
-        if (status.state === "succeeded" && status.response) return status.response;
-        if (status.state === "cancelled") {
-          throw new AIPreviewError("AI preview cancelled.", { code: "AI_JOB_CANCELLED" });
-        }
-        if (status.state === "failed") {
-          throw new AIPreviewError(
-            status.error?.message || "AI preview could not be completed.",
-            {
-              code: status.error?.code,
-              retryable: status.error?.retryable,
-            },
-          );
-        }
-      } catch (error) {
-        if (!isRetryablePollFailure(error)) throw error;
-        await waitForPoll(signal);
-        continue;
-      }
-      await waitForPoll(signal);
-    }
+        return statusResponse.json() as Promise<AIPreviewJobStatus>;
+      },
+      wait: waitForPoll,
+    }, onProgress);
   } catch (error) {
     throw errorFromUnknown(error);
   }

@@ -57,7 +57,7 @@ export interface CreateAIPreviewJobArgs {
   requestId: string;
   rawInput: RawAIInput;
   inputService: AIInputService;
-  engineFactory: () => AIAdminEngines;
+  engineFactory: (onBatchComplete?: import("../AIContentService.js").AIContentServiceOptions["onBatchComplete"]) => AIAdminEngines;
   releaseLease?: () => void;
   dispatch: (
     engines: AIAdminEngines,
@@ -155,6 +155,26 @@ export class AIPreviewJobManager {
     if (record.state !== "queued") return;
     record.state = "running";
     record.progress = { ...record.progress, stage: args.operation === "extract" ? "extracting" : args.operation === "generate" ? "generating" : "enhancing" };
+    const engines = args.engineFactory((details) => {
+      if (record.state !== "running") return;
+      record.progress = {
+        ...record.progress,
+        completedBatches: details.completedBatches,
+        itemsRecovered: record.progress.itemsRecovered + details.itemsReturned,
+      };
+      console.info(JSON.stringify({
+        category: "AI_PREVIEW_BATCH",
+        jobId: record.jobId,
+        requestId: args.requestId,
+        target: args.target,
+        operation: args.operation,
+        inputKind: args.inputKind,
+        batch: details.completedBatches,
+        itemsReturned: details.itemsReturned,
+        provider: details.provider,
+        model: details.model,
+      }));
+    });
     try {
       const result = await args.inputService.withPreparedInput(args.rawInput, async (prepared) => {
         if (record.state === "cancelled") throw new AIServiceError("AI_TIMEOUT", {
@@ -162,7 +182,7 @@ export class AIPreviewJobManager {
           diagnosticMessage: "Cancelled before engine execution.",
         });
         record.progress = { ...record.progress, stage: "reading" };
-        return args.dispatch(args.engineFactory(), {
+        return args.dispatch(engines, {
           target: args.target,
           operation: args.operation,
           options: args.options,
@@ -179,6 +199,7 @@ export class AIPreviewJobManager {
       if (record.state !== "running") return;
       this.fail(record, error);
     } finally {
+      await engines.dispose?.();
       const adopted = args.rawInput.kind === "pdf"
         ? [args.rawInput.file.adoptedFile]
         : args.rawInput.kind === "image"

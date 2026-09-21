@@ -229,3 +229,72 @@ test("Cloudflare chunking preserves Unicode boundaries and source order", () => 
   assert.equal(chunks[0], "ألفا🙂");
   assert.equal(chunks[2], "جاما");
 });
+
+test("Cloudflare reuses one conversion across calls and reconverts after dispose", async () => {
+  let conversions = 0;
+  let inferences = 0;
+  const converter = {
+    convert: async () => {
+      conversions += 1;
+      return [{ inputType: "pdf" as const, text: "converted source" }];
+    },
+  };
+  const client = {
+    run: async () => {
+      inferences += 1;
+      return {
+        text: JSON.stringify({ items: [{ value: `result-${inferences}` }], uncertainties: [] }),
+        responseId: `ray-${inferences}`,
+      };
+    },
+  };
+  const provider = new CloudflareAIProvider(config, client as never, converter as never);
+  const contents: import("../server/services/ai/input/contracts.js").AIContentPart[] = [{
+    kind: "file" as const,
+    inputType: "pdf" as const,
+    mimeType: "application/pdf" as const,
+    fileSource: { kind: "existing_resource" as const, resourceId: "same-source", ownership: "borrowed" as const },
+    source: { inputType: "pdf" as const, label: "source.pdf" },
+    sizeBytes: 4,
+    sha256: "same-source-hash",
+  }];
+  const schema = z.object({
+    items: z.array(z.object({ value: z.string().min(1) })),
+    uncertainties: z.array(z.string()),
+  });
+  for (let index = 0; index < 3; index += 1) {
+    await provider.generateStructured({ contents, responseSchema: schema, reusePreparedMedia: true });
+  }
+  assert.equal(conversions, 1);
+  assert.ok(inferences > 1);
+  await provider.dispose();
+  await provider.generateStructured({ contents, responseSchema: schema, reusePreparedMedia: true });
+  assert.equal(conversions, 2);
+});
+
+test("Cloudflare retry classification covers transient, auth, invalid, and network failures", async () => {
+  for (const status of [500, 502, 503, 504, 429]) {
+    const client = new CloudflareClient(config, async () => response({ success: false }, status));
+    await assert.rejects(
+      client.run([{ role: "user", content: "test" }], { type: "json_schema" }, new AbortController().signal),
+      (error: unknown) => error instanceof AIServiceError && error.retryable === true,
+    );
+  }
+  for (const status of [400, 401, 403]) {
+    const client = new CloudflareClient(config, async () => response({ success: false }, status));
+    await assert.rejects(
+      client.run([{ role: "user", content: "test" }], { type: "json_schema" }, new AbortController().signal),
+      (error: unknown) => error instanceof AIServiceError && error.retryable !== true,
+    );
+  }
+  const provider = new CloudflareAIProvider(config, {
+    run: async () => { throw Object.assign(new Error("connection reset"), { code: "ECONNRESET" }); },
+  } as never);
+  await assert.rejects(
+    provider.generateStructured({
+      contents: [textPart("test")],
+      responseSchema: z.object({ items: z.array(z.unknown()), uncertainties: z.array(z.string()) }),
+    }),
+    (error: unknown) => error instanceof AIServiceError && error.retryable === true,
+  );
+});

@@ -5,7 +5,7 @@ import type { AIInputService } from "../input/AIInputService.js";
 import type { AIAdoptedBinaryFile, RawAIInput } from "../input/contracts.js";
 import { AIInputService as DefaultAIInputService } from "../input/AIInputService.js";
 import { AITemporaryFileManager } from "../input/temporaryFiles.js";
-import { AIContentService } from "../AIContentService.js";
+import { AIContentService, type AIContentServiceOptions } from "../AIContentService.js";
 import { createConfiguredAIProvider } from "../providerFactory.js";
 import { MCQAIEngine } from "../mcq/MCQAIEngine.js";
 import type { MCQEnhancementOptions, MCQGenerationOptions, MCQOperationResult } from "../mcq/contracts.js";
@@ -34,6 +34,7 @@ export interface AILectureResolver {
 export interface AIAdminEngines {
   mcq: Pick<MCQAIEngine, "extractExistingMCQs" | "generateMCQs" | "enhanceExistingMCQs">;
   flashcard: Pick<FlashcardAIEngine, "extractExistingFlashcards" | "generateFlashcards" | "enhanceExistingFlashcards">;
+  dispose?(): Promise<void>;
 }
 
 export interface AIAdminRouterOptions {
@@ -41,7 +42,7 @@ export interface AIAdminRouterOptions {
   lectureResolver: AILectureResolver;
   inputService?: AIInputService;
   temporaryFiles?: AITemporaryFileManager;
-  engineFactory?: () => AIAdminEngines;
+  engineFactory?: (onBatchComplete?: AIContentServiceOptions["onBatchComplete"]) => AIAdminEngines;
   rateLimiter?: AIAdminRateLimiter;
   concurrencyGate?: AIAdminConcurrencyGate;
   jobManager?: AIPreviewJobManager;
@@ -174,11 +175,15 @@ async function rawInputFromRequest(
   }
 }
 
-function defaultEngineFactory(): AIAdminEngines {
-  const contentService = new AIContentService(createConfiguredAIProvider());
+function defaultEngineFactory(onBatchComplete?: AIContentServiceOptions["onBatchComplete"]): AIAdminEngines {
+  const contentService = new AIContentService(createConfiguredAIProvider(), {
+    reusePreparedMedia: true,
+    onBatchComplete,
+  });
   return {
     mcq: new MCQAIEngine(contentService),
     flashcard: new FlashcardAIEngine(contentService),
+    dispose: () => contentService.dispose(),
   };
 }
 
@@ -281,10 +286,16 @@ export function createAIAdminRouter(options: AIAdminRouterOptions): Router {
       if (rawInput.kind === "pdf") adoptedCleanup.push(rawInput.file.adoptedFile!);
       if (rawInput.kind === "image") adoptedCleanup.push(...rawInput.files.map((file) => file.adoptedFile!));
 
-      const result = await inputService.withPreparedInput(
-        rawInput,
-        (prepared) => dispatch(engineFactory(), parsed, prepared, abort.signal),
-      );
+      const engines = engineFactory();
+      let result: MCQOperationResult | FlashcardOperationResult;
+      try {
+        result = await inputService.withPreparedInput(
+          rawInput,
+          (prepared) => dispatch(engines, parsed, prepared, abort.signal),
+        );
+      } finally {
+        await engines.dispose?.();
+      }
       responseBody = buildAIAdminResponse(id, target, lecture, parsed.inputKind, result);
       console.info(JSON.stringify({
         category: "AI_PREVIEW",

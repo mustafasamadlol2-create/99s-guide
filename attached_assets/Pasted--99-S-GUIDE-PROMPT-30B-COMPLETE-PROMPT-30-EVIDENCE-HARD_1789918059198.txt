@@ -1,0 +1,1314 @@
+# 99'S GUIDE — PROMPT 30B
+## COMPLETE PROMPT 30 EVIDENCE + HARD RELIABILITY CLOSURE
+### DO NOT REDESIGN THE IMPLEMENTATION
+### VERIFY AND REPAIR ONLY THE MISSING PROMPT-30 GATES
+### PROVE MEDIA REUSE
+### PROVE 80/100-MCQ COMPLETENESS
+### PROVE GENERATE / ENHANCE LARGE-BATCH RELIABILITY
+### PROVE FLASHCARD LARGE-BATCH RELIABILITY
+### PROVE LONG-RUNNING POLLING
+### RUN THE FULL REGRESSION MATRIX
+### NO RESOURCE 5-GIB IMPLEMENTATION YET
+### NO CLOUD DEPLOYMENT
+### NO PRODUCTION MIGRATION
+### DO NOT MODIFY `.agents/*`
+### DO NOT STOP FOR INTERMEDIATE PROGRESS UPDATES
+
+Prompt 30 implementation is PROVISIONALLY accepted.
+
+Do NOT restart or rewrite the feature.
+
+The accepted Prompt 30 implementation already reports:
+
+- MCQ/Flashcard background preview jobs
+- owner isolation
+- cancellation
+- no frontend-wide AI deadline
+- 20-second individual poll timeout
+- deterministic MCQ extraction
+- bounded batching
+- recursive failed-batch splitting
+- provider retry
+- MCQ/Flashcard Generate and Enhance reliability work
+- strict validation
+- review-before-persistence
+
+However Prompt 30 is NOT CLOSED because the prior report did not provide evidence for several mandatory reliability gates.
+
+This prompt must verify them against the ACTUAL CURRENT REPOSITORY and make only narrow repairs if a gate is incomplete.
+
+---
+
+# 1. DO NOT IMPLEMENT PROMPT 31
+
+Do NOT implement 3–5 GiB Resource uploads.
+
+Do NOT increase Resource Multer limits.
+
+Do NOT change Resource storage architecture.
+
+Prompt 31 remains separate.
+
+---
+
+# 2. AUDIT THE ACTUAL PROMPT 30 IMPLEMENTATION
+
+First inspect the current source.
+
+Do not rely on the previous report.
+
+Trace:
+
+```text
+MCQ Extract
+MCQ Generate
+MCQ Enhance
+
+Flashcard Extract
+Flashcard Generate
+Flashcard Enhance
+
+frontend start-job
+frontend polling
+server job manager
+provider retry
+Gemini media preparation
+Cloudflare document conversion
+batching
+recursive split
+missing-item recovery
+merge
+validation
+cancellation
+cleanup
+
+Report the actual files/functions.
+
+3. BACKGROUND JOB STORAGE MODEL
+
+State exactly where preview job state lives:
+
+memory
+database
+other
+
+If in memory, report that honestly.
+
+Do NOT add a database migration merely to persist jobs.
+
+For an in-memory implementation verify that:
+
+a lost/restarted server returns a meaningful recoverable job-not-found/interrupted error
+frontend does not poll forever
+user can retry
+no final content is persisted
+
+Do not claim process-restart durability if it does not exist.
+
+4. JOB HARD SAFETY CEILING
+
+The previous report mentioned a hard safety ceiling but gave no value.
+
+Report exact:
+
+job maximum runtime
+terminal retention TTL
+poll interval
+individual poll timeout
+
+A legitimate 80–100 item job must not have a 2–10 minute whole-job ceiling.
+
+Preferred job-level stuck guard:
+
+30–60 minutes
+
+unless current architecture justifies another bounded value.
+
+This is NOT a frontend wait deadline.
+
+5. NO OVERALL FRONTEND DEADLINE
+
+Prove source-level behavior:
+
+NO OVERALL AI JOB WAIT DEADLINE
+
+The frontend may poll until a terminal state.
+
+A temporary failed polling request must not cancel the server job.
+
+6. >2-MINUTE POLLING TEST
+
+Add/run a deterministic fake-timer test.
+
+Simulate a background job running longer than:
+
+120 seconds
+
+and longer than any former 180/600-second frontend request timeout where applicable.
+
+Required:
+
+job remains active
+frontend continues polling
+no overall timeout terminates it
+
+Do NOT sleep for real minutes.
+
+7. NETWORK INTERRUPTION DURING POLLING
+
+Simulate multiple temporary failures:
+
+poll succeeds
+→ network error
+→ timeout
+→ 502/503
+→ polling resumes
+→ final succeeded result returned
+
+Required:
+
+server job remains alive.
+
+Frontend must not convert temporary poll failure into terminal AI failure.
+
+8. EXPLICIT CANCELLATION
+
+Re-test cancellation through the HTTP/job boundary.
+
+Required:
+
+DELETE/cancel
+→ job cancelled
+→ polling stops
+→ active provider operation aborted where supported
+→ staged files cleaned
+→ provider media cleaned
+→ zero final persistence
+9. PROVIDER TIMEOUT INVENTORY
+
+Report exact current values and environment overrides for:
+
+normal AI provider call
+large MCQ extraction shard
+large Flashcard extraction shard
+large generation batch
+large enhancement batch
+Gemini Files activation/processing
+Cloudflare conversion
+job hard ceiling
+cleanup
+
+Do NOT leave this as "large enough".
+
+Do not use infinite provider calls.
+
+10. PROVIDER RETRY POLICY
+
+Prompt 30 reported up to 3 attempts.
+
+Verify actual behavior for:
+
+429
+500
+502
+503
+504
+network timeout/reset
+
+and non-retry behavior for:
+
+401/403
+invalid API key
+invalid user input
+validation failure
+permanent unsupported media
+malformed application request
+
+Use deterministic tests.
+
+11. GEMINI MEDIA REUSE — HARD GATE
+
+This was a mandatory Prompt 30 optimization and was absent from the report.
+
+For ONE multi-shard PDF job using Gemini Files API, required architecture is:
+
+prepare/upload PDF once
+→ wait ACTIVE once
+→ reuse same provider file across every shard/batch
+→ delete provider file once after complete job
+
+Inspect actual code.
+
+Forbidden:
+
+shard 1 → upload PDF
+shard 2 → upload same PDF
+shard 3 → upload same PDF
+
+If current code does this, repair it.
+
+12. GEMINI MEDIA-REUSE TEST
+
+Mock a PDF requiring Files API.
+
+Run multiple shards.
+
+Required exact assertions:
+
+PDF provider upload count = 1
+provider activation/preparation count = 1
+generation/extraction calls > 1
+all calls reference same provider media
+cleanup count = 1
+
+Cancellation/failure must still cleanup safely.
+
+13. SMALL PDF INLINE TRANSPORT
+
+Audit whether the current Gemini architecture supports small PDF inline input.
+
+If yes, report exact threshold/configuration.
+
+If no, do NOT invent unsupported behavior merely to match the old patch.
+
+Use current provider capabilities as authority.
+
+The local fix concept was approximately 10 MiB, but the final implementation must follow actual supported API behavior.
+
+14. CLOUDFLARE CONVERSION REUSE — HARD GATE
+
+For one source PDF/document and multiple shards:
+
+convert source once
+→ reuse job-local normalized Markdown/text
+→ multiple AI shard calls
+
+Required:
+
+conversion count = 1
+
+If conversion is currently repeated per shard, repair it.
+
+Do not create cross-user global source cache.
+
+15. CLOUDFLARE REUSE TEST
+
+Mock conversion.
+
+Multiple shards must assert:
+
+document conversion count = 1
+
+Clean job-local cached content after terminal job state.
+
+16. MCQ DETERMINISTIC 80 TEST
+
+Run/create a fully structured 80-MCQ source:
+
+Q1 ... Q80
+A-D
+explicit answers
+
+Required:
+
+input questions: 80
+output candidates: 80
+sourceOrdinal: 1…80
+missing: 0
+duplicates: 0
+LLM/provider extraction calls: 0
+
+The deterministic parser must not call the model when the complete source safely satisfies its contract.
+
+17. DETERMINISTIC PARSER SAFETY
+
+If even one structural assumption makes full deterministic extraction unsafe:
+
+do not silently use partial deterministic output as authoritative.
+
+Use the appropriate AI fallback.
+
+Do not misparse arbitrary lecture text as MCQs.
+
+18. MULTIPLE-ANSWER SEMANTICS
+
+The previous Prompt 30 report said:
+
+rejection of ... multiple-answer MCQ structures
+
+Clarify and fix if necessary.
+
+For a structurally valid question containing:
+
+Answer: A + B
+
+the system MUST NOT silently choose one answer.
+
+Required final candidate semantics:
+
+question/options preserved
+correctAnswer = null
+warning/uncertainty present
+requires review
+
+If the deterministic fast path falls back to AI for this question, the final system must STILL preserve the ambiguity and not allow the AI to fabricate one correct option.
+
+Add an explicit test.
+
+19. 100-MCQ SHARDED TEST
+
+Create a source requiring AI sharding rather than deterministic full parsing.
+
+Expected conceptual batches:
+
+1–25
+26–50
+51–75
+76–100
+
+or current bounded equivalent.
+
+Verify:
+
+100 expected
+100 recovered when provider mocks provide all source items
+correct final order
+no duplicate
+no giant 100-item provider request
+
+Report actual shard size.
+
+20. FAILED-SHARD SPLIT TEST
+
+Simulate:
+
+1–25 = success
+26–50 = failure
+51–75 = success
+76–100 = success
+
+Required:
+
+26–50 only is retried/split
+successful ranges are not re-executed
+failed range is recursively divided
+final result reaches full expected set
+
+Track provider call ranges in the test.
+
+21. MISSING-ORDINAL RECOVERY
+
+Simulate provider output missing:
+
+32
+33
+57
+
+Required:
+
+detect missing ordinals
+request only missing ranges/items
+do not re-run entire document
+final complete merge if recovery succeeds
+
+If bounded recovery fails:
+
+return explicit incomplete warning/error with missing ordinals.
+
+Never silently claim completeness.
+
+22. ZERO-RESULT GUARD
+
+Create a source clearly containing MCQ markers.
+
+Mock initial provider result:
+
+{"items":[]}
+
+Required:
+
+zero is NOT accepted as successful final extraction
+
+The engine must:
+
+retry/fallback/recover
+
+and only finish empty if the source truly contains no detectable MCQs.
+
+If a clearly non-empty source remains unrecoverable, return a structured incomplete-extraction error.
+
+23. MCQ GENERATE LARGE-BATCH TEST
+
+Request a large supported count such as 80.
+
+Verify:
+
+bounded generation batch size
+limited concurrency
+no single 80-item provider output
+source sections/pages distributed across generation plan
+global merge
+global duplicate detection
+deficit recovery
+
+Accuracy > exact quota.
+
+24. GENERATE SOURCE COVERAGE
+
+Report the actual strategy used to prevent every batch from focusing on the same first source section.
+
+Examples may include:
+
+source chunk/page partitioning
+quota per chunk
+coverage cursor
+
+If current implementation does NOT actually implement source coverage:
+repair it.
+
+Do not simply repeat the full same PDF with identical "generate 20" prompts four times and call that coverage.
+
+25. GENERATE INSUFFICIENT SOURCE
+
+Test a source that cannot support the requested number of distinct high-quality questions.
+
+Required:
+
+return fewer source-grounded questions
++
+explicit insufficiency warning
+
+not hallucinated filler.
+
+26. MCQ GENERATION DEDUPE
+
+Test duplicates across batches.
+
+Required:
+
+duplicate/near-identical generated questions do not become separate final candidates without warning
+bounded deficit generation can fill from uncovered source
+no infinite regeneration loop
+27. MCQ ENHANCE — 80→80 HARD GATE
+
+Create 80 existing MCQs.
+
+Run Enhance.
+
+Required:
+
+input structural candidates = 80
+output structural candidates = 80
+
+No candidate may disappear.
+
+28. MCQ ENHANCE STRUCTURAL IMMUTABILITY
+
+For every input candidate verify exact preservation of:
+
+candidateId
+sourceOrdinal
+question
+option A
+option B
+option C
+option D
+correctAnswer
+
+unless the explicit Enhance product mode allows a particular structural field.
+
+The normal hint/explanation enhancement must not rewrite structural content.
+
+29. ENHANCE MISSING-RETURN RECOVERY
+
+Send batch of 25.
+
+Mock provider returning enhancement results for only 23 candidate IDs.
+
+Required:
+
+missing 2 IDs detected
+only those 2 retried
+all original 25 structural candidates survive
+
+If enhancement ultimately fails for one:
+
+return original candidate plus warning.
+
+Never drop the MCQ.
+
+30. ENHANCE ANSWER-CONFLICT TEST
+
+Input source answer:
+
+B
+
+Provider explanation implies:
+
+C
+
+Required:
+
+correctAnswer remains B
+enhancement is flagged for review
+
+The model cannot silently correct the source answer.
+
+31. FLASHCARD LARGE EXTRACT
+
+Create a large source requiring multiple extraction batches.
+
+Verify:
+
+bounded batches
+ordered merge where applicable
+global dedupe
+zero-result guard
+failed-batch recovery
+no valid cards disappear
+32. FLASHCARD LARGE GENERATE
+
+Request a large supported Flashcard count.
+
+Verify:
+
+bounded batches
+source coverage
+duplicate removal/warnings
+bounded deficit recovery
+insufficient-source warning rather than hallucinated cards
+no one massive provider response
+33. FLASHCARD LARGE ENHANCE
+
+Use many existing Flashcards.
+
+Hard invariant:
+
+input card count = output structural card count
+
+Missing enhancement IDs recover selectively.
+
+Failed enhancement preserves original card.
+
+34. FLASHCARD STRUCTURAL PRESERVATION
+
+Enhance must preserve existing front/back identity according to current product contract.
+
+Do not make an enhancement failure delete or replace a source card.
+
+35. STRICT STRUCTURED VALIDATION
+
+Reconfirm:
+
+provider
+→ JSON
+→ strict Zod
+→ domain normalization
+→ completeness validation
+→ review
+
+No arbitrary JSON acceptance.
+
+36. GEMINI SCHEMA FALLBACK
+
+If Prompt 30 added a schema-specific fallback:
+
+test:
+
+Gemini schema-related 400
+→ bounded JSON fallback
+→ same strict server-side Zod validation
+
+Malformed fallback result must still fail safely.
+
+Do not fallback for unrelated 400 errors.
+
+37. OPTIONAL METADATA
+
+Verify an otherwise valid 80-item result cannot fail merely because optional fields such as confidence were omitted.
+
+Do NOT make structural educational fields optional.
+
+38. OUTPUT PAYLOAD
+
+Report how redundant per-item JSON was reduced for large operations.
+
+Do not remove review/provenance fields required by the application.
+
+39. JOB PROGRESS
+
+Report actual progress stages for:
+
+Extract
+Generate
+Enhance
+
+for MCQ and Flashcards.
+
+No fake percentages required.
+
+Batch X/Y is sufficient.
+
+40. DIAGNOSTIC LOGGING
+
+Verify safe diagnostics include enough context to diagnose future production failures:
+
+jobId
+requestId if present
+operation
+target
+provider
+model
+input kind/size
+batch/shard
+attempt
+duration
+items returned/accepted
+missing count
+retry reason
+terminal error code
+
+Do NOT log secrets or full private source content.
+
+41. REVIEW-BEFORE-PERSISTENCE
+
+Hard invariant:
+
+AI PREVIEW WRITES ZERO FINAL MCQS / FLASHCARDS.
+
+Run/source-test this where possible.
+
+42. JOB OWNER SECURITY
+
+Run HTTP/job tests proving:
+
+anonymous rejected
+ordinary user rejected where admin-only
+admin owner permitted
+other account cannot read job
+other account cannot cancel job
+
+No raw temp paths/provider IDs leaked.
+
+43. PRISMA_DB_PUSH CHANGE AUDIT
+
+The Prompt 30 report stated:
+
+development workflow changed
+PRISMA_DB_PUSH=true
+→ PRISMA_DB_PUSH=false
+
+Identify the EXACT modified file/configuration.
+
+Report why it changed.
+
+Verify:
+
+it prevents destructive automatic db push
+it does not accidentally disable legitimate production migration deployment
+production deployment still uses explicit migration procedure
+no unrelated Replit workflow configuration was damaged
+
+Do not revert a safe non-destructive setting merely to make the diff smaller.
+
+44. CALENDAR IMPORT REGRESSION
+
+Run both:
+
+Calendar import service/unit suite
+Calendar import HTTP suite
+
+No failures.
+
+Report exact counts.
+
+The existing Prompt 28 migration remains NOT applied to production.
+
+45. CURRENT RESOURCE PDF REGRESSION
+
+Verify current Resource PDF upload remains green.
+
+Do NOT change size architecture.
+
+State:
+
+5-GIB RESOURCE SUPPORT: NOT IMPLEMENTED — PROMPT 31 ONLY
+46. AI INPUT REGRESSION
+
+Run all relevant existing suites:
+
+tests/ai-timeouts.test.ts
+tests/ai-input.test.ts
+tests/ai-gemini-media.test.ts
+tests/ai-admin-http.test.ts
+tests/cloudflare-ai-provider.test.ts
+tests/material-upload-validation.test.ts
+tests/api-client-error.test.ts
+tests/ai-prompt30-reliability.test.ts
+
+and any new Prompt 30B tests.
+
+Report exact combined count.
+
+47. MCQ BASELINE
+
+Run:
+
+npm run test:ai-mcq
+
+Report exact count.
+
+No failures.
+
+48. FLASHCARD BASELINE
+
+Run:
+
+npm run test:ai-flashcard
+
+Report exact count.
+
+No failures.
+
+49. PERSONALIZATION HARD GATE
+
+Run exactly:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Required:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+50. APP ICON / PWA
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Required:
+
+15 passed
+0 failed
+51. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+52. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected existing baseline:
+
+13 passed
+
+plus new focused AI job authorization tests separately.
+
+53. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+54. TYPECHECK
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+55. BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+
+Frontend and backend production bundles.
+
+56. TARGETED ESLINT
+
+Run ESLint across all Prompt 30/30B modified application/shared/test files.
+
+Required:
+
+0 errors
+
+.local/skills/* remains classified separately.
+
+Do not rewrite those files.
+
+57. FULL REPOSITORY TEST SUITE — HARD GATE
+
+The previous source-release baseline before Prompt 30 was:
+
+366 passed
+0 failed
+
+Prompt 30 added tests, so the final total must be HIGHER if new tests are part of the authoritative full suite.
+
+Run the ACTUAL full repository suite.
+
+Report:
+
+passed
+failed
+skipped
+cancelled
+
+Hard requirement:
+
+failed = 0
+
+Do not close Prompt 30B with only selected suites.
+
+58. NO LIVE AI CALLS
+
+Automated tests use mocks/fakes.
+
+Do not spend Gemini/Cloudflare quota.
+
+59. NO PRODUCTION DB / CLOUD
+
+Do not:
+
+apply production migration
+db push production
+deploy Render
+deploy Cloudflare
+modify R2 production
+push Git
+60. GIT REVIEW
+
+Run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Required:
+
+git diff --check
+→ NO OUTPUT
+
+Classify every Prompt 30/30B changed file.
+
+61. .agents/*
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+
+No memory/report files.
+
+62. PASS DEFINITION
+
+Prompt 30B may PASS only if all of these are genuinely proven:
+
+80 deterministic MCQs = 80/80
+100 sharded MCQs complete
+failed shard splits selectively
+missing ordinals recover selectively
+clear source cannot silently finalize as zero
+A+B answer remains ambiguous/reviewable
+large MCQ Generate is batched + source-covered
+large MCQ Enhance preserves 80/80
+missing enhancements recover by ID
+source answer cannot be changed by Enhance
+large Flashcard Extract works
+large Flashcard Generate works
+large Flashcard Enhance preserves cardinality
+Gemini source PDF prepared/uploaded once per job
+Cloudflare conversion once per job
+polling survives >2 minutes
+polling survives temporary network errors
+explicit cancellation works
+provider retries bounded
+strict validation preserved
+review-before-persistence preserved
+Calendar import regression green
+Resource PDF regression green
+Personalization 183/0/0/0
+App Icon/PWA green
+Auth green
+Security green
+Navigation green
+TypeScript green
+Build green
+FULL suite 0 failures
+.agents clean
+63. MANDATORY FINAL REPORT
+
+Return:
+
+99'S GUIDE — PROMPT 30B REPORT
+COMPLETE AI RELIABILITY HARD-CLOSURE
+1. Status
+
+PASS / BLOCKED
+
+2. Prompt 30 Implementation Audit
+
+List the actual architecture/files inspected.
+
+3. Repairs Performed
+
+List only Prompt 30B repairs.
+
+4. Background Job Storage
+
+State memory/database/other and restart semantics.
+
+5. Job Timing
+
+Print:
+poll interval
+poll request timeout
+overall frontend deadline
+job hard ceiling
+terminal TTL
+
+6. Provider Timing
+
+Print all relevant defaults/env overrides.
+
+7. Provider Retry Policy
+
+Report.
+
+8. >2-Minute Polling
+
+Report fake-timer result.
+
+9. Poll Network Recovery
+
+Report.
+
+10. Cancellation
+
+Report.
+
+11. Gemini Media Reuse
+
+Print:
+upload count
+activation count
+provider calls
+cleanup count
+
+12. Small PDF Gemini Behavior
+
+Report.
+
+13. Cloudflare Conversion Reuse
+
+Print conversion count per multi-shard source.
+
+14. 80-MCQ Deterministic Test
+
+Print:
+input
+output
+missing
+duplicates
+provider calls
+
+15. Multiple-Answer MCQ
+
+Report exact A+B semantics.
+
+16. 100-MCQ Sharded Test
+
+Report.
+
+17. Shard Size
+
+Report.
+
+18. Failed-Shard Recursive Split
+
+Report actual call ranges.
+
+19. Missing-Ordinal Recovery
+
+Report.
+
+20. Zero-Result Guard
+
+Report.
+
+21. MCQ Generate Large Test
+
+Report batching/concurrency/coverage/count.
+
+22. MCQ Generate Source Coverage
+
+Explain exact algorithm.
+
+23. Insufficient-Source Generate Behavior
+
+Report.
+
+24. MCQ Global Deduplication
+
+Report.
+
+25. MCQ Enhance 80→80
+
+Report exact cardinality.
+
+26. MCQ Enhance Structural Preservation
+
+Report immutable fields.
+
+27. Enhancement Missing-ID Recovery
+
+Report.
+
+28. Enhancement Answer Conflict
+
+Report.
+
+29. Flashcard Large Extract
+
+Report.
+
+30. Flashcard Large Generate
+
+Report.
+
+31. Flashcard Large Enhance
+
+Report input/output cardinality.
+
+32. Structured Validation
+
+Report.
+
+33. Gemini Schema Fallback
+
+Report.
+
+34. Payload Optimization
+
+Report.
+
+35. Progress Reporting
+
+Report.
+
+36. Diagnostic Logging
+
+Report.
+
+37. Review Before Persistence
+
+State:
+AI PREVIEW WRITES ZERO FINAL MCQS / FLASHCARDS.
+
+38. AI Job HTTP Security
+
+Report.
+
+39. PRISMA_DB_PUSH Change
+
+Print exact file/change/reason and deployment implications.
+
+40. AI Input Test Matrix
+
+Report exact counts.
+
+41. MCQ Baseline
+
+Report.
+
+42. Flashcard Baseline
+
+Report.
+
+43. Calendar Import Regression
+
+Report service/unit + HTTP counts.
+
+44. Resource PDF
+
+State:
+CURRENT RESOURCE PDF FLOW: PASS
+5-GIB RESOURCE SUPPORT: NOT IMPLEMENTED — PROMPT 31 ONLY
+
+45. Personalization
+
+Required:
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+46. App Icon / PWA
+
+Report.
+
+47. Auth
+
+Report.
+
+48. Security
+
+Report.
+
+49. Navigation
+
+Report.
+
+50. TypeScript
+
+Report.
+
+51. Build
+
+Report.
+
+52. ESLint
+
+Report.
+
+53. Full Test Suite
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+54. Database / Cloud
+
+State exactly:
+NO PRODUCTION DATABASE MIGRATION APPLIED.
+NO CLOUD DEPLOYMENT PERFORMED.
+
+55. Git Review
+
+Print:
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+56. .agents/*
+
+Print:
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then state exactly:
+No .agents/* file was created or modified.
+
+57. Prompt 31 Readiness
+
+If all gates pass, state exactly:
+
+PROMPT 30 LOCAL-FIX PARITY: VERIFIED
+
+AI BACKGROUND JOBS: VERIFIED
+
+NO OVERALL FRONTEND AI DEADLINE: VERIFIED
+
+2-MINUTE POLLING: VERIFIED
+
+TRANSIENT POLL RECOVERY: VERIFIED
+
+BOUNDED PROVIDER RETRIES: VERIFIED
+
+GEMINI PDF MEDIA REUSE: VERIFIED — ONE PREPARATION PER JOB
+
+CLOUDFLARE DOCUMENT CONVERSION REUSE: VERIFIED — ONE CONVERSION PER JOB
+
+80-MCQ DETERMINISTIC EXTRACTION: 80 / 80
+
+100-MCQ SHARDED EXTRACTION: VERIFIED
+
+FAILED-SHARD SELECTIVE RECOVERY: VERIFIED
+
+MISSING-ORDINAL RECOVERY: VERIFIED
+
+ZERO-RESULT GUARD: VERIFIED
+
+MULTIPLE-ANSWER SOURCE FIDELITY: VERIFIED
+
+MCQ LARGE GENERATE BATCHING: VERIFIED
+
+MCQ GENERATE SOURCE COVERAGE: VERIFIED
+
+MCQ ENHANCE 80→80: VERIFIED
+
+MCQ ENHANCE STRUCTURAL IMMUTABILITY: VERIFIED
+
+FLASHCARD LARGE EXTRACT: VERIFIED
+
+FLASHCARD LARGE GENERATE: VERIFIED
+
+FLASHCARD LARGE ENHANCE: VERIFIED
+
+STRICT ZOD / DOMAIN VALIDATION: PRESERVED
+
+AI REVIEW-BEFORE-PERSISTENCE: PRESERVED
+
+CALENDAR AI IMPORT REGRESSION: PASS
+
+CURRENT RESOURCE PDF FLOW: PASS
+
+PERSONALIZATION: 183 / 0 / 0 / 0
+
+APP ICON / PWA: PASS
+
+AUTH: PASS
+
+SECURITY: PASS
+
+NAVIGATION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+FULL TEST SUITE: PASS
+
+.agents/*: CLEAN
+
+PROMPT 30: CLOSED
+
+PROMPT 31 LARGE RESOURCE PDF RESUMABLE MULTIPART UPLOAD + FINAL RELEASE CLOSURE: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE PROMPT 30B STATUS: COMPLETE — READY FOR PROMPT 31
+
+Otherwise:
+
+99'S GUIDE PROMPT 30B STATUS: BLOCKED — REPAIR REQUIRED

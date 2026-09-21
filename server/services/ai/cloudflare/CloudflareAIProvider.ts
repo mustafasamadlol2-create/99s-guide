@@ -9,7 +9,10 @@ import { getCloudflareConfig, type CloudflareConfig } from "../config.js";
 import { AIServiceError, isAIServiceError } from "../errors.js";
 import type { AITextPart } from "../input/contracts.js";
 import { CloudflareClient, type CloudflareRunMessage } from "./CloudflareClient.js";
-import { CloudflareMarkdownConverter } from "./CloudflareMarkdownConverter.js";
+import {
+  CloudflareMarkdownConverter,
+  type ConvertedCloudflarePart,
+} from "./CloudflareMarkdownConverter.js";
 import { createCloudflareJsonSchema } from "./cloudflareSchema.js";
 
 function createBoundedSignal(
@@ -128,6 +131,7 @@ export class CloudflareAIProvider implements AIProvider {
   private readonly config: CloudflareConfig;
   private readonly client: CloudflareClient;
   private readonly converter: CloudflareMarkdownConverter;
+  private readonly reusableConversions = new Map<string, Promise<ConvertedCloudflarePart[]>>();
 
   constructor(
     config: CloudflareConfig = getCloudflareConfig(),
@@ -137,6 +141,29 @@ export class CloudflareAIProvider implements AIProvider {
     this.config = config;
     this.client = client;
     this.converter = converter;
+  }
+
+  private conversionKey(contents: StructuredGenerationRequest<unknown>["contents"]): string {
+    return contents.map((part) =>
+      part.kind === "text"
+        ? `text:${part.sha256}`
+        : `${part.inputType}:${part.mimeType}:${part.sha256}`,
+    ).join("|");
+  }
+
+  private reusableConversion(
+    contents: StructuredGenerationRequest<unknown>["contents"],
+    signal: AbortSignal,
+  ): Promise<ConvertedCloudflarePart[]> {
+    const key = this.conversionKey(contents);
+    const existing = this.reusableConversions.get(key);
+    if (existing) return existing;
+    const converted = this.converter.convert(contents, signal).catch((error) => {
+      this.reusableConversions.delete(key);
+      throw error;
+    });
+    this.reusableConversions.set(key, converted);
+    return converted;
   }
 
   async generateStructured<T>(
@@ -158,7 +185,9 @@ export class CloudflareAIProvider implements AIProvider {
           bounded.signal,
         );
         try {
-          source = await this.converter.convert(request.contents, markdownBounded.signal);
+          source = request.reusePreparedMedia
+            ? await this.reusableConversion(request.contents, markdownBounded.signal)
+            : await this.converter.convert(request.contents, markdownBounded.signal);
         } catch (error) {
           if (markdownBounded.signal.aborted && !bounded.signal.aborted && !request.signal?.aborted) {
             throw timeoutError(
@@ -263,6 +292,21 @@ export class CloudflareAIProvider implements AIProvider {
         });
       }
       if (isAIServiceError(error)) throw error;
+      const code = typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (
+        error instanceof TypeError ||
+        /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|ECONNREFUSED/iu.test(code) ||
+        /network|socket|connection reset|fetch failed/iu.test(error instanceof Error ? error.message : "")
+      ) {
+        throw new AIServiceError("AI_UNAVAILABLE", {
+          publicMessage: "The AI service is temporarily unavailable.",
+          diagnosticMessage: "Cloudflare request failed because of a transient network error.",
+          retryable: true,
+          cause: error,
+        });
+      }
       throw new AIServiceError("AI_PROVIDER_ERROR", {
         publicMessage: "The AI provider could not complete the request.",
         diagnosticMessage: "Unexpected Cloudflare provider failure.",
@@ -271,5 +315,9 @@ export class CloudflareAIProvider implements AIProvider {
     } finally {
       bounded.cleanup();
     }
+  }
+
+  async dispose(): Promise<void> {
+    this.reusableConversions.clear();
   }
 }

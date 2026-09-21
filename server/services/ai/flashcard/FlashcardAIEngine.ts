@@ -173,19 +173,40 @@ export class FlashcardAIEngine {
   ): Promise<FlashcardOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
+    const coverageSources = shardTextContent(input.contents, 12_000);
+    const initialBatchCount = Math.ceil(selected.count / 20);
+    const coverage = (start: number, recovery = false) => {
+      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
+      const sourceIndex = coverageSources.length === 1
+        ? 0
+        : Math.min(
+          coverageSources.length - 1,
+          Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
+        );
+      return {
+        contents: coverageSources[sourceIndex]!,
+        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
+      };
+    };
     let responses = await runResilientBatches({
       total: selected.count,
       batchSize: 20,
       signal,
-      run: ({ count }) => this.contentService.generateStructured({
-        contents: input.contents,
-        responseSchema: flashcardGenerationProviderResponseSchema,
-        trustedSystemInstruction: buildFlashcardGenerateInstruction({ ...selected, count }),
-        operation: "generate",
-        requestedCount: count,
-        maxItems: count,
-        signal,
-      }),
+      run: ({ start, count }) => {
+        const covered = coverage(start);
+        return this.contentService.generateStructured({
+          contents: covered.contents,
+          responseSchema: flashcardGenerationProviderResponseSchema,
+          trustedSystemInstruction: [
+            buildFlashcardGenerateInstruction({ ...selected, count }),
+            covered.instruction,
+          ].join("\n\n"),
+          operation: "generate",
+          requestedCount: count,
+          maxItems: count,
+          signal,
+        });
+      },
     });
     const returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
     if (returnedBeforeRecovery < selected.count) {
@@ -194,18 +215,22 @@ export class FlashcardAIEngine {
         total: deficit,
         batchSize: 20,
         signal,
-        run: ({ count }) => this.contentService.generateStructured({
-          contents: input.contents,
-          responseSchema: flashcardGenerationProviderResponseSchema,
-          trustedSystemInstruction: [
-            buildFlashcardGenerateInstruction({ ...selected, count }),
-            "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier card.",
-          ].join("\n\n"),
-          operation: "generate",
-          requestedCount: count,
-          maxItems: count,
-          signal,
-        }),
+        run: ({ start, count }) => {
+          const covered = coverage(start, true);
+          return this.contentService.generateStructured({
+            contents: covered.contents,
+            responseSchema: flashcardGenerationProviderResponseSchema,
+            trustedSystemInstruction: [
+              buildFlashcardGenerateInstruction({ ...selected, count }),
+              covered.instruction,
+              "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier card.",
+            ].join("\n\n"),
+            operation: "generate",
+            requestedCount: count,
+            maxItems: count,
+            signal,
+          });
+        },
       });
       responses = [...responses, ...recovery];
     }

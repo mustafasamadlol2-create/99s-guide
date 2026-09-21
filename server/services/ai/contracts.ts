@@ -38,6 +38,8 @@ export interface StructuredGenerationRequest<T> {
   maxItems?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Internal job-scoped optimization. Never enables cross-user/global caching. */
+  reusePreparedMedia?: boolean;
 }
 
 export interface SafeProviderMetadata {
@@ -58,4 +60,5 @@ export interface AIProvider {
   generateStructured<T>(
     request: StructuredGenerationRequest<T>,
   ): Promise<StructuredGenerationResult<T>>;
+  dispose?(): Promise<void>;
 }

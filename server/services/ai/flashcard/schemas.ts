@@ -28,7 +28,7 @@ export const flashcardExtractionProviderItemSchema = z.object({
   clinicalConcept: z.string().trim().max(MAX_FLASHCARD_CANDIDATE_TEXT_LENGTH).nullable(),
   explanation: nullableText,
   source: providerSourceSchema,
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
@@ -49,7 +49,7 @@ export const flashcardGenerationProviderItemSchema = z.object({
   clinicalConcept: boundedText,
   explanation: boundedText,
   source: providerSourceSchema,
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
@@ -61,7 +61,7 @@ export const flashcardGenerationProviderResponseSchema = z.object({
 export const flashcardEnhancementProviderItemSchema = z.object({
   candidateId: z.string().uuid(),
   explanation: boundedText,
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().finite().min(0).max(1).default(0.5),
   uncertainties: providerUncertaintiesSchema,
   source: providerSourceSchema,
 }).strict();

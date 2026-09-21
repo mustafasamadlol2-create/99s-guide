@@ -163,7 +163,7 @@ function providerError(error: unknown, timedOut: boolean): AIServiceError {
       cause: error,
     });
   }
-  if (status === 503 || status === 502 || status === 504) {
+  if (status !== undefined && status >= 500) {
     return new AIServiceError("AI_UNAVAILABLE", {
       publicMessage: "The AI service is temporarily unavailable.",
       diagnosticMessage: `Gemini returned HTTP ${status}.`,
@@ -175,6 +175,21 @@ function providerError(error: unknown, timedOut: boolean): AIServiceError {
     return new AIServiceError("AI_PROVIDER_ERROR", {
       publicMessage: "The AI provider could not complete the request.",
       diagnosticMessage: "provider_invalid_argument",
+      cause: error,
+    });
+  }
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : "";
+  if (
+    error instanceof TypeError ||
+    /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|ECONNREFUSED/iu.test(code) ||
+    /network|socket|connection reset|fetch failed/iu.test(error instanceof Error ? error.message : "")
+  ) {
+    return new AIServiceError("AI_UNAVAILABLE", {
+      publicMessage: "The AI service is temporarily unavailable.",
+      diagnosticMessage: "Gemini request failed because of a transient network error.",
+      retryable: true,
       cause: error,
     });
   }
@@ -191,6 +206,7 @@ export class GeminiProvider implements AIProvider {
   private readonly client: GeminiClient;
   private readonly mediaTransport?: GeminiMediaTransport;
   private readonly diagnosticSink?: (error: AIServiceError) => void | Promise<void>;
+  private readonly reusableMedia = new Map<string, Promise<Awaited<ReturnType<GeminiMediaTransport["prepare"]>>>>();
 
   constructor(
     config: GeminiConfig = getGeminiConfig(),
@@ -213,6 +229,29 @@ export class GeminiProvider implements AIProvider {
     this.diagnosticSink = diagnosticSink;
   }
 
+  private mediaKey(contents: StructuredGenerationRequest<unknown>["contents"]): string {
+    return contents.map((part) =>
+      part.kind === "text"
+        ? `text:${part.sha256}`
+        : `${part.inputType}:${part.mimeType}:${part.sha256}`,
+    ).join("|");
+  }
+
+  private reusablePreparation(
+    contents: StructuredGenerationRequest<unknown>["contents"],
+    signal: AbortSignal,
+  ): Promise<Awaited<ReturnType<GeminiMediaTransport["prepare"]>>> {
+    const key = this.mediaKey(contents);
+    const existing = this.reusableMedia.get(key);
+    if (existing) return existing;
+    const prepared = this.mediaTransport!.prepare(contents, signal).catch((error) => {
+      this.reusableMedia.delete(key);
+      throw error;
+    });
+    this.reusableMedia.set(key, prepared);
+    return prepared;
+  }
+
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
   ): Promise<StructuredGenerationResult<T>> {
@@ -232,7 +271,9 @@ export class GeminiProvider implements AIProvider {
     let resultMeta: SafeProviderMetadata | undefined;
     try {
       if (request.contents.some((part) => part.kind !== "text")) {
-        media = await this.mediaTransport.prepare(request.contents, bounded.signal);
+        media = request.reusePreparedMedia
+          ? await this.reusablePreparation(request.contents, bounded.signal)
+          : await this.mediaTransport.prepare(request.contents, bounded.signal);
       }
       const response = await this.client.models.generateContent({
         model: this.config.model,
@@ -301,7 +342,7 @@ export class GeminiProvider implements AIProvider {
       if (isAIServiceError(error)) throw error;
       throw providerError(error, bounded.signal.aborted && !request.signal?.aborted);
     } finally {
-      if (media) {
+      if (media && !request.reusePreparedMedia) {
         try {
           await media.cleanup();
         } catch (error) {
@@ -319,6 +360,29 @@ export class GeminiProvider implements AIProvider {
         }
       }
       bounded.cleanup();
+    }
+  }
+
+  async dispose(): Promise<void> {
+    const preparations = [...this.reusableMedia.values()];
+    this.reusableMedia.clear();
+    const settled = await Promise.allSettled(preparations);
+    for (const result of settled) {
+      if (result.status !== "fulfilled") continue;
+      try {
+        await result.value.cleanup();
+      } catch (error) {
+        const cleanupError = error instanceof AIServiceError
+          ? error
+          : new AIServiceError("AI_MEDIA_CLEANUP_FAILED", {
+            publicMessage: "AI media cleanup was incomplete.",
+            diagnosticMessage: "Reusable provider media cleanup failed.",
+            cause: error,
+          });
+        if (this.diagnosticSink) {
+          await Promise.resolve(this.diagnosticSink(cleanupError)).catch(() => {});
+        }
+      }
     }
   }
 }
