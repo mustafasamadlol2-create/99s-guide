@@ -93,6 +93,12 @@ export class AIPreviewJobManager {
     }
   }
 
+  private scheduleUnreferenced(handler: () => void, delayMs: number): ReturnType<typeof globalThis.setTimeout> {
+    const timer = this.schedule(handler, delayMs);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    return timer;
+  }
+
   create(args: CreateAIPreviewJobArgs): AIPreviewJobView {
     const jobId = randomUUID();
     const record: JobRecord = {
@@ -112,7 +118,7 @@ export class AIPreviewJobManager {
       releaseLease: args.releaseLease,
     };
     this.jobs.set(jobId, record);
-    record.hardTimer = this.schedule(() => {
+    record.hardTimer = this.scheduleUnreferenced(() => {
       if (record.state === "queued" || record.state === "running") {
         record.controller.abort(new Error("AI preview job exceeded its safety ceiling."));
         this.fail(record, new AIServiceError("AI_TIMEOUT", {
@@ -240,7 +246,7 @@ export class AIPreviewJobManager {
     record.releaseLease?.();
     record.releaseLease = undefined;
     if (record.hardTimer) this.unschedule(record.hardTimer);
-    record.cleanupTimer = this.schedule(() => this.jobs.delete(record.jobId), this.terminalTtlMs);
+    record.cleanupTimer = this.scheduleUnreferenced(() => this.jobs.delete(record.jobId), this.terminalTtlMs);
   }
 
   private view(record: JobRecord): AIPreviewJobView {

@@ -74,13 +74,44 @@ test("MCQ zero-result numbered recovery throws AI_EXTRACTION_INCOMPLETE", async 
   assert.ok(provider.calls.length <= 7);
 });
 
+test("Flashcard extraction shards large text and recovers a failed shard", async () => {
+  const source = Array.from({ length: 120 }, (_, index) =>
+    `Lecture section ${index + 1}: ${"source-grounded medical detail ".repeat(28)}`,
+  ).join("\n");
+  let failed = false;
+  const provider = new FakeProvider((request, call) => {
+    if (request.operation !== "extract") return { items: [], uncertainties: [] };
+    if (call === 2 && !failed) {
+      failed = true;
+      throw new Error("temporary shard failure");
+    }
+    return {
+      items: [{
+        clinicalConcept: `Recovered card ${call}`,
+        explanation: `Grounded explanation ${call}`,
+        source: null,
+        uncertainties: [],
+      }],
+      skippedItems: [],
+      truncated: false,
+      uncertainties: [],
+    };
+  });
+  const result = await new FlashcardAIEngine(
+    new AIContentService(provider, { retryBaseDelayMs: 0 }),
+  ).extractExistingFlashcards(prepared(source));
+  assert.ok(provider.calls.length > 2);
+  assert.ok(result.items.length >= 3);
+  assert.ok(result.items.every((item) => item.clinicalConcept && item.explanation));
+});
+
 test("MCQ generation 80 uses bounded calls, distinct coverage, and warns when source is insufficient", async () => {
   const provider = new FakeProvider((request) => ({ items: Array.from({ length: Number(request.requestedCount) }, (_, i) => ({ question: `Q${i}-${request.contents[0]?.kind}`, optionA: "A", optionB: "B", optionC: "C", optionD: "D", correctAnswer: "A", hint: null, explanation: null, difficulty: null, source: null, uncertainties: [] })), uncertainties: [] }));
-  const result = await new MCQAIEngine(new AIContentService(provider, { retryBaseDelayMs: 0 }), undefined, () => crypto.randomUUID()).generateMCQs(prepared("long source"), { count: 80, questionStyle: "direct" });
+  const result = await new MCQAIEngine(new AIContentService(provider, { retryBaseDelayMs: 0 }), undefined, () => crypto.randomUUID()).generateMCQs(prepared("long source"), { count: 80, questionStyle: "direct", includeHints: false, includeExplanations: false });
   assert.equal(result.items.length, 80); assert.equal(provider.calls.length, 4); assert.ok(provider.calls.every((c) => c.requestedCount !== 80 && (c.maxItems ?? 0) <= 20));
   assert.equal(new Set(provider.calls.map((c) => c.trustedSystemInstruction.match(/window \d+/)?.[0])).size, 4);
   const sparse = new FakeProvider(() => ({ items: [{ question: "Only one", optionA: "A", optionB: "B", optionC: "C", optionD: "D", correctAnswer: "A", hint: null, explanation: null, difficulty: null, source: null, uncertainties: [] }], uncertainties: [] }));
-  const fewer = await new MCQAIEngine(new AIContentService(sparse, { retryBaseDelayMs: 0 })).generateMCQs(prepared("short"), { count: 3, questionStyle: "direct" });
+  const fewer = await new MCQAIEngine(new AIContentService(sparse, { retryBaseDelayMs: 0 })).generateMCQs(prepared("short"), { count: 3, questionStyle: "direct", includeHints: false, includeExplanations: false });
   assert.ok(fewer.items.length < 3); assert.ok(fewer.warnings.some((w) => /only/i.test(w)));
 });
 
@@ -103,11 +134,15 @@ test("Flashcard large generation and enhancement preserve count and recover miss
     if (request.operation === "generate") return { items: Array.from({ length: Number(request.requestedCount) }, (_, i) => cardItem(i)), uncertainties: [] };
     if (request.operation === "extract") return { items: Array.from({ length: 80 }, (_, i) => ({ clinicalConcept: `Concept ${i}`, explanation: null, source: null, uncertainties: [] })), skippedItems: [], truncated: false, uncertainties: [] };
     const ids = [...String(request.additionalUntrustedContext).matchAll(/candidateId":"([^"]+)/g)].map((m) => m[1]!);
-    return { items: ids.slice(0, Math.max(0, ids.length - 2)).map((candidateId) => ({ candidateId, explanation: "Recovered", confidence: 0.9, uncertainties: [], source: null })), uncertainties: [] };
+    return { items: (ids.length <= 2 ? ids : ids.slice(0, Math.max(0, ids.length - 2))).map((candidateId) => ({ candidateId, explanation: "Recovered", confidence: 0.9, uncertainties: [], source: null })), uncertainties: [] };
   });
   const engine = new FlashcardAIEngine(new AIContentService(provider, { retryBaseDelayMs: 0 }), undefined, (() => { let n = 0; return () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`; })());
   const generated = await engine.generateFlashcards(prepared("source"), { count: 80 }); assert.equal(generated.items.length, 80); assert.equal(provider.calls.filter((c) => c.operation === "generate").length, 4);
-  const enhanced = await engine.enhanceExistingFlashcards(prepared("Q: source\nA: answer\nQ: other\nA: answer"), {}); assert.ok(enhanced.items.length > 0); assert.ok(enhanced.items.every((x) => x.clinicalConcept)); assert.ok(enhanced.items.some((x) => x.explanation));
+  const largeFlashcardSource = Array.from({ length: 80 }, (_, i) => `Q: Source concept ${i + 1}\nA: Source answer ${i + 1}`).join("\n");
+  const enhanced = await engine.enhanceExistingFlashcards(prepared(largeFlashcardSource), {});
+  assert.equal(enhanced.items.length, 80);
+  assert.ok(enhanced.items.every((x) => x.clinicalConcept));
+  assert.ok(enhanced.items.every((x) => x.explanation));
 });
 
 test("provider schemas accept omitted optional confidence", () => {

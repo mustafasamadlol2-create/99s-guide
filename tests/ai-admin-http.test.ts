@@ -146,7 +146,10 @@ async function createTestServer(
       const role = req.headers["x-test-role"];
       if (!role) return res.status(401).json({ error: "Authentication required." });
       if (role !== "admin" && role !== "owner") return res.status(403).json({ error: "Administrative role required." });
-      (req as { user?: unknown }).user = { id: "admin-1", role };
+      const userId = typeof req.headers["x-test-user"] === "string"
+        ? req.headers["x-test-user"]
+        : "admin-1";
+      (req as { user?: unknown }).user = { id: userId, role };
       next();
     },
     lectureResolver: { findLecture: async () => lecture },
@@ -200,6 +203,44 @@ test("AI preview routes enforce admin authorization and lecture context before e
     }, "admin");
     assert.equal(missingLecture.status, 404);
     assert.equal(server.calls.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("AI preview job HTTP access is authenticated and owner-bound", async () => {
+  const server = await createTestServer();
+  try {
+    const body = {
+      lectureId: "lecture-1",
+      operation: "extract",
+      inputKind: "text",
+      text: "source",
+    };
+    const anonymous = await jsonRequest(server.baseUrl, "/api/admin/ai/mcq/preview-jobs", body);
+    assert.equal(anonymous.status, 401);
+    const ordinaryUser = await jsonRequest(server.baseUrl, "/api/admin/ai/mcq/preview-jobs", body, "student");
+    assert.equal(ordinaryUser.status, 403);
+
+    const accepted = await jsonRequest(server.baseUrl, "/api/admin/ai/mcq/preview-jobs", body, "admin");
+    assert.equal(accepted.status, 202);
+    const { jobId } = await accepted.json() as { jobId: string };
+
+    const ownerRead = await fetch(`${server.baseUrl}/api/admin/ai/mcq/preview-jobs/${jobId}`, {
+      headers: { "x-test-role": "admin", "x-test-user": "admin-1" },
+    });
+    assert.equal(ownerRead.status, 200);
+
+    const otherRead = await fetch(`${server.baseUrl}/api/admin/ai/mcq/preview-jobs/${jobId}`, {
+      headers: { "x-test-role": "admin", "x-test-user": "admin-2" },
+    });
+    assert.equal(otherRead.status, 404);
+
+    const otherCancel = await fetch(`${server.baseUrl}/api/admin/ai/mcq/preview-jobs/${jobId}`, {
+      method: "DELETE",
+      headers: { "x-test-role": "admin", "x-test-user": "admin-2" },
+    });
+    assert.equal(otherCancel.status, 404);
   } finally {
     await server.close();
   }

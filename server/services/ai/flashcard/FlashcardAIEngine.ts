@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PreparedAIInput } from "../input/contracts.js";
+import type { StructuredGenerationResult } from "../contracts.js";
 import { AIContentService } from "../AIContentService.js";
 import { AIServiceError } from "../errors.js";
 import type {
@@ -19,6 +20,7 @@ import {
   flashcardExtractionProviderResponseSchema,
   flashcardGenerationProviderResponseSchema,
   type FlashcardEnhancementProviderResponse,
+  type FlashcardExtractionProviderResponse,
 } from "./schemas.js";
 import {
   buildFlashcardEnhanceInstruction,
@@ -116,19 +118,48 @@ export class FlashcardAIEngine {
       ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
       : null;
     const shards = deterministic ? [] : shardTextContent(input.contents);
-    const responses = deterministic ? [] : await runResilientBatches({
+    const extractShard = async (contents: PreparedAIInput["contents"]): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
+      try {
+        return [await this.contentService.generateStructured({
+          contents,
+          responseSchema: flashcardExtractionProviderResponseSchema,
+          trustedSystemInstruction: buildFlashcardExtractInstruction(),
+          operation: "extract",
+          maxItems: this.config.extractionMaxCount,
+          signal,
+        })];
+      } catch (error) {
+        const part = contents.length === 1 && contents[0]?.kind === "text" ? contents[0] : null;
+        if (!part || part.sizeBytes < 2_000) throw error;
+        const halves = shardTextContent(contents, Math.ceil(part.sizeBytes / 2));
+        if (halves.length < 2) throw error;
+        const recovered = [];
+        for (const half of halves) recovered.push(...await extractShard(half));
+        return recovered;
+      }
+    };
+    let responses = deterministic ? [] : (await runResilientBatches({
       total: shards.length,
       batchSize: 1,
       signal,
-      run: ({ start }) => this.contentService.generateStructured({
-        contents: shards[start]!,
+      run: async ({ start }) => extractShard(shards[start]!),
+    })).flat();
+    if (!deterministic && !responses.some((response) => response.data.items.length) &&
+      input.input.kind === "text" &&
+      (input.input.text.text.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
+      const recovery = await this.contentService.generateStructured({
+        contents: input.contents,
         responseSchema: flashcardExtractionProviderResponseSchema,
-        trustedSystemInstruction: buildFlashcardExtractInstruction(),
+        trustedSystemInstruction: [
+          buildFlashcardExtractInstruction(),
+          "The previous bounded extraction returned zero items despite clear Flashcard markers. Retry extraction and return every recoverable card; do not finalize as empty.",
+        ].join("\n\n"),
         operation: "extract",
         maxItems: this.config.extractionMaxCount,
         signal,
-      }),
-    });
+      });
+      responses = [recovery];
+    }
     const responseData = deterministic ?? {
       items: responses.flatMap((response) => response.data.items),
       skippedItems: responses.flatMap((response) => response.data.skippedItems),
