@@ -55,12 +55,16 @@ export default function UploadModuleResource({
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const loadResources = useCallback(async () => {
+  const loadResources = useCallback(async (showError = true) => {
     setLoadingResources(true);
     try {
       setResources(await listModuleResources(moduleId));
+      return true;
     } catch (loadError: any) {
-      setError(loadError?.message || (isRtl ? "تعذر تحميل المصادر." : "Could not load resources."));
+      if (showError) {
+        setError(loadError?.message || (isRtl ? "تعذر تحميل المصادر." : "Could not load resources."));
+      }
+      return false;
     } finally {
       setLoadingResources(false);
     }
@@ -115,7 +119,7 @@ export default function UploadModuleResource({
       );
       setStage("completed");
       resetForm();
-      await loadResources();
+      await loadResources(false);
       onSuccess?.();
     } catch (uploadError: any) {
       if (uploadError?.name === "AbortError") {

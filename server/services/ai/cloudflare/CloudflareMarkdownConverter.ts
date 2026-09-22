@@ -37,8 +37,9 @@ export interface ConvertedCloudflarePart {
 const PDF_MIN_USABLE_TEXT_CHARS = 60;
 const VISION_RENDER_BATCH_SIZE = 6;
 const VISION_MAX_DIMENSION = 2_600;
-const CALENDAR_IMAGE_VISION_TIMEOUT_MS = 25_000;
-const CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS = 15_000;
+const CALENDAR_IMAGE_VISION_TIMEOUT_MS = 30_000;
+const CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS = 30_000;
+const CALENDAR_IMAGE_MAX_OUTPUT_TOKENS = 4_096;
 const CALENDAR_IMAGE_CONCURRENCY = 2;
 
 function safeFilename(part: AIFilePart, mimeType: string): string {
@@ -396,55 +397,80 @@ export class CloudflareMarkdownConverter {
     };
     const normalized = await this.prepareVisionBytes(bytes);
     const question = [
-      "Read this image specifically as an academic timetable/calendar. Do not summarize it.",
-      "Find the week/year header, every explicit day/date row, all visible time ranges, room/column headings, group labels, and EVERY non-empty scheduled cell.",
-      "A compact code such as ID-1-Med, RM-1, NT-2 Bioch, CA-1, TBL, P, S, CS, SL, HV, FA, MME, EME or HISTORY EXAM is a real event and must not be omitted.",
-      "Prefer one line per visible scheduled cell using: EVENT|date=DD/MM/YYYY|time=HH:MM-HH:MM|title=RAW CELL TEXT|room=VISIBLE ROOM OR COLUMN|group=A-E OR ALL OR blank.",
-      "If the image layout is too complex to emit perfect EVENT lines, return a faithful row-by-row transcription instead of retrying or returning nothing.",
-      "If the page shows a date without the year, infer only the year explicitly present in the week/academic-year header. If a time cannot be safely assigned, leave time blank rather than dropping the event.",
-      "For merged cells or two stacked events, emit one EVENT line per visible event. Ignore empty cells, decorative headings and footers.",
-      `The uploaded image index is ${imageIndex}.`,
+      "Read this academic timetable image and return every populated schedule cell.",
+      "Use one compact line per event in this exact shape: EVENT|date=DD/MM/YYYY|time=HH:MM-HH:MM|title=RAW CELL TEXT|room=VISIBLE ROOM OR COLUMN|group=A-E OR ALL OR blank.",
+      "Keep compact codes such as ID-1-Med, RM-1, NT-2 Bioch, CA-1, TBL, P, S, CS, SL, HV, FA, MME, EME and HISTORY EXAM as real events.",
+      "Use the visible week/year header, day/date rows and time-column headers. Do not summarize and do not omit populated cells.",
+      "If one field is unclear, leave only that field blank instead of dropping the event.",
+      `Uploaded image index: ${imageIndex}.`,
     ].join(" ");
 
-    let lastError: unknown;
+    const failures: unknown[] = [];
+    const attempts: Array<Promise<string>> = [];
+
     if (typeof visionClient.visionToText === "function") {
-      const bounded = createBoundedSignal(Math.min(this.visionTimeoutMs, CALENDAR_IMAGE_VISION_TIMEOUT_MS), signal);
-      try {
-        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal, question);
-        const value = result.text.trim();
-        // One successful vision response is enough. If it is a transcript rather
-        // than EVENT lines, Calendar extraction will normalize it locally/textually.
-        if (value && !unusableDocumentConversion(value)) return value;
-      } catch (error) {
-        if (signal.aborted) throw signal.reason ?? error;
-        lastError = error;
-      } finally {
-        bounded.cleanup();
-      }
+      attempts.push((async () => {
+        const bounded = createBoundedSignal(
+          Math.min(this.visionTimeoutMs, CALENDAR_IMAGE_VISION_TIMEOUT_MS),
+          signal,
+        );
+        try {
+          const result = await visionClient.visionToText(
+            normalized,
+            "image/jpeg",
+            bounded.signal,
+            question,
+            CALENDAR_IMAGE_MAX_OUTPUT_TOKENS,
+          );
+          const value = result.text.trim();
+          if (!value || unusableDocumentConversion(value)) {
+            throw new Error("Cloudflare vision returned no usable timetable text.");
+          }
+          return value;
+        } catch (error) {
+          failures.push(error);
+          throw error;
+        } finally {
+          bounded.cleanup();
+        }
+      })());
     }
 
-    // One independent, short fallback. Do not repeat the same vision request:
-    // repeated 90-second retries were the reason image imports could sit at 0%.
+    // Run Cloudflare's document/image conversion concurrently with vision.
+    // The old sequential 25s + 15s chain was the source of the visible wait.
+    attempts.push((async () => {
+      try {
+        const markdown = await this.toMarkdownBounded(
+          normalized,
+          "image/jpeg",
+          filename.replace(/\.[^.]+$/u, ".jpg"),
+          signal,
+          Math.min(this.markdownTimeoutMs, CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS),
+        );
+        const value = markdown.trim();
+        if (!value || unusableDocumentConversion(value)) {
+          throw new Error("Cloudflare Markdown conversion returned no usable timetable text.");
+        }
+        return value;
+      } catch (error) {
+        failures.push(error);
+        throw error;
+      }
+    })());
+
     try {
-      const markdown = await this.toMarkdownBounded(
-        normalized,
-        "image/jpeg",
-        filename.replace(/\.[^.]+$/u, ".jpg"),
-        signal,
-        Math.min(this.markdownTimeoutMs, CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS),
-      );
-      if (!unusableDocumentConversion(markdown)) return markdown.trim();
+      // Return as soon as either independent Cloudflare path succeeds instead of
+      // waiting for a slower/failing provider path to finish first.
+      return await Promise.any(attempts);
     } catch (error) {
       if (signal.aborted) throw signal.reason ?? error;
-      lastError = lastError ?? error;
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "Cloudflare Workers AI could not read this timetable image. Please retry the image.",
+        diagnosticMessage: `Calendar timetable image failed both parallel Cloudflare readers (${failures.length} failure(s)).`,
+        cause: failures[0] ?? error,
+        retryable: true,
+      });
     }
-
-    throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
-      publicMessage: "Cloudflare Workers AI could not read this timetable image quickly enough. Please retry the image.",
-      diagnosticMessage: "Calendar timetable image exhausted one bounded vision attempt and one bounded Markdown fallback.",
-      cause: lastError,
-      retryable: true,
-    });
   }
 
   private async readVisualImage(

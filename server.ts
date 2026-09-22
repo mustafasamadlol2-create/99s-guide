@@ -110,6 +110,7 @@ import {
   completeModuleResourceMultipartUpload,
   createModuleResourceMultipartUpload,
   createModuleResourcePartUrl,
+  createModuleResourceDownloadUrl,
   deleteModuleResourceObject,
   listModuleResourceMultipartParts,
   uploadModuleResourcePart,
@@ -3641,7 +3642,7 @@ app.get(
         createdAt: true,
       },
     });
-    return res.json({ resources });
+    return res.json({ resources: resources.map(serializeModuleResource) });
   }),
 );
 
@@ -3660,7 +3661,7 @@ app.get(
     }
 
     try {
-      const url = await createSupabaseSignedUrl(resource.storagePath, 300);
+      const url = await createModuleResourceDownloadUrl(resource.storagePath, 300);
       res.setHeader("Cache-Control", "private, no-store");
       return res.json({
         url,

@@ -183,6 +183,25 @@ export async function abortModuleResourceMultipartUpload(
   );
 }
 
+export async function createModuleResourceDownloadUrl(
+  storagePath: string,
+  expiresInSeconds = 300,
+): Promise<string> {
+  assertSafeStoragePath(storagePath);
+  const { client, bucket } = getR2Client();
+  const expiresIn = Math.max(60, Math.min(900, Math.floor(expiresInSeconds)));
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: storagePath,
+      ResponseContentType: PDF_CONTENT_TYPE,
+      ResponseContentDisposition: "inline",
+    }),
+    { expiresIn },
+  );
+}
+
 export async function deleteModuleResourceObject(storagePath: string): Promise<void> {
   const { client, bucket } = getR2Client();
   assertSafeStoragePath(storagePath);

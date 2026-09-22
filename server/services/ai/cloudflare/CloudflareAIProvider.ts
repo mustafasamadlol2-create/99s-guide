@@ -483,7 +483,7 @@ export class CloudflareAIProvider implements AIProvider {
         retryable: true,
       });
     }
-    const bounded = createBoundedSignal(Math.min(this.config.timeoutMs, 25_000), signal);
+    const bounded = createBoundedSignal(Math.min(this.config.timeoutMs, 20_000), signal);
     try {
       const result = await this.client.runPlainText([
         {
@@ -506,7 +506,7 @@ export class CloudflareAIProvider implements AIProvider {
             source.slice(0, 48_000),
           ].join("\n\n"),
         },
-      ], bounded.signal, Math.min(this.config.maxOutputTokens, 8_192));
+      ], bounded.signal, Math.min(this.config.maxOutputTokens, 4_096));
       return {
         text: result.text,
         meta: {

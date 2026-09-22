@@ -240,6 +240,7 @@ export class CloudflareClient {
     mimeType: string,
     signal: AbortSignal,
     question?: string,
+    maxTokens?: number,
   ): Promise<CloudflareVisionResult> {
     const modelPath = this.config.visionModel.split("/").map((part) => encodeURIComponent(part)).join("/");
     const image = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
@@ -251,6 +252,7 @@ export class CloudflareClient {
       "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
     ].join(" ");
     const isMoondream = /(?:^|\/)moondream(?:\/|$)|moondream3/iu.test(this.config.visionModel);
+    const requestedMaxTokens = Math.max(512, Math.min(maxTokens ?? this.config.visionMaxOutputTokens, 16_384));
     const body = isMoondream
       ? {
         task: "query",
@@ -261,7 +263,7 @@ export class CloudflareClient {
         stream: false,
         reasoning: false,
         temperature: 0,
-        max_tokens: Math.max(512, Math.min(this.config.visionMaxOutputTokens, 16_384)),
+        max_tokens: requestedMaxTokens,
       }
       : {
         // Other Workers AI vision text models (for example Llama Vision) use
@@ -270,7 +272,7 @@ export class CloudflareClient {
         image,
         stream: false,
         temperature: 0,
-        max_tokens: Math.max(512, Math.min(this.config.visionMaxOutputTokens, 16_384)),
+        max_tokens: requestedMaxTokens,
       };
     const response = await this.fetchImpl(
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
