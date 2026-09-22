@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PreparedAIInput } from "../input/contracts.js";
+import type { AIContentPart, PreparedAIInput } from "../input/contracts.js";
 import type { StructuredGenerationResult } from "../contracts.js";
 import { AIContentService } from "../AIContentService.js";
 import { AIServiceError } from "../errors.js";
@@ -33,6 +33,7 @@ import { normalizeExtractedFlashcards, normalizeGeneratedFlashcards } from "./no
 import { validateFlashcardSourceEvidence } from "./sourceValidation.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { parseDeterministicFlashcards } from "./deterministicExtract.js";
+import { sha256Text } from "../input/hash.js";
 
 function requiredGenerationOptions(
   options: FlashcardGenerationOptions | undefined,
@@ -96,6 +97,40 @@ function baseResult(
   };
 }
 
+function textContentsFromPreparedText(text: string, label: string): AIContentPart[] {
+  return [{
+    kind: "text",
+    text,
+    source: { inputType: "text", section: label, label },
+    sizeBytes: new TextEncoder().encode(text).byteLength,
+    sha256: sha256Text(text),
+  }];
+}
+
+async function preferredSourceContents(
+  contentService: AIContentService,
+  input: PreparedAIInput,
+  signal?: AbortSignal,
+): Promise<{
+  contents: AIContentPart[];
+  preparedText: string | null;
+  providerMeta?: FlashcardOperationResult["provider"];
+}> {
+  if (input.input.kind === "text") {
+    return { contents: input.contents, preparedText: input.input.text.text };
+  }
+  const prepared = await contentService.prepareSourceText(input.contents, signal);
+  const text = prepared?.text?.trim() ?? "";
+  if (text) {
+    return {
+      contents: textContentsFromPreparedText(text, `Prepared ${input.input.kind} source text`),
+      preparedText: text,
+      providerMeta: prepared.meta,
+    };
+  }
+  return { contents: input.contents, preparedText: null, ...(prepared ? { providerMeta: prepared.meta } : {}) };
+}
+
 function enhancementContext(items: AIFlashcardCandidate[]): string {
   return JSON.stringify({
     purpose: "untrusted extracted Flashcard candidates for explanation enhancement",
@@ -126,39 +161,34 @@ export class FlashcardAIEngine {
     let deterministic = input.input.kind === "text"
       ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
       : null;
+    const preferred = deterministic ? { contents: input.contents, preparedText: input.input.kind === "text" ? input.input.text.text : null, providerMeta: undefined as FlashcardOperationResult["provider"] | undefined } : await preferredSourceContents(this.contentService, input, signal);
 
-    // Existing Q/A-style Flashcard documents do not need a second generative
-    // rewrite. Read the binary source once through Cloudflare, then use the
-    // conservative parser when the complete card structure is explicit.
-    if (!deterministic && input.input.kind !== "text") {
-      const preparedText = await this.contentService.prepareSourceText(input.contents, signal);
-      if (preparedText) {
-        const parsed = parseDeterministicFlashcards(preparedText.text, this.config.extractionMaxCount);
-        if (parsed) {
-          deterministic = {
-            ...parsed,
-            items: parsed.items.map((item) => ({
-              ...item,
-              source: item.source ? {
-                ...item.source,
-                inputType: input.input.kind,
-                ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
-              } : item.source,
-            })),
-            skippedItems: parsed.skippedItems.map((item) => ({
-              ...item,
-              source: item.source ? {
-                ...item.source,
-                inputType: input.input.kind,
-                ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
-              } : item.source,
-            })),
-          };
-          deterministicProviderMeta = preparedText.meta;
-        }
+    if (!deterministic && preferred.preparedText) {
+      const parsed = parseDeterministicFlashcards(preferred.preparedText, this.config.extractionMaxCount);
+      if (parsed) {
+        deterministic = {
+          ...parsed,
+          items: parsed.items.map((item) => ({
+            ...item,
+            source: item.source ? {
+              ...item.source,
+              inputType: input.input.kind,
+              ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
+            } : item.source,
+          })),
+          skippedItems: parsed.skippedItems.map((item) => ({
+            ...item,
+            source: item.source ? {
+              ...item.source,
+              inputType: input.input.kind,
+              ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
+            } : item.source,
+          })),
+        };
+        deterministicProviderMeta = preferred.providerMeta ?? deterministicProviderMeta;
       }
     }
-    const shards = deterministic ? [] : shardTextContent(input.contents);
+    const shards = deterministic ? [] : shardTextContent(preferred.contents);
     const extractShard = async (contents: PreparedAIInput["contents"]): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
       try {
         return [await this.contentService.generateStructured({
@@ -187,10 +217,10 @@ export class FlashcardAIEngine {
       run: async ({ start }) => extractShard(shards[start]!),
     })).flat();
     if (!deterministic && !responses.some((response) => response.data.items.length) &&
-      input.input.kind === "text" &&
-      (input.input.text.text.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
+      preferred.preparedText &&
+      (preferred.preparedText.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
       const recovery = await this.contentService.generateStructured({
-        contents: input.contents,
+        contents: preferred.contents,
         responseSchema: flashcardExtractionProviderResponseSchema,
         trustedSystemInstruction: [
           buildFlashcardExtractInstruction(),
@@ -202,17 +232,13 @@ export class FlashcardAIEngine {
       });
       responses = [recovery];
     }
-    if (
-      !deterministic &&
-      input.input.kind !== "text" &&
-      !responses.some((response) => response.data.items.length)
-    ) {
+    if (!deterministic && !responses.some((response) => response.data.items.length)) {
       const recovery = await this.contentService.generateStructured({
-        contents: input.contents,
+        contents: preferred.contents,
         responseSchema: flashcardExtractionProviderResponseSchema,
         trustedSystemInstruction: [
           buildFlashcardExtractInstruction(),
-          "The previous visual/document pass returned zero cards. Retry the complete non-empty source once using every available page or image.",
+          "The previous source pass returned zero cards. Retry the complete non-empty source once using every available page, OCR transcript, or converted segment.",
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no Flashcards.",
         ].join("\n\n"),
         operation: "extract",
@@ -230,9 +256,9 @@ export class FlashcardAIEngine {
     };
     const providerMeta = deterministic
       ? deterministicProviderMeta
-      : responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
-    if (!responseData.items.length && input.input.kind === "text" &&
-      (input.input.text.text.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
+      : responses[0]?.meta ?? preferred.providerMeta ?? { provider: "unknown", model: "unknown" };
+    if (!responseData.items.length && preferred.preparedText &&
+      (preferred.preparedText.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
         publicMessage: "The source contains Flashcard markers, but the AI extraction was incomplete.",
         diagnosticMessage: "Non-empty Flashcard source produced zero candidates after the deterministic route was unavailable.",
@@ -257,7 +283,7 @@ export class FlashcardAIEngine {
       warnings.push("Extraction candidates were truncated to the configured maximum.");
     }
     if (!items.length && sourceStatus === "incomplete") {
-      warnings.push("Visual source processing remained incomplete after bounded recovery; no candidates were finalized.");
+      warnings.push("Visual or OCR source processing remained incomplete after bounded recovery; no candidates were finalized.");
     }
     return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated, items.length ? "complete" : sourceStatus === "incomplete" ? "incomplete" : "empty");
   }
@@ -270,7 +296,8 @@ export class FlashcardAIEngine {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
     const generationBatchSize = 20;
-    const coverageSources = shardTextContent(input.contents, 10_000);
+    const preferred = await preferredSourceContents(this.contentService, input, signal);
+    const coverageSources = shardTextContent(preferred.contents, 10_000);
     const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
     const coverage = (start: number, recovery = false) => {
       const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / generationBatchSize);
@@ -358,7 +385,7 @@ export class FlashcardAIEngine {
       items,
       [],
       warnings,
-      responses[0]?.meta ?? { provider: "unknown", model: "unknown" },
+      responses[0]?.meta ?? preferred.providerMeta ?? { provider: "unknown", model: "unknown" },
       startedAt,
       selected.count,
       false,
@@ -375,6 +402,7 @@ export class FlashcardAIEngine {
     requiredEnhancementOptions(options);
     const source = "source" in input ? input.source : input;
     const extraction = "source" in input ? null : await this.extractExistingFlashcards(input, signal);
+    const preferredSource = await preferredSourceContents(this.contentService, source, signal);
     const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) => ({
       ...item,
       warnings: [...item.warnings],
@@ -405,7 +433,7 @@ export class FlashcardAIEngine {
       concurrency: 4,
       signal,
       run: ({ start, count }) => this.contentService.generateStructured({
-        contents: source.contents,
+        contents: preferredSource.contents,
         responseSchema: flashcardEnhancementProviderResponseSchema,
         trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
         additionalUntrustedContext: enhancementContext(eligible.slice(start, start + count)),
@@ -432,7 +460,7 @@ export class FlashcardAIEngine {
         concurrency: 4,
         signal,
         run: ({ start, count }) => this.contentService.generateStructured({
-          contents: source.contents,
+          contents: preferredSource.contents,
           responseSchema: flashcardEnhancementProviderResponseSchema,
           trustedSystemInstruction: [
             buildFlashcardEnhanceInstruction(),
@@ -463,7 +491,7 @@ export class FlashcardAIEngine {
       applyFlashcardBatchDuplicateWarnings(merged),
       extraction?.skippedItems ?? [],
       warnings.concat(response.uncertainties.map((value) => `Model uncertainty: ${value}`)),
-      responses[0]?.meta ?? extraction?.provider ?? { provider: "unknown", model: "unknown" },
+      responses[0]?.meta ?? preferredSource.providerMeta ?? extraction?.provider ?? { provider: "unknown", model: "unknown" },
       startedAt,
       undefined,
       extraction?.truncated ?? false,

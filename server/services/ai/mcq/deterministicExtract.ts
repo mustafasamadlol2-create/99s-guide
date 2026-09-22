@@ -8,9 +8,9 @@ interface ParsedBlock {
   uncertainties: string[];
 }
 
-const questionMarker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,3})\s*(?:[.)、:：-]\s*|\s+)(.*)$/iu;
-const optionMarker = /^\s*(?:\(([A-D])\)|([A-D])\s*[).:：-]|([1-4])\s*[).:：-])\s*(.*)$/iu;
-const answerMarker = /^\s*(?:answer|correct\s+answer|correct|ans|key|الإجابة)\s*[:：-]\s*(.+?)\s*$/iu;
+const questionMarker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,3})\s*(?:[.)、:：\/-]\s*|\s+)(.*)$/iu;
+const optionMarker = /^\s*(?:\(([A-D])\)|([A-D])\s*[).:：\/-]|([1-4])\s*[).:：\/-])\s*(.*)$/iu;
+const answerMarker = /^\s*(?:answer|correct\s+answer|correct|ans|key|الإجابة)\s*(?:[:：\/-]\s*)?(.+?)\s*$/iu;
 
 function normalizeMarkdownMarkerLine(value: string): string {
   return value

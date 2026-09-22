@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PreparedAIInput } from "../input/contracts.js";
+import type { AIContentPart, PreparedAIInput } from "../input/contracts.js";
 import { AIContentService } from "../AIContentService.js";
 import { AIServiceError } from "../errors.js";
 import type {
@@ -35,6 +35,7 @@ import { normalizeExtractedItems, normalizeGeneratedItems } from "./normalize.js
 import { parseDeterministicMCQs } from "./deterministicExtract.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { contiguousIndexRanges, planNumberedMCQExtraction } from "./extractionPlan.js";
+import { sha256Text } from "../input/hash.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
@@ -69,6 +70,45 @@ function remapDeterministicMCQSource(
       } : item.source,
     })),
   };
+}
+
+
+function textContentsFromPreparedText(text: string, label: string): AIContentPart[] {
+  return [{
+    kind: "text",
+    text,
+    source: { inputType: "text", section: label, label },
+    sizeBytes: new TextEncoder().encode(text).byteLength,
+    sha256: sha256Text(text),
+  }];
+}
+
+async function preferredSourceContents(
+  contentService: AIContentService,
+  input: MCQAIEngineInput,
+  signal?: AbortSignal,
+): Promise<{
+  contents: AIContentPart[];
+  preparedText: string | null;
+  providerMeta?: MCQOperationResult["provider"];
+}> {
+  if (input.inputKind === "text") {
+    return { contents: input.contents, preparedText: input.text ?? null };
+  }
+  const prepared = await contentService.prepareSourceText(input.contents, signal);
+  const text = prepared?.text?.trim() ?? "";
+  if (text) {
+    return {
+      contents: textContentsFromPreparedText(text, `Prepared ${input.inputKind} source text`),
+      preparedText: text,
+      providerMeta: prepared.meta,
+    };
+  }
+  return { contents: input.contents, preparedText: null, ...(prepared ? { providerMeta: prepared.meta } : {}) };
+}
+
+function countQuestionMarkers(text: string | null | undefined): number {
+  return text ? (text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：\/-]/giu)?.length ?? 0) : 0;
 }
 
 function requiredGenerationOptions(
@@ -201,25 +241,21 @@ export class MCQAIEngine {
       transport: "inline",
     };
     let deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
+    let preferred = { contents: input.contents as AIContentPart[], preparedText: input.text ?? null as string | null, providerMeta: undefined as MCQOperationResult["provider"] | undefined };
 
-    // Fast path for existing MCQ sheets: Cloudflare converts the PDF/image to
-    // text once, then the conservative local parser copies complete numbered
-    // questions without asking the LLM to regenerate 80+ source items. If the
-    // layout is not safely parseable, the normal Cloudflare structured path
-    // below is used with the same cached source conversion.
-    if (!deterministic && input.inputKind !== "text") {
-      const preparedText = await this.contentService.prepareSourceText(input.contents, signal);
-      if (preparedText) {
-        const parsed = parseDeterministicMCQs(preparedText.text, this.config.extractionMaxCount);
+    if (!deterministic) {
+      preferred = await preferredSourceContents(this.contentService, input, signal);
+      if (preferred.preparedText) {
+        const parsed = parseDeterministicMCQs(preferred.preparedText, this.config.extractionMaxCount);
         if (parsed) {
           deterministic = remapDeterministicMCQSource(parsed, input);
-          deterministicProviderMeta = preparedText.meta;
+          deterministicProviderMeta = preferred.providerMeta ?? deterministicProviderMeta;
         }
       }
     }
 
-    const numberedPlan = deterministic ? null : planNumberedMCQExtraction(input.contents);
-    const shards = deterministic || numberedPlan ? [] : shardTextContent(input.contents);
+    const numberedPlan = deterministic ? null : planNumberedMCQExtraction(preferred.contents);
+    const shards = deterministic || numberedPlan ? [] : shardTextContent(preferred.contents);
     let responses = deterministic ? [] : numberedPlan
       ? await runResilientBatches({
         total: numberedPlan.blocks.length,
@@ -258,6 +294,7 @@ export class MCQAIEngine {
           }),
         }),
       });
+
     if (numberedPlan) {
       const withSafeOrdinals = responses.flatMap(({ batch, result }) =>
         result.data.items.map((item, index) => ({
@@ -297,6 +334,7 @@ export class MCQAIEngine {
         responses = [...responses, ...recovered];
       }
     }
+
     const plannedItems = numberedPlan
       ? responses.flatMap(({ batch, result }) => result.data.items.map((item, index) => ({
         ...item,
@@ -320,18 +358,15 @@ export class MCQAIEngine {
         });
       }
     }
-    if (
-      !deterministic &&
-      !numberedPlan &&
-      input.inputKind !== "text" &&
-      !responses.some((response) => response.result.data.items.length)
-    ) {
+
+    const hasAnyResponseItems = responses.some((response) => response.result.data.items.length);
+    if (!deterministic && !numberedPlan && !hasAnyResponseItems) {
       const recovery = await this.contentService.generateStructured({
-        contents: input.contents,
+        contents: preferred.contents,
         responseSchema: mcqExtractionProviderResponseSchema,
         trustedSystemInstruction: [
           buildMCQExtractInstruction(),
-          "The previous visual/document pass returned zero candidates. Retry the complete non-empty source once using every available page or image.",
+          "The previous source pass returned zero candidates. Retry the complete non-empty source once using every available page, OCR transcript, or converted segment.",
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no MCQs.",
         ].join("\n\n"),
         operation: "extract",
@@ -341,6 +376,7 @@ export class MCQAIEngine {
       responses = [...responses, { batch: { start: 0, count: 1 }, result: recovery }];
       if (!recovery.data.items.length) sourceStatus = "incomplete";
     }
+
     const responseData = deterministic ?? {
       items: numberedPlan
         ? [...new Map(
@@ -361,11 +397,11 @@ export class MCQAIEngine {
     };
     const providerMeta = deterministic
       ? deterministicProviderMeta
-      : responses[0]?.result.meta ?? { provider: "unknown", model: "unknown" };
-    if (!responseData.items.length && input.text && (input.text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：-]/giu)?.length ?? 0) >= 2) {
+      : responses[0]?.result.meta ?? preferred.providerMeta ?? { provider: "unknown", model: "unknown" };
+    if (!responseData.items.length && countQuestionMarkers(preferred.preparedText ?? input.text ?? undefined) >= 2) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
         publicMessage: "The source contains question markers, but the AI extraction was incomplete.",
-        diagnosticMessage: "Non-empty numbered MCQ source produced zero candidates after the deterministic route was unavailable.",
+        diagnosticMessage: "Non-empty numbered MCQ source produced zero candidates after deterministic and structured recovery.",
       });
     }
     const normalized = normalizeExtractedItems(
@@ -376,9 +412,10 @@ export class MCQAIEngine {
     );
     let items = applyBatchDuplicateWarnings(normalized.items);
     const skippedItems = normalized.skippedItems.slice(0, this.config.maxSkippedItems);
-    const warnings = [...responseData.uncertainties.map((value) => `Model uncertainty: ${value}`), ...responseData.items.length > this.config.extractionMaxCount
-      ? ["Extraction exceeded the configured maximum and was truncated."]
-      : []];
+    const warnings = [
+      ...responseData.uncertainties.map((value) => `Model uncertainty: ${value}`),
+      ...responseData.items.length > this.config.extractionMaxCount ? ["Extraction exceeded the configured maximum and was truncated."] : [],
+    ];
     if (normalized.skippedItems.length > this.config.maxSkippedItems) {
       warnings.push("Skipped source items exceeded the configured reporting limit.");
     }
@@ -386,7 +423,7 @@ export class MCQAIEngine {
     items = items.slice(0, this.config.extractionMaxCount);
     if (items.length < normalized.items.length) warnings.push("Extraction candidates were truncated to the configured maximum.");
     if (!items.length && sourceStatus === "incomplete") {
-      warnings.push("Visual source processing remained incomplete after bounded recovery; no candidates were finalized.");
+      warnings.push("Visual or OCR source processing remained incomplete after bounded recovery; no candidates were finalized.");
     }
     return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated, items.length ? "complete" : sourceStatus === "incomplete" ? "incomplete" : "empty");
   }
@@ -398,8 +435,9 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
+    const preferred = await preferredSourceContents(this.contentService, inputForPrepared(input), signal);
     const generationBatchSize = 20;
-    const coverageSources = shardTextContent(input.contents, 10_000);
+    const coverageSources = shardTextContent(preferred.contents, 10_000);
     const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
     const coverage = (start: number, recovery = false) => {
       const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / generationBatchSize);
@@ -464,7 +502,7 @@ export class MCQAIEngine {
       });
       responses = [...responses, ...recovery];
     }
-    const provider = responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
+    const provider = responses[0]?.meta ?? preferred.providerMeta ?? { provider: "unknown", model: "unknown" };
     const normalized = responses.flatMap((response) => normalizeGeneratedItems(
       response.data,
       input,
@@ -521,7 +559,8 @@ export class MCQAIEngine {
         (selected.hint && item.hint === null) ||
         (selected.explanation && item.explanation === null)),
     );
-    let provider = extraction?.provider ?? { provider: "unknown", model: "unknown" };
+    const preferredSource = await preferredSourceContents(this.contentService, inputForPrepared(source), signal);
+    let provider = extraction?.provider ?? preferredSource.providerMeta ?? { provider: "unknown", model: "unknown" };
     const warnings = [...(extraction?.warnings ?? [])];
     if (eligible.length > 0) {
       const responses = await runResilientBatches({
@@ -532,7 +571,7 @@ export class MCQAIEngine {
         run: ({ start, count }) => {
           const batch = eligible.slice(start, start + count);
           return this.contentService.generateStructured({
-            contents: source.contents,
+            contents: preferredSource.contents,
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
             additionalUntrustedContext: enhancementContext(batch),
@@ -567,7 +606,7 @@ export class MCQAIEngine {
           concurrency: 4,
           signal,
           run: ({ start, count }) => this.contentService.generateStructured({
-            contents: source.contents,
+            contents: preferredSource.contents,
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: [
               buildMCQEnhanceInstruction(selected),
@@ -591,6 +630,80 @@ export class MCQAIEngine {
           uncertainties: [...mergedResponse.uncertainties, ...recovery.flatMap((response) => response.data.uncertainties)],
         };
       }
+
+      if (selected.explanation) {
+        const afterGeneralRecovery = new Map(mergedResponse.items.map((item) => [item.candidateId, item]));
+        const explanationMissing = eligible.filter((item) => {
+          const enhancement = afterGeneralRecovery.get(item.candidateId);
+          return item.explanation === null && !enhancement?.explanation;
+        });
+        if (explanationMissing.length > 0) {
+          const recovery = await runResilientBatches({
+            total: explanationMissing.length,
+            batchSize: 10,
+            concurrency: 4,
+            signal,
+            run: ({ start, count }) => this.contentService.generateStructured({
+              contents: preferredSource.contents,
+              responseSchema: createMCQEnhancementProviderResponseSchema({ hint: false, explanation: true }),
+              trustedSystemInstruction: [
+                buildMCQEnhanceInstruction({ hint: false, explanation: true }),
+                "Targeted explanation recovery: return only explanation for the listed candidate IDs.",
+                "Every returned explanation must align with the preserved correctAnswer and must not be left null when the source supports a safe explanation.",
+              ].join("\n\n"),
+              additionalUntrustedContext: enhancementContext(explanationMissing.slice(start, start + count)),
+              operation: "enhance",
+              maxItems: count,
+              sourceWindowIndex: Math.floor(start / 10),
+              signal,
+            }),
+            onFailure: (batch) => {
+              warnings.push(`Targeted explanation recovery ${batch.start + 1}-${batch.start + batch.count} failed; original candidates were retained.`);
+            },
+          });
+          mergedResponse = {
+            items: mergeEnhancementItems([...mergedResponse.items, ...recovery.flatMap((response) => response.data.items)]),
+            uncertainties: [...mergedResponse.uncertainties, ...recovery.flatMap((response) => response.data.uncertainties)],
+          };
+        }
+      }
+
+      if (selected.hint) {
+        const afterExplanationRecovery = new Map(mergedResponse.items.map((item) => [item.candidateId, item]));
+        const hintMissing = eligible.filter((item) => {
+          const enhancement = afterExplanationRecovery.get(item.candidateId);
+          return item.hint === null && !enhancement?.hint;
+        });
+        if (hintMissing.length > 0) {
+          const recovery = await runResilientBatches({
+            total: hintMissing.length,
+            batchSize: 10,
+            concurrency: 4,
+            signal,
+            run: ({ start, count }) => this.contentService.generateStructured({
+              contents: preferredSource.contents,
+              responseSchema: createMCQEnhancementProviderResponseSchema({ hint: true, explanation: false }),
+              trustedSystemInstruction: [
+                buildMCQEnhanceInstruction({ hint: true, explanation: false }),
+                "Targeted hint recovery: return only hint for the listed candidate IDs.",
+              ].join("\n\n"),
+              additionalUntrustedContext: enhancementContext(hintMissing.slice(start, start + count)),
+              operation: "enhance",
+              maxItems: count,
+              sourceWindowIndex: Math.floor(start / 10),
+              signal,
+            }),
+            onFailure: (batch) => {
+              warnings.push(`Targeted hint recovery ${batch.start + 1}-${batch.start + batch.count} failed; original candidates were retained.`);
+            },
+          });
+          mergedResponse = {
+            items: mergeEnhancementItems([...mergedResponse.items, ...recovery.flatMap((response) => response.data.items)]),
+            uncertainties: [...mergedResponse.uncertainties, ...recovery.flatMap((response) => response.data.uncertainties)],
+          };
+        }
+      }
+
       const merged = this.mergeEnhancements(candidates, eligible, mergedResponse, selected, warnings);
       return baseResult(
         "enhance",

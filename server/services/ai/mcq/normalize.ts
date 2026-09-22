@@ -27,11 +27,75 @@ function uncertaintiesToWarnings(uncertainties: string[]): string[] {
   return uncertainties.slice(0, MAX_UNCERTAINTIES).map((uncertainty) => `Model uncertainty: ${uncertainty}`);
 }
 
+function fallbackSourceEvidence(
+  input: PreparedAIInput | MCQAIEngineInput,
+  summary: {
+    question?: string | null;
+    options?: string[];
+    section?: string | null;
+    sourceOrdinal?: number;
+  },
+): MCQSourceEvidence | null {
+  const excerpt = [
+    summary.question?.trim() ?? "",
+    ...(summary.options ?? []).map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`),
+  ].join("\n").trim().slice(0, 300);
+  const section = summary.section?.trim() || (summary.sourceOrdinal ? `Question ${summary.sourceOrdinal}` : "Recovered source evidence");
+  if (!excerpt && !section) return null;
+
+  if ("input" in input) {
+    if (input.input.kind === "pdf") {
+      return { inputType: "pdf", section, supportingExcerpt: excerpt || undefined };
+    }
+    if (input.input.kind === "image") {
+      return {
+        inputType: "image",
+        imageIndex: 0,
+        label: input.input.images.length > 1 ? `Recovered from uploaded image set` : undefined,
+        supportingExcerpt: excerpt || undefined,
+      };
+    }
+    return { inputType: "text", section, supportingExcerpt: excerpt || undefined };
+  }
+
+  if (input.inputKind === "pdf") {
+    return { inputType: "pdf", section, supportingExcerpt: excerpt || undefined };
+  }
+  if (input.inputKind === "image") {
+    return {
+      inputType: "image",
+      imageIndex: input.imageCount === 1 ? 0 : 0,
+      label: input.imageCount && input.imageCount > 1 ? `Recovered from uploaded image set` : undefined,
+      supportingExcerpt: excerpt || undefined,
+    };
+  }
+  return { inputType: "text", section, supportingExcerpt: excerpt || undefined };
+}
+
 function sourceWarnings(
   source: MCQSourceEvidence | null | undefined,
   input: PreparedAIInput | MCQAIEngineInput,
+  summary: {
+    question?: string | null;
+    options?: string[];
+    section?: string | null;
+    sourceOrdinal?: number;
+  } = {},
 ): { source: MCQSourceEvidence | null; warnings: string[] } {
-  return validateMCQSourceEvidence(source, input);
+  const validated = validateMCQSourceEvidence(source, input);
+  if (validated.source) return validated;
+  const fallback = fallbackSourceEvidence(input, summary);
+  if (!fallback) return validated;
+  return {
+    source: fallback,
+    warnings: validated.warnings.filter((warning) => ![
+      "Source evidence was not provided.",
+      "Source evidence input type did not match the supplied source.",
+      "Text source evidence did not contain a section.",
+      "PDF source evidence did not contain a page or excerpt.",
+      "Image source evidence contained an invalid image index.",
+    ].includes(warning)),
+  };
 }
 
 export function normalizeExtractedItems(
@@ -41,7 +105,7 @@ export function normalizeExtractedItems(
   metadata: MCQExtractOptions = { category: "AI_GENERATED", difficulty: "Medium" },
 ): { items: AIMCQCandidate[]; skippedItems: SkippedMCQSourceItem[] } {
   const skippedItems: SkippedMCQSourceItem[] = response.skippedItems.map((item) => {
-    const validated = sourceWarnings(item.source, input);
+    const validated = sourceWarnings(item.source, input, { section: item.summary ?? undefined });
     return {
       reason: item.reason,
       source: validated.source,
@@ -50,7 +114,11 @@ export function normalizeExtractedItems(
   });
   const items: AIMCQCandidate[] = [];
   for (const item of response.items) {
-    const validatedSource = sourceWarnings(item.source, input);
+    const validatedSource = sourceWarnings(item.source, input, {
+      question: item.question,
+      options: item.options,
+      sourceOrdinal: item.sourceOrdinal,
+    });
     const warnings = [
       ...uncertaintiesToWarnings(item.uncertainties),
       ...validatedSource.warnings,
@@ -114,7 +182,10 @@ export function normalizeGeneratedItems(
   candidateId: () => string,
 ): AIMCQCandidate[] {
   return response.items.map((item) => {
-    const validatedSource = sourceWarnings(item.source, input);
+    const validatedSource = sourceWarnings(item.source, input, {
+      question: item.question,
+      options: [item.optionA, item.optionB, item.optionC, item.optionD],
+    });
     const warnings = [
       ...uncertaintiesToWarnings(item.uncertainties),
       ...validatedSource.warnings,

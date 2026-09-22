@@ -42,9 +42,12 @@ export function validateMCQSourceEvidence(
   };
   const warnings: string[] = [];
   if (source.inputType === "pdf") {
-    if (source.page === undefined || !Number.isInteger(source.page) || source.page <= 0) {
+    if (source.page !== undefined && (!Number.isInteger(source.page) || source.page <= 0)) {
       warnings.push("PDF source evidence did not contain a valid positive page.");
       delete normalized.page;
+    }
+    if (source.page === undefined && !source.section && !source.supportingExcerpt) {
+      warnings.push("PDF source evidence did not contain a page or excerpt.");
     }
   } else if (source.inputType === "image") {
     if (

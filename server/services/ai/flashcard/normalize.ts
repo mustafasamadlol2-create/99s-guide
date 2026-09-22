@@ -18,6 +18,39 @@ function uncertaintiesToWarnings(uncertainties: string[]): string[] {
     .map((uncertainty) => `Model uncertainty: ${uncertainty}`);
 }
 
+function fallbackSourceEvidence(
+  input: PreparedAIInput,
+  summary: { front?: string | null; back?: string | null; section?: string | null },
+): FlashcardSourceEvidence | null {
+  const section = summary.section?.trim() || (summary.front?.trim() ? summary.front.trim().slice(0, 80) : "Recovered source evidence");
+  const excerpt = [summary.front?.trim() ?? "", summary.back?.trim() ?? ""].filter(Boolean).join("\n").slice(0, 300);
+  if (!section && !excerpt) return null;
+  if (input.input.kind === "pdf") return { inputType: "pdf", section, supportingExcerpt: excerpt || undefined };
+  if (input.input.kind === "image") return { inputType: "image", imageIndex: 0, supportingExcerpt: excerpt || undefined };
+  return { inputType: "text", section, supportingExcerpt: excerpt || undefined };
+}
+
+function validatedOrFallbackSource(
+  source: FlashcardSourceEvidence | null | undefined,
+  input: PreparedAIInput,
+  summary: { front?: string | null; back?: string | null; section?: string | null } = {},
+): { source: FlashcardSourceEvidence | null; warnings: string[] } {
+  const validated = validateFlashcardSourceEvidence(source, input);
+  if (validated.source) return validated;
+  const fallback = fallbackSourceEvidence(input, summary);
+  if (!fallback) return validated;
+  return {
+    source: fallback,
+    warnings: validated.warnings.filter((warning) => ![
+      "Source evidence was not provided.",
+      "Source evidence input type did not match the supplied source.",
+      "Text source evidence did not contain a section.",
+      "PDF source evidence did not contain a page or excerpt.",
+      "Image source evidence contained an invalid image index.",
+    ].includes(warning)),
+  };
+}
+
 export function normalizeExtractedFlashcards(
   response: FlashcardExtractionProviderResponse,
   input: PreparedAIInput,
@@ -29,7 +62,7 @@ export function normalizeExtractedFlashcards(
 } {
   const warnings: string[] = [];
   const skippedItems = response.skippedItems.map((item) => {
-    const validated = validateFlashcardSourceEvidence(item.source, input);
+    const validated = validatedOrFallbackSource(item.source, input, { section: item.summary ?? undefined });
     warnings.push(...validated.warnings);
     return {
       reason: item.reason,
@@ -40,7 +73,10 @@ export function normalizeExtractedFlashcards(
   const items: AIFlashcardCandidate[] = [];
 
   for (const item of response.items) {
-    const validatedSource = validateFlashcardSourceEvidence(item.source, input);
+    const validatedSource = validatedOrFallbackSource(item.source, input, {
+      front: item.clinicalConcept,
+      back: item.explanation,
+    });
     const candidateWarnings = [
       ...uncertaintiesToWarnings(item.uncertainties),
       ...validatedSource.warnings,
@@ -79,7 +115,10 @@ export function normalizeGeneratedFlashcards(
   candidateId: () => string,
 ): AIFlashcardCandidate[] {
   return response.items.map((item) => {
-    const validatedSource = validateFlashcardSourceEvidence(item.source, input);
+    const validatedSource = validatedOrFallbackSource(item.source, input, {
+      front: item.clinicalConcept,
+      back: item.explanation,
+    });
     return applyFlashcardQualityWarnings({
       candidateId: candidateId(),
       clinicalConcept: item.clinicalConcept,

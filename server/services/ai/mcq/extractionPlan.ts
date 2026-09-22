@@ -1,7 +1,7 @@
 import type { AIContentPart, AITextPart } from "../input/contracts.js";
 import { sha256Text } from "../input/hash.js";
 
-const marker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,4})\s*(?:[.)、:：-]\s*|\s+).+$/iu;
+const marker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,4})\s*(?:[.)、:：\/-]\s*|\s+).+$/iu;
 
 export interface MCQSourceBlock {
   ordinal: number;

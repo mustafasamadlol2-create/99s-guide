@@ -1,6 +1,7 @@
 import { AIServiceError } from "../ai/errors.js";
 import type { AIProvider, SafeProviderMetadata } from "../ai/contracts.js";
 import type { AIContentPart } from "../ai/input/contracts.js";
+import { sha256Text } from "../ai/input/hash.js";
 import { runResilientBatches, shardTextContent } from "../ai/reliability.js";
 import {
   extractionBatchSchema,
@@ -48,26 +49,53 @@ export interface ScheduleExtractionResult {
   provider: SafeProviderMetadata;
 }
 
+function textContentsFromPreparedText(text: string, label: string): AIContentPart[] {
+  return [{
+    kind: "text",
+    text,
+    source: { inputType: "text", section: label, label },
+    sizeBytes: new TextEncoder().encode(text).byteLength,
+    sha256: sha256Text(text),
+  }];
+}
+
+async function preferredSourceContents(
+  provider: AIProvider,
+  contents: AIContentPart[],
+  inputKind: "pdf" | "image" | "text",
+  signal?: AbortSignal,
+): Promise<{ contents: AIContentPart[]; preparedText: string | null; meta?: SafeProviderMetadata }> {
+  if (inputKind === "text" || typeof provider.prepareSourceText !== "function") {
+    return { contents, preparedText: inputKind === "text" && contents[0]?.kind === "text" ? contents[0].text : null };
+  }
+  const prepared = await provider.prepareSourceText(contents, signal);
+  const text = prepared.text.trim();
+  if (!text) return { contents, preparedText: null, meta: prepared.meta };
+  return {
+    contents: textContentsFromPreparedText(text, `Prepared ${inputKind} source text`),
+    preparedText: text,
+    meta: prepared.meta,
+  };
+}
+
 
 export async function extractSchedule(options: ScheduleExtractionOptions): Promise<ScheduleExtractionResult> {
   const maxCandidates = options.maxCandidates ?? 500;
   const warnings: string[] = [];
   let provider: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
+  const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
 
-  // A PDF is converted once into page-labelled text/OCR by the Cloudflare
-  // provider. The older implementation called inference repeatedly for 3-page
-  // ranges while passing the same complete PDF every time, multiplying latency
-  // and making the UI appear stuck. One provider pass can still internally split
-  // the prepared page text into bounded chunks and merge all candidates.
   if (options.inputKind === "pdf") {
-    await options.onProgress?.(0, 1, "Reading document");
-    const result = await options.provider.generateStructured({
-      contents: options.contents,
+    await options.onProgress?.(0, 1, preferred.preparedText ? "Reading document text" : "Reading document");
+    let result = await options.provider.generateStructured({
+      contents: preferred.contents,
       responseSchema: extractionBatchSchema,
       trustedSystemInstruction: EXTRACTION_PROMPT,
       additionalUntrustedContext: [
         `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages.`,
-        "Inspect the complete document once. If the converted document does not expose stable page markers, return sourcePage as null rather than guessing it.",
+        preferred.preparedText
+          ? "The supplied content is a prepared OCR/text conversion of the PDF. Extract every supported event even if stable PDF page numbers are unavailable."
+          : "Inspect the complete document once. If the converted document does not expose stable page markers, return sourcePage as null rather than guessing it.",
         "Do not omit an event merely because it appears on a continuation page or in a visually rendered/scanned page.",
       ].join("\n"),
       operation: "extract",
@@ -78,11 +106,27 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       reusePreparedMedia: true,
     });
     provider = result.meta;
+    if (!result.data.items.length && preferred.preparedText) {
+      const recovery = await options.provider.generateStructured({
+        contents: preferred.contents,
+        responseSchema: extractionBatchSchema,
+        trustedSystemInstruction: [
+          EXTRACTION_PROMPT,
+          "The previous schedule extraction returned zero events. Retry the non-empty OCR/text conversion and recover every explicit event.",
+          "If page provenance is unavailable, keep sourcePage null instead of failing the extraction.",
+        ].join("\n\n"),
+        additionalUntrustedContext: `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages. Use only the supplied OCR/text conversion.`,
+        operation: "extract",
+        maxItems: maxCandidates,
+        sourceChunkConcurrency: 6,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+        reusePreparedMedia: true,
+      });
+      result = recovery;
+      provider = recovery.meta;
+    }
     const candidates = result.data.items.map((item) => {
-      // Whole-document Cloudflare Markdown conversion can preserve the schedule
-      // accurately without a stable PDF page number. Missing page provenance is
-      // therefore allowed; only an explicitly returned out-of-range page is a
-      // grounding warning.
       if (item.sourcePage === null) return item;
       const validPage = item.sourcePage >= 1 &&
         (options.sourcePageCount === null || item.sourcePage <= options.sourcePageCount);
@@ -105,9 +149,10 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     };
   }
 
-  const textWindows = options.inputKind === "text" ? shardTextContent(options.contents, 24_000) : [];
+  const effectiveContents = preferred.contents;
+  const textWindows = options.inputKind === "text" ? shardTextContent(effectiveContents, 24_000) : [];
   const totalUnits = options.inputKind === "image"
-    ? Math.max(1, Math.ceil(options.contents.length / 3))
+    ? Math.max(1, Math.ceil(effectiveContents.length / 3))
     : Math.max(1, textWindows.length);
   const candidates: ExtractionCandidate[] = [];
 
@@ -124,15 +169,20 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     let progressLabel: string;
     if (options.inputKind === "image") {
       const start = unit * 3;
-      const end = Math.min(options.contents.length, start + 3);
-      unitContents = options.contents.slice(start, end);
-      context = [
-        `Only extract events from uploaded source image indexes ${start}-${end - 1}.`,
-        "Return sourceImageIndex using the original uploaded image index stored in the source metadata.",
-      ].join("\n");
+      const end = Math.min(effectiveContents.length, start + 3);
+      unitContents = effectiveContents.slice(start, end);
+      context = preferred.preparedText
+        ? [
+          `Only extract events from prepared source segment ${unit + 1} of ${totalUnits}.`,
+          "This content was prepared from uploaded schedule images. If an exact image index is unavailable, return sourceImageIndex as null and preserve sourceEvidence.",
+        ].join("\n")
+        : [
+          `Only extract events from uploaded source image indexes ${start}-${end - 1}.`,
+          "Return sourceImageIndex using the original uploaded image index stored in the source metadata.",
+        ].join("\n");
       progressLabel = `Reading image ${start + 1}${end > start + 1 ? `-${end}` : ""}`;
     } else {
-      unitContents = textWindows[unit] ?? options.contents;
+      unitContents = textWindows[unit] ?? effectiveContents;
       context = [
         `Only extract events explicitly present in pasted text segment ${unit + 1} of ${totalUnits}.`,
         "This is a text-only source, so sourcePage and sourceImageIndex must be null. Preserve a concise sourceEvidence quote for grounding.",
@@ -158,8 +208,11 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       if (options.inputKind === "text") {
         return { ...item, sourcePage: null, sourceImageIndex: null };
       }
+      if (preferred.preparedText) {
+        return { ...item, sourceImageIndex: item.sourceImageIndex ?? null };
+      }
       const start = unit * 3;
-      const end = Math.min(options.contents.length, start + 3);
+      const end = Math.min(effectiveContents.length, start + 3);
       const inActiveRange = item.sourceImageIndex !== null &&
         item.sourceImageIndex >= start && item.sourceImageIndex < end;
       return inActiveRange
@@ -181,7 +234,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
   return {
     candidates,
     warnings: [...new Set(warnings)].slice(0, 50),
-    provider,
+    provider: provider.provider === "unknown" ? preferred.meta ?? provider : provider,
   };
 }
 
