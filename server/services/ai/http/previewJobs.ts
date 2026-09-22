@@ -83,7 +83,7 @@ export class AIPreviewJobManager {
 
   constructor(options: AIPreviewJobManagerOptions = {}) {
     this.terminalTtlMs = options.terminalTtlMs ?? 30 * 60_000;
-    this.hardTimeoutMs = options.hardTimeoutMs ?? 12 * 60_000;
+    this.hardTimeoutMs = options.hardTimeoutMs ?? 8 * 60_000;
     this.now = options.now ?? Date.now;
     this.schedule = options.setTimeout ?? globalThis.setTimeout;
     this.unschedule = options.clearTimeout ?? globalThis.clearTimeout;
@@ -165,6 +165,7 @@ export class AIPreviewJobManager {
       if (record.state !== "running") return;
       record.progress = {
         ...record.progress,
+        stage: args.operation === "extract" ? "extracting" : args.operation === "generate" ? "generating" : "enhancing",
         completedBatches: details.completedBatches,
         itemsRecovered: record.progress.itemsRecovered + details.itemsReturned,
       };

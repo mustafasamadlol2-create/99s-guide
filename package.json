@@ -9,7 +9,7 @@
     "postinstall": "npx prisma generate",
     "dev": "node scripts/run-dev.cjs",
     "build": "npm run build:frontend && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "start": "node scripts/start-production.cjs",
     "preview": "npm run build && wrangler dev",
     "clean": "node scripts/clean.cjs",
     "test:auth": "tsx --test tests/oauth-state.test.ts",
@@ -27,7 +27,9 @@
     "cap:add:android": "npx cap add android",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "migrate:deploy": "prisma migrate deploy",
+    "start:server": "node dist/server.cjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

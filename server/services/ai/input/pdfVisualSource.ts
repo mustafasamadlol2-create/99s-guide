@@ -19,6 +19,7 @@ export const DEFAULT_MAX_VISUAL_PAGES = 20;
 export const PDF_RENDER_DPI = 144;
 export const PDF_RENDER_MAX_DIMENSION = 4096;
 export const PDF_RENDER_MAX_PIXELS = PDF_RENDER_MAX_DIMENSION ** 2;
+export const PDF_PROFILE_CONCURRENCY = 6;
 
 export async function inspectPDFPageCount(
   capability: AIStagedFileCapability,
@@ -84,29 +85,38 @@ export async function extractPDFPageProfiles(
   const document = await loadPDFDocument(capability);
   const profiles: PDFTextPageProfile[] = [];
   try {
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    // Profile pages in small local batches. We still inspect image operators on
+    // every page so mixed PDFs do not lose diagrams/tables merely because a page
+    // also has a healthy text layer. The batching removes the old fully-serial
+    // CPU path without sacrificing visual completeness.
+    for (let start = 1; start <= document.numPages; start += PDF_PROFILE_CONCURRENCY) {
       throwIfAborted(signal);
-      const page = await document.getPage(pageNumber);
-      try {
-        const [textContent, operatorList] = await Promise.all([
-          page.getTextContent(),
-          page.getOperatorList(),
-        ]);
-        const imageCount = operatorList.fnArray.reduce((count, operator) => count + (
-          operator === OPS.paintImageMaskXObject ||
-          operator === OPS.paintImageXObject ||
-          operator === OPS.paintImageXObjectRepeat
-            ? 1
-            : 0
-        ), 0);
-        profiles.push({
-          page: pageNumber,
-          text: textFromPageItems(textContent.items as unknown[]),
-          imageCount,
-        });
-      } finally {
-        page.cleanup();
-      }
+      const pageNumbers = Array.from(
+        { length: Math.min(PDF_PROFILE_CONCURRENCY, document.numPages - start + 1) },
+        (_, index) => start + index,
+      );
+      const batch = await Promise.all(pageNumbers.map(async (pageNumber): Promise<PDFTextPageProfile> => {
+        throwIfAborted(signal);
+        const page = await document.getPage(pageNumber);
+        try {
+          const [textContent, operatorList] = await Promise.all([
+            page.getTextContent(),
+            page.getOperatorList(),
+          ]);
+          const text = textFromPageItems(textContent.items as unknown[]);
+          const imageCount = operatorList.fnArray.reduce((count, operator) => count + (
+            operator === OPS.paintImageMaskXObject ||
+            operator === OPS.paintImageXObject ||
+            operator === OPS.paintImageXObjectRepeat
+              ? 1
+              : 0
+          ), 0);
+          return { page: pageNumber, text, imageCount };
+        } finally {
+          page.cleanup();
+        }
+      }));
+      profiles.push(...batch);
     }
     return profiles;
   } finally {

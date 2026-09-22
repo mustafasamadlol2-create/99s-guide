@@ -34,9 +34,8 @@ export interface ConvertedCloudflarePart {
   page?: number;
 }
 
-const PDF_MIN_USABLE_TEXT_CHARS = 40;
-const PDF_IMAGE_HEAVY_TEXT_THRESHOLD = 1_600;
-const VISION_RENDER_BATCH_SIZE = 4;
+const PDF_MIN_USABLE_TEXT_CHARS = 60;
+const VISION_RENDER_BATCH_SIZE = 6;
 const VISION_MAX_DIMENSION = 2_600;
 
 function safeFilename(part: AIFilePart, mimeType: string): string {
@@ -60,10 +59,10 @@ function textCharacterCount(text: string): number {
 }
 
 function shouldReadPageVisually(profile: PDFTextPageProfile): boolean {
-  const textChars = textCharacterCount(profile.text);
-  return textChars < PDF_MIN_USABLE_TEXT_CHARS ||
-    profile.imageCount >= 3 ||
-    (profile.imageCount > 0 && textChars < PDF_IMAGE_HEAVY_TEXT_THRESHOLD);
+  // Preserve all visual information: a mixed page is not considered "done" just
+  // because pdf.js extracted text from it. Any embedded raster content receives
+  // Cloudflare visual reading, while text-only pages stay on the fast local path.
+  return textCharacterCount(profile.text) < PDF_MIN_USABLE_TEXT_CHARS || profile.imageCount > 0;
 }
 
 function comparableText(text: string): string {

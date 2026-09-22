@@ -290,7 +290,9 @@ export class CalendarImportService {
       void this.process(job.id).catch(() => {});
       return publicJob(job);
     } catch (error) {
-      if (inputKind === "text") await this.cleanupSources(sourcePaths);
+      // Files uploaded through Multer are owned by this service once validation
+      // succeeds. Always remove them when the DB row cannot be created.
+      await this.cleanupSources(sourcePaths);
       throw error;
     }
   }

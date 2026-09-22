@@ -34,12 +34,16 @@ interface ApiErrorBody {
 
 export function errorMessageFromBody(body: ApiErrorBody | null): string | undefined {
   if (!body) return undefined;
-  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  // API responses such as Calendar Import intentionally expose a stable machine
+  // code in `error` and the user-facing explanation in `message`. Prefer the
+  // explanation so the UI never renders opaque strings like CALENDAR_IMPORT_INVALID.
   if (body.error && typeof body.error === "object" &&
       typeof body.error.message === "string" && body.error.message.trim()) {
     return body.error.message;
   }
-  return typeof body.message === "string" && body.message.trim() ? body.message : undefined;
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  return undefined;
 }
 
 class ApiCache {

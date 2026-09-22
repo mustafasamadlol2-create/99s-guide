@@ -38,8 +38,14 @@ export function useAIPreview() {
         if (!activeJobRef.current) {
           activeJobRef.current = { target: request.target, jobId: status.jobId };
         }
-        if (status.state === "running") setStage("analyzing");
-        if (status.progress.stage === "validating") setStage("structuring");
+        const progressStage = status.progress.stage.toLowerCase();
+        if (progressStage === "queued" || progressStage === "preparing" || progressStage === "reading") {
+          setStage("preparing");
+        } else if (progressStage === "validating" || progressStage === "ready") {
+          setStage("structuring");
+        } else if (status.state === "running") {
+          setStage("analyzing");
+        }
       }, (jobId) => {
         activeJobRef.current = { target: request.target, jobId };
       });

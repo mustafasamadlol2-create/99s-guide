@@ -36,6 +36,8 @@ export interface StructuredGenerationRequest<T> {
   operation?: AIOperation;
   requestedCount?: number;
   maxItems?: number;
+  /** Provider hint for safe parallel reading of independent source chunks. */
+  sourceChunkConcurrency?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
   /** Internal job-scoped optimization. Never enables cross-user/global caching. */

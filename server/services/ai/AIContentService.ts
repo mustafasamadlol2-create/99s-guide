@@ -33,6 +33,7 @@ export interface AIStructuredContentRequest<T> {
   operation?: import("./contracts.js").AIOperation;
   requestedCount?: number;
   maxItems?: number;
+  sourceChunkConcurrency?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
 }
@@ -134,6 +135,10 @@ export class AIContentService {
       return await this.generateWithRetry({
         ...request,
         contents: validatedContents,
+        // Extraction is source-partitionable. Keep generation/enhancement
+        // sequential, while allowing Cloudflare to process a few independent
+        // extraction chunks in parallel. Callers may explicitly override this.
+        sourceChunkConcurrency: request.sourceChunkConcurrency ?? (request.operation === "extract" ? 3 : 1),
       });
     } catch (error) {
       if (isAIServiceError(error)) throw error;

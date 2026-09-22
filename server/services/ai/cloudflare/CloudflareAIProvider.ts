@@ -8,7 +8,7 @@ import type {
 import { getCloudflareConfig, type CloudflareConfig } from "../config.js";
 import { AIServiceError, isAIServiceError } from "../errors.js";
 import type { AITextPart } from "../input/contracts.js";
-import { CloudflareClient, type CloudflareRunMessage } from "./CloudflareClient.js";
+import { CloudflareClient } from "./CloudflareClient.js";
 import {
   CloudflareMarkdownConverter,
   type ConvertedCloudflarePart,
@@ -77,6 +77,11 @@ function mergeBatchResults(results: unknown[], maxItems: number): unknown {
   merged.uncertainties = objects.flatMap((result) =>
     Array.isArray(result.uncertainties) ? result.uncertainties : [],
   );
+  if (objects.some((result) => Array.isArray(result.warnings))) {
+    merged.warnings = objects.flatMap((result) =>
+      Array.isArray(result.warnings) ? result.warnings : [],
+    ).slice(0, 50);
+  }
   if (objects.some((result) => Array.isArray(result.skippedItems))) {
     merged.skippedItems = objects.flatMap((result) =>
       Array.isArray(result.skippedItems) ? result.skippedItems : [],
@@ -179,7 +184,6 @@ export class CloudflareAIProvider implements AIProvider {
 
     const isBinary = request.contents.some((part) => part.kind !== "text");
     let mediaBounded: ReturnType<typeof createBoundedSignal> | undefined;
-    let inferenceBounded: ReturnType<typeof createBoundedSignal> | undefined;
 
     try {
       let source: Array<ConvertedCloudflarePart | { text: string; inputType: "text" }>;
@@ -229,49 +233,102 @@ export class CloudflareAIProvider implements AIProvider {
       let responseId: string | undefined;
       let remaining = request.requestedCount;
 
-      inferenceBounded = createBoundedSignal(inferenceTimeoutMs, request.signal);
-      for (let index = 0; index < chunks.length; index += 1) {
-        if (inferenceBounded.signal.aborted) {
-          throw inferenceBounded.signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
-        }
-        const remainingChunks = chunks.length - index;
-        const allocation = remaining === undefined
-          ? undefined
-          : Math.max(1, Math.ceil(remaining / remainingChunks));
-        const chunkInstruction = allocation === undefined
-          ? request.trustedSystemInstruction
-          : [
-            request.trustedSystemInstruction,
-            `This is bounded source chunk ${index + 1} of ${chunks.length}. Return no more than ${allocation} item(s) from this chunk.`,
-          ].filter(Boolean).join("\n\n");
-        const result = await this.client.run(
-          [
-            ...(chunkInstruction ? [{ role: "system" as const, content: chunkInstruction }] : []),
-            { role: "user", content: userContent(chunks[index]!, request.additionalUntrustedContext) },
-          ],
-          { type: "json_schema", json_schema: schema },
-          inferenceBounded.signal,
-        );
-        responseId = result.responseId ?? responseId;
-        const parsed = parseStructuredText(result.text);
+      const runChunk = async (index: number, allocation?: number): Promise<{
+        data: unknown;
+        responseId?: string;
+        itemCount: number;
+      }> => {
+        // Every Cloudflare inference request gets its own timer. This is important
+        // for multi-chunk PDFs: a healthy later chunk must not inherit time already
+        // spent by an earlier chunk.
+        const bounded = createBoundedSignal(inferenceTimeoutMs, request.signal);
         try {
-          const validated = request.responseSchema.parse(parsed);
-          responses.push(validated);
-          if (remaining !== undefined) {
-            const count = typeof validated === "object" && validated !== null && "items" in validated &&
-              Array.isArray(validated.items) ? validated.items.length : 0;
-            remaining = Math.max(0, remaining - count);
-            if (remaining === 0) break;
+          if (bounded.signal.aborted) {
+            throw bounded.signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
           }
+          const chunkInstruction = allocation === undefined
+            ? request.trustedSystemInstruction
+            : [
+              request.trustedSystemInstruction,
+              `This is bounded source chunk ${index + 1} of ${chunks.length}. Return no more than ${allocation} item(s) from this chunk.`,
+            ].filter(Boolean).join("\n\n");
+          const result = await this.client.run(
+            [
+              ...(chunkInstruction ? [{ role: "system" as const, content: chunkInstruction }] : []),
+              { role: "user", content: userContent(chunks[index]!, request.additionalUntrustedContext) },
+            ],
+            { type: "json_schema", json_schema: schema },
+            bounded.signal,
+          );
+          const parsed = parseStructuredText(result.text);
+          let validated: T;
+          try {
+            validated = request.responseSchema.parse(parsed);
+          } catch (error) {
+            if (error instanceof ZodError) {
+              throw new AIServiceError("AI_VALIDATION_ERROR", {
+                publicMessage: "The AI response did not match the required structure.",
+                diagnosticMessage: `Cloudflare response failed validation with ${error.issues.length} issue(s).`,
+                cause: error,
+              });
+            }
+            throw error;
+          }
+          const itemCount = typeof validated === "object" && validated !== null && "items" in validated &&
+            Array.isArray(validated.items) ? validated.items.length : 0;
+          return { data: validated, responseId: result.responseId, itemCount };
         } catch (error) {
-          if (error instanceof ZodError) {
-            throw new AIServiceError("AI_VALIDATION_ERROR", {
-              publicMessage: "The AI response did not match the required structure.",
-              diagnosticMessage: `Cloudflare response failed validation with ${error.issues.length} issue(s).`,
-              cause: error,
-            });
+          if (bounded.signal.aborted && !request.signal?.aborted) {
+            throw timeoutError(
+              "The AI analysis took too long to complete.",
+              `Cloudflare structured inference timed out on source chunk ${index + 1} of ${chunks.length}.`,
+            );
           }
           throw error;
+        } finally {
+          bounded.cleanup();
+        }
+      };
+
+      // Extraction from a long PDF/image transcript is independent per source
+      // chunk. Run a small number concurrently to avoid the old N × latency
+      // behaviour while staying far below Cloudflare request-rate ceilings.
+      // Generation keeps its sequential count allocation so exact requested-count
+      // behaviour is preserved.
+      const requestedChunkConcurrency = Math.max(1, Math.min(3, request.sourceChunkConcurrency ?? 1));
+      if (requestedChunkConcurrency > 1 && remaining === undefined && chunks.length > 1) {
+        const chunkResults = new Array<Awaited<ReturnType<typeof runChunk>>>(chunks.length);
+        let nextIndex = 0;
+        const workerCount = Math.min(requestedChunkConcurrency, chunks.length);
+        const workers = Array.from({ length: workerCount }, async () => {
+          while (true) {
+            if (request.signal?.aborted) {
+              throw request.signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+            }
+            const index = nextIndex;
+            nextIndex += 1;
+            if (index >= chunks.length) return;
+            chunkResults[index] = await runChunk(index);
+          }
+        });
+        await Promise.all(workers);
+        for (const result of chunkResults) {
+          responses.push(result.data);
+          responseId = result.responseId ?? responseId;
+        }
+      } else {
+        for (let index = 0; index < chunks.length; index += 1) {
+          const remainingChunks = chunks.length - index;
+          const allocation = remaining === undefined
+            ? undefined
+            : Math.max(1, Math.ceil(remaining / remainingChunks));
+          const result = await runChunk(index, allocation);
+          responses.push(result.data);
+          responseId = result.responseId ?? responseId;
+          if (remaining !== undefined) {
+            remaining = Math.max(0, remaining - result.itemCount);
+            if (remaining === 0) break;
+          }
         }
       }
 
@@ -294,12 +351,6 @@ export class CloudflareAIProvider implements AIProvider {
         throw timeoutError(
           "Cloudflare took too long to read the uploaded file.",
           "Cloudflare media preparation exceeded its finite safety ceiling.",
-        );
-      }
-      if (inferenceBounded?.signal.aborted) {
-        throw timeoutError(
-          "The AI analysis took too long to complete.",
-          "Cloudflare structured inference exceeded its configured timeout.",
         );
       }
       if (isAbortError(error)) {
@@ -333,7 +384,6 @@ export class CloudflareAIProvider implements AIProvider {
       });
     } finally {
       mediaBounded?.cleanup();
-      inferenceBounded?.cleanup();
     }
   }
 

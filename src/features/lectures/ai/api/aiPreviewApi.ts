@@ -10,7 +10,7 @@ import type {
 export const AI_PREVIEW_POLL_TIMEOUT_MS = 20_000;
 export const AI_PREVIEW_POLL_INTERVAL_MS = 1_000;
 export const AI_PREVIEW_MAX_CONSECUTIVE_POLL_FAILURES = 8;
-export const AI_PREVIEW_TIMEOUT_MS = 12 * 60_000;
+export const AI_PREVIEW_TIMEOUT_MS = 8 * 60_000;
 
 export class AIPreviewError extends Error {
   readonly code?: string;
@@ -95,6 +95,34 @@ export interface AIPreviewJobStatus {
   error?: { code?: string; message?: string; retryable?: boolean };
 }
 
+const JOB_STATES = new Set(["queued", "running", "succeeded", "failed", "cancelled"]);
+const ACCEPTED_JOB_STATES = new Set(["queued", "running"]);
+
+function parseAcceptedJob(value: unknown): AIPreviewJobAccepted {
+  if (!value || typeof value !== "object") {
+    throw new AIPreviewError("The AI server returned an invalid job response.", { code: "AI_INVALID_JOB_RESPONSE", retryable: true });
+  }
+  const record = value as Partial<AIPreviewJobAccepted>;
+  if (typeof record.jobId !== "string" || !record.jobId.trim() || !ACCEPTED_JOB_STATES.has(String(record.state))) {
+    throw new AIPreviewError("The AI server did not return a valid preview job ID.", { code: "AI_INVALID_JOB_RESPONSE", retryable: true });
+  }
+  return record as AIPreviewJobAccepted;
+}
+
+function parseJobStatus(value: unknown): AIPreviewJobStatus {
+  if (!value || typeof value !== "object") {
+    throw new AIPreviewError("The AI server returned an invalid status response.", { code: "AI_INVALID_JOB_STATUS", retryable: true });
+  }
+  const record = value as Partial<AIPreviewJobStatus>;
+  if (typeof record.jobId !== "string" || !record.jobId.trim() || !JOB_STATES.has(String(record.state))) {
+    throw new AIPreviewError("The AI preview status was malformed instead of remaining on an endless loading screen.", { code: "AI_INVALID_JOB_STATUS", retryable: true });
+  }
+  if (!record.progress || typeof record.progress.stage !== "string") {
+    throw new AIPreviewError("The AI preview progress response was incomplete.", { code: "AI_INVALID_JOB_STATUS", retryable: true });
+  }
+  return record as AIPreviewJobStatus;
+}
+
 function requestBody(request: AIPreviewRequest): { body: BodyInit; headers: HeadersInit } {
   if (request.source.inputKind === "text") {
     return {
@@ -165,7 +193,10 @@ export async function pollAIPreviewJob(
       const status = await dependencies.readStatus();
       consecutivePollFailures = 0;
       onProgress?.(status);
-      if (status.state === "succeeded" && status.response) return status.response;
+      if (status.state === "succeeded") {
+        if (status.response) return status.response;
+        throw new AIPreviewError("The AI job completed without a result payload.", { code: "AI_RESULT_MISSING", retryable: true });
+      }
       if (status.state === "cancelled") {
         throw new AIPreviewError("AI preview cancelled.", { code: "AI_JOB_CANCELLED" });
       }
@@ -214,7 +245,7 @@ export async function requestAIPreview(
       retries: 0,
       timeoutMs: 120_000,
     });
-    const accepted = await acceptedResponse.json() as AIPreviewJobAccepted;
+    const accepted = parseAcceptedJob(await acceptedResponse.json());
     onJobCreated?.(accepted.jobId);
     return await pollAIPreviewJob(signal, {
       readStatus: async () => {
@@ -228,7 +259,7 @@ export async function requestAIPreview(
             timeoutMs: AI_PREVIEW_POLL_TIMEOUT_MS,
           },
         );
-        return statusResponse.json() as Promise<AIPreviewJobStatus>;
+        return parseJobStatus(await statusResponse.json());
       },
       wait: waitForPoll,
     }, onProgress);
