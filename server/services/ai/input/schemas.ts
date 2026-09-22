@@ -113,8 +113,6 @@ const aiImageFilePartSchema = z.object({
     "image/jpeg",
     "image/png",
     "image/webp",
-    "image/heic",
-    "image/heif",
   ]),
   fileSource: aiFileSourceSchema,
   source: aiImageSourceReferenceSchema,

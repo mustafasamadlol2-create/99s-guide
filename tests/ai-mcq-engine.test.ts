@@ -507,6 +507,73 @@ test("enhancement uses direct visual source evidence and reports completed statu
   }
 });
 
+test("enhancement recovery fills missing requested fields and removes obsolete warnings", async () => {
+  const candidateId = "00000000-0000-4000-8000-000000000001";
+  const provider = new QueueProvider([
+    extractionResponse([extractedItem({
+      hint: null,
+      explanation: null,
+      confidence: 1,
+    })]),
+    {
+      items: [{
+        candidateId,
+        hint: "A partial hint.",
+        confidence: 0.4,
+        uncertainties: [],
+      }],
+      uncertainties: [],
+    },
+    {
+      items: [{
+        candidateId,
+        explanation: "A recovered explanation.",
+        confidence: 0.4,
+        uncertainties: [],
+      }],
+      uncertainties: [],
+    },
+  ]);
+  const result = await new MCQAIEngine(new AIContentService(provider), undefined, () => candidateId)
+    .enhanceExistingMCQs(preparedText(), { hint: true, explanation: true });
+
+  assert.equal(provider.calls.length, 3);
+  assert.equal(result.items[0]?.hint, "A partial hint.");
+  assert.equal(result.items[0]?.explanation, "A recovered explanation.");
+  assert.equal(result.items[0]?.provenance, "enhanced");
+  assert.equal(result.items[0]?.needsReview, true);
+  assert.ok(result.items[0]?.warnings.some((warning) => warning.includes("below the review threshold")));
+  assert.equal(result.items[0]?.warnings.some((warning) => warning.includes("explanation enhancement is missing")), false);
+});
+
+test("enhancement confidence replaces extraction confidence in the review result", async () => {
+  const candidateId = "00000000-0000-4000-8000-000000000001";
+  const provider = new QueueProvider([
+    extractionResponse([extractedItem({
+      hint: null,
+      explanation: null,
+      confidence: 1,
+    })]),
+    {
+      items: [{
+        candidateId,
+        hint: "A low-confidence hint.",
+        explanation: "A low-confidence explanation.",
+        confidence: 0.4,
+        uncertainties: [],
+      }],
+      uncertainties: [],
+    },
+  ]);
+  const result = await new MCQAIEngine(new AIContentService(provider), undefined, () => candidateId)
+    .enhanceExistingMCQs(preparedText(), { hint: true, explanation: true });
+
+  assert.equal(result.items[0]?.confidence, 0.4);
+  assert.equal(result.items[0]?.provenance, "enhanced");
+  assert.equal(result.items[0]?.needsReview, true);
+  assert.ok(result.items[0]?.warnings.some((warning) => warning.includes("below the review threshold")));
+});
+
 test("enhancement preserves administrator-selected external metadata", async () => {
   const provider = new QueueProvider([
     extractionResponse([extractedItem({ hint: null, explanation: null })]),

@@ -16,7 +16,7 @@ import { sanitizeDisplayFilename, sanitizeSourceLabel } from "./mime.js";
 import { normalizeAIText } from "./normalizeText.js";
 import { rawAIInputSchema } from "./schemas.js";
 import { AITemporaryFileManager } from "./temporaryFiles.js";
-import { inspectPDFPageCount, renderPDFPages } from "./pdfVisualSource.js";
+import { inspectPDFPageCount } from "./pdfVisualSource.js";
 import {
   assertDetectedMimeMatches,
   inspectStagedMimeType,

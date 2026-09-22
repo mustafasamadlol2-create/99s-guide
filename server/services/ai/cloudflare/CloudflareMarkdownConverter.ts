@@ -6,7 +6,10 @@ import type {
 } from "../input/contracts.js";
 import { isTrustedAIStagedFileCapability } from "../input/temporaryFiles.js";
 import { CloudflareClient } from "./CloudflareClient.js";
-import { inspectPDFImagePages, renderPDFPages } from "../input/pdfVisualSource.js";
+import {
+  forEachRenderedPDFPage,
+  inspectPDFImagePages,
+} from "../input/pdfVisualSource.js";
 
 export interface CloudflareExistingResourceResolver {
   resolve(resourceId: string): Promise<{
@@ -37,30 +40,6 @@ function unusableDocumentConversion(text: string): boolean {
   const normalized = text.trim();
   return normalized.length === 0 ||
     /(?:no|without|unable to|failed to|could not)\s+(?:extract|read|detect|find)\s+(?:any\s+)?(?:text|content)/iu.test(normalized);
-}
-
-async function normalizeHeic(
-  bytes: Uint8Array,
-  mimeType: AIFilePart["mimeType"],
-  signal: AbortSignal,
-): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  if (mimeType !== "image/heic" && mimeType !== "image/heif") {
-    return { bytes, mimeType };
-  }
-  if (signal.aborted) throw signal.reason ?? new Error("aborted");
-  try {
-    const sharp = (await import("sharp")).default;
-    const converted = await sharp(Buffer.from(bytes)).png().toBuffer();
-    if (signal.aborted) throw signal.reason ?? new Error("aborted");
-    return { bytes: converted, mimeType: "image/png" };
-  } catch (error) {
-    if (signal.aborted) throw signal.reason ?? new Error("aborted");
-    throw new AIServiceError("AI_INPUT_UNSUPPORTED", {
-      publicMessage: "This HEIC/HEIF image could not be prepared for AI analysis. Please convert it to JPEG, PNG, or WebP and try again.",
-      diagnosticMessage: "HEIC/HEIF normalization could not be completed.",
-      cause: error,
-    });
-  }
 }
 
 export class CloudflareMarkdownConverter {
@@ -94,13 +73,12 @@ export class CloudflareMarkdownConverter {
           cause: error,
         });
       }
-      const normalized = await normalizeHeic(bytes, part.mimeType, signal);
       let markdown: { data: string };
       try {
         markdown = await this.client.toMarkdown(
-          normalized.bytes,
-          normalized.mimeType,
-          safeFilename(part, normalized.mimeType),
+          bytes,
+          part.mimeType,
+          safeFilename(part, part.mimeType),
           signal,
         );
       } catch (error) {
@@ -114,30 +92,32 @@ export class CloudflareMarkdownConverter {
         markdown = { data: "" };
       }
       if (part.inputType === "pdf" && unusableDocumentConversion(markdown.data)) {
-        const pages = await renderPDFPages(
+        let renderedPageCount = 0;
+        await forEachRenderedPDFPage(
           capability,
           part.source,
           part.pageCount,
           { maxPages: 20, signal },
+          async (page) => {
+            const visualMarkdown = await this.client.toMarkdown(
+              page.bytes,
+              page.mimeType,
+              `source-page-${page.page}.png`,
+              signal,
+            );
+            converted.push({
+              text: visualMarkdown.data,
+              inputType: "pdf",
+              page: page.page,
+            });
+            renderedPageCount += 1;
+          },
         );
-        if (!pages.length) {
+        if (!renderedPageCount) {
           throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
             publicMessage: "The document could not be read completely.",
             diagnosticMessage: "Document conversion returned no usable text and no visual pages were available.",
             retryable: true,
-          });
-        }
-        for (const page of pages) {
-          const visualMarkdown = await this.client.toMarkdown(
-            page.bytes,
-            page.mimeType,
-            `source-page-${page.page}.png`,
-            signal,
-          );
-          converted.push({
-            text: visualMarkdown.data,
-            inputType: "pdf",
-            page: page.page,
           });
         }
         continue;
@@ -150,13 +130,12 @@ export class CloudflareMarkdownConverter {
       if (part.inputType === "pdf" && part.fileSource.kind === "staged_file") {
         const imagePages = await inspectPDFImagePages(part.fileSource.capability, signal);
         if (imagePages.length > 0) {
-          const pages = await renderPDFPages(
+          await forEachRenderedPDFPage(
             part.fileSource.capability,
             part.source,
             part.pageCount,
             { maxPages: 20, signal },
-          );
-          for (const page of pages) {
+            async (page) => {
             const visualMarkdown = await this.client.toMarkdown(
               page.bytes,
               page.mimeType,
@@ -168,7 +147,8 @@ export class CloudflareMarkdownConverter {
               inputType: "pdf",
               page: page.page,
             });
-          }
+            },
+          );
         }
       }
     }

@@ -131,6 +131,28 @@ function explicitlyImpliedAnswer(text: string | null | undefined): "A" | "B" | "
   return match ? match[1]!.toUpperCase() as "A" | "B" | "C" | "D" : null;
 }
 
+function mergeEnhancementItems(
+  items: MCQEnhancementProviderResponse["items"],
+): MCQEnhancementProviderResponse["items"] {
+  const merged = new Map<string, MCQEnhancementProviderResponse["items"][number]>();
+  for (const item of items) {
+    const previous = merged.get(item.candidateId);
+    if (!previous) {
+      merged.set(item.candidateId, item);
+      continue;
+    }
+    merged.set(item.candidateId, {
+      ...previous,
+      ...item,
+      ...(item.hint === undefined && previous.hint !== undefined ? { hint: previous.hint } : {}),
+      ...(item.explanation === undefined && previous.explanation !== undefined
+        ? { explanation: previous.explanation }
+        : {}),
+    });
+  }
+  return [...merged.values()];
+}
+
 export class MCQAIEngine {
   constructor(
     private readonly contentService: AIContentService,
@@ -447,13 +469,18 @@ export class MCQAIEngine {
       });
       provider = responses[0]?.meta ?? provider;
       let mergedResponse: MCQEnhancementProviderResponse = {
-        items: responses.flatMap((response) => response.data.items),
+        items: mergeEnhancementItems(responses.flatMap((response) => response.data.items)),
         uncertainties: responses.flatMap((response) => response.data.uncertainties),
       };
       const hasUnknownCandidateId = mergedResponse.items.some((item) =>
         !eligible.some((candidate) => candidate.candidateId === item.candidateId));
-      const recoveredIds = new Set(mergedResponse.items.map((item) => item.candidateId));
-      const missing = eligible.filter((item) => !recoveredIds.has(item.candidateId));
+      const responseById = new Map(mergedResponse.items.map((item) => [item.candidateId, item]));
+      const missing = eligible.filter((item) => {
+        const enhancement = responseById.get(item.candidateId);
+        return !enhancement ||
+          (selected.hint && item.hint === null && !enhancement.hint) ||
+          (selected.explanation && item.explanation === null && !enhancement.explanation);
+      });
       if (missing.length > 0 && !hasUnknownCandidateId) {
         const recovery = await runResilientBatches({
           total: missing.length,
@@ -464,7 +491,7 @@ export class MCQAIEngine {
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: [
               buildMCQEnhanceInstruction(selected),
-              "This is bounded missing-candidate recovery. Return only the requested candidate IDs.",
+              "This is bounded missing-field recovery. Return only the requested candidate IDs and fill every requested field that is still missing.",
             ].join("\n\n"),
             additionalUntrustedContext: enhancementContext(missing.slice(start, start + count)),
             operation: "enhance",
@@ -476,7 +503,10 @@ export class MCQAIEngine {
           },
         });
         mergedResponse = {
-          items: [...mergedResponse.items, ...recovery.flatMap((response) => response.data.items)],
+          items: mergeEnhancementItems([
+            ...mergedResponse.items,
+            ...recovery.flatMap((response) => response.data.items),
+          ]),
           uncertainties: [...mergedResponse.uncertainties, ...recovery.flatMap((response) => response.data.uncertainties)],
         };
       }

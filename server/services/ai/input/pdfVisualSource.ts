@@ -1,9 +1,11 @@
-import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { promisify } from "node:util";
-import { join } from "node:path";
+import { createCanvas } from "@napi-rs/canvas";
 import { PDFDocument } from "pdf-lib";
+import {
+  getDocument,
+  OPS,
+  type PDFDocumentProxy,
+  type PDFPageProxy,
+} from "pdfjs-dist/legacy/build/pdf.mjs";
 import { AIServiceError } from "../errors.js";
 import type {
   AIPdfSourceReference,
@@ -13,8 +15,10 @@ import type {
 import { sha256Bytes } from "./hash.js";
 import { detectAIBinaryMimeType } from "./validators.js";
 
-const execFile = promisify(execFileCallback);
 export const DEFAULT_MAX_VISUAL_PAGES = 20;
+export const PDF_RENDER_DPI = 144;
+export const PDF_RENDER_MAX_DIMENSION = 4096;
+export const PDF_RENDER_MAX_PIXELS = PDF_RENDER_MAX_DIMENSION ** 2;
 
 export async function inspectPDFPageCount(
   capability: AIStagedFileCapability,
@@ -36,20 +40,29 @@ export async function inspectPDFImagePages(
   signal?: AbortSignal,
 ): Promise<number[]> {
   try {
-    const output = await capability.withPath((inputPath) =>
-      execFile("pdfimages", ["-list", inputPath], {
-        signal,
-        timeout: 30_000,
-        maxBuffer: 1024 * 1024,
-      }),
-    );
+    throwIfAborted(signal);
+    const document = await loadPDFDocument(capability);
     const pages = new Set<number>();
-    for (const line of output.stdout.split(/\r?\n/u)) {
-      const match = line.match(/^\s*(\d+)\s+\d+\s+/u);
-      if (match) pages.add(Number(match[1]));
+    try {
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+        throwIfAborted(signal);
+        const page = await document.getPage(pageNumber);
+        const operatorList = await page.getOperatorList();
+        if (operatorList.fnArray.some((operator) =>
+          operator === OPS.paintImageMaskXObject ||
+          operator === OPS.paintImageXObject ||
+          operator === OPS.paintImageXObjectRepeat
+        )) {
+          pages.add(pageNumber);
+        }
+        page.cleanup();
+      }
+    } finally {
+      await document.cleanup();
     }
     return [...pages].sort((left, right) => left - right);
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return [];
   }
 }
@@ -59,22 +72,42 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 async function renderPage(
-  capability: AIStagedFileCapability,
+  document: PDFDocumentProxy,
   page: number,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
   throwIfAborted(signal);
-  const root = await mkdtemp(join(tmpdir(), "99-guide-ai-pdf-"));
-  const outputPrefix = join(root, "page");
+  let pdfPage: PDFPageProxy | undefined;
   try {
-    await capability.withPath(async (inputPath) => {
-      await execFile(
-        "pdftoppm",
-        ["-png", "-r", "144", "-f", String(page), "-l", String(page), "-singlefile", inputPath, outputPrefix],
-        { signal, timeout: 30_000, maxBuffer: 1024 * 1024 },
-      );
-    });
-    const bytes = new Uint8Array(await readFile(`${outputPrefix}.png`));
+    pdfPage = await document.getPage(page);
+    const initialViewport = pdfPage.getViewport({ scale: PDF_RENDER_DPI / 72 });
+    const scale = Math.min(
+      1,
+      PDF_RENDER_MAX_DIMENSION / initialViewport.width,
+      PDF_RENDER_MAX_DIMENSION / initialViewport.height,
+    );
+    const viewport = scale === 1
+      ? initialViewport
+      : pdfPage.getViewport({ scale: (PDF_RENDER_DPI / 72) * scale });
+    const width = Math.ceil(viewport.width);
+    const height = Math.ceil(viewport.height);
+    if (
+      width <= 0 ||
+      height <= 0 ||
+      width > PDF_RENDER_MAX_DIMENSION ||
+      height > PDF_RENDER_MAX_DIMENSION ||
+      width * height > PDF_RENDER_MAX_PIXELS
+    ) {
+      throw new Error(`Rendered PDF page dimensions exceeded the ${PDF_RENDER_MAX_DIMENSION}px bound.`);
+    }
+    const canvas = createCanvas(width, height);
+    const context = canvas.getContext("2d");
+    await pdfPage.render({
+      canvas: canvas as never,
+      canvasContext: context as never,
+      viewport,
+    }).promise;
+    const bytes = new Uint8Array(canvas.toBuffer("image/png"));
     if (detectAIBinaryMimeType(bytes) !== "image/png") {
       throw new Error("PDF renderer did not produce a valid PNG.");
     }
@@ -83,12 +116,30 @@ async function renderPage(
     if (signal?.aborted) throw signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
     throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
       publicMessage: "The AI provider could not prepare a visual page from this PDF.",
-      diagnosticMessage: `Bounded PDF page rendering failed for page ${page}.`,
+      diagnosticMessage: `Portable PDF page rendering failed for page ${page}.`,
       cause: error,
       retryable: true,
     });
   } finally {
-    await rm(root, { recursive: true, force: true }).catch(() => {});
+    pdfPage?.cleanup();
+  }
+}
+
+async function loadPDFDocument(capability: AIStagedFileCapability): Promise<PDFDocumentProxy> {
+  try {
+    const bytes = await capability.readBytes();
+    return await getDocument({
+      data: bytes,
+      useSystemFonts: false,
+      stopAtErrors: true,
+    }).promise;
+  } catch (error) {
+    throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+      publicMessage: "The AI provider could not prepare this PDF for visual analysis.",
+      diagnosticMessage: "Portable PDF rendering could not load the staged PDF.",
+      cause: error,
+      retryable: true,
+    });
   }
 }
 
@@ -118,19 +169,74 @@ export async function renderPDFPages(
     });
   }
 
+  const document = await loadPDFDocument(capability);
   const pages: AIVisualPDFPage[] = [];
-  for (let page = startPage; page <= endPage; page += 1) {
-    const bytes = await renderPage(capability, page, options.signal);
-    pages.push({
-      kind: "visual_page",
-      inputType: "pdf",
-      page,
-      mimeType: "image/png",
-      bytes,
-      sizeBytes: bytes.byteLength,
-      sha256: sha256Bytes(bytes),
-      source: { ...source, page },
+  try {
+    for (let page = startPage; page <= endPage; page += 1) {
+      const visualPage = await renderPDFPage(document, source, page, options.signal);
+      pages.push(visualPage);
+    }
+    return pages;
+  } finally {
+    await document.cleanup();
+  }
+}
+
+async function renderPDFPage(
+  document: PDFDocumentProxy,
+  source: AIPdfSourceReference,
+  page: number,
+  signal?: AbortSignal,
+): Promise<AIVisualPDFPage> {
+  const bytes = await renderPage(document, page, signal);
+  return {
+    kind: "visual_page",
+    inputType: "pdf",
+    page,
+    mimeType: "image/png",
+    bytes,
+    sizeBytes: bytes.byteLength,
+    sha256: sha256Bytes(bytes),
+    source: { ...source, page },
+  };
+}
+
+export async function forEachRenderedPDFPage(
+  capability: AIStagedFileCapability,
+  source: AIPdfSourceReference,
+  pageCount: number | undefined,
+  options: {
+    startPage?: number;
+    endPage?: number;
+    maxPages?: number;
+    signal?: AbortSignal;
+  },
+  visit: (page: AIVisualPDFPage) => Promise<void>,
+): Promise<void> {
+  const maxPages = Math.min(
+    options.maxPages ?? DEFAULT_MAX_VISUAL_PAGES,
+    DEFAULT_MAX_VISUAL_PAGES,
+  );
+  const startPage = Math.max(1, options.startPage ?? 1);
+  const requestedEnd = options.endPage ?? pageCount ?? startPage;
+  if (pageCount !== undefined && startPage > pageCount) {
+    throw new AIServiceError("AI_INPUT_INVALID", {
+      publicMessage: "The requested PDF page range is invalid.",
+      diagnosticMessage: `Requested PDF page ${startPage} exceeds the ${pageCount}-page document.`,
     });
   }
-  return pages;
+  const endPage = Math.min(requestedEnd, pageCount ?? requestedEnd);
+  if (endPage < startPage) return;
+
+  const document = await loadPDFDocument(capability);
+  try {
+    for (let windowStart = startPage; windowStart <= endPage; windowStart += maxPages) {
+      const windowEnd = Math.min(endPage, windowStart + maxPages - 1);
+      for (let page = windowStart; page <= windowEnd; page += 1) {
+        await visit(await renderPDFPage(document, source, page, options.signal));
+      }
+    }
+  } finally {
+    await document.cleanup();
+  }
 }

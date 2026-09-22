@@ -6,8 +6,6 @@ const MIME_ALIASES: Readonly<Record<string, SupportedAIBinaryMimeType>> = {
   "image/jpg": "image/jpeg",
   "image/png": "image/png",
   "image/webp": "image/webp",
-  "image/heic": "image/heic",
-  "image/heif": "image/heif",
 };
 
 export function normalizeAIBinaryMimeType(

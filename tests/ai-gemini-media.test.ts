@@ -584,10 +584,10 @@ test("upload references are registered and malformed/unknown states fail safely"
   assert.deepEqual(getFailure.deleted, ["files/1"]);
 });
 
-test("inline media preserves JPEG, WebP, HEIC, and HEIF MIME and order", async () => {
+test("inline media preserves supported JPEG, PNG, and WebP MIME and order", async () => {
   const root = await mkdtemp(join(tmpdir(), "gemini-media-mime-"));
   try {
-    const mimes = ["image/jpeg", "image/webp", "image/heic", "image/heif"] as const;
+    const mimes = ["image/jpeg", "image/png", "image/webp"] as const;
     const parts = await Promise.all(mimes.map(async (mime, index) => {
       const path = join(root, `${index}`);
       await writeFile(path, Buffer.from([index + 1]));

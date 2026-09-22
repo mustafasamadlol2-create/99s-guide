@@ -158,13 +158,13 @@ test("rejects fake PDF bytes, wrong PDF MIME, and oversized PDF before use", asy
   }
 });
 
-test("detects JPEG, PNG, WebP, HEIC, and HEIF signatures", () => {
+test("detects JPEG, PNG, and WebP signatures", () => {
   assert.equal(detectAIBinaryMimeType(JPEG), "image/jpeg");
   assert.equal(detectAIBinaryMimeType(PNG), "image/png");
   assert.equal(detectAIBinaryMimeType(WEBP), "image/webp");
-  assert.equal(detectAIBinaryMimeType(HEIC), "image/heic");
-  assert.equal(detectAIBinaryMimeType(HEIF), "image/heif");
-  assert.equal(detectAIBinaryMimeType(ftyp("mif1", ["heic"])), "image/heic");
+  assert.equal(detectAIBinaryMimeType(HEIC), null);
+  assert.equal(detectAIBinaryMimeType(HEIF), null);
+  assert.equal(detectAIBinaryMimeType(ftyp("mif1", ["heic"])), null);
   assert.equal(detectAIBinaryMimeType(Buffer.from([0, 0, 0, 40, ...HEIC.subarray(4)])), null);
   assert.equal(detectAIBinaryMimeType(Buffer.from("MZ executable")), null);
 });
@@ -204,20 +204,15 @@ test("multiple images preserve order, receive indexes, use unique names, and cle
   });
 });
 
-test("supports validated HEIC and HEIF inputs without conversion", async () => {
+test("rejects HEIC and HEIF because this runtime cannot decode them reliably", async () => {
   await withInputService(async (service) => {
-    const prepared = await service.prepare({
-      kind: "image",
-      files: [
-        { bytes: HEIC, claimedMimeType: "image/heic", originalFilename: "phone.heic" },
-        { bytes: HEIF, claimedMimeType: "image/heif", originalFilename: "phone.heif" },
-      ],
-    });
-    assert.deepEqual(
-      prepared.contents.map((part) => part.kind === "file" ? part.mimeType : null),
-      ["image/heic", "image/heif"],
+    await assert.rejects(
+      service.prepare({
+        kind: "image",
+        files: [{ bytes: HEIC, claimedMimeType: "image/heic", originalFilename: "phone.heic" }],
+      }),
+      (error: unknown) => error instanceof AIServiceError && error.code === "AI_INPUT_UNSUPPORTED",
     );
-    await prepared.dispose();
   });
 });
 

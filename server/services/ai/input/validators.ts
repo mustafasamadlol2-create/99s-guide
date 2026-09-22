@@ -7,26 +7,6 @@ function isPrefix(bytes: Uint8Array, expected: readonly number[]): boolean {
   return expected.every((value, index) => bytes[index] === value);
 }
 
-function detectIsoBmffImage(bytes: Uint8Array): SupportedAIBinaryMimeType | null {
-  if (bytes.length < 16 || Buffer.from(bytes.subarray(4, 8)).toString("ascii") !== "ftyp") {
-    return null;
-  }
-  const boxSize = Buffer.from(bytes.subarray(0, 4)).readUInt32BE(0);
-  if (boxSize < 16 || boxSize > bytes.length || (boxSize - 16) % 4 !== 0) return null;
-
-  const brands = [Buffer.from(bytes.subarray(8, 12)).toString("ascii")];
-  for (let offset = 16; offset + 4 <= boxSize; offset += 4) {
-    brands.push(Buffer.from(bytes.subarray(offset, offset + 4)).toString("ascii"));
-  }
-  if (brands.some((brand) =>
-    ["heic", "heix", "hevc", "hevx", "heim", "heis"].includes(brand)
-  )) {
-    return "image/heic";
-  }
-  if (brands.some((brand) => ["mif1", "msf1"].includes(brand))) return "image/heif";
-  return null;
-}
-
 export function detectAIBinaryMimeType(
   bytes: Uint8Array,
 ): SupportedAIBinaryMimeType | null {
@@ -44,7 +24,7 @@ export function detectAIBinaryMimeType(
   ) {
     return "image/webp";
   }
-  return detectIsoBmffImage(bytes);
+  return null;
 }
 
 export async function inspectStagedMimeType(

@@ -74,9 +74,7 @@ export type SupportedAIBinaryMimeType =
   | "application/pdf"
   | "image/jpeg"
   | "image/png"
-  | "image/webp"
-  | "image/heic"
-  | "image/heif";
+  | "image/webp";
 
 export interface RawAIBinaryInput {
   bytes?: Uint8Array;

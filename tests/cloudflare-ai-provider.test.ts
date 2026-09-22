@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createCanvas } from "@napi-rs/canvas";
 import { PDFDocument } from "pdf-lib";
 import { z } from "zod";
+import { AIContentService } from "../server/services/ai/AIContentService.js";
 import {
   DEFAULT_CLOUDFLARE_MODEL,
   getCloudflareConfig,
@@ -24,7 +26,12 @@ import {
 import { CloudflareMarkdownConverter } from "../server/services/ai/cloudflare/CloudflareMarkdownConverter.js";
 import { AIInputService } from "../server/services/ai/input/AIInputService.js";
 import { AITemporaryFileManager } from "../server/services/ai/input/temporaryFiles.js";
-import { renderPDFPages } from "../server/services/ai/input/pdfVisualSource.js";
+import {
+  forEachRenderedPDFPage,
+  renderPDFPages,
+} from "../server/services/ai/input/pdfVisualSource.js";
+import { FlashcardAIEngine } from "../server/services/ai/flashcard/FlashcardAIEngine.js";
+import { MCQAIEngine } from "../server/services/ai/mcq/MCQAIEngine.js";
 
 const config = {
   accountId: "account-test",
@@ -192,7 +199,7 @@ test("empty PDF conversion falls back to bounded ordered PNG page coverage", asy
 
 test("PDF visual recovery honors a deferred bounded page range", async () => {
   const document = await PDFDocument.create();
-  for (let index = 0; index < 4; index += 1) document.addPage([612, 792]);
+  for (let index = 0; index < 25; index += 1) document.addPage([612, 792]);
   const pdfBytes = new Uint8Array(await document.save());
   const root = await mkdtemp(join(tmpdir(), "cloudflare-pdf-range-"));
   try {
@@ -204,15 +211,19 @@ test("PDF visual recovery honors a deferred bounded page range", async () => {
       if (prepared.input.kind !== "pdf" || prepared.input.pdf.fileSource.kind !== "staged_file") {
         assert.fail("Expected a staged PDF.");
       }
-      const pages = await renderPDFPages(
+      const pages: Awaited<ReturnType<typeof renderPDFPages>> = [];
+      await forEachRenderedPDFPage(
         prepared.input.pdf.fileSource.capability,
         prepared.input.pdf.source,
         prepared.input.pdf.pageCount,
-        { startPage: 2, endPage: 3, maxPages: 2 },
+        { startPage: 22, endPage: 24, maxPages: 2 },
+        async (page) => {
+          pages.push(page);
+        },
       );
-      assert.deepEqual(pages.map((page) => page.page), [2, 3]);
+      assert.deepEqual(pages.map((page) => page.page), [22, 23, 24]);
       assert.ok(pages.every((page) => page.mimeType === "image/png" && page.bytes.length > 100));
-      assert.deepEqual(pages.map((page) => page.source.page), [2, 3]);
+      assert.deepEqual(pages.map((page) => page.source.page), [22, 23, 24]);
     });
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -252,6 +263,383 @@ test("mixed PDFs preserve converted text and embedded visual-page coverage", asy
     assert.ok(calls.includes("application/pdf:source.pdf"));
     assert.ok(calls.includes("image/png:source-page-2.png"));
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+async function semanticScannedPDF(pageCount = 4, lastPageMarker = false): Promise<Uint8Array> {
+  const document = await PDFDocument.create();
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const canvas = createCanvas(1600, 2200);
+    const context = canvas.getContext("2d");
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "black";
+    context.font = "48px sans-serif";
+    if (lastPageMarker && pageIndex === pageCount - 1) {
+      context.fillText("LAST-PAGE-MARKER", 90, 100);
+    }
+    const firstQuestion = pageIndex * 5 + 1;
+    for (let offset = 0; offset < 5; offset += 1) {
+      const question = firstQuestion + offset;
+      const y = 180 + offset * 390;
+      context.fillText(`Q${question} Which answer is correct?`, 90, y);
+      context.fillText("A) Alpha", 130, y + 70);
+      context.fillText("B) Beta", 130, y + 130);
+      context.fillText("C) Gamma", 130, y + 190);
+      context.fillText("D) Delta", 130, y + 250);
+      context.fillText(`Ans: ${["A", "B", "C", "D"][question % 4]}`, 130, y + 320);
+    }
+    const image = await document.embedPng(canvas.toBuffer("image/png"));
+    const page = document.addPage([612, 792]);
+    page.drawImage(image, { x: 0, y: 0, width: 612, height: 792 });
+  }
+  return new Uint8Array(await document.save());
+}
+
+test("image-only semantic PDF reaches all visual pages and normalizes Q1-Q20", async () => {
+  const pdfBytes = await semanticScannedPDF();
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-semantic-pdf-"));
+  const markdownCalls: Array<{ mimeType: string; filename: string; bytes: Uint8Array }> = [];
+  const runCalls: string[] = [];
+  const client = {
+    toMarkdown: async (bytes: Uint8Array, mimeType: string, filename: string) => {
+      markdownCalls.push({ bytes, mimeType, filename });
+      if (mimeType === "application/pdf") return { data: "", format: "markdown" };
+      const page = Number(filename.match(/page-(\d+)/u)?.[1]);
+      const firstQuestion = (page - 1) * 5 + 1;
+      return {
+        data: Array.from({ length: 5 }, (_, offset) => `Q${firstQuestion + offset} A) Alpha B) Beta C) Gamma D) Delta`).join("\n"),
+        format: "markdown",
+      };
+    },
+    run: async (messages: Array<{ role: string; content: string }>) => {
+      const userContent = messages.find((message) => message.role === "user")?.content ?? "";
+      runCalls.push(userContent);
+      assert.match(userContent, /\[Source document page 4\]/u);
+      assert.match(userContent, /Q20/u);
+      const items = Array.from({ length: 20 }, (_, index) => {
+        const question = index + 1;
+        return {
+          sourceOrdinal: question,
+          question: `Q${question} Which answer is correct?`,
+          options: ["Alpha", "Beta", "Gamma", "Delta"],
+          correctAnswer: ["A", "B", "C", "D"][question % 4],
+          hint: null,
+          explanation: null,
+          difficulty: "Medium",
+          source: {
+            inputType: "pdf",
+            page: Math.ceil(question / 5),
+            supportingExcerpt: `Q${question}`,
+          },
+          confidence: 0.95,
+          uncertainties: [],
+        };
+      });
+      return {
+        text: JSON.stringify({ items, skippedItems: [], truncated: false, uncertainties: [] }),
+        responseId: "semantic-pdf-test",
+      };
+    },
+  };
+  try {
+    const converter = new CloudflareMarkdownConverter(client as never);
+    const provider = new CloudflareAIProvider(
+      { ...config, chunkChars: 100_000 },
+      client as never,
+      converter,
+    );
+    const engine = new MCQAIEngine(
+      new AIContentService(provider, { maxProviderAttempts: 1, retryBaseDelayMs: 0 }),
+    );
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    const result = await input.withPreparedInput({
+      kind: "pdf",
+      file: {
+        bytes: pdfBytes,
+        claimedMimeType: "application/pdf",
+        originalFilename: "semantic-scan.pdf",
+      },
+    }, (prepared) => engine.extractExistingMCQs(prepared));
+
+    assert.equal(preparedPageCount(result.items), 4);
+    assert.equal(result.items.length, 20);
+    assert.deepEqual(result.items.map((item) => item.sourceOrdinal), Array.from({ length: 20 }, (_, index) => index + 1));
+    assert.deepEqual(
+      result.items.map((item) => item.source?.page),
+      Array.from({ length: 20 }, (_, index) => Math.ceil((index + 1) / 5)),
+    );
+    assert.equal(new Set(result.items.map((item) => item.question)).size, 20);
+    assert.equal(markdownCalls.length, 5);
+    assert.deepEqual(markdownCalls.slice(1).map((call) => call.filename), [
+      "source-page-1.png",
+      "source-page-2.png",
+      "source-page-3.png",
+      "source-page-4.png",
+    ]);
+    assert.ok(markdownCalls.slice(1).every((call) =>
+      call.mimeType === "image/png" &&
+      call.bytes[0] === 0x89 &&
+      call.bytes[1] === 0x50 &&
+      call.bytes.length > 10_000,
+    ));
+    assert.equal(runCalls.length, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+function preparedPageCount(items: Array<{ source?: { page?: number } | null }>): number {
+  return new Set(items.map((item) => item.source?.page).filter((page): page is number => page !== undefined)).size;
+}
+
+test("portable visual windows cover all 25 pages and retain a page-25 marker", async () => {
+  const pdfBytes = await semanticScannedPDF(25, true);
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-25-page-pdf-"));
+  const pages: number[] = [];
+  const calls: string[] = [];
+  const client = {
+    toMarkdown: async (_bytes: Uint8Array, mimeType: string, filename: string) => {
+      calls.push(`${mimeType}:${filename}`);
+      if (mimeType === "application/pdf") return { data: "", format: "markdown" };
+      const page = Number(filename.match(/page-(\d+)/u)?.[1]);
+      pages.push(page);
+      return { data: page === 25 ? "LAST-PAGE-MARKER" : `page-${page}`, format: "markdown" };
+    },
+  };
+  const originalPath = process.env.PATH;
+  try {
+    process.env.PATH = "";
+    const converter = new CloudflareMarkdownConverter(client as never);
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    const result = await input.withPreparedInput({
+      kind: "pdf",
+      file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "25-page-scan.pdf" },
+    }, (prepared) => converter.convert(prepared.contents, new AbortController().signal));
+    assert.deepEqual(pages, Array.from({ length: 25 }, (_, index) => index + 1));
+    assert.equal(new Set(pages).size, 25);
+    assert.equal(result.at(-1)?.text, "LAST-PAGE-MARKER");
+    assert.equal(calls.length, 26);
+  } finally {
+    process.env.PATH = originalPath;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("image-only semantic PDF reaches Flashcard extraction with page evidence", async () => {
+  const pdfBytes = await semanticScannedPDF();
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-semantic-flashcard-"));
+  const visualPages: number[] = [];
+  const client = {
+    toMarkdown: async (bytes: Uint8Array, mimeType: string, filename: string) => {
+      if (mimeType === "image/png") {
+        assert.equal(bytes[0], 0x89);
+        visualPages.push(Number(filename.match(/page-(\d+)/u)?.[1]));
+      }
+      return {
+        data: mimeType === "application/pdf"
+          ? ""
+          : `Page ${filename} contains visual clinical concept and answer pairs.`,
+        format: "markdown",
+      };
+    },
+    run: async (messages: Array<{ role: string; content: string }>) => {
+      const userContent = messages.find((message) => message.role === "user")?.content ?? "";
+      assert.match(userContent, /\[Source document page 4\]/u);
+      return {
+        text: JSON.stringify({
+          items: Array.from({ length: 4 }, (_, index) => ({
+            clinicalConcept: `Visual concept ${index + 1}`,
+            explanation: `Visual answer ${index + 1}`,
+            source: { inputType: "pdf", page: index + 1, supportingExcerpt: `Page ${index + 1}` },
+            confidence: 0.95,
+            uncertainties: [],
+          })),
+          skippedItems: [],
+          truncated: false,
+          uncertainties: [],
+        }),
+        responseId: "semantic-flashcard-test",
+      };
+    },
+  };
+  try {
+    const provider = new CloudflareAIProvider(
+      { ...config, chunkChars: 100_000 },
+      client as never,
+      new CloudflareMarkdownConverter(client as never),
+    );
+    const engine = new FlashcardAIEngine(
+      new AIContentService(provider, { maxProviderAttempts: 1, retryBaseDelayMs: 0 }),
+    );
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    const result = await input.withPreparedInput({
+      kind: "pdf",
+      file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "flashcards.pdf" },
+    }, (prepared) => engine.extractExistingFlashcards(prepared));
+
+    assert.equal(result.items.length, 4);
+    assert.deepEqual(visualPages, [1, 2, 3, 4]);
+    assert.deepEqual(result.items.map((item) => item.source?.page), [1, 2, 3, 4]);
+    assert.equal(result.items.every((item) => item.clinicalConcept && item.explanation), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("MCQ and Flashcard generation receive source evidence from both ends of a visual PDF", async () => {
+  const pdfBytes = await semanticScannedPDF(4, true);
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-generation-coverage-"));
+  let runCount = 0;
+  const client = {
+    toMarkdown: async (bytes: Uint8Array, mimeType: string) => {
+      if (mimeType === "image/png") assert.equal(bytes[0], 0x89);
+      return { data: mimeType === "application/pdf" ? "" : "visual source", format: "markdown" };
+    },
+    run: async (messages: Array<{ role: string; content: string }>) => {
+      const userContent = messages.find((message) => message.role === "user")?.content ?? "";
+      assert.match(userContent, /\[Source document page 1\]/u);
+      assert.match(userContent, /\[Source document page 4\]/u);
+      runCount += 1;
+      const source = { inputType: "pdf", page: 4, supportingExcerpt: "LAST-PAGE-MARKER" };
+      const text = runCount === 1
+        ? {
+          items: [
+            {
+              question: "What appears on the final page?",
+              optionA: "Nothing",
+              optionB: "A final-page marker",
+              optionC: "Only metadata",
+              optionD: "An empty page",
+              correctAnswer: "B",
+              hint: null,
+              explanation: "The final page contains the marker.",
+              difficulty: "Easy",
+              source,
+              confidence: 0.95,
+              uncertainties: [],
+            },
+            {
+              question: "What appears on the first page?",
+              optionA: "An early-page question",
+              optionB: "Nothing",
+              optionC: "Only metadata",
+              optionD: "An empty page",
+              correctAnswer: "A",
+              hint: null,
+              explanation: "The first page contains the early source.",
+              difficulty: "Easy",
+              source: { inputType: "pdf", page: 1, supportingExcerpt: "Q1" },
+              confidence: 0.95,
+              uncertainties: [],
+            },
+          ],
+          uncertainties: [],
+        }
+        : {
+          items: [
+            {
+              clinicalConcept: "Final-page marker",
+              explanation: "The final page contains the marker.",
+              source,
+              confidence: 0.95,
+              uncertainties: [],
+            },
+            {
+              clinicalConcept: "Early-page question",
+              explanation: "The first page contains the early source.",
+              source: { inputType: "pdf", page: 1, supportingExcerpt: "Q1" },
+              confidence: 0.95,
+              uncertainties: [],
+            },
+          ],
+          uncertainties: [],
+        };
+      return { text: JSON.stringify(text), responseId: `generation-coverage-${runCount}` };
+    },
+  };
+  try {
+    const provider = new CloudflareAIProvider(
+      { ...config, chunkChars: 100_000 },
+      client as never,
+      new CloudflareMarkdownConverter(client as never),
+    );
+    const content = new AIContentService(provider, { maxProviderAttempts: 1, retryBaseDelayMs: 0 });
+    const mcqEngine = new MCQAIEngine(content);
+    const flashcardEngine = new FlashcardAIEngine(content);
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    await input.withPreparedInput({
+      kind: "pdf",
+      file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "generation.pdf" },
+    }, async (prepared) => {
+      const mcqs = await mcqEngine.generateMCQs(prepared, {
+        count: 2,
+        questionStyle: "direct",
+        includeHints: false,
+        includeExplanations: true,
+      });
+      const flashcards = await flashcardEngine.generateFlashcards(prepared, { count: 2 });
+      assert.deepEqual(mcqs.items.map((item) => item.source?.page).sort(), [1, 4]);
+      assert.deepEqual(flashcards.items.map((item) => item.source?.page).sort(), [1, 4]);
+    });
+    assert.equal(runCount, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("portable renderer stops remaining pages after cancellation", async () => {
+  const pdfBytes = await semanticScannedPDF();
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-cancel-pdf-"));
+  const controller = new AbortController();
+  const pages: number[] = [];
+  try {
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    await assert.rejects(
+      input.withPreparedInput({
+        kind: "pdf",
+        file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "cancel.pdf" },
+      }, async (prepared) => {
+        if (prepared.input.kind !== "pdf" || prepared.input.pdf.fileSource.kind !== "staged_file") {
+          assert.fail("Expected staged PDF.");
+        }
+        await forEachRenderedPDFPage(
+          prepared.input.pdf.fileSource.capability,
+          prepared.input.pdf.source,
+          prepared.input.pdf.pageCount,
+          { maxPages: 20, signal: controller.signal },
+          async (page) => {
+            pages.push(page.page);
+            controller.abort();
+          },
+        );
+      }),
+      (error: unknown) => error instanceof DOMException && error.name === "AbortError",
+    );
+    assert.deepEqual(pages, [1]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("portable renderer returns a safe error without leaving temporary page files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-render-failure-"));
+  const manager = new AITemporaryFileManager(root);
+  const staged = await manager.stage(new Uint8Array([0, 1, 2, 3]));
+  try {
+    await assert.rejects(
+      renderPDFPages(
+        staged.capability,
+        { inputType: "pdf", label: "broken.pdf" },
+        1,
+        { maxPages: 1 },
+      ),
+      (error: unknown) => error instanceof AIServiceError && error.code === "AI_MEDIA_PROCESSING_FAILED",
+    );
+  } finally {
+    await staged.dispose();
+    assert.deepEqual(await readdir(root), []);
     await rm(root, { recursive: true, force: true });
   }
 });
