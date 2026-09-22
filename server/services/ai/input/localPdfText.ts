@@ -1,6 +1,11 @@
 import type { AIContentPart, AIPdfFilePart, AIStagedFileCapability } from "./contracts.js";
 import { isTrustedAIStagedFileCapability } from "./temporaryFiles.js";
-import { extractPDFPageProfiles, type PDFTextPageProfile } from "./pdfVisualSource.js";
+import {
+  extractPDFLayoutPages,
+  extractPDFPageProfiles,
+  type PDFLayoutPage,
+  type PDFTextPageProfile,
+} from "./pdfVisualSource.js";
 
 export interface LocalPdfTextResult {
   profiles: PDFTextPageProfile[];
@@ -56,4 +61,20 @@ export async function readLocalPdfText(
 
 export function hasHealthyLocalPdfText(result: LocalPdfTextResult | null): result is LocalPdfTextResult {
   return Boolean(result && result.totalTextCharacters >= 600 && result.richPageRatio >= 0.55);
+}
+
+
+export async function readLocalPdfLayout(
+  contents: AIContentPart[],
+  signal?: AbortSignal,
+): Promise<PDFLayoutPage[] | null> {
+  const staged = stagedPdfCapability(contents);
+  if (!staged) return null;
+  try {
+    const pages = await extractPDFLayoutPages(staged.capability, signal);
+    return pages.length ? pages : null;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return null;
+  }
 }

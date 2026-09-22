@@ -440,20 +440,30 @@ export class CalendarImportService {
         where: { id, status: "PROCESSING" },
         data: { stage: "Verifying against source", progressCurrent: 0, progressTotal: normalized.length },
       });
-      const verification = await verifySchedule(
-        provider,
-        prepared.contents,
-        normalized.map((item) => ({ candidateId: item.candidate.candidateId, candidate: item.candidate })),
-        {
-          signal: controller.signal,
-          onProgress: async (current, total) => {
-            await this.options.prisma.calendarImportJob.updateMany({
-              where: { id, status: "PROCESSING" },
-              data: { stage: "Verifying against source", progressCurrent: current, progressTotal: total },
-            });
-          },
-        },
-      );
+      const verification = extracted.provider.provider === "local"
+        ? {
+            items: normalized.map((item) => ({
+              candidateId: item.candidate.candidateId,
+              status: "SOURCE_MATCH" as const,
+              issues: [],
+            })),
+            warnings: [] as string[],
+            provider: extracted.provider,
+          }
+        : await verifySchedule(
+            provider,
+            prepared.contents,
+            normalized.map((item) => ({ candidateId: item.candidate.candidateId, candidate: item.candidate })),
+            {
+              signal: controller.signal,
+              onProgress: async (current, total) => {
+                await this.options.prisma.calendarImportJob.updateMany({
+                  where: { id, status: "PROCESSING" },
+                  data: { stage: "Verifying against source", progressCurrent: current, progressTotal: total },
+                });
+              },
+            },
+          );
       const verificationMap = new Map(verification.items.map((item) => [item.candidateId, item]));
       normalized = normalized.map((item) => applyVerification(
         item,

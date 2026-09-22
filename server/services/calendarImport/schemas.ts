@@ -2,8 +2,8 @@ import { z } from "zod";
 import { CALENDAR_TARGET_GROUPS } from "../../../shared/calendarContracts.js";
 import { PERSONALIZATION_SUBJECT_IDS } from "../../../shared/personalization.js";
 
-export const CALENDAR_IMPORT_MAX_CANDIDATES = 500;
-export const CALENDAR_IMPORT_MAX_REVIEW_BATCH = 500;
+export const CALENDAR_IMPORT_MAX_CANDIDATES = 2000;
+export const CALENDAR_IMPORT_MAX_REVIEW_BATCH = 2000;
 export const CALENDAR_IMPORT_TIMEZONE = "Asia/Baghdad";
 export const CALENDAR_IMPORT_STATUSES = [
   "UPLOADED",

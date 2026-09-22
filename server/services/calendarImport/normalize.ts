@@ -324,13 +324,17 @@ export function applyVerification(
       issues: verification.issues.slice(0, 20),
     },
   };
-  const criticalMismatch = verification.status !== "SOURCE_MATCH";
-  if (criticalMismatch && candidate.status === "VERIFIED") {
+  const requiresReview = verification.status !== "SOURCE_MATCH";
+  const criticalMismatch = verification.status === "MISMATCH" || verification.status === "NOT_FOUND";
+  if (requiresReview && candidate.status === "VERIFIED") {
     candidate.status = "NEEDS_REVIEW";
     candidate.selected = false;
   }
-  if (criticalMismatch) {
-    candidate.eventType = null;
+  // An AMBIGUOUS verifier result means the automated cross-check was not
+  // decisive; it must not erase a source-derived event type. Only an explicit
+  // mismatch/not-found result invalidates that field.
+  if (criticalMismatch) candidate.eventType = null;
+  if (requiresReview) {
     candidate.warnings = [...new Set([...candidate.warnings, ...verification.issues])].slice(0, 50);
   }
   return { ...normalized, candidate };

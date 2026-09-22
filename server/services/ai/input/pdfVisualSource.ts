@@ -367,3 +367,85 @@ export async function forEachRenderedPDFPage(
     await document.cleanup();
   }
 }
+export interface PDFLayoutTextToken {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface PDFLayoutPage {
+  page: number;
+  width: number;
+  height: number;
+  tokens: PDFLayoutTextToken[];
+}
+
+/**
+ * Extracts positioned text tokens from a PDF locally. Calendar timetable import
+ * uses this geometry-aware representation to reconstruct rows/columns without
+ * asking the LLM to infer whether an obviously populated table is "empty".
+ */
+export async function extractPDFLayoutPages(
+  capability: AIStagedFileCapability,
+  signal?: AbortSignal,
+): Promise<PDFLayoutPage[]> {
+  throwIfAborted(signal);
+  const document = await loadPDFDocument(capability);
+  const pages: PDFLayoutPage[] = [];
+  try {
+    for (let start = 1; start <= document.numPages; start += PDF_PROFILE_CONCURRENCY) {
+      throwIfAborted(signal);
+      const pageNumbers = Array.from(
+        { length: Math.min(PDF_PROFILE_CONCURRENCY, document.numPages - start + 1) },
+        (_, index) => start + index,
+      );
+      const batch = await Promise.all(pageNumbers.map(async (pageNumber): Promise<PDFLayoutPage> => {
+        throwIfAborted(signal);
+        const page = await document.getPage(pageNumber);
+        try {
+          const viewport = page.getViewport({ scale: 1 });
+          const textContent = await page.getTextContent();
+          const tokens: PDFLayoutTextToken[] = [];
+          for (const item of textContent.items as unknown[]) {
+            if (!item || typeof item !== "object" || !("str" in item)) continue;
+            const record = item as {
+              str?: unknown;
+              transform?: unknown;
+              width?: unknown;
+              height?: unknown;
+            };
+            const text = typeof record.str === "string"
+              ? record.str.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, "").replace(/\s+/gu, " ").trim()
+              : "";
+            if (!text) continue;
+            const transform = Array.isArray(record.transform) ? record.transform : null;
+            const x = transform && Number.isFinite(Number(transform[4])) ? Number(transform[4]) : Number.NaN;
+            const baselineY = transform && Number.isFinite(Number(transform[5])) ? Number(transform[5]) : Number.NaN;
+            if (!Number.isFinite(x) || !Number.isFinite(baselineY)) continue;
+            const width = Number.isFinite(Number(record.width)) ? Math.max(0, Number(record.width)) : 0;
+            const height = Number.isFinite(Number(record.height)) ? Math.max(0, Number(record.height)) : 0;
+            // PDF.js text coordinates use a bottom-left origin. Converting to a
+            // top-left Y coordinate makes row grouping intuitive and stable.
+            const y = Math.max(0, viewport.height - baselineY);
+            tokens.push({ text, x, y, width, height });
+          }
+          return {
+            page: pageNumber,
+            width: viewport.width,
+            height: viewport.height,
+            tokens: tokens.sort((left, right) => left.y - right.y || left.x - right.x),
+          };
+        } finally {
+          page.cleanup();
+        }
+      }));
+      pages.push(...batch);
+    }
+    return pages;
+  } finally {
+    await document.cleanup();
+  }
+}
+

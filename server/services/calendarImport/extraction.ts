@@ -1,9 +1,14 @@
+import { z } from "zod";
 import { AIServiceError } from "../ai/errors.js";
 import type { AIProvider, SafeProviderMetadata } from "../ai/contracts.js";
 import type { AIContentPart } from "../ai/input/contracts.js";
 import { sha256Text } from "../ai/input/hash.js";
-import { readLocalPdfText, type LocalPdfTextResult } from "../ai/input/localPdfText.js";
+import { readLocalPdfLayout, readLocalPdfText, type LocalPdfTextResult } from "../ai/input/localPdfText.js";
 import { runResilientBatches, shardTextContent } from "../ai/reliability.js";
+import {
+  parseDeterministicTimetableLayout,
+  parseDeterministicTimetableTranscript,
+} from "./deterministicTimetable.js";
 import {
   extractionBatchSchema,
   verificationBatchSchema,
@@ -32,6 +37,64 @@ const VERIFICATION_PROMPT = [
   "Use only the supplied document and candidate context.",
   "For text-only sources, sourcePage/sourceImageIndex may both be null; verify against sourceEvidence and the supplied text instead.",
 ].join(" ");
+
+const lightweightEventSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  eventType: z.string().trim().max(64).nullable().optional().catch(null).default(null),
+  date: z.string().trim().max(64).nullable().optional().catch(null).default(null),
+  startTime: z.string().trim().max(64).nullable().optional().catch(null).default(null),
+  endTime: z.string().trim().max(64).nullable().optional().catch(null).default(null),
+  allDay: z.boolean().catch(false).default(false),
+  subjectLabelRaw: z.string().trim().max(160).nullable().optional().catch(null).default(null),
+  room: z.string().trim().max(160).nullable().optional().catch(null).default(null),
+  doctor: z.string().trim().max(160).nullable().optional().catch(null).default(null),
+  description: z.string().trim().max(1_000).nullable().optional().catch(null).default(null),
+  targetGroups: z.array(z.string().trim().max(32)).max(6).catch([]).default([]),
+  sourcePage: z.number().int().positive().nullable().optional().catch(null).default(null),
+  sourceImageIndex: z.number().int().nonnegative().nullable().optional().catch(null).default(null),
+  sourceEvidence: z.string().trim().max(2_000).nullable().optional().catch(null).default(null),
+});
+
+const lightweightBatchSchema = z.object({
+  items: z.array(lightweightEventSchema).max(500),
+  warnings: z.array(z.string().trim().min(1).max(240)).max(50).catch([]).default([]),
+});
+
+type LightweightEvent = z.infer<typeof lightweightEventSchema>;
+
+function toExtractionCandidate(item: LightweightEvent): ExtractionCandidate {
+  return {
+    title: item.title,
+    eventType: item.eventType,
+    date: item.date,
+    startTime: item.startTime,
+    endTime: item.endTime,
+    allDay: item.allDay,
+    rawDate: item.date,
+    rawStartTime: item.startTime,
+    rawEndTime: item.endTime,
+    subjectId: null,
+    subjectLabelRaw: item.subjectLabelRaw,
+    room: item.room,
+    doctor: item.doctor,
+    description: item.description,
+    targetGroups: item.targetGroups,
+    sourcePage: item.sourcePage,
+    sourceImageIndex: item.sourceImageIndex,
+    sourceEvidence: item.sourceEvidence,
+    warnings: [],
+  };
+}
+
+const LIGHTWEIGHT_EXTRACTION_PROMPT = [
+  "Extract every explicit calendar/schedule event from the supplied timetable or schedule source.",
+  "A populated timetable cell is an event even when it is only a compact code such as ID-5 C.Med, RM-7, NT-4 Bioch, CA-S1, TBL, P1, CS, SL, FA, MME, EME, or HISTORY EXAM.",
+  "For each event return a short source-faithful title, the date, start/end time when shown, event type, subject label, room/doctor when shown, target group when explicit, and a concise sourceEvidence quote.",
+  "Classify ordinary lectures, practicals, TBLs, sessions, skills labs, hospital visits and video lectures as LECTURE; assessments/quizzes/FA as QUIZ; explicit exams/MME/EME as EXAM.",
+  "Never return an empty items array when the source visibly contains dated timetable cells. Do not invent missing values; use null and preserve the event for review.",
+  "For a PDF, keep sourcePage when available. For images, keep sourceImageIndex when available.",
+].join(" ");
+
 
 export interface ScheduleExtractionOptions {
   provider: AIProvider;
@@ -255,11 +318,38 @@ async function extractPdfPagesLocally(
 
 
 export async function extractSchedule(options: ScheduleExtractionOptions): Promise<ScheduleExtractionResult> {
-  const maxCandidates = options.maxCandidates ?? 500;
+  const maxCandidates = options.maxCandidates ?? 2_000;
   const warnings: string[] = [];
   let provider: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
 
   if (options.inputKind === "pdf") {
+    // Geometry-first fast path for real timetable PDFs. This does not depend on
+    // Cloudflare deciding that a compact table cell "looks like" an event, so a
+    // populated annual timetable can never silently become a successful 0-item
+    // preview merely because structured inference returned items: [].
+    const layoutPages = await readLocalPdfLayout(options.contents, options.signal);
+    if (layoutPages?.length) {
+      const deterministic = parseDeterministicTimetableLayout(layoutPages);
+      if (deterministic.length >= 3) {
+        if (deterministic.length > maxCandidates) {
+          throw new AIServiceError("AI_VALIDATION_ERROR", {
+            publicMessage: "This schedule contains more events than one import can safely review.",
+            diagnosticMessage: `Deterministic timetable parsing found ${deterministic.length} events, above the ${maxCandidates}-candidate safety cap.`,
+          });
+        }
+        await options.onProgress?.(layoutPages.length, layoutPages.length, "Timetable layout parsed");
+        return {
+          candidates: deterministic,
+          warnings: [],
+          provider: {
+            provider: "local",
+            model: "timetable-layout-parser-v1",
+            transport: "inline",
+            mediaCount: 1,
+          },
+        };
+      }
+    }
     const localPdf = await readLocalPdfText(options.contents, options.signal);
     if (localPdf && localPdf.totalTextCharacters >= 600 && scheduleAnchorScore(localPdf.text) >= 12) {
       const pageLocal = await extractPdfPagesLocally(options, localPdf, maxCandidates);
@@ -270,8 +360,8 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     await options.onProgress?.(0, 1, preferred.preparedText ? "Reading document text" : "Reading document");
     let result = await options.provider.generateStructured({
       contents: preferred.contents,
-      responseSchema: extractionBatchSchema,
-      trustedSystemInstruction: EXTRACTION_PROMPT,
+      responseSchema: lightweightBatchSchema,
+      trustedSystemInstruction: LIGHTWEIGHT_EXTRACTION_PROMPT,
       additionalUntrustedContext: [
         `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages.`,
         preferred.preparedText
@@ -290,9 +380,9 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     if (!result.data.items.length && preferred.preparedText) {
       const recovery = await options.provider.generateStructured({
         contents: preferred.contents,
-        responseSchema: extractionBatchSchema,
+        responseSchema: lightweightBatchSchema,
         trustedSystemInstruction: [
-          EXTRACTION_PROMPT,
+          LIGHTWEIGHT_EXTRACTION_PROMPT,
           "The previous schedule extraction returned zero events. Retry the non-empty OCR/text conversion and recover every explicit event.",
           "If page provenance is unavailable, keep sourcePage null instead of failing the extraction.",
         ].join("\n\n"),
@@ -307,7 +397,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       result = recovery;
       provider = preserveSourceTransport(recovery.meta, preferred.meta);
     }
-    const candidates = result.data.items.map((item) => {
+    const candidates = result.data.items.map(toExtractionCandidate).map((item) => {
       if (item.sourcePage === null) return item;
       const validPage = item.sourcePage >= 1 &&
         (options.sourcePageCount === null || item.sourcePage <= options.sourcePageCount);
@@ -338,6 +428,17 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
   }
 
   const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
+  if (options.inputKind === "image" && preferred.preparedText) {
+    const transcript = parseDeterministicTimetableTranscript(preferred.preparedText, { sourceImageIndex: 0 });
+    if (transcript.length >= 3) {
+      await options.onProgress?.(1, 1, "Schedule image parsed");
+      return {
+        candidates: transcript,
+        warnings: [],
+        provider: preferred.meta ?? { provider: "local", model: "timetable-transcript-parser-v1", transport: "inline" },
+      };
+    }
+  }
   const effectiveContents = preferred.contents;
   const textWindows = options.inputKind === "text" ? shardTextContent(effectiveContents, 24_000) : [];
   const totalUnits = options.inputKind === "image"
@@ -379,10 +480,10 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       progressLabel = `Reading text segment ${unit + 1}/${totalUnits}`;
     }
 
-    const result = await options.provider.generateStructured({
+    let result = await options.provider.generateStructured({
       contents: unitContents,
-      responseSchema: extractionBatchSchema,
-      trustedSystemInstruction: EXTRACTION_PROMPT,
+      responseSchema: lightweightBatchSchema,
+      trustedSystemInstruction: LIGHTWEIGHT_EXTRACTION_PROMPT,
       additionalUntrustedContext: context,
       operation: "extract",
       maxItems: Math.min(100, maxCandidates - candidates.length),
@@ -391,9 +492,27 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       signal: options.signal,
       reusePreparedMedia: true,
     });
+    if (!result.data.items.length) {
+      const recovery = await options.provider.generateStructured({
+        contents: unitContents,
+        responseSchema: lightweightBatchSchema,
+        trustedSystemInstruction: [
+          LIGHTWEIGHT_EXTRACTION_PROMPT,
+          "RECOVERY PASS: the uploaded source is non-empty. Re-read all visible date/day/time labels and every populated timetable cell in this source unit. Return the events instead of an empty list.",
+        ].join("\n\n"),
+        additionalUntrustedContext: context,
+        operation: "extract",
+        maxItems: Math.min(150, maxCandidates - candidates.length),
+        sourceChunkConcurrency: 1,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+        reusePreparedMedia: true,
+      });
+      result = recovery;
+    }
     provider = preserveSourceTransport(result.meta, preferred.meta);
 
-    const groundedItems = result.data.items.map((item) => {
+    const groundedItems = result.data.items.map(toExtractionCandidate).map((item) => {
       if (options.inputKind === "text") {
         return { ...item, sourcePage: null, sourceImageIndex: null };
       }
@@ -420,6 +539,13 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     await options.onProgress?.(unit + 1, totalUnits, progressLabel);
   }
 
+  if (!candidates.length && effectiveContents.length > 0) {
+    throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+      publicMessage: "The uploaded schedule is readable, but no calendar events were recovered. Please retry.",
+      diagnosticMessage: "Non-empty image/text schedule source produced zero events after primary and recovery extraction passes.",
+      retryable: true,
+    });
+  }
   return {
     candidates,
     warnings: [...new Set(warnings)].slice(0, 50),
