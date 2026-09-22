@@ -110,15 +110,15 @@ import {
   completeModuleResourceMultipartUpload,
   createModuleResourceMultipartUpload,
   createModuleResourcePartUrl,
-  createModuleResourcePutUrl,
   deleteModuleResourceObject,
+  listModuleResourceMultipartParts,
+  uploadModuleResourcePart,
   verifyModuleResourcePdf,
 } from "./server/services/moduleResourceStorage.js";
 import {
   isModuleResourceModuleId,
   MAX_MODULE_RESOURCE_PDF_BYTES,
   MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
-  MODULE_RESOURCE_MULTIPART_THRESHOLD_BYTES,
   MODULE_RESOURCE_TITLE_MAX_LENGTH,
   MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS,
   type ModuleResourceModuleId,
@@ -307,7 +307,7 @@ function toModuleResourceContentRow(row: any): Record<string, unknown> {
     id: row.id,
     moduleId: row.moduleId,
     title: row.title,
-    fileSizeBytes: row.fileSizeBytes,
+    fileSizeBytes: Number(row.fileSizeBytes),
     createdAt: row.createdAt,
     status: row.status,
     storagePath: row.storagePath ?? null,
@@ -3228,7 +3228,7 @@ function serializeModuleResource(row: any) {
     id: row.id,
     moduleId: row.moduleId,
     title: row.title,
-    fileSizeBytes: row.fileSizeBytes,
+    fileSizeBytes: Number(row.fileSizeBytes),
     createdAt: row.createdAt,
   };
 }
@@ -3304,7 +3304,7 @@ app.post(
       fileSizeBytes > MAX_MODULE_RESOURCE_PDF_BYTES
     ) {
       return res.status(413).json({
-        error: "File is too large. Maximum allowed size is 200 MiB.",
+        error: "File is too large. Maximum allowed size is 5 GiB.",
         code: "MODULE_RESOURCE_FILE_TOO_LARGE",
       });
     }
@@ -3320,8 +3320,7 @@ app.post(
       moduleId as ModuleResourceModuleId,
       resourceId,
     );
-    const isMultipart =
-      fileSizeBytes >= MODULE_RESOURCE_MULTIPART_THRESHOLD_BYTES;
+    const isMultipart = true;
     const uploadExpiresAt = new Date(
       Date.now() + MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS * 1000,
     );
@@ -3338,30 +3337,17 @@ app.post(
           moduleId,
           title,
           storagePath,
-          fileSizeBytes,
+          fileSizeBytes: BigInt(fileSizeBytes),
           status: "PENDING",
           multipartUploadId,
           uploadExpiresAt,
         },
       });
 
-      let uploadUrl: string | undefined;
-      if (!isMultipart) {
-        try {
-          uploadUrl = await createModuleResourcePutUrl(storagePath);
-        } catch (error) {
-          await getPrisma().moduleResource.delete({ where: { id: resourceId } });
-          throw error;
-        }
-      }
-
       return res.status(201).json({
         resourceId,
-        uploadType: isMultipart ? "multipart" : "single",
-        uploadUrl,
-        partSizeBytes: isMultipart
-          ? MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES
-          : undefined,
+        uploadType: "multipart",
+        partSizeBytes: MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
         expiresAt: uploadExpiresAt.toISOString(),
         resource: serializeModuleResource(resource),
       });
@@ -3408,7 +3394,7 @@ app.post(
     }
 
     const maxPartNumber = Math.ceil(
-      resource.fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
+      Number(resource.fileSizeBytes) / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
     );
     if (
       !Number.isSafeInteger(partNumber) ||
@@ -3442,6 +3428,60 @@ app.post(
   }),
 );
 
+const moduleResourceRawPartParser = express.raw({
+  type: "application/octet-stream",
+  limit: `${Math.ceil(MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES / (1024 * 1024)) + 1}mb`,
+});
+
+app.post(
+  "/api/admin/module-resources/upload/:resourceId/part",
+  requireAdmin,
+  moduleResourceRawPartParser,
+  catchAsync(async (req, res) => {
+    const resourceId = String(req.params.resourceId || "");
+    const partNumber = Number(req.query?.partNumber);
+    const resource = await getPrisma().moduleResource.findUnique({ where: { id: resourceId } });
+    if (!resource || resource.status !== "PENDING" || !resource.multipartUploadId) {
+      return res.status(404).json({ error: "Upload reservation not found." });
+    }
+    if (resource.uploadExpiresAt && resource.uploadExpiresAt.getTime() <= Date.now()) {
+      return res.status(410).json({ error: "Upload expired. Please retry." });
+    }
+    const fileSizeBytes = Number(resource.fileSizeBytes);
+    const expectedPartCount = Math.ceil(fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES);
+    if (!Number.isSafeInteger(partNumber) || partNumber < 1 || partNumber > expectedPartCount) {
+      return res.status(400).json({ error: "Invalid upload part." });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length <= 0) {
+      return res.status(400).json({ error: "Upload part is empty." });
+    }
+    const expectedSize = partNumber === expectedPartCount
+      ? fileSizeBytes - (partNumber - 1) * MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES
+      : MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES;
+    if (req.body.length !== expectedSize) {
+      return res.status(400).json({ error: "Upload part size does not match the selected file." });
+    }
+    try {
+      await uploadModuleResourcePart(
+        resource.storagePath,
+        resource.multipartUploadId,
+        partNumber,
+        req.body,
+      );
+      return res.json({ success: true, partNumber });
+    } catch (error) {
+      logger.error(
+        "[ModuleResource]",
+        `Server-side part upload failed: ${moduleResourceErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The upload service is temporarily unavailable. Please retry.",
+        code: "MODULE_RESOURCE_PROXY_PART_FAILED",
+      });
+    }
+  }),
+);
+
 app.post(
   "/api/admin/module-resources/upload/:resourceId/complete",
   requireAdmin,
@@ -3462,53 +3502,46 @@ app.post(
       return res.status(410).json({ error: "Upload expired. Please retry." });
     }
 
+    const fileSizeBytes = Number(resource.fileSizeBytes);
     const expectedPartCount = resource.multipartUploadId
-      ? Math.ceil(
-          resource.fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES,
-        )
+      ? Math.ceil(fileSizeBytes / MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES)
       : 0;
-    const inputParts = Array.isArray(req.body?.parts) ? req.body.parts : [];
-    const parts = inputParts.map((part: any) => ({
-      PartNumber: Number(part?.partNumber),
-      ETag: typeof part?.etag === "string" ? part.etag : "",
-    }));
-
-    if (resource.multipartUploadId) {
-      const validParts =
-        parts.length === expectedPartCount &&
-        parts.every(
-          (part: { PartNumber: number; ETag: string }, index: number) =>
-            part.PartNumber === index + 1 &&
-            part.ETag.length > 0 &&
-            part.ETag.length <= 200,
-        );
-      if (!validParts) {
-        return res.status(400).json({ error: "Uploaded parts are incomplete." });
-      }
-    } else if (inputParts.length > 0) {
-      return res.status(400).json({ error: "Unexpected multipart parts." });
-    }
 
     let multipartCompleted = false;
     try {
       if (resource.multipartUploadId) {
+        const storedParts = await listModuleResourceMultipartParts(
+          resource.storagePath,
+          resource.multipartUploadId,
+        );
+        const validParts =
+          storedParts.length === expectedPartCount &&
+          storedParts.every((part, index) => {
+            const expectedSize = index === expectedPartCount - 1
+              ? fileSizeBytes - index * MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES
+              : MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES;
+            return part.partNumber === index + 1 && part.sizeBytes === expectedSize;
+          });
+        if (!validParts) {
+          return res.status(400).json({ error: "Uploaded parts are incomplete or do not match the selected file." });
+        }
         await completeModuleResourceMultipartUpload(
           resource.storagePath,
           resource.multipartUploadId,
-          parts,
+          storedParts.map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })),
         );
         multipartCompleted = true;
       }
 
       const verified = await verifyModuleResourcePdf(
         resource.storagePath,
-        resource.fileSizeBytes,
+        Number(resource.fileSizeBytes),
       );
       const ready = await prismaClient.moduleResource.update({
         where: { id: resource.id },
         data: {
           status: "READY",
-          fileSizeBytes: verified.sizeBytes,
+          fileSizeBytes: BigInt(verified.sizeBytes),
           multipartUploadId: null,
           uploadExpiresAt: null,
         },

@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
@@ -89,6 +90,65 @@ export async function createModuleResourcePartUrl(
     }),
     { expiresIn: MODULE_RESOURCE_UPLOAD_EXPIRY_SECONDS },
   );
+}
+
+
+export interface ModuleResourceStoredPart {
+  partNumber: number;
+  etag: string;
+  sizeBytes: number;
+}
+
+export async function listModuleResourceMultipartParts(
+  storagePath: string,
+  uploadId: string,
+): Promise<ModuleResourceStoredPart[]> {
+  assertSafeStoragePath(storagePath);
+  const { client, bucket } = getR2Client();
+  const parts: ModuleResourceStoredPart[] = [];
+  let partNumberMarker: string | undefined;
+  do {
+    const result = await client.send(new ListPartsCommand({
+      Bucket: bucket,
+      Key: storagePath,
+      UploadId: uploadId,
+      PartNumberMarker: partNumberMarker,
+    }));
+    for (const part of result.Parts ?? []) {
+      const partNumber = Number(part.PartNumber ?? 0);
+      const sizeBytes = Number(part.Size ?? 0);
+      if (
+        Number.isSafeInteger(partNumber) && partNumber > 0 &&
+        Number.isSafeInteger(sizeBytes) && sizeBytes >= 0 &&
+        typeof part.ETag === "string" && part.ETag.length > 0
+      ) {
+        parts.push({ partNumber, etag: part.ETag, sizeBytes });
+      }
+    }
+    if (!result.IsTruncated) break;
+    if (!result.NextPartNumberMarker) {
+      throw new Error("R2 returned a truncated multipart part listing without a continuation marker.");
+    }
+    partNumberMarker = result.NextPartNumberMarker;
+  } while (partNumberMarker);
+  return parts.sort((a, b) => a.partNumber - b.partNumber);
+}
+
+export async function uploadModuleResourcePart(
+  storagePath: string,
+  uploadId: string,
+  partNumber: number,
+  body: Uint8Array,
+): Promise<void> {
+  assertSafeStoragePath(storagePath);
+  const { client, bucket } = getR2Client();
+  await client.send(new UploadPartCommand({
+    Bucket: bucket,
+    Key: storagePath,
+    UploadId: uploadId,
+    PartNumber: partNumber,
+    Body: body,
+  }));
 }
 
 export async function completeModuleResourceMultipartUpload(

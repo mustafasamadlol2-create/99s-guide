@@ -39,8 +39,12 @@ export type ModuleResourceUploadStage =
 
 export function formatModuleResourceSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KiB`;
-  const value = bytes / (1024 * 1024);
-  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} MiB`;
+  if (bytes >= 1024 * 1024 * 1024) {
+    const gib = bytes / (1024 * 1024 * 1024);
+    return `${gib >= 10 ? gib.toFixed(0) : gib.toFixed(2)} GiB`;
+  }
+  const mib = bytes / (1024 * 1024);
+  return `${mib >= 10 ? mib.toFixed(0) : mib.toFixed(1)} MiB`;
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -173,18 +177,17 @@ function putWithProgress(
   body: Blob,
   signal: AbortSignal,
   onProgress: (loaded: number) => void,
-): Promise<string | null> {
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
     xhr.withCredentials = false;
-    xhr.setRequestHeader("Content-Type", "application/pdf");
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.getResponseHeader("ETag"));
+        resolve();
       } else {
         reject(new Error(`Storage upload failed with HTTP ${xhr.status}.`));
       }
@@ -202,7 +205,7 @@ async function putWithRetries(
   body: Blob,
   signal: AbortSignal,
   onProgress: (loaded: number) => void,
-): Promise<string | null> {
+): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= 2; attempt += 1) {
     if (signal.aborted) throw new DOMException("The upload was cancelled.", "AbortError");
@@ -216,6 +219,59 @@ async function putWithRetries(
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Upload failed.");
+}
+
+async function uploadPartThroughApi(
+  resourceId: string,
+  partNumber: number,
+  body: Blob,
+  signal: AbortSignal,
+): Promise<void> {
+  await apiClient(
+    `/api/admin/module-resources/upload/${encodeURIComponent(resourceId)}/part?partNumber=${partNumber}`,
+    {
+      method: "POST",
+      timeoutMs: 180_000,
+      retries: 0,
+      headers: { "Content-Type": "application/octet-stream" },
+      body,
+      signal,
+      silent: true,
+    },
+  );
+}
+
+async function uploadPartWithCorsFallback(
+  resourceId: string,
+  partNumber: number,
+  uploadUrl: string,
+  body: Blob,
+  signal: AbortSignal,
+  onProgress: (loaded: number) => void,
+): Promise<void> {
+  try {
+    // One direct attempt keeps the fast/scalable R2 path when bucket CORS is
+    // configured. Do not waste several retries on a deterministic preflight
+    // failure; the authenticated API fallback does not depend on R2 CORS.
+    await putWithProgress(uploadUrl, body, signal, onProgress);
+    return;
+  } catch (directError) {
+    if (signal.aborted) throw directError;
+    onProgress(0);
+    let lastError: unknown = directError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await uploadPartThroughApi(resourceId, partNumber, body, signal);
+        onProgress(body.size);
+        return;
+      } catch (proxyError) {
+        lastError = proxyError;
+        if (signal.aborted || attempt === 2) break;
+        await sleep(500 * 2 ** attempt, signal);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Upload failed.");
+  }
 }
 
 export async function uploadModuleResource(
@@ -239,7 +295,6 @@ export async function uploadModuleResource(
       const partSize = init.partSizeBytes || MODULE_RESOURCE_MULTIPART_PART_SIZE_BYTES;
       const partCount = Math.ceil(file.size / partSize);
       const uploaded = new Array<number>(partCount).fill(0);
-      const completedParts = new Array<{ partNumber: number; etag: string }>(partCount);
       let nextPart = 0;
 
       const worker = async () => {
@@ -251,7 +306,9 @@ export async function uploadModuleResource(
           const end = Math.min(file.size, start + partSize);
           const part = file.slice(start, end);
           const url = await getModuleResourcePartUrl(resourceId, partNumber);
-          const etag = await putWithRetries(
+          await uploadPartWithCorsFallback(
+            resourceId,
+            partNumber,
             url.uploadUrl,
             part,
             signal,
@@ -260,8 +317,6 @@ export async function uploadModuleResource(
               onProgress(uploaded.reduce((sum, value) => sum + value, 0), file.size);
             },
           );
-          if (!etag) throw new Error("Storage did not return a part ETag.");
-          completedParts[index] = { partNumber, etag };
         }
       };
 
@@ -273,7 +328,7 @@ export async function uploadModuleResource(
       );
       onStage("verifying");
       onStage("saving");
-      return await completeModuleResourceUpload(resourceId, completedParts);
+      return await completeModuleResourceUpload(resourceId, []);
     }
 
     onStage("verifying");

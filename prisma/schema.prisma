@@ -132,7 +132,7 @@ model ModuleResource {
   moduleId           String
   title              String
   storagePath        String   @unique
-  fileSizeBytes      Int
+  fileSizeBytes      BigInt
   status             String   @default("PENDING")
   multipartUploadId  String?
   uploadExpiresAt    DateTime?

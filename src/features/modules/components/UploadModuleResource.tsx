@@ -80,7 +80,7 @@ export default function UploadModuleResource({
       return;
     }
     if (candidate.size <= 0 || candidate.size > MAX_MODULE_RESOURCE_PDF_BYTES) {
-      setError(isRtl ? "حجم الملف يتجاوز 200 ميجابايت." : "File exceeds the 200 MiB limit.");
+      setError(isRtl ? "حجم الملف يتجاوز الحد الأقصى 5 جيجابايت." : "File exceeds the 5 GiB limit.");
       return;
     }
     setError("");
@@ -159,7 +159,7 @@ export default function UploadModuleResource({
           {isRtl ? "مصادر الموديولات" : "Module Resources"}
         </h3>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          {isRtl ? "ارفع ملفات PDF خاصة بالموديول، بحد أقصى 200 ميجابايت." : "Upload private module PDFs up to 200 MiB."}
+          {isRtl ? "ارفع ملفات PDF خاصة بالموديول، بحد أقصى 5 جيجابايت." : "Upload private module PDFs up to 5 GiB."}
         </p>
       </div>
 
@@ -220,7 +220,7 @@ export default function UploadModuleResource({
             {file ? file.name : (isRtl ? "اختر ملف PDF أو اسحبه هنا" : "Choose a PDF or drag it here")}
           </span>
           <span className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-            {file ? formatModuleResourceSize(file.size) : (isRtl ? "PDF فقط — الحد الأقصى 200 ميجابايت" : "PDF only — maximum 200 MiB")}
+            {file ? formatModuleResourceSize(file.size) : (isRtl ? "PDF فقط — الحد الأقصى 5 جيجابايت" : "PDF only — maximum 5 GiB")}
           </span>
         </div>
 
