@@ -58,6 +58,7 @@ export interface AIPdfFilePart extends AIFilePartBase {
   inputType: "pdf";
   mimeType: "application/pdf";
   source: AIPdfSourceReference;
+  pageCount?: number;
 }
 
 export interface AIImageFilePart extends AIFilePartBase {
@@ -123,6 +124,27 @@ export type NormalizedPDFInput =
     mimeType: "application/pdf";
     pageCount?: number;
   };
+
+export interface AIVisualPDFPage {
+  kind: "visual_page";
+  inputType: "pdf";
+  page: number;
+  mimeType: "image/png";
+  bytes: Uint8Array;
+  sizeBytes: number;
+  sha256: string;
+  source: AIPdfSourceReference;
+}
+
+export interface AIPDFVisualSource {
+  pageCount?: number;
+  renderPages(options?: {
+    startPage?: number;
+    endPage?: number;
+    maxPages?: number;
+    signal?: AbortSignal;
+  }): Promise<AIVisualPDFPage[]>;
+}
 
 export type NormalizedImageInput =
   NormalizedBinaryMetadata<AIImageSourceReference> &

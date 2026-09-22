@@ -127,6 +127,7 @@ export interface AIPreviewResponse<T extends AIMCQCandidate | AIFlashcardCandida
   lecture: { id: string; name: string };
   result: {
     promptVersion: string;
+    status?: "complete" | "empty" | "incomplete";
     items: T[];
     skippedItems: AISkippedItem[];
     truncated: boolean;

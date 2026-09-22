@@ -6,6 +6,7 @@ import type {
 } from "../input/contracts.js";
 import { isTrustedAIStagedFileCapability } from "../input/temporaryFiles.js";
 import { CloudflareClient } from "./CloudflareClient.js";
+import { inspectPDFImagePages, renderPDFPages } from "../input/pdfVisualSource.js";
 
 export interface CloudflareExistingResourceResolver {
   resolve(resourceId: string): Promise<{
@@ -19,6 +20,7 @@ export interface ConvertedCloudflarePart {
   text: string;
   inputType: "pdf" | "image";
   imageIndex?: number;
+  page?: number;
 }
 
 function safeFilename(part: AIFilePart, mimeType: string): string {
@@ -29,6 +31,12 @@ function safeFilename(part: AIFilePart, mimeType: string): string {
       ? "webp"
       : "jpg";
   return `image-${part.source.imageIndex + 1}.${extension}`;
+}
+
+function unusableDocumentConversion(text: string): boolean {
+  const normalized = text.trim();
+  return normalized.length === 0 ||
+    /(?:no|without|unable to|failed to|could not)\s+(?:extract|read|detect|find)\s+(?:any\s+)?(?:text|content)/iu.test(normalized);
 }
 
 async function normalizeHeic(
@@ -87,17 +95,82 @@ export class CloudflareMarkdownConverter {
         });
       }
       const normalized = await normalizeHeic(bytes, part.mimeType, signal);
-      const markdown = await this.client.toMarkdown(
-        normalized.bytes,
-        normalized.mimeType,
-        safeFilename(part, normalized.mimeType),
-        signal,
-      );
+      let markdown: { data: string };
+      try {
+        markdown = await this.client.toMarkdown(
+          normalized.bytes,
+          normalized.mimeType,
+          safeFilename(part, normalized.mimeType),
+          signal,
+        );
+      } catch (error) {
+        if (
+          part.inputType !== "pdf" ||
+          !(error instanceof AIServiceError) ||
+          error.code !== "AI_MEDIA_PROCESSING_FAILED"
+        ) {
+          throw error;
+        }
+        markdown = { data: "" };
+      }
+      if (part.inputType === "pdf" && unusableDocumentConversion(markdown.data)) {
+        const pages = await renderPDFPages(
+          capability,
+          part.source,
+          part.pageCount,
+          { maxPages: 20, signal },
+        );
+        if (!pages.length) {
+          throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+            publicMessage: "The document could not be read completely.",
+            diagnosticMessage: "Document conversion returned no usable text and no visual pages were available.",
+            retryable: true,
+          });
+        }
+        for (const page of pages) {
+          const visualMarkdown = await this.client.toMarkdown(
+            page.bytes,
+            page.mimeType,
+            `source-page-${page.page}.png`,
+            signal,
+          );
+          converted.push({
+            text: visualMarkdown.data,
+            inputType: "pdf",
+            page: page.page,
+          });
+        }
+        continue;
+      }
       converted.push({
         text: markdown.data,
         inputType: part.inputType,
         ...(part.inputType === "image" ? { imageIndex: part.source.imageIndex } : {}),
       });
+      if (part.inputType === "pdf" && part.fileSource.kind === "staged_file") {
+        const imagePages = await inspectPDFImagePages(part.fileSource.capability, signal);
+        if (imagePages.length > 0) {
+          const pages = await renderPDFPages(
+            part.fileSource.capability,
+            part.source,
+            part.pageCount,
+            { maxPages: 20, signal },
+          );
+          for (const page of pages) {
+            const visualMarkdown = await this.client.toMarkdown(
+              page.bytes,
+              page.mimeType,
+              `source-page-${page.page}.png`,
+              signal,
+            );
+            converted.push({
+              text: visualMarkdown.data,
+              inputType: "pdf",
+              page: page.page,
+            });
+          }
+        }
+      }
     }
     return converted;
   }

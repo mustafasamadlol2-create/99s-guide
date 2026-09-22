@@ -103,6 +103,7 @@ const aiPdfFilePartSchema = z.object({
   source: aiPdfSourceReferenceSchema,
   sizeBytes: z.number().int().positive(),
   sha256: sha256Schema,
+  pageCount: z.number().int().positive().optional(),
 }).strict();
 
 const aiImageFilePartSchema = z.object({

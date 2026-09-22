@@ -48,6 +48,7 @@ export interface FlashcardResultCounts {
 export interface FlashcardOperationResult {
   operation: "extract" | "generate" | "enhance";
   promptVersion: "flashcard-v1";
+  status?: "complete" | "empty" | "incomplete";
   items: AIFlashcardCandidate[];
   skippedItems: SkippedFlashcardSourceItem[];
   truncated: boolean;

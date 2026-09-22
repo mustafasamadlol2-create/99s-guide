@@ -16,6 +16,7 @@ import { sanitizeDisplayFilename, sanitizeSourceLabel } from "./mime.js";
 import { normalizeAIText } from "./normalizeText.js";
 import { rawAIInputSchema } from "./schemas.js";
 import { AITemporaryFileManager } from "./temporaryFiles.js";
+import { inspectPDFPageCount, renderPDFPages } from "./pdfVisualSource.js";
 import {
   assertDetectedMimeMatches,
   inspectStagedMimeType,
@@ -138,6 +139,7 @@ export class AIInputService {
         inputType: "pdf" as const,
         label: sanitizeSourceLabel(request.file.sourceLabel, prepared.displayName),
       };
+      const pageCount = await inspectPDFPageCount(prepared.staged.capability);
       const pdf: NormalizedPDFInput = {
         kind: "pdf",
         origin: "upload",
@@ -152,6 +154,7 @@ export class AIInputService {
           ownership: "owned_transient",
         },
         source,
+        ...(pageCount === undefined ? {} : { pageCount }),
       };
       const part: AIFilePart = {
         kind: "file",
@@ -161,6 +164,7 @@ export class AIInputService {
         source,
         sizeBytes: pdf.sizeBytes,
         sha256: pdf.sha256,
+        ...(pageCount === undefined ? {} : { pageCount }),
       };
       return {
         input: { kind: "pdf", pdf },

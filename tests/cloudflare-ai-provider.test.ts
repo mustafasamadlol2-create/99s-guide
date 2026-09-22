@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { PDFDocument } from "pdf-lib";
 import { z } from "zod";
 import {
   DEFAULT_CLOUDFLARE_MODEL,
@@ -17,6 +21,10 @@ import {
   CloudflareClient,
   type CloudflareFetch,
 } from "../server/services/ai/cloudflare/CloudflareClient.js";
+import { CloudflareMarkdownConverter } from "../server/services/ai/cloudflare/CloudflareMarkdownConverter.js";
+import { AIInputService } from "../server/services/ai/input/AIInputService.js";
+import { AITemporaryFileManager } from "../server/services/ai/input/temporaryFiles.js";
+import { renderPDFPages } from "../server/services/ai/input/pdfVisualSource.js";
 
 const config = {
   accountId: "account-test",
@@ -127,6 +135,125 @@ test("Cloudflare Markdown Conversion uses multipart files without exposing the b
   assert.equal((captured?.init.headers as Record<string, string>)["Content-Type"], undefined);
   assert.ok(captured?.init.body instanceof FormData);
   assert.equal((captured?.init.body as FormData).has("files"), true);
+});
+
+test("empty PDF conversion falls back to bounded ordered PNG page coverage", async () => {
+  const document = await PDFDocument.create();
+  for (let index = 0; index < 4; index += 1) document.addPage([612, 792]);
+  const pdfBytes = new Uint8Array(await document.save());
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-pdf-pages-"));
+  const calls: Array<{ mimeType: string; filename: string; bytes: Uint8Array }> = [];
+  const converter = new CloudflareMarkdownConverter({
+    toMarkdown: async (bytes: Uint8Array, mimeType: string, filename: string) => {
+      calls.push({ bytes, mimeType, filename });
+      return {
+        data: mimeType === "application/pdf" ? "" : `rendered ${filename}`,
+        format: "markdown",
+      };
+    },
+  } as never);
+  try {
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    const result = await input.withPreparedInput({
+      kind: "pdf",
+      file: {
+        bytes: pdfBytes,
+        claimedMimeType: "application/pdf",
+        originalFilename: "scan.pdf",
+      },
+    }, (prepared) => converter.convert(prepared.contents, new AbortController().signal));
+
+    assert.equal(result.length, 4);
+    assert.deepEqual(result.map((part) => part.page), [1, 2, 3, 4]);
+    assert.deepEqual(result.map((part) => part.inputType), ["pdf", "pdf", "pdf", "pdf"]);
+    assert.deepEqual(calls.map((call) => call.mimeType), [
+      "application/pdf",
+      "image/png",
+      "image/png",
+      "image/png",
+      "image/png",
+    ]);
+    assert.deepEqual(calls.slice(1).map((call) => call.filename), [
+      "source-page-1.png",
+      "source-page-2.png",
+      "source-page-3.png",
+      "source-page-4.png",
+    ]);
+    assert.ok(calls.slice(1).every((call) =>
+      call.bytes[0] === 0x89 &&
+      call.bytes[1] === 0x50 &&
+      call.bytes[2] === 0x4e &&
+      call.bytes[3] === 0x47,
+    ));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("PDF visual recovery honors a deferred bounded page range", async () => {
+  const document = await PDFDocument.create();
+  for (let index = 0; index < 4; index += 1) document.addPage([612, 792]);
+  const pdfBytes = new Uint8Array(await document.save());
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-pdf-range-"));
+  try {
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    await input.withPreparedInput({
+      kind: "pdf",
+      file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "range.pdf" },
+    }, async (prepared) => {
+      if (prepared.input.kind !== "pdf" || prepared.input.pdf.fileSource.kind !== "staged_file") {
+        assert.fail("Expected a staged PDF.");
+      }
+      const pages = await renderPDFPages(
+        prepared.input.pdf.fileSource.capability,
+        prepared.input.pdf.source,
+        prepared.input.pdf.pageCount,
+        { startPage: 2, endPage: 3, maxPages: 2 },
+      );
+      assert.deepEqual(pages.map((page) => page.page), [2, 3]);
+      assert.ok(pages.every((page) => page.mimeType === "image/png" && page.bytes.length > 100));
+      assert.deepEqual(pages.map((page) => page.source.page), [2, 3]);
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("mixed PDFs preserve converted text and embedded visual-page coverage", async () => {
+  const document = await PDFDocument.create();
+  document.addPage([612, 792]).drawText("Text-layer page");
+  const visualPage = document.addPage([612, 792]);
+  const image = await document.embedPng(Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  ));
+  visualPage.drawImage(image, { x: 100, y: 100, width: 200, height: 200 });
+  const pdfBytes = new Uint8Array(await document.save());
+  const root = await mkdtemp(join(tmpdir(), "cloudflare-mixed-pdf-"));
+  const calls: string[] = [];
+  const converter = new CloudflareMarkdownConverter({
+    toMarkdown: async (_bytes: Uint8Array, mimeType: string, filename: string) => {
+      calls.push(`${mimeType}:${filename}`);
+      return {
+        data: mimeType === "application/pdf" ? "mixed text layer" : `visual ${filename}`,
+        format: "markdown",
+      };
+    },
+  } as never);
+  try {
+    const input = new AIInputService({}, new AITemporaryFileManager(root));
+    const result = await input.withPreparedInput({
+      kind: "pdf",
+      file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "mixed.pdf" },
+    }, (prepared) => converter.convert(prepared.contents, new AbortController().signal));
+
+    assert.equal(result[0]?.text, "mixed text layer");
+    assert.deepEqual(result.filter((part) => part.page !== undefined).map((part) => part.page), [1, 2]);
+    assert.ok(calls.includes("application/pdf:source.pdf"));
+    assert.ok(calls.includes("image/png:source-page-2.png"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("Cloudflare provider validates every chunk with the original Zod schema", async () => {

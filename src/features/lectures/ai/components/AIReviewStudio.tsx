@@ -587,6 +587,22 @@ export function AIReviewStudio({
           <AlertCircle className="h-4 w-4 shrink-0" /> {aiText(language, "truncated")}
         </div>
       )}
+      {response.result.status === "incomplete" && (
+        <div className="flex gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-400/20 dark:bg-rose-400/[0.07] dark:text-rose-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {language === "ar"
+            ? "اكتملت المعالجة جزئياً فقط. راجع التحذيرات ولا تعتبر النتيجة الفارغة دليلاً على خلو المصدر."
+            : "Visual source processing was incomplete. Review the warnings; an empty result is not proof that the source contained no items."}
+        </div>
+      )}
+      {response.result.status === "empty" && (
+        <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-400/20 dark:bg-sky-400/[0.07] dark:text-sky-200">
+          <FileText className="h-4 w-4 shrink-0" />
+          {language === "ar"
+            ? "لم يتم العثور على عناصر قابلة للاستخراج في المصدر."
+            : "No extractable items were found in the source."}
+        </div>
+      )}
       {!!response.result.warnings.length && (
         <details className="rounded-lg border border-amber-200/70 bg-amber-50/60 p-3 text-sm dark:border-amber-400/20 dark:bg-amber-400/[0.05]">
           <summary className="cursor-pointer font-semibold text-amber-800 dark:text-amber-200">{aiText(language, "warnings")} ({response.result.warnings.length})</summary>

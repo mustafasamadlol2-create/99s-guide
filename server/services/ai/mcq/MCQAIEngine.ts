@@ -88,10 +88,12 @@ function baseResult(
   startedAt: number,
   requestedCount?: number,
   truncated = false,
+  status: MCQOperationResult["status"] = items.length ? "complete" : "empty",
 ): MCQOperationResult {
   return {
     operation,
     promptVersion: MCQ_PROMPT_VERSION,
+    status,
     items,
     skippedItems,
     truncated,
@@ -142,6 +144,7 @@ export class MCQAIEngine {
 
   private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
     const startedAt = performance.now();
+    let sourceStatus: MCQOperationResult["status"] = "complete";
     const deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
     const numberedPlan = deterministic ? null : planNumberedMCQExtraction(input.contents);
     const shards = deterministic || numberedPlan ? [] : shardTextContent(input.contents);
@@ -242,8 +245,41 @@ export class MCQAIEngine {
         });
       }
     }
+    if (
+      !deterministic &&
+      !numberedPlan &&
+      input.inputKind !== "text" &&
+      !responses.some((response) => response.result.data.items.length)
+    ) {
+      const recovery = await this.contentService.generateStructured({
+        contents: input.contents,
+        responseSchema: mcqExtractionProviderResponseSchema,
+        trustedSystemInstruction: [
+          buildMCQExtractInstruction(),
+          "The previous visual/document pass returned zero candidates. Retry the complete non-empty source once using every available page or image.",
+          "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no MCQs.",
+        ].join("\n\n"),
+        operation: "extract",
+        maxItems: this.config.extractionMaxCount,
+        signal,
+      });
+      responses = [...responses, { batch: { start: 0, count: 1 }, result: recovery }];
+      if (!recovery.data.items.length) sourceStatus = "incomplete";
+    }
     const responseData = deterministic ?? {
-      items: uniquePlannedItems,
+      items: numberedPlan
+        ? [...new Map(
+          responses
+            .flatMap(({ batch, result }) => result.data.items.map((item, index) => ({
+              ...item,
+              ...(item.sourceOrdinal === undefined && result.data.items.length === batch.count
+                ? { sourceOrdinal: numberedPlan.blocks[batch.start + index]?.ordinal }
+                : {}),
+            })))
+            .filter((item) => item.sourceOrdinal !== undefined)
+            .map((item) => [item.sourceOrdinal, item]),
+        ).values()].sort((left, right) => left.sourceOrdinal! - right.sourceOrdinal!)
+        : responses.flatMap((response) => response.result.data.items),
       skippedItems: responses.flatMap((response) => response.result.data.skippedItems),
       truncated: responses.some((response) => response.result.data.truncated),
       uncertainties: responses.flatMap((response) => response.result.data.uncertainties),
@@ -274,7 +310,10 @@ export class MCQAIEngine {
     const truncated = responseData.truncated || responseData.items.length > this.config.extractionMaxCount;
     items = items.slice(0, this.config.extractionMaxCount);
     if (items.length < normalized.items.length) warnings.push("Extraction candidates were truncated to the configured maximum.");
-    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated);
+    if (!items.length && sourceStatus === "incomplete") {
+      warnings.push("Visual source processing remained incomplete after bounded recovery; no candidates were finalized.");
+    }
+    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated, items.length ? "complete" : sourceStatus === "incomplete" ? "incomplete" : "empty");
   }
 
   async generateMCQs(
@@ -457,8 +496,13 @@ export class MCQAIEngine {
     return baseResult(
       "enhance",
       applyBatchDuplicateWarnings(candidates.map((candidate) => applyQualityWarnings(
-        { ...candidate, provenance: "enhanced" as const },
-        { requireAnswer: false, requestedHint: false, requestedExplanation: false },
+        { ...candidate },
+        {
+          requireAnswer: false,
+          requestedHint: selected.hint,
+          requestedExplanation: selected.explanation,
+          reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
+        },
       ))),
       extraction.skippedItems,
       warnings,
@@ -486,12 +530,14 @@ export class MCQAIEngine {
       const candidateWarnings = [...candidate.warnings];
       let hint = candidate.hint;
       let explanation = candidate.explanation;
+      let confidence = candidate.confidence;
       if (eligibleIds.has(candidate.candidateId)) {
         if (!stage2) {
           candidateWarnings.push("No enhancement result was returned for this candidate.");
         } else {
           if (options.hint && candidate.hint === null) hint = stage2.hint ?? null;
           if (options.explanation && candidate.explanation === null) explanation = stage2.explanation ?? null;
+          confidence = stage2.confidence;
           candidateWarnings.push(...stage2.uncertainties.map((value) => `Model uncertainty: ${value}`));
           const impliedAnswer = explicitlyImpliedAnswer(stage2.explanation);
           if (candidate.correctAnswer && impliedAnswer && impliedAnswer !== candidate.correctAnswer) {
@@ -508,16 +554,26 @@ export class MCQAIEngine {
           }
         }
       }
+      const enhancementApplied = Boolean(
+        stage2 &&
+        (!options.hint || hint !== null) &&
+        (!options.explanation || explanation !== null),
+      );
+      const effectiveWarnings = candidateWarnings.filter((warning) =>
+        !(hint !== null && warning === "The requested hint is missing.") &&
+        !(explanation !== null && warning === "The requested explanation is missing."));
       return applyQualityWarnings({
         ...candidate,
-        provenance: "enhanced" as const,
+        provenance: enhancementApplied ? "enhanced" as const : candidate.provenance,
         hint,
         explanation,
-        warnings: [...new Set(candidateWarnings)],
+        confidence,
+        needsReview: effectiveWarnings.length > 0,
+        warnings: [...new Set(effectiveWarnings)],
       }, {
         requireAnswer: false,
-        requestedHint: false,
-        requestedExplanation: false,
+        requestedHint: options.hint,
+        requestedExplanation: options.explanation,
         reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
       });
     });

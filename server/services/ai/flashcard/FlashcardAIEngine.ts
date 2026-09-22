@@ -75,10 +75,12 @@ function baseResult(
   startedAt: number,
   requestedCount?: number,
   truncated = false,
+  status: FlashcardOperationResult["status"] = items.length ? "complete" : "empty",
 ): FlashcardOperationResult {
   return {
     operation,
     promptVersion: FLASHCARD_PROMPT_VERSION,
+    status,
     items,
     skippedItems,
     truncated,
@@ -114,6 +116,7 @@ export class FlashcardAIEngine {
 
   async extractExistingFlashcards(input: PreparedAIInput, signal?: AbortSignal): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
+    let sourceStatus: FlashcardOperationResult["status"] = "complete";
     const deterministic = input.input.kind === "text"
       ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
       : null;
@@ -160,6 +163,26 @@ export class FlashcardAIEngine {
       });
       responses = [recovery];
     }
+    if (
+      !deterministic &&
+      input.input.kind !== "text" &&
+      !responses.some((response) => response.data.items.length)
+    ) {
+      const recovery = await this.contentService.generateStructured({
+        contents: input.contents,
+        responseSchema: flashcardExtractionProviderResponseSchema,
+        trustedSystemInstruction: [
+          buildFlashcardExtractInstruction(),
+          "The previous visual/document pass returned zero cards. Retry the complete non-empty source once using every available page or image.",
+          "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no Flashcards.",
+        ].join("\n\n"),
+        operation: "extract",
+        maxItems: this.config.extractionMaxCount,
+        signal,
+      });
+      responses = [...responses, recovery];
+      if (!recovery.data.items.length) sourceStatus = "incomplete";
+    }
     const responseData = deterministic ?? {
       items: responses.flatMap((response) => response.data.items),
       skippedItems: responses.flatMap((response) => response.data.skippedItems),
@@ -194,7 +217,10 @@ export class FlashcardAIEngine {
     if (items.length < normalized.items.length) {
       warnings.push("Extraction candidates were truncated to the configured maximum.");
     }
-    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated);
+    if (!items.length && sourceStatus === "incomplete") {
+      warnings.push("Visual source processing remained incomplete after bounded recovery; no candidates were finalized.");
+    }
+    return baseResult("extract", items, skippedItems, warnings, providerMeta, startedAt, undefined, truncated, items.length ? "complete" : sourceStatus === "incomplete" ? "incomplete" : "empty");
   }
 
   async generateFlashcards(
@@ -300,7 +326,7 @@ export class FlashcardAIEngine {
       return baseResult(
         "enhance",
         applyFlashcardBatchDuplicateWarnings(candidates.map((candidate) => applyFlashcardQualityWarnings(
-          { ...candidate, provenance: "enhanced" as const },
+          { ...candidate },
           { requireExplanation: true, reviewConfidenceThreshold: this.config.reviewConfidenceThreshold },
         ))),
         extraction.skippedItems,
@@ -412,13 +438,18 @@ export class FlashcardAIEngine {
         }
       }
 
+      const enhancementApplied = Boolean(stage2 && explanation);
+      const effectiveWarnings = candidateWarnings.filter((warning) =>
+        !(explanation && warning === "The extracted Flashcard has no explicit explanation/back.") &&
+        !(explanation && warning === "The Flashcard explanation is missing."));
       return applyFlashcardQualityWarnings({
         ...candidate,
         explanation,
         source,
         confidence,
-        provenance: "enhanced" as const,
-        warnings: [...new Set(candidateWarnings)],
+        provenance: enhancementApplied ? "enhanced" as const : candidate.provenance,
+        needsReview: effectiveWarnings.length > 0,
+        warnings: [...new Set(effectiveWarnings)],
       }, {
         requireExplanation: true,
         reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,

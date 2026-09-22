@@ -318,6 +318,24 @@ test("extract validates image indexes against the actual prepared images", async
   }
 });
 
+test("binary extraction retries one zero-result pass and labels unresolved visual coverage incomplete", async () => {
+  const prepared = await stagedPreparedFile("image");
+  try {
+    const provider = new QueueProvider([
+      extractionResponse([]),
+      extractionResponse([]),
+    ]);
+    const result = await engineWith(provider).extractExistingFlashcards(prepared.input);
+
+    assert.equal(provider.calls.length, 2);
+    assert.equal(result.items.length, 0);
+    assert.equal(result.status, "incomplete");
+    assert.ok(result.warnings.some((warning) => warning.includes("remained incomplete")));
+  } finally {
+    await prepared.dispose();
+  }
+});
+
 test("extract flags input-type mismatches instead of trusting provider evidence", async () => {
   const provider = new QueueProvider([extractionResponse([
     extractedItem({ source: { inputType: "pdf", page: 3 } }),
@@ -343,6 +361,21 @@ test("generation creates complete source-grounded cards with a bounded focus", a
   assert.match(provider.calls[0]?.trustedSystemInstruction ?? "", /one coherent learning point/i);
   assert.match(provider.calls[0]?.trustedSystemInstruction ?? "", /high-yield cardiovascular mechanisms/);
   assert.doesNotMatch(provider.calls[0]?.trustedSystemInstruction ?? "", /Cardiology section/);
+});
+
+test("generation consumes direct visual source media", async () => {
+  const prepared = await stagedPreparedFile("image");
+  try {
+    const provider = new QueueProvider([generationResponse([
+      generatedItem({ source: { inputType: "image", imageIndex: 0 } }),
+    ])]);
+    const result = await engineWith(provider).generateFlashcards(prepared.input, { count: 1 });
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0]?.source?.inputType, "image");
+    assert.equal(provider.calls.length, 1);
+  } finally {
+    await prepared.dispose();
+  }
 });
 
 test("generation supports the default and maximum count, and rejects values above 100", async () => {
@@ -431,6 +464,35 @@ test("enhancement fills only missing explanations and preserves existing cards",
   assert.match(provider.calls[1]?.trustedSystemInstruction ?? "", /missing explanations/i);
   assert.doesNotMatch(provider.calls[1]?.trustedSystemInstruction ?? "", /Left ventricular function/);
   assert.ok(provider.calls[1]?.additionalUntrustedContext?.includes("Left ventricular function"));
+});
+
+test("enhancement uses direct visual source evidence and reports completed status", async () => {
+  const prepared = await stagedPreparedFile("image");
+  try {
+    const candidateId = FIXED_ID;
+    const provider = new QueueProvider([
+      extractionResponse([extractedItem({
+        explanation: null,
+        source: { inputType: "image", imageIndex: 0 },
+      })]),
+      {
+        items: [{
+          candidateId,
+          explanation: "Generated from the visual source.",
+          source: { inputType: "image", imageIndex: 0 },
+          confidence: 0.94,
+          uncertainties: [],
+        }],
+        uncertainties: [],
+      },
+    ]);
+    const result = await engineWith(provider).enhanceExistingFlashcards(prepared.input);
+    assert.equal(result.items[0]?.provenance, "enhanced");
+    assert.equal(result.items[0]?.source?.inputType, "image");
+    assert.equal(result.items[0]?.needsReview, false);
+  } finally {
+    await prepared.dispose();
+  }
 });
 
 test("enhancement flags unknown IDs and preserves eligible cards with missing results", async () => {

@@ -67,6 +67,7 @@ export interface MCQResultCounts {
 export interface MCQOperationResult {
   operation: "extract" | "generate" | "enhance";
   promptVersion: "mcq-v1";
+  status?: "complete" | "empty" | "incomplete";
   items: AIMCQCandidate[];
   skippedItems: SkippedMCQSourceItem[];
   truncated: boolean;

@@ -296,6 +296,42 @@ test("the engine accepts prepared PDF input and retains page evidence", async ()
   }
 });
 
+test("binary extraction retries one zero-result pass and labels unresolved visual coverage incomplete", async () => {
+  const prepared = await preparedImage();
+  try {
+    const provider = new QueueProvider([
+      extractionResponse([]),
+      extractionResponse([]),
+    ]);
+    const result = await engineWith(provider).extractExistingMCQs(prepared.input);
+
+    assert.equal(provider.calls.length, 2);
+    assert.equal(result.items.length, 0);
+    assert.equal(result.status, "incomplete");
+    assert.ok(result.warnings.some((warning) => warning.includes("remained incomplete")));
+  } finally {
+    await prepared.dispose();
+  }
+});
+
+test("binary extraction keeps candidates returned by the bounded recovery pass", async () => {
+  const prepared = await preparedImage();
+  try {
+    const provider = new QueueProvider([
+      extractionResponse([]),
+      extractionResponse([extractedItem({ source: { inputType: "image", imageIndex: 0 } })]),
+    ]);
+    const result = await engineWith(provider).extractExistingMCQs(prepared.input);
+
+    assert.equal(provider.calls.length, 2);
+    assert.equal(result.items.length, 1);
+    assert.equal(result.status, "complete");
+    assert.equal(result.items[0]?.source?.inputType, "image");
+  } finally {
+    await prepared.dispose();
+  }
+});
+
 test("generation supports styles, optional fields, source grounding and human approval", async () => {
   const provider = new QueueProvider([generationResponse([
     generatedItem({ hint: null, explanation: null }),
@@ -317,6 +353,26 @@ test("generation supports styles, optional fields, source grounding and human ap
   assert.match(provider.calls[0]?.trustedSystemInstruction ?? "", /source-grounded/i);
   assert.match(provider.calls[0]?.trustedSystemInstruction ?? "", /clinical/i);
   assert.doesNotMatch(provider.calls[0]?.trustedSystemInstruction ?? "", /Cardiology section/);
+});
+
+test("generation consumes direct visual source media", async () => {
+  const prepared = await preparedImage();
+  try {
+    const provider = new QueueProvider([generationResponse([
+      generatedItem({ source: { inputType: "image", imageIndex: 0 } }),
+    ])]);
+    const result = await engineWith(provider).generateMCQs(prepared.input, {
+      count: 1,
+      questionStyle: "direct",
+      includeHints: true,
+      includeExplanations: true,
+    });
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0]?.source?.inputType, "image");
+    assert.equal(provider.calls.length, 1);
+  } finally {
+    await prepared.dispose();
+  }
 });
 
 test("generation rejects counts above the approved maximum before provider use", async () => {
@@ -420,6 +476,37 @@ test("enhancement is two-stage and preserves immutable fields and existing field
   assert.equal(result.items[0]?.explanation, null);
 });
 
+test("enhancement uses direct visual source evidence and reports completed status", async () => {
+  const prepared = await preparedImage();
+  try {
+    const candidateId = "00000000-0000-4000-8000-000000000001";
+    const provider = new QueueProvider([
+      extractionResponse([extractedItem({
+        hint: null,
+        explanation: null,
+        source: { inputType: "image", imageIndex: 0 },
+      })]),
+      {
+        items: [{
+          candidateId,
+          hint: "Generated from the visual source.",
+          explanation: "The visual source supports the answer.",
+          confidence: 0.94,
+          uncertainties: [],
+        }],
+        uncertainties: [],
+      },
+    ]);
+    const result = await new MCQAIEngine(new AIContentService(provider), undefined, () => candidateId)
+      .enhanceExistingMCQs(prepared.input, { hint: true, explanation: true });
+    assert.equal(result.items[0]?.provenance, "enhanced");
+    assert.equal(result.items[0]?.source?.inputType, "image");
+    assert.equal(result.items[0]?.needsReview, false);
+  } finally {
+    await prepared.dispose();
+  }
+});
+
 test("enhancement preserves administrator-selected external metadata", async () => {
   const provider = new QueueProvider([
     extractionResponse([extractedItem({ hint: null, explanation: null })]),
@@ -451,7 +538,8 @@ test("enhancement does not run for extracted candidates without an explicit answ
 
   assert.equal(provider.calls.length, 1);
   assert.equal(result.items[0]?.correctAnswer, null);
-  assert.equal(result.items[0]?.provenance, "enhanced");
+  assert.equal(result.items[0]?.provenance, "extracted");
+  assert.equal(result.items[0]?.needsReview, true);
   assert.ok(result.warnings.some((warning) => warning.includes("eligible")));
 });
 

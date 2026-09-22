@@ -206,7 +206,11 @@ export class CloudflareAIProvider implements AIProvider {
       }
       const sourceText = source.map((part) => {
         if (part.inputType === "image") return `[Image ${part.imageIndex! + 1}]\n${part.text}`;
-        if (part.inputType === "pdf") return `[Source document]\n${part.text}`;
+        if (part.inputType === "pdf") {
+          return part.page === undefined
+            ? `[Source document]\n${part.text}`
+            : `[Source document page ${part.page}]\n${part.text}`;
+        }
         return part.text;
       }).join("\n\n");
       const chunks = request.operation === "enhance"

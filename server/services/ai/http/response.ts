@@ -73,6 +73,7 @@ export const aiAdminResponseSchema = z.object({
   lecture: z.object({ id: z.string(), name: z.string() }).strict(),
   result: z.object({
     promptVersion: z.string(),
+    status: z.enum(["complete", "empty", "incomplete"]).optional(),
     items: z.array(z.union([mcqCandidateSchema, flashcardCandidateSchema])),
     skippedItems: z.array(z.union([skippedMCQSchema, skippedFlashcardSchema])),
     truncated: z.boolean(),
@@ -160,6 +161,7 @@ export function buildAIAdminResponse(
     lecture: { id: lecture.id, name: lecture.name },
     result: {
       promptVersion: result.promptVersion,
+      ...(result.status ? { status: result.status } : {}),
       items: projectedItems,
       skippedItems: result.skippedItems.map((item) => safeSkipped(item)),
       truncated: result.truncated,
