@@ -3,11 +3,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Activity,
   Droplets,
+  Layers,
   Palette,
   RotateCcw,
   Save,
-  Sparkles,
   X,
 } from "lucide-react";
 import { HapticFeedback } from "../../../core/device/haptic";
@@ -758,7 +759,7 @@ const My99Studio = memo(function My99Studio({
         aria-busy={hydration.phase === "loading"}
       >
         <div className="mb-3 flex items-start gap-2">
-          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <Layers className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
           <div>
             <h2
               id="my99-hero-heading"
@@ -844,7 +845,7 @@ const My99Studio = memo(function My99Studio({
         aria-busy={hydration.phase === "loading"}
       >
         <div className="mb-3 flex items-start gap-2">
-          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
+          <Activity className="mt-0.5 h-5 w-5 shrink-0 text-semantic-action-accent" aria-hidden="true" />
           <div>
             <h2
               id="my99-motion-heading"
