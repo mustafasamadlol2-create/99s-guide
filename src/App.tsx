@@ -5966,17 +5966,23 @@ const handleSignOut = useCallback(async () => {
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
 
-  const isDesktopWelcomeRoot =
+  // Desktop Welcome uses the same one-step sidebar geometry path as iPad for
+  // the entire Home navigation stack — not only the root hero. Subject views,
+  // nested discipline cards, lecture lists and lecture detail surfaces can be
+  // substantially more expensive to relayout than the Welcome hero, so
+  // animating width/flex-basis across many frames makes collapse/expand feel
+  // slow. Keep the compatibility CSS class below, but apply it to every Home
+  // descendant while the Welcome sidebar item remains active.
+  const isDesktopWelcomeStack =
     device.isDesktop &&
     !device.isIPadOS &&
-    activeTab === "home" &&
-    activeHomeSubjectId === null;
+    activeTab === "home";
 
   const handleSidebarCollapseToggle = () => {
-    if (isDesktopWelcomeRoot) {
-      // Match the proven iPad path exactly: change the sidebar geometry once
-      // instead of animating width/flex-basis across many layout frames. The
-      // hero therefore receives one resize, not a 190 ms stream of resizes.
+    if (isDesktopWelcomeStack) {
+      // Match the proven iPad path exactly: change sidebar geometry once.
+      // Nested Subject/Lecture/PDF surfaces therefore receive a single resize
+      // instead of a 190 ms stream of full-canvas relayouts.
       skipSidebarAnimatingOnceRef.current = true;
       setIsSidebarAnimating(false);
     }
@@ -5986,7 +5992,7 @@ const handleSignOut = useCallback(async () => {
 
   return (
     <div
-      className={`h-full max-h-full w-full max-w-full bg-semantic-background-page text-semantic-content-primary font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeRoot ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
+      className={`h-full max-h-full w-full max-w-full bg-semantic-background-page text-semantic-content-primary font-sans flex flex-col ${usePhoneLayout ? "mobile-phone-layout" : "flex-row"} justify-between selection:bg-med-blue/20 relative overflow-hidden${(device.isTablet || device.isIPadOS) ? " ipad-layout" : ""}${isDesktopWelcomeStack ? " desktop-welcome-ipad-sidebar-motion" : ""}${isSidebarAnimating ? " sidebar-animating" : ""}`}
       style={{
         fontSize: `${textScale}rem`,
         "--app-text-scale": textScale,
