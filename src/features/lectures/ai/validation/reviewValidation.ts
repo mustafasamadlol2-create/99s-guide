@@ -9,7 +9,8 @@ function normalized(value: string): string {
 }
 
 export function validateMCQCandidate(
-  candidate: Pick<AIMCQCandidate, "question" | "optionA" | "optionB" | "optionC" | "optionD" | "correctAnswer" | "category" | "difficulty">,
+  candidate: Pick<AIMCQCandidate, "question" | "optionA" | "optionB" | "optionC" | "optionD" | "correctAnswer" | "category" | "difficulty">
+    & Partial<Pick<AIMCQCandidate, "importReady" | "needsReview" | "warnings">>,
 ): LocalValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -25,16 +26,33 @@ export function validateMCQCandidate(
   if (new Set(normalizedOptions).size !== normalizedOptions.length) {
     errors.push("Options must not be duplicates.");
   }
-  return { ready: errors.length === 0, errors, warnings };
+  warnings.push(...(candidate.warnings ?? []));
+  return {
+    ready: errors.length === 0 &&
+      candidate.importReady !== false &&
+      candidate.needsReview !== true &&
+      warnings.length === 0,
+    errors,
+    warnings,
+  };
 }
 
 export function validateFlashcardCandidate(
-  candidate: Pick<AIFlashcardCandidate, "clinicalConcept" | "explanation">,
+  candidate: Pick<AIFlashcardCandidate, "clinicalConcept" | "explanation">
+    & Partial<Pick<AIFlashcardCandidate, "importReady" | "needsReview" | "warnings">>,
 ): LocalValidation {
   const errors: string[] = [];
   if (!candidate.clinicalConcept.trim()) errors.push("Clinical concept is required.");
   if (!candidate.explanation?.trim()) errors.push("Explanation is required.");
-  return { ready: errors.length === 0, errors, warnings: [] };
+  const warnings = [...(candidate.warnings ?? [])];
+  return {
+    ready: errors.length === 0 &&
+      candidate.importReady !== false &&
+      candidate.needsReview !== true &&
+      warnings.length === 0,
+    errors,
+    warnings,
+  };
 }
 
 export function isArabicText(value: string): boolean {

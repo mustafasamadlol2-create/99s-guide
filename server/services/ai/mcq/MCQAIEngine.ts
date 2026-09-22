@@ -5,6 +5,7 @@ import { AIServiceError } from "../errors.js";
 import type {
   AIMCQCandidate,
   MCQAIEngineInput,
+  MCQEnhancementInput,
   MCQEnhancementOptions,
   MCQGenerationOptions,
   MCQOperationResult,
@@ -423,29 +424,48 @@ export class MCQAIEngine {
     if (items.length < selected.count) {
       warnings.push(`Requested ${selected.count} questions but only ${items.length} source-grounded questions were generated.`);
     }
-    return baseResult("generate", items, [], warnings, provider, startedAt, selected.count);
+    if (!items.length) {
+      warnings.push("The source did not support a source-grounded MCQ result after bounded recovery.");
+    }
+    return baseResult(
+      "generate",
+      items,
+      [],
+      warnings,
+      provider,
+      startedAt,
+      selected.count,
+      false,
+      items.length ? "complete" : "incomplete",
+    );
   }
 
   async enhanceExistingMCQs(
-    input: PreparedAIInput,
+    input: PreparedAIInput | MCQEnhancementInput,
     options: MCQEnhancementOptions,
     signal?: AbortSignal,
   ): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     const selected = requiredEnhancementOptions(options);
-    const extraction = await this.extractExistingMCQs(input, signal, {
-      category: options.category ?? "AI_GENERATED",
-      difficulty: options.difficulty ?? "Medium",
-    });
-    const candidates = extraction.items.map((item) => ({ ...item }));
+    const source = "source" in input ? input.source : input;
+    const extraction = "source" in input
+      ? null
+      : await this.extractExistingMCQs(input, signal, {
+        category: options.category ?? "AI_GENERATED",
+        difficulty: options.difficulty ?? "Medium",
+      });
+    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) => ({
+      ...item,
+      warnings: [...item.warnings],
+    }));
     const eligible = candidates.filter((item) =>
       item.correctAnswer !== null &&
       ((!selected.hint && !selected.explanation) ||
         (selected.hint && item.hint === null) ||
         (selected.explanation && item.explanation === null)),
     );
-    let provider = extraction.provider;
-    const warnings = [...extraction.warnings];
+    let provider = extraction?.provider ?? { provider: "unknown", model: "unknown" };
+    const warnings = [...(extraction?.warnings ?? [])];
     if (eligible.length > 0) {
       const responses = await runResilientBatches({
         total: eligible.length,
@@ -454,7 +474,7 @@ export class MCQAIEngine {
         run: ({ start, count }) => {
           const batch = eligible.slice(start, start + count);
           return this.contentService.generateStructured({
-            contents: input.contents,
+            contents: source.contents,
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
             additionalUntrustedContext: enhancementContext(batch),
@@ -487,7 +507,7 @@ export class MCQAIEngine {
           batchSize: 20,
           signal,
           run: ({ start, count }) => this.contentService.generateStructured({
-            contents: input.contents,
+            contents: source.contents,
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: [
               buildMCQEnhanceInstruction(selected),
@@ -514,12 +534,12 @@ export class MCQAIEngine {
       return baseResult(
         "enhance",
         applyBatchDuplicateWarnings(merged),
-        extraction.skippedItems,
+        extraction?.skippedItems ?? [],
         warnings,
         provider,
         startedAt,
         undefined,
-        extraction.truncated,
+        extraction?.truncated ?? false,
       );
     }
     warnings.push("No extracted MCQs were eligible for the requested enhancement.");
@@ -534,12 +554,12 @@ export class MCQAIEngine {
           reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
         },
       ))),
-      extraction.skippedItems,
+      extraction?.skippedItems ?? [],
       warnings,
       provider,
       startedAt,
       undefined,
-      extraction.truncated,
+      extraction?.truncated ?? false,
     );
   }
 

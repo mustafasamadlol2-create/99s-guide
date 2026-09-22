@@ -17,6 +17,24 @@ export function hasNearIdenticalFrontBack(candidate: Pick<AIFlashcardCandidate, 
   return front.length > 0 && front === back;
 }
 
+function nearDuplicateFront(left: string, right: string): boolean {
+  const a = normalizeFlashcardForComparison(left);
+  const b = normalizeFlashcardForComparison(right);
+  if (a === b || a.length < 14 || b.length < 14) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aWords = new Set(a.split(/\W+/u).filter(Boolean));
+  const bWords = new Set(b.split(/\W+/u).filter(Boolean));
+  const intersection = [...aWords].filter((word) => bWords.has(word)).length;
+  return intersection / Math.max(aWords.size, bWords.size) >= 0.85;
+}
+
+function isLowQualityFront(value: string): boolean {
+  const normalized = normalizeFlashcardForComparison(value);
+  return /^(?:question|answer|front|back|concept|instructions?)$/iu.test(normalized) ||
+    /^(?:ignore|follow)\s+(?:previous|these)\s+instructions/iu.test(normalized) ||
+    /(?:\.\.\.|…)$/.test(value.trim());
+}
+
 export function applyFlashcardBatchDuplicateWarnings(items: AIFlashcardCandidate[]): AIFlashcardCandidate[] {
   const frontGroups = new Map<string, AIFlashcardCandidate[]>();
   const pairGroups = new Map<string, AIFlashcardCandidate[]>();
@@ -27,7 +45,7 @@ export function applyFlashcardBatchDuplicateWarnings(items: AIFlashcardCandidate
     pairGroups.set(pairKey, [...(pairGroups.get(pairKey) ?? []), item]);
   }
 
-  return items.map((item) => {
+  return items.map((item, index) => {
     const frontKey = normalizeFlashcardForComparison(item.clinicalConcept);
     const pairKey = `${frontKey}\u0000${normalizeFlashcardForComparison(item.explanation ?? "")}`;
     const warnings = [...item.warnings];
@@ -36,6 +54,13 @@ export function applyFlashcardBatchDuplicateWarnings(items: AIFlashcardCandidate
     }
     if (item.explanation && (pairGroups.get(pairKey)?.length ?? 0) > 1) {
       warnings.push("Flashcard front and back duplicate another item in this result batch.");
+    }
+    if (isLowQualityFront(item.clinicalConcept)) {
+      warnings.push("The Flashcard front is empty, truncated, or not a meaningful concept.");
+    }
+    if (items.some((other, otherIndex) =>
+      otherIndex !== index && nearDuplicateFront(item.clinicalConcept, other.clinicalConcept))) {
+      warnings.push("The Flashcard front is near-duplicate of another item in this result batch.");
     }
     return {
       ...item,

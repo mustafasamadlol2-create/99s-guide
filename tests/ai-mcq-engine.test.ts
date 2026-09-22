@@ -18,6 +18,7 @@ import {
   mcqGenerationProviderResponseSchema,
   type MCQOperationResult,
 } from "../server/services/ai/mcq/index.js";
+import { parseDeterministicMCQs } from "../server/services/ai/mcq/deterministicExtract.js";
 
 type ProviderResponse = Record<string, unknown>;
 
@@ -671,4 +672,98 @@ test("provider schemas remain operation-specific and strict", () => {
     items: [{ ...generatedItem(), correctAnswer: null }],
     uncertainties: [],
   }).success, false);
+});
+
+test("deterministic extraction supports label and answer variants without changing option text", () => {
+  const parsed = parseDeterministicMCQs([
+    "Q1: Which chamber pumps blood?",
+    "A) Right atrium",
+    "(B) Right ventricle",
+    "C. Left atrium",
+    "D - Left ventricle",
+    "Key: D",
+  ].join("\n"));
+  assert.ok(parsed);
+  assert.equal(parsed.items[0]?.question, "Which chamber pumps blood?");
+  assert.deepEqual(parsed.items[0]?.options, ["Right atrium", "Right ventricle", "Left atrium", "Left ventricle"]);
+  assert.equal(parsed.items[0]?.correctAnswer, "D");
+  assert.equal(parsed.items[0]?.source?.section, "Question 1");
+});
+
+test("deterministic extraction preserves ambiguous, missing, and numeric answers for review", () => {
+  const parsed = parseDeterministicMCQs([
+    "1. First question",
+    "1. Alpha",
+    "2. Beta",
+    "3. Gamma",
+    "4. Delta",
+    "Answer: A/B",
+    "2. Second question",
+    "A. Alpha",
+    "B. Beta",
+    "C. Gamma",
+    "D. Delta",
+  ].join("\n"));
+  assert.ok(parsed);
+  assert.equal(parsed.items.length, 2);
+  assert.equal(parsed.items[0]?.correctAnswer, null);
+  assert.ok(parsed.items[0]?.uncertainties.some((value) => /multiple|ambiguous/i.test(value)));
+  assert.equal(parsed.items[1]?.correctAnswer, null);
+});
+
+test("80 structured deterministic MCQs use the zero-provider fast path", async () => {
+  const text = Array.from({ length: 80 }, (_, index) => [
+    `Q${index + 1}: Which source-defined item is ${index + 1}?`,
+    "A. Alpha",
+    "B. Beta",
+    "C. Gamma",
+    "D. Delta",
+    "Correct: A",
+  ].join("\n")).join("\n");
+  const provider = new QueueProvider([]);
+  const result = await engineWith(provider).extractExistingMCQs(preparedText(text));
+  assert.equal(provider.calls.length, 0);
+  assert.equal(result.items.length, 80);
+  assert.equal(result.items[79]?.sourceOrdinal, 80);
+});
+
+test("direct MCQ enhancement preserves candidate identity, order, source, and immutable fields", async () => {
+  const candidateId = "00000000-0000-4000-8000-000000000001";
+  const candidate = {
+    candidateId,
+    question: "Original question",
+    optionA: "Alpha",
+    optionB: "Beta",
+    optionC: "Gamma",
+    optionD: "Delta",
+    correctAnswer: "A" as const,
+    hint: null,
+    explanation: "Original explanation",
+    difficulty: "Hard" as const,
+    category: "RESOURCE" as const,
+    provenance: "extracted" as const,
+    source: { inputType: "text" as const, section: "Original section", supportingExcerpt: "Original excerpt" },
+    confidence: 0.91,
+    importReady: true,
+    needsReview: false,
+    requiresHumanApproval: true as const,
+    warnings: [],
+  };
+  const provider = new QueueProvider([{
+    items: [{ candidateId, hint: "New hint", confidence: 0.94, uncertainties: [] }],
+    uncertainties: [],
+  }]);
+  const result = await engineWith(provider).enhanceExistingMCQs({
+    source: preparedText(),
+    candidates: [candidate],
+  }, { hint: true });
+  assert.equal(provider.calls.length, 1);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0]?.candidateId, candidateId);
+  assert.equal(result.items[0]?.question, candidate.question);
+  assert.equal(result.items[0]?.correctAnswer, "A");
+  assert.deepEqual(result.items[0]?.source, candidate.source);
+  assert.equal(result.items[0]?.category, "RESOURCE");
+  assert.equal(result.items[0]?.hint, "New hint");
+  assert.equal(result.items[0]?.explanation, candidate.explanation);
 });

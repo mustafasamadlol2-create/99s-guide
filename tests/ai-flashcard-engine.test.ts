@@ -17,6 +17,7 @@ import {
   flashcardExtractionProviderResponseSchema,
   flashcardGenerationProviderResponseSchema,
 } from "../server/services/ai/flashcard/index.js";
+import { parseDeterministicFlashcards } from "../server/services/ai/flashcard/deterministicExtract.js";
 
 type ProviderResponse = Record<string, unknown>;
 
@@ -556,4 +557,58 @@ test("provider schemas remain operation-specific and strict", () => {
     items: [{ ...generatedItem(), explanation: null }],
     uncertainties: [],
   }).success, false);
+});
+
+test("deterministic extraction keeps a recognizable front-only card reviewable", () => {
+  const parsed = parseDeterministicFlashcards("Front: Ventricular systole");
+  assert.ok(parsed);
+  assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.items[0]?.clinicalConcept, "Ventricular systole");
+  assert.equal(parsed.items[0]?.explanation, null);
+  assert.ok(parsed.items[0]?.uncertainties.some((value) => /front without/i.test(value)));
+});
+
+test("direct Flashcard enhancement preserves IDs, order, source, and existing explanations", async () => {
+  const first = {
+    candidateId: FIXED_ID,
+    clinicalConcept: "Original concept",
+    explanation: null,
+    provenance: "extracted" as const,
+    source: { inputType: "text" as const, section: "Original section", supportingExcerpt: "Original excerpt" },
+    confidence: 0.9,
+    importReady: false,
+    needsReview: true,
+    requiresHumanApproval: true as const,
+    warnings: ["The extracted Flashcard has no explicit explanation/back."],
+  };
+  const second = {
+    ...first,
+    candidateId: "00000000-0000-4000-8000-000000000002",
+    clinicalConcept: "Already complete",
+    explanation: "Do not rewrite this explanation.",
+    importReady: true,
+    needsReview: false,
+    warnings: [],
+  };
+  const provider = new QueueProvider([{
+    items: [{
+      candidateId: FIXED_ID,
+      explanation: "Recovered from the supplied source.",
+      confidence: 0.94,
+      uncertainties: [],
+    }],
+    uncertainties: [],
+  }]);
+  const prepared = preparedText();
+  const result = await engineWith(provider).enhanceExistingFlashcards({
+    source: prepared,
+    candidates: [first, second],
+  });
+  assert.equal(provider.calls.length, 1);
+  assert.deepEqual(result.items.map((item) => item.candidateId), [FIXED_ID, second.candidateId]);
+  assert.equal(result.items[0]?.explanation, "Recovered from the supplied source.");
+  assert.equal(result.items[1]?.explanation, second.explanation);
+  assert.deepEqual(result.items[0]?.source, first.source);
+  assert.equal(result.items[0]?.provenance, "enhanced");
+  assert.equal(result.items[1]?.provenance, "extracted");
 });

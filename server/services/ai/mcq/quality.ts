@@ -30,6 +30,25 @@ export function hasHintAnswerLeak(
   return normalizedOption.length >= 12 && normalizedHint.includes(normalizedOption);
 }
 
+export function isMeaninglessMCQQuestion(value: string): boolean {
+  const normalized = normalizeForComparison(value);
+  return normalized.length < 8 ||
+    /^(?:question|question\s*\d+|answer|options?|instructions?|select one)$/iu.test(normalized) ||
+    /^(?:ignore|follow)\s+(?:previous|these)\s+instructions/iu.test(normalized) ||
+    /(?:\.\.\.|…)$/.test(value.trim());
+}
+
+function nearDuplicateQuestion(left: string, right: string): boolean {
+  const a = normalizeForComparison(left);
+  const b = normalizeForComparison(right);
+  if (a === b || a.length < 18 || b.length < 18) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aWords = new Set(a.split(/\W+/u).filter(Boolean));
+  const bWords = new Set(b.split(/\W+/u).filter(Boolean));
+  const intersection = [...aWords].filter((word) => bWords.has(word)).length;
+  return intersection / Math.max(aWords.size, bWords.size) >= 0.85;
+}
+
 export function applyBatchDuplicateWarnings(items: AIMCQCandidate[]): AIMCQCandidate[] {
   const groups = new Map<string, AIMCQCandidate[]>();
   for (const item of items) {
@@ -38,13 +57,21 @@ export function applyBatchDuplicateWarnings(items: AIMCQCandidate[]): AIMCQCandi
     group.push(item);
     groups.set(key, group);
   }
-  return items.map((item) => {
+  return items.map((item, index) => {
     const duplicate = (groups.get(normalizeForComparison(item.question))?.length ?? 0) > 1;
-    if (!duplicate) return item;
+    const nearDuplicate = items.some((other, otherIndex) =>
+      otherIndex !== index && nearDuplicateQuestion(item.question, other.question));
+    const warnings = [...item.warnings];
+    if (isMeaninglessMCQQuestion(item.question)) warnings.push("The question stem is empty, truncated, or not a meaningful question.");
+    if (nearDuplicate) warnings.push("The question is near-duplicate of another item in this result batch.");
+    if (!duplicate && !nearDuplicate && !isMeaninglessMCQQuestion(item.question)) return item;
     return {
       ...item,
       needsReview: true,
-      warnings: [...new Set([...item.warnings, "Question duplicates another item in this result batch."])],
+      warnings: [...new Set([
+        ...warnings,
+        ...(duplicate ? ["Question duplicates another item in this result batch."] : []),
+      ])],
     };
   });
 }

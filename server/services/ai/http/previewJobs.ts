@@ -160,7 +160,7 @@ export class AIPreviewJobManager {
   private async run(record: JobRecord, args: CreateAIPreviewJobArgs): Promise<void> {
     if (record.state !== "queued") return;
     record.state = "running";
-    record.progress = { ...record.progress, stage: args.operation === "extract" ? "extracting" : args.operation === "generate" ? "generating" : "enhancing" };
+    record.progress = { ...record.progress, stage: "preparing" };
     const engines = args.engineFactory((details) => {
       if (record.state !== "running") return;
       record.progress = {
@@ -188,18 +188,21 @@ export class AIPreviewJobManager {
           diagnosticMessage: "Cancelled before engine execution.",
         });
         record.progress = { ...record.progress, stage: "reading" };
-        return args.dispatch(engines, {
+        const result = await args.dispatch(engines, {
           target: args.target,
           operation: args.operation,
           options: args.options,
         }, prepared, record.controller.signal);
+        record.progress = { ...record.progress, stage: "validating" };
+        return result;
       });
       if (record.state !== "running" || record.controller.signal.aborted) return;
+      const completedBatches = record.progress.completedBatches;
       this.finish(record, "succeeded", args.buildResponse(args.requestId, args.target, args.lecture, args.inputKind, result), undefined, {
         stage: "ready",
-        completedBatches: result.items.length ? 1 : 0,
-        totalBatches: 1,
-        itemsRecovered: result.items.length,
+        completedBatches,
+        ...(completedBatches > 0 ? { totalBatches: completedBatches } : {}),
+        itemsRecovered: record.progress.itemsRecovered,
       });
     } catch (error) {
       if (record.state !== "running") return;

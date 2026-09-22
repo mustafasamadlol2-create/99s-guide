@@ -12,7 +12,7 @@ import {
   Undo2,
 } from "lucide-react";
 import type { Language } from "../../../../core/i18n/translations";
-import { aiText } from "../i18n";
+import { aiText, localizeAIError, localizeAIWarning } from "../i18n";
 import { requestAIImportCheck, requestAIImportCommit, type AIImportCandidate } from "../api/importApi";
 import {
   validateFlashcardCandidate,
@@ -27,7 +27,22 @@ import type {
 } from "../types/aiPreview";
 import { MCQ_CATEGORIES, MCQ_CATEGORY_LABELS } from "../../../../../shared/mcqMetadata";
 
-type Filter = "all" | "ready" | "review" | "selected";
+type Filter = "all" | "ready" | "review" | "selected" | "imported";
+
+const MCQ_EDITABLE_FIELDS = [
+  "question",
+  "optionA",
+  "optionB",
+  "optionC",
+  "optionD",
+  "correctAnswer",
+  "hint",
+  "explanation",
+  "difficulty",
+  "category",
+] as const;
+
+const FLASHCARD_EDITABLE_FIELDS = ["clinicalConcept", "explanation"] as const;
 
 function localMCQ(candidate: AIMCQCandidate): LocalMCQCandidate {
   const original = { ...candidate, warnings: [...candidate.warnings] };
@@ -36,6 +51,7 @@ function localMCQ(candidate: AIMCQCandidate): LocalMCQCandidate {
     draft: { ...original, warnings: [...original.warnings] },
     selected: false,
     edited: false,
+    editedFields: [],
     localValidation: validateMCQCandidate(original),
   };
 }
@@ -47,11 +63,13 @@ function localFlashcard(candidate: AIFlashcardCandidate): LocalFlashcardCandidat
     draft: { ...original, warnings: [...original.warnings] },
     selected: false,
     edited: false,
+    editedFields: [],
     localValidation: validateFlashcardCandidate(original),
   };
 }
 
-function provenanceLabel(language: Language, value: string): string {
+function provenanceLabel(language: Language, value: string, edited: boolean): string {
+  if (edited) return aiText(language, "humanEdited");
   if (value === "extracted") return aiText(language, "extracted");
   if (value === "generated") return aiText(language, "generatedLabel");
   return aiText(language, "enhanced");
@@ -109,15 +127,17 @@ function CandidateMeta({
   language,
   candidate,
   validation,
+  edited,
 }: {
   language: Language;
   candidate: AIMCQCandidate | AIFlashcardCandidate;
   validation: { ready: boolean; errors: string[] };
+  edited: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px]">
       <span className="rounded-full bg-neutral-100 px-2 py-1 font-semibold text-neutral-600 dark:bg-white/[0.08] dark:text-neutral-300">
-        {provenanceLabel(language, candidate.provenance)}
+        {provenanceLabel(language, candidate.provenance, edited)}
       </span>
       <span className="rounded-full bg-sky-50 px-2 py-1 font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
         {aiText(language, "confidence")}: {Math.round(candidate.confidence * 100)}%
@@ -150,8 +170,8 @@ function WarningBlock({
         {aiText(language, "warnings")} ({warnings.length + errors.length})
       </summary>
       <ul className="mt-2 space-y-1 ps-6 text-amber-800 dark:text-amber-200">
-        {errors.map((warning) => <li key={`local-${warning}`}>{warning}</li>)}
-        {warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+        {errors.map((warning) => <li key={`local-${warning}`}>{localizeAIWarning(language, warning)}</li>)}
+        {[...new Set(warnings.map((warning) => localizeAIWarning(language, warning)))].map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
       </ul>
     </details>
   );
@@ -345,8 +365,17 @@ export function AIReviewStudio({
 
   const candidates = target === "mcq" ? mcqs : flashcards;
   const selectedCount = candidates.filter((item) => item.selected && !item.importStatus).length;
-  const readyCount = candidates.filter((item) => item.localValidation.ready).length;
-  const reviewCount = candidates.length - readyCount;
+  const importedCount = candidates.filter((item) => item.importStatus === "imported").length;
+  const readyCount = candidates.filter((item) => !item.importStatus && item.localValidation.ready).length;
+  const reviewCount = candidates.filter((item) => !item.importStatus && !item.localValidation.ready).length;
+
+  const editedFieldsFor = (
+    original: AIMCQCandidate | AIFlashcardCandidate,
+    draft: AIMCQCandidate | AIFlashcardCandidate,
+  ): string[] => {
+    const fields = "question" in original ? MCQ_EDITABLE_FIELDS : FLASHCARD_EDITABLE_FIELDS;
+    return fields.filter((field) => original[field] !== draft[field]);
+  };
 
   const filteredCandidates = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
@@ -355,12 +384,18 @@ export function AIReviewStudio({
       const searchable = target === "mcq"
         ? (draft as AIMCQCandidate).question
         : (draft as AIFlashcardCandidate).clinicalConcept;
-      const matchesSearch = !term || searchable.toLocaleLowerCase().includes(term);
+      const sourceOrdinal = target === "mcq"
+        ? String((draft as AIMCQCandidate).sourceOrdinal ?? "")
+        : "";
+      const matchesSearch = !term ||
+        searchable.toLocaleLowerCase().includes(term) ||
+        sourceOrdinal.includes(term);
       const matchesFilter =
         filter === "all" ||
-        (filter === "ready" && item.localValidation.ready) ||
-        (filter === "review" && !item.localValidation.ready) ||
-        (filter === "selected" && item.selected);
+        (filter === "ready" && !item.importStatus && item.localValidation.ready) ||
+        (filter === "review" && !item.importStatus && !item.localValidation.ready) ||
+        (filter === "selected" && item.selected && !item.importStatus) ||
+        (filter === "imported" && item.importStatus === "imported");
       return matchesSearch && matchesFilter;
     });
   }, [candidates, filter, search, target]);
@@ -375,9 +410,10 @@ export function AIReviewStudio({
         return {
           ...item,
           draft,
-          edited: JSON.stringify(draft) !== JSON.stringify(item.original),
+          editedFields: editedFieldsFor(item.original, draft),
+          edited: editedFieldsFor(item.original, draft).length > 0,
           localValidation: validateMCQCandidate(draft),
-          selected: item.selected && validateMCQCandidate(draft).ready,
+          selected: item.selected && validateMCQCandidate(draft).ready && !item.importStatus,
         };
       }));
     } else {
@@ -387,9 +423,10 @@ export function AIReviewStudio({
         return {
           ...item,
           draft,
-          edited: JSON.stringify(draft) !== JSON.stringify(item.original),
+          editedFields: editedFieldsFor(item.original, draft),
+          edited: editedFieldsFor(item.original, draft).length > 0,
           localValidation: validateFlashcardCandidate(draft),
-          selected: item.selected && validateFlashcardCandidate(draft).ready,
+          selected: item.selected && validateFlashcardCandidate(draft).ready && !item.importStatus,
         };
       }));
     }
@@ -410,8 +447,8 @@ export function AIReviewStudio({
 
   const selectAllReady = () => {
     if (importBusy || importCheck) return;
-    if (target === "mcq") setMcqs((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready && !item.importStatus })));
-    else setFlashcards((items) => items.map((item) => ({ ...item, selected: item.localValidation.ready && !item.importStatus })));
+      if (target === "mcq") setMcqs((items) => items.map((item) => ({ ...item, selected: !item.importStatus && item.localValidation.ready })));
+      else setFlashcards((items) => items.map((item) => ({ ...item, selected: !item.importStatus && item.localValidation.ready })));
   };
 
   const clearSelection = () => {
@@ -517,7 +554,7 @@ export function AIReviewStudio({
       setImportPayload(payload);
       setImportCheck(checked);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Import check failed.");
+      setImportError(localizeAIError(language, error));
     } finally {
       setImportBusy(null);
     }
@@ -552,21 +589,22 @@ export function AIReviewStudio({
       setImportCheck(null);
       setImportPayload(null);
     } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Import failed. No review items were changed.");
+      setImportError(localizeAIError(language, error));
     } finally {
       setImportBusy(null);
     }
   };
 
-  const filterLabels: Array<[Filter, string]> = [
-    ["all", aiText(language, "all")],
-    ["ready", aiText(language, "ready")],
-    ["review", aiText(language, "needsReview")],
-    ["selected", aiText(language, "selected")],
+  const filterLabels: Array<[Filter, string, number]> = [
+    ["all", aiText(language, "all"), candidates.length],
+    ["ready", aiText(language, "ready"), readyCount],
+    ["review", aiText(language, "needsReview"), reviewCount],
+    ["selected", aiText(language, "selected"), selectedCount],
+    ["imported", aiText(language, "imported"), importedCount],
   ];
 
   return (
-    <section className="space-y-4" aria-label={aiText(language, "results")}>
+    <section className="space-y-4" dir={language === "ar" ? "rtl" : "ltr"} aria-label={aiText(language, "results")}>
       <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/75 p-4 dark:border-emerald-400/20 dark:bg-emerald-400/[0.07] sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
@@ -607,16 +645,17 @@ export function AIReviewStudio({
         <details className="rounded-lg border border-amber-200/70 bg-amber-50/60 p-3 text-sm dark:border-amber-400/20 dark:bg-amber-400/[0.05]">
           <summary className="cursor-pointer font-semibold text-amber-800 dark:text-amber-200">{aiText(language, "warnings")} ({response.result.warnings.length})</summary>
           <ul className="mt-2 list-disc space-y-1 ps-5 text-amber-800 dark:text-amber-200">
-            {response.result.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+          {[...new Set(response.result.warnings.map((warning) => localizeAIWarning(language, warning)))].map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
           </ul>
         </details>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
         {[
           [aiText(language, "generated"), response.result.counts.returnedCount],
-          [aiText(language, "ready"), readyCount],
-          [aiText(language, "needsReview"), reviewCount],
+            [aiText(language, "ready"), readyCount],
+            [aiText(language, "needsReview"), reviewCount],
+            [aiText(language, "importedCount"), importedCount],
           [aiText(language, "skipped"), response.result.counts.skippedCount],
           [aiText(language, "selected"), selectedCount],
         ].map(([label, count]) => (
@@ -630,15 +669,15 @@ export function AIReviewStudio({
       <div className="rounded-xl border border-neutral-200/80 bg-white p-3 dark:border-white/[0.08] dark:bg-[#1C1C1E]/70 sm:p-4">
         <div className="flex flex-col gap-3 border-b border-neutral-200/70 pb-3 dark:border-white/[0.08] lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-1.5">
-            {filterLabels.map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${filter === value ? "bg-rose-500 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-white/[0.08] dark:text-neutral-300 dark:hover:bg-white/[0.12]"}`}>
-                {label}
+            {filterLabels.map(([value, label, count]) => (
+              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${filter === value ? "bg-rose-500 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-white/[0.08] dark:text-neutral-300 dark:hover:bg-white/[0.12]"}`}>
+                {label} ({count})
               </button>
             ))}
           </div>
           <label className="relative block min-w-48 flex-1 lg:max-w-xs">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={aiText(language, "search")} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2 ps-9 pe-3 text-sm outline-none focus:border-rose-400 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-white" />
+            <input aria-label={aiText(language, "search")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={aiText(language, "search")} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 py-2 ps-9 pe-3 text-sm outline-none focus:border-rose-400 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-white" />
           </label>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200/70 py-3 dark:border-white/[0.08]">
@@ -672,27 +711,33 @@ export function AIReviewStudio({
                 </div>
               );
             })}
-            {!filteredCandidates.length && <p className="rounded-lg bg-neutral-50 p-4 text-center text-sm text-neutral-500 dark:bg-white/[0.03] dark:text-neutral-400">{aiText(language, "noCandidates")}</p>}
+             {!filteredCandidates.length && (
+               <p role="status" className="rounded-lg bg-neutral-50 p-4 text-center text-sm text-neutral-500 dark:bg-white/[0.03] dark:text-neutral-400">
+                 {candidates.length === 0
+                   ? response.result.status === "incomplete" ? aiText(language, "incompleteEmpty") : aiText(language, "trueEmpty")
+                   : aiText(language, "filteredEmpty")}
+               </p>
+             )}
           </div>
 
           <div className="min-w-0">
             {active ? (
               <div className="space-y-4 rounded-lg border border-neutral-200/80 p-3 sm:p-4 dark:border-white/[0.08]">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-2">
+                 <div className="flex flex-wrap items-start justify-between gap-3">
+                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{active.draft.candidateId.slice(0, 8)}</span>
                       {active.edited && <span className="rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">{aiText(language, "edited")}</span>}
                       {active.importStatus && <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${active.importStatus === "imported" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"}`}>{active.importStatus === "imported" ? importLabel("imported") : active.importStatus === "exact_duplicate" ? importLabel("exact") : importLabel("possible")}</span>}
                     </div>
-                    <CandidateMeta language={language} candidate={active.draft} validation={active.localValidation} />
+                     <CandidateMeta language={language} candidate={active.draft} validation={active.localValidation} edited={active.edited} />
                   </div>
                   <div className="flex gap-1">
                     {active.edited && <button type="button" onClick={resetCandidate} title={aiText(language, "reset")} aria-label={aiText(language, "reset")} className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/[0.08]"><RotateCcw className="h-4 w-4" /></button>}
                     {!active.importStatus && <button type="button" onClick={() => removeCandidate(active.draft.candidateId)} title={aiText(language, "reject")} aria-label={aiText(language, "reject")} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-400/10"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 </div>
-                <WarningBlock language={language} warnings={active.draft.warnings} errors={active.localValidation.errors} />
+                 <WarningBlock language={language} warnings={active.draft.warnings} errors={active.localValidation.errors} />
                 {target === "mcq"
                   ? <MCQEditor language={language} item={active as LocalMCQCandidate} onChange={updateCandidate} />
                   : <FlashcardEditor language={language} item={active as LocalFlashcardCandidate} onChange={updateCandidate} />}
@@ -700,7 +745,9 @@ export function AIReviewStudio({
               </div>
             ) : (
               <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-500 dark:border-white/[0.1] dark:text-neutral-400">
-                {aiText(language, "noCandidates")}
+                 {response.result.status === "incomplete"
+                   ? aiText(language, "incompleteEmpty")
+                   : aiText(language, "trueEmpty")}
               </div>
             )}
           </div>
@@ -715,7 +762,7 @@ export function AIReviewStudio({
           <div className="mt-3 space-y-2">
             {response.result.skippedItems.map((item, index) => (
               <div key={`${item.reason}-${index}`} className="rounded-lg bg-neutral-50 p-3 text-xs text-neutral-600 dark:bg-white/[0.04] dark:text-neutral-300">
-                <span className="font-semibold">{item.reason}</span>{item.summary ? ` — ${item.summary}` : ""}
+                 <span className="font-semibold">{localizeAIWarning(language, item.reason)}</span>{item.summary ? ` — ${localizeAIWarning(language, item.summary)}` : ""}
                 {item.source && <span className="ms-2 text-neutral-500">({item.source.inputType}{item.source.page ? `, ${aiText(language, "page")} ${item.source.page}` : ""})</span>}
               </div>
             ))}

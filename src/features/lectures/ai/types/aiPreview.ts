@@ -167,6 +167,7 @@ export interface LocalMCQCandidate {
   draft: AIMCQCandidate;
   selected: boolean;
   edited: boolean;
+  editedFields: string[];
   localValidation: LocalValidation;
   importStatus?: "imported" | "exact_duplicate" | "possible_duplicate";
 }
@@ -176,6 +177,7 @@ export interface LocalFlashcardCandidate {
   draft: AIFlashcardCandidate;
   selected: boolean;
   edited: boolean;
+  editedFields: string[];
   localValidation: LocalValidation;
   importStatus?: "imported" | "exact_duplicate" | "possible_duplicate";
 }

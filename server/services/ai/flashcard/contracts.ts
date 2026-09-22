@@ -67,3 +67,8 @@ export interface FlashcardGenerationOptions {
 export interface FlashcardEnhancementOptions {
   explanation?: true;
 }
+
+export interface FlashcardEnhancementInput {
+  source: import("../input/contracts.js").PreparedAIInput;
+  candidates: AIFlashcardCandidate[];
+}

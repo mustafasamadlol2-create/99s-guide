@@ -4,8 +4,9 @@ const frontMarker = /^\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]\s*(.+)$/
 const backMarker = /^\s*(?:a(?:nswer)?|back|definition|explanation)\s*[:：-]\s*(.+)$/iu;
 
 /**
- * Conservative Q/A parser. It returns null for mixed or incomplete prose so
- * ordinary lecture text still uses the vision/document AI route.
+ * Conservative Q/A parser. A recognizable front is still reviewable when the
+ * source has no explicit back; extraction must not turn that case into
+ * generation or silently discard the source item.
  */
 export function parseDeterministicFlashcards(
   text: string,
@@ -38,14 +39,18 @@ export function parseDeterministicFlashcards(
     else return null;
   }
   if (current) cards.push(current);
-  if (cards.length < 2 || cards.some((card) => !card.front || !card.back || card.front === card.back)) return null;
+  if (cards.length === 0 || cards.some((card) => !card.front || card.front === card.back)) return null;
   return {
     items: cards.slice(0, maxItems).map((card) => ({
       clinicalConcept: card.front,
-      explanation: card.back,
-      source: { inputType: "text" as const, supportingExcerpt: `${card.front}\n${card.back}`.slice(0, 300) },
-      confidence: 1,
-      uncertainties: [],
+      explanation: card.back || null,
+      source: {
+        inputType: "text" as const,
+        section: `Flashcard ${cards.indexOf(card) + 1}`,
+        supportingExcerpt: `${card.front}\n${card.back}`.slice(0, 300),
+      },
+      confidence: card.back ? 1 : 0.8,
+      uncertainties: card.back ? [] : ["The source provided a front without an explicit back."],
     })),
     skippedItems: [],
     truncated: cards.length > maxItems,

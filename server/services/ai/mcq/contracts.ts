@@ -93,6 +93,11 @@ export interface MCQEnhancementOptions {
   difficulty?: MCQDifficulty;
 }
 
+export interface MCQEnhancementInput {
+  source: import("../input/contracts.js").PreparedAIInput;
+  candidates: AIMCQCandidate[];
+}
+
 export interface MCQAIEngineInput {
   contents: import("../input/contracts.js").AIContentPart[];
   inputKind: AIInputKind;

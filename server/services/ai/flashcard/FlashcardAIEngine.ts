@@ -6,6 +6,7 @@ import { AIServiceError } from "../errors.js";
 import type {
   AIFlashcardCandidate,
   FlashcardEnhancementOptions,
+  FlashcardEnhancementInput,
   FlashcardGenerationOptions,
   FlashcardOperationResult,
   SkippedFlashcardSourceItem,
@@ -306,20 +307,37 @@ export class FlashcardAIEngine {
     if (items.length < selected.count) {
       warnings.push(`Requested ${selected.count} Flashcards but only ${items.length} source-grounded Flashcards were generated.`);
     }
-    return baseResult("generate", items, [], warnings, responses[0]?.meta ?? { provider: "unknown", model: "unknown" }, startedAt, selected.count);
+    if (!items.length) {
+      warnings.push("The source did not support a source-grounded Flashcard result after bounded recovery.");
+    }
+    return baseResult(
+      "generate",
+      items,
+      [],
+      warnings,
+      responses[0]?.meta ?? { provider: "unknown", model: "unknown" },
+      startedAt,
+      selected.count,
+      false,
+      items.length ? "complete" : "incomplete",
+    );
   }
 
   async enhanceExistingFlashcards(
-    input: PreparedAIInput,
+    input: PreparedAIInput | FlashcardEnhancementInput,
     options?: FlashcardEnhancementOptions,
     signal?: AbortSignal,
   ): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
     requiredEnhancementOptions(options);
-    const extraction = await this.extractExistingFlashcards(input, signal);
-    const candidates = extraction.items.map((item) => ({ ...item }));
+    const source = "source" in input ? input.source : input;
+    const extraction = "source" in input ? null : await this.extractExistingFlashcards(input, signal);
+    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) => ({
+      ...item,
+      warnings: [...item.warnings],
+    }));
     const eligible = candidates.filter((item) => item.clinicalConcept.trim() && item.explanation === null);
-    const warnings = [...extraction.warnings];
+    const warnings = [...(extraction?.warnings ?? [])];
 
     if (eligible.length === 0) {
       warnings.push("No extracted Flashcards were eligible for explanation enhancement.");
@@ -329,12 +347,12 @@ export class FlashcardAIEngine {
           { ...candidate },
           { requireExplanation: true, reviewConfidenceThreshold: this.config.reviewConfidenceThreshold },
         ))),
-        extraction.skippedItems,
+        extraction?.skippedItems ?? [],
         warnings,
-        extraction.provider,
+        extraction?.provider ?? { provider: "unknown", model: "unknown" },
         startedAt,
         undefined,
-        extraction.truncated,
+        extraction?.truncated ?? false,
       );
     }
 
@@ -343,7 +361,7 @@ export class FlashcardAIEngine {
       batchSize: 20,
       signal,
       run: ({ start, count }) => this.contentService.generateStructured({
-        contents: input.contents,
+        contents: source.contents,
         responseSchema: flashcardEnhancementProviderResponseSchema,
         trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
         additionalUntrustedContext: enhancementContext(eligible.slice(start, start + count)),
@@ -368,7 +386,7 @@ export class FlashcardAIEngine {
         batchSize: 20,
         signal,
         run: ({ start, count }) => this.contentService.generateStructured({
-          contents: input.contents,
+          contents: source.contents,
           responseSchema: flashcardEnhancementProviderResponseSchema,
           trustedSystemInstruction: [
             buildFlashcardEnhanceInstruction(),
@@ -392,16 +410,16 @@ export class FlashcardAIEngine {
     if (hasUnknownCandidateId) {
       warnings.push("Enhancement response contained an unknown candidate ID.");
     }
-    const merged = this.mergeEnhancements(candidates, eligible, response, input);
+    const merged = this.mergeEnhancements(candidates, eligible, response, source);
     return baseResult(
       "enhance",
       applyFlashcardBatchDuplicateWarnings(merged),
-      extraction.skippedItems,
+      extraction?.skippedItems ?? [],
       warnings.concat(response.uncertainties.map((value) => `Model uncertainty: ${value}`)),
-      responses[0]?.meta ?? extraction.provider,
+      responses[0]?.meta ?? extraction?.provider ?? { provider: "unknown", model: "unknown" },
       startedAt,
       undefined,
-      extraction.truncated,
+      extraction?.truncated ?? false,
     );
   }
 
@@ -417,7 +435,7 @@ export class FlashcardAIEngine {
       const stage2 = responseById.get(candidate.candidateId);
       const candidateWarnings = [...candidate.warnings];
       let explanation = candidate.explanation;
-      let source = candidate.source;
+      const source = candidate.source;
       let confidence = candidate.confidence;
 
       if (eligibleIds.has(candidate.candidateId)) {
@@ -429,7 +447,6 @@ export class FlashcardAIEngine {
           candidateWarnings.push(...stage2.uncertainties.map((value) => `Model uncertainty: ${value}`));
           if (stage2.source !== undefined) {
             const validatedSource = validateFlashcardSourceEvidence(stage2.source, input);
-            source = validatedSource.source;
             candidateWarnings.push(...validatedSource.warnings);
           }
           if (stage2.confidence < this.config.reviewConfidenceThreshold) {
