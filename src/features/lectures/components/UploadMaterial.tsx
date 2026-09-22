@@ -4,6 +4,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffe
 import { useTreeSelection } from "../../../core/hooks/useTreeSelection";
 import { SubjectId } from "../../../core/types";
 import {
+  uploadLargeResourcePdf,
+  type ResourceMultipartProgress,
+  type ResourceMultipartStage,
+} from "../api/resourceMultipartUpload";
+import {
+  MAX_RESOURCE_PDF_BYTES,
+  SMALL_RESOURCE_UPLOAD_LIMIT_BYTES,
+} from "../../../../shared/resourceMultipart";
+import {
  FileText,
  Video,
  Upload,
@@ -78,7 +87,7 @@ export default function UploadMaterial({
  const [title, setTitle] = useState("");
  const [videoUrl, setVideoUrl] = useState("");
  const [file, setFile] = useState<File | null>(null);
- const MAX_PDF_FILE_BYTES = 50 * 1024 * 1024;
+  const MAX_PDF_FILE_BYTES = MAX_RESOURCE_PDF_BYTES;
   const MAX_NOTE_FILES = 10;
   const [noteQueue, setNoteQueue] = useState<NoteUploadItem[]>([]);
   const [existingNotes, setExistingNotes] = useState<any[]>([]);
@@ -91,6 +100,9 @@ export default function UploadMaterial({
  type: "success" | "error";
  message: string;
  } | null>(null);
+  const [largeUploadStage, setLargeUploadStage] = useState<ResourceMultipartStage | null>(null);
+  const [largeUploadProgress, setLargeUploadProgress] = useState<ResourceMultipartProgress | null>(null);
+  const largeUploadAbortRef = useRef<AbortController | null>(null);
 
  const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +110,8 @@ export default function UploadMaterial({
  useEffect(() => {
  setType(initialType);
  setFeedback(null);
+  setLargeUploadStage(null);
+  setLargeUploadProgress(null);
   setNoteQueue([]);
   setExistingNotes([]);
  }, [initialType]);
@@ -186,7 +200,7 @@ export default function UploadMaterial({
     if (candidate.type !== "application/pdf") {
       return isRtl ? "عذراً! يُسمح برفع ملفات PDF فقط." : "Only PDF files are supported.";
     }
-    if (candidate.size > MAX_PDF_FILE_BYTES) {
+    if (candidate.size > SMALL_RESOURCE_UPLOAD_LIMIT_BYTES) {
       return isRtl
         ? "حجم ملف PDF يجب ألا يتجاوز 50 ميغابايت."
         : "PDF files must be 50 MB or smaller.";
@@ -236,13 +250,13 @@ export default function UploadMaterial({
   }
   const droppedFile = e.dataTransfer.files[0];
  if (droppedFile.type === "application/pdf") {
- if (droppedFile.size > MAX_PDF_FILE_BYTES) {
+  if (droppedFile.size > MAX_PDF_FILE_BYTES) {
  setFile(null);
  setFeedback({
  type: "error",
  message: isRtl
- ? "حجم ملف PDF يجب ألا يتجاوز 50 ميغابايت."
- : "PDF files must be 50 MB or smaller.",
+  ? "حجم ملف PDF يجب ألا يتجاوز 5 غيغابايت."
+  : "PDF files must be 5 GiB or smaller.",
  });
  return;
  }
@@ -284,8 +298,8 @@ export default function UploadMaterial({
  setFeedback({
  type: "error",
  message: isRtl
- ? "حجم ملف PDF يجب ألا يتجاوز 50 ميغابايت."
- : "PDF files must be 50 MB or smaller.",
+  ? "حجم ملف PDF يجب ألا يتجاوز 5 غيغابايت."
+  : "PDF files must be 5 GiB or smaller.",
  });
  e.target.value = "";
  return;
@@ -483,7 +497,12 @@ export default function UploadMaterial({
  setVideoUrl("");
  onSuccess?.();
  } catch (err: any) {
- setFeedback({ type: "error", message: err.message });
+  setFeedback({
+    type: "error",
+    message: err?.name === "AbortError"
+      ? (isRtl ? "تم إلغاء الرفع الكبير." : "Large upload cancelled.")
+      : err.message,
+  });
  } finally {
  setIsSubmitting(false);
  }
@@ -501,8 +520,33 @@ export default function UploadMaterial({
 
  setIsSubmitting(true);
  setFeedback(null);
+  setLargeUploadStage(null);
+  setLargeUploadProgress(null);
 
  try {
+  if (type === "PDF" && file.size > SMALL_RESOURCE_UPLOAD_LIMIT_BYTES) {
+  const controller = new AbortController();
+  largeUploadAbortRef.current = controller;
+  await uploadLargeResourcePdf({
+  lectureId: selectedLectureId,
+  title: title.trim(),
+  file,
+  signal: controller.signal,
+  onStage: setLargeUploadStage,
+  onProgress: setLargeUploadProgress,
+  });
+  setFeedback({
+  type: "success",
+  message: isRtl
+  ? "🎉 تم رفع ملف PDF الكبير والتحقق منه وربطه بالمحاضرة بنجاح!"
+  : "🎉 Large Resource PDF uploaded, validated, and assigned successfully!",
+  });
+  setTitle("");
+  setFile(null);
+  if (fileInputRef.current) fileInputRef.current.value = "";
+  onSuccess?.();
+  return;
+  }
  const formData = new FormData();
  formData.append("file", file);
  formData.append("title", title.trim());
@@ -550,6 +594,9 @@ export default function UploadMaterial({
  } catch (err: any) {
  setFeedback({ type: "error", message: err.message });
  } finally {
+       largeUploadAbortRef.current = null;
+       setLargeUploadStage(null);
+       setLargeUploadProgress(null);
  setIsSubmitting(false);
  }
   }
@@ -1108,9 +1155,39 @@ export default function UploadMaterial({
  <p className="text-xs text-neutral-500 dark:text-[#EBEBF599] mt-1 uppercase font-mono">
  {file
  ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-  : "PDF format only, up to 50MB"}
+   : "PDF format only, up to 5 GiB"}
  </p>
  </div>
+  {largeUploadProgress && largeUploadStage && (
+  <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-4 space-y-3">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-caption font-semibold text-neutral-800 dark:text-white">
+          {largeUploadStage === "finalizing"
+            ? (isRtl ? "جارٍ التحقق والحفظ..." : "Finalizing and validating PDF...")
+            : (isRtl ? "جارٍ رفع ملف PDF الكبير..." : "Uploading large PDF...")}
+        </p>
+        <p className="text-xs text-neutral-500 dark:text-[#EBEBF599]">
+          {`${(largeUploadProgress.uploadedBytes / (1024 * 1024)).toFixed(1)} MB / ${(largeUploadProgress.totalBytes / (1024 * 1024)).toFixed(1)} MB · ${largeUploadProgress.completedParts}/${largeUploadProgress.totalParts} parts`}
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={!isSubmitting}
+        onClick={() => largeUploadAbortRef.current?.abort()}
+        className="shrink-0 rounded-lg border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 disabled:opacity-50"
+      >
+        {isRtl ? "إلغاء" : "Cancel"}
+      </button>
+    </div>
+    <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-white/[0.12]">
+      <div
+        className="h-full rounded-full bg-rose-500 transition-[width]"
+        style={{ width: `${Math.min(100, (largeUploadProgress.uploadedBytes / largeUploadProgress.totalBytes) * 100)}%` }}
+      />
+    </div>
+  </div>
+  )}
  </div>
  )}
  </>

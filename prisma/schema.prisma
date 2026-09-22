@@ -56,6 +56,7 @@ model User {
   oauthIdentities           OAuthIdentity[]          @relation
   qaVotes                   QaVote[]
   calendarImportJobs        CalendarImportJob[]
+  resourceMultipartUploads ResourceMultipartUpload[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -78,6 +79,7 @@ model Lecture {
   lectureProgresses LectureProgress[]
   materials         Material[]
   mcqs              Mcq[]
+  resourceMultipartUploads ResourceMultipartUpload[]
 
   @@index([name])
   @@index([mainSubject])
@@ -98,6 +100,31 @@ model Material {
   @@index([lectureId])
   @@index([title])
   @@index([storagePath])
+}
+
+model ResourceMultipartUpload {
+  id                  String   @id @default(uuid())
+  userId              String
+  lectureId           String
+  title               String
+  originalFilename    String
+  sanitizedFilename   String
+  mimeType            String
+  declaredSizeBytes   BigInt
+  lastModifiedMs      BigInt?
+  storagePath         String   @unique
+  multipartUploadId   String
+  partSizeBytes       Int
+  expectedPartCount   Int
+  status              String   @default("UPLOADING")
+  createdAt           DateTime @default(now())
+  expiresAt           DateTime
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture             Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, expiresAt])
+  @@index([lectureId, status])
 }
 
 model ModuleResource {

@@ -79,8 +79,31 @@ import {
 } from "./server/services/supabaseStorage.js";
 import {
   InvalidResourcePdfError,
+  isValidResourcePdf,
   uploadValidatedResourcePdf,
 } from "./server/services/materialUploadValidation.js";
+import {
+  abortResourceMultipartUpload,
+  completeResourceMultipartUpload,
+  createResourceMultipartUpload,
+  createResourcePartUrl,
+  deleteResourceObject,
+  listResourceMultipartParts,
+  verifyResourceObject,
+} from "./server/services/resourceMultipartStorage.js";
+import {
+  MAX_RESOURCE_PDF_BYTES,
+  RESOURCE_MULTIPART_CONCURRENCY,
+  RESOURCE_MULTIPART_MAX_ACTIVE_SESSIONS_PER_ADMIN,
+  RESOURCE_MULTIPART_PART_SIZE_BYTES,
+  RESOURCE_MULTIPART_SESSION_TTL_MS,
+  RESOURCE_MULTIPART_URL_BATCH_SIZE,
+  RESOURCE_MULTIPART_URL_TTL_SECONDS,
+  SMALL_RESOURCE_UPLOAD_LIMIT_BYTES,
+  expectedResourceMultipartPartCount,
+  planResourceMultipartParts,
+  type ResourceMultipartUploadStatus,
+} from "./shared/resourceMultipart.js";
 import {
   abortModuleResourceMultipartUpload,
   buildModuleResourceStoragePath,
@@ -2651,6 +2674,526 @@ const moduleResourceUploadLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many resource uploads. Please retry later." },
 });
+
+const resourceMultipartLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  skip: () => process.env.NODE_ENV !== "production",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many multipart upload requests. Please retry later." },
+});
+
+function resourceMultipartErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.trim();
+  return message ? message.slice(0, 300) : fallback;
+}
+
+function sanitizeResourceFilename(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const basename = path.basename(value.trim())
+    .split("")
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("");
+  const sanitized = basename
+    .replace(/[^a-zA-Z0-9._ -]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+  if (!sanitized || !/\.pdf$/i.test(sanitized)) return null;
+  return sanitized;
+}
+
+function normalizeResourceOriginalFilename(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = path.basename(value.trim())
+    .split("")
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("")
+    .slice(0, 160)
+    .trim();
+  return normalized && /\.pdf$/i.test(normalized) ? normalized : null;
+}
+
+function serializeResourceMultipartUpload(
+  row: any,
+  completedParts: Array<{ partNumber: number; sizeBytes: number }> = [],
+) {
+  const declaredSizeBytes = Number(row.declaredSizeBytes);
+  return {
+    sessionId: row.id,
+    status: row.status as ResourceMultipartUploadStatus,
+    title: row.title,
+    filename: row.originalFilename,
+    totalBytes: declaredSizeBytes,
+    partSizeBytes: row.partSizeBytes,
+    expectedPartCount: row.expectedPartCount,
+    completedPartNumbers: completedParts.map((part) => part.partNumber),
+    uploadedBytes: completedParts.reduce((sum, part) => sum + part.sizeBytes, 0),
+    expiresAt: row.expiresAt?.toISOString?.() ?? null,
+    lastModifiedMs: row.lastModifiedMs == null ? null : Number(row.lastModifiedMs),
+  };
+}
+
+async function expireResourceMultipartUpload(row: any): Promise<void> {
+  let abortSucceeded = false;
+  try {
+    await abortResourceMultipartUpload(row.storagePath, row.multipartUploadId);
+    abortSucceeded = true;
+  } catch (error) {
+    logger.warn(
+      "[ResourceMultipart]",
+      `Expired upload abort failed: ${resourceMultipartErrorMessage(error, "unknown error")}`,
+    );
+  }
+  const prismaClient = getPrisma();
+  await prismaClient.resourceMultipartUpload.updateMany({
+    where: { id: row.id, status: { in: ["INITIATED", "UPLOADING", "COMPLETING"] } },
+    data: { status: "EXPIRED" },
+  });
+  if (abortSucceeded) {
+    await prismaClient.resourceMultipartUpload.deleteMany({
+      where: { id: row.id, status: "EXPIRED" },
+    });
+  }
+}
+
+async function cleanupExpiredResourceMultipartUploads(): Promise<void> {
+  const expired = await getPrisma().resourceMultipartUpload.findMany({
+    where: {
+      status: { in: ["INITIATED", "UPLOADING", "COMPLETING"] },
+      expiresAt: { lt: new Date() },
+    },
+    orderBy: { expiresAt: "asc" },
+    take: 25,
+  });
+  for (const row of expired) {
+    try {
+      await expireResourceMultipartUpload(row);
+    } catch (error) {
+      logger.warn(
+        "[ResourceMultipart]",
+        `Expired upload cleanup failed: ${resourceMultipartErrorMessage(error, "unknown error")}`,
+      );
+    }
+  }
+}
+
+function resourceMultipartOwnerMatches(req: express.Request, row: any): boolean {
+  return String((req as any).user?.id || "") === String(row.userId || "");
+}
+
+function validateResourceMultipartParts(
+  parts: Array<{ partNumber: number; etag: string; sizeBytes: number }>,
+  expectedPartCount: number,
+  declaredSizeBytes: number,
+  partSizeBytes: number,
+): string | null {
+  if (parts.length !== expectedPartCount) return "Uploaded parts are incomplete.";
+  let total = 0;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]!;
+    const expectedLength = index === expectedPartCount - 1
+      ? declaredSizeBytes - index * partSizeBytes
+      : partSizeBytes;
+    if (part.partNumber !== index + 1) return "Uploaded parts are not contiguous.";
+    if (!part.etag || part.etag.length > 200) return "Uploaded parts contain an invalid ETag.";
+    if (part.sizeBytes !== expectedLength) return "Uploaded part size does not match the selected file.";
+    total += part.sizeBytes;
+  }
+  return total === declaredSizeBytes ? null : "Uploaded bytes did not match the selected file.";
+}
+
+app.post(
+  "/api/materials/uploads/multipart",
+  requireAdmin,
+  resourceMultipartLimiter,
+  catchAsync(async (req, res) => {
+    await cleanupExpiredResourceMultipartUploads();
+    const lectureId = typeof req.body?.lectureId === "string" ? req.body.lectureId.trim() : "";
+    const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const requestedFilename = typeof req.body?.filename === "string" ? req.body.filename.trim() : "";
+    const originalFilename = normalizeResourceOriginalFilename(requestedFilename);
+    const sanitizedFilename = sanitizeResourceFilename(originalFilename);
+    const mimeType = typeof req.body?.mime === "string" ? req.body.mime.trim().toLowerCase() : "";
+    const declaredSizeBytes = Number(req.body?.size);
+    const lastModifiedMs = req.body?.lastModified == null ? null : Number(req.body.lastModified);
+
+    if (!lectureId || !title || title.length > 200 || !sanitizedFilename || mimeType !== "application/pdf") {
+      return res.status(400).json({ error: "A safe PDF filename, lecture, and application/pdf MIME type are required." });
+    }
+    if (
+      !Number.isSafeInteger(declaredSizeBytes) ||
+      declaredSizeBytes <= SMALL_RESOURCE_UPLOAD_LIMIT_BYTES ||
+      declaredSizeBytes > MAX_RESOURCE_PDF_BYTES
+    ) {
+      return res.status(declaredSizeBytes > MAX_RESOURCE_PDF_BYTES ? 413 : 400).json({
+        error: declaredSizeBytes > MAX_RESOURCE_PDF_BYTES
+          ? "File exceeds the 5 GiB Resource limit."
+          : "Large multipart upload is only used for files above the normal Resource upload limit.",
+        code: declaredSizeBytes > MAX_RESOURCE_PDF_BYTES ? "RESOURCE_FILE_TOO_LARGE" : "RESOURCE_USE_SMALL_UPLOAD",
+      });
+    }
+    if (
+      lastModifiedMs !== null &&
+      (!Number.isSafeInteger(lastModifiedMs) || lastModifiedMs < 0)
+    ) {
+      return res.status(400).json({ error: "Invalid file identity metadata." });
+    }
+
+    const prismaClient = getPrisma();
+    const lecture = await prismaClient.lecture.findUnique({ where: { id: lectureId }, select: { id: true } });
+    if (!lecture) return res.status(404).json({ error: "The selected lecture was not found." });
+
+    const userId = String((req as any).user?.id || "");
+    const activeCount = await prismaClient.resourceMultipartUpload.count({
+      where: {
+        userId,
+        status: { in: ["INITIATED", "UPLOADING", "COMPLETING"] },
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (activeCount >= RESOURCE_MULTIPART_MAX_ACTIVE_SESSIONS_PER_ADMIN) {
+      return res.status(429).json({
+        error: "You already have the maximum number of active large uploads.",
+        code: "RESOURCE_ACTIVE_UPLOAD_LIMIT",
+      });
+    }
+
+    const sessionId = crypto.randomUUID();
+    const storagePath = `materials/${lectureId.replace(/[^a-zA-Z0-9_-]/g, "_")}/${sessionId}.pdf`;
+    const expectedPartCount = expectedResourceMultipartPartCount(
+      declaredSizeBytes,
+      RESOURCE_MULTIPART_PART_SIZE_BYTES,
+    );
+    const expiresAt = new Date(Date.now() + RESOURCE_MULTIPART_SESSION_TTL_MS);
+    let multipartUploadId: string | null = null;
+    try {
+      multipartUploadId = await createResourceMultipartUpload(storagePath);
+      const session = await prismaClient.resourceMultipartUpload.create({
+        data: {
+          id: sessionId,
+          userId,
+          lectureId,
+          title,
+          originalFilename,
+          sanitizedFilename,
+          mimeType,
+          declaredSizeBytes: BigInt(declaredSizeBytes),
+          lastModifiedMs: lastModifiedMs == null ? null : BigInt(lastModifiedMs),
+          storagePath,
+          multipartUploadId,
+          partSizeBytes: RESOURCE_MULTIPART_PART_SIZE_BYTES,
+          expectedPartCount,
+          status: "UPLOADING",
+          expiresAt,
+        },
+      });
+      return res.status(201).json({
+        ...serializeResourceMultipartUpload(session),
+        uploadUrlTtlSeconds: RESOURCE_MULTIPART_URL_TTL_SECONDS,
+        urlBatchSize: RESOURCE_MULTIPART_URL_BATCH_SIZE,
+        concurrency: RESOURCE_MULTIPART_CONCURRENCY,
+      });
+    } catch (error) {
+      if (multipartUploadId) {
+        try { await abortResourceMultipartUpload(storagePath, multipartUploadId); } catch (_) {}
+      }
+      logger.error(
+        "[ResourceMultipart]",
+        `Upload initialization failed: ${resourceMultipartErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The large Resource upload could not be prepared. Please try again.",
+        code: "RESOURCE_MULTIPART_INIT_FAILED",
+      });
+    }
+  }),
+);
+
+app.get(
+  "/api/materials/uploads/multipart/:sessionId",
+  requireAdmin,
+  resourceMultipartLimiter,
+  catchAsync(async (req, res) => {
+    const session = await getPrisma().resourceMultipartUpload.findUnique({
+      where: { id: String(req.params.sessionId || "") },
+    });
+    if (!session || !resourceMultipartOwnerMatches(req, session)) {
+      return res.status(404).json({ error: "Upload session not found." });
+    }
+    if (
+      ["INITIATED", "UPLOADING", "COMPLETING"].includes(session.status) &&
+      session.expiresAt.getTime() <= Date.now()
+    ) {
+      await expireResourceMultipartUpload(session);
+      return res.status(410).json({ error: "Large upload session expired.", code: "RESOURCE_MULTIPART_EXPIRED" });
+    }
+    const storedParts = session.status === "COMPLETED"
+      ? []
+      : await listResourceMultipartParts(session.storagePath, session.multipartUploadId);
+    return res.json({
+      ...serializeResourceMultipartUpload(session, storedParts),
+      completedParts: storedParts.map((part) => ({
+        partNumber: part.partNumber,
+        sizeBytes: part.sizeBytes,
+      })),
+    });
+  }),
+);
+
+app.post(
+  "/api/materials/uploads/multipart/:sessionId/parts",
+  requireAdmin,
+  resourceMultipartLimiter,
+  catchAsync(async (req, res) => {
+    const session = await getPrisma().resourceMultipartUpload.findUnique({
+      where: { id: String(req.params.sessionId || "") },
+    });
+    if (!session || !resourceMultipartOwnerMatches(req, session)) {
+      return res.status(404).json({ error: "Upload session not found." });
+    }
+    if (session.status !== "UPLOADING") {
+      return res.status(409).json({ error: "This upload session is no longer accepting parts." });
+    }
+    if (session.expiresAt.getTime() <= Date.now()) {
+      await expireResourceMultipartUpload(session);
+      return res.status(410).json({ error: "Large upload session expired.", code: "RESOURCE_MULTIPART_EXPIRED" });
+    }
+    const requested = req.body?.partNumbers;
+    if (
+      !Array.isArray(requested) ||
+      requested.length === 0 ||
+      requested.length > RESOURCE_MULTIPART_URL_BATCH_SIZE
+    ) {
+      return res.status(400).json({ error: `Request between 1 and ${RESOURCE_MULTIPART_URL_BATCH_SIZE} part numbers.` });
+    }
+    const partNumbers = requested.map(Number);
+    if (
+      new Set(partNumbers).size !== partNumbers.length ||
+      partNumbers.some((part) => !Number.isSafeInteger(part) || part < 1 || part > session.expectedPartCount)
+    ) {
+      return res.status(400).json({ error: "One or more upload part numbers are invalid." });
+    }
+    const expiresAt = new Date(
+      Math.min(
+        Date.now() + RESOURCE_MULTIPART_URL_TTL_SECONDS * 1000,
+        session.expiresAt.getTime(),
+      ),
+    );
+    try {
+      const urls = await Promise.all(partNumbers.map(async (partNumber) => ({
+        partNumber,
+        uploadUrl: await createResourcePartUrl(
+          session.storagePath,
+          session.multipartUploadId,
+          partNumber,
+        ),
+      })));
+      return res.json({ parts: urls, expiresAt: expiresAt.toISOString() });
+    } catch (error) {
+      logger.error(
+        "[ResourceMultipart]",
+        `Part URL creation failed: ${resourceMultipartErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(502).json({
+        error: "The upload authorization is temporarily unavailable. Please retry.",
+        code: "RESOURCE_MULTIPART_PART_URL_FAILED",
+      });
+    }
+  }),
+);
+
+app.post(
+  "/api/materials/uploads/multipart/:sessionId/complete",
+  requireAdmin,
+  resourceMultipartLimiter,
+  catchAsync(async (req, res) => {
+    const prismaClient = getPrisma();
+    const session = await prismaClient.resourceMultipartUpload.findUnique({
+      where: { id: String(req.params.sessionId || "") },
+    });
+    if (!session || !resourceMultipartOwnerMatches(req, session)) {
+      return res.status(404).json({ error: "Upload session not found." });
+    }
+    if (session.status === "COMPLETED") {
+      const material = await prismaClient.material.findUnique({ where: { id: session.id } });
+      return res.status(200).json({ success: true, idempotent: true, material });
+    }
+    if (!["INITIATED", "UPLOADING", "COMPLETING"].includes(session.status)) {
+      return res.status(409).json({ error: "This upload session cannot be completed." });
+    }
+    if (session.expiresAt.getTime() <= Date.now()) {
+      await expireResourceMultipartUpload(session);
+      return res.status(410).json({ error: "Large upload session expired.", code: "RESOURCE_MULTIPART_EXPIRED" });
+    }
+    const lecture = await prismaClient.lecture.findUnique({ where: { id: session.lectureId }, select: { id: true } });
+    if (!lecture) return res.status(404).json({ error: "The target lecture no longer exists." });
+    const resumingCompletion = session.status === "COMPLETING";
+    if (resumingCompletion && session.updatedAt.getTime() > Date.now() - 60_000) {
+      return res.status(409).json({ error: "This upload is already being finalized." });
+    }
+
+    let parts;
+    try {
+      parts = await listResourceMultipartParts(session.storagePath, session.multipartUploadId);
+    } catch (error) {
+      return res.status(502).json({
+        error: "Could not inspect the uploaded Resource parts. Please retry.",
+        code: "RESOURCE_MULTIPART_LIST_FAILED",
+      });
+    }
+    const declaredSizeBytes = Number(session.declaredSizeBytes);
+    const validationError = validateResourceMultipartParts(
+      parts,
+      session.expectedPartCount,
+      declaredSizeBytes,
+      session.partSizeBytes,
+    );
+    if (validationError) {
+      if (resumingCompletion) {
+        await prismaClient.resourceMultipartUpload.updateMany({
+          where: { id: session.id, status: "COMPLETING" },
+          data: { status: "FAILED" },
+        });
+      }
+      return res.status(400).json({ error: validationError, code: "RESOURCE_MULTIPART_PARTS_INVALID" });
+    }
+    if (!resumingCompletion) {
+      const claimed = await prismaClient.resourceMultipartUpload.updateMany({
+        where: { id: session.id, status: { in: ["INITIATED", "UPLOADING"] } },
+        data: { status: "COMPLETING" },
+      });
+      if (claimed.count !== 1) {
+        return res.status(409).json({ error: "This upload is already being finalized." });
+      }
+    }
+
+    let objectCompleted = false;
+    try {
+      try {
+        await completeResourceMultipartUpload(session.storagePath, session.multipartUploadId, parts);
+      } catch (completionError) {
+        // A process can stop after R2 completed the upload but before the
+        // Material transaction. Treat an already visible, correctly sized
+        // object as an idempotent provider completion.
+        try {
+          await verifyResourceObject(session.storagePath, declaredSizeBytes);
+        } catch (_) {
+          throw completionError;
+        }
+      }
+      objectCompleted = true;
+      const verified = await verifyResourceObject(session.storagePath, declaredSizeBytes);
+      if (!isValidResourcePdf(verified.headerBytes)) {
+        throw new InvalidResourcePdfError();
+      }
+
+      const material = await prismaClient.$transaction(async (tx: any) => {
+        const currentLecture = await tx.lecture.findUnique({ where: { id: session.lectureId }, select: { id: true } });
+        if (!currentLecture) throw new Error("The target lecture no longer exists.");
+        const replaced = await tx.material.findMany({
+          where: { lectureId: session.lectureId, type: "PDF" },
+          select: { id: true, storagePath: true, fileUrlOrLink: true },
+        });
+        await tx.material.deleteMany({ where: { lectureId: session.lectureId, type: "PDF" } });
+        const created = await tx.material.create({
+          data: {
+            id: session.id,
+            title: session.title,
+            type: "PDF",
+            fileUrlOrLink: `/api/materials/pdf/${session.id}`,
+            storagePath: session.storagePath,
+            fileData: null,
+            lectureId: session.lectureId,
+          },
+        });
+        await tx.resourceMultipartUpload.update({
+          where: { id: session.id },
+          data: { status: "COMPLETED" },
+        });
+        return { created, replaced };
+      });
+
+      for (const previous of material.replaced) {
+        if (previous.storagePath) {
+          try { await deleteSupabaseStorageObject(previous.storagePath); } catch (_) {}
+        }
+        if (previous.id !== material.created.id) await syncContentDelete("Material", previous.id);
+      }
+      await syncContentUpsert("Material", toMaterialContentRow(material.created));
+      invalidateMaterialsCache();
+      io.to("authenticated").emit("materials_updated");
+      return res.status(201).json({
+        success: true,
+        idempotent: false,
+        material: {
+          id: material.created.id,
+          title: material.created.title,
+          type: material.created.type,
+          fileUrlOrLink: material.created.fileUrlOrLink,
+          lectureId: material.created.lectureId,
+          createdAt: material.created.createdAt,
+        },
+      });
+    } catch (error) {
+      if (!objectCompleted) {
+        try { await abortResourceMultipartUpload(session.storagePath, session.multipartUploadId); } catch (_) {}
+      } else {
+        try { await deleteResourceObject(session.storagePath); } catch (_) {}
+      }
+      await prismaClient.resourceMultipartUpload.updateMany({
+        where: { id: session.id, status: "COMPLETING" },
+        data: { status: "FAILED" },
+      });
+      logger.error(
+        "[ResourceMultipart]",
+        `Upload completion failed: ${resourceMultipartErrorMessage(error, "unknown error")}`,
+      );
+      return res.status(400).json({
+        error: error instanceof InvalidResourcePdfError
+          ? error.message
+          : resourceMultipartErrorMessage(error, "The Resource could not be finalized."),
+        code: error instanceof InvalidResourcePdfError
+          ? "RESOURCE_INVALID_PDF"
+          : "RESOURCE_MULTIPART_COMPLETION_FAILED",
+      });
+    }
+  }),
+);
+
+app.delete(
+  "/api/materials/uploads/multipart/:sessionId",
+  requireAdmin,
+  resourceMultipartLimiter,
+  catchAsync(async (req, res) => {
+    const prismaClient = getPrisma();
+    const session = await prismaClient.resourceMultipartUpload.findUnique({
+      where: { id: String(req.params.sessionId || "") },
+    });
+    if (!session || !resourceMultipartOwnerMatches(req, session)) {
+      return res.status(404).json({ error: "Upload session not found." });
+    }
+    if (session.status === "COMPLETED") {
+      return res.status(409).json({ error: "A completed Resource cannot be aborted." });
+    }
+    if (session.multipartUploadId) {
+      try { await abortResourceMultipartUpload(session.storagePath, session.multipartUploadId); } catch (_) {}
+    }
+    await prismaClient.resourceMultipartUpload.updateMany({
+      where: { id: session.id, status: { not: "COMPLETED" } },
+      data: { status: "ABORTED" },
+    });
+    return res.json({ success: true });
+  }),
+);
 
 function moduleResourceErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
