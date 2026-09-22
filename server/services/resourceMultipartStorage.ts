@@ -89,6 +89,9 @@ export async function listResourceMultipartParts(
       }
     }
     if (!result.IsTruncated) break;
+    if (!result.NextPartNumberMarker) {
+      throw new Error("R2 returned a truncated multipart part listing without a continuation marker.");
+    }
     partNumberMarker = result.NextPartNumberMarker;
   } while (partNumberMarker);
   return parts.sort((a, b) => a.partNumber - b.partNumber);

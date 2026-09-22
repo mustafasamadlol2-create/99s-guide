@@ -677,7 +677,7 @@ if (contentD1SearchReadsEnabled()) {
 // continuously polling Supabase while the queue is empty.
 scheduleContentSyncDrain(15_000);
 
-const app = express();
+export const app = express();
 
 const catchAsync = (fn: any) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -2755,7 +2755,10 @@ async function expireResourceMultipartUpload(row: any): Promise<void> {
   }
   const prismaClient = getPrisma();
   await prismaClient.resourceMultipartUpload.updateMany({
-    where: { id: row.id, status: { in: ["INITIATED", "UPLOADING", "COMPLETING"] } },
+    where: {
+      id: row.id,
+      status: { in: ["INITIATED", "UPLOADING", "COMPLETING", "EXPIRED", "FAILED"] },
+    },
     data: { status: "EXPIRED" },
   });
   if (abortSucceeded) {
@@ -2768,7 +2771,7 @@ async function expireResourceMultipartUpload(row: any): Promise<void> {
 async function cleanupExpiredResourceMultipartUploads(): Promise<void> {
   const expired = await getPrisma().resourceMultipartUpload.findMany({
     where: {
-      status: { in: ["INITIATED", "UPLOADING", "COMPLETING"] },
+      status: { in: ["INITIATED", "UPLOADING", "COMPLETING", "EXPIRED", "FAILED"] },
       expiresAt: { lt: new Date() },
     },
     orderBy: { expiresAt: "asc" },
@@ -3185,7 +3188,18 @@ app.delete(
       return res.status(409).json({ error: "A completed Resource cannot be aborted." });
     }
     if (session.multipartUploadId) {
-      try { await abortResourceMultipartUpload(session.storagePath, session.multipartUploadId); } catch (_) {}
+      try {
+        await abortResourceMultipartUpload(session.storagePath, session.multipartUploadId);
+      } catch (error) {
+        await prismaClient.resourceMultipartUpload.updateMany({
+          where: { id: session.id, status: { not: "COMPLETED" } },
+          data: { status: "FAILED" },
+        });
+        return res.status(502).json({
+          error: "The upload could not be cancelled at storage. Please retry.",
+          code: "RESOURCE_MULTIPART_ABORT_FAILED",
+        });
+      }
     }
     await prismaClient.resourceMultipartUpload.updateMany({
       where: { id: session.id, status: { not: "COMPLETED" } },
@@ -10971,7 +10985,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.DISABLE_SERVER_START !== "1") {
+  startServer();
+}
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 // Ensures in-flight requests finish, Socket.IO drains, and Prisma disconnects
