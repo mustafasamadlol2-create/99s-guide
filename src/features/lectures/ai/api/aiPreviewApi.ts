@@ -9,6 +9,7 @@ import type {
 
 export const AI_PREVIEW_POLL_TIMEOUT_MS = 20_000;
 export const AI_PREVIEW_POLL_INTERVAL_MS = 1_000;
+export const AI_PREVIEW_MAX_CONSECUTIVE_POLL_FAILURES = 8;
 /** Compatibility export for older callers; the job client does not use an overall deadline. */
 export const AI_PREVIEW_TIMEOUT_MS = Number.POSITIVE_INFINITY;
 
@@ -152,9 +153,11 @@ export async function pollAIPreviewJob(
   dependencies: AIPreviewPollingDependencies,
   onProgress?: (status: AIPreviewJobStatus) => void,
 ): Promise<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>> {
+  let consecutivePollFailures = 0;
   while (true) {
     try {
       const status = await dependencies.readStatus();
+      consecutivePollFailures = 0;
       onProgress?.(status);
       if (status.state === "succeeded" && status.response) return status.response;
       if (status.state === "cancelled") {
@@ -171,6 +174,13 @@ export async function pollAIPreviewJob(
       }
     } catch (error) {
       if (!isRetryablePollFailure(error)) throw error;
+      consecutivePollFailures += 1;
+      if (consecutivePollFailures >= AI_PREVIEW_MAX_CONSECUTIVE_POLL_FAILURES) {
+        throw new AIPreviewError(
+          "AI preview status could not be reached after repeated retries. Please retry the preview.",
+          { code: "AI_STATUS_UNAVAILABLE", retryable: true },
+        );
+      }
       await dependencies.wait(signal);
       continue;
     }

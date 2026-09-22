@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { readFile, unlink } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep, join } from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import { AIServiceError } from "../ai/errors.js";
@@ -7,7 +7,6 @@ import { createConfiguredAIProvider } from "../ai/providerFactory.js";
 import type { AIProvider } from "../ai/contracts.js";
 import { AIInputService } from "../ai/input/AIInputService.js";
 import { AITemporaryFileManager } from "../ai/input/temporaryFiles.js";
-import type { SupportedAIBinaryMimeType } from "../ai/input/contracts.js";
 import {
   calendarCandidateSchema,
   calendarImportPreviewSchema,
@@ -77,15 +76,40 @@ function sourceHash(bytes: Uint8Array[]): string {
   return hash.digest("hex");
 }
 
-function asSupportedMime(value: string): SupportedAIBinaryMimeType {
-  if (["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(value)) {
-    return value as SupportedAIBinaryMimeType;
-  }
-  return "application/pdf";
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp", "gif"]);
+
+function extensionOf(value: string): string {
+  const clean = value.replaceAll("\\", "/").split("/").pop()?.toLowerCase() ?? "";
+  const dot = clean.lastIndexOf(".");
+  return dot >= 0 ? clean.slice(dot + 1) : "";
 }
 
-function isImageMime(value: string): boolean {
-  return value.startsWith("image/");
+function isPdfUpload(upload: CalendarImportUpload): boolean {
+  const mime = upload.mimeType.trim().toLowerCase();
+  return mime === "application/pdf" ||
+    ((mime === "application/octet-stream" || !mime) && extensionOf(upload.originalName) === "pdf");
+}
+
+function isImageUpload(upload: CalendarImportUpload): boolean {
+  const mime = upload.mimeType.trim().toLowerCase();
+  return mime.startsWith("image/") ||
+    ((mime === "application/octet-stream" || !mime) && IMAGE_EXTENSIONS.has(extensionOf(upload.originalName)));
+}
+
+function imageSourceMetadata(value: string): Array<{ mimeType: string; originalName?: string }> {
+  const parsed = safeJson<unknown>(value, []);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((item) => {
+    if (typeof item === "string") return { mimeType: item };
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      return {
+        mimeType: typeof record.mimeType === "string" ? record.mimeType : "application/octet-stream",
+        ...(typeof record.originalName === "string" ? { originalName: record.originalName } : {}),
+      };
+    }
+    return { mimeType: "application/octet-stream" };
+  });
 }
 
 function publicJob(job: {
@@ -128,6 +152,7 @@ function publicJob(job: {
 export class CalendarImportService {
   private readonly providerFactory: () => AIProvider;
   private readonly root: string;
+  private readonly activeControllers = new Map<string, AbortController>();
 
   constructor(private readonly options: CalendarImportServiceOptions) {
     this.providerFactory = options.providerFactory ?? createConfiguredAIProvider;
@@ -162,8 +187,8 @@ export class CalendarImportService {
         diagnosticMessage: "Calendar import source exceeded 100 MiB.",
       });
     }
-    const isPdf = uploads.length === 1 && uploads[0]!.mimeType === "application/pdf";
-    const isImages = uploads.every((upload) => isImageMime(upload.mimeType));
+    const isPdf = uploads.length === 1 && isPdfUpload(uploads[0]!);
+    const isImages = uploads.every(isImageUpload);
     if (!isPdf && !isImages) {
       throw new AIServiceError("AI_INPUT_UNSUPPORTED", {
         publicMessage: "Upload one PDF or supported schedule images.",
@@ -176,7 +201,7 @@ export class CalendarImportService {
         kind: "pdf",
         file: {
           bytes: new Uint8Array(bytes[0]!),
-          claimedMimeType: "application/pdf",
+          claimedMimeType: uploads[0]!.mimeType || "application/octet-stream",
           originalFilename: uploads[0]!.originalName,
         },
       }, async () => {});
@@ -185,7 +210,7 @@ export class CalendarImportService {
         kind: "image",
         files: uploads.map((upload, index) => ({
           bytes: new Uint8Array(bytes[index]!),
-          claimedMimeType: asSupportedMime(upload.mimeType),
+          claimedMimeType: upload.mimeType || "application/octet-stream",
           originalFilename: upload.originalName,
           sourceLabel: `schedule image ${index + 1}`,
         })),
@@ -198,8 +223,16 @@ export class CalendarImportService {
     userId: string,
     uploads: CalendarImportUpload[],
     defaultTargetGroups: string[],
+    pastedText?: string,
   ): Promise<Record<string, unknown>> {
-    const validation = await this.validateUploads(uploads);
+    const hasText = typeof pastedText === "string" && pastedText.trim().length > 0;
+    if (hasText && uploads.length > 0) {
+      throw new AIServiceError("AI_INPUT_INVALID", {
+        publicMessage: "Choose either pasted schedule text or uploaded files, not both.",
+        diagnosticMessage: "Calendar import received text and binary sources in the same job.",
+      });
+    }
+
     const targetGroups = [...new Set(defaultTargetGroups.map((group) => group.trim().toUpperCase()).filter(Boolean))];
     if (targetGroups.length === 0 || targetGroups.some((group) => !isCalendarTargetGroup(group))) {
       throw new AIServiceError("AI_VALIDATION_ERROR", {
@@ -207,45 +240,92 @@ export class CalendarImportService {
         diagnosticMessage: "Calendar import default target groups were invalid.",
       });
     }
-    const job = await this.options.prisma.calendarImportJob.create({
-      data: {
-        userId,
-        status: "UPLOADED",
-        stage: "Uploading",
-        sourceFileName: uploads.length === 1 ? uploads[0]!.originalName : `${uploads.length} schedule images`,
-        sourceMime: validation.inputKind === "pdf"
-          ? "application/pdf"
-          : JSON.stringify(uploads.map((upload) => upload.mimeType)),
-        sourceSha256: validation.sourceHash,
-        sourcePath: JSON.stringify(uploads.map((upload) => upload.path)),
-        defaultTargetGroups: targetGroups.includes("ALL") ? "ALL" : targetGroups.join(","),
-      },
-    });
-    void this.process(job.id).catch(() => {});
-    return publicJob(job);
+
+    let inputKind: "pdf" | "image" | "text";
+    let sourceSha256: string;
+    let sourceFileName: string;
+    let sourceMime: string;
+    let sourcePaths: string[];
+
+    if (hasText) {
+      const inputService = new AIInputService();
+      const prepared = await inputService.prepare({ kind: "text", text: pastedText!, sourceLabel: "pasted schedule text" });
+      try {
+        const normalizedText = prepared.input.kind === "text" ? prepared.input.text.text : pastedText!.trim();
+        await mkdir(this.root, { recursive: true, mode: 0o700 });
+        const textPath = join(this.root, `${randomUUID()}.txt`);
+        await writeFile(textPath, normalizedText, { flag: "wx", mode: 0o600 });
+        inputKind = "text";
+        sourceSha256 = prepared.input.kind === "text" ? prepared.input.text.sha256 : createHash("sha256").update(normalizedText).digest("hex");
+        sourceFileName = "Pasted schedule text";
+        sourceMime = "text/plain";
+        sourcePaths = [textPath];
+      } finally {
+        await prepared.dispose();
+      }
+    } else {
+      const validation = await this.validateUploads(uploads);
+      inputKind = validation.inputKind;
+      sourceSha256 = validation.sourceHash;
+      sourceFileName = uploads.length === 1 ? uploads[0]!.originalName : `${uploads.length} schedule images`;
+      sourceMime = inputKind === "pdf"
+        ? "application/pdf"
+        : JSON.stringify(uploads.map((upload) => ({ mimeType: upload.mimeType, originalName: upload.originalName })));
+      sourcePaths = uploads.map((upload) => upload.path);
+    }
+
+    try {
+      const job = await this.options.prisma.calendarImportJob.create({
+        data: {
+          userId,
+          status: "UPLOADED",
+          stage: "Uploading",
+          sourceFileName,
+          sourceMime,
+          sourceSha256,
+          sourcePath: JSON.stringify(sourcePaths),
+          defaultTargetGroups: targetGroups.includes("ALL") ? "ALL" : targetGroups.join(","),
+        },
+      });
+      void this.process(job.id).catch(() => {});
+      return publicJob(job);
+    } catch (error) {
+      if (inputKind === "text") await this.cleanupSources(sourcePaths);
+      throw error;
+    }
   }
 
   async recoverStaleJobs(): Promise<void> {
+    const cutoff = new Date(Date.now() - STALE_JOB_MS);
     const stale = await this.options.prisma.calendarImportJob.findMany({
       where: {
         status: "PROCESSING",
-        updatedAt: { lt: new Date(Date.now() - STALE_JOB_MS) },
+        updatedAt: { lt: cutoff },
       },
       select: { id: true, sourcePath: true },
     });
     await this.options.prisma.calendarImportJob.updateMany({
       where: {
         status: "PROCESSING",
-        updatedAt: { lt: new Date(Date.now() - STALE_JOB_MS) },
+        updatedAt: { lt: cutoff },
       },
       data: {
         status: "FAILED",
         stage: "Preparing source",
         errorCode: "AI_IMPORT_INTERRUPTED",
         errorMessage: "Schedule extraction was interrupted. Please retry the import.",
+        sourcePath: null,
       },
     });
     await Promise.all(stale.map((job) => this.cleanupSources(safeJson<string[]>(job.sourcePath, []))));
+
+    // A process can terminate after the DB row is created but before the worker claims it.
+    // Reclaim queued jobs on startup; the atomic status transition in process() prevents duplicates.
+    const queued = await this.options.prisma.calendarImportJob.findMany({
+      where: { status: "UPLOADED" },
+      select: { id: true },
+    });
+    for (const job of queued) void this.process(job.id).catch(() => {});
   }
 
   private async prepareContents(job: {
@@ -255,7 +335,7 @@ export class CalendarImportService {
   }): Promise<{
     contents: import("../ai/input/contracts.js").AIContentPart[];
     dispose: () => Promise<void>;
-    inputKind: "pdf" | "image";
+    inputKind: "pdf" | "image" | "text";
   }> {
     const paths = safeJson<string[]>(job.sourcePath, []);
     if (paths.length === 0 || paths.some((path) => !this.ownsSource(path))) {
@@ -267,6 +347,14 @@ export class CalendarImportService {
     const bytes = await Promise.all(paths.map((path) => readFile(path)));
     const manager = new AITemporaryFileManager(join(this.root, "worker"));
     const inputService = new AIInputService({}, manager);
+    if (job.sourceMime === "text/plain") {
+      const prepared = await inputService.prepare({
+        kind: "text",
+        text: Buffer.from(bytes[0]!).toString("utf8"),
+        sourceLabel: job.sourceFileName,
+      });
+      return { contents: prepared.contents, dispose: prepared.dispose, inputKind: "text" };
+    }
     if (job.sourceMime === "application/pdf") {
       const prepared = await inputService.prepare({
         kind: "pdf",
@@ -278,13 +366,13 @@ export class CalendarImportService {
       });
       return { contents: prepared.contents, dispose: prepared.dispose, inputKind: "pdf" };
     }
-    const mimeTypes = safeJson<string[]>(job.sourceMime, []);
+    const metadata = imageSourceMetadata(job.sourceMime);
     const prepared = await inputService.prepare({
       kind: "image",
       files: paths.map((path, index) => ({
         bytes: new Uint8Array(bytes[index]!),
-        claimedMimeType: asSupportedMime(mimeTypes[index] ?? "image/png"),
-        originalFilename: path.split(sep).pop() ?? `schedule-${index + 1}`,
+        claimedMimeType: metadata[index]?.mimeType ?? "application/octet-stream",
+        originalFilename: metadata[index]?.originalName ?? path.split(sep).pop() ?? `schedule-${index + 1}`,
         sourceLabel: `schedule image ${index + 1}`,
       })),
     });
@@ -301,6 +389,9 @@ export class CalendarImportService {
     if (!job || job.status === "CANCELLED") return;
     let paths: string[] = safeJson(job.sourcePath, []);
     let disposePrepared: (() => Promise<void>) | null = null;
+    let provider: AIProvider | null = null;
+    const controller = new AbortController();
+    this.activeControllers.set(id, controller);
     try {
       const prepared = await this.prepareContents(job);
       disposePrepared = prepared.dispose;
@@ -319,11 +410,13 @@ export class CalendarImportService {
         await this.cleanupSources(paths);
         return;
       }
+      provider = this.providerFactory();
       const extracted = await extractSchedule({
-        provider: this.providerFactory(),
+        provider,
         contents: prepared.contents,
         sourcePageCount: pageCount,
         inputKind: prepared.inputKind,
+        signal: controller.signal,
         onProgress: async (current, total) => {
           await this.options.prisma.calendarImportJob.updateMany({
             where: { id, status: "PROCESSING" },
@@ -338,13 +431,26 @@ export class CalendarImportService {
           defaultTargetGroups: defaultGroups,
           sourcePageCount: pageCount,
           sourceImageCount: prepared.inputKind === "image" ? prepared.contents.length : 0,
+          allowTextSource: prepared.inputKind === "text",
         }),
       );
+      await this.options.prisma.calendarImportJob.updateMany({
+        where: { id, status: "PROCESSING" },
+        data: { stage: "Verifying against source", progressCurrent: 0, progressTotal: normalized.length },
+      });
       const verification = await verifySchedule(
-        this.providerFactory(),
+        provider,
         prepared.contents,
         normalized.map((item) => ({ candidateId: item.candidate.candidateId, candidate: item.candidate })),
-        {},
+        {
+          signal: controller.signal,
+          onProgress: async (current, total) => {
+            await this.options.prisma.calendarImportJob.updateMany({
+              where: { id, status: "PROCESSING" },
+              data: { stage: "Verifying against source", progressCurrent: current, progressTotal: total },
+            });
+          },
+        },
       );
       const verificationMap = new Map(verification.items.map((item) => [item.candidateId, item]));
       normalized = normalized.map((item) => applyVerification(
@@ -428,13 +534,45 @@ export class CalendarImportService {
         }).catch(() => {});
       }
       await disposePrepared?.().catch(() => {});
+      disposePrepared = null;
       await this.cleanupSources(paths);
+    } finally {
+      await disposePrepared?.().catch(() => {});
+      if (provider?.dispose) await provider.dispose().catch(() => {});
+      if (this.activeControllers.get(id) === controller) this.activeControllers.delete(id);
     }
   }
 
   async get(userId: string, id: string): Promise<Record<string, unknown> | null> {
-    const job = await this.options.prisma.calendarImportJob.findFirst({ where: { id, userId } });
-    return job ? publicJob(job) : null;
+    let job = await this.options.prisma.calendarImportJob.findFirst({ where: { id, userId } });
+    if (!job) return null;
+
+    // Never leave the client polling forever if a worker disappeared mid-request.
+    if (job.status === "PROCESSING" && job.updatedAt.getTime() < Date.now() - STALE_JOB_MS) {
+      const paths = safeJson<string[]>(job.sourcePath, []);
+      const failed = await this.options.prisma.calendarImportJob.updateMany({
+        where: {
+          id,
+          userId,
+          status: "PROCESSING",
+          updatedAt: { lt: new Date(Date.now() - STALE_JOB_MS) },
+        },
+        data: {
+          status: "FAILED",
+          stage: "Preparing source",
+          errorCode: "AI_IMPORT_INTERRUPTED",
+          errorMessage: "Schedule extraction was interrupted. Please retry the import.",
+          sourcePath: null,
+        },
+      });
+      if (failed.count > 0) {
+        this.activeControllers.get(id)?.abort(new Error("Calendar import worker became stale."));
+        await this.cleanupSources(paths);
+        job = await this.options.prisma.calendarImportJob.findFirst({ where: { id, userId } }) ?? job;
+      }
+    }
+
+    return publicJob(job);
   }
 
   async cancel(userId: string, id: string): Promise<boolean> {
@@ -444,6 +582,7 @@ export class CalendarImportService {
       where: { id, userId, status: { in: ["UPLOADED", "PROCESSING", "READY_FOR_REVIEW"] } },
       data: { status: "CANCELLED", stage: "Preparing source", errorCode: "AI_IMPORT_CANCELLED", errorMessage: "Schedule import cancelled." },
     });
+    if (updated.count > 0) this.activeControllers.get(id)?.abort(new Error("Calendar import cancelled."));
     const paths = safeJson<string[]>(job.sourcePath, []);
     await this.cleanupSources(paths);
     await this.options.prisma.calendarImportJob.updateMany({
@@ -478,7 +617,7 @@ export class CalendarImportService {
         parsed.eventType &&
         parsed.targetGroups.length > 0 &&
         candidateDateTime(parsed) &&
-        (parsed.sourcePage !== null || parsed.sourceImageIndex !== null),
+        (job.sourceMime === "text/plain" || parsed.sourcePage !== null || parsed.sourceImageIndex !== null),
       );
       const humanReview = valid
         ? {

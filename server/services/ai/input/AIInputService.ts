@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { AIServiceError } from "../errors.js";
 import type {
   AIContentPart,
@@ -12,7 +13,7 @@ import type {
 } from "./contracts.js";
 import { resolveAIInputLimits, type AIInputLimits } from "./config.js";
 import { sha256Capability } from "./hash.js";
-import { sanitizeDisplayFilename, sanitizeSourceLabel } from "./mime.js";
+import { normalizeAIBinaryMimeType, sanitizeDisplayFilename, sanitizeSourceLabel } from "./mime.js";
 import { normalizeAIText } from "./normalizeText.js";
 import { rawAIInputSchema } from "./schemas.js";
 import { AITemporaryFileManager } from "./temporaryFiles.js";
@@ -22,6 +23,50 @@ import {
   inspectStagedMimeType,
   validateClaimedBinaryMime,
 } from "./validators.js";
+
+
+const CONVERTIBLE_IMAGE_MIMES = new Set([
+  "image/heic",
+  "image/heif",
+  "image/avif",
+  "image/tiff",
+  "image/bmp",
+  "image/gif",
+  "application/octet-stream",
+]);
+
+const IMAGE_EXTENSION_MIMES: Readonly<Record<string, string>> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  avif: "image/avif",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+  bmp: "image/bmp",
+  gif: "image/gif",
+};
+
+function extensionOf(filename?: string): string {
+  const clean = sanitizeDisplayFilename(filename).toLowerCase();
+  const dot = clean.lastIndexOf(".");
+  return dot >= 0 ? clean.slice(dot + 1) : "";
+}
+
+function inferredMime(raw: RawAIBinaryInput, inputType: "pdf" | "image"): string {
+  const claimed = raw.claimedMimeType.trim().toLowerCase();
+  const extension = extensionOf(raw.originalFilename);
+
+  // Browser/OS MIME metadata is frequently generic or simply wrong. A recognized
+  // extension may select the decoder, but the actual bytes are always validated
+  // below before they are trusted or sent to an AI provider.
+  if (inputType === "pdf" && extension === "pdf") return "application/pdf";
+  if (inputType === "image" && IMAGE_EXTENSION_MIMES[extension]) return IMAGE_EXTENSION_MIMES[extension]!;
+  if (normalizeAIBinaryMimeType(claimed)) return claimed;
+  return claimed;
+}
 
 interface PreparedBinary {
   staged: AIAdoptedBinaryFile;
@@ -66,23 +111,117 @@ export class AIInputService {
         diagnosticMessage: "Binary intake did not provide bytes or a trusted staged file.",
       });
     }
-    const mimeType = validateClaimedBinaryMime(raw.claimedMimeType, inputType);
+
+    const declaredMime = inferredMime(raw, inputType);
     const sizeBytes = raw.adoptedFile?.sizeBytes ?? raw.bytes?.byteLength ?? 0;
     this.validateSize(sizeBytes, maxBytes, inputType === "pdf" ? "PDF" : "image");
     const displayName = sanitizeDisplayFilename(raw.originalFilename);
-    const ownsStaged = !raw.adoptedFile;
-    const staged = raw.adoptedFile ?? await this.temporaryFiles.stage(raw.bytes!);
+    const ownsOriginal = !raw.adoptedFile;
+    const original = raw.adoptedFile ?? await this.temporaryFiles.stage(raw.bytes!);
+
     try {
-      const detected = await inspectStagedMimeType(staged.capability);
-      assertDetectedMimeMatches(mimeType, detected);
-      return {
-        staged,
-        displayName,
-        mimeType,
-        sha256: await sha256Capability(staged.capability),
-      };
+      const normalized = normalizeAIBinaryMimeType(declaredMime);
+      if (inputType === "pdf") {
+        const mimeType = normalized ?? validateClaimedBinaryMime(declaredMime, "pdf");
+        if (mimeType !== "application/pdf") {
+          throw new AIServiceError("AI_INPUT_INVALID", {
+            publicMessage: "The uploaded file type does not match the selected input mode.",
+            diagnosticMessage: "Declared MIME type contradicted PDF input mode.",
+          });
+        }
+        const detected = await inspectStagedMimeType(original.capability);
+        assertDetectedMimeMatches("application/pdf", detected);
+        return {
+          staged: original,
+          displayName,
+          mimeType: "application/pdf",
+          sha256: await sha256Capability(original.capability),
+        };
+      }
+
+      if (normalized === "application/pdf") {
+        throw new AIServiceError("AI_INPUT_INVALID", {
+          publicMessage: "The uploaded file is a PDF, not an image.",
+          diagnosticMessage: "Declared PDF MIME type was submitted in image mode.",
+        });
+      }
+      if (!normalized && !CONVERTIBLE_IMAGE_MIMES.has(declaredMime)) {
+        validateClaimedBinaryMime(declaredMime, "image");
+      }
+
+      // The byte signature is authoritative for direct raster formats. This also
+      // tolerates stale browser MIME metadata (for example, an HEIC file reported
+      // as image/jpeg) without weakening validation of the actual bytes.
+      const detectedOriginal = await inspectStagedMimeType(original.capability);
+      if (detectedOriginal === "application/pdf") {
+        throw new AIServiceError("AI_INPUT_INVALID", {
+          publicMessage: "The uploaded file is a PDF, not an image.",
+          diagnosticMessage: "Binary signature identified a PDF while image mode was selected.",
+        });
+      }
+      if (detectedOriginal === "image/jpeg" || detectedOriginal === "image/png" || detectedOriginal === "image/webp") {
+        return {
+          staged: original,
+          displayName,
+          mimeType: detectedOriginal,
+          sha256: await sha256Capability(original.capability),
+        };
+      }
+
+      let convertedBytes: Uint8Array;
+      try {
+        const originalBytes = await original.capability.readBytes();
+        // Rasterize multi-frame/phone/camera formats to a stable first-frame image.
+        // rotate() respects EXIF orientation so the vision model receives what the user sees.
+        const pipeline = sharp(Buffer.from(originalBytes), {
+          animated: false,
+          failOn: "none",
+          limitInputPixels: 120_000_000,
+        }).rotate();
+        let output = await pipeline.clone().png({ compressionLevel: 9 }).toBuffer();
+        if (output.byteLength > maxBytes) {
+          output = await pipeline.clone().jpeg({ quality: 94, mozjpeg: true }).toBuffer();
+        }
+        convertedBytes = new Uint8Array(output);
+      } catch (error) {
+        throw new AIServiceError("AI_INPUT_UNSUPPORTED", {
+          publicMessage: "This image could not be decoded. Export it as JPEG, PNG, WebP, HEIC/HEIF, AVIF, TIFF, BMP, or GIF and try again.",
+          diagnosticMessage: `Image transcoding failed for declared MIME ${declaredMime || "unknown"}.`,
+          cause: error,
+        });
+      }
+      this.validateSize(convertedBytes.byteLength, maxBytes, "image");
+      const converted = await this.temporaryFiles.stage(convertedBytes);
+      try {
+        const detected = await inspectStagedMimeType(converted.capability);
+        if (detected !== "image/png" && detected !== "image/jpeg") {
+          throw new AIServiceError("AI_INPUT_INVALID", {
+            publicMessage: "The converted image could not be validated.",
+            diagnosticMessage: "Image transcoding did not produce a supported raster format.",
+          });
+        }
+        let disposed = false;
+        const staged: AIAdoptedBinaryFile = {
+          sizeBytes: converted.sizeBytes,
+          capability: converted.capability,
+          dispose: async () => {
+            if (disposed) return;
+            disposed = true;
+            await Promise.allSettled([converted.dispose(), original.dispose()]);
+          },
+        };
+        return {
+          staged,
+          displayName,
+          mimeType: detected,
+          sha256: await sha256Capability(converted.capability),
+        };
+      } catch (error) {
+        await converted.dispose().catch(() => {});
+        throw error;
+      }
     } catch (error) {
-      if (ownsStaged) await staged.dispose();
+      if (ownsOriginal) await original.dispose().catch(() => {});
       throw error;
     }
   }
@@ -194,7 +333,6 @@ export class AIInputService {
             diagnosticMessage: "An image intake item did not provide bytes or a trusted staged file.",
           });
         }
-        validateClaimedBinaryMime(file.claimedMimeType, "image");
         this.validateSize(
           file.adoptedFile?.sizeBytes ?? file.bytes?.byteLength ?? 0,
           this.limits.maxImageBytes,

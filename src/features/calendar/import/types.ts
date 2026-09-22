@@ -74,7 +74,8 @@ export interface CalendarImportJob {
 }
 
 export interface CalendarImportCreateOptions {
-  files: File[];
+  files?: File[];
+  text?: string;
   targetGroups: string[];
   language?: "en" | "ar";
 }

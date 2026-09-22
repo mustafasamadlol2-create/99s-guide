@@ -14,16 +14,16 @@ import {
 import { AI_PREVIEW_TIMEOUT_MS } from "../src/features/lectures/ai/api/aiPreviewApi";
 
 test("AI timeout defaults preserve the long-running production contract", () => {
-  assert.equal(DEFAULT_AI_TIMEOUT_MS, 240_000);
-  assert.equal(getGeminiConfig({ GEMINI_API_KEY: "test" }).timeoutMs, 240_000);
+  assert.equal(DEFAULT_AI_TIMEOUT_MS, 600_000);
+  assert.equal(getGeminiConfig({ GEMINI_API_KEY: "test" }).timeoutMs, 600_000);
   assert.equal(
     getCloudflareConfig({
       CLOUDFLARE_ACCOUNT_ID: "account",
       CLOUDFLARE_AI_API_TOKEN: "token",
     }).timeoutMs,
-    240_000,
+    600_000,
   );
-  assert.equal(getGeminiMediaConfig({}).fileProcessingTimeoutMs, 180_000);
+  assert.equal(getGeminiMediaConfig({}).fileProcessingTimeoutMs, 600_000);
   assert.equal(getGeminiMediaConfig({}).fileCleanupTimeoutMs, DEFAULT_FILE_CLEANUP_TIMEOUT_MS);
 });
 
@@ -41,7 +41,7 @@ test("AI timeout environment overrides accept valid values and reject invalid va
     }).fileProcessingTimeoutMs,
     240_000,
   );
-  for (const value of ["0", "-1", "NaN", "900001"]) {
+  for (const value of ["0", "-1", "NaN", "120000", "900001"]) {
     assert.equal(
       getGeminiConfig({ GEMINI_API_KEY: "test", AI_OPERATION_TIMEOUT_MS: value }).timeoutMs,
       DEFAULT_AI_TIMEOUT_MS,
@@ -75,5 +75,5 @@ test("Cloudflare Markdown Conversion has a bounded independent timeout override"
 
 test("frontend AI timeout is longer than server and media budgets", () => {
   assert.ok(AI_PREVIEW_TIMEOUT_MS > DEFAULT_AI_TIMEOUT_MS);
-  assert.ok(DEFAULT_AI_TIMEOUT_MS > DEFAULT_FILE_PROCESSING_TIMEOUT_MS);
+  assert.ok(DEFAULT_AI_TIMEOUT_MS >= DEFAULT_FILE_PROCESSING_TIMEOUT_MS);
 });

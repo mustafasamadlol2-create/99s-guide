@@ -1,7 +1,7 @@
 import express, { type RequestHandler } from "express";
 import multer from "multer";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { AIServiceError } from "../ai/errors.js";
 import { CalendarImportService } from "./service.js";
 
@@ -12,6 +12,15 @@ const ALLOWED_MIMES = new Set([
   "image/webp",
   "image/heic",
   "image/heif",
+  "image/avif",
+  "image/tiff",
+  "image/bmp",
+  "image/gif",
+  "application/octet-stream",
+]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".tif", ".tiff", ".bmp", ".gif",
 ]);
 
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
@@ -46,17 +55,23 @@ export function createCalendarImportRouter(options: {
   const router = express.Router();
   const upload = multer({
     dest: options.sourceRoot,
-    limits: { files: 20, fileSize: 100 * 1024 * 1024, fieldSize: 32 * 1024 },
+    limits: { files: 20, fileSize: 100 * 1024 * 1024, fieldSize: 1024 * 1024 + 16 * 1024 },
     fileFilter: (_req, file, callback) => {
-      callback(null, ALLOWED_MIMES.has(file.mimetype));
+      const mime = file.mimetype.trim().toLowerCase();
+      callback(null, ALLOWED_MIMES.has(mime) || ALLOWED_EXTENSIONS.has(extname(file.originalname).toLowerCase()));
     },
   });
 
   router.post("/", options.requireAdmin, upload.array("files", 20), async (req, res) => {
     const files = (req.files ?? []) as Express.Multer.File[];
     try {
-      if (files.length === 0) {
-        res.status(400).json({ error: "CALENDAR_IMPORT_NO_FILES", message: "Upload at least one schedule file." });
+      const pastedText = typeof req.body?.text === "string" ? req.body.text : undefined;
+      if (files.length === 0 && !pastedText?.trim()) {
+        res.status(400).json({ error: "CALENDAR_IMPORT_NO_SOURCE", message: "Upload schedule files or paste schedule text." });
+        return;
+      }
+      if (files.length > 0 && pastedText?.trim()) {
+        res.status(400).json({ error: "CALENDAR_IMPORT_MULTIPLE_SOURCES", message: "Choose either files or pasted text, not both." });
         return;
       }
       const rawGroups = req.body?.defaultTargetGroups;
@@ -70,6 +85,7 @@ export function createCalendarImportRouter(options: {
           sizeBytes: file.size,
         })),
         groups,
+        pastedText,
       );
       res.status(202).json(job);
     } catch (error) {

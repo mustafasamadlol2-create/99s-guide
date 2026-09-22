@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, FileUp, Loader2, Upload, X } from "lucide-react";
+import { AlertCircle, Check, FileText, FileUp, Loader2, Upload, X } from "lucide-react";
 import { cancelCalendarImportJob, createCalendarImportJob, commitCalendarImportJob, updateCalendarImportReview } from "./api";
 import { useCalendarImportJob } from "./useCalendarImportJob";
 import { CalendarImportCandidate } from "./types";
@@ -19,6 +19,9 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
     title: t("calendarImportTitle"),
     help: t("calendarImportHelp"),
     choose: t("calendarImportChoose"),
+    files: t("calendarImportFiles"),
+    text: t("calendarImportText"),
+    textPlaceholder: t("calendarImportTextPlaceholder"),
     groups: t("calendarImportGroups"),
     upload: t("calendarImportUpload"),
     processing: t("calendarImportProcessing"),
@@ -34,7 +37,9 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
     untitled: t("calendarImportUntitled"),
   };
   const rtl = language === "ar";
+  const [sourceMode, setSourceMode] = useState<"files" | "text">("files");
   const [files, setFiles] = useState<File[]>([]);
+  const [pastedText, setPastedText] = useState("");
   const [groups, setGroups] = useState(initialGroups);
   const [jobId, setJobId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<CalendarImportCandidate[]>([]);
@@ -64,10 +69,15 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
   });
 
   const submit = async () => {
-    if (files.length === 0) return;
+    if (sourceMode === "files" ? files.length === 0 : pastedText.trim().length === 0) return;
     setBusy(true); setMessage(null);
     try {
-      const created = await createCalendarImportJob({ files, targetGroups: groups, language });
+      const created = await createCalendarImportJob({
+        files: sourceMode === "files" ? files : [],
+        text: sourceMode === "text" ? pastedText : undefined,
+        targetGroups: groups,
+        language,
+      });
       setJobId(created.id);
       if (created.preview?.candidates) setCandidates(created.preview.candidates);
     } catch (err) {
@@ -104,7 +114,7 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
     }
   };
 
-  const reset = () => { setFiles([]); setJobId(null); setCandidates([]); setMessage(null); };
+  const reset = () => { setFiles([]); setPastedText(""); setJobId(null); setCandidates([]); setMessage(null); };
   return (
     <section dir={rtl ? "rtl" : "ltr"} className="space-y-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.03] p-4">
       <div className="flex items-start gap-3">
@@ -112,14 +122,24 @@ export default function CalendarScheduleImporter({ language = "en", onImported }
         <div><h3 className="font-semibold text-neutral-900 dark:text-white">{copy.title}</h3><p className="text-sm text-neutral-500 dark:text-[#EBEBF599]">{copy.help}</p></div>
       </div>
       {!jobId && <div className="space-y-3">
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-300 p-3 text-sm dark:border-white/20">
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-neutral-100 p-1 dark:bg-white/[0.06]">
+          <button type="button" onClick={() => { setSourceMode("files"); setPastedText(""); }} className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition ${sourceMode === "files" ? "bg-white shadow-sm dark:bg-white/10" : "text-neutral-500"}`}><Upload className="h-4 w-4" />{copy.files}</button>
+          <button type="button" onClick={() => { setSourceMode("text"); setFiles([]); }} className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition ${sourceMode === "text" ? "bg-white shadow-sm dark:bg-white/10" : "text-neutral-500"}`}><FileText className="h-4 w-4" />{copy.text}</button>
+        </div>
+        {sourceMode === "files" ? <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-300 p-3 text-sm dark:border-white/20">
           <Upload className="h-4 w-4" /> <span>{files.length ? files.map((file) => file.name).join(", ") : copy.choose}</span>
-          <input type="file" multiple accept=".pdf,image/png,image/jpeg,image/webp,image/heic,image/heif" className="sr-only" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-        </label>
+          <input type="file" multiple accept=".pdf,image/png,image/jpeg,image/webp,image/heic,image/heif,image/avif,image/tiff,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.heic,.heif,.avif,.tif,.tiff,.bmp,.gif" className="sr-only" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+        </label> : <textarea
+          value={pastedText}
+          onChange={(e) => setPastedText(e.target.value)}
+          placeholder={copy.textPlaceholder}
+          rows={8}
+          className="w-full resize-y rounded-lg border border-neutral-300 bg-transparent p-3 text-sm outline-none focus:border-rose-500 dark:border-white/20"
+        />}
         <div><p className="mb-1 text-xs font-semibold">{copy.groups}</p><div className="flex flex-wrap gap-2">
            {CALENDAR_TARGET_GROUPS.map((group) => <button type="button" key={group} onClick={() => toggleGroup(group)} className={`rounded-md px-3 py-1 text-xs ${groups.includes(group) ? "bg-rose-500 text-white" : "bg-neutral-200 dark:bg-white/10"}`}>{group}</button>)}
         </div></div>
-        <button type="button" disabled={!files.length || busy} onClick={submit} className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />}{copy.upload}</button>
+        <button type="button" disabled={(sourceMode === "files" ? !files.length : !pastedText.trim()) || busy} onClick={submit} className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />}{copy.upload}</button>
       </div>}
       {jobId && processing && <div className="flex items-center gap-2 py-3 text-sm"><Loader2 className="h-4 w-4 animate-spin text-rose-500" />{job?.stage || copy.processing}{job && job.progressTotal > 0 ? ` (${Math.round((job.progressCurrent / job.progressTotal) * 100)}%)` : ""}<button type="button" disabled={busy} onClick={cancel} className="ms-auto rounded border px-2 py-1 text-xs">{t("calendarImportCancel")}</button></div>}
       {(pollingError || message) && <div className="flex items-start gap-2 rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/20 dark:text-rose-300"><AlertCircle className="h-4 w-4 shrink-0" />{pollingError || message}</div>}

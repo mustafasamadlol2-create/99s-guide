@@ -25,7 +25,10 @@ export function useCalendarImportJob(jobId: string | null, intervalMs = 1500) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       const next = await refresh();
-      if (active.current && next && !terminal(next.status)) timer = setTimeout(poll, intervalMs);
+      if (!active.current) return;
+      if (next && terminal(next.status)) return;
+      // A transient network/read failure must not permanently stop status polling.
+      timer = setTimeout(poll, next ? intervalMs : Math.min(intervalMs * 2, 5000));
     };
     poll();
     return () => { active.current = false; if (timer) clearTimeout(timer); };

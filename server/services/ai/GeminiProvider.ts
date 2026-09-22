@@ -201,6 +201,29 @@ function providerError(error: unknown, timedOut: boolean): AIServiceError {
   });
 }
 
+function parseStructuredJson(text: string): unknown {
+  const trimmed = text.trim();
+  const candidates = [trimmed];
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/iu);
+  if (fenced?.[1]) candidates.push(fenced[1].trim());
+  const firstObject = trimmed.indexOf("{");
+  const lastObject = trimmed.lastIndexOf("}");
+  if (firstObject >= 0 && lastObject > firstObject) candidates.push(trimmed.slice(firstObject, lastObject + 1));
+  const firstArray = trimmed.indexOf("[");
+  const lastArray = trimmed.lastIndexOf("]");
+  if (firstArray >= 0 && lastArray > firstArray) candidates.push(trimmed.slice(firstArray, lastArray + 1));
+
+  let lastError: unknown;
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      return JSON.parse(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new SyntaxError("Gemini response did not contain JSON.");
+}
+
 export class GeminiProvider implements AIProvider {
   private readonly config: GeminiConfig;
   private readonly client: GeminiClient;
@@ -299,7 +322,7 @@ export class GeminiProvider implements AIProvider {
 
       let parsed: unknown;
       try {
-        parsed = JSON.parse(response.text);
+        parsed = parseStructuredJson(response.text);
       } catch (error) {
         throw new AIServiceError("AI_INVALID_RESPONSE", {
           publicMessage: "The AI provider returned invalid structured data.",

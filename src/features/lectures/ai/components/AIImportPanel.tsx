@@ -57,8 +57,8 @@ function isPdf(file: File): boolean {
 }
 
 function isImage(file: File): boolean {
-  return ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(file.type.toLowerCase()) ||
-    ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(extension(file));
+  return ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/avif", "image/tiff", "image/bmp", "image/gif"].includes(file.type.toLowerCase()) ||
+    ["jpg", "jpeg", "png", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp", "gif"].includes(extension(file));
 }
 
 function SourcePreview({ file }: { file: File }) {
@@ -482,7 +482,7 @@ export default function AIImportPanel({
               ref={inputRef}
               type="file"
               className="hidden"
-              accept={inputKind === "pdf" ? "application/pdf,.pdf" : "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"}
+              accept={inputKind === "pdf" ? "application/pdf,.pdf" : "image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,image/tiff,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.heic,.heif,.avif,.tif,.tiff,.bmp,.gif"}
               multiple={inputKind === "image"}
               onChange={(event) => { acceptFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
             />

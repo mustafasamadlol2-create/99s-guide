@@ -60,8 +60,13 @@ function textPart(text: string) {
   };
 }
 
-test("Cloudflare is the explicit default and invalid providers fail safely", () => {
-  assert.equal(getConfiguredAIProvider({}), "cloudflare");
+test("provider configuration prefers available credentials and invalid providers fail safely", () => {
+  assert.equal(getConfiguredAIProvider({}), "gemini");
+  assert.equal(getConfiguredAIProvider({ GEMINI_API_KEY: "synthetic-test-key" }), "gemini");
+  assert.equal(getConfiguredAIProvider({
+    CLOUDFLARE_ACCOUNT_ID: "account",
+    CLOUDFLARE_AI_API_TOKEN: "token",
+  }), "cloudflare");
   assert.equal(getConfiguredAIProvider({ AI_PROVIDER: "gemini" }), "gemini");
   assert.throws(
     () => getConfiguredAIProvider({ AI_PROVIDER: "other" }),
@@ -73,7 +78,7 @@ test("Cloudflare is the explicit default and invalid providers fail safely", () 
   }).model, DEFAULT_CLOUDFLARE_MODEL);
 });
 
-test("provider selection has no automatic Gemini fallback", () => {
+test("provider factory keeps single-provider setups direct and adds fallback when both are configured", () => {
   const cloudflare = createConfiguredAIProvider({
     AI_PROVIDER: "cloudflare",
     CLOUDFLARE_ACCOUNT_ID: "account",
@@ -86,6 +91,14 @@ test("provider selection has no automatic Gemini fallback", () => {
     GEMINI_API_KEY: "synthetic-test-key",
   });
   assert.equal(gemini.constructor.name, "GeminiProvider");
+
+  const resilient = createConfiguredAIProvider({
+    AI_PROVIDER: "gemini",
+    GEMINI_API_KEY: "synthetic-test-key",
+    CLOUDFLARE_ACCOUNT_ID: "account",
+    CLOUDFLARE_AI_API_TOKEN: "token",
+  });
+  assert.equal(resilient.constructor.name, "FallbackAIProvider");
 });
 
 test("Cloudflare inference uses Bearer auth and JSON Schema response_format", async () => {

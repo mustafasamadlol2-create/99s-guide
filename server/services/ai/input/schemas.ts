@@ -46,7 +46,7 @@ const adoptedBinaryFileSchema = z.object({
 export const rawAIBinaryInputSchema = z.object({
   bytes: z.instanceof(Uint8Array).optional(),
   adoptedFile: adoptedBinaryFileSchema.optional(),
-  claimedMimeType: z.string().trim().min(1).max(100),
+  claimedMimeType: z.string().trim().max(100),
   originalFilename: optionalMetadataString,
   sourceLabel: optionalMetadataString,
 }).strict().refine(

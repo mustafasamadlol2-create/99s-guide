@@ -32,6 +32,7 @@ import { applyFlashcardBatchDuplicateWarnings, applyFlashcardQualityWarnings, su
 import { normalizeExtractedFlashcards, normalizeGeneratedFlashcards } from "./normalize.js";
 import { validateFlashcardSourceEvidence } from "./sourceValidation.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
+import { createBinarySourceWindows } from "../sourceWindows.js";
 import { parseDeterministicFlashcards } from "./deterministicExtract.js";
 
 function requiredGenerationOptions(
@@ -121,15 +122,22 @@ export class FlashcardAIEngine {
     const deterministic = input.input.kind === "text"
       ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
       : null;
-    const shards = deterministic ? [] : shardTextContent(input.contents);
-    const extractShard = async (contents: PreparedAIInput["contents"]): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
+    const sourceWindows = deterministic
+      ? []
+      : input.input.kind === "text"
+        ? shardTextContent(input.contents).map((contents, index, all) => ({
+          contents,
+          instruction: `Inspect text segment ${index + 1} of ${all.length} and extract every explicit Flashcard in this segment.`,
+        }))
+        : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
+    const extractShard = async (contents: PreparedAIInput["contents"], instruction = ""): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
       try {
         return [await this.contentService.generateStructured({
           contents,
           responseSchema: flashcardExtractionProviderResponseSchema,
-          trustedSystemInstruction: buildFlashcardExtractInstruction(),
+          trustedSystemInstruction: [buildFlashcardExtractInstruction(), instruction].filter(Boolean).join("\n\n"),
           operation: "extract",
-          maxItems: this.config.extractionMaxCount,
+          maxItems: Math.min(100, this.config.extractionMaxCount),
           signal,
         })];
       } catch (error) {
@@ -138,15 +146,18 @@ export class FlashcardAIEngine {
         const halves = shardTextContent(contents, Math.ceil(part.sizeBytes / 2));
         if (halves.length < 2) throw error;
         const recovered = [];
-        for (const half of halves) recovered.push(...await extractShard(half));
+        for (const half of halves) recovered.push(...await extractShard(half, instruction));
         return recovered;
       }
     };
     let responses = deterministic ? [] : (await runResilientBatches({
-      total: shards.length,
+      total: sourceWindows.length,
       batchSize: 1,
       signal,
-      run: async ({ start }) => extractShard(shards[start]!),
+      run: async ({ start }) => {
+        const window = sourceWindows[start]!;
+        return extractShard(window.contents, window.instruction);
+      },
     })).flat();
     if (!deterministic && !responses.some((response) => response.data.items.length) &&
       input.input.kind === "text" &&
@@ -159,7 +170,7 @@ export class FlashcardAIEngine {
           "The previous bounded extraction returned zero items despite clear Flashcard markers. Retry extraction and return every recoverable card; do not finalize as empty.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: this.config.extractionMaxCount,
+        maxItems: Math.min(100, this.config.extractionMaxCount),
         signal,
       });
       responses = [recovery];
@@ -178,7 +189,7 @@ export class FlashcardAIEngine {
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no Flashcards.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: this.config.extractionMaxCount,
+        maxItems: Math.min(100, this.config.extractionMaxCount),
         signal,
       });
       responses = [...responses, recovery];
@@ -231,7 +242,12 @@ export class FlashcardAIEngine {
   ): Promise<FlashcardOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const coverageSources = shardTextContent(input.contents, 12_000);
+    const coverageSources = input.input.kind === "text"
+      ? shardTextContent(input.contents, 12_000).map((contents, index, all) => ({
+        contents,
+        instruction: `Focus on text source segment ${index + 1} of ${all.length}.`,
+      }))
+      : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
     const initialBatchCount = Math.ceil(selected.count / 20);
     const coverage = (start: number, recovery = false) => {
       const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
@@ -241,9 +257,10 @@ export class FlashcardAIEngine {
           coverageSources.length - 1,
           Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
         );
+      const source = coverageSources[sourceIndex]!;
       return {
-        contents: coverageSources[sourceIndex]!,
-        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
+        contents: source.contents,
+        instruction: `Source coverage window ${sequence + 1}; ${source.instruction} Avoid concepts covered by earlier windows.`,
       };
     };
     let responses = await runResilientBatches({

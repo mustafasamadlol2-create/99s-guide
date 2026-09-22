@@ -25,7 +25,8 @@ async function json<T>(response: Response): Promise<T> {
 
 export async function createCalendarImportJob(options: CalendarImportCreateOptions): Promise<CalendarImportJob> {
   const form = new FormData();
-  options.files.forEach((file) => form.append("files", file));
+  (options.files ?? []).forEach((file) => form.append("files", file));
+  if (options.text?.trim()) form.append("text", options.text);
   form.append("defaultTargetGroups", JSON.stringify(options.targetGroups));
   if (options.language) form.append("language", options.language);
   return json<CalendarImportJob>(await apiClient(IMPORT_BASE, {

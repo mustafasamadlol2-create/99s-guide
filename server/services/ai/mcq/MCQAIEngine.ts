@@ -34,6 +34,7 @@ import { normalizeExtractedItems, normalizeGeneratedItems } from "./normalize.js
 import { parseDeterministicMCQs } from "./deterministicExtract.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { contiguousIndexRanges, planNumberedMCQExtraction } from "./extractionPlan.js";
+import { createBinarySourceWindows } from "../sourceWindows.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
@@ -170,7 +171,14 @@ export class MCQAIEngine {
     let sourceStatus: MCQOperationResult["status"] = "complete";
     const deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
     const numberedPlan = deterministic ? null : planNumberedMCQExtraction(input.contents);
-    const shards = deterministic || numberedPlan ? [] : shardTextContent(input.contents);
+    const sourceWindows = deterministic || numberedPlan
+      ? []
+      : input.inputKind === "text"
+        ? shardTextContent(input.contents).map((contents, index, all) => ({
+          contents,
+          instruction: `Inspect text segment ${index + 1} of ${all.length} and extract every MCQ explicitly present in this segment.`,
+        }))
+        : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
     let responses = deterministic ? [] : numberedPlan
       ? await runResilientBatches({
         total: numberedPlan.blocks.length,
@@ -192,20 +200,23 @@ export class MCQAIEngine {
         }),
       })
       : await runResilientBatches({
-        total: shards.length,
+        total: sourceWindows.length,
         batchSize: 1,
         signal,
-        run: async (batch) => ({
-          batch,
-          result: await this.contentService.generateStructured({
-            contents: shards[batch.start]!,
-            responseSchema: mcqExtractionProviderResponseSchema,
-            trustedSystemInstruction: buildMCQExtractInstruction(),
-            operation: "extract",
-            maxItems: this.config.extractionMaxCount,
-            signal,
-          }),
-        }),
+        run: async (batch) => {
+          const window = sourceWindows[batch.start]!;
+          return {
+            batch,
+            result: await this.contentService.generateStructured({
+              contents: window.contents,
+              responseSchema: mcqExtractionProviderResponseSchema,
+              trustedSystemInstruction: [buildMCQExtractInstruction(), window.instruction].join("\n\n"),
+              operation: "extract",
+              maxItems: Math.min(100, this.config.extractionMaxCount),
+              signal,
+            }),
+          };
+        },
       });
     if (numberedPlan) {
       const withSafeOrdinals = responses.flatMap(({ batch, result }) =>
@@ -283,7 +294,7 @@ export class MCQAIEngine {
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no MCQs.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: this.config.extractionMaxCount,
+        maxItems: Math.min(100, this.config.extractionMaxCount),
         signal,
       });
       responses = [...responses, { batch: { start: 0, count: 1 }, result: recovery }];
@@ -346,7 +357,12 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const coverageSources = shardTextContent(input.contents, 12_000);
+    const coverageSources = input.input.kind === "text"
+      ? shardTextContent(input.contents, 12_000).map((contents, index, all) => ({
+        contents,
+        instruction: `Focus on text source segment ${index + 1} of ${all.length}.`,
+      }))
+      : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
     const initialBatchCount = Math.ceil(selected.count / 20);
     const coverage = (start: number, recovery = false) => {
       const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
@@ -356,9 +372,10 @@ export class MCQAIEngine {
           coverageSources.length - 1,
           Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
         );
+      const source = coverageSources[sourceIndex]!;
       return {
-        contents: coverageSources[sourceIndex]!,
-        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
+        contents: source.contents,
+        instruction: `Source coverage window ${sequence + 1}; ${source.instruction} Avoid concepts covered by earlier windows.`,
       };
     };
     let responses = await runResilientBatches({

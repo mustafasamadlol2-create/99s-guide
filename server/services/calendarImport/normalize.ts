@@ -20,6 +20,7 @@ export interface NormalizationContext {
   defaultTargetGroups: string[];
   sourcePageCount: number | null;
   sourceImageCount: number;
+  allowTextSource?: boolean;
 }
 
 export interface NormalizedCalendarCandidate {
@@ -134,7 +135,7 @@ export function normalizeCandidate(
   if (raw.sourceImageIndex !== null && raw.sourceImageIndex >= context.sourceImageCount) {
     warnings.push("Source image is outside the uploaded image set.");
   }
-  if (raw.sourcePage === null && raw.sourceImageIndex === null) {
+  if (raw.sourcePage === null && raw.sourceImageIndex === null && !context.allowTextSource) {
     warnings.push("Source location is missing.");
   }
 
