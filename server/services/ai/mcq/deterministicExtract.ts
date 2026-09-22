@@ -8,7 +8,7 @@ interface ParsedBlock {
   uncertainties: string[];
 }
 
-const questionMarker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,3})\s*(?:[.)、:：\/-]\s*|\s+)(.*)$/iu;
+const questionMarker = /^\s*(?:q(?:uestion)?\s*[iIl|]?\s*)?(\d{1,3})\s*(?:[.)、:：\/-]\s*|\s+)(.*)$/iu;
 const optionMarker = /^\s*(?:\(([A-D])\)|([A-D])\s*[).:：\/-]|([1-4])\s*[).:：\/-])\s*(.*)$/iu;
 const answerMarker = /^\s*(?:answer|correct\s+answer|correct|ans|key|الإجابة)\s*(?:[:：\/-]\s*)?(.+?)\s*$/iu;
 
@@ -49,15 +49,43 @@ function answerValue(value: string): { answer: ParsedBlock["correctAnswer"]; unc
 }
 
 function parseBlock(lines: string[], sourceOrdinal: number): ParsedBlock | null {
+  const normalizedLines = lines.map((line) => normalizeMarkdownMarkerLine(line).trim());
   let question = "";
   const options: string[] = [];
   let answer: ParsedBlock["correctAnswer"] = null;
   const uncertainties: string[] = [];
   let currentOption = -1;
-  for (const rawLine of lines) {
-    const line = normalizeMarkdownMarkerLine(rawLine).trim();
+
+  const firstFollowingExplicitOption = (from: number): "A" | "B" | "C" | "D" | null => {
+    for (let index = from + 1; index < normalizedLines.length; index += 1) {
+      const match = normalizedLines[index]!.match(optionMarker);
+      if (!match) continue;
+      return optionLabel(match[1] ?? match[2] ?? match[3]);
+    }
+    return null;
+  };
+
+  for (let index = 0; index < normalizedLines.length; index += 1) {
+    let line = normalizedLines[index]!;
     if (!line) continue;
-    const option = line.match(optionMarker);
+    let option = line.match(optionMarker);
+
+    // Scanner OCR occasionally drops only the punctuation after an option
+    // letter (for example "Ajalloy ..." while B/C/D remain "B)..."). Recover
+    // that narrowly when the next explicit option proves the expected order.
+    if (!option) {
+      const expected = String.fromCharCode(65 + currentOption + 1) as "A" | "B" | "C" | "D";
+      const compact = line.match(/^([A-D])(?=\p{L})(.+)$/iu);
+      const nextExplicit = firstFollowingExplicitOption(index);
+      const expectedNext = currentOption + 2 <= 3
+        ? String.fromCharCode(65 + currentOption + 2) as "A" | "B" | "C" | "D"
+        : null;
+      if (compact && compact[1]!.toUpperCase() === expected && nextExplicit === expectedNext) {
+        line = `${expected})${compact[2]!}`;
+        option = line.match(optionMarker);
+      }
+    }
+
     if (option) {
       currentOption += 1;
       if (currentOption !== options.length) return null;

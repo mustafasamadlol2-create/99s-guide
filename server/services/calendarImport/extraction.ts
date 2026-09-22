@@ -78,6 +78,17 @@ async function preferredSourceContents(
   };
 }
 
+function preserveSourceTransport(
+  inference: SafeProviderMetadata,
+  prepared?: SafeProviderMetadata,
+): SafeProviderMetadata {
+  return {
+    ...inference,
+    ...(prepared?.transport ? { transport: prepared.transport } : {}),
+    ...(prepared?.mediaCount !== undefined ? { mediaCount: prepared.mediaCount } : {}),
+  };
+}
+
 
 export async function extractSchedule(options: ScheduleExtractionOptions): Promise<ScheduleExtractionResult> {
   const maxCandidates = options.maxCandidates ?? 500;
@@ -105,7 +116,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       signal: options.signal,
       reusePreparedMedia: true,
     });
-    provider = result.meta;
+    provider = preserveSourceTransport(result.meta, preferred.meta);
     if (!result.data.items.length && preferred.preparedText) {
       const recovery = await options.provider.generateStructured({
         contents: preferred.contents,
@@ -124,7 +135,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
         reusePreparedMedia: true,
       });
       result = recovery;
-      provider = recovery.meta;
+      provider = preserveSourceTransport(recovery.meta, preferred.meta);
     }
     const candidates = result.data.items.map((item) => {
       if (item.sourcePage === null) return item;
@@ -202,7 +213,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       signal: options.signal,
       reusePreparedMedia: true,
     });
-    provider = result.meta;
+    provider = preserveSourceTransport(result.meta, preferred.meta);
 
     const groundedItems = result.data.items.map((item) => {
       if (options.inputKind === "text") {

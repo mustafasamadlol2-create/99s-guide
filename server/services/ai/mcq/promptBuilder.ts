@@ -52,6 +52,8 @@ export function buildMCQEnhanceInstruction(options: Required<Pick<MCQEnhancement
     "Do not return or rewrite question, options, correctAnswer, difficulty, provenance, or source fields.",
     "Preserve the stated answer as given. If the question and answer appear inconsistent, preserve them and report an uncertainty.",
     "Hints must guide reasoning without stating the answer letter, naming the option, or reproducing the correct option.",
-    "Leave a requested field null when the source does not support a safe enhancement.",
+    "For a requested explanation, use the preserved question, four options, correctAnswer, and supplied source context to write a concise educational rationale for why that answer is correct. The explanation does not need to have been written verbatim in the source.",
+    "For a requested hint, derive a useful reasoning cue from the question and source context even when no hint was originally present.",
+    "Do not leave a requested field null merely because that field was absent from the source. Return null only when the candidate is unreadable, lacks the information needed to reason safely, or is internally contradictory; report the reason in uncertainties.",
   ].join(" ");
 }

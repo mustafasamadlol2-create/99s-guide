@@ -117,6 +117,22 @@ export function createMCQEnhancementProviderResponseSchema(options: {
   }).strict();
 }
 
+export function createMCQRequiredEnhancementProviderResponseSchema(options: {
+  hint: boolean;
+  explanation: boolean;
+}) {
+  return z.object({
+    items: z.array(z.object({
+      candidateId: z.string().uuid(),
+      ...(options.hint ? { hint: boundedText } : {}),
+      ...(options.explanation ? { explanation: boundedText } : {}),
+      confidence: z.number().finite().min(0).max(1).default(0.5),
+      uncertainties: providerUncertaintiesSchema,
+    }).strict()).max(100),
+    uncertainties: providerUncertaintiesSchema,
+  }).strict();
+}
+
 export const mcqEnhancementProviderResponseSchema = createMCQEnhancementProviderResponseSchema({
   hint: true,
   explanation: true,

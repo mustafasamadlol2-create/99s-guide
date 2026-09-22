@@ -183,6 +183,7 @@ export class CloudflareClient {
     bytes: Uint8Array,
     mimeType: string,
     signal: AbortSignal,
+    question?: string,
   ): Promise<CloudflareVisionResult> {
     const modelPath = this.config.visionModel.split("/").map((part) => encodeURIComponent(part)).join("/");
     const image = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
@@ -198,9 +199,10 @@ export class CloudflareClient {
         body: JSON.stringify({
           task: "query",
           image,
-          question: [
-            "Read this educational source image as an OCR/transcription task.",
+          question: question ?? [
+            "Read this educational source image as a high-fidelity OCR/transcription task.",
             "Transcribe every visible word, number, option label, table cell, date, time, heading, annotation, and diagram label.",
+            "When the page contains an educational diagram, also describe only the clearly visible labelled relationships needed to preserve its factual content.",
             "Preserve reading order and use Markdown rows/lists when helpful.",
             "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
           ].join(" "),

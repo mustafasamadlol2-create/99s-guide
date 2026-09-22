@@ -132,8 +132,10 @@ export const calendarImportPreviewSchema = z.object({
   provider: z.object({
     provider: z.string().trim().min(1).max(64),
     model: z.string().trim().min(1).max(160),
+    responseId: z.string().trim().min(1).max(512).optional(),
     transport: z.enum(["inline", "files_api", "markdown_conversion"]).optional(),
     mediaCount: z.number().int().nonnegative().optional(),
+    cleanupWarning: z.literal("provider_media_cleanup_failed").optional(),
   }).strict(),
 }).strict();
 

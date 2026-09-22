@@ -9,6 +9,7 @@ import type {
   FlashcardEnhancementInput,
   FlashcardGenerationOptions,
   FlashcardOperationResult,
+  FlashcardSourceEvidence,
   SkippedFlashcardSourceItem,
 } from "./contracts.js";
 import {
@@ -129,6 +130,39 @@ async function preferredSourceContents(
     };
   }
   return { contents: input.contents, preparedText: null, ...(prepared ? { providerMeta: prepared.meta } : {}) };
+}
+
+function fallbackFlashcardEnhancementSource(
+  candidate: AIFlashcardCandidate,
+  source: PreparedAIInput,
+): FlashcardSourceEvidence | null {
+  const excerpt = [candidate.clinicalConcept, candidate.explanation ?? ""].filter(Boolean).join("\n").slice(0, 300);
+  if (source.input.kind === "pdf") return { inputType: "pdf", section: "Flashcard enhancement candidate", supportingExcerpt: excerpt };
+  if (source.input.kind === "image" && source.input.images.length === 1) {
+    return { inputType: "image", imageIndex: 0, label: "Uploaded Flashcard image", supportingExcerpt: excerpt };
+  }
+  if (source.input.kind === "text") return { inputType: "text", section: "Flashcard enhancement candidate", supportingExcerpt: excerpt };
+  return null;
+}
+
+function withRecoveredFlashcardEnhancementSource(
+  candidate: AIFlashcardCandidate,
+  source: PreparedAIInput,
+): AIFlashcardCandidate {
+  if (candidate.source) return candidate;
+  const recovered = fallbackFlashcardEnhancementSource(candidate, source);
+  if (!recovered) return candidate;
+  const removable = new Set([
+    "Source evidence was not provided.",
+    "Source evidence input type did not match the supplied source.",
+    "PDF source evidence did not contain a page or excerpt.",
+    "Image source evidence contained an invalid image index.",
+  ]);
+  return {
+    ...candidate,
+    source: recovered,
+    warnings: candidate.warnings.filter((warning) => !removable.has(warning)),
+  };
 }
 
 function enhancementContext(items: AIFlashcardCandidate[]): string {
@@ -403,10 +437,11 @@ export class FlashcardAIEngine {
     const source = "source" in input ? input.source : input;
     const extraction = "source" in input ? null : await this.extractExistingFlashcards(input, signal);
     const preferredSource = await preferredSourceContents(this.contentService, source, signal);
-    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) => ({
-      ...item,
-      warnings: [...item.warnings],
-    }));
+    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) =>
+      withRecoveredFlashcardEnhancementSource({
+        ...item,
+        warnings: [...item.warnings],
+      }, source));
     const eligible = candidates.filter((item) => item.clinicalConcept.trim() && item.explanation === null);
     const warnings = [...(extraction?.warnings ?? [])];
 
@@ -416,7 +451,7 @@ export class FlashcardAIEngine {
         "enhance",
         applyFlashcardBatchDuplicateWarnings(candidates.map((candidate) => applyFlashcardQualityWarnings(
           { ...candidate },
-          { requireExplanation: true, reviewConfidenceThreshold: this.config.reviewConfidenceThreshold },
+          { requireExplanation: true, reviewConfidenceThreshold: Math.min(this.config.reviewConfidenceThreshold, 0.7) },
         ))),
         extraction?.skippedItems ?? [],
         warnings,
@@ -524,7 +559,7 @@ export class FlashcardAIEngine {
             const validatedSource = validateFlashcardSourceEvidence(stage2.source, input);
             candidateWarnings.push(...validatedSource.warnings);
           }
-          if (stage2.confidence < this.config.reviewConfidenceThreshold) {
+          if (stage2.confidence < Math.min(this.config.reviewConfidenceThreshold, 0.7)) {
             candidateWarnings.push("Enhancement confidence is below the review threshold.");
           }
         }
@@ -544,7 +579,7 @@ export class FlashcardAIEngine {
         warnings: [...new Set(effectiveWarnings)],
       }, {
         requireExplanation: true,
-        reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
+        reviewConfidenceThreshold: Math.min(this.config.reviewConfidenceThreshold, 0.7),
       });
     });
   }

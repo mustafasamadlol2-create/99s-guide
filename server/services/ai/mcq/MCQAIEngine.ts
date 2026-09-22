@@ -10,6 +10,7 @@ import type {
   MCQGenerationOptions,
   MCQOperationResult,
   MCQExtractOptions,
+  MCQSourceEvidence,
   SkippedMCQSourceItem,
 } from "./contracts.js";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./config.js";
 import {
   createMCQEnhancementProviderResponseSchema,
+  createMCQRequiredEnhancementProviderResponseSchema,
   mcqEnhancementProviderResponseSchema,
   mcqExtractionProviderResponseSchema,
   mcqGenerationProviderResponseSchema,
@@ -108,7 +110,7 @@ async function preferredSourceContents(
 }
 
 function countQuestionMarkers(text: string | null | undefined): number {
-  return text ? (text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：\/-]/giu)?.length ?? 0) : 0;
+  return text ? (text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*[iIl|]?\s*)?\d{1,3}\s*[.)、:：\/-]/giu)?.length ?? 0) : 0;
 }
 
 function requiredGenerationOptions(
@@ -199,6 +201,49 @@ function explicitlyImpliedAnswer(text: string | null | undefined): "A" | "B" | "
   return match ? match[1]!.toUpperCase() as "A" | "B" | "C" | "D" : null;
 }
 
+function fallbackEnhancementSource(
+  candidate: AIMCQCandidate,
+  source: PreparedAIInput,
+): MCQSourceEvidence | null {
+  const excerpt = [
+    candidate.question,
+    `A. ${candidate.optionA}`,
+    `B. ${candidate.optionB}`,
+    `C. ${candidate.optionC}`,
+    `D. ${candidate.optionD}`,
+  ].join("\n").slice(0, 300);
+  if (source.input.kind === "pdf") {
+    return { inputType: "pdf", section: "MCQ enhancement candidate", supportingExcerpt: excerpt };
+  }
+  if (source.input.kind === "image" && source.input.images.length === 1) {
+    return { inputType: "image", imageIndex: 0, label: "Uploaded MCQ image", supportingExcerpt: excerpt };
+  }
+  if (source.input.kind === "text") {
+    return { inputType: "text", section: "MCQ enhancement candidate", supportingExcerpt: excerpt };
+  }
+  return null;
+}
+
+function withRecoveredEnhancementSource(
+  candidate: AIMCQCandidate,
+  source: PreparedAIInput,
+): AIMCQCandidate {
+  if (candidate.source) return candidate;
+  const recovered = fallbackEnhancementSource(candidate, source);
+  if (!recovered) return candidate;
+  const removable = new Set([
+    "Source evidence was not provided.",
+    "Source evidence input type did not match the supplied source.",
+    "PDF source evidence did not contain a page or excerpt.",
+    "Image source evidence contained an invalid image index.",
+  ]);
+  return {
+    ...candidate,
+    source: recovered,
+    warnings: candidate.warnings.filter((warning) => !removable.has(warning)),
+  };
+}
+
 function mergeEnhancementItems(
   items: MCQEnhancementProviderResponse["items"],
 ): MCQEnhancementProviderResponse["items"] {
@@ -241,7 +286,10 @@ export class MCQAIEngine {
       transport: "inline",
     };
     let deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
-    let preferred = { contents: input.contents as AIContentPart[], preparedText: input.text ?? null as string | null, providerMeta: undefined as MCQOperationResult["provider"] | undefined };
+    let preferred: Awaited<ReturnType<typeof preferredSourceContents>> = {
+      contents: input.contents as AIContentPart[],
+      preparedText: input.text ?? null,
+    };
 
     if (!deterministic) {
       preferred = await preferredSourceContents(this.contentService, input, signal);
@@ -549,10 +597,11 @@ export class MCQAIEngine {
         category: options.category ?? "AI_GENERATED",
         difficulty: options.difficulty ?? "Medium",
       });
-    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) => ({
-      ...item,
-      warnings: [...item.warnings],
-    }));
+    const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) =>
+      withRecoveredEnhancementSource({
+        ...item,
+        warnings: [...item.warnings],
+      }, source));
     const eligible = candidates.filter((item) =>
       item.correctAnswer !== null &&
       ((!selected.hint && !selected.explanation) ||
@@ -645,7 +694,7 @@ export class MCQAIEngine {
             signal,
             run: ({ start, count }) => this.contentService.generateStructured({
               contents: preferredSource.contents,
-              responseSchema: createMCQEnhancementProviderResponseSchema({ hint: false, explanation: true }),
+              responseSchema: createMCQRequiredEnhancementProviderResponseSchema({ hint: false, explanation: true }),
               trustedSystemInstruction: [
                 buildMCQEnhanceInstruction({ hint: false, explanation: true }),
                 "Targeted explanation recovery: return only explanation for the listed candidate IDs.",
@@ -682,7 +731,7 @@ export class MCQAIEngine {
             signal,
             run: ({ start, count }) => this.contentService.generateStructured({
               contents: preferredSource.contents,
-              responseSchema: createMCQEnhancementProviderResponseSchema({ hint: true, explanation: false }),
+              responseSchema: createMCQRequiredEnhancementProviderResponseSchema({ hint: true, explanation: false }),
               trustedSystemInstruction: [
                 buildMCQEnhanceInstruction({ hint: true, explanation: false }),
                 "Targeted hint recovery: return only hint for the listed candidate IDs.",
@@ -725,7 +774,7 @@ export class MCQAIEngine {
           requireAnswer: false,
           requestedHint: selected.hint,
           requestedExplanation: selected.explanation,
-          reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
+          reviewConfidenceThreshold: Math.min(this.config.reviewConfidenceThreshold, 0.7),
         },
       ))),
       extraction?.skippedItems ?? [],
@@ -773,7 +822,7 @@ export class MCQAIEngine {
           if (options.explanation && candidate.explanation === null && !stage2.explanation) {
             candidateWarnings.push("The requested explanation enhancement is missing.");
           }
-          if (stage2.confidence < this.config.reviewConfidenceThreshold) {
+          if (stage2.confidence < Math.min(this.config.reviewConfidenceThreshold, 0.7)) {
             candidateWarnings.push("Enhancement confidence is below the review threshold.");
           }
         }
@@ -798,7 +847,7 @@ export class MCQAIEngine {
         requireAnswer: false,
         requestedHint: options.hint,
         requestedExplanation: options.explanation,
-        reviewConfidenceThreshold: this.config.reviewConfidenceThreshold,
+        reviewConfidenceThreshold: Math.min(this.config.reviewConfidenceThreshold, 0.7),
       });
     });
   }

@@ -47,6 +47,7 @@ export function buildFlashcardEnhanceInstruction(): string {
     "Return only candidateId, explanation, confidence, uncertainties, and optional source evidence.",
     "Do not return or rewrite clinicalConcept or any other unrequested field.",
     "Keep the explanation concise, source-grounded, and directly useful for recall.",
-    "If the source does not safely support an explanation, report an uncertainty rather than inventing certainty.",
+    "The explanation may be newly written from the preserved clinicalConcept and supplied source context; it does not need to already exist verbatim in the source.",
+    "Do not leave explanation null merely because the original card had no back. Return null only when the concept is unreadable or the source/candidate context is insufficient to write a safe explanation; report that reason as an uncertainty.",
   ].join(" ");
 }

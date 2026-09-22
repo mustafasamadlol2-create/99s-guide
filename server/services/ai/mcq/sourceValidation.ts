@@ -23,47 +23,58 @@ export function validateMCQSourceEvidence(
   const imageCount = "input" in input
     ? input.input.kind === "image" ? input.input.images.length : undefined
     : input.imageCount;
+  let effectiveSource: MCQSourceEvidence = source;
   if (source.inputType !== inputKind) {
-    return {
-      source: null,
-      warnings: ["Source evidence input type did not match the supplied source."],
-    };
+    // Prepared OCR/Markdown is sent to the model as text, so the model may
+    // truthfully label evidence as text even though the user's original source
+    // was a PDF/image. Preserve the excerpt and remap only when the original
+    // source identity is unambiguous.
+    if (inputKind === "pdf" && source.inputType === "text") {
+      effectiveSource = { ...source, inputType: "pdf", imageIndex: undefined };
+    } else if (inputKind === "image" && source.inputType === "text" && imageCount === 1) {
+      effectiveSource = { ...source, inputType: "image", imageIndex: 0, page: undefined };
+    } else {
+      return {
+        source: null,
+        warnings: ["Source evidence input type did not match the supplied source."],
+      };
+    }
   }
 
   const normalized: MCQSourceEvidence = {
-    inputType: source.inputType,
-    ...(source.page === undefined ? {} : { page: source.page }),
-    ...(source.imageIndex === undefined ? {} : { imageIndex: source.imageIndex }),
-    ...(source.section ? { section: source.section.slice(0, MAX_SOURCE_SECTION_LENGTH) } : {}),
-    ...(source.label ? { label: source.label.slice(0, 200) } : {}),
-    ...(source.supportingExcerpt !== undefined && source.supportingExcerpt !== null
-      ? { supportingExcerpt: source.supportingExcerpt.slice(0, maxExcerptLength) }
+    inputType: effectiveSource.inputType,
+    ...(effectiveSource.page === undefined ? {} : { page: effectiveSource.page }),
+    ...(effectiveSource.imageIndex === undefined ? {} : { imageIndex: effectiveSource.imageIndex }),
+    ...(effectiveSource.section ? { section: effectiveSource.section.slice(0, MAX_SOURCE_SECTION_LENGTH) } : {}),
+    ...(effectiveSource.label ? { label: effectiveSource.label.slice(0, 200) } : {}),
+    ...(effectiveSource.supportingExcerpt !== undefined && effectiveSource.supportingExcerpt !== null
+      ? { supportingExcerpt: effectiveSource.supportingExcerpt.slice(0, maxExcerptLength) }
       : {}),
   };
   const warnings: string[] = [];
-  if (source.inputType === "pdf") {
-    if (source.page !== undefined && (!Number.isInteger(source.page) || source.page <= 0)) {
+  if (effectiveSource.inputType === "pdf") {
+    if (effectiveSource.page !== undefined && (!Number.isInteger(effectiveSource.page) || effectiveSource.page <= 0)) {
       warnings.push("PDF source evidence did not contain a valid positive page.");
       delete normalized.page;
     }
-    if (source.page === undefined && !source.section && !source.supportingExcerpt) {
+    if (effectiveSource.page === undefined && !effectiveSource.section && !effectiveSource.supportingExcerpt) {
       warnings.push("PDF source evidence did not contain a page or excerpt.");
     }
-  } else if (source.inputType === "image") {
+  } else if (effectiveSource.inputType === "image") {
     if (
-      source.imageIndex === undefined ||
-      !Number.isInteger(source.imageIndex) ||
-      source.imageIndex < 0 ||
+      effectiveSource.imageIndex === undefined ||
+      !Number.isInteger(effectiveSource.imageIndex) ||
+      effectiveSource.imageIndex < 0 ||
       imageCount === undefined ||
-      source.imageIndex >= imageCount
+      effectiveSource.imageIndex >= imageCount
     ) {
       warnings.push("Image source evidence contained an invalid image index.");
       delete normalized.imageIndex;
     }
-  } else if (!source.section) {
+  } else if (!effectiveSource.section) {
     warnings.push("Text source evidence did not contain a section.");
   }
-  if (source.supportingExcerpt && source.supportingExcerpt.length > maxExcerptLength) {
+  if (effectiveSource.supportingExcerpt && effectiveSource.supportingExcerpt.length > maxExcerptLength) {
     warnings.push("Source excerpt was bounded to the configured maximum length.");
   }
   return { source: normalized, warnings };

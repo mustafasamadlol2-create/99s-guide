@@ -48,10 +48,25 @@ function safeFilename(part: AIFilePart, mimeType: string): string {
   return `image-${part.source.imageIndex + 1}.${extension}`;
 }
 
+function emptyDiagnosticLine(value: string): boolean {
+  const normalized = value.trim().replace(/^[-*#>\s]+/gu, "").replace(/\s+/gu, " ");
+  if (!normalized) return true;
+  return /^(?:the\s+)?(?:page|document|source(?:\s+document)?)\s+(?:is|appears)\s+empty[.!]?$/iu.test(normalized) ||
+    /^(?:this\s+)?page\s+(?:contains|has)\s+no\s+(?:readable\s+)?(?:text|content)[.!]?$/iu.test(normalized) ||
+    /^no\s+(?:readable\s+)?(?:text|content)\s+(?:was\s+)?(?:found|detected|extracted)[.!]?$/iu.test(normalized) ||
+    /^(?:unable|failed|could\s+not)\s+to\s+(?:extract|read|detect|find)\s+(?:any\s+)?(?:text|content)[.!]?$/iu.test(normalized);
+}
+
 function unusableDocumentConversion(text: string): boolean {
   const normalized = text.trim();
-  return normalized.length === 0 ||
-    /(?:no|without|unable to|failed to|could not)\s+(?:extract|read|detect|find)\s+(?:any\s+)?(?:text|content)/iu.test(normalized);
+  if (!normalized) return true;
+  if (/(?:no|without|unable to|failed to|could not)\s+(?:extract|read|detect|find)\s+(?:any\s+)?(?:text|content)/iu.test(normalized)) {
+    return true;
+  }
+  const lines = normalized.split(/\r?\n/gu).map((line) => line.trim()).filter(Boolean);
+  if (lines.length && lines.every(emptyDiagnosticLine)) return true;
+  const meaningful = lines.filter((line) => !emptyDiagnosticLine(line)).join(" ");
+  return textCharacterCount(meaningful) < 24 && lines.some(emptyDiagnosticLine);
 }
 
 function textCharacterCount(text: string): number {
@@ -151,54 +166,59 @@ export class CloudflareMarkdownConverter {
     capability: AIStagedFileCapability,
     signal: AbortSignal,
   ): Promise<ConvertedCloudflarePart[]> {
-    // Fast path: Cloudflare's native PDF -> Markdown conversion handles the
-    // complete document in one request and is dramatically faster than
-    // rendering/OCRing every page independently. It is also the best path for
-    // dense MCQ sheets and timetable tables, because table structure is kept in
-    // one coherent document instead of being split across image OCR calls.
-    //
-    // The local page-by-page route remains as a bounded fallback for PDFs that
-    // Cloudflare cannot convert (or returns as empty), so scanned/unusual PDFs
-    // are still recoverable instead of being rejected.
-    let directConversionError: unknown;
-    try {
-      const bytes = await capability.readBytes();
-      const markdown = await this.toMarkdownBounded(
-        bytes,
-        "application/pdf",
-        safeFilename(part, part.mimeType),
-        signal,
-      );
-      if (!unusableDocumentConversion(markdown) && textCharacterCount(markdown) >= PDF_MIN_USABLE_TEXT_CHARS) {
-        return [{ text: markdown.trim(), inputType: "pdf" }];
-      }
-    } catch (error) {
-      if (signal.aborted) throw signal.reason ?? error;
-      directConversionError = error;
-    }
-
     let profiles: PDFTextPageProfile[];
     try {
+      // Inspect the local PDF structure first. This is fast and prevents a
+      // scanner-only PDF from being incorrectly accepted when Cloudflare
+      // toMarkdown returns placeholder text such as "The page is empty.".
       profiles = await extractPDFPageProfiles(capability, signal);
-    } catch (localError) {
-      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
-        publicMessage: "Cloudflare Workers AI could not read this PDF.",
-        diagnosticMessage: "Cloudflare whole-document conversion and local PDF inspection both failed.",
-        cause: directConversionError ?? localError,
-        retryable: true,
-      });
+    } catch (error) {
+      profiles = [];
+    }
+
+    const textRichPages = profiles.filter((profile) =>
+      textCharacterCount(profile.text) >= PDF_MIN_USABLE_TEXT_CHARS).length;
+    const mostlyScanned = profiles.length > 0 && textRichPages / profiles.length < 0.5;
+    let directMarkdown = "";
+    let directConversionError: unknown;
+
+    // Text-rich PDFs, especially timetables, often preserve tables best through
+    // Cloudflare's native PDF-to-Markdown path. Scanner-only PDFs skip this fast
+    // path and go directly to rendered-page vision OCR.
+    if (!mostlyScanned) {
+      try {
+        const bytes = await capability.readBytes();
+        const markdown = await this.toMarkdownBounded(
+          bytes,
+          "application/pdf",
+          safeFilename(part, part.mimeType),
+          signal,
+        );
+        if (!unusableDocumentConversion(markdown) &&
+          textCharacterCount(markdown) >= PDF_MIN_USABLE_TEXT_CHARS) {
+          directMarkdown = markdown.trim();
+        }
+      } catch (error) {
+        if (signal.aborted) throw signal.reason ?? error;
+        directConversionError = error;
+      }
     }
 
     if (profiles.length === 0) {
-      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
-        publicMessage: "The PDF did not contain readable pages.",
-        diagnosticMessage: "Cloudflare whole-document conversion was empty and local PDF inspection returned zero pages.",
+      if (directMarkdown) return [{ text: directMarkdown, inputType: "pdf" }];
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "Cloudflare Workers AI could not read this PDF.",
+        diagnosticMessage: "PDF inspection and whole-document conversion both failed.",
         cause: directConversionError,
         retryable: true,
       });
     }
 
-    const pagesNeedingVision = profiles.filter(shouldReadPageVisually).map((profile) => profile.page);
+    // For a scanned PDF every page needs vision. For text/mixed PDFs, only
+    // pages with insufficient text or embedded raster content need a visual
+    // augmentation pass. This keeps ordinary lecture PDFs fast.
+    const pagesNeedingVision = (mostlyScanned ? profiles : profiles.filter(shouldReadPageVisually))
+      .map((profile) => profile.page);
     const visualText = new Map<number, string>();
 
     for (let offset = 0; offset < pagesNeedingVision.length; offset += VISION_RENDER_BATCH_SIZE) {
@@ -208,33 +228,49 @@ export class CloudflareMarkdownConverter {
       const batch = await Promise.all(rendered.map(async (page) => {
         const localProfile = profiles.find((profile) => profile.page === page.page);
         try {
-          const text = await this.readVisualImage(page.bytes, page.mimeType, `source-page-${page.page}.png`, signal);
-          return { page: page.page, text };
+          const value = await this.readVisualImage(page.bytes, page.mimeType, `source-page-${page.page}.png`, signal);
+          return { page: page.page, text: value };
         } catch (error) {
+          // A healthy text layer is still usable if visual augmentation fails.
           if (localProfile && textCharacterCount(localProfile.text) >= PDF_MIN_USABLE_TEXT_CHARS) {
             return { page: page.page, text: "" };
           }
           throw error;
         }
       }));
-      for (const item of batch) if (item.text.trim()) visualText.set(item.page, item.text.trim());
+      for (const item of batch) {
+        if (item.text.trim() && !unusableDocumentConversion(item.text)) {
+          visualText.set(item.page, item.text.trim());
+        }
+      }
+    }
+
+    // A good whole-document conversion is kept because it preserves table
+    // relationships. Visual page augmentations are appended separately so
+    // diagrams/scanned inserts are not lost.
+    if (directMarkdown) {
+      const result: ConvertedCloudflarePart[] = [{ text: directMarkdown, inputType: "pdf" }];
+      for (const page of pagesNeedingVision) {
+        const visual = visualText.get(page);
+        if (visual) result.push({ text: visual, inputType: "pdf", page });
+      }
+      return result;
     }
 
     const result = profiles.map((profile) => ({
       text: combineTextAndVisual(profile.text, visualText.get(profile.page)),
       inputType: "pdf" as const,
       page: profile.page,
-    })).filter((item) => item.text.trim().length > 0);
+    })).filter((item) => item.text.trim().length > 0 && !unusableDocumentConversion(item.text));
 
     if (result.length === 0) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
         publicMessage: "Cloudflare Workers AI could not find readable content in this PDF.",
-        diagnosticMessage: "Whole-document conversion, text-layer extraction, and targeted visual OCR were empty.",
+        diagnosticMessage: "Text-layer extraction and rendered-page visual OCR produced no usable source content.",
         cause: directConversionError,
         retryable: true,
       });
     }
-
     return result;
   }
 
@@ -301,24 +337,9 @@ export class CloudflareMarkdownConverter {
     const visionClient = this.client as CloudflareClient & {
       visionToText?: CloudflareClient["visionToText"];
     };
-    if (typeof visionClient.visionToText !== "function") {
-      return (await this.toMarkdownBounded(bytes, mimeType, filename, signal)).trim();
-    }
-
     const normalized = await this.prepareVisionBytes(bytes);
-    try {
-      const bounded = createBoundedSignal(this.visionTimeoutMs, signal);
-      try {
-        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal);
-        if (result.text.trim()) return result.text.trim();
-      } finally {
-        bounded.cleanup();
-      }
-    } catch (visionError) {
-      if (signal.aborted) throw signal.reason ?? visionError;
-      // Cloudflare's vision model and Markdown Conversion are separate Workers AI
-      // paths. A bounded image Markdown fallback prevents a model-specific issue
-      // from turning into an endless job while remaining 100% on Cloudflare.
+
+    const markdownFallback = async (): Promise<string | null> => {
       try {
         const markdown = await this.toMarkdownBounded(
           normalized,
@@ -326,17 +347,49 @@ export class CloudflareMarkdownConverter {
           filename.replace(/\.[^.]+$/u, ".jpg"),
           signal,
         );
-        if (!unusableDocumentConversion(markdown)) return markdown.trim();
-      } catch (markdownError) {
-        if (signal.aborted) throw signal.reason ?? markdownError;
-        throw isAIServiceError(visionError) ? visionError : markdownError;
+        return !unusableDocumentConversion(markdown) ? markdown.trim() : null;
+      } catch (error) {
+        if (signal.aborted) throw signal.reason ?? error;
+        return null;
       }
-      throw visionError;
+    };
+
+    if (typeof visionClient.visionToText !== "function") {
+      const markdown = await markdownFallback();
+      if (markdown) return markdown;
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "Cloudflare Workers AI could not read this image.",
+        diagnosticMessage: "No vision client was available and image Markdown conversion returned no usable text.",
+        retryable: true,
+      });
     }
+
+    let lastVisionError: unknown;
+    const questions = [
+      undefined,
+      "This image is a document page that contains visible educational text. Transcribe all visible text exactly, including question numbers, A/B/C/D options, answers, table cells, dates, times, and headings. Do not say the page is empty unless there are literally no visible marks or text.",
+    ];
+    for (const question of questions) {
+      const bounded = createBoundedSignal(this.visionTimeoutMs, signal);
+      try {
+        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal, question);
+        const value = result.text.trim();
+        if (value && !unusableDocumentConversion(value)) return value;
+      } catch (error) {
+        if (signal.aborted) throw signal.reason ?? error;
+        lastVisionError = error;
+      } finally {
+        bounded.cleanup();
+      }
+    }
+
+    const markdown = await markdownFallback();
+    if (markdown) return markdown;
 
     throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
       publicMessage: "Cloudflare Workers AI could not read this image.",
-      diagnosticMessage: "Cloudflare visual OCR returned no usable content.",
+      diagnosticMessage: "Cloudflare vision OCR and image Markdown fallback both returned no usable content.",
+      cause: lastVisionError,
       retryable: true,
     });
   }

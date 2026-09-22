@@ -39,6 +39,7 @@ export async function runResilientBatches<T>(options: {
     initial.push({ start, count: Math.min(options.batchSize, options.total - start) });
   }
 
+  let firstUnhandledFailure: unknown;
   const executeWithSplit = async (batch: ReliabilityBatch): Promise<T[]> => {
     if (options.signal?.aborted) {
       throw options.signal.reason ?? new DOMException("The AI request was aborted.", "AbortError");
@@ -56,7 +57,11 @@ export async function runResilientBatches<T>(options: {
           ...await executeWithSplit({ start: batch.start + left, count: batch.count - left }),
         ];
       }
-      options.onFailure?.(batch, error);
+      if (options.onFailure) {
+        options.onFailure(batch, error);
+      } else if (firstUnhandledFailure === undefined) {
+        firstUnhandledFailure = error;
+      }
       return [];
     }
   };
@@ -76,7 +81,11 @@ export async function runResilientBatches<T>(options: {
     }
   }));
 
-  return slots.flatMap((slot) => slot ?? []);
+  const flattened = slots.flatMap((slot) => slot ?? []);
+  if (flattened.length === 0 && firstUnhandledFailure !== undefined && !options.onFailure) {
+    throw firstUnhandledFailure;
+  }
+  return flattened;
 }
 
 export function dedupeByText<T>(items: T[], getText: (item: T) => string): T[] {
