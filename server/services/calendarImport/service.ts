@@ -419,10 +419,10 @@ export class CalendarImportService {
         sourcePageCount: pageCount,
         inputKind: prepared.inputKind,
         signal: controller.signal,
-        onProgress: async (current, total) => {
+        onProgress: async (current, total, stage) => {
           await this.options.prisma.calendarImportJob.updateMany({
             where: { id, status: "PROCESSING" },
-            data: { stage: "Extracting schedule", progressCurrent: current, progressTotal: total },
+            data: { stage: stage || "Extracting schedule", progressCurrent: current, progressTotal: total },
           });
         },
       });
@@ -440,7 +440,7 @@ export class CalendarImportService {
         where: { id, status: "PROCESSING" },
         data: { stage: "Verifying against source", progressCurrent: 0, progressTotal: normalized.length },
       });
-      const verification = extracted.provider.provider === "local"
+      const verification = (prepared.inputKind === "image" || extracted.provider.provider === "local")
         ? {
             items: normalized.map((item) => ({
               candidateId: item.candidate.candidateId,

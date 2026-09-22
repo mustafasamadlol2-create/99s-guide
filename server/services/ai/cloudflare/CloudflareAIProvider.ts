@@ -424,9 +424,12 @@ export class CloudflareAIProvider implements AIProvider {
         diagnosticMessage: "Timetable source preparation received a non-image source.",
       });
     }
+    // Calendar images use a dedicated fast path. The converter itself has
+    // per-call deadlines, and this outer ceiling prevents any network edge case
+    // from leaving a Calendar job indefinitely in PROCESSING.
     const mediaTimeoutMs = Math.min(
-      6 * 60_000,
-      Math.max(this.config.markdownTimeoutMs, this.config.visionTimeoutMs) * 4,
+      90_000,
+      35_000 * Math.ceil(contents.length / 2) + 10_000,
     );
     const bounded = createBoundedSignal(mediaTimeoutMs, signal);
     try {
@@ -480,7 +483,7 @@ export class CloudflareAIProvider implements AIProvider {
         retryable: true,
       });
     }
-    const bounded = createBoundedSignal(Math.min(this.config.timeoutMs, 120_000), signal);
+    const bounded = createBoundedSignal(Math.min(this.config.timeoutMs, 25_000), signal);
     try {
       const result = await this.client.runPlainText([
         {

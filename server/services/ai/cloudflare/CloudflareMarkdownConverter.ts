@@ -37,6 +37,9 @@ export interface ConvertedCloudflarePart {
 const PDF_MIN_USABLE_TEXT_CHARS = 60;
 const VISION_RENDER_BATCH_SIZE = 6;
 const VISION_MAX_DIMENSION = 2_600;
+const CALENDAR_IMAGE_VISION_TIMEOUT_MS = 25_000;
+const CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS = 15_000;
+const CALENDAR_IMAGE_CONCURRENCY = 2;
 
 function safeFilename(part: AIFilePart, mimeType: string): string {
   if (part.inputType === "pdf") return "source.pdf";
@@ -180,29 +183,37 @@ export class CloudflareMarkdownConverter {
       });
     }
 
-    const converted: ConvertedCloudflarePart[] = [];
-    for (const part of contents as Array<Extract<AIFilePart, { inputType: "image" }>>) {
-      if (signal.aborted) throw signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
-      const capability = await this.resolveCapability(part);
-      let bytes: Uint8Array;
-      try {
-        bytes = await capability.readBytes();
-      } catch (error) {
-        throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
-          publicMessage: "The calendar image could not be read.",
-          diagnosticMessage: "Validated timetable image could not be read from staging.",
-          cause: error,
-        });
+    const parts = contents as Array<Extract<AIFilePart, { inputType: "image" }>>;
+    const converted: ConvertedCloudflarePart[] = new Array(parts.length);
+    let nextIndex = 0;
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= parts.length) return;
+        if (signal.aborted) throw signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+        const part = parts[index]!;
+        const capability = await this.resolveCapability(part);
+        let bytes: Uint8Array;
+        try {
+          bytes = await capability.readBytes();
+        } catch (error) {
+          throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+            publicMessage: "The calendar image could not be read.",
+            diagnosticMessage: "Validated timetable image could not be read from staging.",
+            cause: error,
+          });
+        }
+        const text = await this.readTimetableImage(
+          bytes,
+          part.mimeType,
+          safeFilename(part, part.mimeType),
+          part.source.imageIndex,
+          signal,
+        );
+        converted[index] = { text, inputType: "image", imageIndex: part.source.imageIndex };
       }
-      const text = await this.readTimetableImage(
-        bytes,
-        part.mimeType,
-        safeFilename(part, part.mimeType),
-        part.source.imageIndex,
-        signal,
-      );
-      converted.push({ text, inputType: "image", imageIndex: part.source.imageIndex });
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(CALENDAR_IMAGE_CONCURRENCY, parts.length) }, () => worker()));
     return converted;
   }
 
@@ -383,33 +394,27 @@ export class CloudflareMarkdownConverter {
     const visionClient = this.client as CloudflareClient & {
       visionToText?: CloudflareClient["visionToText"];
     };
-    if (typeof visionClient.visionToText !== "function") {
-      return this.readVisualImage(bytes, mimeType, filename, signal);
-    }
-
     const normalized = await this.prepareVisionBytes(bytes);
     const question = [
       "Read this image specifically as an academic timetable/calendar. Do not summarize it.",
       "Find the week/year header, every explicit day/date row, all visible time ranges, room/column headings, group labels, and EVERY non-empty scheduled cell.",
       "A compact code such as ID-1-Med, RM-1, NT-2 Bioch, CA-1, TBL, P, S, CS, SL, HV, FA, MME, EME or HISTORY EXAM is a real event and must not be omitted.",
-      "Return a lossless line-oriented transcription using this exact format for each scheduled cell:",
-      "EVENT|date=DD/MM/YYYY|time=HH:MM-HH:MM|title=RAW CELL TEXT|room=VISIBLE ROOM OR COLUMN|group=A-E OR ALL OR blank",
-      "If the page shows a date without the year, infer only the year that is explicitly present in the week/academic-year header. If a time cannot be safely assigned, leave time blank rather than dropping the event.",
+      "Prefer one line per visible scheduled cell using: EVENT|date=DD/MM/YYYY|time=HH:MM-HH:MM|title=RAW CELL TEXT|room=VISIBLE ROOM OR COLUMN|group=A-E OR ALL OR blank.",
+      "If the image layout is too complex to emit perfect EVENT lines, return a faithful row-by-row transcription instead of retrying or returning nothing.",
+      "If the page shows a date without the year, infer only the year explicitly present in the week/academic-year header. If a time cannot be safely assigned, leave time blank rather than dropping the event.",
       "For merged cells or two stacked events, emit one EVENT line per visible event. Ignore empty cells, decorative headings and footers.",
       `The uploaded image index is ${imageIndex}.`,
     ].join(" ");
 
-    const attempts = [question, `${question} SECOND PASS: verify row-by-row that no populated timetable cell was skipped.`];
     let lastError: unknown;
-    for (const prompt of attempts) {
-      const bounded = createBoundedSignal(this.visionTimeoutMs, signal);
+    if (typeof visionClient.visionToText === "function") {
+      const bounded = createBoundedSignal(Math.min(this.visionTimeoutMs, CALENDAR_IMAGE_VISION_TIMEOUT_MS), signal);
       try {
-        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal, prompt);
+        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal, question);
         const value = result.text.trim();
-        if (value && !unusableDocumentConversion(value)) {
-          const eventLines = value.match(/^EVENT\|/gimu)?.length ?? 0;
-          if (eventLines >= 2 || attempts.indexOf(prompt) === attempts.length - 1) return value;
-        }
+        // One successful vision response is enough. If it is a transcript rather
+        // than EVENT lines, Calendar extraction will normalize it locally/textually.
+        if (value && !unusableDocumentConversion(value)) return value;
       } catch (error) {
         if (signal.aborted) throw signal.reason ?? error;
         lastError = error;
@@ -418,17 +423,15 @@ export class CloudflareMarkdownConverter {
       }
     }
 
-    // Independent fallback: Cloudflare officially supports JPEG/PNG/WebP via
-    // the /ai/tomarkdown conversion endpoint. Use it directly instead of
-    // repeating the same failing vision-model request several more times. The
-    // Calendar extractor can then parse the transcript locally or run its
-    // plain-text EVENT-line recovery pass.
+    // One independent, short fallback. Do not repeat the same vision request:
+    // repeated 90-second retries were the reason image imports could sit at 0%.
     try {
       const markdown = await this.toMarkdownBounded(
         normalized,
         "image/jpeg",
         filename.replace(/\.[^.]+$/u, ".jpg"),
         signal,
+        Math.min(this.markdownTimeoutMs, CALENDAR_IMAGE_MARKDOWN_TIMEOUT_MS),
       );
       if (!unusableDocumentConversion(markdown)) return markdown.trim();
     } catch (error) {
@@ -437,8 +440,8 @@ export class CloudflareMarkdownConverter {
     }
 
     throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
-      publicMessage: "Cloudflare Workers AI could not read this timetable image.",
-      diagnosticMessage: "Timetable-specific vision and image Markdown conversion both failed.",
+      publicMessage: "Cloudflare Workers AI could not read this timetable image quickly enough. Please retry the image.",
+      diagnosticMessage: "Calendar timetable image exhausted one bounded vision attempt and one bounded Markdown fallback.",
       cause: lastError,
       retryable: true,
     });
@@ -515,8 +518,9 @@ export class CloudflareMarkdownConverter {
     mimeType: string,
     filename: string,
     signal: AbortSignal,
+    timeoutMs = this.markdownTimeoutMs,
   ): Promise<string> {
-    const bounded = createBoundedSignal(this.markdownTimeoutMs, signal);
+    const bounded = createBoundedSignal(timeoutMs, signal);
     try {
       const result = await this.client.toMarkdown(bytes, mimeType, filename, bounded.signal);
       return result.data;

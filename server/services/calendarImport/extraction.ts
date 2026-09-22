@@ -447,7 +447,12 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       return {
         candidates: direct,
         warnings: [...new Set(warnings)].slice(0, 50),
-        provider: meta ?? { provider: "local", model: "timetable-transcript-parser-v1", transport: "inline" },
+        provider: {
+          provider: "local",
+          model: "timetable-image-parser-v2",
+          ...(meta?.transport ? { transport: meta.transport } : { transport: "inline" }),
+          ...(meta?.mediaCount !== undefined ? { mediaCount: meta.mediaCount } : {}),
+        },
       };
     }
     if (typeof calendarImageProvider.normalizeTimetableTranscriptToEventLines !== "function") return null;
@@ -459,7 +464,11 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       return {
         candidates: recovered,
         warnings: [...new Set(warnings)].slice(0, 50),
-        provider: normalized.meta,
+        provider: {
+          provider: "local",
+          model: "timetable-image-event-lines-v2",
+          ...(normalized.meta.transport ? { transport: normalized.meta.transport } : { transport: "inline" }),
+        },
       };
     } catch (error) {
       if (options.signal?.aborted) throw options.signal.reason ?? error;
@@ -468,22 +477,24 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     }
   };
 
-  if (options.inputKind === "image") {
-    if (typeof calendarImageProvider.prepareTimetableImageText === "function") {
-      try {
-        await options.onProgress?.(0, Math.max(1, options.contents.length), "Reading timetable image");
-        specializedImageText = await calendarImageProvider.prepareTimetableImageText(options.contents, options.signal);
-        const recovered = await recoverImageTranscript(specializedImageText.text, specializedImageText.meta);
-        if (recovered) {
-          await options.onProgress?.(Math.max(1, options.contents.length), Math.max(1, options.contents.length), "Schedule image parsed");
-          return recovered;
-        }
-      } catch (error) {
-        if (options.signal?.aborted) throw options.signal.reason ?? error;
-        // Keep the generic image conversion as a second independent path.
-        // Provider-specific vision errors must not terminate Calendar image import.
-        warnings.push("Timetable-specific image reading needed the generic recovery path.");
+  if (options.inputKind === "image" && typeof calendarImageProvider.prepareTimetableImageText === "function") {
+    try {
+      await options.onProgress?.(1, 4, "Reading timetable image");
+      specializedImageText = await calendarImageProvider.prepareTimetableImageText(options.contents, options.signal);
+      await options.onProgress?.(2, 4, "Interpreting timetable image");
+      const recovered = await recoverImageTranscript(specializedImageText.text, specializedImageText.meta);
+      if (recovered) {
+        await options.onProgress?.(4, 4, "Schedule image parsed");
+        return recovered;
       }
+      await options.onProgress?.(3, 4, "Recovering timetable rows");
+    } catch (error) {
+      if (options.signal?.aborted) throw options.signal.reason ?? error;
+      // The timetable image path already tried both Cloudflare Vision and the
+      // independent image-to-Markdown endpoint. Re-running the generic media
+      // converter would repeat the same slow calls and was the source of the
+      // apparent endless 0% spinner.
+      throw error;
     }
   }
 
@@ -550,11 +561,11 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       operation: "extract",
       maxItems: Math.min(100, maxCandidates - candidates.length),
       sourceChunkConcurrency: 3,
-      timeoutMs: options.timeoutMs,
+      timeoutMs: options.inputKind === "image" ? Math.min(options.timeoutMs ?? 30_000, 30_000) : options.timeoutMs,
       signal: options.signal,
       reusePreparedMedia: true,
     });
-    if (!result.data.items.length) {
+    if (!result.data.items.length && options.inputKind !== "image") {
       const recovery = await options.provider.generateStructured({
         contents: unitContents,
         responseSchema: lightweightBatchSchema,
@@ -598,7 +609,11 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
         diagnosticMessage: `Schedule extraction exceeded the ${maxCandidates}-candidate safety cap.`,
       });
     }
-    await options.onProgress?.(unit + 1, totalUnits, progressLabel);
+    await options.onProgress?.(
+      options.inputKind === "image" ? 4 : unit + 1,
+      options.inputKind === "image" ? 4 : totalUnits,
+      options.inputKind === "image" ? "Schedule image parsed" : progressLabel,
+    );
   }
 
   if (!candidates.length && effectiveContents.length > 0) {
