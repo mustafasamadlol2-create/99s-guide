@@ -418,18 +418,30 @@ export class CloudflareMarkdownConverter {
       }
     }
 
-    // Final fallback is the generic OCR path. The calendar extractor will feed
-    // this transcript through its deterministic/structured recovery logic.
+    // Independent fallback: Cloudflare officially supports JPEG/PNG/WebP via
+    // the /ai/tomarkdown conversion endpoint. Use it directly instead of
+    // repeating the same failing vision-model request several more times. The
+    // Calendar extractor can then parse the transcript locally or run its
+    // plain-text EVENT-line recovery pass.
     try {
-      return await this.readVisualImage(normalized, "image/jpeg", filename, signal);
+      const markdown = await this.toMarkdownBounded(
+        normalized,
+        "image/jpeg",
+        filename.replace(/\.[^.]+$/u, ".jpg"),
+        signal,
+      );
+      if (!unusableDocumentConversion(markdown)) return markdown.trim();
     } catch (error) {
-      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
-        publicMessage: "Cloudflare Workers AI could not read this timetable image.",
-        diagnosticMessage: "Timetable-specific vision and generic OCR both failed.",
-        cause: lastError ?? error,
-        retryable: true,
-      });
+      if (signal.aborted) throw signal.reason ?? error;
+      lastError = lastError ?? error;
     }
+
+    throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+      publicMessage: "Cloudflare Workers AI could not read this timetable image.",
+      diagnosticMessage: "Timetable-specific vision and image Markdown conversion both failed.",
+      cause: lastError,
+      retryable: true,
+    });
   }
 
   private async readVisualImage(

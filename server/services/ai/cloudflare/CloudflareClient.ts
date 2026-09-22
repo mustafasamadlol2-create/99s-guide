@@ -30,6 +30,7 @@ function providerError(
   status: number,
   operation: string,
   cause?: unknown,
+  payload?: unknown,
 ): AIServiceError {
   if (status === 401 || status === 403) {
     return new AIServiceError("AI_CONFIG_ERROR", {
@@ -54,9 +55,12 @@ function providerError(
       cause,
     });
   }
+  const details = providerErrorText(payload);
   return new AIServiceError("AI_PROVIDER_ERROR", {
     publicMessage: "The AI provider could not complete the request.",
-    diagnosticMessage: `cloudflare_${operation}_invalid_request`,
+    diagnosticMessage: details
+      ? `cloudflare_${operation}_invalid_request: ${details.slice(0, 800)}`
+      : `cloudflare_${operation}_invalid_request`,
     cause,
   });
 }
@@ -156,7 +160,7 @@ export class CloudflareClient {
 
     const { response, payload } = attempt;
     if (!response.ok || payload?.success === false) {
-      throw providerError(response.status, "inference", undefined);
+      throw providerError(response.status, "inference", undefined, payload);
     }
 
     const result = payload?.result;
@@ -179,14 +183,17 @@ export class CloudflareClient {
   }
 
 
-  async visionToText(
-    bytes: Uint8Array,
-    mimeType: string,
+  /**
+   * Plain text generation without JSON-mode. Calendar image recovery uses this
+   * after OCR/transcription so a strict JSON-schema failure cannot turn an
+   * otherwise readable timetable image into a provider error.
+   */
+  async runPlainText(
+    messages: CloudflareRunMessage[],
     signal: AbortSignal,
-    question?: string,
-  ): Promise<CloudflareVisionResult> {
-    const modelPath = this.config.visionModel.split("/").map((part) => encodeURIComponent(part)).join("/");
-    const image = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
+    maxTokens = this.config.maxOutputTokens,
+  ): Promise<CloudflareRunResult> {
+    const modelPath = this.config.model.split("/").map((part) => encodeURIComponent(part)).join("/");
     const response = await this.fetchImpl(
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
       {
@@ -196,30 +203,96 @@ export class CloudflareClient {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        // Moondream's Workers AI schema only accepts the task/image/question
-        // fields for query mode. Text-generation-only parameters such as
-        // temperature, reasoning, max_tokens and stream can make an otherwise
-        // valid image request fail with HTTP 4xx on this model.
         body: JSON.stringify({
-          task: "query",
-          image,
-          question: question ?? [
-            "Read this educational source image as a high-fidelity OCR/transcription task.",
-            "Transcribe every visible word, number, option label, table cell, date, time, heading, annotation, and diagram label.",
-            "When the page contains an educational diagram, also describe only the clearly visible labelled relationships needed to preserve its factual content.",
-            "Preserve reading order and use Markdown rows/lists when helpful.",
-            "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
-          ].join(" "),
+          messages,
+          max_tokens: Math.max(256, Math.min(maxTokens, this.config.maxOutputTokens)),
+          temperature: 0,
+          stream: false,
         }),
+        signal,
+      },
+    );
+    const payload = await parseJson(response, "inference_text");
+    if (!response.ok || payload?.success === false) {
+      throw providerError(response.status, "inference_text", undefined, payload);
+    }
+    const result = payload?.result;
+    const candidate = result?.response ?? result?.choices?.[0]?.message?.content;
+    const text = typeof candidate === "string"
+      ? candidate.trim()
+      : candidate && typeof candidate === "object"
+        ? JSON.stringify(candidate)
+        : "";
+    if (!text) {
+      throw new AIServiceError("AI_INVALID_RESPONSE", {
+        publicMessage: "The AI provider returned an empty response.",
+        diagnosticMessage: "Cloudflare plain-text inference returned no text.",
+      });
+    }
+    return {
+      text,
+      responseId: response.headers.get("cf-ray") ?? undefined,
+    };
+  }
+
+  async visionToText(
+    bytes: Uint8Array,
+    mimeType: string,
+    signal: AbortSignal,
+    question?: string,
+  ): Promise<CloudflareVisionResult> {
+    const modelPath = this.config.visionModel.split("/").map((part) => encodeURIComponent(part)).join("/");
+    const image = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
+    const prompt = question ?? [
+      "Read this educational source image as a high-fidelity OCR/transcription task.",
+      "Transcribe every visible word, number, option label, table cell, date, time, heading, annotation, and diagram label.",
+      "When the page contains an educational diagram, also describe only the clearly visible labelled relationships needed to preserve its factual content.",
+      "Preserve reading order and use Markdown rows/lists when helpful.",
+      "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
+    ].join(" ");
+    const isMoondream = /(?:^|\/)moondream(?:\/|$)|moondream3/iu.test(this.config.visionModel);
+    const body = isMoondream
+      ? {
+        task: "query",
+        image,
+        question: prompt,
+        // Moondream currently defaults stream=true. The REST client needs one
+        // JSON envelope, so synchronous mode must be explicit.
+        stream: false,
+        reasoning: false,
+        temperature: 0,
+        max_tokens: Math.max(512, Math.min(this.config.visionMaxOutputTokens, 16_384)),
+      }
+      : {
+        // Other Workers AI vision text models (for example Llama Vision) use
+        // the standard messages + image shape instead of Moondream's task API.
+        messages: [{ role: "user", content: prompt }],
+        image,
+        stream: false,
+        temperature: 0,
+        max_tokens: Math.max(512, Math.min(this.config.visionMaxOutputTokens, 16_384)),
+      };
+    const response = await this.fetchImpl(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.apiToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(body),
         signal,
       },
     );
     const payload = await parseJson(response, "vision");
     if (!response.ok || payload?.success === false) {
-      throw providerError(response.status, "vision", undefined);
+      throw providerError(response.status, "vision", undefined, payload);
     }
     const result = payload?.result;
-    const candidate = result?.answer ?? result?.response ?? result?.caption;
+    const candidate = typeof result === "string"
+      ? result
+      : result?.answer ?? result?.response ?? result?.caption ?? result?.choices?.[0]?.message?.content;
     const text = typeof candidate === "string" ? candidate.trim() : "";
     if (!text) {
       throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
@@ -256,7 +329,7 @@ export class CloudflareClient {
     );
     const payload = await parseJson(response, "markdown");
     if (!response.ok || payload?.success === false) {
-      throw providerError(response.status, "markdown", undefined);
+      throw providerError(response.status, "markdown", undefined, payload);
     }
     const entry = resultArray(payload)[0];
     if (!entry || entry.format === "error" || typeof entry.data !== "string") {
