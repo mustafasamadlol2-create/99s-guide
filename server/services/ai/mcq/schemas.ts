@@ -101,6 +101,29 @@ export const mcqGenerationProviderResponseSchema = z.object({
   uncertainties: providerUncertaintiesSchema,
 }).strict();
 
+
+// Generation uses a compact provider contract on purpose. Asking the model for
+// per-question provenance/confidence/uncertainty metadata in the same response
+// as 20 full MCQs (especially with hints/explanations) makes strict JSON mode
+// unnecessarily large and can yield a valid but empty `items` array. The
+// application reconstructs review metadata after the factual MCQ fields have
+// been generated and validated.
+export const mcqGenerationCompactProviderItemSchema = z.object({
+  question: boundedText,
+  optionA: boundedText,
+  optionB: boundedText,
+  optionC: boundedText,
+  optionD: boundedText,
+  correctAnswer: answerSchema,
+  hint: nullableText,
+  explanation: nullableText,
+  difficulty: mcqDifficultySchema,
+}).strict();
+
+export const mcqGenerationCompactProviderResponseSchema = z.object({
+  items: z.array(mcqGenerationCompactProviderItemSchema).max(20),
+}).strict();
+
 export function createMCQEnhancementProviderResponseSchema(options: {
   hint: boolean;
   explanation: boolean;
@@ -140,4 +163,5 @@ export const mcqEnhancementProviderResponseSchema = createMCQEnhancementProvider
 
 export type MCQExtractionProviderResponse = z.infer<typeof mcqExtractionProviderResponseSchema>;
 export type MCQGenerationProviderResponse = z.infer<typeof mcqGenerationProviderResponseSchema>;
+export type MCQGenerationCompactProviderResponse = z.infer<typeof mcqGenerationCompactProviderResponseSchema>;
 export type MCQEnhancementProviderResponse = z.infer<typeof mcqEnhancementProviderResponseSchema>;

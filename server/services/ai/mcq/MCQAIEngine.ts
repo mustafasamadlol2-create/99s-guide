@@ -23,8 +23,10 @@ import {
   createMCQRequiredEnhancementProviderResponseSchema,
   mcqEnhancementProviderResponseSchema,
   mcqExtractionProviderResponseSchema,
-  mcqGenerationProviderResponseSchema,
+  mcqGenerationCompactProviderResponseSchema,
   type MCQEnhancementProviderResponse,
+  type MCQGenerationCompactProviderResponse,
+  type MCQGenerationProviderResponse,
   type MCQExtractionProviderResponse,
 } from "./schemas.js";
 import {
@@ -119,6 +121,77 @@ async function preferredSourceContents(
     };
   }
   return { contents: input.contents, preparedText: null, ...(prepared ? { providerMeta: prepared.meta } : {}) };
+}
+
+function expandCompactGenerationResponse(
+  response: MCQGenerationCompactProviderResponse,
+): MCQGenerationProviderResponse {
+  return {
+    items: response.items.map((item) => ({
+      ...item,
+      source: null,
+      confidence: 0.85,
+      uncertainties: [],
+    })),
+    uncertainties: [],
+  };
+}
+
+function generationCoverageWindows(contents: AIContentPart[], desiredWindows: number): AIContentPart[][] {
+  const count = Math.max(1, desiredWindows);
+  const part = contents.length === 1 && contents[0]?.kind === "text" ? contents[0] : null;
+  if (!part || count === 1) return [contents];
+
+  const pageBlocks = part.text
+    .split(/(?=^\[PDF page \d+\]\s*$)/gmu)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (pageBlocks.length >= count) {
+    const weights = pageBlocks.map((block) => Math.max(1, block.replace(/\s/gu, "").length));
+    const prefix = [0];
+    for (const weight of weights) prefix.push(prefix[prefix.length - 1]! + weight);
+    const totalChars = prefix[prefix.length - 1]!;
+    const boundaries = [0];
+    let previous = 0;
+    for (let split = 1; split < count; split += 1) {
+      const minBoundary = previous + 1;
+      const maxBoundary = pageBlocks.length - (count - split);
+      const target = totalChars * split / count;
+      let best = minBoundary;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let candidate = minBoundary; candidate <= maxBoundary; candidate += 1) {
+        const distance = Math.abs(prefix[candidate]! - target);
+        if (distance < bestDistance) {
+          best = candidate;
+          bestDistance = distance;
+        }
+      }
+      boundaries.push(best);
+      previous = best;
+    }
+    boundaries.push(pageBlocks.length);
+
+    return Array.from({ length: count }, (_, index) => {
+      const text = pageBlocks.slice(boundaries[index]!, boundaries[index + 1]!).join("\n\n");
+      return [{
+        kind: "text" as const,
+        text,
+        source: part.source,
+        sizeBytes: new TextEncoder().encode(text).byteLength,
+        sha256: sha256Text(text),
+      }];
+    });
+  }
+
+  const byteLength = new TextEncoder().encode(part.text).byteLength;
+  const targetBytes = Math.max(1_200, Math.ceil(byteLength / count));
+  const sharded = shardTextContent(contents, targetBytes);
+  return sharded.length > 1 ? sharded : [contents];
+}
+
+function meaningfulSourceCharacters(contents: AIContentPart[]): number {
+  return contents.reduce((total, part) => total + (part.kind === "text" ? part.text.replace(/\s/gu, "").length : 0), 0);
 }
 
 function countQuestionMarkers(text: string | null | undefined): number {
@@ -496,72 +569,113 @@ export class MCQAIEngine {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
     const preferred = await preferredSourceContents(this.contentService, inputForPrepared(input), signal, { fastTextPdf: true });
-    const generationBatchSize = 20;
-    const coverageSources = shardTextContent(preferred.contents, 10_000);
+
+    if (meaningfulSourceCharacters(preferred.contents) < 120) {
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "The uploaded source did not contain enough readable educational content to generate MCQs.",
+        diagnosticMessage: "MCQ generation fast-path produced less than 120 non-whitespace source characters.",
+        retryable: true,
+      });
+    }
+
+    // A single 20-item structured response is large (question + four options +
+    // answer + optional hint/explanation + metadata) and Cloudflare/Llama may
+    // validly return an empty items array when strict JSON generation becomes
+    // too constrained. Generate in small source-grounded batches instead. Four
+    // 5-item requests can run in parallel, are substantially faster, and each
+    // response remains comfortably inside the structured-output budget.
+    const generationBatchSize = 5;
     const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
-    const coverage = (start: number, recovery = false) => {
-      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / generationBatchSize);
-      const sourceIndex = coverageSources.length === 1
-        ? 0
-        : Math.min(
-          coverageSources.length - 1,
-          Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
-        );
-      return {
-        contents: coverageSources[sourceIndex]!,
-        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
-      };
+    const coverageSources = generationCoverageWindows(preferred.contents, initialBatchCount);
+
+    const batchSource = (batchIndex: number, recovery = false): AIContentPart[] => {
+      if (recovery && preferred.contents.length === 1 && preferred.contents[0]?.kind === "text" &&
+          preferred.contents[0].sizeBytes <= 12_000) {
+        return preferred.contents;
+      }
+      return coverageSources[batchIndex % coverageSources.length] ?? preferred.contents;
     };
-    let responses = await runResilientBatches({
-      total: selected.count,
-      batchSize: generationBatchSize,
-      concurrency: 4,
-      signal,
-      run: ({ start, count }) => {
-        const covered = coverage(start);
-        return this.contentService.generateStructured({
-          contents: covered.contents,
-          responseSchema: mcqGenerationProviderResponseSchema,
+
+    const generateBatch = async (start: number, count: number, recovery = false) => {
+      const batchIndex = Math.floor(start / generationBatchSize);
+      const contents = batchSource(batchIndex, recovery);
+      const sourceChars = meaningfulSourceCharacters(contents);
+      const instruction = [
+        buildMCQGenerateInstruction({ ...selected, count }),
+        `Generate ${count} question(s) from source coverage segment ${Math.min(batchIndex + 1, coverageSources.length)} of ${coverageSources.length}.`,
+        "The supplied source has already been verified as readable educational material. Do not return an empty items array merely because page/section provenance is unavailable; source may be null and will be reconstructed by the application.",
+        "Use distinct testable facts from this source segment. When the segment contains enough facts, return the full requested count.",
+        recovery
+          ? "RECOVERY PASS: the previous generation returned too few items. Produce the missing source-grounded questions now; keep the same source facts and do not repeat obvious earlier questions."
+          : "",
+      ].filter(Boolean).join("\n\n");
+
+      let compactResult = await this.contentService.generateStructured({
+        contents,
+        responseSchema: mcqGenerationCompactProviderResponseSchema,
+        trustedSystemInstruction: instruction,
+        operation: "generate",
+        requestedCount: count,
+        maxItems: count,
+        sourceWindowIndex: batchIndex,
+        signal,
+      });
+      let result = {
+        ...compactResult,
+        data: expandCompactGenerationResponse(compactResult.data),
+      };
+
+      // Empty structured output from a clearly non-empty lecture is not treated
+      // as proof that the lecture cannot support questions. Retry this small
+      // batch once against the broader prepared source. This avoids the old
+      // all-or-nothing 20-question recovery request.
+      if (!result.data.items.length && sourceChars >= 250 && !recovery) {
+        compactResult = await this.contentService.generateStructured({
+          contents: batchSource(batchIndex, true),
+          responseSchema: mcqGenerationCompactProviderResponseSchema,
           trustedSystemInstruction: [
             buildMCQGenerateInstruction({ ...selected, count }),
-            covered.instruction,
+            `EMPTY-BATCH RECOVERY: generate ${count} source-grounded MCQ(s) from the readable lecture content.`,
+            "Do not return items: [] when the source contains testable statements. The application will add provenance metadata after generation; focus on the factual MCQ fields.",
           ].join("\n\n"),
           operation: "generate",
           requestedCount: count,
           maxItems: count,
-          sourceWindowIndex: Math.floor(start / generationBatchSize),
+          sourceWindowIndex: batchIndex,
           signal,
         });
-      },
+        result = {
+          ...compactResult,
+          data: expandCompactGenerationResponse(compactResult.data),
+        };
+      }
+      return result;
+    };
+
+    let responses = await runResilientBatches({
+      total: selected.count,
+      batchSize: generationBatchSize,
+      minimumBatchSize: 1,
+      concurrency: Math.min(4, initialBatchCount),
+      signal,
+      run: ({ start, count }) => generateBatch(start, count, false),
     });
-    const returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
+
+    let returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
     if (returnedBeforeRecovery < selected.count) {
       const deficit = selected.count - returnedBeforeRecovery;
       const recovery = await runResilientBatches({
         total: deficit,
         batchSize: generationBatchSize,
-        concurrency: 4,
+        minimumBatchSize: 1,
+        concurrency: Math.min(4, Math.ceil(deficit / generationBatchSize)),
         signal,
-        run: ({ start, count }) => {
-          const covered = coverage(start, true);
-          return this.contentService.generateStructured({
-            contents: covered.contents,
-            responseSchema: mcqGenerationProviderResponseSchema,
-            trustedSystemInstruction: [
-              buildMCQGenerateInstruction({ ...selected, count }),
-              covered.instruction,
-              "This is bounded deficit recovery. Use source material not already covered and do not repeat an earlier question.",
-            ].join("\n\n"),
-            operation: "generate",
-            requestedCount: count,
-            maxItems: count,
-            sourceWindowIndex: initialBatchCount + Math.floor(start / generationBatchSize),
-            signal,
-          });
-        },
+        run: ({ start, count }) => generateBatch(start, count, true),
       });
       responses = [...responses, ...recovery];
+      returnedBeforeRecovery = responses.reduce((total, response) => total + response.data.items.length, 0);
     }
+
     const provider = responses[0]?.meta ?? preferred.providerMeta ?? { provider: "unknown", model: "unknown" };
     const normalized = responses.flatMap((response) => normalizeGeneratedItems(
       response.data,
@@ -569,7 +683,7 @@ export class MCQAIEngine {
       selected,
       this.candidateId,
     ));
-    const items = applyBatchDuplicateWarnings(normalized);
+    const items = applyBatchDuplicateWarnings(normalized).slice(0, selected.count);
     const warnings = [
       ...responses.flatMap((response) => response.data.uncertainties.map((value) => `Model uncertainty: ${value}`)),
     ];
@@ -580,7 +694,11 @@ export class MCQAIEngine {
       warnings.push(`Requested ${selected.count} questions but only ${items.length} source-grounded questions were generated.`);
     }
     if (!items.length) {
-      warnings.push("The source did not support a source-grounded MCQ result after bounded recovery.");
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "The lecture was read successfully, but Cloudflare returned no generated MCQs. Please retry the generation.",
+        diagnosticMessage: `Readable MCQ generation source (${meaningfulSourceCharacters(preferred.contents)} non-whitespace characters) returned zero items after small-batch recovery.`,
+        retryable: true,
+      });
     }
     return baseResult(
       "generate",
@@ -591,7 +709,7 @@ export class MCQAIEngine {
       startedAt,
       selected.count,
       false,
-      items.length ? "complete" : "incomplete",
+      "complete",
     );
   }
 

@@ -26,7 +26,8 @@ export function buildMCQExtractInstruction(): string {
 export function buildMCQGenerateInstruction(options: Required<MCQGenerationOptions>): string {
   return [
     commonInstruction,
-    `Generate up to ${options.count} new source-grounded four-option MCQs.`,
+    `Generate ${options.count} new source-grounded four-option MCQs when the supplied source contains at least that many testable facts. Return fewer only when the source genuinely cannot support the requested count.`,
+    "A readable educational lecture must not produce an empty items array merely because exact page/section provenance is unavailable. Source evidence is helpful but optional; use null rather than withholding a valid source-grounded question.",
     `Question style: ${options.questionStyle}. Classify every generated item independently as exactly one of Easy, Medium, or Hard.`,
     "Never omit difficulty. Do not use Normal, mixed, beginner, intermediate, advanced, or any other difficulty label.",
     "Use the supplied educational source as the factual basis. Return fewer items when the source cannot support the requested count; do not fill the count with unsupported material.",
