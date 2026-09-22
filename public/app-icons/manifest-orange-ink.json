@@ -1,0 +1,30 @@
+{
+  "name": "99s Guide",
+  "short_name": "99s Guide",
+  "description": "The official guide for Baghdad Medicine Phase 3.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "theme_color": "#FF762D",
+  "background_color": "#FF762D",
+  "icons": [
+    {
+      "src": "/app-icons/orange-ink.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icons/orange-ink.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

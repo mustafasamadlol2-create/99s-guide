@@ -11,8 +11,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "theme_color": "#0A1F44",
-  "background_color": "#0A1F44",
+  "theme_color": "#65123F",
+  "background_color": "#65123F",
   "icons": [
     {
       "src": "/app-icons/rose.png",

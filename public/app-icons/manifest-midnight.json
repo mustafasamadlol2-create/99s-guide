@@ -11,8 +11,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "theme_color": "#0A1F44",
-  "background_color": "#0A1F44",
+  "theme_color": "#071D45",
+  "background_color": "#071D45",
   "icons": [
     {
       "src": "/app-icons/midnight.png",

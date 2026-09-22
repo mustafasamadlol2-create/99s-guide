@@ -106,7 +106,7 @@ export const AppIconSelector = memo(function AppIconSelector({
       </div>
 
       <div
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
           role="radiogroup"
           aria-labelledby="my99-app-icon-heading"
         >
@@ -119,10 +119,10 @@ export const AppIconSelector = memo(function AppIconSelector({
                 type="button"
                 role="radio"
                 aria-checked={isSelected}
-                aria-label={t(item.nameKey)}
+                aria-label={language === "ar" ? item.name.ar : item.name.en}
                 disabled={pendingId !== null || isSelected}
                 onClick={() => void handleSelect(item.id)}
-                className={`group relative flex min-h-36 items-center gap-3 rounded-xl border p-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring sm:block ${
+                className={`group relative flex min-h-36 flex-col items-center justify-start gap-3 rounded-2xl border p-3 text-center transition-[border-color,background-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-semantic-focus-ring ${
                   isSelected
                     ? "border-semantic-action-accent bg-semantic-action-accent-soft"
                     : "border-semantic-border-default bg-semantic-surface-primary hover:border-semantic-action-accent/60 hover:bg-semantic-chrome-surface-hover"
@@ -132,14 +132,11 @@ export const AppIconSelector = memo(function AppIconSelector({
                   src={item.previewSrc}
                   alt=""
                   aria-hidden="true"
-                  className="h-16 w-16 shrink-0 rounded-2xl object-cover shadow-elevation-1 sm:h-24 sm:w-24"
+                  className="h-20 w-20 shrink-0 rounded-[1.35rem] object-cover shadow-elevation-1 sm:h-24 sm:w-24"
                 />
-                <span className="min-w-0 flex-1 sm:mt-3 sm:block">
-                  <span className="block text-sm font-semibold text-semantic-content-primary">
-                    {t(item.nameKey)}
-                  </span>
-                  <span className="mt-1 block text-xs text-semantic-content-secondary">
-                    {t(item.descriptionKey)}
+                <span className="min-w-0 w-full">
+                  <span className="block truncate text-sm font-semibold text-semantic-content-primary">
+                    {language === "ar" ? item.name.ar : item.name.en}
                   </span>
                 </span>
                 <span

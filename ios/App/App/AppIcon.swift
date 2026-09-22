@@ -19,9 +19,37 @@ public final class AppIconPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private enum ProductIcon: String, CaseIterable {
         case primary
-        case midnight
-        case rose
-        case monochrome
+        case midnight = "midnight"
+        case rose = "rose"
+        case monochrome = "monochrome"
+        case navyOutline = "navy-outline"
+        case navy = "navy"
+        case ocean = "ocean"
+        case redOutline = "red-outline"
+        case red = "red"
+        case crimson = "crimson"
+        case blackOutline = "black-outline"
+        case black = "black"
+        case gold = "gold"
+        case skyOutline = "sky-outline"
+        case sky = "sky"
+        case azure = "azure"
+        case lime = "lime"
+        case pink = "pink"
+        case orange = "orange"
+        case limeInk = "lime-ink"
+        case lemonInk = "lemon-ink"
+        case teal = "teal"
+        case charcoalLemon = "charcoal-lemon"
+        case charcoalLime = "charcoal-lime"
+        case charcoalCyan = "charcoal-cyan"
+        case orangeInk = "orange-ink"
+        case silver = "silver"
+        case graphite = "graphite"
+        case pearl = "pearl"
+        case violet = "violet"
+        case bronze = "bronze"
+        case lilac = "lilac"
 
         var nativeName: String? {
             switch self {
@@ -33,6 +61,62 @@ public final class AppIconPlugin: CAPPlugin, CAPBridgedPlugin {
                 return "AppIconRose"
             case .monochrome:
                 return "AppIconMonochrome"
+            case .navyOutline:
+                return "AppIconNavyOutline"
+            case .navy:
+                return "AppIconNavy"
+            case .ocean:
+                return "AppIconOcean"
+            case .redOutline:
+                return "AppIconRedOutline"
+            case .red:
+                return "AppIconRed"
+            case .crimson:
+                return "AppIconCrimson"
+            case .blackOutline:
+                return "AppIconBlackOutline"
+            case .black:
+                return "AppIconBlack"
+            case .gold:
+                return "AppIconGold"
+            case .skyOutline:
+                return "AppIconSkyOutline"
+            case .sky:
+                return "AppIconSky"
+            case .azure:
+                return "AppIconAzure"
+            case .lime:
+                return "AppIconLime"
+            case .pink:
+                return "AppIconPink"
+            case .orange:
+                return "AppIconOrange"
+            case .limeInk:
+                return "AppIconLimeInk"
+            case .lemonInk:
+                return "AppIconLemonInk"
+            case .teal:
+                return "AppIconTeal"
+            case .charcoalLemon:
+                return "AppIconCharcoalLemon"
+            case .charcoalLime:
+                return "AppIconCharcoalLime"
+            case .charcoalCyan:
+                return "AppIconCharcoalCyan"
+            case .orangeInk:
+                return "AppIconOrangeInk"
+            case .silver:
+                return "AppIconSilver"
+            case .graphite:
+                return "AppIconGraphite"
+            case .pearl:
+                return "AppIconPearl"
+            case .violet:
+                return "AppIconViolet"
+            case .bronze:
+                return "AppIconBronze"
+            case .lilac:
+                return "AppIconLilac"
             }
         }
     }
