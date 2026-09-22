@@ -427,14 +427,51 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     };
   }
 
-  const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
+  let specializedImageText: { text: string; meta: SafeProviderMetadata } | null = null;
+  if (options.inputKind === "image") {
+    const calendarImageProvider = options.provider as AIProvider & {
+      prepareTimetableImageText?: (
+        contents: AIContentPart[],
+        signal?: AbortSignal,
+      ) => Promise<{ text: string; meta: SafeProviderMetadata }>;
+    };
+    if (typeof calendarImageProvider.prepareTimetableImageText === "function") {
+      try {
+        await options.onProgress?.(0, Math.max(1, options.contents.length), "Reading timetable image");
+        specializedImageText = await calendarImageProvider.prepareTimetableImageText(options.contents, options.signal);
+        const transcript = parseDeterministicTimetableTranscript(specializedImageText.text, { sourceImageIndex: 0 });
+        if (transcript.length >= 1) {
+          await options.onProgress?.(Math.max(1, options.contents.length), Math.max(1, options.contents.length), "Schedule image parsed");
+          return {
+            candidates: transcript,
+            warnings: [],
+            provider: specializedImageText.meta,
+          };
+        }
+      } catch (error) {
+        if (options.signal?.aborted) throw options.signal.reason ?? error;
+        // Keep the existing generic image path as a fallback. Calendar-specific
+        // OCR is additive and must never regress the image support that already
+        // works for simpler sources.
+        warnings.push("Timetable-specific image reading needed the generic recovery path.");
+      }
+    }
+  }
+
+  const preferred = specializedImageText
+    ? {
+      contents: textContentsFromPreparedText(specializedImageText.text, "Prepared timetable image source"),
+      preparedText: specializedImageText.text,
+      meta: specializedImageText.meta,
+    }
+    : await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
   if (options.inputKind === "image" && preferred.preparedText) {
     const transcript = parseDeterministicTimetableTranscript(preferred.preparedText, { sourceImageIndex: 0 });
-    if (transcript.length >= 3) {
+    if (transcript.length >= 1) {
       await options.onProgress?.(1, 1, "Schedule image parsed");
       return {
         candidates: transcript,
-        warnings: [],
+        warnings: [...new Set(warnings)].slice(0, 50),
         provider: preferred.meta ?? { provider: "local", model: "timetable-transcript-parser-v1", transport: "inline" },
       };
     }

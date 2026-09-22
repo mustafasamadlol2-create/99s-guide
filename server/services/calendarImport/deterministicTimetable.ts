@@ -408,17 +408,70 @@ function transcriptEventSegments(line: string): Array<{ group: string | null; ti
  * used only when the transcript contains explicit dates plus multiple timetable
  * codes; uncertain times stay reviewable instead of being invented.
  */
+function parseVisionEventTranscript(
+  lines: string[],
+  years: { start: number; end: number },
+  defaultImageIndex: number,
+): ExtractionCandidate[] {
+  const items: ExtractionCandidate[] = [];
+  let currentImageIndex = defaultImageIndex;
+  for (const line of lines) {
+    const imageMarker = line.match(/^\[Image\s+(\d+)\]$/iu);
+    if (imageMarker) {
+      currentImageIndex = Math.max(0, Number(imageMarker[1]) - 1);
+      continue;
+    }
+    if (!/^EVENT\|/iu.test(line)) continue;
+    const fields = new Map<string, string>();
+    for (const segment of line.split("|").slice(1)) {
+      const separator = segment.indexOf("=");
+      if (separator <= 0) continue;
+      fields.set(segment.slice(0, separator).trim().toLowerCase(), segment.slice(separator + 1).trim());
+    }
+    const rawDate = fields.get("date") ?? "";
+    const dateMatch = rawDate.match(DATE_PATTERN);
+    const title = normalizeTitle(fields.get("title") ?? "");
+    if (!dateMatch || !title) continue;
+    const day = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    const explicitYear = dateMatch[3] ? Number(dateMatch[3]) : null;
+    const iso = dateIso(day, month, explicitYear, years);
+    if (!iso) continue;
+    const time = parseTimeRange(fields.get("time") ?? "");
+    const rawGroup = (fields.get("group") ?? "").toUpperCase();
+    const group = /^(?:[A-E]|ALL)$/u.test(rawGroup) ? rawGroup : null;
+    const anchor: DateAnchor = { y: 0, rawDate, date: iso };
+    const candidate = candidateFromTitle({
+      title,
+      anchor,
+      page: 1,
+      time,
+      group,
+      room: fields.get("room") || null,
+      evidence: line,
+    });
+    if (!candidate) continue;
+    candidate.sourcePage = null;
+    candidate.sourceImageIndex = currentImageIndex;
+    items.push(candidate);
+  }
+  return dedupe(items);
+}
+
 export function parseDeterministicTimetableTranscript(
   text: string,
   options: { sourceImageIndex?: number | null } = {},
 ): ExtractionCandidate[] {
   const normalized = text.replace(/\r/gu, "");
   const lines = normalized.split(/\n+/u).map(cleanText).filter(Boolean);
+  const years = academicYearsFromText(normalized);
+  const structuredVisionItems = parseVisionEventTranscript(lines, years, options.sourceImageIndex ?? 0);
+  if (structuredVisionItems.length >= 1) return structuredVisionItems;
+
   const dateHits = lines.filter((line) => !/\bWEEK\b/iu.test(line) && DATE_PATTERN.test(line)).length;
   const codeHits = normalized.match(/\b(?:CA|ID|NT|RM|PS|VL|FA|MME|EME)\b/giu)?.length ?? 0;
   if (dateHits < 1 || codeHits < 3) return [];
 
-  const years = academicYearsFromText(normalized);
   const items: ExtractionCandidate[] = [];
   let currentDate: DateAnchor | null = null;
   let currentTime: { start: string; end: string } | null = null;

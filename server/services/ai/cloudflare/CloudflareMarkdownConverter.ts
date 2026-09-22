@@ -164,6 +164,48 @@ export class CloudflareMarkdownConverter {
     return converted;
   }
 
+  /**
+   * Calendar-only vision pass for timetable screenshots/photos. This method is
+   * deliberately separate from the generic educational OCR path so improving
+   * schedule geometry cannot change MCQ/flashcard image behaviour.
+   */
+  async convertTimetableImages(
+    contents: AIContentPart[],
+    signal: AbortSignal,
+  ): Promise<ConvertedCloudflarePart[]> {
+    if (!contents.length || contents.some((part) => part.kind === "text" || part.inputType !== "image")) {
+      throw new AIServiceError("AI_INPUT_INVALID", {
+        publicMessage: "Calendar image reading expects image files only.",
+        diagnosticMessage: "Timetable image conversion received a non-image source.",
+      });
+    }
+
+    const converted: ConvertedCloudflarePart[] = [];
+    for (const part of contents as Array<Extract<AIFilePart, { inputType: "image" }>>) {
+      if (signal.aborted) throw signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+      const capability = await this.resolveCapability(part);
+      let bytes: Uint8Array;
+      try {
+        bytes = await capability.readBytes();
+      } catch (error) {
+        throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+          publicMessage: "The calendar image could not be read.",
+          diagnosticMessage: "Validated timetable image could not be read from staging.",
+          cause: error,
+        });
+      }
+      const text = await this.readTimetableImage(
+        bytes,
+        part.mimeType,
+        safeFilename(part, part.mimeType),
+        part.source.imageIndex,
+        signal,
+      );
+      converted.push({ text, inputType: "image", imageIndex: part.source.imageIndex });
+    }
+    return converted;
+  }
+
   private async convertPdf(
     part: AIPdfFilePart,
     capability: AIStagedFileCapability,
@@ -327,6 +369,65 @@ export class CloudflareMarkdownConverter {
         publicMessage: "The image could not be prepared for Cloudflare Workers AI.",
         diagnosticMessage: "Vision raster normalization failed before Cloudflare OCR.",
         cause: error,
+      });
+    }
+  }
+
+  private async readTimetableImage(
+    bytes: Uint8Array,
+    mimeType: string,
+    filename: string,
+    imageIndex: number,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const visionClient = this.client as CloudflareClient & {
+      visionToText?: CloudflareClient["visionToText"];
+    };
+    if (typeof visionClient.visionToText !== "function") {
+      return this.readVisualImage(bytes, mimeType, filename, signal);
+    }
+
+    const normalized = await this.prepareVisionBytes(bytes);
+    const question = [
+      "Read this image specifically as an academic timetable/calendar. Do not summarize it.",
+      "Find the week/year header, every explicit day/date row, all visible time ranges, room/column headings, group labels, and EVERY non-empty scheduled cell.",
+      "A compact code such as ID-1-Med, RM-1, NT-2 Bioch, CA-1, TBL, P, S, CS, SL, HV, FA, MME, EME or HISTORY EXAM is a real event and must not be omitted.",
+      "Return a lossless line-oriented transcription using this exact format for each scheduled cell:",
+      "EVENT|date=DD/MM/YYYY|time=HH:MM-HH:MM|title=RAW CELL TEXT|room=VISIBLE ROOM OR COLUMN|group=A-E OR ALL OR blank",
+      "If the page shows a date without the year, infer only the year that is explicitly present in the week/academic-year header. If a time cannot be safely assigned, leave time blank rather than dropping the event.",
+      "For merged cells or two stacked events, emit one EVENT line per visible event. Ignore empty cells, decorative headings and footers.",
+      `The uploaded image index is ${imageIndex}.`,
+    ].join(" ");
+
+    const attempts = [question, `${question} SECOND PASS: verify row-by-row that no populated timetable cell was skipped.`];
+    let lastError: unknown;
+    for (const prompt of attempts) {
+      const bounded = createBoundedSignal(this.visionTimeoutMs, signal);
+      try {
+        const result = await visionClient.visionToText(normalized, "image/jpeg", bounded.signal, prompt);
+        const value = result.text.trim();
+        if (value && !unusableDocumentConversion(value)) {
+          const eventLines = value.match(/^EVENT\|/gimu)?.length ?? 0;
+          if (eventLines >= 2 || attempts.indexOf(prompt) === attempts.length - 1) return value;
+        }
+      } catch (error) {
+        if (signal.aborted) throw signal.reason ?? error;
+        lastError = error;
+      } finally {
+        bounded.cleanup();
+      }
+    }
+
+    // Final fallback is the generic OCR path. The calendar extractor will feed
+    // this transcript through its deterministic/structured recovery logic.
+    try {
+      return await this.readVisualImage(normalized, "image/jpeg", filename, signal);
+    } catch (error) {
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "Cloudflare Workers AI could not read this timetable image.",
+        diagnosticMessage: "Timetable-specific vision and generic OCR both failed.",
+        cause: lastError ?? error,
+        retryable: true,
       });
     }
   }

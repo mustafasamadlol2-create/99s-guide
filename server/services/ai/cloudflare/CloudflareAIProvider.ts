@@ -412,6 +412,55 @@ export class CloudflareAIProvider implements AIProvider {
     return converted;
   }
 
+  /** Calendar-only timetable image OCR. Kept separate from generic source
+   * preparation so MCQ/flashcard image behaviour remains unchanged. */
+  async prepareTimetableImageText(
+    contents: StructuredGenerationRequest<unknown>["contents"],
+    signal?: AbortSignal,
+  ): Promise<{ text: string; meta: SafeProviderMetadata }> {
+    if (!contents.length || contents.some((part) => part.kind === "text" || part.inputType !== "image")) {
+      throw new AIServiceError("AI_INPUT_INVALID", {
+        publicMessage: "Calendar image reading expects image files only.",
+        diagnosticMessage: "Timetable source preparation received a non-image source.",
+      });
+    }
+    const mediaTimeoutMs = Math.min(
+      6 * 60_000,
+      Math.max(this.config.markdownTimeoutMs, this.config.visionTimeoutMs) * 4,
+    );
+    const bounded = createBoundedSignal(mediaTimeoutMs, signal);
+    try {
+      const converted = await this.converter.convertTimetableImages(contents, bounded.signal);
+      const text = preparedPartsToText(converted);
+      if (!text.trim()) {
+        throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+          publicMessage: "Cloudflare Workers AI could not find timetable events in the image.",
+          diagnosticMessage: "Calendar-specific image transcription returned empty text.",
+          retryable: true,
+        });
+      }
+      return {
+        text,
+        meta: {
+          provider: "cloudflare",
+          model: this.config.visionModel,
+          transport: "markdown_conversion",
+          mediaCount: contents.length,
+        },
+      };
+    } catch (error) {
+      if (bounded.signal.aborted && !signal?.aborted) {
+        throw timeoutError(
+          "Cloudflare took too long to read the timetable image.",
+          "Calendar-specific image OCR exceeded its finite safety ceiling.",
+        );
+      }
+      throw error;
+    } finally {
+      bounded.cleanup();
+    }
+  }
+
   async prepareSourceText(
     contents: StructuredGenerationRequest<unknown>["contents"],
     signal?: AbortSignal,
