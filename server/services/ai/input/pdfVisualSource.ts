@@ -43,7 +43,7 @@ export interface PDFTextPageProfile {
 }
 
 function textFromPageItems(items: unknown[]): string {
-  const tokens: Array<{ text: string; x: number; y: number }> = [];
+  const tokens: Array<{ text: string; x: number; y: number; width: number }> = [];
   const fallback: string[] = [];
   for (const item of items) {
     if (!item || typeof item !== "object" || !("str" in item)) continue;
@@ -54,24 +54,38 @@ function textFromPageItems(items: unknown[]): string {
     const transform = Array.isArray(record.transform) ? record.transform : null;
     const x = transform && Number.isFinite(Number(transform[4])) ? Number(transform[4]) : Number.NaN;
     const y = transform && Number.isFinite(Number(transform[5])) ? Number(transform[5]) : Number.NaN;
-    if (Number.isFinite(x) && Number.isFinite(y)) tokens.push({ text: value, x, y });
+    const width = Number.isFinite(Number((record as { width?: unknown }).width)) ? Math.max(0, Number((record as { width?: unknown }).width)) : 0;
+    if (Number.isFinite(x) && Number.isFinite(y)) tokens.push({ text: value, x, y, width });
   }
   if (tokens.length === 0) {
     return fallback.join(" ").replace(/\s*\n\s*/gu, "\n").replace(/[ \t]+/gu, " ").trim();
   }
 
-  const rows: Array<{ y: number; tokens: Array<{ text: string; x: number }> }> = [];
+  const rows: Array<{ y: number; tokens: Array<{ text: string; x: number; width: number }> }> = [];
   for (const token of tokens.sort((a, b) => b.y - a.y || a.x - b.x)) {
     let row = rows.find((candidate) => Math.abs(candidate.y - token.y) <= 2.5);
     if (!row) {
       row = { y: token.y, tokens: [] };
       rows.push(row);
     }
-    row.tokens.push({ text: token.text, x: token.x });
+    row.tokens.push({ text: token.text, x: token.x, width: token.width });
   }
   return rows
     .sort((a, b) => b.y - a.y)
-    .map((row) => row.tokens.sort((a, b) => a.x - b.x).map((token) => token.text).join(" ").trim())
+    .map((row) => {
+      const ordered = row.tokens.sort((a, b) => a.x - b.x);
+      let line = "";
+      let previousRight: number | null = null;
+      for (const token of ordered) {
+        if (previousRight !== null) {
+          const gap = token.x - previousRight;
+          line += gap >= 22 ? " | " : gap >= 8 ? "  " : " ";
+        }
+        line += token.text;
+        previousRight = token.x + token.width;
+      }
+      return line.trim();
+    })
     .filter(Boolean)
     .join("\n")
     .trim();

@@ -74,10 +74,13 @@ function textCharacterCount(text: string): number {
 }
 
 function shouldReadPageVisually(profile: PDFTextPageProfile): boolean {
-  // Preserve all visual information: a mixed page is not considered "done" just
-  // because pdf.js extracted text from it. Any embedded raster content receives
-  // Cloudflare visual reading, while text-only pages stay on the fast local path.
-  return textCharacterCount(profile.text) < PDF_MIN_USABLE_TEXT_CHARS || profile.imageCount > 0;
+  // A healthy PDF text layer is the fastest and most reliable source for normal
+  // lecture documents. The previous implementation OCR'd every page containing
+  // any embedded image, which turns ordinary slide decks into dozens of vision
+  // requests and can hit the media ceiling even though the text is already
+  // readable. Visual OCR is reserved for pages whose text layer is genuinely
+  // sparse; scanner-only PDFs still take the full visual path via mostlyScanned.
+  return textCharacterCount(profile.text) < PDF_MIN_USABLE_TEXT_CHARS;
 }
 
 function comparableText(text: string): string {

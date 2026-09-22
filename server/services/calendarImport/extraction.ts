@@ -2,6 +2,7 @@ import { AIServiceError } from "../ai/errors.js";
 import type { AIProvider, SafeProviderMetadata } from "../ai/contracts.js";
 import type { AIContentPart } from "../ai/input/contracts.js";
 import { sha256Text } from "../ai/input/hash.js";
+import { readLocalPdfText, type LocalPdfTextResult } from "../ai/input/localPdfText.js";
 import { runResilientBatches, shardTextContent } from "../ai/reliability.js";
 import {
   extractionBatchSchema,
@@ -89,14 +90,183 @@ function preserveSourceTransport(
   };
 }
 
+function scheduleAnchorScore(text: string): number {
+  const dateCount = text.match(/(?:^|\s)\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?(?=\s|$)/gu)?.length ?? 0;
+  const timeCount = text.match(/\b(?:0?8|0?9|10|11|12|0?1|0?2):[0-5]\d\b/gu)?.length ?? 0;
+  const eventCodeCount = text.match(/\b(?:CA|ID|NT|RM|TBL|LGT|CS|SL|HV|FA|MME|EME|Micro|C\.?Med|Bioch|Med|Surg)\b/giu)?.length ?? 0;
+  const headerCount = text.match(/\b(?:WEEK|Day\s*\/?\s*date|Sun\.?|Mon\.?|Tues?\.?|Wed\.?|Thurs?\.?)\b/giu)?.length ?? 0;
+  return dateCount * 3 + timeCount * 2 + eventCodeCount + headerCount * 2;
+}
+
+function academicYearContext(local: LocalPdfTextResult): string {
+  const match = local.text.match(/\b(20\d{2})\s*[-–—/]\s*(20\d{2})\b/u);
+  return match ? `The academic-year header is ${match[1]}-${match[2]}.` : "";
+}
+
+function pageTextPart(page: number, text: string): AIContentPart[] {
+  const labelled = `[PDF page ${page}]\n${text.trim()}`;
+  return textContentsFromPreparedText(labelled, `PDF page ${page}`);
+}
+
+const TIMETABLE_PAGE_PROMPT = [
+  EXTRACTION_PROMPT,
+  "This is a university timetable page. A non-empty timetable cell under a day/date and time column is an event; do not require prose sentences.",
+  "Recognize compact lecture/session codes such as ID-1-Med, RM-5, NT-2 Bioch, CA-S1, TBL, practical, session, skill lab, hospital visit, formative assessment and exams as real schedule entries.",
+  "Use the page week/date header to resolve short day/month dates to the explicit year shown on the same page or in the supplied academic-year context.",
+  "Use the time heading above each cell for startTime/endTime. For a merged practical/session block such as 08:00-11:00 or 09:00-12:00, preserve that full block.",
+  "Target groups in this app are A-E or ALL. Do not treat lecture-room column numbers such as 1-4 as target groups. If an A-E/ALL group cannot be established safely, leave targetGroups empty so the user's selected default groups can be applied instead of omitting the event.",
+  "Return sourcePage for every event from this page. It is better to return a source-supported NEEDS-REVIEW candidate with a nullable field than to drop a visible timetable event.",
+].join(" ");
+
+async function extractPdfPagesLocally(
+  options: ScheduleExtractionOptions,
+  local: LocalPdfTextResult,
+  maxCandidates: number,
+): Promise<ScheduleExtractionResult | null> {
+  const usablePages = local.profiles.filter((profile) => profile.text.trim().length >= 30);
+  if (!usablePages.length || scheduleAnchorScore(local.text) < 12) return null;
+
+  const warnings: string[] = [];
+  const failedPages = new Set<number>();
+  const zeroPages = new Set<number>();
+  let provider: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
+  const yearContext = academicYearContext(local);
+  let completed = 0;
+
+  const firstPass = await runResilientBatches({
+    total: usablePages.length,
+    batchSize: 1,
+    minimumBatchSize: 1,
+    concurrency: 4,
+    signal: options.signal,
+    run: async ({ start }) => {
+      const profile = usablePages[start]!;
+      const result = await options.provider.generateStructured({
+        contents: pageTextPart(profile.page, profile.text),
+        responseSchema: extractionBatchSchema,
+        trustedSystemInstruction: TIMETABLE_PAGE_PROMPT,
+        additionalUntrustedContext: [
+          `This is PDF page ${profile.page} of ${options.sourcePageCount ?? local.profiles.length}.`,
+          yearContext,
+          "Extract every source-supported timetable cell on this page. Do not return an empty items array when dated/time-slotted entries are visibly represented in the supplied page text.",
+        ].filter(Boolean).join("\n"),
+        operation: "extract",
+        maxItems: Math.min(80, maxCandidates),
+        sourceChunkConcurrency: 1,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+      });
+      if (!result.data.items.length && scheduleAnchorScore(profile.text) >= 8) zeroPages.add(profile.page);
+      completed += 1;
+      await options.onProgress?.(completed, usablePages.length, `Reading timetable page ${profile.page}`);
+      return { profile, result };
+    },
+    onFailure: ({ start }) => {
+      const page = usablePages[start]?.page;
+      if (page !== undefined) failedPages.add(page);
+    },
+  });
+
+  const candidates: ExtractionCandidate[] = [];
+  for (const { profile, result } of firstPass) {
+    provider = result.meta;
+    candidates.push(...result.data.items.map((item) => ({
+      ...item,
+      sourcePage: profile.page,
+      sourceImageIndex: null,
+      sourceEvidence: item.sourceEvidence ?? profile.text.slice(0, 1_500),
+    })));
+    warnings.push(...result.data.warnings);
+  }
+
+  // Retry only pages that clearly look like timetable pages yet returned zero
+  // candidates. This is bounded and page-local, so it is much cheaper and more
+  // reliable than re-reading the full annual PDF.
+  const recoveryPages = usablePages.filter((profile) => zeroPages.has(profile.page) || failedPages.has(profile.page));
+  if (recoveryPages.length) {
+    const recovered = await runResilientBatches({
+      total: recoveryPages.length,
+      batchSize: 1,
+      minimumBatchSize: 1,
+      concurrency: 4,
+      signal: options.signal,
+      run: async ({ start }) => {
+        const profile = recoveryPages[start]!;
+        const examples = (profile.text.match(/\b(?:CA|ID|NT|RM)[- ]?[A-Z0-9.&() -]{1,24}/giu) ?? []).slice(0, 12);
+        const result = await options.provider.generateStructured({
+          contents: pageTextPart(profile.page, profile.text),
+          responseSchema: extractionBatchSchema,
+          trustedSystemInstruction: [
+            TIMETABLE_PAGE_PROMPT,
+            "RECOVERY PASS: the page has timetable anchors. Reconstruct the row/column relationships and return every explicit scheduled item. Do not summarize the page and do not return zero solely because the table layout is compact.",
+          ].join("\n\n"),
+          additionalUntrustedContext: [
+            `PDF page ${profile.page}.`,
+            yearContext,
+            examples.length ? `Visible event-like labels include: ${examples.join(", ")}` : "",
+          ].filter(Boolean).join("\n"),
+          operation: "extract",
+          maxItems: Math.min(80, maxCandidates),
+          sourceChunkConcurrency: 1,
+          timeoutMs: options.timeoutMs,
+          signal: options.signal,
+        });
+        return { profile, result };
+      },
+      onFailure: ({ start }) => {
+        const page = recoveryPages[start]?.page;
+        if (page !== undefined) warnings.push(`Timetable page ${page} could not be fully extracted and may require review.`);
+      },
+    });
+    for (const { profile, result } of recovered) {
+      provider = result.meta;
+      if (!result.data.items.length) continue;
+      // Replace a page's empty first-pass result; for failed pages there was no
+      // first-pass data to replace.
+      candidates.push(...result.data.items.map((item) => ({
+        ...item,
+        sourcePage: profile.page,
+        sourceImageIndex: null,
+        sourceEvidence: item.sourceEvidence ?? profile.text.slice(0, 1_500),
+      })));
+      warnings.push(...result.data.warnings);
+    }
+  }
+
+  const deduped = [...new Map(candidates.map((candidate) => [
+    [candidate.sourcePage ?? "", candidate.date ?? candidate.rawDate ?? "", candidate.startTime ?? candidate.rawStartTime ?? "", candidate.title ?? "", candidate.room ?? "", candidate.targetGroups.join(",")].join("|"),
+    candidate,
+  ])).values()];
+
+  if (!deduped.length) return null;
+  if (deduped.length > maxCandidates) {
+    throw new AIServiceError("AI_VALIDATION_ERROR", {
+      publicMessage: "This schedule contains too many events. Split it into smaller files.",
+      diagnosticMessage: `Page-local schedule extraction exceeded the ${maxCandidates}-candidate safety cap.`,
+    });
+  }
+  if (failedPages.size) warnings.push("Some timetable pages needed bounded recovery; review their extracted events before import.");
+  return {
+    candidates: deduped,
+    warnings: [...new Set(warnings)].slice(0, 50),
+    provider,
+  };
+}
+
 
 export async function extractSchedule(options: ScheduleExtractionOptions): Promise<ScheduleExtractionResult> {
   const maxCandidates = options.maxCandidates ?? 500;
   const warnings: string[] = [];
   let provider: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
-  const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
 
   if (options.inputKind === "pdf") {
+    const localPdf = await readLocalPdfText(options.contents, options.signal);
+    if (localPdf && localPdf.totalTextCharacters >= 600 && scheduleAnchorScore(localPdf.text) >= 12) {
+      const pageLocal = await extractPdfPagesLocally(options, localPdf, maxCandidates);
+      if (pageLocal?.candidates.length) return pageLocal;
+    }
+
+    const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
     await options.onProgress?.(0, 1, preferred.preparedText ? "Reading document text" : "Reading document");
     let result = await options.provider.generateStructured({
       contents: preferred.contents,
@@ -152,6 +322,13 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       });
     }
     warnings.push(...result.data.warnings);
+    if (!candidates.length && localPdf && scheduleAnchorScore(localPdf.text) >= 12) {
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "The timetable contains dated schedule entries, but Cloudflare could not convert them into calendar events. Please retry.",
+        diagnosticMessage: "Strong local timetable anchors were detected but both page-local and converted-document extraction returned zero candidates.",
+        retryable: true,
+      });
+    }
     await options.onProgress?.(1, 1, "Document read complete");
     return {
       candidates,
@@ -160,6 +337,7 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     };
   }
 
+  const preferred = await preferredSourceContents(options.provider, options.contents, options.inputKind, options.signal);
   const effectiveContents = preferred.contents;
   const textWindows = options.inputKind === "text" ? shardTextContent(effectiveContents, 24_000) : [];
   const totalUnits = options.inputKind === "image"
@@ -278,20 +456,22 @@ export async function verifySchedule(
     signal: options.signal,
     run: async (batch) => {
       const candidateBatch = candidates.slice(batch.start, batch.start + batch.count);
+      const candidateContext = JSON.stringify({ candidates: candidateBatch });
       const result = await provider.generateStructured({
-        contents,
+        // Every extracted candidate already carries page/source evidence. Do not
+        // re-read the complete PDF for each verification batch: that previously
+        // multiplied Markdown/OCR latency after extraction had already succeeded.
+        contents: textContentsFromPreparedText(candidateContext, "Calendar candidate source-evidence verification"),
         responseSchema: verificationBatchSchema,
-        trustedSystemInstruction: VERIFICATION_PROMPT,
-        additionalUntrustedContext: JSON.stringify({ candidates: candidateBatch }),
-        // Verification is candidate-local and extraction order follows source
-        // order. Use one rotating source window instead of re-reading the whole
-        // annual PDF for every verification batch.
+        trustedSystemInstruction: [
+          VERIFICATION_PROMPT,
+          "The candidate records below include the sourcePage/sourceEvidence captured during extraction. Verify only against that supplied evidence; never invent missing source facts.",
+        ].join("\n\n"),
         operation: "enhance",
         sourceWindowIndex: Math.floor(batch.start / batchSize),
         maxItems: batch.count,
         timeoutMs: options.timeoutMs,
         signal: options.signal,
-        reusePreparedMedia: true,
       });
       completed += batch.count;
       await options.onProgress?.(Math.min(candidates.length, completed), candidates.length);

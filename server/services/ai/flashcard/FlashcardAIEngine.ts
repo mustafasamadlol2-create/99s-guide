@@ -35,6 +35,7 @@ import { validateFlashcardSourceEvidence } from "./sourceValidation.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { parseDeterministicFlashcards } from "./deterministicExtract.js";
 import { sha256Text } from "../input/hash.js";
+import { hasHealthyLocalPdfText, readLocalPdfText } from "../input/localPdfText.js";
 
 function requiredGenerationOptions(
   options: FlashcardGenerationOptions | undefined,
@@ -112,6 +113,7 @@ async function preferredSourceContents(
   contentService: AIContentService,
   input: PreparedAIInput,
   signal?: AbortSignal,
+  options: { fastTextPdf?: boolean } = {},
 ): Promise<{
   contents: AIContentPart[];
   preparedText: string | null;
@@ -119,6 +121,16 @@ async function preferredSourceContents(
 }> {
   if (input.input.kind === "text") {
     return { contents: input.contents, preparedText: input.input.text.text };
+  }
+  if (options.fastTextPdf && input.input.kind === "pdf") {
+    const local = await readLocalPdfText(input.contents, signal);
+    if (hasHealthyLocalPdfText(local)) {
+      return {
+        contents: textContentsFromPreparedText(local.text, "Locally extracted PDF text"),
+        preparedText: local.text,
+        providerMeta: { provider: "local", model: "pdfjs-text", transport: "inline" },
+      };
+    }
   }
   const prepared = await contentService.prepareSourceText(input.contents, signal);
   const text = prepared?.text?.trim() ?? "";
@@ -330,7 +342,7 @@ export class FlashcardAIEngine {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
     const generationBatchSize = 20;
-    const preferred = await preferredSourceContents(this.contentService, input, signal);
+    const preferred = await preferredSourceContents(this.contentService, input, signal, { fastTextPdf: true });
     const coverageSources = shardTextContent(preferred.contents, 10_000);
     const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
     const coverage = (start: number, recovery = false) => {
@@ -436,7 +448,6 @@ export class FlashcardAIEngine {
     requiredEnhancementOptions(options);
     const source = "source" in input ? input.source : input;
     const extraction = "source" in input ? null : await this.extractExistingFlashcards(input, signal);
-    const preferredSource = await preferredSourceContents(this.contentService, source, signal);
     const candidates = ("source" in input ? input.candidates : extraction!.items).map((item) =>
       withRecoveredFlashcardEnhancementSource({
         ...item,
@@ -468,7 +479,7 @@ export class FlashcardAIEngine {
       concurrency: 4,
       signal,
       run: ({ start, count }) => this.contentService.generateStructured({
-        contents: preferredSource.contents,
+        contents: textContentsFromPreparedText(enhancementContext(eligible.slice(start, start + count)), "Flashcard enhancement candidates"),
         responseSchema: flashcardEnhancementProviderResponseSchema,
         trustedSystemInstruction: buildFlashcardEnhanceInstruction(),
         additionalUntrustedContext: enhancementContext(eligible.slice(start, start + count)),
@@ -495,7 +506,7 @@ export class FlashcardAIEngine {
         concurrency: 4,
         signal,
         run: ({ start, count }) => this.contentService.generateStructured({
-          contents: preferredSource.contents,
+          contents: textContentsFromPreparedText(enhancementContext(missing.slice(start, start + count)), "Flashcard enhancement recovery candidates"),
           responseSchema: flashcardEnhancementProviderResponseSchema,
           trustedSystemInstruction: [
             buildFlashcardEnhanceInstruction(),
@@ -526,7 +537,7 @@ export class FlashcardAIEngine {
       applyFlashcardBatchDuplicateWarnings(merged),
       extraction?.skippedItems ?? [],
       warnings.concat(response.uncertainties.map((value) => `Model uncertainty: ${value}`)),
-      responses[0]?.meta ?? preferredSource.providerMeta ?? extraction?.provider ?? { provider: "unknown", model: "unknown" },
+      responses[0]?.meta ?? extraction?.provider ?? { provider: "cloudflare", model: "unknown" },
       startedAt,
       undefined,
       extraction?.truncated ?? false,

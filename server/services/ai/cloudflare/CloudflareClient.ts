@@ -196,6 +196,10 @@ export class CloudflareClient {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
+        // Moondream's Workers AI schema only accepts the task/image/question
+        // fields for query mode. Text-generation-only parameters such as
+        // temperature, reasoning, max_tokens and stream can make an otherwise
+        // valid image request fail with HTTP 4xx on this model.
         body: JSON.stringify({
           task: "query",
           image,
@@ -206,10 +210,6 @@ export class CloudflareClient {
             "Preserve reading order and use Markdown rows/lists when helpful.",
             "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
           ].join(" "),
-          reasoning: false,
-          temperature: 0,
-          max_tokens: this.config.visionMaxOutputTokens,
-          stream: false,
         }),
         signal,
       },

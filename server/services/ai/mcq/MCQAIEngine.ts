@@ -38,6 +38,7 @@ import { parseDeterministicMCQs } from "./deterministicExtract.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { contiguousIndexRanges, planNumberedMCQExtraction } from "./extractionPlan.js";
 import { sha256Text } from "../input/hash.js";
+import { hasHealthyLocalPdfText, readLocalPdfText } from "../input/localPdfText.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
@@ -89,6 +90,7 @@ async function preferredSourceContents(
   contentService: AIContentService,
   input: MCQAIEngineInput,
   signal?: AbortSignal,
+  options: { fastTextPdf?: boolean } = {},
 ): Promise<{
   contents: AIContentPart[];
   preparedText: string | null;
@@ -96,6 +98,16 @@ async function preferredSourceContents(
 }> {
   if (input.inputKind === "text") {
     return { contents: input.contents, preparedText: input.text ?? null };
+  }
+  if (options.fastTextPdf && input.inputKind === "pdf") {
+    const local = await readLocalPdfText(input.contents, signal);
+    if (hasHealthyLocalPdfText(local)) {
+      return {
+        contents: textContentsFromPreparedText(local.text, "Locally extracted PDF text"),
+        preparedText: local.text,
+        providerMeta: { provider: "local", model: "pdfjs-text", transport: "inline" },
+      };
+    }
   }
   const prepared = await contentService.prepareSourceText(input.contents, signal);
   const text = prepared?.text?.trim() ?? "";
@@ -483,7 +495,7 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const preferred = await preferredSourceContents(this.contentService, inputForPrepared(input), signal);
+    const preferred = await preferredSourceContents(this.contentService, inputForPrepared(input), signal, { fastTextPdf: true });
     const generationBatchSize = 20;
     const coverageSources = shardTextContent(preferred.contents, 10_000);
     const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
@@ -608,8 +620,12 @@ export class MCQAIEngine {
         (selected.hint && item.hint === null) ||
         (selected.explanation && item.explanation === null)),
     );
-    const preferredSource = await preferredSourceContents(this.contentService, inputForPrepared(source), signal);
-    let provider = extraction?.provider ?? preferredSource.providerMeta ?? { provider: "unknown", model: "unknown" };
+    // Enhancement already has the exact extracted question, options and preserved
+    // answer. Re-reading the original PDF/image here is redundant and was the
+    // reason scanned PDFs could extract successfully but then fail during
+    // Enhance with a second vision/OCR pass. Enhancement now runs only against
+    // the candidate batch plus its recovered source excerpt.
+    let provider = extraction?.provider ?? { provider: "cloudflare", model: "unknown" };
     const warnings = [...(extraction?.warnings ?? [])];
     if (eligible.length > 0) {
       const responses = await runResilientBatches({
@@ -620,7 +636,7 @@ export class MCQAIEngine {
         run: ({ start, count }) => {
           const batch = eligible.slice(start, start + count);
           return this.contentService.generateStructured({
-            contents: preferredSource.contents,
+            contents: textContentsFromPreparedText(enhancementContext(batch), "MCQ enhancement candidates"),
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: buildMCQEnhanceInstruction(selected),
             additionalUntrustedContext: enhancementContext(batch),
@@ -655,7 +671,7 @@ export class MCQAIEngine {
           concurrency: 4,
           signal,
           run: ({ start, count }) => this.contentService.generateStructured({
-            contents: preferredSource.contents,
+            contents: textContentsFromPreparedText(enhancementContext(missing.slice(start, start + count)), "MCQ enhancement recovery candidates"),
             responseSchema: createMCQEnhancementProviderResponseSchema(selected),
             trustedSystemInstruction: [
               buildMCQEnhanceInstruction(selected),
@@ -693,7 +709,7 @@ export class MCQAIEngine {
             concurrency: 4,
             signal,
             run: ({ start, count }) => this.contentService.generateStructured({
-              contents: preferredSource.contents,
+              contents: textContentsFromPreparedText(enhancementContext(explanationMissing.slice(start, start + count)), "MCQ explanation recovery candidates"),
               responseSchema: createMCQRequiredEnhancementProviderResponseSchema({ hint: false, explanation: true }),
               trustedSystemInstruction: [
                 buildMCQEnhanceInstruction({ hint: false, explanation: true }),
@@ -730,7 +746,7 @@ export class MCQAIEngine {
             concurrency: 4,
             signal,
             run: ({ start, count }) => this.contentService.generateStructured({
-              contents: preferredSource.contents,
+              contents: textContentsFromPreparedText(enhancementContext(hintMissing.slice(start, start + count)), "MCQ hint recovery candidates"),
               responseSchema: createMCQRequiredEnhancementProviderResponseSchema({ hint: true, explanation: false }),
               trustedSystemInstruction: [
                 buildMCQEnhanceInstruction({ hint: true, explanation: false }),
