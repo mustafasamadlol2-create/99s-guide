@@ -32,7 +32,6 @@ import { applyFlashcardBatchDuplicateWarnings, applyFlashcardQualityWarnings, su
 import { normalizeExtractedFlashcards, normalizeGeneratedFlashcards } from "./normalize.js";
 import { validateFlashcardSourceEvidence } from "./sourceValidation.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
-import { createBinarySourceWindows } from "../sourceWindows.js";
 import { parseDeterministicFlashcards } from "./deterministicExtract.js";
 
 function requiredGenerationOptions(
@@ -119,25 +118,55 @@ export class FlashcardAIEngine {
   async extractExistingFlashcards(input: PreparedAIInput, signal?: AbortSignal): Promise<FlashcardOperationResult> {
     const startedAt = performance.now();
     let sourceStatus: FlashcardOperationResult["status"] = "complete";
-    const deterministic = input.input.kind === "text"
+    let deterministicProviderMeta: FlashcardOperationResult["provider"] = {
+      provider: "deterministic",
+      model: "local-parser",
+      transport: "inline",
+    };
+    let deterministic = input.input.kind === "text"
       ? parseDeterministicFlashcards(input.input.text.text, this.config.extractionMaxCount)
       : null;
-    const sourceWindows = deterministic
-      ? []
-      : input.input.kind === "text"
-        ? shardTextContent(input.contents).map((contents, index, all) => ({
-          contents,
-          instruction: `Inspect text segment ${index + 1} of ${all.length} and extract every explicit Flashcard in this segment.`,
-        }))
-        : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
-    const extractShard = async (contents: PreparedAIInput["contents"], instruction = ""): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
+
+    // Existing Q/A-style Flashcard documents do not need a second generative
+    // rewrite. Read the binary source once through Cloudflare, then use the
+    // conservative parser when the complete card structure is explicit.
+    if (!deterministic && input.input.kind !== "text") {
+      const preparedText = await this.contentService.prepareSourceText(input.contents, signal);
+      if (preparedText) {
+        const parsed = parseDeterministicFlashcards(preparedText.text, this.config.extractionMaxCount);
+        if (parsed) {
+          deterministic = {
+            ...parsed,
+            items: parsed.items.map((item) => ({
+              ...item,
+              source: item.source ? {
+                ...item.source,
+                inputType: input.input.kind,
+                ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
+              } : item.source,
+            })),
+            skippedItems: parsed.skippedItems.map((item) => ({
+              ...item,
+              source: item.source ? {
+                ...item.source,
+                inputType: input.input.kind,
+                ...(input.input.kind === "image" && input.input.images.length === 1 ? { imageIndex: 0 } : {}),
+              } : item.source,
+            })),
+          };
+          deterministicProviderMeta = preparedText.meta;
+        }
+      }
+    }
+    const shards = deterministic ? [] : shardTextContent(input.contents);
+    const extractShard = async (contents: PreparedAIInput["contents"]): Promise<StructuredGenerationResult<FlashcardExtractionProviderResponse>[]> => {
       try {
         return [await this.contentService.generateStructured({
           contents,
           responseSchema: flashcardExtractionProviderResponseSchema,
-          trustedSystemInstruction: [buildFlashcardExtractInstruction(), instruction].filter(Boolean).join("\n\n"),
+          trustedSystemInstruction: buildFlashcardExtractInstruction(),
           operation: "extract",
-          maxItems: Math.min(100, this.config.extractionMaxCount),
+          maxItems: this.config.extractionMaxCount,
           signal,
         })];
       } catch (error) {
@@ -146,18 +175,16 @@ export class FlashcardAIEngine {
         const halves = shardTextContent(contents, Math.ceil(part.sizeBytes / 2));
         if (halves.length < 2) throw error;
         const recovered = [];
-        for (const half of halves) recovered.push(...await extractShard(half, instruction));
+        for (const half of halves) recovered.push(...await extractShard(half));
         return recovered;
       }
     };
     let responses = deterministic ? [] : (await runResilientBatches({
-      total: sourceWindows.length,
+      total: shards.length,
       batchSize: 1,
+      concurrency: 3,
       signal,
-      run: async ({ start }) => {
-        const window = sourceWindows[start]!;
-        return extractShard(window.contents, window.instruction);
-      },
+      run: async ({ start }) => extractShard(shards[start]!),
     })).flat();
     if (!deterministic && !responses.some((response) => response.data.items.length) &&
       input.input.kind === "text" &&
@@ -170,7 +197,7 @@ export class FlashcardAIEngine {
           "The previous bounded extraction returned zero items despite clear Flashcard markers. Retry extraction and return every recoverable card; do not finalize as empty.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: Math.min(100, this.config.extractionMaxCount),
+        maxItems: this.config.extractionMaxCount,
         signal,
       });
       responses = [recovery];
@@ -189,7 +216,7 @@ export class FlashcardAIEngine {
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no Flashcards.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: Math.min(100, this.config.extractionMaxCount),
+        maxItems: this.config.extractionMaxCount,
         signal,
       });
       responses = [...responses, recovery];
@@ -202,7 +229,7 @@ export class FlashcardAIEngine {
       uncertainties: responses.flatMap((response) => response.data.uncertainties),
     };
     const providerMeta = deterministic
-      ? { provider: "deterministic", model: "local-parser", transport: "inline" as const }
+      ? deterministicProviderMeta
       : responses[0]?.meta ?? { provider: "unknown", model: "unknown" };
     if (!responseData.items.length && input.input.kind === "text" &&
       (input.input.text.text.match(/(?:^|\n)\s*(?:q(?:uestion)?|front|term|concept)\s*[:：-]/giu)?.length ?? 0) >= 2) {
@@ -242,30 +269,26 @@ export class FlashcardAIEngine {
   ): Promise<FlashcardOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const coverageSources = input.input.kind === "text"
-      ? shardTextContent(input.contents, 12_000).map((contents, index, all) => ({
-        contents,
-        instruction: `Focus on text source segment ${index + 1} of ${all.length}.`,
-      }))
-      : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
-    const initialBatchCount = Math.ceil(selected.count / 20);
+    const generationBatchSize = 20;
+    const coverageSources = shardTextContent(input.contents, 10_000);
+    const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
     const coverage = (start: number, recovery = false) => {
-      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
+      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / generationBatchSize);
       const sourceIndex = coverageSources.length === 1
         ? 0
         : Math.min(
           coverageSources.length - 1,
           Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
         );
-      const source = coverageSources[sourceIndex]!;
       return {
-        contents: source.contents,
-        instruction: `Source coverage window ${sequence + 1}; ${source.instruction} Avoid concepts covered by earlier windows.`,
+        contents: coverageSources[sourceIndex]!,
+        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
       };
     };
     let responses = await runResilientBatches({
       total: selected.count,
-      batchSize: 20,
+      batchSize: generationBatchSize,
+      concurrency: 4,
       signal,
       run: ({ start, count }) => {
         const covered = coverage(start);
@@ -279,6 +302,7 @@ export class FlashcardAIEngine {
           operation: "generate",
           requestedCount: count,
           maxItems: count,
+          sourceWindowIndex: Math.floor(start / generationBatchSize),
           signal,
         });
       },
@@ -288,7 +312,8 @@ export class FlashcardAIEngine {
       const deficit = selected.count - returnedBeforeRecovery;
       const recovery = await runResilientBatches({
         total: deficit,
-        batchSize: 20,
+        batchSize: generationBatchSize,
+        concurrency: 4,
         signal,
         run: ({ start, count }) => {
           const covered = coverage(start, true);
@@ -303,6 +328,7 @@ export class FlashcardAIEngine {
             operation: "generate",
             requestedCount: count,
             maxItems: count,
+            sourceWindowIndex: initialBatchCount + Math.floor(start / generationBatchSize),
             signal,
           });
         },
@@ -376,6 +402,7 @@ export class FlashcardAIEngine {
     const responses = await runResilientBatches({
       total: eligible.length,
       batchSize: 20,
+      concurrency: 4,
       signal,
       run: ({ start, count }) => this.contentService.generateStructured({
         contents: source.contents,
@@ -384,6 +411,7 @@ export class FlashcardAIEngine {
         additionalUntrustedContext: enhancementContext(eligible.slice(start, start + count)),
         operation: "enhance",
         maxItems: count,
+        sourceWindowIndex: Math.floor(start / 20),
         signal,
       }),
       onFailure: (batch) => {
@@ -401,6 +429,7 @@ export class FlashcardAIEngine {
       const recovery = await runResilientBatches({
         total: missing.length,
         batchSize: 20,
+        concurrency: 4,
         signal,
         run: ({ start, count }) => this.contentService.generateStructured({
           contents: source.contents,
@@ -412,6 +441,7 @@ export class FlashcardAIEngine {
           additionalUntrustedContext: enhancementContext(missing.slice(start, start + count)),
           operation: "enhance",
           maxItems: count,
+          sourceWindowIndex: Math.floor(start / 20),
           signal,
         }),
         onFailure: (batch) => {

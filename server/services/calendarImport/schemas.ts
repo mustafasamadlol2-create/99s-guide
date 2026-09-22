@@ -85,12 +85,16 @@ export const calendarCandidateSchema = z.object({
 }).strict();
 
 export const extractionCandidateSchema = z.object({
+  // Provider-facing extraction intentionally accepts common textual date/time
+  // representations. normalizeCandidate performs the strict Baghdad-calendar
+  // normalization afterwards, so one harmless formatting variation from the
+  // model cannot reject an otherwise correct annual timetable.
   title: nullableString(240),
   eventType: nullableString(64),
-  date: isoDate.nullable().default(null),
-  startTime: localTime.nullable().default(null),
-  endTime: localTime.nullable().default(null),
-  allDay: z.boolean().default(false),
+  date: nullableString(64),
+  startTime: nullableString(64),
+  endTime: nullableString(64),
+  allDay: z.boolean().catch(false).default(false),
   rawDate: nullableString(160),
   rawStartTime: nullableString(80),
   rawEndTime: nullableString(80),
@@ -99,28 +103,28 @@ export const extractionCandidateSchema = z.object({
   room: nullableString(160),
   doctor: nullableString(160),
   description: nullableString(1_000),
-  targetGroups: z.array(z.string().trim().max(32)).max(6).default([]),
-  sourcePage: z.number().int().positive().nullable().default(null),
-  sourceImageIndex: z.number().int().nonnegative().nullable().default(null),
+  targetGroups: z.array(z.string().trim().max(32)).max(6).catch([]).default([]),
+  sourcePage: z.number().int().positive().nullable().optional().catch(null).default(null),
+  sourceImageIndex: z.number().int().nonnegative().nullable().optional().catch(null).default(null),
   sourceEvidence: nullableString(2_000),
-  warnings: z.array(z.string().trim().min(1).max(240)).max(50).default([]),
-}).strict();
+  warnings: z.array(z.string().trim().min(1).max(240)).max(50).catch([]).default([]),
+});
 
 export const extractionBatchSchema = z.object({
   items: z.array(extractionCandidateSchema).max(CALENDAR_IMPORT_MAX_CANDIDATES),
-  warnings: z.array(z.string().trim().min(1).max(240)).max(50),
-}).strict();
+  warnings: z.array(z.string().trim().min(1).max(240)).max(50).catch([]).default([]),
+});
 
 export const verificationItemSchema = z.object({
   candidateId: z.string().trim().min(1).max(128),
-  status: z.enum(CALENDAR_VERIFICATION_STATUSES),
-  issues: z.array(z.string().trim().min(1).max(240)).max(20).default([]),
-}).strict();
+  status: z.enum(CALENDAR_VERIFICATION_STATUSES).catch("AMBIGUOUS"),
+  issues: z.array(z.string().trim().min(1).max(240)).max(20).catch([]).default([]),
+});
 
 export const verificationBatchSchema = z.object({
   items: z.array(verificationItemSchema).max(CALENDAR_IMPORT_MAX_CANDIDATES),
-  warnings: z.array(z.string().trim().min(1).max(240)).max(50),
-}).strict();
+  warnings: z.array(z.string().trim().min(1).max(240)).max(50).catch([]).default([]),
+});
 
 export const calendarImportPreviewSchema = z.object({
   candidates: z.array(calendarCandidateSchema).max(CALENDAR_IMPORT_MAX_CANDIDATES),

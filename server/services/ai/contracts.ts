@@ -38,6 +38,12 @@ export interface StructuredGenerationRequest<T> {
   maxItems?: number;
   /** Provider hint for safe parallel reading of independent source chunks. */
   sourceChunkConcurrency?: number;
+  /**
+   * Optional zero-based coverage window used by generation/enhancement batches.
+   * Providers may select a bounded source window instead of resending a very
+   * large document to every batch. It is a performance hint only.
+   */
+  sourceWindowIndex?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
   /** Internal job-scoped optimization. Never enables cross-user/global caching. */
@@ -58,7 +64,22 @@ export interface StructuredGenerationResult<T> {
   meta: SafeProviderMetadata;
 }
 
+export interface PreparedProviderTextSource {
+  /** Read-only transcription/Markdown of the supplied source for conservative local parsing. */
+  text: string;
+  meta: SafeProviderMetadata;
+}
+
 export interface AIProvider {
+  /**
+   * Optional fast source-reading path. It performs no generation and is used only
+   * when the application can conservatively parse already-structured source data
+   * (for example an 80-question MCQ sheet) without asking the LLM to rewrite it.
+   */
+  prepareSourceText?(
+    contents: AIContentPart[],
+    signal?: AbortSignal,
+  ): Promise<PreparedProviderTextSource>;
   generateStructured<T>(
     request: StructuredGenerationRequest<T>,
   ): Promise<StructuredGenerationResult<T>>;

@@ -119,6 +119,233 @@ function parseStructuredText(text: string): unknown {
   });
 }
 
+type JsonSchemaNode = Record<string, unknown>;
+
+function resolveSchemaNode(node: unknown, root: JsonSchemaNode): JsonSchemaNode | null {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+  const record = node as JsonSchemaNode;
+  const ref = typeof record.$ref === "string" ? record.$ref : null;
+  if (ref?.startsWith("#/$defs/")) {
+    const name = ref.slice("#/$defs/".length);
+    const defs = root.$defs;
+    if (defs && typeof defs === "object" && !Array.isArray(defs)) {
+      return resolveSchemaNode((defs as Record<string, unknown>)[name], root);
+    }
+  }
+  return record;
+}
+
+function schemaAllowsNull(node: unknown, root: JsonSchemaNode): boolean {
+  const resolved = resolveSchemaNode(node, root);
+  if (!resolved) return false;
+  if (resolved.type === "null") return true;
+  for (const key of ["anyOf", "oneOf"] as const) {
+    const branches = resolved[key];
+    if (Array.isArray(branches) && branches.some((branch) => schemaAllowsNull(branch, root))) return true;
+  }
+  return false;
+}
+
+function branchForValue(node: JsonSchemaNode, value: unknown, root: JsonSchemaNode): JsonSchemaNode {
+  for (const key of ["anyOf", "oneOf"] as const) {
+    const branches = node[key];
+    if (!Array.isArray(branches)) continue;
+    const preferred = branches
+      .map((branch) => resolveSchemaNode(branch, root))
+      .find((branch) => {
+        if (!branch) return false;
+        if (value === null) return branch.type === "null";
+        if (Array.isArray(value)) return branch.type === "array";
+        if (typeof value === "object") return branch.type === "object" || branch.properties !== undefined;
+        return branch.type === typeof value;
+      });
+    if (preferred) return preferred;
+  }
+  return node;
+}
+
+const ITEM_ARRAY_ALIASES = [
+  "events",
+  "entries",
+  "schedule",
+  "calendar",
+  "candidates",
+  "questions",
+  "flashcards",
+  "cards",
+  "results",
+  "data",
+] as const;
+
+const PROPERTY_ALIASES: Record<string, readonly string[]> = {
+  items: ITEM_ARRAY_ALIASES,
+  title: ["eventTitle", "event_title", "name"],
+  eventType: ["type", "event_type", "kind"],
+  date: ["eventDate", "event_date", "dayDate", "day_date"],
+  startTime: ["start", "start_time", "from", "fromTime"],
+  endTime: ["end", "end_time", "to", "toTime"],
+  allDay: ["all_day", "isAllDay"],
+  rawDate: ["raw_date", "dateRaw"],
+  rawStartTime: ["raw_start_time", "startTimeRaw"],
+  rawEndTime: ["raw_end_time", "endTimeRaw"],
+  subjectId: ["subject", "subjectCode", "subject_code"],
+  subjectLabelRaw: ["subjectLabel", "subjectName", "subject_label"],
+  room: ["location", "venue", "classroom"],
+  doctor: ["lecturer", "instructor", "teacher", "professor"],
+  targetGroups: ["groups", "group", "targetGroup", "target_group"],
+  sourcePage: ["page", "pageNumber", "page_number"],
+  sourceImageIndex: ["imageIndex", "image_index"],
+  sourceEvidence: ["evidence", "sourceText", "source_text", "excerpt"],
+  candidateId: ["id", "candidate_id"],
+  status: ["verificationStatus", "verification_status", "result"],
+  issues: ["problems", "reasons", "warnings"],
+};
+const SAFE_EMPTY_ARRAY_FIELDS = new Set([
+  "warnings",
+  "uncertainties",
+  "skippedItems",
+  "issues",
+  "targetGroups",
+]);
+
+function firstAliasedValue(record: Record<string, unknown>, key: string): unknown {
+  for (const alias of PROPERTY_ALIASES[key] ?? []) {
+    if (record[alias] !== undefined) return record[alias];
+  }
+  return undefined;
+}
+
+function nestedAliasedArray(record: Record<string, unknown>, depth = 0): unknown[] | undefined {
+  if (depth > 2) return undefined;
+  for (const alias of ITEM_ARRAY_ALIASES) {
+    const value = record[alias];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = value as Record<string, unknown>;
+      if (Array.isArray(nested.items)) return nested.items;
+      const deeper = nestedAliasedArray(nested, depth + 1);
+      if (deeper) return deeper;
+    }
+  }
+  return undefined;
+}
+
+function coerceForSchema(value: unknown, node: unknown, root: JsonSchemaNode): unknown {
+  const resolved = resolveSchemaNode(node, root);
+  if (!resolved) return value;
+  let selected = branchForValue(resolved, value, root);
+
+  // Nullable scalar schemas are commonly emitted as anyOf. When the model sends
+  // a numeric/boolean value as a string, select the corresponding non-null branch
+  // before coercion rather than leaving validation to fail on harmless typing.
+  if (selected === resolved && typeof value === "string") {
+    for (const key of ["anyOf", "oneOf"] as const) {
+      const branches = resolved[key];
+      if (!Array.isArray(branches)) continue;
+      const scalar = branches
+        .map((branch) => resolveSchemaNode(branch, root))
+        .find((branch) => branch && ["number", "integer", "boolean", "array"].includes(String(branch.type)));
+      if (scalar) {
+        selected = scalar;
+        break;
+      }
+    }
+  }
+
+  if ((selected.type === "array" || selected.items !== undefined) && !Array.isArray(value)) {
+    if (value === null || value === undefined || value === "") return [];
+    return [value];
+  }
+  if (selected.type === "boolean" && typeof value === "string") {
+    if (/^(?:true|yes|1)$/iu.test(value.trim())) return true;
+    if (/^(?:false|no|0)$/iu.test(value.trim())) return false;
+  }
+  if ((selected.type === "number" || selected.type === "integer") && typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return value;
+}
+
+/**
+ * Cloudflare JSON mode is best-effort. The model occasionally returns the right
+ * semantic payload with harmless wrapper names/extra keys (for example
+ * `events` instead of `items`). Before Zod rejects the whole job, project the
+ * JSON onto the exact requested schema and fill only safe metadata defaults.
+ *
+ * This does not invent educational content: question/event fields remain
+ * required by the application schema and still fail validation when absent.
+ */
+function repairStructuredValue(
+  value: unknown,
+  node: unknown,
+  root: JsonSchemaNode,
+): unknown {
+  let schemaNode = resolveSchemaNode(node, root);
+  if (!schemaNode) return value;
+  value = coerceForSchema(value, schemaNode, root);
+  schemaNode = branchForValue(schemaNode, value, root);
+
+  if (schemaNode.type === "array" || schemaNode.items !== undefined) {
+    if (!Array.isArray(value)) return value;
+    return value.map((entry) => repairStructuredValue(entry, schemaNode!.items, root));
+  }
+
+  const properties = schemaNode.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) return value;
+
+  let record: Record<string, unknown>;
+  if (Array.isArray(value) && "items" in properties) {
+    record = { items: value };
+  } else if (value && typeof value === "object" && !Array.isArray(value)) {
+    record = { ...(value as Record<string, unknown>) };
+  } else {
+    return value;
+  }
+
+  if (!Array.isArray(record.items) && "items" in properties) {
+    const aliasedItems = nestedAliasedArray(record);
+    if (aliasedItems) record.items = aliasedItems;
+  }
+
+  const required = new Set(Array.isArray(schemaNode.required)
+    ? schemaNode.required.filter((entry): entry is string => typeof entry === "string")
+    : []);
+  const output: Record<string, unknown> = {};
+  for (const [key, childSchema] of Object.entries(properties as Record<string, unknown>)) {
+    const directOrAlias = record[key] !== undefined ? record[key] : firstAliasedValue(record, key);
+    if (directOrAlias !== undefined) {
+      output[key] = repairStructuredValue(directOrAlias, childSchema, root);
+      continue;
+    }
+    if (!required.has(key)) continue;
+    if (SAFE_EMPTY_ARRAY_FIELDS.has(key)) {
+      output[key] = [];
+      continue;
+    }
+    if (key === "truncated" || key === "allDay") {
+      output[key] = false;
+      continue;
+    }
+    if (schemaAllowsNull(childSchema, root)) {
+      output[key] = null;
+    }
+  }
+
+  return output;
+}
+
+function repairStructuredEnvelope(value: unknown, schema: JsonSchemaNode): unknown {
+  return repairStructuredValue(value, schema, schema);
+}
+
+function zodIssueSummary(error: ZodError): string {
+  return error.issues
+    .slice(0, 6)
+    .map((issue) => `${issue.path.length ? issue.path.join(".") : "<root>"}: ${issue.message}`)
+    .join("; ");
+}
+
 function userContent(
   text: string,
   additionalUntrustedContext?: string,
@@ -130,6 +357,20 @@ function userContent(
       ? `Additional untrusted candidate context:\n${additionalUntrustedContext}`
       : "",
   ].filter(Boolean).join("\n\n");
+}
+
+function preparedPartsToText(
+  source: Array<ConvertedCloudflarePart | { text: string; inputType: "text" }>,
+): string {
+  return source.map((part) => {
+    if (part.inputType === "image") return `[Image ${part.imageIndex! + 1}]\n${part.text}`;
+    if (part.inputType === "pdf") {
+      return part.page === undefined
+        ? `[Source document]\n${part.text}`
+        : `[Source document page ${part.page}]\n${part.text}`;
+    }
+    return part.text;
+  }).join("\n\n");
 }
 
 export class CloudflareAIProvider implements AIProvider {
@@ -171,6 +412,58 @@ export class CloudflareAIProvider implements AIProvider {
     return converted;
   }
 
+  async prepareSourceText(
+    contents: StructuredGenerationRequest<unknown>["contents"],
+    signal?: AbortSignal,
+  ): Promise<{ text: string; meta: SafeProviderMetadata }> {
+    const isBinary = contents.some((part) => part.kind !== "text");
+    if (!isBinary) {
+      const source = contents
+        .filter((part): part is AITextPart => part.kind === "text")
+        .map((part) => ({ text: part.text, inputType: "text" as const }));
+      return {
+        text: preparedPartsToText(source),
+        meta: { provider: "cloudflare", model: this.config.model, transport: "inline" },
+      };
+    }
+
+    const mediaTimeoutMs = Math.min(
+      6 * 60_000,
+      Math.max(this.config.markdownTimeoutMs, this.config.visionTimeoutMs) * 4,
+    );
+    const bounded = createBoundedSignal(mediaTimeoutMs, signal);
+    try {
+      const source = await this.reusableConversion(contents, bounded.signal);
+      const text = preparedPartsToText(source);
+      if (!text.trim()) {
+        throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+          publicMessage: "Cloudflare Workers AI could not find readable source content.",
+          diagnosticMessage: "Prepared Cloudflare source text was empty before local parsing.",
+          retryable: true,
+        });
+      }
+      return {
+        text,
+        meta: {
+          provider: "cloudflare",
+          model: this.config.model,
+          transport: "markdown_conversion",
+          mediaCount: contents.length,
+        },
+      };
+    } catch (error) {
+      if (bounded.signal.aborted && !signal?.aborted) {
+        throw timeoutError(
+          "Cloudflare took too long to read the uploaded file.",
+          "Cloudflare source preparation exceeded its finite safety ceiling.",
+        );
+      }
+      throw error;
+    } finally {
+      bounded.cleanup();
+    }
+  }
+
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
   ): Promise<StructuredGenerationResult<T>> {
@@ -207,15 +500,7 @@ export class CloudflareAIProvider implements AIProvider {
           .map((part) => ({ text: part.text, inputType: "text" as const }));
       }
 
-      const sourceText = source.map((part) => {
-        if (part.inputType === "image") return `[Image ${part.imageIndex! + 1}]\n${part.text}`;
-        if (part.inputType === "pdf") {
-          return part.page === undefined
-            ? `[Source document]\n${part.text}`
-            : `[Source document page ${part.page}]\n${part.text}`;
-        }
-        return part.text;
-      }).join("\n\n");
+      const sourceText = preparedPartsToText(source);
 
       if (!sourceText.trim()) {
         throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
@@ -225,9 +510,16 @@ export class CloudflareAIProvider implements AIProvider {
         });
       }
 
-      const chunks = request.operation === "enhance"
-        ? [sourceText]
-        : splitBoundedText(sourceText, this.config.chunkChars);
+      const sourceChunkSize = request.operation === "extract"
+        ? this.config.chunkChars
+        : Math.min(12_000, Math.max(this.config.chunkChars, this.config.chunkChars * 2));
+      const allChunks = splitBoundedText(sourceText, sourceChunkSize);
+      // Generate/enhance batches do not need to resend a complete large PDF to
+      // every model call. Select one rotating coverage window; callers pass a
+      // deterministic window index so successive batches cover the document.
+      const chunks = request.operation === "generate" || request.operation === "enhance"
+        ? [allChunks[Math.abs(request.sourceWindowIndex ?? 0) % allChunks.length]!]
+        : allChunks;
       const schema = createCloudflareJsonSchema(request.responseSchema);
       const responses: unknown[] = [];
       let responseId: string | undefined;
@@ -252,27 +544,58 @@ export class CloudflareAIProvider implements AIProvider {
               request.trustedSystemInstruction,
               `This is bounded source chunk ${index + 1} of ${chunks.length}. Return no more than ${allocation} item(s) from this chunk.`,
             ].filter(Boolean).join("\n\n");
-          const result = await this.client.run(
-            [
-              ...(chunkInstruction ? [{ role: "system" as const, content: chunkInstruction }] : []),
-              { role: "user", content: userContent(chunks[index]!, request.additionalUntrustedContext) },
-            ],
+          const messages = [
+            ...(chunkInstruction ? [{ role: "system" as const, content: chunkInstruction }] : []),
+            { role: "user" as const, content: userContent(chunks[index]!, request.additionalUntrustedContext) },
+          ];
+
+          const validateResult = (result: Awaited<ReturnType<CloudflareClient["run"]>>): T => {
+            const parsed = repairStructuredEnvelope(
+              parseStructuredText(result.text),
+              schema,
+            );
+            try {
+              return request.responseSchema.parse(parsed);
+            } catch (error) {
+              if (error instanceof ZodError) {
+                throw new AIServiceError("AI_VALIDATION_ERROR", {
+                  publicMessage: "The AI response did not match the required structure.",
+                  diagnosticMessage: `Cloudflare response failed validation with ${error.issues.length} issue(s): ${zodIssueSummary(error)}`,
+                  cause: error,
+                });
+              }
+              throw error;
+            }
+          };
+
+          let result = await this.client.run(
+            messages,
             { type: "json_schema", json_schema: schema },
             bounded.signal,
           );
-          const parsed = parseStructuredText(result.text);
           let validated: T;
           try {
-            validated = request.responseSchema.parse(parsed);
+            validated = validateResult(result);
           } catch (error) {
-            if (error instanceof ZodError) {
-              throw new AIServiceError("AI_VALIDATION_ERROR", {
-                publicMessage: "The AI response did not match the required structure.",
-                diagnosticMessage: `Cloudflare response failed validation with ${error.issues.length} issue(s).`,
-                cause: error,
-              });
-            }
-            throw error;
+            if (!isAIServiceError(error) || error.code !== "AI_VALIDATION_ERROR") throw error;
+            // One bounded repair attempt is cheaper and safer than failing an
+            // entire annual timetable because one Cloudflare chunk used a
+            // semantically-correct wrapper/field shape that still missed Zod.
+            result = await this.client.run(
+              [
+                {
+                  role: "system",
+                  content: [
+                    chunkInstruction,
+                    "STRUCTURE REPAIR PASS: Return only the requested JSON object. Use the exact response property names and JSON types. Preserve source facts; do not invent missing educational or calendar content.",
+                  ].filter(Boolean).join("\n\n"),
+                },
+                { role: "user", content: userContent(chunks[index]!, request.additionalUntrustedContext) },
+              ],
+              { type: "json_schema", json_schema: schema },
+              bounded.signal,
+            );
+            validated = validateResult(result);
           }
           const itemCount = typeof validated === "object" && validated !== null && "items" in validated &&
             Array.isArray(validated.items) ? validated.items.length : 0;
@@ -295,7 +618,7 @@ export class CloudflareAIProvider implements AIProvider {
       // behaviour while staying far below Cloudflare request-rate ceilings.
       // Generation keeps its sequential count allocation so exact requested-count
       // behaviour is preserved.
-      const requestedChunkConcurrency = Math.max(1, Math.min(3, request.sourceChunkConcurrency ?? 1));
+      const requestedChunkConcurrency = Math.max(1, Math.min(6, request.sourceChunkConcurrency ?? 1));
       if (requestedChunkConcurrency > 1 && remaining === undefined && chunks.length > 1) {
         const chunkResults = new Array<Awaited<ReturnType<typeof runChunk>>>(chunks.length);
         let nextIndex = 0;

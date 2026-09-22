@@ -3,7 +3,7 @@ import { getCalendarImportJob } from "./api";
 import { CalendarImportJob } from "./types";
 
 const terminal = (status?: string) => ["COMPLETED", "FAILED", "CANCELLED"].includes((status || "").toUpperCase());
-const MAX_CALENDAR_IMPORT_WAIT_MS = 13 * 60_000;
+const MAX_CALENDAR_IMPORT_WAIT_MS = 20 * 60_000;
 
 export function useCalendarImportJob(jobId: string | null, intervalMs = 1500) {
   const [job, setJob] = useState<CalendarImportJob | null>(null);

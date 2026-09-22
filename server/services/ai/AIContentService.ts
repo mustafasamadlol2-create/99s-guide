@@ -34,6 +34,7 @@ export interface AIStructuredContentRequest<T> {
   requestedCount?: number;
   maxItems?: number;
   sourceChunkConcurrency?: number;
+  sourceWindowIndex?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
 }
@@ -127,6 +128,15 @@ export class AIContentService {
     await this.provider.dispose?.();
   }
 
+  async prepareSourceText(
+    contents: AIContentPart[],
+    signal?: AbortSignal,
+  ): Promise<import("./contracts.js").PreparedProviderTextSource | null> {
+    if (!this.provider.prepareSourceText) return null;
+    const validatedContents = validateContentParts(contents);
+    return this.provider.prepareSourceText(validatedContents, signal);
+  }
+
   async generateStructured<T>(
     request: AIStructuredContentRequest<T>,
   ): Promise<{ data: T; meta: SafeProviderMetadata }> {
@@ -135,10 +145,10 @@ export class AIContentService {
       return await this.generateWithRetry({
         ...request,
         contents: validatedContents,
-        // Extraction is source-partitionable. Keep generation/enhancement
-        // sequential, while allowing Cloudflare to process a few independent
-        // extraction chunks in parallel. Callers may explicitly override this.
-        sourceChunkConcurrency: request.sourceChunkConcurrency ?? (request.operation === "extract" ? 3 : 1),
+        // Extraction is source-partitionable, so Cloudflare may process a few
+        // independent source chunks in parallel. Generation/enhancement use a
+        // rotating bounded source window at the engine/provider layer.
+        sourceChunkConcurrency: request.sourceChunkConcurrency ?? (request.operation === "extract" ? 6 : 1),
       });
     } catch (error) {
       if (isAIServiceError(error)) throw error;

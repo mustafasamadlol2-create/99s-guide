@@ -23,6 +23,7 @@ import {
   mcqExtractionProviderResponseSchema,
   mcqGenerationProviderResponseSchema,
   type MCQEnhancementProviderResponse,
+  type MCQExtractionProviderResponse,
 } from "./schemas.js";
 import {
   buildMCQEnhanceInstruction,
@@ -34,7 +35,6 @@ import { normalizeExtractedItems, normalizeGeneratedItems } from "./normalize.js
 import { parseDeterministicMCQs } from "./deterministicExtract.js";
 import { runResilientBatches, shardTextContent } from "../reliability.js";
 import { contiguousIndexRanges, planNumberedMCQExtraction } from "./extractionPlan.js";
-import { createBinarySourceWindows } from "../sourceWindows.js";
 
 function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
   return {
@@ -42,6 +42,32 @@ function inputForPrepared(input: PreparedAIInput): MCQAIEngineInput {
     inputKind: input.input.kind,
     imageCount: input.input.kind === "image" ? input.input.images.length : undefined,
     text: input.input.kind === "text" ? input.input.text.text : undefined,
+  };
+}
+
+function remapDeterministicMCQSource(
+  response: MCQExtractionProviderResponse,
+  input: MCQAIEngineInput,
+): MCQExtractionProviderResponse {
+  if (input.inputKind === "text") return response;
+  return {
+    ...response,
+    items: response.items.map((item) => ({
+      ...item,
+      source: item.source ? {
+        ...item.source,
+        inputType: input.inputKind,
+        ...(input.inputKind === "image" && input.imageCount === 1 ? { imageIndex: 0 } : {}),
+      } : item.source,
+    })),
+    skippedItems: response.skippedItems.map((item) => ({
+      ...item,
+      source: item.source ? {
+        ...item.source,
+        inputType: input.inputKind,
+        ...(input.inputKind === "image" && input.imageCount === 1 ? { imageIndex: 0 } : {}),
+      } : item.source,
+    })),
   };
 }
 
@@ -169,20 +195,36 @@ export class MCQAIEngine {
   private async extractFromEngineInput(input: MCQAIEngineInput, signal?: AbortSignal, metadata?: MCQExtractOptions): Promise<MCQOperationResult> {
     const startedAt = performance.now();
     let sourceStatus: MCQOperationResult["status"] = "complete";
-    const deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
+    let deterministicProviderMeta: MCQOperationResult["provider"] = {
+      provider: "deterministic",
+      model: "local-parser",
+      transport: "inline",
+    };
+    let deterministic = input.text ? parseDeterministicMCQs(input.text, this.config.extractionMaxCount) : null;
+
+    // Fast path for existing MCQ sheets: Cloudflare converts the PDF/image to
+    // text once, then the conservative local parser copies complete numbered
+    // questions without asking the LLM to regenerate 80+ source items. If the
+    // layout is not safely parseable, the normal Cloudflare structured path
+    // below is used with the same cached source conversion.
+    if (!deterministic && input.inputKind !== "text") {
+      const preparedText = await this.contentService.prepareSourceText(input.contents, signal);
+      if (preparedText) {
+        const parsed = parseDeterministicMCQs(preparedText.text, this.config.extractionMaxCount);
+        if (parsed) {
+          deterministic = remapDeterministicMCQSource(parsed, input);
+          deterministicProviderMeta = preparedText.meta;
+        }
+      }
+    }
+
     const numberedPlan = deterministic ? null : planNumberedMCQExtraction(input.contents);
-    const sourceWindows = deterministic || numberedPlan
-      ? []
-      : input.inputKind === "text"
-        ? shardTextContent(input.contents).map((contents, index, all) => ({
-          contents,
-          instruction: `Inspect text segment ${index + 1} of ${all.length} and extract every MCQ explicitly present in this segment.`,
-        }))
-        : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
+    const shards = deterministic || numberedPlan ? [] : shardTextContent(input.contents);
     let responses = deterministic ? [] : numberedPlan
       ? await runResilientBatches({
         total: numberedPlan.blocks.length,
-        batchSize: 25,
+        batchSize: 20,
+        concurrency: 4,
         signal,
         run: async (batch) => ({
           batch,
@@ -200,23 +242,21 @@ export class MCQAIEngine {
         }),
       })
       : await runResilientBatches({
-        total: sourceWindows.length,
+        total: shards.length,
         batchSize: 1,
+        concurrency: 3,
         signal,
-        run: async (batch) => {
-          const window = sourceWindows[batch.start]!;
-          return {
-            batch,
-            result: await this.contentService.generateStructured({
-              contents: window.contents,
-              responseSchema: mcqExtractionProviderResponseSchema,
-              trustedSystemInstruction: [buildMCQExtractInstruction(), window.instruction].join("\n\n"),
-              operation: "extract",
-              maxItems: Math.min(100, this.config.extractionMaxCount),
-              signal,
-            }),
-          };
-        },
+        run: async (batch) => ({
+          batch,
+          result: await this.contentService.generateStructured({
+            contents: shards[batch.start]!,
+            responseSchema: mcqExtractionProviderResponseSchema,
+            trustedSystemInstruction: buildMCQExtractInstruction(),
+            operation: "extract",
+            maxItems: this.config.extractionMaxCount,
+            signal,
+          }),
+        }),
       });
     if (numberedPlan) {
       const withSafeOrdinals = responses.flatMap(({ batch, result }) =>
@@ -233,7 +273,8 @@ export class MCQAIEngine {
       for (const missingRange of contiguousIndexRanges(missingIndexes)) {
         const recovered = await runResilientBatches({
           total: missingRange.count,
-          batchSize: Math.min(25, missingRange.count),
+          batchSize: Math.min(20, missingRange.count),
+          concurrency: 4,
           signal,
           run: async (batch) => {
             const absolute = { start: missingRange.start + batch.start, count: batch.count };
@@ -294,7 +335,7 @@ export class MCQAIEngine {
           "Do not finalize as a successful empty extraction unless the source is genuinely unreadable or contains no MCQs.",
         ].join("\n\n"),
         operation: "extract",
-        maxItems: Math.min(100, this.config.extractionMaxCount),
+        maxItems: this.config.extractionMaxCount,
         signal,
       });
       responses = [...responses, { batch: { start: 0, count: 1 }, result: recovery }];
@@ -319,7 +360,7 @@ export class MCQAIEngine {
       uncertainties: responses.flatMap((response) => response.result.data.uncertainties),
     };
     const providerMeta = deterministic
-      ? { provider: "deterministic", model: "local-parser", transport: "inline" as const }
+      ? deterministicProviderMeta
       : responses[0]?.result.meta ?? { provider: "unknown", model: "unknown" };
     if (!responseData.items.length && input.text && (input.text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*)?\d{1,3}\s*[.)、:：-]/giu)?.length ?? 0) >= 2) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
@@ -357,30 +398,26 @@ export class MCQAIEngine {
   ): Promise<MCQOperationResult> {
     const selected = requiredGenerationOptions(options, this.config);
     const startedAt = performance.now();
-    const coverageSources = input.input.kind === "text"
-      ? shardTextContent(input.contents, 12_000).map((contents, index, all) => ({
-        contents,
-        instruction: `Focus on text source segment ${index + 1} of ${all.length}.`,
-      }))
-      : createBinarySourceWindows(input.contents, { pdfPagesPerWindow: 4, imagesPerWindow: 4 });
-    const initialBatchCount = Math.ceil(selected.count / 20);
+    const generationBatchSize = 20;
+    const coverageSources = shardTextContent(input.contents, 10_000);
+    const initialBatchCount = Math.ceil(selected.count / generationBatchSize);
     const coverage = (start: number, recovery = false) => {
-      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / 20);
+      const sequence = (recovery ? initialBatchCount : 0) + Math.floor(start / generationBatchSize);
       const sourceIndex = coverageSources.length === 1
         ? 0
         : Math.min(
           coverageSources.length - 1,
           Math.floor((sequence % initialBatchCount) * coverageSources.length / initialBatchCount),
         );
-      const source = coverageSources[sourceIndex]!;
       return {
-        contents: source.contents,
-        instruction: `Source coverage window ${sequence + 1}; ${source.instruction} Avoid concepts covered by earlier windows.`,
+        contents: coverageSources[sourceIndex]!,
+        instruction: `Source coverage window ${sequence + 1}; focus on bounded source segment ${sourceIndex + 1} of ${coverageSources.length} and avoid concepts covered by earlier windows.`,
       };
     };
     let responses = await runResilientBatches({
       total: selected.count,
-      batchSize: 20,
+      batchSize: generationBatchSize,
+      concurrency: 4,
       signal,
       run: ({ start, count }) => {
         const covered = coverage(start);
@@ -394,6 +431,7 @@ export class MCQAIEngine {
           operation: "generate",
           requestedCount: count,
           maxItems: count,
+          sourceWindowIndex: Math.floor(start / generationBatchSize),
           signal,
         });
       },
@@ -403,7 +441,8 @@ export class MCQAIEngine {
       const deficit = selected.count - returnedBeforeRecovery;
       const recovery = await runResilientBatches({
         total: deficit,
-        batchSize: 20,
+        batchSize: generationBatchSize,
+        concurrency: 4,
         signal,
         run: ({ start, count }) => {
           const covered = coverage(start, true);
@@ -418,6 +457,7 @@ export class MCQAIEngine {
             operation: "generate",
             requestedCount: count,
             maxItems: count,
+            sourceWindowIndex: initialBatchCount + Math.floor(start / generationBatchSize),
             signal,
           });
         },
@@ -487,6 +527,7 @@ export class MCQAIEngine {
       const responses = await runResilientBatches({
         total: eligible.length,
         batchSize: 20,
+        concurrency: 4,
         signal,
         run: ({ start, count }) => {
           const batch = eligible.slice(start, start + count);
@@ -497,6 +538,7 @@ export class MCQAIEngine {
             additionalUntrustedContext: enhancementContext(batch),
             operation: "enhance",
             maxItems: count,
+            sourceWindowIndex: Math.floor(start / 20),
             signal,
           });
         },
@@ -522,6 +564,7 @@ export class MCQAIEngine {
         const recovery = await runResilientBatches({
           total: missing.length,
           batchSize: 20,
+          concurrency: 4,
           signal,
           run: ({ start, count }) => this.contentService.generateStructured({
             contents: source.contents,
@@ -533,6 +576,7 @@ export class MCQAIEngine {
             additionalUntrustedContext: enhancementContext(missing.slice(start, start + count)),
             operation: "enhance",
             maxItems: count,
+            sourceWindowIndex: Math.floor(start / 20),
             signal,
           }),
           onFailure: (batch) => {

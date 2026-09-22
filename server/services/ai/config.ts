@@ -9,11 +9,11 @@ export const DEFAULT_CLOUDFLARE_VISION_MODEL = "@cf/moondream/moondream3.1-9B-A2
  * are handled as multiple smaller chunks/pages instead of allowing one fetch to
  * wait for many minutes. This prevents a UI job from looking permanently stuck.
  */
-export const DEFAULT_AI_TIMEOUT_MS = 120_000;
+export const DEFAULT_AI_TIMEOUT_MS = 300_000;
 export const DEFAULT_CLOUDFLARE_MARKDOWN_TIMEOUT_MS = 90_000;
 export const DEFAULT_CLOUDFLARE_VISION_TIMEOUT_MS = 90_000;
-export const MAX_AI_TIMEOUT_MS = 180_000;
-export const DEFAULT_CLOUDFLARE_CHUNK_CHARS = 12_000;
+export const MAX_AI_TIMEOUT_MS = 900_000;
+export const DEFAULT_CLOUDFLARE_CHUNK_CHARS = 8_000;
 export const DEFAULT_CLOUDFLARE_MAX_OUTPUT_TOKENS = 8_192;
 export const DEFAULT_CLOUDFLARE_VISION_MAX_OUTPUT_TOKENS = 8_192;
 
@@ -114,8 +114,8 @@ export function getCloudflareConfig(
     timeoutMs: readBoundedTimeout(
       environment,
       "CLOUDFLARE_INFERENCE_TIMEOUT_MS",
-      readBoundedTimeout(environment, "AI_OPERATION_TIMEOUT_MS", DEFAULT_AI_TIMEOUT_MS, 30_000, MAX_AI_TIMEOUT_MS),
-      30_000,
+      readBoundedTimeout(environment, "AI_OPERATION_TIMEOUT_MS", DEFAULT_AI_TIMEOUT_MS, 180_000, MAX_AI_TIMEOUT_MS),
+      180_000,
       MAX_AI_TIMEOUT_MS,
     ),
     markdownTimeoutMs: readBoundedTimeout(

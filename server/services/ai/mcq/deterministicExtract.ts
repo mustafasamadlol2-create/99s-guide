@@ -12,6 +12,14 @@ const questionMarker = /^\s*(?:q(?:uestion)?\s*)?(\d{1,3})\s*(?:[.)、:：-]\s*|
 const optionMarker = /^\s*(?:\(([A-D])\)|([A-D])\s*[).:：-]|([1-4])\s*[).:：-])\s*(.*)$/iu;
 const answerMarker = /^\s*(?:answer|correct\s+answer|correct|ans|key|الإجابة)\s*[:：-]\s*(.+?)\s*$/iu;
 
+function normalizeMarkdownMarkerLine(value: string): string {
+  return value
+    .replace(/\\([.):：-])/gu, "$1")
+    .replace(/\*\*|__/gu, "")
+    .replace(/^\s*[-+*]\s+(?=(?:\(?[A-D1-4]\)?\s*[).:：-]|(?:answer|correct|ans|key)\b))/iu, "")
+    .trimEnd();
+}
+
 function optionLabel(value: string | undefined): "A" | "B" | "C" | "D" | null {
   if (!value) return null;
   const normalized = value.toUpperCase();
@@ -47,7 +55,7 @@ function parseBlock(lines: string[], sourceOrdinal: number): ParsedBlock | null 
   const uncertainties: string[] = [];
   let currentOption = -1;
   for (const rawLine of lines) {
-    const line = rawLine.trim();
+    const line = normalizeMarkdownMarkerLine(rawLine).trim();
     if (!line) continue;
     const option = line.match(optionMarker);
     if (option) {
@@ -83,18 +91,19 @@ export function parseDeterministicMCQs(
   const starts: Array<{ line: number; ordinal: number; firstText: string }> = [];
   let activeOptionCount = 0;
   for (let line = 0; line < lines.length; line += 1) {
-    const match = lines[line]!.match(questionMarker);
+    const markerLine = normalizeMarkdownMarkerLine(lines[line]!);
+    const match = markerLine.match(questionMarker);
     if (match) {
-      const numericQuestion = !/^(?:q(?:uestion)?\s*)/iu.test(lines[line]!);
+      const numericQuestion = !/^(?:q(?:uestion)?\s*)/iu.test(markerLine);
       if (!numericQuestion || activeOptionCount >= 4 || starts.length === 0) {
         starts.push({ line, ordinal: Number(match[1]), firstText: match[2]!.trim() });
         activeOptionCount = 0;
         continue;
       }
     }
-    if (lines[line]!.match(optionMarker)) activeOptionCount += 1;
+    if (markerLine.match(optionMarker)) activeOptionCount += 1;
   }
-  if (starts.length === 0 || starts[0]!.ordinal !== 1) return null;
+  if (starts.length === 0) return null;
   const parsed: ParsedBlock[] = [];
   for (let index = 0; index < starts.length; index += 1) {
     const current = starts[index]!;
@@ -104,8 +113,9 @@ export function parseDeterministicMCQs(
     if (!block) return null;
     parsed.push(block);
   }
+  const firstOrdinal = parsed[0]!.sourceOrdinal;
   for (let index = 0; index < parsed.length; index += 1) {
-    if (parsed[index]!.sourceOrdinal !== index + 1) return null;
+    if (parsed[index]!.sourceOrdinal !== firstOrdinal + index) return null;
   }
   const items = parsed.slice(0, maxItems).map((item) => ({
     sourceOrdinal: item.sourceOrdinal,

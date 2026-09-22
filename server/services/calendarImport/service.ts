@@ -37,7 +37,7 @@ import {
 } from "./duplicateDetection.js";
 
 const MAX_STORED_SOURCE_BYTES = 100 * 1024 * 1024;
-const STALE_JOB_MS = 12 * 60 * 1000;
+const STALE_JOB_MS = 18 * 60 * 1000;
 
 export interface CalendarImportUpload {
   path: string;
@@ -433,7 +433,7 @@ export class CalendarImportService {
           defaultTargetGroups: defaultGroups,
           sourcePageCount: pageCount,
           sourceImageCount: prepared.inputKind === "image" ? prepared.contents.length : 0,
-          allowTextSource: prepared.inputKind === "text",
+          allowTextSource: prepared.inputKind === "text" || extracted.provider.transport === "markdown_conversion",
         }),
       );
       await this.options.prisma.calendarImportJob.updateMany({

@@ -10,7 +10,7 @@ import type {
 export const AI_PREVIEW_POLL_TIMEOUT_MS = 20_000;
 export const AI_PREVIEW_POLL_INTERVAL_MS = 1_000;
 export const AI_PREVIEW_MAX_CONSECUTIVE_POLL_FAILURES = 8;
-export const AI_PREVIEW_TIMEOUT_MS = 8 * 60_000;
+export const AI_PREVIEW_TIMEOUT_MS = 20 * 60_000;
 
 export class AIPreviewError extends Error {
   readonly code?: string;

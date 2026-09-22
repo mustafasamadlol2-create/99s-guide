@@ -151,30 +151,40 @@ export class CloudflareMarkdownConverter {
     capability: AIStagedFileCapability,
     signal: AbortSignal,
   ): Promise<ConvertedCloudflarePart[]> {
+    // Fast path: Cloudflare's native PDF -> Markdown conversion handles the
+    // complete document in one request and is dramatically faster than
+    // rendering/OCRing every page independently. It is also the best path for
+    // dense MCQ sheets and timetable tables, because table structure is kept in
+    // one coherent document instead of being split across image OCR calls.
+    //
+    // The local page-by-page route remains as a bounded fallback for PDFs that
+    // Cloudflare cannot convert (or returns as empty), so scanned/unusual PDFs
+    // are still recoverable instead of being rejected.
+    let directConversionError: unknown;
+    try {
+      const bytes = await capability.readBytes();
+      const markdown = await this.toMarkdownBounded(
+        bytes,
+        "application/pdf",
+        safeFilename(part, part.mimeType),
+        signal,
+      );
+      if (!unusableDocumentConversion(markdown) && textCharacterCount(markdown) >= PDF_MIN_USABLE_TEXT_CHARS) {
+        return [{ text: markdown.trim(), inputType: "pdf" }];
+      }
+    } catch (error) {
+      if (signal.aborted) throw signal.reason ?? error;
+      directConversionError = error;
+    }
+
     let profiles: PDFTextPageProfile[];
     try {
       profiles = await extractPDFPageProfiles(capability, signal);
     } catch (localError) {
-      // Some uncommon PDFs are readable by Cloudflare even when pdf.js cannot
-      // parse them. Keep one bounded Cloudflare document-conversion fallback.
-      try {
-        const bytes = await capability.readBytes();
-        const markdown = await this.toMarkdownBounded(
-          bytes,
-          "application/pdf",
-          safeFilename(part, part.mimeType),
-          signal,
-        );
-        if (!unusableDocumentConversion(markdown)) {
-          return [{ text: markdown, inputType: "pdf" }];
-        }
-      } catch (fallbackError) {
-        if (signal.aborted) throw signal.reason ?? fallbackError;
-      }
       throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
         publicMessage: "Cloudflare Workers AI could not read this PDF.",
-        diagnosticMessage: "Both local page inspection and bounded Cloudflare PDF conversion failed.",
-        cause: localError,
+        diagnosticMessage: "Cloudflare whole-document conversion and local PDF inspection both failed.",
+        cause: directConversionError ?? localError,
         retryable: true,
       });
     }
@@ -182,7 +192,8 @@ export class CloudflareMarkdownConverter {
     if (profiles.length === 0) {
       throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
         publicMessage: "The PDF did not contain readable pages.",
-        diagnosticMessage: "Local PDF inspection returned zero pages.",
+        diagnosticMessage: "Cloudflare whole-document conversion was empty and local PDF inspection returned zero pages.",
+        cause: directConversionError,
         retryable: true,
       });
     }
@@ -190,9 +201,6 @@ export class CloudflareMarkdownConverter {
     const pagesNeedingVision = profiles.filter(shouldReadPageVisually).map((profile) => profile.page);
     const visualText = new Map<number, string>();
 
-    // Critical performance rule: never rasterize every page merely because one
-    // logo/image exists somewhere in the PDF. Only OCR pages that actually need
-    // visual reading, and process a small batch at a time.
     for (let offset = 0; offset < pagesNeedingVision.length; offset += VISION_RENDER_BATCH_SIZE) {
       if (signal.aborted) throw signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
       const pageNumbers = pagesNeedingVision.slice(offset, offset + VISION_RENDER_BATCH_SIZE);
@@ -203,9 +211,6 @@ export class CloudflareMarkdownConverter {
           const text = await this.readVisualImage(page.bytes, page.mimeType, `source-page-${page.page}.png`, signal);
           return { page: page.page, text };
         } catch (error) {
-          // If the page already has a strong text layer, visual labels are an
-          // enhancement rather than a reason to fail the whole job. A scanned
-          // page, however, must be readable or extraction would be incomplete.
           if (localProfile && textCharacterCount(localProfile.text) >= PDF_MIN_USABLE_TEXT_CHARS) {
             return { page: page.page, text: "" };
           }
@@ -222,23 +227,12 @@ export class CloudflareMarkdownConverter {
     })).filter((item) => item.text.trim().length > 0);
 
     if (result.length === 0) {
-      // Last bounded fallback. This path should be rare (for unusual vector-only
-      // documents); it never starts an unbounded page-by-page loop.
-      const bytes = await capability.readBytes();
-      const markdown = await this.toMarkdownBounded(
-        bytes,
-        "application/pdf",
-        safeFilename(part, part.mimeType),
-        signal,
-      );
-      if (unusableDocumentConversion(markdown)) {
-        throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
-          publicMessage: "Cloudflare Workers AI could not find readable content in this PDF.",
-          diagnosticMessage: "PDF text-layer, targeted visual OCR, and document-conversion fallback were empty.",
-          retryable: true,
-        });
-      }
-      return [{ text: markdown, inputType: "pdf" }];
+      throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+        publicMessage: "Cloudflare Workers AI could not find readable content in this PDF.",
+        diagnosticMessage: "Whole-document conversion, text-layer extraction, and targeted visual OCR were empty.",
+        cause: directConversionError,
+        retryable: true,
+      });
     }
 
     return result;

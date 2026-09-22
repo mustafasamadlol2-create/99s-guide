@@ -40,8 +40,101 @@ function validIsoDate(value: string | null): boolean {
   return parsed.isValid() && parsed.format("YYYY-MM-DD") === value;
 }
 
+const digitMap: Record<string, string> = {
+  "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+  "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+  "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+  "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+};
+
+function latinDigits(value: string): string {
+  return value.normalize("NFKC").replace(/[٠-٩۰-۹]/gu, (digit) => digitMap[digit] ?? digit);
+}
+
+function formatDateParts(year: number, month: number, day: number): string | null {
+  if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const candidate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return validIsoDate(candidate) ? candidate : null;
+}
+
+const monthAliases: Record<string, number> = {
+  jan: 1, january: 1, "كانون الثاني": 1, يناير: 1,
+  feb: 2, february: 2, شباط: 2, فبراير: 2,
+  mar: 3, march: 3, "آذار": 3, اذار: 3, مارس: 3,
+  apr: 4, april: 4, نيسان: 4, أبريل: 4, ابريل: 4,
+  may: 5, أيار: 5, ايار: 5, مايو: 5,
+  jun: 6, june: 6, حزيران: 6, يونيو: 6,
+  jul: 7, july: 7, تموز: 7, يوليو: 7,
+  aug: 8, august: 8, "آب": 8, اب: 8, أغسطس: 8, اغسطس: 8,
+  sep: 9, sept: 9, september: 9, أيلول: 9, ايلول: 9, سبتمبر: 9,
+  oct: 10, october: 10, "تشرين الأول": 10, "تشرين الاول": 10, أكتوبر: 10, اكتوبر: 10,
+  nov: 11, november: 11, "تشرين الثاني": 11, نوفمبر: 11,
+  dec: 12, december: 12, "كانون الأول": 12, "كانون الاول": 12, ديسمبر: 12,
+};
+
+function normalizeCalendarDate(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = latinDigits(value).trim().replace(/\s+/gu, " ");
+  if (validIsoDate(normalized)) return normalized;
+
+  let match = normalized.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/u);
+  if (match) return formatDateParts(Number(match[1]), Number(match[2]), Number(match[3]));
+
+  // Iraqi academic schedules conventionally use day/month/year.
+  match = normalized.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/u);
+  if (match) {
+    let year = Number(match[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    return formatDateParts(year, Number(match[2]), Number(match[1]));
+  }
+
+  const lowered = normalized.toLocaleLowerCase();
+  for (const [label, month] of Object.entries(monthAliases).sort((a, b) => b[0].length - a[0].length)) {
+    if (!lowered.includes(label)) continue;
+    const withoutMonth = lowered.replace(label, " ").replace(/[,،]/gu, " ");
+    const numbers = withoutMonth.match(/\d{1,4}/gu)?.map(Number) ?? [];
+    if (numbers.length < 2) continue;
+    const day = numbers.find((number) => number >= 1 && number <= 31);
+    const year = numbers.find((number) => number >= 2000 && number <= 2100);
+    if (day && year) return formatDateParts(year, month, day);
+  }
+  return null;
+}
+
 function isAmbiguousNumericDate(value: string | null): boolean {
-  return Boolean(value && /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/u.test(value.trim()));
+  if (!value) return false;
+  const normalized = latinDigits(value).trim();
+  const match = normalized.match(/^(\d{1,2})[/-](\d{1,2})[/-](?:\d{2}|\d{4})$/u);
+  return Boolean(match && Number(match[1]) <= 12 && Number(match[2]) <= 12);
+}
+
+function normalizeCalendarTime(value: string | null): string | null {
+  if (!value) return null;
+  let normalized = latinDigits(value)
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/gu, " ")
+    .replace(/A\.?\s*M\.?/gu, "AM")
+    .replace(/P\.?\s*M\.?/gu, "PM")
+    .replace(/ص/gu, "AM")
+    .replace(/م/gu, "PM");
+  if (/^\d{1,2}\.\d{2}(?:\s*(?:AM|PM))?$/u.test(normalized)) {
+    normalized = normalized.replace(".", ":");
+  }
+  const match = normalized.match(/^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM)?$/u);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2] ?? 0);
+  const meridiem = match[3];
+  if (minute < 0 || minute > 59) return null;
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    if (meridiem === "AM") hour = hour === 12 ? 0 : hour;
+    else hour = hour === 12 ? 12 : hour + 12;
+  } else if (hour < 0 || hour > 23) {
+    return null;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 function validTime(value: string | null): boolean {
@@ -117,9 +210,14 @@ export function normalizeCandidate(
   context: NormalizationContext,
 ): NormalizedCalendarCandidate {
   const warnings = [...raw.warnings];
-  const date = raw.date && validIsoDate(raw.date) ? raw.date : null;
-  if (!date) warnings.push(raw.date ? "Date is invalid." : "Date is missing.");
-  if (isAmbiguousNumericDate(raw.rawDate)) warnings.push("Numeric date order is ambiguous.");
+  const dateSource = clean(raw.date) ?? clean(raw.rawDate);
+  const date = normalizeCalendarDate(dateSource);
+  if (!date) warnings.push(dateSource ? "Date is invalid." : "Date is missing.");
+  if (isAmbiguousNumericDate(raw.rawDate ?? raw.date)) {
+    warnings.push("Numeric date was interpreted using day/month/year order.");
+  }
+  const startTime = normalizeCalendarTime(clean(raw.startTime) ?? clean(raw.rawStartTime));
+  const endTime = normalizeCalendarTime(clean(raw.endTime) ?? clean(raw.rawEndTime));
 
   const type = normalizeEventType(raw.eventType);
   if (type.warning) warnings.push(type.warning);
@@ -146,13 +244,13 @@ export function normalizeCandidate(
       startDateTime = localDateTime(date, "00:00").toDate();
       endDateTime = localDateTime(nextLocalDate(date), "00:00").toDate();
     }
-  } else if (!raw.startTime || !validTime(raw.startTime)) {
+  } else if (!startTime || !validTime(startTime)) {
     warnings.push("Start time is missing or invalid.");
-  } else if (!raw.endTime || !validTime(raw.endTime)) {
+  } else if (!endTime || !validTime(endTime)) {
     warnings.push("End time is missing or invalid.");
   } else if (date) {
-    const start = localDateTime(date, raw.startTime);
-    const end = localDateTime(date, raw.endTime);
+    const start = localDateTime(date, startTime);
+    const end = localDateTime(date, endTime);
     const explicitOvernight = /overnight|next day|following day/iu.test(
       `${raw.rawStartTime ?? ""} ${raw.rawEndTime ?? ""}`,
     );
@@ -190,8 +288,8 @@ export function normalizeCandidate(
       title: clean(raw.title),
       eventType: type.value,
       date,
-      startTime: raw.allDay ? null : clean(raw.startTime),
-      endTime: raw.allDay ? null : clean(raw.endTime),
+      startTime: raw.allDay ? null : startTime,
+      endTime: raw.allDay ? null : endTime,
       allDay: raw.allDay,
       rawDate: clean(raw.rawDate),
       rawStartTime: clean(raw.rawStartTime),

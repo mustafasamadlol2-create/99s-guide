@@ -1,7 +1,7 @@
 import { AIServiceError } from "../ai/errors.js";
 import type { AIProvider, SafeProviderMetadata } from "../ai/contracts.js";
 import type { AIContentPart } from "../ai/input/contracts.js";
-import { shardTextContent } from "../ai/reliability.js";
+import { runResilientBatches, shardTextContent } from "../ai/reliability.js";
 import {
   extractionBatchSchema,
   verificationBatchSchema,
@@ -14,7 +14,7 @@ const EXTRACTION_PROMPT = [
   "Do not invent dates, times, titles, locations, doctors, subjects, or groups.",
   "Do not use general medical-school knowledge or fill missing information from outside the document.",
   "If a value is unclear, return null and add an ambiguity warning.",
-  "Return the actual source page for every PDF event and sourceImageIndex for image events; text-only sources may leave both source locations null.",
+  "Return sourcePage only when an actual PDF page marker is available; otherwise use null. Return sourceImageIndex for image events; text-only sources may leave both source locations null.",
   "Understand merged cells, shared date/day headers, morning/afternoon columns, multi-column subject blocks,",
   "multiple events in one cell, exam matrices, lecturer/room sub-lines, group-specific cells, repeated headers,",
   "footers, and continuation pages. Repeated headers and footers are not events.",
@@ -67,24 +67,28 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
       trustedSystemInstruction: EXTRACTION_PROMPT,
       additionalUntrustedContext: [
         `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages.`,
-        "Inspect the complete document once. Return the actual sourcePage for every event.",
+        "Inspect the complete document once. If the converted document does not expose stable page markers, return sourcePage as null rather than guessing it.",
         "Do not omit an event merely because it appears on a continuation page or in a visually rendered/scanned page.",
       ].join("\n"),
       operation: "extract",
       maxItems: maxCandidates,
-      sourceChunkConcurrency: 3,
+      sourceChunkConcurrency: 6,
       timeoutMs: options.timeoutMs,
       signal: options.signal,
       reusePreparedMedia: true,
     });
     provider = result.meta;
     const candidates = result.data.items.map((item) => {
-      const validPage = item.sourcePage !== null &&
-        item.sourcePage >= 1 &&
+      // Whole-document Cloudflare Markdown conversion can preserve the schedule
+      // accurately without a stable PDF page number. Missing page provenance is
+      // therefore allowed; only an explicitly returned out-of-range page is a
+      // grounding warning.
+      if (item.sourcePage === null) return item;
+      const validPage = item.sourcePage >= 1 &&
         (options.sourcePageCount === null || item.sourcePage <= options.sourcePageCount);
       return validPage
         ? item
-        : { ...item, warnings: [...item.warnings, "Source page is missing or outside the uploaded PDF."] };
+        : { ...item, warnings: [...item.warnings, "Source page is outside the uploaded PDF."] };
     });
     if (candidates.length > maxCandidates) {
       throw new AIServiceError("AI_VALIDATION_ERROR", {
@@ -187,29 +191,82 @@ export async function verifySchedule(
   candidates: Array<{ candidateId: string; candidate: unknown }>,
   options: { signal?: AbortSignal; timeoutMs?: number; onProgress?: (current: number, total: number) => Promise<void> | void },
 ): Promise<{ items: VerificationItem[]; warnings: string[]; provider: SafeProviderMetadata }> {
+  if (candidates.length === 0) {
+    return {
+      items: [],
+      warnings: [],
+      provider: { provider: "unknown", model: "unknown" },
+    };
+  }
+
   const verification: VerificationItem[] = [];
   const warnings: string[] = [];
+  const failedRanges: Array<{ start: number; count: number }> = [];
   let providerMeta: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
-  for (let offset = 0; offset < candidates.length; offset += 50) {
-    const batch = candidates.slice(offset, offset + 50);
-    const result = await provider.generateStructured({
-      contents,
-      responseSchema: verificationBatchSchema,
-      trustedSystemInstruction: VERIFICATION_PROMPT,
-      additionalUntrustedContext: JSON.stringify({ candidates: batch }),
-      operation: "extract",
-      maxItems: 50,
-      timeoutMs: options.timeoutMs,
-      signal: options.signal,
-      reusePreparedMedia: true,
-    });
+  let completed = 0;
+  const batchSize = 20;
+
+  const results = await runResilientBatches({
+    total: candidates.length,
+    batchSize,
+    minimumBatchSize: 5,
+    concurrency: 4,
+    signal: options.signal,
+    run: async (batch) => {
+      const candidateBatch = candidates.slice(batch.start, batch.start + batch.count);
+      const result = await provider.generateStructured({
+        contents,
+        responseSchema: verificationBatchSchema,
+        trustedSystemInstruction: VERIFICATION_PROMPT,
+        additionalUntrustedContext: JSON.stringify({ candidates: candidateBatch }),
+        // Verification is candidate-local and extraction order follows source
+        // order. Use one rotating source window instead of re-reading the whole
+        // annual PDF for every verification batch.
+        operation: "enhance",
+        sourceWindowIndex: Math.floor(batch.start / batchSize),
+        maxItems: batch.count,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+        reusePreparedMedia: true,
+      });
+      completed += batch.count;
+      await options.onProgress?.(Math.min(candidates.length, completed), candidates.length);
+      return { batch, result };
+    },
+    onFailure: (batch) => {
+      failedRanges.push(batch);
+    },
+  });
+
+  for (const { result } of results) {
     providerMeta = result.meta;
     verification.push(...result.data.items);
     warnings.push(...result.data.warnings);
-    await options.onProgress?.(Math.min(candidates.length, offset + batch.length), candidates.length);
   }
+
+  // Verification is a safety layer after extraction, not a reason to destroy an
+  // otherwise reviewable import. If one tiny verifier range still fails after
+  // bounded split recovery, keep those candidates as AMBIGUOUS for human review.
+  for (const range of failedRanges) {
+    for (const entry of candidates.slice(range.start, range.start + range.count)) {
+      verification.push({
+        candidateId: entry.candidateId,
+        status: "AMBIGUOUS",
+        issues: ["Automated source verification could not complete for this item; review it before importing."],
+      });
+    }
+    warnings.push("Some schedule items require manual review because automated source verification could not complete.");
+  }
+
+  const byId = new Map(verification.map((item) => [item.candidateId, item]));
+  const ordered = candidates.map((entry) => byId.get(entry.candidateId) ?? ({
+    candidateId: entry.candidateId,
+    status: "AMBIGUOUS" as const,
+    issues: ["Automated source verification did not return this item; review it before importing."],
+  }));
+
   return {
-    items: verification,
+    items: ordered,
     warnings: [...new Set(warnings)].slice(0, 50),
     provider: providerMeta,
   };
