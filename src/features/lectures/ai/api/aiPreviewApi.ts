@@ -10,8 +10,7 @@ import type {
 export const AI_PREVIEW_POLL_TIMEOUT_MS = 20_000;
 export const AI_PREVIEW_POLL_INTERVAL_MS = 1_000;
 export const AI_PREVIEW_MAX_CONSECUTIVE_POLL_FAILURES = 8;
-/** Compatibility export for older callers; the job client does not use an overall deadline. */
-export const AI_PREVIEW_TIMEOUT_MS = Number.POSITIVE_INFINITY;
+export const AI_PREVIEW_TIMEOUT_MS = 12 * 60_000;
 
 export class AIPreviewError extends Error {
   readonly code?: string;
@@ -154,7 +153,14 @@ export async function pollAIPreviewJob(
   onProgress?: (status: AIPreviewJobStatus) => void,
 ): Promise<AIPreviewResponse<AIMCQCandidate | AIFlashcardCandidate>> {
   let consecutivePollFailures = 0;
+  const startedAt = Date.now();
   while (true) {
+    if (Date.now() - startedAt >= AI_PREVIEW_TIMEOUT_MS) {
+      throw new AIPreviewError(
+        "AI analysis took too long to complete. The job was stopped so it cannot remain stuck indefinitely.",
+        { code: "AI_PREVIEW_TIMEOUT", retryable: true },
+      );
+    }
     try {
       const status = await dependencies.readStatus();
       consecutivePollFailures = 0;

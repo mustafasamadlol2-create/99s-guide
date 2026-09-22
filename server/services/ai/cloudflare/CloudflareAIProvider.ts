@@ -136,7 +136,7 @@ export class CloudflareAIProvider implements AIProvider {
   constructor(
     config: CloudflareConfig = getCloudflareConfig(),
     client = new CloudflareClient(config),
-    converter = new CloudflareMarkdownConverter(client),
+    converter = new CloudflareMarkdownConverter(client, undefined, config),
   ) {
     this.config = config;
     this.client = client;
@@ -169,41 +169,40 @@ export class CloudflareAIProvider implements AIProvider {
   async generateStructured<T>(
     request: StructuredGenerationRequest<T>,
   ): Promise<StructuredGenerationResult<T>> {
-    if (!Number.isFinite(request.timeoutMs ?? this.config.timeoutMs) || (request.timeoutMs ?? this.config.timeoutMs) <= 0) {
+    const inferenceTimeoutMs = request.timeoutMs ?? this.config.timeoutMs;
+    if (!Number.isFinite(inferenceTimeoutMs) || inferenceTimeoutMs <= 0) {
       throw new AIServiceError("AI_VALIDATION_ERROR", {
         publicMessage: "The AI request timeout is invalid.",
         diagnosticMessage: "timeoutMs must be a positive finite number.",
       });
     }
-    const bounded = createBoundedSignal(request.timeoutMs ?? this.config.timeoutMs, request.signal);
+
     const isBinary = request.contents.some((part) => part.kind !== "text");
+    let mediaBounded: ReturnType<typeof createBoundedSignal> | undefined;
+    let inferenceBounded: ReturnType<typeof createBoundedSignal> | undefined;
+
     try {
-      let source;
+      let source: Array<ConvertedCloudflarePart | { text: string; inputType: "text" }>;
       if (isBinary) {
-        const markdownBounded = createBoundedSignal(
-          Math.min(this.config.markdownTimeoutMs, request.timeoutMs ?? this.config.timeoutMs),
-          bounded.signal,
+        // Media preparation gets its own finite ceiling instead of consuming the
+        // entire LLM inference timeout. This is especially important for scanned
+        // PDFs, while still guaranteeing that a job cannot run forever.
+        const mediaTimeoutMs = Math.min(
+          6 * 60_000,
+          Math.max(this.config.markdownTimeoutMs, this.config.visionTimeoutMs) * 4,
         );
-        try {
-          source = request.reusePreparedMedia
-            ? await this.reusableConversion(request.contents, markdownBounded.signal)
-            : await this.converter.convert(request.contents, markdownBounded.signal);
-        } catch (error) {
-          if (markdownBounded.signal.aborted && !bounded.signal.aborted && !request.signal?.aborted) {
-            throw timeoutError(
-              "The AI document conversion timed out.",
-              "Cloudflare Markdown Conversion exceeded its configured timeout.",
-            );
-          }
-          throw error;
-        } finally {
-          markdownBounded.cleanup();
-        }
+        mediaBounded = createBoundedSignal(mediaTimeoutMs, request.signal);
+        source = request.reusePreparedMedia
+          ? await this.reusableConversion(request.contents, mediaBounded.signal)
+          : await this.converter.convert(request.contents, mediaBounded.signal);
+        mediaBounded.cleanup();
+        mediaBounded = undefined;
       } else {
         source = request.contents
           .filter((part): part is AITextPart => part.kind === "text")
           .map((part) => ({ text: part.text, inputType: "text" as const }));
       }
+
       const sourceText = source.map((part) => {
         if (part.inputType === "image") return `[Image ${part.imageIndex! + 1}]\n${part.text}`;
         if (part.inputType === "pdf") {
@@ -213,6 +212,15 @@ export class CloudflareAIProvider implements AIProvider {
         }
         return part.text;
       }).join("\n\n");
+
+      if (!sourceText.trim()) {
+        throw new AIServiceError("AI_EXTRACTION_INCOMPLETE", {
+          publicMessage: "Cloudflare Workers AI could not find readable source content.",
+          diagnosticMessage: "Prepared Cloudflare source text was empty before inference.",
+          retryable: true,
+        });
+      }
+
       const chunks = request.operation === "enhance"
         ? [sourceText]
         : splitBoundedText(sourceText, this.config.chunkChars);
@@ -221,8 +229,11 @@ export class CloudflareAIProvider implements AIProvider {
       let responseId: string | undefined;
       let remaining = request.requestedCount;
 
+      inferenceBounded = createBoundedSignal(inferenceTimeoutMs, request.signal);
       for (let index = 0; index < chunks.length; index += 1) {
-        if (bounded.signal.aborted) throw bounded.signal.reason ?? new Error("aborted");
+        if (inferenceBounded.signal.aborted) {
+          throw inferenceBounded.signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+        }
         const remainingChunks = chunks.length - index;
         const allocation = remaining === undefined
           ? undefined
@@ -239,7 +250,7 @@ export class CloudflareAIProvider implements AIProvider {
             { role: "user", content: userContent(chunks[index]!, request.additionalUntrustedContext) },
           ],
           { type: "json_schema", json_schema: schema },
-          bounded.signal,
+          inferenceBounded.signal,
         );
         responseId = result.responseId ?? responseId;
         const parsed = parseStructuredText(result.text);
@@ -278,14 +289,18 @@ export class CloudflareAIProvider implements AIProvider {
         },
       };
     } catch (error) {
-      if (bounded.signal.aborted) {
-        if (request.signal?.aborted) throw error;
-        throw new AIServiceError("AI_TIMEOUT", {
-          publicMessage: "The AI request timed out.",
-          diagnosticMessage: "The Cloudflare AI operation exceeded its configured timeout.",
-          retryable: true,
-          cause: error,
-        });
+      if (request.signal?.aborted) throw error;
+      if (mediaBounded?.signal.aborted) {
+        throw timeoutError(
+          "Cloudflare took too long to read the uploaded file.",
+          "Cloudflare media preparation exceeded its finite safety ceiling.",
+        );
+      }
+      if (inferenceBounded?.signal.aborted) {
+        throw timeoutError(
+          "The AI analysis took too long to complete.",
+          "Cloudflare structured inference exceeded its configured timeout.",
+        );
       }
       if (isAbortError(error)) {
         throw new AIServiceError("AI_TIMEOUT", {
@@ -317,7 +332,8 @@ export class CloudflareAIProvider implements AIProvider {
         cause: error,
       });
     } finally {
-      bounded.cleanup();
+      mediaBounded?.cleanup();
+      inferenceBounded?.cleanup();
     }
   }
 

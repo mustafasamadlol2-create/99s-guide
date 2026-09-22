@@ -83,7 +83,7 @@ export class AIPreviewJobManager {
 
   constructor(options: AIPreviewJobManagerOptions = {}) {
     this.terminalTtlMs = options.terminalTtlMs ?? 30 * 60_000;
-    this.hardTimeoutMs = options.hardTimeoutMs ?? 45 * 60_000;
+    this.hardTimeoutMs = options.hardTimeoutMs ?? 12 * 60_000;
     this.now = options.now ?? Date.now;
     this.schedule = options.setTimeout ?? globalThis.setTimeout;
     this.unschedule = options.clearTimeout ?? globalThis.clearTimeout;

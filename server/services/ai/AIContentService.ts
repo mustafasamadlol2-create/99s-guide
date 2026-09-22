@@ -70,7 +70,7 @@ export class AIContentService {
     private readonly provider: AIProvider,
     options: AIContentServiceOptions = {},
   ) {
-    this.maxProviderAttempts = options.maxProviderAttempts ?? 3;
+    this.maxProviderAttempts = options.maxProviderAttempts ?? 2;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
     this.reusePreparedMedia = options.reusePreparedMedia ?? false;
     this.onBatchComplete = options.onBatchComplete;

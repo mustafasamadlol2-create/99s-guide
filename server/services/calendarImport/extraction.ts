@@ -48,24 +48,63 @@ export interface ScheduleExtractionResult {
   provider: SafeProviderMetadata;
 }
 
-function ranges(total: number): Array<{ start: number; end: number }> {
-  const result: Array<{ start: number; end: number }> = [];
-  for (let start = 1; start <= total; start += 3) result.push({ start, end: Math.min(total, start + 2) });
-  return result.length > 0 ? result : [{ start: 1, end: 1 }];
-}
 
 export async function extractSchedule(options: ScheduleExtractionOptions): Promise<ScheduleExtractionResult> {
   const maxCandidates = options.maxCandidates ?? 500;
-  const pdfRanges = options.inputKind === "pdf" ? ranges(options.sourcePageCount ?? 1) : [];
-  const textWindows = options.inputKind === "text" ? shardTextContent(options.contents, 24_000) : [];
-  const totalUnits = options.inputKind === "pdf"
-    ? pdfRanges.length
-    : options.inputKind === "image"
-      ? Math.max(1, Math.ceil(options.contents.length / 3))
-      : Math.max(1, textWindows.length);
-  const candidates: ExtractionCandidate[] = [];
   const warnings: string[] = [];
   let provider: SafeProviderMetadata = { provider: "unknown", model: "unknown" };
+
+  // A PDF is converted once into page-labelled text/OCR by the Cloudflare
+  // provider. The older implementation called inference repeatedly for 3-page
+  // ranges while passing the same complete PDF every time, multiplying latency
+  // and making the UI appear stuck. One provider pass can still internally split
+  // the prepared page text into bounded chunks and merge all candidates.
+  if (options.inputKind === "pdf") {
+    await options.onProgress?.(0, 1, "Reading document");
+    const result = await options.provider.generateStructured({
+      contents: options.contents,
+      responseSchema: extractionBatchSchema,
+      trustedSystemInstruction: EXTRACTION_PROMPT,
+      additionalUntrustedContext: [
+        `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages.`,
+        "Inspect the complete document once. Return the actual sourcePage for every event.",
+        "Do not omit an event merely because it appears on a continuation page or in a visually rendered/scanned page.",
+      ].join("\n"),
+      operation: "extract",
+      maxItems: maxCandidates,
+      timeoutMs: options.timeoutMs,
+      signal: options.signal,
+      reusePreparedMedia: true,
+    });
+    provider = result.meta;
+    const candidates = result.data.items.map((item) => {
+      const validPage = item.sourcePage !== null &&
+        item.sourcePage >= 1 &&
+        (options.sourcePageCount === null || item.sourcePage <= options.sourcePageCount);
+      return validPage
+        ? item
+        : { ...item, warnings: [...item.warnings, "Source page is missing or outside the uploaded PDF."] };
+    });
+    if (candidates.length > maxCandidates) {
+      throw new AIServiceError("AI_VALIDATION_ERROR", {
+        publicMessage: "This schedule contains too many events. Split it into smaller files.",
+        diagnosticMessage: `Schedule extraction exceeded the ${maxCandidates}-candidate safety cap.`,
+      });
+    }
+    warnings.push(...result.data.warnings);
+    await options.onProgress?.(1, 1, "Document read complete");
+    return {
+      candidates,
+      warnings: [...new Set(warnings)].slice(0, 50),
+      provider,
+    };
+  }
+
+  const textWindows = options.inputKind === "text" ? shardTextContent(options.contents, 24_000) : [];
+  const totalUnits = options.inputKind === "image"
+    ? Math.max(1, Math.ceil(options.contents.length / 3))
+    : Math.max(1, textWindows.length);
+  const candidates: ExtractionCandidate[] = [];
 
   for (let unit = 0; unit < totalUnits; unit += 1) {
     if (candidates.length >= maxCandidates) {
@@ -74,20 +113,11 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
         diagnosticMessage: `Schedule extraction reached the ${maxCandidates}-candidate safety cap before all source units were read.`,
       });
     }
+
     let unitContents: AIContentPart[];
     let context: string;
     let progressLabel: string;
-
-    if (options.inputKind === "pdf") {
-      const pageRange = pdfRanges[unit]!;
-      unitContents = options.contents;
-      context = [
-        `Only extract events from PDF pages ${pageRange.start}-${pageRange.end}.`,
-        `The PDF has ${options.sourcePageCount ?? "an unknown number of"} pages.`,
-        "Return sourcePage for every event and ignore content outside the active page range.",
-      ].join("\n");
-      progressLabel = `Reading page ${pageRange.start}${pageRange.end > pageRange.start ? `-${pageRange.end}` : ""}`;
-    } else if (options.inputKind === "image") {
+    if (options.inputKind === "image") {
       const start = unit * 3;
       const end = Math.min(options.contents.length, start + 3);
       unitContents = options.contents.slice(start, end);
@@ -121,14 +151,6 @@ export async function extractSchedule(options: ScheduleExtractionOptions): Promi
     const groundedItems = result.data.items.map((item) => {
       if (options.inputKind === "text") {
         return { ...item, sourcePage: null, sourceImageIndex: null };
-      }
-      if (options.inputKind === "pdf") {
-        const pageRange = pdfRanges[unit]!;
-        const inActiveRange = item.sourcePage !== null &&
-          item.sourcePage >= pageRange.start && item.sourcePage <= pageRange.end;
-        return inActiveRange
-          ? item
-          : { ...item, warnings: [...item.warnings, "Source location is outside the active extraction range."] };
       }
       const start = unit * 3;
       const end = Math.min(options.contents.length, start + 3);

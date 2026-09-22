@@ -9,6 +9,7 @@ import { z } from "zod";
 import { AIContentService } from "../server/services/ai/AIContentService.js";
 import {
   DEFAULT_CLOUDFLARE_MODEL,
+  DEFAULT_CLOUDFLARE_VISION_MODEL,
   getCloudflareConfig,
   getConfiguredAIProvider,
 } from "../server/services/ai/config.js";
@@ -37,10 +38,13 @@ const config = {
   accountId: "account-test",
   apiToken: "token-test",
   model: DEFAULT_CLOUDFLARE_MODEL,
+  visionModel: DEFAULT_CLOUDFLARE_VISION_MODEL,
   timeoutMs: 5_000,
   markdownTimeoutMs: 5_000,
+  visionTimeoutMs: 5_000,
   chunkChars: 10,
-  maxOutputTokens: 4_096,
+  maxOutputTokens: 8_192,
+  visionMaxOutputTokens: 8_192,
 };
 
 function response(body: unknown, status = 200, headers?: Record<string, string>): Response {
@@ -60,45 +64,46 @@ function textPart(text: string) {
   };
 }
 
-test("provider configuration prefers available credentials and invalid providers fail safely", () => {
-  assert.equal(getConfiguredAIProvider({}), "gemini");
-  assert.equal(getConfiguredAIProvider({ GEMINI_API_KEY: "synthetic-test-key" }), "gemini");
+test("production provider selection is Cloudflare-only", () => {
+  assert.equal(getConfiguredAIProvider({}), "cloudflare");
+  assert.equal(getConfiguredAIProvider({ GEMINI_API_KEY: "synthetic-test-key" }), "cloudflare");
   assert.equal(getConfiguredAIProvider({
     CLOUDFLARE_ACCOUNT_ID: "account",
     CLOUDFLARE_AI_API_TOKEN: "token",
   }), "cloudflare");
-  assert.equal(getConfiguredAIProvider({ AI_PROVIDER: "gemini" }), "gemini");
+  assert.throws(
+    () => getConfiguredAIProvider({ AI_PROVIDER: "gemini" }),
+    (error: unknown) => error instanceof AIServiceError && error.code === "AI_CONFIG_ERROR",
+  );
   assert.throws(
     () => getConfiguredAIProvider({ AI_PROVIDER: "other" }),
     (error: unknown) => error instanceof AIServiceError && error.code === "AI_CONFIG_ERROR",
   );
-  assert.equal(getCloudflareConfig({
+  const cf = getCloudflareConfig({
     CLOUDFLARE_ACCOUNT_ID: "account",
-    CLOUDFLARE_AI_API_TOKEN: "token",
-  }).model, DEFAULT_CLOUDFLARE_MODEL);
+    CLOUDFLARE_AUTH_TOKEN: "token",
+  });
+  assert.equal(cf.model, DEFAULT_CLOUDFLARE_MODEL);
+  assert.equal(cf.visionModel, DEFAULT_CLOUDFLARE_VISION_MODEL);
 });
 
-test("provider factory keeps single-provider setups direct and adds fallback when both are configured", () => {
+test("provider factory never falls back to Gemini", () => {
   const cloudflare = createConfiguredAIProvider({
     AI_PROVIDER: "cloudflare",
     CLOUDFLARE_ACCOUNT_ID: "account",
     CLOUDFLARE_AI_API_TOKEN: "token",
+    GEMINI_API_KEY: "ignored-test-key",
   });
   assert.equal(cloudflare.constructor.name, "CloudflareAIProvider");
-
-  const gemini = createConfiguredAIProvider({
-    AI_PROVIDER: "gemini",
-    GEMINI_API_KEY: "synthetic-test-key",
-  });
-  assert.equal(gemini.constructor.name, "GeminiProvider");
-
-  const resilient = createConfiguredAIProvider({
-    AI_PROVIDER: "gemini",
-    GEMINI_API_KEY: "synthetic-test-key",
-    CLOUDFLARE_ACCOUNT_ID: "account",
-    CLOUDFLARE_AI_API_TOKEN: "token",
-  });
-  assert.equal(resilient.constructor.name, "FallbackAIProvider");
+  assert.throws(
+    () => createConfiguredAIProvider({
+      AI_PROVIDER: "gemini",
+      GEMINI_API_KEY: "synthetic-test-key",
+      CLOUDFLARE_ACCOUNT_ID: "account",
+      CLOUDFLARE_AI_API_TOKEN: "token",
+    }),
+    (error: unknown) => error instanceof AIServiceError && error.code === "AI_CONFIG_ERROR",
+  );
 });
 
 test("Cloudflare inference uses Bearer auth and JSON Schema response_format", async () => {
@@ -128,8 +133,64 @@ test("Cloudflare inference uses Bearer auth and JSON Schema response_format", as
   assert.deepEqual(JSON.parse(String(captured?.init.body)), {
     messages: [{ role: "user", content: "test" }],
     response_format: { type: "json_schema", json_schema: { type: "object" } },
-    max_tokens: 4_096,
+    max_tokens: 8_192,
+    temperature: 0,
+    stream: false,
   });
+});
+
+test("Cloudflare retries documented JSON-mode schema failure once as json_object", async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  const fetchImpl: CloudflareFetch = async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    if (requests.length === 1) {
+      return response({ success: false, errors: [{ message: "JSON Mode couldn't be met" }] }, 400);
+    }
+    return response({ success: true, result: { response: '{"items":[]}' } });
+  };
+  const client = new CloudflareClient(config, fetchImpl);
+  const result = await client.run(
+    [{ role: "user", content: "test" }],
+    { type: "json_schema", json_schema: { type: "object" } },
+    new AbortController().signal,
+  );
+
+  assert.equal(result.text, '{"items":[]}');
+  assert.equal(requests.length, 2);
+  assert.equal((requests[0]?.response_format as { type: string }).type, "json_schema");
+  assert.equal((requests[1]?.response_format as { type: string }).type, "json_object");
+  assert.match(
+    String((requests[1]?.messages as Array<{ content: string }>)[0]?.content),
+    /response contract exactly/iu,
+  );
+});
+
+test("Cloudflare vision OCR uses the configured Workers AI vision model", async () => {
+  let captured: { url: string; body: Record<string, unknown> } | undefined;
+  const fetchImpl: CloudflareFetch = async (url, init) => {
+    captured = {
+      url: String(url),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    };
+    return response({ success: true, result: { answer: "Q1 A) Alpha B) Beta" } }, 200, { "cf-ray": "vision-ray" });
+  };
+  const client = new CloudflareClient(config, fetchImpl);
+  const result = await client.visionToText(
+    new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+    "image/jpeg",
+    new AbortController().signal,
+  );
+
+  assert.equal(result.text, "Q1 A) Alpha B) Beta");
+  assert.equal(result.responseId, "vision-ray");
+  assert.equal(
+    captured?.url,
+    `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/ai/run/%40cf/moondream/moondream3.1-9B-A2B`,
+  );
+  assert.equal(captured?.body.task, "query");
+  assert.equal(captured?.body.stream, false);
+  assert.equal(captured?.body.reasoning, false);
+  assert.match(String(captured?.body.image), /^data:image\/jpeg;base64,/u);
 });
 
 test("Cloudflare Markdown Conversion uses multipart files without exposing the boundary", async () => {
@@ -157,7 +218,7 @@ test("Cloudflare Markdown Conversion uses multipart files without exposing the b
   assert.equal((captured?.init.body as FormData).has("files"), true);
 });
 
-test("empty PDF conversion falls back to bounded ordered PNG page coverage", async () => {
+test("scanned PDF reads only the required PNG pages without re-uploading the whole PDF", async () => {
   const document = await PDFDocument.create();
   for (let index = 0; index < 4; index += 1) document.addPage([612, 792]);
   const pdfBytes = new Uint8Array(await document.save());
@@ -187,19 +248,18 @@ test("empty PDF conversion falls back to bounded ordered PNG page coverage", asy
     assert.deepEqual(result.map((part) => part.page), [1, 2, 3, 4]);
     assert.deepEqual(result.map((part) => part.inputType), ["pdf", "pdf", "pdf", "pdf"]);
     assert.deepEqual(calls.map((call) => call.mimeType), [
-      "application/pdf",
       "image/png",
       "image/png",
       "image/png",
       "image/png",
     ]);
-    assert.deepEqual(calls.slice(1).map((call) => call.filename), [
+    assert.deepEqual(calls.map((call) => call.filename), [
       "source-page-1.png",
       "source-page-2.png",
       "source-page-3.png",
       "source-page-4.png",
     ]);
-    assert.ok(calls.slice(1).every((call) =>
+    assert.ok(calls.every((call) =>
       call.bytes[0] === 0x89 &&
       call.bytes[1] === 0x50 &&
       call.bytes[2] === 0x4e &&
@@ -243,7 +303,7 @@ test("PDF visual recovery honors a deferred bounded page range", async () => {
   }
 });
 
-test("mixed PDFs preserve converted text and embedded visual-page coverage", async () => {
+test("mixed PDFs keep the local text layer and OCR only image-heavy pages", async () => {
   const document = await PDFDocument.create();
   document.addPage([612, 792]).drawText("Text-layer page");
   const visualPage = document.addPage([612, 792]);
@@ -271,10 +331,9 @@ test("mixed PDFs preserve converted text and embedded visual-page coverage", asy
       file: { bytes: pdfBytes, claimedMimeType: "application/pdf", originalFilename: "mixed.pdf" },
     }, (prepared) => converter.convert(prepared.contents, new AbortController().signal));
 
-    assert.equal(result[0]?.text, "mixed text layer");
+    assert.equal(result[0]?.text, "Text-layer page");
     assert.deepEqual(result.filter((part) => part.page !== undefined).map((part) => part.page), [1, 2]);
-    assert.ok(calls.includes("application/pdf:source.pdf"));
-    assert.ok(calls.includes("image/png:source-page-2.png"));
+    assert.deepEqual(calls, ["image/png:source-page-2.png"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -384,14 +443,14 @@ test("image-only semantic PDF reaches all visual pages and normalizes Q1-Q20", a
       Array.from({ length: 20 }, (_, index) => Math.ceil((index + 1) / 5)),
     );
     assert.equal(new Set(result.items.map((item) => item.question)).size, 20);
-    assert.equal(markdownCalls.length, 5);
-    assert.deepEqual(markdownCalls.slice(1).map((call) => call.filename), [
+    assert.equal(markdownCalls.length, 4);
+    assert.deepEqual(markdownCalls.map((call) => call.filename), [
       "source-page-1.png",
       "source-page-2.png",
       "source-page-3.png",
       "source-page-4.png",
     ]);
-    assert.ok(markdownCalls.slice(1).every((call) =>
+    assert.ok(markdownCalls.every((call) =>
       call.mimeType === "image/png" &&
       call.bytes[0] === 0x89 &&
       call.bytes[1] === 0x50 &&
@@ -433,7 +492,7 @@ test("portable visual windows cover all 25 pages and retain a page-25 marker", a
     assert.deepEqual(pages, Array.from({ length: 25 }, (_, index) => index + 1));
     assert.equal(new Set(pages).size, 25);
     assert.equal(result.at(-1)?.text, "LAST-PAGE-MARKER");
-    assert.equal(calls.length, 26);
+    assert.equal(calls.length, 25);
   } finally {
     process.env.PATH = originalPath;
     await rm(root, { recursive: true, force: true });

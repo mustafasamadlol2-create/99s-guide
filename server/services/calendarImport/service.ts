@@ -37,7 +37,7 @@ import {
 } from "./duplicateDetection.js";
 
 const MAX_STORED_SOURCE_BYTES = 100 * 1024 * 1024;
-const STALE_JOB_MS = 15 * 60 * 1000;
+const STALE_JOB_MS = 12 * 60 * 1000;
 
 export interface CalendarImportUpload {
   path: string;

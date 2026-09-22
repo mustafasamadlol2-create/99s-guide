@@ -11,6 +11,11 @@ export interface CloudflareRunResult {
   responseId?: string;
 }
 
+export interface CloudflareVisionResult {
+  text: string;
+  responseId?: string;
+}
+
 export interface CloudflareMarkdownResult {
   data: string;
   format: string;
@@ -75,6 +80,19 @@ function resultArray(payload: any): any[] {
   return [];
 }
 
+function providerErrorText(payload: any): string {
+  const values: string[] = [];
+  if (typeof payload?.message === "string") values.push(payload.message);
+  for (const entry of Array.isArray(payload?.errors) ? payload.errors : []) {
+    if (typeof entry?.message === "string") values.push(entry.message);
+  }
+  return values.join(" ");
+}
+
+function jsonModeCouldNotBeMet(status: number, payload: any): boolean {
+  return status >= 400 && status < 500 && /json mode[^.]*could(?:n['’]t| not) be met/iu.test(providerErrorText(payload));
+}
+
 export class CloudflareClient {
   private readonly fetchImpl: CloudflareFetch;
 
@@ -90,25 +108,53 @@ export class CloudflareClient {
     responseFormat: Record<string, unknown>,
     signal: AbortSignal,
   ): Promise<CloudflareRunResult> {
-    const modelPath = this.config.model.split("/").map((part) => encodeURIComponent(part)).join("/");
-    const response = await this.fetchImpl(
-      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.config.apiToken}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
+    const execute = async (
+      currentMessages: CloudflareRunMessage[],
+      currentResponseFormat: Record<string, unknown>,
+    ): Promise<{ response: Response; payload: any }> => {
+      const modelPath = this.config.model.split("/").map((part) => encodeURIComponent(part)).join("/");
+      const response = await this.fetchImpl(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.config.apiToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            messages: currentMessages,
+            response_format: currentResponseFormat,
+            max_tokens: this.config.maxOutputTokens,
+            temperature: 0,
+            stream: false,
+          }),
+          signal,
         },
-        body: JSON.stringify({
-          messages,
-          response_format: responseFormat,
-          max_tokens: this.config.maxOutputTokens,
-        }),
-        signal,
-      },
-    );
-    const payload = await parseJson(response, "inference");
+      );
+      return { response, payload: await parseJson(response, "inference") };
+    };
+
+    let attempt = await execute(messages, responseFormat);
+    if (jsonModeCouldNotBeMet(attempt.response.status, attempt.payload)) {
+      // Cloudflare documents that strict json_schema mode can occasionally fail
+      // even on supported models. Retry once with json_object mode while placing
+      // the exact schema in a trusted system instruction; the provider still
+      // performs the original Zod validation before accepting the response.
+      const schemaText = JSON.stringify(responseFormat);
+      attempt = await execute(
+        [
+          {
+            role: "system",
+            content: `Strict schema generation previously failed. Return ONLY one valid JSON object matching this response contract exactly: ${schemaText}`,
+          },
+          ...messages,
+        ],
+        { type: "json_object" },
+      );
+    }
+
+    const { response, payload } = attempt;
     if (!response.ok || payload?.success === false) {
       throw providerError(response.status, "inference", undefined);
     }
@@ -124,6 +170,60 @@ export class CloudflareClient {
       throw new AIServiceError("AI_INVALID_RESPONSE", {
         publicMessage: "The AI provider returned an empty response.",
         diagnosticMessage: "Cloudflare inference response did not contain structured text.",
+      });
+    }
+    return {
+      text,
+      responseId: response.headers.get("cf-ray") ?? undefined,
+    };
+  }
+
+
+  async visionToText(
+    bytes: Uint8Array,
+    mimeType: string,
+    signal: AbortSignal,
+  ): Promise<CloudflareVisionResult> {
+    const modelPath = this.config.visionModel.split("/").map((part) => encodeURIComponent(part)).join("/");
+    const image = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
+    const response = await this.fetchImpl(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(this.config.accountId)}/ai/run/${modelPath}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.apiToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          task: "query",
+          image,
+          question: [
+            "Read this educational source image as an OCR/transcription task.",
+            "Transcribe every visible word, number, option label, table cell, date, time, heading, annotation, and diagram label.",
+            "Preserve reading order and use Markdown rows/lists when helpful.",
+            "Do not summarize, omit, answer, correct, or invent content. If a character is genuinely unreadable, mark it as [unclear].",
+          ].join(" "),
+          reasoning: false,
+          temperature: 0,
+          max_tokens: this.config.visionMaxOutputTokens,
+          stream: false,
+        }),
+        signal,
+      },
+    );
+    const payload = await parseJson(response, "vision");
+    if (!response.ok || payload?.success === false) {
+      throw providerError(response.status, "vision", undefined);
+    }
+    const result = payload?.result;
+    const candidate = result?.answer ?? result?.response ?? result?.caption;
+    const text = typeof candidate === "string" ? candidate.trim() : "";
+    if (!text) {
+      throw new AIServiceError("AI_MEDIA_PROCESSING_FAILED", {
+        publicMessage: "Cloudflare Workers AI could not read this image.",
+        diagnosticMessage: "Cloudflare vision OCR returned no usable text.",
+        retryable: true,
       });
     }
     return {

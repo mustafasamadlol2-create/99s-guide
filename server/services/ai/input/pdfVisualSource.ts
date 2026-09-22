@@ -35,6 +35,85 @@ export async function inspectPDFPageCount(
   }
 }
 
+export interface PDFTextPageProfile {
+  page: number;
+  text: string;
+  imageCount: number;
+}
+
+function textFromPageItems(items: unknown[]): string {
+  const tokens: Array<{ text: string; x: number; y: number }> = [];
+  const fallback: string[] = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object" || !("str" in item)) continue;
+    const record = item as { str?: unknown; transform?: unknown; hasEOL?: unknown };
+    const value = typeof record.str === "string" ? record.str.replace(/\s+/gu, " ").trim() : "";
+    if (!value) continue;
+    fallback.push(value + (record.hasEOL === true ? "\n" : ""));
+    const transform = Array.isArray(record.transform) ? record.transform : null;
+    const x = transform && Number.isFinite(Number(transform[4])) ? Number(transform[4]) : Number.NaN;
+    const y = transform && Number.isFinite(Number(transform[5])) ? Number(transform[5]) : Number.NaN;
+    if (Number.isFinite(x) && Number.isFinite(y)) tokens.push({ text: value, x, y });
+  }
+  if (tokens.length === 0) {
+    return fallback.join(" ").replace(/\s*\n\s*/gu, "\n").replace(/[ \t]+/gu, " ").trim();
+  }
+
+  const rows: Array<{ y: number; tokens: Array<{ text: string; x: number }> }> = [];
+  for (const token of tokens.sort((a, b) => b.y - a.y || a.x - b.x)) {
+    let row = rows.find((candidate) => Math.abs(candidate.y - token.y) <= 2.5);
+    if (!row) {
+      row = { y: token.y, tokens: [] };
+      rows.push(row);
+    }
+    row.tokens.push({ text: token.text, x: token.x });
+  }
+  return rows
+    .sort((a, b) => b.y - a.y)
+    .map((row) => row.tokens.sort((a, b) => a.x - b.x).map((token) => token.text).join(" ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+export async function extractPDFPageProfiles(
+  capability: AIStagedFileCapability,
+  signal?: AbortSignal,
+): Promise<PDFTextPageProfile[]> {
+  throwIfAborted(signal);
+  const document = await loadPDFDocument(capability);
+  const profiles: PDFTextPageProfile[] = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      throwIfAborted(signal);
+      const page = await document.getPage(pageNumber);
+      try {
+        const [textContent, operatorList] = await Promise.all([
+          page.getTextContent(),
+          page.getOperatorList(),
+        ]);
+        const imageCount = operatorList.fnArray.reduce((count, operator) => count + (
+          operator === OPS.paintImageMaskXObject ||
+          operator === OPS.paintImageXObject ||
+          operator === OPS.paintImageXObjectRepeat
+            ? 1
+            : 0
+        ), 0);
+        profiles.push({
+          page: pageNumber,
+          text: textFromPageItems(textContent.items as unknown[]),
+          imageCount,
+        });
+      } finally {
+        page.cleanup();
+      }
+    }
+    return profiles;
+  } finally {
+    await document.cleanup();
+  }
+}
+
 export async function inspectPDFImagePages(
   capability: AIStagedFileCapability,
   signal?: AbortSignal,
@@ -140,6 +219,30 @@ async function loadPDFDocument(capability: AIStagedFileCapability): Promise<PDFD
       cause: error,
       retryable: true,
     });
+  }
+}
+
+export async function renderSelectedPDFPages(
+  capability: AIStagedFileCapability,
+  source: AIPdfSourceReference,
+  pageNumbers: number[],
+  signal?: AbortSignal,
+): Promise<AIVisualPDFPage[]> {
+  const requested = [...new Set(pageNumbers)]
+    .filter((page) => Number.isInteger(page) && page > 0)
+    .sort((a, b) => a - b);
+  if (requested.length === 0) return [];
+  const document = await loadPDFDocument(capability);
+  try {
+    const pages: AIVisualPDFPage[] = [];
+    for (const page of requested) {
+      throwIfAborted(signal);
+      if (page > document.numPages) continue;
+      pages.push(await renderPDFPage(document, source, page, signal));
+    }
+    return pages;
+  } finally {
+    await document.cleanup();
   }
 }
 
