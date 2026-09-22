@@ -11,7 +11,7 @@
  * deleted during the activate phase — no infinite cache growth.
  */
 
-const CACHE_VERSION = 'v1.4.3';
+const CACHE_VERSION = 'v1.4.4';
 const CACHE_NAME = `app-shell-${CACHE_VERSION}`;
 
 // Minimal app shell pre-cached at install time.
@@ -27,6 +27,14 @@ const PRECACHE_ASSETS = [
   '/icon-512.png',
   '/icon-512-maskable.png',
   '/apple-touch-icon.png',
+  '/app-icons/primary.png',
+  '/app-icons/midnight.png',
+  '/app-icons/rose.png',
+  '/app-icons/monochrome.png',
+  '/app-icons/manifest-primary.json',
+  '/app-icons/manifest-midnight.json',
+  '/app-icons/manifest-rose.json',
+  '/app-icons/manifest-monochrome.json',
 ];
 
 // ─── 1. INSTALL ───────────────────────────────────────────────────────────────

@@ -53,6 +53,7 @@ const SettingsActionItem = memo(({
   iconColor,
   isDanger = false,
   isRtl,
+  fullWidth = false,
 }: {
   onClick: () => void;
   Icon: React.ElementType;
@@ -63,10 +64,11 @@ const SettingsActionItem = memo(({
   iconColor: string;
   isDanger?: boolean;
   isRtl: boolean;
+  fullWidth?: boolean;
 }) => (
   <button type="button" 
     onClick={onClick}
-    className={`group flex items-center justify-between p-3 -mx-3 rounded-lg transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1 dark:hover:shadow-elevation-1 min-h-[56px] cursor-pointer ${isDanger ? 'hover:bg-red-50 dark:hover:bg-med-error/10' : 'hover:bg-neutral-50 dark:hover:bg-white/[0.04]'}`}
+    className={`group flex items-center justify-between p-3 -mx-3 rounded-lg transition duration-[180ms] ease-out hover:-translate-y-[1px] hover:shadow-elevation-1 dark:hover:shadow-elevation-1 min-h-[56px] cursor-pointer ${fullWidth ? 'w-[calc(100%+1.5rem)]' : ''} ${isDanger ? 'hover:bg-red-50 dark:hover:bg-med-error/10' : 'hover:bg-neutral-50 dark:hover:bg-white/[0.04]'}`}
   >
     <div className="flex items-center gap-4 text-start">
       <div className={`w-10 h-10 rounded-full bg-gradient-to-b ${gradientFrom} ${gradientTo} shadow-elevation-1 dark:shadow-[0_2px_10px_rgba(0,0,0,0.4)] ring-1 ring-black/[0.03] dark:ring-white/10 flex items-center justify-center shrink-0`}>
@@ -386,6 +388,7 @@ const SettingsView = function SettingsView({
    gradientTo="to-indigo-100/50 dark:to-indigo-500/10"
    iconColor="text-indigo-500 dark:text-indigo-400"
    isRtl={isRtl}
+   fullWidth
   />
   </div>
 

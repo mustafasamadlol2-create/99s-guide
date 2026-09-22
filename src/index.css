@@ -7909,3 +7909,39 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     animation: none !important;
   }
 }
+
+/* ==========================================================================\n   Hero identity-pill contrast invariant\n   --------------------------------------------------------------------------\n   Stage 3 and Batch 99 live on a dark photographic/gradient Hero surface.\n   They must not inherit app chrome text tokens because those tokens legitimately\n   become dark in light themes and can therefore disappear against the Hero.\n   Keep these two Hero-local badges readable in every Hero style and on hover.\n   MED SCHOOL keeps its existing gold treatment.\n   ========================================================================== */
+.home-hero-banner .home-hero-stage-pill,
+.home-hero-banner .home-hero-batch-pill {
+  background: rgba(255, 255, 255, 0.095) !important;
+  border-color: rgba(255, 255, 255, 0.19) !important;
+  color: rgba(255, 255, 255, 0.90) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.42) !important;
+}
+
+.home-hero-banner .home-hero-batch-pill {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.home-hero-banner .home-hero-stage-pill:hover,
+.home-hero-banner .home-hero-batch-pill:hover {
+  background: rgba(255, 255, 255, 0.155) !important;
+  border-color: rgba(255, 255, 255, 0.31) !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.home-hero-banner .home-hero-stage-pill .home-hero-pill-label,
+.home-hero-banner .home-hero-batch-pill .home-hero-pill-label,
+.home-hero-banner .home-hero-stage-pill svg,
+.home-hero-banner .home-hero-batch-pill svg {
+  color: inherit !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  -webkit-text-fill-color: currentColor !important;
+}

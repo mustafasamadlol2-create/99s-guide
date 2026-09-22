@@ -19,7 +19,8 @@ interface AppIconSelectorProps {
 }
 
 const INITIAL_STATE: AppIconState = {
-  supported: false,
+  supported: true,
+  nativeSupported: false,
   iconId: "primary",
 };
 
@@ -49,7 +50,7 @@ export const AppIconSelector = memo(function AppIconSelector({
 
   const handleSelect = useCallback(
     async (iconId: AppIconId) => {
-      if (!state.supported || pendingId || state.iconId === iconId) return;
+      if (pendingId || state.iconId === iconId) return;
 
       setPendingId(iconId);
       HapticFeedback.selection();
@@ -104,12 +105,7 @@ export const AppIconSelector = memo(function AppIconSelector({
         </div>
       </div>
 
-      {!state.supported ? (
-        <div className="rounded-xl border border-semantic-border-default bg-semantic-surface-primary px-4 py-3 text-sm text-semantic-content-secondary">
-          {t("my99AppIconUnsupported")}
-        </div>
-      ) : (
-        <div
+      <div
           className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           role="radiogroup"
           aria-labelledby="my99-app-icon-heading"
@@ -165,7 +161,6 @@ export const AppIconSelector = memo(function AppIconSelector({
             );
           })}
         </div>
-      )}
     </section>
   );
 });

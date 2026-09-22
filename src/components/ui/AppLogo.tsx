@@ -1,10 +1,18 @@
 /**
  * AppLogo — renders the official 99's Guide brand icon.
  *
- * Uses the real app icon images (/logo-light.png and /logo-dark.png) as the single source of truth
- * so every logo in the app always matches the official branding exactly.
+ * The selected device App Icon is shared with the in-app logo so the My 99
+ * selector has a visible effect on every platform. The primary/original choice
+ * keeps the established light/dark brand behavior; alternate choices use the
+ * same official mark with their selected treatment.
  */
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
+import {
+  APP_ICON_CHANGE_EVENT,
+  getAppIconAssetSrc,
+  getStoredAppIconId,
+} from "../../features/personalization/appIcon/appIconClient";
+import type { AppIconId } from "../../features/personalization/appIcon/appIconTypes";
 
 // ─── Size map ─────────────────────────────────────────────────────────────────
 const PIXEL_SIZES = {
@@ -31,6 +39,19 @@ const AppLogo = memo(function AppLogo({
   circle    = false,
 }: AppLogoProps) {
   const { width, radius } = PIXEL_SIZES[size];
+  const [appIconId, setAppIconId] = useState<AppIconId>(() => getStoredAppIconId());
+
+  useEffect(() => {
+    const refresh = () => setAppIconId(getStoredAppIconId());
+    window.addEventListener(APP_ICON_CHANGE_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(APP_ICON_CHANGE_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const alternateIconSrc = appIconId === "primary" ? null : getAppIconAssetSrc(appIconId);
 
   return (
     <div className={`flex flex-col items-center justify-center text-center shrink-0 flex-shrink-0 select-none ${className}`}>
@@ -39,24 +60,36 @@ const AppLogo = memo(function AppLogo({
         className={`relative overflow-hidden ${circle ? "rounded-full" : radius} flex items-center justify-center shadow-elevation-3 shrink-0 flex-shrink-0 bg-transparent`}
         style={{ width, height: width, minWidth: width, minHeight: width }}
       >
-        {/* Light mode logo (hidden in dark mode) */}
-        <img
-          src="/logo-light.png"
-          alt="99's Guide"
-          aria-hidden="true"
-          draggable={false}
-          decoding="async"
-          className="w-full h-full object-cover block dark:hidden"
-        />
-        {/* Dark mode logo (hidden in light mode) */}
-        <img
-          src="/logo-dark.png"
-          alt="99's Guide"
-          aria-hidden="true"
-          draggable={false}
-          decoding="async"
-          className="w-full h-full object-cover hidden dark:block"
-        />
+        {alternateIconSrc ? (
+          <img
+            src={alternateIconSrc}
+            alt="99's Guide"
+            aria-hidden="true"
+            draggable={false}
+            decoding="async"
+            className="block h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            {/* Primary choice preserves the official adaptive light/dark mark. */}
+            <img
+              src="/logo-light.png"
+              alt="99's Guide"
+              aria-hidden="true"
+              draggable={false}
+              decoding="async"
+              className="w-full h-full object-cover block dark:hidden"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="99's Guide"
+              aria-hidden="true"
+              draggable={false}
+              decoding="async"
+              className="w-full h-full object-cover hidden dark:block"
+            />
+          </>
+        )}
       </div>
 
       {!iconOnly && (

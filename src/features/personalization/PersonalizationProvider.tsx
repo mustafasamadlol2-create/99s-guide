@@ -40,6 +40,7 @@ import type {
   PersonalizationConfigV2,
 } from "../../../shared/personalization";
 import { personalizationConfigsEqual } from "./personalizationState";
+import { initializeAppIconPresentation } from "./appIcon/appIconClient";
 
 const PERSONALIZATION_DISCOVERY_INTERVAL_MS = 15 * 60_000;
 const PERSONALIZATION_CONFIRMATION_MIN_MS = 40_000;
@@ -220,6 +221,10 @@ export function PersonalizationProvider({
   storage,
   children,
 }: PersonalizationProviderProps) {
+  useEffect(() => {
+    initializeAppIconPresentation();
+  }, []);
+
   const [state, setState] = useState<PersonalizationState>(() =>
     createPersonalizationState(),
   );
