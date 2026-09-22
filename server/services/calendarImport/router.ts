@@ -8,21 +8,10 @@ import { CalendarImportService } from "./service.js";
 
 const ALLOWED_MIMES = new Set([
   "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/avif",
-  "image/tiff",
-  "image/bmp",
-  "image/gif",
   "application/octet-stream",
 ]);
 
-const ALLOWED_EXTENSIONS = new Set([
-  ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".tif", ".tiff", ".bmp", ".gif",
-]);
+const PDF_EXTENSION = ".pdf";
 
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
   if (error instanceof AIServiceError) {
@@ -103,7 +92,8 @@ export function createCalendarImportRouter(options: {
     limits: { files: 20, fileSize: 100 * 1024 * 1024, fieldSize: 1024 * 1024 + 16 * 1024 },
     fileFilter: (_req, file, callback) => {
       const mime = file.mimetype.trim().toLowerCase();
-      callback(null, ALLOWED_MIMES.has(mime) || ALLOWED_EXTENSIONS.has(extname(file.originalname).toLowerCase()));
+      const extension = extname(file.originalname).toLowerCase();
+      callback(null, extension === PDF_EXTENSION && ALLOWED_MIMES.has(mime));
     },
   });
 
@@ -111,12 +101,12 @@ export function createCalendarImportRouter(options: {
     const files = (req.files ?? []) as Express.Multer.File[];
     try {
       const pastedText = typeof req.body?.text === "string" ? req.body.text : undefined;
-      if (files.length === 0 && !pastedText?.trim()) {
-        res.status(400).json({ error: "CALENDAR_IMPORT_NO_SOURCE", message: "Upload schedule files or paste schedule text." });
+      if (pastedText?.trim()) {
+        res.status(415).json({ error: "CALENDAR_IMPORT_PDF_ONLY", message: "Calendar AI import accepts PDF files only." });
         return;
       }
-      if (files.length > 0 && pastedText?.trim()) {
-        res.status(400).json({ error: "CALENDAR_IMPORT_MULTIPLE_SOURCES", message: "Choose either files or pasted text, not both." });
+      if (files.length === 0) {
+        res.status(400).json({ error: "CALENDAR_IMPORT_NO_SOURCE", message: "Upload a schedule PDF." });
         return;
       }
       const rawGroups = req.body?.defaultTargetGroups;
@@ -130,7 +120,7 @@ export function createCalendarImportRouter(options: {
           sizeBytes: file.size,
         })),
         groups,
-        pastedText,
+        undefined,
       );
       res.status(202).json(job);
     } catch (error) {
