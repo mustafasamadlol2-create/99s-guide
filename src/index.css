@@ -7185,6 +7185,64 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   opacity: 0.42 !important;
 }
 
+/* Alternate Hero styles — keep the neutral identity pills legible against
+   every composition layer.  Stage/Batch used generic semantic chrome tokens,
+   whose hover states can become almost the same value as the dark Hero surface
+   under Minimal/Night/Aurora.  Give these two Hero-local pills a stable,
+   high-contrast treatment without changing Classic, geometry, motion, or the
+   MED SCHOOL gold pill. */
+:root[data-app-hero-style="minimal"] .home-hero-stage-pill,
+:root[data-app-hero-style="night"] .home-hero-stage-pill,
+:root[data-app-hero-style="aurora"] .home-hero-stage-pill,
+:root[data-app-hero-style="minimal"] .home-hero-batch-pill,
+:root[data-app-hero-style="night"] .home-hero-batch-pill,
+:root[data-app-hero-style="aurora"] .home-hero-batch-pill {
+  background: rgba(255, 255, 255, 0.085);
+  border-color: rgba(255, 255, 255, 0.15);
+  opacity: 1;
+  visibility: visible;
+  -webkit-text-fill-color: currentColor;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.34);
+}
+
+:root[data-app-hero-style="minimal"] .home-hero-stage-pill,
+:root[data-app-hero-style="night"] .home-hero-stage-pill,
+:root[data-app-hero-style="aurora"] .home-hero-stage-pill {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+:root[data-app-hero-style="minimal"] .home-hero-batch-pill,
+:root[data-app-hero-style="night"] .home-hero-batch-pill,
+:root[data-app-hero-style="aurora"] .home-hero-batch-pill {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+:root[data-app-hero-style="minimal"] .home-hero-stage-pill:hover,
+:root[data-app-hero-style="night"] .home-hero-stage-pill:hover,
+:root[data-app-hero-style="aurora"] .home-hero-stage-pill:hover,
+:root[data-app-hero-style="minimal"] .home-hero-batch-pill:hover,
+:root[data-app-hero-style="night"] .home-hero-batch-pill:hover,
+:root[data-app-hero-style="aurora"] .home-hero-batch-pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.96);
+  opacity: 1;
+  visibility: visible;
+  -webkit-text-fill-color: currentColor;
+}
+
+:root[data-app-hero-style="minimal"] .home-hero-stage-pill .home-hero-pill-label,
+:root[data-app-hero-style="night"] .home-hero-stage-pill .home-hero-pill-label,
+:root[data-app-hero-style="aurora"] .home-hero-stage-pill .home-hero-pill-label,
+:root[data-app-hero-style="minimal"] .home-hero-batch-pill .home-hero-pill-label,
+:root[data-app-hero-style="night"] .home-hero-batch-pill .home-hero-pill-label,
+:root[data-app-hero-style="aurora"] .home-hero-batch-pill .home-hero-pill-label {
+  color: inherit;
+  opacity: 1;
+  visibility: visible;
+  -webkit-text-fill-color: currentColor;
+}
+
 /* Shared glass treatment. These surfaces already identify eligible floating,
    elevated, header, modal, and preview chrome; ordinary solid content cards
    remain untouched. */
