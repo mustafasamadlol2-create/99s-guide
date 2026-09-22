@@ -1,0 +1,1834 @@
+# 99'S GUIDE — PROMPT 32
+## MULTIMODAL AI SOURCE READING REPAIR
+### FIX SCANNED PDF / IMAGE / MIXED-PDF READING AT THE SHARED AI INGESTION LAYER
+### MCQ + FLASHCARD
+### EXTRACT + GENERATE + ENHANCE
+### NO MORE FALSE ZERO RESULTS
+### NO MORE `unreadable` FOR VALID VISUAL CONTENT
+### NO MORE `unsupported_format (image, Page N)` FOR INTERNALLY RENDERED VALID PAGES
+### READ THE COMPLETE SOURCE — TEXT + IMAGES + SCANNED PAGES + TABLES + VISUAL CONTENT
+### PRESERVE PROMPT 30/30B BACKGROUND JOBS, BATCHING, MEDIA REUSE, RETRIES, COMPLETENESS RECOVERY
+### DO NOT TOUCH CALENDAR AI YET
+### DO NOT TOUCH HERO UI YET
+### DO NOT MODIFY `.agents/*`
+### NO CLOUD DEPLOYMENT
+### NO PRODUCTION MIGRATION
+### COMPLETE THE ENTIRE PROMPT BEFORE RETURNING
+### DO NOT STOP FOR INTERMEDIATE PROGRESS UPDATES
+
+The current repository already contains the approved Prompt 30 / 30B AI reliability architecture.
+
+DO NOT replace or revert it.
+
+Preserve:
+
+- background preview jobs
+- no overall frontend AI job deadline
+- polling/reconnect behavior
+- bounded provider retries
+- MCQ deterministic fast path
+- large-source MCQ sharding
+- failed-shard recursive splitting
+- missing-ordinal recovery
+- zero-result guard
+- MCQ Generate batching
+- MCQ Enhance one-to-one preservation
+- Flashcard large-source Extract/Generate/Enhance reliability
+- Gemini source-media reuse
+- Cloudflare conversion reuse
+- strict Zod/domain validation
+- review-before-persistence
+- scanned-PDF support previously added
+- Prompt 27/27B binary validation and error normalization
+- Prompt 28 Calendar work
+- Prompt 31 Resource multipart upload work
+
+This prompt repairs a NEWLY OBSERVED multimodal-source failure in the CURRENT repository.
+
+---
+
+# 1. OBSERVED PRODUCTION FAILURES
+
+The current UI is showing failures such as:
+
+```text
+No candidates match this view.
+
+and:
+
+4 items could not be converted
+unreadable
+unreadable
+unreadable
+unreadable
+
+and:
+
+unsupported_format (image, Page 1)
+
+and:
+
+4 extraction range(s) could not be decoded and were deferred to visual recovery.
+
+followed by:
+
+0 Generated / extracted
+0 Ready
+0 Needs review
+0 Skipped
+0 Selected
+
+and:
+
+The visual source was read, but no MCQs could be extracted reliably.
+Please retry or verify that the file contains four-option MCQs.
+
+These results are incorrect for valid visual sources.
+
+The user has a real regression source:
+
+MP mid exam99(2).pdf
+
+It is a scanned/image-only PDF.
+
+There is no useful normal PDF text layer, but the visual pages clearly contain MCQs.
+
+It contains four scanned pages with approximately:
+
+Page 1 → Q1–Q5
+Page 2 → Q6–Q10
+Page 3 → Q11–Q15
+Page 4 → Q16–Q20
+
+Each question is visually readable and includes four options and a visible answer marker.
+
+If this exact file is available in the Replit workspace, use it as a local NON-LIVE-provider regression fixture where possible.
+
+If it is not available, create a deterministic synthetic 4-page image-only PDF test fixture with the same structural characteristics.
+
+Do NOT make the automated suite depend on a user attachment.
+
+2. ROOT-CAUSE FIRST
+
+Do NOT immediately patch the UI error message.
+
+Trace the ACTUAL current binary/media flow end-to-end for all supported source types:
+
+text
+PDF with text layer
+scanned/image-only PDF
+mixed PDF
+single image
+multiple images
+
+Trace:
+
+frontend
+→ FormData / request
+→ multipart parsing
+→ temporary staging
+→ MIME/signature validation
+→ AI input normalization
+→ source preparation
+→ PDF handling
+→ page handling / visual fallback
+→ provider media transport
+→ provider prompt
+→ provider response
+→ Zod/domain parsing
+→ operation engine
+→ completeness validation
+→ preview UI
+
+Identify exactly where a valid visual page becomes:
+
+unreadable
+unsupported_format
+empty
+zero candidates
+
+Do not assume the failure is OCR.
+
+Do not assume the failure is Gemini.
+
+Do not assume the failure is frontend-only.
+
+Prove the actual failure path.
+
+3. CORE PRODUCT CONTRACT
+
+A valid AI source may contain useful information in ANY of these forms:
+
+real PDF text
+embedded PDF images
+scanned PDF pages
+photographs
+screenshots
+tables
+diagrams
+formatted visual layouts
+mixed text + image pages
+
+The AI pipeline must read the SOURCE CONTENT, not merely the PDF text layer.
+
+A PDF with:
+
+extractableText.length === 0
+
+must NOT be considered empty if its pages contain visual information.
+
+4. NO TEXT-LAYER GATE
+
+Search all AI ingestion and engine code for logic equivalent to:
+
+if (!text.trim()) invalid
+if (extractedText.length === 0) empty
+if (!markdown) unreadable
+
+Audit every such branch.
+
+For PDF/image operations:
+
+absence of extracted text must NOT terminate processing before the visual/document-capable provider has had a chance to inspect the source.
+
+Text extraction may be an optimization.
+
+It must not be the definition of whether a PDF contains information.
+
+5. UNIFIED MULTIMODAL SOURCE MODEL
+
+Create or repair one normalized source representation capable of expressing:
+
+text content
+original PDF media
+image media
+page count
+source page/index
+MIME
+original filename
+SHA-256/source identity
+optional extracted text
+optional converted text
+visual-capable source reference
+
+Do not create six unrelated source implementations for:
+
+MCQ Extract
+MCQ Generate
+MCQ Enhance
+Flashcard Extract
+Flashcard Generate
+Flashcard Enhance
+
+All six operations must consume the same trusted multimodal source layer.
+
+6. ORIGINAL PDF MUST REMAIN AVAILABLE
+
+Do not destroy the original PDF merely because a parser produced text/Markdown.
+
+For a PDF source preserve:
+
+original trusted binary PDF
+
+through source preparation until all visual/document provider work is finished.
+
+This is essential for:
+
+scanned PDFs
+mixed PDFs
+image-heavy PDFs
+tables
+visual answer sheets
+7. TEXT PDF FAST PATH
+
+For a clean text PDF:
+
+continue using the fastest safe path where appropriate.
+
+Do NOT force expensive page rasterization when:
+
+trusted extracted/converted text
+
+is already complete enough for the operation.
+
+Performance matters.
+
+But the fast path must be an optimization, not a correctness gate.
+
+8. SCANNED PDF PATH
+
+For an image-only PDF:
+
+required behavior:
+
+valid PDF signature
+→ accepted
+→ page count known
+→ visual/document-capable media path
+→ AI sees actual page content
+→ candidates
+
+Forbidden:
+
+valid scanned PDF
+→ no text layer
+→ unreadable
+→ zero
+9. PREFERRED SCANNED-PDF STRATEGY
+
+Prefer using the ORIGINAL PDF directly with a provider that natively supports PDF/document visual understanding.
+
+For Gemini, reuse the existing document/media transport.
+
+Conceptually:
+
+original PDF
+→ Gemini Files/document media
+→ model sees PDF pages visually
+
+Do not first turn the scanned PDF into an empty text string.
+
+10. PAGE-IMAGE FALLBACK
+
+If a specific provider/operation genuinely cannot consume the original PDF visually:
+
+implement a controlled page-image fallback.
+
+Required behavior:
+
+PDF
+→ render only required page/page-range
+→ supported image format
+→ visual AI
+
+Preferred internal rendered formats:
+
+image/png
+or
+image/jpeg
+
+Do NOT create ambiguous internal objects labeled merely:
+
+type: image
+
+without valid provider MIME/media bytes.
+
+This is directly relevant to the observed:
+
+unsupported_format (image, Page 1)
+
+failure.
+
+11. INTERNAL RENDERED PAGE MIME — HARD GATE
+
+Every internally generated PDF page image must have:
+
+real bytes
+correct MIME
+supported extension/format
+page index
+source identity
+
+The visual provider transport must receive an actual supported image type.
+
+Never pass a generic:
+
+image
+
+source kind as though it were a MIME type.
+
+Add a regression specifically for this.
+
+12. DO NOT USE OCR AS PRIMARY ARCHITECTURE
+
+Do not add a heavyweight OCR subsystem as the primary fix.
+
+The preferred architecture is:
+
+original document / page image
+→ multimodal provider vision
+
+OCR may be used only as a bounded auxiliary fallback if an existing dependency/path already supports it safely.
+
+Do not make correctness depend on OCR.
+
+13. MIXED PDF SUPPORT
+
+A PDF may contain:
+
+Page 1 text
+Page 2 scanned image
+Page 3 text + diagram
+Page 4 scanned table
+
+Do NOT classify the entire PDF as text-only merely because some text was extractable.
+
+The system must not lose visual-only information on mixed pages.
+
+14. COMPLETE-SOURCE READING
+
+For Extract and Generate:
+
+the model must read the complete source scope required by the operation.
+
+Do not accidentally process:
+
+first page only
+first image only
+first text chunk only
+
+when the source contains more pages/images.
+
+Use bounded page/page-range processing.
+
+Preserve page order.
+
+15. PAGE RANGE PROCESSING
+
+Use bounded source ranges where needed.
+
+Recommended:
+
+1–3 pages
+
+per visual operation unit, depending on current provider limits.
+
+Do NOT fire every page simultaneously.
+
+Use small bounded concurrency such as:
+
+1–2
+
+where parallel visual processing is safe.
+
+Accuracy > maximum concurrency.
+
+16. MEDIA REUSE — PRESERVE PROMPT 30B
+
+For ONE AI preview job:
+
+a PDF must NOT be re-uploaded/prepared separately for every shard.
+
+Preserve:
+
+Gemini PDF preparation/upload once per job
+Cloudflare conversion once per job
+
+If visual page rendering is added:
+
+cache rendered pages only within the job lifecycle where safe.
+
+Dispose after terminal state.
+
+No cross-user global cache.
+
+17. SMALL / LARGE MEDIA
+
+Do not regress current transport decisions.
+
+Audit exact current behavior for:
+
+PDF
+small image
+large image
+multi-image batch
+
+Do not invent an inline-PDF path if the configured provider does not support it.
+
+Use actual provider capabilities.
+
+18. IMAGE INPUT REPAIR
+
+The same reliability rules apply to direct images.
+
+Supported current image types include actual repository equivalents of:
+
+JPEG
+PNG
+WebP
+HEIC
+HEIF
+
+Audit whether the provider itself accepts each format.
+
+If an accepted client format is NOT supported by the active provider:
+
+normalize it server-side to a supported visual format BEFORE model transport.
+
+Do not return:
+
+unsupported_format
+
+for a format the application claims to support.
+
+19. HEIC / HEIF
+
+Specifically audit:
+
+HEIC
+HEIF
+
+Do not claim support solely because Multer accepts the MIME.
+
+Support means:
+
+accepted
+→ converted/transported into a provider-readable representation
+→ AI can actually inspect it
+
+If current server dependencies cannot safely decode these formats:
+
+either add the smallest safe normalization path or explicitly remove false support from the upload contract.
+
+Do not leave fake support.
+
+20. VISUAL RECOVERY MUST ACTUALLY RECOVER
+
+The current warning:
+
+extraction range(s) could not be decoded and were deferred to visual recovery
+
+is only acceptable if visual recovery subsequently processes them.
+
+Audit the current queue/flow.
+
+A range must not be:
+
+deferred
+→ recorded as warning
+→ never actually sent to visual provider
+
+Add a test proving deferred ranges are consumed.
+
+21. UNREADABLE SEMANTICS
+
+Use:
+
+unreadable
+
+ONLY after:
+
+binary input is valid
+appropriate text path attempted where useful
+visual/document path attempted
+bounded provider retries exhausted
+source still cannot be interpreted
+
+A no-text scanned page is NOT unreadable merely because text extraction failed.
+
+22. UNSUPPORTED_FORMAT SEMANTICS
+
+Use:
+
+unsupported_format
+
+only for genuinely unsupported/invalid input.
+
+Do NOT use it for:
+
+internally rendered PNG/JPEG page
+valid scanned PDF page
+valid normalized provider media
+23. ZERO-CANDIDATE GUARD — VISUAL SOURCES
+
+Prompt 30B already contains zero-result guards.
+
+Extend them correctly to multimodal sources.
+
+If a visual source clearly contains structured MCQs/Flashcards and provider returns:
+
+0
+
+do NOT finalize success immediately.
+
+Run bounded recovery:
+
+retry current visual batch
+→ split source range
+→ recover missing visual pages
+→ merge
+
+If still unrecoverable:
+
+return explicit:
+
+AI_EXTRACTION_INCOMPLETE
+
+or repository-equivalent.
+
+Do NOT display successful:
+
+0 generated / extracted
+
+for clearly non-empty source.
+
+24. VISUAL SOURCE COMPLETENESS SIGNALS
+
+For scanned MCQ sheets, derive safe completeness evidence where possible from:
+
+provider-reported question ordinals
+page-local source ordinals
+visual candidate count
+page coverage
+
+Do not invent a count if the source does not clearly number items.
+
+But when pages visibly contain:
+
+Q1 … Q20
+
+and final extraction returns 4 items:
+
+that is incomplete and must trigger recovery/review.
+
+25. MCQ EXTRACT — VISUAL PDF
+
+For a scanned exam sheet:
+
+preserve:
+
+question wording
+A/B/C/D
+answer marker when visibly present
+source page
+source ordinal
+
+Do NOT rewrite medical content.
+
+Do NOT infer an answer that is not visible.
+
+If answer marking is visually ambiguous:
+
+correctAnswer = null
+warning
+review required
+26. MCQ GENERATE — VISUAL PDF
+
+Generate must also work from a scanned PDF.
+
+The source need not contain pre-existing MCQs.
+
+The AI must visually understand:
+
+scanned notes
+tables
+figures
+labels
+handwritten/typed image-based content where legible
+
+and generate source-grounded MCQs.
+
+Do not convert:
+
+no text layer
+→ zero knowledge
+27. MCQ ENHANCE — VISUAL SOURCE
+
+Enhance must be able to use a visual PDF/image as supporting source evidence.
+
+For each existing MCQ:
+
+preserve structural fields per Prompt 30B.
+
+Use source media to produce requested:
+
+hint
+explanation
+
+where supported.
+
+If source evidence is found visually:
+
+do NOT emit:
+
+Source evidence was not provided.
+
+merely because textual extraction was empty.
+
+28. ENHANCE WARNING REPAIR
+
+The screenshots show warning patterns such as:
+
+Source evidence was not provided.
+
+Model uncertainty: The question does not provide information...
+
+The requested explanation enhancement is missing.
+
+Enhancement confidence is below the review threshold.
+
+Audit why these are generated.
+
+A warning is valid only if the SOURCE truly lacks evidence.
+
+If the evidence exists visually in the attached PDF/image:
+
+the system must inspect the visual source before declaring evidence missing.
+
+29. ENHANCE MISSING OUTPUT RECOVERY
+
+If an enhancement batch returns a candidate without the requested field:
+
+for example:
+
+requested explanation
+→ explanation missing
+
+do not immediately finalize that item as enhanced.
+
+Use Prompt 30B missing-ID/field recovery.
+
+Retry only the missing enhancement.
+
+If it still fails:
+
+retain original candidate + warning.
+
+Never falsely mark:
+
+Enhanced
+
+while the requested enhancement field is absent.
+
+30. ENHANCED STATUS ACCURACY
+
+An item should not simultaneously show:
+
+Enhanced
+
+and:
+
+The requested explanation enhancement is missing.
+
+unless the UI clearly distinguishes partial enhancement.
+
+Audit status derivation.
+
+Use truthful states such as repository-equivalent:
+
+Enhanced
+Partially enhanced
+Needs review
+Enhancement failed
+
+Do not claim successful enhancement when the requested field is absent.
+
+31. CONFIDENCE SEMANTICS
+
+The screenshot shows:
+
+AI confidence: 100%
+
+while warnings say:
+
+Enhancement confidence is below the review threshold.
+
+This is internally contradictory.
+
+Audit confidence sources.
+
+Do not display one confidence from extraction while warning against a different hidden enhancement confidence without labeling them.
+
+If there are multiple confidence concepts:
+
+label them clearly, for example:
+
+Extraction confidence
+Enhancement confidence
+
+or show only the confidence relevant to current operation.
+
+No contradictory 100% + below-threshold message.
+
+32. FLASHCARD EXTRACT — VISUAL SOURCES
+
+Image-only/scanned PDFs must support Flashcard extraction.
+
+The model must read all relevant visual page content.
+
+Do not require a text layer.
+
+33. FLASHCARD GENERATE — VISUAL SOURCES
+
+Generate Flashcards from:
+
+scanned notes
+PDF images
+screenshots
+mixed text/image PDFs
+
+using the same multimodal ingestion.
+
+Source grounding remains mandatory.
+
+34. FLASHCARD ENHANCE — VISUAL SOURCES
+
+Enhance existing Flashcards using visual source evidence.
+
+Preserve card identity/cardinality.
+
+Do not drop cards because the supporting source lacks text extraction.
+
+35. ONE SHARED FIX
+
+Do not patch:
+
+MCQ Extract
+
+only.
+
+This is a shared source-ingestion correctness issue.
+
+All six flows must be verified:
+
+MCQ Extract
+MCQ Generate
+MCQ Enhance
+Flashcard Extract
+Flashcard Generate
+Flashcard Enhance
+36. TEXT INPUT REGRESSION
+
+Plain pasted text already works.
+
+Do not slow or break it.
+
+Text-only input should use the simplest text transport and avoid unnecessary visual processing.
+
+37. CLEAN TEXT PDF REGRESSION
+
+A normal text-bearing PDF must remain fast and accurate.
+
+Do not force page-rendering overhead if not needed.
+
+38. MIXED PDF REGRESSION
+
+Add a deterministic mixed PDF fixture:
+
+text-bearing page
++
+image-only page
+
+Verify information from BOTH reaches the operation.
+
+The visual-only page must not disappear.
+
+39. IMAGE REGRESSION
+
+Create fixtures for at least:
+
+PNG
+JPEG
+
+and actual provider-normalized representation for any additional advertised formats.
+
+Verify bytes/MIME reach the multimodal provider correctly.
+
+40. REAL SCANNED-PDF CHARACTERISTICS TEST
+
+Create a 4-page image-only PDF fixture similar to the supplied:
+
+MP mid exam99(2).pdf
+
+Required characteristics:
+
+0 useful text layer
+4 pages
+5 MCQs per page
+Q1–Q20
+4 options each
+visible answer labels
+
+No automated test should require the user's actual uploaded file.
+
+41. SCANNED MCQ ACCEPTANCE TEST — HARD GATE
+
+Mock a document/vision-capable provider reading the four-page scanned fixture.
+
+Required:
+
+input PDF text extraction = empty
+visual/document transport = used
+pages processed = 4
+final MCQ candidates = 20
+sourceOrdinal = 1…20
+missing = 0
+duplicate = 0
+
+This is the key regression.
+
+42. SCANNED MCQ ZERO-RESULT TEST
+
+Same valid scanned fixture.
+
+Mock the first visual provider attempt returning:
+
+items = []
+
+Required:
+
+zero-result guard activates
+bounded recovery occurs
+operation does not finalize as successful zero
+43. SCANNED PAGE UNSUPPORTED_FORMAT REGRESSION
+
+Render/normalize a PDF page using the production internal fallback.
+
+Assert the provider receives:
+
+supported MIME
+actual binary
+correct page index
+
+Required:
+
+unsupported_format = NOT emitted
+
+for the valid rendered page.
+
+44. DEFERRED VISUAL RANGE TEST
+
+Create multiple ranges where text decoding fails.
+
+Required:
+
+range marked for visual recovery
+→ visual recovery worker/provider actually executes
+→ result merges into final candidates
+
+No orphan deferred range.
+
+45. MIXED-PDF COVERAGE TEST
+
+Use:
+
+Page 1 = extractable text
+Page 2 = image-only content
+
+Required final result includes supported information from both.
+
+46. DIRECT IMAGE MCQ TEST
+
+Use a PNG/JPEG containing valid MCQs.
+
+Required:
+
+visual provider
+→ candidates
+
+No unsupported-format error.
+
+47. MCQ GENERATE VISUAL TEST
+
+Use a scanned/image-only lecture page with factual content.
+
+Mock AI generation.
+
+Verify:
+
+source visual media actually reaches provider
+generated questions grounded to that source
+
+No text-layer requirement.
+
+48. MCQ ENHANCE VISUAL TEST
+
+Existing MCQ + visual-only source.
+
+Mock provider returning explanation supported by source.
+
+Required:
+
+explanation populated
+source evidence present
+structural fields unchanged
+
+No false:
+
+Source evidence was not provided
+49. FLASHCARD EXTRACT VISUAL TEST
+
+Scanned/image-only source:
+
+required:
+
+non-zero flashcards
+visual grounding
+50. FLASHCARD GENERATE VISUAL TEST
+
+Visual-only lecture source:
+
+required:
+
+generated cards
+source media supplied
+51. FLASHCARD ENHANCE VISUAL TEST
+
+Existing cards + visual-only source:
+
+required:
+
+requested enhancement field produced where evidence exists
+input/output cardinality preserved
+52. ALL-PAGE COVERAGE
+
+For multi-page PDFs, add a test proving the final provider plan covers:
+
+page 1
+...
+last page
+
+No accidental first-page-only behavior.
+
+53. BOUNDED CONCURRENCY
+
+Report the final visual page/range concurrency.
+
+Keep it bounded.
+
+Recommended:
+
+1–2
+
+unless actual provider architecture justifies another value.
+
+Do not create 50 simultaneous provider requests.
+
+54. SPEED OPTIMIZATION — PREPARE ONCE
+
+Within one job:
+
+PDF validation = once
+page count = once
+provider media preparation = once where reusable
+conversion = once where reusable
+
+No repeated preparation for every operation shard.
+
+55. SPEED OPTIMIZATION — DO NOT VISUALIZE EVERYTHING NEEDLESSLY
+
+For a text-rich PDF where text extraction is complete and adequate:
+
+use the fast path.
+
+For a scanned/mixed PDF:
+
+activate visual/document path.
+
+Do not render 100 pages to PNG if the provider can consume the original PDF directly.
+
+56. ACCURACY OVER SPEED
+
+Do not reduce model quality/context so aggressively that extraction becomes incomplete merely to save latency.
+
+Performance goal:
+
+avoid redundant work
+batch safely
+reuse media
+limited concurrency
+
+not:
+
+skip pages
+reduce source
+truncate outputs
+57. PROVIDER RETRIES
+
+Preserve Prompt 30B bounded transient retry rules.
+
+A visual provider temporary failure:
+
+429
+500
+502
+503
+504
+network timeout/reset
+
+may retry.
+
+Permanent invalid input/auth/config errors must not loop.
+
+58. NO OVERALL FRONTEND DEADLINE
+
+Preserve:
+
+NO OVERALL AI JOB WAIT DEADLINE
+
+for MCQ/Flashcard preview jobs.
+
+Fixing visual processing must not reintroduce the old two-minute failure.
+
+59. CANCELLATION
+
+Visual/document operations must honor cancellation.
+
+Cleanup:
+
+temporary file
+rendered temporary pages if any
+provider file/media
+job-local caches
+
+No leaked temporary content.
+
+60. TEMP FILE OWNERSHIP
+
+Never delete arbitrary client paths.
+
+Only owned/staged paths may be cleaned.
+
+Preserve Prompt 27 security.
+
+61. BINARY INTEGRITY
+
+No PDF should be passed through:
+
+UTF-8 conversion
+JSON string binary encoding
+accidental text decoding
+
+before provider media transport.
+
+Preserve original bytes.
+
+62. IMAGE NORMALIZATION
+
+If image conversion is necessary:
+
+perform it only server-side using a safe bounded pipeline.
+
+Preserve:
+
+orientation where relevant
+reasonable resolution
+readability
+
+Do not aggressively downscale text until unreadable.
+
+63. IMAGE SIZE / PIXEL BOUNDS
+
+Protect server memory.
+
+If rasterizing PDF pages or normalizing images:
+
+use bounded:
+
+maximum dimensions
+maximum rendered bytes
+maximum pages processed concurrently
+
+Do not allocate unbounded decoded bitmaps.
+
+Report exact safeguards.
+
+64. PDF PAGE LIMIT
+
+Audit current AI PDF page limit.
+
+If none exists:
+
+introduce a reasonable source-processing safety cap only if necessary.
+
+Do not silently process an unbounded thousand-page visual PDF.
+
+If exceeded:
+
+return a clear error asking the admin to split the source.
+
+Do not silently truncate.
+
+65. ERROR NORMALIZATION
+
+Preserve nested backend error normalization.
+
+Convert internal failure types into meaningful safe errors.
+
+Examples:
+
+AI_VISUAL_SOURCE_UNREADABLE
+AI_VISUAL_FORMAT_UNSUPPORTED
+AI_EXTRACTION_INCOMPLETE
+AI_PROVIDER_TEMPORARY_FAILURE
+AI_SOURCE_TOO_LARGE
+
+Use repository conventions.
+
+No raw provider payload.
+
+No [object Object].
+
+66. UI UNCONVERTED ITEMS
+
+The "items could not be converted" section should be meaningful.
+
+For every skipped/unconverted item expose safe context such as:
+
+reason
+source type
+page/image index
+
+Do not output four identical:
+
+unreadable
+
+without page context when page information exists.
+
+67. UI EMPTY-STATE ACCURACY
+
+Do NOT show:
+
+No candidates match this view.
+
+as the primary result if processing actually failed.
+
+Differentiate:
+
+true empty source/result
+processing failure
+incomplete extraction
+all candidates filtered out
+68. UI WARNING DEDUPLICATION
+
+Do not show duplicate warning blocks conveying the same failure multiple times.
+
+Normalize warnings by:
+
+code
+page/index
+candidate
+
+while preserving distinct issues.
+
+69. NO CALENDAR IMPLEMENTATION IN THIS PROMPT
+
+Do NOT repair:
+
+CALENDAR_IMPORT_INVALID
+
+yet.
+
+Do not modify Calendar importer architecture except if a shared AI ingestion fix is automatically consumed by it without Calendar-specific behavior changes.
+
+Prompt 34 will handle Calendar end-to-end.
+
+70. NO HERO CHANGES
+
+Do NOT change Stage 3 hero styling.
+
+Prompt 35 handles that.
+
+71. NO RESOURCE MULTIPART REGRESSION
+
+Prompt 31B is closed.
+
+Do not touch 5-GiB Resource architecture unless required to prevent an accidental interaction.
+
+Run its tests.
+
+72. TEST THE SHARED AI SOURCE PIPELINE DIRECTLY
+
+Add focused tests for the normalized source/media layer itself.
+
+Do not rely only on engine-level mocks that bypass the real source preparation code.
+
+Required direct source tests:
+
+text PDF
+scanned PDF
+mixed PDF
+PNG
+JPEG
+multiple images
+
+and other claimed formats as practical.
+
+73. NO LIVE AI CALLS
+
+All automated tests must use mocked providers.
+
+Do not consume Gemini/Cloudflare quota.
+
+A real-provider manual test happens later.
+
+74. ACTUAL USER FILE — OPTIONAL LOCAL DIAGNOSTIC
+
+If MP mid exam99(2).pdf is available in the current Replit workspace:
+
+you may use it for local non-provider diagnostics:
+
+valid PDF
+page count = 4
+normal text extraction may be empty
+visual source path chosen
+
+Do NOT commit the user's PDF into the repository.
+
+Do NOT make tests depend on it.
+
+Do NOT send it to a live provider during automated testing.
+
+75. PROMPT 30B REGRESSION
+
+Re-run:
+
+tests/ai-prompt30-reliability.test.ts
+tests/ai-prompt30b-reliability.test.ts
+
+and all existing MCQ/Flashcard AI suites.
+
+No failure.
+
+76. PROMPT 31B RESOURCE REGRESSION
+
+Run:
+
+tests/resource-multipart.test.ts
+tests/resource-multipart-service.test.ts
+tests/resource-multipart-http.test.ts
+tests/resource-multipart-frontend.test.ts
+
+No failure.
+
+77. CALENDAR REGRESSION
+
+Run existing Calendar Import service/unit + HTTP suites.
+
+No failure.
+
+Do not change Calendar product behavior in this prompt.
+
+78. PERSONALIZATION
+
+Run exact:
+
+npx tsx --test tests/personalization*.test.ts tests/personalization-runtime.test.tsx
+
+Required:
+
+183 passed
+0 failed
+0 skipped
+0 cancelled
+79. APP ICON / PWA
+
+Run:
+
+npx tsx --test tests/app-icon.test.ts tests/app-icon-pwa-assets.test.ts
+
+Required:
+
+15 passed
+0 failed
+80. AUTH
+
+Run:
+
+npm run test:auth
+
+Expected:
+
+4 passed
+0 failed
+81. SECURITY
+
+Run:
+
+npm run security:check
+
+Expected:
+
+13 passed
+
+plus any new multimodal-specific security tests separately.
+
+82. NAVIGATION
+
+Run:
+
+npx tsx --test tests/client-navigation.test.ts
+
+Expected:
+
+4 passed
+0 failed
+83. TYPESCRIPT
+
+Run:
+
+npm run typecheck
+
+Required:
+
+PASS
+0 errors
+84. PRISMA
+
+Do not create a migration unless a truly unavoidable database change is discovered.
+
+Expected:
+
+NO DATABASE CHANGE
+
+If no schema change:
+
+run existing Prisma validation only as part of regression if appropriate.
+
+Do not apply production migrations.
+
+85. BUILD
+
+Run:
+
+npm run build
+
+Required:
+
+PASS
+
+Frontend and backend.
+
+86. ESLINT
+
+Run targeted ESLint for every Prompt 32 modified production/shared/test file.
+
+Required:
+
+0 errors
+
+Do not modify .local/skills.
+
+87. FULL REPOSITORY SUITE
+
+Prompt 31B ended at:
+
+415 passed
+0 failed
+0 skipped
+0 cancelled
+
+Prompt 32 will add tests.
+
+Run the authoritative full suite.
+
+Hard requirement:
+
+failed = 0
+
+Report actual new total.
+
+88. NO PRODUCTION CHANGES
+
+Do NOT:
+
+deploy backend
+deploy frontend
+apply production migration
+modify R2
+modify provider settings
+push GitHub
+89. GIT REVIEW
+
+Run:
+
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+Required:
+
+git diff --check
+→ NO OUTPUT
+90. .agents/*
+
+Run:
+
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Required:
+
+NO OUTPUT
+91. DO NOT CREATE REPORT FILES
+
+Do not create:
+
+PROMPT32.md
+AI_VISUAL_FIX_REPORT.md
+
+Return the report in chat only.
+
+92. PASS DEFINITION
+
+Prompt 32 may PASS only if:
+
+Root cause of current visual-source failure is identified.
+A valid scanned PDF never depends on text-layer presence.
+Original PDF media remains available to document/vision provider.
+Internal visual-page fallback uses a real supported image MIME.
+unsupported_format (image, Page N) regression is closed.
+Valid scanned pages are not prematurely classified unreadable.
+Deferred visual ranges actually execute.
+Complete source/page coverage is preserved.
+Mixed PDFs preserve visual-only pages.
+Direct PNG/JPEG inputs work.
+Advertised HEIC/HEIF support is truthful.
+MCQ Extract works from scanned PDF.
+MCQ Generate works from scanned PDF/image sources.
+MCQ Enhance can use visual evidence.
+False "source evidence not provided" is fixed when visual evidence exists.
+Enhancement missing-output recovery works.
+Enhancement status/confidence UI is internally consistent.
+Flashcard Extract works from visual source.
+Flashcard Generate works from visual source.
+Flashcard Enhance works from visual source.
+Zero-result guard covers visual sources.
+No overall frontend AI deadline is reintroduced.
+Prompt 30B batching/recovery/media reuse remains intact.
+Prompt 31B Resource tests remain green.
+Calendar regressions remain green.
+Personalization remains 183/0/0/0.
+App Icon/PWA remains green.
+Auth/security/navigation remain green.
+TypeScript passes.
+Build passes.
+Full suite has zero failures.
+.agents/* remains clean.
+93. MANDATORY FINAL REPORT
+
+Return exactly:
+
+99'S GUIDE — PROMPT 32 REPORT
+MULTIMODAL AI SOURCE READING REPAIR
+1. Status
+
+PASS / BLOCKED
+
+2. Root Cause
+
+Explain exactly why valid scanned PDFs/images became:
+
+unreadable
+unsupported_format
+zero candidates
+3. Files Modified
+
+Use:
+| File | Exact Change | Why |
+
+4. Shared Source Architecture
+
+Explain the final normalized text/PDF/image/mixed-source representation.
+
+5. Text PDF
+
+Report fast path.
+
+6. Scanned PDF
+
+Report exact visual/document path.
+
+7. Mixed PDF
+
+Report how text + visual pages are preserved.
+
+8. Original PDF Binary
+
+Confirm whether it remains available through provider processing.
+
+9. Visual Page Fallback
+
+Report exact rendering/normalization strategy.
+
+10. Internal Page MIME
+
+Report supported output MIME(s).
+
+11. Unsupported-Format Repair
+
+Explain exact fix for:
+unsupported_format (image, Page N).
+
+12. Unreadable Repair
+
+Explain when unreadable may now legitimately occur.
+
+13. Deferred Visual Recovery
+
+Report exact execution path.
+
+14. Full-Page Coverage
+
+Report how first-to-last page coverage is guaranteed.
+
+15. Visual Concurrency
+
+Report exact bound.
+
+16. Media Reuse
+
+Report Gemini/Cloudflare/page-render reuse behavior.
+
+17. Image Formats
+
+List:
+accepted
+provider-native
+normalized before provider
+unsupported
+
+18. HEIC / HEIF
+
+Report truthful final support.
+
+19. MCQ Extract — Scanned PDF
+
+Report.
+
+20. MCQ Generate — Visual Source
+
+Report.
+
+21. MCQ Enhance — Visual Evidence
+
+Report.
+
+22. Enhancement Evidence Warning
+
+Explain repair of false:
+Source evidence was not provided.
+
+23. Enhancement Missing Output
+
+Report retry/recovery behavior.
+
+24. Enhancement Status
+
+Explain final Enhanced / partial / review semantics.
+
+25. Confidence UI
+
+Explain how contradictory confidence/warnings were eliminated.
+
+26. Flashcard Extract — Visual Source
+
+Report.
+
+27. Flashcard Generate — Visual Source
+
+Report.
+
+28. Flashcard Enhance — Visual Source
+
+Report.
+
+29. Zero-Result Guard
+
+Report visual-source behavior.
+
+30. Scanned 4-Page MCQ Fixture
+
+Report:
+text layer
+pages
+expected candidates
+actual candidates
+missing
+duplicates
+
+31. Scanned Zero-Result Recovery Test
+
+Report.
+
+32. Internal Rendered-Page Test
+
+Report.
+
+33. Deferred-Range Recovery Test
+
+Report.
+
+34. Mixed-PDF Test
+
+Report.
+
+35. Direct PNG/JPEG Test
+
+Report.
+
+36. MCQ Generate Visual Test
+
+Report.
+
+37. MCQ Enhance Visual Test
+
+Report.
+
+38. Flashcard Visual Tests
+
+Report Extract / Generate / Enhance.
+
+39. Text Input Regression
+
+Report.
+
+40. Text PDF Regression
+
+Report.
+
+41. Prompt 30B Regression
+
+Report.
+
+42. Prompt 31B Resource Regression
+
+Report exact counts.
+
+43. Calendar Regression
+
+Report service/unit + HTTP counts.
+
+44. Personalization
+
+Required:
+183 passed
+0 failed
+0 skipped
+0 cancelled
+
+45. App Icon / PWA
+
+Report.
+
+46. Auth
+
+Report.
+
+47. Security
+
+Report.
+
+48. Navigation
+
+Report.
+
+49. TypeScript
+
+Report.
+
+50. Build
+
+Report.
+
+51. ESLint
+
+Report.
+
+52. Full Test Suite
+
+Report:
+passed
+failed
+skipped
+cancelled
+
+53. Database / Cloud
+
+State exactly:
+NO PRODUCTION DATABASE MIGRATION APPLIED.
+NO CLOUD DEPLOYMENT PERFORMED.
+
+54. Git Review
+
+Print:
+git status --short --untracked-files=all
+git diff --stat
+git diff --check
+
+55. .agents/*
+
+Print:
+git status --short -- .agents
+git diff -- .agents
+git diff --cached -- .agents
+
+Then:
+No .agents/* file was created or modified.
+
+56. Prompt 33 Readiness
+
+If all gates pass, state exactly:
+
+SCANNED PDF MULTIMODAL READING: VERIFIED
+
+TEXT PDF READING: VERIFIED
+
+MIXED PDF READING: VERIFIED
+
+DIRECT IMAGE READING: VERIFIED
+
+FULL PAGE COVERAGE: VERIFIED
+
+INTERNAL VISUAL PAGE FORMAT: VERIFIED
+
+unsupported_format (image, Page N): CLOSED
+
+FALSE unreadable: CLOSED
+
+DEFERRED VISUAL RECOVERY: VERIFIED
+
+VISUAL ZERO-RESULT GUARD: VERIFIED
+
+MCQ EXTRACT VISUAL SOURCE: VERIFIED
+
+MCQ GENERATE VISUAL SOURCE: VERIFIED
+
+MCQ ENHANCE VISUAL SOURCE: VERIFIED
+
+FLASHCARD EXTRACT VISUAL SOURCE: VERIFIED
+
+FLASHCARD GENERATE VISUAL SOURCE: VERIFIED
+
+FLASHCARD ENHANCE VISUAL SOURCE: VERIFIED
+
+ENHANCEMENT SOURCE-EVIDENCE WARNING: CORRECTED
+
+ENHANCEMENT STATUS / CONFIDENCE CONSISTENCY: VERIFIED
+
+PROMPT 30B RELIABILITY ARCHITECTURE: PRESERVED
+
+PROMPT 31B RESOURCE MULTIPART: PASS
+
+CALENDAR REGRESSION: PASS
+
+PERSONALIZATION: 183 / 0 / 0 / 0
+
+APP ICON / PWA: PASS
+
+AUTH: PASS
+
+SECURITY: PASS
+
+NAVIGATION: PASS
+
+TYPESCRIPT: PASS
+
+PRODUCTION BUILD: PASS
+
+FULL TEST SUITE: PASS
+
+.agents/*: CLEAN
+
+PROMPT 32: CLOSED
+
+PROMPT 33 SIX-FLOW AI QUALITY + END-TO-END HARDENING: APPROVED TO BEGIN
+
+End EXACTLY:
+
+99'S GUIDE PROMPT 32 STATUS: COMPLETE — READY FOR PROMPT 33
+
+Otherwise:
+
+99'S GUIDE PROMPT 32 STATUS: BLOCKED — REPAIR REQUIRED
