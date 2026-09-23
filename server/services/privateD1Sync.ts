@@ -17,7 +17,16 @@ type PrivateMirrorEntity =
   | "UserBlock"
   | "UserMute"
   | "UserProgress"
-  | "UserCalendarEvent";
+  | "UserCalendarEvent"
+  | "FocusPlan"
+  | "FocusSession"
+  | "StudyDailyMetric";
+
+const PROJECTION_ENTITIES = new Set<PrivateMirrorEntity>([
+  "FocusPlan",
+  "FocusSession",
+  "StudyDailyMetric",
+]);
 
 type OutboxRow = {
   id: string;
@@ -90,6 +99,24 @@ const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
   "UserCalendarEvent": [
     "startDateTime",
     "endDateTime"
+  ],
+  "FocusPlan": [
+    "createdAt",
+    "updatedAt",
+    "archivedAt",
+    "deletedAt"
+  ],
+  "FocusSession": [
+    "startedAt",
+    "plannedEndAt",
+    "actualEndedAt",
+    "lastCheckpointAt",
+    "updatedAt",
+    "deletedAt"
+  ],
+  "StudyDailyMetric": [
+    "updatedAt",
+    "deletedAt"
   ]
 } as Record<PrivateMirrorEntity, string[]>;
 
@@ -163,6 +190,16 @@ async function postMutation(row: OutboxRow): Promise<void> {
   const timeout = setTimeout(() => controller.abort(), 5_000);
 
   try {
+    const data = canonicalizeData(row.entity, row.data);
+    const isProjection = PROJECTION_ENTITIES.has(row.entity);
+    const projectionMetadata = isProjection
+      ? {
+          projectionVersion: Number(data?.projectionVersion ?? 1),
+          userScope: data?.userScope ?? data?.userId ?? row.key.userId,
+          ...(data?.updatedAt ? { updatedAt: data.updatedAt } : {}),
+          ...(data?.deletedAt ? { deletedAt: data.deletedAt } : {}),
+        }
+      : {};
     const response = await fetch(`${config.baseUrl}/internal/private-sync`, {
       method: "POST",
       headers: {
@@ -174,9 +211,9 @@ async function postMutation(row: OutboxRow): Promise<void> {
         entity: row.entity,
         operation: row.operation,
         key: row.key,
-        ...(row.operation === "upsert"
-          ? { data: canonicalizeData(row.entity, row.data) }
-          : {}),
+        revision: row.revision,
+        ...projectionMetadata,
+        ...(data ? { data } : {}),
         occurredAt: new Date().toISOString(),
       }),
       signal: controller.signal,

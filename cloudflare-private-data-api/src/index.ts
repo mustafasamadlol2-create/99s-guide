@@ -1,4 +1,8 @@
-type PrivateEntity = "User" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent";
+type PrivateEntity = "User" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
+type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
+const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
+const MAX_PROJECTION_DATA_BYTES = 64 * 1024;
+const MAX_PROJECTION_REVISION_DIGITS = 40;
 
 type SqliteType = "TEXT" | "INTEGER" | "REAL" | "BLOB";
 type TableConfig = {
@@ -272,6 +276,73 @@ const TABLES: Record<PrivateEntity, TableConfig> = {
       "isPinned": "INTEGER",
       "isCompleted": "INTEGER"
     }
+  },
+  "FocusPlan": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "canonicalId": "TEXT",
+      "userId": "TEXT",
+      "userScope": "TEXT",
+      "title": "TEXT",
+      "status": "TEXT",
+      "timezone": "TEXT",
+      "planVersion": "INTEGER",
+      "createdAt": "TEXT",
+      "updatedAt": "TEXT",
+      "archivedAt": "TEXT",
+      "itemsJson": "TEXT",
+      "projectionVersion": "INTEGER",
+      "revision": "TEXT",
+      "deletedAt": "TEXT"
+    }
+  },
+  "FocusSession": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "canonicalId": "TEXT",
+      "userId": "TEXT",
+      "userScope": "TEXT",
+      "planId": "TEXT",
+      "planItemId": "TEXT",
+      "lectureId": "TEXT",
+      "status": "TEXT",
+      "startedAt": "TEXT",
+      "plannedEndAt": "TEXT",
+      "actualEndedAt": "TEXT",
+      "lastCheckpointAt": "TEXT",
+      "activeSeconds": "INTEGER",
+      "pauseSeconds": "INTEGER",
+      "completionReason": "TEXT",
+      "updatedAt": "TEXT",
+      "projectionVersion": "INTEGER",
+      "revision": "TEXT",
+      "deletedAt": "TEXT"
+    }
+  },
+  "StudyDailyMetric": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "canonicalId": "TEXT",
+      "userId": "TEXT",
+      "userScope": "TEXT",
+      "metricDate": "TEXT",
+      "focusSeconds": "INTEGER",
+      "sessionsCompleted": "INTEGER",
+      "mcqAttempts": "INTEGER",
+      "mcqCorrect": "INTEGER",
+      "flashcardReviews": "INTEGER",
+      "recallAttempts": "INTEGER",
+      "recallCorrect": "INTEGER",
+      "lectureCompletions": "INTEGER",
+      "interruptionCount": "INTEGER",
+      "updatedAt": "TEXT",
+      "projectionVersion": "INTEGER",
+      "revision": "TEXT",
+      "deletedAt": "TEXT"
+    }
   }
 } as Record<PrivateEntity, TableConfig>;
 
@@ -287,6 +358,57 @@ function jsonNoStore(body: unknown, status = 200): Response {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isProjectionEntity(entity: PrivateEntity): entity is ProjectionEntity {
+  return PROJECTION_ENTITIES.has(entity as ProjectionEntity);
+}
+
+function projectionRevision(value: unknown): bigint {
+  const text = typeof value === "string"
+    ? value
+    : typeof value === "number" && Number.isSafeInteger(value)
+      ? String(value)
+      : "";
+  if (!/^\d+$/.test(text) || text.length > MAX_PROJECTION_REVISION_DIGITS) {
+    throw new Error("Invalid projection revision.");
+  }
+  return BigInt(text);
+}
+
+function projectionVersion(value: unknown): number {
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 1000) {
+    throw new Error("Invalid projection version.");
+  }
+  return Number(value);
+}
+
+function boundedProjectionData(data: Record<string, unknown>): void {
+  if (JSON.stringify(data).length > MAX_PROJECTION_DATA_BYTES) {
+    throw new Error("Projection payload is too large.");
+  }
+}
+
+function projectionUserScope(
+  payload: Record<string, unknown>,
+  data: Record<string, unknown> | null,
+): string {
+  const candidate = payload.userScope ?? data?.userScope ?? data?.userId;
+  if (typeof candidate !== "string" || !candidate.trim() || candidate.length > 200) {
+    throw new Error("Projection user scope is required.");
+  }
+  if (data?.userId !== undefined && data.userId !== candidate) {
+    throw new Error("Projection user scope does not match userId.");
+  }
+  return candidate;
+}
+
+function projectionDataForCompare(
+  entity: ProjectionEntity,
+  row: Record<string, unknown>,
+): string {
+  const columns = Object.keys(TABLES[entity].columns).sort();
+  return JSON.stringify(columns.map((column) => [column, row[column] ?? null]));
 }
 
 async function secretsEqual(left: string, right: string): Promise<boolean> {
@@ -412,6 +534,88 @@ async function upsertRow(
   await env.DB.prepare(sql).bind(...values).run();
 }
 
+async function syncProjectionRow(
+  env: any,
+  entity: ProjectionEntity,
+  key: Record<string, unknown>,
+  data: Record<string, unknown> | null,
+  payload: Record<string, unknown>,
+): Promise<"applied" | "idempotent" | "stale"> {
+  const normalizedKey = normalizeKey(entity, key);
+  const id = String(normalizedKey.id);
+  const incomingRevision = projectionRevision(payload.revision);
+  const incomingProjectionVersion = projectionVersion(
+    payload.projectionVersion ?? data?.projectionVersion,
+  );
+  const userScope = projectionUserScope(payload, data);
+  boundedProjectionData(data || {});
+
+  const tombstone = payload.operation === "delete";
+  const merged: Record<string, unknown> = tombstone
+    ? Object.fromEntries(Object.keys(TABLES[entity].columns).map((column) => [column, null]))
+    : { ...(data || {}) };
+
+  if (!tombstone && !data) throw new Error("Projection upsert data is required.");
+  if (!tombstone && data?.id !== undefined && String(data.id) !== id) {
+    throw new Error("Projection canonical ID does not match the sync key.");
+  }
+  if (!tombstone && data?.canonicalId !== undefined && String(data.canonicalId) !== id) {
+    throw new Error("Projection canonical ID is not stable.");
+  }
+
+  Object.assign(merged, normalizedKey, {
+    id,
+    canonicalId: id,
+    userScope,
+    projectionVersion: incomingProjectionVersion,
+    revision: incomingRevision.toString(),
+    updatedAt: payload.updatedAt ?? data?.updatedAt ?? payload.occurredAt ?? new Date().toISOString(),
+    deletedAt: tombstone
+      ? payload.deletedAt ?? new Date().toISOString()
+      : data?.deletedAt ?? null,
+  });
+
+  if (merged.userId !== undefined && merged.userId !== null && String(merged.userId) !== userScope) {
+    throw new Error("Projection user scope does not match userId.");
+  }
+  merged.userId = userScope;
+
+  const cfg = TABLES[entity];
+  for (const column of Object.keys(merged)) {
+    if (!Object.prototype.hasOwnProperty.call(cfg.columns, column)) {
+      throw new Error(`Unsupported column for ${entity}: ${column}`);
+    }
+  }
+  for (const column of ["updatedAt", "deletedAt"]) {
+    if (merged[column] !== null && typeof merged[column] !== "string") {
+      throw new Error(`Projection ${column} must be a string or null.`);
+    }
+  }
+
+  const where = cfg.primaryKey.map((column) => `${q(column)} = ?`).join(" AND ");
+  const current = await env.DB
+    .prepare(`SELECT * FROM ${q(entity)} WHERE ${where} LIMIT 1`)
+    .bind(...cfg.primaryKey.map((column) => normalizedKey[column]))
+    .first();
+
+  if (current) {
+    const currentRevision = projectionRevision((current as Record<string, unknown>).revision);
+    if (incomingRevision < currentRevision) return "stale";
+    if (incomingRevision === currentRevision) {
+      if (
+        projectionDataForCompare(entity, current as Record<string, unknown>) ===
+        projectionDataForCompare(entity, merged)
+      ) {
+        return "idempotent";
+      }
+      throw new Error("Projection revision conflict.");
+    }
+  }
+
+  await upsertRow(env, entity, key, merged);
+  return "applied";
+}
+
 async function authenticate(request: Request, env: any): Promise<Response | null> {
   const configured = typeof env.PRIVATE_DATA_SYNC_SECRET === "string"
     ? env.PRIVATE_DATA_SYNC_SECRET
@@ -465,17 +669,25 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
     }
     if (!isRecord(payload.key)) throw new Error("Mutation key is required.");
 
-    if (payload.operation === "delete") {
-      await deleteRow(env, entity, payload.key);
-    } else {
-      if (!isRecord(payload.data)) throw new Error("Upsert data is required.");
-      await upsertRow(env, entity, payload.key, payload.data);
-    }
+    const result = isProjectionEntity(entity)
+      ? await syncProjectionRow(
+        env,
+        entity,
+        payload.key,
+        isRecord(payload.data) ? payload.data : null,
+        payload,
+      )
+      : payload.operation === "delete"
+        ? await deleteRow(env, entity, payload.key).then(() => "applied" as const)
+        : !isRecord(payload.data)
+          ? (() => { throw new Error("Upsert data is required."); })()
+          : await upsertRow(env, entity, payload.key, payload.data).then(() => "applied" as const);
 
     return jsonNoStore({
       ok: true,
       entity,
       operation: payload.operation,
+      result,
       syncedAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -487,7 +699,8 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
       message.includes("Missing") ||
       message.includes("Invalid") ||
       message.includes("required") ||
-      message.includes("empty");
+      message.includes("empty") ||
+      message.includes("conflict");
 
     return jsonNoStore(
       { ok: false, error: validation ? message : "Private sync failed." },
@@ -532,6 +745,17 @@ function mapManyIntegerBooleans(
   return rows.map((row) => mapIntegerBooleans(row, fields) as Record<string, unknown>);
 }
 
+function projectionReadUser(url: URL): string | null {
+  return readStringParam(url, "userId", 200);
+}
+
+function readProjectionPlanRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return rows.map((row) => ({
+    ...row,
+    items: typeof row.itemsJson === "string" ? JSON.parse(row.itemsJson) : [],
+  }));
+}
+
 async function handlePrivateRead(request: Request, env: any, url: URL): Promise<Response> {
   if (request.method !== "GET") {
     return new Response("Method Not Allowed", {
@@ -545,6 +769,71 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
 
   try {
     const path = url.pathname;
+
+    if (path === "/internal/private-read/focus-plans") {
+      const userId = projectionReadUser(url);
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const limit = readLimit(url, 100, 500);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "FocusPlan"
+         WHERE "userScope" = ? AND "deletedAt" IS NULL
+         ORDER BY "updatedAt" DESC, "id" ASC
+         LIMIT ?`
+      ).bind(userId, limit).all();
+      return jsonNoStore({ rows: readProjectionPlanRows(result.results || []) });
+    }
+
+    if (path === "/internal/private-read/focus-sessions") {
+      const userId = projectionReadUser(url);
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const status = readStringParam(url, "status", 80);
+      const limit = readLimit(url, 100, 500);
+      const result = status
+        ? await env.DB.prepare(
+          `SELECT * FROM "FocusSession"
+           WHERE "userScope" = ? AND "deletedAt" IS NULL AND "status" = ?
+           ORDER BY "updatedAt" DESC, "id" ASC
+           LIMIT ?`
+        ).bind(userId, status, limit).all()
+        : await env.DB.prepare(
+          `SELECT * FROM "FocusSession"
+           WHERE "userScope" = ? AND "deletedAt" IS NULL
+           ORDER BY "updatedAt" DESC, "id" ASC
+           LIMIT ?`
+        ).bind(userId, limit).all();
+      return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/study-daily-metrics") {
+      const userId = projectionReadUser(url);
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const from = readStringParam(url, "from", 10);
+      const to = readStringParam(url, "to", 10);
+      for (const date of [from, to]) {
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return jsonNoStore({ ok: false, error: "from and to must be ISO dates." }, 400);
+        }
+      }
+      const limit = readLimit(url, 366, 366);
+      const predicates = ['"userScope" = ?', '"deletedAt" IS NULL'];
+      const bindings: unknown[] = [userId];
+      if (from) {
+        predicates.push('"metricDate" >= ?');
+        bindings.push(from);
+      }
+      if (to) {
+        predicates.push('"metricDate" <= ?');
+        bindings.push(to);
+      }
+      bindings.push(limit);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "StudyDailyMetric"
+         WHERE ${predicates.join(" AND ")}
+         ORDER BY "metricDate" DESC, "id" ASC
+         LIMIT ?`
+      ).bind(...bindings).all();
+      return jsonNoStore({ rows: result.results || [] });
+    }
 
     if (path === "/internal/private-read/auth-user") {
       const id = readStringParam(url, "id");
