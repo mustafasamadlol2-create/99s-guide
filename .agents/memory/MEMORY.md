@@ -1,0 +1,1 @@
+- [React version alignment](react-version-alignment.md) — npm's range resolution can mismatch React and React DOM; keep their installed versions identical.

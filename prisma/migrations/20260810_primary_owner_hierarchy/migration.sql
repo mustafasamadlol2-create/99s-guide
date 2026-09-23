@@ -43,6 +43,13 @@ BEGIN
     AND "role" = 'owner'
     AND lower("email") LIKE 'mostafa.yasir24001@%';
 
+  -- A new installation has no accounts to promote yet. Preserve the strict
+  -- match requirement whenever accounts already exist.
+  IF matched_count = 0 AND NOT EXISTS (SELECT 1 FROM "User") THEN
+    RAISE NOTICE 'No existing users; skipping Primary Owner assignment.';
+    RETURN;
+  END IF;
+
   IF matched_count <> 1 THEN
     RAISE EXCEPTION
       'Primary Owner migration expected exactly one matching owner, found %',
