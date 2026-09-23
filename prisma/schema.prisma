@@ -9,54 +9,58 @@ datasource db {
 }
 
 model User {
-  id                        String                   @id @default(uuid())
-  email                     String                   @unique
+  id                        String                    @id @default(uuid())
+  email                     String                    @unique
   profileEmail              String?
   passwordHash              String?
   name                      String?
-  avatar                    String?                  @default("")
-  avatarUrl                 String?                  @default("")
-  signature                 String?                  @default("")
-  role                      String                   @default("user")
-  isOnline                  Boolean                  @default(false)
-  lastActive                DateTime                 @default(now())
-  lastSeen                  DateTime                 @default(now())
+  avatar                    String?                   @default("")
+  avatarUrl                 String?                   @default("")
+  signature                 String?                   @default("")
+  role                      String                    @default("user")
+  isOnline                  Boolean                   @default(false)
+  lastActive                DateTime                  @default(now())
+  lastSeen                  DateTime                  @default(now())
   socketId                  String?
   deviceToken               String?
-  accountStatus             String                   @default("ACTIVE")
-  isPrimaryOwner            Boolean                  @default(false)
-  emailVerified             Boolean                  @default(true)
-  sessionVersion            Int                      @default(0)
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  studentGroup              String                   @default("A")
-  totalPoints               Int                      @default(0)
-  level                     String                   @default("Rising (Resident)")
-  levelBadge                String                   @default("👶")
-  streakDays                Int                      @default(0)
-  totalTimeSpent            Int                      @default(0)
-  preferences               Json?                    @default("{\"theme\": \"system\", \"language\": \"en\", \"pushAlerts\": true}")
+  accountStatus             String                    @default("ACTIVE")
+  isPrimaryOwner            Boolean                   @default(false)
+  emailVerified             Boolean                   @default(true)
+  sessionVersion            Int                       @default(0)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  studentGroup              String                    @default("A")
+  totalPoints               Int                       @default(0)
+  level                     String                    @default("Rising (Resident)")
+  levelBadge                String                    @default("👶")
+  streakDays                Int                       @default(0)
+  totalTimeSpent            Int                       @default(0)
+  preferences               Json?                     @default("{\"theme\": \"system\", \"language\": \"en\", \"pushAlerts\": true}")
   calendarEvents            CalendarEvent[]
   flashcardProgresses       FlashcardProgress[]
   lectureProgresses         LectureProgress[]
   pointsLogs                PointsLog[]
   userProgresses            UserProgress[]
-  qaQuestions               QaQuestion[]             @relation("QaQuestions")
-  qaAnswers                 QaAnswer[]               @relation("QaAnswers")
-  blocksMade                UserBlock[]              @relation("BlocksMade")
-  blocksReceived            UserBlock[]              @relation("BlocksReceived")
-  reportsMade               Report[]                 @relation("ReportsMade")
-  reportsReceived           Report[]                 @relation("ReportsReceived")
-  mutesReceived             UserMute[]               @relation("MutesReceived")
-  bansReceived              UserBan[]                @relation("BansReceived")
-  moderationActionsGiven    ModerationHistory[]      @relation("HistoryByAdmin")
-  moderationActionsReceived ModerationHistory[]      @relation("HistoryForTarget")
+  qaQuestions               QaQuestion[]              @relation("QaQuestions")
+  qaAnswers                 QaAnswer[]                @relation("QaAnswers")
+  blocksMade                UserBlock[]               @relation("BlocksMade")
+  blocksReceived            UserBlock[]               @relation("BlocksReceived")
+  reportsMade               Report[]                  @relation("ReportsMade")
+  reportsReceived           Report[]                  @relation("ReportsReceived")
+  mutesReceived             UserMute[]                @relation("MutesReceived")
+  bansReceived              UserBan[]                 @relation("BansReceived")
+  moderationActionsGiven    ModerationHistory[]       @relation("HistoryByAdmin")
+  moderationActionsReceived ModerationHistory[]       @relation("HistoryForTarget")
   passwordResetTokens       PasswordResetToken[]
   emailVerificationTokens   EmailVerificationToken[]
-  oauthIdentities           OAuthIdentity[]          @relation
+  oauthIdentities           OAuthIdentity[]           @relation
   qaVotes                   QaVote[]
   calendarImportJobs        CalendarImportJob[]
-  resourceMultipartUploads ResourceMultipartUpload[]
+  resourceMultipartUploads  ResourceMultipartUpload[]
+  focusPlans                FocusPlan[]
+  focusSessions             FocusSession[]
+  studyEvents               StudyEvent[]
+  studyDailyMetrics         StudyDailyMetric[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -68,18 +72,21 @@ model User {
 }
 
 model Lecture {
-  id                String            @id @default(uuid())
-  name              String
-  mainSubject       String
-  subSubject        String?
-  trackMode         String
-  department        String?
-  createdAt         DateTime          @default(now())
-  flashcards        Flashcard[]
-  lectureProgresses LectureProgress[]
-  materials         Material[]
-  mcqs              Mcq[]
+  id                       String                    @id @default(uuid())
+  name                     String
+  mainSubject              String
+  subSubject               String?
+  trackMode                String
+  department               String?
+  createdAt                DateTime                  @default(now())
+  flashcards               Flashcard[]
+  lectureProgresses        LectureProgress[]
+  materials                Material[]
+  mcqs                     Mcq[]
   resourceMultipartUploads ResourceMultipartUpload[]
+  focusPlanItems           FocusPlanItem[]
+  focusSessions            FocusSession[]
+  studyEvents              StudyEvent[]
 
   @@index([name])
   @@index([mainSubject])
@@ -96,6 +103,7 @@ model Material {
   storagePath    String?
   lecture        Lecture        @relation(fields: [lectureId], references: [id], onDelete: Cascade)
   userProgresses UserProgress[]
+  studyEvents    StudyEvent[]
 
   @@index([lectureId])
   @@index([title])
@@ -103,48 +111,48 @@ model Material {
 }
 
 model ResourceMultipartUpload {
-  id                  String   @id @default(uuid())
-  userId              String
-  lectureId           String
-  title               String
-  originalFilename    String
-  sanitizedFilename   String
-  mimeType            String
-  declaredSizeBytes   BigInt
-  lastModifiedMs      BigInt?
-  storagePath         String   @unique
-  multipartUploadId   String
-  partSizeBytes       Int
-  expectedPartCount   Int
-  status              String   @default("UPLOADING")
-  createdAt           DateTime @default(now())
-  expiresAt           DateTime
-  updatedAt           DateTime @updatedAt
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lecture             Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid())
+  userId            String
+  lectureId         String
+  title             String
+  originalFilename  String
+  sanitizedFilename String
+  mimeType          String
+  declaredSizeBytes BigInt
+  lastModifiedMs    BigInt?
+  storagePath       String   @unique
+  multipartUploadId String
+  partSizeBytes     Int
+  expectedPartCount Int
+  status            String   @default("UPLOADING")
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture           Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, expiresAt])
   @@index([lectureId, status])
 }
 
 model ModuleResource {
-  id                 String   @id @default(uuid())
-  moduleId           String
-  title              String
-  storagePath        String   @unique
-  fileSizeBytes      BigInt
-  status             String   @default("PENDING")
-  multipartUploadId  String?
-  uploadExpiresAt    DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String    @id @default(uuid())
+  moduleId          String
+  title             String
+  storagePath       String    @unique
+  fileSizeBytes     BigInt
+  status            String    @default("PENDING")
+  multipartUploadId String?
+  uploadExpiresAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([moduleId, status, createdAt])
   @@index([status, uploadExpiresAt])
 }
 
 model Mcq {
-  id            String   @id @default(uuid())
+  id            String       @id @default(uuid())
   question      String
   optionA       String
   optionB       String
@@ -153,12 +161,13 @@ model Mcq {
   correctAnswer String
   hint          String?
   explanation   String?
-  sourceType    String   @default("ai")
-  sourceRef     String   @default("")
-  difficulty    String   @default("Medium")
+  sourceType    String       @default("ai")
+  sourceRef     String       @default("")
+  difficulty    String       @default("Medium")
   lectureId     String
-  createdAt     DateTime @default(now())
-  lecture       Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  lecture       Lecture      @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  studyEvents   StudyEvent[]
 
   @@index([lectureId])
   @@index([question])
@@ -172,34 +181,35 @@ model Flashcard {
   createdAt           DateTime            @default(now())
   lecture             Lecture             @relation(fields: [lectureId], references: [id], onDelete: Cascade)
   flashcardProgresses FlashcardProgress[]
+  studyEvents         StudyEvent[]
 
   @@index([lectureId])
   @@index([clinicalConcept])
 }
 
 model CalendarEvent {
-  id            String   @id @default(uuid())
-  userId        String?
-  title         String
-  eventType     String
-  startDateTime DateTime
-  endDateTime   DateTime
-  targetGroups  String   @default("ALL")
-  description   String?
-  subjectId     String?
-  lectureId     String?
-  room          String?
-  doctor        String?
-  notes         String?
-  isPinned      Boolean  @default(false)
-  isCompleted   Boolean  @default(false)
-  allDay        Boolean  @default(false)
-  importSource  String?
-  sourceDocumentName String?
+  id                   String   @id @default(uuid())
+  userId               String?
+  title                String
+  eventType            String
+  startDateTime        DateTime
+  endDateTime          DateTime
+  targetGroups         String   @default("ALL")
+  description          String?
+  subjectId            String?
+  lectureId            String?
+  room                 String?
+  doctor               String?
+  notes                String?
+  isPinned             Boolean  @default(false)
+  isCompleted          Boolean  @default(false)
+  allDay               Boolean  @default(false)
+  importSource         String?
+  sourceDocumentName   String?
   sourceDocumentSha256 String?
-  sourcePage    Int?
-  importFingerprint String? @unique
-  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourcePage           Int?
+  importFingerprint    String?  @unique
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([startDateTime])
   @@index([endDateTime])
@@ -210,26 +220,26 @@ model CalendarEvent {
 }
 
 model CalendarImportJob {
-  id                String   @id @default(uuid())
-  userId            String
-  status            String   @default("UPLOADED")
-  stage             String   @default("Uploading")
-  sourceFileName    String
-  sourceMime        String
-  sourceSha256      String
-  sourcePageCount   Int?
-  sourcePath        String?
-  timezone          String   @default("Asia/Baghdad")
-  defaultTargetGroups String  @default("ALL")
-  progressCurrent   Int      @default(0)
-  progressTotal     Int      @default(0)
-  previewData       Json?
-  errorCode         String?
-  errorMessage      String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  completedAt       DateTime?
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(uuid())
+  userId              String
+  status              String    @default("UPLOADED")
+  stage               String    @default("Uploading")
+  sourceFileName      String
+  sourceMime          String
+  sourceSha256        String
+  sourcePageCount     Int?
+  sourcePath          String?
+  timezone            String    @default("Asia/Baghdad")
+  defaultTargetGroups String    @default("ALL")
+  progressCurrent     Int       @default(0)
+  progressTotal       Int       @default(0)
+  previewData         Json?
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  completedAt         DateTime?
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])
   @@index([status, updatedAt])
@@ -524,4 +534,138 @@ model ModerationHistory {
   @@index([isSystemAction])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+/// Private student-owned Focus Hub plan. Status remains an application-level
+/// string until the Focus Service freezes its lifecycle semantics.
+model FocusPlan {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  status      String    @default("ACTIVE")
+  timezone    String
+  planVersion Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         FocusPlanItem[]
+  focusSessions FocusSession[]
+
+  @@index([userId, status, updatedAt])
+}
+
+/// Each Lecture has independent Focus configuration inside a plan.
+model FocusPlanItem {
+  id                   String   @id @default(uuid())
+  planId               String
+  lectureId            String
+  sequence             Int
+  sessionCount         Int
+  focusDurationSeconds Int
+  breakDurationSeconds Int
+  includeMcq           Boolean
+  includeFlashcards    Boolean
+  includeVideo         Boolean
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  plan          FocusPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  lecture       Lecture        @relation(fields: [lectureId], references: [id], onDelete: Restrict)
+  focusSessions FocusSession[]
+
+  @@unique([planId, sequence])
+}
+
+/// Durable solo Focus lifecycle/checkpoint record. Restricting plan/content
+/// deletion protects historical sessions; archival is preferred.
+model FocusSession {
+  id               String    @id @default(uuid())
+  userId           String
+  planId           String
+  planItemId       String
+  lectureId        String
+  status           String    @default("CREATED")
+  startedAt        DateTime?
+  plannedEndAt     DateTime?
+  actualEndedAt    DateTime?
+  lastCheckpointAt DateTime?
+  activeSeconds    Int       @default(0)
+  pauseSeconds     Int       @default(0)
+  completionReason String?
+  clientInstanceId String?
+  idempotencyKey   String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        FocusPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planItem    FocusPlanItem @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  lecture     Lecture       @relation(fields: [lectureId], references: [id], onDelete: Restrict)
+  studyEvents StudyEvent[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status, updatedAt])
+  @@index([userId, startedAt])
+  @@index([planId, planItemId])
+}
+
+/// Canonical normalized learning-event envelope. Event values remain strings
+/// so future valid event types do not require a database enum migration.
+model StudyEvent {
+  id               String   @id @default(uuid())
+  schemaVersion    Int      @default(1)
+  eventType        String
+  userId           String
+  occurredAt       DateTime
+  receivedAt       DateTime
+  source           String
+  idempotencyKey   String
+  lectureId        String?
+  materialId       String?
+  mcqId            String?
+  flashcardId      String?
+  focusSessionId   String?
+  groupFocusRoomId String?
+  evidenceClass    String
+  privacyClass     String
+  payload          Json
+  createdAt        DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture      Lecture?      @relation(fields: [lectureId], references: [id], onDelete: SetNull)
+  material     Material?     @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  mcq          Mcq?          @relation(fields: [mcqId], references: [id], onDelete: SetNull)
+  flashcard    Flashcard?    @relation(fields: [flashcardId], references: [id], onDelete: SetNull)
+  focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([lectureId, occurredAt])
+  @@index([focusSessionId, occurredAt])
+}
+
+/// Server-derived private daily counters. metricDate is a PostgreSQL DATE
+/// representing the logical academic day, calculated by the service.
+model StudyDailyMetric {
+  id                 String   @id @default(uuid())
+  userId             String
+  metricDate         DateTime @db.Date
+  focusSeconds       Int      @default(0)
+  sessionsCompleted  Int      @default(0)
+  mcqAttempts        Int      @default(0)
+  mcqCorrect         Int      @default(0)
+  flashcardReviews   Int      @default(0)
+  recallAttempts     Int      @default(0)
+  recallCorrect      Int      @default(0)
+  lectureCompletions Int      @default(0)
+  interruptionCount  Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metricDate])
 }
