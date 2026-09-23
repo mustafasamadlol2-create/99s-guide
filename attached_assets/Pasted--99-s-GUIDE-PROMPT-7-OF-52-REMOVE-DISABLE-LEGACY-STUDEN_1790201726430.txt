@@ -1,0 +1,1637 @@
+# 99’s GUIDE — PROMPT 7 OF 52
+
+## REMOVE / DISABLE LEGACY STUDENT PERSONAL PLANNER
+
+## PRESERVE OWNER/ADMIN ACADEMIC SCHEDULE COMPLETELY
+
+### PRODUCTION-SAFE COMPATIBILITY DEPRECATION
+
+Prompts 1–6 have been completed and approved.
+
+Prompt 7 implements one specific frozen product decision:
+
+# 99’s Guide Schedule is an ACADEMIC SCHEDULE, not a student personal planner.
+
+Students must no longer be able to create, edit, delete, synchronize, restore, or display personal planner/calendar events.
+
+At the same time:
+
+# THE EXISTING ACADEMIC SCHEDULE MUST CONTINUE WORKING EXACTLY AS INTENDED.
+
+This prompt must preserve:
+
+* Academic Schedule reads.
+* Student-group targeting.
+* Owner/admin academic creation.
+* Owner/admin academic editing.
+* Owner/admin academic deletion.
+* Calendar import.
+* Realtime academic Schedule updates.
+* Month / Week / Day academic views.
+* PWA / Capacitor behavior.
+* Arabic / RTL behavior.
+* Existing academic notifications.
+
+---
+
+# 1. CRITICAL PRODUCT RULE
+
+After Prompt 7:
+
+## Students can:
+
+* view academic Schedule events visible to them;
+* navigate Day / Week / Month;
+* view appropriate group-targeted academic events.
+
+## Students cannot:
+
+* create personal tasks;
+* create personal calendar events;
+* edit personal calendar events;
+* delete personal calendar events;
+* synchronize personal planner events;
+* restore personal events from offline storage;
+* create planner tasks linked to Lectures;
+* use any hidden legacy endpoint to create personal events.
+
+Future:
+
+* Focus Hub has its own Study Plan.
+* AI Analyzer has its own recommendations.
+* Challenges have their own domain.
+* Spaced Recall has its own domain.
+
+None of those write to Schedule.
+
+---
+
+# 2. CURRENT LEGACY BEHAVIOR DISCOVERED
+
+Previous audits identified personal-planner behavior in areas including:
+
+```text
+src/features/calendar/hooks/useCalendar.ts
+src/features/calendar/components/CalendarView.tsx
+src/App.tsx
+src/core/storage/accountData.ts
+src/core/offline/OfflineEngine.ts
+server.ts
+server/services/userService.ts
+server/services/privateD1Sync.ts
+server/services/privateD1Read.ts
+private-data Worker
+CalendarEvent.userId
+```
+
+Do NOT blindly edit every listed file.
+
+First verify actual current behavior.
+
+Some paths may already have changed.
+
+---
+
+# 3. IMPORTANT — NO DESTRUCTIVE DATABASE CLEANUP
+
+Prompt 7 must NOT:
+
+* remove `CalendarEvent.userId`;
+* drop existing personal calendar rows;
+* convert personal rows into academic events;
+* delete legacy personal events from PostgreSQL;
+* delete legacy personal rows from D1;
+* drop private D1 personal-calendar tables;
+* create destructive migrations;
+* modify existing academic events;
+* backfill anything.
+
+Existing legacy personal data may remain physically stored temporarily.
+
+The objective now is:
+
+```text
+stop creation
++
+stop normal synchronization
++
+stop normal reads/display
++
+stop new mirroring
+```
+
+Physical schema cleanup belongs to a later compatibility-safe migration only if needed.
+
+---
+
+# 4. NO PRISMA MIGRATION EXPECTED
+
+Expected:
+
+```text
+prisma/schema.prisma unchanged
+new PostgreSQL migration: NONE
+```
+
+`CalendarEvent.userId` remains for compatibility.
+
+Do not modify Batch A Study Engine schema.
+
+---
+
+# 5. MANDATORY PREFLIGHT
+
+Before changing code:
+
+inspect the complete current calendar flow.
+
+Trace:
+
+```text
+student UI
+→ local state
+→ local persistence
+→ offline queue
+→ API/sync
+→ userService
+→ PostgreSQL
+→ private D1 mirror
+→ socket reconciliation
+→ UI hydration
+```
+
+Also separately trace:
+
+```text
+admin/owner UI
+→ academic calendar REST route
+→ requireAdmin
+→ PostgreSQL
+→ content projection
+→ socket calendar_updated
+→ student academic read
+```
+
+These two paths must be separated mentally and technically.
+
+Do not remove academic behavior while removing planner behavior.
+
+---
+
+# 6. CREATE A WRITTEN INTERNAL REMOVAL MAP BEFORE EDITING
+
+Before editing, identify exact current symbols/functions for:
+
+### Personal planner creation
+
+Examples may include:
+
+```text
+handleCreateTaskSubmit
+onAddEvent
+newTaskTitle
+newTaskTime
+newTaskDesc
+linkedLectureId
+```
+
+### Personal persistence
+
+Examples:
+
+```text
+calendar_events
+saveCalendarEvent
+calendarEventsDb
+```
+
+### Offline mutations
+
+Examples:
+
+```text
+ADD_EVENT
+DELETE_EVENT
+```
+
+### Full sync
+
+Examples:
+
+```text
+/api/auth/sync
+calendarEvents
+```
+
+### User service
+
+Examples:
+
+```text
+getCalendarEvents
+saveCalendarEvent
+deleteCalendarEvent
+```
+
+### Private D1
+
+Examples:
+
+```text
+UserCalendarEvent
+```
+
+### Realtime
+
+Examples:
+
+```text
+calendar_updated
+```
+
+Do not assume all names still exist.
+
+Report actual names.
+
+---
+
+# 7. SERVER IS THE PRIMARY SECURITY BOUNDARY
+
+Frontend hiding is NOT enough.
+
+The backend must guarantee that an authenticated student cannot create a personal planner event through:
+
+* current UI;
+* old PWA;
+* old App Store binary;
+* manual HTTP requests;
+* offline replay;
+* `/api/auth/sync`;
+* private D1 manipulation attempts.
+
+Academic REST mutation routes already use `requireAdmin`.
+
+Preserve this.
+
+---
+
+# 8. DIRECT ACADEMIC CALENDAR MUTATION ROUTES
+
+Verify current routes such as:
+
+```text
+POST   /api/calendar/events
+PUT    /api/calendar/events/:id
+DELETE /api/calendar/events/:id
+```
+
+or current equivalents.
+
+They must remain protected by the existing authorization behavior.
+
+Prompt 7 must preserve:
+
+```text
+student → forbidden
+admin → existing behavior
+owner → existing behavior
+```
+
+Do NOT change `requireAdmin` semantics.
+
+Do NOT make Schedule owner-only unless the current product explicitly already does so.
+
+This prompt only removes student personal planning.
+
+---
+
+# 9. `/api/auth/sync` LEGACY CALENDAR INPUT
+
+This is one of the most important Prompt 7 changes.
+
+Old clients may continue sending:
+
+```json
+{
+  "calendarEvents": [...]
+}
+```
+
+Do NOT allow those events to create/update personal planner rows.
+
+However:
+
+# DO NOT FAIL THE ENTIRE USER SYNC JUST BECAUSE AN OLD CLIENT SENT `calendarEvents`.
+
+The user may also be synchronizing:
+
+* progress;
+* profile-related state;
+* other valid offline state.
+
+Use a backward-compatible deprecation strategy.
+
+Preferred behavior:
+
+```text
+calendarEvents received from student sync
+→ validate request envelope enough to remain safe
+→ DO NOT persist personal calendar mutations
+→ ignore/deprecate calendarEvents field
+→ continue syncing all unrelated valid data
+```
+
+Do not silently reinterpret personal events as academic Schedule events.
+
+---
+
+# 10. OLD CLIENT RESPONSE COMPATIBILITY
+
+Determine whether existing/old clients expect a `calendarEvents` field in sync/auth responses.
+
+If removing the field immediately could break old production clients:
+
+temporarily return:
+
+```json
+"calendarEvents": []
+```
+
+or the least disruptive legacy-compatible empty representation.
+
+But:
+
+* do not populate it with legacy personal events;
+* do not return global academic Schedule through this user-personal field.
+
+Academic Schedule must continue through its dedicated calendar API.
+
+Document the compatibility decision.
+
+---
+
+# 11. STOP NEW PERSONAL DATABASE WRITES
+
+Identify every backend path capable of creating a:
+
+```text
+CalendarEvent
+```
+
+with:
+
+```text
+userId = authenticated user ID
+```
+
+for personal-planner purposes.
+
+Disable/remove those paths.
+
+Requirements:
+
+* academic events remain `userId = null` or current canonical academic semantics;
+* students cannot create user-owned planner events;
+* old sync cannot recreate them.
+
+Do not affect unrelated calendar import behavior.
+
+---
+
+# 12. STOP RETURNING PERSONAL EVENTS IN NORMAL SCHEDULE READS
+
+Target Schedule read behavior:
+
+For a student:
+
+```text
+academic global events
++
+academic events targeted to student's group
+```
+
+NOT:
+
+```text
+legacy user-owned personal planner events
+```
+
+Legacy personal rows may remain stored, but normal Schedule reads must no longer surface them.
+
+Ensure:
+
+* global/group filtering remains correct;
+* owners/admins continue receiving the academic information expected by existing behavior;
+* legacy personal rows do not leak back into the UI.
+
+---
+
+# 13. IMPORTANT — DEFINE ACADEMIC EVENT SEMANTICS CAREFULLY
+
+Based on the current schema/audit:
+
+historically:
+
+```text
+CalendarEvent.userId = null
+```
+
+represents academic/global events.
+
+And:
+
+```text
+CalendarEvent.userId = user.id
+```
+
+represents legacy personal planner events.
+
+Verify this remains true in the current source before coding.
+
+Do not blindly filter by a field if there is another legitimate academic use.
+
+If any academic event can currently have a non-null `userId`:
+
+STOP and document the conflict before applying a destructive filter.
+
+---
+
+# 14. USER SERVICE CLEANUP
+
+Inspect:
+
+```text
+server/services/userService.ts
+```
+
+or current equivalent.
+
+Remove personal planner data from normal user hydration/synchronization.
+
+If functions such as:
+
+```text
+getCalendarEvents
+saveCalendarEvent
+deleteCalendarEvent
+```
+
+are used only for personal planner behavior:
+
+deprecate or remove their use safely.
+
+Do not remove a function still required by academic Schedule paths.
+
+Prefer dedicated academic Calendar services/routes for academic behavior.
+
+---
+
+# 15. FRONTEND — REMOVE STUDENT CREATE UI
+
+Remove or disable all student-facing personal planner creation controls.
+
+This may include:
+
+* add-task button;
+* plus button;
+* create task sheet/modal;
+* task title input;
+* personal event time input;
+* task description;
+* linked Lecture selector;
+* personal event duration controls;
+* personal task save action.
+
+Important:
+
+Do not remove admin/owner academic management controls.
+
+If student and admin controls currently share a component:
+
+split the behavior cleanly or enforce role-aware rendering.
+
+Do not rely on CSS hiding alone.
+
+---
+
+# 16. FRONTEND — REMOVE STUDENT EDIT/DELETE UI
+
+A student must not receive edit/delete controls for Schedule items.
+
+Academic Schedule is read-only for students.
+
+Preserve owner/admin controls according to existing permissions.
+
+Check:
+
+* tap actions;
+* context menus;
+* swipe actions;
+* long press;
+* detail modals;
+* day/week/month event cards;
+* iPhone;
+* iPad;
+* desktop/PWA;
+* Arabic RTL.
+
+---
+
+# 17. FRONTEND — NO PERSONAL EVENT HYDRATION
+
+Inspect the application initialization and calendar hydration.
+
+Legacy personal planner events must not be loaded from:
+
+* auth response;
+* account-scoped local data;
+* IndexedDB;
+* sync response;
+* private D1;
+* socket state.
+
+Only academic Schedule events should populate the Schedule.
+
+---
+
+# 18. LOCAL STORAGE / ACCOUNT DATA
+
+Inspect:
+
+```text
+src/core/storage/accountData.ts
+```
+
+and related keys.
+
+Prompt 2 identified possible legacy key:
+
+```text
+calendar_events
+```
+
+Do NOT blindly delete all cached calendar data because academic offline cache may coexist.
+
+Determine what is stored there.
+
+Target:
+
+* personal planner data must no longer hydrate Schedule;
+* harmless UI preferences can remain:
+
+  * selected date;
+  * current month;
+  * current year;
+  * active calendar view;
+* academic read cache may remain if valid.
+
+If legacy personal events can be safely distinguished:
+
+prune/ignore only those.
+
+If not:
+
+prefer ignoring the old user-personal hydration path rather than risking academic cache deletion.
+
+---
+
+# 19. OFFLINE ENGINE
+
+Inspect:
+
+```text
+src/core/offline/OfflineEngine.ts
+```
+
+Legacy queue types may include:
+
+```text
+ADD_EVENT
+DELETE_EVENT
+```
+
+Determine actual usage.
+
+Target:
+
+* student personal planner mutations must no longer be generated;
+* student personal planner mutations must no longer replay;
+* old queued student planner mutations must not reach PostgreSQL.
+
+Do NOT break:
+
+* lecture progress offline sync;
+* other offline queues;
+* authentication recovery;
+* academic read caching.
+
+---
+
+# 20. OLD OFFLINE QUEUE COMPATIBILITY
+
+An upgraded device may contain old queued personal calendar mutations.
+
+Prompt 7 must safely handle them.
+
+Preferred behavior:
+
+```text
+old personal ADD_EVENT / DELETE_EVENT
+→ recognized as legacy/deprecated
+→ discarded/quarantined locally
+→ never converted into academic event
+→ never sent with admin authority
+```
+
+Do not endlessly retry them.
+
+Do not let them poison the offline queue.
+
+Do not delete unrelated queued mutations.
+
+Document exact behavior.
+
+---
+
+# 21. PRIVATE D1 PERSONAL CALENDAR MIRROR
+
+Prompt 6 preserved legacy private-data support.
+
+Prompt 7 should stop normal application use of the personal-calendar projection.
+
+Target:
+
+* no new personal-calendar outbox entries;
+* no new user-personal reads;
+* no planner hydration from private D1.
+
+However:
+
+# DO NOT DROP THE LEGACY D1 TABLE OR WORKER ENTITY YET.
+
+Reason:
+
+there may be:
+
+* stale production rows;
+* old outbox messages;
+* older app/server compatibility concerns.
+
+Keep legacy Worker handling only as a compatibility/drain path if necessary.
+
+Do not expose it to new application logic.
+
+---
+
+# 22. PENDING LEGACY OUTBOX ROWS
+
+Important:
+
+If existing `PrivateD1SyncOutbox` contains pending:
+
+```text
+UserCalendarEvent
+```
+
+mutations, do not create a stuck queue by removing Worker support prematurely.
+
+Preferred transition:
+
+### Server
+
+Stops generating NEW personal-calendar outbox entries.
+
+### Worker
+
+Temporarily retains ability to consume old pending legacy entries.
+
+### Reads
+
+New application code no longer reads personal calendar projection.
+
+This allows old queued projection jobs to drain without keeping the feature alive.
+
+Document this explicitly.
+
+---
+
+# 23. REALTIME `calendar_updated`
+
+Preserve academic realtime Schedule updates.
+
+Do not delete the event simply because planner behavior is removed.
+
+Target:
+
+```text
+admin/owner academic mutation
+→ canonical academic Schedule write
+→ calendar_updated
+→ appropriate clients update academic Schedule
+```
+
+Remove only personal-planner interpretation/reconciliation.
+
+Students must remain able to receive academic updates.
+
+---
+
+# 24. CALENDAR IMPORT
+
+Do NOT alter calendar import behavior except where required to maintain academic-only semantics.
+
+Preserve:
+
+* import;
+* validation;
+* target groups;
+* conflict checks;
+* academic notifications;
+* current authorization.
+
+The existing two calendar-import TypeScript errors remain baseline unless Prompt 7 directly requires touching those exact lines.
+
+Do not mix unrelated fixes into this prompt.
+
+---
+
+# 25. TARGET GROUPS
+
+Preserve:
+
+```text
+targetGroups
+```
+
+or current equivalent.
+
+A student must see:
+
+* academic events for everyone;
+* academic events targeted to their own group.
+
+A student must not see another group's targeted events.
+
+Prompt 7 must include regression coverage for this.
+
+---
+
+# 26. ADMIN / OWNER BEHAVIOR
+
+After Prompt 7, admin/owner must still be able to perform current academic management.
+
+At minimum verify:
+
+```text
+create academic event
+edit academic event
+delete academic event
+target academic event to groups
+import academic calendar data
+trigger expected realtime update
+```
+
+Do not silently reduce their permissions.
+
+---
+
+# 27. NO FOCUS INTEGRATION YET
+
+Although personal planner is being removed to make way for Focus Hub:
+
+Prompt 7 must NOT:
+
+* create Focus Plan UI;
+* add “Add to Focus” buttons;
+* create Study Queue;
+* integrate AI;
+* migrate planner tasks into Focus Plans.
+
+Focus implementation starts later.
+
+Do not auto-convert old planner data.
+
+---
+
+# 28. NO USER DATA MIGRATION
+
+Do NOT automatically move old personal events to Focus Plans.
+
+The semantic meaning is not guaranteed to be equivalent.
+
+Legacy personal events stay dormant/archived in storage for now.
+
+---
+
+# 29. NO D1 MIGRATION EXPECTED
+
+Expected:
+
+```text
+new private D1 migration: NONE
+```
+
+Prompt 7 does not need to drop or change the legacy personal-calendar table.
+
+Do not modify Prompt 6 projection tables.
+
+---
+
+# 30. NO POSTGRESQL MIGRATION EXPECTED
+
+Expected:
+
+```text
+new Prisma migration: NONE
+```
+
+Do not remove:
+
+```text
+CalendarEvent.userId
+User.calendarEvents
+```
+
+unless required purely at TypeScript relation level—which should not be necessary.
+
+The schema cleanup comes after the compatibility window.
+
+---
+
+# 31. TARGETED SERVER TESTS — MANDATORY
+
+Add tests proving:
+
+### Student mutation
+
+Student cannot create academic Schedule event.
+
+Expected:
+
+```text
+403
+```
+
+or current authorization response.
+
+### Old personal sync
+
+An authenticated student sending:
+
+```json
+{
+  "calendarEvents": [...]
+}
+```
+
+does NOT create/update a personal `CalendarEvent`.
+
+But unrelated valid sync sections still process.
+
+### Student Schedule read
+
+Does not return legacy user-owned personal events.
+
+### Group filtering
+
+Student sees:
+
+* global academic event;
+* event for own student group.
+
+Student does not see:
+
+* another group's academic event;
+* legacy personal planner event.
+
+### Admin/owner mutation
+
+Preserve current authorized behavior.
+
+---
+
+# 32. LEGACY SYNC TEST
+
+Create a specific backwards-compatibility regression test.
+
+Scenario:
+
+1. Simulate old client sync request.
+2. Include a legacy personal planner event.
+3. Include an unrelated legitimate synchronization item.
+4. Process sync.
+5. Verify:
+
+   * no personal Calendar row is created;
+   * unrelated synchronization still succeeds;
+   * response remains parseable by legacy client;
+   * no academic Schedule row is accidentally created.
+
+This is critical.
+
+---
+
+# 33. OFFLINE QUEUE TEST
+
+If OfflineEngine has a testable architecture, add coverage that:
+
+* new student planner ADD_EVENT cannot be queued;
+* old legacy planner mutation does not retry forever;
+* unrelated offline operations remain intact.
+
+If the architecture is difficult to instantiate in Node:
+
+extract the smallest pure classification helper rather than installing a new browser test framework.
+
+---
+
+# 34. FRONTEND TEST / STATIC INVARIANTS
+
+Add suitable tests or static assertions for:
+
+* student personal task creation path removed;
+* no student Add Task control remains;
+* academic view remains;
+* admin/owner academic controls remain wired.
+
+Do not rely only on brittle textual grep if a current frontend test framework can test the relevant logic.
+
+Use the existing test style.
+
+---
+
+# 35. PRIVATE D1 REGRESSION
+
+Run Prompt 6 projection tests:
+
+```bash
+npx tsx --test tests/study-engine-projection.test.ts
+```
+
+Expected:
+
+```text
+5/5 pass
+```
+
+Prompt 7 must not damage private-data Worker behavior.
+
+---
+
+# 36. STUDY ENGINE REGRESSIONS
+
+Run:
+
+```bash
+npx tsx --test tests/study-core-contracts.test.ts
+npx tsx --test tests/study-engine-batch-a-schema.test.ts
+```
+
+Expected:
+
+```text
+6/6
+7/7
+```
+
+No Study Engine foundation changes should be necessary.
+
+---
+
+# 37. AUTH REGRESSION
+
+Run:
+
+```bash
+npm run test:auth
+```
+
+Expected:
+
+```text
+4/4 pass
+```
+
+Do not break role handling or login.
+
+---
+
+# 38. EXISTING CALENDAR TESTS
+
+Discover and run all relevant existing:
+
+* Schedule;
+* calendar;
+* calendar sync;
+* offline calendar;
+* calendar import
+
+tests.
+
+Report exact results.
+
+If no tests exist:
+
+state so and rely on the new targeted regression suite.
+
+---
+
+# 39. TYPECHECK
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Frozen baseline:
+
+```text
+2 existing calendar-import errors
+```
+
+Expected:
+
+```text
+same 2
+0 new errors
+```
+
+If Prompt 7 edits one of the files responsible for those two baseline errors and incidentally resolves them safely:
+
+report that separately.
+
+Do not deliberately broaden scope just to fix them.
+
+---
+
+# 40. LINT
+
+Run:
+
+```bash
+npm run lint
+```
+
+Frozen baseline:
+
+```text
+10 existing errors
+```
+
+Expected:
+
+```text
+no new errors
+```
+
+Also targeted-lint all modified Prompt 7 files.
+
+---
+
+# 41. BUILD
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+This is mandatory.
+
+The app is production-used.
+
+---
+
+# 42. PRISMA VALIDATION
+
+Even though schema should remain unchanged:
+
+```bash
+DATABASE_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+DIRECT_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+npx prisma validate
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 43. NO PRODUCTION MUTATION
+
+Do not:
+
+* deploy;
+* apply Prisma migration;
+* apply D1 migration;
+* write production Supabase;
+* deploy Worker;
+* update production variables.
+
+Prompt 7 modifies repository code only.
+
+---
+
+# 44. MANUAL CODE REVIEW SEARCH
+
+Before finalizing, search repository for remaining personal-planner creation paths.
+
+Search terms should include relevant actual symbols plus concepts such as:
+
+```text
+calendarEvents
+UserCalendarEvent
+ADD_EVENT
+DELETE_EVENT
+handleCreateTaskSubmit
+newTaskTitle
+onAddEvent
+saveCalendarEvent
+linkedLectureId
+isPublic: false
+```
+
+Do not remove legitimate academic references merely because they match a generic term.
+
+Classify each remaining result as:
+
+```text
+ACADEMIC REQUIRED
+LEGACY COMPATIBILITY ONLY
+UNRELATED
+BLOCKER — ACTIVE PERSONAL PLANNER PATH
+```
+
+Final acceptable active personal-planner blocker count:
+
+```text
+0
+```
+
+---
+
+# 45. IMPORTANT APP-STORE OLD CLIENT COMPATIBILITY
+
+Because existing users may temporarily have an older app binary:
+
+the backend must remain authoritative.
+
+Even if the old client still shows a personal task UI:
+
+its attempt must not create a student-owned Schedule record.
+
+The server should fail/ignore that personal feature safely without:
+
+* crashing;
+* corrupting Schedule;
+* turning it into academic event;
+* breaking unrelated sync.
+
+This provides server-side cutoff independent of app update adoption.
+
+---
+
+# 46. UI CLEANUP MUST NOT DAMAGE CALENDAR DESIGN
+
+Preserve existing polished Schedule UI.
+
+Do not redesign:
+
+* Month view;
+* Week view;
+* Day view;
+* transitions;
+* gestures;
+* iPad layout;
+* Arabic layout
+
+unless required solely to remove planner controls.
+
+Prompt 7 is behavior cleanup, not redesign.
+
+---
+
+# 47. EXPECTED FILE AREAS
+
+Likely modifications may include:
+
+```text
+server.ts
+server/services/userService.ts
+
+src/App.tsx
+src/features/calendar/hooks/useCalendar.ts
+src/features/calendar/components/CalendarView.tsx
+
+src/core/offline/OfflineEngine.ts
+src/core/storage/accountData.ts
+
+possibly server/services/privateD1Sync.ts
+possibly server/services/privateD1Read.ts
+
+targeted tests
+```
+
+But use actual discovered paths.
+
+Avoid unrelated files.
+
+---
+
+# 48. PRESERVE PROMPT 6 CLOUDFLARE PROJECTIONS
+
+Do not modify or disable:
+
+```text
+FocusPlan
+FocusSession
+StudyDailyMetric
+```
+
+private D1 projections.
+
+Personal-calendar cleanup is unrelated to the newly added Study Engine projections.
+
+---
+
+# 49. FEATURE FLAGS
+
+All new Study Engine flags remain disabled.
+
+Prompt 7 does not enable:
+
+```text
+FOCUS_HUB_ENABLED
+STUDY_EVENTS_ENABLED
+STUDY_POINTS_ENABLED
+...
+```
+
+Schedule remains existing application functionality, not a Study Engine feature flag.
+
+---
+
+# 50. ACCEPTANCE CRITERIA
+
+Prompt 7 succeeds only if:
+
+1. Student personal planner creation is removed from current UI.
+2. Student personal planner editing is removed.
+3. Student personal planner deletion is removed.
+4. Old clients cannot create personal planner rows through sync.
+5. Old planner payload does not break unrelated sync.
+6. New personal offline mutations are no longer generated.
+7. Old personal offline mutations cannot replay forever/create rows.
+8. Personal planner state is not hydrated from account/local state.
+9. Personal planner state is not returned in normal Schedule reads.
+10. Academic global Schedule still loads.
+11. Group-targeted academic events still load correctly.
+12. Student cannot mutate academic Schedule.
+13. Admin retains existing academic mutation behavior.
+14. Owner retains existing academic mutation behavior.
+15. Calendar import remains intact.
+16. Academic realtime `calendar_updated` remains intact.
+17. No legacy personal data is deleted.
+18. `CalendarEvent` schema remains unchanged.
+19. No Prisma migration is created.
+20. No D1 migration is created.
+21. Legacy D1 personal-calendar compatibility may remain for drain purposes only.
+22. No Study Engine feature is activated.
+23. PDFs unchanged.
+24. Focus projections unchanged.
+25. Auth regression remains green.
+26. Build passes.
+27. No new typecheck/lint failures.
+28. Search finds zero active student personal-planner creation paths.
+
+---
+
+# 51. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return the following report exactly.
+
+## A. Preflight Calendar Architecture
+
+Report actual current:
+
+* student read path;
+* student personal create path;
+* admin/owner academic write path;
+* sync path;
+* offline path;
+* local storage path;
+* private D1 path;
+* realtime path.
+
+## B. Legacy Personal Planner Paths Found
+
+For every path/symbol:
+
+* exact file;
+* exact function/symbol;
+* what it did;
+* whether removed, disabled, retained for compatibility, or unrelated.
+
+## C. Backend Enforcement Changes
+
+Report:
+
+* direct mutation authorization;
+* `/api/auth/sync` behavior;
+* user-service behavior;
+* personal-event read filtering;
+* legacy-client handling.
+
+## D. Old Client Compatibility
+
+Explain exactly what happens if an older iOS/PWA build sends:
+
+```text
+calendarEvents
+```
+
+Confirm unrelated sync still works.
+
+## E. Academic Schedule Preservation
+
+Explicitly verify:
+
+* global events;
+* own-group events;
+* other-group filtering;
+* admin mutation;
+* owner mutation;
+* import;
+* realtime updates.
+
+## F. Frontend Changes
+
+List:
+
+* removed student controls;
+* removed personal task state;
+* removed/hardened callbacks;
+* remaining academic UI.
+
+## G. Offline / Local Storage Changes
+
+Report:
+
+* legacy queue behavior;
+* old queued planner mutation behavior;
+* local planner hydration;
+* preserved academic/read preferences;
+* unrelated offline operations.
+
+## H. Private D1 Legacy Calendar Handling
+
+Report:
+
+* new `UserCalendarEvent` writes allowed? YES/NO
+* new application reads? YES/NO
+* Worker compatibility handler retained? YES/NO
+* reason;
+* existing rows deleted? YES/NO
+* D1 migration created? YES/NO
+
+Expected:
+
+```text
+new writes: NO
+new app reads: NO
+existing rows deleted: NO
+D1 migration: NO
+```
+
+Compatibility handler may remain temporarily if required to drain old outbox rows.
+
+## I. Prisma / Data Verification
+
+Explicitly:
+
+```text
+prisma/schema.prisma modified: YES/NO
+CalendarEvent.userId removed: YES/NO
+legacy personal rows deleted: YES/NO
+PostgreSQL migration created: YES/NO
+```
+
+Expected:
+
+```text
+NO
+NO
+NO
+NO
+```
+
+## J. Tests Added
+
+List exact:
+
+* files;
+* test counts;
+* purpose;
+* results.
+
+## K. Legacy Client Sync Test
+
+Show result for:
+
+```text
+old client personal calendar payload
++
+unrelated valid sync data
+```
+
+Expected:
+
+```text
+personal event persisted: NO
+unrelated sync succeeds: YES
+academic event accidentally created: NO
+```
+
+## L. Role / Schedule Tests
+
+Report student/admin/owner results.
+
+## M. Offline Queue Tests
+
+Report personal and unrelated mutation results.
+
+## N. Existing Regression Tests
+
+Include:
+
+```text
+study core 6/6
+Batch A schema 7/7
+Prompt 6 projection 5/5
+auth 4/4
+calendar-related existing tests
+```
+
+## O. Commands Executed
+
+Exact command, pass/fail, relevant output.
+
+## P. Baseline Comparison
+
+Compare:
+
+```text
+typecheck baseline = 2 errors
+lint baseline = 10 errors
+build baseline = pass
+```
+
+Report:
+
+```text
+NEW FAILURES: <number>
+```
+
+Expected:
+
+```text
+0
+```
+
+## Q. Files Created
+
+Exact paths.
+
+## R. Files Modified
+
+Exact paths and reasons.
+
+## S. Active Planner Path Search
+
+Report all remaining search matches classified as:
+
+```text
+ACADEMIC REQUIRED
+LEGACY COMPATIBILITY ONLY
+UNRELATED
+ACTIVE PERSONAL PLANNER PATH
+```
+
+Expected:
+
+```text
+ACTIVE PERSONAL PLANNER PATH: 0
+```
+
+## T. Forbidden-Change Verification
+
+Confirm no changes to:
+
+* PDF behavior;
+* MCQ behavior;
+* Flashcard behavior;
+* Points behavior;
+* Focus runtime;
+* Prompt 6 projections;
+* Workers AI;
+* Group Focus;
+* navigation unrelated to calendar;
+* authentication semantics.
+
+## U. Production Mutation Verification
+
+Explicitly:
+
+```text
+SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## V. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+Explain automatic Replit checkpoints.
+
+## W. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## X. Risks / Compatibility Notes
+
+Only real issues.
+
+## Y. Architecture Compliance
+
+Answer YES/NO:
+
+* Schedule now academic-only for normal student behavior?
+* Student cannot create planner event?
+* Old clients cannot bypass server?
+* Admin academic behavior preserved?
+* Owner academic behavior preserved?
+* Group targeting preserved?
+* Academic realtime preserved?
+* No personal data deleted?
+* No schema migration?
+* No D1 migration?
+* Prompt 6 projection system intact?
+* No Study Engine feature enabled?
+* Build passes?
+* 0 new regressions?
+
+## Z. Exact Recommended Next Step
+
+State whether repository is safe to proceed to:
+
+**Prompt 8 — Study Event Ingestion Pipeline & Derived Daily Metrics Foundation**
+
+Do not implement Prompt 8.
+
+---
+
+# 52. STOP CONDITION
+
+After implementation and mandatory report:
+
+STOP.
+
+Do NOT:
+
+* implement Focus Hub;
+* implement Study Event ingestion;
+* add Points;
+* add Mastery;
+* deploy;
+* delete legacy personal rows;
+* remove `CalendarEvent.userId`;
+* drop legacy D1 tables.
+
+Wait for review.
+
+End exactly with:
+
+**PROMPT 7 COMPLETE — STUDENT PERSONAL PLANNER DISABLED — ACADEMIC SCHEDULE PRESERVED — READY FOR REVIEW**
