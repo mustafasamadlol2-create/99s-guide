@@ -1,0 +1,1662 @@
+# 99’s GUIDE — PROMPT 4 OF 52
+
+## FOUNDATION MODULE SCAFFOLDING, SHARED STUDY CONTRACTS & SAFE FEATURE-FLAG FOUNDATION
+
+### FIRST IMPLEMENTATION PROMPT
+
+You have completed and approved:
+
+* Prompt 1 — Full Architecture Audit
+* Prompt 2 — Target Architecture Blueprint
+* Prompt 3 — Foundation Contract / Architecture Freeze
+
+Prompt 4 is the **first prompt allowed to modify source code**.
+
+The purpose of this prompt is intentionally narrow:
+
+> Build the modular source-code foundation and shared contracts required by all upcoming Study Engine features, without implementing any actual product feature yet.
+
+This prompt must leave the production application functionally unchanged.
+
+---
+
+# 1. CORE OBJECTIVE
+
+Create a clean, strongly typed, testable foundation for:
+
+* Study Events
+* Focus Hub
+* Group Focus
+* Study Integrity
+* Study Points
+* Gamification
+* Spaced Recall
+* Mastery / Retention
+* Study Analyzer
+* Owner Analytics
+
+The foundation must:
+
+* follow the architecture frozen in Prompt 3;
+* avoid enlarging `server.ts`;
+* avoid enlarging `src/App.tsx`;
+* provide shared contracts so later prompts do not invent incompatible enums/types;
+* create safe server-owned feature flags;
+* keep all new feature flags disabled by default;
+* introduce no database changes;
+* introduce no runtime feature behavior;
+* introduce no routes;
+* introduce no UI;
+* introduce no Cloudflare resources.
+
+---
+
+# 2. NON-NEGOTIABLE ARCHITECTURE
+
+The following decisions are frozen.
+
+## Canonical layer
+
+Supabase PostgreSQL + Prisma remains canonical.
+
+## Runtime layer
+
+Cloudflare will later provide appropriate:
+
+* D1 projections;
+* Workers;
+* Durable Objects;
+* Analytics Engine;
+* KV;
+* R2;
+* Queues;
+* Workers AI.
+
+But Prompt 4 does not provision or deploy any of them.
+
+## Product boundaries
+
+* No student personal Schedule events in the target product.
+* Do NOT remove the legacy planner in Prompt 4.
+* Focus Plans are separate from Schedule.
+* PDFs continue to open externally.
+* AI cannot award Points.
+* AI cannot modify Schedule.
+* AI cannot determine authoritative Mastery.
+* Core analytics must work without Workers AI.
+* `PointsLedgerEntry` will later become the authoritative new points ledger.
+* Existing `PointsLog` remains untouched as a legacy compatibility bridge.
+* D1 will later be a projection/read layer, not the canonical authority.
+
+---
+
+# 3. ABSOLUTELY DO NOT DO IN PROMPT 4
+
+Do NOT:
+
+* edit `prisma/schema.prisma`;
+* create Prisma migrations;
+* run Prisma migrate;
+* create database tables;
+* create D1 schemas;
+* deploy Workers;
+* create Durable Objects;
+* provision KV;
+* provision Queues;
+* modify R2;
+* alter Supabase;
+* change production environment variables;
+* install new dependencies;
+* upgrade dependencies;
+* implement Focus APIs;
+* implement Focus timer logic;
+* implement Points calculation;
+* implement achievements;
+* implement leaderboards;
+* implement Spaced Recall;
+* implement Mastery calculations;
+* implement AI Analyzer;
+* implement Owner Analytics;
+* remove personal Calendar behavior;
+* change Schedule permissions;
+* modify PDF behavior;
+* add Focus UI;
+* add Points UI;
+* add Analyzer UI;
+* change navigation;
+* modify production routes;
+* mount new routes in `server.ts`;
+* modify current API behavior merely to “prepare” it.
+
+Do not fix unrelated baseline failures.
+
+---
+
+# 4. FIRST — INSPECT CURRENT PROJECT CONVENTIONS
+
+Before creating files, inspect:
+
+* current TypeScript module conventions;
+* current path aliases;
+* `tsconfig.json`;
+* Vite aliases;
+* server import conventions;
+* existing Zod usage;
+* existing test runner conventions;
+* existing server folder organization;
+* existing feature folder organization;
+* environment/config parsing patterns;
+* logger conventions;
+* error types;
+* barrel export conventions, if any.
+
+Adapt the exact file locations below if repository conventions require it.
+
+However:
+
+Do not alter the frozen domain boundaries.
+
+---
+
+# 5. CREATE A SHARED STUDY CONTRACT LAYER
+
+Create a single shared source of truth for cross-domain primitives.
+
+Prefer an existing repository shared-contract location if one already exists.
+
+If no suitable location exists, create a small dedicated structure such as:
+
+```text
+server/features/study-core/
+```
+
+or an equivalent structure that cleanly matches the repository.
+
+Do NOT create a new package/workspace.
+
+Do NOT restructure the repository.
+
+The shared foundation should contain small focused modules rather than one huge file.
+
+A suitable shape may be:
+
+```text
+server/features/study-core/
+  constants.ts
+  events.ts
+  evidence.ts
+  privacy.ts
+  featureFlags.ts
+  idempotency.ts
+  projection.ts
+  errors.ts
+  index.ts
+```
+
+Adapt names if repository conventions differ.
+
+---
+
+# 6. STUDY EVENT TYPE CONTRACT
+
+Implement the frozen event type names as strongly typed constants/string unions or enums according to repository conventions.
+
+Initial event types:
+
+## Focus
+
+```text
+focus_session_started
+focus_session_paused
+focus_session_resumed
+focus_session_completed
+focus_session_abandoned
+focus_interruption_recorded
+focus_resource_handoff_started
+focus_resource_handoff_returned
+```
+
+## Learning
+
+```text
+lecture_resource_launched
+lecture_progress_recorded
+lecture_completion_confirmed
+mcq_attempted
+mcq_reviewed
+flashcard_reviewed
+flashcard_progress_updated
+```
+
+## Spaced Recall
+
+```text
+spaced_recall_presented
+spaced_recall_answered
+spaced_recall_skipped
+```
+
+## Group Focus
+
+```text
+group_focus_joined
+group_focus_round_completed
+group_focus_left
+group_focus_summary_completed
+```
+
+## Study Integrity
+
+```text
+study_event_rejected
+study_event_flagged
+study_event_reconciled
+```
+
+Requirements:
+
+* one source of truth;
+* strongly typed;
+* no duplicated literal arrays across domains;
+* easy to serialize;
+* forward-compatible;
+* no database dependency;
+* no Prisma dependency.
+
+---
+
+# 7. STUDY EVENT SOURCE CONTRACT
+
+Implement:
+
+```text
+web
+pwa
+ios
+android
+backend
+durable_object
+offline_replay
+```
+
+as the frozen source set.
+
+Create an exported type.
+
+Do not derive authorization from this client-provided value.
+
+It is classification metadata only.
+
+---
+
+# 8. STUDY EVENT ENVELOPE TYPE
+
+Implement the shared TypeScript contract equivalent to:
+
+```ts
+type StudyEventEnvelope<TPayload = unknown> = {
+  id: string;
+  schemaVersion: number;
+  eventType: StudyEventType;
+
+  userId: string;
+
+  occurredAt: string;
+  receivedAt: string;
+
+  source: StudyEventSource;
+  idempotencyKey: string;
+
+  lectureId?: string;
+  materialId?: string;
+  mcqId?: string;
+  flashcardId?: string;
+  focusSessionId?: string;
+  groupFocusRoomId?: string;
+
+  evidenceClass: EvidenceClass;
+  privacyClass: PrivacyClass;
+
+  payload: TPayload;
+};
+```
+
+Use repository naming conventions where appropriate.
+
+Do NOT implement event persistence.
+
+Do NOT implement ingestion routes.
+
+Do NOT create full runtime validation for every event payload yet.
+
+Prompt 8 will implement ingestion and event-specific validation.
+
+However, basic reusable primitive validation/contracts may be introduced if consistent with current project conventions.
+
+---
+
+# 9. EVENT SCHEMA VERSION
+
+Introduce an explicit initial schema version constant.
+
+Example concept:
+
+```text
+STUDY_EVENT_SCHEMA_VERSION = 1
+```
+
+Do not scatter raw `1` values throughout future code.
+
+Include a short comment explaining:
+
+* version applies to Study Event contract;
+* future incompatible envelope changes require version increment;
+* payload-specific versions may later exist independently.
+
+---
+
+# 10. EVIDENCE CLASS CONTRACT
+
+Implement the frozen evidence classes:
+
+```text
+UNVERIFIED_CLIENT
+CLIENT_OBSERVED
+SERVER_VALIDATED
+SERVER_DERIVED
+REALTIME_VERIFIED
+ADMIN_VERIFIED
+```
+
+The type should allow future code to distinguish trust level.
+
+Also create a small immutable evidence rank/order helper if useful.
+
+Example semantic ordering:
+
+```text
+UNVERIFIED_CLIENT
+<
+CLIENT_OBSERVED
+<
+SERVER_VALIDATED
+<
+SERVER_DERIVED / REALTIME_VERIFIED
+<
+ADMIN_VERIFIED
+```
+
+Do not use the ordering to award Points yet.
+
+Do not implement Study Integrity rules yet.
+
+The purpose is contract reuse only.
+
+---
+
+# 11. PRIVACY CLASS CONTRACT
+
+Implement:
+
+```text
+PUBLIC
+PROFILE_PUBLIC
+PRIVATE_STUDY
+ADMIN_SECURITY
+SYSTEM_INTERNAL
+```
+
+Provide a shared exported type.
+
+If appropriate, add simple helpers such as:
+
+```text
+isPublicStudyRecord(...)
+isSensitiveStudyRecord(...)
+```
+
+Only if they are pure and unambiguous.
+
+Do not implement access-control middleware here.
+
+Existing authorization remains unchanged.
+
+---
+
+# 12. FEATURE FLAG CONTRACT
+
+Implement the frozen server-owned feature flag names:
+
+```text
+STUDY_EVENTS_ENABLED
+FOCUS_HUB_ENABLED
+FOCUS_RESOURCE_HANDOFF_ENABLED
+GROUP_FOCUS_ENABLED
+STUDY_POINTS_ENABLED
+STUDY_INTEGRITY_ENABLED
+GAMIFICATION_ENABLED
+SPACED_RECALL_ENABLED
+MASTERY_ENABLED
+STUDY_ANALYZER_ENABLED
+AI_STUDY_INSIGHTS_ENABLED
+OWNER_STUDY_ANALYTICS_ENABLED
+```
+
+Requirements:
+
+* all default to **false**;
+* server-side configuration is authoritative;
+* frontend exposure cannot enable a server-disabled feature;
+* parsing must be strict and predictable;
+* invalid/missing values resolve safely to disabled;
+* no feature becomes active after this prompt.
+
+If the existing project has a configuration/env helper, integrate with that pattern.
+
+If not, create a small isolated helper.
+
+Do NOT create a parallel giant configuration system.
+
+---
+
+# 13. OPTIONAL `.env.example` DOCUMENTATION
+
+If the repository currently documents feature flags through `.env.example`, add the new variables there with safe disabled examples.
+
+Example:
+
+```text
+STUDY_EVENTS_ENABLED=false
+FOCUS_HUB_ENABLED=false
+...
+```
+
+This is permitted.
+
+Do NOT modify:
+
+* `.env`;
+* production environment variables;
+* secrets;
+* Replit deployment secrets;
+* Render environment variables;
+* Cloudflare secrets.
+
+---
+
+# 14. IDEMPOTENCY CONTRACT TYPES
+
+Create shared types/constants needed by later domains.
+
+Do NOT create database-backed idempotency persistence yet.
+
+Define concepts such as:
+
+```ts
+type IdempotencyScope =
+  | "focus_start"
+  | "focus_completion"
+  | "group_summary"
+  | "mcq_attempt"
+  | "flashcard_review"
+  | "recall_response"
+  | "points_award"
+  | "achievement_award"
+  | "challenge_completion"
+  | "offline_replay";
+```
+
+If repository conventions favor constants + derived union, use that pattern.
+
+Also define a result concept for future use:
+
+```text
+FIRST_SEEN
+REPLAY_SAME_PAYLOAD
+CONFLICTING_PAYLOAD
+```
+
+Do not implement DB checking yet.
+
+---
+
+# 15. PROJECTION METADATA CONTRACT
+
+Future D1 projections need common revision metadata.
+
+Create a reusable type representing concepts such as:
+
+```ts
+type ProjectionMetadata = {
+  canonicalId: string;
+  projectionVersion: number;
+  revision: number | string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  userScope?: string | null;
+  cohortScope?: string | null;
+};
+```
+
+Adapt revision type to repository conventions if the existing outbox already establishes a specific representation.
+
+Do NOT change the existing outbox yet.
+
+Do NOT change D1.
+
+Do NOT create projection tables.
+
+This type will guide Prompt 6.
+
+---
+
+# 16. FOCUS SESSION CONTRACTS
+
+Create contract-only Focus types.
+
+Implement the frozen state names:
+
+```text
+CREATED
+ACTIVE
+PAUSED
+RESOURCE_HANDOFF
+COMPLETED
+ABANDONED
+EXPIRED
+RECONCILIATION_REQUIRED
+```
+
+Define terminal states:
+
+```text
+COMPLETED
+ABANDONED
+EXPIRED
+```
+
+Create the frozen allowed-transition map.
+
+Required transitions:
+
+```text
+CREATED → ACTIVE
+CREATED → ABANDONED
+
+ACTIVE → PAUSED
+ACTIVE → RESOURCE_HANDOFF
+ACTIVE → COMPLETED
+ACTIVE → ABANDONED
+ACTIVE → EXPIRED
+ACTIVE → RECONCILIATION_REQUIRED
+
+PAUSED → ACTIVE
+PAUSED → RESOURCE_HANDOFF
+PAUSED → ABANDONED
+PAUSED → EXPIRED
+PAUSED → RECONCILIATION_REQUIRED
+
+RESOURCE_HANDOFF → ACTIVE
+RESOURCE_HANDOFF → PAUSED
+RESOURCE_HANDOFF → ABANDONED
+RESOURCE_HANDOFF → RECONCILIATION_REQUIRED
+
+RECONCILIATION_REQUIRED → COMPLETED
+RECONCILIATION_REQUIRED → ABANDONED
+RECONCILIATION_REQUIRED → EXPIRED
+```
+
+Create a pure helper:
+
+```text
+canTransitionFocusSession(from, to)
+```
+
+This helper performs only state-contract validation.
+
+It must:
+
+* have no database dependency;
+* have no side effects;
+* have no Point logic;
+* have no timer logic.
+
+Prompt 9 will enforce it in the backend lifecycle.
+
+---
+
+# 17. FOCUS PLAN ITEM CONTRACT
+
+Create a shared TypeScript representation for future per-Lecture settings.
+
+At minimum support:
+
+```text
+lectureId
+sequence
+sessionCount
+focusDurationSeconds
+breakDurationSeconds
+includeMcq
+includeFlashcards
+includeVideo
+```
+
+Do not implement persistence.
+
+Do not implement defaults beyond safe contract-level constants if truly necessary.
+
+The architecture must support different configuration for every Lecture.
+
+Never design one global session count for all selected Lectures.
+
+---
+
+# 18. FOCUS RESOURCE HANDOFF TYPES
+
+Create contract values for resource handoff lifecycle.
+
+Suggested:
+
+```text
+STARTED
+RETURNED
+TIMEOUT
+UNKNOWN
+```
+
+or repository-compatible equivalent.
+
+The contract must represent resource types safely, such as:
+
+* PDF/material;
+* notes;
+* video;
+* other supported academic resource.
+
+Do not claim external consumption.
+
+Include comments documenting that:
+
+* opening does not prove reading;
+* returning does not prove completion;
+* external viewer duration is not verified study time.
+
+Do not alter current PDF opening.
+
+---
+
+# 19. POINT CATEGORY CONTRACT
+
+Create shared Point categories:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+These are category identifiers only.
+
+Do NOT:
+
+* assign values;
+* award Points;
+* modify `PointsLog`;
+* create ledger code;
+* create caps;
+* create rules.
+
+Prompt 20 will implement actual deterministic award logic after the ledger exists.
+
+---
+
+# 20. MASTERY STATE CONTRACT
+
+Implement the frozen Mastery states:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+Do not implement scoring or weights.
+
+Add an explicit type for future confidence representation if useful, but do not invent final Mastery mathematics.
+
+The contract should make it impossible for future AI code to introduce arbitrary new authoritative states.
+
+---
+
+# 21. GROUP FOCUS CONTRACTS
+
+Create contract-only types for future Group Focus.
+
+At minimum:
+
+## Mode
+
+```text
+SHARED_LECTURE
+STUDY_TOGETHER
+```
+
+## Participant role
+
+At minimum:
+
+```text
+HOST
+MEMBER
+```
+
+## Room phase
+
+A reasonable frozen contract:
+
+```text
+LOBBY
+COUNTDOWN
+FOCUS
+BREAK
+PAUSED
+COMPLETED
+CLOSED
+```
+
+If Prompt 3 or repository conventions require an equivalent naming set, use it consistently.
+
+## Room capability claims
+
+Type only:
+
+```text
+userId
+roomId
+role
+expiresAt
+nonce/session identifier
+allowedActions
+```
+
+Do not issue or sign capabilities yet.
+
+Do not create Worker code.
+
+Do not create Durable Objects.
+
+---
+
+# 22. GROUP FOCUS CONFIG DEFAULT CONTRACT
+
+Create configuration constants or typed defaults for the frozen initial recommendations:
+
+```text
+default max room size = 12
+absolute safety ceiling = 25
+reconnect grace period = 90 seconds
+idle timeout = 15 minutes
+maximum room lifetime = 8 hours
+```
+
+Requirements:
+
+* values must be configuration-ready;
+* do not scatter magic numbers;
+* future environment/config overrides should be possible;
+* no runtime Group Focus behavior is activated.
+
+---
+
+# 23. SPACED RECALL CONTRACTS
+
+Create only contract-level types.
+
+Define:
+
+## Content type
+
+```text
+MCQ
+FLASHCARD
+```
+
+## Response type/status
+
+Equivalent to:
+
+```text
+CORRECT
+INCORRECT
+SKIPPED
+```
+
+Do not implement candidate selection.
+
+Do not implement cooldown.
+
+Do not implement presentation endpoints.
+
+Do not award Points.
+
+Document:
+
+* Skip has zero punishment;
+* Recall must not block app use;
+* future selection is retention-aware;
+* any eligible previously studied Lecture may contribute, not only the latest Lecture.
+
+---
+
+# 24. STUDY INTEGRITY CONTRACTS
+
+Create shared classifications only.
+
+At minimum provide concepts for:
+
+## Enforcement result
+
+```text
+ALLOW
+ALLOW_NO_REWARD
+SOFT_FLAG
+HARD_REJECT
+REVIEW_REQUIRED
+```
+
+## Flag severity
+
+Use a small stable set consistent with repository practices, for example:
+
+```text
+LOW
+MEDIUM
+HIGH
+CRITICAL
+```
+
+Do not implement anomaly detection.
+
+Do not automatically ban anyone.
+
+---
+
+# 25. LEADERBOARD PERIOD CONTRACT
+
+Implement:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+Expose:
+
+```text
+DEFAULT_LEADERBOARD_PERIOD = WEEKLY
+```
+
+Do not implement leaderboard calculations.
+
+Do not modify Profile.
+
+---
+
+# 26. SHARED VERSION CONSTANTS
+
+Introduce explicit version constants where appropriate.
+
+Examples:
+
+```text
+STUDY_EVENT_SCHEMA_VERSION
+PROJECTION_CONTRACT_VERSION
+FOCUS_STATE_MACHINE_VERSION
+POINTS_CONTRACT_VERSION
+MASTERY_CONTRACT_VERSION
+```
+
+Do not create unnecessary versions for trivial values.
+
+Versions must be centralized and documented.
+
+---
+
+# 27. DOMAIN MODULE SCAFFOLDING
+
+Create lightweight backend module boundaries for future implementation.
+
+At minimum prepare:
+
+```text
+server/features/study-events/
+server/features/focus/
+server/features/group-focus/
+server/features/study-integrity/
+server/features/points/
+server/features/gamification/
+server/features/spaced-recall/
+server/features/mastery/
+server/features/study-analyzer/
+server/features/owner-analytics/
+```
+
+But:
+
+Do not create dozens of empty meaningless files.
+
+For Prompt 4, each domain may contain only the minimum useful contract/index structure necessary for later prompts.
+
+Prefer:
+
+* meaningful types;
+* barrel exports;
+* contract files;
+
+over placeholder `service.ts` files with no implementation.
+
+Do NOT create routes yet.
+
+Do NOT mount anything.
+
+---
+
+# 28. FRONTEND SCAFFOLDING — KEEP MINIMAL
+
+Do not begin frontend feature implementation.
+
+If shared client-safe contracts can cleanly reuse a shared source without creating bundler problems, prepare that cleanly.
+
+Otherwise:
+
+Do not duplicate backend-only contracts merely to create folders.
+
+Do NOT create:
+
+* Focus views;
+* Focus screens;
+* leaderboard components;
+* Analyzer pages;
+* Recall cards;
+* Group Focus UI.
+
+The main UI work begins much later around Prompt 40.
+
+Prompt 4 should prioritize backend/shared contract correctness.
+
+---
+
+# 29. DO NOT INCREASE `server.ts`
+
+Prompt 4 should ideally make:
+
+**zero changes to `server.ts`.**
+
+If an absolutely necessary import is required merely for configuration integration, explain why before doing it and keep the change minimal.
+
+However, preferred result:
+
+```text
+server.ts unchanged
+```
+
+No routes should be mounted.
+
+---
+
+# 30. DO NOT INCREASE `src/App.tsx`
+
+Prompt 4 must not modify `src/App.tsx`.
+
+There is no product UI to expose yet.
+
+---
+
+# 31. NO PRISMA DEPENDENCY IN CONTRACT LAYER
+
+The new shared contracts must not import future Prisma models that do not yet exist.
+
+They should remain valid before Prompt 5 introduces schema changes.
+
+Do not create fake database types.
+
+Do not modify generated Prisma client.
+
+---
+
+# 32. NO CLOUDFLARE BINDING DEPENDENCY YET
+
+The new shared contracts must not require:
+
+* D1 binding;
+* Durable Object binding;
+* Worker deployment;
+* KV binding;
+* Queue binding.
+
+Prompt 6 handles projection/outbox infrastructure.
+
+Group Focus Worker work begins later.
+
+---
+
+# 33. ERROR CONTRACT
+
+If useful, add a small domain error-code contract for future Study Engine operations.
+
+Examples:
+
+```text
+FEATURE_DISABLED
+INVALID_STATE_TRANSITION
+IDEMPOTENCY_CONFLICT
+OWNERSHIP_MISMATCH
+UNSUPPORTED_EVENT
+INVALID_EVIDENCE
+INTEGRITY_REJECTED
+```
+
+Do not replace existing global error handling.
+
+Do not expose internal security details to clients.
+
+---
+
+# 34. KEEP CONTRACTS SMALL AND SERIALIZABLE
+
+Avoid:
+
+* classes with hidden mutable state;
+* complex inheritance;
+* decorators;
+* runtime framework coupling;
+* Prisma coupling;
+* Express coupling;
+* React coupling.
+
+Prefer:
+
+* string literal unions;
+* `as const` maps;
+* interfaces/types;
+* small pure helpers;
+* Zod only where repository convention clearly benefits from it.
+
+---
+
+# 35. UNIT TESTS — MANDATORY
+
+Add targeted tests for the new contract layer.
+
+At minimum test:
+
+### Event contract
+
+* every frozen event name is present;
+* no accidental duplicate event value;
+* event sources are stable.
+
+### Focus state machine
+
+* allowed transitions return true;
+* invalid transitions return false;
+* terminal states cannot transition to active states.
+
+### Feature flags
+
+* missing value = false;
+* `false` = false;
+* valid explicit enabled representation according to project convention = true;
+* malformed value = false;
+* no flag defaults true.
+
+### Evidence classes
+
+* all frozen evidence classes exist;
+* optional ranking/helper behavior is stable.
+
+### Privacy classes
+
+* frozen values exist.
+
+### Leaderboard
+
+* default period = Weekly.
+
+### Group configuration
+
+* defaults are represented centrally;
+* absolute ceiling is not less than default room size.
+
+Do not test implementation that does not exist yet.
+
+---
+
+# 36. STATIC INVARIANT TESTS
+
+Add tests/assertions for critical architecture invariants where reasonable:
+
+* `FOCUS_HUB_ENABLED` default is false.
+* `STUDY_POINTS_ENABLED` default is false.
+* `AI_STUDY_INSIGHTS_ENABLED` default is false.
+* Focus state `COMPLETED` is terminal.
+* `SKIPPED` Recall exists.
+* Point categories do not include arbitrary `AI`.
+* Mastery states are deterministic fixed identifiers.
+* Weekly is the default leaderboard period.
+
+Do not create brittle tests against file layout alone.
+
+---
+
+# 37. COMMENTS / DOCUMENTATION
+
+Keep comments concise.
+
+Document architecture-sensitive rules directly beside the appropriate contract, especially:
+
+* AI cannot award Points.
+* D1 is not canonical authority.
+* PDF handoff does not prove reading.
+* Recall Skip has no punishment.
+* Focus timer must eventually use server timestamps.
+* feature flags are disabled by default.
+
+Do not paste the entire Prompt 3 into comments.
+
+---
+
+# 38. EXISTING BASELINE FAILURES
+
+The frozen baseline from Prompt 1 / Prompt 3 is:
+
+```text
+npm run typecheck:
+2 pre-existing calendar-import TypeScript errors
+
+npm run lint:
+10 pre-existing lint errors
+
+npm run test:auth:
+4/4 pass
+
+npm run test:ai:
+13/13 pass
+
+npm run test:ai-input:
+3/16 fail
+
+npm run test:ai-mcq:
+6/28 fail
+
+npm run test:ai-flashcard:
+4/22 fail
+
+npm run test:ai-media:
+1/18 fail
+```
+
+These failures existed before Prompt 4.
+
+Do not fix them unless your new code directly causes an interaction that requires correction.
+
+Most importantly:
+
+# DO NOT INTRODUCE ANY NEW FAILURE.
+
+---
+
+# 39. REQUIRED VALIDATION
+
+After implementation, run the relevant validation.
+
+At minimum:
+
+### 1. New targeted tests
+
+Run the new Study Core / foundation contract tests.
+
+Expected:
+
+```text
+ALL NEW TESTS PASS
+```
+
+### 2. TypeScript
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Compare against frozen baseline.
+
+Expected:
+
+* existing two calendar-import errors may remain;
+* zero new errors from Prompt 4 files.
+
+### 3. Lint
+
+Run:
+
+```bash
+npm run lint
+```
+
+Compare against frozen baseline.
+
+Expected:
+
+* existing baseline errors may remain;
+* no new lint error from Prompt 4.
+
+If global lint output is difficult to compare, also lint the newly created files directly using the repository's existing ESLint tooling.
+
+### 4. Authentication smoke regression
+
+Run:
+
+```bash
+npm run test:auth
+```
+
+Expected baseline:
+
+```text
+4/4 pass
+```
+
+### 5. Production build
+
+Run:
+
+```bash
+npm run build
+```
+
+If build has a known unrelated baseline failure, document it precisely.
+
+Do not hide it.
+
+### 6. Prisma safety
+
+Run:
+
+```bash
+npx prisma validate
+```
+
+Expected:
+
+* schema remains unchanged;
+* validation behavior is the same as baseline.
+
+Do NOT generate or apply migrations.
+
+### 7. Git diff
+
+Run:
+
+```bash
+git status --short
+git diff --stat
+git diff
+```
+
+Review every changed file.
+
+There must be no accidental changes.
+
+---
+
+# 40. VERIFY FORBIDDEN AREAS ARE UNCHANGED
+
+Explicitly verify:
+
+```text
+prisma/schema.prisma
+server.ts
+src/App.tsx
+```
+
+Expected:
+
+* `prisma/schema.prisma` unchanged;
+* `server.ts` unchanged unless an unavoidable tiny config integration was explicitly justified;
+* `src/App.tsx` unchanged.
+
+Also verify no changes to:
+
+* Calendar/Schedule behavior;
+* PDF behavior;
+* authentication behavior;
+* MCQ behavior;
+* Flashcard behavior;
+* OAuth;
+* existing Socket.IO;
+* R2 behavior;
+* existing D1 schema.
+
+---
+
+# 41. FEATURE FLAGS MUST REMAIN OFF
+
+After Prompt 4:
+
+```text
+STUDY_EVENTS_ENABLED = false by default
+FOCUS_HUB_ENABLED = false by default
+FOCUS_RESOURCE_HANDOFF_ENABLED = false by default
+GROUP_FOCUS_ENABLED = false by default
+STUDY_POINTS_ENABLED = false by default
+STUDY_INTEGRITY_ENABLED = false by default
+GAMIFICATION_ENABLED = false by default
+SPACED_RECALL_ENABLED = false by default
+MASTERY_ENABLED = false by default
+STUDY_ANALYZER_ENABLED = false by default
+AI_STUDY_INSIGHTS_ENABLED = false by default
+OWNER_STUDY_ANALYTICS_ENABLED = false by default
+```
+
+No new user-facing behavior should appear.
+
+---
+
+# 42. NO EMPTY ARCHITECTURAL CEREMONY
+
+Do not create 50 placeholder files simply because future prompts exist.
+
+A good Prompt 4 implementation should contain:
+
+* stable reusable contracts;
+* small pure helpers;
+* safe feature flag plumbing;
+* domain boundaries;
+* targeted tests.
+
+It should NOT contain:
+
+* empty services;
+* empty repositories;
+* TODO-heavy files;
+* fake implementations;
+* dead routes.
+
+---
+
+# 43. ACCEPTANCE CRITERIA
+
+Prompt 4 succeeds only if all of the following are true:
+
+1. Shared Study Engine contracts exist.
+2. Study Event names are frozen in code.
+3. Study Event sources are frozen in code.
+4. Evidence classes are frozen.
+5. Privacy classes are frozen.
+6. Focus states and transition map are frozen.
+7. Focus Plan item configuration type exists.
+8. Point categories exist with no values assigned.
+9. Mastery states exist.
+10. Group Focus basic contracts exist.
+11. Recall contracts exist.
+12. Integrity enforcement classifications exist.
+13. Leaderboard periods exist.
+14. Feature flags exist and all default OFF.
+15. Idempotency contract types exist.
+16. Projection metadata contract exists.
+17. No database schema changed.
+18. No migration created.
+19. No production resource changed.
+20. No route added.
+21. No UI added.
+22. No Schedule behavior changed.
+23. No PDF behavior changed.
+24. No Points awarded.
+25. No AI behavior changed.
+26. No baseline failure count increased.
+27. All newly added targeted tests pass.
+
+---
+
+# 44. EXPECTED FILE CHANGES
+
+The exact paths may differ according to repository conventions, but the result should be roughly limited to:
+
+```text
+server/features/study-core/*
+server/features/focus/* contract-only files
+server/features/group-focus/* contract-only files
+server/features/study-integrity/* contract-only files
+server/features/points/* contract-only files
+server/features/gamification/* contract-only files
+server/features/spaced-recall/* contract-only files
+server/features/mastery/* contract-only files
+
+targeted tests/*
+.env.example              optional, documentation only
+```
+
+Do not edit unrelated features.
+
+---
+
+# 45. MANDATORY FINAL IMPLEMENTATION REPORT — PROMPT 4
+
+After completing all code changes and validation, return a comprehensive final implementation report.
+
+This report is **mandatory and non-optional**.
+
+Do not end the response without it.
+
+Use this exact structure:
+
+## A. Implementation Summary
+
+Explain exactly what Prompt 4 implemented.
+
+## B. Files Created
+
+For every new file:
+
+* exact path;
+* purpose;
+* important exports.
+
+## C. Files Modified
+
+For every modified existing file:
+
+* exact path;
+* exact reason;
+* behavioral impact.
+
+Explicitly state whether these remained unchanged:
+
+* `prisma/schema.prisma`
+* `server.ts`
+* `src/App.tsx`
+
+## D. Shared Contracts Implemented
+
+Report the exact implemented values for:
+
+* Study Event types;
+* Study Event sources;
+* Evidence classes;
+* Privacy classes;
+* Feature flags;
+* Idempotency scopes/results;
+* Projection metadata;
+* Focus states;
+* Focus transitions;
+* Point categories;
+* Mastery states;
+* Group Focus modes/roles/phases;
+* Recall types/results;
+* Integrity decisions;
+* Leaderboard periods.
+
+## E. Feature Flag Verification
+
+For every new flag report:
+
+* default;
+* parsing behavior;
+* whether it is used anywhere yet.
+
+Expected:
+
+**all disabled.**
+
+## F. Tests Added
+
+For every new test file:
+
+* exact path;
+* number of tests;
+* what it verifies.
+
+## G. Commands Executed
+
+For every command:
+
+* exact command;
+* pass/fail;
+* important output;
+* duration if readily available.
+
+## H. Baseline Comparison
+
+Explicitly compare:
+
+```text
+typecheck
+lint
+test:auth
+build
+prisma validate
+```
+
+against the frozen pre-Prompt-4 baseline.
+
+Clearly state:
+
+* pre-existing failures;
+* new failures;
+* whether Prompt 4 increased any failure count.
+
+Expected:
+
+**0 NEW FAILURES**
+
+## I. Forbidden-Change Verification
+
+Confirm whether Prompt 4 changed any of:
+
+* Prisma schema;
+* migrations;
+* Supabase;
+* D1 schema;
+* Workers;
+* Durable Objects;
+* KV;
+* R2;
+* Queues;
+* production env;
+* Schedule behavior;
+* PDF behavior;
+* auth;
+* MCQ;
+* Flashcards;
+* existing Points behavior;
+* navigation/UI.
+
+Expected:
+
+**NONE**
+
+## J. Git Diff Summary
+
+Include:
+
+* `git status --short`;
+* diff stat;
+* list of all changed paths.
+
+Identify any unexpected path.
+
+## K. Deviations
+
+If anything differs from this prompt:
+
+* exact deviation;
+* reason;
+* impact.
+
+Do not hide deviations.
+
+## L. Blockers / Risks
+
+List any blockers or technical concerns discovered.
+
+Do not invent blockers.
+
+## M. Architecture Compliance Check
+
+Explicitly answer YES/NO:
+
+* PostgreSQL remains canonical?
+* D1 still non-authoritative?
+* No Prisma dependency in shared contracts?
+* No new runtime feature enabled?
+* No new routes?
+* No UI?
+* No Schedule modification?
+* No PDF modification?
+* No AI point authority?
+* No baseline regression?
+
+## N. Exact Recommended Next Step
+
+State whether the repository is safe to proceed to:
+
+**Prompt 5 — Canonical Prisma Schema, Additive Batch A: Focus + Study Events**
+
+Do not implement Prompt 5.
+
+---
+
+# 46. STOP CONDITION
+
+After implementation, tests, diff review, and mandatory report:
+
+STOP.
+
+Do NOT begin Prompt 5.
+
+Do NOT edit Prisma.
+
+Do NOT create migrations.
+
+Do NOT create D1 schemas.
+
+Do NOT implement Focus lifecycle.
+
+Do NOT modify Schedule.
+
+Do NOT create UI.
+
+Wait for review.
+
+End the entire response with exactly:
+
+**PROMPT 4 COMPLETE — FOUNDATION CONTRACTS IMPLEMENTED — READY FOR REVIEW**
