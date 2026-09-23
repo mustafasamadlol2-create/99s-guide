@@ -1,0 +1,1763 @@
+# 99’s GUIDE — PHASE 1 / PROMPT 2 OF 52
+
+## TARGET ARCHITECTURE, CANONICAL SUPABASE MODEL & CLOUDFLARE RUNTIME BLUEPRINT
+
+### DESIGN / MAPPING ONLY — DO NOT IMPLEMENT FEATURES YET
+
+You have already completed **Phase 1 / Prompt 1 — Full Architecture, Database, Cloudflare & Integration Audit**.
+
+Use the actual repository evidence and the Prompt 1 audit as the source of truth.
+
+This prompt exists to convert that audit into the **exact target architecture and implementation contract** for the upcoming:
+
+* Focus Hub
+* Group Focus
+* Study Points
+* Levels
+* Achievements
+* Leaderboards
+* Challenges
+* Spaced Recall
+* Mastery / Retention Analytics
+* AI Analyzer
+* Owner Analytics
+
+This is still an architecture/planning prompt.
+
+# DO NOT IMPLEMENT THE FEATURES YET.
+
+Do not begin Focus Hub UI.
+
+Do not begin Points.
+
+Do not begin AI Analyzer.
+
+Do not create Group Focus.
+
+Do not create new production Cloudflare resources.
+
+Do not deploy anything.
+
+---
+
+# 1. CRITICAL ARCHITECTURAL CORRECTION
+
+The following architecture is mandatory.
+
+The future systems must NOT become a completely separate Cloudflare-only application database.
+
+## Canonical data model
+
+The existing:
+
+**Supabase PostgreSQL + Prisma**
+
+remains the canonical relational database.
+
+New feature entities must be represented cleanly in the existing Prisma/PostgreSQL relational model when durable authoritative state is required.
+
+This means future feature tables/models such as Focus, Points, Achievements, Mastery, Recall, etc. will ultimately have canonical relational representation in PostgreSQL/Supabase.
+
+However:
+
+# NORMAL HIGH-FREQUENCY RUNTIME ACCESS SHOULD AVOID HITTING SUPABASE DIRECTLY WHENEVER PRACTICAL.
+
+The intended architecture is:
+
+```text
+Canonical Supabase/PostgreSQL
+        │
+        │ authoritative write / durable relationship
+        │
+        ▼
+Cloudflare synchronization / projection layer
+        │
+        ├── D1
+        ├── KV
+        ├── Analytics Engine
+        ├── Durable Objects
+        ├── R2
+        ├── Queues
+        └── Workers
+        │
+        ▼
+High-frequency application runtime
+```
+
+Do NOT interpret this as:
+
+```text
+Supabase abandoned
+```
+
+and do NOT interpret it as:
+
+```text
+Every click reads/writes Supabase.
+```
+
+The goal is:
+
+**Supabase = canonical durable relational truth.**
+
+**Cloudflare = operational/runtime/cache/realtime/analytics layer wherever technically appropriate.**
+
+---
+
+# 2. EXISTING MIRROR ARCHITECTURE MUST BE REUSED
+
+Prompt 1 confirmed existing architecture including:
+
+* content Worker;
+* private-data Worker;
+* D1 mirrors;
+* R2;
+* private D1 reads;
+* PostgreSQL fallback;
+* `PrivateD1SyncOutbox`;
+* retry/backoff;
+* revision-aware mirror synchronization;
+* feature flags.
+
+Future work must prefer extending these existing patterns instead of inventing an unrelated synchronization system.
+
+Determine exactly:
+
+* which current abstraction should be extended;
+* which should remain untouched;
+* which parts need modularization before adding the new systems.
+
+Do not implement yet.
+
+---
+
+# 3. HARD PRODUCT RULE — SCHEDULE IS ACADEMIC ONLY
+
+Prompt 1 discovered an important mismatch with the intended product.
+
+Current repository behavior includes:
+
+* global academic Schedule events;
+* group-targeted Schedule events;
+* personal planner events;
+* offline/sync support for personal calendar events.
+
+The future required product behavior is different.
+
+## FINAL PRODUCT REQUIREMENT
+
+The Schedule must be:
+
+**Academic Schedule only.**
+
+Students must NOT have any personal Schedule/planner functionality.
+
+Students must never be able to:
+
+* add Schedule events;
+* create personal calendar tasks;
+* create personal planner events;
+* edit Schedule events;
+* delete Schedule events;
+* sync personal Schedule events;
+* queue personal calendar events offline;
+* allow AI to insert Schedule events;
+* allow Focus Hub to insert Schedule events;
+* allow Challenges to insert Schedule events.
+
+Only authorized academic management roles may mutate academic Schedule content according to the final RBAC decision.
+
+At present, existing backend REST academic mutation routes accept `admin` and `owner`.
+
+Do NOT change those permissions in this prompt.
+
+Instead:
+
+identify every existing personal-planner path that must later be removed or disabled.
+
+At minimum trace:
+
+* frontend creation;
+* frontend local state;
+* IndexedDB/offline queue;
+* sync APIs;
+* backend sync logic;
+* Prisma usage;
+* D1/private mirror;
+* Socket events;
+* any UI controls;
+* any local-storage state.
+
+Create an exact **Schedule Personal Planner Removal Map**.
+
+Do NOT remove anything yet.
+
+---
+
+# 4. HARD PRODUCT RULE — PDF BEHAVIOR
+
+PDF files must continue opening through the existing external/native/system viewer architecture.
+
+Do NOT design an embedded PDF reader.
+
+Future Focus Hub must be able to intentionally launch a PDF resource.
+
+That event should eventually be distinguishable from ordinary app switching.
+
+But the system must never claim to know:
+
+* pages actually read;
+* percentage read;
+* reading completion;
+* exact reading duration inside external viewer.
+
+The only verified facts may include:
+
+* user intentionally launched resource;
+* which material was launched;
+* from which lecture;
+* whether it was launched during a Focus Session;
+* when the app moved to background;
+* when the app returned.
+
+Design the future event semantics accordingly.
+
+---
+
+# 5. TARGET SYSTEM DOMAINS
+
+Design the future architecture into clear bounded modules.
+
+At minimum create target domains for:
+
+## A. Focus
+
+Responsibilities:
+
+* Focus Plan
+* Study Queue
+* lecture selections
+* session configurations
+* break configurations
+* session lifecycle
+* pause/resume
+* completion
+* interruptions
+* study-resource handoff
+* quick notes
+* daily summaries
+
+## B. Group Focus
+
+Responsibilities:
+
+* room definition
+* invitation
+* authorization
+* participants
+* presence
+* synchronized timer
+* rounds
+* break state
+* reconnect
+* group summary
+* social-study verification
+
+## C. Study Events
+
+Responsibilities:
+
+* normalized learning events
+* deduplication
+* schema version
+* source
+* timestamp
+* user ID
+* lecture/resource linkage
+* deterministic ingestion
+
+## D. Points
+
+Responsibilities:
+
+* rules
+* scoring
+* authoritative ledger
+* point balance
+* categories
+* caps
+* diminishing returns
+* rule versions
+* reversals
+* audit
+
+## E. Anti-Cheat
+
+Responsibilities:
+
+* duplicate/replay detection
+* unrealistic Focus behavior
+* MCQ spam
+* Flashcard spam
+* Group Focus abuse
+* impossible activity
+* suspicious flags
+* review workflow
+
+## F. Gamification
+
+Responsibilities:
+
+* levels
+* XP
+* achievements
+* achievement progress
+* showcase
+* cosmetic rewards
+* seasons
+* leaderboards
+* challenges
+
+## G. Spaced Recall
+
+Responsibilities:
+
+* candidate selection
+* prior-lecture eligibility
+* MCQ recall
+* Flashcard recall
+* Skip
+* answer result
+* cooldown
+* repeated-item suppression
+* retention signal
+
+## H. Mastery / Retention
+
+Responsibilities:
+
+* lecture mastery
+* topic/subject aggregation
+* MCQ performance
+* repeated mistakes
+* Flashcard retention
+* Spaced Recall signals
+* Focus statistics
+* time-based decay/trends
+* confidence thresholds
+
+## I. AI Analyzer
+
+Responsibilities:
+
+* explain deterministic facts
+* weekly/monthly summary text
+* Ask My Study Data
+* Focus Plan suggestions
+* strengths/weaknesses explanation
+* no point authority
+* no Schedule mutation
+* no fabricated facts
+* deterministic fallback
+
+## J. Owner Analytics
+
+Responsibilities:
+
+* aggregated academic difficulty
+* lecture performance
+* question failure patterns
+* content gaps
+* Focus usage aggregates
+* Group Focus aggregates
+* retention aggregates
+* anti-cheat/admin visibility
+
+---
+
+# 6. CANONICAL POSTGRESQL MODEL PLAN
+
+Using the actual existing Prisma schema, propose the exact future canonical relational models.
+
+Do NOT create them yet.
+
+The design must reuse existing models wherever valid.
+
+Avoid duplicating:
+
+* User
+* Lecture
+* Material
+* Mcq
+* Flashcard
+* existing progress tables
+* existing PointsLog if it can be safely evolved.
+
+For each proposed model specify:
+
+* model name;
+* purpose;
+* canonical primary key;
+* important fields;
+* foreign keys;
+* unique constraints;
+* indexes;
+* relationships to existing models;
+* expected write frequency;
+* expected read frequency;
+* whether it needs Cloudflare mirroring;
+* whether it contains sensitive/private data.
+
+Consider models such as, but do not blindly create:
+
+```text
+FocusPlan
+FocusPlanItem
+FocusSession
+FocusSessionInterruption
+FocusQuickNote
+
+StudyEvent
+StudyDailyMetric
+
+GroupFocusRoom
+GroupFocusMembership
+GroupFocusSessionSummary
+
+PointsLedger / evolved PointsLog
+PointsRule
+PointsBalance / derived balance
+
+Achievement
+UserAchievement
+AchievementProgress
+
+StudyLevel / LevelDefinition
+
+LeaderboardSeason
+LeaderboardSnapshot
+
+StudyChallenge
+UserChallenge
+
+SpacedRecallAttempt
+SpacedRecallState
+
+LectureMastery
+SubjectMastery
+RetentionMetric
+
+AIStudyInsight
+AIStudyConversation / minimal metadata if needed
+```
+
+The names above are examples.
+
+You must decide names based on actual repository conventions.
+
+---
+
+# 7. IMPORTANT — AVOID EVENT TABLE EXPLOSION
+
+Do NOT propose storing every timer tick, every screen render, every mouse movement, every second of activity, or every trivial event in PostgreSQL.
+
+Separate:
+
+### Durable authoritative relational state
+
+from:
+
+### High-volume analytics telemetry
+
+A Focus timer should NOT write to PostgreSQL every second.
+
+A 45-minute Focus Session should not generate 2,700 PostgreSQL writes.
+
+Design a lifecycle such as:
+
+```text
+session start
+meaningful state changes
+session completion / abandonment
+aggregated result
+```
+
+Use Cloudflare/local runtime state between durable checkpoints.
+
+---
+
+# 8. CLOUDFLARE SERVICE ROUTING
+
+For each future data type, decide which Cloudflare service should be used.
+
+Available architecture may include:
+
+* D1
+* KV
+* R2
+* Durable Objects
+* Analytics Engine
+* Queues
+* Workers
+* Cache API
+
+Do NOT use a service just because it exists.
+
+Provide reasoning.
+
+---
+
+# 9. D1 ROLE
+
+D1 should primarily serve as:
+
+* operational read model;
+* user-scoped runtime mirror;
+* fast feature-state access where appropriate;
+* derived projection;
+* leaderboard/read projection;
+* selected analytics summaries.
+
+D1 must reference canonical PostgreSQL IDs.
+
+Determine:
+
+* which proposed PostgreSQL tables require D1 mirrors;
+* which do not;
+* how their D1 schemas should differ from canonical relational schemas if needed;
+* how current private-data Worker patterns can be extended.
+
+---
+
+# 10. DURABLE OBJECT ROLE
+
+Evaluate Durable Objects for Group Focus.
+
+Design conceptually:
+
+```text
+one active room
+→ one Durable Object identity
+→ authoritative ephemeral realtime room state
+```
+
+Potential ephemeral state:
+
+* connected participants;
+* host;
+* current round;
+* current phase;
+* startsAt;
+* endsAt;
+* paused state;
+* reconnection metadata.
+
+Do NOT put permanent academic/user identity in the Durable Object as a second authority.
+
+Durable Objects should coordinate active rooms.
+
+Completed summaries should eventually reach durable canonical storage.
+
+Determine:
+
+* auth flow;
+* reconnect behavior;
+* stale room cleanup;
+* room restart/recovery;
+* maximum reasonable participant count;
+* future multi-region considerations;
+* relationship to existing Socket.IO.
+
+---
+
+# 11. SOCKET.IO VS DURABLE OBJECTS
+
+Prompt 1 confirmed current authenticated Socket.IO infrastructure but no cross-instance adapter.
+
+Do a formal architecture comparison for future Group Focus:
+
+### Option A
+
+Reuse Render Socket.IO.
+
+### Option B
+
+Use Cloudflare Durable Objects + WebSockets.
+
+### Option C
+
+Hybrid architecture.
+
+Evaluate:
+
+* scalability;
+* authentication;
+* latency;
+* cost/free-tier suitability;
+* backend coupling;
+* reconnection;
+* room synchronization;
+* multi-instance behavior;
+* implementation complexity.
+
+Provide the recommended architecture.
+
+Do not implement it.
+
+---
+
+# 12. ANALYTICS ENGINE ROLE
+
+Determine which high-frequency study signals belong in Analytics Engine instead of PostgreSQL/D1.
+
+Possible examples:
+
+* Focus completion telemetry;
+* session length buckets;
+* interruption aggregates;
+* Group Focus aggregate usage;
+* feature adoption;
+* performance distributions.
+
+Do NOT store privacy-sensitive full learning history there unnecessarily.
+
+Clearly distinguish:
+
+* product telemetry;
+* learning state;
+* canonical educational history.
+
+---
+
+# 13. KV ROLE
+
+Use KV only for suitable eventually-consistent data.
+
+Possible examples:
+
+* non-authoritative leaderboard cache;
+* static rule configuration cache;
+* AI insight cache;
+* feature configuration;
+* cosmetic metadata cache.
+
+Do NOT use KV as authoritative storage for:
+
+* point balance;
+* point ledger;
+* mastery;
+* user permissions;
+* group membership authorization.
+
+---
+
+# 14. R2 ROLE
+
+Use R2 for binary/object data.
+
+Existing R2 use must remain intact.
+
+Future possible use:
+
+* bundled ambient audio;
+* optional cloud-synced custom user audio if later approved;
+* exports;
+* generated reports if needed.
+
+The preferred initial design for personal music remains:
+
+**local-device first.**
+
+Do not upload user music by default.
+
+---
+
+# 15. QUEUES / OUTBOX
+
+The repository already contains a PostgreSQL → private D1 outbox/retry model.
+
+Determine whether the future architecture should:
+
+* extend `PrivateD1SyncOutbox`;
+* introduce domain-specific mutation types;
+* use Cloudflare Queues for any downstream non-critical aggregation;
+* preserve PostgreSQL transaction + outbox atomicity.
+
+Avoid an architecture where:
+
+1. PostgreSQL commit succeeds;
+2. D1 write fails;
+3. application silently loses synchronization.
+
+The system must tolerate temporary Cloudflare failures.
+
+---
+
+# 16. READ PATH CONTRACT
+
+Define target read behavior.
+
+Example pattern:
+
+```text
+Client
+  ↓
+Application API / Worker
+  ↓
+Cloudflare read model
+  ↓
+if valid/fresh → return
+  ↓
+if unavailable/stale/error
+  ↓
+canonical PostgreSQL fallback
+```
+
+But do not blindly require fallback for every endpoint.
+
+For each future system decide:
+
+* normal read source;
+* canonical source;
+* acceptable staleness;
+* fallback source;
+* cache TTL;
+* privacy requirements.
+
+---
+
+# 17. WRITE PATH CONTRACT
+
+Define target write behavior.
+
+For authoritative mutations, prefer:
+
+```text
+Authenticated request
+        ↓
+Backend validation
+        ↓
+Authorization
+        ↓
+PostgreSQL transaction
+        ↓
+canonical write
+        +
+outbox mutation
+        ↓
+response
+        ↓
+async/near-async mirror update
+```
+
+Where appropriate.
+
+For ephemeral realtime state, e.g. current Group Focus timer, the flow may differ.
+
+Design exact categories:
+
+* canonical writes;
+* ephemeral writes;
+* telemetry writes;
+* cache writes.
+
+---
+
+# 18. FOCUS HUB DATA FLOW
+
+Design exact future data flow for:
+
+### Creating a Focus Plan
+
+User selects:
+
+* Lecture A
+* Lecture B
+* Lecture C
+
+Each may have:
+
+* different number of sessions;
+* different duration;
+* different break;
+* optional MCQ;
+* optional Flashcards;
+* optional video.
+
+The plan belongs only to Focus Hub.
+
+It does NOT modify Schedule.
+
+### Starting a session
+
+Define:
+
+* canonical state;
+* active local state;
+* Cloudflare state;
+* durable checkpoints.
+
+### Background
+
+Design timestamp-based timer recovery.
+
+Do NOT require server write every second.
+
+### Pause
+
+Define meaningful persistent state transition.
+
+### App termination
+
+Define recovery.
+
+### Session completion
+
+Define verified durable event.
+
+### Lecture completion
+
+Must only occur after explicit student confirmation.
+
+Timer completion alone must not automatically mark the Lecture complete.
+
+---
+
+# 19. PDF HANDOFF EVENT DESIGN
+
+Define future event states such as:
+
+```text
+focus_resource_handoff_started
+focus_resource_handoff_returned
+```
+
+or equivalent.
+
+The event must distinguish intentional resource launch from possible distraction.
+
+Do not claim reading success.
+
+Design what information may safely be recorded.
+
+---
+
+# 20. INTERRUPTION DESIGN
+
+Design interruption classification.
+
+Possible states:
+
+* intentional resource handoff;
+* manual pause;
+* backgrounded;
+* temporary app switch;
+* app terminated;
+* network loss;
+* unknown interruption.
+
+Do NOT automatically punish every interruption.
+
+Points rules should later use conservative evidence.
+
+---
+
+# 21. SPACED RECALL DATA DESIGN
+
+The system must occasionally display an MCQ or Flashcard from previously studied Lectures.
+
+Requirements:
+
+* not every launch;
+* not only latest Lecture;
+* no punishment for Skip;
+* very small verified reward for participation;
+* correct/incorrect response feeds Retention;
+* repeated-item cooldown;
+* prioritize useful recall;
+* no predictable farming loop.
+
+Design:
+
+* eligibility;
+* minimum lecture-study evidence;
+* candidate pool;
+* spacing intervals;
+* cooldown;
+* item weighting;
+* prior-error weighting;
+* prior-mastery weighting;
+* selection randomness;
+* response persistence;
+* point eligibility.
+
+The final algorithm should eventually evolve beyond pure random selection.
+
+Do NOT implement it now.
+
+---
+
+# 22. MASTERY MODEL DESIGN
+
+Design deterministic Mastery.
+
+Possible signals:
+
+* Lecture completion;
+* MCQ accuracy;
+* repeated MCQ mistakes;
+* corrected mistakes;
+* Flashcard retention;
+* Spaced Recall performance;
+* revision recency;
+* Focus completion.
+
+Do NOT simply average arbitrary numbers.
+
+Define:
+
+* signal normalization;
+* minimum evidence;
+* confidence score;
+* insufficient-data state;
+* decay/review logic;
+* lecture → subject aggregation.
+
+Suggested qualitative states:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+The AI must not choose these states.
+
+The deterministic Mastery Engine does.
+
+---
+
+# 23. POINTS ARCHITECTURE
+
+Design the authoritative points model.
+
+Existing `PointsLog` already exists.
+
+Determine whether it can safely evolve or whether a new ledger model is necessary.
+
+Requirements:
+
+* append-oriented;
+* server-authoritative;
+* immutable award events;
+* reversible through compensating entry;
+* category;
+* rule ID/version;
+* source entity;
+* source event;
+* idempotency key;
+* createdAt;
+* reason;
+* metadata;
+* no client-specified amount.
+
+Design balance calculation:
+
+* calculated ledger total;
+* materialized balance;
+* cached balance;
+* reconciliation strategy.
+
+---
+
+# 24. POINT CATEGORIES
+
+At minimum:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+Potential sources:
+
+* verified Focus Session;
+* MCQ learning;
+* corrected previous mistake;
+* Flashcard retention;
+* Lecture completion;
+* Group Focus;
+* Spaced Recall;
+* Challenges.
+
+Do NOT define final point values in this prompt unless necessary for examples.
+
+We will calibrate scoring in a later dedicated prompt.
+
+---
+
+# 25. ANTI-CHEAT EVENT MODEL
+
+Design signals for detecting:
+
+* extremely fast MCQ answer spam;
+* repeated predictable answer farming;
+* unrealistically fast Flashcard review;
+* fake Focus Sessions;
+* repeated abandoned/resumed exploit;
+* multiple simultaneous Focus Sessions;
+* repeated Group Focus abuse;
+* invite-room farming;
+* replayed requests;
+* duplicate offline replay;
+* manually altered client payloads.
+
+Design:
+
+* server evidence;
+* suspicion score;
+* hard rejection vs soft flag;
+* audit record;
+* admin review.
+
+Do not implement.
+
+---
+
+# 26. GROUP FOCUS DATA LIFECYCLE
+
+Design:
+
+```text
+room creation
+join
+authorization
+presence
+countdown
+focus
+break
+next round
+disconnect
+reconnect
+completion
+summary
+award eligibility
+archive
+```
+
+Support:
+
+### Shared Lecture
+
+Participants intentionally select same Lecture.
+
+### Study Together
+
+Participants may study different Lectures with one synchronized timer.
+
+Do not leak each participant's private weakness or AI analytics.
+
+---
+
+# 27. LEADERBOARD ARCHITECTURE
+
+Design:
+
+* weekly;
+* monthly;
+* semester;
+* all-time.
+
+Requirements:
+
+* fast reads;
+* fair reset boundaries;
+* lifetime points remain;
+* season rank may reset;
+* no expensive full-ledger scan on each page load;
+* Cloudflare read projection/cache preferred.
+
+Design:
+
+* authoritative source;
+* aggregation job;
+* snapshot;
+* cache;
+* invalidation/update frequency.
+
+---
+
+# 28. PROFILE GAMIFICATION DATA
+
+Design public/private boundaries for Profile.
+
+Potentially public:
+
+* level;
+* total/lifetime points if product chooses;
+* current leaderboard position;
+* selected achievements;
+* achievement showcase;
+* cosmetic frame;
+* special username effect;
+* Golden Name eligibility.
+
+Private:
+
+* weak topics;
+* MCQ mistakes;
+* mastery detail;
+* AI Analyzer;
+* retention issues;
+* full study history;
+* anti-cheat flags.
+
+---
+
+# 29. AI ANALYZER COST CONTROL
+
+The target is free-first.
+
+Workers AI must NOT be called on every page load.
+
+Design:
+
+* deterministic analytics first;
+* cached AI summaries;
+* user-triggered AI requests;
+* minimum refresh intervals;
+* per-user daily limits if necessary;
+* deduplication;
+* normalized prompt context;
+* small summarized data payloads;
+* provider timeout;
+* graceful fallback.
+
+When AI quota is exhausted:
+
+* Focus continues;
+* Points continue;
+* Mastery continues;
+* Recall continues;
+* Leaderboards continue;
+* deterministic Analyzer continues;
+* only generative explanation may be temporarily unavailable.
+
+---
+
+# 30. AI DATA CONTRACT
+
+The AI should receive structured derived data such as:
+
+```json
+{
+  "period": "last_14_days",
+  "focusMinutes": 420,
+  "sessionsCompleted": 12,
+  "mcqAccuracy": 0.71,
+  "weakLectures": [],
+  "retentionSignals": [],
+  "mastery": [],
+  "consistency": {}
+}
+```
+
+not massive raw event streams.
+
+Design the future DTO.
+
+Do not implement.
+
+---
+
+# 31. OWNER ANALYTICS PRIVACY CONTRACT
+
+Design aggregated owner analytics.
+
+The Owner may need to see:
+
+* difficult Lectures;
+* question failure rates;
+* unusually confusing MCQs;
+* aggregate mastery;
+* content engagement;
+* Group Focus adoption;
+* retention issues;
+* aggregate Focus patterns.
+
+Do NOT design Owner Analytics as a surveillance dashboard exposing every student's detailed private weakness unnecessarily.
+
+Identify which metrics should be:
+
+* aggregate only;
+* individual only when operationally justified;
+* completely private.
+
+---
+
+# 32. EXISTING BASELINE FAILURES
+
+Prompt 1 recorded existing failures in:
+
+* TypeScript calendar import;
+* lint;
+* AI input tests;
+* AI MCQ tests;
+* AI Flashcard tests;
+* AI media test.
+
+Do NOT fix them in this prompt.
+
+Create a **Baseline Failure Register** containing:
+
+* failing command;
+* failing files/tests;
+* whether related to upcoming work;
+* whether it blocks future implementation;
+* recommended phase to address it.
+
+Future prompts must not silently increase this failure count.
+
+---
+
+# 33. FILE-LEVEL CHANGE MAP
+
+Create an exact future implementation map.
+
+For each planned domain list:
+
+* existing files likely to be extended;
+* existing files that should NOT be expanded further;
+* new recommended modules/directories;
+* Prisma areas;
+* Worker areas;
+* frontend areas;
+* test areas.
+
+Because `server.ts` is already very large, future feature implementation should avoid adding thousands of additional lines to `server.ts`.
+
+Propose a modular structure such as:
+
+```text
+server/features/focus/
+server/features/study-events/
+server/features/points/
+server/features/gamification/
+server/features/recall/
+server/features/mastery/
+server/features/study-analyzer/
+server/features/group-focus/
+```
+
+or whatever structure best matches the repository.
+
+Do NOT create these folders now.
+
+---
+
+# 34. FRONTEND MODULE PLAN
+
+Propose future frontend structure using existing conventions.
+
+Potentially:
+
+```text
+src/features/focus/
+src/features/study-points/
+src/features/study-analyzer/
+src/features/leaderboard/
+src/features/achievements/
+```
+
+Map:
+
+* routes/views;
+* hooks;
+* API modules;
+* components;
+* types;
+* responsive behavior;
+* Arabic/RTL;
+* iPhone;
+* iPad;
+* PWA/desktop;
+* Capacitor.
+
+Do not implement.
+
+---
+
+# 35. FOCUS UI REFERENCE PLACEHOLDER
+
+The user will provide screenshots and videos from an external Pomodoro/Focus application.
+
+Future UI prompts must use those visual references as:
+
+* interaction inspiration;
+* motion inspiration;
+* information hierarchy inspiration;
+* polish benchmark.
+
+But must preserve:
+
+* 99’s Guide identity;
+* lecture integration;
+* MCQ integration;
+* Flashcard integration;
+* Group Focus;
+* Study Points;
+* responsive native-feeling UX.
+
+Do NOT build the final UI in this prompt.
+
+---
+
+# 36. IMPLEMENTATION DEPENDENCY GRAPH
+
+Produce an explicit dependency graph.
+
+For example:
+
+```text
+Canonical Schema
+      ↓
+Cloudflare Projection Infrastructure
+      ↓
+Study Event Contract
+      ↓
+Focus Core
+      ↓
+Group Focus
+      ↓
+Points
+      ↓
+Anti-Cheat
+      ↓
+Gamification
+      ↓
+Spaced Recall
+      ↓
+Mastery / Retention
+      ↓
+AI Analyzer
+      ↓
+Owner Analytics
+```
+
+But refine this based on repository evidence.
+
+Identify which pieces can be parallel and which must be strictly sequential.
+
+---
+
+# 37. MIGRATION SAFETY PLAN
+
+The application is already production-used.
+
+Design future schema migration strategy.
+
+Requirements:
+
+* additive first;
+* no destructive migration during early phases;
+* nullable/default-safe fields;
+* backwards compatibility;
+* no long locking operation;
+* indexes planned carefully;
+* migration rollback path;
+* production-safe deploy ordering;
+* old app version must not immediately break;
+* Cloudflare mirrors may lag temporarily without corruption.
+
+Do NOT generate/apply migrations yet.
+
+---
+
+# 38. FEATURE FLAG PLAN
+
+Every major new system should initially be feature-flagged.
+
+Design flags such as:
+
+```text
+FOCUS_HUB_ENABLED
+GROUP_FOCUS_ENABLED
+STUDY_POINTS_ENABLED
+SPACED_RECALL_ENABLED
+STUDY_ANALYZER_ENABLED
+AI_STUDY_INSIGHTS_ENABLED
+LEADERBOARD_ENABLED
+```
+
+Determine whether flags belong in:
+
+* env;
+* SystemSetting;
+* Cloudflare configuration;
+* server config.
+
+Avoid user-controlled flags.
+
+Do not implement yet.
+
+---
+
+# 39. OBSERVABILITY PLAN
+
+Design future metrics/logging for:
+
+* Focus session failures;
+* mirror lag;
+* outbox size;
+* D1 failures;
+* Durable Object reconnects;
+* points award errors;
+* idempotency conflicts;
+* suspicious activity;
+* AI failures/quota exhaustion;
+* leaderboard refresh failures.
+
+Do NOT log:
+
+* passwords;
+* tokens;
+* raw sensitive AI context;
+* complete private study history unnecessarily.
+
+---
+
+# 40. FREE-TIER CONSERVATION PLAN
+
+Target approximately 1,000 students.
+
+Create a preliminary cost-conscious architecture for:
+
+### Supabase
+
+Minimize:
+
+* repetitive reads;
+* repetitive writes;
+* binary storage;
+* high-frequency telemetry.
+
+### D1
+
+Avoid:
+
+* per-second writes;
+* unnecessary scans;
+* unindexed queries.
+
+### KV
+
+Use only for cache/config.
+
+### R2
+
+Use for object storage.
+
+### Workers AI
+
+Cache and throttle generative use.
+
+### Durable Objects
+
+Use only for active synchronized rooms.
+
+### Analytics Engine
+
+Use for suitable aggregate telemetry.
+
+Provide likely high-volume operations and their mitigation.
+
+---
+
+# 41. REQUIRED OUTPUT — TARGET ARCHITECTURE SPECIFICATION
+
+Return a complete architecture report with exactly these sections:
+
+## A. Architecture Decision Summary
+
+State the final canonical/runtime separation clearly.
+
+## B. Current Architecture Facts Used
+
+List the Prompt 1 facts being relied upon.
+
+## C. Target Domain Architecture
+
+Focus, Group Focus, Study Events, Points, Anti-Cheat, Gamification, Recall, Mastery, AI Analyzer, Owner Analytics.
+
+## D. Canonical PostgreSQL/Prisma Model Proposal
+
+Proposed future relational models and relationships.
+
+## E. Cloudflare Projection/Runtime Model
+
+D1/KV/R2/Analytics Engine/Durable Objects/Queues/Workers roles.
+
+## F. Canonical-to-Cloudflare Synchronization Contract
+
+Outbox, retries, revisions, fallback and conflict behavior.
+
+## G. Target Read Paths
+
+Per future system.
+
+## H. Target Write Paths
+
+Per future system.
+
+## I. Schedule Personal Planner Removal Map
+
+Every code/data path that eventually must be removed or disabled.
+
+## J. PDF / External Resource Handoff Contract
+
+Exact allowed analytics semantics.
+
+## K. Focus Hub Data Lifecycle
+
+Plan → session → pause/background → completion → lecture confirmation.
+
+## L. Group Focus Architecture
+
+Realtime choice and lifecycle.
+
+## M. Study Event Schema Proposal
+
+Exact normalized event categories and core fields.
+
+## N. Points Ledger Architecture
+
+Authoritative scoring and balance/reconciliation.
+
+## O. Anti-Cheat Architecture
+
+Signals, enforcement and audit.
+
+## P. Spaced Recall Algorithm Design
+
+Eligibility, spacing, selection and persistence.
+
+## Q. Mastery / Retention Model
+
+Signals, states, confidence and aggregation.
+
+## R. Leaderboard / Gamification Architecture
+
+Levels, achievements, seasons, profiles and snapshots.
+
+## S. AI Analyzer Data Contract
+
+Deterministic metrics → AI summary/query layer.
+
+## T. Owner Analytics Privacy Contract
+
+Aggregate vs private data.
+
+## U. Free-Tier Conservation Strategy
+
+Supabase + Cloudflare.
+
+## V. Proposed Backend Module Structure
+
+Exact future directories/files.
+
+## W. Proposed Frontend Module Structure
+
+Exact future directories/files.
+
+## X. Feature Flag Strategy
+
+Flags and ownership.
+
+## Y. Migration Strategy
+
+Production-safe schema rollout.
+
+## Z. Observability Strategy
+
+Metrics/logs/failure detection.
+
+## AA. Existing Baseline Failure Register
+
+All known current failures from Prompt 1.
+
+## AB. Dependency Graph
+
+What must be built first.
+
+## AC. Prompt 3 Inputs
+
+Exact decisions Prompt 3 must use.
+
+---
+
+# 42. IMPORTANT DECISION REQUIREMENT
+
+For every proposed data type, explicitly mark:
+
+```text
+CANONICAL SOURCE:
+RUNTIME READ SOURCE:
+RUNTIME WRITE PATH:
+CLOUDFLARE MIRROR:
+FALLBACK:
+EXPECTED CONSISTENCY:
+```
+
+Example:
+
+```text
+Study Points Ledger
+
+CANONICAL SOURCE:
+PostgreSQL/Supabase
+
+RUNTIME READ SOURCE:
+D1 derived projection / cached summary
+
+RUNTIME WRITE PATH:
+Backend → PostgreSQL transaction → outbox
+
+CLOUDFLARE MIRROR:
+D1
+
+FALLBACK:
+PostgreSQL
+
+EXPECTED CONSISTENCY:
+Authoritative PostgreSQL, near-real-time D1 projection
+```
+
+Do this for all important future entities.
+
+---
+
+# 43. IMPORTANT SCHEDULE REQUIREMENT
+
+The final architecture specification must explicitly state:
+
+**NO STUDENT PERSONAL CALENDAR / SCHEDULE EVENTS ARE ALLOWED IN THE TARGET PRODUCT.**
+
+Any currently existing personal-planner functionality is legacy behavior scheduled for removal/disablement.
+
+Focus Plans must use their own domain and tables.
+
+---
+
+# 44. IMPORTANT AI REQUIREMENT
+
+The final architecture must explicitly state:
+
+**AI NEVER CALCULATES OR AWARDS STUDY POINTS.**
+
+and:
+
+**AI NEVER MODIFIES THE ACADEMIC SCHEDULE.**
+
+and:
+
+**CORE ANALYTICS MUST WORK WITHOUT WORKERS AI.**
+
+---
+
+# 45. IMPORTANT CLOUDFARE REQUIREMENT
+
+Do not make Cloudflare a conflicting second canonical database.
+
+Cloudflare should reduce Supabase load.
+
+It should not destroy canonical integrity.
+
+Every mirrored entity must be tied to the existing canonical IDs.
+
+---
+
+# 46. TEST / VALIDATION RULE
+
+This is a design prompt.
+
+Run read-only validation only if necessary.
+
+Do not:
+
+* apply migration;
+* deploy Worker;
+* create D1 table;
+* write production data;
+* add dependency.
+
+If commands are run, report them.
+
+---
+
+# 47. NO IMPLEMENTATION
+
+Expected repository changes:
+
+**NONE**
+
+unless you create a single architecture Markdown document explicitly requested by this prompt.
+
+Preferred behavior:
+
+Return the architecture report in the response only.
+
+Do not modify application source.
+
+---
+
+# 48. MANDATORY FINAL IMPLEMENTATION / ARCHITECTURE REPORT
+
+At the end, provide a complete report suitable for external review.
+
+It must include:
+
+1. Exact files inspected.
+2. Exact architectural decisions made.
+3. Proposed future files/modules.
+4. Proposed canonical tables/models.
+5. Proposed D1/read projections.
+6. Proposed Durable Object roles.
+7. Proposed analytics routing.
+8. Schedule personal-planner removal map.
+9. PDF external-viewer contract.
+10. Known baseline failures.
+11. Commands executed and results.
+12. Unknowns/blockers.
+13. Deviations from this prompt, if any.
+14. Exact recommended next action.
+
+Do NOT silently omit unresolved questions.
+
+---
+
+# 49. STOP CONDITION
+
+After producing the complete architecture specification:
+
+STOP.
+
+Do NOT begin implementation.
+
+Do NOT generate migrations.
+
+Do NOT create D1 schemas.
+
+Do NOT change Schedule behavior.
+
+Do NOT begin Focus Hub.
+
+Wait for Prompt 3.
+
+End the response with exactly:
+
+**PHASE 1 — PROMPT 2 COMPLETE — READY FOR REVIEW**
