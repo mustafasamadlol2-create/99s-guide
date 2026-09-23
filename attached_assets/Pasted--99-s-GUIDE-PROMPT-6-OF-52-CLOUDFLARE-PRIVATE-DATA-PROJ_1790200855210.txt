@@ -1,0 +1,1691 @@
+# 99’s GUIDE — PROMPT 6 OF 52
+
+## CLOUDFLARE PRIVATE-DATA PROJECTION + OUTBOX EXTENSION
+
+### BATCH A: FOCUS + STUDY DAILY METRICS
+
+### NO PRODUCTION DEPLOYMENT
+
+Prompts 1–5 have been completed and approved.
+
+Prompt 5 added the canonical PostgreSQL/Prisma Batch A models:
+
+* `FocusPlan`
+* `FocusPlanItem`
+* `FocusSession`
+* `StudyEvent`
+* `StudyDailyMetric`
+
+Prompt 6 now extends the existing Cloudflare private-data projection infrastructure so future high-frequency runtime reads can be served primarily from Cloudflare rather than repeatedly querying Supabase/PostgreSQL.
+
+This prompt implements infrastructure and projection support only.
+
+It does NOT implement Focus product behavior.
+
+It does NOT implement Study Event ingestion.
+
+It does NOT deploy anything.
+
+---
+
+# 1. FIXED ARCHITECTURE
+
+The architecture remains:
+
+```text
+Supabase PostgreSQL / Prisma
+        ↓
+canonical durable truth
+        ↓
+atomic canonical mutation + outbox
+        ↓
+private-data synchronization
+        ↓
+Cloudflare D1 read projections
+        ↓
+high-frequency application reads
+```
+
+Rules:
+
+* PostgreSQL remains canonical.
+* D1 remains non-authoritative.
+* D1 never overwrites PostgreSQL.
+* Every D1 entity references canonical IDs.
+* Stale D1 revisions must not overwrite newer ones.
+* PostgreSQL fallback remains available.
+* Feature flags remain disabled.
+* No feature becomes visible to users after Prompt 6.
+
+---
+
+# 2. IMPORTANT COST / DUPLICATION RULE
+
+Do NOT mirror the entire Study Engine database into D1.
+
+Especially:
+
+# DO NOT COPY THE RAW `StudyEvent` TABLE INTO D1.
+
+`StudyEvent` may become one of the highest-volume PostgreSQL tables.
+
+Copying every raw event into both PostgreSQL and D1 would:
+
+* duplicate storage;
+* duplicate writes;
+* consume free-tier D1 operations;
+* provide little value for normal dashboard reads.
+
+Instead:
+
+```text
+Raw StudyEvent
+    → PostgreSQL canonical only
+    → later aggregation/analytics
+    → StudyDailyMetric / derived projections
+    → D1
+```
+
+Analytics Engine may later receive suitable aggregate telemetry.
+
+Prompt 6 must not create a raw Study Event D1 table.
+
+---
+
+# 3. D1 DATA TO SUPPORT IN PROMPT 6
+
+Implement D1 projection support only for:
+
+1. Focus Plan read projection
+2. Focus Session read projection
+3. Study Daily Metric read projection
+
+Do not introduce projections yet for:
+
+* raw Study Events;
+* Group Focus;
+* Points;
+* Achievements;
+* Leaderboards;
+* Recall;
+* Mastery;
+* AI Analyzer;
+* Owner Analytics.
+
+Those belong to later prompts.
+
+---
+
+# 4. MANDATORY PREFLIGHT
+
+Before changing code, inspect and report the actual existing private-data Cloudflare architecture.
+
+At minimum locate:
+
+* private-data Worker source;
+* private-data Wrangler configuration;
+* D1 binding name;
+* D1 migration directory;
+* private-data sync endpoint;
+* private-data read endpoints;
+* sync secret validation;
+* `server/services/privateD1Sync.ts`;
+* `server/services/privateD1Read.ts`;
+* `PrivateD1SyncOutbox`;
+* current entity-type handling;
+* revision handling;
+* delete handling;
+* retry behavior;
+* PostgreSQL fallback behavior;
+* current feature flags.
+
+Do NOT assume file paths from Prompt 1.
+
+Use the actual repository.
+
+---
+
+# 5. PROMPT 5 PREFLIGHT
+
+Verify that Batch A still exists before building projections.
+
+Run:
+
+```bash
+npx tsx --test tests/study-core-contracts.test.ts
+npx tsx --test tests/study-engine-batch-a-schema.test.ts
+```
+
+Expected:
+
+```text
+Study Core: 6/6 pass
+Batch A schema: 7/7 pass
+```
+
+Also verify:
+
+```bash
+DATABASE_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+DIRECT_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+npx prisma validate
+```
+
+Expected:
+
+```text
+schema valid
+```
+
+If Batch A is missing or invalid:
+
+STOP.
+
+---
+
+# 6. EXISTING PRIVATE-DATA D1 MUST BE REUSED
+
+Prompt 3 froze this decision:
+
+# Use the existing private-data D1.
+
+Do NOT create a separate D1 database for Focus.
+
+Do NOT create:
+
+```text
+focus-db
+study-db
+study-events-db
+```
+
+unless an existing repository configuration already requires a separate database for technical reasons, in which case STOP and report the conflict rather than silently changing architecture.
+
+The normal design is:
+
+```text
+Existing private-data D1
+    ├── existing private projections
+    ├── Focus projection
+    ├── Focus Session projection
+    └── Study Daily Metric projection
+```
+
+---
+
+# 7. FOCUS PLAN D1 PROJECTION DESIGN
+
+The D1 projection must optimize the normal runtime operation:
+
+> Open Focus Hub and load the student's Focus Plans without hitting PostgreSQL.
+
+Do NOT blindly copy the normalized PostgreSQL structure.
+
+D1 is a read projection.
+
+Evaluate the existing private Worker conventions and choose one of:
+
+### Option A — separate plan/item projection tables
+
+```text
+study_focus_plans
+study_focus_plan_items
+```
+
+or:
+
+### Option B — denormalized plan projection
+
+```text
+study_focus_plans
+  + bounded items_json
+```
+
+The preferred design should minimize:
+
+* unnecessary D1 row reads;
+* multiple network round-trips;
+* projection complexity;
+* free-tier usage.
+
+However:
+
+* do not store unbounded JSON;
+* do not make plan items impossible to update efficiently;
+* preserve canonical IDs for plan and items.
+
+Choose based on actual D1 patterns already in the repository.
+
+Document the decision.
+
+---
+
+# 8. FOCUS PLAN PROJECTION MINIMUM DATA
+
+Normal Focus-plan reads need information equivalent to:
+
+```text
+canonical plan ID
+user ID
+title
+status
+timezone
+plan version
+created at
+updated at
+archived at
+
+items:
+  canonical item ID
+  canonical lecture ID
+  sequence
+  session count
+  focus duration
+  break duration
+  include MCQ
+  include Flashcards
+  include Video
+```
+
+Do NOT duplicate:
+
+* Lecture title if it can be obtained through existing content D1.
+* Subject metadata.
+* PDF metadata.
+* MCQs.
+* Flashcards.
+* video records.
+
+Keep domain projections focused.
+
+---
+
+# 9. PROJECTION METADATA
+
+Every new D1 projection must carry the Prompt 4 projection contract semantics.
+
+At minimum:
+
+```text
+canonical_id
+projection_version
+revision
+updated_at
+deleted_at / tombstone state
+user_scope
+```
+
+Use existing database naming conventions.
+
+If existing private D1 tables use a different standardized naming scheme, remain consistent while preserving the semantics.
+
+---
+
+# 10. FOCUS SESSION D1 PROJECTION
+
+Create a private user-facing Focus Session projection optimized for:
+
+* current/recent session retrieval;
+* history;
+* recovery assistance;
+* session summaries.
+
+Minimum useful projection:
+
+```text
+canonical session ID
+user ID
+plan ID
+plan item ID
+lecture ID
+
+status
+
+started at
+planned end at
+actual end at
+last checkpoint
+
+active seconds
+pause seconds
+
+completion reason
+updated at
+
+projection metadata
+```
+
+Do NOT include:
+
+* every transition as a separate D1 row;
+* timer ticks;
+* every lifecycle callback;
+* raw integrity evidence.
+
+---
+
+# 11. ACTIVE FOCUS SESSION AUTHORITY
+
+D1 is NOT the timer authority.
+
+Future active timer behavior remains:
+
+```text
+server timestamps
++
+client timestamp-derived rendering
++
+canonical PostgreSQL checkpoints
+```
+
+D1 provides a read projection.
+
+Therefore:
+
+* a stale D1 active session must not override PostgreSQL reconciliation;
+* critical recovery may fall back to PostgreSQL;
+* Prompt 6 must preserve this distinction.
+
+---
+
+# 12. STUDY DAILY METRIC D1 PROJECTION
+
+Create a projection for:
+
+```text
+StudyDailyMetric
+```
+
+At minimum include:
+
+```text
+canonical ID
+user ID
+metric date
+
+focus seconds
+sessions completed
+
+MCQ attempts
+MCQ correct
+
+Flashcard reviews
+
+Recall attempts
+Recall correct
+
+Lecture completions
+
+interruption count
+
+updated at
+projection metadata
+```
+
+This will later feed:
+
+* student statistics;
+* Analyzer;
+* Focus Hub summaries.
+
+It must be private user data.
+
+---
+
+# 13. NO RAW STUDY EVENT D1 TABLE
+
+Add a test/invariant that verifies Prompt 6 does NOT create a D1 table equivalent to:
+
+```text
+StudyEvent
+study_events
+raw_study_events
+```
+
+or another raw event replica.
+
+A later Worker/Analytics pipeline may receive bounded aggregate telemetry, but that is outside Prompt 6.
+
+---
+
+# 14. D1 ADDITIVE MIGRATION
+
+Create an additive D1 migration using the existing private-data Worker migration convention.
+
+Do NOT run it against production.
+
+The migration should only create the required Batch A projection tables/indexes.
+
+Expected SQL classes:
+
+```text
+CREATE TABLE
+CREATE INDEX
+CREATE UNIQUE INDEX
+```
+
+Where the existing D1 schema uses migration metadata or triggers, follow the repository convention.
+
+Do NOT:
+
+* drop existing tables;
+* alter unrelated tables destructively;
+* delete rows;
+* truncate;
+* rename existing tables;
+* rewrite old private-data schema.
+
+---
+
+# 15. D1 INDEX BUDGET
+
+Create only indexes needed by future read paths.
+
+Likely access patterns include:
+
+### Focus Plans
+
+```text
+user_scope + status + updated_at
+user_scope + canonical_id
+```
+
+### Focus Sessions
+
+```text
+user_scope + status + updated_at
+user_scope + started_at
+canonical_id
+```
+
+### Daily Metrics
+
+```text
+user_scope + metric_date
+```
+
+Do not index every column.
+
+---
+
+# 16. REVISION SEMANTICS
+
+Reuse the existing private-data revision mechanism where possible.
+
+Required behavior:
+
+```text
+incoming revision > stored revision
+→ apply
+
+incoming revision == stored revision + same payload
+→ idempotent success
+
+incoming revision == stored revision + different payload
+→ conflict/log/reject
+
+incoming revision < stored revision
+→ reject as stale
+```
+
+Do not let out-of-order sync resurrect stale state.
+
+---
+
+# 17. TOMBSTONE / DELETE BEHAVIOR
+
+Projection deletes must follow the existing private-data architecture.
+
+Preferred behavior:
+
+```text
+canonical deletion/archive
+→ projection tombstone or controlled delete
+```
+
+For Focus Plans:
+
+archival should normally be represented by canonical `archivedAt/status`, not destructive deletion.
+
+If a canonical record is genuinely deleted:
+
+* stale projections must not resurrect it;
+* revision semantics must still apply.
+
+Document whether the current Worker uses:
+
+* hard delete;
+* tombstones;
+* both.
+
+Extend the existing pattern rather than inventing a conflicting one.
+
+---
+
+# 18. PRIVATE DATA SYNC ENTITY TYPES
+
+Extend the existing private D1 sync entity registry/union/handler mapping with the minimum new projection types.
+
+Use stable names following existing conventions.
+
+Conceptually:
+
+```text
+FocusPlan
+FocusSession
+StudyDailyMetric
+```
+
+If using a composite FocusPlan + items projection, one `FocusPlan` entity is preferred.
+
+Do NOT add:
+
+```text
+StudyEvent
+```
+
+as a full private D1 mirror entity.
+
+---
+
+# 19. EXISTING OUTBOX MODEL
+
+Inspect:
+
+```text
+PrivateD1SyncOutbox
+```
+
+If its existing fields already support:
+
+* entity type;
+* canonical ID;
+* operation;
+* revision;
+* payload;
+* retry;
+* leasing;
+
+then DO NOT alter Prisma schema in Prompt 6.
+
+Prefer reusing it.
+
+Only if the existing outbox literally cannot represent the required projection should you propose an additive schema change.
+
+If such a change is necessary:
+
+STOP before making it and explain why.
+
+Prompt 6 should preferably require:
+
+```text
+Prisma schema changes: NONE
+```
+
+---
+
+# 20. PROJECTION BUILDERS
+
+Create small deterministic server-side projection serializers/builders.
+
+Examples conceptually:
+
+```text
+buildFocusPlanProjection(...)
+buildFocusSessionProjection(...)
+buildStudyDailyMetricProjection(...)
+```
+
+Properties:
+
+* pure where practical;
+* bounded output;
+* canonical IDs retained;
+* no secrets;
+* no unrelated Profile data;
+* no full Lecture object duplication;
+* no AI;
+* no Point calculations.
+
+These builders should be testable without Cloudflare.
+
+---
+
+# 21. FOCUS PLAN COMPOSITE PROJECTION
+
+If FocusPlan projection includes items:
+
+the projection builder may receive:
+
+```text
+FocusPlan + ordered FocusPlanItems
+```
+
+and produce one bounded read model.
+
+The items must always be sorted deterministically by:
+
+```text
+sequence
+```
+
+with an appropriate tie safeguard if necessary.
+
+Do not depend on implicit DB row ordering.
+
+---
+
+# 22. PRIVATE WORKER SYNC HANDLERS
+
+Extend the existing authenticated private-data sync endpoint.
+
+The Worker must support the new entity projection types using the existing sync-secret protection.
+
+Requirements:
+
+* secret required;
+* entity allowlist;
+* payload validation;
+* canonical ID validation;
+* user scope validation;
+* revision validation;
+* projection version validation;
+* bounded JSON;
+* no arbitrary SQL table selection from client data;
+* no raw SQL supplied by caller.
+
+Never accept a table name from an untrusted payload and interpolate it into SQL.
+
+---
+
+# 23. PRIVATE WORKER READ SUPPORT
+
+Add internal/server-facing private read capability for:
+
+### Focus Plans
+
+Future use:
+
+```text
+get Focus Plans for authenticated canonical user
+```
+
+### Focus Sessions
+
+Future use:
+
+```text
+get active/recent Focus Sessions for canonical user
+```
+
+### Daily Metrics
+
+Future use:
+
+```text
+get user's metrics for bounded date range
+```
+
+Follow the existing Worker API patterns.
+
+These are NOT public unauthenticated APIs.
+
+---
+
+# 24. USER ID TRUST BOUNDARY
+
+The private Worker must NOT trust arbitrary browser-supplied:
+
+```text
+userId
+```
+
+The current architecture uses backend → Worker communication protected by private Worker secret.
+
+Preserve that design.
+
+Prompt 6 should not create a direct student-browser-to-private-D1 authority path.
+
+---
+
+# 25. SERVER READ HELPERS
+
+Extend the existing:
+
+```text
+server/services/privateD1Read.ts
+```
+
+or repository-equivalent abstraction with typed helpers for:
+
+* Focus plan projection reads;
+* Focus session projection reads;
+* Study Daily Metric reads.
+
+Do not connect these helpers to product routes yet.
+
+They may remain unused until Focus API implementation.
+
+Requirements:
+
+* configured timeout;
+* typed result validation;
+* safe error handling;
+* PostgreSQL fallback signal/return contract consistent with existing services;
+* no feature becomes enabled.
+
+---
+
+# 26. FALLBACK CONTRACT
+
+Prompt 3 classified these as read-projection data.
+
+Desired future flow:
+
+```text
+backend
+    ↓
+private D1
+    ↓ success
+return projection
+
+private D1 timeout/miss/stale
+    ↓
+PostgreSQL fallback
+```
+
+Prompt 6 should provide infrastructure needed for this.
+
+Do NOT create new HTTP product routes merely to demonstrate fallback.
+
+Tests can validate the helper behavior in isolation.
+
+---
+
+# 27. STALENESS
+
+Projection records must expose enough metadata for backend code to evaluate staleness later.
+
+Do not invent aggressive staleness rules now.
+
+Support:
+
+```text
+updatedAt
+revision
+projectionVersion
+```
+
+and existing repository freshness conventions.
+
+Future Focus routes will decide when PostgreSQL fallback is mandatory.
+
+---
+
+# 28. FEATURE FLAGS
+
+All Study Engine flags remain OFF by default.
+
+Prompt 6 infrastructure may internally recognize relevant feature flags, but must not activate anything.
+
+Do not expose Focus Hub.
+
+Do not mount new routes.
+
+Do not modify navigation.
+
+---
+
+# 29. NO SCHEDULE CHANGES
+
+Prompt 7 is dedicated to Schedule personal-planner removal.
+
+Prompt 6 must not modify:
+
+* Calendar UI;
+* Calendar sync;
+* `CalendarEvent`;
+* Schedule routes;
+* offline calendar mutations.
+
+---
+
+# 30. NO PDF CHANGES
+
+Do not change:
+
+* R2 PDF behavior;
+* PDF tokens;
+* external viewer;
+* native opener.
+
+Resource handoff implementation comes later.
+
+---
+
+# 31. NO FOCUS PRODUCT LOGIC
+
+Do NOT implement:
+
+* create Focus Plan route;
+* start session route;
+* pause;
+* resume;
+* complete;
+* timer;
+* post-Lecture suggestions;
+* Quick Notes.
+
+Prompt 6 is projection infrastructure only.
+
+---
+
+# 32. NO STUDY EVENT INGESTION
+
+Do NOT implement:
+
+```text
+POST /study-events
+```
+
+or equivalent.
+
+Prompt 8 will implement Study Event ingestion.
+
+Do not create raw Study Event D1 sync.
+
+---
+
+# 33. NO POINTS / MASTERY / AI
+
+Do not:
+
+* award Points;
+* calculate Mastery;
+* call Workers AI;
+* add Analyzer functionality;
+* add leaderboard data.
+
+---
+
+# 34. CLOUDFLARE RESOURCE SAFETY
+
+Do NOT execute commands that mutate production Cloudflare resources.
+
+Forbidden:
+
+```text
+wrangler deploy
+wrangler d1 migrations apply --remote
+wrangler d1 execute --remote
+wrangler kv ...
+wrangler r2 ...
+```
+
+or equivalent production mutations.
+
+Local validation is allowed.
+
+---
+
+# 35. D1 MIGRATION LOCAL VALIDATION
+
+If the repository already has Wrangler/local D1 tooling, validate the new migration against a **local temporary D1 database**.
+
+Use only existing dependencies/tooling.
+
+Do not install a new test stack unless absolutely required.
+
+If local D1 validation is not available:
+
+* inspect SQL statically;
+* test schema invariants;
+* report the limitation.
+
+Never substitute production D1 for local validation.
+
+---
+
+# 36. MIGRATION SAFETY TEST
+
+Add a targeted test ensuring the new D1 migration contains:
+
+* expected projection tables;
+* expected indexes;
+* no destructive SQL.
+
+At minimum reject:
+
+```text
+DROP TABLE
+DROP COLUMN
+TRUNCATE
+DELETE FROM
+ALTER TABLE <unrelated-existing-table>
+```
+
+unless the current migration convention requires a non-destructive `ALTER TABLE` and it is explicitly reviewed.
+
+---
+
+# 37. PROJECTION SECURITY TESTS
+
+Add tests verifying:
+
+* unsupported entity type rejected;
+* missing/invalid sync secret rejected if the Worker test harness supports it;
+* stale revision cannot replace newer revision;
+* canonical ID remains stable;
+* user scope is required for private projection;
+* malformed payload rejected;
+* raw Study Event entity is not accepted as a D1 projection.
+
+If current Worker tests cannot run outside Cloudflare runtime, extract/test pure validation helpers rather than introducing a large new framework.
+
+---
+
+# 38. PROJECTION BUILDER TESTS
+
+Test:
+
+### Focus Plan
+
+* plan fields serialized correctly;
+* items maintain independent configuration;
+* item order deterministic;
+* unrelated Lecture data omitted.
+
+### Focus Session
+
+* canonical IDs retained;
+* timer summary retained;
+* no per-second event history serialized.
+
+### Daily Metric
+
+* raw counters retained;
+* no synthetic percentages required;
+* logical date serialized consistently.
+
+---
+
+# 39. D1 READ HELPER TESTS
+
+If existing private D1 read service has mockable fetch behavior, test:
+
+* valid response;
+* timeout/error;
+* malformed response;
+* not found;
+* feature disabled/config missing;
+* safe fallback indication.
+
+Do not duplicate the entire existing test architecture.
+
+---
+
+# 40. OUTBOX DELIVERY TESTS
+
+If existing private D1 sync service has tests, extend them for the new entity types.
+
+Validate:
+
+* new entity accepted;
+* retry semantics preserved;
+* no old entity broken;
+* payload is bounded;
+* revision preserved;
+* stale sync does not become canonical.
+
+---
+
+# 41. EXISTING PRIVATE DATA REGRESSION
+
+Do not break current private D1 entities such as existing projections for:
+
+* user;
+* progress;
+* notifications;
+* points logs;
+* Q&A;
+* moderation;
+* personal-calendar legacy mirror until Prompt 7.
+
+Prompt 6 adds support.
+
+It does not remove old support yet.
+
+---
+
+# 42. PRISMA SCHEMA
+
+Expected Prompt 6 result:
+
+```text
+prisma/schema.prisma unchanged
+```
+
+If no outbox schema change is needed, do not modify Prisma.
+
+No new PostgreSQL migration should be created in Prompt 6.
+
+---
+
+# 43. PRIVATE D1 MIGRATION ONLY
+
+It is acceptable and expected to create a new migration artifact for the existing private-data D1.
+
+This migration is NOT the same as a Prisma migration.
+
+Report its exact path.
+
+Do not deploy it.
+
+---
+
+# 44. TYPECHECK
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Frozen baseline:
+
+```text
+2 calendar-import errors
+```
+
+Expected:
+
+```text
+same 2
+0 new Prompt 6 errors
+```
+
+---
+
+# 45. LINT
+
+Run:
+
+```bash
+npm run lint
+```
+
+Frozen baseline:
+
+```text
+10 errors
+```
+
+Expected:
+
+```text
+same 10
+0 new Prompt 6 errors
+```
+
+Also lint new Prompt 6 files directly.
+
+---
+
+# 46. AUTH REGRESSION
+
+Run:
+
+```bash
+npm run test:auth
+```
+
+Expected:
+
+```text
+4/4 pass
+```
+
+Private-data infrastructure changes must not alter authentication.
+
+---
+
+# 47. PROMPT 4 / 5 REGRESSION
+
+Run:
+
+```bash
+npx tsx --test tests/study-core-contracts.test.ts
+npx tsx --test tests/study-engine-batch-a-schema.test.ts
+```
+
+Expected:
+
+```text
+6/6 pass
+7/7 pass
+```
+
+---
+
+# 48. EXISTING PRIVATE D1 TESTS
+
+Discover and run the relevant current tests for:
+
+* private D1 read;
+* private D1 sync;
+* Worker sync;
+* Worker authorization;
+
+if present.
+
+Report exact results.
+
+Do not hide pre-existing failure.
+
+---
+
+# 49. NEW PROMPT 6 TESTS
+
+All new tests must pass.
+
+Report:
+
+* exact test files;
+* exact count;
+* exact pass/fail.
+
+---
+
+# 50. PRODUCTION BUILD
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+No Prompt 6 regression.
+
+---
+
+# 51. PRISMA VALIDATION
+
+Even though Prisma should remain unchanged, verify Batch A still validates:
+
+```bash
+DATABASE_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+DIRECT_URL='postgresql://user:pass@127.0.0.1:5432/placeholder' \
+npx prisma validate
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 52. DIFF SAFETY
+
+Run:
+
+```bash
+git status --short
+git diff --stat
+git diff
+git diff --check
+```
+
+Because Replit may auto-checkpoint files, also run:
+
+```bash
+git log -5 --oneline
+```
+
+Identify any automatic checkpoint.
+
+Do not confuse auto-committed code with missing code.
+
+---
+
+# 53. EXPECTED FILE AREAS
+
+Exact paths depend on repository structure.
+
+Expected modifications may include:
+
+```text
+server/services/privateD1Sync.ts
+server/services/privateD1Read.ts
+
+<existing private-data Worker source>
+<existing private-data Worker D1 migration directory>
+
+server/features/... projection helper(s)
+
+tests/... private projection tests
+```
+
+Possibly existing Worker shared validation files.
+
+Do not modify unrelated application features.
+
+---
+
+# 54. FORBIDDEN CHANGES
+
+Explicitly keep unchanged:
+
+```text
+server.ts
+src/App.tsx
+src/features/calendar/*
+src/core/offline/OfflineEngine.ts
+```
+
+Also do not change:
+
+* auth semantics;
+* Schedule behavior;
+* PDF behavior;
+* MCQ behavior;
+* Flashcard behavior;
+* existing Points behavior;
+* current Socket.IO behavior;
+* current R2 behavior.
+
+---
+
+# 55. DATABASE / PRODUCTION MUTATION STATUS
+
+Expected final status:
+
+```text
+POSTGRESQL PRODUCTION MIGRATION APPLIED: NO
+SUPABASE MODIFIED: NO
+
+PRIVATE D1 PRODUCTION MIGRATION APPLIED: NO
+REMOTE D1 MODIFIED: NO
+
+WORKER DEPLOYED: NO
+CLOUDFLARE PRODUCTION RESOURCE MODIFIED: NO
+```
+
+---
+
+# 56. ACCEPTANCE CRITERIA
+
+Prompt 6 succeeds only if:
+
+1. Existing private-data Cloudflare architecture was inspected first.
+2. Existing private D1 is reused.
+3. No second Focus D1 database is introduced.
+4. Focus Plan projection exists.
+5. Focus Session projection exists.
+6. Study Daily Metric projection exists.
+7. No raw Study Event D1 table exists.
+8. Projection rows contain revision/version metadata.
+9. Older revisions cannot overwrite newer projections.
+10. Private user scope is enforced.
+11. Existing Worker secret boundary is preserved.
+12. New projection entity types are allowlisted.
+13. Server-side typed D1 read helpers exist.
+14. PostgreSQL fallback behavior is preserved.
+15. Existing outbox pattern is extended rather than replaced.
+16. Prisma schema is unchanged.
+17. No new PostgreSQL migration is created.
+18. D1 migration is additive.
+19. D1 migration is NOT applied remotely.
+20. No Worker is deployed.
+21. No runtime Focus route is added.
+22. No UI is added.
+23. No Study Event ingestion route is added.
+24. No Schedule change occurs.
+25. No PDF change occurs.
+26. All Study Engine flags remain disabled.
+27. Prompt 4 tests remain green.
+28. Prompt 5 tests remain green.
+29. New Prompt 6 tests pass.
+30. No new TypeScript/lint/build regression exists.
+
+---
+
+# 57. MANDATORY FINAL IMPLEMENTATION REPORT
+
+This report is mandatory.
+
+Use exactly this structure:
+
+## A. Preflight Architecture Discovery
+
+Report:
+
+* private-data Worker path;
+* Wrangler/config path;
+* D1 binding;
+* migration path;
+* sync endpoint;
+* read architecture;
+* Worker secret mechanism;
+* existing entity registry;
+* revision mechanism;
+* tombstone/delete mechanism;
+* outbox design.
+
+## B. Prompt 4/5 Preflight Results
+
+Report:
+
+* Study Core test result;
+* Batch A schema test result;
+* Prisma validation result.
+
+## C. Projection Architecture Decision
+
+Explain:
+
+* existing private D1 reuse;
+* Focus Plan normalized vs denormalized choice;
+* why;
+* Focus Session projection;
+* Daily Metric projection;
+* why raw Study Event is intentionally NOT mirrored.
+
+## D. D1 Tables / Projections Added
+
+For each new D1 table report:
+
+* exact table name;
+* columns;
+* PK;
+* indexes;
+* uniqueness;
+* projection metadata;
+* user scope;
+* tombstone semantics.
+
+## E. D1 Migration
+
+Provide:
+
+* exact path;
+* migration name;
+* SQL summary.
+
+Explicitly answer:
+
+```text
+DROP TABLE: YES/NO
+DROP COLUMN: YES/NO
+TRUNCATE: YES/NO
+DELETE FROM EXISTING DATA: YES/NO
+UNRELATED TABLE ALTERATION: YES/NO
+```
+
+Expected all:
+
+```text
+NO
+```
+
+## F. Raw Study Event Duplication Verification
+
+Explicitly state:
+
+```text
+RAW STUDY EVENT D1 TABLE CREATED: NO
+RAW STUDY EVENT MIRROR ENTITY ENABLED: NO
+```
+
+Explain the intended future path:
+
+```text
+PostgreSQL raw events
+→ aggregate/derived metrics
+→ D1/Analytics Engine
+```
+
+## G. Projection Builders
+
+List:
+
+* exact paths;
+* functions;
+* DTO shape;
+* bounded-data protections.
+
+## H. Private Worker Sync Extension
+
+Report:
+
+* entity types added;
+* payload validation;
+* revision behavior;
+* stale-write behavior;
+* secret enforcement;
+* delete/tombstone behavior.
+
+## I. Outbox Integration
+
+Report:
+
+* whether `PrivateD1SyncOutbox` changed;
+* whether Prisma changed;
+* entity mapping additions;
+* delivery/retry behavior;
+* ordering/revision behavior.
+
+Expected where possible:
+
+```text
+Prisma/outbox schema changed: NO
+```
+
+## J. Server D1 Read Helpers
+
+List new helper functions and behavior for:
+
+* Focus Plans;
+* Focus Sessions;
+* Study Daily Metrics.
+
+Report:
+
+* timeout;
+* malformed response behavior;
+* miss behavior;
+* fallback behavior.
+
+## K. Security Verification
+
+Explicitly confirm:
+
+* Browser cannot directly impersonate another user through new path.
+* Worker sync secret remains required.
+* Unsupported entity types rejected.
+* Arbitrary SQL/table names not accepted.
+* Private user scope required.
+* Raw Study Event not exposed.
+
+## L. Tests Added
+
+List every new test:
+
+* exact path;
+* count;
+* purpose;
+* result.
+
+## M. Existing Tests Executed
+
+Include all relevant existing private D1 / Worker tests and results.
+
+## N. Commands Executed
+
+For every command report:
+
+* exact command;
+* pass/fail;
+* relevant output.
+
+## O. Baseline Comparison
+
+Compare:
+
+```text
+typecheck: 2 existing errors
+lint: 10 existing errors
+auth: 4/4 pass
+study core: 6/6 pass
+Batch A schema: 7/7 pass
+build: pass
+Prisma validate: pass
+```
+
+Report:
+
+```text
+NEW FAILURES: <number>
+```
+
+Expected:
+
+```text
+0
+```
+
+## P. Files Created
+
+Exact paths and purposes.
+
+## Q. Files Modified
+
+Exact paths and reasons.
+
+Explicitly state whether these remained unchanged:
+
+```text
+prisma/schema.prisma
+server.ts
+src/App.tsx
+Calendar code
+OfflineEngine
+```
+
+## R. Cloudflare Production Verification
+
+Explicitly state:
+
+```text
+REMOTE D1 MODIFIED: NO
+PRIVATE D1 MIGRATION APPLIED REMOTELY: NO
+WORKER DEPLOYED: NO
+KV MODIFIED: NO
+R2 MODIFIED: NO
+DURABLE OBJECT CREATED/DEPLOYED: NO
+QUEUE CREATED/MODIFIED: NO
+ANALYTICS ENGINE MODIFIED: NO
+WORKERS AI MODIFIED: NO
+```
+
+## S. PostgreSQL / Supabase Verification
+
+Explicitly state:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+NEW POSTGRESQL MIGRATION: YES/NO
+SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+```
+
+Expected first two:
+
+```text
+NO
+NO
+```
+
+## T. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+Explain any Replit automatic checkpoint.
+
+## U. Deviations
+
+List every deviation.
+
+If none:
+
+```text
+NONE
+```
+
+## V. Risks / Blockers
+
+Only real discovered issues.
+
+## W. Architecture Compliance
+
+Answer YES/NO:
+
+* PostgreSQL remains canonical?
+* Existing private D1 reused?
+* No second Study Engine D1?
+* D1 remains non-authoritative?
+* Raw StudyEvent not mirrored?
+* Existing outbox pattern preserved?
+* Prisma unchanged?
+* No production resource mutated?
+* No Worker deployment?
+* No Focus runtime behavior?
+* No Schedule modification?
+* No PDF modification?
+* All flags still disabled?
+* 0 new regressions?
+
+## X. Exact Recommended Next Step
+
+State whether repository is safe to proceed to:
+
+**Prompt 7 — Remove/Disable Legacy Student Personal Planner While Preserving Academic Schedule**
+
+Do not implement Prompt 7.
+
+---
+
+# 58. STOP CONDITION
+
+After implementation, local validation, tests, diff review and mandatory report:
+
+STOP.
+
+Do NOT:
+
+* deploy Worker;
+* apply D1 migration remotely;
+* modify Supabase;
+* implement Focus routes;
+* implement Study Event ingestion;
+* modify Schedule;
+* create UI.
+
+Wait for review.
+
+End exactly with:
+
+**PROMPT 6 COMPLETE — BATCH A CLOUDFLARE PROJECTION FOUNDATION READY — PRODUCTION UNCHANGED — READY FOR REVIEW**
