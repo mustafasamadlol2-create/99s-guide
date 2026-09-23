@@ -177,7 +177,6 @@ interface ControlCenterProps {
   calendarEventsDb: CalendarEvent[];
   subjects: Subject[];
   onAddPoints: (amount: number, reason: string) => void;
-  onAddNewEvent: (newEvent: CalendarEvent) => void;
   onUpdateLectureProgress: (updates: Partial<UserProgress>) => void;
   onSync: (
     user: User,

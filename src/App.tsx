@@ -13,6 +13,7 @@ import { showiOSAlert } from "./core/device/alert";
 import { Language, useTranslation } from "./core/i18n/translations";
 import { useLegacyArabicUiLocalization } from "./core/i18n/legacyArabicUi";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
+import { filterAcademicCalendarEvents } from "./core/calendar/academicEvents";
 import { IDBManager } from "./core/utils/indexedDB";
 import { DataSyncManager } from "./core/offline/DataSyncManager";
 import { CacheManager, CACHE_TTL } from "./core/cache/CacheManager";
@@ -685,7 +686,7 @@ function AppContent({
         .catch(() => {});
       apiClient("/api/calendar/events", { bypassCache: true })
         .then((r) => r.ok ? r.json() : [])
-        .then((data) => setCalendarEventsDb(Array.isArray(data) ? data : []))
+        .then((data) => setCalendarEventsDb(Array.isArray(data) ? filterAcademicCalendarEvents(data) : []))
         .catch(() => {});
     });
 
@@ -738,7 +739,7 @@ function AppContent({
           if (existing) {
             updated = prev.map(e => e.id === payload.event!.id ? payload.event! : e);
           } else {
-            updated = [...prev, payload.event!];
+             updated = filterAcademicCalendarEvents([...prev, payload.event!]);
           }
           localStorage.setItem("calendar_events", JSON.stringify(updated));
           OfflineEngine.setCachedCalendarEvents(updated);
@@ -747,8 +748,10 @@ function AppContent({
       } else if (payload?.action === "batch-upsert" && payload.events) {
         setCalendarEventsDb((prev) => {
           const byId = new Map(prev.map((event) => [event.id, event]));
-          for (const event of payload.events ?? []) byId.set(event.id, event);
-          const updated = [...byId.values()];
+           for (const event of payload.events ?? []) {
+             if (event.userId == null) byId.set(event.id, event);
+           }
+           const updated = filterAcademicCalendarEvents([...byId.values()]);
           localStorage.setItem("calendar_events", JSON.stringify(updated));
           OfflineEngine.setCachedCalendarEvents(updated);
           return updated;
@@ -2750,22 +2753,23 @@ function AppContent({
     // Stale-while-revalidate: render from cache instantly, then update with fresh data
     if (!bypassCache) {
       const cached = await CacheManager.get<any[]>("calendar", CACHE_TTL.CALENDAR);
-      if (cached) setCalendarEventsDb(cached);
+      if (cached) setCalendarEventsDb(filterAcademicCalendarEvents(cached));
     }
     try {
       const response = await apiClient("/api/calendar/events", { bypassCache });
       if (response.ok) {
         const data = await response.json();
-        setCalendarEventsDb(data);
+        const academicEvents = Array.isArray(data) ? filterAcademicCalendarEvents(data) : [];
+        setCalendarEventsDb(academicEvents);
         CacheManager.set("calendar", data, CACHE_TTL.CALENDAR).catch(() => {});
-        OfflineEngine.setCachedCalendarEvents(data);
+        OfflineEngine.setCachedCalendarEvents(academicEvents);
       } else {
         throw new Error("HTTP error " + response.status);
       }
     } catch (e) {
       const cached = OfflineEngine.getCachedCalendarEvents();
       if (cached && cached.length > 0) {
-        setCalendarEventsDb(cached);
+        setCalendarEventsDb(filterAcademicCalendarEvents(cached));
       }
     }
   };
@@ -2857,7 +2861,6 @@ function AppContent({
     userCtx: User | null = currentUser,
     prog: UserProgress[] = progressDb,
     logs: PointsLog[] = pointsLogDb,
-    events: CalendarEvent[] = calendarEventsDb,
   ) => {
     if (!userCtx) return;
 
@@ -2865,7 +2868,6 @@ function AppContent({
     OfflineEngine.setCachedUser(userCtx);
     OfflineEngine.setCachedProgress(prog);
     OfflineEngine.setCachedPointsLogs(logs);
-    OfflineEngine.setCachedCalendarEvents(events);
 
     try {
       const response = await apiClient("/api/auth/sync", {
@@ -2876,7 +2878,9 @@ function AppContent({
           user: userCtx,
           progress: prog,
           pointsLogs: logs,
-          calendarEvents: events,
+          // Retain the legacy response/request shape without sending any
+          // personal planner mutations to the server.
+          calendarEvents: [],
         }),
         // Background sync: failures are queued locally for retry and surfaced
         // via offline-sync-status, never as a global API error toast.
@@ -2899,31 +2903,17 @@ function AppContent({
           setPointsLogDb(data.pointsLogs);
           OfflineEngine.setCachedPointsLogs(data.pointsLogs);
         }
-        // ── Calendar event merge strategy ─────────────────────────────────
-        // IMPORTANT: syncWithBackend is called during progress updates (PDF read,
-        // quiz done, etc.) — it must NEVER overwrite or mutate personal schedule
-        // events. Calendar state is managed independently via fetchCalendarEvents().
-        //
-        // Rule: only APPEND global academic events (supervisor-created, userId:null)
-        // that the local state doesn't already know about. Never remove, replace or
-        // reorder existing personal events. Use a functional setter so we always
-        // read the current state — not the stale closure value from call time.
+        // Progress sync may return newly-created academic events. Personal
+        // planner rows are never accepted into this reconciliation path.
         const incomingGlobal: CalendarEvent[] = data.globalCalendarEvents || [];
         if (incomingGlobal.length > 0) {
           setCalendarEventsDb((prev: CalendarEvent[]) => {
             const existingIds = new Set(prev.map((e: CalendarEvent) => e.id));
-            const trulyNew = incomingGlobal.filter((e: CalendarEvent) => !existingIds.has(e.id));
+            const trulyNew = filterAcademicCalendarEvents(incomingGlobal)
+              .filter((e: CalendarEvent) => !existingIds.has(e.id));
             if (trulyNew.length === 0) return prev; // nothing changed — no re-render
             return [...prev, ...trulyNew];
           });
-        }
-        // Update offline cache conservatively (events param = caller's local state)
-        {
-          const existingIds = new Set(events.map((e: CalendarEvent) => e.id));
-          const newGlobals = incomingGlobal.filter((e: CalendarEvent) => !existingIds.has(e.id));
-          if (newGlobals.length > 0) {
-            OfflineEngine.setCachedCalendarEvents([...events, ...newGlobals]);
-          }
         }
       } else {
         throw new Error("HTTP synchronization failure: " + response.status);
@@ -2960,7 +2950,7 @@ function AppContent({
     const cachedEvents = localStorage.getItem("calendar_events");
     if (cachedEvents) {
       try {
-        localEvents = safeJsonParse(cachedEvents, []);
+        localEvents = filterAcademicCalendarEvents(safeJsonParse(cachedEvents, []));
       } catch {
         localEvents = initialCalendarEvents;
       }
@@ -3087,14 +3077,12 @@ function AppContent({
             // Merge: keep ALL local events; only append global events not in local
             {
               const globalEvts: CalendarEvent[] = data.globalCalendarEvents || [];
-              const userEvts: CalendarEvent[] = data.calendarEvents || [];
               const localIdSet = new Set(localEvents.map((e: CalendarEvent) => e.id));
               const globalIdSet = new Set(globalEvts.map((e: CalendarEvent) => e.id));
               const extras = [
                 ...globalEvts.filter((e: CalendarEvent) => !localIdSet.has(e.id)),
-                ...userEvts.filter((e: CalendarEvent) => !localIdSet.has(e.id) && !globalIdSet.has(e.id)),
               ];
-              const merged = extras.length > 0 ? [...localEvents, ...extras] : localEvents;
+              const merged = filterAcademicCalendarEvents(extras.length > 0 ? [...localEvents, ...extras] : localEvents);
               setCalendarEventsDb(merged);
               localStorage.setItem("calendar_events", JSON.stringify(merged));
             }
@@ -3181,7 +3169,7 @@ function AppContent({
             setProgressDb(localProgress);
             setPointsLogDb(localLogs);
             setCalendarEventsDb(localEvents);
-            syncWithBackend(parsed, localProgress, localLogs, localEvents);
+            syncWithBackend(parsed, localProgress, localLogs);
             setIsInitializing(false);
           } catch (e) {
           }
@@ -3284,7 +3272,8 @@ function AppContent({
               if (data.globalCalendarEvents && data.globalCalendarEvents.length > 0) {
                 setCalendarEventsDb((prev: CalendarEvent[]) => {
                   const existingIds = new Set(prev.map((e: CalendarEvent) => e.id));
-                  const toAdd = data.globalCalendarEvents.filter((e: CalendarEvent) => !existingIds.has(e.id));
+                  const toAdd = filterAcademicCalendarEvents(data.globalCalendarEvents)
+                    .filter((e: CalendarEvent) => !existingIds.has(e.id));
                   return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
                 });
               }
@@ -3300,11 +3289,11 @@ function AppContent({
                   "points_log",
                   JSON.stringify(data.pointsLogs),
                 );
-              if (data.globalCalendarEvents || data.calendarEvents) {
+               if (data.globalCalendarEvents || data.calendarEvents) {
                 localStorage.setItem(
                   "calendar_events",
                   JSON.stringify(
-                    data.globalCalendarEvents || data.calendarEvents,
+                     filterAcademicCalendarEvents(data.globalCalendarEvents || []),
                   ),
                 );
               }
@@ -3967,12 +3956,12 @@ function AppContent({
     setActiveAccountId(data.user.id);
     setProgressDb(data.progress || []);
     setPointsLogDb(data.pointsLogs || []);
-    setCalendarEventsDb(data.calendarEvents || []);
+    setCalendarEventsDb(filterAcademicCalendarEvents(data.calendarEvents || []));
 
     SecureStorage.set("logged_user", JSON.stringify(data.user));
     localStorage.setItem("progress_db", JSON.stringify(data.progress || []));
     localStorage.setItem("points_log", JSON.stringify(data.pointsLogs || []));
-    localStorage.setItem("calendar_events", JSON.stringify(data.calendarEvents || []));
+    localStorage.setItem("calendar_events", JSON.stringify(filterAcademicCalendarEvents(data.calendarEvents || [])));
   };
 
   // Profile updaters
@@ -4261,94 +4250,9 @@ const handleSignOut = useCallback(async () => {
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
       // Direct synchronization
-      syncWithBackend(currentUser, updatedDb, pointsLogDb, calendarEventsDb);
+      syncWithBackend(currentUser, updatedDb, pointsLogDb);
     },
-    [activeLecture, currentUser, progressDb, pointsLogDb, calendarEventsDb],
-  );
-
-  const handleAddNewEvent = useCallback(
-    async (newEvent: CalendarEvent) => {
-      // If it is a global academic class (type: LECTURE, QUIZ, EXAM), we post to server
-      const isGlobal =
-        newEvent.eventType === "LECTURE" ||
-        newEvent.eventType === "QUIZ" ||
-        newEvent.eventType === "EXAM";
-
-      if (isGlobal) {
-        const startStr = `${newEvent.date}T${newEvent.time || "09:00"}:00`;
-        const startIso = formatToBaghdadISO(startStr);
-        const endIso = dayjs(startIso).add(1, "hour").format();
-
-        try {
-          const response = await apiClient("/api/calendar/events", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              title: newEvent.title,
-              eventType: newEvent.eventType,
-              startDateTime: startIso,
-              endDateTime: endIso,
-              targetGroups: newEvent.targetGroups || ["ALL"],
-              sendNotification: true,
-            }),
-          });
-
-          if (response.ok) {
-            return;
-          } else {
-            throw new Error("HTTP failure " + response.status);
-          }
-        } catch (e) {
-          
-          OfflineEngine.addToQueue({
-            type: "ADD_EVENT",
-            payload: {
-              title: newEvent.title,
-              eventType: newEvent.eventType,
-              startDateTime: startIso,
-              endDateTime: endIso,
-              targetGroups: newEvent.targetGroups || ["ALL"],
-              sendNotification: true,
-            },
-          });
-        }
-      }
-
-      const updated = [newEvent, ...calendarEventsDb];
-      setCalendarEventsDb(updated);
-      setTimeout(() => localStorage.setItem("calendar_events", JSON.stringify(updated)), 0);
-
-      // Append beautiful active notification to database for real-time alerting
-      let notifType: "lecture" | "exam" | "quiz" | "announcement" | "system" | "holiday" | "discussion" | "achievement" | "event" = "event";
-      const evTypeStr = (newEvent.eventType || newEvent.type || "").toUpperCase();
-      if (evTypeStr === "LECTURE" || evTypeStr === "CLASS" || evTypeStr === "LECTURES") {
-        notifType = "lecture";
-      } else if (evTypeStr === "EXAM" || evTypeStr === "IMPORTANT EXAM") {
-        notifType = "exam";
-      } else if (evTypeStr === "QUIZ" || evTypeStr === "DAILY EXAM") {
-        notifType = "quiz";
-      } else if (evTypeStr === "ANNOUNCEMENT" || evTypeStr === "BULLETIN") {
-        notifType = "announcement";
-      }
-
-      const newNotif: AppNotification = {
-        id: `not_${Date.now()}`,
-        title: `Event Scheduled: ${newEvent.title}`,
-        titleAr: `تم جدولة حدث: ${newEvent.title}`,
-        desc: `A new task or study milestone has been added to your calendar for ${newEvent.date} at ${newEvent.time}.`,
-        descAr: `تمت إضافة مهمة دراسية جديدة إلى جدولك الخاص بتاريخ ${newEvent.date} الساعة ${newEvent.time}.`,
-        date: new Date().toISOString(),
-        read: false,
-        type: notifType,
-      };
-      setNotifications((prev) => [newNotif, ...prev]);
-
-      // Direct synchronization
-      syncWithBackend(currentUser, progressDb, pointsLogDb, updated);
-    },
-    [calendarEventsDb, currentUser, progressDb, pointsLogDb],
+    [activeLecture, currentUser, progressDb, pointsLogDb],
   );
 
   const handleDeleteEvent = useCallback(
@@ -4359,36 +4263,21 @@ const handleSignOut = useCallback(async () => {
       localStorage.setItem("calendar_events", JSON.stringify(updated));
       OfflineEngine.setCachedCalendarEvents(updated);
 
-      if (eventId.startsWith("task_")) {
-        syncWithBackend(currentUser, progressDb, pointsLogDb, updated);
-      } else {
-        try {
-          const response = await apiClient(`/api/calendar/events/${eventId}`, {
-            method: "DELETE",
-          });
-          if (!response.ok) {
-            throw new Error("HTTP deletion failure: " + response.status);
-          }
-        } catch (err) {
-          OfflineEngine.addToQueue({
-            type: "DELETE_EVENT",
-            payload: eventId,
-          });
+      try {
+        const response = await apiClient(`/api/calendar/events/${eventId}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("HTTP deletion failure: " + response.status);
         }
+      } catch (err) {
+        OfflineEngine.addToQueue({
+          type: "DELETE_EVENT",
+          payload: eventId,
+        });
       }
     },
     [calendarEventsDb, currentUser, progressDb, pointsLogDb],
-  );
-
-  const handleUpdateEvents = useCallback(
-    (updatedEvents: CalendarEvent[]) => {
-      setCalendarEventsDb(updatedEvents);
-      setTimeout(() => localStorage.setItem("calendar_events", JSON.stringify(updatedEvents)), 0);
-
-      // Direct synchronization
-      syncWithBackend(currentUser, progressDb, pointsLogDb, updatedEvents);
-    },
-    [currentUser, progressDb, pointsLogDb],
   );
 
   const handleEditEvent = useCallback((event: CalendarEvent) => {
@@ -4514,9 +4403,9 @@ const handleSignOut = useCallback(async () => {
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
       // Direct synchronization
-      syncWithBackend(currentUser, updatedDb, pointsLogDb, calendarEventsDb);
+      syncWithBackend(currentUser, updatedDb, pointsLogDb);
     },
-    [activeHomeLecture, currentUser, progressDb, pointsLogDb, calendarEventsDb],
+    [activeHomeLecture, currentUser, progressDb, pointsLogDb],
   );
 
   const activeLectureUser = useMemo(() => ({
@@ -5879,7 +5768,9 @@ const handleSignOut = useCallback(async () => {
             setActiveAccountId(completedUser.id);
             if (responseData.progress) setProgressDb(responseData.progress);
             if (responseData.pointsLogs) setPointsLogDb(responseData.pointsLogs);
-            if (responseData.calendarEvents) setCalendarEventsDb(responseData.calendarEvents);
+            if (responseData.calendarEvents) {
+              setCalendarEventsDb(filterAcademicCalendarEvents(responseData.calendarEvents));
+            }
           }}
         />
       </Suspense>
@@ -6374,17 +6265,15 @@ const handleSignOut = useCallback(async () => {
                     <ErrorBoundary>
                       <HomeDashboard
                         user={currentUser}
-                        subjects={subjects}
                         dbLectures={dbLectures}
                         calendarEvents={calendarEventsDb}
+                        subjects={subjects}
                         progress={progressDb}
                         globalSearchData={globalSearchData}
                         onSearchSelect={handleSearchSelect}
                         onSelectSubject={handleSelectHomeSubject}
                         onSelectLecture={handleSelectHomeLecture}
                         onNavigateTab={handleSidebarTabClick}
-                        onUpdateEvents={handleUpdateEvents}
-                        onAddEvent={handleAddNewEvent}
                         language={language}
                         isActive={activeTab === "home" && activeHomeSubjectId === null}
                         suppressEntranceAnimations={
@@ -6727,10 +6616,6 @@ const handleSignOut = useCallback(async () => {
                     isPhone={device.isPhone}
                     disableDayHover={device.isPhone || device.isTablet || device.isIPadOS}
                     events={calendarEventsDb}
-                    subjects={subjects}
-                    onAddEvent={handleAddNewEvent}
-                    onDeleteEvent={handleDeleteEvent}
-                    onUpdateEvents={handleUpdateEvents}
                     language={language}
                   />
                 </ErrorBoundary>
@@ -7023,7 +6908,6 @@ const handleSignOut = useCallback(async () => {
                       calendarEventsDb={calendarEventsDb}
                       subjects={subjects}
                       onAddPoints={handleAddPoints}
-                      onAddNewEvent={handleAddNewEvent}
                       onUpdateLectureProgress={handleUpdateLectureProgress}
                       onSync={syncWithBackend}
                       onForceLocalReset={handleForceLocalReset}

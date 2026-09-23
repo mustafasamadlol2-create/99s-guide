@@ -711,88 +711,15 @@ export class UserService {
     });
   }
 
-  // Get custom calendar events (now handled client-side or managed via global calendar)
+  // Legacy response compatibility only. Personal planner rows remain stored
+  // but are no longer read by normal application hydration or synchronization.
   static async getCalendarEvents(
     userId: string,
     forceSupabase = false,
   ): Promise<any[]> {
-    if (
-      !forceSupabase &&
-      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
-      privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED")
-    ) {
-      try {
-        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
-          "/internal/private-read/personal-calendar",
-          { userId },
-        );
-        if (!payload || !Array.isArray(payload.rows)) {
-          throw new Error("Invalid personal calendar payload.");
-        }
-        return payload.rows.map((row: any) => ({
-          id: row.id,
-          title: row.title,
-          date: row.startDateTime ? new Date(row.startDateTime).toISOString().split('T')[0] : "",
-          time: row.startDateTime ? new Date(row.startDateTime).toISOString().substring(11, 16) : "",
-          type: String(row.eventType || "OTHER").toLowerCase(),
-          completed: !!row.isCompleted,
-        }));
-      } catch (error) {
-        logPrivateReadFallback("full-user-calendar", error);
-      }
-    }
-
-    const events = await getPrisma().calendarEvent.findMany({
-      take: 2000,
-      where: { userId }
-    });
-    return events.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      date: row.startDateTime ? new Date(row.startDateTime).toISOString().split('T')[0] : "",
-      time: row.startDateTime ? new Date(row.startDateTime).toISOString().substring(11, 16) : "",
-      type: row.eventType?.toLowerCase() || "other",
-      completed: row.isCompleted
-    }));
-  }
-
-  // Save custom calendar event
-  static async saveCalendarEvent(evt: any): Promise<void> {
-    const client = getPrisma();
-    const startDateTime = evt.date ? new Date(`${evt.date}T${evt.time || "09:00"}:00`) : new Date();
-    const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // +1 hr default
-
-    await client.calendarEvent.upsert({
-      where: { id: evt.id },
-      update: {
-        title: evt.title,
-        eventType: (evt.type || "other").toUpperCase(),
-        startDateTime,
-        endDateTime,
-        isCompleted: !!evt.completed
-      },
-      create: {
-        id: evt.id,
-        userId: evt.userId,
-        title: evt.title,
-        eventType: (evt.type || "other").toUpperCase(),
-        startDateTime,
-        endDateTime,
-        isCompleted: !!evt.completed
-      }
-    });
-  }
-
-  // Delete calendar event
-  static async deleteCalendarEvent(id: string): Promise<void> {
-    const client = getPrisma();
-    try {
-      await client.calendarEvent.delete({
-        where: { id }
-      });
-    } catch (err) { console.error("findById error:", err);
-      // Ignore if does not exist
-    }
+    void userId;
+    void forceSupabase;
+    return [];
   }
 
   // ── Auth-only methods — password hash is NEVER part of UserRecord ────────────

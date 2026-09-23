@@ -175,6 +175,8 @@ export interface CalendarEvent {
   notes?: string;
   isPinned?: boolean;
   isCompleted?: boolean;
+  /** Legacy planner ownership marker retained for compatibility reads only. */
+  userId?: string | null;
   /** Explicit all-day semantics; never infer this from a missing time. */
   allDay?: boolean;
 }

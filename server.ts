@@ -71,6 +71,7 @@ import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRout
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
 import { createCalendarImportRouter, CalendarImportService } from "./server/services/calendarImport/index.js";
 import { calendarTargetGroupsOverlap } from "./shared/calendarContracts.js";
+import { deprecateLegacyCalendarEvents } from "./server/services/calendarPersonalPolicy.js";
 import { AIImportService, createPrismaAIImportRepository } from "./server/services/ai/import/index.js";
 import {
   createSupabaseSignedUrl,
@@ -6555,7 +6556,9 @@ app.delete("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res)
   const prismaClient = getPrisma();
 
   // Use deleteMany for idempotent delete — returns {count:0} when not found instead of throwing
-  const result = await prismaClient.calendarEvent.deleteMany({ where: { id: eventId } });
+  // Academic Schedule mutations must never delete dormant user-owned legacy
+  // planner rows. Keep the existing admin/owner authorization unchanged.
+  const result = await prismaClient.calendarEvent.deleteMany({ where: { id: eventId, userId: null } });
 
   if (result.count > 0 && io) {
     io.to("authenticated").emit("calendar_updated", { action: "delete", eventId });
@@ -6580,58 +6583,20 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
     const isPrivileged = currentUser?.role === "admin" || currentUser?.role === "owner";
 
     let events: any[] = [];
-    let readSource: "d1+private-d1-personal" | "d1+supabase-personal" | "supabase" | "supabase-fallback" = "supabase";
+    let readSource: "d1" | "supabase" | "supabase-fallback" = "supabase";
 
     if (contentD1CalendarReadsEnabled()) {
       try {
-        // D1 stores GLOBAL rows only. Personal rows intentionally remain in
-        // Supabase, so the authenticated API merges both sources here.
-        const [globalPayload, personalEvents] = await Promise.all([
-          fetchContentReadJson<any>("/calendar/global"),
-          userId
-            ? (privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED")
-                ? fetchPrivateReadJson<{ rows: any[] }>(
-                    "/internal/private-read/personal-calendar",
-                    { userId },
-                  ).then((payload) => {
-                    if (!payload || !Array.isArray(payload.rows)) {
-                      throw new Error("Invalid personal calendar payload.");
-                    }
-                    return payload.rows;
-                  })
-                : prismaClient.calendarEvent.findMany({
-                    take: 1000,
-                    where: { userId },
-                    orderBy: { startDateTime: "asc" },
-                  }))
-            : Promise.resolve([]),
-        ]);
+        // The content Worker stores academic/global rows. Personal planner
+        // rows are intentionally not part of normal application reads.
+        const globalPayload = await fetchContentReadJson<any>("/calendar/global");
 
         if (!globalPayload || !Array.isArray(globalPayload.events)) {
           throw new Error("Content Worker global calendar payload is invalid.");
         }
 
-        // Reconstruct the existing Prisma contract:
-        // WHERE (userId IS NULL OR userId=currentUser)
-        // ORDER BY startDateTime ASC
-        // TAKE 1000
-        //
-        // Fetching up to 1000 globals + up to 1000 personal rows is sufficient
-        // to reconstruct the first 1000 rows of the merged ordered stream.
-        events = [...globalPayload.events, ...personalEvents]
-          .sort((a: any, b: any) => {
-            const aTime = new Date(a?.startDateTime).getTime();
-            const bTime = new Date(b?.startDateTime).getTime();
-
-            if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
-              return aTime - bTime;
-            }
-
-            return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
-          })
-          .slice(0, 1000);
-
-        readSource = privateReadEnabled("PRIVATE_D1_CALENDAR_READS_ENABLED") ? "d1+private-d1-personal" : "d1+supabase-personal";
+        events = globalPayload.events.slice(0, 1000);
+        readSource = "d1";
       } catch (error: any) {
         readSource = "supabase-fallback";
         logger.warn(
@@ -6641,15 +6606,10 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
       }
     }
 
-    if (readSource !== "d1+supabase-personal" && readSource !== "d1+private-d1-personal") {
+    if (readSource !== "d1") {
       events = await prismaClient.calendarEvent.findMany({
         take: 1000,
-        where: {
-          OR: [
-            { userId: null },
-            { userId: userId },
-          ],
-        },
+        where: { userId: null },
         orderBy: {
           startDateTime: "asc",
         },
@@ -6660,7 +6620,6 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
       .filter(
         (event: any) =>
           isPrivileged ||
-          event.userId !== null ||
           eventVisibleToGroup(event.targetGroups, currentUser?.studentGroup),
       )
       .map((event: any) => ({
@@ -6750,7 +6709,7 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
     }
 
     // Check conflict (overlapping times only if targetGroups conflict)
-    const existingEvents = await prismaClient.calendarEvent.findMany({ take: 1000, where: { AND: [{ startDateTime: { lt: nE } }, { endDateTime: { gt: nS } }] } });
+    const existingEvents = await prismaClient.calendarEvent.findMany({ take: 1000, where: { userId: null, AND: [{ startDateTime: { lt: nE } }, { endDateTime: { gt: nS } }] } });
     const hasConflict = existingEvents.some(event => {
       // Holidays never conflict with other events
       if (uppercaseType === "HOLIDAY" || event.eventType === "HOLIDAY") return false;
@@ -6890,6 +6849,7 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
     const existingEvents = await prismaClient.calendarEvent.findMany({
       take: 1000,
       where: {
+        userId: null,
         id: { not: id },
         AND: [{ startDateTime: { lt: nE } }, { endDateTime: { gt: nS } }],
       },
@@ -6905,6 +6865,11 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
 
     if (hasConflict) {
       return res.status(400).json({ error: "Time slot conflict for the selected groups." });
+    }
+
+    const academicEvent = await prismaClient.calendarEvent.findFirst({ where: { id, userId: null } });
+    if (!academicEvent) {
+      return res.status(404).json({ error: "Event not found." });
     }
 
     const updatedEvent = await prismaClient.calendarEvent.update({
@@ -6931,13 +6896,7 @@ app.put("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res) =>
         : (updatedEvent.targetGroups || []),
     };
 
-    // Only global/admin events belong in D1. If an admin edits a personal row,
-    // ensure any stale D1 copy with the same id is removed instead.
-    if (updatedEvent.userId == null) {
-      await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(updatedEvent));
-    } else {
-      await syncContentDelete("CalendarEvent", updatedEvent.id);
-    }
+    await syncContentUpsert("CalendarEvent", toCalendarEventContentRow(updatedEvent));
 
     // Broadcast to all connected clients so everyone sees the change instantly
     if (io) {
@@ -9924,10 +9883,10 @@ app.post("/api/auth/track-time", requireUser, catchAsync(async (req, res) => {
 // Full state bidirectional sync (merges client databases with server-side nodes)
 app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
   try {
-    const { userId, user, progress = [], pointsLogs = [], calendarEvents = [] } = req.body;
+    const { userId, user, progress = [], pointsLogs = [] } = req.body;
     if (!userId) return res.status(400).json({ error: "User context ID is required." });
-    if (!Array.isArray(progress) || !Array.isArray(pointsLogs) || !Array.isArray(calendarEvents)) {
-      return res.status(400).json({ error: "progress, pointsLogs, and calendarEvents must be arrays." });
+    if (!Array.isArray(progress) || !Array.isArray(pointsLogs)) {
+      return res.status(400).json({ error: "progress and pointsLogs must be arrays." });
     }
 
     const authUser = (req as any).user;
@@ -9978,19 +9937,6 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
            String(pointLog.reason).trim() !== storedPoint.reason ||
            (pointLog.createdAt && new Date(pointLog.createdAt).getTime() !== storedPoint.createdAt.getTime()))) {
         return res.status(403).json({ error: "Client-created or modified point awards are not accepted." });
-      }
-    }
-
-    const suppliedEventIds = calendarEvents
-      .map((entry: any) => typeof entry?.id === "string" ? entry.id : "")
-      .filter(Boolean);
-    const existingCalendarEvents = suppliedEventIds.length > 0
-      ? await prismaClient.calendarEvent.findMany({ where: { id: { in: suppliedEventIds } }, select: { id: true, userId: true } })
-      : [];
-    const eventOwnerById = new Map(existingCalendarEvents.map((entry: any) => [entry.id, entry.userId]));
-    for (const event of calendarEvents) {
-      if (event?.id && eventOwnerById.has(event.id) && eventOwnerById.get(event.id) !== userId) {
-        return res.status(403).json({ error: "A calendar event belongs to another account." });
       }
     }
 
@@ -10048,37 +9994,9 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       }));
     }
 
-    // Save/Sync Custom planner events (personal only — never overwrite global/admin events)
-    for (const e of calendarEvents) {
-      if (!e || typeof e.id !== "string" || !e.id.trim()) {
-        return res.status(400).json({ error: "Every calendar event must have a stable identifier." });
-      }
-      // Skip global/admin events (they have no userId — created via Console by supervisors).
-      // Letting a progress sync overwrite these would corrupt schedule dates for all users.
-      if (!e.userId && !e.date) continue;
-
-      // Resolve start time: prefer the explicit `date` field set by the client planner.
-      // Fall back to the ISO `startDateTime` already stored on server-returned events.
-      // Never fall back to new Date() — that would silently reset all dates to today.
-      let startDateTime: Date | null = null;
-      if (e.date) {
-        startDateTime = new Date(`${e.date}T${e.time || "09:00"}:00`);
-      } else if (e.startDateTime) {
-        startDateTime = new Date(e.startDateTime);
-      }
-      if (!startDateTime || isNaN(startDateTime.getTime())) continue;
-
-      if (typeof e.title !== "string" || !e.title.trim() || e.title.length > 500) {
-        return res.status(400).json({ error: "Invalid calendar event title." });
-      }
-
-      const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
-      ops.push(prismaClient.calendarEvent.upsert({
-        where: { id: e.id },
-        update: { title: e.title.trim(), eventType: (e.type || "other").toUpperCase(), startDateTime, endDateTime, isCompleted: !!e.completed },
-        create: { id: e.id, userId, title: e.title.trim(), eventType: (e.type || "other").toUpperCase(), startDateTime, endDateTime, isCompleted: !!e.completed }
-      }));
-    }
+    // Legacy clients may still send `calendarEvents`. The field is accepted
+    // only for response compatibility; it is deliberately ignored so stale
+    // planner payloads cannot create or update user-owned rows.
 
     if (ops.length > 0) {
       await prismaClient.$transaction(ops);
@@ -10113,7 +10031,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
 
     res.json({
       ...syncData,
-      calendarEvents: syncData.calendarEvents,
+      calendarEvents: deprecateLegacyCalendarEvents(req.body.calendarEvents),
       globalCalendarEvents: visibleGlobalEvents.map(event => ({
         ...event,
         targetGroups: parseTargetGroups(event.targetGroups)

@@ -197,8 +197,6 @@ interface CalendarDayViewProps {
  eventDurations: { [eventId: string]: number };
  HOUR_HEIGHT: number;
  timelineRef: React.RefObject<HTMLDivElement | null>;
- setNewTaskTime: (time: string) => void;
- setIsAddingTask: (val: boolean) => void;
  parseTimeToMinutes: (timeStr: string) => number;
  isRtl: boolean;
 }
@@ -215,8 +213,6 @@ export const CalendarDayView = memo(function CalendarDayView({
  eventDurations,
  HOUR_HEIGHT,
  timelineRef,
- setNewTaskTime,
- setIsAddingTask,
  parseTimeToMinutes,
  isRtl,
 }: CalendarDayViewProps) {

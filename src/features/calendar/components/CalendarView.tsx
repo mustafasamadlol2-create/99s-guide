@@ -165,10 +165,6 @@ interface CalendarViewProps {
   isPhone?: boolean;
   disableDayHover?: boolean;
  events: CalendarEvent[];
- subjects: Subject[];
- onAddEvent: (newEvent: CalendarEvent) => void;
- onDeleteEvent?: (eventId: string) => void;
- onUpdateEvents?: (updatedEvents: CalendarEvent[]) => void;
  language: Language;
 }
 
@@ -176,10 +172,6 @@ const CalendarView = memo(function CalendarView({
  isPhone = false,
  disableDayHover = false,
  events,
- subjects,
- onAddEvent,
- onDeleteEvent,
- onUpdateEvents,
  language,
 }: CalendarViewProps) {
  const { t } = useTranslation(language);
@@ -314,7 +306,7 @@ const CalendarView = memo(function CalendarView({
  return map;
  }, [processedEvents]);
 
- const {
+  const {
  activeView,
  setActiveView,
  selectedDate,
@@ -335,10 +327,7 @@ const CalendarView = memo(function CalendarView({
  hoursArray,
  HOUR_HEIGHT,
  timelineRef,
- setNewTaskTime,
- setIsAddingTask,
  parseTimeToMinutes,
- formatMinutesToTime,
  handlePrevMonth,
  handleNextMonth,
  handleGoToToday,
@@ -348,9 +337,6 @@ const CalendarView = memo(function CalendarView({
  handleNextDay,
  } = useCalendar({
  events: processedEvents,
- subjects,
- onAddEvent,
- onUpdateEvents,
  language,
  });
 
@@ -443,33 +429,6 @@ const CalendarView = memo(function CalendarView({
 
  
  
- const handleCopyTitle = (event: CalendarEvent) => {
- if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(event.title);
-  showToast(
-  isRtl ? "تم نسخ عنوان الحدث" : "Copied event title to clipboard",
- );
- };
-
- const handleChangeGroup = (event: CalendarEvent, newGroup: string) => {
- if (onUpdateEvents) {
- const updated = events.map((e) => {
- if (e.id === event.id) {
- return {
- ...e,
- targetGroups: newGroup === "ALL" ? ["ALL"] : [newGroup],
- };
- }
- return e;
- });
- onUpdateEvents(updated);
-  showToast(
-  isRtl
-  ? `تم تغيير المجموعة المستهدفة إلى ${newGroup}`
-  : `Target cohort set to Group ${newGroup}`,
- );
- }
- };
-
  const renderMiniCalendar = () => (
  <AnimatePresence mode="wait">
  {showMiniCalendar && (
@@ -608,8 +567,6 @@ const CalendarView = memo(function CalendarView({
  eventDurations={eventDurations}
  HOUR_HEIGHT={HOUR_HEIGHT}
  timelineRef={timelineRef}
- setNewTaskTime={setNewTaskTime}
- setIsAddingTask={setIsAddingTask}
  parseTimeToMinutes={parseTimeToMinutes}
  isRtl={isRtl}
  />

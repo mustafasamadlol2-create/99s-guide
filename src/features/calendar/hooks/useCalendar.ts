@@ -5,14 +5,11 @@ import { safeJsonParse } from "../../../core/utils/safeJson";
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { CalendarEvent, Subject, SubjectId } from "../../../core/types";
+import { CalendarEvent } from "../../../core/types";
 import { Language } from "../../../core/i18n/translations";
 
 interface UseCalendarProps {
  events: CalendarEvent[];
- subjects: Subject[];
- onAddEvent: (newEvent: CalendarEvent) => void;
- onUpdateEvents?: (updatedEvents: CalendarEvent[]) => void;
  language: Language;
 }
 
@@ -20,9 +17,6 @@ import { parseLocalDate, formatLocalDate } from "../../../core/utils/dateUtils";
 
 export function useCalendar({
  events,
- subjects,
- onAddEvent,
- onUpdateEvents,
  language,
 }: UseCalendarProps) {
  const isRtl = language === "ar";
@@ -103,43 +97,7 @@ export function useCalendar({
  );
  }, [eventDurations]);
 
- const [isAddingTask, setIsAddingTask] = useState(false);
-
- // New task form fields
- const [newTaskTitle, setNewTaskTitle] = useState("");
- const [newTaskTime, setNewTaskTime] = useState("09:00");
- const [newTaskDesc, setNewTaskDesc] = useState("");
- const [newTaskSubjectId, setNewTaskSubjectId] = useState<SubjectId>(
- subjects[0]?.id || ("ID" as SubjectId),
- );
  const [shareSuccess, setShareSuccess] = useState(false);
-
- // ---- Click Comment Personal Overlays ----
- // Update default task subject identifier dynamically to first loaded subject
- useEffect(() => {
- if (
- subjects.length > 0 &&
- (newTaskSubjectId === "ID" ||
- !subjects.some((s) => s.id === newTaskSubjectId))
- ) {
- setNewTaskSubjectId(subjects[0].id);
- }
- }, [subjects, newTaskSubjectId]);
-
- // Flat array of lectures to link tasks to
- const flatLectures: { id: string; title: string; subjectId: SubjectId }[] =
- [];
- subjects.forEach((s) => {
- s.modules.forEach((m) => {
- m.lectures.forEach((l) => {
- flatLectures.push({ id: l.id, title: l.title, subjectId: s.id });
- });
- });
- });
-
- const [linkedLectureId, setLinkedLectureId] = useState<string>(
- flatLectures[0]?.id || "",
- );
 
  // Month labels dictionary
  const monthNamesEn = [
@@ -331,31 +289,6 @@ export function useCalendar({
  }, 300);
  }, [selectedDate, setSelectedDate, formatLocalDate]);
 
- // Submit personal study task
- const handleCreateTaskSubmit = (e: React.FormEvent) => {
- e.preventDefault();
- if (!newTaskTitle.trim()) return;
-
- const newEvent: CalendarEvent = {
- id: `task_${Date.now()}`,
- title: newTaskTitle,
- type: "other",
- date: selectedDate,
- time: newTaskTime,
- description: `${newTaskDesc} (Linked lecture: ${flatLectures.find((l) => l.id === linkedLectureId)?.title || "None"})`,
- isPublic: false,
- subjectId: newTaskSubjectId,
- lectureId: linkedLectureId,
- };
-
- onAddEvent(newEvent);
-
- // Clear
- setNewTaskTitle("");
- setNewTaskDesc("");
- setIsAddingTask(false);
- };
-
  const handlePrint = () => {
  window.print();
  };
@@ -435,24 +368,9 @@ export function useCalendar({
  emptyPaddings,
  getFormattedDate,
  activeWeekDays,
- eventDurations,
- setEventDurations,
+  eventDurations,
  dayTransition,
- isAddingTask,
- setIsAddingTask,
- newTaskTitle,
- setNewTaskTitle,
- newTaskTime,
- setNewTaskTime,
- newTaskDesc,
- setNewTaskDesc,
- newTaskSubjectId,
- setNewTaskSubjectId,
  shareSuccess,
- flatLectures,
- linkedLectureId,
- setLinkedLectureId,
- handleCreateTaskSubmit,
  handlePrint,
  handleShare,
  HOUR_HEIGHT,

@@ -88,8 +88,6 @@ interface HomeDashboardProps {
   onSelectSubject: (id: SubjectId) => void;
   onSelectLecture: (lecture: Lecture, tab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa") => void;
   onNavigateTab: (tab: string) => void;
-  onUpdateEvents: (updated: CalendarEvent[]) => void;
-  onAddEvent: (newEvent: CalendarEvent) => void;
   onSearchSelect?: (result: SearchResultItem) => void;
   language?: Language;
 }
@@ -1063,8 +1061,6 @@ const HomeDashboard = memo(function HomeDashboard({
   onSelectSubject,
   onSelectLecture,
   onNavigateTab,
-  onUpdateEvents,
-  onAddEvent,
   language = "en",
 }: HomeDashboardProps) {
   const isRtl = language === "ar";

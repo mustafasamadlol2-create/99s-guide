@@ -5,6 +5,8 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { Network } from "@capacitor/network";
 import { accountStorageKey } from "../storage/accountData";
+import { filterAcademicCalendarEvents } from "../calendar/academicEvents";
+import { isLegacyPersonalCalendarMutation } from "./legacyCalendarMutation";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -204,7 +206,12 @@ class OfflineEngineClass {
   }
 
   public setCachedCalendarEvents(events: CalendarEvent[]): void {
-    try { localStorage.setItem(accountStorageKey("calendar_events"), JSON.stringify(events)); } catch(e){}
+    try {
+      localStorage.setItem(
+        accountStorageKey("calendar_events"),
+        JSON.stringify(filterAcademicCalendarEvents(events)),
+      );
+    } catch(e){}
   }
 
   public getCachedProgress(): UserProgress[] {
@@ -417,12 +424,20 @@ class OfflineEngineClass {
   public addToQueue(
     mutation: Omit<UnsyncedMutation, "id" | "timestamp">,
   ): void {
-    const queue = this.getMutationQueue();
     const newMutation: UnsyncedMutation = {
       ...mutation,
       id: `mut_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       timestamp: new Date().toISOString(),
     };
+    if (isLegacyPersonalCalendarMutation(newMutation)) {
+      this.addToDLQ({
+        ...newMutation,
+        status: "failed",
+        lastError: "Legacy personal planner mutation was quarantined locally.",
+      });
+      return;
+    }
+    const queue = this.getMutationQueue();
     queue.push(newMutation);
     this.persistQueue(queue);
     
@@ -565,6 +580,16 @@ class OfflineEngineClass {
 
       for (const mutation of queue) {
         try {
+          if (isLegacyPersonalCalendarMutation(mutation)) {
+            this.addToDLQ({
+              ...mutation,
+              attempts: (mutation.attempts || 0) + 1,
+              status: "failed",
+              lastError: "Legacy personal planner mutation was quarantined locally.",
+            });
+            deadLettered.push(mutation);
+            continue;
+          }
           let request: Promise<Response>;
           switch (mutation.type) {
             case "UPDATE_PROFILE":
