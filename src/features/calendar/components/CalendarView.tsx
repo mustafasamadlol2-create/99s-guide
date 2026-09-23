@@ -32,6 +32,7 @@ import {
 import { useCalendar } from "../hooks/useCalendar";
 import { useCalendarViewPager, type CalendarViewMode } from "../hooks/useCalendarViewPager";
 import { getSwipeLayerShadowForExitSign } from "../../../core/motion/swipeMotion";
+import { isAppleTouchNavigationDevice } from "../../../core/hooks/useSwipeBack";
 import { CalendarHeader } from "./CalendarHeader";
 import { SmoothAutoHeight } from "../../../components/ui/SmoothAutoHeight";
 import { CalendarMonthView } from "./CalendarMonthView";
@@ -183,6 +184,11 @@ const CalendarView = memo(function CalendarView({
 }: CalendarViewProps) {
  const { t } = useTranslation(language);
  const isRtl = language === "ar";
+ // iPad only: mirror the already-approved iPhone calendar view-switch pager.
+ // `disableDayHover` is already true for tablet layouts; the Apple-touch guard
+ // keeps Android tablets / desktop browsers on their existing behavior.
+ const isIPadCalendar = !isPhone && disableDayHover && isAppleTouchNavigationDevice();
+ const useTouchCalendarPager = isPhone || isIPadCalendar;
 
  const isMountedRef = useRef(true);
  useEffect(() => {
@@ -623,7 +629,7 @@ const CalendarView = memo(function CalendarView({
  <CalendarHeader t={t} isRtl={isRtl} isPhone={isPhone} useLiveIndicator={disableDayHover} activeView={activeView} setActiveView={handleCalendarViewChange} indicatorPosition={calendarViewPager.indicatorPosition} handlePrint={handlePrint} handleShare={handleShare} shareSuccess={shareSuccess} currentMonth={currentMonth} currentYear={currentYear} monthNames={monthNames} selectedDate={selectedDate} events={processedEvents} studentGroup={studentGroup} setStudentGroup={handleStudentGroupChange} activeWeekDays={activeWeekDays} />
 
  <motion.div
- ref={isPhone ? calendarViewPager.surfaceRef : undefined}
+ ref={useTouchCalendarPager ? calendarViewPager.surfaceRef : undefined}
  id="left_middle_deck"
  data-root-pager-ignore={isPhone ? "true" : undefined}
  className={`w-full bg-semantic-surface-elevated border border-neutral-150 dark:border-white/[0.10] shadow-elevation-1 transition-colors duration-normal ${isPhone ? "calendar-phone-deck p-3 rounded-[18px] space-y-3" : "p-card-padding rounded-lg space-y-section"}`}
@@ -631,7 +637,7 @@ const CalendarView = memo(function CalendarView({
  >
  {/* NAVIGATION BAR - MONTHS */}
  <div
- ref={!isPhone ? calendarViewPager.surfaceRef : undefined}
+ ref={!useTouchCalendarPager ? calendarViewPager.surfaceRef : undefined}
  id="month_banner_nav"
  data-calendar-view-switch-swipe-header="true"
  className={`calendar-view-banner ${isPhone ? "calendar-phone-view-banner" : ""} flex flex-col sm:flex-row justify-between items-center px-1 py-1 gap-3 select-none touch-pan-y`}
@@ -757,6 +763,61 @@ const CalendarView = memo(function CalendarView({
  ? getSwipeLayerShadowForExitSign(calendarSwipeExitSign)
  : "none",
  willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ }}
+ >
+ {renderCalendarView(activeView as CalendarViewMode)}
+ </motion.div>
+ </div>
+ ) : isIPadCalendar ? (
+ // iPad uses the exact same gesture ownership as iPhone:
+ //   • the banner/title can always start a view swipe;
+ //   • Month and Day content can start it too;
+ //   • Week content is excluded so its own calendar interactions stay untouched.
+ // The pages use the same MotionValues, underlay offset, spring, commit threshold,
+ // velocity/flick rules and RTL mirroring as iPhone. Keeping both pages in the
+ // same grid cell avoids the old iPad-only resize/slide mismatch without forcing
+ // the iPhone fixed-height viewport onto the larger tablet layout.
+ <div
+ className="relative grid w-full min-w-0 overflow-hidden [overflow-anchor:none] isolate pt-1"
+ style={{
+ fontFamily:
+ '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+ touchAction: "pan-y",
+ }}
+ >
+ {calendarViewPager.targetView && (
+ <motion.div
+ key={`calendar-ipad-target-${calendarViewPager.targetView}`}
+ aria-hidden="true"
+ className="relative w-full min-w-0 bg-semantic-surface-elevated pointer-events-none"
+ style={{
+ gridArea: "1 / 1",
+ x: calendarViewPager.targetX,
+ zIndex: 0,
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ backfaceVisibility: "hidden",
+ }}
+ >
+ {renderCalendarView(calendarViewPager.targetView)}
+ </motion.div>
+ )}
+
+ <motion.div
+ key={`calendar-ipad-live-${activeView}`}
+ id={`${activeView}-panel`}
+ role="tabpanel"
+ aria-labelledby={`${activeView}-tab`}
+ data-calendar-view-pager-disabled={activeView === "week" ? "true" : undefined}
+ className="relative w-full min-w-0 bg-semantic-surface-elevated"
+ style={{
+ gridArea: "1 / 1",
+ x: calendarViewPager.x,
+ zIndex: 1,
+ boxShadow: calendarViewPager.isInteracting
+ ? getSwipeLayerShadowForExitSign(calendarSwipeExitSign)
+ : "none",
+ willChange: calendarViewPager.isInteracting ? "transform" : "auto",
+ backfaceVisibility: "hidden",
  }}
  >
  {renderCalendarView(activeView as CalendarViewMode)}
