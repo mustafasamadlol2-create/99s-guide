@@ -1,5 +1,7 @@
 /**
- * Versions describe shared contracts, not database schemas.
+ * Versions describe shared contracts, not database schemas. The Study Event
+ * version applies to the envelope; incompatible envelope changes require an
+ * increment, while payload-specific versions may evolve independently.
  * Increment a contract version only when its serialized meaning changes.
  */
 export const STUDY_EVENT_SCHEMA_VERSION = 1;
