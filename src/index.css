@@ -2586,6 +2586,15 @@ input:active,
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iPhone Welcome cards must be immediately tappable on first app entry.
+   The shared entrance keyframe historically set pointer-events:none until the
+   fade completed. That is safe for passive desktop decoration, but on the
+   phone Welcome surface it can swallow the user's very first Subject tap.
+   Keep the exact visual entrance while never disabling hit-testing here. */
+.mobile-phone-layout .home-root .ios-staggered-card {
+  pointer-events: auto !important;
+}
+
 /* Ensure hover/active states do not interfere with the entrance transform before completion */
 .ios-staggered-card:hover {
   -webkit-tap-highlight-color: transparent;

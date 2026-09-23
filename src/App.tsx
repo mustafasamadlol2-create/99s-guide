@@ -4961,7 +4961,15 @@ const handleSignOut = useCallback(async () => {
   const prepareMainTabCompositor = () => {
     const stage = getMainTabStageElement();
     if (!stage) return;
-    stage.setAttribute("data-main-tab-transition-active", "true");
+
+    // Touchstart is only a *possible* root-page swipe. On iPhone, normal taps
+    // on Welcome cards/buttons begin with the same touchstart event. Do not
+    // mark the stage as an active transition yet: that attribute deliberately
+    // suppresses entrance animations and used to restart the Welcome card
+    // animation on every tap, temporarily making the cards non-interactive.
+    // Promoting the stage is compositor-only and safe for taps; the real
+    // transition attribute is applied by setMainTabVisualActive(true) only
+    // after the gesture has positively locked to the horizontal axis.
     stage.style.willChange = "transform";
   };
 
