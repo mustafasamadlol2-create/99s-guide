@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { STUDY_EVENT_SOURCES, STUDY_EVENT_TYPES } from "../study-core/events.js";
+import { EVIDENCE_CLASSES } from "../study-core/evidence.js";
+import { PRIVACY_CLASSES } from "../study-core/privacy.js";
 import type { StudyEventType } from "../study-core/events.js";
 
 const boundedText = (max = 200) => z.string().trim().min(1).max(max);
@@ -7,6 +10,23 @@ const emptyPayload = z.object({}).strict();
 export const MAX_PAYLOAD_BYTES = 32 * 1024;
 export const MAX_ACTIVE_SECONDS = 24 * 60 * 60;
 export const MAX_PAUSE_SECONDS = 7 * 24 * 60 * 60;
+
+export const studyEventInputSchema = z.object({
+  eventType: z.enum(STUDY_EVENT_TYPES),
+  userId: boundedText(200),
+  occurredAt: z.union([z.date(), z.string().min(1).max(64)]),
+  source: z.enum(STUDY_EVENT_SOURCES),
+  idempotencyKey: boundedText(200).refine((value) => value.length >= 8),
+  lectureId: boundedText(200).optional(),
+  materialId: boundedText(200).optional(),
+  mcqId: boundedText(200).optional(),
+  flashcardId: boundedText(200).optional(),
+  focusSessionId: boundedText(200).optional(),
+  groupFocusRoomId: boundedText(200).optional(),
+  evidenceClass: z.enum(EVIDENCE_CLASSES),
+  privacyClass: z.enum(PRIVACY_CLASSES).optional(),
+  payload: z.unknown(),
+}).strict();
 
 const focusCompletion = z.object({
   activeSeconds: z.number().int().min(0).max(MAX_ACTIVE_SECONDS),

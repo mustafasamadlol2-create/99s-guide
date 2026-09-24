@@ -38,6 +38,59 @@ type OutboxRow = {
   attempts: number;
 };
 
+/**
+ * Enqueues an already-built projection through the caller's transaction-capable
+ * Prisma executor. The outbox ID sequence is the monotonic projection revision
+ * source; sequence gaps on rollback are intentional and harmless.
+ *
+ * This does not coalesce pending rows. The existing drainer remains responsible
+ * for delivery/retry, and the Worker rejects stale revisions.
+ */
+export async function enqueuePrivateD1Projection(
+  executor: {
+    $queryRawUnsafe<T = unknown>(query: string, ...args: unknown[]): Promise<T>;
+  },
+  input: {
+    entity: "StudyDailyMetric";
+    key: { id: string };
+    data: Record<string, unknown>;
+  },
+): Promise<string> {
+  if (input.entity !== "StudyDailyMetric") {
+    throw new Error("Unsupported private D1 projection entity.");
+  }
+
+  const rows = await executor.$queryRawUnsafe<Array<{ revision: string }>>(
+    `WITH allocated_revision AS (
+       SELECT nextval(
+         pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+       )::bigint AS value
+     )
+     INSERT INTO "PrivateD1SyncOutbox"
+       ("entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+     SELECT
+       $1,
+       'upsert',
+       $2::jsonb,
+       allocated_revision.value,
+       jsonb_set($3::jsonb, '{revision}', to_jsonb(allocated_revision.value::text), true),
+       0,
+       NULL,
+       NOW(),
+       NOW()
+     FROM allocated_revision
+     RETURNING "revision"::text AS "revision"`,
+    input.entity,
+    JSON.stringify(input.key),
+    JSON.stringify(input.data),
+  );
+  const revision = Array.isArray(rows) ? rows[0]?.revision : undefined;
+  if (typeof revision !== "string" || !/^\d+$/.test(revision)) {
+    throw new Error("Private D1 projection outbox did not return a valid revision.");
+  }
+  return revision;
+}
+
 const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
   "User": [
     "lastActive",

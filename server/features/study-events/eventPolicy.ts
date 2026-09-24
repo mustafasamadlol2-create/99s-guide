@@ -1,8 +1,5 @@
 import type { ZodTypeAny } from "zod";
 import {
-  STUDY_EVENT_PAYLOAD_SCHEMAS,
-} from "./schemas.js";
-import {
   STUDY_EVENT_TYPES,
   type StudyEventSource,
   type StudyEventType,
@@ -11,6 +8,7 @@ import type { EvidenceClass } from "../study-core/evidence.js";
 import { getEvidenceRank } from "../study-core/evidence.js";
 import type { PrivacyClass } from "../study-core/privacy.js";
 import type { MetricDelta } from "./types.js";
+import { MAX_ACTIVE_SECONDS, STUDY_EVENT_PAYLOAD_SCHEMAS } from "./schemas.js";
 
 export type StudyEventPolicy = {
   minimumEvidence: EvidenceClass;
@@ -35,7 +33,7 @@ const noMetric = (
   minimumEvidence,
   allowedSources,
   privacyClass: "PRIVATE_STUDY",
-  payloadSchema: {} as ZodTypeAny,
+  payloadSchema: STUDY_EVENT_PAYLOAD_SCHEMAS.focus_session_started,
   requiredReferences,
   metricEffect: "NONE",
   intendedProducer,
@@ -43,7 +41,7 @@ const noMetric = (
 
 const policy = (values: Partial<StudyEventPolicy> & Pick<StudyEventPolicy, "minimumEvidence" | "allowedSources" | "intendedProducer">): StudyEventPolicy => ({
   privacyClass: "PRIVATE_STUDY",
-  payloadSchema: {} as ZodTypeAny,
+  payloadSchema: STUDY_EVENT_PAYLOAD_SCHEMAS.focus_session_started,
   requiredReferences: [],
   metricEffect: "NONE",
   ...values,
@@ -146,18 +144,26 @@ export function evidenceMeetsPolicy(
   return getEvidenceRank(evidenceClass) >= getEvidenceRank(minimumEvidence);
 }
 
-export function getMetricDelta(eventType: StudyEventType, payload: any): MetricDelta | null {
+export function getMetricDelta(eventType: StudyEventType, payload: unknown): MetricDelta | null {
+  const validation = STUDY_EVENT_PAYLOAD_SCHEMAS[eventType].safeParse(payload);
+  if (!validation.success) return null;
+  const data = validation.data as Record<string, unknown>;
   switch (eventType) {
     case "focus_session_completed":
-      return { focusSeconds: payload.activeSeconds, sessionsCompleted: 1 };
+      if (
+        !Number.isInteger(data.activeSeconds) ||
+        Number(data.activeSeconds) < 0 ||
+        Number(data.activeSeconds) > MAX_ACTIVE_SECONDS
+      ) return null;
+      return { focusSeconds: Number(data.activeSeconds), sessionsCompleted: 1 };
     case "focus_interruption_recorded":
       return { interruptionCount: 1 };
     case "mcq_attempted":
-      return { mcqAttempts: 1, mcqCorrect: payload.correct ? 1 : 0 };
+      return { mcqAttempts: 1, mcqCorrect: data.correct === true ? 1 : 0 };
     case "flashcard_reviewed":
       return { flashcardReviews: 1 };
     case "spaced_recall_answered":
-      return { recallAttempts: 1, recallCorrect: payload.response === "CORRECT" ? 1 : 0 };
+      return { recallAttempts: 1, recallCorrect: data.response === "CORRECT" ? 1 : 0 };
     case "lecture_completion_confirmed":
       return { lectureCompletions: 1 };
     default:

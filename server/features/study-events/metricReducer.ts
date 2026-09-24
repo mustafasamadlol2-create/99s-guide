@@ -6,5 +6,5 @@ export function reduceStudyDailyMetric(
   eventType: StudyEventType,
   payload: unknown,
 ): MetricDelta | null {
-  return getMetricDelta(eventType, payload as Record<string, unknown>);
+  return getMetricDelta(eventType, payload);
 }
