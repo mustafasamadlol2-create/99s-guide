@@ -28,7 +28,7 @@ const PROJECTION_ENTITIES = new Set<PrivateMirrorEntity>([
   "StudyDailyMetric",
 ]);
 
-type OutboxRow = {
+export type PrivateD1SyncOutboxRow = {
   id: string;
   revision: string;
   entity: PrivateMirrorEntity;
@@ -38,18 +38,21 @@ type OutboxRow = {
   attempts: number;
 };
 
+type OutboxExecutor = {
+  $queryRawUnsafe<T = unknown>(query: string, ...args: unknown[]): Promise<T>;
+  $executeRawUnsafe(query: string, ...args: unknown[]): Promise<number>;
+};
+
 /**
  * Enqueues an already-built projection through the caller's transaction-capable
- * Prisma executor. The outbox ID sequence is the monotonic projection revision
- * source; sequence gaps on rollback are intentional and harmless.
+ * Prisma executor. One outbox identity-sequence value is explicitly written to
+ * both id and revision; gaps on rollback are intentional and harmless.
  *
  * This does not coalesce pending rows. The existing drainer remains responsible
  * for delivery/retry, and the Worker rejects stale revisions.
  */
 export async function enqueuePrivateD1Projection(
-  executor: {
-    $queryRawUnsafe<T = unknown>(query: string, ...args: unknown[]): Promise<T>;
-  },
+  executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
   input: {
     entity: "StudyDailyMetric";
     key: { id: string };
@@ -60,15 +63,16 @@ export async function enqueuePrivateD1Projection(
     throw new Error("Unsupported private D1 projection entity.");
   }
 
-  const rows = await executor.$queryRawUnsafe<Array<{ revision: string }>>(
+  const rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
     `WITH allocated_revision AS (
        SELECT nextval(
          pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
        )::bigint AS value
      )
      INSERT INTO "PrivateD1SyncOutbox"
-       ("entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+       ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
      SELECT
+       allocated_revision.value,
        $1,
        'upsert',
        $2::jsonb,
@@ -79,13 +83,19 @@ export async function enqueuePrivateD1Projection(
        NOW(),
        NOW()
      FROM allocated_revision
-     RETURNING "revision"::text AS "revision"`,
+      RETURNING "id"::text AS "id", "revision"::text AS "revision"`,
     input.entity,
     JSON.stringify(input.key),
     JSON.stringify(input.data),
   );
-  const revision = Array.isArray(rows) ? rows[0]?.revision : undefined;
-  if (typeof revision !== "string" || !/^\d+$/.test(revision)) {
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  const revision = row?.revision;
+  if (
+    typeof row?.id !== "string" ||
+    typeof revision !== "string" ||
+    !/^\d+$/.test(revision) ||
+    row.id !== revision
+  ) {
     throw new Error("Private D1 projection outbox did not return a valid revision.");
   }
   return revision;
@@ -235,7 +245,9 @@ function canonicalizeData(
   return copy;
 }
 
-async function postMutation(row: OutboxRow): Promise<void> {
+export async function postPrivateD1SyncMutation(
+  row: PrivateD1SyncOutboxRow,
+): Promise<void> {
   const config = getConfig();
   if (!config) throw new Error("Private D1 Worker configuration is missing.");
 
@@ -283,9 +295,10 @@ async function postMutation(row: OutboxRow): Promise<void> {
   }
 }
 
-async function leaseBatch(): Promise<OutboxRow[]> {
-  const client = getPrisma();
-  const rows = await client.$queryRawUnsafe(`
+export async function leasePrivateD1SyncOutboxBatch(
+  executor: OutboxExecutor = getPrisma(),
+): Promise<PrivateD1SyncOutboxRow[]> {
+  const rows = await executor.$queryRawUnsafe(`
     WITH picked AS (
       SELECT "id"
       FROM "PrivateD1SyncOutbox"
@@ -311,35 +324,63 @@ async function leaseBatch(): Promise<OutboxRow[]> {
       o."attempts"
   `);
 
-  return Array.isArray(rows) ? rows as OutboxRow[] : [];
+  return Array.isArray(rows) ? rows as PrivateD1SyncOutboxRow[] : [];
 }
 
-async function acknowledge(row: OutboxRow): Promise<void> {
-  await getPrisma().$executeRawUnsafe(
+export async function acknowledgePrivateD1SyncOutboxRow(
+  row: PrivateD1SyncOutboxRow,
+  executor: OutboxExecutor = getPrisma(),
+): Promise<number> {
+  return executor.$executeRawUnsafe(
     `DELETE FROM "PrivateD1SyncOutbox"
-     WHERE "id" = $1::bigint AND "revision" = $2::bigint`,
+     WHERE "id" = $1::bigint
+       AND "revision" = $2::bigint
+       AND "attempts" = $3`,
     row.id,
     row.revision,
+    row.attempts,
   );
 }
 
-async function markFailure(row: OutboxRow, error: unknown): Promise<void> {
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 500);
-  const attempts = Math.max(1, Number(row.attempts) || 1);
-  const retrySeconds = Math.min(300, 15 * Math.pow(2, Math.min(attempts - 1, 4)));
+function safeErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw
+    .replace(/\bBearer\s+[^\s,;]+/giu, "Bearer [REDACTED]")
+    .replace(
+      /"(?:authorization|x-private-data-sync-secret|access[_-]?token|refresh[_-]?token|token|password|secret)"\s*:\s*"[^"]*"/giu,
+      '"[REDACTED_FIELD]":"[REDACTED]"',
+    )
+    .replace(
+      /\b(?:authorization|x-private-data-sync-secret|access[_-]?token|refresh[_-]?token|token|password|secret)\b\s*[:=]\s*[^\s,;]+/giu,
+      "[REDACTED_FIELD]=[REDACTED]",
+    )
+    .slice(0, 500);
+}
 
-  await getPrisma().$executeRawUnsafe(
+export async function markPrivateD1SyncOutboxRowFailure(
+  row: PrivateD1SyncOutboxRow,
+  error: unknown,
+  executor: OutboxExecutor = getPrisma(),
+): Promise<number> {
+  const message = safeErrorMessage(error);
+  const attempts = Math.max(1, Number(row.attempts) || 1);
+  const retrySeconds = Math.min(300, 15 * Math.pow(2, Math.min(attempts - 1, 5)));
+
+  return executor.$executeRawUnsafe(
     `UPDATE "PrivateD1SyncOutbox"
      SET
-       "lastError" = $3,
-       "nextAttemptAt" = NOW() + ($4::text || ' seconds')::interval,
+       "lastError" = $4,
+       "nextAttemptAt" = NOW() + ($5::text || ' seconds')::interval,
        "updatedAt" = NOW()
-     WHERE "id" = $1::bigint AND "revision" = $2::bigint`,
+     WHERE "id" = $1::bigint
+       AND "revision" = $2::bigint
+       AND "attempts" = $3`,
     row.id,
     row.revision,
+    row.attempts,
     message,
     String(retrySeconds),
-  ).catch(() => {});
+  ).catch(() => 0);
 }
 
 function schedule(delayMs: number): void {
@@ -360,19 +401,19 @@ export async function drainPrivateD1SyncOutbox(): Promise<void> {
   let batchWasFull = false;
 
   try {
-    const rows = await leaseBatch();
+    const rows = await leasePrivateD1SyncOutboxBatch();
     batchWasFull = rows.length === BATCH_SIZE;
 
     for (const row of rows) {
       try {
-        await postMutation(row);
-        await acknowledge(row);
+        await postPrivateD1SyncMutation(row);
+        await acknowledgePrivateD1SyncOutboxRow(row);
       } catch (error) {
-        await markFailure(row, error);
+        await markPrivateD1SyncOutboxRowFailure(row, error);
         logger.warn(
           "[PrivateD1Sync]",
           `Pending mutation ${row.entity}/${row.operation} remains queued: ` +
-          `${error instanceof Error ? error.message : String(error)}`,
+          safeErrorMessage(error),
         );
       }
     }

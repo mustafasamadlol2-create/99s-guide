@@ -1,1 +1,2 @@
 - [React version alignment](react-version-alignment.md) — npm's range resolution can mismatch React and React DOM; keep their installed versions identical.
+- [Outbox lease fencing](outbox-lease-fencing.md) — acknowledge and retry updates must match the current lease generation so expired workers cannot mutate reclaimed rows.

@@ -530,14 +530,14 @@ test("outbox failure rolls back canonical event and metric within the transactio
   assert.equal(repository.projections.length, 0);
 });
 
-test("transactional outbox adapter uses a monotonic sequence and never enqueues raw StudyEvent", async () => {
+test("transactional outbox adapter uses one identity value for id and revision", async () => {
   let capturedQuery = "";
   let capturedArgs: unknown[] = [];
   const revision = await enqueuePrivateD1Projection({
     $queryRawUnsafe: async (query: string, ...args: unknown[]) => {
       capturedQuery = query;
       capturedArgs = args;
-      return [{ revision: "991" }] as never;
+      return [{ id: "991", revision: "991" }] as never;
     },
   }, {
     entity: "StudyDailyMetric",
@@ -546,6 +546,7 @@ test("transactional outbox adapter uses a monotonic sequence and never enqueues 
   });
   assert.equal(revision, "991");
   assert.match(capturedQuery, /nextval/u);
+  assert.match(capturedQuery, /"id".*allocated_revision\.value/su);
   assert.match(capturedQuery, /INSERT INTO "PrivateD1SyncOutbox"/u);
   assert.doesNotMatch(capturedQuery, /StudyEvent/u);
   assert.equal(capturedArgs[0], "StudyDailyMetric");

@@ -669,3 +669,20 @@ model StudyDailyMetric {
 
   @@unique([userId, metricDate])
 }
+
+/// Infrastructure-only queue for canonical-to-private-D1 projection delivery.
+/// The enqueue path assigns revision from the same generated BIGINT as id.
+model PrivateD1SyncOutbox {
+  id            BigInt   @id @default(autoincrement())
+  entity        String   @db.VarChar(100)
+  operation     String   @db.VarChar(16)
+  key           Json
+  revision      BigInt
+  data          Json?
+  attempts      Int      @default(0)
+  lastError     String?  @db.VarChar(500)
+  nextAttemptAt DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([nextAttemptAt, id])
+}
