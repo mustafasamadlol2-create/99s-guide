@@ -54,6 +54,8 @@ import {
   createPersonalizationRouter,
   createPersonalizationJsonParser,
 } from "./server/routes/personalization.js";
+import { createFocusService } from "./server/features/focus/service.js";
+import { createFocusRouter } from "./server/routes/focus.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -7541,6 +7543,13 @@ app.use(
     isEnabled: personalizationCloudSyncEnabled,
     getCloud: getPersonalizationFromCloud,
     putCloud: putPersonalizationToCloud,
+  }),
+);
+app.use(
+  "/api/focus",
+  createFocusRouter({
+    requireUser,
+    service: createFocusService(),
   }),
 );
 

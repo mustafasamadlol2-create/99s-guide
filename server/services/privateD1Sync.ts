@@ -54,12 +54,12 @@ type OutboxExecutor = {
 export async function enqueuePrivateD1Projection(
   executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
   input: {
-    entity: "StudyDailyMetric";
+    entity: "FocusPlan" | "FocusSession" | "StudyDailyMetric";
     key: { id: string };
     data: Record<string, unknown>;
   },
 ): Promise<string> {
-  if (input.entity !== "StudyDailyMetric") {
+  if (!PROJECTION_ENTITIES.has(input.entity)) {
     throw new Error("Unsupported private D1 projection entity.");
   }
 

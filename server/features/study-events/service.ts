@@ -47,6 +47,11 @@ type ServiceOptions = {
   enqueueProjection?: EnqueueProjection;
 };
 
+export type StudyEventIngestionOptions = {
+  /** Reuse an existing Prisma transaction so related domain state cannot drift. */
+  transaction?: StudyEventTransaction;
+};
+
 type NormalizedEvent = {
   eventType: string;
   userId: string;
@@ -217,6 +222,7 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
   return {
     async ingestStudyEvent<TPayload>(
       input: IngestStudyEventInput<TPayload>,
+      ingestionOptions: StudyEventIngestionOptions = {},
     ): Promise<StudyEventIngestResult> {
       if (!isEnabled()) {
         return {
@@ -282,7 +288,16 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
       };
       const fingerprint = semanticFingerprint(semanticEvent);
 
-      const previous = await repository.findByIdempotency(value.userId, value.idempotencyKey);
+      const previous = ingestionOptions.transaction
+        ? await ingestionOptions.transaction.studyEvent.findUnique({
+            where: {
+              userId_idempotencyKey: {
+                userId: value.userId,
+                idempotencyKey: value.idempotencyKey,
+              },
+            },
+          })
+        : await repository.findByIdempotency(value.userId, value.idempotencyKey);
       if (previous) return replayOrConflict(previous, fingerprint, value.userId);
 
       const metricDelta = getMetricDelta(value.eventType, payload as Record<string, unknown>);
@@ -309,7 +324,7 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
       };
 
       try {
-        const result = await repository.transaction(async (tx) => {
+        const ingestInTransaction = async (tx: StudyEventTransaction) => {
           const existing = await tx.studyEvent.findUnique({
             where: {
               userId_idempotencyKey: {
@@ -370,7 +385,10 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
             throw new StudyEventError("OUTBOX_FAILURE", "Daily metric projection could not be enqueued.");
           }
           return { event, metricUpdated: true as const, metricDate };
-        });
+        };
+        const result = ingestionOptions.transaction
+          ? await ingestInTransaction(ingestionOptions.transaction)
+          : await repository.transaction(ingestInTransaction);
 
         if ("replay" in result) return replayOrConflict(result.replay, fingerprint, value.userId);
         return {
@@ -382,6 +400,10 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
         };
       } catch (error) {
         if (isUniqueViolation(error)) {
+          // A caller-owned interactive transaction may already be aborted by
+          // PostgreSQL's unique violation. Do not try to recover it by reading
+          // through another connection; let the caller roll back atomically.
+          if (ingestionOptions.transaction) throw error;
           const concurrent = await repository.findByIdempotency(value.userId, value.idempotencyKey);
           if (concurrent) return replayOrConflict(concurrent, fingerprint, value.userId);
         }
