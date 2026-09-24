@@ -1,4 +1,4 @@
-modules = ["web", "swift-5.8", "nodejs-22"]
+modules = ["web", "swift-5.8", "nodejs-22", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
@@ -37,3 +37,4 @@ externalPort = 5000
 [[ports]]
 localPort = 9229
 externalPort = 80
+exposeLocalhost = true

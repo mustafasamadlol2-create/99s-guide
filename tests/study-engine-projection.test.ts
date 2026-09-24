@@ -199,7 +199,7 @@ test("private Worker requires its sync secret and rejects raw Study Events", asy
   assert.equal(missingUserRead.status, 400);
 });
 
-test("private Worker applies newer revisions and ignores stale ones", async () => {
+test("private Worker applies newer decimal revisions and ignores stale ones without precision loss", async () => {
   const rows = new Map<string, Record<string, unknown>>();
   const statements: string[] = [];
   const db = {
@@ -262,4 +262,35 @@ test("private Worker applies newer revisions and ignores stale ones", async () =
     statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length,
     writesAfterNew,
   );
+
+  let priorRevision = "2";
+  const orderedRevisions = [
+    "9",
+    "10",
+    "99",
+    "100",
+    "9007199254740991",
+    "9007199254740992",
+    "99999999999999999999",
+    "100000000000000000000",
+  ];
+
+  for (const revision of orderedRevisions) {
+    const beforeWrites = statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length;
+    const title = `revision-${revision}`;
+    assert.equal((await privateWorker.fetch(request(revision, title), env)).status, 200);
+    assert.equal(rows.get("plan-1")?.revision, revision);
+    assert.equal(rows.get("plan-1")?.title, title);
+
+    const writesAfterRevision = statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length;
+    assert.equal(writesAfterRevision, beforeWrites + 1);
+    assert.equal((await privateWorker.fetch(request(priorRevision, `stale-${priorRevision}`), env)).status, 200);
+    assert.equal(
+      statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length,
+      writesAfterRevision,
+    );
+    assert.equal(rows.get("plan-1")?.revision, revision);
+    assert.equal(rows.get("plan-1")?.title, title);
+    priorRevision = revision;
+  }
 });
