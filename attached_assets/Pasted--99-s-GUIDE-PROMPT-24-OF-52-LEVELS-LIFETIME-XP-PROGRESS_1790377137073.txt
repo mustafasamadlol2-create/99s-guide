@@ -1,0 +1,2973 @@
+# 99’s GUIDE — PROMPT 24 OF 52
+
+## LEVELS + LIFETIME XP PROGRESSION
+
+## PROFILE-SAFE GAMIFICATION EXPOSURE
+
+### COSMETIC PROGRESSION ONLY — NO CHALLENGES — NO LEADERBOARDS — NO NEW POINT RULES
+
+Prompts 1–23 have been completed.
+
+Prompt 23 established:
+
+```text
+canonical metrics
+→ versioned Achievement definitions
+→ deterministic progress
+→ permanent versioned unlock history
+```
+
+Prompt 24 now adds:
+
+```text
+lifetime Study Points
+→ deterministic Level
+→ deterministic Level progress
+→ safe public Gamification profile projection
+```
+
+Frozen roadmap:
+
+```text
+Prompt 24 — Levels / public profile-safe gamification
+Prompt 25 — Challenges
+Prompt 26 — Leaderboard seasons / snapshots
+Prompt 27 — Leaderboard D1 / cache
+```
+
+Do NOT implement Prompt 25+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. deterministic lifetime Level calculation;
+2. versioned Level definitions from Prompt 22;
+3. canonical user Level state/read projection;
+4. rebuildable Level progression;
+5. safe handling of Points reversals;
+6. private own Gamification summary;
+7. explicit profile-safe Gamification exposure;
+8. profile-safe Achievement exposure;
+9. strict privacy filtering;
+10. future-proof APIs for frontend Prompt 44.
+
+No new Study Points awards.
+
+No Challenges.
+
+No Leaderboards.
+
+No Gamification UI.
+
+---
+
+# 2. CORE PRINCIPLE
+
+Level is derived from:
+
+```text
+canonical lifetime Study Points
++
+active versioned Level definitions
+```
+
+It is cosmetic progression.
+
+Level must NOT become:
+
+* academic grade;
+* Mastery authority;
+* medical competence measure;
+* intelligence ranking;
+* moderation authority;
+* Points source.
+
+---
+
+# 3. POINTS REMAIN CANONICAL
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry
+= canonical Study Points history
+
+StudyPointsBalanceProjection
+= rebuildable balance projection
+
+Level
+= derived Gamification state
+```
+
+Never:
+
+```text
+Level
+→ create Study Points
+```
+
+---
+
+# 4. NO POINT AWARD FROM LEVEL UP
+
+Mandatory:
+
+```text
+LEVEL UP AWARDS STUDY POINTS: NO
+```
+
+No:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+```
+
+writes from Level calculation.
+
+Avoid:
+
+```text
+Points → Level → more Points
+```
+
+feedback loops.
+
+---
+
+# 5. LIFETIME XP DEFINITION
+
+For product language, Level progression may use:
+
+```text
+XP
+```
+
+as a display synonym for canonical lifetime Study Points.
+
+But accounting remains Study Points.
+
+Do NOT create a second XP currency.
+
+Mandatory:
+
+```text
+XP BALANCE TABLE: NO
+XP LEDGER: NO
+```
+
+---
+
+# 6. LEVEL SOURCE BALANCE
+
+Use Prompt 21 safe Points read semantics.
+
+Level progression uses:
+
+```text
+lifetime compatible Study Points total
+```
+
+until full legacy cutover.
+
+That means:
+
+```text
+legacy PointsLog compatible total
++
+canonical new ledger balance
+```
+
+where Prompt 21 compatibility mode allows it.
+
+Do NOT silently force LEDGER_ONLY.
+
+---
+
+# 7. LEGACY SAFETY
+
+If Prompt 21 says a user is not safe for LEDGER_ONLY:
+
+Level calculation must still work using the safe compatible Points read mode.
+
+Do not drop historical Points from Level progression.
+
+---
+
+# 8. NO CATEGORY-BASED LEVEL
+
+Level uses:
+
+```text
+total lifetime points
+```
+
+not only:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+individual categories.
+
+Categories may be shown privately as stats later, but Level threshold uses total.
+
+---
+
+# 9. LEVEL DEFINITIONS
+
+Use Prompt 22 versioned `LevelDefinition`.
+
+Inspect the actual contract created in Prompt 22.
+
+Do NOT create a second Level-definition format.
+
+---
+
+# 10. INITIAL LEVEL CURVE
+
+If Prompt 22 already contains the exact Level definitions:
+
+use them unchanged.
+
+If Prompt 22 created only the contract and no concrete production Level set yet, define one small deterministic `gamification-v1` Level curve in the Prompt 22 bundle.
+
+Use exactly:
+
+```text
+Level 1  → 0 lifetime points
+Level 2  → 100
+Level 3  → 250
+Level 4  → 500
+Level 5  → 900
+Level 6  → 1400
+Level 7  → 2100
+Level 8  → 3000
+Level 9  → 4200
+Level 10 → 5600
+```
+
+Do not define Levels beyond 10 in Prompt 24 unless Prompt 22 already did.
+
+---
+
+# 11. LEVEL CURVE RULES
+
+Validate:
+
+```text
+level numbers strictly increase
+thresholds strictly increase
+Level 1 threshold = 0
+```
+
+No duplicate thresholds.
+
+---
+
+# 12. LEVEL IS VERSIONED
+
+The Level calculation must use:
+
+```text
+active GamificationRuleSet
+```
+
+and its exact immutable Level definitions.
+
+Store:
+
+```text
+ruleSetVersion
+```
+
+with derived Level state.
+
+---
+
+# 13. REQUIRED USER LEVEL MODEL
+
+Add one rebuildable derived model:
+
+```text
+UserGamificationLevel
+```
+
+or repository-consistent equivalent.
+
+Do NOT create multiple XP/Level tables.
+
+---
+
+# 14. `UserGamificationLevel`
+
+Support at least:
+
+```text
+userId
+
+ruleSetVersion
+
+level
+
+lifetimePointsSnapshot
+
+currentLevelMinimumPoints
+
+nextLevelMinimumPoints?
+
+pointsIntoLevel
+pointsToNextLevel?
+
+maxLevelReached
+
+lastEvaluatedAt
+
+createdAt
+updatedAt
+```
+
+Use exact numeric strategy safely.
+
+---
+
+# 15. ONE CURRENT LEVEL ROW PER USER
+
+Prefer:
+
+```text
+userId PRIMARY KEY / UNIQUE
+```
+
+This model represents current active-version derived Level state.
+
+Historical Level versions do NOT require separate rows because Level is fully reconstructable from canonical Points + historical definitions.
+
+Do not build unnecessary Level history table.
+
+---
+
+# 16. LEVEL STATE IS REBUILDABLE
+
+If `UserGamificationLevel` is deleted/corrupted:
+
+recompute from:
+
+```text
+canonical lifetime Points
++
+active Level definitions
+```
+
+No irreversible state is stored there.
+
+---
+
+# 17. MAX LEVEL
+
+When lifetime Points exceed Level 10 threshold:
+
+```text
+level = 10
+maxLevelReached = true
+pointsToNextLevel = null
+nextLevelMinimumPoints = null
+```
+
+Do not invent Level 11.
+
+---
+
+# 18. LEVEL CALCULATION
+
+For total lifetime Points:
+
+find highest Level where:
+
+```text
+minimumLifetimePoints <= lifetimePoints
+```
+
+Example:
+
+```text
+lifetimePoints = 320
+→ Level 3
+```
+
+---
+
+# 19. POINTS INTO LEVEL
+
+For non-max Level:
+
+```text
+pointsIntoLevel =
+lifetimePoints - currentLevelMinimumPoints
+```
+
+---
+
+# 20. POINTS TO NEXT LEVEL
+
+For non-max Level:
+
+```text
+pointsToNextLevel =
+nextLevelMinimumPoints - lifetimePoints
+```
+
+Never negative.
+
+---
+
+# 21. LEVEL PROGRESS RATIO
+
+Read DTO may expose:
+
+```text
+levelProgressRatio
+```
+
+calculated:
+
+```text
+(lifetimePoints - currentMin)
+/
+(nextMin - currentMin)
+```
+
+Clamp:
+
+```text
+0..1
+```
+
+This ratio is display-only.
+
+Level determination uses exact thresholds.
+
+---
+
+# 22. POINTS REVERSALS
+
+Points can decrease due to legitimate Prompt 19 reversals.
+
+Therefore Level state may decrease.
+
+Example:
+
+```text
+before:
+600 points → Level 4
+
+after valid reversal:
+450 points → Level 3
+```
+
+This is accounting-derived behavior, not punishment.
+
+---
+
+# 23. LEVEL DOWN IS NOT DISCIPLINARY
+
+Do not use wording such as:
+
+```text
+penalty
+demotion
+punishment
+```
+
+A lower Level after accounting correction simply reflects current canonical lifetime Points.
+
+---
+
+# 24. ACHIEVEMENT UNLOCKS REMAIN PERMANENT
+
+A Points reversal may lower Level.
+
+It must NOT revoke Prompt 23 Achievements.
+
+Mandatory:
+
+```text
+POINTS REVERSAL MAY LOWER LEVEL: YES
+POINTS REVERSAL REVOKES ACHIEVEMENT: NO
+```
+
+---
+
+# 25. LEVEL RULE-VERSION CHANGE
+
+If active Gamification rule set changes from v1 → v2:
+
+recompute current Level using v2 thresholds.
+
+Do not mutate historical Points.
+
+---
+
+# 26. NO PERMANENT LEVEL HISTORY REQUIRED
+
+Unlike Achievements, Level is a current cosmetic projection.
+
+Do not persist every Level-up event in Prompt 24.
+
+Future UI can infer current state.
+
+---
+
+# 27. NO LEVEL-UP STUDY EVENT
+
+Do NOT create:
+
+```text
+StudyEvent
+```
+
+on Level changes.
+
+Level is derived from existing evidence.
+
+---
+
+# 28. NO LEVEL-UP NOTIFICATION
+
+Do not add push/local notification yet.
+
+Frontend Prompt 44 may later show animations.
+
+---
+
+# 29. NO LEVEL-UP ACHIEVEMENT AUTO-GENERATION
+
+Do not create Achievement definitions automatically from Levels.
+
+If a later Gamification rule set wants Level Achievements, define them explicitly.
+
+---
+
+# 30. LEVEL EVALUATION SERVICE
+
+Create internal:
+
+```ts
+evaluateUserGamificationLevel({
+  userId,
+  asOf,
+  tx?
+})
+```
+
+It must:
+
+1. resolve active rule set;
+2. verify checksum;
+3. resolve Level definitions;
+4. get safe canonical lifetime Points;
+5. compute Level;
+6. compare current derived row;
+7. update only if changed.
+
+---
+
+# 31. LEVEL REFRESH
+
+Create:
+
+```ts
+refreshUserGamificationLevel(...)
+```
+
+for event-driven refresh after Points accounting changes.
+
+---
+
+# 32. CENTRAL POINTS HOOK
+
+Integrate Level refresh through the central Prompt 19/21 Points accounting path.
+
+Do NOT add Level refresh separately in:
+
+```text
+Focus
+Group Focus
+Consistency
+MCQ
+Flashcard
+```
+
+award sources.
+
+One accounting source should trigger it.
+
+---
+
+# 33. COSMETIC FAILURE POLICY
+
+A Level refresh failure must NOT invalidate:
+
+```text
+Study Points ledger append
+Focus completion
+Group Focus summary
+```
+
+because Level projection is rebuildable cosmetic state.
+
+Preferred:
+
+```text
+canonical Points commit succeeds
+Level refresh best-effort/post-commit
+on-read reconciliation restores state
+```
+
+Do not couple accounting correctness to cosmetic Level persistence.
+
+---
+
+# 34. ON-READ CONVERGENCE
+
+Private Gamification summary endpoint may refresh Level before responding.
+
+This ensures missed best-effort refreshes recover.
+
+---
+
+# 35. NO N+1
+
+Level evaluation performs one Points read and one Level-definition resolution.
+
+No per-Level DB query loop.
+
+---
+
+# 36. RULE-SET CHECKSUM
+
+Before evaluating Level:
+
+verify Prompt 22 active rule-set checksum.
+
+Mismatch:
+
+```text
+fail closed
+```
+
+No Level mutation.
+
+---
+
+# 37. UNKNOWN ACTIVE VERSION
+
+No fallback to latest code bundle.
+
+Return explicit configuration error.
+
+---
+
+# 38. PROFILE-SAFE GAMIFICATION
+
+Prompt 24 introduces one explicit profile-safe Gamification projection.
+
+Public/profile-safe data must be strictly allowlisted.
+
+Never expose private study analytics merely because Gamification exists.
+
+---
+
+# 39. PUBLIC PROFILE SAFE FIELDS
+
+Allowed Gamification fields:
+
+```text
+level
+levelTitleKey?          // if definitions have title
+maxLevelReached
+
+selected/displayable Achievement unlocks
+only when their definition.visibility = PROFILE_SAFE
+```
+
+Potentially:
+
+```text
+totalAchievementCount
+```
+
+only if safe and product-desired.
+
+Do NOT expose category Points by default.
+
+---
+
+# 40. PUBLIC FIELDS FORBIDDEN
+
+Do NOT expose:
+
+```text
+Focus duration
+daily study time
+MCQ accuracy
+weak topics
+retention
+mistakes
+Integrity Signals
+Quick Notes
+reconnect counts
+Group Focus verified seconds
+private Achievement progress
+Points ledger history
+legacy PointsLog details
+```
+
+---
+
+# 41. PUBLIC LEVEL
+
+Current Level may be profile-safe.
+
+It represents engagement/progression, not intelligence.
+
+Do not label Level as academic ability.
+
+---
+
+# 42. PUBLIC POINT TOTAL
+
+Do NOT expose raw lifetime Point total publicly in Prompt 24 unless existing profile already does.
+
+Prefer:
+
+```text
+level only
+```
+
+for public-safe projection.
+
+Private own summary may show Points.
+
+---
+
+# 43. PROFILE-SAFE ACHIEVEMENTS
+
+Only Achievement definitions with:
+
+```text
+visibility = PROFILE_SAFE
+```
+
+may appear publicly.
+
+Achievements with:
+
+```text
+PRIVATE
+```
+
+must never appear on another user's profile-safe API.
+
+---
+
+# 44. UNLOCK REQUIRED FOR PUBLIC ACHIEVEMENT
+
+A PROFILE_SAFE definition does not become public merely by existing.
+
+User must have canonical:
+
+```text
+UserAchievement
+```
+
+unlock.
+
+---
+
+# 45. NO UNFINISHED PUBLIC PROGRESS
+
+Do not expose:
+
+```text
+current 70 / target 100
+```
+
+for another user's Achievement progress.
+
+Public profile receives unlocked safe Achievements only.
+
+---
+
+# 46. REMOVED DEFINITION
+
+If an Achievement unlocked under historical rule set and definition was PROFILE_SAFE at unlock-time:
+
+decide public behavior conservatively.
+
+Preferred:
+
+```text
+only expose historical Achievement publicly
+if the historical definition itself was PROFILE_SAFE
+```
+
+Resolve exact historical definition version.
+
+---
+
+# 47. VISIBILITY VERSION AUTHORITY
+
+Use:
+
+```text
+unlockedUnderRuleSetVersion
+```
+
+to resolve historical Achievement visibility.
+
+Do NOT apply current version visibility retroactively to historical unlocks.
+
+---
+
+# 48. PRIVATE → PROFILE_SAFE LATER
+
+If v1 Achievement was PRIVATE but v2 makes same ID PROFILE_SAFE:
+
+a v1 historical unlock should NOT automatically become public unless explicit migration/product policy says so.
+
+Privacy must not silently broaden retroactively.
+
+---
+
+# 49. PROFILE_SAFE → PRIVATE LATER
+
+If historical unlock was PROFILE_SAFE in v1 but v2 marks same ID PRIVATE:
+
+prefer current conservative privacy:
+
+```text
+do not expose publicly under current v2
+```
+
+if the stable ID still exists and is now PRIVATE.
+
+For removed definitions, use historical privacy.
+
+Document exact deterministic rule.
+
+---
+
+# 50. CURRENT-VERSION PRIVACY PRIORITY
+
+Preferred algorithm:
+
+If same achievement ID exists in active rule set:
+
+```text
+use active visibility
+```
+
+for public exposure.
+
+If no longer exists:
+
+```text
+use historical visibility at unlock
+```
+
+This permits privacy tightening in new versions.
+
+---
+
+# 51. PUBLIC PROFILE DTO
+
+Create purpose-built DTO conceptually:
+
+```ts
+type PublicGamificationProfile = {
+  level: number;
+  levelTitleKey?: string;
+  maxLevelReached: boolean;
+
+  achievements: Array<{
+    id: string;
+    titleKey: string;
+    descriptionKey: string;
+    unlockedAt: string;
+  }>;
+};
+```
+
+Do not return raw UserAchievement rows.
+
+---
+
+# 52. OWN GAMIFICATION DTO
+
+Create private own summary:
+
+```ts
+type OwnGamificationSummary = {
+  ruleSetVersion: string;
+
+  level: {
+    current: number;
+    titleKey?: string;
+
+    lifetimePoints: number;
+
+    currentLevelMinimumPoints: number;
+    nextLevelMinimumPoints?: number;
+
+    pointsIntoLevel: number;
+    pointsToNextLevel?: number;
+
+    progressRatio: number;
+    maxLevelReached: boolean;
+  };
+
+  points: {
+    total: number;
+    legacy: number;
+    ledger: number;
+    categories: {
+      focus: number;
+      mastery: number;
+      progress: number;
+      consistency: number;
+    };
+    compatibilityMode: string;
+  };
+
+  achievements: ...
+}
+```
+
+Use exact Prompt 21 safe read semantics.
+
+---
+
+# 53. OWN ACHIEVEMENTS
+
+Reuse Prompt 23 Achievement read logic.
+
+Do not duplicate evaluation code.
+
+---
+
+# 54. OWN SUMMARY API
+
+Implement:
+
+```text
+GET /api/me/gamification
+```
+
+Authenticated.
+
+It may:
+
+1. refresh Level;
+2. refresh active Achievements;
+3. return private own summary.
+
+---
+
+# 55. OWN SUMMARY PRIVACY
+
+Only current authenticated user.
+
+No arbitrary:
+
+```text
+?userId=
+```
+
+---
+
+# 56. PUBLIC PROFILE GAMIFICATION SERVICE
+
+Create:
+
+```ts
+getPublicGamificationProfile(userId)
+```
+
+It must perform zero Achievement progress refresh for another user.
+
+Public reads should not trigger private user-state evaluation unexpectedly.
+
+Use existing canonical derived state/unlocks.
+
+---
+
+# 57. PUBLIC PROFILE ENDPOINT
+
+If current profile architecture has an established public-safe profile endpoint:
+
+integrate a bounded:
+
+```text
+gamification
+```
+
+sub-object there.
+
+Otherwise add:
+
+```text
+GET /api/users/:userId/gamification
+```
+
+only if consistent with existing profile privacy architecture.
+
+Prefer extending existing profile-safe DTO.
+
+Do not create duplicate profile systems.
+
+---
+
+# 58. PROFILE EXISTENCE / PRIVACY
+
+Respect existing:
+
+* user visibility;
+* blocked users;
+* profile privacy rules;
+* banned/deleted status;
+* existing public-profile access semantics.
+
+Do not bypass them.
+
+---
+
+# 59. NO EMAIL / SIGNATURE LEAK
+
+Gamification endpoint must not broaden existing profile data.
+
+Return only Gamification DTO fields.
+
+---
+
+# 60. NO OWNER OVERRIDE FOR PUBLIC VIEW
+
+App owner/admin may have separate admin tools, but public Gamification endpoint remains public-safe.
+
+Do not include private stats because caller is admin unless using an explicit admin endpoint.
+
+---
+
+# 61. OWN PRIVATE POINTS
+
+Own Gamification summary may show:
+
+```text
+legacyPoints
+ledgerPoints
+totalPoints
+category balances
+```
+
+because user is viewing their own data.
+
+---
+
+# 62. CATEGORY BALANCES
+
+Use Prompt 21 safe read model.
+
+Do not recompute from frontend.
+
+---
+
+# 63. NO LEDGER HISTORY IN GAMIFICATION SUMMARY
+
+Own summary may show totals, not full accounting history.
+
+Existing/future Points history API is separate.
+
+---
+
+# 64. LEVEL PROJECTION RECONCILIATION
+
+Create internal:
+
+```ts
+reconcileUserGamificationLevel({
+  userId,
+  repair?: boolean
+})
+```
+
+Compare:
+
+```text
+canonical computed Level
+vs
+UserGamificationLevel
+```
+
+---
+
+# 65. RECONCILIATION STATUSES
+
+Use neutral statuses:
+
+```text
+IN_SYNC
+LEVEL_STATE_MISSING
+LEVEL_STATE_STALE
+RULE_VERSION_STALE
+INVALID_LEVEL_STATE
+```
+
+---
+
+# 66. LEVEL REPAIR
+
+Repair may:
+
+```text
+create/update UserGamificationLevel
+```
+
+from canonical Points + active rule definitions.
+
+It must NOT modify:
+
+```text
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+PointsLog
+UserAchievement
+```
+
+---
+
+# 67. RULE VERSION STALE
+
+If current stored Level row says:
+
+```text
+gamification-v1
+```
+
+but active is:
+
+```text
+gamification-v2
+```
+
+reconciliation computes v2 and updates derived Level row.
+
+No Points mutation.
+
+---
+
+# 68. INVALID LEVEL STATE
+
+If persisted row contains:
+
+```text
+level not in active definition
+negative pointsIntoLevel
+wrong threshold
+```
+
+repair from canonical source.
+
+No disciplinary consequence.
+
+---
+
+# 69. LEVEL STATE WRITE MINIMIZATION
+
+On no-op evaluation:
+
+```text
+DB writes = 0
+```
+
+preferred.
+
+Do not update `lastEvaluatedAt` on every GET if it causes unnecessary writes.
+
+---
+
+# 70. LEVEL `lastEvaluatedAt`
+
+Update only when Level projection row is created or canonical Level state changes, unless a reconciliation operation explicitly records evaluation time.
+
+Avoid per-request write noise.
+
+---
+
+# 71. NO PER-POINT WRITE
+
+Points projection updates per ledger append.
+
+Level should not require separate writes for each Point if integration is best-effort and result unchanged.
+
+Example:
+
+```text
+Level 3, 260 → 265
+```
+
+If the Level row stores `lifetimePointsSnapshot`, then it changes.
+
+This would create a Level projection update for each award.
+
+That is acceptable at current low frequency but not required for correctness.
+
+Alternative:
+
+persist only threshold state and compute detailed progress on read.
+
+Choose the simpler robust model.
+
+---
+
+# 72. PREFERRED LEVEL STATE MODEL
+
+Recommended:
+
+Persist:
+
+```text
+userId
+ruleSetVersion
+level
+lifetimePointsSnapshot
+threshold snapshots
+maxLevelReached
+updatedAt
+```
+
+Refresh after Points append best-effort.
+
+This is still bounded.
+
+---
+
+# 73. NO PER-SECOND ACTIVITY
+
+No Level updates from timer ticks.
+
+---
+
+# 74. ACHIEVEMENT PROFILE-SAFE SELECTION
+
+Prompt 24 does NOT add user-selectable pins.
+
+Expose all unlocked PROFILE_SAFE Achievements up to a safe maximum.
+
+Recommended public hard max:
+
+```text
+20
+```
+
+sorted by:
+
+```text
+sortOrder
+unlockedAt
+```
+
+or stable product order.
+
+---
+
+# 75. FUTURE USER SELECTION
+
+Pinning/showcasing specific Achievements may be added later if desired.
+
+Do not implement now.
+
+---
+
+# 76. PUBLIC ACHIEVEMENT LIMIT
+
+Bound response.
+
+If >20 safe unlocks later:
+
+return first 20 according to deterministic sort.
+
+Optional:
+
+```text
+totalPublicSafeUnlocked
+```
+
+may be included.
+
+---
+
+# 77. PUBLIC LEVEL TITLE
+
+If Prompt 22 LevelDefinition includes:
+
+```text
+titleKey
+```
+
+return it.
+
+Do not hard-code translated English.
+
+---
+
+# 78. NO LEVEL BADGE ASSET WORK
+
+No frontend images/icons/assets.
+
+---
+
+# 79. NO APP ICON CHANGE
+
+Unrelated.
+
+---
+
+# 80. NO LEADERBOARD RANK IN PROFILE
+
+Mandatory:
+
+```text
+rank: NOT IMPLEMENTED
+```
+
+---
+
+# 81. NO “TOP X%”
+
+No percentile.
+
+---
+
+# 82. NO INTELLIGENCE LANGUAGE
+
+Avoid:
+
+```text
+smart
+best
+weak
+elite medical student
+```
+
+Level measures Gamification progression only.
+
+---
+
+# 83. NO STUDY-TIME PUBLICATION
+
+Do not expose:
+
+```text
+hours studied
+Focus sessions
+Group Focus duration
+```
+
+publicly.
+
+---
+
+# 84. NO MCQ ACCURACY PUBLICATION
+
+Mandatory.
+
+---
+
+# 85. NO MASTERy PUBLICATION
+
+Prompt 24 does not expose Mastery.
+
+---
+
+# 86. NO STREAK PUBLICATION
+
+Prompt 24 does not expose streak.
+
+---
+
+# 87. NO INTEGRITY PUBLICATION
+
+Mandatory.
+
+---
+
+# 88. NO ACHIEVEMENT PROGRESS PUBLICATION
+
+Only unlocked safe items.
+
+---
+
+# 89. NO PRIVATE ACHIEVEMENT PUBLICATION
+
+Mandatory.
+
+---
+
+# 90. OWN SUMMARY SIDE EFFECTS
+
+Own summary may converge:
+
+```text
+UserGamificationLevel
+UserAchievementProgress
+UserAchievement
+```
+
+when canonical conditions already warrant it.
+
+It must create zero:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+StudyEvent
+IntegritySignal
+CalendarEvent
+```
+
+---
+
+# 91. PUBLIC READ SIDE EFFECTS
+
+Public Gamification profile read must be:
+
+```text
+pure read
+```
+
+Expected:
+
+```text
+DB writes = 0
+```
+
+---
+
+# 92. NO RULE ACTIVATION FROM READ
+
+Neither own nor public read changes `GamificationRuleSet`.
+
+---
+
+# 93. REQUIRED MIGRATION
+
+Add one additive PostgreSQL migration for:
+
+```text
+UserGamificationLevel
+```
+
+Only.
+
+Do NOT add:
+
+* Challenge models;
+* Leaderboard models;
+* profile-pinning models.
+
+---
+
+# 94. MIGRATION SAFETY
+
+Explicit:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+UserAchievement destructive change: NO
+StudyPointsLedgerEntry destructive change: NO
+```
+
+---
+
+# 95. NO MIGRATION BACKFILL
+
+Migration creates schema only.
+
+Do not populate production/test users automatically.
+
+---
+
+# 96. INDEXES
+
+If `userId` primary/unique:
+
+minimal additional indexes required.
+
+Potential:
+
+```text
+(ruleSetVersion, level)
+```
+
+only if actually useful.
+
+Do not add leaderboard-style ranking index yet.
+
+---
+
+# 97. DO NOT QUERY LEVEL TABLE FOR RANKING
+
+Prompt 26 will design leaderboard snapshots.
+
+---
+
+# 98. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt24_levels_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply full migration history.
+
+---
+
+# 99. MIGRATION REPLAY
+
+Verify coexistence:
+
+```text
+GamificationRuleSet
+UserAchievementProgress
+UserAchievement
+UserGamificationLevel
+StudyPointsBalanceProjection
+StudyPointsLedgerEntry
+PointsLog
+IntegritySignal
+GroupFocusRun
+FocusSession
+```
+
+---
+
+# 100. EMPTY AFTER MIGRATION
+
+Before explicit evaluation:
+
+```text
+UserGamificationLevel rows = 0
+```
+
+---
+
+# 101. ACTIVATE TEST GAMIFICATION V1
+
+Use actual Prompt 22 registration/activation mechanism in disposable schema.
+
+No production activation.
+
+---
+
+# 102. LEVEL 1 TEST
+
+User total:
+
+```text
+0
+```
+
+Expected:
+
+```text
+Level 1
+current min = 0
+next min = 100
+pointsIntoLevel = 0
+pointsToNextLevel = 100
+max = false
+```
+
+---
+
+# 103. LEVEL 2 BOUNDARY
+
+Test:
+
+```text
+99 → Level 1
+100 → Level 2
+```
+
+---
+
+# 104. ALL LEVEL BOUNDARIES
+
+Test:
+
+```text
+0
+99
+100
+249
+250
+499
+500
+899
+900
+1399
+1400
+2099
+2100
+2999
+3000
+4199
+4200
+5599
+5600
+5601+
+```
+
+using actual v1 thresholds.
+
+---
+
+# 105. MAX LEVEL TEST
+
+At/above final threshold:
+
+```text
+maxLevelReached = true
+pointsToNextLevel = null
+progressRatio = 1
+```
+
+---
+
+# 106. PROGRESS RATIO TEST
+
+Example:
+
+```text
+Level 2:
+min = 100
+next = 250
+points = 175
+
+ratio = 75 / 150 = 0.5
+```
+
+---
+
+# 107. LEGACY + LEDGER LEVEL TEST
+
+Fixture:
+
+```text
+legacy = 200
+ledger = 100
+compatible total = 300
+```
+
+Expected Level based on:
+
+```text
+300
+```
+
+Do not use ledger-only 100.
+
+---
+
+# 108. UNSAFE LEDGER-ONLY TEST
+
+User with unmigrated legacy history.
+
+Level evaluation must not force unsafe LEDGER_ONLY.
+
+---
+
+# 109. POINTS REVERSAL LEVEL TEST
+
+Before:
+
+```text
+total = 520
+→ Level 4
+```
+
+After valid reversal:
+
+```text
+total = 480
+→ Level 3
+```
+
+Expected derived Level update.
+
+No Achievement revoke.
+
+---
+
+# 110. ACHIEVEMENT PERMANENCE WITH LEVEL DOWN
+
+Unlock:
+
+```text
+points.first_100
+```
+
+Then accounting reversal lowers Points below 100.
+
+Expected:
+
+```text
+Achievement remains unlocked
+Level may decrease
+```
+
+---
+
+# 111. RULE VERSION SWITCH TEST
+
+v1 active with one threshold set.
+
+Create test v2 with changed Level thresholds.
+
+Activate v2.
+
+Reconcile user.
+
+Expected:
+
+```text
+ruleSetVersion = v2
+Level recalculated from same canonical lifetime Points
+```
+
+---
+
+# 112. NO POINT MUTATION ON VERSION SWITCH
+
+Mandatory.
+
+---
+
+# 113. CHECKSUM MISMATCH TEST
+
+Corrupt active rule-set checksum.
+
+Level evaluation:
+
+```text
+fails closed
+```
+
+No Level write.
+
+---
+
+# 114. UNKNOWN ACTIVE VERSION TEST
+
+No fallback.
+
+---
+
+# 115. LEVEL REFRESH REPLAY
+
+Run refresh repeatedly with unchanged source.
+
+Prefer:
+
+```text
+0 writes after first converged state
+```
+
+---
+
+# 116. CONCURRENT LEVEL REFRESH
+
+20 concurrent refreshes.
+
+Expected:
+
+```text
+UserGamificationLevel rows = 1
+state exact
+```
+
+No unique 500.
+
+---
+
+# 117. MISSED REFRESH CONVERGENCE
+
+Simulate canonical Points change but skip Level refresh.
+
+Call:
+
+```text
+GET /api/me/gamification
+```
+
+Expected:
+
+```text
+Level catches up
+```
+
+---
+
+# 118. PRIVATE OWN SUMMARY TEST
+
+Verify exact:
+
+```text
+level
+points
+Achievements
+```
+
+for current user.
+
+No other-user data.
+
+---
+
+# 119. PUBLIC PROFILE TEST
+
+User with:
+
+```text
+Level 4
+1 PROFILE_SAFE Achievement
+1 PRIVATE Achievement
+```
+
+Public response contains:
+
+```text
+Level 4
+PROFILE_SAFE Achievement only
+```
+
+No private Achievement.
+
+---
+
+# 120. PUBLIC UNFINISHED PROGRESS TEST
+
+No progress fields exposed.
+
+---
+
+# 121. PUBLIC POINTS TEST
+
+Raw lifetime Points not exposed by default.
+
+---
+
+# 122. PUBLIC PRIVATE-STATS TEST
+
+Verify absent:
+
+```text
+focusSeconds
+MCQ accuracy
+weaknesses
+retention
+Integrity
+Quick Notes
+Points categories
+StudyDailyMetric
+```
+
+---
+
+# 123. HISTORICAL ACHIEVEMENT PUBLIC TEST
+
+Unlock PROFILE_SAFE under v1.
+
+Remove definition in v2.
+
+Verify deterministic historical visibility behavior chosen in sections above.
+
+---
+
+# 124. PRIVACY TIGHTENING TEST
+
+Achievement:
+
+```text
+v1 = PROFILE_SAFE
+v2 = PRIVATE
+```
+
+Public v2 response:
+
+```text
+hidden
+```
+
+even if unlocked under v1.
+
+This permits new version to tighten privacy.
+
+---
+
+# 125. PRIVACY BROADENING TEST
+
+Achievement:
+
+```text
+v1 = PRIVATE
+v2 = PROFILE_SAFE
+```
+
+Historical v1 unlock should not automatically become public unless user later satisfies/unlocks according to semantics already represented by same stable unlock.
+
+Because unlock is shared by ID, use conservative rule:
+
+```text
+if historical unlock originated when definition was PRIVATE,
+do not broaden it publicly solely because active version became PROFILE_SAFE
+```
+
+Persist/use privacy-at-unlock metadata if necessary.
+
+---
+
+# 126. PRIVACY AT UNLOCK
+
+If Prompt 23 does not already persist:
+
+```text
+visibilityAtUnlock
+```
+
+or equivalent audit metadata, inspect whether historical definition resolution is sufficient.
+
+Because Prompt 22 retains historical source bundles, avoid schema change if historical visibility can be resolved from:
+
+```text
+unlockedUnderRuleSetVersion
++
+achievementId
+```
+
+Preferred:
+
+no new UserAchievement column solely for visibility.
+
+---
+
+# 127. PROFILE-SAFE EXPOSURE RULE
+
+Public Achievement must satisfy BOTH:
+
+```text
+historical visibility at unlock != PRIVATE
+AND
+current active visibility != PRIVATE when same ID still exists
+```
+
+For removed historical definition:
+
+historical PROFILE_SAFE is enough.
+
+This guarantees privacy cannot silently broaden or weaken.
+
+---
+
+# 128. PUBLIC PROFILE PURE READ TEST
+
+Run public read.
+
+Expected writes:
+
+```text
+0
+```
+
+---
+
+# 129. PUBLIC PROFILE UNRELATED USER AUTH
+
+Follow existing profile accessibility semantics.
+
+Do not accidentally expose private/deleted/blocked profile data.
+
+---
+
+# 130. SELF PUBLIC PROFILE
+
+User viewing own public-safe profile gets same public DTO as others.
+
+Private Gamification data remains under `/api/me/gamification`.
+
+---
+
+# 131. OWN ACHIEVEMENT PRIVATE VISIBILITY
+
+Private own endpoint includes both:
+
+```text
+PRIVATE
+PROFILE_SAFE
+```
+
+Achievement progress/unlocks belonging to current user.
+
+---
+
+# 132. LEVEL RECONCILIATION TEST
+
+Corrupt:
+
+```text
+stored level
+threshold snapshots
+lifetimePointsSnapshot
+```
+
+Dry-run detects.
+
+Repair restores exact state.
+
+---
+
+# 133. REPAIR SIDE EFFECT TEST
+
+Repair changes only:
+
+```text
+UserGamificationLevel
+```
+
+Expected zero deltas:
+
+```text
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+PointsLog
+UserAchievement
+StudyEvent
+StudyDailyMetric
+IntegritySignal
+CalendarEvent
+PrivateD1SyncOutbox
+```
+
+---
+
+# 134. INVALID LEVEL DEFINITION TEST
+
+Use malformed test bundle.
+
+Prompt 22 validator rejects before Level evaluation.
+
+---
+
+# 135. NO SIDE EFFECTS FROM LEVEL EVALUATION
+
+Level evaluation writes no:
+
+```text
+Points
+StudyEvent
+Integrity Signal
+Calendar
+```
+
+---
+
+# 136. NO D1
+
+No Level/profile Gamification D1 mirror.
+
+Prompt 27 is leaderboard cache only.
+
+---
+
+# 137. NO PRIVATE D1 OUTBOX
+
+Expected:
+
+```text
+0
+```
+
+---
+
+# 138. NO CLOUDFARE KV
+
+Do not cache public Gamification profiles in KV yet.
+
+---
+
+# 139. NO ANALYTICS ENGINE
+
+No new telemetry.
+
+---
+
+# 140. NO LEVEL EVENT TABLE
+
+Do not add:
+
+```text
+UserLevelHistory
+LevelUpEvent
+```
+
+---
+
+# 141. NO LEVEL TIMELINE
+
+Not needed.
+
+---
+
+# 142. NO LEVEL DOWN NOTIFICATION
+
+No notification.
+
+---
+
+# 143. NO SOCIAL BONUS FROM LEVEL
+
+No Points.
+
+---
+
+# 144. NO ACHIEVEMENT POINTS
+
+No Points.
+
+---
+
+# 145. NO CHALLENGE INTEGRATION
+
+No Challenge trigger from Level.
+
+---
+
+# 146. NO LEADERBOARD INTEGRATION
+
+No Level-based rank.
+
+---
+
+# 147. NO UI
+
+Do not modify React visible pages/components.
+
+Headless API/contracts only.
+
+---
+
+# 148. OPTIONAL TYPED FRONTEND API
+
+May add typed calls:
+
+```text
+getMyGamification()
+getPublicGamificationProfile(userId)
+```
+
+if consistent with frontend API architecture.
+
+No rendering.
+
+---
+
+# 149. FRONTEND RESPONSE VALIDATION
+
+Strictly parse safe DTOs.
+
+Do not accept unexpected private fields from public endpoint.
+
+---
+
+# 150. PUBLIC DTO LEAK TEST
+
+Intentionally add forbidden field in test fixture/response builder.
+
+Parser/serializer must not expose it.
+
+---
+
+# 151. PERFORMANCE
+
+Own summary should:
+
+```text
+resolve rule set once
+read Points once
+refresh Level once
+refresh Achievement metrics grouped
+```
+
+Avoid duplicate Points queries.
+
+---
+
+# 152. PUBLIC READ PERFORMANCE
+
+Public profile should read:
+
+```text
+UserGamificationLevel
+UserAchievement
+definition metadata
+```
+
+bounded.
+
+It should NOT recompute metrics or ledger sums.
+
+---
+
+# 153. NO PUBLIC LEDGER SCAN
+
+Mandatory.
+
+---
+
+# 154. NO PUBLIC FOCUS SCAN
+
+Mandatory.
+
+---
+
+# 155. MAX PUBLIC ACHIEVEMENTS
+
+Hard max:
+
+```text
+20
+```
+
+unless actual Prompt 22 bundle smaller.
+
+---
+
+# 156. DETERMINISTIC ORDER
+
+Sort public Achievements by:
+
+```text
+definition sortOrder ASC
+unlockedAt ASC
+achievementId ASC
+```
+
+or another explicitly stable order.
+
+Document.
+
+---
+
+# 157. OWN ACHIEVEMENT ORDER
+
+Reuse Prompt 23 ordering.
+
+---
+
+# 158. MIGRATION REPLAY
+
+Fresh full migrations in disposable schema.
+
+Verify no destructive operations.
+
+---
+
+# 159. PROMPT 23 REGRESSION
+
+Achievement permanence/progress unchanged.
+
+---
+
+# 160. PROMPT 22 REGRESSION
+
+Definition lifecycle/checksum/metrics unchanged.
+
+---
+
+# 161. PROMPT 21 REGRESSION
+
+Points read/reconciliation/cutover unchanged.
+
+---
+
+# 162. PROMPT 20 REGRESSION
+
+Award rules/caps unchanged.
+
+---
+
+# 163. PROMPT 19 REGRESSION
+
+Ledger/reversal unchanged.
+
+---
+
+# 164. INTEGRITY REGRESSION
+
+Prompts 17–18 unchanged.
+
+---
+
+# 165. GROUP FOCUS REGRESSION
+
+Prompts 13–16 unchanged.
+
+---
+
+# 166. SOLO FOCUS REGRESSION
+
+Prompts 9–12 unchanged.
+
+---
+
+# 167. STUDY EVENT REGRESSION
+
+Prompt 8 unchanged.
+
+---
+
+# 168. FOUNDATION REGRESSION
+
+Run current green:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 169. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 passed / 9 failed
+typecheck = same 2 Calendar errors
+lint = same 10 baseline errors
+```
+
+Do not modify Calendar.
+
+---
+
+# 170. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Level modules
+Gamification read/profile services
+routes
+Prompt 24 tests
+typed frontend API if added
+```
+
+Expected PASS.
+
+---
+
+# 171. TARGETED LINT
+
+Expected PASS.
+
+No new full-repo lint errors.
+
+---
+
+# 172. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 173. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus fresh disposable migration replay.
+
+---
+
+# 174. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 24 migration to production;
+* calculate/backfill production Levels;
+* expose production profile Gamification;
+* modify production Points;
+* modify production Achievements;
+* change production Gamification rule sets;
+* modify Supabase production;
+* modify remote D1;
+* deploy Worker;
+* modify production env.
+
+---
+
+# 175. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<user_gamification_level>/
+
+server/features/gamification/
+  levelTypes.ts
+  levelEvaluator.ts
+  levelRepository.ts
+  levelReconciliation.ts
+  gamificationRead.ts
+  publicGamification.ts
+
+server/routes/gamification.ts
+server/routes/profile*.ts      // only minimal integration if existing profile route is extended
+
+src/features/gamification/api/*   // optional typed headless API
+
+tests/gamification-levels*.test.ts
+tests/gamification-profile*.test.ts
+tests/gamification-levels-postgres*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 176. FILES EXPECTED UNCHANGED
+
+Unless minimal imports/hooks are necessary:
+
+```text
+Prompt 20 reward amounts/caps
+Prompt 21 accounting semantics
+Integrity behavior
+Solo Focus behavior
+Group Focus behavior
+Calendar
+OfflineEngine
+D1 Worker
+visible frontend UI
+Challenges
+Leaderboards
+```
+
+---
+
+# 177. ACCEPTANCE CRITERIA
+
+Prompt 24 succeeds only if:
+
+1. UserGamificationLevel exists.
+2. Migration additive.
+3. No migration backfill.
+4. No XP currency/table created.
+5. Level uses canonical lifetime Points.
+6. Safe compatible Points read mode respected.
+7. Active rule set/checksum required.
+8. Level thresholds versioned.
+9. Level calculation deterministic.
+10. Boundary calculations correct.
+11. Max-level behavior correct.
+12. Level projection rebuildable.
+13. Concurrent refresh race-safe.
+14. Missed refresh converges on read.
+15. Valid reversal may lower Level.
+16. Achievement unlock is never revoked by Level decrease.
+17. Rule-version change recomputes Level.
+18. No Points reward on Level up.
+19. No StudyEvent on Level change.
+20. Own Gamification summary exists.
+21. Public profile-safe Gamification projection exists.
+22. Public Level allowed.
+23. Raw public Points hidden by default.
+24. Public Achievement exposure allowlisted.
+25. Private Achievement hidden.
+26. Unfinished progress hidden publicly.
+27. Privacy tightening respected.
+28. Privacy not silently broadened.
+29. Public read is side-effect free.
+30. Public read does not scan ledger/Focus.
+31. No Challenges.
+32. No Leaderboard.
+33. No D1/outbox.
+34. No visible UI.
+35. Production unchanged.
+36. Build passes.
+37. New regressions = 0.
+
+---
+
+# 178. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 22–23, Points, Integrity, Focus, Group Focus, Study Event, Foundation and Auth baselines.
+
+## B. Level Architecture
+
+Explain:
+
+```text
+canonical lifetime Points
+→ active versioned Level definitions
+→ derived UserGamificationLevel
+```
+
+## C. Prisma Model
+
+Show final `UserGamificationLevel` fields, relation, indexes and numeric types.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic Level backfill:
+```
+
+## E. XP Semantics
+
+Explicitly:
+
+```text
+SEPARATE XP CURRENCY CREATED: NO
+XP LEDGER CREATED: NO
+XP = DISPLAY SEMANTIC FOR STUDY POINTS: YES
+```
+
+## F. Level Definitions
+
+List exact active v1 Levels and thresholds.
+
+## G. Rule Version
+
+Report active rule-set integration/checksum behavior.
+
+## H. Level Calculation
+
+Show exact:
+
+```text
+current Level
+current minimum
+next minimum
+pointsIntoLevel
+pointsToNextLevel
+progressRatio
+maxLevelReached
+```
+
+semantics.
+
+## I. Boundary Tests
+
+Report every tested Level boundary.
+
+## J. Maximum Level
+
+Report final-level behavior.
+
+## K. Legacy Points Compatibility
+
+Explain how lifetime compatible total is used without forcing unsafe LEDGER_ONLY.
+
+## L. Reversal Behavior
+
+Explicitly:
+
+```text
+VALID POINTS REVERSAL MAY LOWER LEVEL: YES/NO
+VALID POINTS REVERSAL REVOKES ACHIEVEMENT: NO
+```
+
+## M. Rule-Version Change
+
+Report v1→v2 recomputation behavior.
+
+## N. Refresh Architecture
+
+Report:
+
+```text
+Points accounting hook:
+best-effort behavior:
+on-read convergence:
+write minimization:
+```
+
+## O. Cosmetic Failure Policy
+
+Explain why Level refresh failure cannot corrupt canonical accounting/study state.
+
+## P. Level Reconciliation
+
+Show statuses/checks/repair behavior.
+
+## Q. Repair Side Effects
+
+Report deltas:
+
+```text
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection:
+PointsLog:
+UserAchievement:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+## R. Own Gamification API
+
+Report:
+
+```text
+method/path:
+auth:
+Level refresh:
+Achievement refresh:
+response:
+```
+
+## S. Own Points Summary
+
+Show exact private safe fields.
+
+## T. Public Gamification Profile
+
+Show exact public DTO.
+
+## U. Public Level Privacy
+
+Explicitly:
+
+```text
+PUBLIC LEVEL EXPOSED: YES/NO
+PUBLIC RAW LIFETIME POINTS EXPOSED: YES/NO
+PUBLIC POINTS CATEGORIES EXPOSED: YES/NO
+```
+
+Expected:
+
+```text
+YES
+NO
+NO
+```
+
+unless an established existing public-points product contract requires otherwise.
+
+## V. Public Achievement Rules
+
+Explain:
+
+```text
+PROFILE_SAFE unlock:
+PRIVATE unlock:
+unfinished progress:
+historical removed definition:
+```
+
+## W. Privacy Tightening / Broadening
+
+Report:
+
+```text
+v1 PROFILE_SAFE → v2 PRIVATE:
+v1 PRIVATE → v2 PROFILE_SAFE:
+```
+
+and exact public outcome.
+
+## X. Forbidden Public Data Verification
+
+Explicitly confirm absent:
+
+```text
+Focus time
+MCQ accuracy
+weak topics
+retention
+Integrity Signals
+Quick Notes
+private Achievement progress
+Points ledger history
+category balances
+```
+
+## Y. Public Read Side Effects
+
+Explicitly:
+
+```text
+PUBLIC GAMIFICATION READ DB WRITES: 0
+PUBLIC READ LEDGER SCAN: NO
+PUBLIC READ FOCUS SCAN: NO
+```
+
+## Z. Public Achievement Limit / Sort
+
+Report hard limit and deterministic ordering.
+
+## AA. Own vs Public Boundary
+
+Explain why `/api/me/gamification` and public profile DTO are separate.
+
+## AB. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 24 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## AC. Real PostgreSQL Level Results
+
+Report:
+
+* Level 1;
+* every boundary;
+* max Level;
+* legacy + ledger;
+* reversal;
+* v2 rule switch;
+* concurrency;
+* missed-refresh convergence;
+* reconciliation repair.
+
+## AD. Real Profile Privacy Tests
+
+Report PROFILE_SAFE, PRIVATE, unfinished progress, privacy tightening and privacy broadening.
+
+## AE. No Side Effects
+
+Report:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero from Level/profile operations.
+
+## AF. No Reward Loop
+
+Explicitly:
+
+```text
+LEVEL UP CALLS POINTS AWARD ENGINE: NO
+LEVEL UP AWARDS POINTS: NO
+ACHIEVEMENT UNLOCK AWARDS POINTS: NO
+```
+
+## AG. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AH. Regression Results
+
+Include:
+
+* Prompt 22 definitions;
+* Prompt 23 Achievements;
+* Prompt 19–21 Points;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AI. Files Created
+
+Exact paths/purposes.
+
+## AJ. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 20 reward rules unchanged?
+Prompt 21 accounting unchanged?
+Achievement permanence unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+visible frontend UI unchanged?
+Challenges not implemented?
+Leaderboard not implemented?
+```
+
+## AK. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 24 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION LEVEL BACKFILL RUN: NO
+PRODUCTION LEVELS MODIFIED: NO
+PRODUCTION PROFILE GAMIFICATION EXPOSED: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AL. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AM. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AN. Risks / Blockers
+
+Only actual remaining Level/profile-safe Gamification issues.
+
+Do not list deferred Challenges/Leaderboards/UI as blockers.
+
+## AO. Architecture Compliance
+
+Answer YES/NO:
+
+* Canonical Points remain authority?
+* No separate XP currency?
+* Level derived deterministically?
+* Active rule set/checksum required?
+* Level projection rebuildable?
+* Compatible legacy Points preserved?
+* Level may decrease after valid reversal?
+* Achievements remain permanent?
+* No Level-up Point reward?
+* Own summary private?
+* Public Gamification allowlisted?
+* Public raw Points hidden?
+* Private Achievements hidden?
+* Unfinished progress hidden publicly?
+* Privacy tightening respected?
+* Privacy not silently broadened?
+* Public read side-effect free?
+* No public ledger scan?
+* No StudyEvent side effect?
+* No Integrity side effect?
+* No D1/outbox?
+* No Challenge yet?
+* No Leaderboard yet?
+* No visible UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AP. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 25 — Challenges: Versioned Challenge Definitions, Enrollment, Deterministic Progress & Completion**
+
+Do not implement Prompt 25.
+
+---
+
+# 179. STOP CONDITION
+
+After implementation, tests and mandatory report:
+
+STOP.
+
+Do NOT implement Challenges.
+
+Do NOT implement Leaderboards.
+
+Do NOT add Level/Achievement frontend UI.
+
+Do NOT change Study Points rules.
+
+Do NOT expose private Gamification analytics publicly.
+
+Do NOT deploy Prompt 24 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 24 COMPLETE — LIFETIME LEVEL PROGRESSION & PROFILE-SAFE GAMIFICATION FOUNDATION READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**

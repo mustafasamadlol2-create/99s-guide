@@ -72,7 +72,24 @@ test("v1 achievements use the source-controlled Prompt 22 definitions only", () 
       metricId === "consistency.qualifying_days"
     ),
   );
-  assert.deepEqual(bundle.levelDefinitions, []);
+  assert.deepEqual(
+    bundle.levelDefinitions.map(({ level, minimumLifetimePoints }) => ({
+      level,
+      minimumLifetimePoints,
+    })),
+    [
+      { level: 1, minimumLifetimePoints: 0 },
+      { level: 2, minimumLifetimePoints: 100 },
+      { level: 3, minimumLifetimePoints: 250 },
+      { level: 4, minimumLifetimePoints: 500 },
+      { level: 5, minimumLifetimePoints: 900 },
+      { level: 6, minimumLifetimePoints: 1400 },
+      { level: 7, minimumLifetimePoints: 2100 },
+      { level: 8, minimumLifetimePoints: 3000 },
+      { level: 9, minimumLifetimePoints: 4200 },
+      { level: 10, minimumLifetimePoints: 5600 },
+    ],
+  );
   assert.deepEqual(bundle.challengeDefinitionContracts, []);
   assert.deepEqual(bundle.leaderboardDefinitionContracts, []);
 });

@@ -14,20 +14,41 @@ import type {
   MyAchievementUnlockView,
   MyAchievementView,
 } from "./achievementTypes.js";
+import type { AchievementRefreshResult } from "./achievementTypes.js";
 import type { GamificationRuleSetWithDefinition } from "./types.js";
 
 type AchievementDatabase = PrismaClient;
 
+export type MyAchievementsReadOptions = {
+  refreshResult?: AchievementRefreshResult;
+  currentRules?: GamificationRuleSetWithDefinition;
+};
+
 export async function getMyAchievements(
   userId: string,
   database: AchievementDatabase = getPrisma() as AchievementDatabase,
+  options?: MyAchievementsReadOptions,
 ): Promise<{
   ruleSetVersion: string;
   achievements: MyAchievementView[];
   unlockHistory: MyAchievementUnlockView[];
 }> {
-  const refreshed = await refreshUserAchievementProgress(userId, database);
-  const rules = await getGamificationRuleSetVersion(refreshed.ruleSetVersion, database);
+  if (Boolean(options?.refreshResult) !== Boolean(options?.currentRules)) {
+    throw new GamificationError(
+      "GAMIFICATION_INVALID_INPUT",
+      "Pre-refreshed achievement reads require both the refresh result and verified rules.",
+    );
+  }
+  const refreshed = options?.refreshResult
+    ?? await refreshUserAchievementProgress(userId, database);
+  const rules = options?.currentRules
+    ?? await getGamificationRuleSetVersion(refreshed.ruleSetVersion, database);
+  if (rules.ruleSet.version !== refreshed.ruleSetVersion) {
+    throw new GamificationError(
+      "GAMIFICATION_ACTIVE_RULE_SET_INVARIANT_FAILED",
+      "Achievement refresh and read rule-set versions do not match.",
+    );
+  }
   const definitions = achievementDefinitionsFor(rules);
   const [progressRows, unlockRows] = await Promise.all([
     database.userAchievementProgress.findMany({

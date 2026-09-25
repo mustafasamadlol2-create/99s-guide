@@ -72,6 +72,7 @@ model User {
   studyPointsBalanceProjection StudyPointsBalanceProjection?
   userAchievementProgresses    UserAchievementProgress[]
   achievements                 UserAchievement[]
+  gamificationLevel            UserGamificationLevel?
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -949,6 +950,7 @@ model GamificationRuleSet {
   retiredAt             DateTime?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
+  gamificationLevels    UserGamificationLevel[]
   achievementProgresses UserAchievementProgress[]
   achievementUnlocks    UserAchievement[]
 
@@ -1001,4 +1003,24 @@ model UserAchievement {
   @@unique([userId, achievementId], map: "ua_unlock_user_achievement_key")
   @@index([userId, unlockedAt], map: "ua_unlock_user_unlocked_idx")
   @@index([achievementId, unlockedAt], map: "ua_unlock_achievement_unlocked_idx")
+}
+
+/// Current rebuildable lifetime Level projection; one row per user.
+model UserGamificationLevel {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  ruleSetVersion   String   @db.VarChar(64)
+  definitionChecksum String  @db.Char(64)
+  level            Int
+  lifetimePoints   BigInt   @db.BigInt
+  maxLevelReached  Boolean  @default(false)
+  lastEvaluatedAt  DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleSet GamificationRuleSet @relation(fields: [ruleSetVersion], references: [version], onDelete: Restrict)
+
+  @@index([ruleSetVersion], map: "ugl_ruleset_version_idx")
+  @@map("UserGamificationLevel")
 }
