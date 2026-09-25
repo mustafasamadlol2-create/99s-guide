@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["src/**/*.ts", "worker-configuration.d.ts", "../shared/group-focus-capability/**/*.ts", "../shared/group-focus-realtime/**/*.ts"]
+}

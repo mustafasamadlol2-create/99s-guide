@@ -5,3 +5,4 @@
 - [Focus event idempotency](focus-event-idempotency.md) — replay paths that bypass semantic ingestion must compare normalized payloads and conflict on changed retries.
 - [Cross-service test clocks](cross-service-test-clocks.md) — Focus and Study Event clocks are independent; future-dated Focus fixtures can fail canonical event validation.
 - [Prisma partial uniqueness](prisma-partial-uniqueness.md) — Prisma 5.22 cannot represent partial unique indexes; keep role invariants inside the service unless schema support changes.
+- [Local Worker runtime tests](worker-local-runtime-tests.md) — Wrangler local mode follows configured bindings and avoids version-sensitive direct Miniflare setup.
