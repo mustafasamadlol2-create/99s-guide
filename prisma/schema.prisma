@@ -70,6 +70,8 @@ model User {
 
   studyPointsLedgerEntries     StudyPointsLedgerEntry[]
   studyPointsBalanceProjection StudyPointsBalanceProjection?
+  userAchievementProgresses    UserAchievementProgress[]
+  achievements                 UserAchievement[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -938,16 +940,65 @@ model StudyPointsBalanceProjection {
 /// Versioned, server-owned definition lifecycle. Definitions remain in source
 /// control; this row records their checksum and active/retired lifecycle.
 model GamificationRuleSet {
-  id                 String    @id @default(uuid())
-  version            String    @unique @db.VarChar(64)
-  status             String    @default("DRAFT") @db.VarChar(16)
-  schemaVersion      Int
-  definitionChecksum String    @db.Char(64)
-  effectiveFrom      DateTime?
-  retiredAt          DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                    String                    @id @default(uuid())
+  version               String                    @unique @db.VarChar(64)
+  status                String                    @default("DRAFT") @db.VarChar(16)
+  schemaVersion         Int
+  definitionChecksum    String                    @db.Char(64)
+  effectiveFrom         DateTime?
+  retiredAt             DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  achievementProgresses UserAchievementProgress[]
+  achievementUnlocks    UserAchievement[]
 
   @@index([status])
   @@index([status, effectiveFrom])
+}
+
+/// Private, recomputable progress for one source-controlled achievement rule.
+/// Boolean metric values use the exact integer encoding false=0, true=1.
+model UserAchievementProgress {
+  id              String   @id @default(uuid())
+  userId          String
+  achievementId   String   @db.VarChar(128)
+  ruleSetVersion  String   @db.VarChar(64)
+  metricId        String   @db.VarChar(128)
+  valueType       String   @db.VarChar(16)
+  currentValue    BigInt   @db.BigInt
+  targetValue     BigInt   @db.BigInt
+  completed       Boolean  @default(false)
+  lastEvaluatedAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleSet GamificationRuleSet @relation(fields: [ruleSetVersion], references: [version], onDelete: Restrict)
+
+  @@unique([userId, achievementId, ruleSetVersion], map: "ua_progress_user_achievement_version_key")
+  @@index([userId, ruleSetVersion], map: "ua_progress_user_version_idx")
+  @@index([metricId, completed], map: "ua_progress_metric_completed_idx")
+}
+
+/// Permanent private unlock history. Rule changes and lower current metrics
+/// never delete or revoke this record.
+model UserAchievement {
+  id                          String   @id @default(uuid())
+  userId                      String
+  achievementId               String   @db.VarChar(128)
+  unlockedUnderRuleSetVersion String   @db.VarChar(64)
+  metricId                    String   @db.VarChar(128)
+  valueType                   String   @db.VarChar(16)
+  metricValueAtUnlock         BigInt   @db.BigInt
+  targetValueAtUnlock         BigInt   @db.BigInt
+  definitionChecksumAtUnlock  String   @db.Char(64)
+  unlockedAt                  DateTime @default(now())
+  createdAt                   DateTime @default(now())
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleSet GamificationRuleSet @relation(fields: [unlockedUnderRuleSetVersion], references: [version], onDelete: Restrict)
+
+  @@unique([userId, achievementId], map: "ua_unlock_user_achievement_key")
+  @@index([userId, unlockedAt], map: "ua_unlock_user_unlocked_idx")
+  @@index([achievementId, unlockedAt], map: "ua_unlock_achievement_unlocked_idx")
 }

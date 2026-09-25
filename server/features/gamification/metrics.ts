@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { createGamificationMetricProviders, assertMetricProviderValue } from "./metricProviders.js";
 import { GAMIFICATION_METRIC_SOURCE_VERSIONS } from "./constants.js";
@@ -13,7 +13,7 @@ export async function getGamificationMetricValue(input: {
   userId: string;
   metricId: string;
   asOf: Date;
-}, database: PrismaClient = getPrisma() as PrismaClient): Promise<GamificationMetricValue> {
+}, database: PrismaClient = getPrisma() as PrismaClient, tx?: Prisma.TransactionClient): Promise<GamificationMetricValue> {
   assertValidStudyPointsUserId(input.userId);
   if (!(input.asOf instanceof Date) || !Number.isSafeInteger(input.asOf.getTime())) {
     throw new GamificationError(
@@ -38,7 +38,7 @@ export async function getGamificationMetricValue(input: {
       `No provider is registered for ${definition.id}.`,
     );
   }
-  const value = await provider.readValue(input.userId, asOf);
+  const value = await provider.readValue(input.userId, asOf, tx);
   assertMetricProviderValue(value, definition.valueType, definition.id);
   return {
     metricId: definition.id,

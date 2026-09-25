@@ -56,7 +56,14 @@ import {
 } from "./server/routes/personalization.js";
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
+import { createAchievementsRouter } from "./server/routes/achievements.js";
+import {
+  getMyAchievements,
+  refreshUserAchievementsBestEffort,
+} from "./server/features/gamification/achievementService.js";
+import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import { createGroupFocusService } from "./server/features/group-focus/service.js";
+import { createGroupFocusRuntimeSummaryService } from "./server/features/group-focus/runtimeSummary.js";
 import {
   createGroupFocusJsonParser,
   createGroupFocusRouter,
@@ -7592,11 +7599,20 @@ app.use(
     putCloud: putPersonalizationToCloud,
   }),
 );
+setStudyPointsPostCommitHook(refreshUserAchievementsBestEffort);
+app.use(
+  "/api/me/achievements",
+  createAchievementsRouter({
+    requireUser,
+    getMyAchievements,
+  }),
+);
 app.use(
   "/api/focus",
   createFocusRouter({
     requireUser,
     service: createFocusService(),
+    refreshAchievements: refreshUserAchievementsBestEffort,
   }),
 );
 app.use(
@@ -7608,7 +7624,11 @@ app.use(
 );
 app.use(
   "/api/internal/group-focus/runtime",
-  createGroupFocusRuntimeInternalRouter(),
+  createGroupFocusRuntimeInternalRouter({
+    service: createGroupFocusRuntimeSummaryService({
+      postCommitAchievementRefresh: refreshUserAchievementsBestEffort,
+    }),
+  }),
 );
 
 /**

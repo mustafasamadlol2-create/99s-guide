@@ -8,6 +8,7 @@ export * from "./checksum.js";
 export * from "./constants.js";
 export * from "./definitions.js";
 export * from "./errors.js";
+export * from "./achievementService.js";
 export * from "./metricRegistry.js";
 export * from "./metrics.js";
 export {

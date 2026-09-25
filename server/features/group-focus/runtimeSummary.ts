@@ -228,6 +228,7 @@ export function createGroupFocusRuntimeSummaryService(options: {
   prisma?: ReturnType<typeof getPrisma>;
   ingestEvent?: typeof ingestStudyEvent;
   studyPointsAwarder?: StudyPointsAwarder;
+  postCommitAchievementRefresh?: (userId: string) => Promise<unknown>;
 } = {}) {
   const prisma = options.prisma ?? getPrisma();
   const ingestEvent = options.ingestEvent ?? ingestStudyEvent;
@@ -296,7 +297,7 @@ export function createGroupFocusRuntimeSummaryService(options: {
     const canonicalBody = canonicalJson(summary);
     const summaryHash = sha256(canonicalBody);
     try {
-      return await prisma.$transaction(async (tx) => {
+      const acknowledgement = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw<Array<{ locked: boolean }>>`
           SELECT TRUE AS locked
           FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`group-focus-summary:${summary.summaryId}`}, 0))) AS acquired
@@ -457,6 +458,25 @@ export function createGroupFocusRuntimeSummaryService(options: {
         });
         return { summaryId: summary.summaryId, status: "APPLIED", runId: run.id };
       });
+      if (
+        acknowledgement.status === "APPLIED"
+        && options.postCommitAchievementRefresh
+      ) {
+        const userIds = new Set(
+          summary.participants
+            .filter((participant) => participant.verifiedFocusSeconds > 0)
+            .map((participant) => participant.userId),
+        );
+        for (const userId of userIds) {
+          try {
+            await options.postCommitAchievementRefresh(userId);
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : "unknown error";
+            console.warn(`[Group Focus] Post-commit Achievement refresh failed: ${reason}`);
+          }
+        }
+      }
+      return acknowledgement;
     } catch (error) {
       if (error instanceof GroupFocusRuntimeSummaryError) throw error;
       if (error instanceof StudyEventError && error.code === "IDEMPOTENCY_CONFLICT") {

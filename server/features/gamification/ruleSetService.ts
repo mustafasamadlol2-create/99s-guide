@@ -31,6 +31,12 @@ async function acquireAdvisoryLock(
   `;
 }
 
+export async function acquireActiveGamificationRuleSetLock(
+  tx: RuleSetTransaction,
+): Promise<void> {
+  await acquireAdvisoryLock(tx, `${LOCK_NAMESPACE}active`);
+}
+
 function validateRuleVersion(version: string): void {
   if (
     typeof version !== "string"
@@ -132,7 +138,7 @@ async function activateGamificationRuleSetForBundle(
   assertBundleVersion(bundle.version, bundle);
   const checksum = checksumGamificationDefinitionBundle(bundle);
   return database.$transaction(async (tx) => {
-    await acquireAdvisoryLock(tx, `${LOCK_NAMESPACE}active`);
+    await acquireActiveGamificationRuleSetLock(tx);
     const target = await tx.gamificationRuleSet.findUnique({
       where: { version: bundle.version },
     });
@@ -235,7 +241,7 @@ export async function getGamificationRuleSetVersion(
 }
 
 export async function getActiveGamificationRuleSet(
-  database: RuleSetDatabase = getPrisma() as RuleSetDatabase,
+  database: RuleSetDatabase | RuleSetTransaction = getPrisma() as RuleSetDatabase,
 ): Promise<GamificationRuleSetWithDefinition> {
   const activeRows = await database.gamificationRuleSet.findMany({
     where: { status: "ACTIVE" },

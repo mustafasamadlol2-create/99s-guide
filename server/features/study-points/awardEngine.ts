@@ -30,6 +30,7 @@ import { studyPointsConsistencyIdempotencyKey, studyPointsAwardIdempotencyKey, s
 import { getStudyPointsIntegrityFailure } from "./integrityGate.js";
 import { lockStudyPointsKeys } from "./locks.js";
 import { StudyPointsLedgerService } from "./ledger.js";
+import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import { StudyPointsError } from "./errors.js";
 import { getEligibleBaghdadDayFocusSeconds } from "./sources/consistency.js";
 import { loadCompletedFocusSource } from "./sources/focus.js";
@@ -125,6 +126,14 @@ export class StudyPointsAwardEngine {
     const result = input.tx
       ? await perform(input.tx)
       : await this.database.$transaction(perform, TRANSACTION_OPTIONS);
+    if (
+      !input.tx
+      && result.attempts.some((attempt) =>
+        attempt.decision.outcome === "AWARD" && !attempt.replayed
+      )
+    ) {
+      await notifyStudyPointsPostCommit(input.userId);
+    }
     return result;
   }
 

@@ -4,6 +4,7 @@ import {
   type StudyPointsLedgerEntry as DbStudyPointsLedgerEntry,
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
+import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import {
   STUDY_POINTS_CATEGORIES,
   STUDY_POINTS_DEFAULT_HISTORY_LIMIT,
@@ -228,10 +229,14 @@ export class StudyPointsLedgerService {
     if (callerTransaction) return appendWithinTransaction(callerTransaction);
 
     try {
-      return await this.database.$transaction(
+      const result = await this.database.$transaction(
         appendWithinTransaction,
         { maxWait: 5_000, timeout: 15_000 },
       );
+      if (!result.replayed) {
+        await notifyStudyPointsPostCommit(normalized.userId);
+      }
+      return result;
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) throw error;
       const existing = await this.database.studyPointsLedgerEntry.findUnique({ where });
@@ -264,7 +269,7 @@ export class StudyPointsLedgerService {
     ];
 
     try {
-      return await this.database.$transaction(async (tx) => {
+      const result = await this.database.$transaction(async (tx) => {
         await lockStudyPointsKeys(tx, reverseKeys);
         const original = await tx.studyPointsLedgerEntry.findFirst({
           where: { id: input.entryId, userId: normalized.userId },
@@ -334,6 +339,10 @@ export class StudyPointsLedgerService {
         );
         return { entry: reversal, replayed: false };
       }, { maxWait: 5_000, timeout: 15_000 });
+      if (!result.replayed) {
+        await notifyStudyPointsPostCommit(normalized.userId);
+      }
+      return result;
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) throw error;
       const existingReversal = await this.database.studyPointsLedgerEntry.findUnique({

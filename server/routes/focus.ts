@@ -25,6 +25,7 @@ import type { FocusBackendService } from "../features/focus/types.js";
 export interface FocusRouteDependencies {
   requireUser: RequestHandler;
   service: FocusBackendService;
+  refreshAchievements?(userId: string): Promise<unknown>;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -283,11 +284,20 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
       return invalid(res, "Focus Session completion request is invalid.");
     }
     try {
-      return res.json(await dependencies.service.completeSession(
+      const result = await dependencies.service.completeSession(
         userId(req),
         parsedId.data,
         parsedBody.data,
-      ));
+      );
+      if (result.idempotency === "FIRST_SEEN") {
+        try {
+          await dependencies.refreshAchievements?.(userId(req));
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "unknown error";
+          console.warn(`[Focus] Post-commit Achievement refresh failed: ${reason}`);
+        }
+      }
+      return res.json(result);
     } catch (error) {
       return sendError(res, error);
     }
