@@ -1,0 +1,703 @@
+# 99’s GUIDE — PROMPT 10 VERIFICATION GATE
+
+## REAL POSTGRESQL REGRESSION + CALENDAR BASELINE CONFIRMATION
+
+### DOES NOT COUNT AS A NEW PROMPT IN THE 52-PROMPT ROADMAP
+
+Prompt 10 client runtime implementation is provisionally accepted.
+
+Its architecture and targeted tests passed, but two verification gaps remain:
+
+1. The real PostgreSQL regression suites were skipped because the disposable database safety gate was not enabled.
+2. The Calendar Import suite currently reports failures, but this Prompt 10 run did not prove they exactly match the previously documented baseline.
+
+Do NOT begin Prompt 11 until these are verified.
+
+---
+
+# 1. PURPOSE
+
+This gate performs verification only.
+
+It must prove:
+
+```text
+Prompt 10 frontend runtime
+did not regress
+the already-verified backend/database foundation
+```
+
+and:
+
+```text
+Calendar Import failures
+match the previously documented baseline
+rather than being new regressions
+```
+
+No new product feature is implemented.
+
+---
+
+# 2. KNOWN DOCUMENTED BASELINE
+
+The previously recorded repository baseline before Prompt 10 was:
+
+```text
+Calendar Import:
+16 passed
+9 failed
+
+Typecheck:
+2 existing Calendar Import errors
+
+Lint:
+10 existing baseline errors
+```
+
+Prompt 8 and subsequent reports documented the same Calendar Import failure count.
+
+This gate must independently rerun and compare the current result.
+
+Do not fix Calendar Import in this gate.
+
+---
+
+# 3. REAL POSTGRESQL SAFETY
+
+Reuse the already verified disposable PostgreSQL infrastructure.
+
+Previous safe development target:
+
+```text
+host: helium
+database: heliumdb
+PostgreSQL: 16.x
+```
+
+Use only the isolated disposable schema mechanism established by the Prompt 8 Infrastructure Repair Gate.
+
+Do NOT use:
+
+* production Supabase;
+* production PostgreSQL;
+* shared `public` schema for destructive tests;
+* remote production resources.
+
+Recreate the disposable schema only for the gated integration suites.
+
+---
+
+# 4. RUN THE POSTGRESQL SAFETY GUARD FIRST
+
+Before running integration tests, confirm:
+
+* development host/database identity;
+* disposable schema name;
+* explicit test marker/opt-in;
+* production host is not targeted.
+
+If safety cannot be proven:
+
+STOP.
+
+Return:
+
+```text
+PROMPT 11 GATE: BLOCKED
+REASON: SAFE POSTGRESQL TEST ENVIRONMENT UNAVAILABLE
+```
+
+Do not bypass the safety guard.
+
+---
+
+# 5. REBUILD DISPOSABLE SCHEMA
+
+Use repository migration history to create the isolated test schema.
+
+Confirm migrations reproduce:
+
+```text
+StudyEvent
+StudyDailyMetric
+PrivateD1SyncOutbox
+FocusPlan
+FocusPlanItem
+FocusSession
+```
+
+Do not use `prisma db push`.
+
+Use the same safe migration/deployment approach previously verified.
+
+---
+
+# 6. RUN REAL OUTBOX POSTGRESQL SUITE
+
+Run the existing suite:
+
+```text
+tests/private-d1-outbox-postgres.test.ts
+```
+
+Expected:
+
+```text
+6/6 pass
+```
+
+Verify real PostgreSQL behavior remains intact for:
+
+* revisions;
+* lease fencing;
+* retry;
+* acknowledgement;
+* stale acknowledgement protection.
+
+---
+
+# 7. RUN REAL STUDY EVENT POSTGRESQL SUITE
+
+Run:
+
+```text
+tests/study-event-postgres-integration.test.ts
+```
+
+Expected:
+
+```text
+6/6 pass
+```
+
+This must verify the real canonical transaction/idempotency/concurrency foundation remains intact.
+
+---
+
+# 8. RUN REAL FOCUS POSTGRESQL SUITE
+
+Run:
+
+```text
+tests/focus-postgres-integration.test.ts
+```
+
+Expected current suite:
+
+```text
+8/8 pass
+```
+
+This includes the Prompt 9R state-machine correction.
+
+Verify especially:
+
+* one active session race safety;
+* start idempotency;
+* pause/resume persistence;
+* paused completion rejection;
+* successful resumed completion;
+* exactly-once Daily Metric update;
+* transaction rollback;
+* planned session count enforcement.
+
+---
+
+# 9. PROMPT 10 CLIENT SUITES
+
+Rerun all Prompt 10 client tests:
+
+```text
+tests/focus-api-client.test.ts
+tests/focus-runtime-lifecycle.test.ts
+tests/focus-runtime.test.ts
+```
+
+Expected:
+
+```text
+34/34 pass
+```
+
+Do not weaken tests merely to obtain a green result.
+
+---
+
+# 10. FOCUS SERVER UNIT REGRESSION
+
+Run:
+
+```text
+tests/focus-timer.test.ts
+```
+
+Expected:
+
+```text
+7/7 pass
+```
+
+Also rerun the shared Focus-state contract proving:
+
+```text
+PAUSED → COMPLETED = false
+```
+
+---
+
+# 11. FOUNDATION REGRESSION
+
+Rerun:
+
+```text
+Study Core
+Batch A schema
+Prompt 6 projection
+Prompt 7 Calendar deprecation
+Prompt 8 ingestion
+Outbox schema
+Auth
+```
+
+All previously green suites must remain green.
+
+Expected known counts include:
+
+```text
+Study Core: 6/6
+Batch A: 7/7
+Prompt 6: 5/5
+Prompt 7: 5/5
+Prompt 8: 25/25
+Outbox schema: 3/3
+Auth: 4/4
+```
+
+If any count has legitimately changed because tests were added earlier, report the actual total and prove there are zero failures.
+
+---
+
+# 12. CALENDAR IMPORT BASELINE VERIFICATION
+
+Run exactly the current Calendar Import suites used previously:
+
+```bash
+npx tsx --test tests/calendar-import.test.ts tests/calendar-import-http.test.ts
+```
+
+or the exact current equivalent if paths changed.
+
+Do not modify Calendar source files.
+
+Record:
+
+```text
+total
+passed
+failed
+exact failing test names
+```
+
+---
+
+# 13. COMPARE CALENDAR FAILURES WITH DOCUMENTED BASELINE
+
+The expected result is:
+
+```text
+16 passed
+9 failed
+```
+
+The important requirement is not merely the count.
+
+Compare the failing test names/messages with the previously existing failure pattern where possible.
+
+Classify each failure as:
+
+```text
+MATCHES DOCUMENTED BASELINE
+NEW FAILURE
+RESOLVED BASELINE FAILURE
+UNABLE TO VERIFY
+```
+
+Prompt 11 may proceed only if there is no evidence of a new Calendar regression caused by Prompt 10.
+
+---
+
+# 14. SOURCE-DIFF VERIFICATION
+
+Confirm Prompt 10 did not modify:
+
+```text
+server/services/calendarImport/*
+src/features/calendar/*
+server calendar routes
+```
+
+Use Git history/diff, not only memory.
+
+If no Calendar code changed and the exact same 9 failures remain, classify them as unchanged baseline.
+
+---
+
+# 15. TYPECHECK
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Expected:
+
+```text
+2 existing Calendar Import errors
+0 new Prompt 10 errors
+```
+
+Record exact current error paths/lines.
+
+If count differs, investigate before passing the gate.
+
+---
+
+# 16. LINT
+
+Run:
+
+```bash
+npm run lint
+```
+
+Expected:
+
+```text
+10 existing baseline errors
+0 new Prompt 10 errors
+```
+
+Also run targeted ESLint on all Prompt 10 files.
+
+---
+
+# 17. BUILD
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 18. TARGETED TYPESCRIPT
+
+Run strict targeted TypeScript validation for:
+
+```text
+src/features/focus/api/*
+src/features/focus/runtime/*
+tests/focus-api-client.test.ts
+tests/focus-runtime-lifecycle.test.ts
+tests/focus-runtime.test.ts
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 19. NO CODE CHANGES PREFERRED
+
+This is a verification gate.
+
+Preferred result:
+
+```text
+production code changes = 0
+```
+
+Do not modify code simply because a pre-existing Calendar test fails.
+
+Only change Prompt 10 code if this verification proves a real Prompt 10 regression.
+
+If a genuine regression is found:
+
+fix only that regression and rerun the entire gate.
+
+---
+
+# 20. NO CALENDAR FIXING
+
+Do NOT use this gate to repair the 9 Calendar Import failures.
+
+Calendar Import cleanup is a separate concern.
+
+Do not broaden scope.
+
+---
+
+# 21. DISPOSABLE SCHEMA CLEANUP
+
+After PostgreSQL integration tests:
+
+drop only the disposable test schema.
+
+Confirm:
+
+```text
+shared public schema untouched
+production untouched
+test schema removed
+```
+
+---
+
+# 22. PRODUCTION SAFETY
+
+Explicitly verify:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+FOCUS ENABLED IN PRODUCTION: NO
+```
+
+---
+
+# 23. GIT REVIEW
+
+Run:
+
+```bash
+git status --short
+git diff --stat
+git diff
+git diff --check
+git log -5 --oneline
+```
+
+Account for Replit auto-checkpoints.
+
+Prompt 10's new files may already be checkpointed automatically; verify rather than assuming missing work.
+
+---
+
+# 24. PASS CONDITIONS
+
+Prompt 11 may proceed only if:
+
+1. Safe disposable PostgreSQL environment is confirmed.
+2. Outbox PostgreSQL suite passes.
+3. Study Event PostgreSQL suite passes.
+4. Focus PostgreSQL / Prompt 9R suite passes.
+5. Prompt 10 client suite remains green.
+6. Focus timer/state-machine suite remains green.
+7. Foundation suites remain green.
+8. Calendar suite has no new failure beyond documented baseline.
+9. Typecheck has no new error.
+10. Lint has no new error.
+11. Build passes.
+12. Targeted Prompt 10 typecheck/lint passes.
+13. Production remains untouched.
+
+---
+
+# 25. MANDATORY FINAL REPORT
+
+Use exactly this structure.
+
+## A. Safe PostgreSQL Verification
+
+Report:
+
+```text
+SAFE DISPOSABLE POSTGRESQL: YES/NO
+```
+
+Include redacted environment identity and disposable schema name.
+
+## B. Real PostgreSQL Regression Results
+
+Report exact results for:
+
+* Outbox PostgreSQL;
+* Study Event PostgreSQL;
+* Focus PostgreSQL / Prompt 9R.
+
+Explicitly:
+
+```text
+REAL POSTGRESQL REGRESSION SUITES EXECUTED: YES/NO
+```
+
+## C. Prompt 10 Client Regression
+
+Report all three client suites and total result.
+
+## D. Focus Timer / State Machine
+
+Report timer suite and shared transition assertion.
+
+Explicitly:
+
+```text
+PAUSED → COMPLETED ALLOWED: NO
+```
+
+## E. Foundation Regression Results
+
+List Study Core, Batch A, Prompt 6, Prompt 7, Prompt 8, Outbox schema, Auth.
+
+## F. Calendar Import Current Result
+
+Report:
+
+```text
+total:
+passed:
+failed:
+```
+
+List exact failing test names.
+
+## G. Calendar Baseline Comparison
+
+Explicitly report:
+
+```text
+DOCUMENTED BASELINE: 16 pass / 9 fail
+CURRENT RESULT:
+NEW CALENDAR FAILURES:
+RESOLVED BASELINE FAILURES:
+```
+
+Explain whether current failures match the previously documented baseline.
+
+## H. Calendar Source-Diff Verification
+
+Confirm whether Prompt 10 changed any Calendar/Calendar Import source.
+
+Expected:
+
+```text
+NO
+```
+
+## I. Typecheck
+
+Report exact total and locations.
+
+## J. Lint
+
+Report exact total and locations.
+
+## K. Build
+
+Report PASS/FAIL.
+
+## L. Targeted Prompt 10 Checks
+
+Report targeted TypeScript and ESLint.
+
+## M. Disposable Database Cleanup
+
+Confirm test schema cleanup and untouched shared/production schemas.
+
+## N. Files Modified During This Gate
+
+If none:
+
+```text
+NONE
+```
+
+If a true Prompt 10 regression required a fix, list exact paths/reasons.
+
+## O. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+FOCUS ENABLED IN PRODUCTION: NO
+```
+
+## P. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## Q. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## R. Remaining Risks
+
+Keep the existing non-blocking outbox coalescing concern visible.
+
+Do not convert unrelated Calendar debt into a Focus blocker if it exactly matches the established baseline.
+
+## S. Prompt 11 Gate Decision
+
+Return exactly one:
+
+```text
+PROMPT 11 GATE: PASS
+```
+
+or:
+
+```text
+PROMPT 11 GATE: BLOCKED
+```
+
+PASS requires all Prompt 10 and real PostgreSQL regressions green and no new Calendar regression.
+
+---
+
+# 26. STOP CONDITION
+
+After this verification:
+
+STOP.
+
+Do NOT start Prompt 11.
+
+Do NOT implement Resource Handoff.
+
+Do NOT modify Calendar Import.
+
+Do NOT deploy.
+
+End exactly:
+
+**PROMPT 10 VERIFICATION GATE COMPLETE — AWAITING PROMPT 11 REVIEW**
