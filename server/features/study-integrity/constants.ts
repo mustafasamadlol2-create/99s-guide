@@ -2,6 +2,9 @@ import type { PrivacyClass } from "../study-core/privacy.js";
 
 export const STUDY_INTEGRITY_RULE_VERSION = "study-integrity-v1";
 export const DEFAULT_INTEGRITY_PRIVACY: PrivacyClass = "ADMIN_SECURITY";
+export const INTEGRITY_SIGNAL_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const INTEGRITY_SIGNAL_SAFE_DETAILS_MAX_BYTES = 8 * 1024;
+export const INTEGRITY_SIGNAL_MAX_OCCURRENCES = 2_147_483_647;
 
 export const INTEGRITY_LIMITS = Object.freeze({
   maxPayloadBytes: 32 * 1024,

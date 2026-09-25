@@ -65,6 +65,11 @@ import {
   createGroupFocusRuntimeJsonParser,
   createGroupFocusRuntimeInternalRouter,
 } from "./server/routes/groupFocusRuntimeInternal.js";
+import {
+  createAdminStudyIntegrityJsonParser,
+  createAdminStudyIntegrityRouter,
+} from "./server/routes/adminStudyIntegrity.js";
+import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -1044,6 +1049,10 @@ app.use(
 app.use(
   "/api/internal/group-focus/runtime",
   createGroupFocusRuntimeJsonParser(),
+);
+app.use(
+  "/api/admin/study-integrity",
+  createAdminStudyIntegrityJsonParser(),
 );
 
 app.use(compression());
@@ -7328,6 +7337,14 @@ app.use("/api/admin/ai", createAIAdminRouter({
     },
   },
 }));
+
+app.use(
+  "/api/admin/study-integrity",
+  createAdminStudyIntegrityRouter({
+    requireAdmin,
+    service: new StudyIntegrityService(getPrisma()),
+  }),
+);
 
 app.use("/api/admin/ai", createAIImportRouter({
   requireAdmin,

@@ -9,62 +9,64 @@ datasource db {
 }
 
 model User {
-  id                        String                    @id @default(uuid())
-  email                     String                    @unique
-  profileEmail              String?
-  passwordHash              String?
-  name                      String?
-  avatar                    String?                   @default("")
-  avatarUrl                 String?                   @default("")
-  signature                 String?                   @default("")
-  role                      String                    @default("user")
-  isOnline                  Boolean                   @default(false)
-  lastActive                DateTime                  @default(now())
-  lastSeen                  DateTime                  @default(now())
-  socketId                  String?
-  deviceToken               String?
-  accountStatus             String                    @default("ACTIVE")
-  isPrimaryOwner            Boolean                   @default(false)
-  emailVerified             Boolean                   @default(true)
-  sessionVersion            Int                       @default(0)
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
-  studentGroup              String                    @default("A")
-  totalPoints               Int                       @default(0)
-  level                     String                    @default("Rising (Resident)")
-  levelBadge                String                    @default("👶")
-  streakDays                Int                       @default(0)
-  totalTimeSpent            Int                       @default(0)
-  preferences               Json?                     @default("{\"theme\": \"system\", \"language\": \"en\", \"pushAlerts\": true}")
-  calendarEvents            CalendarEvent[]
-  flashcardProgresses       FlashcardProgress[]
-  lectureProgresses         LectureProgress[]
-  pointsLogs                PointsLog[]
-  userProgresses            UserProgress[]
-  qaQuestions               QaQuestion[]              @relation("QaQuestions")
-  qaAnswers                 QaAnswer[]                @relation("QaAnswers")
-  blocksMade                UserBlock[]               @relation("BlocksMade")
-  blocksReceived            UserBlock[]               @relation("BlocksReceived")
-  reportsMade               Report[]                  @relation("ReportsMade")
-  reportsReceived           Report[]                  @relation("ReportsReceived")
-  mutesReceived             UserMute[]                @relation("MutesReceived")
-  bansReceived              UserBan[]                 @relation("BansReceived")
-  moderationActionsGiven    ModerationHistory[]       @relation("HistoryByAdmin")
-  moderationActionsReceived ModerationHistory[]       @relation("HistoryForTarget")
-  passwordResetTokens       PasswordResetToken[]
-  emailVerificationTokens   EmailVerificationToken[]
-  oauthIdentities           OAuthIdentity[]           @relation
-  qaVotes                   QaVote[]
-  calendarImportJobs        CalendarImportJob[]
-  resourceMultipartUploads  ResourceMultipartUpload[]
-  focusPlans                FocusPlan[]
-  focusSessions             FocusSession[]
-  focusQuickNotes           FocusQuickNote[]
-  studyEvents               StudyEvent[]
-  studyDailyMetrics         StudyDailyMetric[]
-  groupFocusRoomsHosted     GroupFocusRoom[]          @relation("GroupFocusRoomHost")
-  groupFocusMemberships     GroupFocusMembership[]
+  id                             String                         @id @default(uuid())
+  email                          String                         @unique
+  profileEmail                   String?
+  passwordHash                   String?
+  name                           String?
+  avatar                         String?                        @default("")
+  avatarUrl                      String?                        @default("")
+  signature                      String?                        @default("")
+  role                           String                         @default("user")
+  isOnline                       Boolean                        @default(false)
+  lastActive                     DateTime                       @default(now())
+  lastSeen                       DateTime                       @default(now())
+  socketId                       String?
+  deviceToken                    String?
+  accountStatus                  String                         @default("ACTIVE")
+  isPrimaryOwner                 Boolean                        @default(false)
+  emailVerified                  Boolean                        @default(true)
+  sessionVersion                 Int                            @default(0)
+  createdAt                      DateTime                       @default(now())
+  updatedAt                      DateTime                       @updatedAt
+  studentGroup                   String                         @default("A")
+  totalPoints                    Int                            @default(0)
+  level                          String                         @default("Rising (Resident)")
+  levelBadge                     String                         @default("👶")
+  streakDays                     Int                            @default(0)
+  totalTimeSpent                 Int                            @default(0)
+  preferences                    Json?                          @default("{\"theme\": \"system\", \"language\": \"en\", \"pushAlerts\": true}")
+  calendarEvents                 CalendarEvent[]
+  flashcardProgresses            FlashcardProgress[]
+  lectureProgresses              LectureProgress[]
+  pointsLogs                     PointsLog[]
+  userProgresses                 UserProgress[]
+  qaQuestions                    QaQuestion[]                   @relation("QaQuestions")
+  qaAnswers                      QaAnswer[]                     @relation("QaAnswers")
+  blocksMade                     UserBlock[]                    @relation("BlocksMade")
+  blocksReceived                 UserBlock[]                    @relation("BlocksReceived")
+  reportsMade                    Report[]                       @relation("ReportsMade")
+  reportsReceived                Report[]                       @relation("ReportsReceived")
+  mutesReceived                  UserMute[]                     @relation("MutesReceived")
+  bansReceived                   UserBan[]                      @relation("BansReceived")
+  moderationActionsGiven         ModerationHistory[]            @relation("HistoryByAdmin")
+  moderationActionsReceived      ModerationHistory[]            @relation("HistoryForTarget")
+  passwordResetTokens            PasswordResetToken[]
+  emailVerificationTokens        EmailVerificationToken[]
+  oauthIdentities                OAuthIdentity[]                @relation
+  qaVotes                        QaVote[]
+  calendarImportJobs             CalendarImportJob[]
+  resourceMultipartUploads       ResourceMultipartUpload[]
+  focusPlans                     FocusPlan[]
+  focusSessions                  FocusSession[]
+  focusQuickNotes                FocusQuickNote[]
+  studyEvents                    StudyEvent[]
+  studyDailyMetrics              StudyDailyMetric[]
+  groupFocusRoomsHosted          GroupFocusRoom[]               @relation("GroupFocusRoomHost")
+  groupFocusMemberships          GroupFocusMembership[]
   groupFocusParticipantSummaries GroupFocusParticipantSummary[]
+  integritySignals               IntegritySignal[]              @relation("IntegritySignalSubject")
+  integrityReviewActions         IntegrityReviewAction[]        @relation("IntegrityReviewReviewer")
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -807,6 +809,65 @@ model StudyDailyMetric {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, metricDate])
+}
+
+/// Private, deduplicated technical observations that may need owner/admin review.
+model IntegritySignal {
+  id                String    @id @default(uuid())
+  userId            String
+  actionType        String    @db.VarChar(96)
+  observationCode   String    @db.VarChar(96)
+  category          String    @db.VarChar(32)
+  severity          String    @db.VarChar(16)
+  ruleId            String    @db.VarChar(128)
+  ruleVersion       String    @db.VarChar(128)
+  evidenceClass     String    @db.VarChar(48)
+  source            String    @db.VarChar(32)
+  privacyClass      String    @default("ADMIN_SECURITY") @db.VarChar(32)
+  signalFingerprint String    @db.Char(64)
+  dedupBucket       Int
+  generation        Int       @default(0)
+  resourceKind      String?   @db.VarChar(48)
+  resourceId        String?   @db.VarChar(128)
+  firstOccurredAt   DateTime
+  lastOccurredAt    DateTime
+  lastReceivedAt    DateTime
+  occurrenceCount   Int       @default(1)
+  status            String    @default("OPEN") @db.VarChar(16)
+  reviewVersion     Int       @default(0)
+  latestSafeDetails Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  resolvedAt        DateTime?
+
+  user          User                    @relation("IntegritySignalSubject", fields: [userId], references: [id], onDelete: Cascade)
+  reviewActions IntegrityReviewAction[]
+
+  @@unique([userId, signalFingerprint, dedupBucket, generation])
+  @@index([status, severity, lastOccurredAt])
+  @@index([userId, status, lastOccurredAt])
+  @@index([actionType, status, lastOccurredAt])
+  @@index([category, lastOccurredAt])
+  @@index([observationCode, lastOccurredAt])
+  @@index([ruleId, lastOccurredAt])
+}
+
+/// Append-only review history. Reviewer deletion preserves the audit row.
+model IntegrityReviewAction {
+  id             String   @id @default(uuid())
+  signalId       String
+  reviewerUserId String?
+  fromStatus     String   @db.VarChar(16)
+  toStatus       String   @db.VarChar(16)
+  actionType     String   @db.VarChar(16)
+  note           String?  @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+
+  signal   IntegritySignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  reviewer User?           @relation("IntegrityReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([signalId, createdAt])
+  @@index([reviewerUserId, createdAt])
 }
 
 /// Infrastructure-only queue for canonical-to-private-D1 projection delivery.
