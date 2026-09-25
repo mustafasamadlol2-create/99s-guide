@@ -68,8 +68,8 @@ model User {
   integritySignals               IntegritySignal[]              @relation("IntegritySignalSubject")
   integrityReviewActions         IntegrityReviewAction[]        @relation("IntegrityReviewReviewer")
 
-  studyPointsLedgerEntries       StudyPointsLedgerEntry[]
-  studyPointsBalanceProjection  StudyPointsBalanceProjection?
+  studyPointsLedgerEntries     StudyPointsLedgerEntry[]
+  studyPointsBalanceProjection StudyPointsBalanceProjection?
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -81,24 +81,24 @@ model User {
 }
 
 model Lecture {
-  id                       String                    @id @default(uuid())
-  name                     String
-  mainSubject              String
-  subSubject               String?
-  trackMode                String
-  department               String?
-  createdAt                DateTime                  @default(now())
-  flashcards               Flashcard[]
-  lectureProgresses        LectureProgress[]
-  materials                Material[]
-  mcqs                     Mcq[]
-  resourceMultipartUploads ResourceMultipartUpload[]
-  focusPlanItems           FocusPlanItem[]
-  focusSessions            FocusSession[]
-  focusQuickNotes          FocusQuickNote[]          @relation("FocusQuickNoteLecture")
-  studyEvents              StudyEvent[]
-  groupFocusRoomsShared    GroupFocusRoom[]          @relation("GroupFocusRoomSharedLecture")
-  groupFocusMemberships    GroupFocusMembership[]    @relation("GroupFocusMembershipSelectedLecture")
+  id                             String                         @id @default(uuid())
+  name                           String
+  mainSubject                    String
+  subSubject                     String?
+  trackMode                      String
+  department                     String?
+  createdAt                      DateTime                       @default(now())
+  flashcards                     Flashcard[]
+  lectureProgresses              LectureProgress[]
+  materials                      Material[]
+  mcqs                           Mcq[]
+  resourceMultipartUploads       ResourceMultipartUpload[]
+  focusPlanItems                 FocusPlanItem[]
+  focusSessions                  FocusSession[]
+  focusQuickNotes                FocusQuickNote[]               @relation("FocusQuickNoteLecture")
+  studyEvents                    StudyEvent[]
+  groupFocusRoomsShared          GroupFocusRoom[]               @relation("GroupFocusRoomSharedLecture")
+  groupFocusMemberships          GroupFocusMembership[]         @relation("GroupFocusMembershipSelectedLecture")
   groupFocusParticipantSummaries GroupFocusParticipantSummary[] @relation("GroupFocusSummaryLecture")
 
   @@index([name])
@@ -694,9 +694,9 @@ model GroupFocusMembership {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  room            GroupFocusRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  selectedLecture Lecture?       @relation("GroupFocusMembershipSelectedLecture", fields: [selectedLectureId], references: [id], onDelete: Restrict)
+  room               GroupFocusRoom                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user               User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedLecture    Lecture?                      @relation("GroupFocusMembershipSelectedLecture", fields: [selectedLectureId], references: [id], onDelete: Restrict)
   participantSummary GroupFocusParticipantSummary?
 
   @@unique([roomId, userId])
@@ -707,24 +707,24 @@ model GroupFocusMembership {
 
 /// Canonical immutable result of one terminal Durable Object runtime.
 model GroupFocusRun {
-  id                       String   @id @default(uuid())
-  roomId                   String   @unique
-  summaryId                String   @unique
-  runtimeInstanceId        String   @unique
-  summaryVersion           Int
-  summaryHash              String   @db.Char(64)
-  mode                     String
-  focusDurationSeconds     Int
-  breakDurationSeconds     Int
-  roundCount               Int
-  runtimeStartedAt         DateTime
-  runtimeEndedAt           DateTime
-  terminalReason           String
-  completedRounds          Int
-  finalRevision            Int
-  createdAt                DateTime @default(now())
+  id                   String   @id @default(uuid())
+  roomId               String   @unique
+  summaryId            String   @unique
+  runtimeInstanceId    String   @unique
+  summaryVersion       Int
+  summaryHash          String   @db.Char(64)
+  mode                 String
+  focusDurationSeconds Int
+  breakDurationSeconds Int
+  roundCount           Int
+  runtimeStartedAt     DateTime
+  runtimeEndedAt       DateTime
+  terminalReason       String
+  completedRounds      Int
+  finalRevision        Int
+  createdAt            DateTime @default(now())
 
-  room         GroupFocusRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  room         GroupFocusRoom                 @relation(fields: [roomId], references: [id], onDelete: Restrict)
   participants GroupFocusParticipantSummary[]
 
   @@index([runtimeEndedAt])
@@ -732,23 +732,23 @@ model GroupFocusRun {
 
 /// One verified, private participation aggregate per canonical member and run.
 model GroupFocusParticipantSummary {
-  id                       String   @id @default(uuid())
-  runId                    String
-  userId                   String
-  membershipId             String   @unique
-  role                     String
-  effectiveLectureId       String
-  firstConnectedAt         DateTime
-  lastDisconnectedAt       DateTime?
-  reconnectCount           Int
-  verifiedFocusSeconds     Int
-  rounds                   Json
-  createdAt                DateTime @default(now())
+  id                   String    @id @default(uuid())
+  runId                String
+  userId               String
+  membershipId         String    @unique
+  role                 String
+  effectiveLectureId   String
+  firstConnectedAt     DateTime
+  lastDisconnectedAt   DateTime?
+  reconnectCount       Int
+  verifiedFocusSeconds Int
+  rounds               Json
+  createdAt            DateTime  @default(now())
 
-  run             GroupFocusRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  membership      GroupFocusMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  effectiveLecture Lecture             @relation("GroupFocusSummaryLecture", fields: [effectiveLectureId], references: [id], onDelete: Restrict)
+  run              GroupFocusRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership       GroupFocusMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  effectiveLecture Lecture              @relation("GroupFocusSummaryLecture", fields: [effectiveLectureId], references: [id], onDelete: Restrict)
 
   @@unique([runId, userId])
   @@index([userId, createdAt])
@@ -933,4 +933,21 @@ model StudyPointsBalanceProjection {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([lastReconciledAt])
+}
+
+/// Versioned, server-owned definition lifecycle. Definitions remain in source
+/// control; this row records their checksum and active/retired lifecycle.
+model GamificationRuleSet {
+  id                 String    @id @default(uuid())
+  version            String    @unique @db.VarChar(64)
+  status             String    @default("DRAFT") @db.VarChar(16)
+  schemaVersion      Int
+  definitionChecksum String    @db.Char(64)
+  effectiveFrom      DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([status, effectiveFrom])
 }
