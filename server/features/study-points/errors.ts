@@ -1,0 +1,30 @@
+export const STUDY_POINTS_ERROR_CODES = [
+  "POINTS_INVALID_AMOUNT",
+  "POINTS_INVALID_CATEGORY",
+  "POINTS_INVALID_SOURCE",
+  "POINTS_INVALID_REASON_CODE",
+  "POINTS_INVALID_RULE_VERSION",
+  "POINTS_INVALID_IDEMPOTENCY_KEY",
+  "POINTS_INVALID_METADATA",
+  "POINTS_INVALID_CURSOR",
+  "POINTS_INVALID_HISTORY_LIMIT",
+  "POINTS_USER_NOT_FOUND",
+  "POINTS_IDEMPOTENCY_CONFLICT",
+  "POINTS_ENTRY_NOT_FOUND",
+  "POINTS_ALREADY_REVERSED",
+  "POINTS_INVALID_REVERSAL",
+  "POINTS_BALANCE_OVERFLOW",
+] as const;
+
+export type StudyPointsErrorCode =
+  (typeof STUDY_POINTS_ERROR_CODES)[number];
+
+export class StudyPointsError extends Error {
+  constructor(
+    public readonly code: StudyPointsErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "StudyPointsError";
+  }
+}

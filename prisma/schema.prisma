@@ -68,6 +68,8 @@ model User {
   integritySignals               IntegritySignal[]              @relation("IntegritySignalSubject")
   integrityReviewActions         IntegrityReviewAction[]        @relation("IntegrityReviewReviewer")
 
+  studyPointsLedgerEntries       StudyPointsLedgerEntry[]
+
   @@index([role])
   @@index([isOnline, lastActive])
   @@index([studentGroup])
@@ -885,4 +887,30 @@ model PrivateD1SyncOutbox {
   updatedAt     DateTime @default(now()) @updatedAt
 
   @@index([nextAttemptAt, id])
+}
+
+/// Append-only canonical Study Points accounting rows. Corrections use reversals.
+model StudyPointsLedgerEntry {
+  id                String   @id @default(uuid())
+  userId            String
+  amount            Int
+  category          String   @db.VarChar(16)
+  reasonCode        String   @db.VarChar(96)
+  sourceType        String   @db.VarChar(32)
+  sourceId          String?  @db.VarChar(128)
+  ruleVersion       String   @db.VarChar(128)
+  idempotencyKey    String   @db.VarChar(200)
+  effectiveAt       DateTime
+  createdAt         DateTime @default(now())
+  reversalOfEntryId String?  @unique
+  metadata          Json?
+
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reversalOf StudyPointsLedgerEntry? @relation("StudyPointsReversal", fields: [reversalOfEntryId], references: [id], onDelete: Cascade)
+  reversedBy StudyPointsLedgerEntry? @relation("StudyPointsReversal")
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, effectiveAt, id])
+  @@index([userId, category, effectiveAt])
+  @@index([sourceType, sourceId])
 }
