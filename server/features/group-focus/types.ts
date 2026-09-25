@@ -2,8 +2,9 @@ import type {
   GROUP_FOCUS_MODES,
   GROUP_FOCUS_PARTICIPANT_ROLES,
 } from "../study-core/groupFocus.js";
+import { GROUP_FOCUS_CAPABILITY_VISIBILITIES } from "../../../shared/group-focus-capability/contract.js";
 
-export const GROUP_FOCUS_VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
+export const GROUP_FOCUS_VISIBILITIES = GROUP_FOCUS_CAPABILITY_VISIBILITIES;
 export const GROUP_FOCUS_ROOM_STATUSES = ["OPEN", "CLOSED"] as const;
 export const GROUP_FOCUS_MEMBERSHIP_STATUSES = ["ACTIVE", "LEFT", "REMOVED"] as const;
 export const GROUP_FOCUS_MIN_PARTICIPANTS = 2;

@@ -12,11 +12,15 @@ import {
   updateGroupFocusLectureSchema,
 } from "../features/group-focus/schemas.js";
 import type { GroupFocusService } from "../features/group-focus/service.js";
+import { issueGroupFocusCapability } from "../features/group-focus/capability.js";
+import type { GroupFocusCapabilityEnvironment } from "../../shared/group-focus-capability/keyring.js";
 
 export interface GroupFocusRouteDependencies {
   requireUser: RequestHandler;
   service: GroupFocusService;
   isEnabled?: () => boolean;
+  capabilityEnvironment?: () => GroupFocusCapabilityEnvironment;
+  capabilityNow?: () => Date;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -104,6 +108,37 @@ export function createGroupFocusRouter(
     try {
       const result = await dependencies.service.createRoom(userId(req), parsed.data);
       return res.status(result.idempotency === "CREATED" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/rooms/:roomId/capability", route(async (req, res) => {
+    res.set({
+      "Cache-Control": "no-store, private",
+      Pragma: "no-cache",
+    });
+    const roomId = parseRoomId(req.params.roomId);
+    if (!roomId) return invalid(res, "Group Focus Room ID is invalid.");
+    if (!validEmptyBody(req)) return invalid(res, "Capability requests accept no fields.");
+    try {
+      const authenticatedUserId = userId(req);
+      const context = await dependencies.service.getGroupFocusAuthorizationContext(
+        authenticatedUserId,
+        roomId,
+      );
+      if (
+        !context
+        || context.userId !== authenticatedUserId
+        || context.roomId !== roomId
+      ) {
+        throw new GroupFocusError("ROOM_NOT_FOUND", "Group Focus Room was not found.");
+      }
+      return res.json(issueGroupFocusCapability(
+        context,
+        dependencies.capabilityEnvironment?.() ?? process.env,
+        dependencies.capabilityNow?.() ?? new Date(),
+      ));
     } catch (error) {
       return sendError(res, error);
     }

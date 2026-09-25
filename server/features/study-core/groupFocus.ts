@@ -1,9 +1,16 @@
-export const GROUP_FOCUS_MODES = ["SHARED_LECTURE", "STUDY_TOGETHER"] as const;
-export type GroupFocusMode = (typeof GROUP_FOCUS_MODES)[number];
+import {
+  GROUP_FOCUS_CAPABILITY_MODES,
+  GROUP_FOCUS_CAPABILITY_ROLES,
+  type GroupFocusCapabilityClaims as SignedGroupFocusCapabilityClaims,
+  type GroupFocusCapabilityMode,
+  type GroupFocusCapabilityRole,
+} from "../../../shared/group-focus-capability/contract.js";
 
-export const GROUP_FOCUS_PARTICIPANT_ROLES = ["HOST", "MEMBER"] as const;
-export type GroupFocusParticipantRole =
-  (typeof GROUP_FOCUS_PARTICIPANT_ROLES)[number];
+export const GROUP_FOCUS_MODES = GROUP_FOCUS_CAPABILITY_MODES;
+export type GroupFocusMode = GroupFocusCapabilityMode;
+
+export const GROUP_FOCUS_PARTICIPANT_ROLES = GROUP_FOCUS_CAPABILITY_ROLES;
+export type GroupFocusParticipantRole = GroupFocusCapabilityRole;
 
 export const GROUP_FOCUS_ROOM_PHASES = [
   "LOBBY",
@@ -16,14 +23,7 @@ export const GROUP_FOCUS_ROOM_PHASES = [
 ] as const;
 export type GroupFocusRoomPhase = (typeof GROUP_FOCUS_ROOM_PHASES)[number];
 
-export type GroupFocusCapabilityClaims = {
-  userId: string;
-  roomId: string;
-  role: GroupFocusParticipantRole;
-  expiresAt: string;
-  nonce: string;
-  allowedActions: readonly string[];
-};
+export type GroupFocusCapabilityClaims = SignedGroupFocusCapabilityClaims;
 
 export const GROUP_FOCUS_CONFIG_DEFAULTS = {
   defaultMaxRoomSize: 12,

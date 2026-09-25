@@ -1,8 +1,24 @@
-export type GroupFocusVisibility = "PUBLIC" | "PRIVATE";
-export type GroupFocusMode = "SHARED_LECTURE" | "STUDY_TOGETHER";
+import type {
+  GroupFocusCapabilityMode,
+  GroupFocusCapabilityRole,
+  GroupFocusCapabilityVisibility,
+} from "../../../../shared/group-focus-capability/contract.js";
+import {
+  GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES,
+  GROUP_FOCUS_CAPABILITY_MAX_TTL_SECONDS,
+} from "../../../../shared/group-focus-capability/contract.js";
+
+export type GroupFocusVisibility = GroupFocusCapabilityVisibility;
+export type GroupFocusMode = GroupFocusCapabilityMode;
 export type GroupFocusRoomStatus = "OPEN" | "CLOSED";
 export type GroupFocusMembershipStatus = "ACTIVE" | "LEFT" | "REMOVED";
-export type GroupFocusRole = "HOST" | "MEMBER";
+export type GroupFocusRole = GroupFocusCapabilityRole;
+
+export type GroupFocusCapabilityResponse = {
+  capabilityToken: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+};
 
 export type GroupFocusRoomDto = {
   id: string;
@@ -121,6 +137,32 @@ function requireIsoDate(value: unknown, label: string): string {
     throw new Error(`Invalid Group Focus ${label} response.`);
   }
   return result;
+}
+
+function parseCapabilityResponse(value: unknown): GroupFocusCapabilityResponse {
+  const result = requireRecord(value, "capability");
+  const expectedKeys = ["capabilityToken", "expiresAt", "expiresInSeconds"];
+  const actualKeys = Object.keys(result).sort();
+  if (
+    actualKeys.length !== expectedKeys.length
+    || !actualKeys.every((key, index) => key === [...expectedKeys].sort()[index])
+  ) {
+    throw new Error("Invalid Group Focus capability response.");
+  }
+  const capabilityToken = requireString(result.capabilityToken, "capability token");
+  const expiresAt = requireIsoDate(result.expiresAt, "capability expiration");
+  const expiresInSeconds = requireInteger(result.expiresInSeconds, "capability lifetime");
+  const expirationMilliseconds = Date.parse(expiresAt);
+  if (
+    capabilityToken.length > GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES
+    || !Number.isFinite(expirationMilliseconds)
+    || new Date(expirationMilliseconds).toISOString() !== expiresAt
+    || expiresInSeconds < 1
+    || expiresInSeconds > GROUP_FOCUS_CAPABILITY_MAX_TTL_SECONDS
+  ) {
+    throw new Error("Invalid Group Focus capability response.");
+  }
+  return { capabilityToken, expiresAt, expiresInSeconds };
 }
 
 function requireOneOf<T extends string>(
@@ -445,5 +487,17 @@ export async function closeGroupFocusRoom(
         membershipsClosed: requireInteger(result.membershipsClosed, "closed membership count"),
       };
     },
+  );
+}
+
+export async function requestGroupFocusCapability(
+  roomId: string,
+  fetcher: Fetcher = fetch,
+): Promise<GroupFocusCapabilityResponse> {
+  return requestJson(
+    `/api/group-focus/rooms/${encodeURIComponent(roomId)}/capability`,
+    { method: "POST" },
+    fetcher,
+    parseCapabilityResponse,
   );
 }
