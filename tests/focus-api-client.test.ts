@@ -5,6 +5,7 @@ import { createFocusApi, FocusApiError, type FocusApiRequestOptions } from "../s
 const id = "00000000-0000-4000-8000-000000000001";
 const itemId = "00000000-0000-4000-8000-000000000002";
 const lectureId = "00000000-0000-4000-8000-000000000003";
+const planId = "00000000-0000-4000-8000-000000000004";
 const now = "2025-01-01T00:00:00.000Z";
 
 function session(status = "ACTIVE") {
@@ -115,4 +116,104 @@ test("Focus API rejects malformed session DTOs", async () => {
   }));
   await assert.rejects(api.getCurrentFocusSession(), (error: unknown) =>
     error instanceof FocusApiError && error.kind === "protocol");
+});
+
+test("Quick Note, metrics, and post-Focus client methods use authenticated canonical routes", async () => {
+  const note = {
+    id,
+    focusSessionId: itemId,
+    lectureId,
+    content: "Private note",
+    status: "ACTIVE",
+    convertedToPlanItemId: null,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+    convertedAt: null,
+  };
+  const calls: Array<{ path: string; method?: string; body?: unknown }> = [];
+  const client = createFocusApi(async (path, options = {}) => {
+    const route = String(path);
+    const method = options.method;
+    const body = options.body ? JSON.parse(String(options.body)) as unknown : undefined;
+    calls.push({ path: route, method, body });
+    if (route.endsWith("/quick-notes") && method === "POST") {
+      return response({ note, idempotency: "CREATED" }, 201);
+    }
+    if (
+      (route.endsWith("/quick-notes") || route.includes("/quick-notes?")) &&
+      (method === undefined || method === "GET")
+    ) {
+      return response({ notes: [note] });
+    }
+    if (route.endsWith("/convert-to-plan-item")) {
+      return response({
+        note: { ...note, status: "CONVERTED", convertedToPlanItemId: itemId, convertedAt: now },
+        planItem: {
+          id: itemId, planId, lectureId, sequence: 2, sessionCount: 1,
+          focusDurationSeconds: 2_700, breakDurationSeconds: 0,
+          includeMcq: true, includeFlashcards: false, includeVideo: true,
+        },
+        idempotency: "CONVERTED",
+      }, 201);
+    }
+    if (route.includes("/quick-notes/")) {
+      const responseNote = method === "POST"
+        ? { ...note, status: "ARCHIVED", archivedAt: now }
+        : method === "PATCH" ? { ...note, content: "Edited" } : note;
+      return response({ note: responseNote });
+    }
+    if (route.endsWith("/metrics?period=last7Days")) {
+      return response({
+        period: "last7Days",
+        timezone: "Asia/Baghdad",
+        startDate: "2026-09-20",
+        endDate: "2026-09-26",
+        totals: { focusSeconds: 60, sessionsCompleted: 1, interruptionCount: 0 },
+        daily: [{
+          date: "2026-09-26", focusSeconds: 60, sessionsCompleted: 1, interruptionCount: 0,
+        }],
+      });
+    }
+    if (route.endsWith("/post-actions")) {
+      return response({
+        sessionId: id, lectureId, planId, planItemId: itemId,
+        sessionNumber: 1, plannedSessionCount: 1,
+        isLastPlannedSession: true, manualLectureCompletionRequired: true,
+        configured: { mcq: false, flashcards: true, video: true },
+        available: { mcq: true, flashcards: true, video: false },
+      });
+    }
+    return response({ error: "not found", code: "NOT_FOUND" }, 404);
+  });
+
+  await client.createQuickNote({
+    focusSessionId: itemId,
+    content: "Private note",
+    idempotencyKey: "client-note-create",
+  });
+  await client.listQuickNotes({ sessionId: itemId, status: "ACTIVE", limit: 7 });
+  await client.getQuickNote(id);
+  await client.updateQuickNote(id, { content: "Edited" });
+  await client.archiveQuickNote(id);
+  await client.convertQuickNote(id, { targetPlanId: planId });
+  await client.getMetrics("last7Days");
+  await client.getPostFocusActionContext(id);
+
+  assert.deepEqual(calls.map(({ path, method }) => [method, path]), [
+    ["POST", "/api/focus/quick-notes"],
+    [undefined, `/api/focus/quick-notes?sessionId=${itemId}&status=ACTIVE&limit=7`],
+    [undefined, `/api/focus/quick-notes/${id}`],
+    ["PATCH", `/api/focus/quick-notes/${id}`],
+    ["POST", `/api/focus/quick-notes/${id}/archive`],
+    ["POST", `/api/focus/quick-notes/${id}/convert-to-plan-item`],
+    [undefined, "/api/focus/metrics?period=last7Days"],
+    [undefined, `/api/focus/sessions/${id}/post-actions`],
+  ]);
+  assert.deepEqual(calls[0].body, {
+    focusSessionId: itemId,
+    content: "Private note",
+    idempotencyKey: "client-note-create",
+  });
+  assert.deepEqual(calls[5].body, { targetPlanId: planId });
 });

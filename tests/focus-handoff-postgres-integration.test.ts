@@ -191,11 +191,20 @@ test("real PostgreSQL disallows completion and interruption while in resource ha
 test("real PostgreSQL interruption conflict and projection budget are exact", { skip: skipped }, async () => {
   const f = await fixture(() => T0);
   try {
-    const input = { observedAwaySeconds: 120, reason: "background_absence" as const, idempotencyKey: "prompt11-interruption-conflict", source: "web" as const };
+    const input = { observedAwaySeconds: 120, reason: "background_absence" as const, idempotencyKey: "prompt11-interruption-conflict", source: "ios" as const };
     assert.equal((await f.focus.recordInterruption(f.userId, f.sessionId, input)).idempotency, "FIRST_SEEN");
     assert.equal((await f.focus.recordInterruption(f.userId, f.sessionId, input)).idempotency, "REPLAY_SAME_PAYLOAD");
     await assert.rejects(f.focus.recordInterruption(f.userId, f.sessionId, { ...input, observedAwaySeconds: 121 }), { code: "IDEMPOTENCY_CONFLICT" });
-    assert.equal(await db().studyEvent.count({ where: { userId: f.userId, eventType: "focus_interruption_recorded" } }), 1);
+    const interruption = await db().studyEvent.findFirst({
+      where: { userId: f.userId, eventType: "focus_interruption_recorded" },
+    });
+    assert.ok(interruption);
+    assert.equal(interruption.source, "backend");
+    assert.equal(interruption.evidenceClass, "SERVER_VALIDATED");
+    assert.deepEqual(interruption.payload, {
+      reason: "background_absence",
+      durationSeconds: 120,
+    });
     assert.equal((await db().studyDailyMetric.findFirst({ where: { userId: f.userId } }))?.interruptionCount, 1);
     assert.equal(await focusOutboxCount(f.userId, "StudyDailyMetric"), 1);
     assert.equal(await focusOutboxCount(f.userId, "FocusSession"), 1);

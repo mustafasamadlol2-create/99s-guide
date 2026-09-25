@@ -116,6 +116,14 @@ function makeApi(overrides: Partial<FocusApi> = {}): FocusApi {
     getFocusPlan: async (_id: string) => emptyPlan,
     updateFocusPlan: async (_id: string, _input: UpdateFocusPlanInput) => emptyPlan,
     archiveFocusPlan: async (_id: string) => emptyPlan,
+    createQuickNote: async () => { throw new Error("unused"); },
+    listQuickNotes: async () => [],
+    getQuickNote: async () => { throw new Error("unused"); },
+    updateQuickNote: async () => { throw new Error("unused"); },
+    archiveQuickNote: async () => { throw new Error("unused"); },
+    convertQuickNote: async () => { throw new Error("unused"); },
+    getMetrics: async () => { throw new Error("unused"); },
+    getPostFocusActionContext: async () => { throw new Error("unused"); },
     ...overrides,
   };
 }

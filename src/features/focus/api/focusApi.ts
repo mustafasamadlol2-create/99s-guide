@@ -6,11 +6,21 @@ import type {
   FocusSessionTransitionInput,
   StartFocusSessionInput,
   UpdateFocusPlanInput,
+  CreateFocusQuickNoteInput,
+  ConvertFocusQuickNoteInput,
+  UpdateFocusQuickNoteInput,
+  FocusQuickNoteListQuery,
+  FocusMetricsPeriod,
 } from "../../../../server/features/focus/schemas";
 import type {
   FocusCurrentSessionResult,
+  FocusMetricsDto,
+  FocusQuickNoteCreateResult,
+  FocusQuickNoteConversionResult,
+  FocusQuickNoteDto,
   FocusPlanDto,
   FocusPlanItemDto,
+  PostFocusActionContext,
   FocusSessionDto,
   FocusSessionMutationResult,
 } from "../../../../server/features/focus/types";
@@ -83,6 +93,14 @@ export interface FocusApi {
   getFocusPlan(planId: string): Promise<FocusPlanDto>;
   updateFocusPlan(planId: string, input: UpdateFocusPlanInput): Promise<FocusPlanDto>;
   archiveFocusPlan(planId: string): Promise<FocusPlanDto>;
+  createQuickNote(input: CreateFocusQuickNoteInput): Promise<FocusQuickNoteCreateResult>;
+  listQuickNotes(query?: FocusQuickNoteListQuery): Promise<FocusQuickNoteDto[]>;
+  getQuickNote(noteId: string): Promise<FocusQuickNoteDto>;
+  updateQuickNote(noteId: string, input: UpdateFocusQuickNoteInput): Promise<FocusQuickNoteDto>;
+  archiveQuickNote(noteId: string): Promise<FocusQuickNoteDto>;
+  convertQuickNote(noteId: string, input: ConvertFocusQuickNoteInput): Promise<FocusQuickNoteConversionResult>;
+  getMetrics(period: FocusMetricsPeriod): Promise<FocusMetricsDto>;
+  getPostFocusActionContext(sessionId: string): Promise<PostFocusActionContext>;
 }
 
 const SESSION_STATES = new Set([
@@ -164,6 +182,122 @@ function plan(value: unknown): FocusPlanDto {
   stringField(item.archivedAt, "archivedAt", { nullable: true });
   if (!Array.isArray(item.items)) throw protocol("Invalid Focus plan items.");
   return { ...item, items: item.items.map(planItem) } as FocusPlanDto;
+}
+
+const NOTE_STATUSES = new Set(["ACTIVE", "ARCHIVED", "CONVERTED"]);
+const METRIC_PERIODS = new Set(["today", "last7Days", "month"]);
+
+function quickNote(value: unknown): FocusQuickNoteDto {
+  const item = record(value, "quick note");
+  stringField(item.id, "Quick Note ID", { uuid: true });
+  stringField(item.focusSessionId, "Quick Note Session ID", { uuid: true });
+  stringField(item.lectureId, "Quick Note Lecture ID", { uuid: true });
+  if (typeof item.content !== "string" || !item.content.trim() ||
+      Array.from(item.content).length > 2_000) {
+    throw protocol("Invalid Quick Note content.");
+  }
+  if (typeof item.status !== "string" || !NOTE_STATUSES.has(item.status)) {
+    throw protocol("Invalid Quick Note status.");
+  }
+  stringField(item.convertedToPlanItemId, "converted Plan item ID", { uuid: true, nullable: true });
+  for (const name of ["createdAt", "updatedAt"] as const) stringField(item[name], name);
+  for (const name of ["archivedAt", "convertedAt"] as const) {
+    stringField(item[name], name, { nullable: true });
+  }
+  return item as unknown as FocusQuickNoteDto;
+}
+
+function quickNoteCreateResult(value: unknown): FocusQuickNoteCreateResult {
+  const item = record(value, "Quick Note response");
+  if (item.idempotency !== "CREATED" && item.idempotency !== "REPLAY_SAME_PAYLOAD") {
+    throw protocol("Invalid Quick Note idempotency result.");
+  }
+  return { note: quickNote(item.note), idempotency: item.idempotency };
+}
+
+function quickNoteConversionResult(value: unknown): FocusQuickNoteConversionResult {
+  const item = record(value, "Quick Note conversion response");
+  if (item.idempotency !== "CONVERTED" && item.idempotency !== "REPLAY_SAME_PAYLOAD") {
+    throw protocol("Invalid Quick Note conversion idempotency result.");
+  }
+  const converted = record(item.planItem, "converted Plan item");
+  const parsedItem = planItem(converted);
+  stringField(converted.planId, "converted Plan ID", { uuid: true });
+  return {
+    note: quickNote(item.note),
+    planItem: { ...parsedItem, planId: converted.planId as string },
+    idempotency: item.idempotency,
+  };
+}
+
+function focusMetrics(value: unknown): FocusMetricsDto {
+  const item = record(value, "metrics response");
+  if (typeof item.period !== "string" || !METRIC_PERIODS.has(item.period)) {
+    throw protocol("Invalid Focus metrics period.");
+  }
+  if (item.timezone !== "Asia/Baghdad") throw protocol("Invalid Focus metrics timezone.");
+  for (const name of ["startDate", "endDate"] as const) {
+    if (typeof item[name] !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(item[name])) {
+      throw protocol("Invalid Focus metrics date range.");
+    }
+  }
+  const counters = (value: unknown, name: string) => {
+    const fields = record(value, name);
+    for (const key of ["focusSeconds", "sessionsCompleted", "interruptionCount"] as const) {
+      numberField(fields[key], key);
+    }
+    return fields as unknown as FocusMetricsDto["totals"];
+  };
+  const totals = counters(item.totals, "metrics totals");
+  if (!Array.isArray(item.daily)) throw protocol("Invalid Focus daily metrics.");
+  const daily = item.daily.map((value) => {
+    const entry = record(value, "daily metric");
+    if (typeof entry.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(entry.date)) {
+      throw protocol("Invalid Focus daily metric date.");
+    }
+    return { date: entry.date, ...counters(entry, "daily metric counters") };
+  });
+  return {
+    period: item.period as FocusMetricsDto["period"],
+    timezone: "Asia/Baghdad",
+    startDate: item.startDate as string,
+    endDate: item.endDate as string,
+    totals,
+    daily,
+  };
+}
+
+function postFocusActionContext(value: unknown): PostFocusActionContext {
+  const item = record(value, "post-Focus action context");
+  for (const name of ["sessionId", "lectureId", "planId", "planItemId"] as const) {
+    stringField(item[name], name, { uuid: true });
+  }
+  for (const name of ["sessionNumber", "plannedSessionCount"] as const) numberField(item[name], name);
+  booleanField(item.isLastPlannedSession, "isLastPlannedSession");
+  booleanField(item.manualLectureCompletionRequired, "manualLectureCompletionRequired");
+  const actions = (value: unknown, name: string) => {
+    const result = record(value, name);
+    for (const action of ["mcq", "flashcards", "video"] as const) {
+      booleanField(result[action], `${name}.${action}`);
+    }
+    return {
+      mcq: result.mcq as boolean,
+      flashcards: result.flashcards as boolean,
+      video: result.video as boolean,
+    };
+  };
+  return {
+    sessionId: item.sessionId as string,
+    lectureId: item.lectureId as string,
+    planId: item.planId as string,
+    planItemId: item.planItemId as string,
+    sessionNumber: item.sessionNumber as number,
+    plannedSessionCount: item.plannedSessionCount as number,
+    isLastPlannedSession: item.isLastPlannedSession as boolean,
+    manualLectureCompletionRequired: item.manualLectureCompletionRequired as boolean,
+    configured: actions(item.configured, "configured actions"),
+    available: actions(item.available, "available actions"),
+  };
 }
 
 function mutation(value: unknown): FocusSessionMutationResult {
@@ -308,6 +442,53 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     getFocusPlan: (id) => call(`/api/focus/plans/${encodeURIComponent(id)}`, requestOptions(), (body) => plan(record(body, "plan response").plan)),
     updateFocusPlan: (id, input) => call(`/api/focus/plans/${encodeURIComponent(id)}`, requestOptions("PATCH", planBody(input, true)), (body) => plan(record(body, "plan response").plan)),
     archiveFocusPlan: (id) => call(`/api/focus/plans/${encodeURIComponent(id)}/archive`, requestOptions("POST"), (body) => plan(record(body, "plan response").plan)),
+    createQuickNote: (input) => call("/api/focus/quick-notes", requestOptions("POST", {
+      focusSessionId: input.focusSessionId,
+      content: input.content,
+      idempotencyKey: input.idempotencyKey,
+    }), quickNoteCreateResult),
+    listQuickNotes: (query = {}) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) params.set(key, String(value));
+      }
+      const suffix = params.size ? `?${params.toString()}` : "";
+      return call(`/api/focus/quick-notes${suffix}`, requestOptions(), (body) => {
+        const result = record(body, "Quick Note list response");
+        if (!Array.isArray(result.notes)) throw protocol("Invalid Quick Note list.");
+        return result.notes.map(quickNote);
+      });
+    },
+    getQuickNote: (id) => call(
+      `/api/focus/quick-notes/${encodeURIComponent(id)}`,
+      requestOptions(),
+      (body) => quickNote(record(body, "Quick Note response").note),
+    ),
+    updateQuickNote: (id, input) => call(
+      `/api/focus/quick-notes/${encodeURIComponent(id)}`,
+      requestOptions("PATCH", { content: input.content }),
+      (body) => quickNote(record(body, "Quick Note response").note),
+    ),
+    archiveQuickNote: (id) => call(
+      `/api/focus/quick-notes/${encodeURIComponent(id)}/archive`,
+      requestOptions("POST"),
+      (body) => quickNote(record(body, "Quick Note response").note),
+    ),
+    convertQuickNote: (id, input) => call(
+      `/api/focus/quick-notes/${encodeURIComponent(id)}/convert-to-plan-item`,
+      requestOptions("POST", { targetPlanId: input.targetPlanId }),
+      quickNoteConversionResult,
+    ),
+    getMetrics: (period) => call(
+      `/api/focus/metrics?period=${encodeURIComponent(period)}`,
+      requestOptions(),
+      focusMetrics,
+    ),
+    getPostFocusActionContext: (id) => call(
+      `/api/focus/sessions/${encodeURIComponent(id)}/post-actions`,
+      requestOptions(),
+      postFocusActionContext,
+    ),
   };
 }
 

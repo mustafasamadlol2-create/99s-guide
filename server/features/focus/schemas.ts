@@ -131,6 +131,43 @@ export const focusPlanListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 }).strict();
 
+const quickNoteContent = z.string().refine((value) => {
+  const characters = Array.from(value);
+  if (!value.trim() || characters.length > 2_000) return false;
+  return !characters.some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return (codePoint < 0x20 && !["\n", "\r", "\t"].includes(character)) ||
+      (codePoint >= 0x7f && codePoint <= 0x9f);
+  });
+}, "Quick Note content must contain 1–2,000 Unicode characters and no unsupported control characters.");
+
+export const createFocusQuickNoteSchema = z.object({
+  focusSessionId: uuid,
+  content: quickNoteContent,
+  idempotencyKey,
+}).strict();
+
+export const updateFocusQuickNoteSchema = z.object({
+  content: quickNoteContent,
+}).strict();
+
+export const focusQuickNoteIdSchema = uuid;
+
+export const focusQuickNoteListQuerySchema = z.object({
+  sessionId: uuid.optional(),
+  lectureId: uuid.optional(),
+  status: z.enum(["ACTIVE", "ARCHIVED", "CONVERTED"]).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+}).strict();
+
+export const convertFocusQuickNoteSchema = z.object({
+  targetPlanId: uuid,
+}).strict();
+
+export const focusMetricsQuerySchema = z.object({
+  period: z.enum(["today", "last7Days", "month"]),
+}).strict();
+
 export type CreateFocusPlanInput = z.infer<typeof createFocusPlanSchema>;
 export type UpdateFocusPlanInput = z.infer<typeof updateFocusPlanSchema>;
 export type FocusPlanItemInput = z.infer<typeof focusPlanItemInputSchema>;
@@ -141,3 +178,8 @@ export type AbandonFocusSessionInput = z.infer<typeof abandonFocusSessionSchema>
 export type ResourceHandoffStartInput = z.infer<typeof resourceHandoffStartSchema>;
 export type ResourceHandoffReturnInput = z.infer<typeof resourceHandoffReturnSchema>;
 export type InterruptionRecordInput = z.infer<typeof interruptionRecordSchema>;
+export type CreateFocusQuickNoteInput = z.infer<typeof createFocusQuickNoteSchema>;
+export type UpdateFocusQuickNoteInput = z.infer<typeof updateFocusQuickNoteSchema>;
+export type FocusQuickNoteListQuery = z.infer<typeof focusQuickNoteListQuerySchema>;
+export type ConvertFocusQuickNoteInput = z.infer<typeof convertFocusQuickNoteSchema>;
+export type FocusMetricsPeriod = z.infer<typeof focusMetricsQuerySchema>["period"];

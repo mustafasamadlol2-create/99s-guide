@@ -13,6 +13,12 @@ import {
   resourceHandoffStartSchema,
   resourceHandoffReturnSchema,
   interruptionRecordSchema,
+  createFocusQuickNoteSchema,
+  updateFocusQuickNoteSchema,
+  focusQuickNoteIdSchema,
+  focusQuickNoteListQuerySchema,
+  convertFocusQuickNoteSchema,
+  focusMetricsQuerySchema,
 } from "../features/focus/schemas.js";
 import type { FocusBackendService } from "../features/focus/types.js";
 
@@ -56,6 +62,92 @@ function invalid(res: express.Response, error: string): express.Response {
 export function createFocusRouter(dependencies: FocusRouteDependencies): express.Router {
   const router = express.Router();
   router.use(dependencies.requireUser);
+
+  router.post("/quick-notes", route(async (req, res) => {
+    const parsed = createFocusQuickNoteSchema.safeParse(req.body);
+    if (!parsed.success) return invalid(res, "Quick Note request is invalid.");
+    try {
+      const result = await dependencies.service.createQuickNote(userId(req), parsed.data);
+      return res.status(result.idempotency === "CREATED" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/quick-notes", route(async (req, res) => {
+    const parsed = focusQuickNoteListQuerySchema.safeParse(req.query);
+    if (!parsed.success) return invalid(res, "Quick Note query is invalid.");
+    try {
+      const notes = await dependencies.service.listQuickNotes(userId(req), parsed.data);
+      return res.json({ notes });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/quick-notes/:noteId", route(async (req, res) => {
+    const parsedId = focusQuickNoteIdSchema.safeParse(req.params.noteId);
+    if (!parsedId.success) return invalid(res, "Quick Note ID is invalid.");
+    try {
+      const note = await dependencies.service.getQuickNote(userId(req), parsedId.data);
+      return res.json({ note });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.patch("/quick-notes/:noteId", route(async (req, res) => {
+    const parsedId = focusQuickNoteIdSchema.safeParse(req.params.noteId);
+    const parsedBody = updateFocusQuickNoteSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Quick Note update is invalid.");
+    }
+    try {
+      const note = await dependencies.service.updateQuickNote(
+        userId(req), parsedId.data, parsedBody.data,
+      );
+      return res.json({ note });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/quick-notes/:noteId/archive", route(async (req, res) => {
+    const parsedId = focusQuickNoteIdSchema.safeParse(req.params.noteId);
+    if (!parsedId.success) return invalid(res, "Quick Note ID is invalid.");
+    try {
+      const note = await dependencies.service.archiveQuickNote(userId(req), parsedId.data);
+      return res.json({ note });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/quick-notes/:noteId/convert-to-plan-item", route(async (req, res) => {
+    const parsedId = focusQuickNoteIdSchema.safeParse(req.params.noteId);
+    const parsedBody = convertFocusQuickNoteSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Quick Note conversion request is invalid.");
+    }
+    try {
+      const result = await dependencies.service.convertQuickNote(
+        userId(req), parsedId.data, parsedBody.data,
+      );
+      return res.status(result.idempotency === "CONVERTED" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/metrics", route(async (req, res) => {
+    const parsed = focusMetricsQuerySchema.safeParse(req.query);
+    if (!parsed.success) return invalid(res, "Focus metrics query is invalid.");
+    try {
+      return res.json(await dependencies.service.getMetrics(userId(req), parsed.data.period));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
 
   router.post("/plans", route(async (req, res) => {
     const parsed = createFocusPlanSchema.safeParse(req.body);
@@ -133,6 +225,18 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
   router.get("/sessions/current", route(async (req, res) => {
     try {
       return res.json(await dependencies.service.currentSession(userId(req)));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/sessions/:sessionId/post-actions", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    if (!parsedId.success) return invalid(res, "Focus Session ID is invalid.");
+    try {
+      return res.json(await dependencies.service.getPostFocusActionContext(
+        userId(req), parsedId.data,
+      ));
     } catch (error) {
       return sendError(res, error);
     }

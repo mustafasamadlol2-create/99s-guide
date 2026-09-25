@@ -38,6 +38,16 @@ import {
   type ResourceHandoffStartInput,
   type ResourceHandoffReturnInput,
   type InterruptionRecordInput,
+  createFocusQuickNoteSchema,
+  updateFocusQuickNoteSchema,
+  focusQuickNoteListQuerySchema,
+  convertFocusQuickNoteSchema,
+  focusMetricsQuerySchema,
+  type CreateFocusQuickNoteInput,
+  type UpdateFocusQuickNoteInput,
+  type FocusQuickNoteListQuery,
+  type ConvertFocusQuickNoteInput,
+  type FocusMetricsPeriod,
 } from "./schemas.js";
 import { FocusRepository, type FocusTransaction } from "./repository.js";
 import type { StudyEventRecord } from "../study-events/types.js";
@@ -45,10 +55,12 @@ import { ingestStudyEvent } from "../study-events/service.js";
 import { enqueuePrivateD1Projection } from "../../services/privateD1Sync.js";
 import {
   fetchFocusPlanProjections,
+  fetchStudyDailyMetricProjections,
   logPrivateReadFallback,
   privateReadEnabled,
   type FocusPlanReadProjection,
 } from "../../services/privateD1Read.js";
+import type { StudyDailyMetricProjection } from "../study-core/projection.js";
 import type {
   FocusBackendService,
   FocusCurrentSessionResult,
@@ -57,6 +69,13 @@ import type {
   FocusSessionDto,
   FocusSessionMutationResult,
   FocusInterruptionResult,
+  FocusQuickNoteDto,
+  FocusQuickNoteCreateResult,
+  FocusQuickNoteConversionResult,
+  FocusMetricsDto,
+  FocusMetricCounters,
+  FocusMetricsDaily,
+  PostFocusActionContext,
 } from "./types.js";
 
 const NONTERMINAL_STATES = [
@@ -126,6 +145,11 @@ type FocusServiceOptions = {
     userId: string,
     options: { limit?: number },
   ) => Promise<FocusPlanReadProjection[]>;
+  d1MetricReadsEnabled?: () => boolean;
+  fetchMetricsFromD1?: (
+    userId: string,
+    options: { from?: string; to?: string; limit?: number },
+  ) => Promise<StudyDailyMetricProjection[]>;
 };
 
 function iso(value: Date | string | null | undefined): string | null {
@@ -361,6 +385,213 @@ async function safely<T>(callback: () => Promise<T>): Promise<T> {
   }
 }
 
+const BAGHDAD_TIMEZONE = "Asia/Baghdad" as const;
+const ALL_METRIC_FIELDS = [
+  "focusSeconds",
+  "sessionsCompleted",
+  "mcqAttempts",
+  "mcqCorrect",
+  "flashcardReviews",
+  "recallAttempts",
+  "recallCorrect",
+  "lectureCompletions",
+  "interruptionCount",
+] as const;
+const NOTE_CREATABLE_SESSION_STATES = new Set([
+  "ACTIVE",
+  "PAUSED",
+  "RESOURCE_HANDOFF",
+  "COMPLETED",
+  "ABANDONED",
+]);
+
+type QuickNoteRecord = {
+  id: string;
+  userId: string;
+  focusSessionId: string;
+  lectureId: string;
+  content: string;
+  status: string;
+  convertedToPlanItemId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  convertedAt: Date | null;
+};
+
+type MetricRow = {
+  metricDate: Date | string;
+  focusSeconds: number;
+  sessionsCompleted: number;
+  interruptionCount: number;
+};
+
+function quickNoteDto(note: QuickNoteRecord): FocusQuickNoteDto {
+  if (!["ACTIVE", "ARCHIVED", "CONVERTED"].includes(note.status)) {
+    throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note has an unsupported stored status.");
+  }
+  return {
+    id: note.id,
+    focusSessionId: note.focusSessionId,
+    lectureId: note.lectureId,
+    content: note.content,
+    status: note.status as FocusQuickNoteDto["status"],
+    convertedToPlanItemId: note.convertedToPlanItemId,
+    createdAt: iso(note.createdAt) as string,
+    updatedAt: iso(note.updatedAt) as string,
+    archivedAt: iso(note.archivedAt),
+    convertedAt: iso(note.convertedAt),
+  };
+}
+
+function metricDateString(value: Date | string): string {
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) throw new Error("Metric date is invalid.");
+    return value.toISOString().slice(0, 10);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) throw new Error("Metric date is invalid.");
+  return value;
+}
+
+function isLogicalDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function shiftLogicalDate(date: string, offset: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + offset));
+  return shifted.toISOString().slice(0, 10);
+}
+
+export function getBaghdadFocusMetricRange(
+  period: FocusMetricsPeriod,
+  now: Date,
+): { startDate: string; endDate: string } {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+    throw new FocusError("RECONCILIATION_REQUIRED", "Server clock returned an invalid timestamp.");
+  }
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: BAGHDAD_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: string) => parts.find((value) => value.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) {
+    throw new FocusError("RECONCILIATION_REQUIRED", "Baghdad logical date could not be calculated.");
+  }
+  const today = `${year}-${month}-${day}`;
+  if (period === "today") return { startDate: today, endDate: today };
+  if (period === "last7Days") return { startDate: shiftLogicalDate(today, -6), endDate: today };
+  return { startDate: `${year}-${month}-01`, endDate: today };
+}
+
+function isValidMetricProjection(
+  row: StudyDailyMetricProjection,
+  userId: string,
+  startDate: string,
+  endDate: string,
+): boolean {
+  const revision = String(row.revision);
+  return typeof row.id === "string" &&
+    row.id === row.canonicalId &&
+    Number.isSafeInteger(row.projectionVersion) &&
+    row.projectionVersion > 0 &&
+    /^\d+$/u.test(revision) &&
+    typeof row.updatedAt === "string" &&
+    Number.isFinite(Date.parse(row.updatedAt)) &&
+    row.userId === userId &&
+    row.userScope === userId &&
+    row.deletedAt === null &&
+    isLogicalDate(row.metricDate) &&
+    row.metricDate >= startDate &&
+    row.metricDate <= endDate &&
+    ALL_METRIC_FIELDS.every((field) =>
+      Number.isSafeInteger(row[field]) && row[field] >= 0
+    );
+}
+
+function metricCounters(row?: MetricRow): FocusMetricCounters {
+  return {
+    focusSeconds: row?.focusSeconds ?? 0,
+    sessionsCompleted: row?.sessionsCompleted ?? 0,
+    interruptionCount: row?.interruptionCount ?? 0,
+  };
+}
+
+function buildFocusMetrics(
+  period: FocusMetricsPeriod,
+  range: { startDate: string; endDate: string },
+  rows: MetricRow[],
+): FocusMetricsDto {
+  const byDate = new Map<string, MetricRow>();
+  for (const row of rows) {
+    const date = metricDateString(row.metricDate);
+    if (date < range.startDate || date > range.endDate || byDate.has(date)) {
+      throw new Error("Metric rows contain an invalid or duplicate logical date.");
+    }
+    byDate.set(date, row);
+  }
+  const daily: FocusMetricsDaily[] = [];
+  for (
+    let date = range.startDate;
+    date <= range.endDate;
+    date = shiftLogicalDate(date, 1)
+  ) {
+    daily.push({ date, ...metricCounters(byDate.get(date)) });
+  }
+  const totals = daily.reduce<FocusMetricCounters>((sum, row) => ({
+    focusSeconds: sum.focusSeconds + row.focusSeconds,
+    sessionsCompleted: sum.sessionsCompleted + row.sessionsCompleted,
+    interruptionCount: sum.interruptionCount + row.interruptionCount,
+  }), { focusSeconds: 0, sessionsCompleted: 0, interruptionCount: 0 });
+  return {
+    period,
+    timezone: BAGHDAD_TIMEZONE,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    totals,
+    daily,
+  };
+}
+
+export function buildPostFocusActionContext(input: {
+  session: {
+    id: string;
+    lectureId: string;
+    planId: string;
+    planItemId: string;
+    planItem: PlanItemRecord;
+  };
+  completedCount: number;
+  available: { mcq: boolean; flashcards: boolean; video: boolean };
+}): PostFocusActionContext {
+  const { session, completedCount, available } = input;
+  const sessionNumber = completedCount;
+  const isLastPlannedSession = sessionNumber >= session.planItem.sessionCount;
+  return {
+    sessionId: session.id,
+    lectureId: session.lectureId,
+    planId: session.planId,
+    planItemId: session.planItemId,
+    sessionNumber,
+    plannedSessionCount: session.planItem.sessionCount,
+    isLastPlannedSession,
+    manualLectureCompletionRequired: isLastPlannedSession,
+    configured: {
+      mcq: session.planItem.includeMcq,
+      flashcards: session.planItem.includeFlashcards,
+      video: session.planItem.includeVideo,
+    },
+    available,
+  };
+}
+
 function assertValidClock(now: Date): Date {
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
     throw new FocusError("RECONCILIATION_REQUIRED", "Server clock returned an invalid timestamp.");
@@ -441,6 +672,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
   const d1PlanReadsEnabled = options.d1PlanReadsEnabled ??
     (() => privateReadEnabled("PRIVATE_D1_FOCUS_PLAN_READS_ENABLED"));
   const fetchPlansFromD1 = options.fetchPlansFromD1 ?? fetchFocusPlanProjections;
+  const d1MetricReadsEnabled = options.d1MetricReadsEnabled ??
+    (() => privateReadEnabled("PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED"));
+  const fetchMetricsFromD1 = options.fetchMetricsFromD1 ?? fetchStudyDailyMetricProjections;
 
   function requireFocus(): void {
     if (!isFocusEnabled()) {
@@ -637,6 +871,16 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                 throw new FocusError(
                   "PLAN_ITEM_HAS_HISTORY",
                   "A Focus Plan item with session history cannot be removed.",
+                );
+              }
+              const convertedNote = await tx.focusQuickNote.findFirst({
+                where: { convertedToPlanItemId: { in: removed.map((item) => item.id) } },
+                select: { id: true },
+              });
+              if (convertedNote) {
+                throw new FocusError(
+                  "PLAN_ITEM_HAS_QUICK_NOTE_CONVERSION",
+                  "A Focus Plan item created from a Quick Note cannot be removed.",
                 );
               }
             }
@@ -1359,6 +1603,332 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           idempotency,
         };
       }));
+    },
+
+    async createQuickNote(userId, rawInput): Promise<FocusQuickNoteCreateResult> {
+      requireFocus();
+      const parsed = createFocusQuickNoteSchema.safeParse(rawInput);
+      if (!parsed.success) throw requestInputError("Quick Note request is invalid.");
+      const input: CreateFocusQuickNoteInput = parsed.data;
+      return safely(async () => {
+        const result = await repository.transaction(async (tx) => {
+          await repository.lockUser(tx, userId);
+          const existing = await tx.focusQuickNote.findUnique({
+            where: {
+              userId_idempotencyKey: {
+                userId,
+                idempotencyKey: input.idempotencyKey,
+              },
+            },
+          }) as QuickNoteRecord | null;
+          if (existing) {
+            if (existing.focusSessionId !== input.focusSessionId || existing.content !== input.content) {
+              throw new FocusError("IDEMPOTENCY_CONFLICT", "Quick Note key was already used for different content.");
+            }
+            return { note: existing, idempotency: "REPLAY_SAME_PAYLOAD" as const };
+          }
+
+          const session = await tx.focusSession.findFirst({
+            where: { id: input.focusSessionId, userId },
+            select: { id: true, lectureId: true, status: true },
+          }) as { id: string; lectureId: string; status: string } | null;
+          if (!session) {
+            throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
+          }
+          if (!NOTE_CREATABLE_SESSION_STATES.has(session.status)) {
+            throw new FocusError(
+              "INVALID_SESSION_STATE",
+              "Quick Notes require an initialized, non-expired Focus Session.",
+            );
+          }
+          const note = await tx.focusQuickNote.create({
+            data: {
+              userId,
+              focusSessionId: session.id,
+              lectureId: session.lectureId,
+              content: input.content,
+              idempotencyKey: input.idempotencyKey,
+              status: "ACTIVE",
+            },
+          }) as QuickNoteRecord;
+          return { note, idempotency: "CREATED" as const };
+        });
+        return { note: quickNoteDto(result.note), idempotency: result.idempotency };
+      });
+    },
+
+    async listQuickNotes(userId, rawQuery = {}): Promise<FocusQuickNoteDto[]> {
+      requireFocus();
+      const parsed = focusQuickNoteListQuerySchema.safeParse(rawQuery);
+      if (!parsed.success) throw requestInputError("Quick Note query is invalid.");
+      return safely(async () => {
+        const rows = await repository.database.focusQuickNote.findMany({
+          where: {
+            userId,
+            ...(parsed.data.sessionId ? { focusSessionId: parsed.data.sessionId } : {}),
+            ...(parsed.data.lectureId ? { lectureId: parsed.data.lectureId } : {}),
+            // Keep the default collection useful while archived notes remain
+            // retrievable through an explicit status filter or the detail route.
+            status: parsed.data.status ?? "ACTIVE",
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          take: parsed.data.limit ?? 50,
+        }) as QuickNoteRecord[];
+        return rows.map(quickNoteDto);
+      });
+    },
+
+    async getQuickNote(userId, noteId): Promise<FocusQuickNoteDto> {
+      requireFocus();
+      return safely(async () => {
+        const note = await repository.database.focusQuickNote.findFirst({
+          where: { id: noteId, userId },
+        }) as QuickNoteRecord | null;
+        if (!note) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
+        return quickNoteDto(note);
+      });
+    },
+
+    async updateQuickNote(userId, noteId, rawInput): Promise<FocusQuickNoteDto> {
+      requireFocus();
+      const parsed = updateFocusQuickNoteSchema.safeParse(rawInput);
+      if (!parsed.success) throw requestInputError("Quick Note update is invalid.");
+      const input: UpdateFocusQuickNoteInput = parsed.data;
+      return safely(async () => {
+        const note = await repository.transaction(async (tx) => {
+          await repository.lockUser(tx, userId);
+          const current = await tx.focusQuickNote.findFirst({
+            where: { id: noteId, userId },
+          }) as QuickNoteRecord | null;
+          if (!current) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
+          if (current.status === "ARCHIVED") {
+            throw new FocusError("QUICK_NOTE_ARCHIVED", "Archived Quick Notes cannot be edited.");
+          }
+          return await tx.focusQuickNote.update({
+            where: { id: current.id },
+            data: { content: input.content },
+          }) as QuickNoteRecord;
+        });
+        return quickNoteDto(note);
+      });
+    },
+
+    async archiveQuickNote(userId, noteId): Promise<FocusQuickNoteDto> {
+      requireFocus();
+      return safely(async () => {
+        const note = await repository.transaction(async (tx) => {
+          await repository.lockUser(tx, userId);
+          const current = await tx.focusQuickNote.findFirst({
+            where: { id: noteId, userId },
+          }) as QuickNoteRecord | null;
+          if (!current) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
+          if (current.status === "ARCHIVED") return current;
+          return await tx.focusQuickNote.update({
+            where: { id: current.id },
+            data: {
+              status: "ARCHIVED",
+              archivedAt: assertValidClock(now()),
+            },
+          }) as QuickNoteRecord;
+        });
+        return quickNoteDto(note);
+      });
+    },
+
+    async convertQuickNote(userId, noteId, rawInput): Promise<FocusQuickNoteConversionResult> {
+      requireFocus();
+      const parsed = convertFocusQuickNoteSchema.safeParse(rawInput);
+      if (!parsed.success) throw requestInputError("Quick Note conversion request is invalid.");
+      const input: ConvertFocusQuickNoteInput = parsed.data;
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        const note = await tx.focusQuickNote.findFirst({
+          where: { id: noteId, userId },
+          include: {
+            focusSession: { include: { planItem: true } },
+            convertedToPlanItem: true,
+          },
+        }) as (QuickNoteRecord & {
+          focusSession: { planItem: PlanItemRecord };
+          convertedToPlanItem: (PlanItemRecord & { planId: string }) | null;
+        }) | null;
+        if (!note) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
+
+        if (note.convertedToPlanItemId) {
+          const convertedItem = note.convertedToPlanItem;
+          if (!convertedItem) {
+            throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note conversion link is missing.");
+          }
+          if (convertedItem.planId !== input.targetPlanId) {
+            throw new FocusError(
+              "QUICK_NOTE_CONVERSION_CONFLICT",
+              "Quick Note was already converted to a different Focus Plan.",
+            );
+          }
+          return {
+            note: quickNoteDto(note),
+            planItem: { ...planItemDto(convertedItem), planId: convertedItem.planId },
+            idempotency: "REPLAY_SAME_PAYLOAD" as const,
+          };
+        }
+        if (note.status === "ARCHIVED") {
+          throw new FocusError("QUICK_NOTE_ARCHIVED", "Archived Quick Notes cannot be converted.");
+        }
+        if (note.status !== "ACTIVE") {
+          throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note conversion state is inconsistent.");
+        }
+
+        const plan = await ownedPlan(tx, userId, input.targetPlanId);
+        if (plan.status !== "ACTIVE") {
+          throw new FocusError("PLAN_ARCHIVED", "Archived Focus Plans cannot receive Quick Note conversions.");
+        }
+        if (await countNonterminal(tx, userId, plan.id) > 0) {
+          throw new FocusError(
+            "PLAN_HAS_ACTIVE_SESSION",
+            "A Focus Plan with a nonterminal Session cannot be structurally edited.",
+          );
+        }
+        const nextSequence = Math.max(0, ...plan.items.map((item) => item.sequence)) + 1;
+        if (plan.items.length >= 100 || nextSequence > 100) {
+          throw new FocusError("PLAN_ITEM_LIMIT_REACHED", "This Focus Plan cannot accept another item.");
+        }
+
+        const source = note.focusSession.planItem;
+        const item = await tx.focusPlanItem.create({
+          data: {
+            planId: plan.id,
+            lectureId: note.lectureId,
+            sequence: nextSequence,
+            sessionCount: 1,
+            focusDurationSeconds: source.focusDurationSeconds,
+            breakDurationSeconds: source.breakDurationSeconds,
+            includeMcq: source.includeMcq,
+            includeFlashcards: source.includeFlashcards,
+            includeVideo: source.includeVideo,
+          },
+        }) as PlanItemRecord & { planId: string };
+
+        const convertedAt = assertValidClock(now());
+        const updatedNote = await tx.focusQuickNote.update({
+          where: { id: note.id },
+          data: {
+            status: "CONVERTED",
+            convertedToPlanItemId: item.id,
+            convertedAt,
+          },
+        }) as QuickNoteRecord;
+        const updatedPlan = await tx.focusPlan.update({
+          where: { id: plan.id },
+          data: { planVersion: { increment: 1 } },
+          include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+        }) as PlanRecord;
+        await enqueuePlanProjection(tx, updatedPlan);
+        return {
+          note: quickNoteDto(updatedNote),
+          planItem: { ...planItemDto(item), planId: item.planId },
+          idempotency: "CONVERTED" as const,
+        };
+      }));
+    },
+
+    async getMetrics(userId, rawPeriod): Promise<FocusMetricsDto> {
+      requireFocus();
+      const parsed = focusMetricsQuerySchema.safeParse({ period: rawPeriod });
+      if (!parsed.success) throw requestInputError("Focus metrics period is invalid.");
+      const period: FocusMetricsPeriod = parsed.data.period;
+      const clock = assertValidClock(now());
+      const range = getBaghdadFocusMetricRange(period, clock);
+      return safely(async () => {
+        let rows: MetricRow[] | undefined;
+        if (d1MetricReadsEnabled()) {
+          try {
+            const projected = await fetchMetricsFromD1(userId, {
+              from: range.startDate,
+              to: range.endDate,
+              limit: period === "today" ? 1 : period === "last7Days" ? 7 : 31,
+            });
+            if (
+              !Array.isArray(projected) ||
+              projected.length > (period === "today" ? 1 : period === "last7Days" ? 7 : 31) ||
+              projected.some((row) => !isValidMetricProjection(row, userId, range.startDate, range.endDate))
+            ) {
+              throw new Error("Private Study Daily Metric projection is malformed or out of scope.");
+            }
+            rows = projected.map((row) => ({
+              metricDate: row.metricDate,
+              focusSeconds: row.focusSeconds,
+              sessionsCompleted: row.sessionsCompleted,
+              interruptionCount: row.interruptionCount,
+            }));
+          } catch (error) {
+            logPrivateReadFallback("Focus metrics projection read", error);
+          }
+        }
+        if (!rows) {
+          rows = await repository.database.studyDailyMetric.findMany({
+            where: {
+              userId,
+              metricDate: {
+                gte: new Date(`${range.startDate}T00:00:00.000Z`),
+                lte: new Date(`${range.endDate}T00:00:00.000Z`),
+              },
+            },
+            select: {
+              metricDate: true,
+              focusSeconds: true,
+              sessionsCompleted: true,
+              interruptionCount: true,
+            },
+            orderBy: { metricDate: "asc" },
+          }) as MetricRow[];
+        }
+        return buildFocusMetrics(period, range, rows);
+      });
+    },
+
+    async getPostFocusActionContext(userId, sessionId): Promise<PostFocusActionContext> {
+      requireFocus();
+      return safely(async () => repository.database.$transaction(async (tx) => {
+        const session = await tx.focusSession.findFirst({
+          where: { id: sessionId, userId },
+          include: { planItem: true },
+        }) as (SessionRecord & { planItem: PlanItemRecord }) | null;
+        if (!session) throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
+        if (session.status !== "COMPLETED") {
+          throw new FocusError(
+            "INVALID_SESSION_STATE",
+            "Post-Focus actions are available only for completed Sessions.",
+          );
+        }
+        const [completedCountForItem, mcq, flashcard, materials] = await Promise.all([
+          tx.focusSession.count({
+            where: { userId, planItemId: session.planItemId, status: "COMPLETED" },
+          }),
+          // Existing application semantics treat the presence of at least one
+          // canonical MCQ row as a usable MCQ action.
+          tx.mcq.findFirst({
+            where: { lectureId: session.lectureId },
+            select: { id: true },
+          }),
+          tx.flashcard.findFirst({
+            where: { lectureId: session.lectureId },
+            select: { id: true },
+          }),
+          tx.material.findMany({
+            where: { lectureId: session.lectureId },
+            select: { type: true },
+          }),
+        ]);
+        return buildPostFocusActionContext({
+          session,
+          completedCount: completedCountForItem,
+          available: {
+            mcq: mcq !== null,
+            flashcards: flashcard !== null,
+            video: materials.some((material) => material.type.trim().toUpperCase() === "VIDEO"),
+          },
+        });
+      }, { isolationLevel: "RepeatableRead" }));
     },
   };
 }

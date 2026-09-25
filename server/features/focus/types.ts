@@ -8,6 +8,11 @@ import type {
   ResourceHandoffStartInput,
   ResourceHandoffReturnInput,
   InterruptionRecordInput,
+  CreateFocusQuickNoteInput,
+  UpdateFocusQuickNoteInput,
+  FocusQuickNoteListQuery,
+  ConvertFocusQuickNoteInput,
+  FocusMetricsPeriod,
 } from "./schemas.js";
 import type { FocusSessionState } from "../study-core/focus.js";
 
@@ -79,6 +84,70 @@ export interface FocusInterruptionResult {
   metricUpdated: boolean;
 }
 
+export interface FocusQuickNoteDto {
+  id: string;
+  focusSessionId: string;
+  lectureId: string;
+  content: string;
+  status: "ACTIVE" | "ARCHIVED" | "CONVERTED";
+  convertedToPlanItemId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  convertedAt: string | null;
+}
+
+export interface FocusQuickNoteCreateResult {
+  note: FocusQuickNoteDto;
+  idempotency: "CREATED" | "REPLAY_SAME_PAYLOAD";
+}
+
+export interface FocusQuickNoteConversionResult {
+  note: FocusQuickNoteDto;
+  planItem: FocusPlanItemDto & { planId: string };
+  idempotency: "CONVERTED" | "REPLAY_SAME_PAYLOAD";
+}
+
+export interface FocusMetricCounters {
+  focusSeconds: number;
+  sessionsCompleted: number;
+  interruptionCount: number;
+}
+
+export interface FocusMetricsDaily extends FocusMetricCounters {
+  date: string;
+}
+
+export interface FocusMetricsDto {
+  period: FocusMetricsPeriod;
+  timezone: "Asia/Baghdad";
+  startDate: string;
+  endDate: string;
+  totals: FocusMetricCounters;
+  daily: FocusMetricsDaily[];
+}
+
+export interface PostFocusActionContext {
+  sessionId: string;
+  lectureId: string;
+  planId: string;
+  planItemId: string;
+  sessionNumber: number;
+  plannedSessionCount: number;
+  isLastPlannedSession: boolean;
+  manualLectureCompletionRequired: boolean;
+  configured: {
+    mcq: boolean;
+    flashcards: boolean;
+    video: boolean;
+  };
+  available: {
+    mcq: boolean;
+    flashcards: boolean;
+    video: boolean;
+  };
+}
+
 export interface FocusBackendService {
   createPlan(userId: string, input: CreateFocusPlanInput): Promise<FocusPlanDto>;
   listPlans(userId: string, limit?: number): Promise<FocusPlanDto[]>;
@@ -94,4 +163,12 @@ export interface FocusBackendService {
   startResourceHandoff(userId: string, sessionId: string, input: ResourceHandoffStartInput): Promise<FocusSessionMutationResult>;
   returnFromResourceHandoff(userId: string, sessionId: string, input: ResourceHandoffReturnInput): Promise<FocusSessionMutationResult>;
   recordInterruption(userId: string, sessionId: string, input: InterruptionRecordInput): Promise<FocusInterruptionResult>;
+  createQuickNote(userId: string, input: CreateFocusQuickNoteInput): Promise<FocusQuickNoteCreateResult>;
+  listQuickNotes(userId: string, query?: FocusQuickNoteListQuery): Promise<FocusQuickNoteDto[]>;
+  getQuickNote(userId: string, noteId: string): Promise<FocusQuickNoteDto>;
+  updateQuickNote(userId: string, noteId: string, input: UpdateFocusQuickNoteInput): Promise<FocusQuickNoteDto>;
+  archiveQuickNote(userId: string, noteId: string): Promise<FocusQuickNoteDto>;
+  convertQuickNote(userId: string, noteId: string, input: ConvertFocusQuickNoteInput): Promise<FocusQuickNoteConversionResult>;
+  getMetrics(userId: string, period: FocusMetricsPeriod): Promise<FocusMetricsDto>;
+  getPostFocusActionContext(userId: string, sessionId: string): Promise<PostFocusActionContext>;
 }
