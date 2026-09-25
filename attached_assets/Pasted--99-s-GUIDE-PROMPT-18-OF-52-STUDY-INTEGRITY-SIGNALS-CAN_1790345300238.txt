@@ -1,0 +1,2878 @@
+# 99’s GUIDE — PROMPT 18 OF 52
+
+## STUDY INTEGRITY SIGNALS
+
+## CANONICAL PERSISTENCE + DEDUPLICATION + ADMIN REVIEW WORKFLOW
+
+### NO AUTOMATIC PUNISHMENT — NO POINTS — NO AI — NO USER-FACING ACCUSATIONS
+
+Prompts 1–17 have been completed.
+
+Prompt 17 established a pure deterministic Study Integrity foundation:
+
+```text
+IntegrityActionEnvelope
+→ deterministic policy evaluation
+→ IntegrityDecision
+→ bounded technical observations
+```
+
+Prompt 18 now adds the canonical persistence and review layer for those observations.
+
+The frozen roadmap remains:
+
+```text
+Prompt 17 — Integrity foundation
+Prompt 18 — Integrity signals + review
+Prompt 19 — Points Ledger schema / compatibility bridge
+Prompt 20 — Deterministic Points award
+```
+
+Do NOT implement Prompt 19 or 20.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a canonical PostgreSQL-backed Study Integrity signal system that can:
+
+1. persist review-worthy deterministic observations;
+2. deduplicate repeated occurrences;
+3. keep exact occurrence counts and first/last timestamps;
+4. preserve rule/evidence/source metadata;
+5. provide private owner/admin review APIs;
+6. record immutable review actions;
+7. support safe triage states;
+8. expose internal user/action integrity context for future Points logic;
+9. never automatically punish the student.
+
+---
+
+# 2. CRITICAL PRODUCT RULE
+
+An Integrity Signal means:
+
+> a deterministic technical condition occurred and may deserve review.
+
+It does NOT mean:
+
+```text
+student cheated
+student acted dishonestly
+student should be punished
+student should lose Points
+```
+
+Never encode those claims into model names, API responses, statuses, or logs.
+
+---
+
+# 3. NO AUTOMATIC CONSEQUENCES
+
+Prompt 18 must NOT:
+
+* ban;
+* mute;
+* suspend;
+* block login;
+* deduct Points;
+* modify PointsLog;
+* modify Mastery;
+* modify LectureProgress;
+* reset streaks;
+* block content access;
+* create Calendar events.
+
+Review is informational/audit-only at this stage.
+
+---
+
+# 4. NO AI
+
+Do not use:
+
+* Workers AI;
+* Gemini;
+* embeddings;
+* anomaly detection models;
+* AI-generated accusations.
+
+All signals originate from deterministic Prompt 17 observations.
+
+---
+
+# 5. CANONICAL STORAGE
+
+Integrity persistence is canonical PostgreSQL.
+
+Do NOT add:
+
+```text
+D1 IntegritySignal mirror
+Analytics Engine Integrity feed
+KV Integrity state
+```
+
+No Cloudflare persistence for Prompt 18.
+
+---
+
+# 6. REQUIRED MODELS
+
+Add exactly the durable relational models required for:
+
+```text
+IntegritySignal
+IntegrityReviewAction
+```
+
+Use repository naming conventions if a close equivalent already exists.
+
+Do not add a general moderation subsystem.
+
+---
+
+# 7. `IntegritySignal` PURPOSE
+
+One signal represents a deduplicated technical integrity condition.
+
+It should support at minimum:
+
+```text
+id
+
+userId
+
+actionType
+observationCode
+category
+severity
+ruleId
+ruleVersion
+
+evidenceClass
+source
+privacyClass
+
+signalFingerprint
+
+resourceKind?
+resourceId?
+
+firstOccurredAt
+lastOccurredAt
+lastReceivedAt
+
+occurrenceCount
+
+status
+
+latestSafeDetails?
+
+createdAt
+updatedAt
+resolvedAt?
+```
+
+Use final exact Prisma naming conventions.
+
+---
+
+# 8. SIGNAL STATUS
+
+Use a small review workflow:
+
+```text
+OPEN
+ACKNOWLEDGED
+RESOLVED
+DISMISSED
+```
+
+Semantics:
+
+### OPEN
+
+Unreviewed active signal.
+
+### ACKNOWLEDGED
+
+Reviewer has seen it but has not made a final disposition.
+
+### RESOLVED
+
+Reviewer confirms the technical issue was meaningful and review is complete.
+
+This still does NOT imply punishment.
+
+### DISMISSED
+
+Reviewer determines no further integrity follow-up is required.
+
+---
+
+# 9. DO NOT USE PUNITIVE STATUS NAMES
+
+Do NOT create statuses such as:
+
+```text
+CHEATER
+GUILTY
+FRAUD
+BANNED
+PENALIZED
+```
+
+---
+
+# 10. `IntegrityReviewAction`
+
+Every admin/owner review mutation must create an immutable audit row.
+
+Support at least:
+
+```text
+id
+signalId
+reviewerUserId
+
+fromStatus
+toStatus
+
+actionType
+note?
+
+createdAt
+```
+
+---
+
+# 11. REVIEW ACTION TYPES
+
+Use stable values such as:
+
+```text
+ACKNOWLEDGE
+RESOLVE
+DISMISS
+REOPEN
+ADD_NOTE
+```
+
+Do not encode punitive actions.
+
+---
+
+# 12. REVIEW NOTES
+
+Allow an optional bounded internal review note.
+
+Recommended:
+
+```text
+0–1000 Unicode characters
+```
+
+Private admin-security data only.
+
+Do not accept HTML.
+
+Do not expose notes to students.
+
+---
+
+# 13. RELATIONS
+
+`IntegritySignal` relates to:
+
+```text
+User
+IntegrityReviewAction[]
+```
+
+`IntegrityReviewAction` relates to:
+
+```text
+IntegritySignal
+reviewer User
+```
+
+Use explicit Prisma relation names where necessary.
+
+---
+
+# 14. DELETE BEHAVIOR
+
+Do not expose hard-delete APIs.
+
+Historical signals and review actions are audit records.
+
+Prefer restrictive/cascade behavior consistent with existing User deletion rules.
+
+Do not allow normal admin UI/API to erase review history.
+
+---
+
+# 15. PRIVACY
+
+IntegritySignal:
+
+```text
+privacyClass = ADMIN_SECURITY
+```
+
+by default.
+
+Do not let client input choose privacy.
+
+`SYSTEM_INTERNAL` may be accepted only when the originating Prompt 17 policy explicitly requires it.
+
+---
+
+# 16. NO STUDENT API
+
+Do NOT add:
+
+```text
+/api/me/integrity
+/api/profile/integrity
+```
+
+Students must not see internal integrity signals through Prompt 18.
+
+---
+
+# 17. ADMIN AUTHORIZATION
+
+Review APIs require existing canonical app role authorization.
+
+Allow:
+
+```text
+owner
+admin
+```
+
+according to current moderation conventions.
+
+Do not allow normal students.
+
+---
+
+# 18. PRIMARY OWNER RULE
+
+Preserve existing immutable-primary-owner semantics.
+
+Prompt 18 must not introduce role mutation.
+
+---
+
+# 19. NO GROUP HOST PRIVILEGE
+
+Group Focus HOST:
+
+```text
+≠
+Integrity reviewer
+```
+
+Only app owner/admin review roles apply.
+
+---
+
+# 20. ADDITIVE MIGRATION
+
+Prompt 18 may add one additive PostgreSQL migration.
+
+Expected:
+
+```text
+IntegritySignal
+IntegrityReviewAction
+```
+
+No destructive schema changes.
+
+---
+
+# 21. MIGRATION SAFETY
+
+Explicitly verify:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+```
+
+Do not apply migration to production.
+
+---
+
+# 22. SIGNAL FINGERPRINT
+
+Reuse Prompt 17 deterministic:
+
+```text
+signalFingerprint
+```
+
+Do not invent a new incompatible fingerprint algorithm.
+
+---
+
+# 23. DEDUPLICATION SEMANTICS
+
+Repeated occurrences of the same signal fingerprint should normally update one signal row instead of creating unlimited duplicates.
+
+First occurrence:
+
+```text
+occurrenceCount = 1
+firstOccurredAt = occurredAt
+lastOccurredAt = occurredAt
+lastReceivedAt = receivedAt
+status = OPEN
+```
+
+Repeated matching occurrence:
+
+```text
+occurrenceCount += 1
+lastOccurredAt = max(previous, occurredAt)
+lastReceivedAt = max(previous, receivedAt)
+```
+
+---
+
+# 24. DEDUP KEY MUST BE USER-SCOPED
+
+A signal from user A must never merge with user B.
+
+Fingerprint/deduplication must effectively include:
+
+```text
+userId
+ruleId
+actionType
+resource context
+normalized observation context
+```
+
+according to Prompt 17's helper.
+
+---
+
+# 25. DEDUPLICATION WINDOW
+
+Do not merge the same technical condition forever.
+
+Use a bounded time bucket/window.
+
+Recommended default:
+
+```text
+24 hours
+```
+
+A signal occurrence outside the dedup window creates a new signal row.
+
+Centralize the constant.
+
+---
+
+# 26. DEDUP BUCKET
+
+Persist or derive a deterministic bucket key such as:
+
+```text
+YYYY-MM-DD in UTC
+```
+
+or:
+
+```text
+floor(receivedAt / 24h)
+```
+
+Use server time.
+
+Document exact rule.
+
+---
+
+# 27. UNIQUE CONSTRAINT
+
+Use a race-safe uniqueness strategy such as conceptually:
+
+```text
+(userId, signalFingerprint, dedupBucket)
+```
+
+unique.
+
+Do not rely only on:
+
+```text
+SELECT then INSERT
+```
+
+without database enforcement.
+
+---
+
+# 28. CONCURRENT SIGNAL RECORDING
+
+Real PostgreSQL test:
+
+```text
+20 simultaneous identical signal recordings
+```
+
+Expected:
+
+```text
+IntegritySignal rows = 1
+occurrenceCount = 20
+```
+
+No lost increments.
+
+No duplicate signals.
+
+---
+
+# 29. ATOMIC OCCURRENCE COUNT
+
+Increment:
+
+```text
+occurrenceCount
+```
+
+atomically.
+
+Do not read-modify-write in a race-prone application loop.
+
+Use transaction/atomic update/upsert strategy.
+
+---
+
+# 30. SAFE DETAILS ONLY
+
+Persist only Prompt 17 sanitized:
+
+```text
+safeDetails
+```
+
+Never persist raw action payload automatically.
+
+---
+
+# 31. FORBIDDEN SIGNAL CONTENT
+
+IntegritySignal details must never contain:
+
+* passwords;
+* auth tokens;
+* OAuth tokens;
+* invite tokens;
+* capability tokens;
+* Group Focus resume tokens;
+* signing secrets;
+* Quick Note text;
+* PDF contents;
+* MCQ question bodies;
+* Flashcard content;
+* full uploaded document text.
+
+---
+
+# 32. DETAILS SIZE
+
+Bound persisted safe details.
+
+Recommended serialized maximum:
+
+```text
+8 KiB
+```
+
+Prompt 17 already bounds metadata.
+
+Prompt 18 must enforce persistence bounds again.
+
+---
+
+# 33. SIGNAL RECORDING INPUT
+
+Create an internal service method conceptually:
+
+```ts
+recordIntegrityDecision({
+  decision,
+  envelope
+})
+```
+
+or:
+
+```ts
+recordIntegrityObservations(...)
+```
+
+Use actual repository conventions.
+
+No public browser route.
+
+---
+
+# 34. WHAT GETS PERSISTED
+
+Do NOT persist every `ALLOW` decision.
+
+Persist only review-worthy observations.
+
+Recommended:
+
+```text
+INFO
+→ not persisted by default
+
+REVIEW
+→ persisted
+
+BLOCK
+→ persisted
+```
+
+A policy may explicitly override INFO persistence if future need exists.
+
+Prompt 18 should keep volume low.
+
+---
+
+# 35. REPLAY OBSERVATION
+
+Prompt 17:
+
+```text
+DUPLICATE_REPLAY
+```
+
+is usually benign informational telemetry.
+
+Do NOT persist every same-payload network retry as an IntegritySignal.
+
+Mandatory:
+
+```text
+normal idempotent replay
+→ no persistent review signal by default
+```
+
+---
+
+# 36. IDEMPOTENCY CONFLICT
+
+Prompt 17:
+
+```text
+IDEMPOTENCY_CONFLICT
+```
+
+is review-worthy.
+
+Persist.
+
+No automatic punishment.
+
+---
+
+# 37. INVALID STATE
+
+Repeated invalid state transitions may be persisted if Prompt 17 decision marks them REVIEW/BLOCK.
+
+One isolated harmless stale-client request need not become punitive.
+
+Persist according to observation severity, not emotion.
+
+---
+
+# 38. RATE EXCEEDED
+
+A deterministic rate-window exceedance may create a signal.
+
+Persist exact technical data:
+
+```text
+observed count
+configured limit
+window seconds
+rule ID
+```
+
+No “bot” or “cheating” wording.
+
+---
+
+# 39. TIMING SIGNAL
+
+Persist only bounded technical timing information such as:
+
+```text
+claimed timestamp
+server received timestamp
+allowed bound
+derived difference
+```
+
+Do not persist device secrets/fingerprints.
+
+---
+
+# 40. EVIDENCE SIGNAL
+
+For insufficient evidence, persist:
+
+```text
+actualEvidenceClass
+requiredEvidenceClass
+actionType
+```
+
+No raw payload.
+
+---
+
+# 41. SOURCE SIGNAL
+
+For forbidden source/evidence pairing persist:
+
+```text
+source
+evidenceClass
+allowed source set / required source policy
+```
+
+bounded.
+
+---
+
+# 42. SIGNAL CREATION HAS NO FEATURE SIDE EFFECT
+
+Recording a signal must not alter the original product action after Prompt 17 has already produced its decision.
+
+The feature service obeys:
+
+```text
+ALLOW
+ALLOW_WITH_OBSERVATION
+REJECT
+```
+
+Signal persistence is secondary audit storage.
+
+---
+
+# 43. SIGNAL PERSISTENCE FAILURE
+
+Critical:
+
+If the original action is already deterministically:
+
+```text
+ALLOW
+```
+
+or:
+
+```text
+ALLOW_WITH_OBSERVATION
+```
+
+a transient IntegritySignal persistence failure should not necessarily corrupt the product action.
+
+Design an explicit policy.
+
+Recommended:
+
+```text
+blocking integrity decision
+→ feature rejection remains authoritative
+
+nonblocking observation persistence failure
+→ product action may proceed
+→ bounded server error/logging
+```
+
+Do NOT silently convert an ALLOW into rejection because audit storage temporarily failed.
+
+---
+
+# 44. REJECT DECISION
+
+If Prompt 17 returns:
+
+```text
+REJECT
+```
+
+the feature's caller may reject the underlying action.
+
+Signal persistence records the reason where configured.
+
+The persistence layer itself does not decide rejection.
+
+---
+
+# 45. REVIEW AUDIT IS IMMUTABLE
+
+Never update an existing `IntegrityReviewAction`.
+
+Status change creates a new row.
+
+---
+
+# 46. STATUS TRANSITION MAP
+
+Use deterministic transitions:
+
+```text
+OPEN → ACKNOWLEDGED
+OPEN → RESOLVED
+OPEN → DISMISSED
+
+ACKNOWLEDGED → RESOLVED
+ACKNOWLEDGED → DISMISSED
+ACKNOWLEDGED → OPEN        // reopen if needed
+
+RESOLVED → OPEN            // explicit reopen
+DISMISSED → OPEN           // explicit reopen
+```
+
+Do not allow arbitrary client statuses.
+
+---
+
+# 47. `resolvedAt`
+
+Set:
+
+```text
+RESOLVED
+DISMISSED
+```
+
+to a server timestamp.
+
+Clear it on:
+
+```text
+REOPEN → OPEN
+```
+
+`ACKNOWLEDGED` should not set `resolvedAt`.
+
+---
+
+# 48. REVIEW TRANSACTION
+
+In one PostgreSQL transaction:
+
+```text
+lock/load signal
+validate transition
+update signal status/resolvedAt
+insert IntegrityReviewAction
+commit
+```
+
+No partial status change without audit row.
+
+---
+
+# 49. REVIEW CONCURRENCY
+
+Two admins reviewing the same signal concurrently must not create impossible transitions.
+
+Use transaction locking or optimistic versioning.
+
+Prefer:
+
+```text
+SELECT ... FOR UPDATE
+```
+
+or equivalent safe Prisma/raw transaction pattern.
+
+---
+
+# 50. SIGNAL VERSION
+
+Add a simple:
+
+```text
+reviewVersion
+```
+
+integer if useful for optimistic review concurrency.
+
+Start:
+
+```text
+0
+```
+
+Increment on every review status change.
+
+If included, API may require expected version for mutation.
+
+---
+
+# 51. PREFERRED REVIEW CONFLICT MODEL
+
+Review request should include:
+
+```text
+expectedReviewVersion
+```
+
+Then:
+
+```text
+current version != expected
+→ REVIEW_VERSION_CONFLICT
+```
+
+This prevents silent admin overwrite.
+
+---
+
+# 52. ADD NOTE
+
+`ADD_NOTE` may create an audit row without changing signal status.
+
+If status unchanged:
+
+```text
+fromStatus = current
+toStatus = current
+```
+
+Increment reviewVersion if that is the chosen global audit version model.
+
+Document behavior.
+
+---
+
+# 53. ADMIN LIST ROUTE
+
+Implement authenticated equivalent:
+
+```text
+GET /api/admin/study-integrity/signals
+```
+
+Use existing admin/owner route conventions.
+
+---
+
+# 54. LIST FILTERS
+
+Support bounded filters such as:
+
+```text
+status
+severity
+category
+observationCode
+actionType
+userId
+ruleId
+from
+to
+limit
+cursor
+```
+
+No unbounded scans.
+
+---
+
+# 55. DEFAULT QUERY
+
+Recommended:
+
+```text
+status = OPEN
+newest / lastOccurredAt descending
+limit = 50
+```
+
+Hard max:
+
+```text
+100
+```
+
+---
+
+# 56. SIGNAL DETAIL ROUTE
+
+Implement:
+
+```text
+GET /api/admin/study-integrity/signals/:signalId
+```
+
+Return:
+
+* signal;
+* review history;
+* safe technical details.
+
+Do not return unrelated student private content.
+
+---
+
+# 57. REVIEW ROUTE
+
+Implement:
+
+```text
+POST /api/admin/study-integrity/signals/:signalId/review
+```
+
+Request conceptually:
+
+```json
+{
+  "action": "ACKNOWLEDGE",
+  "expectedReviewVersion": 0,
+  "note": "optional internal note"
+}
+```
+
+---
+
+# 58. REVIEW RESPONSE
+
+Return:
+
+```text
+updated signal
+new review action
+```
+
+No user-facing consequence.
+
+---
+
+# 59. USER SUMMARY INTERNAL ROUTE
+
+Future Points logic will need bounded integrity context.
+
+Do NOT expose this to normal students.
+
+Implement an internal service method conceptually:
+
+```ts
+getUserIntegrityContext({
+  userId,
+  since,
+  actionType?,
+})
+```
+
+Do not create a public route unless necessary.
+
+---
+
+# 60. USER INTEGRITY CONTEXT
+
+Return deterministic technical counts such as:
+
+```text
+openBlockSignals
+openReviewSignals
+recentIdempotencyConflicts
+recentRateSignals
+lastSignalAt
+```
+
+No trust score.
+
+No probability.
+
+No ranking.
+
+---
+
+# 61. FUTURE POINTS INTEGRATION
+
+Prompt 19/20 may ask:
+
+```text
+is there an unresolved blocking integrity condition
+for this action/source window?
+```
+
+Provide a narrow internal query helper.
+
+Do NOT make the decision to award Points yet.
+
+---
+
+# 62. ACTION-SCOPED BLOCK QUERY
+
+Create conceptually:
+
+```ts
+hasBlockingIntegritySignal({
+  userId,
+  actionType,
+  resource?,
+  since,
+})
+```
+
+Return:
+
+```text
+boolean + matching signal IDs/reasons
+```
+
+No Points calculation.
+
+---
+
+# 63. RESOLVED/DISMISSED SIGNAL
+
+Future reward gate should normally ignore:
+
+```text
+RESOLVED
+DISMISSED
+```
+
+unless future policy explicitly says otherwise.
+
+Prompt 18 helper should distinguish statuses cleanly.
+
+---
+
+# 64. ACKNOWLEDGED SIGNAL
+
+`ACKNOWLEDGED` remains unresolved.
+
+It may remain visible to future integrity queries.
+
+Do not treat ACKNOWLEDGED as dismissed.
+
+---
+
+# 65. NO GLOBAL USER BLOCK
+
+Do not implement:
+
+```text
+user integrity blocked = true
+```
+
+Signal queries remain action/rule/time scoped.
+
+---
+
+# 66. INDEXES
+
+Design indexes from actual queries.
+
+At minimum evaluate:
+
+```text
+(status, severity, lastOccurredAt)
+(userId, status, lastOccurredAt)
+(actionType, status, lastOccurredAt)
+(observationCode, lastOccurredAt)
+(ruleId, lastOccurredAt)
+(userId, signalFingerprint, dedupBucket) UNIQUE
+```
+
+Review actions:
+
+```text
+(signalId, createdAt)
+(reviewerUserId, createdAt)
+```
+
+Avoid over-indexing safeDetails JSON.
+
+---
+
+# 67. JSON STORAGE
+
+If safeDetails is stored as JSON:
+
+validate before persistence.
+
+Do not query deeply into arbitrary JSON for primary list functionality.
+
+Core searchable fields belong in explicit columns.
+
+---
+
+# 68. SIGNAL STATUS IS SERVER-OWNED
+
+Recording service always creates:
+
+```text
+OPEN
+```
+
+Clients cannot create resolved/dismissed signals.
+
+---
+
+# 69. REVIEWER ID
+
+Reviewer comes from authenticated owner/admin.
+
+Do not accept arbitrary:
+
+```text
+reviewerUserId
+```
+
+in request body.
+
+---
+
+# 70. NO SELF-REVIEW RESTRICTION REQUIRED YET
+
+If an admin's own account receives a technical signal, they may technically review it in Prompt 18 unless existing moderation policy says otherwise.
+
+Do not invent governance rules outside scope.
+
+---
+
+# 71. ADMIN PRIVACY
+
+Signal list/detail must not expose:
+
+* auth tokens;
+* Quick Note text;
+* full MCQ content;
+* PDF contents;
+* full device data.
+
+Even admins receive only safe technical metadata.
+
+---
+
+# 72. NO USER SEARCH EXPANSION
+
+Do not build a new global student-search system.
+
+If user filtering is needed, use canonical `userId`.
+
+Future UI can integrate existing user directory.
+
+---
+
+# 73. SIGNAL EVENT TIME
+
+Store:
+
+```text
+firstOccurredAt
+lastOccurredAt
+```
+
+from Prompt 17 trusted timestamps.
+
+Store:
+
+```text
+lastReceivedAt
+```
+
+from server receipt.
+
+Do not trust arbitrary client date.
+
+---
+
+# 74. NEW OCCURRENCE ON RESOLVED SIGNAL
+
+If same fingerprint reoccurs within the same dedup bucket after signal was:
+
+```text
+RESOLVED
+DISMISSED
+```
+
+do NOT silently mutate old reviewed history back to OPEN.
+
+Preferred:
+
+```text
+create a new signal generation
+```
+
+or use a generation key.
+
+Simplest robust behavior:
+
+dedup only into unresolved:
+
+```text
+OPEN
+ACKNOWLEDGED
+```
+
+signals.
+
+A new occurrence after final disposition creates a new signal row.
+
+---
+
+# 75. UNIQUE DEDUP DESIGN FOR FINALIZED SIGNALS
+
+Because finalized signals may need a new row in the same day, a simple:
+
+```text
+(userId, fingerprint, bucket)
+```
+
+unique index may be insufficient.
+
+Choose a correct race-safe design.
+
+Recommended:
+
+Add:
+
+```text
+generation
+```
+
+and unique:
+
+```text
+(userId, signalFingerprint, dedupBucket, generation)
+```
+
+Recording logic locates latest unresolved generation under user/fingerprint/bucket lock.
+
+If none:
+
+```text
+generation = previous max + 1
+```
+
+Create new OPEN signal.
+
+Document locking.
+
+---
+
+# 76. ALTERNATIVE DEDUP DESIGN
+
+If a cleaner repository-consistent approach exists using:
+
+```text
+activeDedupKey
+```
+
+nullable unique:
+
+* unresolved signal gets deterministic active key;
+* final disposition clears active key;
+* next occurrence can create new signal.
+
+This may be simpler.
+
+Choose one robust solution.
+
+Report exact implementation.
+
+---
+
+# 77. DEDUP LOCKING
+
+Use a transaction-scoped PostgreSQL advisory lock based on:
+
+```text
+userId
+signalFingerprint
+dedupBucket
+```
+
+or an equivalent safe database primitive.
+
+This prevents concurrent insert/update races.
+
+---
+
+# 78. OCCURRENCE COUNT MAX
+
+Use a safe integer type.
+
+Protect against overflow.
+
+Do not allow arbitrary client increment values.
+
+Each call increments by exactly one.
+
+---
+
+# 79. SAFE DETAILS ON REPEAT
+
+On repeated signal occurrence:
+
+update latest safe details if desired.
+
+Do not erase:
+
+```text
+first occurrence
+first timestamps
+review history
+```
+
+---
+
+# 80. SEVERITY ESCALATION
+
+If the same fingerprint arrives with a stronger severity within an unresolved dedup signal:
+
+allow signal severity to move only upward according to:
+
+```text
+INFO < REVIEW < BLOCK
+```
+
+Never automatically downgrade severity from later benign occurrence.
+
+---
+
+# 81. OBSERVATION CATEGORY CONSISTENCY
+
+Same fingerprint should normally imply same:
+
+```text
+ruleId
+observationCode
+category
+actionType
+```
+
+If they differ:
+
+treat as fingerprint/config defect and fail safe.
+
+Do not merge semantically different signals.
+
+---
+
+# 82. RULE VERSION
+
+Persist both:
+
+```text
+ruleId
+ruleVersion
+```
+
+A changed `ruleVersion` should normally produce a distinct dedup fingerprint/generation context.
+
+Do not combine materially different rule versions without auditability.
+
+---
+
+# 83. EVIDENCE PERSISTENCE
+
+Persist:
+
+```text
+effectiveEvidenceClass
+source
+```
+
+from the deterministic decision.
+
+Do not trust client-provided values independently.
+
+---
+
+# 84. INTERNAL SIGNAL SERVICE API
+
+Recommended shape:
+
+```ts
+recordIntegrityObservation({
+  userId,
+  actionType,
+  observation,
+  decision,
+  envelope,
+})
+```
+
+Return:
+
+```text
+signal?
+persisted?
+replayedIntoExisting?
+```
+
+INFO/no-persist returns safely.
+
+---
+
+# 85. BATCH RECORDING
+
+A single decision may contain multiple review-worthy observations.
+
+Support:
+
+```text
+recordIntegrityDecision(...)
+```
+
+recording each independently.
+
+Use one transaction if simple and safe.
+
+One observation failing persistence should be reported clearly.
+
+Do not merge different observation codes into one signal.
+
+---
+
+# 86. NO RECURSION
+
+Recording an IntegritySignal must not itself pass through Study Integrity and generate another IntegritySignal.
+
+Avoid recursion.
+
+---
+
+# 87. AUDIT OF REVIEW ACTIONS
+
+Review actions are not themselves integrity signals.
+
+Do not feed admin review behavior into student integrity.
+
+---
+
+# 88. REVIEW NOTE REDACTION
+
+Admin review note is intentionally freeform internal text.
+
+Still reject obvious credential-shaped fields only if current app has standard sanitizer.
+
+Do not overbuild DLP.
+
+Bound length and plaintext storage.
+
+---
+
+# 89. NO STUDY EVENT
+
+IntegritySignal creation does NOT create:
+
+```text
+StudyEvent
+```
+
+Review actions also create none.
+
+---
+
+# 90. NO DAILY METRIC
+
+No `StudyDailyMetric` mutation.
+
+---
+
+# 91. NO POINTS
+
+No PointsLog mutation.
+
+---
+
+# 92. NO CALENDAR
+
+No CalendarEvent mutation.
+
+---
+
+# 93. NO D1 OUTBOX
+
+No PrivateD1SyncOutbox mutation.
+
+---
+
+# 94. NO NOTIFICATION
+
+Do not notify student.
+
+Do not send admin push notification yet.
+
+---
+
+# 95. NO REVIEW UI
+
+Prompt 18 builds backend APIs and typed contracts only.
+
+Do not build:
+
+* admin Integrity dashboard;
+* signal cards;
+* filters UI;
+* review modals.
+
+Owner Analytics/Admin UI comes much later.
+
+---
+
+# 96. OPTIONAL TYPED ADMIN API
+
+If frontend API architecture benefits, add headless typed admin API methods:
+
+```text
+listIntegritySignals
+getIntegritySignal
+reviewIntegritySignal
+```
+
+No visible page.
+
+---
+
+# 97. ADMIN API RESPONSE TYPES
+
+Purpose-built DTOs.
+
+Never return raw Prisma rows.
+
+Exclude internal:
+
+```text
+dedup implementation fields
+database lock keys
+unsafe raw JSON
+```
+
+unless specifically necessary.
+
+---
+
+# 98. PAGINATION
+
+Use cursor pagination.
+
+Do not use unbounded offset queries over potentially large signal volume.
+
+---
+
+# 99. SORTING
+
+Default:
+
+```text
+lastOccurredAt DESC
+id DESC
+```
+
+or another stable deterministic ordering.
+
+---
+
+# 100. DATE FILTERS
+
+Bound admin query date range.
+
+Recommended maximum:
+
+```text
+90 days
+```
+
+per request unless explicit pagination over archival data is supported safely.
+
+---
+
+# 101. SIGNAL RETENTION
+
+Do not auto-delete signals in Prompt 18.
+
+No retention job yet.
+
+Preserve audit history.
+
+Future ops/policy can define archival retention.
+
+---
+
+# 102. NO SIGNAL EXPORT
+
+Do not implement CSV/export.
+
+---
+
+# 103. NO BULK DISMISS
+
+Do not implement bulk review mutations.
+
+Prompt 18 keeps review deliberate and individually audited.
+
+---
+
+# 104. REVIEW IDEMPOTENCY
+
+Review actions may accept an:
+
+```text
+idempotencyKey
+```
+
+if existing mutation conventions support it.
+
+Recommended for network retry safety.
+
+If implemented, enforce:
+
+```text
+(reviewerUserId, idempotencyKey)
+```
+
+or equivalent.
+
+Same review retry must not create duplicate audit rows.
+
+---
+
+# 105. REVIEW CONFLICT
+
+Same review idempotency key with a changed action/note/signal:
+
+```text
+IDEMPOTENCY_CONFLICT
+```
+
+No duplicate status change.
+
+---
+
+# 106. REVIEW HTTP STATUS
+
+Use repository conventions.
+
+Examples:
+
+```text
+200 successful transition
+200 idempotent replay
+409 review version conflict
+404 non-existent signal
+403 non-admin
+```
+
+Do not leak data to unauthorized users.
+
+---
+
+# 107. ADMIN ROUTE BODY LIMIT
+
+Use a small JSON body limit.
+
+Recommended:
+
+```text
+16 KiB
+```
+
+Review payloads are tiny.
+
+---
+
+# 108. SIGNAL LIST PRIVACY
+
+Normal authenticated student requesting admin route:
+
+```text
+403
+```
+
+No count leakage.
+
+---
+
+# 109. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use fresh safe disposable schema:
+
+```text
+prompt18_integrity_gate
+```
+
+on verified development PostgreSQL only.
+
+Do not require a permanent `TEST_DATABASE_URL`.
+
+Verify identity read-only first.
+
+---
+
+# 110. MIGRATION REPLAY
+
+Apply complete repository migration history.
+
+Run:
+
+```text
+prisma migrate deploy
+prisma migrate status
+prisma validate
+prisma generate
+```
+
+Expected new Integrity models present.
+
+---
+
+# 111. REAL FIRST SIGNAL TEST
+
+Persist one REVIEW observation.
+
+Expected:
+
+```text
+IntegritySignal rows = 1
+occurrenceCount = 1
+status = OPEN
+```
+
+No other product side effects.
+
+---
+
+# 112. REAL DEDUP TEST
+
+Record same signal five times sequentially.
+
+Expected:
+
+```text
+rows = 1
+occurrenceCount = 5
+firstOccurredAt unchanged
+lastOccurredAt updated
+```
+
+---
+
+# 113. REAL CONCURRENT DEDUP TEST
+
+Run:
+
+```text
+20 simultaneous identical observations
+```
+
+Expected:
+
+```text
+rows = 1
+occurrenceCount = 20
+```
+
+No lost updates.
+
+---
+
+# 114. DIFFERENT USER TEST
+
+Same signal fingerprint for two users:
+
+```text
+2 rows
+```
+
+No cross-user merge.
+
+---
+
+# 115. DIFFERENT RESOURCE TEST
+
+Same rule/user/action but different canonical resource context:
+
+must not merge if resource is part of fingerprint semantics.
+
+---
+
+# 116. NEW BUCKET TEST
+
+Same technical signal outside dedup window:
+
+```text
+new signal row
+```
+
+Old history preserved.
+
+---
+
+# 117. FINALIZED SIGNAL REOCCURRENCE TEST
+
+1. create OPEN signal;
+2. DISMISS it;
+3. same condition occurs again in same bucket.
+
+Expected:
+
+```text
+new OPEN signal generation
+old DISMISSED signal unchanged
+```
+
+---
+
+# 118. REVIEW WORKFLOW TEST
+
+Verify:
+
+```text
+OPEN → ACKNOWLEDGED
+ACKNOWLEDGED → RESOLVED
+RESOLVED → OPEN
+OPEN → DISMISSED
+```
+
+with one immutable audit row per review action.
+
+---
+
+# 119. INVALID TRANSITION TEST
+
+Attempt unsupported transition.
+
+Expected:
+
+```text
+REVIEW_INVALID_TRANSITION
+```
+
+No signal status mutation.
+
+No audit row.
+
+---
+
+# 120. REVIEW VERSION TEST
+
+Two reviewers start with same version.
+
+Reviewer A changes status successfully.
+
+Reviewer B sends stale expected version.
+
+Expected:
+
+```text
+REVIEW_VERSION_CONFLICT
+```
+
+No overwritten review.
+
+---
+
+# 121. REVIEW CONCURRENCY TEST
+
+Run simultaneous conflicting review actions.
+
+Expected one valid serialized transition and deterministic conflict for stale request.
+
+No impossible final status/history.
+
+---
+
+# 122. REVIEW AUDIT TEST
+
+Ensure audit row includes:
+
+```text
+reviewerUserId
+fromStatus
+toStatus
+actionType
+createdAt
+```
+
+and optional bounded note.
+
+---
+
+# 123. REVIEWER AUTH TEST
+
+Verify:
+
+```text
+owner → allowed
+admin → allowed
+normal user → denied
+```
+
+Use actual current role names/conventions.
+
+---
+
+# 124. SIGNAL DETAIL PRIVACY TEST
+
+Detail response contains only:
+
+```text
+safe technical details
+review history
+```
+
+No Quick Notes, MCQ content, tokens, etc.
+
+---
+
+# 125. REDACTION PERSISTENCE TEST
+
+Feed Prompt 17 safe-details source containing:
+
+```text
+capabilityToken
+resumeToken
+password
+quickNoteContent
+```
+
+Expected persisted signal contains none of the sensitive values.
+
+---
+
+# 126. INFO SIGNAL TEST
+
+Prompt 17 INFO:
+
+```text
+DUPLICATE_REPLAY
+```
+
+does not create persisted signal by default.
+
+---
+
+# 127. REVIEW SIGNAL TEST
+
+REVIEW severity creates signal.
+
+---
+
+# 128. BLOCK SIGNAL TEST
+
+BLOCK severity creates signal.
+
+Still no punishment.
+
+---
+
+# 129. SEVERITY UPGRADE TEST
+
+Existing unresolved REVIEW signal receives BLOCK occurrence.
+
+Expected:
+
+```text
+same signal
+severity → BLOCK
+occurrenceCount +1
+```
+
+---
+
+# 130. NO DOWNGRADE TEST
+
+Existing BLOCK receives REVIEW.
+
+Expected severity remains:
+
+```text
+BLOCK
+```
+
+---
+
+# 131. USER INTEGRITY CONTEXT TEST
+
+Create mixed signals.
+
+Verify internal context correctly reports:
+
+```text
+openBlockSignals
+openReviewSignals
+recent conflict/rate counts
+lastSignalAt
+```
+
+without trust score.
+
+---
+
+# 132. BLOCK QUERY TEST
+
+Verify:
+
+```text
+hasBlockingIntegritySignal(...)
+```
+
+respects:
+
+* user;
+* actionType;
+* resource scope;
+* time window;
+* unresolved status.
+
+---
+
+# 133. RESOLVED BLOCK QUERY
+
+RESOLVED/DISMISSED signal should not count as active blocking signal.
+
+ACKNOWLEDGED remains active unless policy says otherwise.
+
+---
+
+# 134. NO GLOBAL USER BLOCK TEST
+
+A blocking signal for:
+
+```text
+mcq.answer
+```
+
+must not automatically block:
+
+```text
+focus.session.start
+```
+
+unless future policy explicitly links them.
+
+---
+
+# 135. NO SIDE-EFFECT DATABASE TEST
+
+Around signal creation/review compare:
+
+```text
+StudyEvent
+StudyDailyMetric
+PointsLog
+CalendarEvent
+FocusSession
+LectureProgress
+PrivateD1SyncOutbox
+```
+
+Expected deltas:
+
+```text
+0
+```
+
+Only Integrity tables change.
+
+---
+
+# 136. TRANSACTION ROLLBACK TEST
+
+Force review audit insert failure.
+
+Expected:
+
+```text
+signal status unchanged
+reviewVersion unchanged
+audit rows unchanged
+```
+
+Atomic.
+
+---
+
+# 137. SIGNAL INSERT ROLLBACK
+
+If Signal persistence itself fails, no partial corrupted row.
+
+---
+
+# 138. ADMIN LIST TESTS
+
+Verify:
+
+* default OPEN filter;
+* status filter;
+* severity filter;
+* category;
+* code;
+* actionType;
+* userId;
+* ruleId;
+* bounded date range;
+* cursor pagination;
+* hard limit.
+
+---
+
+# 139. LIST ORDER TEST
+
+Stable ordering across equal timestamps using tie-breaker ID.
+
+---
+
+# 140. DETAIL HISTORY ORDER
+
+Review actions sorted oldest→newest or newest→oldest consistently.
+
+Document.
+
+---
+
+# 141. NO STUDENT LIST TEST
+
+Student cannot list/detail/review signals.
+
+---
+
+# 142. INTEGRITY RECORDING PERFORMANCE
+
+High-frequency future MCQ actions may generate decisions.
+
+Ensure normal:
+
+```text
+ALLOW / INFO replay
+```
+
+causes no DB write.
+
+Only review-worthy signal paths write.
+
+---
+
+# 143. NO AI TEST
+
+Static/source inspection:
+
+Integrity signal/review service contains no AI provider import.
+
+---
+
+# 144. NO MODERATION SIDE EFFECT TEST
+
+Static/runtime confirm Integrity review does not call:
+
+```text
+ban
+mute
+suspend
+role update
+Points adjustment
+```
+
+---
+
+# 145. PROMPT 17 REGRESSION
+
+Rerun all Study Integrity foundation tests.
+
+No policy/rank semantics changed.
+
+---
+
+# 146. PROMPT 16 REGRESSION
+
+Rerun Group Focus verified-participation/summary integrity evidence tests.
+
+Prompt 18 must not alter REALTIME_VERIFIED semantics.
+
+---
+
+# 147. PROMPT 8 REGRESSION
+
+Rerun Study Event tests.
+
+IntegritySignal is separate from StudyEvent.
+
+---
+
+# 148. SOLO FOCUS REGRESSION
+
+Run relevant Focus suites.
+
+---
+
+# 149. GROUP FOCUS REGRESSION
+
+Run Prompt 13–16 Group Focus suites.
+
+---
+
+# 150. FOUNDATION REGRESSION
+
+Run:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 151. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 pass / 9 fail
+Typecheck = same 2 Calendar errors
+Lint = same 10 baseline errors
+```
+
+Do not modify Calendar.
+
+---
+
+# 152. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+server/features/study-integrity/*
+admin Integrity routes
+Prompt 18 tests
+typed admin API if added
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 153. LINT
+
+Targeted Prompt 18:
+
+```text
+PASS
+```
+
+No new full-repo lint errors.
+
+---
+
+# 154. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 155. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+and fresh disposable migration replay.
+
+---
+
+# 156. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 18 migration to production;
+* modify production PostgreSQL;
+* modify Supabase;
+* modify D1;
+* deploy Worker;
+* change production env;
+* expose Integrity review UI.
+
+Repository implementation/testing only.
+
+---
+
+# 157. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<study_integrity_signals>/
+
+server/features/study-integrity/
+server/routes/adminStudyIntegrity.ts
+server.ts
+
+src/.../admin integrity API only if useful
+
+tests/study-integrity-persistence*.test.ts
+tests/study-integrity-review*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 158. FILES EXPECTED UNCHANGED
+
+Unless a verified compile blocker exists:
+
+```text
+Solo Focus behavior
+Group Focus runtime behavior
+Calendar
+OfflineEngine
+D1 private-data Worker
+PDF/video opener
+Quick Notes behavior
+PointsLog schema/behavior
+```
+
+---
+
+# 159. ACCEPTANCE CRITERIA
+
+Prompt 18 succeeds only if:
+
+1. IntegritySignal exists.
+2. IntegrityReviewAction exists.
+3. Migration additive.
+4. Signals are ADMIN_SECURITY/private.
+5. No student Integrity API.
+6. REVIEW/BLOCK observations persist.
+7. Benign INFO replay does not persist by default.
+8. Deduplication is race-safe.
+9. Atomic occurrence count works.
+10. Dedup window bounded.
+11. Finalized signal can generate a new future occurrence.
+12. Sensitive details cannot persist.
+13. Status workflow implemented.
+14. Review actions immutable.
+15. Review concurrency safe.
+16. Admin/owner authorization enforced.
+17. No Group Host privilege.
+18. Internal integrity context exists.
+19. Action-scoped block helper exists.
+20. No global trust score.
+21. No automatic punishment.
+22. No Points mutation.
+23. No Mastery mutation.
+24. No StudyEvent mutation.
+25. No Calendar mutation.
+26. No D1/outbox.
+27. No AI.
+28. No review UI.
+29. Real PostgreSQL concurrency passes.
+30. Build passes.
+31. New regressions = 0.
+
+---
+
+# 160. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 17, Group Focus, Solo Focus, Study Event, Foundation and Auth baselines.
+
+## B. Persistence Architecture
+
+Explain:
+
+```text
+IntegrityDecision
+→ review-worthy observations
+→ canonical IntegritySignal
+→ immutable IntegrityReviewAction
+```
+
+## C. Prisma Models
+
+Show final:
+
+```text
+IntegritySignal
+IntegrityReviewAction
+```
+
+fields, relations, indexes and delete behavior.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+```
+
+## E. Signal Statuses
+
+Explain:
+
+```text
+OPEN
+ACKNOWLEDGED
+RESOLVED
+DISMISSED
+```
+
+## F. Review Actions
+
+Explain:
+
+```text
+ACKNOWLEDGE
+RESOLVE
+DISMISS
+REOPEN
+ADD_NOTE
+```
+
+## G. Signal Recording Rules
+
+Report which observation severities persist.
+
+Explicitly:
+
+```text
+BENIGN DUPLICATE_REPLAY PERSISTED BY DEFAULT: NO
+```
+
+## H. Deduplication
+
+Report:
+
+```text
+window:
+fingerprint:
+database uniqueness:
+locking:
+atomic count strategy:
+```
+
+## I. Concurrent Dedup Result
+
+Report exact:
+
+```text
+attempts:
+signal rows:
+occurrenceCount:
+lost updates:
+```
+
+## J. Finalized Signal Reoccurrence
+
+Explain generation/active-key behavior.
+
+## K. Severity Escalation
+
+Report REVIEW→BLOCK and no-downgrade behavior.
+
+## L. Safe Details
+
+Report:
+
+```text
+max persisted bytes:
+redaction:
+forbidden content classes:
+```
+
+## M. Privacy
+
+Explicitly:
+
+```text
+DEFAULT SIGNAL PRIVACY:
+STUDENT CAN VIEW SIGNALS: NO
+```
+
+## N. Admin APIs
+
+List method/path/auth for:
+
+```text
+list
+detail
+review
+```
+
+## O. Review Concurrency
+
+Report:
+
+```text
+reviewVersion strategy:
+stale reviewer behavior:
+locking:
+```
+
+## P. Review Audit
+
+Show immutable audit fields.
+
+## Q. Admin Authorization
+
+Report owner/admin/student results.
+
+Explicitly:
+
+```text
+GROUP FOCUS HOST GETS INTEGRITY ADMIN RIGHTS: NO
+```
+
+## R. Internal User Integrity Context
+
+Show returned deterministic fields.
+
+## S. Blocking Signal Helper
+
+Explain action/resource/time scoping.
+
+## T. No Global Score
+
+Explicitly:
+
+```text
+fraudScore: NOT IMPLEMENTED
+cheatProbability: NOT IMPLEMENTED
+studentTrustScore: NOT IMPLEMENTED
+```
+
+## U. No Punishment
+
+Explicitly:
+
+```text
+AUTO BAN: NO
+AUTO SUSPEND: NO
+AUTO POINTS DEDUCTION: NO
+AUTO MASTERY PENALTY: NO
+```
+
+## V. Signal Persistence Failure Policy
+
+Explain blocking vs nonblocking observation persistence failure behavior.
+
+## W. No Side Effects
+
+Report deltas:
+
+```text
+StudyEvent:
+StudyDailyMetric:
+PointsLog:
+CalendarEvent:
+FocusSession:
+LectureProgress:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+## X. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 18 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## Y. Real PostgreSQL Signal Tests
+
+Report first/dedup/concurrency/user/resource/bucket/finalized generation results.
+
+## Z. Real PostgreSQL Review Tests
+
+Report transitions, audit, version conflict, concurrency and rollback.
+
+## AA. Admin API Tests
+
+Report list/detail/filter/pagination/privacy tests.
+
+## AB. Security Tests
+
+Report secret redaction and no-content leakage.
+
+## AC. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AD. Regression Results
+
+Include:
+
+* Prompt 17 Integrity;
+* Prompt 13–16 Group Focus;
+* Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AE. Files Created
+
+Exact paths/purpose.
+
+## AF. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Points behavior unchanged?
+Solo Focus unchanged?
+Group Focus behavior unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+```
+
+## AG. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 18 MIGRATION APPLIED TO PRODUCTION: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AH. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AI. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AJ. Risks / Blockers
+
+Only real unresolved Integrity review issues.
+
+## AK. Architecture Compliance
+
+Answer YES/NO:
+
+* Deterministic Integrity decisions remain source?
+* PostgreSQL canonical for signals?
+* Dedup race-safe?
+* Review history immutable?
+* Admin-only review?
+* No student visibility?
+* No Group Host privilege?
+* No trust/fraud score?
+* No automatic punishment?
+* No Points?
+* No Mastery mutation?
+* No StudyEvent side effects?
+* No D1/outbox?
+* No AI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AL. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 19 — Study Points Ledger Schema, Rule-Version Foundation & Legacy PointsLog Compatibility Bridge**
+
+Do not implement Prompt 19.
+
+---
+
+# 161. STOP CONDITION
+
+After implementation, tests and mandatory report:
+
+STOP.
+
+Do NOT implement the Points Ledger.
+
+Do NOT award Points.
+
+Do NOT build Integrity review UI.
+
+Do NOT implement bans or penalties.
+
+Do NOT deploy Prompt 18 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 18 COMPLETE — STUDY INTEGRITY SIGNALS & REVIEW FOUNDATION READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
