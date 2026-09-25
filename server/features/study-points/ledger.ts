@@ -19,10 +19,12 @@ import {
 import { StudyPointsError } from "./errors.js";
 import { studyPointsSemanticPayload } from "./fingerprint.js";
 import {
+  studyPointsBalanceProjectionLockKey,
   lockStudyPointsKeys,
   studyPointsIdempotencyLockKey,
   studyPointsReversalLockKey,
 } from "./locks.js";
+import { updateStudyPointsBalanceProjectionAfterAppend } from "./balanceProjection.js";
 import {
   normalizeStudyPointsLedgerInput,
   assertValidStudyPointsUserId,
@@ -189,6 +191,7 @@ export class StudyPointsLedgerService {
       tx: Prisma.TransactionClient,
     ): Promise<StudyPointsMutationResult> => {
       await lockStudyPointsKeys(tx, [
+        studyPointsBalanceProjectionLockKey(normalized.userId),
         studyPointsIdempotencyLockKey(
           normalized.userId,
           normalized.idempotencyKey,
@@ -213,6 +216,12 @@ export class StudyPointsLedgerService {
       const entry = await tx.studyPointsLedgerEntry.create({
         data: createRowData(normalized),
       });
+      await updateStudyPointsBalanceProjectionAfterAppend(
+        tx,
+        normalized.userId,
+        normalized.category,
+        normalized.amount,
+      );
       return { entry, replayed: false };
     };
 
@@ -249,6 +258,7 @@ export class StudyPointsLedgerService {
       },
     };
     const reverseKeys = [
+      studyPointsBalanceProjectionLockKey(normalized.userId),
       studyPointsIdempotencyLockKey(normalized.userId, normalized.idempotencyKey),
       studyPointsReversalLockKey(input.entryId),
     ];
@@ -316,6 +326,12 @@ export class StudyPointsLedgerService {
             reversalOfEntryId: original.id,
           }),
         });
+        await updateStudyPointsBalanceProjectionAfterAppend(
+          tx,
+          normalized.userId,
+          original.category as StudyPointsCategory,
+          -original.amount,
+        );
         return { entry: reversal, replayed: false };
       }, { maxWait: 5_000, timeout: 15_000 });
     } catch (error) {

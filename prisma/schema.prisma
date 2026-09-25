@@ -69,6 +69,7 @@ model User {
   integrityReviewActions         IntegrityReviewAction[]        @relation("IntegrityReviewReviewer")
 
   studyPointsLedgerEntries       StudyPointsLedgerEntry[]
+  studyPointsBalanceProjection  StudyPointsBalanceProjection?
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -913,4 +914,23 @@ model StudyPointsLedgerEntry {
   @@index([userId, effectiveAt, id])
   @@index([userId, category, effectiveAt])
   @@index([sourceType, sourceId])
+}
+
+/// Rebuildable account read model. The append-only ledger remains canonical.
+model StudyPointsBalanceProjection {
+  userId            String    @id
+  focusPoints       BigInt    @default(0) @db.BigInt
+  masteryPoints     BigInt    @default(0) @db.BigInt
+  progressPoints    BigInt    @default(0) @db.BigInt
+  consistencyPoints BigInt    @default(0) @db.BigInt
+  totalPoints       BigInt    @default(0) @db.BigInt
+  ledgerEntryCount  BigInt    @default(0) @db.BigInt
+  projectionVersion BigInt    @default(0) @db.BigInt
+  lastReconciledAt  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lastReconciledAt])
 }

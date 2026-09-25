@@ -12,6 +12,10 @@ export function studyPointsReversalLockKey(entryId: string): string {
   return `study-points:reversal:${entryId}`;
 }
 
+export function studyPointsBalanceProjectionLockKey(userId: string): string {
+  return `study-points:balance-projection:${userId}`;
+}
+
 export async function lockStudyPointsKeys(
   tx: Prisma.TransactionClient,
   lockKeys: readonly string[],

@@ -78,6 +78,19 @@ export type CompatibleStudyPointsBalance = {
   compatibilityMode: StudyPointsCompatibilityMode;
 };
 
+export type StudyPointsBalanceReadModel = {
+  focusPoints: number;
+  masteryPoints: number;
+  progressPoints: number;
+  consistencyPoints: number;
+  ledgerPoints: number;
+  legacyPoints: number;
+  totalPoints: number;
+  compatibilityMode: StudyPointsCompatibilityMode;
+  source: "PROJECTION" | "LEDGER_FALLBACK";
+  projectionVersion?: number;
+};
+
 export type NormalizedLegacyStudyPointsEntry = {
   recordKind: "LEGACY";
   legacyId: string;

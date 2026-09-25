@@ -69,6 +69,10 @@ import {
   createAdminStudyIntegrityJsonParser,
   createAdminStudyIntegrityRouter,
 } from "./server/routes/adminStudyIntegrity.js";
+import {
+  createAdminStudyPointsJsonParser,
+  createAdminStudyPointsRouter,
+} from "./server/routes/adminStudyPoints.js";
 import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
@@ -1053,6 +1057,10 @@ app.use(
 app.use(
   "/api/admin/study-integrity",
   createAdminStudyIntegrityJsonParser(),
+);
+app.use(
+  "/api/admin/study-points",
+  createAdminStudyPointsJsonParser(),
 );
 
 app.use(compression());
@@ -7344,6 +7352,11 @@ app.use(
     requireAdmin,
     service: new StudyIntegrityService(getPrisma()),
   }),
+);
+
+app.use(
+  "/api/admin/study-points",
+  createAdminStudyPointsRouter({ requireAdmin, database: getPrisma() }),
 );
 
 app.use("/api/admin/ai", createAIImportRouter({

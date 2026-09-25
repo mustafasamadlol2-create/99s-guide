@@ -52,6 +52,44 @@ export {
   StudyPointsLedgerService,
 } from "./ledger.js";
 export {
+  getCanonicalStudyPointsLedgerBalance,
+  getProjectedStudyPointsBalance,
+} from "./balanceProjection.js";
+export type {
+  CanonicalStudyPointsLedgerBalance,
+  ProjectedStudyPointsBalance,
+} from "./balanceProjection.js";
+export {
+  auditStudyPointsLedger,
+} from "./accountingAudit.js";
+export type {
+  StudyPointsAccountingAudit,
+  StudyPointsAuditCheck,
+} from "./accountingAudit.js";
+export {
+  reconcileStudyPointsAccount,
+} from "./reconciliation.js";
+export type {
+  StudyPointsReconciliationResult,
+  StudyPointsReconciliationStatus,
+} from "./reconciliation.js";
+export {
+  getStudyPointsCutoverReadiness,
+} from "./cutover.js";
+export type {
+  StudyPointsCutoverReadiness,
+} from "./cutover.js";
+export {
+  getStudyPointsReadModel,
+  resolveStudyPointsReadMode,
+} from "./readModel.js";
+export {
+  planStudyPointsAccountingRepair,
+} from "./repairPlanner.js";
+export type {
+  StudyPointsAccountingRepairPlan,
+} from "./repairPlanner.js";
+export {
   normalizeLegacyPointsLog,
   StudyPointsLegacyBridgeService,
 } from "./legacyBridge.js";
@@ -70,4 +108,5 @@ export type {
   StudyPointsLedgerEntryRecord,
   StudyPointsLedgerPage,
   StudyPointsMutationResult,
+  StudyPointsBalanceReadModel,
 } from "./types.js";
