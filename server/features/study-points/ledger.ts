@@ -175,6 +175,7 @@ export class StudyPointsLedgerService {
 
   async appendStudyPointsLedgerEntry(
     input: AppendStudyPointsLedgerEntryInput,
+    callerTransaction?: Prisma.TransactionClient,
   ): Promise<StudyPointsMutationResult> {
     const normalized = normalizeStudyPointsLedgerInput(input);
     const where = {
@@ -184,35 +185,44 @@ export class StudyPointsLedgerService {
       },
     };
 
+    const appendWithinTransaction = async (
+      tx: Prisma.TransactionClient,
+    ): Promise<StudyPointsMutationResult> => {
+      await lockStudyPointsKeys(tx, [
+        studyPointsIdempotencyLockKey(
+          normalized.userId,
+          normalized.idempotencyKey,
+        ),
+      ]);
+
+      const existing = await tx.studyPointsLedgerEntry.findUnique({ where });
+      if (existing) return assertReplayMatches(existing, normalized);
+
+      const user = await tx.user.findUnique({
+        where: { id: normalized.userId },
+        select: { id: true },
+      });
+      if (!user) {
+        throw new StudyPointsError(
+          "POINTS_USER_NOT_FOUND",
+          "Study Points user does not exist.",
+        );
+      }
+
+      await assertMetadataStorageSize(tx, normalized.metadata);
+      const entry = await tx.studyPointsLedgerEntry.create({
+        data: createRowData(normalized),
+      });
+      return { entry, replayed: false };
+    };
+
+    if (callerTransaction) return appendWithinTransaction(callerTransaction);
+
     try {
-      return await this.database.$transaction(async (tx) => {
-        await lockStudyPointsKeys(tx, [
-          studyPointsIdempotencyLockKey(
-            normalized.userId,
-            normalized.idempotencyKey,
-          ),
-        ]);
-
-        const existing = await tx.studyPointsLedgerEntry.findUnique({ where });
-        if (existing) return assertReplayMatches(existing, normalized);
-
-        const user = await tx.user.findUnique({
-          where: { id: normalized.userId },
-          select: { id: true },
-        });
-        if (!user) {
-          throw new StudyPointsError(
-            "POINTS_USER_NOT_FOUND",
-            "Study Points user does not exist.",
-          );
-        }
-
-        await assertMetadataStorageSize(tx, normalized.metadata);
-        const entry = await tx.studyPointsLedgerEntry.create({
-          data: createRowData(normalized),
-        });
-        return { entry, replayed: false };
-      }, { maxWait: 5_000, timeout: 15_000 });
+      return await this.database.$transaction(
+        appendWithinTransaction,
+        { maxWait: 5_000, timeout: 15_000 },
+      );
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) throw error;
       const existing = await this.database.studyPointsLedgerEntry.findUnique({ where });

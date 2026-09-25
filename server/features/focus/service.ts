@@ -53,6 +53,8 @@ import { FocusRepository, type FocusTransaction } from "./repository.js";
 import type { StudyEventRecord } from "../study-events/types.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { enqueuePrivateD1Projection } from "../../services/privateD1Sync.js";
+import { StudyPointsAwardEngine } from "../study-points/awardEngine.js";
+import type { StudyPointsAwarder } from "../study-points/awardTypes.js";
 import {
   fetchFocusPlanProjections,
   fetchStudyDailyMetricProjections,
@@ -137,6 +139,7 @@ type FocusEventOperation =
 type FocusServiceOptions = {
   repository?: FocusRepository;
   prisma?: PrismaClient;
+  studyPointsAwarder?: StudyPointsAwarder;
   isFocusEnabled?: () => boolean;
   isStudyEventsEnabled?: () => boolean;
   now?: () => Date;
@@ -669,6 +672,8 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
   const isStudyEventsEnabled = options.isStudyEventsEnabled ??
     (() => isStudyFeatureEnabled("STUDY_EVENTS_ENABLED"));
   const now = options.now ?? (() => new Date());
+  const studyPointsAwarder = options.studyPointsAwarder
+    ?? new StudyPointsAwardEngine(repository.database, now);
   const d1PlanReadsEnabled = options.d1PlanReadsEnabled ??
     (() => privateReadEnabled("PRIVATE_D1_FOCUS_PLAN_READS_ENABLED"));
   const fetchPlansFromD1 = options.fetchPlansFromD1 ?? fetchFocusPlanProjections;
@@ -1516,6 +1521,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (idempotency !== "FIRST_SEEN") {
           throw new FocusError("RECONCILIATION_REQUIRED", "A new completion unexpectedly replayed its event.");
         }
+        await studyPointsAwarder.awardStudyPointsForSource({
+          userId,
+          sourceType: "FOCUS_SESSION",
+          sourceId: updated.id,
+          now: clock,
+          tx,
+        });
         await enqueueSessionProjection(tx, updated);
         const count = await completedCount(tx, userId, updated.planItemId);
         const dto = sessionDto(updated, clock, count);

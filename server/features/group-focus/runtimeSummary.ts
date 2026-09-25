@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import {
   GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
   GROUP_FOCUS_SUMMARY_TERMINAL_REASONS,
@@ -13,6 +14,8 @@ import { getPrisma } from "../../services/prismaClient.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { StudyEventError } from "../study-events/errors.js";
 import type { StudyEventTransaction } from "../study-events/types.js";
+import { StudyPointsAwardEngine } from "../study-points/awardEngine.js";
+import type { StudyPointsAwarder } from "../study-points/awardTypes.js";
 
 const UUID = z.string().uuid();
 const runtimeId = z.string().regex(/^[A-Za-z0-9_-]{22}$/u);
@@ -224,9 +227,12 @@ export function buildGroupFocusParticipantStudyEvents(
 export function createGroupFocusRuntimeSummaryService(options: {
   prisma?: ReturnType<typeof getPrisma>;
   ingestEvent?: typeof ingestStudyEvent;
+  studyPointsAwarder?: StudyPointsAwarder;
 } = {}) {
   const prisma = options.prisma ?? getPrisma();
   const ingestEvent = options.ingestEvent ?? ingestStudyEvent;
+  const studyPointsAwarder = options.studyPointsAwarder
+    ?? new StudyPointsAwardEngine(prisma);
 
   async function getCanonicalSnapshot(
     roomId: string,
@@ -416,6 +422,18 @@ export function createGroupFocusRuntimeSummaryService(options: {
               throw new GroupFocusRuntimeSummaryError(503, "STUDY_EVENTS_DISABLED");
             }
           }
+        }
+
+        for (const participant of [...summary.participants].sort((left, right) =>
+          left.userId.localeCompare(right.userId)
+        )) {
+          if (participant.verifiedFocusSeconds === 0) continue;
+          await studyPointsAwarder.awardStudyPointsForSource({
+            userId: participant.userId,
+            sourceType: "GROUP_FOCUS_RUN",
+            sourceId: run.id,
+            tx: tx as unknown as Prisma.TransactionClient,
+          });
         }
 
         await tx.groupFocusRoom.update({
