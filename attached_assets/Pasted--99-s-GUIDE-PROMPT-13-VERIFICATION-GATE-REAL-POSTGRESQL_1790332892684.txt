@@ -1,0 +1,1556 @@
+# 99’s GUIDE — PROMPT 13 VERIFICATION GATE
+
+## REAL POSTGRESQL GROUP FOCUS VALIDATION
+
+### CAPACITY + INVITES + AUTHORIZATION + IDEMPOTENCY + MIGRATION REPLAY
+
+### DOES NOT COUNT AS A NEW PROMPT IN THE 52-PROMPT ROADMAP
+
+Prompt 13 implementation is provisionally accepted.
+
+Do NOT begin Prompt 14 yet.
+
+The remaining gate exists because Prompt 13 introduced:
+
+* two new canonical PostgreSQL models;
+* transactional room/membership behavior;
+* race-sensitive capacity enforcement;
+* private invitation security;
+* host/member authorization;
+* canonical authorization context that Prompt 14 will trust when issuing Worker capabilities.
+
+These properties must be proven against real PostgreSQL before capability issuance is built on top of them.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Verify the existing Prompt 13 implementation against a safe disposable PostgreSQL schema.
+
+This gate should require **zero production-feature changes** unless testing exposes a genuine defect.
+
+The target outcome is:
+
+```text
+repository migrations
+→ fresh isolated PostgreSQL schema
+→ Group Focus room/membership tests
+→ concurrency/security invariants pass
+→ disposable schema removed
+→ Prompt 14 gate PASS
+```
+
+---
+
+# 2. DO NOT REQUIRE A PRE-EXISTING `TEST_DATABASE_URL`
+
+Prompts 11 and 12 already proved that the Replit runtime-managed development PostgreSQL connection can be safely used after identity verification.
+
+Do not block merely because:
+
+```text
+TEST_DATABASE_URL
+```
+
+is absent from the persistent environment.
+
+Instead:
+
+1. discover the current runtime-managed PostgreSQL connection through the same safe mechanism used in Prompts 11/12;
+2. do not print credentials;
+3. verify the server identity read-only;
+4. confirm it is the known Replit development PostgreSQL environment;
+5. create a disposable schema;
+6. construct test URLs / Prisma schema targeting **command-scoped only**;
+7. set required test opt-in markers only for the test process;
+8. run tests;
+9. remove the disposable schema.
+
+Never persist connection secrets.
+
+---
+
+# 3. EXPECTED SAFE DEVELOPMENT TARGET
+
+Previous verified environment:
+
+```text
+host: helium
+database: heliumdb
+PostgreSQL: 16.x
+role: postgres
+```
+
+Use a new isolated schema:
+
+```text
+prompt13_group_focus_gate
+```
+
+Do not use:
+
+```text
+public
+```
+
+for destructive or integration test setup.
+
+---
+
+# 4. SAFETY STOP
+
+Before the first write, verify:
+
+```text
+current_database()
+current_user
+server version
+server address / host context where safely available
+current schema
+```
+
+Do not expose credentials.
+
+If the connection cannot be confidently proven to be non-production:
+
+STOP.
+
+Return:
+
+```text
+SAFE DISPOSABLE POSTGRESQL: NO
+PROMPT 14 GATE: BLOCKED
+```
+
+Do not substitute Supabase production.
+
+---
+
+# 5. FRESH MIGRATION REPLAY
+
+Create:
+
+```text
+prompt13_group_focus_gate
+```
+
+and apply the full repository migration history using:
+
+```text
+prisma migrate deploy
+```
+
+against that isolated schema.
+
+Do NOT use:
+
+```text
+prisma db push
+```
+
+Do NOT use destructive reset on a shared schema.
+
+Then run:
+
+```text
+prisma migrate status
+```
+
+Expected:
+
+```text
+up to date
+```
+
+---
+
+# 6. REQUIRED TABLES
+
+Verify the fresh schema contains at minimum:
+
+```text
+GroupFocusRoom
+GroupFocusMembership
+FocusQuickNote
+FocusSession
+StudyEvent
+StudyDailyMetric
+PrivateD1SyncOutbox
+User
+Lecture
+```
+
+This confirms Prompt 13 migration is reproducible from repository history.
+
+---
+
+# 7. INSPECT ACTUAL GROUP FOCUS DDL
+
+Against the disposable schema, inspect:
+
+## `GroupFocusRoom`
+
+* columns;
+* PostgreSQL types;
+* defaults;
+* nullability;
+* primary key;
+* unique constraints;
+* indexes;
+* foreign keys.
+
+## `GroupFocusMembership`
+
+Same.
+
+Verify especially:
+
+```text
+(hostUserId, createIdempotencyKey) unique
+(roomId, userId) unique
+```
+
+and all documented indexes.
+
+---
+
+# 8. HOST INVARIANT REVIEW
+
+Prompt 13 intentionally does not use a PostgreSQL partial unique index for:
+
+```text
+one HOST membership per room
+```
+
+because Prisma 5.22 does not model that cleanly.
+
+This is acceptable only if all production membership-role writes are server-owned and cannot create an extra Host.
+
+Verify by code inspection and tests:
+
+* no API accepts membership role;
+* join always assigns MEMBER;
+* rejoin does not alter role;
+* Lecture update does not alter role;
+* remove does not alter role;
+* Host membership is created only during Room creation;
+* no generic membership update route exists.
+
+Add a focused contract test if missing.
+
+Do NOT add a speculative partial unique index in this verification gate unless testing exposes a real correctness requirement that cannot be safely enforced otherwise.
+
+---
+
+# 9. REAL ROOM CREATE TEST
+
+Against real PostgreSQL:
+
+Create a valid PUBLIC `SHARED_LECTURE` Room.
+
+Verify exactly:
+
+```text
+GroupFocusRoom rows = 1
+GroupFocusMembership rows = 1
+
+host membership role = HOST
+host membership status = ACTIVE
+```
+
+Also verify deltas:
+
+```text
+StudyEvent = 0
+StudyDailyMetric = 0
+PrivateD1SyncOutbox = 0
+CalendarEvent = 0
+FocusSession = 0
+```
+
+---
+
+# 10. REAL `STUDY_TOGETHER` CREATE TEST
+
+Create a `STUDY_TOGETHER` Room.
+
+Verify:
+
+```text
+room.sharedLectureId = null
+host membership.selectedLectureId = canonical hostLectureId
+```
+
+Invalid/nonexistent Lecture must reject with zero writes.
+
+---
+
+# 11. REAL CREATE IDEMPOTENCY
+
+Run same Host + same idempotency key + same semantic Room configuration.
+
+Expected:
+
+```text
+first = FIRST_SEEN or equivalent
+replay = existing Room
+Room rows = 1
+Host memberships = 1
+```
+
+Then reuse the same key with changed semantic configuration.
+
+Expected:
+
+```text
+IDEMPOTENCY_CONFLICT
+Room rows still = 1
+Host memberships still = 1
+```
+
+---
+
+# 12. REAL CREATE CONCURRENCY
+
+Launch at least:
+
+```text
+10
+```
+
+simultaneous identical create requests for the same Host/idempotency key.
+
+Expected:
+
+```text
+Room rows = 1
+HOST memberships = 1
+```
+
+No unique violations should leak as unhandled 500 errors.
+
+Report exact result distribution.
+
+---
+
+# 13. PUBLIC DISCOVERY TEST
+
+Create:
+
+* PUBLIC OPEN Room;
+* PRIVATE OPEN Room;
+* PUBLIC CLOSED Room.
+
+Call public discovery.
+
+Expected:
+
+```text
+PUBLIC OPEN → present
+PRIVATE OPEN → absent
+PUBLIC CLOSED → absent
+```
+
+Verify participant count uses only ACTIVE memberships.
+
+---
+
+# 14. PRIVATE ROOM INITIAL INVITE STATE
+
+Create PRIVATE Room.
+
+Verify:
+
+```text
+inviteTokenHash = null
+inviteVersion = 0
+```
+
+Before invite rotation:
+
+join must fail.
+
+No membership row created.
+
+---
+
+# 15. REAL INVITE ROTATION
+
+Host rotates invitation.
+
+Verify:
+
+```text
+plaintext token returned to host
+inviteVersion = 1
+inviteTokenHash != plaintext token
+```
+
+Read raw PostgreSQL row and confirm plaintext is not present.
+
+No logs should contain plaintext.
+
+---
+
+# 16. INVITE ENTROPY / FORMAT
+
+Confirm generated token derives from at least:
+
+```text
+24 cryptographically random bytes
+```
+
+or equivalent ≥192-bit entropy.
+
+Do not test randomness statistically.
+
+Verify use of Node cryptographic randomness and sufficiently large token length.
+
+---
+
+# 17. VALID / INVALID PRIVATE INVITE
+
+With version 1 token:
+
+### Invalid token
+
+Expected:
+
+```text
+join rejected
+membership = 0
+```
+
+### Valid token
+
+Expected:
+
+```text
+join succeeds
+MEMBER membership ACTIVE
+```
+
+No private details should leak through invalid-token errors.
+
+---
+
+# 18. INVITE ROTATION INVALIDATES OLD TOKEN
+
+Rotate again.
+
+Verify:
+
+```text
+inviteVersion = 2
+```
+
+Then:
+
+```text
+old token → rejected
+new token → accepted
+```
+
+Database stores only the new hash.
+
+---
+
+# 19. PUBLIC CAPACITY CONCURRENCY — MANDATORY
+
+Create:
+
+```text
+maxParticipants = 5
+```
+
+The Host counts as one ACTIVE membership.
+
+Create at least:
+
+```text
+20 separate users
+```
+
+and launch their joins concurrently.
+
+Expected:
+
+```text
+join attempts = 20
+successful MEMBER joins = 4
+Host = 1
+final ACTIVE memberships = 5
+over-capacity ACTIVE memberships = 0
+```
+
+Some request-order variation is acceptable.
+
+The invariant is not.
+
+This MUST run against real PostgreSQL.
+
+---
+
+# 20. CAPACITY LOCK REVIEW
+
+Verify actual join implementation acquires a transaction-scoped Room lock before:
+
+```text
+capacity count
+membership insert/reactivation
+```
+
+A simple pre-read outside serialization is not acceptable.
+
+Report exact lock implementation.
+
+---
+
+# 21. ALREADY-ACTIVE JOIN REPLAY
+
+Call join repeatedly for an already ACTIVE member.
+
+Expected:
+
+```text
+membership rows remain 1
+ACTIVE count unchanged
+```
+
+No capacity consumption twice.
+
+---
+
+# 22. LEAVE / REJOIN
+
+Verify real lifecycle:
+
+```text
+ACTIVE
+→ LEFT
+→ ACTIVE
+```
+
+Same membership row ID.
+
+On rejoin:
+
+```text
+joinedAt = new join time
+leftAt = null
+```
+
+Capacity check runs again.
+
+---
+
+# 23. REJOIN WHEN ROOM FULL
+
+A LEFT Member attempting to rejoin a now-full Room must get:
+
+```text
+ROOM_FULL
+```
+
+and remain LEFT.
+
+Do not exempt former members from capacity.
+
+---
+
+# 24. REMOVAL
+
+Host removes an ACTIVE MEMBER.
+
+Expected:
+
+```text
+status = REMOVED
+leftAt != null
+```
+
+No row deletion.
+
+No Study Event.
+
+No metric.
+
+---
+
+# 25. REMOVED MEMBER CANNOT REJOIN
+
+Verify a REMOVED Member cannot rejoin:
+
+### PUBLIC Room
+
+Rejected.
+
+### PRIVATE Room with a currently valid invite
+
+Still rejected.
+
+Invitation does not override canonical removal state.
+
+---
+
+# 26. HOST CANNOT NORMAL-LEAVE
+
+Host calls:
+
+```text
+POST /leave
+```
+
+Expected:
+
+```text
+HOST_MUST_CLOSE_ROOM
+```
+
+Room remains OPEN.
+
+Host membership remains ACTIVE.
+
+---
+
+# 27. MEMBER CANNOT PERFORM HOST ACTIONS
+
+Real HTTP/service tests:
+
+MEMBER cannot:
+
+```text
+rotate invite
+remove another Member
+close Room
+```
+
+No database changes.
+
+---
+
+# 28. APP ADMIN / OWNER SEPARATION
+
+Create users whose application roles differ.
+
+Verify an app admin/owner who is not Group Room Host or ACTIVE member cannot:
+
+```text
+access private Room details
+access members
+rotate invite
+remove member
+close Room
+obtain authorization context
+```
+
+Prompt 13 Group authorization must remain independent from app admin role.
+
+---
+
+# 29. PRIVATE DETAIL NON-DISCLOSURE
+
+For an unrelated authenticated user:
+
+```text
+GET private Room detail
+GET private Room members
+```
+
+Expected non-disclosing failure.
+
+Do not reveal:
+
+* Room name;
+* mode;
+* Host;
+* member count;
+* shared Lecture;
+* invite status.
+
+---
+
+# 30. SHARED LECTURE JOIN RULE
+
+For a `SHARED_LECTURE` Room:
+
+* member joins without selected Lecture;
+* effective Lecture = `room.sharedLectureId`.
+
+Attempting to supply a conflicting Lecture must reject.
+
+No membership side effect.
+
+---
+
+# 31. STUDY TOGETHER JOIN RULE
+
+For `STUDY_TOGETHER`:
+
+joining Member must supply canonical Lecture.
+
+Missing Lecture:
+
+```text
+rejected
+```
+
+Nonexistent Lecture:
+
+```text
+rejected
+```
+
+Valid Lecture:
+
+```text
+membership.selectedLectureId = supplied canonical Lecture
+```
+
+---
+
+# 32. MEMBER LECTURE UPDATE
+
+For ACTIVE `STUDY_TOGETHER` membership:
+
+update own Lecture.
+
+Verify:
+
+```text
+selectedLectureId changes
+membershipUpdatedAt changes
+```
+
+Another member cannot update it.
+
+SHARED_LECTURE Room must reject the route.
+
+---
+
+# 33. AUTHORIZATION CONTEXT — HOST
+
+Call:
+
+```text
+getGroupFocusAuthorizationContext
+```
+
+for active Host.
+
+Verify exact bounded DTO:
+
+```text
+roomId
+membershipId
+userId
+role
+mode
+visibility
+effectiveLectureId
+focusDurationSeconds
+breakDurationSeconds
+roundCount
+maxParticipants
+roomUpdatedAt
+membershipUpdatedAt
+```
+
+No invite information.
+
+No email.
+
+No app-role details.
+
+---
+
+# 34. AUTHORIZATION CONTEXT — MEMBER
+
+Verify MEMBER context.
+
+### SHARED_LECTURE
+
+```text
+effectiveLectureId = room.sharedLectureId
+```
+
+### STUDY_TOGETHER
+
+```text
+effectiveLectureId = membership.selectedLectureId
+```
+
+---
+
+# 35. AUTHORIZATION CONTEXT FAILURE STATES
+
+Verify no context for:
+
+```text
+missing membership
+LEFT
+REMOVED
+CLOSED Room
+```
+
+and private unrelated user.
+
+This is security-critical because Prompt 14 will mint capabilities from this function.
+
+---
+
+# 36. CLOSE ROOM — REAL TRANSACTION
+
+Host closes Room.
+
+Verify atomically:
+
+```text
+Room.status = CLOSED
+Room.closedAt != null
+
+all ACTIVE memberships → LEFT
+all affected leftAt != null
+
+inviteTokenHash = null
+```
+
+If implementation increments `inviteVersion` on close, verify exact intended value.
+
+No hard deletion.
+
+---
+
+# 37. CLOSED ROOM RESTRICTIONS
+
+After close:
+
+```text
+join → rejected
+rotate invite → rejected
+selected Lecture update → rejected
+authorization context → unavailable
+```
+
+Host/member historical rows remain.
+
+---
+
+# 38. CLOSE TRANSACTION FAILURE
+
+If practical using disposable test-only PostgreSQL trigger/failure injection:
+
+force failure part-way through close.
+
+Expected:
+
+```text
+Room remains OPEN
+ACTIVE memberships remain ACTIVE
+invite state remains pre-close
+```
+
+No partial canonical close.
+
+If close uses one Prisma transaction and existing integration harness already proves transaction rollback reliably, document exact coverage.
+
+Prefer a real rollback test.
+
+---
+
+# 39. CREATE TRANSACTION FAILURE
+
+Force Host-membership insert failure after Room insert in the disposable schema.
+
+Expected:
+
+```text
+Room = 0
+Membership = 0
+```
+
+This proves atomic Room+Host creation.
+
+---
+
+# 40. MIGRATION SAFETY
+
+Inspect migration SQL and report:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+```
+
+Also verify no accidental:
+
+```text
+D1 migration
+Durable Object binding
+Worker migration
+```
+
+was added.
+
+---
+
+# 41. SCHEMA CONTRACT
+
+Run existing:
+
+```text
+tests/group-focus-contracts.test.ts
+```
+
+Expected:
+
+```text
+7/7
+```
+
+or current count if tests are strengthened.
+
+Do not weaken static constraints to pass runtime tests.
+
+---
+
+# 42. RUN GROUP FOCUS POSTGRESQL SUITE
+
+Run:
+
+```text
+tests/group-focus-postgres.test.ts
+```
+
+with the explicit safe disposable environment enabled.
+
+No skips are acceptable for a PASS result.
+
+If the existing two tests are broad tests containing many subcases, report those subcases explicitly.
+
+If coverage is insufficient, add focused real PostgreSQL tests.
+
+---
+
+# 43. HTTP AUTHENTICATION TESTS
+
+Against real disposable PostgreSQL where needed, verify:
+
+```text
+unauthenticated → 401
+feature disabled → no DB reads/writes where expected
+wrong role → authorization failure
+private unrelated user → non-disclosing failure
+```
+
+---
+
+# 44. FEATURE FLAG DEFAULT
+
+Confirm:
+
+```text
+GROUP_FOCUS_ENABLED default = false
+```
+
+No `.env` production enablement.
+
+Test process may enable it locally only.
+
+---
+
+# 45. NO STUDY CREDIT — DATABASE ASSERTION
+
+Across create/join/leave/rejoin/remove/rotate/close:
+
+compare before/after:
+
+```text
+StudyEvent
+StudyDailyMetric
+FocusSession
+PointsLog
+```
+
+Expected deltas:
+
+```text
+0
+```
+
+Do not depend only on source inspection.
+
+---
+
+# 46. NO OUTBOX — DATABASE ASSERTION
+
+Across Group Focus canonical operations:
+
+```text
+PrivateD1SyncOutbox delta = 0
+```
+
+Prompt 13 has no D1 projection.
+
+---
+
+# 47. NO CALENDAR — DATABASE ASSERTION
+
+Across Room create/join/close:
+
+```text
+CalendarEvent delta = 0
+```
+
+---
+
+# 48. NO CAPABILITY / DO STATIC ASSERTION
+
+Search repository diff.
+
+Expected Prompt 13 additions:
+
+```text
+Worker capability token implementation = NO
+Group JWT/HMAC signing implementation = NO
+Durable Object class = NO
+Durable Object binding = NO
+DO migration = NO
+```
+
+---
+
+# 49. INVITE SECRET LEAK SEARCH
+
+Search production source for invite logging.
+
+Expected:
+
+```text
+console.log(inviteToken): 0
+logger(...plaintext invite...): 0
+public DTO inviteTokenHash: 0
+query-string invite token usage: 0
+```
+
+Tests may contain fixtures.
+
+Production source must not.
+
+---
+
+# 50. TYPED CLIENT CONTRACT
+
+Rerun Group Focus client contract tests.
+
+Verify:
+
+* invite token sent in request body;
+* no role/status/hostUserId accepted in client request types;
+* response parser rejects leaked inviteTokenHash;
+* rotate response is the only normal DTO containing plaintext invite token.
+
+---
+
+# 51. REGRESSION — SOLO FOCUS
+
+Rerun current Solo Focus and Prompt 10–12 suites.
+
+Prompt 13 must not affect them.
+
+At minimum:
+
+```text
+Focus timer/runtime
+Focus PostgreSQL
+Prompt 11 handoff
+Prompt 12 PostgreSQL
+```
+
+all remain green.
+
+---
+
+# 52. FOUNDATION REGRESSION
+
+Rerun:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Prompt 8
+Outbox schema
+Outbox PostgreSQL
+Study Event PostgreSQL
+Auth
+```
+
+No new failures.
+
+---
+
+# 53. CALENDAR BASELINE
+
+Run Calendar Import current suite.
+
+Expected:
+
+```text
+16 passed
+9 failed
+```
+
+Do not fix it here.
+
+Verify Calendar source remains untouched by Prompt 13/Gate.
+
+---
+
+# 54. TYPECHECK
+
+Run:
+
+```text
+npm run typecheck
+```
+
+Expected:
+
+```text
+same 2 known Calendar Import errors
+0 new Group Focus errors
+```
+
+---
+
+# 55. LINT
+
+Run:
+
+```text
+npm run lint
+```
+
+Expected:
+
+```text
+same 10 known baseline errors
+0 new Group Focus errors
+```
+
+Targeted Group Focus ESLint must pass.
+
+---
+
+# 56. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 57. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 58. DISPOSABLE SCHEMA CLEANUP
+
+After all DB tests:
+
+drop only:
+
+```text
+prompt13_group_focus_gate
+```
+
+Verify it no longer exists.
+
+Confirm:
+
+```text
+shared public schema untouched
+production untouched
+```
+
+---
+
+# 59. PRODUCTION SAFETY
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 13 MIGRATION APPLIED TO PRODUCTION: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+DURABLE OBJECT DEPLOYED: NO
+GROUP FOCUS ENABLED IN PRODUCTION: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+# 60. PREFERRED CODE CHANGE POLICY
+
+Preferred:
+
+```text
+production code changes during this gate = 0
+```
+
+If a real PostgreSQL test finds a defect:
+
+fix only the verified defect.
+
+Do not redesign Prompt 13.
+
+Do not begin Prompt 14.
+
+---
+
+# 61. GATE PASS CONDITIONS
+
+Prompt 14 may proceed only if all are true:
+
+1. Fresh migration replay succeeds.
+2. Real PostgreSQL Group Focus tests execute with no skips.
+3. Room + Host creation is atomic.
+4. Create idempotency passes under real concurrency.
+5. Exactly one service-created Host is preserved.
+6. Private invite hash-only storage verified.
+7. Invite rotation invalidates prior token.
+8. Public/private privacy rules pass.
+9. Capacity concurrency never exceeds configured maximum.
+10. Leave/rejoin works on same membership row.
+11. Removed member cannot rejoin.
+12. Host/member authorization boundaries pass.
+13. App admin role does not bypass Room authorization.
+14. SHARED_LECTURE rules pass.
+15. STUDY_TOGETHER rules pass.
+16. Authorization context is correct and unavailable for invalid states.
+17. Close behavior is atomic and terminal.
+18. No Study Events/metrics/Points from membership operations.
+19. No D1/outbox writes.
+20. No Calendar writes.
+21. No Worker capability exists yet.
+22. No Durable Object exists yet.
+23. Build passes.
+24. New regressions = 0.
+25. Production remains untouched.
+
+---
+
+# 62. MANDATORY FINAL REPORT
+
+Return exactly this structure.
+
+## A. Safe PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+```
+
+Report redacted host/database identity and disposable schema.
+
+## B. Migration Replay
+
+Report:
+
+```text
+migrations applied:
+migrate deploy:
+migrate status:
+```
+
+and required Group Focus tables.
+
+## C. Actual Group Focus DDL
+
+Report real columns/types/defaults/constraints/indexes for both models.
+
+## D. Host Invariant
+
+Explain exactly how:
+
+```text
+one service-created HOST per Room
+```
+
+is protected.
+
+Report whether any API can assign/modify role.
+
+## E. Room Creation
+
+Report actual database before/after rows.
+
+## F. Create Idempotency / Concurrency
+
+Report:
+
+```text
+parallel attempts:
+first-seen:
+replays:
+conflicts:
+Room rows:
+HOST membership rows:
+```
+
+## G. Mode Validation
+
+Report SHARED_LECTURE and STUDY_TOGETHER outcomes.
+
+## H. Public / Private Discovery
+
+Explicitly:
+
+```text
+PRIVATE ROOM PUBLICLY DISCOVERABLE: NO
+CLOSED ROOM PUBLICLY DISCOVERABLE: NO
+```
+
+## I. Invite Storage Security
+
+Report:
+
+```text
+token entropy:
+hash:
+plaintext in database:
+plaintext in logs:
+hash exposed to client:
+```
+
+## J. Invite Rotation Tests
+
+Report initial/no-invite, version 1, invalid, valid, version 2, old-token invalidation.
+
+## K. Capacity Race
+
+Report exactly:
+
+```text
+join attempts:
+Room maxParticipants:
+Host count:
+successful MEMBER joins:
+final ACTIVE memberships:
+over-capacity memberships:
+```
+
+## L. Membership Lifecycle
+
+Report ACTIVE → LEFT → ACTIVE and same membership row verification.
+
+## M. Removal
+
+Report removal and failed rejoin, including valid private invite case.
+
+## N. Host / Member Authorization
+
+Report every tested permission boundary.
+
+## O. App Role Separation
+
+Explicitly:
+
+```text
+APP ADMIN BYPASSES GROUP HOST AUTH: NO
+APP OWNER BYPASSES PRIVATE ROOM AUTH: NO
+```
+
+## P. Private Non-Disclosure
+
+Report unrelated-user detail/member-list behavior.
+
+## Q. Lecture Rules
+
+Report shared Lecture and Study Together selected-Lecture behavior.
+
+## R. Authorization Context
+
+Show exact trusted DTO and results for:
+
+* Host;
+* Member;
+* LEFT;
+* REMOVED;
+* CLOSED;
+* unrelated user.
+
+## S. Room Close
+
+Report Room state, membership states, invite invalidation, and terminal restrictions.
+
+## T. Transaction Rollback Tests
+
+Report Room+Host create rollback and close rollback if executed.
+
+## U. No Study Credit Verification
+
+```text
+StudyEvent delta:
+StudyDailyMetric delta:
+FocusSession delta:
+PointsLog delta:
+```
+
+Expected all zero.
+
+## V. D1 / Outbox Verification
+
+```text
+PrivateD1SyncOutbox delta:
+Group D1 migration:
+Group D1 mirror:
+```
+
+Expected zero/none.
+
+## W. Calendar Verification
+
+```text
+CalendarEvent delta:
+```
+
+Expected zero.
+
+## X. Capability / Durable Object Boundary
+
+Explicitly:
+
+```text
+WORKER CAPABILITY CREATED: NO
+GROUP JWT/HMAC CREATED: NO
+DURABLE OBJECT CLASS CREATED: NO
+DURABLE OBJECT BINDING CREATED: NO
+```
+
+## Y. Client Contract
+
+Report invite-body handling and secret-field rejection.
+
+## Z. Real PostgreSQL Group Focus Result
+
+Explicitly:
+
+```text
+REAL POSTGRESQL PROMPT 13 TESTS EXECUTED: YES/NO
+SKIPPED POSTGRESQL TESTS: 0/<count>
+```
+
+PASS requires zero skipped Group Focus PostgreSQL tests.
+
+## AA. Regression Results
+
+Include all foundation, Solo Focus, Prompt 11, Prompt 12, Auth, PostgreSQL, Build, Prisma, Typecheck, Lint and Calendar results.
+
+## AB. Files Modified During Verification
+
+If none:
+
+```text
+NONE
+```
+
+Otherwise exact paths and verified defect fixed.
+
+## AC. Disposable Schema Cleanup
+
+Confirm schema removal.
+
+## AD. Production Safety
+
+Use the exact production-safety block from section 59.
+
+## AE. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AF. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AG. Remaining Risks
+
+Only actual unresolved risks.
+
+Outbox coalescing may remain listed as unrelated/non-blocking.
+
+## AH. Prompt 14 Gate Decision
+
+Return exactly one:
+
+```text
+PROMPT 14 GATE: PASS
+```
+
+or:
+
+```text
+PROMPT 14 GATE: BLOCKED
+```
+
+PASS requires the real database concurrency/security foundation to be verified.
+
+---
+
+# 63. STOP CONDITION
+
+After verification:
+
+STOP.
+
+Do NOT implement Prompt 14.
+
+Do NOT create capability tokens.
+
+Do NOT create Durable Objects.
+
+Do NOT deploy Prompt 13 migration.
+
+Wait for review.
+
+End exactly:
+
+**PROMPT 13 VERIFICATION GATE COMPLETE — AWAITING PROMPT 14 REVIEW**
