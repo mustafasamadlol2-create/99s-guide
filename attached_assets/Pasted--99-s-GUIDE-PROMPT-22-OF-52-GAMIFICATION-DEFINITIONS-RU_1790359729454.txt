@@ -1,0 +1,3099 @@
+# 99’s GUIDE — PROMPT 22 OF 52
+
+## GAMIFICATION DEFINITIONS
+
+## RULE-VERSION LIFECYCLE + DETERMINISTIC PROGRESS CONTRACTS
+
+### NO ACHIEVEMENTS YET — NO LEVELS YET — NO CHALLENGES — NO LEADERBOARDS — NO UI
+
+Prompts 1–21 have been completed.
+
+Prompt 22 establishes the versioned Gamification definition layer that later prompts will consume.
+
+Frozen roadmap:
+
+```text
+Prompt 22 — Gamification definitions / rule versions
+Prompt 23 — Achievements / progress
+Prompt 24 — Levels / public profile-safe gamification
+Prompt 25 — Challenges
+Prompt 26 — Leaderboard seasons / snapshots
+Prompt 27 — Leaderboard D1 / cache
+```
+
+Prompt 22 must NOT implement Prompt 23+ functionality early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Build a deterministic, immutable/versioned Gamification definition system that future:
+
+```text
+Achievements
+Levels
+Challenges
+Leaderboards
+```
+
+can consume without hard-coding inconsistent thresholds throughout the codebase.
+
+Prompt 22 must provide:
+
+1. canonical Gamification rule-set identity;
+2. immutable rule-set versions;
+3. deterministic definition contracts;
+4. stable definition IDs;
+5. rule-set checksums;
+6. activation / retirement lifecycle;
+7. deterministic progress-input contracts;
+8. strict Points-category compatibility;
+9. historical rule-version lookup;
+10. safe future migration from one rule version to another.
+
+No user Gamification progress rows yet.
+
+---
+
+# 2. CORE PRINCIPLE
+
+Gamification rules are:
+
+```text
+deterministic
+versioned
+auditable
+server-authoritative
+historically reproducible
+```
+
+They are NOT:
+
+```text
+AI generated
+random
+user-specific hidden rules
+client configurable
+silently mutable
+```
+
+---
+
+# 3. SOURCE OF FACTS
+
+Gamification consumes canonical facts from systems already built.
+
+Examples:
+
+```text
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+StudyDailyMetric
+FocusSession
+GroupFocusRun / GroupFocusParticipantSummary
+StudyEvent
+future Mastery
+future Recall
+```
+
+Gamification does NOT become the underlying evidence authority.
+
+---
+
+# 4. POINTS REMAIN ACCOUNTING
+
+Prompt 22 must not reinterpret or rewrite Prompt 19–21 accounting.
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry
+= canonical Points history
+
+StudyPointsBalanceProjection
+= derived Points read model
+
+Gamification
+= deterministic consumer of canonical facts
+```
+
+---
+
+# 5. NO NEW POINT AWARDS
+
+Prompt 22 does NOT add any Points.
+
+Prompt 20 reward amounts/caps remain unchanged.
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry delta = 0
+PointsLog delta = 0
+```
+
+for Gamification definition operations.
+
+---
+
+# 6. NO ACHIEVEMENTS YET
+
+Do NOT create:
+
+```text
+UserAchievement
+AchievementProgress
+AchievementUnlock
+```
+
+Prompt 23 owns those.
+
+Prompt 22 may define the contract for future Achievement definitions.
+
+---
+
+# 7. NO LEVELS YET
+
+Do NOT calculate or persist:
+
+```text
+user level
+level XP
+level progress
+```
+
+Prompt 24 owns that.
+
+Prompt 22 may define generic level-definition contract capability only.
+
+---
+
+# 8. NO CHALLENGES
+
+Do NOT create:
+
+```text
+Challenge
+ChallengeProgress
+ChallengeEnrollment
+```
+
+Prompt 25 owns Challenges.
+
+---
+
+# 9. NO LEADERBOARD
+
+Do not create:
+
+```text
+rank
+season
+leaderboard snapshot
+D1 leaderboard
+```
+
+Prompts 26–27 own these.
+
+---
+
+# 10. NO UI
+
+No:
+
+```text
+achievement page
+level badge
+XP animation
+challenge page
+leaderboard
+```
+
+Backend/contracts only.
+
+---
+
+# 11. GAMIFICATION RULE SET
+
+Introduce the concept:
+
+```text
+Gamification Rule Set
+```
+
+A Rule Set represents one complete version of deterministic Gamification definitions.
+
+Example version:
+
+```text
+gamification-v1
+```
+
+---
+
+# 12. REQUIRED CANONICAL MODEL
+
+Add one canonical durable model unless the repository already has an equivalent:
+
+```text
+GamificationRuleSet
+```
+
+Do not add user-progress models.
+
+---
+
+# 13. `GamificationRuleSet`
+
+Support at least:
+
+```text
+id
+
+version
+status
+
+schemaVersion
+
+definitionChecksum
+
+effectiveFrom?
+retiredAt?
+
+createdAt
+updatedAt
+```
+
+Potential optional bounded fields:
+
+```text
+description?
+```
+
+Do not store arbitrary large configuration JSON unless clearly required.
+
+---
+
+# 14. RULE-SET STATUS
+
+Use exactly:
+
+```text
+DRAFT
+ACTIVE
+RETIRED
+```
+
+Semantics:
+
+### DRAFT
+
+Defined and testable, not used for new Gamification decisions.
+
+### ACTIVE
+
+The single rule set used for new Gamification evaluations.
+
+### RETIRED
+
+Historical only.
+
+---
+
+# 15. EXACTLY ONE ACTIVE RULE SET
+
+At the application/service level and preferably database-supported where practical:
+
+```text
+at most one ACTIVE GamificationRuleSet
+```
+
+Do not permit multiple active versions.
+
+If Prisma cannot model a partial unique index cleanly:
+
+use safe transaction locking + tests.
+
+Document the exact strategy.
+
+---
+
+# 16. RULE VERSION FORMAT
+
+Use a stable bounded format.
+
+Recommended:
+
+```text
+gamification-v<number>
+```
+
+Example:
+
+```text
+gamification-v1
+```
+
+Do not use timestamps as the only semantic version.
+
+---
+
+# 17. SCHEMA VERSION
+
+Separate:
+
+```text
+Gamification rule version
+```
+
+from:
+
+```text
+definition schema version
+```
+
+Example:
+
+```text
+version = gamification-v1
+schemaVersion = 1
+```
+
+This allows future definition-shape upgrades.
+
+---
+
+# 18. DEFINITION CHECKSUM
+
+Compute:
+
+```text
+definitionChecksum
+```
+
+from the complete canonical definition bundle.
+
+Requirements:
+
+```text
+SHA-256
+canonical JSON
+stable key ordering
+UTF-8
+domain separated
+```
+
+Example namespace:
+
+```text
+99s-guide:gamification-definitions:v1:
+```
+
+---
+
+# 19. CHECKSUM PURPOSE
+
+The checksum proves:
+
+```text
+gamification-v1
+```
+
+has not silently changed after activation.
+
+Same version with changed definitions:
+
+```text
+MUST fail
+```
+
+Do not mutate historical rule semantics under an existing version name.
+
+---
+
+# 20. IMMUTABLE ACTIVE VERSION
+
+Once a rule set becomes:
+
+```text
+ACTIVE
+```
+
+its semantic definition bundle becomes immutable.
+
+Changing thresholds/definition semantics requires:
+
+```text
+new rule-set version
+```
+
+Never silently edit `gamification-v1`.
+
+---
+
+# 21. RETIRED VERSION IMMUTABILITY
+
+RETIRED versions also remain immutable.
+
+Historical user progress later must remain reproducible.
+
+---
+
+# 22. DRAFT VERSION
+
+DRAFT definitions may be edited/rebuilt before activation.
+
+Once activated:
+
+freeze.
+
+---
+
+# 23. RULE ACTIVATION
+
+Internal service conceptually:
+
+```ts
+activateGamificationRuleSet(version)
+```
+
+In one transaction:
+
+1. load DRAFT target;
+2. validate complete definition bundle;
+3. compute checksum;
+4. verify persisted checksum;
+5. lock Gamification rule-set lifecycle;
+6. RETIRE previous ACTIVE rule set if one exists;
+7. mark target ACTIVE;
+8. set `effectiveFrom`;
+9. commit.
+
+---
+
+# 24. NO CLIENT ACTIVATION
+
+Do not expose ordinary student route for rule activation.
+
+Prompt 22 preferably keeps activation internal/test-only.
+
+If an admin operational route is required:
+
+owner-only or owner/admin according to current configuration conventions.
+
+No visible UI.
+
+---
+
+# 25. ACTIVATION IS NOT USER PROGRESS MIGRATION
+
+Activating:
+
+```text
+gamification-v2
+```
+
+must NOT automatically rewrite future:
+
+```text
+Achievement progress
+Level
+Challenge progress
+```
+
+Prompt-specific migration semantics come later.
+
+---
+
+# 26. DEFINITION BUNDLE
+
+Create a canonical in-code bundle structure conceptually:
+
+```ts
+type GamificationDefinitionBundle = {
+  schemaVersion: 1;
+  version: string;
+
+  pointCategories: ...;
+
+  achievementDefinitions: ...;
+  levelDefinitions: ...;
+  challengeDefinitionContracts: ...;
+  leaderboardDefinitionContracts: ...;
+};
+```
+
+Prompt 22 may keep later sections empty or contract-only.
+
+Do not implement user state.
+
+---
+
+# 27. POINT CATEGORY CONTRACT
+
+Reuse exactly:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+from Prompt 19.
+
+Do NOT create a second Points category enum.
+
+---
+
+# 28. POINT CATEGORY INTEGRITY
+
+Gamification definitions may reference Points categories only from the canonical set.
+
+Unknown category:
+
+```text
+definition validation fails
+```
+
+---
+
+# 29. NO LEGACY POINT CATEGORY FABRICATION
+
+Legacy PointsLog history remains uncategorized under Prompt 21 transitional semantics.
+
+Gamification definition code must not pretend legacy points belong to:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+unless later cutover migration explicitly provides evidence.
+
+---
+
+# 30. DETERMINISTIC PROGRESS METRICS
+
+Create a stable catalog of future progress metric identifiers.
+
+Examples:
+
+```text
+points.total
+points.focus
+points.mastery
+points.progress
+points.consistency
+
+focus.completed_sessions
+focus.verified_seconds
+
+group_focus.verified_seconds
+group_focus.completed_runs
+
+consistency.qualifying_days
+```
+
+Do not create unsupported metrics merely because they sound useful.
+
+---
+
+# 31. PROGRESS METRIC REGISTRY
+
+Create:
+
+```ts
+getGamificationMetricDefinition(metricId)
+```
+
+Each metric must define:
+
+```text
+metricId
+valueType
+aggregation
+sourceAuthority
+privacyClass
+```
+
+---
+
+# 32. METRIC VALUE TYPES
+
+Use only deterministic types such as:
+
+```text
+INTEGER
+SECONDS
+COUNT
+BOOLEAN
+```
+
+No floating-point “engagement score”.
+
+---
+
+# 33. METRIC AGGREGATION TYPES
+
+Support explicit semantics such as:
+
+```text
+SUM
+COUNT
+CURRENT
+BOOLEAN
+```
+
+Do not use fuzzy aggregation.
+
+---
+
+# 34. SOURCE AUTHORITY
+
+Every metric definition identifies canonical authority.
+
+Examples:
+
+```text
+points.total
+→ StudyPointsBalanceProjection / canonical ledger fallback
+
+focus.completed_sessions
+→ FocusSession
+
+group_focus.verified_seconds
+→ GroupFocusParticipantSummary
+```
+
+Do not let the client submit progress values.
+
+---
+
+# 35. PRIVACY
+
+Each metric declares privacy.
+
+Default study metrics:
+
+```text
+PRIVATE_STUDY
+```
+
+Some future public cosmetic progress may use:
+
+```text
+PROFILE_PUBLIC
+```
+
+only after Prompt 24 explicitly decides so.
+
+Prompt 22 should default conservatively.
+
+---
+
+# 36. ACHIEVEMENT DEFINITION CONTRACT
+
+Define a contract for Prompt 23.
+
+Conceptually:
+
+```ts
+type AchievementDefinition = {
+  id: string;
+  ruleSetVersion: string;
+
+  metricId: string;
+  threshold: integer;
+
+  tier?: string;
+
+  titleKey: string;
+  descriptionKey: string;
+
+  visibility: "PRIVATE" | "PROFILE_SAFE";
+
+  sortOrder: number;
+};
+```
+
+Do not persist user unlocks.
+
+---
+
+# 37. ACHIEVEMENT IDs
+
+Stable machine IDs.
+
+Examples conceptually:
+
+```text
+focus.first_session
+focus.10_hours
+consistency.7_days
+```
+
+Do not use translated titles as identity.
+
+---
+
+# 38. LOCALIZATION KEYS
+
+Definitions reference:
+
+```text
+titleKey
+descriptionKey
+```
+
+rather than hard-coded English-only display strings.
+
+Do not implement full UI translations now.
+
+---
+
+# 39. NO POINTS REWARD FROM ACHIEVEMENT
+
+Achievement definitions in Prompt 22 must NOT contain:
+
+```text
+pointsReward
+```
+
+unless a later explicit roadmap prompt adds it.
+
+Avoid reward loops:
+
+```text
+Points → achievement → more Points
+```
+
+---
+
+# 40. ACHIEVEMENT THRESHOLD
+
+Threshold must be:
+
+```text
+positive integer
+```
+
+unless a boolean achievement explicitly uses deterministic boolean semantics.
+
+No negative threshold.
+
+---
+
+# 41. ACHIEVEMENT TIER ORDER
+
+If definitions later use tiers:
+
+```text
+BRONZE
+SILVER
+GOLD
+```
+
+do not encode reward value.
+
+Tier is cosmetic/definition metadata.
+
+Prompt 23 may define exact initial set.
+
+---
+
+# 42. LEVEL DEFINITION CONTRACT
+
+Define future Prompt 24 contract conceptually:
+
+```ts
+type LevelDefinition = {
+  level: number;
+  minimumLifetimePoints: integer;
+
+  titleKey?: string;
+};
+```
+
+Do NOT calculate users' level now.
+
+---
+
+# 43. LEVEL SOURCE
+
+Future levels must use:
+
+```text
+lifetime canonical Study Points
+```
+
+not:
+
+```text
+weekly leaderboard points
+legacy arbitrary score
+streak
+```
+
+---
+
+# 44. LEVEL MONOTONICITY CONTRACT
+
+Validate definitions:
+
+```text
+level numbers strictly increasing
+minimumLifetimePoints strictly increasing
+```
+
+No duplicate threshold.
+
+---
+
+# 45. LEVEL 1
+
+Future level definition must begin with:
+
+```text
+minimumLifetimePoints = 0
+```
+
+unless Prompt 24 later intentionally chooses another documented model.
+
+---
+
+# 46. LEVELS DO NOT REMOVE POINTS
+
+Level progression is derived.
+
+No Points spending.
+
+No XP consumption.
+
+---
+
+# 47. CHALLENGE CONTRACT
+
+Create only generic definition shape for Prompt 25.
+
+Conceptually:
+
+```ts
+type ChallengeDefinition = {
+  id: string;
+  metricId: string;
+  target: integer;
+  start/end policy;
+  ruleSetVersion: string;
+};
+```
+
+Do not create active challenge rows.
+
+---
+
+# 48. NO USER CHALLENGE STATE
+
+No:
+
+```text
+joined
+completed
+claimed
+```
+
+state.
+
+Prompt 25 owns it.
+
+---
+
+# 49. LEADERBOARD CONTRACT
+
+Create only deterministic future leaderboard category contract if useful.
+
+Example:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+Do not calculate rank.
+
+---
+
+# 50. LEADERBOARD SOURCE
+
+Future leaderboard score must derive from canonical Study Points ledger/read model according to Prompt 26.
+
+Do not define a separate engagement score.
+
+---
+
+# 51. CURRENT V1 DEFINITION SCOPE
+
+Create one initial:
+
+```text
+gamification-v1
+```
+
+definition bundle.
+
+Prompt 22 should include only enough definitions to prove the framework.
+
+Do not prematurely author dozens of production achievements.
+
+---
+
+# 52. V1 SEED DEFINITIONS
+
+Use a very small deterministic seed set solely to establish the versioned framework.
+
+Recommended future Achievement definitions:
+
+```text
+focus.first_verified_session
+points.first_100
+consistency.first_qualifying_day
+group_focus.first_verified_run
+```
+
+These definitions are not yet awarded/unlocked in Prompt 22.
+
+---
+
+# 53. SEED METRICS
+
+Corresponding metric IDs must be backed by canonical sources.
+
+Examples:
+
+```text
+focus.completed_sessions
+points.total
+consistency.qualifying_days
+group_focus.completed_runs
+```
+
+---
+
+# 54. DO NOT CALL THEM UNLOCKED
+
+Prompt 22 definitions existing does NOT mean any user has earned them.
+
+---
+
+# 55. RULE-SET PERSISTENCE STRATEGY
+
+Store lifecycle metadata in PostgreSQL:
+
+```text
+version
+status
+checksum
+effectiveFrom
+retiredAt
+```
+
+Keep the full immutable definition bundle in version-controlled source unless there is a strong architectural reason to persist it.
+
+This is preferred because:
+
+```text
+definitions are code-reviewed
+definitions are deterministic
+definitions ship with app/backend version
+```
+
+---
+
+# 56. DO NOT STORE ARBITRARY DEFINITION JSON IF UNNECESSARY
+
+Avoid a giant editable JSON configuration blob in PostgreSQL.
+
+Database should prove which version is active.
+
+Source code defines exact immutable semantics.
+
+---
+
+# 57. VERSION RESOLUTION
+
+Implement:
+
+```ts
+getGamificationDefinitionBundle(version)
+```
+
+Known version:
+
+```text
+returns exact immutable bundle
+```
+
+Unknown version:
+
+```text
+GAMIFICATION_RULE_VERSION_NOT_FOUND
+```
+
+---
+
+# 58. ACTIVE VERSION RESOLUTION
+
+Implement:
+
+```ts
+getActiveGamificationRuleSet()
+```
+
+returning persisted lifecycle row + source-code definition bundle.
+
+Validate checksum before using it.
+
+---
+
+# 59. CHECKSUM MISMATCH
+
+If PostgreSQL says active:
+
+```text
+gamification-v1
+```
+
+with checksum A but code bundle computes checksum B:
+
+```text
+fail closed
+```
+
+Use explicit:
+
+```text
+GAMIFICATION_DEFINITION_CHECKSUM_MISMATCH
+```
+
+Do not silently use changed rules.
+
+---
+
+# 60. MISSING SOURCE BUNDLE
+
+Persisted active DB version with no corresponding code bundle:
+
+```text
+fail closed
+```
+
+Do not fallback to latest version.
+
+---
+
+# 61. MISSING DATABASE RULESET
+
+If Gamification features remain disabled/unimplemented:
+
+main application startup should not fail merely because no rule set has been activated yet.
+
+But future Gamification evaluation must fail closed with:
+
+```text
+GAMIFICATION_ACTIVE_RULE_SET_NOT_CONFIGURED
+```
+
+---
+
+# 62. INITIAL DRAFT SEED
+
+Prompt 22 may provide an idempotent internal/bootstrap helper to register:
+
+```text
+gamification-v1
+```
+
+as:
+
+```text
+DRAFT
+```
+
+Do not auto-activate production.
+
+---
+
+# 63. NO STARTUP DATABASE MUTATION
+
+Do not seed/create rule-set rows automatically every server start.
+
+Tests/setup may explicitly call bootstrap.
+
+Production migration must not insert an ACTIVE version.
+
+---
+
+# 64. ACTIVATION IDEMPOTENCY
+
+Activating already ACTIVE same version:
+
+```text
+safe replay
+```
+
+No duplicate lifecycle mutation.
+
+---
+
+# 65. ACTIVATION CONFLICT
+
+Attempt to activate a version whose persisted checksum differs from source:
+
+```text
+reject
+```
+
+---
+
+# 66. CONCURRENT ACTIVATION
+
+Two versions activated concurrently must not produce:
+
+```text
+2 ACTIVE rows
+```
+
+Use PostgreSQL transaction/advisory lock.
+
+---
+
+# 67. ACTIVATION HISTORY
+
+When:
+
+```text
+v1 ACTIVE
+→ v2 ACTIVE
+```
+
+expected:
+
+```text
+v1 = RETIRED
+v1.retiredAt set
+
+v2 = ACTIVE
+v2.effectiveFrom set
+```
+
+One transaction.
+
+---
+
+# 68. REACTIVATING RETIRED VERSION
+
+Do not reactivate a RETIRED version in Prompt 22.
+
+If rollback is needed later:
+
+create an explicit new version or future administrative procedure.
+
+Keep lifecycle monotonic:
+
+```text
+DRAFT → ACTIVE → RETIRED
+```
+
+---
+
+# 69. DRAFT DELETION
+
+Do not expose hard-delete API.
+
+If draft cleanup is needed later, separate operational tooling can handle it.
+
+Prompt 22 preserves history.
+
+---
+
+# 70. EFFECTIVE TIME
+
+Use server/database time.
+
+Clients cannot supply activation timestamp.
+
+---
+
+# 71. HISTORICAL RESOLUTION
+
+Future progress rows will store:
+
+```text
+ruleSetVersion
+```
+
+so Prompt 22 must support resolving historical retired definition bundles indefinitely.
+
+Do not remove v1 source definitions when v2 appears.
+
+---
+
+# 72. DEFINITION VALIDATOR
+
+Create a strict validator for each bundle.
+
+At minimum validate:
+
+```text
+version matches requested version
+schemaVersion supported
+IDs unique
+metric IDs valid
+thresholds valid
+localization keys nonempty
+sortOrder valid
+visibility valid
+level thresholds monotonic
+challenge metric references valid
+point categories canonical
+```
+
+---
+
+# 73. DUPLICATE DEFINITION ID
+
+Reject duplicate Achievement/Challenge IDs within bundle.
+
+---
+
+# 74. CROSS-TYPE ID COLLISION
+
+Prefer namespaced IDs so:
+
+```text
+achievement ID
+challenge ID
+```
+
+cannot ambiguously collide in future APIs.
+
+---
+
+# 75. METRIC REGISTRY VALIDATION
+
+Definition referencing unknown:
+
+```text
+metricId
+```
+
+must fail validation.
+
+---
+
+# 76. UNSUPPORTED PRIVATE METRIC
+
+A future definition marked:
+
+```text
+PROFILE_SAFE
+```
+
+cannot reference a metric whose registry privacy is strictly:
+
+```text
+ADMIN_SECURITY
+SYSTEM_INTERNAL
+```
+
+Fail validation.
+
+---
+
+# 77. PROFILE-SAFE DOES NOT PUBLISH AUTOMATICALLY
+
+Even if definition itself is marked PROFILE_SAFE:
+
+Prompt 22 does not publish user status.
+
+Prompt 24 owns public-profile exposure.
+
+---
+
+# 78. NO WEAKNESS METRICS IN PUBLIC CONTRACTS
+
+Do not define:
+
+```text
+weak topics
+repeated mistakes
+low accuracy
+retention weakness
+```
+
+as profile-public Gamification metrics.
+
+These remain private study analytics.
+
+---
+
+# 79. NO INTELLIGENCE RANKING
+
+Gamification definitions must not encode claims such as:
+
+```text
+smartest student
+best student
+weak student
+top intelligence
+```
+
+Later leaderboard measures engagement/Points only.
+
+---
+
+# 80. PROGRESS VALUE CONTRACT
+
+Create deterministic normalized progress result:
+
+```ts
+type GamificationMetricValue = {
+  metricId: string;
+  value: number | boolean;
+
+  asOf: Date;
+  sourceVersion: string;
+};
+```
+
+No user progress persistence yet.
+
+---
+
+# 81. METRIC PROVIDER INTERFACE
+
+Create internal contract:
+
+```ts
+interface GamificationMetricProvider {
+  metricId: string;
+  getValue(userId, asOf, tx?): Promise<GamificationMetricValue>;
+}
+```
+
+Do not implement every provider yet.
+
+---
+
+# 82. PURE PROVIDER FOR POINTS
+
+Implement at least:
+
+```text
+points.total
+points.focus
+points.mastery
+points.progress
+points.consistency
+```
+
+using Prompt 21 canonical read/projection services.
+
+No new Points calculation.
+
+---
+
+# 83. POINTS METRIC READ MODE
+
+Gamification must use the canonical safe Points read mode.
+
+Do NOT silently use:
+
+```text
+LEDGER_ONLY
+```
+
+for users whose legacy cutover is unsafe.
+
+Use Prompt 21 read model.
+
+---
+
+# 84. LEGACY CAVEAT
+
+Because legacy Points are uncategorized:
+
+```text
+points.total
+```
+
+may use compatible total.
+
+Category metrics:
+
+```text
+points.focus
+points.mastery
+points.progress
+points.consistency
+```
+
+represent new-ledger category values only.
+
+Document this clearly.
+
+---
+
+# 85. FOCUS METRIC PROVIDER
+
+Implement if straightforward:
+
+```text
+focus.completed_sessions
+```
+
+Count canonical:
+
+```text
+FocusSession.status = COMPLETED
+```
+
+for user.
+
+---
+
+# 86. FOCUS VERIFIED SECONDS
+
+Implement:
+
+```text
+focus.verified_seconds
+```
+
+from canonical completed FocusSession `activeSeconds`.
+
+Do not count abandoned sessions.
+
+---
+
+# 87. GROUP FOCUS METRIC
+
+Implement:
+
+```text
+group_focus.completed_runs
+```
+
+counting participant summaries with meaningful verified participation.
+
+Define meaningful:
+
+```text
+verifiedFocusSeconds > 0
+```
+
+Do not count Room membership alone.
+
+---
+
+# 88. GROUP VERIFIED SECONDS
+
+Implement:
+
+```text
+group_focus.verified_seconds
+```
+
+from canonical GroupFocusParticipantSummary.
+
+---
+
+# 89. CONSISTENCY METRIC
+
+Implement:
+
+```text
+consistency.qualifying_days
+```
+
+using the same deterministic qualification semantics as Prompt 20:
+
+```text
+>= 1500 verified Focus seconds per Baghdad logical day
+```
+
+Do NOT count Points-award ledger rows as evidence.
+
+---
+
+# 90. CONSISTENCY RANGE
+
+For Prompt 22 foundation, define:
+
+```text
+lifetime qualifying days
+```
+
+unless future Achievement definition explicitly needs consecutive streak.
+
+Do not invent destructive streak logic.
+
+---
+
+# 91. NO STREAK RESET
+
+Prompt 22 does not maintain a mutable streak.
+
+---
+
+# 92. BAGHDAD TIMEZONE
+
+Consistency metric continues using:
+
+```text
+Asia/Baghdad
+```
+
+---
+
+# 93. METRIC `asOf`
+
+Metric providers must accept an authoritative:
+
+```text
+asOf
+```
+
+time.
+
+This supports deterministic future challenge/achievement evaluation.
+
+Do not always hide `Date.now()` inside providers.
+
+---
+
+# 94. METRIC CACHE
+
+Do not add Redis/KV/D1 caching.
+
+Prompt 22 metric evaluation is foundation only.
+
+Later UI/leaderboard optimization comes later.
+
+---
+
+# 95. NO METRIC WRITE
+
+Reading Gamification metrics creates:
+
+```text
+0 DB writes
+```
+
+---
+
+# 96. DEFINITION EVALUATION HELPER
+
+Create pure helper:
+
+```ts
+evaluateThreshold({
+  metricValue,
+  threshold
+})
+```
+
+returning something like:
+
+```text
+current
+target
+completed
+progressRatio
+```
+
+---
+
+# 97. PROGRESS RATIO
+
+If returned internally:
+
+```text
+0 <= progressRatio <= 1
+```
+
+This is UI convenience only.
+
+Canonical completion is:
+
+```text
+value >= threshold
+```
+
+---
+
+# 98. NO FLOATING ACCOUNTING SEMANTICS
+
+Threshold completion uses exact integer comparisons.
+
+`progressRatio` may be floating display metadata but never determines completion.
+
+---
+
+# 99. BOOLEAN THRESHOLD
+
+If future boolean metric used:
+
+completion is exact boolean predicate.
+
+No fuzzy score.
+
+---
+
+# 100. DEFINITION SNAPSHOT
+
+Future Prompt 23 user achievement progress should store:
+
+```text
+definitionId
+ruleSetVersion
+```
+
+not a copy of mutable current definition semantics.
+
+Prompt 22 must expose those identifiers cleanly.
+
+---
+
+# 101. NO RETROACTIVE SILENT RE-EVALUATION
+
+When v2 changes a threshold:
+
+existing v1 historical unlocks later must not silently disappear.
+
+This contract must be documented now.
+
+Prompt 23 implements concrete behavior.
+
+---
+
+# 102. FUTURE VERSION MIGRATION POLICY
+
+Define high-level rule:
+
+```text
+historical completed Gamification state remains historical
+new evaluations use active rule version
+```
+
+Do not implement user migration yet.
+
+---
+
+# 103. NO DOWNGRADE PUNISHMENT
+
+If v2 raises an Achievement threshold:
+
+a user who legitimately unlocked v1 later must not lose it merely because rules changed.
+
+Prompt 23 must preserve versioned unlock history.
+
+Prompt 22 should encode this principle.
+
+---
+
+# 104. RULE-SET API
+
+Prefer internal service-only access.
+
+If operational routes are required for tests/admin:
+
+```text
+GET /api/admin/gamification/rule-sets
+GET /api/admin/gamification/rule-sets/:version
+POST /api/admin/gamification/rule-sets/:version/activate
+```
+
+No UI.
+
+---
+
+# 105. ADMIN AUTH
+
+Activation:
+
+prefer:
+
+```text
+owner only
+```
+
+because rule activation changes product behavior.
+
+Read may be owner/admin.
+
+Follow current role conventions.
+
+---
+
+# 106. NORMAL STUDENT ACCESS
+
+Students do NOT need administrative rule-set metadata.
+
+Future public Gamification definitions can be exposed through separate safe endpoints later.
+
+---
+
+# 107. NO RAW CHECKSUM CONTROL FROM CLIENT
+
+Activation request does not supply new checksum/body definitions.
+
+The server resolves source bundle and validates persisted draft metadata.
+
+---
+
+# 108. BOOTSTRAP DRAFT SERVICE
+
+Create internal:
+
+```ts
+ensureGamificationRuleSetDraft("gamification-v1")
+```
+
+or equivalent.
+
+It should:
+
+* resolve code definition bundle;
+* validate bundle;
+* compute checksum;
+* create DRAFT if absent;
+* replay safely if matching;
+* conflict if same version exists with different checksum.
+
+Do not auto-run on production startup.
+
+---
+
+# 109. BOOTSTRAP IDEMPOTENCY
+
+20 concurrent draft registrations:
+
+```text
+one GamificationRuleSet row
+```
+
+No duplicate versions.
+
+---
+
+# 110. VERSION UNIQUENESS
+
+Database unique:
+
+```text
+version
+```
+
+---
+
+# 111. CHECKSUM BOUND
+
+Use fixed:
+
+```text
+64-character lowercase hex SHA-256
+```
+
+or repository-consistent encoding.
+
+Validate.
+
+---
+
+# 112. DESCRIPTION
+
+If stored:
+
+```text
+bounded <= 500 chars
+```
+
+No markdown/HTML needed.
+
+---
+
+# 113. RULE-SET IMMUTABILITY SERVICE
+
+Do not export generic:
+
+```text
+updateRuleSet()
+deleteRuleSet()
+```
+
+Exports should be limited to:
+
+```text
+registerDraft
+activate
+read
+resolve
+validate
+```
+
+---
+
+# 114. MIGRATION
+
+Create one additive migration for:
+
+```text
+GamificationRuleSet
+```
+
+No user progress tables.
+
+---
+
+# 115. MIGRATION SAFETY
+
+Explicitly:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+StudyPointsLedgerEntry destructive change: NO
+StudyPointsBalanceProjection destructive change: NO
+```
+
+---
+
+# 116. NO MIGRATION SEED
+
+Migration creates table/indexes only.
+
+Expected rows after migration before explicit test bootstrap:
+
+```text
+0
+```
+
+---
+
+# 117. INDEXES
+
+At minimum:
+
+```text
+version UNIQUE
+status
+effectiveFrom
+```
+
+Do not over-index.
+
+---
+
+# 118. ACTIVE RULE-SET LOCKING
+
+Use advisory lock or equivalent transaction serialization for:
+
+```text
+activation
+```
+
+so concurrent versions cannot become ACTIVE simultaneously.
+
+---
+
+# 119. NO PARTIAL INDEX REQUIREMENT
+
+If PostgreSQL partial unique index is difficult with Prisma:
+
+application transaction locking is acceptable.
+
+Document.
+
+---
+
+# 120. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use:
+
+```text
+prompt22_gamification_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply full migration history.
+
+---
+
+# 121. MIGRATION REPLAY
+
+Verify coexistence:
+
+```text
+GamificationRuleSet
+StudyPointsBalanceProjection
+StudyPointsLedgerEntry
+IntegritySignal
+GroupFocusRun
+FocusSession
+```
+
+---
+
+# 122. DRAFT REGISTRATION TEST
+
+Register:
+
+```text
+gamification-v1
+```
+
+Expected:
+
+```text
+rows = 1
+status = DRAFT
+checksum = source bundle checksum
+```
+
+---
+
+# 123. DRAFT REPLAY TEST
+
+Register same source bundle again:
+
+```text
+rows still = 1
+```
+
+---
+
+# 124. DRAFT CONFLICT TEST
+
+Same version with different test-only checksum/bundle:
+
+```text
+GAMIFICATION_RULE_VERSION_CONFLICT
+```
+
+---
+
+# 125. CONCURRENT DRAFT TEST
+
+20 simultaneous identical registrations:
+
+```text
+rows = 1
+```
+
+---
+
+# 126. ACTIVATION TEST
+
+Activate v1:
+
+```text
+status = ACTIVE
+effectiveFrom != null
+```
+
+---
+
+# 127. ACTIVE REPLAY TEST
+
+Activate already-active v1 again:
+
+safe replay.
+
+No duplicate mutation.
+
+---
+
+# 128. V2 ACTIVATION TEST
+
+Create DRAFT:
+
+```text
+gamification-v2
+```
+
+with a test-only valid bundle.
+
+Activate.
+
+Expected:
+
+```text
+v1 → RETIRED
+v2 → ACTIVE
+```
+
+one transaction.
+
+---
+
+# 129. CONCURRENT ACTIVATION TEST
+
+Attempt:
+
+```text
+v2
+v3
+```
+
+simultaneously.
+
+Expected:
+
+```text
+ACTIVE rows <= 1
+```
+
+No impossible lifecycle.
+
+---
+
+# 130. RETIRED REACTIVATION TEST
+
+Attempt to activate RETIRED v1:
+
+```text
+reject
+```
+
+---
+
+# 131. CHECKSUM MISMATCH TEST
+
+Persist ACTIVE row with wrong checksum in disposable fixture.
+
+Attempt active resolution.
+
+Expected:
+
+```text
+GAMIFICATION_DEFINITION_CHECKSUM_MISMATCH
+```
+
+No silent fallback.
+
+---
+
+# 132. UNKNOWN VERSION TEST
+
+Resolve:
+
+```text
+gamification-v999
+```
+
+Expected explicit error.
+
+---
+
+# 133. UNKNOWN METRIC TEST
+
+Definition references:
+
+```text
+metric.not_real
+```
+
+Validation rejects.
+
+---
+
+# 134. DUPLICATE ID TEST
+
+Two Achievement definitions same ID:
+
+reject.
+
+---
+
+# 135. BAD LEVEL ORDER TEST
+
+Test-only levels:
+
+```text
+level 2 threshold < level 1 threshold
+```
+
+reject.
+
+---
+
+# 136. BAD THRESHOLD TEST
+
+Achievement target:
+
+```text
+0
+-1
+NaN
+```
+
+reject.
+
+---
+
+# 137. POINT CATEGORY TEST
+
+Unknown category:
+
+```text
+SOCIAL
+```
+
+reject.
+
+Do not create a new Points category.
+
+---
+
+# 138. CHECKSUM DETERMINISM TEST
+
+Semantically same source bundle:
+
+```text
+same checksum
+```
+
+across repeated runs.
+
+---
+
+# 139. CHECKSUM CHANGE TEST
+
+Change threshold:
+
+```text
+checksum changes
+```
+
+---
+
+# 140. METRIC PROVIDER — POINTS TEST
+
+Create ledger/projection fixtures.
+
+Verify:
+
+```text
+points.total
+points.focus
+points.mastery
+points.progress
+points.consistency
+```
+
+match Prompt 21 canonical read semantics.
+
+---
+
+# 141. LEGACY POINTS METRIC TEST
+
+Fixture:
+
+```text
+legacyPoints = 100
+ledger FOCUS = 20
+ledger MASTERY = 10
+```
+
+Expected:
+
+```text
+points.total = compatible total according to configured safe read mode
+
+points.focus = 20
+points.mastery = 10
+```
+
+Do not spread legacy 100 into categories.
+
+---
+
+# 142. FOCUS SESSION METRIC TEST
+
+Fixture:
+
+```text
+2 COMPLETED
+1 ABANDONED
+```
+
+Expected:
+
+```text
+focus.completed_sessions = 2
+```
+
+---
+
+# 143. FOCUS VERIFIED SECONDS TEST
+
+Count completed canonical activeSeconds only.
+
+---
+
+# 144. GROUP FOCUS METRIC TEST
+
+Participant summaries:
+
+```text
+verified > 0 → counts completed run
+verified = 0 → no meaningful completed-run count
+```
+
+Verified seconds sum exactly.
+
+---
+
+# 145. CONSISTENCY METRIC TEST
+
+Create verified Focus evidence across Baghdad dates.
+
+Expected number of days with:
+
+```text
+>= 1500 seconds
+```
+
+---
+
+# 146. BAGHDAD MIDNIGHT TEST
+
+Verify:
+
+```text
+23:xx / 00:xx
+```
+
+logical day split matches Prompt 20.
+
+---
+
+# 147. METRIC READ SIDE EFFECT
+
+All metric provider reads:
+
+```text
+writes = 0
+```
+
+---
+
+# 148. THRESHOLD EVALUATION TEST
+
+Example:
+
+```text
+current = 40
+target = 100
+completed = false
+progressRatio = 0.4
+```
+
+Then:
+
+```text
+100 / 100 → completed true
+150 / 100 → completed true, ratio clamped 1
+```
+
+---
+
+# 149. DETERMINISM TEST
+
+Same:
+
+```text
+rule set
+metric values
+asOf
+```
+
+produces identical threshold evaluation.
+
+---
+
+# 150. HISTORICAL VERSION TEST
+
+After v2 active:
+
+```text
+getGamificationDefinitionBundle(v1)
+```
+
+still returns exact v1 bundle.
+
+---
+
+# 151. NO RETROACTIVE MUTATION TEST
+
+Activating v2 creates:
+
+```text
+0 user Gamification rows
+0 Points rows
+```
+
+---
+
+# 152. NO POINTS SIDE EFFECT TEST
+
+Draft registration/activation/metric read creates zero changes in:
+
+```text
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection accounting values
+PointsLog
+```
+
+Rule-set table lifecycle changes only where expected.
+
+---
+
+# 153. NO STUDY EVENT
+
+Expected:
+
+```text
+StudyEvent delta = 0
+```
+
+---
+
+# 154. NO INTEGRITY SIGNAL
+
+Normal Gamification lifecycle:
+
+```text
+IntegritySignal delta = 0
+```
+
+---
+
+# 155. NO CALENDAR
+
+Expected:
+
+```text
+CalendarEvent delta = 0
+```
+
+---
+
+# 156. NO D1 / OUTBOX
+
+Expected:
+
+```text
+PrivateD1SyncOutbox delta = 0
+new D1 migration = NO
+```
+
+---
+
+# 157. NO USER PROGRESS TABLE TEST
+
+Schema must not include new:
+
+```text
+UserAchievement
+AchievementProgress
+UserLevel
+ChallengeProgress
+Leaderboard
+```
+
+---
+
+# 158. PROMPT 21 REGRESSION
+
+Points projection/reconciliation/cutover remains unchanged.
+
+---
+
+# 159. PROMPT 20 REGRESSION
+
+Award rules and caps remain unchanged.
+
+---
+
+# 160. PROMPT 19 REGRESSION
+
+Ledger/reversal/legacy compatibility remains unchanged.
+
+---
+
+# 161. INTEGRITY REGRESSION
+
+Prompts 17–18 unchanged.
+
+---
+
+# 162. GROUP FOCUS REGRESSION
+
+Relevant Prompts 13–16.
+
+---
+
+# 163. SOLO FOCUS REGRESSION
+
+Relevant Prompts 9–12.
+
+---
+
+# 164. STUDY EVENT REGRESSION
+
+Prompt 8.
+
+---
+
+# 165. FOUNDATION REGRESSION
+
+Run:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 166. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 passed / 9 failed
+typecheck = same 2 Calendar Import errors
+lint = same 10 baseline errors
+```
+
+Do not modify Calendar.
+
+---
+
+# 167. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Gamification definition modules
+metric registry/providers
+rule-set service
+Prompt 22 tests
+```
+
+Expected PASS.
+
+---
+
+# 168. TARGETED LINT
+
+Expected PASS.
+
+No new full-repo errors.
+
+---
+
+# 169. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 170. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus fresh migration replay.
+
+---
+
+# 171. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 22 migration to production;
+* activate a production Gamification rule set;
+* create production user progress;
+* change production Points behavior;
+* modify Supabase production;
+* modify remote D1;
+* deploy Worker;
+* change production env.
+
+---
+
+# 172. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<gamification_rule_set>/
+
+server/features/gamification/
+  constants.ts
+  types.ts
+  definitions.ts
+  validation.ts
+  checksum.ts
+  ruleSetRepository.ts
+  ruleSetService.ts
+  metrics.ts
+  providers/
+  index.ts
+
+tests/gamification-definitions*.test.ts
+tests/gamification-ruleset-postgres*.test.ts
+tests/gamification-metrics*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 173. FILES EXPECTED UNCHANGED
+
+Unless required only for imports:
+
+```text
+Prompt 20 award rules
+Prompt 21 Points reconciliation
+Integrity behavior
+Solo Focus behavior
+Group Focus behavior
+Calendar
+OfflineEngine
+D1 Worker
+frontend UI
+```
+
+---
+
+# 174. ACCEPTANCE CRITERIA
+
+Prompt 22 succeeds only if:
+
+1. `GamificationRuleSet` exists.
+2. No user Gamification progress tables exist.
+3. Migration additive.
+4. No migration seed.
+5. DRAFT/ACTIVE/RETIRED lifecycle exists.
+6. At most one ACTIVE rule set.
+7. Active/retired semantics immutable.
+8. Definitions live in version-controlled source.
+9. Version lookup deterministic.
+10. Checksum deterministic.
+11. Checksum mismatch fails closed.
+12. Unknown version fails closed.
+13. Historical version remains resolvable.
+14. Stable definition IDs exist.
+15. Metric registry exists.
+16. Metrics have canonical source authority.
+17. Points categories reused exactly.
+18. Legacy Points are not falsely categorized.
+19. Achievement contract exists but no unlocks.
+20. Level contract exists but no user levels.
+21. Challenge contract exists but no progress.
+22. Leaderboard contract does not calculate ranks.
+23. Points metric providers work.
+24. Focus metrics work.
+25. Group Focus metrics work.
+26. Consistency metric uses Baghdad dates.
+27. Metric reads have zero writes.
+28. No new Points awards.
+29. No StudyEvent side effects.
+30. No Integrity side effects.
+31. No D1/outbox.
+32. No UI.
+33. Production unchanged.
+34. Build passes.
+35. New regressions = 0.
+
+---
+
+# 175. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 19–21, Integrity, Focus, Group Focus, Study Event, Foundation and Auth baselines.
+
+## B. Gamification Architecture
+
+Explain:
+
+```text
+canonical facts
+→ versioned Gamification definitions
+→ deterministic metric evaluation
+→ future Prompt 23+ progress
+```
+
+## C. Prisma Model
+
+Show final `GamificationRuleSet` fields, relation/index strategy and numeric/string types.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic rule-set seed:
+```
+
+## E. Rule-Set Lifecycle
+
+Report exact:
+
+```text
+DRAFT
+ACTIVE
+RETIRED
+```
+
+transition rules.
+
+## F. Active-Version Exclusivity
+
+Explain database/application locking strategy.
+
+## G. Versioning
+
+Report:
+
+```text
+initial rule version:
+definition schema version:
+version format:
+```
+
+## H. Definition Storage
+
+Explain what is stored in source vs PostgreSQL.
+
+## I. Checksum
+
+Report:
+
+```text
+algorithm:
+canonicalization:
+domain separation:
+encoding:
+```
+
+## J. Checksum Immutability
+
+Report behavior for changed semantics under same version.
+
+## K. Definition Bundle
+
+Show final top-level bundle contract.
+
+## L. Point Categories
+
+Explicitly:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+Confirm no duplicate enum/category system.
+
+## M. Metric Registry
+
+List every active Prompt 22 metric ID and source authority.
+
+## N. Metric Privacy
+
+Report privacy for each metric class.
+
+## O. Achievement Definition Contract
+
+Show exact contract.
+
+Explicitly:
+
+```text
+USER ACHIEVEMENT STATE IMPLEMENTED: NO
+```
+
+## P. Seed Achievement Definitions
+
+List the small v1 seed definitions only.
+
+Explicitly state they are definitions, not unlocks.
+
+## Q. Level Definition Contract
+
+Show exact contract.
+
+Explicitly:
+
+```text
+USER LEVEL CALCULATION IMPLEMENTED: NO
+```
+
+## R. Challenge Contract
+
+Show exact contract.
+
+Explicitly:
+
+```text
+USER CHALLENGE STATE IMPLEMENTED: NO
+```
+
+## S. Leaderboard Contract
+
+Report any future contract identifiers.
+
+Explicitly:
+
+```text
+RANK CALCULATION IMPLEMENTED: NO
+```
+
+## T. Rule-Set Registration
+
+Report first/replay/conflict/concurrent registration.
+
+## U. Activation
+
+Report:
+
+```text
+v1 activation:
+active replay:
+v2 activation:
+v1 retirement:
+retired reactivation:
+concurrent activation:
+```
+
+## V. Historical Resolution
+
+Confirm retired v1 remains available after v2 activation.
+
+## W. Checksum Failure Tests
+
+Report mismatch/unknown-version behavior.
+
+## X. Definition Validation
+
+Report tests for:
+
+* duplicate IDs;
+* unknown metric;
+* invalid threshold;
+* invalid category;
+* level monotonicity;
+* privacy mismatch.
+
+## Y. Points Metric Provider
+
+Report:
+
+```text
+points.total
+points.focus
+points.mastery
+points.progress
+points.consistency
+```
+
+behavior.
+
+## Z. Legacy Points Semantics
+
+Explicitly explain:
+
+```text
+legacy total contributes to compatible points.total as allowed by Prompt 21
+legacy history is NOT fabricated into category metrics
+```
+
+## AA. Focus Metric Providers
+
+Report completed sessions / verified seconds behavior.
+
+## AB. Group Focus Metric Providers
+
+Report completed runs / verified seconds behavior.
+
+## AC. Consistency Metric
+
+Report:
+
+```text
+threshold:
+timezone:
+lifetime qualifying-day semantics:
+```
+
+## AD. Metric Read Side Effects
+
+Report:
+
+```text
+DB writes from metric reads:
+Points writes:
+StudyEvent writes:
+```
+
+Expected zero.
+
+## AE. Threshold Evaluation
+
+Report deterministic current/target/completed/progress behavior.
+
+## AF. No Retroactive Mutation
+
+Explicitly:
+
+```text
+RULE ACTIVATION REWRITES USER PROGRESS: NO
+RULE ACTIVATION REWRITES POINTS: NO
+```
+
+## AG. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 22 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## AH. Real PostgreSQL Results
+
+Report:
+
+* DRAFT registration;
+* replay;
+* concurrency;
+* activation;
+* v2 activation;
+* exclusivity;
+* checksum mismatch.
+
+## AI. No User-State Models
+
+Explicitly list that these are NOT created:
+
+```text
+UserAchievement
+AchievementProgress
+UserLevel
+ChallengeProgress
+Leaderboard
+```
+
+## AJ. No Side Effects
+
+Report deltas:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero except rule-set lifecycle rows.
+
+## AK. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AL. Regression Results
+
+Include:
+
+* Prompt 19 Ledger;
+* Prompt 20 award engine;
+* Prompt 21 balance/reconciliation;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AM. Files Created
+
+Exact paths/purposes.
+
+## AN. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 20 reward amounts unchanged?
+Prompt 21 cutover semantics unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+frontend UI unchanged?
+```
+
+## AO. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 22 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION GAMIFICATION RULE SET ACTIVATED: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AP. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AQ. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AR. Risks / Blockers
+
+Only actual unresolved definition/versioning issues.
+
+Do not treat deferred user progress as a blocker.
+
+## AS. Architecture Compliance
+
+Answer YES/NO:
+
+* Definitions deterministic?
+* Definitions versioned?
+* Active rules immutable?
+* Retired rules resolvable?
+* Checksum protected?
+* At most one ACTIVE rule set?
+* Canonical Points categories reused?
+* Legacy Points not falsely categorized?
+* Metric registry canonical?
+* Metric reads side-effect free?
+* Achievement contract only?
+* No Achievement progress yet?
+* Level contract only?
+* No user level yet?
+* Challenge contract only?
+* No Challenge progress?
+* No leaderboard rank?
+* No new Points awards?
+* No StudyEvent side effects?
+* No Integrity side effects?
+* No D1?
+* No UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AT. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 23 — Achievements: Deterministic Progress, Versioned Unlocks & Canonical User Achievement State**
+
+Do not implement Prompt 23.
+
+---
+
+# 176. STOP CONDITION
+
+After implementation, testing and mandatory report:
+
+STOP.
+
+Do NOT implement user Achievement progress.
+
+Do NOT implement user Levels.
+
+Do NOT implement Challenges.
+
+Do NOT implement Leaderboards.
+
+Do NOT change Points rules.
+
+Do NOT build Gamification UI.
+
+Do NOT deploy Prompt 22 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 22 COMPLETE — VERSIONED GAMIFICATION DEFINITIONS & PROGRESS CONTRACTS READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
