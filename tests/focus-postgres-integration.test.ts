@@ -457,12 +457,46 @@ test("real PostgreSQL rejects paused completion without side effects, then resum
 
     const beforeRejectedCompletion = await counts(fixture.userId);
     const projectionsBeforeRejectedCompletion = await outboxRows(fixture.userId);
-    await assert.rejects(
-      focus.completeSession(fixture.userId, started.session.id, {
-        idempotencyKey: "prompt9r-paused-completion-operation-key",
-      }),
-      { code: "INVALID_SESSION_STATE" },
-    );
+    const auth: RequestHandler = (req, res, next) => {
+      const id = req.header("x-test-user");
+      if (id !== fixture.userId) return res.status(401).json({ error: "Authentication required." });
+      (req as express.Request & { user: { id: string } }).user = { id };
+      return next();
+    };
+    const app = express();
+    app.use(express.json());
+    app.use("/api/focus", (await import("../server/routes/focus.js")).createFocusRouter({
+      requireUser: auth,
+      service: focus,
+    }));
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const address = server.address() as AddressInfo;
+    let completionStatus: number;
+    let completionBody: { code?: string };
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/focus/sessions/${started.session.id}/complete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-test-user": fixture.userId,
+          },
+          body: JSON.stringify({
+            idempotencyKey: "prompt9r-paused-completion-operation-key",
+          }),
+        },
+      );
+      completionStatus = response.status;
+      completionBody = await response.json() as { code?: string };
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => error ? reject(error) : resolve()),
+      );
+    }
+    assert.equal(completionStatus, 409);
+    assert.equal(completionBody.code, "INVALID_SESSION_STATE");
 
     assert.equal((await client().focusSession.findUnique({
       where: { id: started.session.id },
