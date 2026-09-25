@@ -1,0 +1,3075 @@
+# 99’s GUIDE — PROMPT 23 OF 52
+
+## ACHIEVEMENTS
+
+## DETERMINISTIC PROGRESS + VERSIONED EVALUATION + PERMANENT UNLOCK HISTORY
+
+### CANONICAL POSTGRESQL STATE — NO POINT REWARD — NO LEVELS — NO UI
+
+Prompts 1–22 have been completed.
+
+Prompt 22 established:
+
+```text
+GamificationRuleSet
+versioned immutable definition bundles
+metric registry
+AchievementDefinition contract
+deterministic threshold evaluation
+historical rule-version resolution
+```
+
+Prompt 23 now implements canonical per-user Achievement progress and unlock state.
+
+Frozen roadmap:
+
+```text
+Prompt 23 — Achievements / progress
+Prompt 24 — Levels / public profile-safe gamification
+Prompt 25 — Challenges
+Prompt 26 — Leaderboard seasons / snapshots
+Prompt 27 — Leaderboard D1 / cache
+```
+
+Do NOT implement Prompt 24+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. canonical user Achievement progress;
+2. deterministic evaluation from Prompt 22 metrics;
+3. permanent Achievement unlock history;
+4. rule-set-version-aware progress;
+5. safe rule-version transitions;
+6. idempotent/concurrent unlocks;
+7. incremental refresh after relevant canonical activity;
+8. full deterministic recomputation/repair;
+9. authenticated own-Achievement read APIs;
+10. strict privacy.
+
+No Achievement Points rewards.
+
+No Levels.
+
+No Challenges.
+
+No Leaderboards.
+
+No UI.
+
+---
+
+# 2. CORE PRINCIPLE
+
+Achievement state must be derived from:
+
+```text
+canonical source data
+→ Prompt 22 metric provider
+→ immutable AchievementDefinition
+→ deterministic threshold evaluation
+→ canonical Achievement progress/unlock state
+```
+
+Never:
+
+```text
+client says achievement completed
+→ unlock
+```
+
+---
+
+# 3. ACHIEVEMENTS ARE COSMETIC PROGRESS
+
+Achievements must NOT become:
+
+* evidence that study happened;
+* Study Points authority;
+* Mastery authority;
+* academic grading;
+* moderation evidence.
+
+They are a deterministic representation of canonical underlying activity.
+
+---
+
+# 4. NO POINTS REWARD
+
+Mandatory:
+
+```text
+ACHIEVEMENT UNLOCK AWARDS STUDY POINTS: NO
+```
+
+Do not write:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+```
+
+from an Achievement unlock.
+
+Avoid:
+
+```text
+Points → Achievement → Points
+```
+
+reward loops.
+
+---
+
+# 5. NO LEVELS
+
+Do not calculate:
+
+```text
+user level
+level title
+level progress
+```
+
+Prompt 24 owns Levels.
+
+---
+
+# 6. NO PUBLIC PROFILE EXPOSURE
+
+Prompt 22 definitions may contain:
+
+```text
+PROFILE_SAFE
+```
+
+metadata.
+
+Prompt 23 must NOT publish Achievement unlocks on profiles yet.
+
+Prompt 24 owns public profile-safe exposure.
+
+All user Achievement state remains private in Prompt 23.
+
+---
+
+# 7. NO CHALLENGES
+
+No Challenge progress.
+
+---
+
+# 8. NO LEADERBOARD
+
+No ranks or seasons.
+
+---
+
+# 9. REQUIRED CANONICAL MODELS
+
+Add exactly the durable user-state models required for:
+
+```text
+UserAchievementProgress
+UserAchievement
+```
+
+Use repository naming conventions if equivalent names already exist.
+
+Do not add Level/Challenge/Leaderboard models.
+
+---
+
+# 10. `UserAchievementProgress`
+
+Purpose:
+
+Track deterministic current progress against a specific Achievement definition under a specific Gamification rule set.
+
+Support at least:
+
+```text
+id
+
+userId
+
+achievementId
+ruleSetVersion
+
+metricId
+
+currentValue
+targetValue
+
+completed
+
+lastEvaluatedAt
+
+createdAt
+updatedAt
+```
+
+Use exact type strategy appropriate to metric values.
+
+---
+
+# 11. `UserAchievement`
+
+Purpose:
+
+Store permanent canonical unlock history.
+
+Support at least:
+
+```text
+id
+
+userId
+
+achievementId
+
+unlockedUnderRuleSetVersion
+metricId
+
+metricValueAtUnlock
+targetValueAtUnlock
+
+unlockedAt
+
+createdAt
+```
+
+Optional:
+
+```text
+definitionChecksumAtUnlock
+```
+
+if useful for auditability.
+
+---
+
+# 12. UNLOCK UNIQUENESS
+
+One stable Achievement ID may be unlocked at most once per user.
+
+Prefer:
+
+```text
+(userId, achievementId) UNIQUE
+```
+
+This means:
+
+```text
+focus.first_verified_session
+```
+
+cannot unlock again merely because `gamification-v2` becomes active.
+
+---
+
+# 13. HISTORICAL UNLOCK PRINCIPLE
+
+Once legitimately unlocked:
+
+```text
+Achievement remains unlocked permanently
+```
+
+even if later rule versions:
+
+* raise threshold;
+* remove the definition;
+* change wording;
+* retire the old rule set.
+
+Mandatory:
+
+```text
+RULE VERSION CHANGE REMOVES PREVIOUS UNLOCK: NO
+```
+
+---
+
+# 14. PROGRESS VERSIONING
+
+Progress that has NOT yet unlocked is evaluated under the current ACTIVE Gamification rule-set version.
+
+Store:
+
+```text
+ruleSetVersion
+```
+
+with progress.
+
+Do not silently reinterpret a progress row created under v1 as v2.
+
+---
+
+# 15. RULE-SET CHANGE — UNLOCKED ACHIEVEMENT
+
+If user already has canonical:
+
+```text
+UserAchievement(userId, achievementId)
+```
+
+under v1:
+
+when v2 activates:
+
+* keep unlock;
+* no new duplicate progress row is required for that same achievement;
+* do not “re-lock”;
+* do not create a second unlock.
+
+---
+
+# 16. RULE-SET CHANGE — NOT YET UNLOCKED
+
+If user had v1 progress but did not unlock:
+
+when v2 becomes active:
+
+evaluate using:
+
+```text
+v2 definition
++
+current canonical metric value
+```
+
+Create/update v2 progress.
+
+Do not carry v1 ratio blindly.
+
+Canonical metric source is recomputed.
+
+---
+
+# 17. OLD PROGRESS HISTORY
+
+Do not destructively mutate historical v1 progress to pretend it was v2.
+
+Preferred:
+
+```text
+UserAchievementProgress
+unique per user + achievementId + ruleSetVersion
+```
+
+Historical progress rows may remain for audit.
+
+---
+
+# 18. PROGRESS UNIQUENESS
+
+Use:
+
+```text
+(userId, achievementId, ruleSetVersion) UNIQUE
+```
+
+One deterministic progress state per definition/version/user.
+
+---
+
+# 19. PROGRESS VALUE TYPE
+
+Prompt 22 metrics currently use deterministic numeric/boolean values.
+
+For Achievement definitions in Prompt 23, support integer-like numeric thresholds first.
+
+If boolean Achievement definitions exist:
+
+represent progress safely without arbitrary floating conversion.
+
+Do not use lossy floats for canonical integer metrics.
+
+---
+
+# 20. PREFERRED NUMERIC STORAGE
+
+Inspect metric ranges.
+
+Use a safe type capable of lifetime totals.
+
+If Prisma/PostgreSQL `BigInt` is appropriate, use it.
+
+Do not risk JS overflow for long-term lifetime seconds/points.
+
+---
+
+# 21. TARGET VALUE
+
+Persist:
+
+```text
+targetValue
+```
+
+from the exact definition version used for evaluation.
+
+This protects historical auditability.
+
+---
+
+# 22. CURRENT VALUE
+
+Persist the canonical metric value at:
+
+```text
+lastEvaluatedAt
+```
+
+It is a derived cache/read model.
+
+The canonical underlying metric source remains authoritative.
+
+---
+
+# 23. PROGRESS IS REBUILDABLE
+
+`UserAchievementProgress` is derived state.
+
+If corrupted/deleted:
+
+it must be reconstructable from:
+
+```text
+Prompt 22 definition
++
+canonical metric provider
+```
+
+---
+
+# 24. UNLOCK HISTORY IS CANONICAL
+
+`UserAchievement` is durable historical state.
+
+It is NOT merely a disposable cache.
+
+Once created correctly, preserve it.
+
+---
+
+# 25. PROGRESS COMPLETION
+
+For numeric threshold:
+
+```text
+completed = currentValue >= targetValue
+```
+
+No fuzzy completion.
+
+No AI.
+
+---
+
+# 26. UNLOCK TRANSACTION
+
+When progress crosses target:
+
+one PostgreSQL transaction must:
+
+1. lock/serialize user+achievement;
+2. resolve active Gamification rule set;
+3. resolve exact Achievement definition;
+4. read canonical metric;
+5. upsert progress;
+6. create `UserAchievement` if absent;
+7. mark progress completed;
+8. commit.
+
+No partial:
+
+```text
+progress says complete
+but no unlock row
+```
+
+---
+
+# 27. CONCURRENT UNLOCK
+
+20 simultaneous evaluations of the same newly qualifying Achievement:
+
+Expected:
+
+```text
+UserAchievement rows = 1
+UserAchievementProgress rows for active version = 1
+```
+
+No unique-constraint 500 leakage.
+
+---
+
+# 28. IDEMPOTENT REFRESH
+
+Refreshing an already unlocked Achievement:
+
+```text
+does not create a second unlock
+```
+
+May update the current-version progress cache only if appropriate.
+
+---
+
+# 29. NO UNLOCK FROM CLIENT VALUE
+
+Client must not submit:
+
+```text
+currentValue
+targetValue
+completed
+ruleSetVersion
+metricValueAtUnlock
+```
+
+Achievement evaluator derives all of them.
+
+---
+
+# 30. NO PUBLIC ACHIEVEMENT WRITE ROUTE
+
+Forbidden:
+
+```text
+POST /api/achievements/unlock
+POST /api/achievements/progress
+```
+
+Student clients cannot mutate Achievement state.
+
+---
+
+# 31. EVALUATION SERVICE
+
+Create modular service under:
+
+```text
+server/features/gamification/
+```
+
+Likely:
+
+```text
+achievementTypes.ts
+achievementRepository.ts
+achievementEvaluator.ts
+achievementRefresh.ts
+achievementRead.ts
+achievementRepair.ts
+```
+
+Adapt to existing Prompt 22 structure.
+
+---
+
+# 32. MAIN INTERNAL EVALUATOR
+
+Conceptually:
+
+```ts
+evaluateAchievementForUser({
+  userId,
+  achievementId,
+  asOf,
+  tx?
+})
+```
+
+It resolves:
+
+```text
+active rule set
+definition
+metric provider
+canonical metric value
+```
+
+---
+
+# 33. REFRESH USER ACHIEVEMENTS
+
+Create:
+
+```ts
+refreshUserAchievements({
+  userId,
+  metricIds?,
+  asOf,
+  tx?
+})
+```
+
+It should evaluate only definitions affected by changed metrics where possible.
+
+Do not evaluate every definition after every minor action if unnecessary.
+
+---
+
+# 34. METRIC → ACHIEVEMENT INDEX
+
+Build an in-memory deterministic index from Prompt 22 definitions:
+
+```text
+metricId
+→ achievement definitions
+```
+
+This allows targeted refresh.
+
+No DB table needed.
+
+---
+
+# 35. RELEVANT METRICS
+
+Prompt 22 v1 seed examples:
+
+```text
+focus.completed_sessions
+points.total
+consistency.qualifying_days
+group_focus.completed_runs
+```
+
+Prompt 23 must support those exact actual definitions implemented in Prompt 22.
+
+Do not invent new production definitions here.
+
+---
+
+# 36. REFRESH TRIGGERS
+
+Integrate minimally after canonical changes that can affect active v1 metrics.
+
+Potential triggers:
+
+```text
+FocusSession completion
+Group Focus canonical summary completion
+Study Points ledger append/projection update
+Consistency-changing canonical Focus evidence
+```
+
+Do not trigger from frontend.
+
+---
+
+# 37. SINGLE ACCOUNTING TRIGGER
+
+For Points metrics:
+
+```text
+points.total
+points.focus
+points.mastery
+points.progress
+points.consistency
+```
+
+hook Achievement refresh through the central Points accounting service rather than every award source individually.
+
+Avoid duplicate refresh calls.
+
+---
+
+# 38. FOCUS METRIC TRIGGER
+
+When a canonical FocusSession becomes COMPLETED:
+
+refresh definitions depending on:
+
+```text
+focus.completed_sessions
+focus.verified_seconds
+consistency.qualifying_days
+```
+
+as applicable.
+
+---
+
+# 39. GROUP FOCUS TRIGGER
+
+After Prompt 16 summary transaction succeeds:
+
+refresh affected participant Achievements depending on:
+
+```text
+group_focus.completed_runs
+group_focus.verified_seconds
+consistency.qualifying_days
+```
+
+---
+
+# 40. NO REFRESH FROM ROOM JOIN
+
+Group Room membership:
+
+```text
+0 Achievement progress
+```
+
+unless a Prompt 22 definition explicitly uses such metric, which v1 should not.
+
+---
+
+# 41. NO REFRESH FROM PDF OPEN
+
+PDF open:
+
+```text
+does not unlock Achievement
+```
+
+unless future definitions intentionally add such a metric.
+
+Prompt 23 v1 should not.
+
+---
+
+# 42. NO REFRESH FROM PROFILE ACTIONS
+
+Avatar/signature/profile edits:
+
+```text
+no Achievement progress
+```
+
+---
+
+# 43. TRANSACTIONAL VS POST-COMMIT REFRESH
+
+Where Achievement progress is directly derived from the canonical source being committed:
+
+prefer same transaction if coupling remains safe.
+
+However:
+
+Achievement persistence must NOT jeopardize canonical academic/study data due to a cosmetic subsystem bug unless required for consistency.
+
+Preferred policy:
+
+```text
+canonical source write succeeds
+Achievement refresh may run transactionally only when safe
+otherwise use explicit post-commit best-effort refresh + deterministic repairability
+```
+
+Because Achievement progress is rebuildable.
+
+---
+
+# 44. UNLOCK DURABILITY POLICY
+
+Once an unlock is successfully written, it is canonical.
+
+If Achievement refresh temporarily fails after canonical source commit:
+
+do NOT roll back:
+
+```text
+Focus completion
+Points award
+Group Focus summary
+```
+
+solely because cosmetic progress could not refresh.
+
+Prompt 23 must provide deterministic repair/recompute.
+
+---
+
+# 45. NO QUEUE DEPENDENCY
+
+Do not require Cloudflare Queue for correctness.
+
+A future async optimization may exist.
+
+Prompt 23 can use:
+
+```text
+best-effort post-commit refresh
++
+on-read refresh
++
+admin repair
+```
+
+for eventual convergence.
+
+---
+
+# 46. ON-READ REFRESH
+
+Authenticated own-Achievement endpoint may perform a bounded refresh before returning data.
+
+But do NOT create unbounded work.
+
+Evaluate only active definitions.
+
+V1 seed set is small.
+
+---
+
+# 47. READ MUST NOT UNLOCK FROM CLIENT DATA
+
+On-read refresh still reads canonical backend metrics.
+
+No client values.
+
+---
+
+# 48. OWN ACHIEVEMENT READ API
+
+Implement:
+
+```text
+GET /api/me/achievements
+```
+
+authenticated.
+
+Return only the current user's Achievement information.
+
+---
+
+# 49. READ RESPONSE
+
+Purpose-built DTO conceptually:
+
+```json
+{
+  "ruleSetVersion": "gamification-v1",
+  "achievements": [
+    {
+      "id": "focus.first_verified_session",
+      "metricId": "focus.completed_sessions",
+      "current": 1,
+      "target": 1,
+      "completed": true,
+      "unlocked": true,
+      "unlockedAt": "...",
+      "titleKey": "...",
+      "descriptionKey": "...",
+      "visibility": "PRIVATE"
+    }
+  ]
+}
+```
+
+Do not include internal DB IDs unless needed.
+
+---
+
+# 50. PRIVATE BY DEFAULT
+
+Achievement own-read is private.
+
+No:
+
+```text
+GET /api/users/:id/achievements
+```
+
+public endpoint yet.
+
+Prompt 24 decides profile-safe exposure.
+
+---
+
+# 51. UNLOCKED HISTORICAL DEFINITION
+
+If an Achievement unlocked under retired v1 but no longer exists in active v2:
+
+own-read should still be able to represent the historical unlock safely.
+
+Resolve:
+
+```text
+unlockedUnderRuleSetVersion
+```
+
+definition.
+
+Do not silently hide historical earned state.
+
+---
+
+# 52. CURRENT ACTIVE PROGRESS
+
+For not-yet-unlocked achievements:
+
+show only active rule-set definitions.
+
+Do not clutter user read with retired unfinished progress by default.
+
+Historical unfinished progress may remain internal.
+
+---
+
+# 53. ALREADY UNLOCKED IN ACTIVE LIST
+
+If same stable ID exists in active v2 and user unlocked in v1:
+
+show:
+
+```text
+unlocked = true
+unlockedAt = historical timestamp
+```
+
+Do not require meeting v2 threshold again.
+
+---
+
+# 54. DEFINITION REMOVED IN NEW VERSION
+
+Historical unlocked Achievement may appear in a separate:
+
+```text
+historicalUnlocked
+```
+
+or merged safe read representation.
+
+Choose a clean deterministic DTO.
+
+Do not lose it.
+
+---
+
+# 55. PROGRESS RATIO
+
+Read DTO may include:
+
+```text
+progressRatio
+```
+
+derived:
+
+```text
+current / target
+```
+
+clamped 0–1.
+
+Not canonical completion authority.
+
+---
+
+# 56. LOCALIZATION
+
+Return:
+
+```text
+titleKey
+descriptionKey
+```
+
+rather than hard-coded presentation text where Prompt 22 uses keys.
+
+No UI translation implementation needed.
+
+---
+
+# 57. SORT ORDER
+
+Use Prompt 22:
+
+```text
+sortOrder
+```
+
+for deterministic Achievement ordering.
+
+---
+
+# 58. ACHIEVEMENT VISIBILITY
+
+Return definition visibility internally.
+
+Do not expose profile-public state yet.
+
+---
+
+# 59. NO USER HIDE/PIN SETTINGS
+
+Do not implement:
+
+```text
+pin achievement
+hide achievement
+favorite achievement
+```
+
+Prompt 24 may later add profile customization if desired.
+
+---
+
+# 60. NO CLAIM BUTTON
+
+Achievement unlock is automatic when canonical threshold is met.
+
+Do not create:
+
+```text
+Claim reward
+```
+
+button/state.
+
+No reward exists.
+
+---
+
+# 61. NO UNLOCK NOTIFICATION
+
+Do not add push/local notification yet.
+
+UI prompt later can decide celebratory behavior.
+
+---
+
+# 62. NO DUPLICATE UNLOCK EVENT
+
+Do not create repeated unlock side effects during read refresh.
+
+---
+
+# 63. STUDY EVENT
+
+Achievement unlock should NOT create a StudyEvent in Prompt 23.
+
+Reason:
+
+Achievement is derived from existing canonical evidence.
+
+Avoid recursive analytics.
+
+Mandatory:
+
+```text
+StudyEvent delta = 0
+```
+
+---
+
+# 64. POINTS
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry delta = 0
+PointsLog delta = 0
+```
+
+for unlock/progress.
+
+---
+
+# 65. DAILY METRICS
+
+Do not mutate `StudyDailyMetric`.
+
+---
+
+# 66. INTEGRITY
+
+Achievement unlock/progress creates:
+
+```text
+IntegritySignal delta = 0
+```
+
+Normal progress is not integrity evidence.
+
+---
+
+# 67. CALENDAR
+
+No Calendar integration.
+
+---
+
+# 68. D1
+
+Do not mirror Achievement progress/unlocks to D1 yet.
+
+Prompt 27 concerns leaderboard D1/cache only.
+
+---
+
+# 69. OUTBOX
+
+No `PrivateD1SyncOutbox` writes for Achievement state unless a frozen projection plan explicitly exists.
+
+Expected:
+
+```text
+0
+```
+
+---
+
+# 70. REQUIRED MIGRATION
+
+Add one additive PostgreSQL migration for:
+
+```text
+UserAchievementProgress
+UserAchievement
+```
+
+No other Gamification user-state models.
+
+---
+
+# 71. MIGRATION SAFETY
+
+Explicit:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+GamificationRuleSet destructive change: NO
+StudyPointsLedgerEntry destructive change: NO
+```
+
+---
+
+# 72. NO MIGRATION BACKFILL
+
+Migration must NOT evaluate all users or unlock anything.
+
+Rows after migration:
+
+```text
+0
+```
+
+until explicit evaluation.
+
+Prompt 49 owns large backfills.
+
+---
+
+# 73. PROGRESS MODEL INDEXES
+
+Evaluate:
+
+```text
+(userId, ruleSetVersion)
+(userId, achievementId, ruleSetVersion) UNIQUE
+(metricId, completed)
+```
+
+Do not over-index.
+
+---
+
+# 74. UNLOCK MODEL INDEXES
+
+At minimum:
+
+```text
+(userId, achievementId) UNIQUE
+(userId, unlockedAt)
+(achievementId, unlockedAt)
+```
+
+Do not create leaderboard-oriented indexes yet.
+
+---
+
+# 75. FOREIGN KEYS
+
+Use canonical `User`.
+
+Do not FK definition IDs to a DB Achievement table because Prompt 22 definitions live in source.
+
+Validate definition IDs at service layer.
+
+---
+
+# 76. RULE-SET VERSION VALIDATION
+
+Before writing progress/unlock:
+
+ensure referenced:
+
+```text
+GamificationRuleSet
+```
+
+exists and source bundle checksum is valid.
+
+---
+
+# 77. ACTIVE DEFINITION VALIDATION
+
+A new unlock must be based on:
+
+```text
+ACTIVE
+```
+
+rule set unless explicitly repairing historical state with a known historical version.
+
+Normal client-triggered/on-read evaluation always uses active.
+
+---
+
+# 78. UNLOCK TIMESTAMP
+
+Use authoritative server/database time.
+
+Do not use client clock.
+
+---
+
+# 79. METRIC VALUE AT UNLOCK
+
+Persist the exact canonical metric value used.
+
+Example:
+
+```text
+current = 12
+target = 10
+```
+
+store:
+
+```text
+metricValueAtUnlock = 12
+targetValueAtUnlock = 10
+```
+
+Do not force unlock value to equal threshold.
+
+---
+
+# 80. DEFINITION CHECKSUM AT UNLOCK
+
+If added:
+
+persist Prompt 22 exact definition bundle checksum or definition-specific hash.
+
+This improves auditability.
+
+Do not invent mutable snapshot data.
+
+---
+
+# 81. RECOMPUTE SERVICE
+
+Implement internal:
+
+```ts
+recomputeUserAchievementProgress({
+  userId,
+  achievementId?,
+  ruleSetVersion?,
+  asOf
+})
+```
+
+Uses canonical metrics.
+
+---
+
+# 82. RECOMPUTE DOES NOT REVOKE
+
+If canonical metric has decreased due to valid Points reversal or data correction:
+
+progress may decrease for an unlocked Achievement's current metric display if needed.
+
+But:
+
+```text
+UserAchievement unlock remains
+```
+
+No revoke.
+
+---
+
+# 83. UNLOCK PERMANENCE TEST
+
+User unlocks at metric 100.
+
+Later canonical metric becomes 80 due to legitimate reversal.
+
+Expected:
+
+```text
+unlocked = true
+```
+
+Historical unlock preserved.
+
+---
+
+# 84. NOT-YET-UNLOCKED PROGRESS MAY DECREASE
+
+For a user not yet unlocked:
+
+if canonical metric decreases:
+
+progress cache should reflect current canonical metric after recompute.
+
+Do not assume all metrics monotonically increase.
+
+---
+
+# 85. BOOLEAN / NONMONOTONIC FUTURE METRICS
+
+Prompt 23 should keep evaluator generic enough for future boolean metrics.
+
+But active seed achievements may remain numeric.
+
+---
+
+# 86. REPAIR SERVICE
+
+Create:
+
+```ts
+reconcileUserAchievements({
+  userId,
+  repairProgress?: boolean
+})
+```
+
+It compares:
+
+```text
+canonical metrics/definitions
+vs
+UserAchievementProgress
+```
+
+---
+
+# 87. REPAIR PROGRESS ONLY
+
+Repair may:
+
+* create missing progress;
+* correct stale currentValue;
+* correct targetValue for that stored rule version;
+* correct completed flag;
+* create missing unlock if deterministic historical/current evidence proves threshold was met under active evaluation.
+
+Be conservative with historical missing unlock reconstruction.
+
+---
+
+# 88. NO UNLOCK DELETION
+
+Repair must NEVER delete:
+
+```text
+UserAchievement
+```
+
+because a later metric no longer qualifies.
+
+---
+
+# 89. INVALID UNLOCK DETECTION
+
+If a test-only corrupted unlock references unknown:
+
+```text
+achievementId
+ruleSetVersion
+```
+
+reconciliation reports anomaly.
+
+Do not silently delete.
+
+---
+
+# 90. RECONCILIATION STATUS
+
+Use neutral results such as:
+
+```text
+IN_SYNC
+PROGRESS_MISSING
+PROGRESS_STALE
+UNLOCK_MISSING
+HISTORICAL_DEFINITION_MISSING
+INVALID_UNLOCK_REFERENCE
+```
+
+---
+
+# 91. ADMIN REPAIR ROUTE
+
+Optional owner/admin operational endpoint:
+
+```text
+GET /api/admin/gamification/users/:userId/achievements/reconciliation
+POST /api/admin/gamification/users/:userId/achievements/reconciliation/repair
+```
+
+Backend only.
+
+No UI.
+
+---
+
+# 92. STUDENT CANNOT REPAIR
+
+Normal user:
+
+```text
+403
+```
+
+for admin reconciliation.
+
+---
+
+# 93. OWN READ ONLY
+
+Student may:
+
+```text
+GET /api/me/achievements
+```
+
+No mutations.
+
+---
+
+# 94. ON-READ REPAIR LIMIT
+
+Own read may refresh active progress but should not perform broad historical repair.
+
+Keep bounded.
+
+---
+
+# 95. NO N+1 METRIC QUERY EXPLOSION
+
+Group Achievement definitions by:
+
+```text
+metricId
+```
+
+Evaluate each distinct metric once per user refresh.
+
+Example:
+
+5 achievements using `points.total`:
+
+```text
+1 metric-provider call
+```
+
+not 5.
+
+---
+
+# 96. METRIC SNAPSHOT
+
+Within one refresh:
+
+all definitions using same metric should see the same:
+
+```text
+asOf
+```
+
+and canonical metric snapshot.
+
+---
+
+# 97. TRANSACTION CONSISTENCY
+
+Where possible, evaluate metric providers under a consistent transaction/snapshot if they read multiple canonical tables.
+
+Do not overengineer serializable transactions for cosmetic reads.
+
+Document consistency.
+
+---
+
+# 98. RULE SET SWITCH DURING REFRESH
+
+Protect against:
+
+```text
+read active v1
+→ activation changes to v2 mid-refresh
+→ write mixed v1/v2 progress
+```
+
+Use transaction/lifecycle lock or capture one verified rule-set version for the refresh.
+
+All writes in one refresh use one rule version.
+
+---
+
+# 99. ACTIVE CHECKSUM
+
+Verify Prompt 22 active definition checksum before evaluation.
+
+Checksum mismatch:
+
+```text
+fail closed
+```
+
+No Achievement mutations.
+
+---
+
+# 100. NO FALLBACK TO LATEST CODE
+
+If active DB version cannot resolve:
+
+do not silently use newest code bundle.
+
+---
+
+# 101. SMALL V1 DEFINITION SET
+
+Prompt 22 intentionally seeded a small set.
+
+Prompt 23 should evaluate the exact actual v1 definitions.
+
+Do NOT silently expand to 30+ achievements here.
+
+---
+
+# 102. EXPECTED V1 ACHIEVEMENTS
+
+Use the actual Prompt 22 definitions.
+
+Expected examples:
+
+```text
+focus.first_verified_session
+points.first_100
+consistency.first_qualifying_day
+group_focus.first_verified_run
+```
+
+If exact IDs differ, use repository source.
+
+---
+
+# 103. `focus.first_verified_session`
+
+Expected source:
+
+```text
+focus.completed_sessions
+```
+
+Target likely:
+
+```text
+1
+```
+
+Use actual Prompt 22 definition.
+
+---
+
+# 104. `points.first_100`
+
+Source:
+
+```text
+points.total
+```
+
+Use Prompt 21 compatible Points read semantics.
+
+Do not require LEDGER_ONLY.
+
+---
+
+# 105. `consistency.first_qualifying_day`
+
+Source:
+
+```text
+consistency.qualifying_days
+```
+
+uses Baghdad definition from Prompt 22.
+
+---
+
+# 106. `group_focus.first_verified_run`
+
+Source:
+
+```text
+group_focus.completed_runs
+```
+
+Membership alone does not qualify.
+
+---
+
+# 107. LEGACY POINTS AND ACHIEVEMENTS
+
+If `points.total` includes legacy compatible total:
+
+a user may legitimately meet:
+
+```text
+points.first_100
+```
+
+from historical Points.
+
+That is acceptable if Prompt 22 defined `points.total` this way.
+
+Do not fabricate category achievements from legacy totals.
+
+---
+
+# 108. CATEGORY ACHIEVEMENTS
+
+If Prompt 22 has no category seed Achievement:
+
+do not add one.
+
+Future definition version can.
+
+---
+
+# 109. NO MANUAL COMPLETE ACHIEVEMENT
+
+Manual Lecture Complete button alone should not gain an Achievement unless Prompt 22 definition explicitly says so.
+
+Current v1 should not.
+
+---
+
+# 110. NO PDF-OPEN ACHIEVEMENT
+
+Do not award Achievement simply for opening PDFs.
+
+---
+
+# 111. NO APP-OPEN ACHIEVEMENT
+
+Do not incentivize meaningless app opens.
+
+---
+
+# 112. NO ONLINE-PRESENCE ACHIEVEMENT
+
+No Achievement for merely being online.
+
+---
+
+# 113. NO Q&A SPAM ACHIEVEMENT
+
+Do not add post-count achievements in Prompt 23.
+
+---
+
+# 114. NO HOSTING BONUS ACHIEVEMENT
+
+Do not add Group Focus Host count Achievement unless future definition explicitly chooses it.
+
+---
+
+# 115. READ API DOES NOT CREATE POINTS
+
+Mandatory test.
+
+---
+
+# 116. READ API DOES NOT CREATE STUDY EVENTS
+
+Mandatory test.
+
+---
+
+# 117. READ API MAY CREATE/UPDATE DERIVED PROGRESS
+
+Because bounded on-read refresh is allowed:
+
+```text
+UserAchievementProgress
+UserAchievement
+```
+
+may change when canonical conditions already qualify.
+
+This is acceptable.
+
+Document explicitly.
+
+---
+
+# 118. UNLOCK ON READ
+
+If user already met threshold canonically but refresh hook previously failed:
+
+```text
+GET /api/me/achievements
+```
+
+may repair/unlock deterministically.
+
+This ensures eventual convergence.
+
+No Points reward.
+
+---
+
+# 119. UNLOCK SOURCE
+
+Store no claim that the GET itself earned the Achievement.
+
+`unlockedAt` is server time when canonical unlock was materialized.
+
+Metric source remains canonical.
+
+---
+
+# 120. NO RETROACTIVE EXACT EARNED TIME CLAIM
+
+If delayed refresh discovers a user already qualified earlier but exact crossing time cannot be reconstructed:
+
+do NOT claim an exact historical crossing time.
+
+Use:
+
+```text
+materialized unlock server time
+```
+
+and optionally metadata indicating delayed materialization if needed.
+
+Do not invent precision.
+
+---
+
+# 121. FUTURE EXACT CROSSING
+
+Later event-driven hooks may materialize unlock immediately, making `unlockedAt` close to canonical crossing.
+
+Prompt 23 does not need forensic historical reconstruction.
+
+---
+
+# 122. PROGRESS SAFE METADATA
+
+No arbitrary JSON required unless clearly useful.
+
+Prefer explicit columns.
+
+---
+
+# 123. NO USER-CONTROLLED RULE VERSION
+
+Own-read route does not accept:
+
+```text
+?ruleSetVersion=
+```
+
+to mutate progress.
+
+Historical read may resolve unlock definitions internally.
+
+---
+
+# 124. PAGINATION
+
+V1 definitions are small.
+
+Own Achievement list may return the bounded active definition set without pagination.
+
+If historical unlock count can grow large long-term, use a safe hard bound or pagination for historical section.
+
+Do not overbuild.
+
+---
+
+# 125. MAX DEFINITIONS
+
+Definition validator should already bound source bundles reasonably.
+
+Prompt 23 can impose a safety ceiling such as:
+
+```text
+<= 500 Achievement definitions per rule set
+```
+
+if none exists.
+
+Do not allow an unbounded on-read evaluator.
+
+---
+
+# 126. PROGRESS WRITE COUNT
+
+For one refresh with N active definitions:
+
+only write progress rows whose canonical state changed or are missing.
+
+Do not rewrite every row on every GET.
+
+---
+
+# 127. NO-OP REFRESH
+
+If nothing changed:
+
+```text
+Achievement DB writes = 0
+```
+
+preferred.
+
+---
+
+# 128. UNLOCK WRITE COUNT
+
+New unlock:
+
+```text
+progress upsert/update = <=1
+UserAchievement insert = 1
+```
+
+per definition.
+
+No extra audit table required.
+
+---
+
+# 129. NO UNLOCK LOG TABLE
+
+Do not add a second unlock-history table.
+
+`UserAchievement` itself is durable unlock history.
+
+---
+
+# 130. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt23_achievements_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply complete migration history.
+
+---
+
+# 131. MIGRATION REPLAY
+
+Verify coexistence:
+
+```text
+GamificationRuleSet
+UserAchievementProgress
+UserAchievement
+StudyPointsBalanceProjection
+StudyPointsLedgerEntry
+IntegritySignal
+GroupFocusRun
+FocusSession
+```
+
+---
+
+# 132. EMPTY AFTER MIGRATION
+
+Before explicit evaluation:
+
+```text
+UserAchievementProgress rows = 0
+UserAchievement rows = 0
+```
+
+---
+
+# 133. INITIAL RULE-SET SETUP
+
+In test schema:
+
+register and activate the actual Prompt 22 `gamification-v1`.
+
+Do not alter production.
+
+---
+
+# 134. FIRST PROGRESS TEST
+
+User:
+
+```text
+focus.completed_sessions = 0
+```
+
+Evaluate:
+
+```text
+focus.first_verified_session
+```
+
+Expected:
+
+```text
+progress current = 0
+target = 1
+completed = false
+unlock rows = 0
+```
+
+---
+
+# 135. FIRST UNLOCK TEST
+
+Complete one canonical Focus session.
+
+Refresh.
+
+Expected:
+
+```text
+progress current = 1
+completed = true
+UserAchievement rows = 1
+```
+
+---
+
+# 136. UNLOCK REPLAY TEST
+
+Refresh 20 times.
+
+Expected:
+
+```text
+UserAchievement rows = 1
+```
+
+---
+
+# 137. CONCURRENT UNLOCK TEST
+
+20 simultaneous refreshes on newly qualifying user.
+
+Expected:
+
+```text
+UserAchievement rows = 1
+progress rows for active version = 1
+```
+
+---
+
+# 138. POINTS ACHIEVEMENT TEST
+
+Create canonical compatible Points total below/at threshold.
+
+Verify transition.
+
+No Points written by unlock.
+
+---
+
+# 139. LEGACY POINTS TEST
+
+If `points.total` includes legacy compatible balance:
+
+fixture:
+
+```text
+legacy = threshold
+ledger = 0
+```
+
+Achievement can unlock according to Prompt 22 metric semantics.
+
+Category metrics remain unaffected.
+
+---
+
+# 140. CONSISTENCY ACHIEVEMENT TEST
+
+0 qualifying days:
+
+not unlocked.
+
+1 qualifying day:
+
+unlocked.
+
+Use Baghdad logic.
+
+---
+
+# 141. GROUP FOCUS ACHIEVEMENT TEST
+
+Canonical participant summary:
+
+```text
+verifiedFocusSeconds = 0
+```
+
+must not count as meaningful completed run.
+
+Meaningful verified run:
+
+unlock.
+
+Membership alone:
+
+no unlock.
+
+---
+
+# 142. RULE VERSION SWITCH TEST
+
+User has incomplete v1 progress.
+
+Activate valid test v2 with changed threshold.
+
+Refresh.
+
+Expected:
+
+```text
+v1 progress row preserved
+v2 progress row created from current canonical metric
+```
+
+No mutation pretending v1 was v2.
+
+---
+
+# 143. UNLOCK PERSISTENCE ACROSS VERSIONS
+
+User unlocked v1 Achievement.
+
+Activate v2 with higher threshold.
+
+Expected:
+
+```text
+UserAchievement remains
+no second unlock
+user remains unlocked
+```
+
+---
+
+# 144. REMOVED DEFINITION TEST
+
+User unlocked v1 Achievement.
+
+v2 removes definition.
+
+Own read still includes historical unlock using v1 definition resolution.
+
+---
+
+# 145. NOT-UNLOCKED REMOVED DEFINITION
+
+User had unfinished v1 progress.
+
+v2 removes definition.
+
+Do not show it as active progress.
+
+Historical progress row may remain internal.
+
+---
+
+# 146. METRIC DECREASE TEST
+
+User not unlocked:
+
+```text
+points.total = 90
+```
+
+progress 90/100.
+
+Legitimate reversal:
+
+```text
+points.total = 80
+```
+
+recompute:
+
+```text
+progress = 80/100
+```
+
+---
+
+# 147. UNLOCK THEN METRIC DECREASE
+
+Unlock at 100.
+
+Later balance 80.
+
+Expected:
+
+```text
+unlock preserved
+```
+
+---
+
+# 148. CHECKSUM MISMATCH TEST
+
+Corrupt active rule-set checksum fixture.
+
+Achievement refresh:
+
+```text
+reject/fail closed
+0 Achievement state mutations
+```
+
+---
+
+# 149. UNKNOWN ACTIVE BUNDLE TEST
+
+Persist unknown active version in disposable fixture.
+
+Refresh rejects.
+
+No fallback.
+
+---
+
+# 150. SINGLE METRIC QUERY TEST
+
+Multiple definitions using same metric.
+
+Verify provider invoked once per refresh snapshot.
+
+---
+
+# 151. NO-OP REFRESH TEST
+
+Second refresh with unchanged canonical state:
+
+```text
+writes = 0
+```
+
+or only exact documented unavoidable timestamp write.
+
+Prefer 0.
+
+---
+
+# 152. ON-READ CONVERGENCE TEST
+
+Canonical threshold already met.
+
+No Achievement rows due simulated prior refresh failure.
+
+Call:
+
+```text
+GET /api/me/achievements
+```
+
+Expected:
+
+```text
+progress/unlock repaired
+response shows unlocked
+```
+
+---
+
+# 153. READ AUTH TEST
+
+Unauthenticated:
+
+```text
+401
+```
+
+User A cannot ask for User B through own endpoint.
+
+---
+
+# 154. ADMIN RECONCILIATION AUTH TEST
+
+If admin endpoints implemented:
+
+```text
+owner → allowed
+admin → allowed
+student → denied
+Group Focus HOST-only → denied
+```
+
+---
+
+# 155. REPAIR MISSING PROGRESS TEST
+
+Delete progress row from disposable fixture.
+
+Reconciliation detects:
+
+```text
+PROGRESS_MISSING
+```
+
+Repair recreates exact deterministic row.
+
+---
+
+# 156. REPAIR STALE PROGRESS TEST
+
+Corrupt currentValue.
+
+Dry-run detects:
+
+```text
+PROGRESS_STALE
+```
+
+Repair fixes it.
+
+---
+
+# 157. REPAIR DOES NOT DELETE UNLOCK
+
+Mandatory.
+
+---
+
+# 158. INVALID UNLOCK REFERENCE TEST
+
+Insert test-only unlock referencing nonexistent definition/version if DB allows.
+
+Reconciliation reports anomaly.
+
+No silent delete.
+
+---
+
+# 159. READ SIDE EFFECT TEST
+
+Achievement read/refresh changes only:
+
+```text
+UserAchievementProgress
+UserAchievement
+```
+
+when convergence is required.
+
+Expected zero deltas in:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+StudyEvent
+StudyDailyMetric
+IntegritySignal
+CalendarEvent
+FocusSession
+LectureProgress
+PrivateD1SyncOutbox
+```
+
+---
+
+# 160. EVENT-TRIGGERED REFRESH TEST — FOCUS
+
+If Focus completion integration is added:
+
+complete Focus.
+
+Achievement eventually unlocks/updates.
+
+Focus semantics unchanged.
+
+If refresh is best-effort post-commit, simulate refresh failure:
+
+```text
+Focus completion still succeeds
+later own-read repair converges
+```
+
+---
+
+# 161. EVENT-TRIGGERED REFRESH TEST — POINTS
+
+New ledger award changes `points.total`.
+
+Achievement refresh updates relevant definitions.
+
+Points accounting cannot fail because cosmetic refresh fails.
+
+---
+
+# 162. EVENT-TRIGGERED REFRESH TEST — GROUP
+
+Group summary completes.
+
+Relevant Group Achievement eventually updates.
+
+Summary transaction should not become dependent on cosmetic persistence unless explicitly safe.
+
+---
+
+# 163. NO CIRCULAR DEPENDENCY
+
+Avoid:
+
+```text
+Gamification Achievement
+→ Points
+→ Achievement
+→ Points
+```
+
+Achievement subsystem may read Points.
+
+It does not award Points.
+
+---
+
+# 164. NO REWARD-ENGINE CALLBACK
+
+Do not call Prompt 20 award engine from Achievement unlock.
+
+---
+
+# 165. NO STUDY EVENT CALLBACK
+
+Do not create a Study Event for unlock.
+
+---
+
+# 166. NO NOTIFICATION CALLBACK
+
+No push/local notification.
+
+---
+
+# 167. NO PROFILE CALLBACK
+
+No public profile mutation.
+
+---
+
+# 168. PERFORMANCE
+
+Achievement v1 set is small.
+
+Refresh should:
+
+```text
+resolve active rule set once
+validate checksum once
+group by metric
+read each metric once
+batch read progress/unlocks
+write only changed state
+```
+
+Avoid N+1.
+
+---
+
+# 169. BATCH DATABASE READ
+
+Prefer fetching:
+
+```text
+all active-version progress
+all existing unlocks for active definition IDs
+```
+
+in bounded queries.
+
+Do not query one row per achievement unnecessarily.
+
+---
+
+# 170. NO BACKGROUND GLOBAL SCAN
+
+Do not evaluate all users periodically.
+
+Prompt 49 may provide backfill tooling.
+
+---
+
+# 171. NO PRODUCTION BACKFILL
+
+Do not unlock existing production users.
+
+Repository/test only.
+
+---
+
+# 172. PROMPT 22 REGRESSION
+
+Rule-set/checksum/metric tests remain green.
+
+---
+
+# 173. PROMPT 21 REGRESSION
+
+Points balance/reconciliation/cutover unchanged.
+
+---
+
+# 174. PROMPT 20 REGRESSION
+
+Award amounts/caps unchanged.
+
+---
+
+# 175. PROMPT 19 REGRESSION
+
+Ledger/reversals unchanged.
+
+---
+
+# 176. INTEGRITY REGRESSION
+
+Prompts 17–18 unchanged.
+
+---
+
+# 177. GROUP FOCUS REGRESSION
+
+Prompts 13–16 unchanged.
+
+---
+
+# 178. SOLO FOCUS REGRESSION
+
+Prompts 9–12 unchanged.
+
+---
+
+# 179. STUDY EVENT REGRESSION
+
+Prompt 8 unchanged.
+
+---
+
+# 180. FOUNDATION REGRESSION
+
+Run:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 181. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 passed / 9 failed
+typecheck = same 2 Calendar Import errors
+lint = same 10 baseline errors
+```
+
+No Calendar changes.
+
+---
+
+# 182. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+gamification Achievement modules
+Achievement routes
+Prompt 23 tests
+```
+
+Expected PASS.
+
+---
+
+# 183. TARGETED LINT
+
+Expected PASS.
+
+No new full-repo lint errors.
+
+---
+
+# 184. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 185. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus fresh disposable migration replay.
+
+---
+
+# 186. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 23 migration to production;
+* evaluate production users;
+* backfill production Achievement progress;
+* unlock production Achievements;
+* change production Points;
+* modify production Supabase;
+* modify remote D1;
+* deploy Worker;
+* change production env;
+* expose Achievement UI publicly.
+
+---
+
+# 187. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<user_achievement_state>/
+
+server/features/gamification/
+  achievementTypes.ts
+  achievementRepository.ts
+  achievementEvaluator.ts
+  achievementRefresh.ts
+  achievementRead.ts
+  achievementReconciliation.ts
+
+server/routes/achievements.ts
+server/routes/adminGamification.ts   // only if repair endpoints added
+
+tests/gamification-achievements*.test.ts
+tests/gamification-achievements-postgres*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 188. FILES EXPECTED UNCHANGED
+
+Unless minimal hooks are needed:
+
+```text
+Prompt 20 reward rule constants
+Prompt 21 accounting semantics
+Integrity semantics
+Calendar
+OfflineEngine
+D1 Worker
+frontend UI
+leaderboard
+levels
+challenges
+```
+
+---
+
+# 189. ACCEPTANCE CRITERIA
+
+Prompt 23 succeeds only if:
+
+1. UserAchievementProgress exists.
+2. UserAchievement exists.
+3. Migration additive.
+4. No migration backfill.
+5. Progress tied to rule-set version.
+6. Unlock unique by user+achievement ID.
+7. Historical unlock permanent.
+8. Rule change never revokes unlock.
+9. Unfinished progress recomputes under new active version.
+10. Old progress rows preserved.
+11. Active definition checksum verified.
+12. Unknown active version fails closed.
+13. Metric values server-derived.
+14. Client cannot unlock.
+15. Client cannot set progress.
+16. Evaluation deterministic.
+17. Metric reads grouped/deduplicated.
+18. Concurrent unlock creates one row.
+19. Refresh idempotent.
+20. No-op refresh avoids writes.
+21. Own Achievement read exists.
+22. No public other-user Achievement endpoint.
+23. Historical unlock remains readable after definition removal.
+24. On-read convergence works.
+25. Progress repair works.
+26. Repair never deletes unlock.
+27. Achievement unlock awards zero Points.
+28. Achievement unlock creates zero StudyEvents.
+29. No Integrity side effect.
+30. No Calendar.
+31. No D1/outbox.
+32. No Levels.
+33. No Challenges.
+34. No Leaderboard.
+35. No UI.
+36. Production unchanged.
+37. Build passes.
+38. New regressions = 0.
+
+---
+
+# 190. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 22, Points, Integrity, Focus, Group Focus, Study Event, Foundation and Auth baselines.
+
+## B. Achievement Architecture
+
+Explain:
+
+```text
+canonical metrics
+→ versioned Achievement definition
+→ progress
+→ permanent unlock
+```
+
+## C. Prisma Models
+
+Show final:
+
+```text
+UserAchievementProgress
+UserAchievement
+```
+
+fields, relations, indexes and numeric types.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic Achievement backfill:
+```
+
+## E. Progress Identity
+
+Report unique key and rule-set-version semantics.
+
+## F. Unlock Identity
+
+Report unique key.
+
+Explicitly:
+
+```text
+ONE ACHIEVEMENT ID CAN UNLOCK MULTIPLE TIMES FOR SAME USER: NO
+```
+
+## G. Historical Unlock Semantics
+
+Explicitly:
+
+```text
+RULE VERSION CHANGE REVOKES UNLOCK: NO
+METRIC DECREASE REVOKES UNLOCK: NO
+```
+
+## H. Progress Re-evaluation
+
+Explain behavior for unfinished v1 progress after v2 activation.
+
+## I. Definition / Checksum Validation
+
+Explain active-version resolution and failure behavior.
+
+## J. Evaluation Service
+
+Show final internal evaluator contract.
+
+## K. Refresh Service
+
+Report metric grouping and write minimization.
+
+## L. Metric Query Deduplication
+
+Report number of provider calls when multiple Achievements share one metric.
+
+## M. V1 Achievement Definitions
+
+List exact Prompt 22 active v1 Achievement IDs, metrics and targets.
+
+## N. Focus Achievement
+
+Report behavior.
+
+## O. Points Achievement
+
+Report behavior and legacy-compatible total semantics.
+
+## P. Consistency Achievement
+
+Report Baghdad qualifying-day behavior.
+
+## Q. Group Focus Achievement
+
+Report meaningful verified-run semantics.
+
+## R. Zero / Non-qualifying Cases
+
+Report:
+
+```text
+PDF open:
+video open:
+Room join:
+Room presence only:
+profile edit:
+manual Lecture complete:
+```
+
+and whether any v1 Achievement changes.
+
+## S. Own Achievement API
+
+Report:
+
+```text
+method/path:
+auth:
+on-read refresh:
+response:
+```
+
+## T. Privacy
+
+Explicitly:
+
+```text
+OTHER USER PUBLIC ACHIEVEMENT API IMPLEMENTED: NO
+PROFILE ACHIEVEMENT EXPOSURE IMPLEMENTED: NO
+```
+
+## U. Historical Definition Read
+
+Explain unlocked Achievement behavior if removed from active v2.
+
+## V. Concurrent Unlock
+
+Report exact:
+
+```text
+parallel evaluations:
+progress rows:
+unlock rows:
+errors:
+```
+
+## W. No-op Refresh
+
+Report writes when nothing changed.
+
+## X. On-Read Convergence
+
+Report simulated missed-refresh recovery.
+
+## Y. Metric Decrease
+
+Report unfinished and already-unlocked behavior.
+
+## Z. Achievement Reconciliation
+
+Show statuses/checks and repair behavior.
+
+## AA. Repair Safety
+
+Explicitly:
+
+```text
+REPAIR DELETES VALID UNLOCK: NO
+REPAIR REVOKES ACHIEVEMENT: NO
+```
+
+## AB. Trigger Integrations
+
+Report exact minimal integrations with:
+
+```text
+Focus
+Points
+Group Focus
+```
+
+and whether they are transactional or best-effort.
+
+## AC. Cosmetic Failure Policy
+
+Explain why Achievement refresh failure does not corrupt canonical study/accounting data.
+
+## AD. Side Effects
+
+Report deltas:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+## AE. No Reward Loop
+
+Explicitly:
+
+```text
+ACHIEVEMENT UNLOCK CALLS POINTS AWARD ENGINE: NO
+ACHIEVEMENT UNLOCK AWARDS POINTS: NO
+```
+
+## AF. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 23 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## AG. Real PostgreSQL Results
+
+Report:
+
+* first progress;
+* unlock;
+* replay;
+* concurrent unlock;
+* rule-version switch;
+* removed definition;
+* metric decrease;
+* repair.
+
+## AH. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AI. Regression Results
+
+Include:
+
+* Prompt 22 Gamification definitions;
+* Prompt 19–21 Points;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AJ. Files Created
+
+Exact paths/purposes.
+
+## AK. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 20 reward rules unchanged?
+Prompt 21 accounting unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+frontend UI unchanged?
+Levels unchanged/not implemented?
+Challenges unchanged/not implemented?
+Leaderboard unchanged/not implemented?
+```
+
+## AL. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 23 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION ACHIEVEMENT BACKFILL RUN: NO
+PRODUCTION ACHIEVEMENTS UNLOCKED: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AM. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AN. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AO. Risks / Blockers
+
+Only actual remaining Achievement-state concerns.
+
+Do not treat deferred public profile/Levels as blockers.
+
+## AP. Architecture Compliance
+
+Answer YES/NO:
+
+* Canonical metrics authoritative?
+* Versioned definitions authoritative?
+* Active checksum verified?
+* User progress server-derived?
+* Unlock permanent?
+* Unlock idempotent?
+* Concurrent unlock race-safe?
+* Historical unlock survives rule changes?
+* Unfinished progress re-evaluates under active version?
+* No client unlock API?
+* Own-read private?
+* No public profile exposure?
+* No Points reward?
+* No StudyEvent side effect?
+* No Integrity side effect?
+* No D1/outbox?
+* No Level yet?
+* No Challenge yet?
+* No Leaderboard yet?
+* No UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AQ. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 24 — Levels, Lifetime XP Progression & Profile-Safe Gamification Exposure**
+
+Do not implement Prompt 24.
+
+---
+
+# 191. STOP CONDITION
+
+After implementation, tests and mandatory report:
+
+STOP.
+
+Do NOT implement Levels.
+
+Do NOT expose Achievements publicly.
+
+Do NOT implement profile Gamification UI.
+
+Do NOT implement Challenges.
+
+Do NOT implement Leaderboards.
+
+Do NOT alter Points rules.
+
+Do NOT deploy Prompt 23 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 23 COMPLETE — DETERMINISTIC ACHIEVEMENT PROGRESS & VERSIONED UNLOCK STATE READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
