@@ -3,6 +3,7 @@ import {
   PROJECTION_CONTRACT_VERSION,
   STUDY_EVENT_SCHEMA_VERSION,
 } from "../study-core/constants.js";
+import { canonicalJson } from "../study-core/canonicalJson.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
 import { buildStudyDailyMetricProjection } from "../study-core/projection.js";
 import { logger } from "../../services/logger.js";
@@ -68,17 +69,6 @@ type NormalizedEvent = {
   privacyClass: string;
   payload: unknown;
 };
-
-function canonicalJson(value: unknown): string {
-  if (value instanceof Date) return JSON.stringify(value.toISOString());
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
 
 function semanticFingerprint(event: NormalizedEvent): string {
   return createHash("sha256").update(canonicalJson(event)).digest("hex");

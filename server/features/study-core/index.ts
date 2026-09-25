@@ -1,4 +1,5 @@
 export * from "./constants.js";
+export * from "./canonicalJson.js";
 export * from "./events.js";
 export * from "./evidence.js";
 export * from "./privacy.js";
