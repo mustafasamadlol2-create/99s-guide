@@ -1,0 +1,2103 @@
+# 99’s GUIDE — PROMPT 12 OF 52
+
+## FOCUS QUICK NOTES
+
+## TODAY / 7-DAY / MONTH FOCUS METRICS
+
+## POST-FOCUS ACTION CONTEXT
+
+### PRIVATE CANONICAL NOTES — NO UI — NEVER SCHEDULE
+
+Prompts 1–11 and Prompt 9R have been completed and approved.
+
+Prompt 12 implements the final backend/runtime foundation for the first Focus phase:
+
+1. durable private Quick Notes linked to a canonical Focus Session and Lecture;
+2. deterministic Focus statistics from existing `StudyDailyMetric`;
+3. reusable post-Focus action context;
+4. optional conversion of a Quick Note into a future Focus Plan item;
+5. absolutely no Calendar/Schedule integration.
+
+This prompt does NOT build the Focus UI.
+
+---
+
+# 1. FROZEN PRODUCT RULES
+
+Quick Notes are private Focus content.
+
+A Quick Note:
+
+```text
+belongs to one authenticated user
+belongs to one Focus Session
+inherits that Session's Lecture
+may remain as a private note
+may later become a Focus revisit/queue item
+```
+
+It must NEVER become:
+
+```text
+CalendarEvent
+Academic Schedule event
+personal planner event
+```
+
+There is no student personal planner.
+
+---
+
+# 2. QUICK NOTE PRIVACY
+
+Quick Note content is:
+
+```text
+PRIVATE_STUDY
+```
+
+It must NOT be copied to:
+
+* D1 Focus projections;
+* Analytics Engine;
+* StudyEvent payloads;
+* owner aggregate analytics;
+* public profile;
+* leaderboard;
+* logs.
+
+Canonical storage only:
+
+```text
+PostgreSQL
+```
+
+Do not create a Cloudflare Quick Note mirror.
+
+---
+
+# 3. QUICK NOTE IS NOT ANALYTICS
+
+Creating, editing, archiving, or converting a note must NOT automatically produce a `StudyEvent`.
+
+Do not treat note count as:
+
+* effort;
+* mastery;
+* progress;
+* points.
+
+Notes are user content.
+
+---
+
+# 4. REQUIRED SCHEMA CHANGE
+
+Prompt 12 may introduce exactly one new canonical product model:
+
+```text
+FocusQuickNote
+```
+
+This is a justified durable relational user-content table.
+
+Do not add unrelated models.
+
+Expected:
+
+```text
+new PostgreSQL migration: YES — additive only
+new D1 migration: NO
+```
+
+---
+
+# 5. PROPOSED `FocusQuickNote` SEMANTICS
+
+Use repository conventions, but the model must support at least:
+
+```text
+id
+userId
+focusSessionId
+lectureId
+
+content
+
+status
+
+idempotencyKey
+
+convertedToPlanItemId?
+
+createdAt
+updatedAt
+archivedAt?
+convertedAt?
+```
+
+Statuses should remain application-evolvable strings rather than unnecessary PostgreSQL enums.
+
+Initial supported states:
+
+```text
+ACTIVE
+ARCHIVED
+CONVERTED
+```
+
+---
+
+# 6. RELATIONS
+
+The canonical note must relate to:
+
+```text
+User
+FocusSession
+Lecture
+```
+
+The Lecture is inferred from the Focus Session.
+
+Do NOT trust a client-supplied Lecture ID.
+
+If conversion is implemented, create a safe optional relation to:
+
+```text
+FocusPlanItem
+```
+
+using an explicit relation name.
+
+Historical note integrity must be preserved.
+
+---
+
+# 7. DELETE BEHAVIOR
+
+Do not expose hard-delete Quick Note behavior in Prompt 12.
+
+Use:
+
+```text
+ARCHIVED
+```
+
+for user removal/hiding.
+
+Historical conversion links must not disappear silently.
+
+---
+
+# 8. CONVERSION RELATION SAFETY
+
+If a Quick Note is converted to a Focus Plan item:
+
+* the note records the canonical resulting PlanItem;
+* retry returns that same conversion;
+* it must not create duplicate PlanItems;
+* a converted PlanItem must not be casually deleted while the conversion relation exists.
+
+Extend Plan-item removal validation if required.
+
+Do not silently orphan the conversion.
+
+---
+
+# 9. SCHEMA INDEXES
+
+Add only useful indexes.
+
+At minimum evaluate:
+
+```text
+(userId, createdAt)
+(focusSessionId, createdAt)
+(lectureId, createdAt)
+(userId, idempotencyKey) UNIQUE
+```
+
+If `convertedToPlanItemId` is one-to-one, enforce the appropriate uniqueness.
+
+Do not over-index note content.
+
+---
+
+# 10. MIGRATION SAFETY
+
+The migration must be additive.
+
+Explicitly verify:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+```
+
+Do not apply it to production.
+
+---
+
+# 11. NOTE CONTENT
+
+Store plain private text.
+
+Use application validation.
+
+Recommended initial bound:
+
+```text
+1–2,000 Unicode characters
+```
+
+or another clearly justified bounded value.
+
+Allow normal newlines.
+
+Reject:
+
+* empty/whitespace-only content;
+* excessive size;
+* dangerous control characters where appropriate.
+
+Do not HTML-render unsanitized content later; Prompt 12 has no UI.
+
+---
+
+# 12. QUICK NOTE CREATE
+
+Implement authenticated equivalent:
+
+```text
+POST /api/focus/quick-notes
+```
+
+Conceptual request:
+
+```json
+{
+  "focusSessionId": "...",
+  "content": "...",
+  "idempotencyKey": "..."
+}
+```
+
+Do NOT accept:
+
+```text
+userId
+lectureId
+status
+convertedToPlanItemId
+```
+
+from the client.
+
+---
+
+# 13. NOTE SESSION VALIDATION
+
+Server verifies:
+
+* Session belongs to authenticated user;
+* Session exists;
+* canonical Session has a Lecture;
+* Session is a legitimate Focus Session.
+
+Infer:
+
+```text
+lectureId = FocusSession.lectureId
+```
+
+Do not permit cross-user or cross-Lecture notes.
+
+---
+
+# 14. ALLOWED SESSION STATES FOR NOTES
+
+Quick Notes may be useful:
+
+* while studying;
+* while paused;
+* during intentional resource handoff;
+* immediately after completion;
+* after abandonment for a short reflection.
+
+Allow note creation for canonical Focus Sessions except invalid/uninitialized states where content would have no meaningful Session context.
+
+Document exact allowed states.
+
+Do not require the Session to be `ACTIVE` only.
+
+---
+
+# 15. NOTE CREATE IDEMPOTENCY
+
+Use:
+
+```text
+(userId, idempotencyKey)
+```
+
+unique behavior.
+
+Same key + same semantic note:
+
+```text
+REPLAY_SAME_PAYLOAD
+```
+
+returns the existing note.
+
+Same key + different content/session:
+
+```text
+IDEMPOTENCY_CONFLICT
+```
+
+No duplicate row.
+
+Add a real PostgreSQL concurrency test.
+
+---
+
+# 16. QUICK NOTE LIST
+
+Implement authenticated equivalent:
+
+```text
+GET /api/focus/quick-notes
+```
+
+Support bounded filters such as:
+
+```text
+sessionId
+lectureId
+status
+limit
+```
+
+All filters remain user-scoped.
+
+Use PostgreSQL.
+
+Do NOT use D1.
+
+---
+
+# 17. QUICK NOTE GET
+
+If useful under repository conventions:
+
+```text
+GET /api/focus/quick-notes/:noteId
+```
+
+Ownership scoped.
+
+Wrong-user note should not disclose existence.
+
+---
+
+# 18. QUICK NOTE EDIT
+
+Implement:
+
+```text
+PATCH /api/focus/quick-notes/:noteId
+```
+
+Allow:
+
+```text
+content
+```
+
+only.
+
+Do not allow client ownership/relation reassignment.
+
+A converted note may remain editable unless there is a strong product reason not to; conversion does not make the original note immutable.
+
+An archived note should not be edited until/unless future restore behavior exists.
+
+Prefer rejecting archived edits.
+
+---
+
+# 19. QUICK NOTE ARCHIVE
+
+Implement:
+
+```text
+POST /api/focus/quick-notes/:noteId/archive
+```
+
+Set:
+
+```text
+status = ARCHIVED
+archivedAt = server time
+```
+
+Do not delete the row.
+
+---
+
+# 20. NO RESTORE YET
+
+Do not add restore/unarchive unless trivially required by existing conventions.
+
+Prompt 12 needs a narrow durable note foundation.
+
+---
+
+# 21. CONVERT NOTE TO FOCUS QUEUE ITEM
+
+Implement authenticated equivalent:
+
+```text
+POST /api/focus/quick-notes/:noteId/convert-to-plan-item
+```
+
+This means:
+
+> revisit the Note's Lecture in a future Focus block.
+
+It does NOT convert the note text into a Calendar task.
+
+---
+
+# 22. CONVERSION REQUEST
+
+Conceptually accept:
+
+```json
+{
+  "targetPlanId": "..."
+}
+```
+
+Optionally allow bounded configuration overrides only if needed.
+
+Prefer a deterministic default:
+
+```text
+sessionCount = 1
+```
+
+and clone the original source PlanItem's:
+
+```text
+focusDurationSeconds
+breakDurationSeconds
+includeMcq
+includeFlashcards
+includeVideo
+```
+
+when available.
+
+If safe cloning is impossible, require explicit Focus configuration rather than invent values.
+
+Do not use arbitrary hidden defaults.
+
+---
+
+# 23. CONVERSION LECTURE
+
+The new PlanItem must use:
+
+```text
+FocusQuickNote.lectureId
+```
+
+The client must not choose another Lecture.
+
+---
+
+# 24. TARGET PLAN VALIDATION
+
+Target Plan must:
+
+* belong to authenticated user;
+* be active;
+* not be archived;
+* satisfy Prompt 9 structural-edit safety;
+* not own a nonterminal Session if current Focus rules block structural edits.
+
+Reuse existing Focus Plan mutation logic/locking where possible.
+
+Do not duplicate safety checks.
+
+---
+
+# 25. CONVERSION SEQUENCE
+
+Append the new PlanItem at the next valid sequence.
+
+Sequence allocation must be race-safe.
+
+Use the existing per-user advisory lock or equivalent verified mechanism.
+
+Do not calculate:
+
+```text
+max(sequence)+1
+```
+
+outside a serialized transaction.
+
+---
+
+# 26. CONVERSION ATOMICITY
+
+In one transaction:
+
+```text
+validate note
+validate target Plan
+create FocusPlanItem
+mark note CONVERTED
+set convertedToPlanItemId
+set convertedAt
+enqueue updated FocusPlan projection
+```
+
+If projection enqueue fails:
+
+rollback everything.
+
+---
+
+# 27. CONVERSION REPLAY
+
+If response is lost and same note is converted again to the same target:
+
+return the existing conversion.
+
+Do not append another PlanItem.
+
+If already converted to a different target:
+
+return a deterministic conflict.
+
+---
+
+# 28. CONVERTED PLAN ITEM DELETION
+
+If current Plan update logic would delete the converted PlanItem:
+
+block deletion while a Quick Note conversion points to it.
+
+Use a clear conflict.
+
+Do not silently set the note back to ACTIVE.
+
+---
+
+# 29. CONVERSION DOES NOT WRITE SCHEDULE
+
+Mandatory invariant:
+
+```text
+Quick Note conversion
+→ FocusPlanItem
+
+Quick Note conversion
+↛ CalendarEvent
+```
+
+Add a test/static invariant.
+
+---
+
+# 30. QUICK NOTE CLIENT API
+
+Extend Prompt 10 Focus API client with typed methods:
+
+```text
+createFocusQuickNote
+listFocusQuickNotes
+getFocusQuickNote
+updateFocusQuickNote
+archiveFocusQuickNote
+convertFocusQuickNoteToPlanItem
+```
+
+No visible UI.
+
+---
+
+# 31. NO OFFLINE NOTE MUTATION QUEUE
+
+Do not add Quick Notes to the global `OfflineEngine` in Prompt 12.
+
+If offline:
+
+note mutation cannot be canonically confirmed.
+
+Future product work may add a deliberate local-draft model.
+
+Do not silently replay private note mutations days later.
+
+---
+
+# 32. NO QUICK NOTE LOCAL CACHE REQUIRED
+
+Prompt 12 does not need to persist note content in the Focus runtime cache.
+
+Avoid storing note text unnecessarily on-device.
+
+The future UI can fetch notes from the canonical API.
+
+---
+
+# 33. FOCUS METRICS SOURCE
+
+Use existing canonical:
+
+```text
+StudyDailyMetric
+```
+
+Do not create another Focus metrics table.
+
+Focus-specific metrics currently available include:
+
+```text
+focusSeconds
+sessionsCompleted
+interruptionCount
+```
+
+Do not invent counters that are not stored.
+
+---
+
+# 34. METRIC TIMEZONE
+
+`StudyDailyMetric.metricDate` is defined using:
+
+```text
+Asia/Baghdad
+```
+
+from Prompt 8.
+
+Prompt 12 Focus metric ranges must use the same logical-day system.
+
+Do not let arbitrary client timezone reinterpret canonical Daily Metric dates.
+
+Return the timezone explicitly.
+
+---
+
+# 35. FOCUS METRICS ROUTE
+
+Implement authenticated equivalent:
+
+```text
+GET /api/focus/metrics
+```
+
+Support an explicit bounded period enum:
+
+```text
+today
+last7Days
+month
+```
+
+Definitions:
+
+### `today`
+
+Current Baghdad logical date.
+
+### `last7Days`
+
+Rolling seven Baghdad dates including today.
+
+Do not ambiguously call this an ISO/calendar week internally.
+
+### `month`
+
+Current Baghdad calendar month.
+
+---
+
+# 36. METRIC RESPONSE
+
+Return deterministic raw data such as:
+
+```json
+{
+  "period": "last7Days",
+  "timezone": "Asia/Baghdad",
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "totals": {
+    "focusSeconds": 0,
+    "sessionsCompleted": 0,
+    "interruptionCount": 0
+  },
+  "daily": [
+    {
+      "date": "YYYY-MM-DD",
+      "focusSeconds": 0,
+      "sessionsCompleted": 0,
+      "interruptionCount": 0
+    }
+  ]
+}
+```
+
+---
+
+# 37. NO FAKE METRIC DERIVATIONS
+
+Do not return unsupported:
+
+```text
+productivity score
+focus quality %
+discipline score
+PDF completion %
+exact distraction minutes
+```
+
+Prompt 12 returns facts only.
+
+AI/Analyzer comes later.
+
+---
+
+# 38. MISSING DAYS
+
+For a requested bounded range:
+
+return deterministic zero-value daily rows for missing dates if this simplifies future charting.
+
+Do not create database rows merely to represent zero days.
+
+Zero filling happens in response formatting only.
+
+---
+
+# 39. D1-FIRST METRIC READ
+
+Prompt 6 already provides a private D1 `StudyDailyMetric` read helper.
+
+Discover the exact existing flag.
+
+When enabled:
+
+```text
+D1 validated rows
+→ aggregate response
+```
+
+When:
+
+* disabled;
+* unavailable;
+* malformed;
+* scope mismatch;
+
+fall back to canonical PostgreSQL.
+
+Do not expose D1 details to the client.
+
+---
+
+# 40. D1 METRIC RANGE
+
+Never request unbounded history.
+
+Prompt 12 periods are small:
+
+```text
+1 day
+7 days
+current month ≤31 days
+```
+
+This is appropriate for the existing projection.
+
+---
+
+# 41. METRIC OWNERSHIP
+
+Backend supplies authenticated user scope.
+
+Browser does not send another user ID.
+
+No owner/admin route is added here.
+
+These are private student metrics.
+
+---
+
+# 42. METRICS DO NOT CALL AI
+
+No Workers AI/Gemini.
+
+Pure deterministic aggregation only.
+
+---
+
+# 43. POST-FOCUS ACTION CONTEXT
+
+Prompt 9 already returns some post-completion hints.
+
+Prompt 12 should formalize this into one deterministic reusable builder.
+
+Create conceptually:
+
+```text
+buildPostFocusActionContext(...)
+```
+
+Do not scatter action logic across routes/UI.
+
+---
+
+# 44. POST-FOCUS CONTEXT ROUTE
+
+Implement authenticated equivalent:
+
+```text
+GET /api/focus/sessions/:sessionId/post-actions
+```
+
+Valid for the user's canonical:
+
+```text
+COMPLETED
+```
+
+Session.
+
+For non-completed Session:
+
+return a clear state conflict.
+
+---
+
+# 45. POST-FOCUS CONTEXT CONTENT
+
+Return at minimum:
+
+```text
+sessionId
+lectureId
+planId
+planItemId
+
+sessionNumber
+plannedSessionCount
+isLastPlannedSession
+
+manualLectureCompletionRequired
+
+configured:
+  mcq
+  flashcards
+  video
+
+available:
+  mcq
+  flashcards
+  video
+```
+
+Availability must come from canonical content.
+
+Do not merely echo PlanItem booleans as resource availability.
+
+---
+
+# 46. MCQ AVAILABILITY
+
+Inspect canonical MCQ storage.
+
+Return:
+
+```text
+available.mcq = true
+```
+
+only if the Lecture actually has usable MCQ content according to current application semantics.
+
+Do not alter MCQs.
+
+---
+
+# 47. FLASHCARD AVAILABILITY
+
+Return true only if canonical Flashcards exist for the Lecture.
+
+Do not modify Flashcard progress.
+
+---
+
+# 48. VIDEO AVAILABILITY
+
+Return true only if an actual canonical VIDEO Material exists for the Lecture.
+
+Do not infer from the PlanItem preference alone.
+
+---
+
+# 49. CONFIGURED VS AVAILABLE
+
+Example:
+
+```text
+includeVideo = true
+but Lecture has no VIDEO Material
+```
+
+Return:
+
+```text
+configured.video = true
+available.video = false
+```
+
+This lets future UI avoid dead-end actions.
+
+---
+
+# 50. NO AUTO ACTION
+
+Post-Focus context must NOT automatically:
+
+* launch MCQs;
+* launch Flashcards;
+* open Video;
+* complete Lecture;
+* create a new Focus Session;
+* create Schedule event.
+
+It is context only.
+
+---
+
+# 51. MANUAL LECTURE COMPLETION
+
+Preserve:
+
+```text
+AUTO LECTURE COMPLETION: NO
+```
+
+When:
+
+```text
+isLastPlannedSession = true
+```
+
+return:
+
+```text
+manualLectureCompletionRequired = true
+```
+
+The user must explicitly confirm Lecture completion later.
+
+Do not mark `LectureProgress` complete in Prompt 12.
+
+---
+
+# 52. POST-FOCUS CONTEXT AFTER RELOAD
+
+The endpoint must work independently of the immediate completion response.
+
+Scenario:
+
+1. complete Focus;
+2. app closes;
+3. reopen later;
+4. future summary UI requests post-actions by Session ID.
+
+The context must reconstruct from PostgreSQL canonical state.
+
+No in-memory completion object required.
+
+---
+
+# 53. POST-FOCUS ACTION SECURITY
+
+Another user's Session:
+
+```text
+404 / non-disclosing behavior
+```
+
+Do not expose Lecture resource availability for Sessions the requester does not own.
+
+---
+
+# 54. INTERRUPTION SOURCE AUTHORITY PREFLIGHT
+
+Before continuing Prompt 12 implementation, verify Prompt 11 persisted semantics for:
+
+```text
+focus_interruption_recorded
+```
+
+Prompt 8 defines it as:
+
+```text
+minimum evidence = SERVER_VALIDATED
+```
+
+Therefore canonical `StudyEvent.source` must remain server-authoritative.
+
+Expected:
+
+```text
+StudyEvent.source = backend
+```
+
+The client-observed platform may be retained only as bounded payload/context such as:
+
+```text
+observedSource = ios | android | web | pwa
+```
+
+if the event schema supports it.
+
+Do NOT persist the client platform as though it were the authoritative server-event source.
+
+---
+
+# 55. INTERRUPTION SOURCE TEST
+
+Add an assertion using real PostgreSQL:
+
+Request:
+
+```text
+source = ios
+```
+
+Expected persisted event:
+
+```text
+eventType = focus_interruption_recorded
+evidenceClass = SERVER_VALIDATED
+source = backend
+```
+
+and, if retained:
+
+```text
+payload.observedSource = ios
+```
+
+If Prompt 11 already does this:
+
+no implementation change needed.
+
+If not:
+
+fix only this authority mismatch and update strict payload schema/tests.
+
+---
+
+# 56. HANDOFF EVENT SOURCES
+
+Do not unnecessarily change:
+
+```text
+focus_resource_handoff_started
+focus_resource_handoff_returned
+```
+
+They are client-observed lifecycle events and may preserve appropriate platform source according to the frozen Prompt 8 event policy.
+
+The Prompt 12 source correction applies specifically where server-validated authority requires it.
+
+---
+
+# 57. QUICK NOTE FEATURE FLAGS
+
+Use:
+
+```text
+FOCUS_HUB_ENABLED
+```
+
+Do not invent a mandatory new feature flag unless repository rollout architecture genuinely requires one.
+
+Quick Notes are part of Focus Hub.
+
+Study Events are not required merely to save a Quick Note.
+
+---
+
+# 58. METRIC ROUTE FEATURE FLAGS
+
+Focus metrics require:
+
+```text
+FOCUS_HUB_ENABLED
+```
+
+They read existing metrics.
+
+They do NOT require `STUDY_EVENTS_ENABLED` merely to read historical data.
+
+---
+
+# 59. POST-ACTION FEATURE FLAGS
+
+Require Focus Hub enabled.
+
+No AI flag.
+
+No Points flag.
+
+---
+
+# 60. REAL POSTGRESQL TEST TARGET
+
+Prompt 11 successfully verified the safe disposable PostgreSQL path.
+
+Reuse that mechanism.
+
+Do NOT require a permanently configured `TEST_DATABASE_URL`.
+
+Verify the runtime-managed development PostgreSQL identity read-only first.
+
+Create isolated schema such as:
+
+```text
+prompt12_focus_gate
+```
+
+Apply repository migration history there.
+
+Run tests.
+
+Drop only that schema.
+
+Never use production.
+
+---
+
+# 61. FRESH MIGRATION REPLAY
+
+Because Prompt 12 adds a migration:
+
+build a fresh isolated schema from full repository history.
+
+Verify it contains:
+
+```text
+FocusQuickNote
+FocusSession
+FocusPlanItem
+StudyDailyMetric
+PrivateD1SyncOutbox
+```
+
+Run:
+
+```text
+prisma migrate deploy
+prisma migrate status
+prisma validate
+prisma generate
+```
+
+against safe configuration.
+
+---
+
+# 62. QUICK NOTE REAL POSTGRESQL TESTS
+
+Mandatory real DB tests:
+
+1. create note;
+2. session ownership enforced;
+3. Lecture inferred correctly;
+4. same create retry returns one row;
+5. conflicting same idempotency key rejected;
+6. concurrent duplicate creates one row;
+7. list scoped to current user;
+8. update content;
+9. archive note;
+10. archived note edit rejected;
+11. wrong-user access non-disclosing;
+12. no StudyEvent created by note CRUD.
+
+---
+
+# 63. CONVERSION REAL POSTGRESQL TESTS
+
+Verify:
+
+1. convert ACTIVE note to active Focus Plan;
+2. resulting item uses note's Lecture;
+3. resulting sessionCount/settings correct;
+4. sequence append safe;
+5. note becomes CONVERTED;
+6. conversion link stored;
+7. FocusPlan projection queued once;
+8. same conversion replay creates no duplicate;
+9. conversion to different Plan after conversion conflicts;
+10. converted PlanItem cannot be removed unsafely;
+11. active/nonterminal target Plan restriction preserved;
+12. no CalendarEvent write.
+
+---
+
+# 64. CONVERSION CONCURRENCY TEST
+
+Run multiple concurrent conversion calls on the same note.
+
+Expected:
+
+```text
+FocusPlanItem created = 1
+note converted = 1
+FocusPlan projection enqueue = 1
+```
+
+No duplicate sequence.
+
+Use real PostgreSQL.
+
+---
+
+# 65. QUICK NOTE TRANSACTION ROLLBACK
+
+Force FocusPlan projection enqueue failure during conversion.
+
+Expected:
+
+```text
+new FocusPlanItem = 0
+note remains ACTIVE
+convertedToPlanItemId = null
+conversion projection = 0
+```
+
+Atomic rollback.
+
+---
+
+# 66. FOCUS METRIC TESTS
+
+Create deterministic `StudyDailyMetric` fixtures across Baghdad dates.
+
+Verify:
+
+### today
+
+one-day range.
+
+### last7Days
+
+exact seven logical dates including today.
+
+### month
+
+first through current final requested date bounds for current Baghdad month.
+
+Verify totals and zero-filled missing dates.
+
+---
+
+# 67. METRIC D1 FALLBACK TESTS
+
+Test:
+
+```text
+D1 success
+D1 disabled
+D1 unavailable
+D1 malformed
+D1 scope mismatch
+```
+
+All non-success projection cases must safely fall back to PostgreSQL according to existing architecture.
+
+---
+
+# 68. NO METRIC WRITE TEST
+
+Calling:
+
+```text
+GET /api/focus/metrics
+```
+
+must perform:
+
+```text
+StudyDailyMetric writes = 0
+outbox writes = 0
+StudyEvent writes = 0
+```
+
+Read only.
+
+---
+
+# 69. POST-FOCUS CONTEXT TESTS
+
+Verify:
+
+1. completed Session context returned;
+2. active Session rejected;
+3. paused Session rejected;
+4. abandoned Session rejected unless product explicitly supports a separate abandoned context;
+5. wrong user gets non-disclosing response;
+6. last planned Session flag correct;
+7. manual Lecture completion flag correct;
+8. LectureProgress unchanged;
+9. configured action values correct;
+10. availability reflects actual MCQ/Flashcard/VIDEO content.
+
+---
+
+# 70. AVAILABILITY EDGE TEST
+
+Example:
+
+```text
+PlanItem includeVideo = true
+Lecture has no VIDEO material
+```
+
+Expected:
+
+```text
+configured.video = true
+available.video = false
+```
+
+No fake action availability.
+
+---
+
+# 71. POST-FOCUS NO-SIDE-EFFECT TEST
+
+Fetching post-actions must create:
+
+```text
+StudyEvent = 0
+StudyDailyMetric writes = 0
+FocusSession writes = 0
+LectureProgress writes = 0
+CalendarEvent writes = 0
+outbox writes = 0
+```
+
+Pure read.
+
+---
+
+# 72. QUICK NOTES NEVER D1
+
+Repository/static and integration assertions:
+
+```text
+FocusQuickNote D1 table created: NO
+FocusQuickNote private mirror entity added: NO
+Quick Note text in outbox payload: NO
+```
+
+---
+
+# 73. QUICK NOTES NEVER ANALYTICS ENGINE
+
+No telemetry event contains note text.
+
+No owner analytics receives note text.
+
+No AI receives note text.
+
+---
+
+# 74. QUICK NOTES NEVER SCHEDULE
+
+Search modified code for:
+
+```text
+CalendarEvent
+calendar
+schedule
+```
+
+Any references must be unrelated/static test assertions.
+
+Quick Note service itself must have no Calendar dependency.
+
+---
+
+# 75. DAILY METRIC PRIVACY
+
+Focus metrics are private user-scoped.
+
+Do not add owner/admin access to individual Focus metrics here.
+
+Owner aggregate analytics comes much later.
+
+---
+
+# 76. NO UI
+
+Do not implement:
+
+* note editor;
+* notes sheet;
+* metrics cards;
+* charts;
+* Focus summary page;
+* post-Focus buttons.
+
+Prompt 12 is backend/API/runtime foundation only.
+
+---
+
+# 77. CLIENT API ONLY
+
+It is acceptable to add typed client wrappers for:
+
+```text
+Quick Notes
+Focus metrics
+Post-Focus context
+```
+
+No visible route/page.
+
+---
+
+# 78. NO POINTS
+
+Quick Notes and Focus statistics have no Points side effects.
+
+Do not implement Study Points.
+
+---
+
+# 79. NO MASTERY
+
+Do not derive Mastery from:
+
+* note creation;
+* Focus seconds;
+* interruptions.
+
+Mastery comes later.
+
+---
+
+# 80. NO AI
+
+Do not summarize notes.
+
+Do not generate action recommendations.
+
+Do not call Workers AI/Gemini.
+
+Post-Focus context is deterministic.
+
+---
+
+# 81. NO GROUP FOCUS
+
+Prompt 12 remains solo Focus.
+
+---
+
+# 82. NO RESOURCE-HANDOFF REDESIGN
+
+Prompt 11 is approved.
+
+Do not redesign Handoff.
+
+Only the interruption-source authority assertion/fix is permitted if required.
+
+---
+
+# 83. NO PDF CHANGES
+
+Existing PDF/video opening remains untouched.
+
+---
+
+# 84. WRITE BUDGET
+
+Report actual logical writes.
+
+### Create Quick Note
+
+Expected:
+
+```text
+FocusQuickNote insert = 1
+D1 writes = 0
+StudyEvent = 0
+```
+
+### Edit
+
+```text
+FocusQuickNote update = 1
+```
+
+### Archive
+
+```text
+FocusQuickNote update = 1
+```
+
+### Convert
+
+```text
+FocusPlanItem insert = 1
+FocusQuickNote update = 1
+FocusPlan projection outbox = 1
+```
+
+### Metric GET
+
+```text
+writes = 0
+```
+
+### Post-action GET
+
+```text
+writes = 0
+```
+
+---
+
+# 85. OUTBOX COALESCING
+
+Do not implement it here.
+
+Keep:
+
+```text
+COALESCING PRIORITY: HIGH
+```
+
+visible for high-frequency MCQ/Flashcard projection integration.
+
+Quick Notes themselves create no D1 traffic.
+
+---
+
+# 86. REGRESSION SUITES
+
+Run all currently green suites including:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Prompt 8
+Outbox schema
+Outbox PostgreSQL
+Study Event PostgreSQL
+Focus timer
+Focus PostgreSQL
+Prompt 10 client
+Prompt 11 handoff
+Prompt 11 client
+Auth
+```
+
+---
+
+# 87. CALENDAR BASELINE
+
+Current known baseline:
+
+```text
+Calendar Import:
+16 pass / 9 fail
+
+Typecheck:
+2 Calendar Import errors
+
+Lint:
+10 existing errors
+```
+
+Prompt 12 must not increase any of these.
+
+Do not fix Calendar Import here.
+
+---
+
+# 88. TARGETED TYPECHECK
+
+Run strict TypeScript checks on all Prompt 12 files/tests.
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 89. FULL TYPECHECK
+
+Run:
+
+```text
+npm run typecheck
+```
+
+Expected:
+
+```text
+same 2 Calendar Import errors
+0 new Prompt 12 errors
+```
+
+---
+
+# 90. LINT
+
+Run full + targeted lint.
+
+Expected:
+
+```text
+same 10 baseline errors
+0 new Prompt 12 errors
+```
+
+---
+
+# 91. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 92. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 12 migration to production;
+* modify production Supabase;
+* deploy API;
+* deploy Worker;
+* modify remote D1;
+* enable Focus;
+* change Render env;
+* change Cloudflare env.
+
+Migration is repository-only and disposable-development-tested.
+
+---
+
+# 93. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<focus_quick_note>/migration.sql
+
+server/features/focus/*
+server/routes/focus.ts
+
+src/features/focus/api/focusApi.ts
+
+tests/focus-quick-notes*.test.ts
+tests/focus-metrics*.test.ts
+tests/focus-post-actions*.test.ts
+```
+
+Potential minimal Prompt 11 correction:
+
+```text
+server/features/study-events/eventPolicy.ts
+server/features/study-events/schemas.ts
+server/features/focus/service.ts
+```
+
+only if interruption source authority is currently wrong.
+
+---
+
+# 94. FILES THAT SHOULD REMAIN UNCHANGED
+
+Unless a genuine blocker exists:
+
+```text
+src/App.tsx
+src/core/offline/OfflineEngine.ts
+src/features/calendar/*
+cloudflare-private-data-api/migrations/*
+PDF/video opener implementation
+```
+
+---
+
+# 95. ACCEPTANCE CRITERIA
+
+Prompt 12 succeeds only if:
+
+1. One additive Quick Note model exists.
+2. Quick Notes are PostgreSQL-only.
+3. Note creation infers Lecture from Session.
+4. Ownership is server-enforced.
+5. Note creation is idempotent.
+6. Concurrent duplicate note creation is safe.
+7. Notes can be listed/edited/archived.
+8. No hard delete route.
+9. Note conversion creates one FocusPlanItem.
+10. Conversion is atomic and idempotent.
+11. Conversion is race-safe.
+12. Converted PlanItem cannot be unsafely removed.
+13. Conversion never writes Calendar.
+14. Quick Note text never enters D1/outbox.
+15. Quick Note text never enters StudyEvent.
+16. Focus metrics use `StudyDailyMetric`.
+17. Metrics use Baghdad logical dates.
+18. Today works.
+19. Rolling last7Days works.
+20. Month works.
+21. Missing days zero-fill only in response.
+22. Metric reads create zero writes.
+23. D1-first metrics safely fall back to PostgreSQL.
+24. Post-Focus context is deterministic.
+25. Configured vs available actions are separate.
+26. Post-Focus context survives reload.
+27. Post-Focus read has zero side effects.
+28. Final planned Session still does NOT auto-complete Lecture.
+29. Interruption canonical source is server-owned.
+30. Client platform remains observation metadata only.
+31. No Focus UI.
+32. No Points.
+33. No Mastery.
+34. No AI.
+35. No Group Focus.
+36. No D1 migration.
+37. Build passes.
+38. New regressions = 0.
+
+---
+
+# 96. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List all existing Focus/Foundation/PostgreSQL/client suites.
+
+## B. Interruption Authority Verification
+
+Explicitly report:
+
+```text
+focus_interruption_recorded evidence:
+persisted StudyEvent.source:
+client observed source storage:
+```
+
+Confirm whether Prompt 11 required a correction.
+
+## C. `FocusQuickNote` Schema
+
+Show final model fields, relations, indexes, delete behavior and statuses.
+
+## D. Migration
+
+Report exact path and safety:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+```
+
+## E. Quick Note Routes
+
+For every route report:
+
+* method/path;
+* auth;
+* request;
+* response;
+* allowed states;
+* ownership behavior.
+
+## F. Quick Note Privacy
+
+Explicitly:
+
+```text
+QUICK NOTE STORED IN POSTGRESQL: YES
+QUICK NOTE MIRRORED TO D1: NO
+QUICK NOTE TEXT IN STUDY EVENT: NO
+QUICK NOTE TEXT IN ANALYTICS ENGINE: NO
+QUICK NOTE TEXT EXPOSED TO OWNER ANALYTICS: NO
+```
+
+## G. Quick Note Idempotency
+
+Report first/replay/conflict/concurrent duplicate behavior.
+
+## H. Quick Note Conversion
+
+Explain:
+
+* target Plan validation;
+* configuration source;
+* sequence allocation;
+* transaction;
+* conversion link;
+* replay/conflict.
+
+## I. Converted Plan Item Protection
+
+Explain how unsafe deletion is prevented.
+
+## J. Schedule Separation
+
+Explicitly:
+
+```text
+QUICK NOTE CREATES CALENDAR EVENT: NO
+QUICK NOTE CONVERSION CREATES CALENDAR EVENT: NO
+```
+
+## K. Focus Metrics API
+
+Report route and exact periods:
+
+```text
+today
+last7Days
+month
+```
+
+## L. Focus Metrics Date Logic
+
+Explain Baghdad date/range calculations.
+
+## M. Focus Metrics DTO
+
+Show returned raw counters and daily-series structure.
+
+## N. Metrics D1 / PostgreSQL Read Strategy
+
+Report actual existing D1 read flag name and:
+
+* success;
+* disabled;
+* unavailable;
+* malformed;
+* scope mismatch.
+
+## O. Metrics No-Write Verification
+
+Explicitly report database/outbox write count for GET metrics.
+
+## P. Post-Focus Context
+
+Show exact returned fields.
+
+## Q. Configured vs Available Actions
+
+Report MCQ/Flashcard/Video availability checks.
+
+## R. Lecture Completion Safety
+
+Explicitly:
+
+```text
+AUTO LECTURE COMPLETION: NO
+LECTUREPROGRESS WRITTEN BY POST-ACTION READ: NO
+```
+
+## S. Real PostgreSQL Environment
+
+Report:
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 12 TESTS EXECUTED: YES/NO
+```
+
+## T. Real Quick Note Tests
+
+Report create/replay/conflict/concurrency/edit/archive/privacy results.
+
+## U. Real Conversion Tests
+
+Report item count, sequence, projection, rollback and concurrency results.
+
+## V. Real Metric Tests
+
+Report today/7-day/month totals and zero-fill results.
+
+## W. Post-Focus Tests
+
+Report state/ownership/availability/side-effect results.
+
+## X. Write Budget
+
+Report actual logical writes for:
+
+* create note;
+* edit note;
+* archive note;
+* conversion;
+* metric GET;
+* post-actions GET.
+
+## Y. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## Z. Regression Results
+
+Include all foundation, Focus, Prompt 11, PostgreSQL, client, Auth, build, Prisma, typecheck, lint and Calendar results.
+
+## AA. Files Created
+
+Exact paths.
+
+## AB. Files Modified
+
+Exact paths/reasons.
+
+Explicitly confirm:
+
+```text
+OfflineEngine unchanged?
+Calendar unchanged?
+D1 migrations unchanged?
+PDF/video opener unchanged?
+```
+
+## AC. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 12 MIGRATION APPLIED TO PRODUCTION: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+FOCUS ENABLED IN PRODUCTION: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AD. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AE. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AF. Risks / Blockers
+
+Keep outbox coalescing concern visible.
+
+Report only actual unresolved issues.
+
+## AG. Architecture Compliance
+
+Answer YES/NO:
+
+* PostgreSQL canonical?
+* Quick Notes private?
+* Quick Notes PostgreSQL-only?
+* No Quick Note D1 mirror?
+* No Quick Note analytics leakage?
+* Conversion Focus-only?
+* No Calendar integration?
+* Metrics deterministic?
+* Metrics use Baghdad dates?
+* D1 metrics non-authoritative?
+* Post-Focus context deterministic?
+* No auto Lecture completion?
+* Interruption source server-authoritative?
+* No Points?
+* No AI?
+* No UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AH. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 13 — Group Focus Canonical Rooms, Membership & Authorization**
+
+Do not implement Prompt 13.
+
+---
+
+# 97. STOP CONDITION
+
+After implementation, tests and report:
+
+STOP.
+
+Do NOT begin Group Focus.
+
+Do NOT build Focus UI.
+
+Do NOT implement Points.
+
+Do NOT deploy Prompt 12 migration.
+
+Wait for review.
+
+End exactly:
+
+**PROMPT 12 COMPLETE — QUICK NOTES, FOCUS METRICS & POST-FOCUS CONTEXT READY — PRODUCTION UNCHANGED — READY FOR REVIEW**
