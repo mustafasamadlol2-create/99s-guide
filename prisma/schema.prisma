@@ -62,6 +62,8 @@ model User {
   focusQuickNotes           FocusQuickNote[]
   studyEvents               StudyEvent[]
   studyDailyMetrics         StudyDailyMetric[]
+  groupFocusRoomsHosted     GroupFocusRoom[]            @relation("GroupFocusRoomHost")
+  groupFocusMemberships     GroupFocusMembership[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -89,6 +91,8 @@ model Lecture {
   focusSessions            FocusSession[]
   focusQuickNotes          FocusQuickNote[]          @relation("FocusQuickNoteLecture")
   studyEvents              StudyEvent[]
+  groupFocusRoomsShared    GroupFocusRoom[]          @relation("GroupFocusRoomSharedLecture")
+  groupFocusMemberships    GroupFocusMembership[]    @relation("GroupFocusMembershipSelectedLecture")
 
   @@index([name])
   @@index([mainSubject])
@@ -639,6 +643,57 @@ model FocusQuickNote {
   @@index([userId, createdAt])
   @@index([focusSessionId, createdAt])
   @@index([lectureId, createdAt])
+}
+
+model GroupFocusRoom {
+  id                    String                 @id @default(uuid())
+  hostUserId            String
+  name                  String
+  visibility            String
+  mode                  String
+  sharedLectureId       String?
+  focusDurationSeconds  Int
+  breakDurationSeconds  Int
+  roundCount            Int
+  maxParticipants       Int                    @default(12)
+  status                String                 @default("OPEN")
+  createIdempotencyKey  String
+  inviteTokenHash       String?
+  inviteVersion         Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  closedAt              DateTime?
+
+  host          User          @relation("GroupFocusRoomHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  sharedLecture Lecture?      @relation("GroupFocusRoomSharedLecture", fields: [sharedLectureId], references: [id], onDelete: Restrict)
+  memberships   GroupFocusMembership[]
+
+  @@unique([hostUserId, createIdempotencyKey])
+  @@index([visibility, status, createdAt])
+  @@index([hostUserId, status])
+  @@index([sharedLectureId])
+}
+
+model GroupFocusMembership {
+  id                 String    @id @default(uuid())
+  roomId             String
+  userId             String
+  role               String
+  status             String    @default("ACTIVE")
+  selectedLectureId  String?
+  joinedAt           DateTime  @default(now())
+  leftAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  room            GroupFocusRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedLecture Lecture?       @relation("GroupFocusMembershipSelectedLecture", fields: [selectedLectureId], references: [id], onDelete: Restrict)
+
+  @@unique([roomId, userId])
+  @@index([roomId, status])
+  @@index([userId, status])
+  @@index([selectedLectureId])
 }
 
 /// Canonical normalized learning-event envelope. Event values remain strings
