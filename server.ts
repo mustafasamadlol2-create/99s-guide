@@ -57,10 +57,16 @@ import {
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
 import { createAchievementsRouter } from "./server/routes/achievements.js";
+import { createGamificationRouter } from "./server/routes/gamification.js";
 import {
   getMyAchievements,
   refreshUserAchievementsBestEffort,
 } from "./server/features/gamification/achievementService.js";
+import {
+  getMyGamificationSummary,
+  refreshUserGamificationBestEffort,
+} from "./server/features/gamification/gamificationRead.js";
+import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import { createGroupFocusService } from "./server/features/group-focus/service.js";
 import { createGroupFocusRuntimeSummaryService } from "./server/features/group-focus/runtimeSummary.js";
@@ -7599,7 +7605,15 @@ app.use(
     putCloud: putPersonalizationToCloud,
   }),
 );
-setStudyPointsPostCommitHook(refreshUserAchievementsBestEffort);
+setStudyPointsPostCommitHook(refreshUserGamificationBestEffort);
+app.use(
+  "/api",
+  createGamificationRouter({
+    requireUser,
+    getMyGamificationSummary,
+    getPublicGamificationProfile,
+  }),
+);
 app.use(
   "/api/me/achievements",
   createAchievementsRouter({

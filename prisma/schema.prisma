@@ -941,18 +941,19 @@ model StudyPointsBalanceProjection {
 /// Versioned, server-owned definition lifecycle. Definitions remain in source
 /// control; this row records their checksum and active/retired lifecycle.
 model GamificationRuleSet {
-  id                    String                    @id @default(uuid())
-  version               String                    @unique @db.VarChar(64)
-  status                String                    @default("DRAFT") @db.VarChar(16)
-  schemaVersion         Int
-  definitionChecksum    String                    @db.Char(64)
-  effectiveFrom         DateTime?
-  retiredAt             DateTime?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  gamificationLevels    UserGamificationLevel[]
-  achievementProgresses UserAchievementProgress[]
-  achievementUnlocks    UserAchievement[]
+  id                      String                    @id @default(uuid())
+  version                 String                    @unique @db.VarChar(64)
+  status                  String                    @default("DRAFT") @db.VarChar(16)
+  schemaVersion           Int
+  definitionChecksum      String                    @db.Char(64)
+  levelDefinitionChecksum String?                   @db.Char(64)
+  effectiveFrom           DateTime?
+  retiredAt               DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  gamificationLevels      UserGamificationLevel[]
+  achievementProgresses   UserAchievementProgress[]
+  achievementUnlocks      UserAchievement[]
 
   @@index([status])
   @@index([status, effectiveFrom])
@@ -1007,16 +1008,17 @@ model UserAchievement {
 
 /// Current rebuildable lifetime Level projection; one row per user.
 model UserGamificationLevel {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  ruleSetVersion   String   @db.VarChar(64)
-  definitionChecksum String  @db.Char(64)
-  level            Int
-  lifetimePoints   BigInt   @db.BigInt
-  maxLevelReached  Boolean  @default(false)
-  lastEvaluatedAt  DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  ruleSetVersion          String   @db.VarChar(64)
+  definitionChecksum      String   @db.Char(64)
+  levelDefinitionChecksum String   @db.Char(64)
+  level                   Int
+  lifetimePoints          BigInt   @db.BigInt
+  maxLevelReached         Boolean  @default(false)
+  lastEvaluatedAt         DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   ruleSet GamificationRuleSet @relation(fields: [ruleSetVersion], references: [version], onDelete: Restrict)

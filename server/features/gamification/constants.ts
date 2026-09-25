@@ -7,6 +7,8 @@ export const GAMIFICATION_RULE_VERSION_PATTERN =
   /^gamification-v[1-9][0-9]{0,5}$/u;
 export const GAMIFICATION_DEFINITION_CHECKSUM_NAMESPACE =
   "99s-guide:gamification-definition-bundle:v1:";
+export const GAMIFICATION_LEVEL_DEFINITION_CHECKSUM_NAMESPACE =
+  "99s-guide:gamification-level-definitions:v1:";
 
 export const GAMIFICATION_POINT_CATEGORIES = STUDY_POINTS_CATEGORIES;
 

@@ -1,8 +1,16 @@
+ALTER TABLE "GamificationRuleSet"
+    ADD COLUMN "levelDefinitionChecksum" CHAR(64);
+
+UPDATE "GamificationRuleSet"
+SET "levelDefinitionChecksum" = '5bbf8eb146b70cb4de45eeb6ca2adf22bd2e801f205b76034cbf35718dd611e2'
+WHERE "version" = 'gamification-v1';
+
 CREATE TABLE "UserGamificationLevel" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "ruleSetVersion" VARCHAR(64) NOT NULL,
     "definitionChecksum" CHAR(64) NOT NULL,
+    "levelDefinitionChecksum" CHAR(64) NOT NULL,
     "level" INTEGER NOT NULL,
     "lifetimePoints" BIGINT NOT NULL,
     "maxLevelReached" BOOLEAN NOT NULL DEFAULT false,

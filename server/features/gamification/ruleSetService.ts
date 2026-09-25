@@ -6,6 +6,10 @@ import {
 import { getPrisma } from "../../services/prismaClient.js";
 import { checksumGamificationDefinitionBundle } from "./checksum.js";
 import {
+  assertGamificationLevelDefinitionsChecksum,
+  checksumGamificationLevelDefinitions,
+} from "./levelChecksum.js";
+import {
   GAMIFICATION_RULE_VERSION_PATTERN,
 } from "./constants.js";
 import { getGamificationDefinitionBundle } from "./definitions.js";
@@ -53,6 +57,10 @@ function assertStoredChecksumMatches(
   row: GamificationRuleSet,
   bundle: GamificationDefinitionBundle,
 ): void {
+  assertGamificationLevelDefinitionsChecksum(
+    bundle,
+    row.levelDefinitionChecksum,
+  );
   if (
     row.version !== bundle.version
     || row.schemaVersion !== bundle.schemaVersion
@@ -90,6 +98,7 @@ export async function registerGamificationRuleSetDraftForBundle(
 ): Promise<GamificationRuleSet> {
   assertBundleVersion(bundle.version, bundle);
   const checksum = checksumGamificationDefinitionBundle(bundle);
+  const levelChecksum = checksumGamificationLevelDefinitions(bundle);
 
   return database.$transaction(async (tx) => {
     await acquireAdvisoryLock(
@@ -103,6 +112,7 @@ export async function registerGamificationRuleSetDraftForBundle(
       if (
         existing.schemaVersion !== bundle.schemaVersion
         || existing.definitionChecksum !== checksum
+        || existing.levelDefinitionChecksum !== levelChecksum
       ) {
         throw new GamificationError(
           "GAMIFICATION_RULE_VERSION_CONFLICT",
@@ -117,6 +127,7 @@ export async function registerGamificationRuleSetDraftForBundle(
         status: "DRAFT",
         schemaVersion: bundle.schemaVersion,
         definitionChecksum: checksum,
+        levelDefinitionChecksum: levelChecksum,
       },
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
@@ -137,6 +148,7 @@ async function activateGamificationRuleSetForBundle(
 ): Promise<GamificationRuleSet> {
   assertBundleVersion(bundle.version, bundle);
   const checksum = checksumGamificationDefinitionBundle(bundle);
+  const levelChecksum = checksumGamificationLevelDefinitions(bundle);
   return database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
     const target = await tx.gamificationRuleSet.findUnique({
@@ -151,6 +163,7 @@ async function activateGamificationRuleSetForBundle(
     if (
       target.schemaVersion !== bundle.schemaVersion
       || target.definitionChecksum !== checksum
+      || target.levelDefinitionChecksum !== levelChecksum
     ) {
       throw new GamificationError(
         "GAMIFICATION_DEFINITION_CHECKSUM_MISMATCH",

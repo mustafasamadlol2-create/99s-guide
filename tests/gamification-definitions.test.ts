@@ -5,6 +5,7 @@ import {
   GAMIFICATION_V1_RULE_SET_VERSION,
   GamificationError,
   checksumGamificationDefinitionBundle,
+  checksumGamificationLevelDefinitions,
   getGamificationDefinitionBundle,
   getGamificationDefinitionVersions,
   getGamificationMetricDefinitions,
@@ -58,6 +59,13 @@ test("v1 bundle is immutable, deterministic, and excludes unavailable lifetime c
   const changed = cloneBundle();
   changed.achievementDefinitions[0]!.threshold = 2;
   assert.notEqual(checksumGamificationDefinitionBundle(changed), checksum);
+  const changedLevel = cloneBundle();
+  changedLevel.levelDefinitions[3]!.minimumLifetimePoints += 10;
+  assert.equal(checksumGamificationDefinitionBundle(changedLevel), checksum);
+  assert.notEqual(
+    checksumGamificationLevelDefinitions(changedLevel),
+    checksumGamificationLevelDefinitions(bundle),
+  );
 });
 
 test("definition validation rejects unknown reward fields and unavailable metrics", () => {
