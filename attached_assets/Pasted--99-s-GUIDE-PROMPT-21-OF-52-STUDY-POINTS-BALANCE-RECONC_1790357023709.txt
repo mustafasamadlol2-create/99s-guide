@@ -1,0 +1,3017 @@
+# 99’s GUIDE — PROMPT 21 OF 52
+
+## STUDY POINTS BALANCE RECONCILIATION
+
+## REBUILDABLE BALANCE PROJECTION + ACCOUNTING REPAIR
+
+## LEGACY → LEDGER CUTOVER READ MODEL
+
+### LEDGER REMAINS CANONICAL — NO UI — NO LEADERBOARD — NO NEW REWARD RULES
+
+Prompts 1–20 have been completed.
+
+Prompt 19 established:
+
+```text
+append-only StudyPointsLedgerEntry
+legacy PointsLog compatibility
+ledger balance aggregation
+reversals
+idempotency
+```
+
+Prompt 20 established:
+
+```text
+canonical evidence
+→ Integrity gate
+→ deterministic award rule
+→ anti-farming/caps
+→ StudyPointsLedgerEntry
+```
+
+Prompt 21 now makes that accounting system operationally robust.
+
+Frozen roadmap:
+
+```text
+Prompt 21 — Balance / reconciliation
+Prompt 22 — Gamification definitions / rule versions
+Prompt 23 — Achievements
+Prompt 24 — Levels / public profile-safe gamification
+Prompt 25 — Challenges
+Prompt 26 — Leaderboard seasons / snapshots
+Prompt 27 — Leaderboard D1/cache
+```
+
+Do NOT implement Prompt 22+.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. a rebuildable PostgreSQL Study Points balance projection;
+2. atomic ledger → balance projection updates;
+3. deterministic ledger-vs-projection reconciliation;
+4. safe projection repair;
+5. accounting invariant auditing;
+6. canonical legacy+ledger read model;
+7. explicit cutover readiness for future `LEDGER_ONLY`;
+8. safe owner/admin reconciliation APIs;
+9. zero mutation of historical ledger semantics;
+10. zero automatic production cutover.
+
+---
+
+# 2. CANONICAL ACCOUNTING AUTHORITY
+
+The immutable ledger remains the source of truth.
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry
+= canonical accounting history
+
+StudyPointsBalanceProjection
+= derived/rebuildable read model
+```
+
+Never reverse this relationship.
+
+---
+
+# 3. BALANCE FORMULA
+
+Canonical new-ledger balance remains:
+
+```text
+SUM(StudyPointsLedgerEntry.amount)
+```
+
+The projection exists only to avoid repeated aggregation for future:
+
+* profile;
+* levels;
+* achievements;
+* leaderboards;
+* analytics.
+
+---
+
+# 4. PROJECTION MUST BE REBUILDABLE
+
+If the balance projection is:
+
+```text
+missing
+stale
+corrupted
+deleted
+```
+
+the system must be able to reconstruct it entirely from the append-only ledger.
+
+No Points history may depend exclusively on the projection.
+
+---
+
+# 5. NO LEDGER REWRITE
+
+Reconciliation must NOT repair balance by:
+
+```text
+UPDATE ledger amount
+DELETE ledger row
+rewrite reasonCode
+rewrite source
+```
+
+Ledger history remains immutable.
+
+---
+
+# 6. ACCOUNTING REPAIR DEFINITION
+
+Prompt 21 “repair” means primarily:
+
+```text
+ledger truth
+→ rebuild / correct derived balance projection
+```
+
+It does NOT mean:
+
+```text
+admin chooses arbitrary new Points total
+```
+
+Do not create a “set user points to X” API.
+
+---
+
+# 7. LEDGER CORRECTIONS
+
+If a canonical ledger entry itself is known to be wrong:
+
+use existing Prompt 19 additive accounting tools:
+
+```text
+reversal
++
+future corrected entry
+```
+
+Do not mutate the original entry.
+
+Prompt 21 reconciliation may detect ledger anomalies but must not silently rewrite them.
+
+---
+
+# 8. REQUIRED NEW MODEL
+
+Add exactly one derived accounting model unless the repository already has an equivalent:
+
+```text
+StudyPointsBalanceProjection
+```
+
+No other Points persistence model should be required.
+
+---
+
+# 9. `StudyPointsBalanceProjection`
+
+Support at least:
+
+```text
+userId
+
+focusPoints
+masteryPoints
+progressPoints
+consistencyPoints
+
+totalPoints
+
+ledgerEntryCount
+projectionVersion
+
+lastReconciledAt?
+
+createdAt
+updatedAt
+```
+
+Use actual Prisma conventions.
+
+---
+
+# 10. USER KEY
+
+Prefer:
+
+```text
+userId = primary key
+```
+
+or unique one-to-one relation.
+
+Exactly one projection row per user.
+
+---
+
+# 11. USER RELATION
+
+Relate projection to canonical:
+
+```text
+User
+```
+
+using repository-consistent delete behavior.
+
+Do not create duplicate identity.
+
+---
+
+# 12. NUMERIC TYPES
+
+Match Prompt 19 ledger/accounting numeric strategy.
+
+The projection must safely represent lifetime totals.
+
+If ledger aggregation uses PostgreSQL `bigint` semantics:
+
+preserve safe conversion.
+
+Do not silently truncate or overflow JavaScript numbers.
+
+---
+
+# 13. NEGATIVE VALUES
+
+Do NOT apply:
+
+```text
+max(balance, 0)
+```
+
+to canonical derived balances.
+
+A negative balance may indicate:
+
+* valid reversal/correction;
+* accounting anomaly.
+
+Reconciliation should report it.
+
+Do not hide it.
+
+---
+
+# 14. PROJECTION VERSION
+
+Use a monotonically increasing:
+
+```text
+projectionVersion
+```
+
+for successfully applied ledger changes/rebuilds.
+
+It is not a Points rule version.
+
+---
+
+# 15. ENTRY COUNT
+
+Persist:
+
+```text
+ledgerEntryCount
+```
+
+representing the number of canonical ledger entries included in projection.
+
+This is an important cheap drift indicator.
+
+---
+
+# 16. CATEGORY SUM INVARIANT
+
+Mandatory:
+
+```text
+focusPoints
++ masteryPoints
++ progressPoints
++ consistencyPoints
+=
+totalPoints
+```
+
+Reconciliation must verify this.
+
+---
+
+# 17. MIGRATION
+
+Create one additive PostgreSQL migration for:
+
+```text
+StudyPointsBalanceProjection
+```
+
+Expected:
+
+```text
+new PostgreSQL migration: YES
+new D1 migration: NO
+```
+
+---
+
+# 18. MIGRATION SAFETY
+
+Explicitly verify:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+PointsLog destructive change: NO
+StudyPointsLedgerEntry destructive change: NO
+```
+
+Do not deploy migration to production.
+
+---
+
+# 19. NO AUTOMATIC MIGRATION BACKFILL
+
+The migration itself must NOT populate projection rows from:
+
+```text
+PointsLog
+StudyPointsLedgerEntry
+```
+
+No mass data operation inside schema migration.
+
+Backfill tooling remains Prompt 49.
+
+---
+
+# 20. LAZY PROJECTION INITIALIZATION
+
+When a ledger entry is appended for a user with no projection row:
+
+do NOT initialize projection as merely:
+
+```text
+current entry amount
+```
+
+because earlier ledger entries may already exist.
+
+Instead inside the safe accounting transaction:
+
+```text
+ledger row exists
+→ aggregate complete ledger for user
+→ create exact projection
+```
+
+This makes Prompt 21 compatible with ledger entries created before projection deployment.
+
+---
+
+# 21. EXISTING PROJECTION UPDATE
+
+If projection already exists and is known to be current within the transaction:
+
+apply the new ledger entry atomically:
+
+```text
+category += entry.amount
+totalPoints += entry.amount
+ledgerEntryCount += 1
+projectionVersion += 1
+```
+
+---
+
+# 22. FIRST INSERT ATOMICITY
+
+Prompt 19 append service must now ensure:
+
+```text
+ledger append
++
+projection update/rebuild
+```
+
+commit atomically.
+
+Unexpected projection failure:
+
+```text
+ledger append rolls back
+```
+
+No accounting entry without matching derived read-model update.
+
+---
+
+# 23. IDEMPOTENT REPLAY
+
+Same Prompt 19 ledger replay:
+
+```text
+must NOT increment projection again
+```
+
+Mandatory.
+
+---
+
+# 24. IDEMPOTENCY CONFLICT
+
+Conflicting ledger request:
+
+```text
+no projection mutation
+```
+
+---
+
+# 25. REVERSAL PROJECTION
+
+Prompt 19 reversal entry is simply another canonical ledger entry with a negative amount.
+
+Its category and total delta must update projection atomically.
+
+Example:
+
+```text
+MASTERY +20
+then reversal -20
+
+projection MASTERY:
+20 → 0
+```
+
+---
+
+# 26. NO SPECIAL BALANCE DELETE
+
+Reversal does not erase original effect historically.
+
+Projection reflects:
+
+```text
+net ledger sum
+```
+
+---
+
+# 27. PROMPT 20 AWARD ENGINE
+
+Prompt 20 deterministic award append should receive projection behavior automatically through the Prompt 19 ledger service.
+
+Do not duplicate projection writes inside:
+
+```text
+Focus award logic
+Group Focus award logic
+Consistency award logic
+MCQ/Flashcard award logic
+```
+
+One accounting service owns projection updates.
+
+---
+
+# 28. ONE WRITER PATH
+
+Preferred:
+
+```text
+all ledger inserts
+→ Prompt 19 ledger append service
+→ Prompt 21 projection updater
+```
+
+Do not scatter raw `StudyPointsLedgerEntry.create()` calls.
+
+---
+
+# 29. RAW LEDGER WRITE SEARCH
+
+Search production server code for direct:
+
+```text
+prisma.studyPointsLedgerEntry.create
+createMany
+update
+delete
+```
+
+outside the accounting module.
+
+Expected:
+
+```text
+0 uncontrolled production writers
+```
+
+Tests/fixtures may use direct writes when explicitly isolated.
+
+---
+
+# 30. CANONICAL AGGREGATE SERVICE
+
+Preserve/create:
+
+```ts
+getCanonicalStudyPointsLedgerBalance(userId)
+```
+
+which always computes directly from ledger SQL aggregation.
+
+This is the reconciliation authority.
+
+---
+
+# 31. FAST PROJECTION READ
+
+Create:
+
+```ts
+getProjectedStudyPointsBalance(userId)
+```
+
+which reads:
+
+```text
+StudyPointsBalanceProjection
+```
+
+No ledger scan.
+
+---
+
+# 32. SAFE FALLBACK
+
+If projection is absent:
+
+read service may fall back to canonical ledger aggregate.
+
+Do NOT automatically write a projection merely because a normal read occurred unless explicitly requested by reconciliation/backfill logic.
+
+Ordinary GET should preferably remain read-only.
+
+---
+
+# 33. READ MODEL TYPE
+
+Create:
+
+```ts
+type StudyPointsBalanceReadModel = {
+  focusPoints: number;
+  masteryPoints: number;
+  progressPoints: number;
+  consistencyPoints: number;
+  ledgerPoints: number;
+
+  legacyPoints: number;
+  totalPoints: number;
+
+  compatibilityMode:
+    | "LEGACY_ONLY"
+    | "LEGACY_PLUS_LEDGER"
+    | "LEDGER_ONLY";
+
+  source:
+    | "PROJECTION"
+    | "LEDGER_FALLBACK";
+
+  projectionVersion?: number;
+};
+```
+
+Adjust exact numeric type safely if BigInt is retained internally.
+
+---
+
+# 34. LEGACY COMPATIBILITY
+
+Reuse Prompt 19 exact legacy PointsLog semantics.
+
+Do not reinterpret old rows.
+
+---
+
+# 35. COMPATIBILITY MODES
+
+Support exactly:
+
+```text
+LEGACY_ONLY
+LEGACY_PLUS_LEDGER
+LEDGER_ONLY
+```
+
+---
+
+# 36. `LEGACY_ONLY`
+
+Returns:
+
+```text
+legacy PointsLog total
+```
+
+Ledger is not included in displayed compatible total.
+
+This preserves pre-cutover behavior.
+
+---
+
+# 37. `LEGACY_PLUS_LEDGER`
+
+Returns:
+
+```text
+legacy PointsLog total
++
+new Study Points ledger net total
+```
+
+This is the transitional compatibility model created by Prompt 19.
+
+---
+
+# 38. `LEDGER_ONLY`
+
+Returns only:
+
+```text
+Study Points ledger balance
+```
+
+This mode is unsafe for users with unmigrated legacy Points history.
+
+Prompt 21 must therefore gate it.
+
+---
+
+# 39. NO AUTOMATIC `LEDGER_ONLY`
+
+Mandatory:
+
+```text
+Prompt 21 automatically switches production users to LEDGER_ONLY: NO
+```
+
+---
+
+# 40. READ MODE CONFIGURATION
+
+Do not hard-code a production cutover.
+
+Create a server-owned read-mode resolver.
+
+Preferred behavior:
+
+```text
+missing configuration
+→ preserve current legacy behavior
+```
+
+If using an env/config value:
+
+```text
+STUDY_POINTS_READ_MODE
+```
+
+must default safely.
+
+Do NOT modify production env.
+
+Tests use process-local values.
+
+---
+
+# 41. CURRENT PUBLIC UI
+
+Do not change frontend UI in Prompt 21.
+
+If existing public/backend Points read path is modified:
+
+preserve its existing response shape unless the current API already supports extension safely.
+
+Prefer building the canonical read service first.
+
+---
+
+# 42. CUTOVER READINESS
+
+Create:
+
+```ts
+getStudyPointsCutoverReadiness(userId)
+```
+
+returning bounded information such as:
+
+```text
+legacyRowCount
+legacyPoints
+
+ledgerEntryCount
+ledgerPoints
+
+legacyBaselinePresent
+
+safeForLedgerOnly
+blockers[]
+```
+
+---
+
+# 43. LEGACY BASELINE
+
+Prompt 19 reserved compatibility semantics for:
+
+```text
+LEGACY_POINTS_LOG
+```
+
+Future controlled migration may create a canonical ledger baseline representing historical legacy total.
+
+Prompt 21 must understand this concept but must NOT bulk-create it.
+
+---
+
+# 44. BASELINE REASON
+
+Reserve a stable future accounting reason such as:
+
+```text
+legacy.baseline_import
+```
+
+and rule version:
+
+```text
+legacy-cutover-v1
+```
+
+Do NOT actually import production legacy history.
+
+---
+
+# 45. BASELINE SEMANTICS
+
+A future baseline represents:
+
+```text
+historical PointsLog total at cutover
+```
+
+as one canonical ledger accounting entry.
+
+It does NOT pretend to know historical categories/reward rules.
+
+---
+
+# 46. LEGACY BASELINE CATEGORY
+
+Do NOT falsely map old historical Points into:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+if historical rows do not support that information.
+
+Therefore Prompt 21 must NOT create baseline rows yet unless Prompt 19 already defined a safe accounting representation.
+
+If canonical category model cannot represent unknown legacy Points without distortion:
+
+```text
+safeForLedgerOnly = false
+```
+
+until Prompt 49 migration tooling solves it explicitly.
+
+Do not invent fake category attribution.
+
+---
+
+# 47. SAFE LEDGER-ONLY RULE
+
+At minimum:
+
+```text
+legacyPoints = 0
+→ may be safe for LEDGER_ONLY
+```
+
+For:
+
+```text
+legacyPoints != 0
+```
+
+require a proven future migration/baseline mechanism.
+
+Until then:
+
+```text
+safeForLedgerOnly = false
+```
+
+---
+
+# 48. CUTOVER BLOCKERS
+
+Possible deterministic blockers:
+
+```text
+UNMIGRATED_LEGACY_POINTS
+PROJECTION_DRIFT
+LEDGER_INVARIANT_FAILURE
+UNSUPPORTED_LEGACY_SEMANTICS
+```
+
+No vague status.
+
+---
+
+# 49. NO BACKFILL API
+
+Do NOT expose:
+
+```text
+POST /api/admin/points/backfill-all
+```
+
+Prompt 49 owns backfill tooling.
+
+---
+
+# 50. RECONCILIATION SERVICE
+
+Create internal:
+
+```ts
+reconcileStudyPointsAccount({
+  userId,
+  repairProjection?: boolean
+})
+```
+
+---
+
+# 51. RECONCILIATION INPUT
+
+Canonical user only.
+
+Do not accept:
+
+```text
+expected total supplied by browser
+```
+
+The service computes expected values from ledger itself.
+
+---
+
+# 52. RECONCILIATION RESULT
+
+Return conceptually:
+
+```ts
+{
+  userId,
+
+  canonical: {
+    focusPoints,
+    masteryPoints,
+    progressPoints,
+    consistencyPoints,
+    totalPoints,
+    ledgerEntryCount
+  },
+
+  projection?: {
+    ...
+  },
+
+  legacy: {
+    points,
+    rowCount
+  },
+
+  checks: [...],
+
+  status:
+    | "IN_SYNC"
+    | "PROJECTION_MISSING"
+    | "PROJECTION_DRIFT"
+    | "LEDGER_INVARIANT_FAILURE",
+
+  repaired: boolean
+}
+```
+
+---
+
+# 53. RECONCILIATION CHECKS
+
+At minimum verify:
+
+```text
+projection total == ledger total
+
+each projection category == ledger category aggregate
+
+projection ledgerEntryCount == canonical ledger row count
+
+sum(categories) == total
+
+no zero-value ledger rows
+
+all ledger categories allowed
+
+reversal relations structurally valid
+
+reversal user matches original user
+
+reversal category matches original category
+
+full reversal amount == -original amount
+
+no invalid double reversal
+```
+
+---
+
+# 54. SOURCE UNIQUENESS AUDIT
+
+Audit Prompt 20 source/reason/rule uniqueness.
+
+Detect suspicious accounting duplicates such as:
+
+```text
+same user
+same sourceType
+same sourceId
+same reasonCode
+same ruleVersion
+```
+
+with multiple positive award rows where Prompt 20 expects one.
+
+Do NOT automatically delete them.
+
+Report:
+
+```text
+DUPLICATE_SOURCE_AWARD
+```
+
+---
+
+# 55. CONSISTENCY UNIQUENESS AUDIT
+
+Ensure:
+
+```text
+one daily-consistency-v1 award
+per user
+per Baghdad logical day
+```
+
+according to Prompt 20 semantics.
+
+Report anomaly only.
+
+---
+
+# 56. SOCIAL BONUS AUDIT
+
+Verify Prompt 20 social-bonus daily maximum.
+
+Reconciliation may report cap invariant issues.
+
+Do not automatically punish/reverse unless a later explicit repair is requested.
+
+---
+
+# 57. DAILY CAP AUDIT
+
+Recompute ledger net amounts per:
+
+```text
+user
+Baghdad date
+category
+```
+
+and verify Prompt 20 V1 cap invariants.
+
+Report:
+
+```text
+CATEGORY_CAP_EXCEEDED
+TOTAL_DAILY_CAP_EXCEEDED
+```
+
+if ledger history violates them.
+
+---
+
+# 58. IMPORTANT — REVERSALS
+
+Cap audit must use ledger net accounting consistent with Prompt 20.
+
+Do not flag a day merely because positive gross awards exceeded cap before legitimate reversals if the rule semantics use net balance.
+
+Match Prompt 20 implementation exactly.
+
+---
+
+# 59. LEDGER INVARIANT FAILURE
+
+If structural ledger invariants fail:
+
+```text
+do NOT repair projection from invalid ledger
+```
+
+Return:
+
+```text
+LEDGER_INVARIANT_FAILURE
+```
+
+The projection should not legitimize structurally invalid accounting.
+
+---
+
+# 60. PROJECTION DRIFT
+
+If ledger is structurally valid but projection differs:
+
+```text
+PROJECTION_DRIFT
+```
+
+This is safe to repair.
+
+---
+
+# 61. PROJECTION MISSING
+
+If no projection row exists but ledger is valid:
+
+```text
+PROJECTION_MISSING
+```
+
+Safe repair creates exact projection from full ledger aggregate.
+
+---
+
+# 62. REPAIR OPERATION
+
+`repairProjection = true` may:
+
+```text
+create/update StudyPointsBalanceProjection
+```
+
+only.
+
+It must NOT modify:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+StudyEvent
+IntegritySignal
+```
+
+---
+
+# 63. REPAIR TRANSACTION LOCK
+
+Acquire a per-user PostgreSQL transaction lock.
+
+Within lock:
+
+1. recompute canonical ledger;
+2. rerun invariants;
+3. fail if invalid;
+4. replace projection values with exact canonical aggregates;
+5. increment projectionVersion;
+6. set `lastReconciledAt`;
+7. commit.
+
+---
+
+# 64. REPAIR IS IDEMPOTENT
+
+Run repair twice with no ledger changes.
+
+Second repair should result in same accounting values.
+
+It may update:
+
+```text
+lastReconciledAt
+projectionVersion
+```
+
+according to chosen semantics.
+
+Prefer not incrementing projectionVersion when values are already identical unless reconciliation itself is defined as a projection revision.
+
+Document exact behavior.
+
+---
+
+# 65. PREFERRED VERSION SEMANTICS
+
+Recommended:
+
+```text
+projectionVersion
+increments only when projection accounting state changes
+```
+
+A no-op reconciliation updates only:
+
+```text
+lastReconciledAt
+```
+
+This is easier to reason about.
+
+---
+
+# 66. NO ARBITRARY ACCOUNTING DELTA
+
+Projection repair API/service must not accept:
+
+```text
++50
+-10
+targetPoints = 900
+```
+
+It derives exact projection from ledger.
+
+---
+
+# 67. ACCOUNTING CORRECTION SERVICE
+
+For genuine ledger mistakes, expose a narrow internal repair planner rather than arbitrary mutation.
+
+Conceptually:
+
+```ts
+planStudyPointsAccountingRepair(...)
+```
+
+It may recommend:
+
+```text
+REVERSE_ENTRY
+REPLAY_SOURCE_AWARD
+MANUAL_REVIEW_REQUIRED
+```
+
+It does NOT execute destructive edits.
+
+---
+
+# 68. AUTOMATIC LEDGER REPAIR
+
+Prompt 21 must NOT automatically:
+
+```text
+reverse duplicate entry
+create missing historical reward
+change category
+change ruleVersion
+```
+
+without an explicit, auditable accounting operation.
+
+---
+
+# 69. SAFE REPAIR — REVERSAL
+
+If owner/admin explicitly chooses to correct one known invalid new-ledger entry:
+
+reuse Prompt 19:
+
+```text
+reverseStudyPointsLedgerEntry(...)
+```
+
+Do not build a second reversal implementation.
+
+---
+
+# 70. ADMIN RECONCILIATION API
+
+Implement owner/admin-only operational endpoint:
+
+```text
+GET /api/admin/study-points/users/:userId/reconciliation
+```
+
+Purpose:
+
+```text
+dry-run accounting inspection
+```
+
+No mutation.
+
+---
+
+# 71. ADMIN PROJECTION REPAIR API
+
+Implement:
+
+```text
+POST /api/admin/study-points/users/:userId/reconciliation/repair-projection
+```
+
+This endpoint may ONLY rebuild the projection from ledger truth.
+
+---
+
+# 72. NO GENERIC SET-BALANCE ENDPOINT
+
+Forbidden:
+
+```text
+POST /api/admin/study-points/users/:userId/set-balance
+```
+
+---
+
+# 73. OWNER / ADMIN AUTH
+
+Use existing canonical role authorization.
+
+Normal student:
+
+```text
+403
+```
+
+---
+
+# 74. GROUP HOST ≠ POINTS ADMIN
+
+Group Focus HOST gets no Points accounting privileges.
+
+---
+
+# 75. RECONCILIATION PRIVACY
+
+Admin result may include:
+
+```text
+userId
+aggregates
+entry counts
+invariant codes
+source/reason identifiers
+```
+
+Do not expose:
+
+* Quick Notes;
+* MCQ question text;
+* tokens;
+* uploaded content;
+* unrelated health/profile data.
+
+---
+
+# 76. NO ADMIN UI
+
+Backend/API only.
+
+Do not build reconciliation screens.
+
+---
+
+# 77. RECONCILIATION BODY LIMIT
+
+Repair request is tiny.
+
+Use a bounded parser.
+
+No arbitrary JSON accounting payload.
+
+---
+
+# 78. READ MODEL SERVICE
+
+Create server-owned:
+
+```ts
+getStudyPointsReadModel({
+  userId,
+  compatibilityMode
+})
+```
+
+---
+
+# 79. `LEGACY_ONLY` READ
+
+Use exact existing Prompt 19 legacy calculation.
+
+Projection/ledger values may still be returned internally but must not affect `totalPoints`.
+
+---
+
+# 80. `LEGACY_PLUS_LEDGER` READ
+
+Use:
+
+```text
+legacyPoints
++
+new ledger net balance
+```
+
+Prefer fast ledger projection when present.
+
+Fallback to canonical ledger aggregate when absent.
+
+---
+
+# 81. `LEDGER_ONLY` READ GATE
+
+Before returning LEDGER_ONLY:
+
+call:
+
+```text
+getStudyPointsCutoverReadiness()
+```
+
+If unsafe:
+
+fail closed internally with:
+
+```text
+POINTS_LEDGER_ONLY_NOT_READY
+```
+
+Do not silently discard legacy history.
+
+---
+
+# 82. PUBLIC READ CUTOVER
+
+Do not activate `LEDGER_ONLY` publicly.
+
+If the existing public Points read path is switched to the new read-model service in Prompt 21:
+
+use only the safe currently configured compatibility mode.
+
+No production env change.
+
+---
+
+# 83. NO DOUBLE COUNTING
+
+The read model must never count a future imported legacy baseline and raw PointsLog simultaneously.
+
+If/when a recognized baseline exists:
+
+cutover semantics must explicitly avoid:
+
+```text
+PointsLog
++
+baseline
+```
+
+double counting.
+
+Prompt 21 must define this invariant even though no production baseline is created.
+
+---
+
+# 84. FUTURE BASELINE MODE
+
+Conceptually after a safe legacy migration:
+
+```text
+LEDGER_ONLY
+```
+
+uses baseline inside ledger and ignores PointsLog.
+
+Do not use:
+
+```text
+LEGACY_PLUS_LEDGER
+```
+
+after baseline import.
+
+---
+
+# 85. BASELINE DETECTION
+
+If a future baseline entry uses:
+
+```text
+sourceType = LEGACY_POINTS_LOG
+reasonCode = legacy.baseline_import
+```
+
+readiness logic should detect it.
+
+But do not create it automatically.
+
+---
+
+# 86. DUPLICATE BASELINE
+
+Future ledger must permit at most one baseline per user/cutover generation.
+
+Prompt 21 may add a read/audit invariant without changing schema.
+
+Do not create new uniqueness migration unless already supportable through Prompt 19 idempotency/source semantics.
+
+---
+
+# 87. NO LEGACY CATEGORY FABRICATION
+
+Legacy totals remain:
+
+```text
+legacyPoints
+```
+
+separate from new category balances.
+
+A transitional read model must not show historical legacy total as:
+
+```text
+FOCUS
+```
+
+or any other category.
+
+---
+
+# 88. CATEGORY READS
+
+During `LEGACY_PLUS_LEDGER`:
+
+```text
+FOCUS/MASTERY/PROGRESS/CONSISTENCY
+```
+
+represent new-ledger category totals only.
+
+`legacyPoints` remains uncategorized historical balance.
+
+Document this.
+
+---
+
+# 89. TOTAL READ
+
+Transitional:
+
+```text
+totalPoints = legacyPoints + ledgerPoints
+```
+
+Category sums do not necessarily equal transitional total because legacy is uncategorized.
+
+This is expected.
+
+---
+
+# 90. DO NOT BREAK CATEGORY INVARIANT
+
+Projection invariant remains:
+
+```text
+ledger category sum = ledgerPoints
+```
+
+Do not include legacy total in projection categories.
+
+---
+
+# 91. USER-FACING SAFE DTO
+
+Future frontend-safe DTO may contain:
+
+```text
+legacyPoints
+ledgerPoints
+totalPoints
+compatibilityMode
+
+categories: {
+  focus
+  mastery
+  progress
+  consistency
+}
+```
+
+No ledger metadata/internal reconciliation details.
+
+---
+
+# 92. NO FRONTEND CHANGE
+
+Prompt 21 does not render or redesign Points UI.
+
+---
+
+# 93. PROJECTION UPDATE CONCURRENCY
+
+Real PostgreSQL test:
+
+```text
+20 concurrent distinct ledger appends
+```
+
+Expected projection:
+
+```text
+ledgerEntryCount = 20
+totalPoints = exact SUM
+category totals exact
+```
+
+No lost increments.
+
+---
+
+# 94. SAME-SOURCE REPLAY CONCURRENCY
+
+Prompt 20:
+
+```text
+20 concurrent attempts
+same reward source
+```
+
+Expected:
+
+```text
+ledger rows = 1
+projection entry count increment = 1
+```
+
+---
+
+# 95. MIXED CATEGORY CONCURRENCY
+
+Concurrent:
+
+```text
+FOCUS
+MASTERY
+PROGRESS
+CONSISTENCY
+```
+
+ledger entries.
+
+Projection must exactly match canonical aggregate.
+
+---
+
+# 96. REVERSAL CONCURRENCY
+
+Concurrent original replay + reversal paths must not corrupt projection.
+
+Use Prompt 19 idempotency/locking.
+
+---
+
+# 97. PROJECTION FAILURE ROLLBACK
+
+Force projection write failure during eligible ledger append.
+
+Expected:
+
+```text
+ledger entry = 0
+projection change = 0
+```
+
+Atomic.
+
+---
+
+# 98. REVERSAL PROJECTION FAILURE
+
+Force projection failure during reversal.
+
+Expected:
+
+```text
+reversal row = 0
+projection unchanged
+original row unchanged
+```
+
+---
+
+# 99. MISSING PROJECTION REBUILD TEST
+
+Create ledger history directly in disposable test DB.
+
+No projection row.
+
+Run reconciliation repair.
+
+Expected exact projection.
+
+---
+
+# 100. DRIFT REPAIR TEST
+
+Corrupt projection in disposable test only:
+
+```text
+canonical ledger total = 50
+projection total = 999
+```
+
+Dry run:
+
+```text
+PROJECTION_DRIFT
+```
+
+Repair:
+
+```text
+projection total = 50
+```
+
+Ledger unchanged.
+
+---
+
+# 101. CATEGORY DRIFT TEST
+
+Corrupt only category field.
+
+Reconciliation must detect even when total matches.
+
+---
+
+# 102. ENTRY COUNT DRIFT TEST
+
+Projection totals correct but:
+
+```text
+ledgerEntryCount wrong
+```
+
+must detect drift.
+
+---
+
+# 103. LEDGER INVALID TEST
+
+Insert invalid ledger fixture directly in disposable schema if DB constraints allow, e.g. structural reversal inconsistency.
+
+Expected:
+
+```text
+LEDGER_INVARIANT_FAILURE
+repair refused
+```
+
+Do not normalize invalid ledger by overwriting projection.
+
+---
+
+# 104. DUPLICATE SOURCE AWARD AUDIT
+
+Create test-only duplicate source award using direct DB fixture if service prevents it.
+
+Reconciliation reports anomaly.
+
+No automatic reversal.
+
+---
+
+# 105. DAILY CAP AUDIT TEST
+
+Construct direct ledger fixture exceeding Prompt 20 cap.
+
+Reconciliation detects:
+
+```text
+CATEGORY_CAP_EXCEEDED
+```
+
+or exact code.
+
+---
+
+# 106. TOTAL CAP AUDIT TEST
+
+Same for:
+
+```text
+TOTAL_DAILY_CAP_EXCEEDED
+```
+
+---
+
+# 107. BAGHDAD DATE AUDIT
+
+Daily cap audit must use:
+
+```text
+Asia/Baghdad
+```
+
+not UTC date boundaries.
+
+---
+
+# 108. NORMAL VALID ACCOUNT TEST
+
+Prompt 20 legitimate awards/reversals.
+
+Expected:
+
+```text
+IN_SYNC
+```
+
+with no false accounting anomalies.
+
+---
+
+# 109. REPAIR SIDE EFFECTS
+
+Projection repair creates zero changes in:
+
+```text
+StudyPointsLedgerEntry
+PointsLog
+StudyEvent
+StudyDailyMetric
+IntegritySignal
+CalendarEvent
+FocusSession
+LectureProgress
+PrivateD1SyncOutbox
+```
+
+Only projection may change.
+
+---
+
+# 110. DRY-RUN SIDE EFFECTS
+
+GET reconciliation:
+
+```text
+all writes = 0
+```
+
+---
+
+# 111. PUBLIC BALANCE READ SIDE EFFECTS
+
+Balance/read-model GET/helper:
+
+```text
+writes = 0
+```
+
+No lazy write on ordinary reads.
+
+---
+
+# 112. PROJECTION WRITE BUDGET
+
+Per first-seen ledger append:
+
+```text
+StudyPointsLedgerEntry insert = 1
+StudyPointsBalanceProjection write = 1
+```
+
+No D1/outbox.
+
+---
+
+# 113. REPLAY WRITE BUDGET
+
+Idempotent same ledger replay:
+
+```text
+new ledger writes = 0
+projection increments = 0
+```
+
+---
+
+# 114. RECONCILIATION DRY RUN BUDGET
+
+```text
+writes = 0
+```
+
+---
+
+# 115. REPAIR BUDGET
+
+```text
+projection upsert/update = 1
+ledger writes = 0
+```
+
+---
+
+# 116. NO PER-SECOND / PERIODIC JOB
+
+Prompt 21 does not create a constant reconciliation cron.
+
+No background full-user scan.
+
+Reconciliation is:
+
+```text
+explicit
+targeted
+future backfill-compatible
+```
+
+---
+
+# 117. NO AUTOMATIC PRODUCTION REPAIR
+
+Do not launch repair for all users on app boot/deploy.
+
+---
+
+# 118. NO BULK ENDPOINT
+
+Do not expose:
+
+```text
+repair-all-users
+```
+
+Prompt 49 owns migration/backfill tooling.
+
+---
+
+# 119. NO ACCOUNTING REPAIR FROM CLIENT
+
+Student clients cannot invoke reconciliation/repair.
+
+---
+
+# 120. NO POINTS AWARD RULE CHANGE
+
+Prompt 20 amounts/caps remain exactly unchanged.
+
+Do not tune rewards here.
+
+---
+
+# 121. NO NEW REWARD SOURCE
+
+No new:
+
+```text
+MCQ
+Flashcard
+Recall
+Progress
+```
+
+rule activation in Prompt 21.
+
+---
+
+# 122. NO AUTOMATIC REVERSAL
+
+Detected anomaly:
+
+```text
+does NOT automatically create negative ledger entry
+```
+
+---
+
+# 123. NO INTEGRITY SIGNAL BY DEFAULT
+
+Accounting projection drift itself is not student misconduct.
+
+Do not create Prompt 18 Integrity Signals for:
+
+```text
+projection drift
+missing projection
+server accounting bug
+```
+
+These are system accounting issues.
+
+---
+
+# 124. LEDGER DUPLICATE ANOMALY
+
+Even duplicate server award history should be treated as accounting/system anomaly first.
+
+Do not automatically accuse student.
+
+---
+
+# 125. RECONCILIATION ERROR VOCABULARY
+
+Use neutral codes such as:
+
+```text
+PROJECTION_MISSING
+PROJECTION_TOTAL_MISMATCH
+PROJECTION_CATEGORY_MISMATCH
+PROJECTION_ENTRY_COUNT_MISMATCH
+
+INVALID_REVERSAL_RELATION
+DUPLICATE_SOURCE_AWARD
+CATEGORY_CAP_EXCEEDED
+TOTAL_DAILY_CAP_EXCEEDED
+
+LEGACY_CUTOVER_NOT_READY
+```
+
+No punitive wording.
+
+---
+
+# 126. RECONCILIATION FINGERPRINT
+
+Create deterministic fingerprint of the canonical reconciliation snapshot.
+
+Conceptually from:
+
+```text
+userId
+ledgerEntryCount
+category aggregates
+total
+legacy row count
+legacy total
+```
+
+Use SHA-256/canonical helper.
+
+This supports reproducible diagnostics.
+
+---
+
+# 127. FINGERPRINT IS NOT SECURITY TOKEN
+
+Do not treat reconciliation fingerprint as secret authentication.
+
+It is diagnostic/version metadata.
+
+---
+
+# 128. ADMIN REPAIR RESPONSE
+
+Return:
+
+```text
+before
+after
+status
+reconciliationFingerprint
+repaired
+```
+
+No individual content payloads.
+
+---
+
+# 129. ADMIN AUDIT
+
+Do not create a new admin audit model solely for projection repairs unless existing admin audit infrastructure already exists.
+
+Use existing operational logging safely if available.
+
+No token/content logging.
+
+---
+
+# 130. READ-MODE DEFAULT SAFETY
+
+If read-mode config is malformed:
+
+fail safely to:
+
+```text
+LEGACY_ONLY
+```
+
+or reject startup only if repository config conventions require strict configuration.
+
+Do not accidentally select `LEDGER_ONLY`.
+
+---
+
+# 131. LEDGER-ONLY TEST — LEGACY ZERO
+
+User:
+
+```text
+legacyPoints = 0
+ledgerPoints = 40
+```
+
+Readiness:
+
+```text
+safeForLedgerOnly = true
+```
+
+LEDGER_ONLY:
+
+```text
+total = 40
+```
+
+---
+
+# 132. LEDGER-ONLY TEST — LEGACY NONZERO
+
+User:
+
+```text
+legacyPoints = 100
+ledgerPoints = 40
+no baseline
+```
+
+Expected:
+
+```text
+safeForLedgerOnly = false
+LEDGER_ONLY request rejected
+```
+
+---
+
+# 133. TRANSITIONAL READ TEST
+
+Same user:
+
+```text
+LEGACY_PLUS_LEDGER
+```
+
+Expected:
+
+```text
+legacyPoints = 100
+ledgerPoints = 40
+total = 140
+```
+
+---
+
+# 134. LEGACY-ONLY TEST
+
+Same user:
+
+```text
+LEGACY_ONLY total = 100
+```
+
+---
+
+# 135. CATEGORY TEST
+
+Ledger:
+
+```text
+FOCUS = 20
+MASTERY = 10
+CONSISTENCY = 5
+PROGRESS = 0
+```
+
+Legacy:
+
+```text
+100
+```
+
+Expected transitional:
+
+```text
+ledgerPoints = 35
+legacyPoints = 100
+total = 135
+
+new-ledger categories sum = 35
+```
+
+Do not force categories to sum to 135.
+
+---
+
+# 136. PROJECTION FALLBACK TEST
+
+Delete projection row.
+
+Normal internal read:
+
+```text
+source = LEDGER_FALLBACK
+```
+
+returns correct ledger balance without writing.
+
+---
+
+# 137. REPAIR THEN FAST READ
+
+After repair:
+
+```text
+source = PROJECTION
+```
+
+and exact same accounting values.
+
+---
+
+# 138. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use:
+
+```text
+prompt21_points_gate
+```
+
+on verified development PostgreSQL only.
+
+Do not use production.
+
+---
+
+# 139. FRESH MIGRATION REPLAY
+
+Apply complete repository migration history.
+
+Verify coexistence of:
+
+```text
+PointsLog
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+IntegritySignal
+GroupFocusRun
+FocusSession
+```
+
+---
+
+# 140. REAL ATOMIC APPEND TEST
+
+Append one canonical ledger entry.
+
+Expected:
+
+```text
+ledger rows +1
+projection totals updated exactly
+```
+
+---
+
+# 141. REAL APPEND REPLAY
+
+Same idempotent append:
+
+```text
+ledger rows unchanged
+projection unchanged
+```
+
+---
+
+# 142. REAL CONCURRENT DISTINCT APPENDS
+
+At least:
+
+```text
+20
+```
+
+parallel different ledger entries for same user.
+
+Expected exact:
+
+```text
+ledger count = 20
+projection entry count = 20
+projection total = SQL SUM
+```
+
+---
+
+# 143. REAL CONCURRENT SAME SOURCE
+
+Prompt 20 same source 20 times.
+
+Expected:
+
+```text
+ledger row = 1
+projection accounting applied once
+```
+
+---
+
+# 144. REAL REVERSAL TEST
+
+Verify projection after reversal equals direct ledger aggregate.
+
+---
+
+# 145. REAL PROJECTION FAILURE ROLLBACK
+
+Use disposable trigger/failure injection if needed.
+
+Remove after test.
+
+---
+
+# 146. REAL DRIFT REPAIR
+
+Directly corrupt projection fixture.
+
+Verify dry-run + repair.
+
+---
+
+# 147. REAL INVALID LEDGER REFUSAL
+
+Where safely possible with test fixture.
+
+Repair must refuse invalid canonical ledger.
+
+---
+
+# 148. REAL LEGACY COMPATIBILITY
+
+Create:
+
+```text
+legacy PointsLog fixtures
++
+new ledger fixtures
+```
+
+Verify all 3 compatibility modes/readiness rules.
+
+---
+
+# 149. ADMIN AUTH TEST
+
+Verify:
+
+```text
+owner → reconciliation allowed
+admin → reconciliation allowed
+student → denied
+Group Focus HOST-only student → denied
+```
+
+---
+
+# 150. ADMIN REPAIR TEST
+
+Student cannot trigger projection repair.
+
+---
+
+# 151. NO SIDE-EFFECT TEST
+
+Around reconciliation and repair compare:
+
+```text
+StudyEvent
+StudyDailyMetric
+IntegritySignal
+CalendarEvent
+FocusSession
+LectureProgress
+PrivateD1SyncOutbox
+PointsLog
+StudyPointsLedgerEntry
+```
+
+Dry run:
+
+```text
+all deltas = 0
+```
+
+Projection repair:
+
+```text
+only projection may change
+```
+
+---
+
+# 152. PROMPT 20 REGRESSION
+
+Rerun deterministic award tests.
+
+Amounts/caps/idempotency must remain unchanged.
+
+---
+
+# 153. PROMPT 19 REGRESSION
+
+Rerun ledger/reversal/legacy bridge.
+
+---
+
+# 154. PROMPTS 17–18 REGRESSION
+
+Integrity foundation/persistence remains unchanged.
+
+---
+
+# 155. GROUP FOCUS REGRESSION
+
+Run relevant Prompts 13–16.
+
+---
+
+# 156. SOLO FOCUS REGRESSION
+
+Run relevant Prompts 9–12.
+
+---
+
+# 157. STUDY EVENT REGRESSION
+
+Run Prompt 8.
+
+---
+
+# 158. FOUNDATION REGRESSION
+
+Run:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 159. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 passed / 9 failed
+typecheck = same 2 Calendar errors
+lint = same 10 baseline errors
+```
+
+Do not modify Calendar.
+
+---
+
+# 160. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+server/features/study-points/*
+admin reconciliation routes
+Prompt 21 tests
+```
+
+Expected PASS.
+
+---
+
+# 161. TARGETED LINT
+
+Expected PASS.
+
+No new full-repo errors.
+
+---
+
+# 162. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 163. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus disposable migration replay.
+
+---
+
+# 164. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 21 migration to production;
+* backfill projections in production;
+* switch production Points read mode;
+* modify production PointsLog;
+* modify production ledger data;
+* run production reconciliation;
+* run bulk repair;
+* modify Supabase production;
+* modify remote D1;
+* deploy Worker;
+* change production env.
+
+---
+
+# 165. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<study_points_balance_projection>/
+
+server/features/study-points/
+  balanceProjection.ts
+  reconciliation.ts
+  cutover.ts
+  readModel.ts
+  accountingAudit.ts
+
+server/routes/adminStudyPoints.ts
+server.ts
+
+tests/study-points-balance*.test.ts
+tests/study-points-reconciliation*.test.ts
+tests/study-points-cutover*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 166. FILES EXPECTED UNCHANGED
+
+Unless minimally required for integration:
+
+```text
+Prompt 20 award rule constants
+Solo Focus reward semantics
+Group Focus reward semantics
+Integrity behavior
+Calendar
+OfflineEngine
+D1 Worker
+frontend UI
+leaderboard
+levels
+achievements
+challenges
+```
+
+---
+
+# 167. ACCEPTANCE CRITERIA
+
+Prompt 21 succeeds only if:
+
+1. Ledger remains canonical.
+2. One rebuildable balance projection model exists.
+3. Migration additive.
+4. No migration backfill.
+5. Projection stores all 4 new-ledger categories.
+6. Projection total equals category sum.
+7. Ledger entry count tracked.
+8. First projection creation aggregates complete history.
+9. New ledger append updates projection atomically.
+10. Reversal updates projection atomically.
+11. Replay does not double-apply projection.
+12. Concurrent appends do not lose increments.
+13. Projection failure rolls back ledger append.
+14. Canonical SQL aggregate remains available.
+15. Fast projection read exists.
+16. Missing projection falls back read-only to ledger.
+17. Reconciliation detects drift.
+18. Reconciliation detects category drift.
+19. Reconciliation detects entry-count drift.
+20. Invalid ledger blocks projection repair.
+21. Repair modifies projection only.
+22. No arbitrary set-balance API.
+23. Legacy PointsLog remains intact.
+24. LEGACY_ONLY works.
+25. LEGACY_PLUS_LEDGER works.
+26. LEDGER_ONLY is gated.
+27. Unmigrated legacy Points block ledger-only cutover.
+28. No automatic legacy baseline import.
+29. No double counting.
+30. Category totals do not falsely include legacy uncategorized history.
+31. Admin reconciliation protected.
+32. Students cannot repair accounting.
+33. No automatic reversal.
+34. Prompt 20 rewards unchanged.
+35. No D1/outbox.
+36. No UI.
+37. Production unchanged.
+38. Build passes.
+39. New regressions = 0.
+
+---
+
+# 168. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 19/20, Integrity, Focus, Group Focus, Study Event, Foundation and Auth baselines.
+
+## B. Balance Architecture
+
+Explain:
+
+```text
+StudyPointsLedgerEntry = canonical
+StudyPointsBalanceProjection = rebuildable derived state
+```
+
+## C. Prisma Model
+
+Show final `StudyPointsBalanceProjection` fields, relation, indexes and numeric types.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+PointsLog destructive change:
+Ledger destructive change:
+automatic projection backfill:
+```
+
+## E. Projection Invariants
+
+Report exact category/total/count invariants.
+
+## F. Projection Update Path
+
+Explain one-writer integration with Prompt 19 ledger service.
+
+## G. First Projection Initialization
+
+Explain behavior when ledger history exists but projection does not.
+
+## H. Append Atomicity
+
+Report ledger + projection transaction behavior.
+
+## I. Replay Behavior
+
+Explicitly:
+
+```text
+IDEMPOTENT LEDGER REPLAY INCREMENTS PROJECTION: NO
+```
+
+## J. Reversal Projection
+
+Report original/reversal/category totals.
+
+## K. Concurrent Projection Test
+
+Report:
+
+```text
+parallel distinct appends:
+ledger rows:
+projection ledgerEntryCount:
+canonical SQL total:
+projection total:
+lost updates:
+```
+
+## L. Projection Failure Rollback
+
+Report forced failure results.
+
+## M. Canonical Aggregate Service
+
+Show exact canonical direct-ledger balance output.
+
+## N. Fast Projection Read
+
+Show exact projection read behavior.
+
+## O. Missing Projection Fallback
+
+Explicitly:
+
+```text
+NORMAL READ CREATES PROJECTION ROW: NO
+```
+
+## P. Reconciliation DTO
+
+Show final structure/status values.
+
+## Q. Reconciliation Checks
+
+List every implemented ledger/projection invariant.
+
+## R. Drift Detection
+
+Report total/category/entry-count drift tests.
+
+## S. Invalid Ledger Behavior
+
+Explicitly:
+
+```text
+INVALID CANONICAL LEDGER AUTO-REPAIRED: NO
+PROJECTION REPAIR ALLOWED WITH LEDGER INVARIANT FAILURE: NO
+```
+
+## T. Projection Repair
+
+Report locking, rebuild, versioning and `lastReconciledAt`.
+
+## U. Repair Side Effects
+
+Report deltas:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+FocusSession:
+LectureProgress:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+## V. Accounting Anomaly Audit
+
+Report implemented codes for:
+
+* duplicate source award;
+* invalid reversal;
+* category cap;
+* total daily cap;
+* other structural anomalies.
+
+## W. Compatibility Read Model
+
+Show:
+
+```text
+LEGACY_ONLY
+LEGACY_PLUS_LEDGER
+LEDGER_ONLY
+```
+
+semantics.
+
+## X. Transitional Balance
+
+Report:
+
+```text
+legacyPoints
+ledgerPoints
+totalPoints
+new-ledger categories
+```
+
+and explain why legacy remains uncategorized.
+
+## Y. Cutover Readiness
+
+Show returned fields/blockers.
+
+## Z. LEDGER_ONLY Safety
+
+Report behavior for:
+
+```text
+legacy = 0
+legacy > 0 without baseline
+future baseline present
+```
+
+## AA. Legacy Baseline
+
+Explicitly:
+
+```text
+AUTOMATIC LEGACY BASELINE IMPORT: NO
+PRODUCTION BACKFILL: NO
+```
+
+Explain reserved future baseline semantics.
+
+## AB. Double-Counting Protection
+
+Explain exactly how future baseline + raw PointsLog double counting is prevented.
+
+## AC. Admin APIs
+
+Report method/path/auth for:
+
+```text
+reconciliation dry-run
+projection repair
+```
+
+## AD. Admin Authorization
+
+Report:
+
+```text
+owner:
+admin:
+student:
+Group Focus HOST-only:
+```
+
+## AE. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 21 TESTS EXECUTED: YES/NO
+```
+
+Include schema name.
+
+## AF. Real PostgreSQL Results
+
+Report:
+
+* append;
+* replay;
+* concurrent distinct append;
+* same-source concurrency;
+* reversal;
+* missing projection;
+* drift repair;
+* invalid-ledger refusal;
+* compatibility modes.
+
+## AG. Read / Repair Write Budget
+
+Report:
+
+```text
+first-seen append:
+replay:
+normal read:
+reconciliation dry-run:
+projection repair:
+```
+
+## AH. No Automatic Accounting Mutation
+
+Explicitly:
+
+```text
+AUTO LEDGER REVERSAL FROM RECONCILIATION: NO
+AUTO MISSING AWARD CREATION: NO
+ARBITRARY SET BALANCE API: NO
+```
+
+## AI. Prompt 20 Rule Preservation
+
+Confirm exact award amounts/caps unchanged.
+
+## AJ. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AK. Regression Results
+
+Include:
+
+* Prompt 19 Ledger;
+* Prompt 20 award engine;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AL. Files Created
+
+Exact paths/purposes.
+
+## AM. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 20 award amounts unchanged?
+legacy PointsLog schema unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+frontend UI unchanged?
+leaderboard unchanged?
+```
+
+## AN. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 21 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION PROJECTION BACKFILL RUN: NO
+PRODUCTION READ MODE CHANGED: NO
+PRODUCTION PointsLog MODIFIED: NO
+PRODUCTION LEDGER MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AO. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AP. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AQ. Risks / Blockers
+
+Only actual unresolved accounting/cutover issues.
+
+Keep production backfill/cutover explicitly deferred.
+
+## AR. Architecture Compliance
+
+Answer YES/NO:
+
+* Ledger remains canonical?
+* Projection rebuildable?
+* Projection noncanonical?
+* Projection updates atomic with ledger?
+* Replay safe?
+* Reversals reflected?
+* Concurrent appends race-safe?
+* Canonical aggregate retained?
+* Reconciliation deterministic?
+* Invalid ledger not silently repaired?
+* Projection repair only?
+* Legacy PointsLog preserved?
+* Transitional read safe?
+* Ledger-only cutover gated?
+* No automatic backfill?
+* No double counting?
+* No arbitrary balance mutation?
+* No Points rule changes?
+* No automatic reversal?
+* No D1?
+* No UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AS. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 22 — Gamification Definitions, Rule-Version Lifecycle & Deterministic Progress Contracts**
+
+Do not implement Prompt 22.
+
+---
+
+# 169. STOP CONDITION
+
+After implementation, tests and mandatory report:
+
+STOP.
+
+Do NOT perform production Points cutover.
+
+Do NOT backfill legacy Points.
+
+Do NOT change Prompt 20 reward amounts.
+
+Do NOT implement achievements.
+
+Do NOT implement levels.
+
+Do NOT implement challenges.
+
+Do NOT implement leaderboards.
+
+Do NOT build Points UI.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 21 COMPLETE — STUDY POINTS BALANCE RECONCILIATION & CUTOVER READ MODEL READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
