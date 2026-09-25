@@ -18,7 +18,10 @@ export interface NativeFocusLifecycleBridge {
 }
 
 export interface FocusLifecycle {
-  subscribe(onForeground: () => void | Promise<void>): () => void;
+  subscribe(
+    onForeground: () => void | Promise<void>,
+    onBackground?: () => void,
+  ): () => void;
 }
 
 export interface FocusLifecycleOptions {
@@ -59,7 +62,7 @@ export function createFocusLifecycle(
   const clearTimer = options.clearTimer ?? ((timer) => clearTimeout(timer));
 
   return {
-    subscribe(onForeground) {
+    subscribe(onForeground, onBackground) {
       let disposed = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
       const cleanups: Array<() => void> = [];
@@ -74,6 +77,7 @@ export function createFocusLifecycle(
 
       const handleVisibility: LifecycleListener = () => {
         if (documentTarget?.visibilityState === "visible") schedule();
+        else onBackground?.();
       };
       const handlePageShow: LifecycleListener = () => schedule();
       const handleOnline: LifecycleListener = () => schedule();
@@ -97,6 +101,7 @@ export function createFocusLifecycle(
       if (nativeBridge.isNativePlatform()) {
         cleanups.push(nativeBridge.addAppLifecycleListener((isActive) => {
           if (isActive) schedule();
+          else onBackground?.();
         }));
 
         let registeringNetworkListener = true;

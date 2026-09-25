@@ -10,6 +10,9 @@ import {
   focusSessionTransitionSchema,
   startFocusSessionSchema,
   updateFocusPlanSchema,
+  resourceHandoffStartSchema,
+  resourceHandoffReturnSchema,
+  interruptionRecordSchema,
 } from "../features/focus/schemas.js";
 import type { FocusBackendService } from "../features/focus/types.js";
 
@@ -198,6 +201,47 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
         parsedId.data,
         parsedBody.data,
       ));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/handoff/start", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = resourceHandoffStartSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) return invalid(res, "Resource handoff start request is invalid.");
+    try {
+      const result = await dependencies.service.startResourceHandoff(
+        userId(req), parsedId.data, parsedBody.data,
+      );
+      return res.status(result.idempotency === "FIRST_SEEN" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/handoff/return", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = resourceHandoffReturnSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) return invalid(res, "Resource handoff return request is invalid.");
+    try {
+      return res.json(await dependencies.service.returnFromResourceHandoff(
+        userId(req), parsedId.data, parsedBody.data,
+      ));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/interruptions", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = interruptionRecordSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) return invalid(res, "Focus interruption request is invalid.");
+    try {
+      const result = await dependencies.service.recordInterruption(
+        userId(req), parsedId.data, parsedBody.data,
+      );
+      return res.status(result.idempotency === "FIRST_SEEN" ? 201 : 200).json(result);
     } catch (error) {
       return sendError(res, error);
     }

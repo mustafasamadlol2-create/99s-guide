@@ -17,12 +17,19 @@ export const FOCUS_RUNTIME_STATUSES = [
 export type FocusRuntimeStatus = (typeof FOCUS_RUNTIME_STATUSES)[number];
 export type FocusSnapshotAuthority = "CANONICAL" | "NON_AUTHORITATIVE" | null;
 export type FocusClientSource = "web" | "pwa" | "ios" | "android";
+// Resource handoff and interruption mutations remain explicit runtime
+// operations so ambiguous retries can retain their original keys.
 export type FocusRuntimeOperation =
-  | "start"
-  | "pause"
-  | "resume"
-  | "complete"
-  | "abandon";
+  | "start" | "pause" | "resume" | "complete" | "abandon"
+  | "handoff-start" | "handoff-return" | "interruption";
+
+export interface PotentialInterruptionCandidate {
+  sessionId: string;
+  observedAwaySeconds: number;
+  source: FocusClientSource;
+  detectedAt: string;
+  authority: "CLIENT_OBSERVED";
+}
 
 export interface FocusRuntimeErrorInfo {
   kind: "transport" | "http" | "protocol" | "runtime";
@@ -57,4 +64,5 @@ export interface FocusRuntimeState {
   semanticResult: FocusSemanticResult | null;
   error: FocusRuntimeErrorInfo | null;
   lastSyncedAt: string | null;
+  potentialInterruption: PotentialInterruptionCandidate | null;
 }

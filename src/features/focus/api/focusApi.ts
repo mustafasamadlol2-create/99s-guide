@@ -15,6 +15,33 @@ import type {
   FocusSessionMutationResult,
 } from "../../../../server/features/focus/types";
 
+export type FocusResourceType = "PDF" | "VIDEO";
+export type FocusClientSource = "web" | "pwa" | "ios" | "android";
+
+export interface ResourceHandoffStartInput {
+  resourceType: FocusResourceType;
+  resourceId: string;
+  idempotencyKey: string;
+  source: FocusClientSource;
+}
+
+export interface ResourceHandoffReturnInput {
+  idempotencyKey: string;
+  source: FocusClientSource;
+  targetState: "ACTIVE";
+}
+
+export interface RecordInterruptionInput {
+  observedAwaySeconds: number;
+  reason: string;
+  idempotencyKey: string;
+  source: FocusClientSource;
+}
+
+export interface FocusInterruptionResult {
+  idempotency: "FIRST_SEEN" | "REPLAY_SAME_PAYLOAD";
+}
+
 export interface FocusApiRequestOptions extends RequestInit {
   timeoutMs?: number;
   retries?: number;
@@ -48,6 +75,9 @@ export interface FocusApi {
   resumeFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   completeFocusSession(sessionId: string, input: CompleteFocusSessionInput): Promise<FocusSessionMutationResult>;
   abandonFocusSession(sessionId: string, input: AbandonFocusSessionInput): Promise<FocusSessionMutationResult>;
+  startResourceHandoff?(sessionId: string, input: ResourceHandoffStartInput): Promise<FocusSessionMutationResult>;
+  returnFromResourceHandoff?(sessionId: string, input: ResourceHandoffReturnInput): Promise<FocusSessionMutationResult>;
+  recordInterruption?(sessionId: string, input: RecordInterruptionInput): Promise<FocusInterruptionResult>;
   createFocusPlan(input: CreateFocusPlanInput): Promise<FocusPlanDto>;
   listFocusPlans(limit?: number): Promise<FocusPlanDto[]>;
   getFocusPlan(planId: string): Promise<FocusPlanDto>;
@@ -150,6 +180,14 @@ function mutation(value: unknown): FocusSessionMutationResult {
   return item as unknown as FocusSessionMutationResult;
 }
 
+function interruption(value: unknown): FocusInterruptionResult {
+  const item = record(value, "interruption response");
+  if (item.idempotency !== "FIRST_SEEN" && item.idempotency !== "REPLAY_SAME_PAYLOAD") {
+    throw protocol("Invalid Focus interruption idempotency result.");
+  }
+  return item as unknown as FocusInterruptionResult;
+}
+
 function current(value: unknown): FocusCurrentSessionResult {
   const item = record(value, "current-session response");
   if (item.session === undefined) throw protocol("Invalid current Focus session.");
@@ -250,6 +288,17 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     abandonFocusSession: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/abandon`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey, ...(input.reason !== undefined ? { reason: input.reason } : {}),
     }), mutation),
+    startResourceHandoff: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/handoff/start`, requestOptions("POST", {
+      resourceType: input.resourceType, resourceId: input.resourceId,
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), mutation),
+    returnFromResourceHandoff: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/handoff/return`, requestOptions("POST", {
+      idempotencyKey: input.idempotencyKey, source: input.source, targetState: input.targetState,
+    }), mutation),
+    recordInterruption: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/interruptions`, requestOptions("POST", {
+      observedAwaySeconds: input.observedAwaySeconds, reason: input.reason,
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), interruption),
     createFocusPlan: (input) => call("/api/focus/plans", requestOptions("POST", planBody(input, false)), (body) => plan(record(body, "plan response").plan)),
     listFocusPlans: (limit) => call(`/api/focus/plans${limit === undefined ? "" : `?limit=${encodeURIComponent(String(limit))}`}`, requestOptions(), (body) => {
       const result = record(body, "plan list response");

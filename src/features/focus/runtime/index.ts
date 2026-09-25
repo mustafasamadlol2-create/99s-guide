@@ -47,4 +47,5 @@ export type {
   FocusRuntimeStatus,
   FocusSemanticResult,
   FocusSnapshotAuthority,
+  PotentialInterruptionCandidate,
 } from "./types";

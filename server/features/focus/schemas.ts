@@ -35,6 +35,7 @@ const idempotencyKey = z.string()
     return true;
   });
 const clientSource = z.enum(["web", "pwa", "ios", "android", "offline_replay"]);
+const interruptionReason = z.enum(["background_absence", "user_confirmed_interruption", "system_interruption"]);
 
 export const focusPlanItemInputSchema = z.object({
   id: uuid.optional(),
@@ -104,6 +105,26 @@ export const abandonFocusSessionSchema = z.object({
   reason: z.string().trim().min(1).max(120).optional(),
 }).strict();
 
+export const resourceHandoffStartSchema = z.object({
+  resourceType: z.enum(["PDF", "VIDEO"]),
+  resourceId: uuid,
+  idempotencyKey,
+  source: clientSource,
+}).strict();
+
+export const resourceHandoffReturnSchema = z.object({
+  targetState: z.literal("ACTIVE"),
+  idempotencyKey,
+  source: clientSource,
+}).strict();
+
+export const interruptionRecordSchema = z.object({
+  observedAwaySeconds: z.number().int().positive().max(6 * 60 * 60),
+  reason: interruptionReason,
+  idempotencyKey,
+  source: clientSource,
+}).strict();
+
 export const focusPlanIdSchema = uuid;
 export const focusSessionIdSchema = uuid;
 export const focusPlanListQuerySchema = z.object({
@@ -117,3 +138,6 @@ export type StartFocusSessionInput = z.infer<typeof startFocusSessionSchema>;
 export type FocusSessionTransitionInput = z.infer<typeof focusSessionTransitionSchema>;
 export type CompleteFocusSessionInput = z.infer<typeof completeFocusSessionSchema>;
 export type AbandonFocusSessionInput = z.infer<typeof abandonFocusSessionSchema>;
+export type ResourceHandoffStartInput = z.infer<typeof resourceHandoffStartSchema>;
+export type ResourceHandoffReturnInput = z.infer<typeof resourceHandoffReturnSchema>;
+export type InterruptionRecordInput = z.infer<typeof interruptionRecordSchema>;

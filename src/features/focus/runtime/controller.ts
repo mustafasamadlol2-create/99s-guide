@@ -6,6 +6,10 @@ import type {
   StartFocusSessionInput,
 } from "../../../../server/features/focus/schemas";
 import type {
+  RecordInterruptionInput,
+  ResourceHandoffStartInput,
+} from "../api/focusApi";
+import type {
   FocusSessionDto,
   FocusSessionMutationResult,
 } from "../../../../server/features/focus/types";
@@ -43,6 +47,7 @@ import type {
   FocusRuntimeState,
   FocusRuntimeStatus,
   FocusSemanticResult,
+  PotentialInterruptionCandidate,
 } from "./types";
 
 export interface StartFocusSessionRequest {
@@ -104,6 +109,7 @@ function initialState(): FocusRuntimeState {
     semanticResult: null,
     error: null,
     lastSyncedAt: null,
+    potentialInterruption: null,
   };
 }
 
@@ -170,6 +176,13 @@ export class FocusRuntimeController {
   private requestGeneration = 0;
   private initialized = false;
   private disposed = false;
+  private backgroundAt: number | null = null;
+  private backgroundSession: { id: string; status: FocusSessionDto["status"]; remainingSeconds: number | null } | null = null;
+  private handoffReturnKey: string | null = null;
+  private interruptionKey: string | null = null;
+  private interruptionFlight: Promise<void> | null = null;
+  private static readonly INTERRUPTION_THRESHOLD_SECONDS = 20;
+  private static readonly INTERRUPTION_MAX_SECONDS = 6 * 60 * 60;
 
   constructor(options: FocusRuntimeControllerOptions = {}) {
     this.api = options.api ?? focusApi;
@@ -209,9 +222,10 @@ export class FocusRuntimeController {
   async initialize(): Promise<FocusRuntimeState> {
     this.assertNotDisposed();
     if (!this.lifecycleUnsubscribe && this.lifecycle) {
-      this.lifecycleUnsubscribe = this.lifecycle.subscribe(() => {
-        void this.reconcile().catch(() => {});
-      });
+      this.lifecycleUnsubscribe = this.lifecycle.subscribe(
+        () => { void this.handleForeground().catch(() => {}); },
+        () => this.handleBackground(),
+      );
     }
     this.initialized = true;
     return this.reconcile();
@@ -331,6 +345,89 @@ export class FocusRuntimeController {
     });
   }
 
+  async startResourceHandoff(
+    input: Omit<ResourceHandoffStartInput, "idempotencyKey" | "source">,
+  ): Promise<FocusSessionMutationResult> {
+    const session = this.requireCurrentSession();
+    if (session.status !== "ACTIVE") {
+      throw new FocusRuntimeOperationError("INVALID_SESSION_STATE", "Resource handoff requires an active Focus Session.");
+    }
+    if (!input.resourceId || !["PDF", "VIDEO"].includes(input.resourceType)) {
+      throw new FocusRuntimeOperationError("INVALID_REQUEST", "A canonical PDF or VIDEO resource is required.");
+    }
+    return this.runMutation(
+      "handoff-start",
+      session.id,
+      JSON.stringify([session.id, input.resourceType, input.resourceId]),
+      (idempotencyKey) => {
+        if (!this.api.startResourceHandoff) throw new FocusRuntimeOperationError("UNSUPPORTED", "Resource handoff is unavailable.");
+        return this.api.startResourceHandoff(session.id, { ...input, idempotencyKey, source: this.source() });
+      },
+    );
+  }
+
+  async returnFromResourceHandoff(): Promise<FocusSessionMutationResult> {
+    const session = this.requireCurrentSession();
+    if (session.status !== "RESOURCE_HANDOFF") {
+      throw new FocusRuntimeOperationError("INVALID_SESSION_STATE", "The current Focus Session is not in resource handoff.");
+    }
+    if (!this.handoffReturnKey) this.handoffReturnKey = this.idempotencyKeyFactory();
+    return this.runMutation(
+      "handoff-return",
+      session.id,
+      JSON.stringify([session.id, "ACTIVE"]),
+      (idempotencyKey) => {
+        if (!this.api.returnFromResourceHandoff) throw new FocusRuntimeOperationError("UNSUPPORTED", "Resource handoff is unavailable.");
+        return this.api.returnFromResourceHandoff(session.id, {
+          idempotencyKey: this.handoffReturnKey ?? idempotencyKey, source: this.source(), targetState: "ACTIVE",
+        });
+      },
+      this.handoffReturnKey,
+    );
+  }
+
+  async recordInterruption(reason = "background_absence"): Promise<void> {
+    const candidate = this.currentState.potentialInterruption;
+    if (!candidate) throw new FocusRuntimeOperationError("NO_INTERRUPTION_CANDIDATE", "No potential interruption is available.");
+    if (!this.api.recordInterruption) throw new FocusRuntimeOperationError("UNSUPPORTED", "Interruption recording is unavailable.");
+    if (this.interruptionFlight) return this.interruptionFlight;
+    if (!this.interruptionKey) this.interruptionKey = this.idempotencyKeyFactory();
+    const key = this.interruptionKey;
+    const flight = this.api.recordInterruption(candidate.sessionId, {
+      observedAwaySeconds: candidate.observedAwaySeconds,
+      reason,
+      idempotencyKey: key,
+      source: candidate.source,
+    } satisfies RecordInterruptionInput).then(() => {
+      this.interruptionKey = null;
+      this.setState({ potentialInterruption: null });
+    });
+    void flight.catch(() => {});
+    const tracked = flight.finally(() => {
+      if (this.interruptionFlight === tracked) this.interruptionFlight = null;
+    });
+    this.interruptionFlight = tracked;
+    return tracked;
+  }
+
+  async openResourceWithHandoff(
+    input: Omit<ResourceHandoffStartInput, "idempotencyKey" | "source">,
+    opener: () => void | Promise<void>,
+  ): Promise<FocusSessionMutationResult> {
+    const started = await this.startResourceHandoff(input);
+    try {
+      await opener();
+    } catch (error) {
+      try {
+        await this.returnFromResourceHandoff();
+      } catch {
+        await this.reconcile().catch(() => {});
+      }
+      throw error;
+    }
+    return started;
+  }
+
   /** Recompute the local display estimate without reading, writing, or mutating. */
   refreshDisplay(): FocusRuntimeState {
     this.recomputeDisplay();
@@ -366,6 +463,7 @@ export class FocusRuntimeController {
       const currentSession = result.session && !TERMINAL_STATES.has(result.session.status)
         ? result.session
         : null;
+      if (currentSession?.status !== "RESOURCE_HANDOFF") this.handoffReturnKey = null;
       const resolvedPending = this.pendingMutation !== null &&
         this.isPendingMutationResolved(result.session);
       if (resolvedPending) this.pendingMutation = null;
@@ -474,6 +572,54 @@ export class FocusRuntimeController {
     }
   }
 
+  private handleBackground(): void {
+    if (this.disposed || this.backgroundAt !== null || this.currentState.sessionAuthority !== "CANONICAL") return;
+    const session = this.currentState.session;
+    if (!session) return;
+    this.backgroundAt = this.clock.monotonicNow();
+    this.backgroundSession = {
+      id: session.id,
+      status: session.status,
+      remainingSeconds: session.remainingSeconds,
+    };
+  }
+
+  private async handleForeground(): Promise<void> {
+    if (this.disposed) return;
+    const awaySeconds = this.backgroundAt === null
+      ? 0
+      : Math.max(0, Math.floor((this.clock.monotonicNow() - this.backgroundAt) / 1000));
+    const background = this.backgroundSession;
+    this.backgroundAt = null;
+    this.backgroundSession = null;
+    const reconciled = await this.reconcile();
+    if (reconciled.session?.status === "RESOURCE_HANDOFF") {
+      await this.returnFromResourceHandoff().catch(() => {});
+      return;
+    }
+    if (background?.status === "ACTIVE" &&
+        awaySeconds >= FocusRuntimeController.INTERRUPTION_THRESHOLD_SECONDS &&
+        reconciled.session?.id === background.id &&
+        reconciled.session.status === "ACTIVE") {
+      const max = Math.min(
+        FocusRuntimeController.INTERRUPTION_MAX_SECONDS,
+        Math.max(0, background.remainingSeconds ?? 0),
+        Math.max(0, reconciled.session.remainingSeconds ?? 0),
+      );
+      const observedAwaySeconds = Math.min(awaySeconds, max);
+      if (observedAwaySeconds >= FocusRuntimeController.INTERRUPTION_THRESHOLD_SECONDS) {
+        const candidate: PotentialInterruptionCandidate = {
+          sessionId: background.id,
+          observedAwaySeconds,
+          source: this.source(),
+          detectedAt: reconciled.session.serverNow,
+          authority: "CLIENT_OBSERVED",
+        };
+        this.setState({ potentialInterruption: candidate });
+      }
+    }
+  }
+
   private applyStaleCache(entry: FocusRuntimeCacheEntry): void {
     this.timerBaseline = null;
     if (entry.session) {
@@ -540,6 +686,7 @@ export class FocusRuntimeController {
     sessionId: string | null,
     fingerprint: string,
     action: (idempotencyKey: string) => Promise<FocusSessionMutationResult>,
+    fixedIdempotencyKey?: string | null,
   ): Promise<FocusSessionMutationResult> {
     this.assertCanonicalMutationAllowed();
     const key = `${operation}:${sessionId ?? "new"}`;
@@ -568,7 +715,7 @@ export class FocusRuntimeController {
       this.pendingMutation = {
         operation,
         sessionId,
-        idempotencyKey: this.idempotencyKeyFactory(),
+        idempotencyKey: fixedIdempotencyKey ?? this.idempotencyKeyFactory(),
         startedAtClientMonotonic: this.clock.monotonicNow(),
         fingerprint,
       };
@@ -622,6 +769,7 @@ export class FocusRuntimeController {
       if (this.disposed) return result;
 
       this.pendingMutation = null;
+      if (operation === "handoff-return") this.handoffReturnKey = null;
       const session = result.session;
       const isTerminal = sessionStatusAfterTerminalResult(session);
       if (isTerminal) {
@@ -745,6 +893,12 @@ export class FocusRuntimeController {
         return session.id === pending.sessionId && session.status === "ACTIVE";
       case "complete":
       case "abandon":
+        return false;
+      case "handoff-start":
+        return session.id === pending.sessionId && session.status === "RESOURCE_HANDOFF";
+      case "handoff-return":
+        return session.id === pending.sessionId && session.status === "ACTIVE";
+      case "interruption":
         return false;
     }
   }

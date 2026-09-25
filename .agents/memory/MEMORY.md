@@ -2,3 +2,4 @@
 - [Outbox lease fencing](outbox-lease-fencing.md) — acknowledge and retry updates must match the current lease generation so expired workers cannot mutate reclaimed rows.
 - [Prisma advisory locks](postgres-advisory-locks.md) — return a supported scalar from lock queries; Prisma cannot deserialize PostgreSQL's `void` lock result.
 - [Git checkpoint tracking](git-checkpoint-tracking.md) — inspect HEAD and the working diff after multi-turn edits; task changes may be checkpointed between turns.
+- [Focus event idempotency](focus-event-idempotency.md) — replay paths that bypass semantic ingestion must compare normalized payloads and conflict on changed retries.

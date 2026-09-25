@@ -5,6 +5,9 @@ import type {
   FocusSessionTransitionInput,
   StartFocusSessionInput,
   UpdateFocusPlanInput,
+  ResourceHandoffStartInput,
+  ResourceHandoffReturnInput,
+  InterruptionRecordInput,
 } from "./schemas.js";
 import type { FocusSessionState } from "../study-core/focus.js";
 
@@ -71,6 +74,11 @@ export interface FocusCurrentSessionResult {
   serverNow: string;
 }
 
+export interface FocusInterruptionResult {
+  idempotency: "FIRST_SEEN" | "REPLAY_SAME_PAYLOAD";
+  metricUpdated: boolean;
+}
+
 export interface FocusBackendService {
   createPlan(userId: string, input: CreateFocusPlanInput): Promise<FocusPlanDto>;
   listPlans(userId: string, limit?: number): Promise<FocusPlanDto[]>;
@@ -83,4 +91,7 @@ export interface FocusBackendService {
   currentSession(userId: string): Promise<FocusCurrentSessionResult>;
   completeSession(userId: string, sessionId: string, input: CompleteFocusSessionInput): Promise<FocusSessionMutationResult>;
   abandonSession(userId: string, sessionId: string, input: AbandonFocusSessionInput): Promise<FocusSessionMutationResult>;
+  startResourceHandoff(userId: string, sessionId: string, input: ResourceHandoffStartInput): Promise<FocusSessionMutationResult>;
+  returnFromResourceHandoff(userId: string, sessionId: string, input: ResourceHandoffReturnInput): Promise<FocusSessionMutationResult>;
+  recordInterruption(userId: string, sessionId: string, input: InterruptionRecordInput): Promise<FocusInterruptionResult>;
 }

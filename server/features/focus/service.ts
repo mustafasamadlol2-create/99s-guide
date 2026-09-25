@@ -32,6 +32,12 @@ import {
   type FocusSessionTransitionInput,
   type StartFocusSessionInput,
   type UpdateFocusPlanInput,
+  resourceHandoffStartSchema,
+  resourceHandoffReturnSchema,
+  interruptionRecordSchema,
+  type ResourceHandoffStartInput,
+  type ResourceHandoffReturnInput,
+  type InterruptionRecordInput,
 } from "./schemas.js";
 import { FocusRepository, type FocusTransaction } from "./repository.js";
 import type { StudyEventRecord } from "../study-events/types.js";
@@ -50,6 +56,7 @@ import type {
   FocusPlanItemDto,
   FocusSessionDto,
   FocusSessionMutationResult,
+  FocusInterruptionResult,
 } from "./types.js";
 
 const NONTERMINAL_STATES = [
@@ -104,7 +111,9 @@ type SessionRecord = {
   planItem: PlanItemRecord;
 };
 
-type FocusEventOperation = "started" | "paused" | "resumed" | "completed" | "abandoned";
+type FocusEventOperation =
+  | "started" | "paused" | "resumed" | "completed" | "abandoned"
+  | "handoff_started" | "handoff_returned" | "interruption";
 
 type FocusServiceOptions = {
   repository?: FocusRepository;
@@ -242,6 +251,21 @@ async function findFocusEvent(
 ): Promise<StudyEventRecord | null> {
   return await tx.studyEvent.findUnique({
     where: { userId_idempotencyKey: { userId, idempotencyKey: key } },
+  }) as StudyEventRecord | null;
+}
+
+async function findLatestHandoffStart(
+  tx: FocusTransaction,
+  userId: string,
+  sessionId: string,
+): Promise<StudyEventRecord | null> {
+  return await tx.studyEvent.findFirst({
+    where: {
+      userId,
+      focusSessionId: sessionId,
+      eventType: "focus_resource_handoff_started",
+    },
+    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
   }) as StudyEventRecord | null;
 }
 
@@ -467,6 +491,24 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
   function validateAbandon(input: AbandonFocusSessionInput): AbandonFocusSessionInput {
     const parsed = abandonFocusSessionSchema.safeParse(input);
     if (!parsed.success) throw requestInputError("Focus Session abandonment request is invalid.");
+    return parsed.data;
+  }
+
+  function validateHandoffStart(input: ResourceHandoffStartInput): ResourceHandoffStartInput {
+    const parsed = resourceHandoffStartSchema.safeParse(input);
+    if (!parsed.success) throw requestInputError("Resource handoff start request is invalid.");
+    return parsed.data;
+  }
+
+  function validateHandoffReturn(input: ResourceHandoffReturnInput): ResourceHandoffReturnInput {
+    const parsed = resourceHandoffReturnSchema.safeParse(input);
+    if (!parsed.success) throw requestInputError("Resource handoff return request is invalid.");
+    return parsed.data;
+  }
+
+  function validateInterruption(input: InterruptionRecordInput): InterruptionRecordInput {
+    const parsed = interruptionRecordSchema.safeParse(input);
+    if (!parsed.success) throw requestInputError("Focus interruption request is invalid.");
     return parsed.data;
   }
 
@@ -933,6 +975,167 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           session: await getSessionDto(tx, updated, clock),
           idempotency,
         };
+      }));
+    },
+
+    async startResourceHandoff(userId, sessionId, rawInput) {
+      requireSessionDependencies();
+      const input = validateHandoffStart(rawInput);
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        const session = await ownedSession(tx, userId, sessionId);
+        const clock = assertValidClock(now());
+        const key = focusEventKey("handoff_started", session.id, input.idempotencyKey);
+        const prior = await findFocusEvent(tx, userId, key);
+        if (prior) {
+          const payload = prior.payload as Record<string, unknown>;
+          if (payload.resourceId !== input.resourceId ||
+              String(payload.resourceType).toUpperCase() !== input.resourceType) {
+            throw new FocusError("IDEMPOTENCY_CONFLICT", "Handoff key was used for another resource.");
+          }
+          const idempotency = await ingestFocusEvent(tx, {
+            eventType: "focus_resource_handoff_started", userId,
+            occurredAt: prior.occurredAt, source: input.source, idempotencyKey: key,
+            lectureId: session.lectureId, focusSessionId: session.id,
+            evidenceClass: "CLIENT_OBSERVED", payload,
+          });
+          return { session: await getSessionDto(tx, session, clock), idempotency };
+        }
+        const material = await tx.material.findFirst({
+          where: { id: input.resourceId, lectureId: session.lectureId },
+          select: { id: true, type: true },
+        }) as { id: string; type: string } | null;
+        if (!material) throw new FocusError("RESOURCE_NOT_FOUND", "Focus resource was not found.");
+        if (!["PDF", "VIDEO"].includes(material.type.trim().toUpperCase()) ||
+            material.type.trim().toUpperCase() !== input.resourceType) {
+          throw new FocusError("UNSUPPORTED_RESOURCE_TYPE", "This Focus resource type is not supported.");
+        }
+        if (session.status !== "ACTIVE") {
+          throw new FocusError("INVALID_SESSION_STATE", "Resource handoff can only start from an active session.");
+        }
+        const action = buildFocusTimerSnapshot({ session: timerInput(session), now: clock });
+        if (action.reconciliationRequired || action.elapsedActiveSeconds === null) {
+          throw new FocusError("RECONCILIATION_REQUIRED", "Session timer needs reconciliation before handoff.");
+        }
+        const updated = await tx.focusSession.update({
+          where: { id: session.id },
+          data: {
+            status: "RESOURCE_HANDOFF",
+            activeSeconds: action.elapsedActiveSeconds,
+            lastCheckpointAt: clock,
+          },
+          include: { planItem: true },
+        }) as SessionRecord;
+        const idempotency = await ingestFocusEvent(tx, {
+          eventType: "focus_resource_handoff_started", userId, occurredAt: clock,
+          source: input.source, idempotencyKey: key, lectureId: updated.lectureId,
+          focusSessionId: updated.id, evidenceClass: "CLIENT_OBSERVED",
+          payload: { resourceType: input.resourceType, resourceId: material.id, status: "STARTED" },
+        });
+        if (idempotency !== "FIRST_SEEN") throw new FocusError("RECONCILIATION_REQUIRED", "Handoff event unexpectedly replayed.");
+        await enqueueSessionProjection(tx, updated);
+        return { session: await getSessionDto(tx, updated, clock), idempotency };
+      }));
+    },
+
+    async returnFromResourceHandoff(userId, sessionId, rawInput) {
+      requireSessionDependencies();
+      const input = validateHandoffReturn(rawInput);
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        const session = await ownedSession(tx, userId, sessionId);
+        const clock = assertValidClock(now());
+        const key = focusEventKey("handoff_returned", session.id, input.idempotencyKey);
+        const prior = await findFocusEvent(tx, userId, key);
+        if (prior) {
+          const payload = prior.payload as Record<string, unknown>;
+          const idempotency = await ingestFocusEvent(tx, {
+            eventType: "focus_resource_handoff_returned", userId,
+            occurredAt: prior.occurredAt, source: input.source, idempotencyKey: key,
+            lectureId: session.lectureId, focusSessionId: session.id,
+            evidenceClass: "CLIENT_OBSERVED",
+            payload,
+          });
+          return { session: await getSessionDto(tx, session, clock), idempotency };
+        }
+        if (session.status !== "RESOURCE_HANDOFF") {
+          throw new FocusError("INVALID_SESSION_STATE", "This Focus Session is not in resource handoff.");
+        }
+        const started = await findLatestHandoffStart(tx, userId, session.id);
+        const startedPayload = started?.payload as Record<string, unknown> | undefined;
+        if (!startedPayload?.resourceType || !startedPayload.resourceId) {
+          throw new FocusError("RECONCILIATION_REQUIRED", "Handoff start history is missing.");
+        }
+        const timer = buildFocusTimerSnapshot({ session: timerInput(session), now: clock });
+        if (timer.reconciliationRequired || timer.elapsedActiveSeconds === null) {
+          throw new FocusError("RECONCILIATION_REQUIRED", "Session timer needs reconciliation before return.");
+        }
+        const updated = await tx.focusSession.update({
+          where: { id: session.id },
+          data: {
+            status: "ACTIVE",
+            activeSeconds: timer.elapsedActiveSeconds,
+            lastCheckpointAt: clock,
+          },
+          include: { planItem: true },
+        }) as SessionRecord;
+        const idempotency = await ingestFocusEvent(tx, {
+          eventType: "focus_resource_handoff_returned", userId, occurredAt: clock,
+          source: input.source, idempotencyKey: key, lectureId: updated.lectureId,
+          focusSessionId: updated.id, evidenceClass: "CLIENT_OBSERVED",
+          payload: {
+            resourceType: String(startedPayload.resourceType),
+            resourceId: String(startedPayload.resourceId),
+            status: "RETURNED",
+          },
+        });
+        if (idempotency !== "FIRST_SEEN") throw new FocusError("RECONCILIATION_REQUIRED", "Return event unexpectedly replayed.");
+        await enqueueSessionProjection(tx, updated);
+        return { session: await getSessionDto(tx, updated, clock), idempotency };
+      }));
+    },
+
+    async recordInterruption(userId, sessionId, rawInput): Promise<FocusInterruptionResult> {
+      requireSessionDependencies();
+      const input = validateInterruption(rawInput);
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        const session = await ownedSession(tx, userId, sessionId);
+        const clock = assertValidClock(now());
+        const key = focusEventKey("interruption", session.id, input.idempotencyKey);
+        const prior = await findFocusEvent(tx, userId, key);
+        if (prior) {
+          const payload = prior.payload as Record<string, unknown>;
+          if (
+            payload.reason !== input.reason ||
+            payload.durationSeconds !== input.observedAwaySeconds
+          ) {
+            throw new FocusError(
+              "IDEMPOTENCY_CONFLICT",
+              "Interruption key was already used for different details.",
+            );
+          }
+          const result = await ingestFocusEvent(tx, {
+            eventType: "focus_interruption_recorded", userId,
+            occurredAt: prior.occurredAt, source: "backend", idempotencyKey: key,
+            lectureId: session.lectureId, focusSessionId: session.id,
+            evidenceClass: "SERVER_VALIDATED", payload,
+          });
+          return { idempotency: result, metricUpdated: false };
+        }
+        if (session.status === "RESOURCE_HANDOFF") {
+          throw new FocusError("HANDOFF_SUPPRESSES_INTERRUPTION", "Resource handoff suppresses interruption recording.");
+        }
+        if (session.status !== "ACTIVE") {
+          throw new FocusError("INVALID_SESSION_STATE", "Interruption recording requires an active session.");
+        }
+        const result = await ingestFocusEvent(tx, {
+          eventType: "focus_interruption_recorded", userId, occurredAt: clock,
+          source: "backend", idempotencyKey: key, lectureId: session.lectureId,
+          focusSessionId: session.id, evidenceClass: "SERVER_VALIDATED",
+          payload: { reason: input.reason, durationSeconds: input.observedAwaySeconds },
+        });
+        return { idempotency: result, metricUpdated: result === "FIRST_SEEN" };
       }));
     },
 

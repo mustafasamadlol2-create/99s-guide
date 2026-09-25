@@ -96,7 +96,8 @@ function calculation(session: FocusTimerSession, now: string | Date) {
   if (!parsed) return null;
   const target = Math.floor((parsed.end - parsed.start) / 1000) - session.pauseSeconds;
   if (!Number.isSafeInteger(target) || target < 0 || target > FOCUS_TIMER_MAX_TARGET_SECONDS) return null;
-  const live = session.status === "ACTIVE" ? Math.floor((parsed.now - parsed.checkpoint) / 1000) : 0;
+  const live = session.status === "ACTIVE" || session.status === "RESOURCE_HANDOFF"
+    ? Math.floor((parsed.now - parsed.checkpoint) / 1000) : 0;
   const elapsed = session.activeSeconds + live;
   if (!Number.isSafeInteger(elapsed) || elapsed < session.activeSeconds) return null;
   return { ...parsed, target, live, elapsed, active: Math.min(elapsed, target) };
@@ -115,7 +116,7 @@ export function buildFocusTimerSnapshot(input: { session: FocusTimerSession; now
     state: input.session.status,
     targetSeconds: result.target,
     activeSeconds: input.session.activeSeconds,
-    elapsedActiveSeconds: result.elapsed,
+    elapsedActiveSeconds: result.active,
     remainingSeconds: Math.max(0, result.target - result.elapsed),
     completionEligible,
     reconciliationRequired: false,
