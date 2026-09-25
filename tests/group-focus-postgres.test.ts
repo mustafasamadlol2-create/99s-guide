@@ -37,10 +37,10 @@ function db(): PrismaClient {
   return prisma;
 }
 
-function createService(): GroupFocusService {
+function createService(now: () => Date = () => new Date(fixedTime)): GroupFocusService {
   return makeService({
     prisma: db(),
-    now: () => new Date(fixedTime),
+    now,
     isEnabled: () => true,
   });
 }
@@ -209,6 +209,37 @@ async function assertNoStudyCredit(userIds: string[]): Promise<void> {
   assert.equal(Number(outbox[0]?.count ?? 0n), 0);
 }
 
+type StudySideEffectCounts = {
+  studyEvents: number;
+  studyDailyMetrics: number;
+  focusSessions: number;
+  pointsLog: number;
+  privateD1SyncOutbox: number;
+  calendarEvents: number;
+};
+
+async function readStudySideEffectCounts(): Promise<StudySideEffectCounts> {
+  const [studyEvents, studyDailyMetrics, focusSessions, pointsLog, calendarEvents, outbox] =
+    await Promise.all([
+      db().studyEvent.count(),
+      db().studyDailyMetric.count(),
+      db().focusSession.count(),
+      db().pointsLog.count(),
+      db().calendarEvent.count(),
+      db().$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count FROM "PrivateD1SyncOutbox"
+      `,
+    ]);
+  return {
+    studyEvents,
+    studyDailyMetrics,
+    focusSessions,
+    pointsLog,
+    privateD1SyncOutbox: Number(outbox[0]?.count ?? 0n),
+    calendarEvents,
+  };
+}
+
 if (databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;
   process.env.DIRECT_URL = databaseUrl;
@@ -231,9 +262,12 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
   skip: skipped,
 }, async () => {
   await withFixture(5, async (fixture) => {
-    const [hostId, memberId, outsiderId, removedId] = fixture.userIds;
+    const [hostId, memberId, outsiderId, removedId, appOwnerId] = fixture.userIds;
+    assert.ok(appOwnerId);
     const [lectureId, alternateLectureId] = fixture.lectureIds;
-    const focus = createService();
+    const studySideEffectsBefore = await readStudySideEffectCounts();
+    const serviceTime = { current: new Date(fixedTime) };
+    const focus = createService(() => new Date(serviceTime.current));
     const api = await startApi(focus);
     try {
       const unauthenticated = await fetch(
@@ -277,6 +311,18 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         sharedLectureId: randomUUID(),
       });
       assert.equal(invalidLecture.status, 400);
+      const invalidStudyLectureCreate = await callApi(
+        api,
+        hostId,
+        "/api/group-focus/rooms",
+        "POST",
+        studyTogetherInput(
+          randomUUID(),
+          `prompt13-invalid-study-lecture-${randomUUID()}`,
+        ),
+      );
+      assert.equal(invalidStudyLectureCreate.status, 400);
+      assert.equal(await db().groupFocusRoom.count({ where: { hostUserId: hostId } }), 1);
 
       const replay = await callApi(api, hostId, "/api/group-focus/rooms", "POST", createBody);
       assert.equal(replay.status, 200);
@@ -291,15 +337,49 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       assert.equal(await db().groupFocusMembership.count({
         where: { roomId, userId: hostId },
       }), 1);
-      const concurrentReplays = await Promise.all(
-        Array.from({ length: 6 }, () => focus.createRoom(
+      const concurrentCreateBody = sharedInput(
+        lectureId,
+        `prompt13-parallel-create-${randomUUID()}`,
+      );
+      const concurrentCreateResponses = await Promise.all(
+        Array.from({ length: 10 }, () => callApi(
+          api,
           hostId,
-          createGroupFocusRoomSchema.parse(createBody),
+          "/api/group-focus/rooms",
+          "POST",
+          concurrentCreateBody,
         )),
       );
-      assert.ok(concurrentReplays.every((result) =>
-        result.room.id === roomId && result.idempotency === "REPLAY_SAME_PAYLOAD"));
-      assert.equal(await db().groupFocusRoom.count({ where: { hostUserId: hostId } }), 1);
+      const concurrentCreateResults = await Promise.all(
+        concurrentCreateResponses.map(async (response) => ({
+          status: response.status,
+          ...(await response.json() as {
+            room: { id: string };
+            idempotency: string;
+          }),
+        })),
+      );
+      assert.equal(concurrentCreateResults.filter((result) => result.status === 201).length, 1);
+      assert.equal(concurrentCreateResults.filter((result) => result.status === 200).length, 9);
+      assert.equal(new Set(concurrentCreateResults.map((result) => result.room.id)).size, 1);
+      assert.equal(
+        concurrentCreateResults.filter((result) => result.idempotency === "CREATED").length,
+        1,
+      );
+      assert.equal(
+        concurrentCreateResults.filter((result) => result.idempotency === "REPLAY_SAME_PAYLOAD").length,
+        9,
+      );
+      const concurrentRoomId = concurrentCreateResults[0]!.room.id;
+      assert.equal(await db().groupFocusRoom.count({
+        where: {
+          hostUserId: hostId,
+          createIdempotencyKey: concurrentCreateBody.idempotencyKey,
+        },
+      }), 1);
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId: concurrentRoomId, userId: hostId, role: "HOST" },
+      }), 1);
 
       const rejectedOverride = await callApi(
         api,
@@ -309,6 +389,9 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         { lectureId: alternateLectureId },
       );
       assert.equal(rejectedOverride.status, 400);
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId, userId: memberId },
+      }), 0);
       const join = await callApi(
         api,
         memberId,
@@ -325,6 +408,12 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       assert.equal(await db().groupFocusMembership.count({
         where: { roomId, userId: memberId },
       }), 1);
+      const joinedRow = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId, userId: memberId } },
+        select: { id: true, joinedAt: true, createdAt: true, leftAt: true, updatedAt: true },
+      });
+      assert.equal(joinedRow.id, joined.membership.membershipId);
+      assert.equal(joinedRow.leftAt, null);
       const sharedContext = await focus.getGroupFocusAuthorizationContext(memberId, roomId);
       assert.ok(sharedContext);
       assert.deepEqual(Object.keys(sharedContext).sort(), [
@@ -351,6 +440,38 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       assert.ok(hostContext);
       assert.equal(hostContext.role, "HOST");
       assert.equal(hostContext.effectiveLectureId, lectureId);
+      assert.deepEqual(Object.keys(hostContext).sort(), [
+        "breakDurationSeconds",
+        "effectiveLectureId",
+        "focusDurationSeconds",
+        "maxParticipants",
+        "membershipId",
+        "membershipUpdatedAt",
+        "mode",
+        "role",
+        "roomId",
+        "roomUpdatedAt",
+        "roundCount",
+        "userId",
+        "visibility",
+      ]);
+      const activeJoinReplay = await callApi(
+        api,
+        memberId,
+        `/api/group-focus/rooms/${roomId}/join`,
+        "POST",
+        {},
+      );
+      assert.equal(activeJoinReplay.status, 200);
+      assert.equal(
+        (await activeJoinReplay.json() as {
+          membership: { membershipId: string };
+        }).membership.membershipId,
+        joined.membership.membershipId,
+      );
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId, userId: memberId },
+      }), 1);
       const activeLectureOverride = await callApi(
         api,
         memberId,
@@ -416,6 +537,26 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         {},
       );
       assert.equal(memberCannotRotate.status, 403);
+      const publicRoomAfterMemberDenials = await db().groupFocusRoom.findUniqueOrThrow({
+        where: { id: roomId },
+        select: { status: true, inviteTokenHash: true, inviteVersion: true },
+      });
+      assert.deepEqual(publicRoomAfterMemberDenials, {
+        status: "OPEN",
+        inviteTokenHash: null,
+        inviteVersion: 0,
+      });
+      const publicMembershipsAfterMemberDenials = await db().groupFocusMembership.findMany({
+        where: { roomId },
+        select: { userId: true, status: true },
+      });
+      assert.deepEqual(
+        publicMembershipsAfterMemberDenials
+          .map((membership) => [membership.userId, membership.status])
+          .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+        [[hostId, "ACTIVE"], [memberId, "ACTIVE"]]
+          .sort((left, right) => left[0].localeCompare(right[0])),
+      );
       const leave = await callApi(
         api,
         memberId,
@@ -429,7 +570,17 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       };
       assert.equal(leftMembership.membership.status, "LEFT");
       assert.equal(leftMembership.membership.membershipId, joined.membership.membershipId);
+      const leftRow = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId, userId: memberId } },
+        select: { id: true, joinedAt: true, createdAt: true, leftAt: true, status: true },
+      });
+      assert.equal(leftRow.status, "LEFT");
+      assert.equal(leftRow.id, joinedRow.id);
+      assert.equal(leftRow.joinedAt.getTime(), joinedRow.joinedAt.getTime());
+      assert.equal(leftRow.createdAt.getTime(), joinedRow.createdAt.getTime());
+      assert.equal(leftRow.leftAt?.getTime(), serviceTime.current.getTime());
       assert.equal(await focus.getGroupFocusAuthorizationContext(memberId, roomId), null);
+      serviceTime.current = new Date(serviceTime.current.getTime() + 1_000);
       const rejoin = await callApi(
         api,
         memberId,
@@ -443,6 +594,15 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       };
       assert.equal(rejoinedMembership.membership.membershipId, joined.membership.membershipId);
       assert.equal(rejoinedMembership.membership.status, "ACTIVE");
+      const rejoinedRow = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId, userId: memberId } },
+        select: { id: true, joinedAt: true, createdAt: true, leftAt: true, status: true },
+      });
+      assert.equal(rejoinedRow.id, joinedRow.id);
+      assert.equal(rejoinedRow.status, "ACTIVE");
+      assert.equal(rejoinedRow.joinedAt.getTime(), serviceTime.current.getTime());
+      assert.equal(rejoinedRow.createdAt.getTime(), joinedRow.createdAt.getTime());
+      assert.equal(rejoinedRow.leftAt, null);
 
       const removedJoin = await callApi(
         api,
@@ -461,6 +621,12 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(remove.status, 200);
       assert.equal((await remove.json() as { membership: { status: string } }).membership.status, "REMOVED");
+      const removedRow = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId, userId: removedId } },
+        select: { status: true, leftAt: true },
+      });
+      assert.equal(removedRow.status, "REMOVED");
+      assert.ok(removedRow.leftAt instanceof Date);
       const removedCannotRejoin = await callApi(
         api,
         removedId,
@@ -473,6 +639,13 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         (await removedCannotRejoin.json() as { code: string }).code,
         "MEMBER_REMOVED",
       );
+      assert.deepEqual(
+        await db().groupFocusMembership.findUniqueOrThrow({
+          where: { roomId_userId: { roomId, userId: removedId } },
+          select: { status: true, leftAt: true },
+        }),
+        removedRow,
+      );
       const nonHostRemove = await callApi(
         api,
         memberId,
@@ -481,6 +654,13 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         {},
       );
       assert.equal(nonHostRemove.status, 403);
+      assert.deepEqual(
+        await db().groupFocusMembership.findUniqueOrThrow({
+          where: { roomId_userId: { roomId, userId: removedId } },
+          select: { status: true, leftAt: true },
+        }),
+        removedRow,
+      );
       const hostLeave = await callApi(
         api,
         hostId,
@@ -490,6 +670,28 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(hostLeave.status, 409);
       assert.equal((await hostLeave.json() as { code: string }).code, "HOST_MUST_CLOSE_ROOM");
+      assert.equal((await db().groupFocusRoom.findUniqueOrThrow({
+        where: { id: roomId },
+        select: { status: true },
+      })).status, "OPEN");
+      assert.equal((await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId, userId: hostId } },
+        select: { role: true, status: true },
+      })).status, "ACTIVE");
+      const openPublicPage = await callApi(api, outsiderId, "/api/group-focus/rooms/public");
+      assert.equal(openPublicPage.status, 200);
+      const openPublicRooms = await openPublicPage.json() as {
+        rooms: Array<{ id: string; participantCount: number }>;
+      };
+      const publicRoomCard = openPublicRooms.rooms.find((room) => room.id === roomId);
+      assert.ok(publicRoomCard);
+      const [activePublicMembers, allPublicMemberships] = await Promise.all([
+        db().groupFocusMembership.count({ where: { roomId, status: "ACTIVE" } }),
+        db().groupFocusMembership.count({ where: { roomId } }),
+      ]);
+      assert.equal(activePublicMembers, 2);
+      assert.equal(allPublicMemberships, 3);
+      assert.equal(publicRoomCard.participantCount, activePublicMembers);
 
       const closePublic = await callApi(
         api,
@@ -500,10 +702,52 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(closePublic.status, 200);
       assert.equal((await closePublic.json() as { membershipsClosed: number }).membershipsClosed, 2);
+      const closedPublicState = await db().groupFocusRoom.findUniqueOrThrow({
+        where: { id: roomId },
+        select: { status: true, closedAt: true },
+      });
+      assert.equal(closedPublicState.status, "CLOSED");
+      assert.ok(closedPublicState.closedAt instanceof Date);
+      const closedPublicMemberships = await db().groupFocusMembership.findMany({
+        where: { roomId },
+        select: { userId: true, status: true, leftAt: true },
+      });
+      assert.equal(closedPublicMemberships.length, 3);
+      assert.equal(
+        closedPublicMemberships.find((membership) => membership.userId === hostId)?.status,
+        "LEFT",
+      );
+      assert.equal(
+        closedPublicMemberships.find((membership) => membership.userId === memberId)?.status,
+        "LEFT",
+      );
+      assert.equal(
+        closedPublicMemberships.find((membership) => membership.userId === removedId)?.status,
+        "REMOVED",
+      );
+      assert.ok(
+        closedPublicMemberships.find((membership) => membership.userId === hostId)?.leftAt
+          instanceof Date,
+      );
+      assert.ok(
+        closedPublicMemberships.find((membership) => membership.userId === memberId)?.leftAt
+          instanceof Date,
+      );
       const closedPublicRoom = await callApi(api, memberId, `/api/group-focus/rooms/${roomId}`);
       assert.equal(closedPublicRoom.status, 200);
+      assert.equal(
+        (await closedPublicRoom.json() as { room: { status: string } }).room.status,
+        "CLOSED",
+      );
       const unrelatedClosedRoom = await callApi(api, outsiderId, `/api/group-focus/rooms/${roomId}`);
       assert.equal(unrelatedClosedRoom.status, 404);
+      const publicPageAfterClose = await callApi(api, outsiderId, "/api/group-focus/rooms/public");
+      assert.equal(publicPageAfterClose.status, 200);
+      assert.equal(
+        (await publicPageAfterClose.json() as { rooms: Array<{ id: string }> }).rooms
+          .some((room) => room.id === roomId),
+        false,
+      );
 
       const privateCreateKey = `prompt13-private-${randomUUID()}`;
       const privateCreate = await callApi(
@@ -532,7 +776,11 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       assert.equal(privateBeforeInvite.inviteVersion, 0);
       await db().user.update({
         where: { id: outsiderId },
-        data: { role: "admin", isPrimaryOwner: true },
+        data: { role: "admin", isPrimaryOwner: false },
+      });
+      await db().user.update({
+        where: { id: appOwnerId },
+        data: { role: "owner", isPrimaryOwner: false },
       });
       const privateLectureConflict = await callApi(
         api,
@@ -549,24 +797,70 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
 
       const publicPage = await callApi(api, outsiderId, "/api/group-focus/rooms/public");
       assert.equal(publicPage.status, 200);
-      const publicRooms = await publicPage.json() as { rooms: Array<{ id: string }> };
+      const publicRooms = await publicPage.json() as {
+        rooms: Array<{ id: string; participantCount: number }>;
+      };
       assert.equal(publicRooms.rooms.some((room) => room.id === privateRoomId), false);
-      const unrelatedPrivateDetail = await callApi(
-        api,
-        outsiderId,
-        `/api/group-focus/rooms/${privateRoomId}`,
-      );
-      assert.equal(unrelatedPrivateDetail.status, 404);
-      const unrelatedPrivateMembers = await callApi(
-        api,
-        outsiderId,
-        `/api/group-focus/rooms/${privateRoomId}/members`,
-      );
-      assert.equal(unrelatedPrivateMembers.status, 404);
-      assert.equal(
-        await focus.getGroupFocusAuthorizationContext(outsiderId, privateRoomId),
-        null,
-      );
+      for (const appRoleUserId of [outsiderId, appOwnerId]) {
+        const unrelatedPrivateDetail = await callApi(
+          api,
+          appRoleUserId,
+          `/api/group-focus/rooms/${privateRoomId}`,
+        );
+        assert.equal(unrelatedPrivateDetail.status, 404);
+        assert.deepEqual(await unrelatedPrivateDetail.json(), {
+          error: "Group Focus Room was not found.",
+          code: "ROOM_NOT_FOUND",
+        });
+        const unrelatedPrivateMembers = await callApi(
+          api,
+          appRoleUserId,
+          `/api/group-focus/rooms/${privateRoomId}/members`,
+        );
+        assert.equal(unrelatedPrivateMembers.status, 404);
+        assert.deepEqual(await unrelatedPrivateMembers.json(), {
+          error: "Group Focus Room was not found.",
+          code: "ROOM_NOT_FOUND",
+        });
+        const unrelatedPrivateRotate = await callApi(
+          api,
+          appRoleUserId,
+          `/api/group-focus/rooms/${privateRoomId}/invite/rotate`,
+          "POST",
+          {},
+        );
+        assert.equal(unrelatedPrivateRotate.status, 404);
+        const unrelatedPrivateRemove = await callApi(
+          api,
+          appRoleUserId,
+          `/api/group-focus/rooms/${privateRoomId}/members/${memberId}/remove`,
+          "POST",
+          {},
+        );
+        assert.equal(unrelatedPrivateRemove.status, 404);
+        const unrelatedPrivateClose = await callApi(
+          api,
+          appRoleUserId,
+          `/api/group-focus/rooms/${privateRoomId}/close`,
+          "POST",
+          {},
+        );
+        assert.equal(unrelatedPrivateClose.status, 404);
+        assert.equal(
+          await focus.getGroupFocusAuthorizationContext(appRoleUserId, privateRoomId),
+          null,
+        );
+      }
+      const roomAfterAppRoleDenials = await db().groupFocusRoom.findUniqueOrThrow({
+        where: { id: privateRoomId },
+        select: { status: true, inviteTokenHash: true, inviteVersion: true },
+      });
+      assert.deepEqual(roomAfterAppRoleDenials, {
+        status: "OPEN",
+        inviteTokenHash: null,
+        inviteVersion: 0,
+      });
+      assert.equal(await db().groupFocusMembership.count({ where: { roomId: privateRoomId } }), 1);
       const privateDetail = await callApi(
         api,
         hostId,
@@ -587,6 +881,9 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(missingInvite.status, 404);
       assert.equal((await missingInvite.json() as { code: string }).code, "ROOM_NOT_FOUND");
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId: privateRoomId, userId: outsiderId },
+      }), 0);
       const firstInviteResponse = await callApi(
         api,
         hostId,
@@ -600,7 +897,8 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         inviteVersion: number;
       };
       assert.equal(firstInvite.inviteVersion, 1);
-      assert.ok(firstInvite.inviteToken.length >= 32);
+      assert.equal(firstInvite.inviteToken.length, 32);
+      assert.match(firstInvite.inviteToken, /^[A-Za-z0-9_-]{32}$/u);
       const privateRecord = await db().groupFocusRoom.findUniqueOrThrow({
         where: { id: privateRoomId },
         select: { inviteTokenHash: true, inviteVersion: true },
@@ -620,6 +918,37 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(invalidInvite.status, 404);
       assert.equal((await invalidInvite.json() as { code: string }).code, "ROOM_NOT_FOUND");
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId: privateRoomId, userId: outsiderId },
+      }), 0);
+
+      const missingLectureOnJoin = await callApi(
+        api,
+        outsiderId,
+        `/api/group-focus/rooms/${privateRoomId}/join`,
+        "POST",
+        { inviteToken: firstInvite.inviteToken },
+      );
+      assert.equal(missingLectureOnJoin.status, 400);
+      assert.equal(
+        (await missingLectureOnJoin.json() as { code: string }).code,
+        "INVALID_MEMBER_LECTURE",
+      );
+      const unknownLectureOnJoin = await callApi(
+        api,
+        outsiderId,
+        `/api/group-focus/rooms/${privateRoomId}/join`,
+        "POST",
+        { inviteToken: firstInvite.inviteToken, lectureId: randomUUID() },
+      );
+      assert.equal(unknownLectureOnJoin.status, 400);
+      assert.equal(
+        (await unknownLectureOnJoin.json() as { code: string }).code,
+        "INVALID_MEMBER_LECTURE",
+      );
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId: privateRoomId, userId: outsiderId },
+      }), 0);
 
       const privateJoin = await callApi(
         api,
@@ -634,6 +963,9 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       };
       assert.equal(privateMembership.membership.selectedLectureId, lectureId);
       assert.equal(privateMembership.membership.role, "MEMBER");
+      assert.equal(await db().groupFocusMembership.count({
+        where: { roomId: privateRoomId, userId: memberId },
+      }), 1);
       const memberCannotClosePrivate = await callApi(
         api,
         memberId,
@@ -688,6 +1020,11 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       );
       assert.equal(currentInviteJoin.status, 200);
 
+      const memberLectureBeforeUpdate = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId: privateRoomId, userId: memberId } },
+        select: { selectedLectureId: true, updatedAt: true },
+      });
+      assert.equal(memberLectureBeforeUpdate.selectedLectureId, lectureId);
       const updateLecture = await callApi(
         api,
         memberId,
@@ -696,6 +1033,24 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         { lectureId: alternateLectureId },
       );
       assert.equal(updateLecture.status, 200);
+      const memberLectureAfterUpdate = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId: privateRoomId, userId: memberId } },
+        select: { selectedLectureId: true, updatedAt: true },
+      });
+      assert.equal(memberLectureAfterUpdate.selectedLectureId, alternateLectureId);
+      assert.ok(
+        memberLectureAfterUpdate.updatedAt.getTime() > memberLectureBeforeUpdate.updatedAt.getTime(),
+      );
+      const privateHostMembership = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId: privateRoomId, userId: hostId } },
+        select: { selectedLectureId: true },
+      });
+      assert.equal(privateHostMembership.selectedLectureId, lectureId);
+      const privateOtherMember = await db().groupFocusMembership.findUniqueOrThrow({
+        where: { roomId_userId: { roomId: privateRoomId, userId: outsiderId } },
+        select: { selectedLectureId: true },
+      });
+      assert.equal(privateOtherMember.selectedLectureId, lectureId);
       const memberContext = await focus.getGroupFocusAuthorizationContext(memberId, privateRoomId);
       assert.ok(memberContext);
       assert.equal(memberContext.effectiveLectureId, alternateLectureId);
@@ -752,13 +1107,18 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         {},
       );
       assert.equal(closePrivate.status, 200);
+      assert.equal(
+        (await closePrivate.json() as { membershipsClosed: number }).membershipsClosed,
+        2,
+      );
       const closedInvite = await db().groupFocusRoom.findUniqueOrThrow({
         where: { id: privateRoomId },
-        select: { inviteTokenHash: true, inviteVersion: true, status: true },
+        select: { inviteTokenHash: true, inviteVersion: true, status: true, closedAt: true },
       });
       assert.equal(closedInvite.status, "CLOSED");
       assert.equal(closedInvite.inviteTokenHash, null);
       assert.equal(closedInvite.inviteVersion, 3);
+      assert.ok(closedInvite.closedAt instanceof Date);
       assert.equal(
         await focus.getGroupFocusAuthorizationContext(hostId, privateRoomId),
         null,
@@ -787,6 +1147,7 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
         { inviteToken: secondInvite.inviteToken, lectureId },
       );
       assert.equal(joinClosedPrivate.status, 409);
+      assert.equal((await joinClosedPrivate.json() as { code: string }).code, "ROOM_CLOSED");
 
       const history = await db().groupFocusMembership.findMany({
         where: { roomId: privateRoomId },
@@ -795,7 +1156,16 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
       assert.equal(history.length, 3);
       assert.equal(history.find((row) => row.userId === memberId)?.status, "REMOVED");
       assert.equal(history.find((row) => row.userId === outsiderId)?.status, "LEFT");
+      const privateHostHistory = history.find((row) => row.userId === hostId);
+      const privateMemberHistory = history.find((row) => row.userId === memberId);
+      const privateOutsiderHistory = history.find((row) => row.userId === outsiderId);
+      assert.equal(privateHostHistory?.status, "LEFT");
+      assert.ok(privateHostHistory?.leftAt instanceof Date);
+      assert.ok(privateMemberHistory?.leftAt instanceof Date);
+      assert.ok(privateOutsiderHistory?.leftAt instanceof Date);
+      assert.equal(await focus.getGroupFocusAuthorizationContext(outsiderId, privateRoomId), null);
       await assertNoStudyCredit(fixture.userIds);
+      assert.deepEqual(await readStudySideEffectCounts(), studySideEffectsBefore);
     } finally {
       await api.close();
     }
@@ -805,9 +1175,10 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
 test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow", {
   skip: skipped,
 }, async () => {
-  await withFixture(22, async (fixture) => {
+  await withFixture(21, async (fixture) => {
     const [hostId, ...joinerIds] = fixture.userIds;
     const [lectureId] = fixture.lectureIds;
+    const studySideEffectsBefore = await readStudySideEffectCounts();
     const focus = createService();
     const created = await focus.createRoom(
       hostId!,
@@ -824,7 +1195,8 @@ test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow",
     const succeeded = attempts.filter((result) => result.status === "fulfilled");
     const failed = attempts.filter((result) => result.status === "rejected");
     assert.equal(succeeded.length, 4);
-    assert.equal(failed.length, 17);
+    assert.equal(joinerIds.length, 20);
+    assert.equal(failed.length, 16);
     for (const result of failed) {
       assert.ok(result.status === "rejected");
       assert.ok(result.reason instanceof GroupFocusError);
@@ -856,11 +1228,153 @@ test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow",
     assert.equal(await db().groupFocusMembership.count({
       where: { roomId: created.room.id, status: "ACTIVE" },
     }), 5);
+    await assert.rejects(
+      focus.joinRoom(firstWinner.value.membership.userId, created.room.id, {}),
+      (error: unknown) => error instanceof GroupFocusError && error.code === "ROOM_FULL",
+    );
+    const formerWinnerRow = await db().groupFocusMembership.findUniqueOrThrow({
+      where: {
+        roomId_userId: {
+          roomId: created.room.id,
+          userId: firstWinner.value.membership.userId,
+        },
+      },
+      select: { status: true, leftAt: true },
+    });
+    assert.equal(formerWinnerRow.status, "LEFT");
+    assert.ok(formerWinnerRow.leftAt instanceof Date);
+    assert.equal(await db().groupFocusMembership.count({
+      where: { roomId: created.room.id },
+    }), 6);
+    assert.equal(await db().groupFocusMembership.count({
+      where: { roomId: created.room.id, status: "ACTIVE" },
+    }), 5);
 
     const hostRows = await db().groupFocusMembership.findMany({
       where: { roomId: created.room.id, role: "HOST" },
     });
     assert.equal(hostRows.length, 1);
     await assertNoStudyCredit(fixture.userIds);
+    assert.deepEqual(await readStudySideEffectCounts(), studySideEffectsBefore);
+  });
+});
+
+test("real PostgreSQL Room creation and close transactions roll back on injected failures", {
+  skip: skipped,
+}, async () => {
+  await withFixture(2, async (fixture) => {
+    const [hostId, memberId] = fixture.userIds;
+    const [lectureId] = fixture.lectureIds;
+    const focus = createService();
+    const studySideEffectsBefore = await readStudySideEffectCounts();
+    const createIdempotencyKey = `prompt13-create-rollback-${randomUUID()}`;
+
+    await db().$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION prompt13_group_focus_gate.prompt13_fail_host_insert()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $function$
+      BEGIN
+        IF NEW."role" = 'HOST' THEN
+          RAISE EXCEPTION 'prompt13 forced host membership failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $function$;
+    `);
+    try {
+      await db().$executeRawUnsafe(`
+        CREATE TRIGGER prompt13_fail_host_insert
+        BEFORE INSERT ON prompt13_group_focus_gate."GroupFocusMembership"
+        FOR EACH ROW
+        EXECUTE FUNCTION prompt13_group_focus_gate.prompt13_fail_host_insert();
+      `);
+      await assert.rejects(focus.createRoom(
+        hostId!,
+        createGroupFocusRoomSchema.parse(
+          sharedInput(lectureId!, createIdempotencyKey),
+        ),
+      ));
+    } finally {
+      await db().$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS prompt13_fail_host_insert
+        ON prompt13_group_focus_gate."GroupFocusMembership";
+      `);
+      await db().$executeRawUnsafe(`
+        DROP FUNCTION IF EXISTS prompt13_group_focus_gate.prompt13_fail_host_insert();
+      `);
+    }
+    assert.equal(await db().groupFocusRoom.count({
+      where: { hostUserId: hostId!, createIdempotencyKey },
+    }), 0);
+    assert.equal(await db().groupFocusMembership.count({
+      where: { userId: hostId!, role: "HOST" },
+    }), 0);
+
+    const room = await focus.createRoom(
+      hostId!,
+      createGroupFocusRoomSchema.parse(
+        studyTogetherInput(lectureId!, `prompt13-close-rollback-${randomUUID()}`),
+      ),
+    );
+    const invite = await focus.rotateInvite(hostId!, room.room.id);
+    await focus.joinRoom(memberId!, room.room.id, {
+      inviteToken: invite.inviteToken,
+      lectureId: lectureId!,
+    });
+    const roomBeforeClose = await db().groupFocusRoom.findUniqueOrThrow({
+      where: { id: room.room.id },
+      select: { status: true, closedAt: true, inviteTokenHash: true, inviteVersion: true },
+    });
+    const membershipsBeforeClose = await db().groupFocusMembership.findMany({
+      where: { roomId: room.room.id },
+      orderBy: { id: "asc" },
+      select: { id: true, status: true, leftAt: true },
+    });
+
+    await db().$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION prompt13_group_focus_gate.prompt13_fail_close_memberships()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $function$
+      BEGIN
+        IF OLD.status = 'ACTIVE' AND NEW.status = 'LEFT' THEN
+          RAISE EXCEPTION 'prompt13 forced close membership failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $function$;
+    `);
+    try {
+      await db().$executeRawUnsafe(`
+        CREATE TRIGGER prompt13_fail_close_memberships
+        BEFORE UPDATE ON prompt13_group_focus_gate."GroupFocusMembership"
+        FOR EACH ROW
+        EXECUTE FUNCTION prompt13_group_focus_gate.prompt13_fail_close_memberships();
+      `);
+      await assert.rejects(focus.closeRoom(hostId!, room.room.id));
+    } finally {
+      await db().$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS prompt13_fail_close_memberships
+        ON prompt13_group_focus_gate."GroupFocusMembership";
+      `);
+      await db().$executeRawUnsafe(`
+        DROP FUNCTION IF EXISTS prompt13_group_focus_gate.prompt13_fail_close_memberships();
+      `);
+    }
+
+    const roomAfterClose = await db().groupFocusRoom.findUniqueOrThrow({
+      where: { id: room.room.id },
+      select: { status: true, closedAt: true, inviteTokenHash: true, inviteVersion: true },
+    });
+    const membershipsAfterClose = await db().groupFocusMembership.findMany({
+      where: { roomId: room.room.id },
+      orderBy: { id: "asc" },
+      select: { id: true, status: true, leftAt: true },
+    });
+    assert.deepEqual(roomAfterClose, roomBeforeClose);
+    assert.deepEqual(membershipsAfterClose, membershipsBeforeClose);
+    await assertNoStudyCredit(fixture.userIds);
+    assert.deepEqual(await readStudySideEffectCounts(), studySideEffectsBefore);
   });
 });
