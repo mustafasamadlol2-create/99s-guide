@@ -12,12 +12,17 @@ import {
   updateGroupFocusLectureSchema,
 } from "../features/group-focus/schemas.js";
 import type { GroupFocusService } from "../features/group-focus/service.js";
+import {
+  createGroupFocusRuntimeSummaryService,
+  type GroupFocusRuntimeSummaryService,
+} from "../features/group-focus/runtimeSummary.js";
 import { issueGroupFocusCapability } from "../features/group-focus/capability.js";
 import type { GroupFocusCapabilityEnvironment } from "../../shared/group-focus-capability/keyring.js";
 
 export interface GroupFocusRouteDependencies {
   requireUser: RequestHandler;
   service: GroupFocusService;
+  runtimeSummaryService?: GroupFocusRuntimeSummaryService;
   isEnabled?: () => boolean;
   capabilityEnvironment?: () => GroupFocusCapabilityEnvironment;
   capabilityNow?: () => Date;
@@ -87,6 +92,8 @@ export function createGroupFocusRouter(
   dependencies: GroupFocusRouteDependencies,
 ): express.Router {
   const router = express.Router();
+  const runtimeSummaries = dependencies.runtimeSummaryService
+    ?? createGroupFocusRuntimeSummaryService();
   const isEnabled = dependencies.isEnabled
     ?? (() => isStudyFeatureEnabled("GROUP_FOCUS_ENABLED"));
 
@@ -142,6 +149,23 @@ export function createGroupFocusRouter(
     } catch (error) {
       return sendError(res, error);
     }
+  }));
+
+  router.get("/rooms/:roomId/summary", route(async (req, res) => {
+    res.set({
+      "Cache-Control": "no-store, private",
+      Pragma: "no-cache",
+    });
+    const roomId = parseRoomId(req.params.roomId);
+    if (!roomId) return invalid(res, "Group Focus Room ID is invalid.");
+    const summary = await runtimeSummaries.getMySummary(userId(req), roomId);
+    if (!summary) {
+      return res.status(404).json({
+        error: "Group Focus summary was not found.",
+        code: "SUMMARY_NOT_FOUND",
+      });
+    }
+    return res.json(summary);
   }));
 
   router.get("/rooms/public", route(async (req, res) => {

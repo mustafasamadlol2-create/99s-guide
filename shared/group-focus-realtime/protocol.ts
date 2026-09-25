@@ -5,10 +5,20 @@ import type {
 
 export const GROUP_FOCUS_REALTIME_PROTOCOL = "gf-v1";
 export const GROUP_FOCUS_REALTIME_AUTH_PREFIX = "gf-auth.";
+export const GROUP_FOCUS_REALTIME_RESUME_PREFIX = "gf-resume.";
 export const GROUP_FOCUS_REALTIME_MAX_MESSAGE_BYTES = 16 * 1024;
 export const GROUP_FOCUS_REALTIME_COUNTDOWN_SECONDS = 3;
 export const GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER =
   "x-group-focus-internal-capability";
+export const GROUP_FOCUS_REALTIME_INTERNAL_RESUME_HEADER =
+  "x-group-focus-internal-resume";
+
+export const GROUP_FOCUS_REALTIME_CONNECTION_STATES = [
+  "CONNECTED",
+  "RECONNECTING",
+] as const;
+export type GroupFocusRealtimeConnectionState =
+  (typeof GROUP_FOCUS_REALTIME_CONNECTION_STATES)[number];
 
 export const GROUP_FOCUS_REALTIME_PHASES = [
   "LOBBY",
@@ -42,6 +52,7 @@ export type GroupFocusRealtimeParticipant = {
   role: GroupFocusCapabilityRole;
   effectiveLectureId: string;
   connectedAt: number;
+  connectionState?: GroupFocusRealtimeConnectionState;
 };
 
 export type GroupFocusRealtimeSocketAttachment = GroupFocusRealtimeParticipant & {
@@ -51,6 +62,7 @@ export type GroupFocusRealtimeSocketAttachment = GroupFocusRealtimeParticipant &
 
 export type GroupFocusRealtimeClientMessageType =
   | "ROOM_STATE_REQUEST"
+  | "CLIENT_LEAVE"
   | "HOST_START"
   | "HOST_PAUSE"
   | "HOST_RESUME"
@@ -63,6 +75,7 @@ export type GroupFocusRealtimeClientMessage = {
 
 export type GroupFocusRealtimeServerMessageType =
   | "CONNECTED"
+  | "RESUME_TOKEN"
   | "ROOM_STATE"
   | "PRESENCE_SNAPSHOT"
   | "PRESENCE_JOINED"
@@ -81,6 +94,7 @@ export type GroupFocusRealtimeServerMessage = {
 
 const CLIENT_MESSAGE_TYPES: readonly string[] = [
   "ROOM_STATE_REQUEST",
+  "CLIENT_LEAVE",
   "HOST_START",
   "HOST_PAUSE",
   "HOST_RESUME",
@@ -89,6 +103,7 @@ const CLIENT_MESSAGE_TYPES: readonly string[] = [
 
 const SERVER_MESSAGE_TYPES: readonly string[] = [
   "CONNECTED",
+  "RESUME_TOKEN",
   "ROOM_STATE",
   "PRESENCE_SNAPSHOT",
   "PRESENCE_JOINED",
@@ -155,14 +170,19 @@ function isRoomState(value: unknown): value is GroupFocusRealtimeRoomState {
 }
 
 function isParticipant(value: unknown): value is GroupFocusRealtimeParticipant {
-  if (!isRecord(value) || !hasExactKeys(value, [
-    "userId",
-    "role",
-    "effectiveLectureId",
-    "connectedAt",
-  ])) {
+  if (!isRecord(value)) {
     return false;
   }
+  const baseKeys = ["userId", "role", "effectiveLectureId", "connectedAt"];
+  const actualKeys = Object.keys(value).sort();
+  const withState = [...baseKeys, "connectionState"].sort();
+  if (
+    actualKeys.length !== baseKeys.length
+      && actualKeys.length !== withState.length
+  ) return false;
+  if (
+    !hasExactKeys(value, actualKeys.length === baseKeys.length ? baseKeys : withState)
+  ) return false;
   return (
     typeof value.userId === "string"
     && value.userId.length > 0
@@ -170,6 +190,12 @@ function isParticipant(value: unknown): value is GroupFocusRealtimeParticipant {
     && typeof value.effectiveLectureId === "string"
     && value.effectiveLectureId.length > 0
     && isSafeInteger(value.connectedAt)
+    && (
+      value.connectionState === undefined
+      || GROUP_FOCUS_REALTIME_CONNECTION_STATES.includes(
+        value.connectionState as GroupFocusRealtimeConnectionState,
+      )
+    )
   );
 }
 
@@ -244,6 +270,13 @@ export function parseGroupFocusRealtimeServerMessage(
         || typeof payload.userId !== "string"
         || (payload.role !== "HOST" && payload.role !== "MEMBER")
         || typeof payload.roomId !== "string"
+      ) return null;
+      break;
+    case "RESUME_TOKEN":
+      if (
+        !hasExactKeys(payload, ["resumeToken"])
+        || typeof payload.resumeToken !== "string"
+        || !/^[A-Za-z0-9_-]{43}$/u.test(payload.resumeToken)
       ) return null;
       break;
     case "ROOM_STATE":

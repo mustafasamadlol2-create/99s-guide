@@ -61,6 +61,10 @@ import {
   createGroupFocusJsonParser,
   createGroupFocusRouter,
 } from "./server/routes/groupFocus.js";
+import {
+  createGroupFocusRuntimeJsonParser,
+  createGroupFocusRuntimeInternalRouter,
+} from "./server/routes/groupFocusRuntimeInternal.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -1036,6 +1040,10 @@ app.use(
 app.use(
   "/api/group-focus",
   createGroupFocusJsonParser(),
+);
+app.use(
+  "/api/internal/group-focus/runtime",
+  createGroupFocusRuntimeJsonParser(),
 );
 
 app.use(compression());
@@ -7567,6 +7575,10 @@ app.use(
     requireUser,
     service: createGroupFocusService(),
   }),
+);
+app.use(
+  "/api/internal/group-focus/runtime",
+  createGroupFocusRuntimeInternalRouter(),
 );
 
 /**

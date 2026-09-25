@@ -7,6 +7,7 @@ import {
   GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES,
   GROUP_FOCUS_CAPABILITY_MAX_TTL_SECONDS,
 } from "../../../../shared/group-focus-capability/contract.js";
+import type { GroupFocusMyRuntimeSummary } from "../../../../shared/group-focus-reconciliation/contract.js";
 
 export type GroupFocusVisibility = GroupFocusCapabilityVisibility;
 export type GroupFocusMode = GroupFocusCapabilityMode;
@@ -228,6 +229,70 @@ function parseRoomDetail(value: unknown): GroupFocusRoomDetail {
     room: parseRoom(detail.room),
     membership: detail.membership === null ? null : parseMembership(detail.membership),
     effectiveLectureId: requireNullableString(detail.effectiveLectureId, "effective Lecture"),
+  };
+}
+
+function parseMyRuntimeSummary(value: unknown): GroupFocusMyRuntimeSummary {
+  const result = requireRecord(value, "runtime summary");
+  const run = requireRecord(result.run, "runtime summary run");
+  const participant = requireRecord(result.participant, "runtime summary participant");
+  const rounds = participant.rounds;
+  if (!Array.isArray(rounds) || rounds.length > 20) {
+    throw new Error("Invalid Group Focus runtime summary response.");
+  }
+  return {
+    run: {
+      runId: requireString(run.runId, "run ID"),
+      summaryId: requireString(run.summaryId, "summary ID"),
+      roomId: requireString(run.roomId, "Room ID"),
+      mode: requireOneOf(run.mode, ["SHARED_LECTURE", "STUDY_TOGETHER"], "mode"),
+      focusDurationSeconds: requireInteger(run.focusDurationSeconds, "focus duration"),
+      breakDurationSeconds: requireInteger(run.breakDurationSeconds, "break duration"),
+      roundCount: requireInteger(run.roundCount, "round count"),
+      runtimeStartedAt: requireIsoDate(run.runtimeStartedAt, "runtime start"),
+      runtimeEndedAt: requireIsoDate(run.runtimeEndedAt, "runtime end"),
+      terminalReason: requireOneOf(run.terminalReason, [
+        "COMPLETED",
+        "HOST_CLOSED",
+        "CANONICAL_ROOM_CLOSED",
+        "LOBBY_IDLE_TIMEOUT",
+        "PAUSED_IDLE_TIMEOUT",
+      ], "terminal reason"),
+      completedRounds: requireInteger(run.completedRounds, "completed rounds"),
+    },
+    participant: {
+      userId: requireString(participant.userId, "summary user ID"),
+      membershipId: requireString(participant.membershipId, "summary membership ID"),
+      role: requireOneOf(participant.role, ["HOST", "MEMBER"], "summary role"),
+      effectiveLectureId: requireString(
+        participant.effectiveLectureId,
+        "summary effective Lecture",
+      ),
+      firstConnectedAt: requireIsoDate(participant.firstConnectedAt, "first connection"),
+      ...(participant.lastDisconnectedAt === undefined
+        ? {}
+        : {
+          lastDisconnectedAt: requireIsoDate(
+            participant.lastDisconnectedAt,
+            "last disconnection",
+          ),
+        }),
+      reconnectCount: requireInteger(participant.reconnectCount, "reconnect count"),
+      verifiedFocusSeconds: requireInteger(
+        participant.verifiedFocusSeconds,
+        "verified Focus seconds",
+      ),
+      rounds: rounds.map((item) => {
+        const round = requireRecord(item, "summary round");
+        return {
+          roundNumber: requireInteger(round.roundNumber, "summary round number"),
+          verifiedFocusSeconds: requireInteger(
+            round.verifiedFocusSeconds,
+            "summary round Focus seconds",
+          ),
+        };
+      }),
+    },
   };
 }
 
@@ -499,5 +564,17 @@ export async function requestGroupFocusCapability(
     { method: "POST" },
     fetcher,
     parseCapabilityResponse,
+  );
+}
+
+export async function getMyGroupFocusRuntimeSummary(
+  roomId: string,
+  fetcher: Fetcher = fetch,
+): Promise<GroupFocusMyRuntimeSummary> {
+  return requestJson(
+    `/api/group-focus/rooms/${encodeURIComponent(roomId)}/summary`,
+    { method: "GET" },
+    fetcher,
+    parseMyRuntimeSummary,
   );
 }

@@ -45,6 +45,15 @@ class FakeSocket implements GroupFocusRealtimeSocket {
       wasClean: true,
     } as CloseEvent);
   }
+
+  disconnect(code = 1006): void {
+    this.readyState = 3;
+    this.onclose?.({
+      code,
+      reason: "transport lost",
+      wasClean: false,
+    } as CloseEvent);
+  }
 }
 
 function envelope(
@@ -109,6 +118,134 @@ test("headless realtime runtime uses the browser-safe subprotocol handshake", as
 
   runtime.dispose();
   assert.equal(runtime.getSnapshot().status, "DISCONNECTED");
+});
+
+test("reconnect fetches a fresh capability and rotates a room-scoped session token", async () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+  const sockets: FakeSocket[] = [];
+  let capabilityCalls = 0;
+  let secondSocketReady: ((socket: FakeSocket) => void) | null = null;
+  const secondSocket = new Promise<FakeSocket>((resolve) => {
+    secondSocketReady = resolve;
+  });
+  const runtime = createGroupFocusRealtimeRuntime({
+    roomId,
+    accountId: userId,
+    workerUrl: "https://focus.example",
+    resumeTokenStorage: storage,
+    capabilityFetcher: async () => ({
+      capabilityToken: `capability-${++capabilityCalls}`,
+      expiresAt: "2026-09-25T11:01:30.000Z",
+      expiresInSeconds: 90,
+    }),
+    webSocketFactory: (_url, protocols) => {
+      const socket = new FakeSocket(protocols);
+      sockets.push(socket);
+      if (sockets.length === 2) secondSocketReady?.(socket);
+      return socket;
+    },
+  });
+
+  const opening = runtime.connect();
+  await new Promise((resolve) => setImmediate(resolve));
+  sockets[0]!.open();
+  await opening;
+  sockets[0]!.receive(envelope("CONNECTED", 1, Date.now(), {
+    connectionId: "connection-1",
+    userId,
+    role: "HOST",
+    roomId,
+  }));
+  const firstToken = "A".repeat(43);
+  sockets[0]!.receive(envelope("RESUME_TOKEN", 1, Date.now(), {
+    resumeToken: firstToken,
+  }));
+  const storageKey = `group-focus:resume:v1:${userId}:${roomId}`;
+  assert.equal(values.get(storageKey), firstToken);
+
+  sockets[0]!.disconnect();
+  runtime.retryConnection();
+  const reconnectedSocket = await secondSocket;
+  assert.equal(capabilityCalls, 2);
+  assert.deepEqual(reconnectedSocket.selectedProtocols, [
+    "gf-v1",
+    "gf-auth.capability-2",
+    `gf-resume.${firstToken}`,
+  ]);
+  reconnectedSocket.open();
+  reconnectedSocket.receive(envelope("CONNECTED", 2, Date.now(), {
+    connectionId: "connection-2",
+    userId,
+    role: "HOST",
+    roomId,
+  }));
+  const rotatedToken = "B".repeat(43);
+  reconnectedSocket.receive(envelope("RESUME_TOKEN", 2, Date.now(), {
+    resumeToken: rotatedToken,
+  }));
+  assert.equal(values.get(storageKey), rotatedToken);
+
+  await runtime.leave();
+  assert.equal(values.has(storageKey), false);
+  assert.equal(runtime.getSnapshot().status, "DISCONNECTED");
+  assert.deepEqual(JSON.parse(reconnectedSocket.sent[0]!), {
+    v: 1,
+    type: "CLIENT_LEAVE",
+  });
+});
+
+test("disposing on account logout clears the stored room resume token", async () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+  let socket: FakeSocket | null = null;
+  const runtime = createGroupFocusRealtimeRuntime({
+    roomId,
+    accountId: userId,
+    workerUrl: "https://focus.example",
+    resumeTokenStorage: storage,
+    capabilityFetcher: async () => ({
+      capabilityToken: "fresh-capability",
+      expiresAt: "2026-09-25T11:01:30.000Z",
+      expiresInSeconds: 90,
+    }),
+    webSocketFactory: (_url, protocols) => {
+      socket = new FakeSocket(protocols);
+      return socket;
+    },
+  });
+
+  const opening = runtime.connect();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(socket);
+  socket.open();
+  await opening;
+  socket.receive(envelope("CONNECTED", 1, Date.now(), {
+    connectionId: "connection-logout",
+    userId,
+    role: "MEMBER",
+    roomId,
+  }));
+  const token = "C".repeat(43);
+  socket.receive(envelope("RESUME_TOKEN", 1, Date.now(), { resumeToken: token }));
+  const storageKey = `group-focus:resume:v1:${userId}:${roomId}`;
+  assert.equal(values.get(storageKey), token);
+
+  runtime.dispose();
+
+  assert.equal(values.has(storageKey), false);
+  assert.deepEqual(JSON.parse(socket.sent[0]!), {
+    v: 1,
+    type: "CLIENT_LEAVE",
+  });
 });
 
 test("client countdown interpolation uses server time and monotonic elapsed time", async () => {

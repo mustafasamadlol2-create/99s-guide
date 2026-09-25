@@ -64,6 +64,7 @@ model User {
   studyDailyMetrics         StudyDailyMetric[]
   groupFocusRoomsHosted     GroupFocusRoom[]          @relation("GroupFocusRoomHost")
   groupFocusMemberships     GroupFocusMembership[]
+  groupFocusParticipantSummaries GroupFocusParticipantSummary[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -93,6 +94,7 @@ model Lecture {
   studyEvents              StudyEvent[]
   groupFocusRoomsShared    GroupFocusRoom[]          @relation("GroupFocusRoomSharedLecture")
   groupFocusMemberships    GroupFocusMembership[]    @relation("GroupFocusMembershipSelectedLecture")
+  groupFocusParticipantSummaries GroupFocusParticipantSummary[] @relation("GroupFocusSummaryLecture")
 
   @@index([name])
   @@index([mainSubject])
@@ -667,6 +669,7 @@ model GroupFocusRoom {
   host          User                   @relation("GroupFocusRoomHost", fields: [hostUserId], references: [id], onDelete: Cascade)
   sharedLecture Lecture?               @relation("GroupFocusRoomSharedLecture", fields: [sharedLectureId], references: [id], onDelete: Restrict)
   memberships   GroupFocusMembership[]
+  run           GroupFocusRun?
 
   @@unique([hostUserId, createIdempotencyKey])
   @@index([visibility, status, createdAt])
@@ -689,11 +692,62 @@ model GroupFocusMembership {
   room            GroupFocusRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   selectedLecture Lecture?       @relation("GroupFocusMembershipSelectedLecture", fields: [selectedLectureId], references: [id], onDelete: Restrict)
+  participantSummary GroupFocusParticipantSummary?
 
   @@unique([roomId, userId])
   @@index([roomId, status])
   @@index([userId, status])
   @@index([selectedLectureId])
+}
+
+/// Canonical immutable result of one terminal Durable Object runtime.
+model GroupFocusRun {
+  id                       String   @id @default(uuid())
+  roomId                   String   @unique
+  summaryId                String   @unique
+  runtimeInstanceId        String   @unique
+  summaryVersion           Int
+  summaryHash              String   @db.Char(64)
+  mode                     String
+  focusDurationSeconds     Int
+  breakDurationSeconds     Int
+  roundCount               Int
+  runtimeStartedAt         DateTime
+  runtimeEndedAt           DateTime
+  terminalReason           String
+  completedRounds          Int
+  finalRevision            Int
+  createdAt                DateTime @default(now())
+
+  room         GroupFocusRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  participants GroupFocusParticipantSummary[]
+
+  @@index([runtimeEndedAt])
+}
+
+/// One verified, private participation aggregate per canonical member and run.
+model GroupFocusParticipantSummary {
+  id                       String   @id @default(uuid())
+  runId                    String
+  userId                   String
+  membershipId             String   @unique
+  role                     String
+  effectiveLectureId       String
+  firstConnectedAt         DateTime
+  lastDisconnectedAt       DateTime?
+  reconnectCount           Int
+  verifiedFocusSeconds     Int
+  rounds                   Json
+  createdAt                DateTime @default(now())
+
+  run             GroupFocusRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership      GroupFocusMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  effectiveLecture Lecture             @relation("GroupFocusSummaryLecture", fields: [effectiveLectureId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, userId])
+  @@index([userId, createdAt])
+  @@index([effectiveLectureId, createdAt])
 }
 
 /// Canonical normalized learning-event envelope. Event values remain strings

@@ -487,21 +487,66 @@ test("SKIPPED recall creates a private event without positive or negative metric
 
 test("Group Focus round and summary events do not double-count Focus metrics", async () => {
   const { service, repository } = makeService();
-  for (const [eventType, idempotencyKey] of [
-    ["group_focus_round_completed", "group-round-0001"],
-    ["group_focus_summary_completed", "group-summary-001"],
-  ] as const) {
+  const identity = {
+    roomId: "00000000-0000-4000-8000-000000000020",
+    runId: "00000000-0000-4000-8000-000000000021",
+    mode: "SHARED_LECTURE" as const,
+    role: "MEMBER" as const,
+    effectiveLectureId: "00000000-0000-4000-8000-000000000022",
+  };
+  const events = [
+    {
+      eventType: "group_focus_joined" as const,
+      idempotencyKey: "group-joined-0001",
+      payload: identity,
+    },
+    {
+      eventType: "group_focus_round_completed" as const,
+      idempotencyKey: "group-round-0001",
+      payload: {
+        ...identity,
+        roundNumber: 1,
+        verifiedFocusSeconds: 1_500,
+        plannedFocusSeconds: 1_500,
+      },
+    },
+    {
+      eventType: "group_focus_left" as const,
+      idempotencyKey: "group-left-0001",
+      payload: identity,
+    },
+    {
+      eventType: "group_focus_summary_completed" as const,
+      idempotencyKey: "group-summary-001",
+      payload: {
+        ...identity,
+        verifiedFocusSeconds: 1_500,
+        roundsCompleted: 1,
+        reconnectCount: 0,
+        terminalReason: "COMPLETED" as const,
+      },
+    },
+  ];
+  for (const event of events) {
     await service.ingestStudyEvent({
-      eventType,
+      eventType: event.eventType,
       userId: "user-1",
       occurredAt: NOW,
       source: "durable_object",
-      idempotencyKey,
+      idempotencyKey: event.idempotencyKey,
       evidenceClass: "REALTIME_VERIFIED",
-      payload: {},
+      payload: event.payload,
     });
   }
-  assert.equal(repository.events.length, 2);
+  assert.deepEqual(
+    repository.events.map((event) => event.eventType).sort(),
+    [
+      "group_focus_joined",
+      "group_focus_left",
+      "group_focus_round_completed",
+      "group_focus_summary_completed",
+    ],
+  );
   assert.equal(repository.metrics.size, 0);
   assert.equal(repository.projections.length, 0);
 });

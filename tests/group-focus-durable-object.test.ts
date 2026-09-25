@@ -267,10 +267,13 @@ function connect(
   baseUrl: URL,
   roomId: string,
   token: string,
+  resumeToken?: string,
 ): { socket: WebSocket; messages: MessageQueue; opened: Promise<void> } {
+  const protocols = [GROUP_FOCUS_REALTIME_PROTOCOL, `gf-auth.${token}`];
+  if (resumeToken) protocols.push(`gf-resume.${resumeToken}`);
   const socket = new WebSocket(
     workerWebSocketUrl(baseUrl, roomId),
-    [GROUP_FOCUS_REALTIME_PROTOCOL, `gf-auth.${token}`],
+    protocols,
   );
   const messages = new MessageQueue(socket);
   const opened = new Promise<void>((resolve, reject) => {
@@ -414,6 +417,7 @@ test("local workerd enforces capability admission, presence, commands, and alarm
     ).sort();
     assert.deepEqual(presenceFields, [
       "connectedAt",
+      "connectionState",
       "effectiveLectureId",
       "role",
       "userId",
@@ -434,7 +438,7 @@ test("local workerd enforces capability admission, presence, commands, and alarm
       `gf-v1, gf-auth.${hostToken}`,
     );
     assert.equal(duplicateResponse.status, 409);
-    assert.equal((await duplicateResponse.json()).code, "ALREADY_CONNECTED");
+    assert.equal((await duplicateResponse.json()).code, "RESUME_REQUIRED");
 
     const thirdToken = createToken(key, {
       roomId,
@@ -536,6 +540,8 @@ test("local Durable Object storage survives a Worker restart and catches up by t
     await host.messages.next("CONNECTED");
     await host.messages.next("ROOM_STATE");
     await host.messages.next("PRESENCE_SNAPSHOT");
+    const resumeMessage = await host.messages.next("RESUME_TOKEN");
+    const firstResumeToken = String(resumeMessage.payload.resumeToken);
 
     host.socket.send(JSON.stringify({ v: 1, type: "HOST_START" }));
     await host.messages.next(
@@ -550,10 +556,19 @@ test("local Durable Object storage survives a Worker restart and catches up by t
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     await delay(3_200);
-    const emptyRoomReconnect = connect(baseUrl, roomId, token);
+    const emptyRoomReconnect = connect(baseUrl, roomId, token, firstResumeToken);
     await emptyRoomReconnect.opened;
     await emptyRoomReconnect.messages.next("CONNECTED");
+    const rotatedResumeMessage = await emptyRoomReconnect.messages.next("RESUME_TOKEN");
+    const rotatedResumeToken = String(rotatedResumeMessage.payload.resumeToken);
     const emptyRoomState = await emptyRoomReconnect.messages.next("ROOM_STATE");
+    const staleResumeResponse = await dispatchUpgrade(
+      worker,
+      roomId,
+      `gf-v1, gf-auth.${token}, gf-resume.${firstResumeToken}`,
+    );
+    assert.equal(staleResumeResponse.status, 401);
+    assert.equal((await staleResumeResponse.json()).code, "INVALID_RESUME_TOKEN");
     assert.equal(roomPhase(emptyRoomState), "FOCUS");
     assert.equal(
       (emptyRoomState.payload.roomState as Record<string, unknown>).currentRound,
@@ -570,9 +585,10 @@ test("local Durable Object storage survives a Worker restart and catches up by t
     await delay(100);
     await worker.start();
 
-    const reconnected = connect(baseUrl, roomId, token);
+    const reconnected = connect(baseUrl, roomId, token, rotatedResumeToken);
     await reconnected.opened;
     await reconnected.messages.next("CONNECTED");
+    await reconnected.messages.next("RESUME_TOKEN");
     const roomState = await reconnected.messages.next("ROOM_STATE");
     assert.equal(roomPhase(roomState), "FOCUS");
     assert.equal(

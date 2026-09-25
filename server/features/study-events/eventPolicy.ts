@@ -101,12 +101,20 @@ const registry: Record<StudyEventType, StudyEventPolicy> = {
     intendedProducer: "Recall Service",
   }),
   spaced_recall_skipped: noMetric("SERVER_VALIDATED", serverSources, "Recall Service"),
-  group_focus_joined: noMetric("CLIENT_OBSERVED", clientSources, "Group Focus Verification"),
+  group_focus_joined: noMetric(
+    "CLIENT_OBSERVED",
+    realtimeSources,
+    "Group Focus Verification",
+  ),
   group_focus_round_completed: {
     ...noMetric("REALTIME_VERIFIED", realtimeSources, "Group Focus Verification"),
     metricEffect: "DEFERRED",
   },
-  group_focus_left: noMetric("CLIENT_OBSERVED", clientSources, "Group Focus Verification"),
+  group_focus_left: noMetric(
+    "CLIENT_OBSERVED",
+    realtimeSources,
+    "Group Focus Verification",
+  ),
   group_focus_summary_completed: {
     ...noMetric("REALTIME_VERIFIED", realtimeSources, "Group Focus Verification"),
     metricEffect: "DEFERRED",

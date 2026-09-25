@@ -69,6 +69,33 @@ const handoff = z.object({
   status: z.enum(["STARTED", "RETURNED", "TIMEOUT", "UNKNOWN"]),
 }).strict();
 
+const groupFocusIdentity = z.object({
+  roomId: z.string().uuid(),
+  runId: z.string().uuid(),
+  mode: z.enum(["SHARED_LECTURE", "STUDY_TOGETHER"]),
+  role: z.enum(["HOST", "MEMBER"]),
+  effectiveLectureId: z.string().uuid(),
+}).strict();
+
+const groupFocusRound = groupFocusIdentity.extend({
+  roundNumber: z.number().int().min(1).max(20),
+  verifiedFocusSeconds: z.number().int().min(0).max(6 * 60 * 60),
+  plannedFocusSeconds: z.number().int().min(60).max(6 * 60 * 60),
+}).strict();
+
+const groupFocusSummary = groupFocusIdentity.extend({
+  verifiedFocusSeconds: z.number().int().min(0).max(20 * 6 * 60 * 60),
+  roundsCompleted: z.number().int().min(0).max(20),
+  reconnectCount: z.number().int().min(0).max(10_000),
+  terminalReason: z.enum([
+    "COMPLETED",
+    "HOST_CLOSED",
+    "CANONICAL_ROOM_CLOSED",
+    "LOBBY_IDLE_TIMEOUT",
+    "PAUSED_IDLE_TIMEOUT",
+  ]),
+}).strict();
+
 export const STUDY_EVENT_PAYLOAD_SCHEMAS: Readonly<
   Record<StudyEventType, z.ZodTypeAny>
 > = {
@@ -90,10 +117,10 @@ export const STUDY_EVENT_PAYLOAD_SCHEMAS: Readonly<
   spaced_recall_presented: emptyPayload,
   spaced_recall_answered: recallAnswer,
   spaced_recall_skipped: recallSkip,
-  group_focus_joined: emptyPayload,
-  group_focus_round_completed: emptyPayload,
-  group_focus_left: emptyPayload,
-  group_focus_summary_completed: emptyPayload,
+  group_focus_joined: groupFocusIdentity,
+  group_focus_round_completed: groupFocusRound,
+  group_focus_left: groupFocusIdentity,
+  group_focus_summary_completed: groupFocusSummary,
   study_event_rejected: z.object({ reason: boundedText(160) }).strict(),
   study_event_flagged: z.object({ reason: boundedText(160) }).strict(),
   study_event_reconciled: z.object({ reason: boundedText(160) }).strict(),

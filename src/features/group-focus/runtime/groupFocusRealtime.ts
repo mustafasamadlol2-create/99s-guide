@@ -5,17 +5,21 @@ import {
 import {
   GROUP_FOCUS_REALTIME_PROTOCOL,
   GROUP_FOCUS_REALTIME_AUTH_PREFIX,
+  GROUP_FOCUS_REALTIME_RESUME_PREFIX,
   parseGroupFocusRealtimeServerMessage,
   type GroupFocusRealtimeParticipant,
   type GroupFocusRealtimePhase,
   type GroupFocusRealtimeRoomState,
 } from "../../../../shared/group-focus-realtime/protocol.js";
+import { decodeBase64Url } from "../../../../shared/group-focus-capability/encoding.js";
 
 export type GroupFocusRealtimeStatus =
   | "IDLE"
   | "CONNECTING"
   | "CONNECTED"
+  | "RECONNECTING"
   | "DISCONNECTED"
+  | "TERMINAL"
   | "ERROR";
 
 export type GroupFocusRealtimeError = {
@@ -50,12 +54,14 @@ export type GroupFocusRealtimeSocket = {
 export type GroupFocusRealtimeRuntimeOptions = {
   roomId: string;
   workerUrl: string;
+  accountId?: string;
   capabilityFetcher?: (roomId: string) => Promise<GroupFocusCapabilityResponse>;
   webSocketFactory?: (
     url: string,
     protocols: string[],
   ) => GroupFocusRealtimeSocket;
   monotonicNow?: () => number;
+  resumeTokenStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem">;
 };
 
 export class GroupFocusRealtimeRuntimeError extends Error {
@@ -116,6 +122,30 @@ function safeServerMessageCode(code: unknown): string {
     : "INVALID_SERVER_MESSAGE";
 }
 
+function capabilitySubject(token: string): string | null {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  const decoded = decodeBase64Url(payload);
+  if (!decoded) return null;
+  try {
+    const value: unknown = JSON.parse(new TextDecoder().decode(decoded));
+    if (
+      typeof value === "object"
+      && value !== null
+      && !Array.isArray(value)
+      && typeof (value as Record<string, unknown>).sub === "string"
+      && UUID.test((value as Record<string, unknown>).sub as string)
+    ) return (value as Record<string, unknown>).sub as string;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function resumeStorageKey(accountId: string, roomId: string): string {
+  return `group-focus:resume:v1:${encodeURIComponent(accountId)}:${roomId}`;
+}
+
 function phaseHasDeadline(phase: GroupFocusRealtimePhase): boolean {
   return phase === "COUNTDOWN" || phase === "FOCUS" || phase === "BREAK";
 }
@@ -137,6 +167,22 @@ export class GroupFocusRealtimeRuntime {
   private pendingConnectionReject:
     | ((error: GroupFocusRealtimeRuntimeError) => void)
     | null = null;
+  private reconnectAttempts = 0;
+  private reconnectStartedAt: number | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectInFlight: Promise<void> | null = null;
+  private connectionAttempt: Promise<void> | null = null;
+  private reconnectEnabled = false;
+  private disposed = false;
+  private resumeToken: string | null = null;
+  private resumeStorageKey: string | null = null;
+  private currentAccountId: string | null = null;
+  private readonly onlineHandler = () => { void this.retryConnection(); };
+  private readonly visibilityHandler = () => {
+    if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      void this.retryConnection();
+    }
+  };
 
   constructor(private readonly options: GroupFocusRealtimeRuntimeOptions) {
     this.capabilityFetcher = options.capabilityFetcher ?? requestGroupFocusCapability;
@@ -155,6 +201,10 @@ export class GroupFocusRealtimeRuntime {
       estimatedServerNow: null,
       error: null,
     };
+    if (typeof window !== "undefined") window.addEventListener("online", this.onlineHandler);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this.visibilityHandler);
+    }
   }
 
   getSnapshot(): GroupFocusRealtimeSnapshot {
@@ -187,12 +237,41 @@ export class GroupFocusRealtimeRuntime {
   }
 
   async connect(): Promise<void> {
+    if (this.snapshot.status === "TERMINAL") {
+      throw new GroupFocusRealtimeRuntimeError(
+        "ROOM_TERMINAL",
+        "This Group Focus Room has already ended.",
+      );
+    }
     if (this.snapshot.status === "CONNECTING" || this.snapshot.status === "CONNECTED") {
       throw new GroupFocusRealtimeRuntimeError(
         "ALREADY_CONNECTING",
         "This Group Focus realtime runtime is already connecting or connected.",
       );
     }
+    this.disposed = false;
+    this.reconnectEnabled = true;
+    this.reconnectAttempts = 0;
+    this.reconnectStartedAt = null;
+    this.clearReconnectTimer();
+    const attempt = this.connectWithFreshCapability(false);
+    this.connectionAttempt = attempt;
+    try {
+      await attempt;
+    } catch (error) {
+      if (this.reconnectEnabled && !this.disposed) {
+        this.reconnectStartedAt ??= Date.now();
+        if (this.connectionAttempt === attempt) this.connectionAttempt = null;
+        this.scheduleReconnect();
+      }
+      throw error;
+    } finally {
+      if (this.connectionAttempt === attempt) this.connectionAttempt = null;
+    }
+  }
+
+  private async connectWithFreshCapability(reconnecting: boolean): Promise<void> {
+    if (this.snapshot.status === "TERMINAL" || this.disposed) return;
     if (this.socket) {
       const previous = this.socket;
       this.socket = null;
@@ -232,22 +311,43 @@ export class GroupFocusRealtimeRuntime {
         "Group Focus could not issue a short-lived realtime capability.",
       );
       this.update({
-        status: "ERROR",
+        status: reconnecting ? "RECONNECTING" : "ERROR",
         error: { code: failure.code, message: failure.message },
       });
       throw failure;
     }
     if (generation !== this.generation) return;
 
+    const accountId = capabilitySubject(capability.capabilityToken)
+      ?? this.options.accountId
+      ?? this.currentAccountId;
+    if (accountId && UUID.test(accountId)) {
+      if (this.currentAccountId !== null && this.currentAccountId !== accountId) {
+        this.clearStoredResumeToken();
+      }
+      this.currentAccountId = accountId;
+      const key = resumeStorageKey(accountId, this.options.roomId);
+      if (this.resumeStorageKey !== key) this.resumeToken = null;
+      this.resumeStorageKey = key;
+      this.resumeToken = this.resumeToken ?? this.readStoredResumeToken(key);
+    } else {
+      this.clearStoredResumeToken();
+      this.currentAccountId = null;
+    }
+    let resumeToken = this.resumeToken;
     let socket: GroupFocusRealtimeSocket;
     try {
       const protocols = [
         GROUP_FOCUS_REALTIME_PROTOCOL,
         `${GROUP_FOCUS_REALTIME_AUTH_PREFIX}${capability.capabilityToken}`,
       ];
+      if (resumeToken) {
+        protocols.push(`${GROUP_FOCUS_REALTIME_RESUME_PREFIX}${resumeToken}`);
+      }
       socket = this.webSocketFactory(this.webSocketUrl, protocols);
-      protocols[1] = "";
+      for (let index = 1; index < protocols.length; index += 1) protocols[index] = "";
       capability = { ...capability, capabilityToken: "" };
+      resumeToken = null;
     } catch (error) {
       if (generation !== this.generation) return;
       const failure = error instanceof GroupFocusRealtimeRuntimeError
@@ -257,7 +357,7 @@ export class GroupFocusRealtimeRuntime {
           "Group Focus realtime could not start a WebSocket connection.",
         );
       this.update({
-        status: "ERROR",
+        status: reconnecting ? "RECONNECTING" : "ERROR",
         error: { code: failure.code, message: failure.message },
       });
       throw failure;
@@ -282,7 +382,7 @@ export class GroupFocusRealtimeRuntime {
           // The connection is already closing.
         }
         this.update({
-          status: "ERROR",
+          status: reconnecting ? "RECONNECTING" : "ERROR",
           error: { code: failure.code, message: failure.message },
         });
         reject(failure);
@@ -299,6 +399,8 @@ export class GroupFocusRealtimeRuntime {
         }
         settled = true;
         this.pendingConnectionReject = null;
+        this.reconnectAttempts = 0;
+        this.reconnectStartedAt = null;
         this.update({ status: "CONNECTED", error: null });
         resolve();
       };
@@ -318,13 +420,13 @@ export class GroupFocusRealtimeRuntime {
         } else {
           transportError = { code: failure.code, message: failure.message };
           this.update({
-            status: "ERROR",
+            status: reconnecting ? "RECONNECTING" : "ERROR",
             error: transportError,
           });
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (generation !== this.generation) return;
         this.socket = null;
         if (!settled) {
@@ -334,10 +436,30 @@ export class GroupFocusRealtimeRuntime {
           ));
           return;
         }
-        this.update({
-          status: "DISCONNECTED",
-          error: transportError,
-        });
+        if (this.snapshot.status === "TERMINAL") return;
+        const closeCode = (event as CloseEvent | undefined)?.code;
+        if (
+          closeCode === 4003
+          || this.snapshot.error?.code === "AUTHORIZATION_REFRESH_REQUIRED"
+          || this.snapshot.error?.code === "CANONICAL_MEMBERSHIP_INACTIVE"
+        ) {
+          this.reconnectEnabled = false;
+          this.clearStoredResumeToken();
+          this.update({
+            status: "ERROR",
+            error: this.snapshot.error ?? {
+              code: "AUTHORIZATION_REFRESH_REQUIRED",
+              message: "Reconnect requires refreshed Room authorization.",
+            },
+          });
+          return;
+        }
+        if (this.reconnectEnabled && !this.disposed) {
+          this.update({ status: "RECONNECTING", error: transportError });
+          this.scheduleReconnect();
+        } else {
+          this.update({ status: "DISCONNECTED", error: transportError });
+        }
       };
       this.pendingConnectionReject = fail;
     });
@@ -363,7 +485,137 @@ export class GroupFocusRealtimeRuntime {
     this.send("HOST_CLOSE");
   }
 
-  dispose(): void {
+  retryConnection(): void {
+    if (this.snapshot.status === "TERMINAL" || this.disposed) return;
+    if (
+      this.snapshot.status === "CONNECTED"
+      || this.snapshot.status === "CONNECTING"
+      || this.connectionAttempt
+      || this.reconnectInFlight
+    ) return;
+    if (!this.reconnectEnabled) {
+      this.reconnectAttempts = 0;
+      this.reconnectStartedAt = null;
+    }
+    this.reconnectEnabled = true;
+    this.disposed = false;
+    this.reconnectStartedAt ??= Date.now();
+    this.clearReconnectTimer();
+    this.update({ status: "RECONNECTING" });
+    this.scheduleReconnect(true);
+  }
+
+  notifyApplicationActive(): void {
+    this.retryConnection();
+  }
+
+  private scheduleReconnect(immediate = false): void {
+    if (
+      !this.reconnectEnabled
+      || this.disposed
+      || this.snapshot.status === "TERMINAL"
+      || this.snapshot.status === "CONNECTED"
+      || this.connectionAttempt
+      || this.reconnectInFlight
+      || this.reconnectTimer
+    ) return;
+    const startedAt = this.reconnectStartedAt ?? Date.now();
+    this.reconnectStartedAt = startedAt;
+    if (
+      this.reconnectAttempts >= 8
+      || Date.now() - startedAt >= 2 * 60 * 1000
+    ) {
+      this.reconnectEnabled = false;
+      this.update({
+        status: "ERROR",
+        error: {
+          code: "RECONNECT_EXHAUSTED",
+          message: "Group Focus could not reconnect. Retry when your connection is available.",
+        },
+      });
+      return;
+    }
+    const delays = [1_000, 2_000, 4_000, 8_000, 15_000, 15_000, 15_000, 15_000];
+    const wait = immediate ? 0 : delays[Math.min(this.reconnectAttempts, delays.length - 1)];
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (
+        this.resumeToken
+        && this.reconnectStartedAt !== null
+        && Date.now() - this.reconnectStartedAt >= 45_000
+      ) this.clearStoredResumeToken();
+      this.reconnectAttempts += 1;
+      const attempt = this.connectWithFreshCapability(true);
+      this.connectionAttempt = attempt;
+      this.reconnectInFlight = attempt;
+      attempt.catch(() => undefined).finally(() => {
+        if (this.connectionAttempt === attempt) this.connectionAttempt = null;
+        if (this.reconnectInFlight === attempt) this.reconnectInFlight = null;
+        if (
+          this.snapshot.status !== "CONNECTED"
+          && this.snapshot.status !== "TERMINAL"
+          && this.reconnectEnabled
+        ) this.scheduleReconnect();
+      });
+    }, wait);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private readStoredResumeToken(key: string): string | null {
+    try {
+      const value = (this.options.resumeTokenStorage ?? globalThis.sessionStorage)
+        ?.getItem(key);
+      if (typeof value === "string" && /^[A-Za-z0-9_-]{43}$/u.test(value)) return value;
+      if (value !== null && value !== undefined) {
+        (this.options.resumeTokenStorage ?? globalThis.sessionStorage)?.removeItem(key);
+      }
+    } catch {
+      // sessionStorage can be unavailable in restricted browser contexts.
+    }
+    return null;
+  }
+
+  private persistResumeToken(value: string): void {
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return;
+    this.resumeToken = value;
+    const accountId = this.snapshot.userId ?? this.options.accountId;
+    if (!accountId || !UUID.test(accountId)) return;
+    this.currentAccountId = accountId;
+    const key = resumeStorageKey(accountId, this.options.roomId);
+    this.resumeStorageKey = key;
+    try {
+      (this.options.resumeTokenStorage ?? globalThis.sessionStorage)?.setItem(key, value);
+    } catch {
+      // The token remains memory-only if sessionStorage is blocked.
+    }
+  }
+
+  private clearStoredResumeToken(): void {
+    this.resumeToken = null;
+    const key = this.resumeStorageKey;
+    if (!key) return;
+    try {
+      (this.options.resumeTokenStorage ?? globalThis.sessionStorage)?.removeItem(key);
+    } catch {
+      // A blocked storage implementation must not break socket cleanup.
+    }
+  }
+
+  private markTerminal(): void {
+    this.reconnectEnabled = false;
+    this.clearReconnectTimer();
+    this.clearStoredResumeToken();
+    this.snapshot = { ...this.snapshot, status: "TERMINAL" };
+  }
+
+  async leave(): Promise<void> {
+    this.reconnectEnabled = false;
+    this.disposed = true;
+    this.clearReconnectTimer();
     this.pendingConnectionReject?.(
       new GroupFocusRealtimeRuntimeError(
         "CONNECTION_CANCELLED",
@@ -375,6 +627,53 @@ export class GroupFocusRealtimeRuntime {
     const socket = this.socket;
     this.socket = null;
     if (socket) {
+      try {
+        if (socket.readyState === 1) {
+          socket.send(JSON.stringify({ v: 1, type: "CLIENT_LEAVE" }));
+        }
+      } catch {
+        // The connection may already be closing.
+      }
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      try {
+        socket.close(1000, "Client left");
+      } catch {
+        // Already closed.
+      }
+    }
+    this.clearStoredResumeToken();
+    this.update({ status: "DISCONNECTED" });
+  }
+
+  dispose(): void {
+    this.pendingConnectionReject?.(
+      new GroupFocusRealtimeRuntimeError(
+        "CONNECTION_CANCELLED",
+        "The Group Focus realtime connection was cancelled.",
+      ),
+    );
+    this.pendingConnectionReject = null;
+    this.reconnectEnabled = false;
+    this.disposed = true;
+    this.clearReconnectTimer();
+    if (typeof window !== "undefined") window.removeEventListener("online", this.onlineHandler);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+    }
+    this.generation += 1;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      try {
+        if (socket.readyState === 1) {
+          socket.send(JSON.stringify({ v: 1, type: "CLIENT_LEAVE" }));
+        }
+      } catch {
+        // The connection may already be closing.
+      }
       socket.onopen = null;
       socket.onmessage = null;
       socket.onerror = null;
@@ -385,6 +684,7 @@ export class GroupFocusRealtimeRuntime {
         // Already closed.
       }
     }
+    this.clearStoredResumeToken();
     this.update({ status: "DISCONNECTED" });
     this.listeners.clear();
   }
@@ -436,6 +736,14 @@ export class GroupFocusRealtimeRuntime {
           roomState: message.payload.roomState as GroupFocusRealtimeRoomState,
           error: null,
         };
+        if (
+          message.type === "ROOM_CLOSED"
+          || this.snapshot.roomState?.phase === "COMPLETED"
+          || this.snapshot.roomState?.phase === "CLOSED"
+        ) this.markTerminal();
+        break;
+      case "RESUME_TOKEN":
+        this.persistResumeToken(message.payload.resumeToken as string);
         break;
       case "PRESENCE_SNAPSHOT": {
         const sequence = message.payload.sequence as number;
@@ -479,6 +787,10 @@ export class GroupFocusRealtimeRuntime {
       }
       case "ERROR": {
         const code = safeServerMessageCode(message.payload.code);
+        if (
+          code === "AUTHORIZATION_REFRESH_REQUIRED"
+          || code === "CANONICAL_MEMBERSHIP_INACTIVE"
+        ) this.clearStoredResumeToken();
         this.snapshot = {
           ...this.snapshot,
           error: {

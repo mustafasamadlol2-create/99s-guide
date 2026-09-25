@@ -12,7 +12,9 @@ import {
 import {
   GROUP_FOCUS_REALTIME_AUTH_PREFIX,
   GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER,
+  GROUP_FOCUS_REALTIME_INTERNAL_RESUME_HEADER,
   GROUP_FOCUS_REALTIME_PROTOCOL,
+  GROUP_FOCUS_REALTIME_RESUME_PREFIX,
 } from "../../shared/group-focus-realtime/protocol.js";
 
 export { GroupFocusRoom } from "./GroupFocusRoom.js";
@@ -27,7 +29,7 @@ export type GroupFocusWorkerEnvironment =
   & Env;
 
 type CredentialResult =
-  | { ok: true; token: string }
+  | { ok: true; token: string; resumeToken: string | null }
   | { ok: false; status: number; code: string };
 
 function jsonError(status: number, code: string): Response {
@@ -56,17 +58,20 @@ function parseCredentials(request: Request): CredentialResult {
   if (
     offered.some((protocol) => protocol.length === 0)
     || offered.filter((protocol) => protocol === GROUP_FOCUS_REALTIME_PROTOCOL).length !== 1
-    || offered.length > 2
+    || offered.length > 3
     || offered.some((protocol) =>
       protocol !== GROUP_FOCUS_REALTIME_PROTOCOL
-      && !protocol.startsWith(GROUP_FOCUS_REALTIME_AUTH_PREFIX))
+      && !protocol.startsWith(GROUP_FOCUS_REALTIME_AUTH_PREFIX)
+      && !protocol.startsWith(GROUP_FOCUS_REALTIME_RESUME_PREFIX))
   ) {
     return { ok: false, status: 400, code: "INVALID_WEBSOCKET_PROTOCOL" };
   }
 
   const protocolCredentials = offered.filter((protocol) =>
     protocol.startsWith(GROUP_FOCUS_REALTIME_AUTH_PREFIX));
-  if (protocolCredentials.length > 1) {
+  const resumeCredentials = offered.filter((protocol) =>
+    protocol.startsWith(GROUP_FOCUS_REALTIME_RESUME_PREFIX));
+  if (protocolCredentials.length > 1 || resumeCredentials.length > 1) {
     return { ok: false, status: 400, code: "AMBIGUOUS_CREDENTIALS" };
   }
 
@@ -97,7 +102,12 @@ function parseCredentials(request: Request): CredentialResult {
   ) {
     return { ok: false, status: 401, code: "UNAUTHORIZED" };
   }
-  return { ok: true, token };
+  const resumeToken = resumeCredentials[0]?.slice(GROUP_FOCUS_REALTIME_RESUME_PREFIX.length)
+    ?? null;
+  if (resumeToken !== null && !/^[A-Za-z0-9_-]{43}$/u.test(resumeToken)) {
+    return { ok: false, status: 401, code: "INVALID_RESUME_CREDENTIAL" };
+  }
+  return { ok: true, token, resumeToken };
 }
 
 async function fetchGroupFocusRoom(
@@ -142,6 +152,9 @@ async function fetchGroupFocusRoom(
   headers.delete("authorization");
   headers.set("sec-websocket-protocol", GROUP_FOCUS_REALTIME_PROTOCOL);
   headers.set(GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER, credentials.token);
+  if (credentials.resumeToken) {
+    headers.set(GROUP_FOCUS_REALTIME_INTERNAL_RESUME_HEADER, credentials.resumeToken);
+  }
   const internalRequest = new Request(request, { headers });
   const id = environment.GROUP_FOCUS_ROOMS.idFromName(roomId);
   const stub = environment.GROUP_FOCUS_ROOMS.get(id);
