@@ -375,6 +375,22 @@ test("real PostgreSQL completion is atomic, capped, idempotent and updates metri
     assert.equal((await client().focusSession.findUnique({ where: { id: started.session.id } }))?.status, "ACTIVE");
     assert.equal(await client().studyEvent.count({ where: { userId: fixture.userId } }), 1);
 
+    clock = new Date(T0.getTime() + 45 * 60_000);
+    await assert.rejects(
+      focus.pauseSession(fixture.userId, started.session.id, {
+        idempotencyKey: "prompt9-complete-boundary-pause-key",
+        source: "web",
+      }),
+      { code: "SESSION_READY_TO_COMPLETE" },
+    );
+    assert.equal((await client().focusSession.findUnique({ where: { id: started.session.id } }))?.status, "ACTIVE");
+    assert.deepEqual(await counts(fixture.userId), {
+      sessions: 1,
+      events: 1,
+      metrics: 0,
+      outbox: 2,
+    });
+
     clock = new Date(T0.getTime() + 2 * 60 * 60_000);
     const completed = await focus.completeSession(fixture.userId, started.session.id, {
       idempotencyKey: "prompt9-complete-operation-key",
@@ -413,6 +429,89 @@ test("real PostgreSQL completion is atomic, capped, idempotent and updates metri
       events: 2,
       metrics: 1,
       outbox: 4,
+    });
+  });
+});
+
+test("real PostgreSQL rejects paused completion without side effects, then resumes and completes", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const focus = makeService(() => new Date(clock));
+    const plan = await createPlan(focus, fixture, 1);
+    const started = await focus.startSession(
+      fixture.userId,
+      startInput(plan, "prompt9r-paused-completion-start-key"),
+    );
+
+    clock = new Date(T0.getTime() + 10 * 60_000);
+    await focus.pauseSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt9r-paused-completion-pause-key",
+      source: "web",
+    });
+    clock = new Date(T0.getTime() + 46 * 60_000);
+    const pausedCurrent = await focus.currentSession(fixture.userId);
+    assert.equal(pausedCurrent.session?.status, "PAUSED");
+    assert.equal(pausedCurrent.session?.elapsedActiveSeconds, 600);
+    assert.equal(pausedCurrent.session?.remainingSeconds, 2_100);
+    assert.equal(pausedCurrent.session?.completionEligible, false);
+
+    const beforeRejectedCompletion = await counts(fixture.userId);
+    const projectionsBeforeRejectedCompletion = await outboxRows(fixture.userId);
+    await assert.rejects(
+      focus.completeSession(fixture.userId, started.session.id, {
+        idempotencyKey: "prompt9r-paused-completion-operation-key",
+      }),
+      { code: "INVALID_SESSION_STATE" },
+    );
+
+    assert.equal((await client().focusSession.findUnique({
+      where: { id: started.session.id },
+    }))?.status, "PAUSED");
+    assert.deepEqual(await counts(fixture.userId), beforeRejectedCompletion);
+    assert.equal(await client().studyEvent.count({
+      where: { userId: fixture.userId, eventType: "focus_session_completed" },
+    }), 0);
+    assert.equal(await client().studyDailyMetric.count({ where: { userId: fixture.userId } }), 0);
+    const projectionsAfterRejectedCompletion = await outboxRows(fixture.userId);
+    assert.deepEqual(projectionsAfterRejectedCompletion, projectionsBeforeRejectedCompletion);
+    assert.equal(projectionsAfterRejectedCompletion.filter((row) => row.entity === "FocusSession").length, 2);
+    assert.equal(projectionsAfterRejectedCompletion.filter((row) => row.entity === "StudyDailyMetric").length, 0);
+
+    clock = new Date(T0.getTime() + 46 * 60_000);
+    const resumed = await focus.resumeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt9r-paused-completion-resume-key",
+      source: "web",
+    });
+    assert.equal(resumed.session.status, "ACTIVE");
+    assert.equal(resumed.session.pauseSeconds, 2_160);
+    assert.equal(resumed.session.remainingSeconds, 2_100);
+
+    clock = new Date(T0.getTime() + 81 * 60_000);
+    const completed = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt9r-paused-completion-operation-key",
+    });
+    const replay = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt9r-paused-completion-operation-key",
+    });
+    assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(completed.session.activeSeconds, 2_700);
+    assert.equal(replay.idempotency, "REPLAY_SAME_PAYLOAD");
+
+    const completedEvents = await client().studyEvent.count({
+      where: { userId: fixture.userId, eventType: "focus_session_completed" },
+    });
+    const metric = await client().studyDailyMetric.findFirst({ where: { userId: fixture.userId } });
+    const finalProjections = await outboxRows(fixture.userId);
+    assert.equal(completedEvents, 1);
+    assert.equal(metric?.focusSeconds, 2_700);
+    assert.equal(metric?.sessionsCompleted, 1);
+    assert.equal(finalProjections.filter((row) => row.entity === "FocusSession").length, 4);
+    assert.equal(finalProjections.filter((row) => row.entity === "StudyDailyMetric").length, 1);
+    assert.deepEqual(await counts(fixture.userId), {
+      sessions: 1,
+      events: 4,
+      metrics: 1,
+      outbox: 6,
     });
   });
 });

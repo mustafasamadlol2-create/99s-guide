@@ -54,6 +54,7 @@ test("Focus state transitions accept only the frozen map", () => {
 
   assert.equal(canTransitionFocusSession("CREATED", "PAUSED"), false);
   assert.equal(canTransitionFocusSession("ACTIVE", "CREATED"), false);
+  assert.equal(canTransitionFocusSession("PAUSED", "COMPLETED"), false);
   assert.equal(canTransitionFocusSession("COMPLETED", "ACTIVE"), false);
   assert.equal(canTransitionFocusSession("ABANDONED", "ACTIVE"), false);
   assert.equal(canTransitionFocusSession("EXPIRED", "ACTIVE"), false);

@@ -6,6 +6,7 @@ import {
 } from "../study-core/projection.js";
 import { PROJECTION_CONTRACT_VERSION } from "../study-core/constants.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
+import { canTransitionFocusSession, type FocusSessionState } from "../study-core/focus.js";
 import type { EvidenceClass } from "../study-core/evidence.js";
 import type { StudyEventSource, StudyEventType } from "../study-core/events.js";
 import {
@@ -90,7 +91,7 @@ type SessionRecord = {
   planId: string;
   planItemId: string;
   lectureId: string;
-  status: string;
+  status: FocusSessionState;
   startedAt: Date | null;
   plannedEndAt: Date | null;
   actualEndedAt: Date | null;
@@ -757,6 +758,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (priorCompletedCount >= item.sessionCount) {
           throw new FocusError("PLANNED_SESSIONS_COMPLETE", "All planned sessions for this item are complete.");
         }
+        if (!canTransitionFocusSession("CREATED", "ACTIVE")) {
+          throw new FocusError("INVALID_SESSION_STATE", "A Focus Session cannot start from CREATED.");
+        }
         const clock = assertValidClock(now());
         const session = await tx.focusSession.create({
           data: {
@@ -824,8 +828,8 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             idempotency,
           };
         }
-        if (session.status !== "ACTIVE") {
-          throw new FocusError("INVALID_SESSION_STATE", "Only an active session can be paused.");
+        if (!canTransitionFocusSession(session.status, "PAUSED")) {
+          throw new FocusError("INVALID_SESSION_STATE", "This Focus Session cannot be paused from its current state.");
         }
 
         const action = pauseFocusTimer(timerInput(session), clock);
@@ -895,8 +899,8 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             idempotency,
           };
         }
-        if (session.status !== "PAUSED") {
-          throw new FocusError("INVALID_SESSION_STATE", "Only a paused session can be resumed.");
+        if (!canTransitionFocusSession(session.status, "ACTIVE")) {
+          throw new FocusError("INVALID_SESSION_STATE", "This Focus Session cannot be resumed from its current state.");
         }
 
         const action = resumeFocusTimer(timerInput(session), clock);
@@ -1006,10 +1010,19 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           };
         }
 
-        if (session.status !== "ACTIVE" && session.status !== "PAUSED") {
-          throw new FocusError("INVALID_SESSION_STATE", "Only an active or paused session can be completed.");
+        if (session.status === "RECONCILIATION_REQUIRED") {
+          throw new FocusError(
+            "RECONCILIATION_REQUIRED",
+            "Ordinary completion cannot resolve a session that requires reconciliation.",
+          );
+        }
+        if (!canTransitionFocusSession(session.status, "COMPLETED")) {
+          throw new FocusError("INVALID_SESSION_STATE", "This Focus Session cannot be completed from its current state.");
         }
         const action = completeFocusTimer(timerInput(session), clock);
+        if (action.status === "INVALID_SESSION_STATE") {
+          throw new FocusError("INVALID_SESSION_STATE", "Only an active session can be completed.");
+        }
         if (action.status === "RECONCILIATION_REQUIRED") {
           throw new FocusError("RECONCILIATION_REQUIRED", "Session timer needs reconciliation before completion.");
         }
@@ -1100,7 +1113,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           };
         }
 
-        if (!NONTERMINAL_STATES.includes(session.status as (typeof NONTERMINAL_STATES)[number])) {
+        if (!canTransitionFocusSession(session.status, "ABANDONED")) {
           throw new FocusError("INVALID_SESSION_STATE", "This Focus Session cannot be abandoned.");
         }
         const action = abandonFocusTimer(timerInput(session), clock);

@@ -11,6 +11,40 @@ const base = (overrides = {}) => ({
   activeSeconds: 0, pauseSeconds: 0, ...overrides,
 });
 test("target is persisted start-to-end duration", () => assert.equal(buildFocusTimerSnapshot({ session: base(), now: "2025-01-01T00:01:00Z" }).targetSeconds, 2700));
+test("active session becomes eligible at the target with no time remaining", () => {
+  const snapshot = buildFocusTimerSnapshot({
+    session: base(),
+    now: "2025-01-01T00:45:00Z",
+  });
+  assert.equal(snapshot.completionEligible, true);
+  assert.equal(snapshot.remainingSeconds, 0);
+});
+test("paused timer stays frozen and ineligible after the original planned end", () => {
+  const paused = base({
+    status: "PAUSED",
+    activeSeconds: 600,
+    lastCheckpointAt: "2025-01-01T00:10:00Z",
+  });
+  const snapshot = buildFocusTimerSnapshot({
+    session: paused,
+    now: "2025-01-01T01:00:00Z",
+  });
+  assert.equal(snapshot.elapsedActiveSeconds, 600);
+  assert.equal(snapshot.remainingSeconds, 2100);
+  assert.equal(snapshot.completionEligible, false);
+});
+test("normal timer completion rejects a paused session", () => {
+  const action = completeFocusTimer(
+    base({
+      status: "PAUSED",
+      activeSeconds: 600,
+      lastCheckpointAt: "2025-01-01T00:10:00Z",
+    }),
+    "2025-01-01T01:00:00Z",
+  );
+  assert.equal(action.status, "INVALID_SESSION_STATE");
+  assert.equal(action.state, "PAUSED");
+});
 test("active time and pause time remain separate", () => {
   const paused = pauseFocusTimer(base({ activeSeconds: 600, lastCheckpointAt: "2025-01-01T00:10:00Z" }), "2025-01-01T00:10:00Z");
   const resumed = resumeFocusTimer({ ...base(), ...paused, status: "PAUSED" }, "2025-01-01T00:40:00Z");

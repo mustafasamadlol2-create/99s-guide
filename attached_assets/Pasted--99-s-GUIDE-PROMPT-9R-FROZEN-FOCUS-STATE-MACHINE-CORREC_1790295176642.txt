@@ -1,0 +1,679 @@
+# 99’s GUIDE — PROMPT 9R
+
+## FROZEN FOCUS STATE-MACHINE CORRECTION
+
+### DISALLOW `PAUSED → COMPLETED`
+
+### NARROW CORRECTION ONLY — DO NOT START PROMPT 10
+
+Prompt 9 implementation is accepted except for one architecture violation.
+
+The Prompt 9 report states that completion eligibility currently allows:
+
+```text
+ACTIVE
+or
+PAUSED
+```
+
+when the planned active duration is reached.
+
+This conflicts with the frozen Focus state machine.
+
+The canonical allowed transitions are:
+
+```text
+CREATED → ACTIVE
+CREATED → ABANDONED
+
+ACTIVE → PAUSED
+ACTIVE → RESOURCE_HANDOFF
+ACTIVE → COMPLETED
+ACTIVE → ABANDONED
+ACTIVE → EXPIRED
+ACTIVE → RECONCILIATION_REQUIRED
+
+PAUSED → ACTIVE
+PAUSED → RESOURCE_HANDOFF
+PAUSED → ABANDONED
+PAUSED → EXPIRED
+PAUSED → RECONCILIATION_REQUIRED
+
+RESOURCE_HANDOFF → ACTIVE
+RESOURCE_HANDOFF → PAUSED
+RESOURCE_HANDOFF → ABANDONED
+RESOURCE_HANDOFF → RECONCILIATION_REQUIRED
+
+RECONCILIATION_REQUIRED → COMPLETED
+RECONCILIATION_REQUIRED → ABANDONED
+RECONCILIATION_REQUIRED → EXPIRED
+```
+
+There is deliberately NO:
+
+```text
+PAUSED → COMPLETED
+```
+
+Prompt 9R must correct only this discrepancy.
+
+---
+
+# 1. REQUIRED FINAL BEHAVIOR
+
+Normal Focus completion is allowed from:
+
+```text
+ACTIVE → COMPLETED
+```
+
+only.
+
+A `PAUSED` session must NOT complete directly.
+
+If the user wants to complete a paused session:
+
+```text
+PAUSED
+→ resume
+→ ACTIVE
+→ complete
+```
+
+provided the completion criteria are satisfied.
+
+Do not silently resume on behalf of the user.
+
+---
+
+# 2. PAUSED TIMER SEMANTICS
+
+While status is:
+
+```text
+PAUSED
+```
+
+active study time must remain frozen.
+
+Therefore:
+
+```text
+elapsedActiveSeconds
+```
+
+must NOT increase merely because wall-clock time passes.
+
+And:
+
+```text
+completionEligible
+```
+
+for a normal paused session must be:
+
+```text
+false
+```
+
+even if wall-clock time has passed beyond `plannedEndAt`.
+
+Remember that `plannedEndAt` is shifted on resume, so a correctly paused session should not naturally become eligible while paused anyway.
+
+---
+
+# 3. PAUSE REQUEST AT COMPLETION BOUNDARY
+
+Prompt 9 already specifies the correct behavior.
+
+If an `ACTIVE` session has already accumulated the planned Focus duration when the pause request arrives:
+
+DO NOT persist:
+
+```text
+ACTIVE → PAUSED
+```
+
+Instead return:
+
+```text
+SESSION_READY_TO_COMPLETE
+```
+
+or the existing equivalent.
+
+Keep the canonical Session:
+
+```text
+ACTIVE
+```
+
+so the legal transition remains:
+
+```text
+ACTIVE → COMPLETED
+```
+
+This behavior must now have explicit regression coverage.
+
+---
+
+# 4. COMPLETE ENDPOINT
+
+Inspect:
+
+```text
+POST /api/focus/sessions/:sessionId/complete
+```
+
+and its service/timer helpers.
+
+Correct the lifecycle validation so:
+
+### ACTIVE
+
+If server-derived active duration meets completion criteria:
+
+```text
+ACTIVE → COMPLETED
+```
+
+### ACTIVE but too early
+
+Return:
+
+```text
+SESSION_NOT_READY_TO_COMPLETE
+```
+
+### PAUSED
+
+Return the existing lifecycle error, preferably:
+
+```text
+INVALID_SESSION_STATE
+```
+
+or an equally precise existing Focus error.
+
+Do NOT return completion success.
+
+Do NOT create:
+
+```text
+focus_session_completed
+```
+
+Do NOT update `StudyDailyMetric`.
+
+Do NOT enqueue a completion projection.
+
+### RESOURCE_HANDOFF
+
+Direct completion remains forbidden by the frozen state machine.
+
+### CREATED
+
+Forbidden.
+
+### terminal state
+
+Must preserve existing idempotent terminal-operation behavior where appropriate, but do not invent an illegal transition.
+
+---
+
+# 5. `RECONCILIATION_REQUIRED`
+
+The frozen state machine permits:
+
+```text
+RECONCILIATION_REQUIRED → COMPLETED
+```
+
+but Prompt 9 does not need to implement automatic reconciliation completion merely to satisfy this repair.
+
+If no explicit validated reconciliation flow currently exists:
+
+keep ordinary `/complete` conservative and do NOT fabricate authoritative study duration from inconsistent data.
+
+Do not expand Prompt 9R into a reconciliation engine.
+
+Document the current behavior.
+
+---
+
+# 6. TIMER SNAPSHOT
+
+Inspect:
+
+```text
+buildFocusTimerSnapshot
+```
+
+or equivalent.
+
+Required invariant:
+
+```text
+status = PAUSED
+→ completionEligible = false
+```
+
+For an eligible `ACTIVE` session:
+
+```text
+remainingSeconds = 0
+completionEligible = true
+```
+
+Do not change the correct server timestamp model.
+
+---
+
+# 7. DO NOT CHANGE TIMER MATH OTHERWISE
+
+Preserve all validated Prompt 9 behavior:
+
+```text
+45 min Focus
+10 min active
+30 min paused
+resume
+35 min remaining
+```
+
+Do not alter:
+
+* accumulated active time;
+* pauseSeconds;
+* plannedEndAt shift;
+* server timestamp authority;
+* 2-second completion tolerance;
+* 48-hour recovery horizon.
+
+Only correct state eligibility.
+
+---
+
+# 8. PURE STATE-MACHINE CONSISTENCY
+
+Ensure Focus service lifecycle checks reuse:
+
+```text
+canTransitionFocusSession(...)
+```
+
+from the shared frozen contract wherever practical.
+
+Do not create a second divergent transition map inside Focus Service.
+
+If a separate service-level transition map currently exists:
+
+remove the duplication or make the shared contract authoritative.
+
+---
+
+# 9. UNIT TESTS — MANDATORY
+
+Add/update Focus timer/service tests covering:
+
+### Test 1
+
+```text
+ACTIVE
+full duration reached
+→ completionEligible = true
+```
+
+### Test 2
+
+```text
+PAUSED
+even after significant wall-clock passage
+→ completionEligible = false
+```
+
+### Test 3
+
+```text
+PAUSED
+→ complete
+→ INVALID_SESSION_STATE
+```
+
+### Test 4
+
+A rejected paused completion creates:
+
+```text
+StudyEvent completion = 0
+StudyDailyMetric completion delta = 0
+FocusSession completion projection = 0
+StudyDailyMetric projection = 0
+```
+
+### Test 5
+
+```text
+ACTIVE
+pause request arrives after target is reached
+→ SESSION_READY_TO_COMPLETE
+→ canonical state remains ACTIVE
+```
+
+### Test 6
+
+The user may then call:
+
+```text
+complete
+```
+
+and legally produce:
+
+```text
+ACTIVE → COMPLETED
+```
+
+exactly once.
+
+---
+
+# 10. REAL POSTGRESQL REGRESSION
+
+Use the existing disposable PostgreSQL test infrastructure.
+
+Add a real persistence test:
+
+1. Start Focus.
+2. Accumulate some active time.
+3. Pause.
+4. Move server/test clock forward beyond the original wall-clock end.
+5. Attempt `/complete`.
+6. Verify rejection.
+7. Verify Session remains `PAUSED`.
+8. Verify no completion Study Event.
+9. Verify no Daily Metric completion.
+10. Resume.
+11. Advance remaining active duration.
+12. Complete successfully.
+13. Verify exactly one completion metric/event.
+
+This must use real PostgreSQL, not only mocks.
+
+---
+
+# 11. SHARED CONTRACT TEST
+
+The existing shared Focus state test must continue proving:
+
+```text
+canTransitionFocusSession("PAUSED", "COMPLETED") === false
+```
+
+Do not alter the shared state machine to accommodate the Prompt 9 implementation.
+
+The implementation must conform to the frozen contract, not vice versa.
+
+---
+
+# 12. NO OTHER PRODUCT CHANGES
+
+Prompt 9R must NOT modify:
+
+* Focus Plan behavior;
+* session-start concurrency;
+* advisory-lock architecture;
+* Plan D1 reads;
+* Schedule;
+* PDF behavior;
+* resource handoff;
+* Quick Notes;
+* Points;
+* Mastery;
+* AI;
+* Group Focus;
+* frontend/UI.
+
+No schema or migration changes.
+
+---
+
+# 13. REGRESSION SUITES
+
+Run:
+
+```text
+Study Core
+Batch A schema
+Prompt 6 projection
+Prompt 7 Calendar
+Prompt 8 ingestion
+Outbox schema
+Outbox PostgreSQL
+Study Event PostgreSQL
+Focus timer
+Focus PostgreSQL integration
+Auth
+```
+
+All previously passing tests must remain passing.
+
+---
+
+# 14. BUILD / TYPECHECK / LINT
+
+Run:
+
+```bash
+npm run build
+npm run typecheck
+npm run lint
+```
+
+Expected:
+
+```text
+build = PASS
+
+typecheck =
+same 2 pre-existing Calendar Import errors
+
+lint =
+same 10 pre-existing errors
+
+new Prompt 9R failures = 0
+```
+
+Run targeted TypeScript and ESLint on modified Focus files/tests.
+
+---
+
+# 15. EXPECTED FILE CHANGES
+
+Keep the correction narrow.
+
+Likely only:
+
+```text
+server/features/focus/timer.ts
+server/features/focus/service.ts
+tests/focus-timer.test.ts
+tests/focus-postgres-integration.test.ts
+```
+
+Potentially one shared Focus helper usage/import.
+
+Do not modify:
+
+```text
+prisma/schema.prisma
+server routes unrelated to Focus
+src/*
+Calendar/*
+D1 migrations
+```
+
+unless an actual blocker is discovered.
+
+---
+
+# 16. MANDATORY FINAL REPORT
+
+Use exactly this structure.
+
+## A. Root Cause
+
+Explain where `PAUSED → COMPLETED` became possible.
+
+## B. Final Completion-State Rules
+
+Report exact allowed states for the normal completion endpoint.
+
+Explicitly:
+
+```text
+PAUSED → COMPLETED ALLOWED: NO
+```
+
+## C. Timer Snapshot Correction
+
+Report behavior of:
+
+```text
+completionEligible
+```
+
+for:
+
+* ACTIVE eligible;
+* ACTIVE early;
+* PAUSED.
+
+## D. Pause-at-Target Behavior
+
+Show:
+
+```text
+ACTIVE at target
++ pause request
+→ SESSION_READY_TO_COMPLETE
+→ state remains ACTIVE
+```
+
+## E. Paused Completion Side Effects
+
+Explicitly verify rejected paused completion creates:
+
+```text
+completion StudyEvent: 0
+Daily Metric delta: 0
+FocusSession completion projection: 0
+StudyDailyMetric projection: 0
+```
+
+## F. Real PostgreSQL Test
+
+Report full:
+
+```text
+pause
+failed complete
+resume
+successful complete
+```
+
+sequence and actual persisted counts.
+
+Explicitly:
+
+```text
+REAL POSTGRESQL PAUSED-COMPLETION TEST: YES/NO
+```
+
+## G. Shared State-Machine Compliance
+
+Confirm:
+
+```text
+canTransitionFocusSession(PAUSED, COMPLETED) = false
+```
+
+and that service uses the shared authority.
+
+## H. Regression Results
+
+Include all existing foundation/Focus suites.
+
+## I. Files Modified
+
+Exact paths and reasons.
+
+## J. Schema / Migration Verification
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: NO
+POSTGRESQL MIGRATION CREATED: NO
+D1 MIGRATION CREATED: NO
+```
+
+## K. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION MODIFIED: NO
+FOCUS ENABLED IN PRODUCTION: NO
+WORKER DEPLOYED: NO
+REMOTE D1 MODIFIED: NO
+```
+
+## L. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## M. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## N. Prompt 10 Gate
+
+Return:
+
+```text
+PROMPT 10 GATE: PASS
+```
+
+only if the frozen state machine is now fully respected.
+
+Otherwise:
+
+```text
+PROMPT 10 GATE: BLOCKED
+```
+
+---
+
+# 17. STOP CONDITION
+
+After this correction and report:
+
+STOP.
+
+Do NOT start Prompt 10.
+
+End exactly:
+
+**PROMPT 9R COMPLETE — FOCUS STATE MACHINE ALIGNED — AWAITING PROMPT 10 REVIEW**

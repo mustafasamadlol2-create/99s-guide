@@ -1,4 +1,5 @@
 import type { FocusSessionState } from "../study-core/focus.js";
+import { canTransitionFocusSession } from "../study-core/focus.js";
 
 /** A session may not be recovered after this much wall-clock time. */
 export const FOCUS_TIMER_MAX_AGE_SECONDS = 48 * 60 * 60;
@@ -12,6 +13,7 @@ export type FocusTimerStatus =
   | "OK"
   | "SESSION_READY_TO_COMPLETE"
   | "SESSION_NOT_READY"
+  | "INVALID_SESSION_STATE"
   | "RECONCILIATION_REQUIRED";
 
 /** The persisted fields needed by the timer. No plan or plan-item data is used. */
@@ -105,7 +107,8 @@ export function buildFocusTimerSnapshot(input: { session: FocusTimerSession; now
   const result = calculation(input.session, input.now);
   if (!result) return invalid();
   const completionEligible =
-    (input.session.status === "ACTIVE" || input.session.status === "PAUSED") &&
+    input.session.status === "ACTIVE" &&
+    canTransitionFocusSession(input.session.status, "COMPLETED") &&
     result.elapsed + FOCUS_TIMER_COMPLETION_TOLERANCE_SECONDS >= result.target;
   return {
     status: "OK",
@@ -126,7 +129,13 @@ function actionBase(session: FocusTimerSession, status: FocusTimerStatus, state:
 /** Checkpoints an active segment and enters PAUSED, without consuming focus time. */
 export function pauseFocusTimer(session: FocusTimerSession, now: string | Date): FocusTimerActionResult {
   const c = calculation(session, now);
-  if (!c || session.status !== "ACTIVE") return actionBase(session, "RECONCILIATION_REQUIRED", "RECONCILIATION_REQUIRED", { activeSeconds: null, pauseSeconds: null });
+  if (
+    !c ||
+    session.status !== "ACTIVE" ||
+    !canTransitionFocusSession(session.status, "PAUSED")
+  ) {
+    return actionBase(session, "RECONCILIATION_REQUIRED", "RECONCILIATION_REQUIRED", { activeSeconds: null, pauseSeconds: null });
+  }
   if (c.elapsed >= c.target) return actionBase(session, "SESSION_READY_TO_COMPLETE", "ACTIVE", { activeSeconds: c.active, pauseSeconds: session.pauseSeconds, lastCheckpointAt: now });
   return actionBase(session, "OK", "PAUSED", { activeSeconds: c.elapsed, pauseSeconds: session.pauseSeconds, lastCheckpointAt: now });
 }
@@ -134,7 +143,13 @@ export function pauseFocusTimer(session: FocusTimerSession, now: string | Date):
 /** Resumes a pause, adding its wall-clock length and shifting the planned end equally. */
 export function resumeFocusTimer(session: FocusTimerSession, now: string | Date): FocusTimerActionResult {
   const c = calculation(session, now);
-  if (!c || session.status !== "PAUSED") return actionBase(session, "RECONCILIATION_REQUIRED", "RECONCILIATION_REQUIRED", { activeSeconds: null, pauseSeconds: null });
+  if (
+    !c ||
+    session.status !== "PAUSED" ||
+    !canTransitionFocusSession(session.status, "ACTIVE")
+  ) {
+    return actionBase(session, "RECONCILIATION_REQUIRED", "RECONCILIATION_REQUIRED", { activeSeconds: null, pauseSeconds: null });
+  }
   const paused = Math.floor((c.now - c.checkpoint) / 1000);
   const plannedEndAt = new Date(c.end + paused * 1000).toISOString();
   return actionBase(session, "OK", "ACTIVE", { lastCheckpointAt: now, pauseSeconds: session.pauseSeconds + paused, plannedEndAt });
@@ -142,6 +157,15 @@ export function resumeFocusTimer(session: FocusTimerSession, now: string | Date)
 
 /** Completes only when server-derived active time is within the tolerance. */
 export function completeFocusTimer(session: FocusTimerSession, now: string | Date): FocusTimerActionResult {
+  // Ordinary completion is supported only from ACTIVE. The shared contract
+  // also permits reconciliation completion, which requires a separate
+  // validated flow that this timer helper intentionally does not implement.
+  if (
+    session.status !== "ACTIVE" ||
+    !canTransitionFocusSession(session.status, "COMPLETED")
+  ) {
+    return actionBase(session, "INVALID_SESSION_STATE", session.status, {});
+  }
   const c = calculation(session, now);
   if (!c) return actionBase(session, "RECONCILIATION_REQUIRED", "RECONCILIATION_REQUIRED", { activeSeconds: null, pauseSeconds: null });
   if (c.elapsed + FOCUS_TIMER_COMPLETION_TOLERANCE_SECONDS < c.target) {
