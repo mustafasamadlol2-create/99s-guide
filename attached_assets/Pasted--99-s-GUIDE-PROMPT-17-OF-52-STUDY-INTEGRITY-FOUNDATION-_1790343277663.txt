@@ -1,0 +1,2472 @@
+# 99’s GUIDE — PROMPT 17 OF 52
+
+## STUDY INTEGRITY FOUNDATION
+
+## DETERMINISTIC TRUST + EVIDENCE + ANTI-ABUSE CONTRACTS
+
+### NO POINTS — NO PUNISHMENT — NO REVIEW UI — NO AI
+
+Prompts 1–16 have been completed.
+
+Prompt 17 starts the Study Integrity subsystem.
+
+The frozen roadmap remains:
+
+```text
+Prompt 17 — Integrity foundation
+Prompt 18 — Integrity signals + review
+Prompt 19 — Points Ledger schema / compatibility bridge
+Prompt 20 — Deterministic Points award
+```
+
+Prompt 17 must establish the deterministic integrity primitives that future Points, Recall, Group Focus, MCQ, Flashcards, Focus, and analytics can safely consume.
+
+Do NOT implement Prompt 18 signal persistence/review workflow yet.
+
+Do NOT implement Points.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Build one reusable Study Integrity foundation that answers deterministic questions such as:
+
+```text
+What happened?
+Who claims it happened?
+What evidence supports it?
+Was the request replayed?
+Is the action structurally valid?
+Is the timing plausible?
+Is this source permitted to make this claim?
+Can downstream systems trust this action for future rewards?
+```
+
+without yet deciding:
+
+```text
+punishment
+ban
+Points deduction
+Mastery penalty
+review outcome
+fraud verdict
+```
+
+---
+
+# 2. CORE PRINCIPLE
+
+Study Integrity is:
+
+```text
+deterministic validation
++
+evidence classification
++
+bounded anti-abuse observations
+```
+
+It is NOT:
+
+```text
+AI cheating detection
+behavioral profiling
+psychological judgment
+automatic punishment
+```
+
+---
+
+# 3. FROZEN EVIDENCE HIERARCHY
+
+Reuse Prompt 4 evidence classes exactly:
+
+```text
+UNVERIFIED_CLIENT = 0
+CLIENT_OBSERVED = 1
+SERVER_VALIDATED = 2
+SERVER_DERIVED = 3
+REALTIME_VERIFIED = 3
+ADMIN_VERIFIED = 4
+```
+
+Do NOT introduce a second evidence-ranking system.
+
+---
+
+# 4. FROZEN PRIVACY CLASSES
+
+Reuse:
+
+```text
+PUBLIC
+PROFILE_PUBLIC
+PRIVATE_STUDY
+ADMIN_SECURITY
+SYSTEM_INTERNAL
+```
+
+Integrity data is normally:
+
+```text
+ADMIN_SECURITY
+```
+
+or:
+
+```text
+SYSTEM_INTERNAL
+```
+
+Never public.
+
+---
+
+# 5. DATA DETERMINES FACTS
+
+Preserve:
+
+```text
+Data determines facts.
+AI explains facts.
+```
+
+Prompt 17 contains no AI dependency.
+
+---
+
+# 6. NO USER-FACING ACCUSATION
+
+Do not label a student:
+
+```text
+cheater
+fraud
+dishonest
+abuser
+```
+
+The foundation speaks only in technical observation terms such as:
+
+```text
+duplicate request
+rate exceeded
+invalid transition
+impossible timing
+unsupported evidence
+source mismatch
+idempotency conflict
+```
+
+---
+
+# 7. STUDY INTEGRITY MODULE
+
+Create a modular backend/shared foundation under a repository-consistent path such as:
+
+```text
+server/features/study-integrity/
+  constants.ts
+  types.ts
+  policy.ts
+  evidence.ts
+  timing.ts
+  rateWindow.ts
+  fingerprint.ts
+  decision.ts
+  errors.ts
+  index.ts
+```
+
+Adapt to current conventions.
+
+Keep files small.
+
+Do not add integrity code to giant `server.ts`.
+
+---
+
+# 8. NO DATABASE MODEL YET
+
+Prompt 17 is contract/foundation only.
+
+Expected:
+
+```text
+prisma/schema.prisma modified = NO
+PostgreSQL migration created = NO
+D1 migration created = NO
+```
+
+Prompt 18 owns persisted Integrity Signals / review records.
+
+---
+
+# 9. NO ROUTE YET
+
+Do NOT expose:
+
+```text
+/api/integrity/*
+```
+
+to browser/native clients.
+
+Integrity foundation is internal server/shared infrastructure.
+
+Prompt 18 may add admin/review APIs.
+
+---
+
+# 10. INTEGRITY SUBJECT
+
+Define a normalized internal subject.
+
+Conceptually:
+
+```ts
+type IntegritySubject = {
+  userId: string;
+  source: StudySource;
+  clientInstanceId?: string;
+  sessionId?: string;
+};
+```
+
+Do not include email/name.
+
+---
+
+# 11. NORMALIZED ACTION ENVELOPE
+
+Define a reusable deterministic envelope conceptually similar to:
+
+```ts
+type IntegrityActionEnvelope = {
+  actionType: string;
+  userId: string;
+
+  evidenceClass: StudyEvidenceClass;
+  privacyClass: StudyPrivacyClass;
+  source: StudySource;
+
+  occurredAt: Date;
+  receivedAt: Date;
+
+  idempotencyKey?: string;
+  clientInstanceId?: string;
+
+  resource?: {
+    kind: string;
+    id: string;
+  };
+
+  metadata?: bounded structured fields;
+};
+```
+
+Do not use arbitrary unbounded JSON.
+
+---
+
+# 12. SOURCE CATALOG
+
+Reuse existing Study Event/source vocabulary.
+
+Inspect actual repository definitions.
+
+Expected examples may include:
+
+```text
+backend
+web
+pwa
+ios
+android
+worker
+```
+
+Do not invent incompatible source strings.
+
+---
+
+# 13. SERVER-OWNED SOURCE RULE
+
+For server-validated / server-derived facts:
+
+```text
+source = backend
+```
+
+or the existing canonical server source.
+
+Client platform may appear only as bounded observation metadata if needed.
+
+Do not allow:
+
+```text
+source = ios
+evidence = SERVER_VALIDATED
+```
+
+unless the policy explicitly defines that source as server-owned.
+
+---
+
+# 14. REALTIME SOURCE RULE
+
+For evidence derived from authenticated Durable Object realtime summary:
+
+```text
+evidence = REALTIME_VERIFIED
+source = backend
+```
+
+unless frozen Study Event policy already defines a stronger exact source.
+
+The Worker/DO itself does not become a public arbitrary event source.
+
+---
+
+# 15. EVIDENCE POLICY
+
+Create a centralized policy registry answering:
+
+```text
+minimum evidence required for action
+allowed sources
+allowed privacy classes
+whether client timestamps are accepted
+whether server timestamp must replace them
+```
+
+Do not scatter integrity requirements through future features.
+
+---
+
+# 16. EVIDENCE SATISFACTION HELPER
+
+Provide something equivalent to:
+
+```ts
+meetsEvidenceRequirement(actual, minimum): boolean
+```
+
+using the frozen evidence rank.
+
+Mandatory invariant:
+
+```text
+UNVERIFIED_CLIENT
+cannot satisfy
+SERVER_VALIDATED
+```
+
+---
+
+# 17. REALTIME / SERVER-DERIVED PARITY
+
+Because both:
+
+```text
+SERVER_DERIVED = 3
+REALTIME_VERIFIED = 3
+```
+
+have the same rank, rank comparison alone must not erase semantic distinction.
+
+Support policy checks that may require:
+
+```text
+REALTIME_VERIFIED specifically
+```
+
+even though numeric rank equals SERVER_DERIVED.
+
+---
+
+# 18. INTEGRITY DECISION MODEL
+
+Define deterministic result:
+
+```ts
+type IntegrityDecision = {
+  outcome: "ALLOW" | "ALLOW_WITH_OBSERVATION" | "REJECT";
+
+  observations: IntegrityObservation[];
+
+  effectiveEvidenceClass: StudyEvidenceClass;
+
+  trustedOccurredAt: Date;
+
+  ruleVersion: string;
+};
+```
+
+No score.
+
+No probability.
+
+No AI confidence.
+
+---
+
+# 19. OBSERVATION MODEL
+
+Define bounded technical observations.
+
+Each observation should contain conceptually:
+
+```text
+code
+severity
+category
+ruleId
+details (bounded)
+```
+
+Use severities such as:
+
+```text
+INFO
+REVIEW
+BLOCK
+```
+
+These do NOT mean disciplinary severity.
+
+They represent integrity-processing behavior.
+
+---
+
+# 20. OBSERVATION CATEGORIES
+
+Create a small frozen initial catalog:
+
+```text
+IDEMPOTENCY
+RATE
+TIMING
+STATE
+SOURCE
+EVIDENCE
+PAYLOAD
+REPLAY
+OWNERSHIP
+```
+
+Do not add speculative behavioral categories.
+
+---
+
+# 21. INITIAL OBSERVATION CODES
+
+At minimum define stable codes equivalent to:
+
+```text
+DUPLICATE_REPLAY
+IDEMPOTENCY_CONFLICT
+
+RATE_WINDOW_EXCEEDED
+
+TIMESTAMP_TOO_FAR_PAST
+TIMESTAMP_TOO_FAR_FUTURE
+TIMING_IMPOSSIBLE
+
+INVALID_STATE_TRANSITION
+RESOURCE_SCOPE_MISMATCH
+OWNERSHIP_MISMATCH
+
+SOURCE_NOT_ALLOWED
+EVIDENCE_INSUFFICIENT
+
+PAYLOAD_INVALID
+PAYLOAD_TOO_LARGE
+```
+
+Use actual naming consistently.
+
+---
+
+# 22. NO GLOBAL “SUSPICION SCORE”
+
+Do NOT create:
+
+```text
+riskScore
+fraudScore
+cheatProbability
+studentTrustScore
+```
+
+Prompt 17 deliberately avoids opaque aggregate scoring.
+
+Future Prompt 18 records concrete signals.
+
+---
+
+# 23. RULE VERSIONING
+
+Integrity rules must expose a version.
+
+Start conceptually:
+
+```text
+study-integrity-v1
+```
+
+Every deterministic decision carries:
+
+```text
+ruleVersion
+```
+
+Future changes must be auditable.
+
+---
+
+# 24. CENTRAL RULE IDS
+
+Each rule has stable ID, for example:
+
+```text
+integrity.idempotency.same-payload.v1
+integrity.idempotency.conflict.v1
+integrity.time.future-bound.v1
+integrity.evidence.minimum.v1
+```
+
+Do not use human prose as identity.
+
+---
+
+# 25. IDEMPOTENCY INTEGRATION
+
+Prompt 17 must reuse existing idempotency semantics:
+
+```text
+FIRST_SEEN
+REPLAY_SAME_PAYLOAD
+IDEMPOTENCY_CONFLICT
+```
+
+Do not replace them.
+
+---
+
+# 26. SEMANTIC FINGERPRINT
+
+Create/reuse a canonical semantic fingerprint helper.
+
+Requirements:
+
+* deterministic;
+* key-order stable;
+* excludes transient/server-generated fields;
+* SHA-256;
+* bounded input;
+* same semantic payload = same fingerprint.
+
+Prefer reusing Prompt 8 infrastructure.
+
+Do not duplicate inconsistent canonicalization.
+
+---
+
+# 27. REPLAY IS NOT AUTOMATICALLY MALICIOUS
+
+Same-payload replay caused by:
+
+```text
+network retry
+lost response
+mobile reconnect
+```
+
+is expected.
+
+Therefore:
+
+```text
+REPLAY_SAME_PAYLOAD
+→ normally ALLOW
+→ observation may be informational
+```
+
+Do not classify normal idempotent retry as misconduct.
+
+---
+
+# 28. CONFLICTING REUSE
+
+Same idempotency key + different semantic payload:
+
+```text
+→ REJECT
+→ IDEMPOTENCY_CONFLICT observation
+```
+
+Future review may inspect repeated conflicts.
+
+No punishment now.
+
+---
+
+# 29. TIMESTAMP AUTHORITY
+
+Define:
+
+```text
+receivedAt = server authoritative time
+```
+
+Client-supplied `occurredAt` is not automatically trusted.
+
+Policy decides whether to:
+
+```text
+accept
+clamp
+replace with server time
+reject
+```
+
+---
+
+# 30. CLIENT TIMESTAMP FUTURE LIMIT
+
+Create centralized bound.
+
+Recommended default:
+
+```text
+maximum accepted client future skew = 2 minutes
+```
+
+Actions requiring server authority may ignore client time entirely.
+
+Do not scatter magic constants.
+
+---
+
+# 31. CLIENT TIMESTAMP PAST LIMIT
+
+Use a bounded default for ordinary online actions.
+
+Recommended:
+
+```text
+maximum accepted retrospective client timestamp = 24 hours
+```
+
+BUT:
+
+offline-capable features may define an explicit larger policy later.
+
+Prompt 17 must support per-action override.
+
+Do not globally reject all valid historical imports.
+
+---
+
+# 32. SERVER-DERIVED TIMESTAMPS
+
+For:
+
+```text
+SERVER_VALIDATED
+SERVER_DERIVED
+REALTIME_VERIFIED
+```
+
+prefer server/runtime validated timestamps.
+
+Do not downgrade them because device clock differs.
+
+---
+
+# 33. DURATION VALIDATION
+
+Create helpers for bounded duration observations.
+
+Examples:
+
+```text
+negative duration → reject
+NaN / infinity → reject
+duration beyond action maximum → reject
+```
+
+Do not infer cheating merely because a duration is unusual but valid.
+
+---
+
+# 34. IMPOSSIBLE TIMING
+
+Integrity may reject structurally impossible claims such as:
+
+```text
+500 correct MCQ answers in 1 second
+negative Focus duration
+Flashcard review before its canonical creation
+event occurred after receivedAt beyond future tolerance
+```
+
+Prompt 17 builds generic primitives.
+
+Feature-specific thresholds come later.
+
+---
+
+# 35. RATE WINDOW PRIMITIVE
+
+Create a deterministic sliding/fixed-window primitive.
+
+It should answer:
+
+```text
+count
+limit
+window start/end
+allowed?
+```
+
+without database persistence.
+
+Prompt 18 may persist signals.
+
+Future Points logic may consume it.
+
+---
+
+# 36. RATE RULE
+
+A rate rule must be explicit:
+
+```ts
+{
+  ruleId,
+  windowSeconds,
+  maxActions,
+  burstAllowance?
+}
+```
+
+No adaptive/AI thresholds.
+
+---
+
+# 37. RATE OBSERVATION ≠ USER PUNISHMENT
+
+If exceeded:
+
+```text
+ALLOW_WITH_OBSERVATION
+```
+
+or:
+
+```text
+REJECT
+```
+
+depending on explicit rule policy.
+
+Do not automatically ban or deduct Points.
+
+---
+
+# 38. CLIENT INSTANCE ID
+
+Support bounded:
+
+```text
+clientInstanceId
+```
+
+where existing features already supply one.
+
+Validate length/format.
+
+It is an anti-duplicate correlation hint.
+
+It is NOT identity authority.
+
+---
+
+# 39. DEVICE FINGERPRINTING FORBIDDEN
+
+Do NOT implement invasive:
+
+```text
+browser fingerprint
+canvas fingerprint
+hardware fingerprint
+IP reputation
+cross-app tracking
+```
+
+Prompt 17 uses only app-provided bounded identifiers.
+
+---
+
+# 40. IP ADDRESS
+
+Do not make IP address part of Study Integrity identity.
+
+If existing server logs contain IP operationally, leave them alone.
+
+Do not persist IP into Study Integrity foundation.
+
+---
+
+# 41. OWNERSHIP HELPER CONTRACT
+
+Create a reusable integrity observation helper for cases where canonical service already determines:
+
+```text
+resource does not belong to user/session/lecture
+```
+
+But Study Integrity foundation must NOT independently query every product table.
+
+Feature service remains responsible for ownership truth.
+
+Integrity consumes normalized result.
+
+---
+
+# 42. STATE TRANSITION CONTRACT
+
+Create a generic helper:
+
+```ts
+validateTransition({
+  from,
+  to,
+  allowedTransitions,
+})
+```
+
+or reuse existing shared state helper.
+
+Do not duplicate Focus/Group Focus state maps.
+
+The feature's canonical transition map remains source of truth.
+
+---
+
+# 43. SOURCE/EVIDENCE MATRIX TEST
+
+Create a test matrix covering:
+
+```text
+client + UNVERIFIED_CLIENT
+client + CLIENT_OBSERVED
+client + SERVER_VALIDATED
+backend + SERVER_VALIDATED
+backend + SERVER_DERIVED
+backend + REALTIME_VERIFIED
+```
+
+Reject impossible combinations according to policy.
+
+---
+
+# 44. PAYLOAD SIZE
+
+Provide a bounded integrity helper for structured payload size.
+
+Recommended generic hard ceiling:
+
+```text
+32 KiB
+```
+
+unless feature already has smaller limit.
+
+Do not stringify unlimited cyclic objects unsafely.
+
+---
+
+# 45. SAFE METADATA
+
+Integrity observation metadata may contain:
+
+```text
+IDs
+counts
+durations
+rule thresholds
+state names
+source names
+```
+
+It must NOT contain:
+
+* Quick Note text;
+* PDF contents;
+* MCQ full question text;
+* flashcard full text;
+* auth tokens;
+* invite tokens;
+* capability tokens;
+* resume tokens;
+* signing keys.
+
+---
+
+# 46. REDACTION HELPER
+
+Create a bounded redaction/safe-details helper if necessary.
+
+Sensitive field names should be dropped from integrity observation details.
+
+Do not rely only on developer discipline.
+
+---
+
+# 47. PRIVATE SECURITY DATA
+
+Future persisted observations from this foundation must default to:
+
+```text
+ADMIN_SECURITY
+```
+
+unless a rule explicitly uses `SYSTEM_INTERNAL`.
+
+Do not allow client-selected privacy.
+
+---
+
+# 48. INTEGRITY ACTION TYPES
+
+Do NOT attempt to define every application action.
+
+Create a stable extensible namespace.
+
+Examples:
+
+```text
+focus.session.start
+focus.session.complete
+
+groupFocus.summary.apply
+
+mcq.answer
+flashcard.review
+recall.answer
+
+points.award.request
+```
+
+Prompt 17 may define only foundation examples/tests.
+
+Do not integrate all features yet.
+
+---
+
+# 49. NO POINTS AWARD REQUEST YET
+
+The namespace may anticipate Points, but no Points service is built.
+
+No PointsLog writes.
+
+---
+
+# 50. INTEGRITY POLICY REGISTRY
+
+Implement internal registration:
+
+```ts
+getIntegrityPolicy(actionType)
+```
+
+with explicit default behavior.
+
+Unknown actions should NOT silently receive trusted reward-grade status.
+
+Preferred:
+
+```text
+unknown policy → REJECT for reward-sensitive validation
+```
+
+or a clearly typed `POLICY_NOT_FOUND`.
+
+---
+
+# 51. NO SILENT DEFAULT TO TRUSTED
+
+This is mandatory.
+
+If a future feature asks Integrity to validate an unknown reward-sensitive action:
+
+do not return:
+
+```text
+ALLOW
+SERVER_VALIDATED
+```
+
+by default.
+
+Fail closed.
+
+---
+
+# 52. POLICY SHAPE
+
+Conceptually include:
+
+```text
+actionType
+minimumEvidence
+allowedSources
+privacy
+timestampPolicy
+durationBounds?
+rateRule?
+payloadMaxBytes
+rewardEligibleEvidence?
+```
+
+Do not put Points amounts in Integrity policy.
+
+---
+
+# 53. REWARD ELIGIBILITY FOUNDATION
+
+Future Points must only reward sufficiently verified evidence.
+
+Define a helper conceptually:
+
+```ts
+isEvidenceEligibleForReward(...)
+```
+
+based on policy.
+
+It returns boolean/reason only.
+
+It does NOT calculate or grant Points.
+
+---
+
+# 54. DEFAULT REWARD EVIDENCE
+
+Conservative baseline:
+
+```text
+SERVER_VALIDATED
+SERVER_DERIVED
+REALTIME_VERIFIED
+ADMIN_VERIFIED
+```
+
+may be eligible depending on action policy.
+
+```text
+UNVERIFIED_CLIENT
+CLIENT_OBSERVED
+```
+
+must NOT be reward-grade by default.
+
+---
+
+# 55. REALTIME VERIFIED REWARD FOUNDATION
+
+Group Focus verified participation from Prompt 16 can later qualify as reward-grade evidence.
+
+Prompt 17 only provides the rule primitive.
+
+Do not award social bonus.
+
+---
+
+# 56. FOCUS RESOURCE HANDOFF
+
+Do not treat intentional Focus Resource Handoff as an integrity violation.
+
+Opening canonical Lecture PDF/video through Prompt 11 is valid.
+
+Mandatory test/policy note:
+
+```text
+RESOURCE_HANDOFF != DISTRACTION SIGNAL
+```
+
+---
+
+# 57. BACKGROUND INTERRUPTION
+
+Prompt 11 potential interruption remains ambiguous.
+
+Do not automatically classify:
+
+```text
+background_absence
+```
+
+as cheating/integrity failure.
+
+If future feature sends it to Integrity:
+
+at most technical observation according to explicit policy.
+
+---
+
+# 58. PDF OPEN
+
+Mandatory:
+
+```text
+PDF open alone
+→ no integrity violation
+→ no reward eligibility
+→ no Points
+```
+
+---
+
+# 59. QUICK NOTES
+
+Quick Note creation/editing is user content.
+
+Do not integrity-score note text.
+
+Do not send note content into integrity observations.
+
+---
+
+# 60. GROUP FOCUS MEMBERSHIP
+
+Prompt 13:
+
+```text
+join Room
+leave Room
+```
+
+is authorization, not study evidence.
+
+Do not mark membership as reward-grade.
+
+---
+
+# 61. GROUP FOCUS VERIFIED SUMMARY
+
+Prompt 16:
+
+```text
+REALTIME_VERIFIED participation
+```
+
+is legitimate future reward-grade evidence.
+
+Prompt 17 policy foundation must support this distinction.
+
+---
+
+# 62. TEST CLOCK ABSTRACTION
+
+Do not hard-code `Date.now()` throughout Integrity.
+
+Use injectable server-clock abstraction or consistent `now` parameter.
+
+Tests must be deterministic.
+
+---
+
+# 63. INTEGER TIME UNITS
+
+Choose canonical internal units.
+
+Prefer:
+
+```text
+milliseconds for temporal validation
+seconds for product-duration quantities
+```
+
+Document conversions.
+
+Do not mix silently.
+
+---
+
+# 64. OVERFLOW SAFETY
+
+Validate integer bounds.
+
+Reject:
+
+```text
+Infinity
+NaN
+negative timestamps
+unsafe JS integers
+```
+
+where relevant.
+
+---
+
+# 65. CANONICAL JSON
+
+If semantic hashing uses JSON:
+
+* recursively sort object keys;
+* preserve array order;
+* reject unsupported cyclic/value types;
+* define handling of `undefined`;
+* use UTF-8;
+* enforce max input bytes.
+
+Tests must prove deterministic output.
+
+---
+
+# 66. HASH NAMESPACE
+
+Fingerprint hashes must be domain-separated.
+
+Example conceptual:
+
+```text
+99s-guide:study-integrity:v1:<actionType>:<canonicalPayload>
+```
+
+Avoid cross-purpose hash ambiguity.
+
+---
+
+# 67. CONSTANT-TIME HASH COMPARISON
+
+Where comparing secret-like signatures, use constant-time comparison.
+
+For ordinary semantic fingerprints this is less critical.
+
+Do not reinvent crypto unnecessarily.
+
+---
+
+# 68. OBSERVATION DEDUP KEY
+
+Define deterministic helper for future Prompt 18 signal deduplication.
+
+Conceptually:
+
+```text
+signalFingerprint
+=
+hash(ruleId + userId + actionType + bounded subject/resource context)
+```
+
+Do NOT persist it yet.
+
+Prompt 18 will use it.
+
+---
+
+# 69. REVIEW GROUPING FOUNDATION
+
+Provide optional normalized grouping key such as:
+
+```text
+userId
+ruleId
+resource kind/id
+time bucket
+```
+
+without a database model.
+
+This supports Prompt 18 review aggregation.
+
+---
+
+# 70. NO AUTOMATIC CROSS-USER COMPARISON
+
+Prompt 17 does not compare students against peers.
+
+No cohort percentile.
+
+No “too fast compared to class”.
+
+Only deterministic structural rules.
+
+---
+
+# 71. NO ML / AI
+
+No model calls.
+
+No embeddings.
+
+No anomaly ML.
+
+---
+
+# 72. NO OWNER ANALYTICS
+
+No owner dashboard changes.
+
+---
+
+# 73. NO MODERATION ACTION
+
+No:
+
+```text
+ban
+mute
+suspend
+remove Points
+disable account
+```
+
+---
+
+# 74. NO USER NOTIFICATION
+
+No scary “suspicious activity detected” message.
+
+Prompt 17 is invisible foundation infrastructure.
+
+---
+
+# 75. NO D1
+
+No Integrity D1 tables.
+
+---
+
+# 76. NO ANALYTICS ENGINE
+
+Do not emit Integrity observations into Cloudflare Analytics Engine yet.
+
+Prompt 17 is library/foundation only.
+
+---
+
+# 77. NO OUTBOX
+
+No `PrivateD1SyncOutbox` writes.
+
+---
+
+# 78. NO STUDY EVENT CREATION
+
+Integrity validation does not itself create a StudyEvent in Prompt 17.
+
+Feature service owns its StudyEvent flow.
+
+Prompt 18 may persist Integrity Signals separately.
+
+---
+
+# 79. NO CIRCULAR DEPENDENCY
+
+Study Events may call Integrity later.
+
+Integrity core must not depend on full Study Event ingestion service.
+
+It may reuse shared evidence/source contracts only.
+
+Avoid:
+
+```text
+study-events service ↔ study-integrity service
+```
+
+cycles.
+
+---
+
+# 80. PURE CORE
+
+The majority of Prompt 17 Integrity logic should be pure deterministic functions.
+
+This makes it suitable for:
+
+* backend unit tests;
+* Points Engine later;
+* Recall/MCQ integration;
+* security review.
+
+---
+
+# 81. OPTIONAL SERVER SERVICE WRAPPER
+
+A thin service wrapper may orchestrate:
+
+```text
+policy lookup
+fingerprint
+timing
+rate
+decision
+```
+
+but keep product DB calls outside.
+
+---
+
+# 82. DECISION ORDER
+
+Use deterministic evaluation ordering.
+
+Recommended:
+
+1. policy exists;
+2. structural payload;
+3. source/evidence;
+4. timestamp;
+5. state/ownership normalized inputs;
+6. idempotency;
+7. rate;
+8. produce decision.
+
+This ensures reproducible observations.
+
+---
+
+# 83. BLOCKING VS NONBLOCKING OBSERVATIONS
+
+Examples:
+
+## Blocking
+
+```text
+IDEMPOTENCY_CONFLICT
+SOURCE_NOT_ALLOWED
+EVIDENCE_INSUFFICIENT
+INVALID_STATE_TRANSITION
+PAYLOAD_INVALID
+```
+
+## Nonblocking / reviewable
+
+```text
+DUPLICATE_REPLAY
+RATE_WINDOW_EXCEEDED
+TIMESTAMP_NEAR_BOUNDARY
+```
+
+Exact policy controls outcome.
+
+Do not hard-code every RATE exceed as blocking.
+
+---
+
+# 84. OBSERVATION ORDER
+
+Return observations in deterministic rule-evaluation order.
+
+Tests should compare stable ordering.
+
+---
+
+# 85. MULTIPLE OBSERVATIONS
+
+One action may produce multiple technical observations.
+
+Example:
+
+```text
+timestamp far past
++
+rate window exceeded
+```
+
+Decision still deterministic.
+
+Do not stop at first nonfatal observation.
+
+Fatal structural failures may short-circuit safely.
+
+---
+
+# 86. RULE DOCUMENTATION
+
+Create concise internal documentation/comments for each initial rule:
+
+```text
+what it detects
+what it does NOT prove
+blocking behavior
+privacy
+```
+
+Especially rate/timing rules.
+
+---
+
+# 87. ERROR TYPES
+
+Create internal errors such as:
+
+```text
+INTEGRITY_POLICY_NOT_FOUND
+INTEGRITY_INVALID_INPUT
+INTEGRITY_SOURCE_NOT_ALLOWED
+INTEGRITY_EVIDENCE_INSUFFICIENT
+INTEGRITY_IDEMPOTENCY_CONFLICT
+```
+
+Use existing error conventions.
+
+No public route yet.
+
+---
+
+# 88. INTEGRATION ADAPTER — STUDY EVENT
+
+Create a small adapter capable of converting a validated Study Event semantic input into:
+
+```text
+IntegrityActionEnvelope
+```
+
+without modifying Study Event persistence.
+
+Do not wire it globally yet unless entirely passive/test-only.
+
+---
+
+# 89. INTEGRATION ADAPTER — FOCUS
+
+Create/test normalized examples for:
+
+```text
+focus_session_started
+focus_session_completed
+focus_interruption_recorded
+```
+
+using existing evidence/source rules.
+
+Do not change Focus service behavior.
+
+---
+
+# 90. INTEGRATION ADAPTER — GROUP FOCUS
+
+Create/test normalized examples for Prompt 16:
+
+```text
+group_focus_summary_completed
+group_focus_round_completed
+```
+
+Evidence must remain:
+
+```text
+REALTIME_VERIFIED
+```
+
+Do not change Group Focus behavior.
+
+---
+
+# 91. INTEGRATION ADAPTER — MCQ
+
+Create only contracts/test fixtures for a future:
+
+```text
+mcq_answer
+```
+
+integrity action.
+
+Do NOT modify existing MCQ answering implementation in Prompt 17.
+
+---
+
+# 92. INTEGRATION ADAPTER — FLASHCARD
+
+Same.
+
+No current product behavior change.
+
+---
+
+# 93. INTEGRATION ADAPTER — RECALL
+
+Same.
+
+Recall implementation comes later.
+
+---
+
+# 94. NO FRONTEND CODE REQUIRED
+
+Expected:
+
+```text
+src/App.tsx unchanged
+```
+
+No integrity client API.
+
+No UI.
+
+---
+
+# 95. NO PRISMA
+
+Expected:
+
+```text
+prisma/schema.prisma unchanged
+migrations unchanged
+```
+
+---
+
+# 96. FROZEN CONTRACT TESTS
+
+Add comprehensive unit tests for evidence hierarchy and privacy constants.
+
+Do not alter frozen Prompt 4 values.
+
+---
+
+# 97. EVIDENCE TESTS
+
+At minimum:
+
+1. equal evidence satisfies;
+2. stronger satisfies weaker;
+3. weaker fails stronger;
+4. REALTIME_VERIFIED specific policy does not accept SERVER_DERIVED merely because rank ties;
+5. ADMIN_VERIFIED satisfies rank-based server requirement;
+6. client cannot assign evidence class where policy is server-owned.
+
+---
+
+# 98. SOURCE POLICY TESTS
+
+At minimum:
+
+```text
+backend + SERVER_VALIDATED = valid where allowed
+ios + SERVER_VALIDATED = reject where server-owned
+ios + CLIENT_OBSERVED = valid where allowed
+backend + REALTIME_VERIFIED = valid Group Focus
+web + REALTIME_VERIFIED = reject
+```
+
+---
+
+# 99. IDEMPOTENCY TESTS
+
+Test:
+
+```text
+FIRST_SEEN
+REPLAY_SAME_PAYLOAD
+IDEMPOTENCY_CONFLICT
+```
+
+and deterministic semantic hash.
+
+---
+
+# 100. CANONICALIZATION TESTS
+
+Prove:
+
+```text
+{a:1,b:2}
+and
+{b:2,a:1}
+```
+
+hash identically.
+
+Arrays retain order.
+
+Different semantic values hash differently.
+
+Oversized payload rejects.
+
+---
+
+# 101. TIMESTAMP TESTS
+
+Cover:
+
+* normal current timestamp;
+* allowed skew;
+* too far future;
+* too far past;
+* server-derived timestamp;
+* invalid date;
+* unsafe number.
+
+---
+
+# 102. RATE WINDOW TESTS
+
+Cover:
+
+* under limit;
+* exactly limit;
+* over limit;
+* window rollover;
+* burst allowance if implemented;
+* deterministic same-clock behavior.
+
+---
+
+# 103. STATE TEST
+
+Use existing Focus frozen transition helper as fixture.
+
+Verify:
+
+```text
+ACTIVE → PAUSED
+```
+
+valid and:
+
+```text
+PAUSED → COMPLETED
+```
+
+invalid.
+
+Do not copy the map.
+
+---
+
+# 104. RESOURCE HANDOFF SAFETY TEST
+
+Mandatory:
+
+```text
+intentional Focus RESOURCE_HANDOFF
+→ no integrity observation by itself
+```
+
+---
+
+# 105. BACKGROUND SAFETY TEST
+
+A Prompt 11:
+
+```text
+CLIENT_OBSERVED background absence
+```
+
+must not be automatically converted into a cheating/block observation.
+
+---
+
+# 106. PDF OPEN TEST
+
+Canonical PDF open:
+
+```text
+ALLOW
+rewardEligible = false
+```
+
+No integrity violation.
+
+---
+
+# 107. GROUP MEMBERSHIP TEST
+
+Group Focus Room join:
+
+```text
+authorization action
+rewardEligible = false
+```
+
+---
+
+# 108. GROUP VERIFIED PARTICIPATION TEST
+
+Prompt 16 REALTIME_VERIFIED round completion:
+
+```text
+valid integrity evidence
+rewardEligible = true
+```
+
+subject to future Points policy.
+
+No Points write now.
+
+---
+
+# 109. REDACTION TEST
+
+Observation safe details must remove values for sensitive keys such as:
+
+```text
+token
+authorization
+inviteToken
+capabilityToken
+resumeToken
+secret
+password
+quickNoteContent
+```
+
+Case-insensitive matching where practical.
+
+---
+
+# 110. METADATA SIZE TEST
+
+Bound:
+
+* number of keys;
+* string lengths;
+* serialized bytes.
+
+Do not allow Integrity observation metadata to become an unbounded logging channel.
+
+---
+
+# 111. RULE VERSION TEST
+
+Every returned decision:
+
+```text
+ruleVersion != empty
+```
+
+and every observation:
+
+```text
+ruleId != empty
+```
+
+---
+
+# 112. DETERMINISM TEST
+
+Same:
+
+```text
+policy
+input
+clock
+rate context
+```
+
+must produce identical semantic decision.
+
+No randomness in decision engine.
+
+---
+
+# 113. UNKNOWN POLICY TEST
+
+Unknown reward-sensitive action:
+
+```text
+fails closed
+```
+
+No reward eligibility.
+
+---
+
+# 114. NO DATABASE WRITE TEST
+
+Running Integrity decisions creates:
+
+```text
+PostgreSQL writes = 0
+D1 writes = 0
+StudyEvent writes = 0
+PointsLog writes = 0
+```
+
+---
+
+# 115. PERFORMANCE
+
+Integrity validation will eventually run on high-frequency MCQ/Flashcard actions.
+
+Keep pure validation inexpensive.
+
+Avoid:
+
+* database scans;
+* network calls;
+* AI;
+* heavy crypto beyond small SHA-256 fingerprints.
+
+---
+
+# 116. TARGET PERFORMANCE TEST
+
+For a small normalized envelope, repeated pure validation should be reasonably lightweight.
+
+Do not create brittle millisecond CI thresholds.
+
+Instead ensure no accidental I/O and bounded O(n) processing over small metadata.
+
+---
+
+# 117. SECURITY REVIEW
+
+Manually inspect that:
+
+* client cannot choose server evidence;
+* secrets are redacted;
+* unknown policy fails closed;
+* duplicate replay remains benign;
+* reward eligibility is conservative.
+
+---
+
+# 118. FEATURE FLAGS
+
+Do not create an `INTEGRITY_ENABLED` flag merely for pure foundational helpers.
+
+No product behavior changes yet.
+
+Prompt 18 may add kill-switchable signal persistence/review.
+
+---
+
+# 119. EXISTING BEHAVIOR MUST NOT CHANGE
+
+Prompt 17 should not alter:
+
+* Solo Focus;
+* Group Focus;
+* MCQs;
+* Flashcards;
+* Calendar;
+* Quick Notes;
+* authentication;
+* PointsLog.
+
+---
+
+# 120. REGRESSION — GROUP FOCUS
+
+Rerun current Prompt 13–16 Group Focus suites.
+
+Integrity foundation must not alter them.
+
+---
+
+# 121. REGRESSION — SOLO FOCUS
+
+Rerun current Focus timer/runtime/PostgreSQL suites.
+
+---
+
+# 122. REGRESSION — STUDY EVENTS
+
+Rerun Prompt 8 Study Event contracts/ingestion/PostgreSQL tests.
+
+---
+
+# 123. FOUNDATION REGRESSION
+
+Run:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 124. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 pass / 9 fail
+Typecheck = same 2 Calendar errors
+Lint = same 10 baseline errors
+```
+
+No Calendar changes.
+
+---
+
+# 125. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+server/features/study-integrity/*
+related shared contracts
+Prompt 17 tests
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 126. LINT
+
+Targeted Prompt 17 lint:
+
+```text
+PASS
+```
+
+No new full-repo errors.
+
+---
+
+# 127. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 128. PRISMA
+
+Schema should be unchanged.
+
+Run validate/generate only as appropriate.
+
+---
+
+# 129. PRODUCTION SAFETY
+
+Do NOT:
+
+* modify production PostgreSQL;
+* create migration;
+* deploy Worker;
+* modify D1;
+* modify Supabase;
+* change production env;
+* enable new product behavior.
+
+Prompt 17 is repository-only foundation work.
+
+---
+
+# 130. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+server/features/study-integrity/*
+shared study-core contracts if required
+tests/study-integrity*.test.ts
+package.json only if adding targeted test command
+```
+
+Avoid unrelated files.
+
+---
+
+# 131. FILES EXPECTED UNCHANGED
+
+```text
+prisma/schema.prisma
+prisma/migrations/*
+server/features/focus/*
+Group Focus runtime behavior
+Calendar
+OfflineEngine
+D1 private-data Worker
+src/App.tsx
+```
+
+Shared frozen contracts may be imported but not semantically changed.
+
+---
+
+# 132. ACCEPTANCE CRITERIA
+
+Prompt 17 succeeds only if:
+
+1. Modular Integrity foundation exists.
+2. No DB model added.
+3. No public route added.
+4. Evidence hierarchy reused exactly.
+5. Privacy hierarchy reused.
+6. Source/evidence rules centralized.
+7. REALTIME_VERIFIED remains semantically distinct.
+8. Deterministic decision type exists.
+9. Stable observation codes exist.
+10. No suspicion/fraud score exists.
+11. Rule versioning exists.
+12. Semantic fingerprint deterministic.
+13. Same replay is benign/idempotent.
+14. Conflicting reuse rejects.
+15. Timestamp validation centralized.
+16. Rate-window primitive deterministic.
+17. Unknown reward-sensitive action fails closed.
+18. Reward evidence helper conservative.
+19. Intentional Resource Handoff not flagged.
+20. Background absence not automatically cheating.
+21. PDF open not reward-grade.
+22. Group membership not reward-grade.
+23. Realtime-verified Group participation can qualify as evidence.
+24. Sensitive details redacted.
+25. No database writes.
+26. No Study Events generated.
+27. No Points generated.
+28. No AI.
+29. No user punishment.
+30. No UI.
+31. Existing product behavior unchanged.
+32. Build passes.
+33. New regressions = 0.
+
+---
+
+# 133. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List current foundation, Focus, Group Focus, Study Event and Auth baselines.
+
+## B. Integrity Architecture
+
+Explain the deterministic Study Integrity boundary.
+
+## C. Module Structure
+
+List every created file and responsibility.
+
+## D. Evidence Hierarchy
+
+Report exact frozen ranks.
+
+## E. Evidence Semantics
+
+Explain why:
+
+```text
+SERVER_DERIVED rank = REALTIME_VERIFIED rank
+```
+
+does not make them semantically interchangeable.
+
+## F. Privacy
+
+Report default Integrity privacy.
+
+## G. Integrity Action Envelope
+
+Show final normalized type.
+
+## H. Policy Model
+
+Show exact policy fields.
+
+## I. Decision Model
+
+Show:
+
+```text
+ALLOW
+ALLOW_WITH_OBSERVATION
+REJECT
+```
+
+semantics.
+
+## J. Observation Catalog
+
+List categories/codes/severities.
+
+## K. Rule Versioning
+
+Report rule version and stable rule IDs.
+
+## L. Source / Evidence Matrix
+
+Report tested valid/invalid combinations.
+
+## M. Semantic Fingerprinting
+
+Report algorithm, namespace, canonicalization and max size.
+
+## N. Idempotency
+
+Report:
+
+```text
+FIRST_SEEN
+REPLAY_SAME_PAYLOAD
+IDEMPOTENCY_CONFLICT
+```
+
+behavior.
+
+## O. Timestamp Rules
+
+Report defaults and per-action override capability.
+
+## P. Duration Validation
+
+Report structural checks.
+
+## Q. Rate Primitive
+
+Show rule shape and deterministic behavior.
+
+## R. Reward Evidence Foundation
+
+Explicitly report:
+
+```text
+UNVERIFIED_CLIENT reward-grade by default:
+CLIENT_OBSERVED reward-grade by default:
+SERVER_VALIDATED potentially reward-grade:
+SERVER_DERIVED potentially reward-grade:
+REALTIME_VERIFIED potentially reward-grade:
+```
+
+No Points.
+
+## S. Resource Handoff Safety
+
+Explicitly:
+
+```text
+RESOURCE_HANDOFF AUTOMATIC INTEGRITY VIOLATION: NO
+```
+
+## T. Background Safety
+
+Explicitly:
+
+```text
+BACKGROUND ABSENCE AUTOMATIC CHEATING SIGNAL: NO
+```
+
+## U. PDF Open
+
+Report:
+
+```text
+PDF OPEN INTEGRITY VIOLATION: NO
+PDF OPEN REWARD-GRADE EVIDENCE: NO
+```
+
+## V. Group Focus Distinction
+
+Report:
+
+```text
+ROOM MEMBERSHIP REWARD-GRADE: NO
+REALTIME_VERIFIED PARTICIPATION CAN BE REWARD-GRADE: YES
+```
+
+## W. Redaction
+
+List protected key classes and tests.
+
+## X. No-Score Verification
+
+Explicitly:
+
+```text
+fraudScore: NOT IMPLEMENTED
+cheatProbability: NOT IMPLEMENTED
+studentTrustScore: NOT IMPLEMENTED
+```
+
+## Y. No Persistence
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: NO
+POSTGRESQL MIGRATION: NO
+D1 MIGRATION: NO
+INTEGRITY DATABASE TABLE: NO
+```
+
+## Z. No Side Effects
+
+Report:
+
+```text
+StudyEvent writes:
+StudyDailyMetric writes:
+PointsLog writes:
+CalendarEvent writes:
+```
+
+Expected all zero.
+
+## AA. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AB. Determinism Tests
+
+Report identical-input behavior.
+
+## AC. Security Review
+
+Confirm:
+
+* client cannot choose server evidence;
+* unknown policy fails closed;
+* secrets redacted;
+* replay not misclassified.
+
+## AD. Regression Results
+
+Include:
+
+* Prompt 13–16 Group Focus;
+* Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AE. Files Created
+
+Exact paths/purposes.
+
+## AF. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prisma unchanged?
+Solo Focus behavior unchanged?
+Group Focus behavior unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+Frontend unchanged?
+```
+
+## AG. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AH. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AI. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AJ. Risks / Blockers
+
+Only real unresolved Integrity-foundation issues.
+
+## AK. Architecture Compliance
+
+Answer YES/NO:
+
+* Deterministic?
+* No AI?
+* Evidence hierarchy reused?
+* REALTIME_VERIFIED distinct?
+* Source rules server-enforced?
+* Idempotency supported?
+* Rate primitive bounded?
+* Timestamp rules bounded?
+* No invasive device fingerprinting?
+* No integrity score?
+* No punishment?
+* Reward evidence conservative?
+* Resource Handoff safe?
+* Background absence not treated as cheating?
+* No DB persistence?
+* No Points?
+* No UI?
+* Existing behavior unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AL. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 18 — Study Integrity Signals, Persistence & Admin Review Workflow**
+
+Do not implement Prompt 18.
+
+---
+
+# 134. STOP CONDITION
+
+After implementation, testing and mandatory report:
+
+STOP.
+
+Do NOT add Integrity Signal database models.
+
+Do NOT create review UI/API.
+
+Do NOT implement Points.
+
+Do NOT implement bans/penalties.
+
+Do NOT add AI anomaly detection.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 17 COMPLETE — DETERMINISTIC STUDY INTEGRITY FOUNDATION READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
