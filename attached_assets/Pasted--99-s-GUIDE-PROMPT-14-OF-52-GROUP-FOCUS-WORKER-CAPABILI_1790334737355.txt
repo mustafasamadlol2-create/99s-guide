@@ -1,0 +1,2807 @@
+# 99’s GUIDE — PROMPT 14 OF 52
+
+## GROUP FOCUS WORKER CAPABILITY ISSUANCE & VALIDATION
+
+## SHORT-LIVED SIGNED AUTHORIZATION FROM CANONICAL POSTGRESQL
+
+### NO DURABLE OBJECT RUNTIME — NO PRESENCE — NO SHARED TIMER
+
+Prompts 1–13 and the Prompt 13 PostgreSQL Verification Gate are complete and approved.
+
+Prompt 13 established and real-PostgreSQL verified:
+
+* canonical Group Focus Rooms;
+* canonical Memberships;
+* PUBLIC/PRIVATE authorization;
+* secure private invitations;
+* capacity locking;
+* Host/Member boundaries;
+* canonical selected Lecture;
+* `getGroupFocusAuthorizationContext(...)`.
+
+Prompt 14 now builds the narrow security bridge between:
+
+```text
+Canonical PostgreSQL authorization
+        ↓
+99’s Guide API
+        ↓
+short-lived signed capability
+        ↓
+Group Focus Cloudflare Worker validator
+```
+
+Prompt 14 must NOT implement the active room runtime.
+
+That remains:
+
+```text
+Prompt 15 — Durable Object active-room lifecycle
+Prompt 16 — reconnect / cleanup / canonical summary
+```
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. a backend endpoint that issues a short-lived Group Focus capability only after current canonical PostgreSQL authorization succeeds;
+2. a Worker-compatible verifier that validates the signed capability;
+3. strict claim validation;
+4. signing-key configuration and rotation support;
+5. client API support for requesting a capability;
+6. comprehensive crypto/security tests;
+7. real PostgreSQL issuance tests.
+
+No Durable Object is contacted yet.
+
+---
+
+# 2. SECURITY MODEL
+
+The browser/native client must never receive:
+
+* signing secrets;
+* verification secrets;
+* database credentials;
+* invite hashes.
+
+It receives only:
+
+```text
+short-lived signed bearer capability
+```
+
+The future Worker receives the capability from the client and verifies it cryptographically.
+
+---
+
+# 3. CAPABILITY IS NOT CANONICAL AUTHORITY
+
+The capability is a short-lived snapshot of canonical authorization.
+
+Canonical truth remains:
+
+```text
+PostgreSQL
+GroupFocusRoom
+GroupFocusMembership
+```
+
+The Worker does not become the identity authority.
+
+---
+
+# 4. CANONICAL ISSUANCE SOURCE
+
+Capability issuance MUST call the existing:
+
+```text
+getGroupFocusAuthorizationContext(...)
+```
+
+from Prompt 13.
+
+Do NOT independently reimplement:
+
+* Room-open checks;
+* Membership-active checks;
+* Host/Member role derivation;
+* effective Lecture derivation;
+* private-room authorization.
+
+One canonical authorization function remains authoritative.
+
+---
+
+# 5. WHO MAY RECEIVE A CAPABILITY
+
+Only:
+
+```text
+Room.status = OPEN
+membership.status = ACTIVE
+```
+
+may receive one.
+
+No capability for:
+
+```text
+missing membership
+LEFT
+REMOVED
+CLOSED Room
+unrelated user
+```
+
+A PUBLIC Room being discoverable does NOT authorize a capability.
+
+The student must first have an ACTIVE canonical membership.
+
+---
+
+# 6. CAPABILITY DOES NOT CREATE MEMBERSHIP
+
+Issuing a capability must NOT:
+
+* auto-join Room;
+* create Membership;
+* reactivate LEFT membership;
+* bypass capacity;
+* bypass invite admission.
+
+Prompt 13 remains responsible for membership admission.
+
+---
+
+# 7. CAPABILITY DOES NOT CREATE PRESENCE
+
+Capability issuance means:
+
+```text
+authorized to attempt realtime access
+```
+
+It does NOT mean:
+
+```text
+currently connected
+currently studying
+present in Durable Object
+```
+
+Mandatory:
+
+```text
+CAPABILITY ISSUED = REALTIME PRESENCE: NO
+```
+
+---
+
+# 8. NO STUDY CREDIT
+
+Capability issuance/validation creates:
+
+```text
+StudyEvent delta = 0
+StudyDailyMetric delta = 0
+FocusSession delta = 0
+PointsLog delta = 0
+```
+
+No Study Points.
+
+No Group Focus participation evidence yet.
+
+---
+
+# 9. NO D1
+
+Do not create a capability D1 table.
+
+Do not mirror capabilities.
+
+Do not put capabilities into:
+
+```text
+PrivateD1SyncOutbox
+```
+
+Capabilities are ephemeral credentials.
+
+---
+
+# 10. NO DATABASE CAPABILITY TABLE
+
+Do NOT add:
+
+```text
+GroupFocusCapability
+CapabilityToken
+WorkerSession
+```
+
+PostgreSQL tables.
+
+Prompt 14 capabilities are stateless signed credentials.
+
+Expected:
+
+```text
+prisma/schema.prisma modified: NO
+new PostgreSQL migration: NO
+new D1 migration: NO
+```
+
+---
+
+# 11. TOKEN FORMAT
+
+Use a compact signed token with standard JWT/JWS semantics.
+
+Preferred:
+
+```text
+HMAC-SHA-256 / HS256
+```
+
+because:
+
+* Node backend supports it;
+* Cloudflare Worker Web Crypto supports HMAC verification;
+* no Durable Object state is required;
+* no external crypto service is required.
+
+If the repository already contains a proven Node + Worker compatible signing library such as `jose`, reuse it.
+
+Otherwise implement the minimum strict compact HMAC signing/verification required here using built-in crypto/Web Crypto.
+
+Do NOT introduce a large auth dependency unnecessarily.
+
+---
+
+# 12. ALGORITHM CONFUSION DEFENSE
+
+The verifier must accept exactly:
+
+```text
+alg = HS256
+```
+
+Reject:
+
+```text
+none
+HS384
+HS512
+RS256
+arbitrary algorithm
+missing alg
+```
+
+Do not trust the token header to select arbitrary crypto behavior.
+
+---
+
+# 13. TOKEN HEADER
+
+Use a minimal header such as:
+
+```json
+{
+  "alg": "HS256",
+  "typ": "GF-CAP",
+  "kid": "..."
+}
+```
+
+Validate all three.
+
+Unknown `kid`:
+
+```text
+reject
+```
+
+---
+
+# 14. KEYRING CONFIGURATION
+
+Do not hard-code secrets.
+
+Implement a small keyring configuration.
+
+Preferred environment contract:
+
+```text
+GROUP_FOCUS_CAPABILITY_KEYS_JSON
+GROUP_FOCUS_CAPABILITY_ACTIVE_KID
+```
+
+Example conceptual format:
+
+```json
+{
+  "2026-a": "<base64url-secret>",
+  "2026-b": "<base64url-secret>"
+}
+```
+
+Do not place real secrets in the repository.
+
+---
+
+# 15. KEY REQUIREMENTS
+
+Each decoded HMAC secret must contain at least:
+
+```text
+32 random bytes
+```
+
+Reject weak keys.
+
+Bound the keyring.
+
+Recommended:
+
+```text
+maximum accepted keys = 4
+```
+
+Validate `kid` with a conservative format such as:
+
+```text
+[A-Za-z0-9._-]
+```
+
+with a small length bound.
+
+---
+
+# 16. ACTIVE KEY
+
+The API issuer uses only:
+
+```text
+GROUP_FOCUS_CAPABILITY_ACTIVE_KID
+```
+
+for newly issued capabilities.
+
+That key must exist in the configured keyring.
+
+If not:
+
+fail closed.
+
+Do not silently pick the first key.
+
+---
+
+# 17. WORKER KEYRING
+
+The Worker verifier accepts any currently configured valid `kid` in the verification keyring.
+
+This permits safe rotation:
+
+1. add new key to API + Worker;
+2. deploy configuration;
+3. switch API active `kid`;
+4. wait longer than maximum capability TTL;
+5. remove old key.
+
+Do not implement database key rotation.
+
+---
+
+# 18. MISSING CONFIGURATION
+
+Because Group Focus remains disabled by default, missing capability signing configuration must NOT crash the whole existing API at boot.
+
+But if capability issuance is actually requested:
+
+```text
+missing/invalid capability configuration
+→ fail closed
+```
+
+Use an explicit bounded service error such as:
+
+```text
+CAPABILITY_NOT_CONFIGURED
+```
+
+or equivalent.
+
+Worker validation with invalid configuration must also fail closed.
+
+---
+
+# 19. DO NOT MODIFY PRODUCTION ENV
+
+Tests use:
+
+```text
+process-local generated secrets
+Worker test env objects
+```
+
+Do not add real signing keys to `.env`.
+
+Do not change Render or Cloudflare environment configuration.
+
+---
+
+# 20. TOKEN LIFETIME
+
+Capability lifetime must be deliberately short.
+
+Use:
+
+```text
+default TTL = 90 seconds
+maximum TTL = 120 seconds
+```
+
+If a server environment override exists, bound it to a safe range such as:
+
+```text
+30–120 seconds
+```
+
+The client cannot choose TTL.
+
+---
+
+# 21. CLOCK SKEW
+
+Allow only a small bounded validation tolerance.
+
+Use approximately:
+
+```text
+10 seconds
+```
+
+for clock skew.
+
+Do not accept tokens many minutes outside their validity window.
+
+---
+
+# 22. REQUIRED CLAIMS
+
+Capability payload must include at least:
+
+```text
+version
+issuer
+audience
+purpose
+
+subject/user identity
+roomId
+membershipId
+
+role
+mode
+visibility
+effectiveLectureId
+
+focusDurationSeconds
+breakDurationSeconds
+roundCount
+maxParticipants
+
+roomUpdatedAt
+membershipUpdatedAt
+
+issuedAt
+notBefore
+expiresAt
+jti
+```
+
+Use standard JWT field names where appropriate:
+
+```text
+iss
+aud
+sub
+iat
+nbf
+exp
+jti
+```
+
+---
+
+# 23. FIXED CLAIM CONSTANTS
+
+Use frozen constants such as:
+
+```text
+version = 1
+
+iss = "99s-guide-api"
+
+aud = "99s-guide-group-focus-worker"
+
+purpose = "group_focus_room_access"
+```
+
+Centralize these values.
+
+Do not scatter magic strings across API and Worker.
+
+---
+
+# 24. `sub`
+
+Use:
+
+```text
+sub = canonical authenticated userId
+```
+
+Do not let the client supply it.
+
+---
+
+# 25. ROOM CLAIMS
+
+Claims come entirely from:
+
+```text
+getGroupFocusAuthorizationContext
+```
+
+The client cannot override:
+
+```text
+roomId
+membershipId
+role
+mode
+visibility
+effectiveLectureId
+timing
+round count
+capacity
+canonical timestamps
+```
+
+---
+
+# 26. EFFECTIVE LECTURE
+
+For:
+
+```text
+SHARED_LECTURE
+```
+
+capability must carry:
+
+```text
+effectiveLectureId = room.sharedLectureId
+```
+
+For:
+
+```text
+STUDY_TOGETHER
+```
+
+capability must carry:
+
+```text
+effectiveLectureId = membership.selectedLectureId
+```
+
+Never trust client Lecture input during capability issuance.
+
+---
+
+# 27. CANONICAL VERSION SNAPSHOT
+
+Include:
+
+```text
+roomUpdatedAt
+membershipUpdatedAt
+```
+
+from Prompt 13 authorization context.
+
+These do NOT allow Worker-side PostgreSQL validation yet.
+
+They are canonical-version metadata for Prompts 15–16.
+
+---
+
+# 28. JTI
+
+Every capability receives a cryptographically random:
+
+```text
+jti
+```
+
+Use sufficient randomness, for example:
+
+```text
+128 bits or more
+```
+
+Do not derive `jti` from:
+
+* userId;
+* Room ID;
+* timestamp alone.
+
+---
+
+# 29. IMPORTANT — JTI IS NOT YET SINGLE-USE
+
+Prompt 14 has no Durable Object/replay registry.
+
+Therefore do NOT claim:
+
+```text
+capability can only be used once
+```
+
+The `jti` is included for:
+
+* tracing;
+* future connection/replay semantics;
+* Prompt 15/16 state management.
+
+The capability remains a short-lived bearer credential.
+
+---
+
+# 30. NO PII
+
+Capability must NOT contain:
+
+* email;
+* full name;
+* avatar URL;
+* signature;
+* private study metrics;
+* Quick Notes;
+* Points;
+* weaknesses;
+* authentication provider;
+* invite token/hash.
+
+Only realtime authorization fields.
+
+---
+
+# 31. TOKEN SIZE
+
+Keep capability compact.
+
+Add a test ensuring the normal token is comfortably below a conservative bound such as:
+
+```text
+4 KiB
+```
+
+Do not embed full Room objects.
+
+---
+
+# 32. ISSUANCE ROUTE
+
+Implement authenticated equivalent:
+
+```text
+POST /api/group-focus/rooms/:roomId/capability
+```
+
+No body is required.
+
+Do not accept claim overrides.
+
+---
+
+# 33. ISSUANCE ROUTE SECURITY
+
+Route requires:
+
+```text
+requireUser
+GROUP_FOCUS_ENABLED
+```
+
+Then:
+
+```text
+getGroupFocusAuthorizationContext({
+  userId,
+  roomId
+})
+```
+
+If no context:
+
+use existing Group Focus privacy/non-disclosure semantics.
+
+---
+
+# 34. RESPONSE
+
+Return only purpose-built output:
+
+```json
+{
+  "capabilityToken": "...",
+  "expiresAt": "ISO-8601",
+  "expiresInSeconds": 90
+}
+```
+
+Do not return:
+
+```text
+key
+secret
+invite hash
+signing metadata unnecessary to client
+```
+
+---
+
+# 35. RESPONSE CACHE HEADERS
+
+Capability responses must be non-cacheable.
+
+Set appropriate headers equivalent to:
+
+```text
+Cache-Control: no-store, private
+Pragma: no-cache
+```
+
+Do not allow service-worker/API caches to retain the bearer credential.
+
+---
+
+# 36. CAPABILITY TOKEN LOGGING
+
+Never log the full capability token.
+
+Never include it in:
+
+* error logs;
+* analytics;
+* Study Events;
+* request URLs;
+* query strings.
+
+---
+
+# 37. TOKEN TRANSPORT
+
+Future Worker requests must use:
+
+```text
+Authorization: Bearer <capability>
+```
+
+The validator helper should be designed around this.
+
+Do not support capability tokens in:
+
+```text
+URL query parameters
+path parameters
+```
+
+---
+
+# 38. CLIENT API
+
+Extend the existing typed Group Focus API client:
+
+```text
+requestGroupFocusCapability(roomId)
+```
+
+No UI.
+
+Do not persist capability in:
+
+* localStorage;
+* sessionStorage;
+* IndexedDB;
+* Prompt 10 Focus runtime cache.
+
+Future Group Focus runtime may hold it in memory.
+
+---
+
+# 39. CLIENT RESPONSE VALIDATION
+
+Validate:
+
+```text
+capabilityToken = nonempty bounded string
+expiresAt = valid timestamp
+expiresInSeconds = bounded integer
+```
+
+Reject unexpected secret/internal fields.
+
+---
+
+# 40. NO AUTOMATIC CAPABILITY REFRESH LOOP
+
+Prompt 14 does not implement realtime connectivity.
+
+Do not add:
+
+```text
+refresh every 30 seconds
+```
+
+The future Group Focus runtime will request a capability when needed.
+
+---
+
+# 41. WORKER-SIDE VALIDATOR
+
+Implement a Cloudflare Worker-compatible pure validator module.
+
+It should expose functions conceptually equivalent to:
+
+```ts
+verifyGroupFocusCapability(token, env, now?)
+requireGroupFocusCapability(request, env, now?)
+```
+
+Use actual repository conventions.
+
+---
+
+# 42. SHARED CLAIM CONTRACT
+
+Avoid independent drift between API issuer and Worker verifier.
+
+Create one small isomorphic/shared capability contract where appropriate containing:
+
+* claim types;
+* role/mode/visibility enums;
+* fixed issuer/audience/purpose/version;
+* numeric bounds;
+* safe parsing helpers.
+
+Do not make Worker import server-only Prisma/Express code.
+
+---
+
+# 43. RUNTIME PORTABILITY
+
+Worker validator must not depend on:
+
+* Node filesystem;
+* Prisma;
+* Express;
+* Node-only Buffer APIs unless bundler/polyfill architecture already guarantees them.
+
+Prefer:
+
+```text
+Web Crypto
+TextEncoder/TextDecoder
+portable base64url utilities
+```
+
+on Worker side.
+
+---
+
+# 44. SIGNATURE VERIFICATION
+
+Worker must cryptographically verify:
+
+```text
+HMAC-SHA-256
+```
+
+over the exact compact token signing input.
+
+Do not reserialize parsed JSON before verification.
+
+Verify the original:
+
+```text
+base64url(header) + "." + base64url(payload)
+```
+
+bytes.
+
+---
+
+# 45. STRICT BASE64URL
+
+Reject malformed:
+
+* header segment;
+* payload segment;
+* signature segment.
+
+Do not silently accept invalid base64 or arbitrary extra token segments.
+
+Expected exactly:
+
+```text
+3 segments
+```
+
+---
+
+# 46. HEADER VALIDATION
+
+Reject unless:
+
+```text
+alg = HS256
+typ = GF-CAP
+kid is configured
+```
+
+Do not trust unrecognized token types.
+
+---
+
+# 47. CLAIM VALIDATION
+
+After valid signature, verify all required claims.
+
+Reject:
+
+* missing claim;
+* wrong type;
+* unknown role;
+* unknown mode;
+* unknown visibility;
+* blank IDs;
+* impossible numeric values;
+* invalid timestamps;
+* unsupported version.
+
+Use the same Prompt 13 safety bounds.
+
+---
+
+# 48. ISSUER VALIDATION
+
+Require exact:
+
+```text
+iss = 99s-guide-api
+```
+
+No wildcard.
+
+---
+
+# 49. AUDIENCE VALIDATION
+
+Require exact:
+
+```text
+aud = 99s-guide-group-focus-worker
+```
+
+Do not accept capabilities intended for another service.
+
+---
+
+# 50. PURPOSE VALIDATION
+
+Require:
+
+```text
+purpose = group_focus_room_access
+```
+
+This prevents a future different signed token type from being reused as Group Focus authorization.
+
+---
+
+# 51. VERSION VALIDATION
+
+Require:
+
+```text
+version = 1
+```
+
+Unknown future versions must fail closed until supported.
+
+---
+
+# 52. TIME VALIDATION
+
+Validate:
+
+```text
+iat
+nbf
+exp
+```
+
+with the bounded skew.
+
+Reject:
+
+* expired token;
+* token not yet valid;
+* `iat` far in future;
+* invalid timestamp ordering;
+* TTL beyond allowed maximum.
+
+---
+
+# 53. TTL VALIDATION
+
+Even if the signature is valid:
+
+```text
+exp - iat > maximum capability TTL
+```
+
+must reject.
+
+This prevents an accidentally long-lived signed capability from silently becoming valid.
+
+---
+
+# 54. ROLE VALIDATION
+
+Only:
+
+```text
+HOST
+MEMBER
+```
+
+---
+
+# 55. MODE VALIDATION
+
+Only frozen Prompt 13 modes:
+
+```text
+SHARED_LECTURE
+STUDY_TOGETHER
+```
+
+---
+
+# 56. VISIBILITY VALIDATION
+
+Only:
+
+```text
+PUBLIC
+PRIVATE
+```
+
+---
+
+# 57. NUMERIC CLAIM VALIDATION
+
+Validate:
+
+```text
+focusDurationSeconds
+breakDurationSeconds
+roundCount
+maxParticipants
+```
+
+using Prompt 13 server bounds.
+
+Do not trust signed-but-malformed values if configuration/code bugs generated them.
+
+Defense in depth.
+
+---
+
+# 58. LECTURE CLAIM
+
+`effectiveLectureId` must be a nonempty canonical ID-shaped value according to existing Lecture ID conventions.
+
+Do not query PostgreSQL from Worker to validate it.
+
+Signature + canonical issuance is the trust boundary.
+
+---
+
+# 59. TIMESTAMP VERSION METADATA
+
+Validate:
+
+```text
+roomUpdatedAt
+membershipUpdatedAt
+```
+
+as bounded valid timestamp strings.
+
+Do not use them to fabricate database freshness checks.
+
+They are snapshot metadata.
+
+---
+
+# 60. VALIDATOR OUTPUT
+
+A successful Worker verification returns a normalized trusted object such as:
+
+```text
+version
+userId
+roomId
+membershipId
+role
+mode
+visibility
+effectiveLectureId
+focusDurationSeconds
+breakDurationSeconds
+roundCount
+maxParticipants
+roomUpdatedAt
+membershipUpdatedAt
+issuedAt
+expiresAt
+jti
+```
+
+Do not return raw header/key material to downstream runtime.
+
+---
+
+# 61. INVALID-TOKEN EXTERNAL BEHAVIOR
+
+The future Worker-facing helper should support mapping invalid bearer credentials to a generic:
+
+```text
+401 Unauthorized
+```
+
+Do not reveal unnecessary detail such as:
+
+```text
+wrong key ID
+bad signature byte 7
+```
+
+Internal typed error codes are acceptable for tests/diagnostics.
+
+---
+
+# 62. CONFIGURATION ERROR
+
+Invalid Worker key configuration is different from bad user credentials.
+
+Fail closed.
+
+A generic:
+
+```text
+500/503 configuration unavailable
+```
+
+may be used internally when the verifier itself is misconfigured.
+
+Do not accidentally classify server configuration failure as a valid user token.
+
+---
+
+# 63. KEY ROTATION TEST
+
+Generate two test keys:
+
+```text
+old
+new
+```
+
+Verify:
+
+1. Worker with both keys accepts old token.
+2. API switches active `kid`.
+3. New token uses new `kid`.
+4. Worker accepts both during overlap.
+5. Worker after old key removal rejects old token.
+6. New token continues validating.
+
+No production key rotation is performed.
+
+---
+
+# 64. TAMPER TEST
+
+Take a valid capability.
+
+Modify payload without resigning:
+
+```text
+MEMBER → HOST
+```
+
+Expected:
+
+```text
+INVALID
+```
+
+Do the same with:
+
+```text
+effectiveLectureId
+roomId
+maxParticipants
+```
+
+All must fail signature verification.
+
+---
+
+# 65. HEADER TAMPER TEST
+
+Modify:
+
+```text
+alg
+kid
+typ
+```
+
+without valid resigning.
+
+Reject.
+
+---
+
+# 66. `alg=none` TEST
+
+Construct token with:
+
+```text
+alg = none
+```
+
+Expected:
+
+```text
+REJECT
+```
+
+Mandatory.
+
+---
+
+# 67. WRONG SECRET TEST
+
+Valid-looking token signed by unknown secret:
+
+```text
+REJECT
+```
+
+---
+
+# 68. WRONG AUDIENCE TEST
+
+Signed token with:
+
+```text
+aud = another-service
+```
+
+must be rejected.
+
+---
+
+# 69. WRONG ISSUER TEST
+
+Reject incorrect issuer.
+
+---
+
+# 70. WRONG PURPOSE TEST
+
+Reject a correctly signed token with another purpose.
+
+---
+
+# 71. UNSUPPORTED VERSION TEST
+
+Reject:
+
+```text
+version = 2
+```
+
+for now.
+
+---
+
+# 72. EXPIRATION TEST
+
+Test:
+
+* valid immediately;
+* valid inside lifetime;
+* rejected after expiration beyond allowed skew.
+
+Use injected clock.
+
+Do not sleep 90 real seconds.
+
+---
+
+# 73. FUTURE TOKEN TEST
+
+Capability with unacceptable future `iat/nbf`:
+
+```text
+REJECT
+```
+
+---
+
+# 74. EXCESSIVE TTL TEST
+
+Correctly signed:
+
+```text
+iat = now
+exp = now + 1 hour
+```
+
+Expected:
+
+```text
+REJECT
+```
+
+even with a valid key.
+
+---
+
+# 75. MALFORMED TOKEN TESTS
+
+Test:
+
+```text
+empty token
+1 segment
+2 segments
+4 segments
+invalid base64url
+invalid JSON
+missing signature
+oversized token
+```
+
+All reject safely.
+
+---
+
+# 76. TOKEN SIZE LIMIT
+
+Before expensive parsing/verification, enforce a conservative upper size.
+
+For example:
+
+```text
+8 KiB hard parser limit
+```
+
+while normal tokens must remain comfortably under 4 KiB.
+
+Report actual normal token size.
+
+---
+
+# 77. AUTHORIZATION HEADER PARSING
+
+Worker helper accepts:
+
+```text
+Authorization: Bearer <token>
+```
+
+Case-insensitive scheme handling is acceptable per HTTP semantics.
+
+Reject:
+
+* missing header;
+* Basic;
+* multiple malformed bearer values;
+* empty bearer token.
+
+---
+
+# 78. NO QUERY-TOKEN SUPPORT
+
+Static test/source inspection:
+
+```text
+?token=
+?capability=
+```
+
+must not be part of the Group Focus Worker authorization implementation.
+
+---
+
+# 79. BACKEND ISSUANCE — REAL POSTGRESQL TEST
+
+Use the safe Prompt 13 disposable PostgreSQL mechanism.
+
+Create an isolated schema such as:
+
+```text
+prompt14_group_focus_gate
+```
+
+Apply the full existing migration history.
+
+No new migration exists.
+
+---
+
+# 80. ACTIVE HOST ISSUANCE
+
+Create OPEN Room + active Host.
+
+Request capability.
+
+Verify:
+
+```text
+HTTP success
+token returned
+Worker validator accepts token
+role = HOST
+sub = Host user
+correct effectiveLectureId
+```
+
+---
+
+# 81. ACTIVE MEMBER ISSUANCE
+
+Join Member.
+
+Request capability.
+
+Verify:
+
+```text
+role = MEMBER
+membershipId correct
+effectiveLectureId correct
+```
+
+Worker accepts it.
+
+---
+
+# 82. SHARED LECTURE CAPABILITY
+
+For SHARED_LECTURE:
+
+Host and Member capability must both contain:
+
+```text
+effectiveLectureId = room.sharedLectureId
+```
+
+---
+
+# 83. STUDY TOGETHER CAPABILITY
+
+For STUDY_TOGETHER:
+
+Host capability uses Host membership selected Lecture.
+
+Member capability uses Member selected Lecture.
+
+After Member changes selected Lecture:
+
+newly issued capability must contain the new Lecture.
+
+An older still-unexpired capability may contain the old canonical snapshot until it expires.
+
+Document this bounded staleness honestly.
+
+---
+
+# 84. LEFT MEMBER
+
+After Member leaves:
+
+new capability issuance:
+
+```text
+DENIED
+```
+
+No token.
+
+---
+
+# 85. REMOVED MEMBER
+
+After Host removes Member:
+
+new capability issuance:
+
+```text
+DENIED
+```
+
+---
+
+# 86. CLOSED ROOM
+
+After Room close:
+
+Host and former Member capability issuance:
+
+```text
+DENIED
+```
+
+---
+
+# 87. UNRELATED USER
+
+Unrelated authenticated user:
+
+```text
+DENIED
+```
+
+using the same non-disclosing Group Focus authorization semantics.
+
+No Room details leaked.
+
+---
+
+# 88. APP ADMIN SEPARATION
+
+An unrelated app admin/owner receives no capability merely due to application role.
+
+Prompt 13 authorization still applies.
+
+---
+
+# 89. ISSUANCE IS READ-ONLY
+
+Compare before/after real PostgreSQL counts.
+
+Capability issuance must create:
+
+```text
+GroupFocusRoom writes = 0
+GroupFocusMembership writes = 0
+StudyEvent writes = 0
+StudyDailyMetric writes = 0
+FocusSession writes = 0
+PointsLog writes = 0
+PrivateD1SyncOutbox writes = 0
+CalendarEvent writes = 0
+```
+
+It is authorization + signing only.
+
+---
+
+# 90. CAPABILITY CRYPTO DOES NOT NEED DATABASE
+
+Worker verification must work with:
+
+```text
+token
+keyring
+clock
+```
+
+only.
+
+No PostgreSQL call.
+
+No Supabase call.
+
+No D1 call.
+
+---
+
+# 91. REVOCATION WINDOW — IMPORTANT
+
+A previously issued capability is stateless.
+
+If a Member is:
+
+```text
+REMOVED
+LEFT
+```
+
+or Room is:
+
+```text
+CLOSED
+```
+
+after capability issuance, the cryptographic token may remain valid until its short expiration time.
+
+This is an accepted bounded Prompt 14 property.
+
+Do NOT falsely claim immediate stateless token revocation.
+
+The maximum exposure is bounded by:
+
+```text
+capability TTL
+```
+
+Prompts 15–16 may add active-room invalidation/reconciliation behavior.
+
+---
+
+# 92. REPORT BOUNDED STALENESS
+
+Explicitly test and document:
+
+1. issue Member capability;
+2. remove Member;
+3. old token cryptographically verifies until expiration;
+4. new issuance is denied;
+5. old token fails after expiration.
+
+This is expected, not a bug.
+
+Do not lengthen the TTL.
+
+---
+
+# 93. NO TOKEN DATABASE REVOCATION LIST
+
+Do not add a revocation table in Prompt 14.
+
+The short TTL is the revocation boundary at this stage.
+
+---
+
+# 94. NO REFRESH TOKEN
+
+Do not create Group Focus:
+
+```text
+refresh token
+long-lived session token
+```
+
+A fresh capability is obtained from the authenticated API when needed.
+
+---
+
+# 95. NO CAPABILITY PERSISTENCE CLIENT-SIDE
+
+Add a static/runtime contract test showing the Group Focus API wrapper does not write capability to:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+Focus runtime cache
+```
+
+No visible UI yet.
+
+---
+
+# 96. WORKER MODULE PLACEMENT
+
+Inspect repository structure.
+
+If a dedicated Group Focus Worker package does not yet exist, create only the minimum Worker-compatible capability-validation module/skeleton required for Prompt 15.
+
+For example conceptually:
+
+```text
+cloudflare-group-focus-worker/
+  src/
+    capability.ts
+    capabilityTypes.ts
+```
+
+or repository-equivalent.
+
+Do NOT add Durable Object bindings.
+
+Do NOT implement active-room routes.
+
+---
+
+# 97. OPTIONAL MINIMAL WORKER ENTRY
+
+If the Worker build requires an entrypoint, it may contain only:
+
+```text
+health
+404/default
+```
+
+plus exported capability validation infrastructure.
+
+Do NOT expose a public:
+
+```text
+/validate-token
+```
+
+oracle solely for testing.
+
+Tests should import the validator directly.
+
+---
+
+# 98. NO WORKER DEPLOYMENT
+
+No:
+
+```text
+wrangler deploy
+```
+
+against remote Cloudflare.
+
+A local build or:
+
+```text
+wrangler deploy --dry-run
+```
+
+is acceptable if repository tooling supports it.
+
+No remote resources.
+
+---
+
+# 99. NO DURABLE OBJECT BINDING
+
+Explicitly:
+
+```text
+durable_objects bindings = NONE
+migrations.new_classes = NONE
+```
+
+for Prompt 14.
+
+---
+
+# 100. NO ACTIVE ROOM ROUTES
+
+Do NOT implement:
+
+```text
+/connect
+/join-do
+/room-state
+/presence
+/timer
+/pause-room
+/start-round
+```
+
+Prompt 15 owns the active runtime.
+
+---
+
+# 101. NO WEBSOCKET
+
+Do not open WebSocket connections yet.
+
+---
+
+# 102. NO SOCKET.IO CHANGES
+
+Do not alter app-wide Socket.IO.
+
+---
+
+# 103. NO GROUP STUDY EVENTS
+
+Capability issuance/validation is not participation.
+
+Do not emit Group Focus Study Events.
+
+---
+
+# 104. NO ANALYTICS
+
+No capability telemetry in:
+
+* StudyEvent;
+* Analytics Engine;
+* StudyDailyMetric.
+
+Ordinary bounded operational error logging is acceptable without token contents.
+
+---
+
+# 105. NO CALENDAR
+
+Capability issuance creates:
+
+```text
+CalendarEvent delta = 0
+```
+
+---
+
+# 106. NO QUICK NOTE CHANGE
+
+Prompt 12 remains untouched.
+
+---
+
+# 107. NO SOLO FOCUS CHANGE
+
+Solo Focus runtime/backend should remain unchanged.
+
+---
+
+# 108. FEATURE FLAG
+
+Issuance requires existing:
+
+```text
+GROUP_FOCUS_ENABLED
+```
+
+Default remains false.
+
+Do not invent a duplicate Group Focus product flag.
+
+Crypto configuration can fail separately if flag is locally enabled without keys.
+
+---
+
+# 109. SECRET ERROR HANDLING
+
+Never return:
+
+```text
+missing key name
+raw key
+parsed keyring
+```
+
+to clients.
+
+A bounded error such as:
+
+```text
+CAPABILITY_NOT_CONFIGURED
+```
+
+is enough.
+
+---
+
+# 110. CRYPTO ERROR LOGGING
+
+Do not log capability token on verification failure.
+
+Logging may include safe fields such as:
+
+```text
+error code
+request ID
+```
+
+without bearer credential contents.
+
+---
+
+# 111. CONSTANTS
+
+Centralize:
+
+```text
+version
+issuer
+audience
+purpose
+typ
+algorithm
+TTL
+max TTL
+clock skew
+max token bytes
+```
+
+Prefer shared isomorphic constants.
+
+---
+
+# 112. TEST KEY GENERATION
+
+Unit/integration tests must generate temporary cryptographically strong keys at runtime.
+
+Do not commit fixed production-looking secrets.
+
+A deterministic known test vector may exist only inside isolated unit tests if needed for cross-runtime signature compatibility.
+
+---
+
+# 113. CROSS-RUNTIME COMPATIBILITY TEST
+
+Mandatory:
+
+```text
+Node/API issuer
+→ generated token
+→ Worker/Web Crypto verifier
+→ PASS
+```
+
+This proves Node and Worker agree on:
+
+* base64url;
+* HMAC bytes;
+* token serialization;
+* claims.
+
+---
+
+# 114. WORKER-STYLE VERIFICATION TEST
+
+Run the verifier using the same Web Crypto APIs expected in Cloudflare runtime.
+
+Do not only call the Node issuer’s own verification helper.
+
+The point is cross-runtime validation.
+
+---
+
+# 115. KEY-RING PARSER TESTS
+
+Test:
+
+* valid one-key ring;
+* valid two-key ring;
+* malformed JSON;
+* empty map;
+* too many keys;
+* invalid `kid`;
+* weak key;
+* invalid base64url key;
+* active kid missing.
+
+Fail closed.
+
+---
+
+# 116. ROUTE HTTP TESTS
+
+Test issuance endpoint:
+
+* unauthenticated;
+* feature disabled;
+* active Host;
+* active Member;
+* LEFT;
+* REMOVED;
+* CLOSED Room;
+* unrelated user;
+* missing crypto configuration.
+
+Verify cache headers on success.
+
+---
+
+# 117. PRIVATE ROOM PRIVACY
+
+Capability endpoint must not become a new private-Room enumeration channel.
+
+An unrelated user requesting capability for a PRIVATE Room should receive the same non-disclosing semantics already established by Prompt 13.
+
+---
+
+# 118. CLIENT CONTRACT TEST
+
+Ensure:
+
+```text
+requestGroupFocusCapability(roomId)
+```
+
+uses:
+
+```text
+POST body/query = no capability claim overrides
+```
+
+Response parser accepts only the capability response contract.
+
+No private canonical authorization fields need to be exposed separately.
+
+---
+
+# 119. REAL POSTGRESQL ENVIRONMENT
+
+Reuse verified safe development target:
+
+```text
+host: helium
+database: heliumdb
+```
+
+with disposable:
+
+```text
+prompt14_group_focus_gate
+```
+
+Do not require a permanently persisted `TEST_DATABASE_URL`.
+
+Verify identity read-only first.
+
+---
+
+# 120. MIGRATION REPLAY
+
+Apply all existing migrations into the fresh disposable schema.
+
+Expected migration count remains the Prompt 13 count unless another legitimate migration was committed before this run.
+
+Prompt 14 itself adds:
+
+```text
+new migration = NONE
+```
+
+---
+
+# 121. REAL ISSUANCE TESTS
+
+Against disposable PostgreSQL verify:
+
+1. Host capability.
+2. Member capability.
+3. shared Lecture.
+4. Study Together Lecture.
+5. selected-Lecture update reflected in new token.
+6. LEFT denial.
+7. REMOVED denial.
+8. CLOSED denial.
+9. unrelated denial.
+10. app admin does not bypass.
+11. zero database writes from issuance.
+
+---
+
+# 122. BOUNDED REVOCATION TEST
+
+Real DB + crypto:
+
+1. Member ACTIVE.
+2. issue valid capability.
+3. Host removes Member.
+4. new capability issuance denied.
+5. previously issued capability still verifies before expiry.
+6. injected clock advances beyond expiry.
+7. old capability rejected.
+
+Report exact TTL.
+
+---
+
+# 123. NO DATABASE-WRITE TEST
+
+Snapshot counts before issuing multiple capabilities.
+
+After issuance verify unchanged:
+
+```text
+GroupFocusRoom
+GroupFocusMembership
+StudyEvent
+StudyDailyMetric
+FocusSession
+PointsLog
+PrivateD1SyncOutbox
+CalendarEvent
+```
+
+---
+
+# 124. REGRESSION — PROMPT 13
+
+Rerun:
+
+```text
+tests/group-focus-contracts.test.ts
+tests/group-focus-postgres.test.ts
+```
+
+Expected all real PostgreSQL tests pass with zero skips.
+
+Prompt 14 must not weaken canonical authorization.
+
+---
+
+# 125. FOUNDATION REGRESSION
+
+Run all current green foundation/Focus suites including:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Prompt 8
+Outbox schema
+Outbox PostgreSQL
+Study Event PostgreSQL
+
+Solo Focus
+Prompt 10
+Prompt 11
+Prompt 12
+
+Prompt 13
+Auth
+```
+
+---
+
+# 126. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 pass / 9 fail
+Typecheck = same 2 Calendar Import errors
+Lint = same 10 baseline errors
+```
+
+Do not modify Calendar.
+
+---
+
+# 127. TARGETED TYPESCRIPT
+
+Run strict targeted TypeScript against:
+
+```text
+Group Focus capability issuer
+shared capability contract
+Worker verifier
+Group Focus API client
+Prompt 14 tests
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 128. LINT
+
+Targeted Prompt 14 lint:
+
+```text
+PASS
+```
+
+Full lint may retain only the documented baseline 10 errors.
+
+No new errors.
+
+---
+
+# 129. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+If a Worker package/build exists, run its local compile/dry-run too.
+
+No remote deploy.
+
+---
+
+# 130. PRISMA
+
+Run:
+
+```text
+prisma validate
+prisma generate
+```
+
+Expected:
+
+```text
+PASS
+```
+
+Prompt 14 should not modify schema.
+
+---
+
+# 131. PRODUCTION SAFETY
+
+Do NOT:
+
+* change production Supabase;
+* migrate production PostgreSQL;
+* set production signing keys;
+* modify Render production env;
+* modify Cloudflare production env;
+* deploy Worker;
+* create Durable Object;
+* enable Group Focus.
+
+Repository implementation/testing only.
+
+---
+
+# 132. EXPECTED FILE AREAS
+
+Likely backend:
+
+```text
+server/features/group-focus/capability*
+server/features/group-focus/service.ts
+server/routes/groupFocus.ts
+```
+
+Shared/isomorphic contract:
+
+```text
+<existing-shared-location>/groupFocusCapability*
+```
+
+Worker:
+
+```text
+<group-focus-worker>/src/capability*
+```
+
+Client:
+
+```text
+src/features/group-focus/api/groupFocusApi.ts
+```
+
+Tests:
+
+```text
+tests/group-focus-capability*.test.ts
+```
+
+Minimal package/config additions only if required for Worker-local compilation.
+
+---
+
+# 133. FILES THAT SHOULD REMAIN UNCHANGED
+
+Expected:
+
+```text
+prisma/schema.prisma
+all Prisma migrations
+Solo Focus backend
+OfflineEngine
+Calendar
+D1 private-data Worker
+PDF/video openers
+src/App.tsx
+```
+
+Prompt 13 Room/Membership code may receive only minimal integration required for capability issuance.
+
+---
+
+# 134. ACCEPTANCE CRITERIA
+
+Prompt 14 succeeds only if:
+
+1. Backend capability endpoint exists.
+2. Capability derives only from Prompt 13 authorization context.
+3. Capability is short-lived.
+4. HS256 signature is verified Worker-side.
+5. Algorithm is fixed.
+6. Keyring supports bounded rotation.
+7. Weak keys reject.
+8. Unknown key ID rejects.
+9. Correct issuer required.
+10. Correct audience required.
+11. Correct purpose required.
+12. Version 1 required.
+13. TTL max enforced.
+14. Clock skew bounded.
+15. Host capability validates.
+16. Member capability validates.
+17. Effective Lecture is canonical.
+18. LEFT cannot receive new capability.
+19. REMOVED cannot receive new capability.
+20. CLOSED Room cannot receive new capability.
+21. Unrelated/app-admin user cannot bypass authorization.
+22. Token tampering rejects.
+23. `alg=none` rejects.
+24. Wrong secret rejects.
+25. Expired token rejects.
+26. Oversized/malformed token rejects.
+27. Node-issued token verifies with Worker Web Crypto.
+28. Token contains no PII/secrets.
+29. Token is not persisted client-side.
+30. No DB capability table.
+31. Issuance performs zero canonical writes.
+32. Capability does not create presence.
+33. Capability does not create Study Events/credit.
+34. No D1.
+35. No Durable Object.
+36. No WebSocket.
+37. No Calendar integration.
+38. No migration.
+39. Production unchanged.
+40. Build passes.
+41. New regressions = 0.
+
+---
+
+# 135. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 13, foundation, Focus, PostgreSQL and Auth baselines.
+
+## B. Capability Architecture
+
+Explain:
+
+```text
+PostgreSQL authorization context
+→ API issuer
+→ signed short-lived capability
+→ Worker verifier
+```
+
+and what each layer is authoritative for.
+
+## C. Capability Endpoint
+
+Report:
+
+```text
+method/path
+auth
+feature flag
+request
+response
+cache headers
+failure semantics
+```
+
+## D. Authorization Source
+
+Explicitly:
+
+```text
+CAPABILITY AUTHORIZATION SOURCE:
+```
+
+Confirm it uses `getGroupFocusAuthorizationContext`.
+
+## E. Token Format
+
+Report:
+
+```text
+format:
+algorithm:
+typ:
+version:
+issuer:
+audience:
+purpose:
+```
+
+## F. Keyring Configuration
+
+Report exact environment variable names and validation.
+
+Include:
+
+```text
+minimum key bytes:
+maximum key count:
+active kid behavior:
+```
+
+## G. Key Rotation
+
+Explain tested old/new-key overlap and removal sequence.
+
+## H. Lifetime
+
+Report:
+
+```text
+default TTL:
+maximum TTL:
+clock skew:
+```
+
+## I. Claims
+
+List every signed claim.
+
+Explicitly confirm excluded:
+
+```text
+email
+name
+avatar
+invite token
+invite hash
+Quick Notes
+Points
+study analytics
+```
+
+## J. Canonical Lecture Claims
+
+Report SHARED_LECTURE and STUDY_TOGETHER behavior, including selected-Lecture update.
+
+## K. JTI
+
+Report entropy and clarify:
+
+```text
+SINGLE-USE GUARANTEED IN PROMPT 14: NO
+```
+
+## L. Worker Validator
+
+Report exact module path and validation sequence.
+
+## M. Bearer Parsing
+
+Report accepted transport.
+
+Explicitly:
+
+```text
+QUERY-STRING CAPABILITY SUPPORTED: NO
+```
+
+## N. Crypto / Tamper Tests
+
+Report results for:
+
+* payload tamper;
+* role escalation tamper;
+* room tamper;
+* Lecture tamper;
+* header tamper;
+* `alg=none`;
+* wrong key;
+* wrong issuer;
+* wrong audience;
+* wrong purpose;
+* wrong version.
+
+## O. Time Validation Tests
+
+Report:
+
+* valid;
+* expired;
+* not-before;
+* future issued-at;
+* excessive TTL;
+* skew handling.
+
+## P. Keyring Parser Tests
+
+Report malformed/weak/missing-active-key cases.
+
+## Q. Cross-Runtime Verification
+
+Explicitly:
+
+```text
+NODE/API ISSUED TOKEN VERIFIED BY WORKER WEB CRYPTO: YES/NO
+```
+
+## R. Real PostgreSQL Environment
+
+Report:
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 14 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## S. Host / Member Issuance
+
+Report real Host and Member issuance results.
+
+## T. Authorization Denials
+
+Report:
+
+```text
+LEFT:
+REMOVED:
+CLOSED:
+unrelated:
+unrelated app admin:
+```
+
+## U. Bounded Revocation Window
+
+Explicitly report:
+
+```text
+old capability after removal but before expiry:
+new capability issuance after removal:
+old capability after expiry:
+```
+
+Explain the maximum revocation window.
+
+## V. No-Write Verification
+
+Report deltas:
+
+```text
+GroupFocusRoom:
+GroupFocusMembership:
+StudyEvent:
+StudyDailyMetric:
+FocusSession:
+PointsLog:
+PrivateD1SyncOutbox:
+CalendarEvent:
+```
+
+All expected zero for issuance.
+
+## W. Presence Boundary
+
+Explicitly:
+
+```text
+CAPABILITY ISSUED = REALTIME PRESENCE: NO
+```
+
+## X. Study Credit Boundary
+
+Explicitly:
+
+```text
+CAPABILITY ISSUANCE STUDY EVENT: 0
+CAPABILITY VALIDATION STUDY EVENT: 0
+POINTS: 0
+```
+
+## Y. Client API
+
+Report method and storage behavior.
+
+Explicitly:
+
+```text
+CAPABILITY PERSISTED TO LOCAL STORAGE: NO
+CAPABILITY PERSISTED TO INDEXEDDB: NO
+```
+
+## Z. Worker / Durable Object Boundary
+
+Explicitly:
+
+```text
+WORKER VALIDATOR IMPLEMENTED: YES
+DURABLE OBJECT CLASS IMPLEMENTED: NO
+DURABLE OBJECT BINDING ADDED: NO
+WEBSOCKET IMPLEMENTED: NO
+SHARED TIMER IMPLEMENTED: NO
+```
+
+## AA. Database / D1
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: NO
+POSTGRESQL MIGRATION CREATED: NO
+D1 MIGRATION CREATED: NO
+CAPABILITY DATABASE TABLE: NO
+```
+
+## AB. Tests Added / Modified
+
+Exact files, counts and results.
+
+## AC. Regression Results
+
+Include:
+
+* Prompt 13 contracts/PostgreSQL;
+* Study Core;
+* Batch A;
+* Prompt 6;
+* Prompt 7;
+* Prompt 8;
+* Outbox;
+* Study Event PostgreSQL;
+* Solo Focus;
+* Prompt 10;
+* Prompt 11;
+* Prompt 12;
+* Auth;
+* Build;
+* Worker local build/dry-run if applicable;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AD. Files Created
+
+Exact paths and purpose.
+
+## AE. Files Modified
+
+Exact paths/reasons.
+
+Explicitly confirm:
+
+```text
+Prisma schema unchanged?
+Migrations unchanged?
+Solo Focus unchanged?
+Calendar unchanged?
+D1 private-data Worker unchanged?
+```
+
+## AF. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PRODUCTION SIGNING KEYS CONFIGURED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+DURABLE OBJECT DEPLOYED: NO
+GROUP FOCUS ENABLED IN PRODUCTION: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AG. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AH. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AI. Risks / Blockers
+
+Include the bounded stateless revocation window.
+
+Do not misrepresent it as immediate revocation.
+
+## AJ. Architecture Compliance
+
+Answer YES/NO:
+
+* PostgreSQL remains canonical?
+* Capability derived from canonical auth context?
+* Short TTL?
+* Signed?
+* Worker cryptographically validates?
+* Algorithm fixed?
+* Key rotation possible?
+* Secrets never sent to client?
+* Private invite absent from token?
+* No PII?
+* No persistent capability table?
+* Capability issuance read-only?
+* Capability separate from presence?
+* No study credit?
+* No D1?
+* No Durable Object yet?
+* No WebSocket?
+* No Calendar integration?
+* No schema change?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AK. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 15 — Group Focus Durable Object Active Room Lifecycle & Synchronized Timer**
+
+Do not implement Prompt 15.
+
+---
+
+# 136. STOP CONDITION
+
+After implementation, testing and report:
+
+STOP.
+
+Do NOT implement Durable Object room state.
+
+Do NOT implement WebSocket presence.
+
+Do NOT implement synchronized timer.
+
+Do NOT deploy Worker.
+
+Do NOT configure production signing keys.
+
+Wait for review.
+
+End exactly:
+
+**PROMPT 14 COMPLETE — GROUP FOCUS WORKER CAPABILITY SECURITY READY — PRODUCTION UNCHANGED — READY FOR REVIEW**
