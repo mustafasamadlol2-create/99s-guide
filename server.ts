@@ -56,6 +56,11 @@ import {
 } from "./server/routes/personalization.js";
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
+import { createGroupFocusService } from "./server/features/group-focus/service.js";
+import {
+  createGroupFocusJsonParser,
+  createGroupFocusRouter,
+} from "./server/routes/groupFocus.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -1027,6 +1032,10 @@ app.use((req, res, next) => {
 app.use(
   "/api/personalization",
   createPersonalizationJsonParser(),
+);
+app.use(
+  "/api/group-focus",
+  createGroupFocusJsonParser(),
 );
 
 app.use(compression());
@@ -7550,6 +7559,13 @@ app.use(
   createFocusRouter({
     requireUser,
     service: createFocusService(),
+  }),
+);
+app.use(
+  "/api/group-focus",
+  createGroupFocusRouter({
+    requireUser,
+    service: createGroupFocusService(),
   }),
 );
 

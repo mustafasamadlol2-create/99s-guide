@@ -22,10 +22,11 @@ const expectedBatchAModels = [
   "StudyDailyMetric",
 ] as const;
 
+const prompt13Models = ["GroupFocusRoom", "GroupFocusMembership"] as const;
+
 const forbiddenFutureModels = [
   "FocusSessionInterruption",
   "FocusResourceHandoff",
-  "GroupFocusRoom",
   "StudyIntegrityFlag",
   "PointsLedgerEntry",
   "SpacedRecallState",
@@ -42,12 +43,15 @@ function modelBlock(modelName: string): string {
   return match[0];
 }
 
-test("Batch A contains exactly the five permitted new models", () => {
+test("Batch A and Prompt 13 models exist without enabling deferred models", () => {
   const modelNames = [...schema.matchAll(/^model\s+(\w+)\s*\{/gmu)].map(
     (match) => match[1],
   );
 
   for (const modelName of expectedBatchAModels) {
+    assert.equal(modelNames.includes(modelName), true);
+  }
+  for (const modelName of prompt13Models) {
     assert.equal(modelNames.includes(modelName), true);
   }
   for (const modelName of forbiddenFutureModels) {
