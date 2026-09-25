@@ -1,0 +1,2216 @@
+# 99’s GUIDE — PROMPT 10 OF 52
+
+## FOCUS CLIENT RUNTIME FOUNDATION
+
+## TIMESTAMP-BASED COUNTDOWN + SERVER CLOCK OFFSET + RELOAD/BACKGROUND RECOVERY
+
+### NO FOCUS UI YET — NO RESOURCE HANDOFF YET
+
+Prompts 1–9 and Prompt 9R have been completed and approved.
+
+Prompt 9 established the canonical server-authoritative Focus backend:
+
+* Focus Plans
+* Focus Sessions
+* server timestamps
+* pause/resume
+* completion validation
+* abandonment
+* canonical PostgreSQL recovery
+* Study Events
+* Daily Metrics
+* transactional projections
+
+Prompt 10 now implements the **client runtime/state layer** that future Focus UI will use.
+
+This prompt does NOT build the Focus screen.
+
+This prompt does NOT implement Resource Handoff.
+
+This prompt does NOT implement Quick Notes.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Build a reusable client-side Focus runtime capable of:
+
+```text
+app opens/reloads
+→ fetch canonical current Focus Session
+→ establish server/client clock relationship
+→ derive display countdown locally
+→ survive ordinary browser/native timer suspension
+→ reconcile from server after foreground/reconnect
+```
+
+And support safe client calls for:
+
+```text
+start
+pause
+resume
+complete
+abandon
+```
+
+without making the client authoritative.
+
+---
+
+# 2. FROZEN AUTHORITY RULE
+
+The client is NEVER authoritative for:
+
+* session status;
+* active study duration;
+* pause duration;
+* completion eligibility;
+* completed-session count;
+* Study Events;
+* Daily Metrics;
+* Points.
+
+Canonical authority remains:
+
+```text
+PostgreSQL + Focus backend
+```
+
+Client runtime provides:
+
+```text
+display state
+interaction state
+request retry/idempotency
+recovery/reconciliation
+```
+
+only.
+
+---
+
+# 3. NO CLIENT COUNTDOWN PERSISTENCE
+
+Do NOT write a countdown value such as:
+
+```text
+remaining = 2634
+remaining = 2633
+remaining = 2632
+```
+
+to:
+
+* PostgreSQL;
+* D1;
+* localStorage every second;
+* IndexedDB every second;
+* React persisted state every second.
+
+There must be:
+
+```text
+PER-SECOND SERVER WRITES = 0
+PER-SECOND D1 WRITES = 0
+PER-SECOND PERSISTENT LOCAL WRITES = 0
+```
+
+A local render tick is allowed.
+
+---
+
+# 4. CLIENT DISPLAY TIMER MODEL
+
+The backend already returns canonical timer information including:
+
+```text
+serverNow
+status
+startedAt
+plannedEndAt
+activeSeconds
+pauseSeconds
+elapsedActiveSeconds
+remainingSeconds
+completionEligible
+```
+
+The client must anchor its local display to a server snapshot.
+
+Do not simply calculate using:
+
+```text
+Date.now()
+```
+
+as if the user's device clock is trusted.
+
+---
+
+# 5. SERVER CLOCK BASELINE
+
+At successful synchronization store an in-memory baseline conceptually equivalent to:
+
+```text
+serverNowAtSync
+clientMonotonicAtSync
+canonicalSnapshot
+```
+
+Then estimate display time using a monotonic client clock where available:
+
+```text
+estimatedServerNow
+=
+serverNowAtSync
++
+(clientMonotonicNow - clientMonotonicAtSync)
+```
+
+Use:
+
+```text
+performance.now()
+```
+
+or the existing appropriate monotonic abstraction.
+
+Do not use the client's wall-clock timezone/time setting as authority.
+
+---
+
+# 6. DEVICE CLOCK SKEW
+
+Mandatory behavior:
+
+A device may be:
+
+```text
++15 minutes
+-30 minutes
+several hours wrong
+```
+
+The Focus display countdown must still derive from the backend snapshot and monotonic elapsed time.
+
+Add tests where:
+
+```text
+Date.now()
+```
+
+is intentionally wrong.
+
+Focus display must remain correct.
+
+---
+
+# 7. MONOTONIC CLOCK FALLBACK
+
+If the runtime/platform cannot provide the preferred monotonic clock:
+
+use a safe fallback.
+
+Keep it isolated behind a small clock abstraction so tests can inject time deterministically.
+
+Do not scatter direct `Date.now()` or `performance.now()` calls throughout Focus code.
+
+---
+
+# 8. CLIENT MODULE BOUNDARY
+
+Implement the client runtime under the existing frontend feature architecture.
+
+Prefer something similar to:
+
+```text
+src/features/focus/
+  api/
+    focusApi.ts
+  runtime/
+    clock.ts
+    timer.ts
+    controller.ts
+    lifecycle.ts
+    idempotency.ts
+    cache.ts
+    types.ts
+    index.ts
+```
+
+Adapt to repository conventions.
+
+Do NOT add UI components merely to demonstrate it.
+
+---
+
+# 9. DO NOT CONFLICT WITH LATER UI PROMPTS
+
+Prompts 40–42 will build the visual Focus experience.
+
+Prompt 10 must provide a clean reusable runtime underneath those screens.
+
+Do not prematurely implement:
+
+* timer cards;
+* progress rings;
+* setup screens;
+* buttons;
+* modals;
+* sheets;
+* sounds;
+* animations.
+
+---
+
+# 10. CURRENT SESSION API
+
+Use the existing backend:
+
+```text
+GET /api/focus/sessions/current
+```
+
+as the canonical recovery source.
+
+On runtime initialization:
+
+```text
+fetch current session
+```
+
+Possible outcomes:
+
+### No active/nonterminal session
+
+```text
+runtime = IDLE
+```
+
+### Canonical session returned
+
+```text
+runtime = READY
+```
+
+with timer baseline.
+
+### Reconciliation required
+
+Expose a clear client runtime state.
+
+### Network unavailable
+
+Use only the safe fallback described below.
+
+---
+
+# 11. CANONICAL RECOVERY ON RELOAD
+
+Reload recovery must NOT depend on retaining an in-memory countdown.
+
+Scenario:
+
+1. Start Focus.
+2. Reload application.
+3. All JavaScript memory disappears.
+4. Focus runtime starts again.
+5. Request `/current`.
+6. Timer reconstructs correctly.
+
+Add a deterministic test.
+
+---
+
+# 12. CLIENT CACHE — NON-AUTHORITATIVE ONLY
+
+A lightweight local cache may be used to improve offline/reload UX.
+
+If implemented, it may store only bounded information such as:
+
+```text
+last canonical Focus session snapshot
+last successful sync timestamp
+canonical session ID
+```
+
+Do NOT persist:
+
+* fake activeSeconds increments;
+* locally invented completion;
+* Points;
+* Study Events;
+* timer ticks.
+
+Every cached session must be explicitly marked:
+
+```text
+NON_AUTHORITATIVE
+```
+
+in runtime semantics.
+
+---
+
+# 13. CACHE STORAGE FREQUENCY
+
+Cache may update:
+
+* after successful canonical fetch;
+* after successful Focus mutation.
+
+It must NOT update every second.
+
+---
+
+# 14. OFFLINE STARTUP
+
+If application starts offline and a cached current Focus snapshot exists:
+
+the runtime may expose:
+
+```text
+OFFLINE_STALE
+```
+
+with a best-effort display estimate.
+
+But:
+
+* it cannot authoritatively complete;
+* it cannot authoritatively pause/resume;
+* it cannot claim the server Session state is current;
+* it must reconcile once connectivity returns.
+
+If no cache exists:
+
+return an offline/unavailable state.
+
+---
+
+# 15. OFFLINE DISPLAY IS NOT STUDY CREDIT
+
+A locally ticking offline display must never directly increase:
+
+```text
+activeSeconds
+StudyDailyMetric
+Points
+```
+
+Only the backend lifecycle operation determines canonical credit.
+
+---
+
+# 16. BACKGROUND BEHAVIOR
+
+Backgrounding/locking the application must NOT automatically:
+
+```text
+pause
+abandon
+complete
+```
+
+Focus remains governed by canonical backend timestamps.
+
+Do not create lifecycle mutations from:
+
+```text
+visibilitychange → hidden
+appStateChange → inactive
+```
+
+alone.
+
+---
+
+# 17. FOREGROUND RECONCILIATION
+
+When the app returns to foreground:
+
+trigger canonical reconciliation using:
+
+```text
+GET /api/focus/sessions/current
+```
+
+Do not trust the number of local timer callbacks that occurred while backgrounded.
+
+This is especially important on iOS, where JavaScript timers may be suspended.
+
+---
+
+# 18. WEB VISIBILITY LIFECYCLE
+
+For web/PWA, support the appropriate browser lifecycle signals such as:
+
+```text
+visibilitychange
+pageshow
+online
+```
+
+as applicable.
+
+When returning visible/online:
+
+schedule one reconciliation.
+
+Avoid multiple duplicate concurrent `/current` requests.
+
+---
+
+# 19. CAPACITOR LIFECYCLE
+
+Inspect existing Capacitor dependencies/conventions.
+
+If an existing native App lifecycle integration is available, use:
+
+```text
+appStateChange
+```
+
+or the existing equivalent.
+
+Do not install another native lifecycle library.
+
+Native foreground should reconcile canonical state.
+
+---
+
+# 20. EVENT LISTENER CLEANUP
+
+Every lifecycle listener must be cleanly removable.
+
+Avoid:
+
+* duplicate listeners after React remount;
+* memory leaks;
+* multiple foreground requests;
+* accumulating Capacitor subscriptions.
+
+Add tests where feasible.
+
+---
+
+# 21. SINGLE-FLIGHT CURRENT-SESSION FETCH
+
+Multiple simultaneous reconciliation triggers such as:
+
+```text
+visibilitychange
+online
+pageshow
+manual refresh
+```
+
+must not create a request storm.
+
+Use a single-flight strategy:
+
+```text
+one current-session fetch in progress
+→ other callers reuse/await it
+```
+
+or equivalent.
+
+---
+
+# 22. NETWORK REQUEST BUDGET
+
+There must be no polling every second.
+
+Default Focus runtime must NOT do:
+
+```text
+GET /current every second
+GET /current every 5 seconds
+```
+
+Normal network calls occur on meaningful lifecycle events:
+
+* initialization;
+* mutation;
+* foreground;
+* reconnect;
+* explicit refresh;
+* carefully justified periodic safety reconciliation only if truly required.
+
+Prefer no periodic polling in Prompt 10.
+
+---
+
+# 23. LOCAL RENDER TICK
+
+A local display tick may occur approximately once per second when:
+
+```text
+status = ACTIVE
+```
+
+Its only job is to trigger display recomputation.
+
+It performs:
+
+```text
+network writes = 0
+network reads = 0
+persistent storage writes = 0
+```
+
+When `PAUSED`, a continuous second-level tick is unnecessary unless future UI specifically needs it.
+
+---
+
+# 24. PAUSED DISPLAY
+
+For:
+
+```text
+status = PAUSED
+```
+
+display remaining active time must remain frozen.
+
+Wall-clock passage must not decrement the displayed Focus time.
+
+This must match Prompt 9R.
+
+---
+
+# 25. ACTIVE DISPLAY REACHES ZERO
+
+When the locally estimated remaining time reaches:
+
+```text
+0
+```
+
+the client may expose:
+
+```text
+displayReadyToComplete = true
+```
+
+But:
+
+# DO NOT AUTO-CALL `/complete`.
+
+The actual backend remains responsible for:
+
+```text
+completionEligible
+```
+
+when the user requests completion.
+
+Do not turn local estimation into authority.
+
+---
+
+# 26. LOCAL VS CANONICAL COMPLETION FLAGS
+
+Avoid ambiguous naming.
+
+Distinguish:
+
+```text
+displayRemainingSeconds
+displayMayBeComplete
+```
+
+from canonical backend:
+
+```text
+completionEligible
+```
+
+The runtime should not pretend the locally estimated value is canonical.
+
+---
+
+# 27. START MUTATION CLIENT
+
+Implement a typed client method for:
+
+```text
+POST /api/focus/sessions/start
+```
+
+The runtime sends only allowed fields.
+
+It must NOT send:
+
+* userId;
+* startedAt;
+* plannedEndAt;
+* activeSeconds;
+* status.
+
+After success:
+
+use the returned canonical snapshot as the new baseline.
+
+---
+
+# 28. PAUSE MUTATION CLIENT
+
+Implement:
+
+```text
+POST /api/focus/sessions/:id/pause
+```
+
+After canonical success:
+
+replace/reconcile runtime state using the response.
+
+Do not calculate and persist the pause locally before server success.
+
+An optimistic visual state may be considered later, but Prompt 10 should prefer correctness over speculative mutation.
+
+---
+
+# 29. `SESSION_READY_TO_COMPLETE`
+
+Prompt 9R guarantees:
+
+```text
+ACTIVE at target
++ pause request
+→ SESSION_READY_TO_COMPLETE
+→ server state remains ACTIVE
+```
+
+Client runtime must handle this error/result explicitly.
+
+Do NOT:
+
+* mark session PAUSED locally;
+* invent completion;
+* retry pause forever.
+
+Instead:
+
+* preserve/reconcile ACTIVE state;
+* expose semantic result for future UI.
+
+---
+
+# 30. RESUME MUTATION CLIENT
+
+Implement typed resume call.
+
+Canonical response becomes the new baseline.
+
+Do not shift `plannedEndAt` locally before server confirmation.
+
+---
+
+# 31. COMPLETE MUTATION CLIENT
+
+Implement typed complete call.
+
+Do not send active duration.
+
+Do not send:
+
+```text
+completionEligible=true
+```
+
+The client sends only the allowed operation request.
+
+Server decides.
+
+---
+
+# 32. PAUSED COMPLETE GUARD
+
+The UI does not exist yet, but runtime should not encourage an invalid call.
+
+If canonical runtime state is:
+
+```text
+PAUSED
+```
+
+the client controller may reject a normal completion attempt locally with a typed state error.
+
+However:
+
+the server remains the ultimate guard.
+
+Do not weaken backend enforcement.
+
+---
+
+# 33. ABANDON MUTATION CLIENT
+
+Implement typed abandon call with:
+
+```text
+idempotencyKey
+optional bounded reason
+```
+
+Canonical response becomes the runtime state.
+
+Do not locally delete Session history.
+
+---
+
+# 34. IDEMPOTENCY KEY GENERATION
+
+Create a client helper for mutation request keys.
+
+Requirements:
+
+* cryptographically strong randomness where available;
+* bounded to backend length constraints;
+* no user ID;
+* no secret data;
+* stable across retry of the SAME mutation.
+
+Use existing UUID/crypto utilities where possible.
+
+---
+
+# 35. CRITICAL — RETRY MUST REUSE KEY
+
+Scenario:
+
+1. User taps Pause.
+2. Server commits.
+3. Network response is lost.
+4. Client retries.
+
+The retry MUST use the same:
+
+```text
+idempotencyKey
+```
+
+so backend returns replay rather than creating duplicate side effects.
+
+Do not generate a new key automatically on every HTTP retry.
+
+---
+
+# 36. PENDING MUTATION RECORD
+
+For each active mutation, keep an in-memory pending operation such as:
+
+```text
+operation
+sessionId
+idempotencyKey
+startedAtClientMonotonic
+```
+
+If a retry occurs for that same pending mutation:
+
+reuse the key.
+
+After canonical success or definitive semantic rejection:
+
+clear it.
+
+---
+
+# 37. DOUBLE-TAP / DOUBLE-CLICK SAFETY
+
+Multiple calls for the same mutation while one is in flight should not produce multiple request IDs.
+
+Use mutation-level single-flight behavior.
+
+Example:
+
+```text
+pause()
+pause()
+pause()
+```
+
+while first request is pending:
+
+should reuse/return the same operation promise where appropriate.
+
+---
+
+# 38. NETWORK FAILURE VS SEMANTIC FAILURE
+
+Distinguish:
+
+### Transport failure
+
+Example:
+
+```text
+timeout
+offline
+connection reset
+```
+
+The operation may have committed.
+
+Keep its mutation key available for retry.
+
+### Definitive backend rejection
+
+Example:
+
+```text
+INVALID_SESSION_STATE
+SESSION_NOT_READY_TO_COMPLETE
+```
+
+Do not blindly retry it as a transport failure.
+
+---
+
+# 39. HTTP ERROR NORMALIZATION
+
+Create a small typed Focus API error representation.
+
+Preserve useful backend error codes such as:
+
+```text
+FEATURE_DISABLED
+DEPENDENCY_DISABLED
+ACTIVE_SESSION_EXISTS
+SESSION_READY_TO_COMPLETE
+SESSION_NOT_READY_TO_COMPLETE
+INVALID_SESSION_STATE
+IDEMPOTENCY_CONFLICT
+RECONCILIATION_REQUIRED
+```
+
+Do not expose raw HTML/server stack traces.
+
+---
+
+# 40. AUTH EXPIRY
+
+Use the existing global auth/client behavior.
+
+Do not create Focus-specific refresh-token/session logic.
+
+401/auth expiry should propagate through existing application conventions.
+
+---
+
+# 41. SOURCE CLASSIFICATION
+
+The runtime must send a valid source:
+
+```text
+web
+pwa
+ios
+android
+```
+
+based on the actual platform.
+
+Inspect existing platform helpers first.
+
+Prefer existing detection.
+
+If none exists, implement one bounded helper.
+
+Do not let arbitrary UI strings become source values.
+
+---
+
+# 42. PWA DETECTION
+
+Do not identify all browser usage as PWA.
+
+If reliable existing display-mode/standalone detection exists, reuse it.
+
+Otherwise:
+
+```text
+Capacitor iOS → ios
+Capacitor Android → android
+installed/standalone web → pwa
+normal browser → web
+```
+
+Keep this helper testable.
+
+---
+
+# 43. RUNTIME STATE MODEL
+
+Create a small client-runtime status model.
+
+For example:
+
+```text
+IDLE
+LOADING
+READY
+MUTATING
+RECONCILING
+OFFLINE_STALE
+ERROR
+```
+
+Do NOT mix these client runtime states with canonical Focus Session states such as:
+
+```text
+ACTIVE
+PAUSED
+COMPLETED
+```
+
+They represent different concepts.
+
+---
+
+# 44. CANONICAL SESSION STATE
+
+Runtime should separately expose canonical Session state:
+
+```text
+ACTIVE
+PAUSED
+RESOURCE_HANDOFF
+RECONCILIATION_REQUIRED
+...
+```
+
+Do not invent alternative names that cause future UI translation bugs.
+
+---
+
+# 45. COMPLETED/ABANDONED AFTER MUTATION
+
+After a successful terminal mutation:
+
+the runtime may retain the returned terminal result long enough for the future completion/summary UI.
+
+But:
+
+```text
+GET /current
+```
+
+should subsequently return no nonterminal session.
+
+Design state so future Prompt 42 can show the terminal mutation result without claiming there is still a current active Session.
+
+---
+
+# 46. `GET /CURRENT` EMPTY RESPONSE
+
+An empty current-session response after completion/abandonment is normal.
+
+Do not treat it as an error.
+
+Runtime becomes:
+
+```text
+IDLE
+```
+
+after a fresh reconciliation.
+
+---
+
+# 47. RECONCILIATION_REQUIRED CLIENT BEHAVIOR
+
+If backend returns a session in:
+
+```text
+RECONCILIATION_REQUIRED
+```
+
+runtime must surface this explicitly.
+
+Do not:
+
+* resume automatically;
+* complete automatically;
+* fabricate timer;
+* mark abandoned automatically.
+
+Prompt 10 does not build reconciliation UI.
+
+---
+
+# 48. EXPIRED SESSION
+
+If backend returns an expired/reconciled terminal condition according to its contract:
+
+handle it predictably.
+
+Do not resurrect a cached ACTIVE session over newer canonical terminal state.
+
+Canonical server always wins.
+
+---
+
+# 49. CACHE VERSIONING
+
+If local Focus cache is implemented, version it.
+
+Example:
+
+```text
+focus_runtime_cache_v1
+```
+
+Do not reuse a generic Calendar/offline key.
+
+The cache should be safely discardable if malformed or incompatible.
+
+---
+
+# 50. CACHE PRIVACY
+
+Do not store:
+
+* raw Study Events;
+* Daily Metrics;
+* unrelated profile data;
+* auth secrets;
+* tokens.
+
+Store only minimal Focus recovery/display metadata.
+
+---
+
+# 51. LOGOUT / ACCOUNT SWITCH
+
+Cached Focus runtime state must not leak between users.
+
+Use existing account-scoped storage patterns if available.
+
+On logout/account switch:
+
+the next user must not see the previous user's cached Focus snapshot.
+
+Add a test/invariant if existing storage helpers permit it.
+
+---
+
+# 52. NO OFFLINE MUTATION QUEUE YET
+
+Do NOT queue Focus lifecycle mutations indefinitely into the general OfflineEngine in Prompt 10.
+
+Focus lifecycle is correctness-sensitive.
+
+If offline:
+
+surface that the authoritative mutation cannot currently be confirmed.
+
+Keep the operation key for explicit retry/reconciliation.
+
+Do not silently replay hours later without product review.
+
+---
+
+# 53. DO NOT MODIFY `OfflineEngine`
+
+Expected:
+
+```text
+src/core/offline/OfflineEngine.ts unchanged
+```
+
+unless a direct compile blocker exists.
+
+Focus offline mutation policy is intentionally separate for now.
+
+---
+
+# 54. NO RESOURCE HANDOFF
+
+Prompt 11 owns:
+
+```text
+Focus resource handoff
+interruptions
+external PDF/video behavior
+```
+
+Do NOT implement:
+
+```text
+RESOURCE_HANDOFF runtime
+focus_resource_handoff_started
+focus_resource_handoff_returned
+```
+
+in Prompt 10.
+
+Only preserve state compatibility.
+
+---
+
+# 55. NO QUICK NOTES
+
+Prompt 12 owns Quick Notes and additional Focus metrics.
+
+Do not add note storage or UI now.
+
+---
+
+# 56. NO FOCUS UI
+
+Do not render any new visible Focus screen.
+
+Expected:
+
+```text
+src/App.tsx ideally unchanged
+```
+
+No navigation changes.
+
+No new page.
+
+No timer card.
+
+No Setup modal.
+
+---
+
+# 57. CLIENT TIMER PURE TESTS
+
+Add deterministic pure tests for:
+
+1. ACTIVE countdown decrements locally.
+2. PAUSED countdown remains frozen.
+3. client wall-clock skew does not alter calculation.
+4. monotonic elapsed time advances the display.
+5. display remaining clamps at zero.
+6. zero display does not automatically complete.
+7. reconciliation snapshot resets baseline.
+8. malformed timestamps fail safely.
+
+---
+
+# 58. DEVICE CLOCK SKEW TEST
+
+Mandatory example:
+
+Backend says:
+
+```text
+serverNow = 12:00
+remaining = 45 minutes
+```
+
+Device wall clock says:
+
+```text
+17:00
+```
+
+After 10 monotonic minutes:
+
+expected display:
+
+```text
+35 minutes remaining
+```
+
+not zero.
+
+---
+
+# 59. PAUSED WALL-CLOCK TEST
+
+Backend:
+
+```text
+PAUSED
+remaining = 35 minutes
+```
+
+Advance:
+
+```text
+device wall clock = +4 hours
+monotonic clock = +4 hours
+```
+
+Expected:
+
+```text
+display remaining = 35 minutes
+displayMayBeComplete = false
+```
+
+---
+
+# 60. BACKGROUND RECOVERY TEST
+
+Simulate:
+
+1. ACTIVE with 30 minutes remaining.
+2. Runtime is backgrounded.
+3. No timer ticks execute for 20 minutes.
+4. Foreground occurs.
+5. Backend `/current` returns canonical 10 minutes remaining.
+6. Runtime resets baseline to 10 minutes.
+
+Do not attempt to reconstruct authoritative background history from missed ticks.
+
+---
+
+# 61. RELOAD RECOVERY TEST
+
+Simulate new controller instance with no in-memory state.
+
+`initialize()` calls `/current`.
+
+Expected timer state reconstructed correctly.
+
+This is the primary reload guarantee.
+
+---
+
+# 62. OFFLINE CACHE TEST
+
+If cache is implemented:
+
+1. Save canonical ACTIVE snapshot.
+2. Restart client offline.
+3. Cache loads as `OFFLINE_STALE`.
+4. No authoritative mutation occurs.
+5. Network returns.
+6. Canonical `/current` overrides cache.
+
+---
+
+# 63. STALE CACHE TERMINAL OVERRIDE
+
+Mandatory if using cache:
+
+Cached:
+
+```text
+ACTIVE
+```
+
+Server later says:
+
+```text
+no current session
+```
+
+or terminal.
+
+Expected:
+
+server wins and cached ACTIVE is cleared/replaced.
+
+Never resurrect stale Focus.
+
+---
+
+# 64. SINGLE-FLIGHT RECONCILIATION TEST
+
+Trigger at once:
+
+```text
+foreground
+online
+pageshow
+manual reconcile
+```
+
+Expected:
+
+```text
+one underlying /current request
+```
+
+while it is already in flight.
+
+---
+
+# 65. MUTATION IDEMPOTENCY TEST
+
+Simulate:
+
+```text
+pause request
+server commits
+response lost
+retry
+```
+
+Expected:
+
+same request idempotency key used.
+
+Do not verify only by helper output; verify API mock calls receive the same key.
+
+---
+
+# 66. DOUBLE-TAP TEST
+
+Two immediate calls to:
+
+```text
+pause()
+```
+
+must not generate two independent mutation identities.
+
+Likewise for:
+
+```text
+resume
+complete
+abandon
+```
+
+where appropriate.
+
+---
+
+# 67. SEMANTIC ERROR TEST
+
+Backend responds:
+
+```text
+SESSION_READY_TO_COMPLETE
+```
+
+to pause.
+
+Expected client behavior:
+
+* canonical state remains/reconciles ACTIVE;
+* pending pause is cleared;
+* semantic result exposed;
+* no automatic complete request.
+
+---
+
+# 68. PAUSED COMPLETE TEST
+
+Canonical state:
+
+```text
+PAUSED
+```
+
+Client runtime completion request:
+
+must not optimistically mark completed.
+
+If runtime blocks locally:
+
+verify no HTTP call.
+
+Even if HTTP call occurs through lower-level API misuse, backend Prompt 9R remains authoritative.
+
+---
+
+# 69. NO NETWORK TICK TEST
+
+Run an ACTIVE display for simulated:
+
+```text
+60 seconds
+```
+
+Expected:
+
+```text
+/current network calls due solely to timer tick = 0
+mutation calls = 0
+persistent writes due solely to timer tick = 0
+```
+
+---
+
+# 70. API DTO VALIDATION
+
+Validate backend Focus responses at the client boundary using existing frontend conventions.
+
+Do not blindly trust malformed JSON.
+
+At minimum validate:
+
+* session ID;
+* status;
+* timestamps;
+* numeric timer fields;
+* Plan IDs/item IDs;
+* booleans used by completion follow-up.
+
+If malformed:
+
+return typed client/runtime error and preserve safe state.
+
+---
+
+# 71. DO NOT DUPLICATE BACKEND TIMER AUTHORITY
+
+Client timer helper should consume:
+
+```text
+remainingSeconds
+serverNow
+status
+```
+
+from canonical snapshot.
+
+Do not attempt to reconstruct all persisted backend timer math independently from raw DB semantics.
+
+The frontend needs display interpolation, not a second server engine.
+
+---
+
+# 72. PLAN API CLIENT
+
+Provide typed client wrappers for existing Plan endpoints so later UI can use them:
+
+```text
+createFocusPlan
+listFocusPlans
+getFocusPlan
+updateFocusPlan
+archiveFocusPlan
+```
+
+No visual components.
+
+---
+
+# 73. D1 DETAILS HIDDEN FROM CLIENT
+
+The frontend does not need to know whether Plan reads came from:
+
+```text
+D1
+PostgreSQL fallback
+```
+
+Backend owns that decision.
+
+Do not expose Cloudflare internals in frontend DTOs.
+
+---
+
+# 74. NO DIRECT CLOUDFLARE REQUESTS
+
+Focus frontend/runtime communicates with normal application backend routes.
+
+Do NOT call the private Worker directly from browser/native runtime.
+
+---
+
+# 75. NO POINTS
+
+Do not expose speculative Focus Points in client state.
+
+Points system does not exist yet.
+
+---
+
+# 76. NO AI
+
+Do not build AI Plan recommendations yet.
+
+---
+
+# 77. NO NOTIFICATIONS YET
+
+Do not implement local Focus completion notifications in Prompt 10.
+
+That can be layered onto the validated runtime in a later Focus prompt.
+
+Avoid scope creep.
+
+---
+
+# 78. FRONTEND FEATURE FLAG
+
+Do not invent a separate client-only Focus authority flag.
+
+The eventual UI can use existing application feature/config mechanisms.
+
+Prompt 10 runtime simply handles backend `FEATURE_DISABLED` safely.
+
+---
+
+# 79. SERVER REGRESSION
+
+Prompt 10 should ideally make:
+
+```text
+server Focus implementation changes = 0
+```
+
+except for a genuine response-contract defect exposed by client tests.
+
+Do not casually alter verified Prompt 9 backend behavior.
+
+---
+
+# 80. PRISMA / DATABASE
+
+Expected:
+
+```text
+prisma/schema.prisma modified = NO
+new PostgreSQL migration = NO
+new D1 migration = NO
+```
+
+No database work belongs to Prompt 10.
+
+---
+
+# 81. EXISTING REGRESSION SUITES
+
+Run all currently green Focus/foundation suites:
+
+```text
+Study Core
+Batch A
+Prompt 6 projection
+Prompt 7 Calendar
+Prompt 8 ingestion
+Outbox schema
+Outbox PostgreSQL
+Study Event PostgreSQL
+Focus timer
+Focus PostgreSQL integration
+Auth
+```
+
+Prompt 9R tests must remain green.
+
+---
+
+# 82. NEW CLIENT TESTS
+
+Create focused tests for:
+
+```text
+timer interpolation
+clock skew
+foreground recovery
+reload recovery
+offline stale state
+single-flight reconcile
+idempotency retry
+double mutation
+semantic errors
+platform source
+API validation
+```
+
+Use existing frontend test conventions.
+
+Do not add a heavy new testing framework.
+
+---
+
+# 83. TYPECHECK
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Expected:
+
+```text
+same 2 pre-existing Calendar Import errors
+0 new Prompt 10 errors
+```
+
+Also run strict targeted TypeScript on Prompt 10 files/tests.
+
+---
+
+# 84. LINT
+
+Run:
+
+```bash
+npm run lint
+```
+
+Expected:
+
+```text
+same 10 pre-existing baseline errors
+0 new Prompt 10 errors
+```
+
+Run targeted ESLint.
+
+---
+
+# 85. BUILD
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+This is mandatory because client bundle code is changing.
+
+---
+
+# 86. CAPACITOR BUILD-SAFETY
+
+Because Focus runtime may reference Capacitor lifecycle APIs:
+
+ensure web/PWA build does not require a native runtime.
+
+Use existing safe imports/conventions.
+
+No unconditional native-only global access.
+
+---
+
+# 87. ARABIC / RTL
+
+No visible UI is introduced, so no visual RTL work is expected.
+
+Do not alter localization files unnecessarily.
+
+---
+
+# 88. PERFORMANCE
+
+Prompt 10 runtime should be lightweight.
+
+Avoid:
+
+* global app-wide one-second rerender;
+* App-level timer state;
+* giant context causing full-app rerenders.
+
+Future Focus UI should subscribe only when Focus runtime is needed.
+
+Do not mount an always-running timer globally if no Focus Session exists.
+
+---
+
+# 89. MEMORY / CLEANUP
+
+When runtime/controller is disposed:
+
+* stop local display tick;
+* remove browser listeners;
+* remove Capacitor listeners;
+* clear temporary mutation promises;
+* abort or safely ignore obsolete fetch results where appropriate.
+
+Do not leak Focus lifecycle listeners.
+
+---
+
+# 90. RACE — OLD FETCH VS NEW MUTATION
+
+Handle scenario:
+
+1. `/current` request A starts.
+2. Pause request B completes.
+3. Old `/current` response A arrives late with ACTIVE state.
+
+The old response must not overwrite the newer PAUSED canonical mutation result.
+
+Use request generations/versioning or an equivalent strategy.
+
+Add a test.
+
+---
+
+# 91. RACE — MULTIPLE RECONCILIATIONS
+
+Likewise:
+
+newer reconciliation response must not be overwritten by an older request.
+
+Single-flight prevents most cases, but mutation/fetch races still need ordering protection.
+
+---
+
+# 92. SERVER SNAPSHOT VERSIONING
+
+If backend DTO already includes a reliable:
+
+```text
+updatedAt
+```
+
+or equivalent canonical freshness field, use it where useful.
+
+If not:
+
+use client request-generation ordering.
+
+Do NOT add a database schema field just for Prompt 10.
+
+---
+
+# 93. MUTATION SUCCESS WINS OVER STALE FETCH
+
+Mandatory invariant:
+
+```text
+successful newer mutation response
+>
+older in-flight reconciliation response
+```
+
+Test it.
+
+---
+
+# 94. FOREGROUND REQUEST DEBOUNCE
+
+A burst of lifecycle signals should coalesce.
+
+Do not delay real recovery excessively.
+
+Use a small debounce/single-flight strategy appropriate to existing frontend patterns.
+
+Document exact behavior.
+
+---
+
+# 95. CURRENT SESSION FETCH TIMEOUT
+
+Reuse existing API timeout infrastructure.
+
+Do not create an infinite hanging Focus initialization.
+
+If no standardized timeout exists, add a Focus API timeout appropriate for normal backend requests and document it.
+
+Do not use an extreme multi-minute timeout.
+
+---
+
+# 96. FOCUS MUTATION TIMEOUT
+
+A mutation timeout is ambiguous because the server may have committed.
+
+Therefore:
+
+* retain the operation idempotency key;
+* surface transport uncertainty;
+* allow retry with the SAME key.
+
+Do not mark mutation failed canonically merely because the HTTP response timed out.
+
+---
+
+# 97. CACHE AFTER AMBIGUOUS MUTATION
+
+Do NOT overwrite the last canonical cache with an invented post-mutation state after a timeout.
+
+Reconcile/retry.
+
+Canonical server response wins.
+
+---
+
+# 98. START MUTATION AND CURRENT FETCH RACE
+
+If start succeeds while an earlier `/current` empty response is in flight:
+
+the late empty response must not clear the newly started Session.
+
+Add coverage using request generation.
+
+---
+
+# 99. LOGGING
+
+Use restrained development logging/error infrastructure.
+
+Do not log:
+
+* auth headers;
+* tokens;
+* entire server responses containing private data.
+
+Client Focus errors may include bounded error code/context.
+
+---
+
+# 100. EXPECTED FILE AREAS
+
+Likely new files:
+
+```text
+src/features/focus/api/*
+src/features/focus/runtime/*
+tests/focus-client-runtime.test.ts
+```
+
+Potentially existing shared frontend API utility files if required.
+
+Expected unchanged:
+
+```text
+src/App.tsx
+src/features/calendar/*
+src/core/offline/OfflineEngine.ts
+prisma/schema.prisma
+server/features/focus/*
+```
+
+unless a verified contract issue requires a minimal correction.
+
+---
+
+# 101. ACCEPTANCE CRITERIA
+
+Prompt 10 succeeds only if:
+
+1. Reusable Focus client runtime exists.
+2. No visible Focus UI is added.
+3. Canonical `/current` initializes runtime.
+4. Reload recovery works.
+5. Server/client clock baseline implemented.
+6. Client wall-clock skew does not corrupt countdown.
+7. Monotonic display timer works.
+8. ACTIVE locally decrements.
+9. PAUSED remains frozen.
+10. No auto completion.
+11. No auto pause on background.
+12. Foreground performs canonical reconciliation.
+13. Online recovery performs reconciliation.
+14. Browser lifecycle listeners clean up.
+15. Capacitor lifecycle is handled safely where available.
+16. Reconciliation is single-flight.
+17. No request-per-second polling exists.
+18. No persistent tick writes exist.
+19. Local cache is non-authoritative.
+20. Offline cached state is clearly stale.
+21. Server overrides stale cache.
+22. Start API client exists.
+23. Pause API client exists.
+24. Resume API client exists.
+25. Complete API client exists.
+26. Abandon API client exists.
+27. Plan API client wrappers exist.
+28. Mutation retries reuse the same idempotency key.
+29. Double taps do not generate duplicate mutation identities.
+30. Transport vs semantic errors are distinct.
+31. `SESSION_READY_TO_COMPLETE` handled without illegal pause state.
+32. PAUSED is never locally marked complete.
+33. Old fetch cannot overwrite newer mutation.
+34. Older reconcile cannot overwrite newer state.
+35. No direct private D1 client call.
+36. No Schedule changes.
+37. No Resource Handoff implementation.
+38. No Quick Notes.
+39. No Points.
+40. No AI.
+41. No database migration.
+42. Build passes.
+43. New regressions = 0.
+
+---
+
+# 102. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List all existing foundation/Focus suites.
+
+## B. Client Runtime Architecture
+
+List exact module paths and responsibilities.
+
+## C. Runtime State Model
+
+List client runtime states separately from canonical Focus Session states.
+
+## D. Server Clock / Monotonic Clock Design
+
+Explain exact formula and clock abstraction.
+
+## E. Device Clock Skew Verification
+
+Report test results with intentionally incorrect `Date.now()`.
+
+## F. Timer Display Rules
+
+Report behavior for:
+
+* ACTIVE;
+* PAUSED;
+* zero remaining;
+* reconciliation required.
+
+## G. No-Tick Persistence Verification
+
+Explicitly:
+
+```text
+PER-SECOND SERVER WRITES: 0
+PER-SECOND D1 WRITES: 0
+PER-SECOND PERSISTENT LOCAL WRITES: 0
+NETWORK POLLING PER SECOND: 0
+```
+
+## H. Reload Recovery
+
+Describe exact new-controller/reload flow and test.
+
+## I. Background / Foreground Recovery
+
+Report web/PWA and Capacitor handling.
+
+Explicitly confirm background does not auto-pause.
+
+## J. Reconciliation Single-Flight
+
+Explain implementation and simultaneous-trigger test.
+
+## K. Local Cache
+
+Report:
+
+* whether implemented;
+* exact storage key;
+* account scoping;
+* fields stored;
+* when written;
+* offline behavior;
+* stale-cache override behavior.
+
+## L. Focus API Client
+
+List all Plan and Session methods.
+
+## M. Source Classification
+
+Report exact detection for:
+
+```text
+web
+pwa
+ios
+android
+```
+
+## N. Mutation Idempotency
+
+Explain key generation, pending-operation reuse, retry and cleanup.
+
+## O. Transport Failure Behavior
+
+Explain what happens when server may have committed but response is lost.
+
+## P. Double-Tap Safety
+
+Report tests and results.
+
+## Q. Semantic Error Handling
+
+Include:
+
+```text
+SESSION_READY_TO_COMPLETE
+SESSION_NOT_READY_TO_COMPLETE
+INVALID_SESSION_STATE
+IDEMPOTENCY_CONFLICT
+```
+
+## R. PAUSED Completion Client Behavior
+
+Explicitly:
+
+```text
+CLIENT AUTO-COMPLETES PAUSED SESSION: NO
+```
+
+## S. Stale Response Race Protection
+
+Report:
+
+* old current-fetch vs mutation;
+* old reconcile vs newer reconcile;
+* start vs stale empty-current response.
+
+## T. Network / Request Budget
+
+Report normal calls for:
+
+* initialize;
+* 60-second ACTIVE timer;
+* background/foreground;
+* pause;
+* resume.
+
+## U. Tests Added
+
+Exact files/counts/results.
+
+## V. Regression Results
+
+Include:
+
+* Study Core
+* Batch A
+* Prompt 6
+* Prompt 7
+* Prompt 8
+* outbox schema
+* outbox PostgreSQL
+* Study Event PostgreSQL
+* Focus timer
+* Focus PostgreSQL
+* Prompt 9R
+* Auth
+* Build
+* Typecheck
+* Lint
+
+## W. Files Created
+
+Exact paths.
+
+## X. Files Modified
+
+Exact paths/reasons.
+
+Explicitly confirm whether these stayed unchanged:
+
+```text
+src/App.tsx
+OfflineEngine
+Calendar code
+server Focus backend
+prisma/schema.prisma
+D1 migrations
+```
+
+## Y. Forbidden Feature Verification
+
+Confirm no:
+
+* Focus UI;
+* Resource Handoff;
+* Quick Notes;
+* Points;
+* Mastery;
+* AI;
+* Group Focus;
+* Schedule modification;
+* PDF modification.
+
+## Z. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION MODIFIED: NO
+FOCUS ENABLED IN PRODUCTION: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AA. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+Explain Replit auto-checkpoints.
+
+## AB. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AC. Risks / Blockers
+
+Only real unresolved issues.
+
+## AD. Architecture Compliance
+
+Answer YES/NO:
+
+* Backend remains authoritative?
+* Client wall clock non-authoritative?
+* Timer interpolated locally?
+* No per-second server writes?
+* No per-second persistent cache writes?
+* Reload recovers from PostgreSQL-backed `/current`?
+* Foreground reconciles?
+* Background does not auto-pause?
+* PAUSED display remains frozen?
+* No auto-complete?
+* Retry reuses idempotency key?
+* Stale responses cannot overwrite newer canonical state?
+* No direct D1 browser access?
+* No Schedule integration?
+* No schema change?
+* Build passes?
+* New regressions = 0?
+
+## AE. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 11 — Focus Resource Handoff & Interruption Tracking**
+
+Do not implement Prompt 11.
+
+---
+
+# 103. STOP CONDITION
+
+After implementation and the mandatory report:
+
+STOP.
+
+Do NOT begin Resource Handoff.
+
+Do NOT build Focus UI.
+
+Do NOT implement Quick Notes.
+
+Do NOT implement Points.
+
+Do NOT deploy.
+
+Wait for review.
+
+End exactly:
+
+**PROMPT 10 COMPLETE — FOCUS CLIENT RUNTIME & TIMESTAMP RECOVERY READY — PRODUCTION UNCHANGED — READY FOR REVIEW**
