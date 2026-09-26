@@ -91,6 +91,10 @@ import {
   createAdminStudyPointsJsonParser,
   createAdminStudyPointsRouter,
 } from "./server/routes/adminStudyPoints.js";
+import {
+  createAdminLeaderboardRouter,
+  createLeaderboardRouter,
+} from "./server/routes/leaderboards.js";
 import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
@@ -7376,6 +7380,10 @@ app.use(
   "/api/admin/study-points",
   createAdminStudyPointsRouter({ requireAdmin, database: getPrisma() }),
 );
+app.use(
+  "/api/admin/leaderboards",
+  createAdminLeaderboardRouter({ requireAdmin, database: getPrisma() }),
+);
 
 app.use("/api/admin/ai", createAIImportRouter({
   requireAdmin,
@@ -7617,6 +7625,13 @@ app.use(
     requireUser,
     getMyGamificationSummary,
     getPublicGamificationProfile,
+  }),
+);
+app.use(
+  "/api",
+  createLeaderboardRouter({
+    requireUser,
+    database: getPrisma(),
   }),
 );
 app.use(

@@ -74,6 +74,7 @@ model User {
   achievements                 UserAchievement[]
   gamificationLevel            UserGamificationLevel?
   challengeProgresses          UserChallengeProgress[]
+  leaderboardSnapshotEntries   LeaderboardSnapshotEntry[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -1083,4 +1084,73 @@ model UserChallengeProgress {
   @@index([userId, status, updatedAt], map: "ucp_user_status_updated_idx")
   @@index([challengeInstanceId, status], map: "ucp_instance_status_idx")
   @@map("UserChallengeProgress")
+}
+
+/// Canonical server-owned competition window.
+model LeaderboardSeason {
+  id                         String    @id @default(uuid())
+  scope                      String    @db.VarChar(16)
+  seasonKey                  String    @db.VarChar(64)
+  startsAt                   DateTime?
+  endsAt                     DateTime?
+  status                     String    @default("UPCOMING") @db.VarChar(16)
+  gamificationRuleSetVersion String?   @db.VarChar(64)
+  pointsRuleVersionSetHash   String?   @db.Char(64)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  closedAt                   DateTime?
+
+  snapshots LeaderboardSnapshot[]
+
+  @@unique([scope, seasonKey], map: "leaderboard_season_scope_key")
+  @@index([status, scope, startsAt, endsAt], map: "leaderboard_season_status_window_idx")
+  @@map("LeaderboardSeason")
+}
+
+/// Atomic, immutable ranking computation. New FINAL revisions supersede prior
+/// finals without changing their historical entries.
+model LeaderboardSnapshot {
+  id                       String   @id @default(uuid())
+  seasonId                 String
+  snapshotType             String   @db.VarChar(16)
+  status                   String   @default("READY") @db.VarChar(16)
+  generatedAt              DateTime
+  scoreThrough             DateTime
+  sourceFingerprint        String   @db.Char(64)
+  entryCount               Int
+  rankingSemanticsVersion  String   @db.VarChar(64)
+  pointsRuleVersionSetHash String?  @db.Char(64)
+  revision                 Int      @default(1)
+  supersedesSnapshotId     String?  @unique
+  createdAt                DateTime @default(now())
+
+  season       LeaderboardSeason          @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  entries      LeaderboardSnapshotEntry[]
+  supersedes   LeaderboardSnapshot?       @relation("LeaderboardSnapshotRevision", fields: [supersedesSnapshotId], references: [id], onDelete: Restrict)
+  supersededBy LeaderboardSnapshot?       @relation("LeaderboardSnapshotRevision")
+
+  @@unique([seasonId, snapshotType, revision], map: "leaderboard_snapshot_revision_key")
+  @@index([seasonId, snapshotType, revision], map: "leaderboard_snapshot_revision_idx")
+  @@index([seasonId, snapshotType, generatedAt], map: "leaderboard_snapshot_generated_idx")
+  @@map("LeaderboardSnapshot")
+}
+
+/// Ranking data only; public display fields are resolved from the current
+/// account state and are never copied into historical snapshots.
+model LeaderboardSnapshotEntry {
+  id            String   @id @default(uuid())
+  snapshotId    String
+  userId        String?
+  score         BigInt   @db.BigInt
+  rank          Int
+  tieSize       Int
+  levelSnapshot Int?
+  createdAt     DateTime @default(now())
+
+  snapshot LeaderboardSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  user     User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([snapshotId, userId], map: "leaderboard_entry_snapshot_user_key")
+  @@index([snapshotId, rank, score, userId], map: "leaderboard_entry_page_idx")
+  @@map("LeaderboardSnapshotEntry")
 }
