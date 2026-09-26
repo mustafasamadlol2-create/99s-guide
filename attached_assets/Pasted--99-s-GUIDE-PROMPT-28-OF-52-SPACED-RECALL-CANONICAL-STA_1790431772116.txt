@@ -1,0 +1,3317 @@
+# 99’s GUIDE — PROMPT 28 OF 52
+
+## SPACED RECALL CANONICAL STATE
+
+## RECALL ATTEMPT LIFECYCLE + SERVER-DERIVED OUTCOMES + EVIDENCE CONTRACTS
+
+### NO CANDIDATE RANKING YET — NO COOLDOWN/ANTI-FARMING YET — NO POINTS — NO UI
+
+Prompts 1–27 have been completed.
+
+Prompt 28 begins the Spaced Recall subsystem.
+
+Frozen roadmap:
+
+```text
+Prompt 28 — Recall canonical state / attempt
+Prompt 29 — Recall eligibility / candidate
+Prompt 30 — Recall cooldown / anti-farming
+Prompt 31 — Mastery initial deterministic
+Prompt 32 — Retention decay / review
+Prompt 33 — Mastery D1 / dashboard API
+```
+
+Prompt 28 must build only the canonical Recall attempt/state foundation.
+
+Do NOT implement Prompt 29 or Prompt 30 early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a canonical PostgreSQL Spaced Recall foundation that can safely represent:
+
+```text
+Recall item presented
+→ user answers OR skips
+→ server determines the valid outcome/evidence
+→ immutable attempt history
+→ rebuildable per-item Recall state
+```
+
+It must support future Recall selection, retention, Mastery, and anti-farming without implementing those later systems yet.
+
+---
+
+# 2. PRODUCT BEHAVIOR TO PRESERVE
+
+Spaced Recall is a lightweight periodic recall card that will eventually present:
+
+```text
+one MCQ
+or
+one Flashcard
+```
+
+from previously studied material.
+
+Future Prompt 29 will decide which item should appear.
+
+Prompt 28 only establishes what happens once a canonical Recall item has been issued.
+
+---
+
+# 3. CRITICAL ROADMAP BOUNDARY
+
+Prompt 28 must NOT implement:
+
+```text
+weakness weighting
+forgetting weighting
+recency weighting
+candidate ranking
+candidate selection
+periodic launch scheduling
+launch frequency
+cooldown
+repeat suppression
+rapid-repeat farming protection
+Recall Points
+Mastery
+retention decay
+```
+
+Those belong to later prompts.
+
+---
+
+# 4. NO PUBLIC “CREATE RECALL ATTEMPT” ROUTE
+
+Do NOT expose:
+
+```text
+POST /api/recall/attempts
+```
+
+that allows a student client to choose:
+
+```text
+itemType
+itemId
+lectureId
+```
+
+Future Prompt 29 selection engine will issue attempts.
+
+Prompt 28 should expose an INTERNAL server service for attempt issuance only.
+
+---
+
+# 5. CANONICAL ATTEMPT SOURCE
+
+Create conceptually:
+
+```ts
+issueRecallAttempt({
+  userId,
+  itemType,
+  itemId,
+  issuanceIdempotencyKey,
+  presentedAt?,
+  expiresAt?,
+  tx?
+})
+```
+
+The caller is trusted backend code.
+
+The client never decides candidate identity.
+
+---
+
+# 6. SUPPORTED ITEM TYPES
+
+Support exactly:
+
+```text
+MCQ
+FLASHCARD
+```
+
+Use repository-consistent names if current models already define canonical item kinds.
+
+Do NOT add:
+
+```text
+PDF
+VIDEO
+LECTURE
+NOTE
+Q&A
+```
+
+as direct Recall items.
+
+---
+
+# 7. INSPECT CURRENT CONTENT MODELS FIRST
+
+Before implementing, inspect the real current models/services for:
+
+```text
+MCQ
+Flashcard
+Lecture
+```
+
+Determine:
+
+* exact IDs;
+* canonical correct-answer representation;
+* lecture relation;
+* deletion behavior;
+* current review/answer semantics;
+* whether Flashcards currently support a rating/self-assessment concept.
+
+Do not guess model names or answer formats.
+
+---
+
+# 8. NO CONTENT DUPLICATION
+
+Recall state/attempt rows must NOT copy:
+
+```text
+full MCQ question
+all MCQ answers
+Flashcard front
+Flashcard back
+PDF contents
+Lecture body
+```
+
+Persist canonical IDs and bounded answer/evaluation metadata only.
+
+---
+
+# 9. REQUIRED POSTGRESQL MODELS
+
+Add exactly the durable Recall models required for:
+
+```text
+RecallAttempt
+RecallItemState
+```
+
+Use repository naming conventions if equivalent models already exist.
+
+Do NOT add Candidate/Cooldown/Mastery models.
+
+---
+
+# 10. `RecallAttempt` AUTHORITY
+
+`RecallAttempt` is the canonical historical record of one issued Recall interaction.
+
+Once terminal, it is immutable through normal application flows.
+
+---
+
+# 11. `RecallAttempt` FIELDS
+
+Support at least conceptually:
+
+```text
+id
+
+userId
+
+itemType
+itemId
+lectureId
+
+status
+
+presentedAt
+expiresAt?
+
+answeredAt?
+skippedAt?
+expiredAt?
+
+answerKind?
+answerValue?
+outcome?
+
+evidenceClass
+privacyClass
+
+issuanceIdempotencyKey
+issuanceFingerprint
+
+createdAt
+updatedAt
+```
+
+Adapt exact names/types to repository conventions.
+
+---
+
+# 12. ITEM RELATION STRATEGY
+
+Because Recall supports two source item models:
+
+```text
+MCQ
+FLASHCARD
+```
+
+do NOT create unsafe polymorphic foreign-key hacks.
+
+Use:
+
+```text
+itemType
+itemId
+```
+
+and server-side canonical validation.
+
+Persist:
+
+```text
+lectureId
+```
+
+as normalized source context.
+
+---
+
+# 13. USER RELATION
+
+`RecallAttempt.userId` must reference canonical `User`.
+
+No second identity universe.
+
+---
+
+# 14. `RecallItemState`
+
+Purpose:
+
+A rebuildable per-user/per-item materialized state derived from canonical Recall attempts.
+
+Support at least:
+
+```text
+id
+
+userId
+
+itemType
+itemId
+lectureId
+
+presentationCount
+answerCount
+skipCount
+
+objectiveCorrectCount
+objectiveIncorrectCount
+
+selfReportedRememberedCount
+selfReportedNotRememberedCount
+
+lastPresentedAt?
+lastAnsweredAt?
+lastSkippedAt?
+
+lastOutcome?
+
+revision
+
+createdAt
+updatedAt
+```
+
+Use only fields justified by actual MCQ/Flashcard semantics.
+
+---
+
+# 15. STATE IS DERIVED
+
+Mandatory:
+
+```text
+RecallAttempt
+= canonical Recall interaction history
+
+RecallItemState
+= rebuildable derived state
+```
+
+If `RecallItemState` is deleted/corrupted:
+
+it must be reconstructable from `RecallAttempt`.
+
+---
+
+# 16. STATE UNIQUENESS
+
+Enforce:
+
+```text
+(userId, itemType, itemId) UNIQUE
+```
+
+One materialized state row per user/item.
+
+---
+
+# 17. DO NOT STORE FUTURE CANDIDATE SCORE
+
+Forbidden in Prompt 28:
+
+```text
+candidateScore
+weaknessWeight
+forgettingWeight
+recencyWeight
+selectionProbability
+priorityScore
+```
+
+Prompt 29 owns candidate ranking.
+
+---
+
+# 18. DO NOT STORE COOLDOWN YET
+
+Do NOT introduce:
+
+```text
+cooldownUntil
+nextRewardEligibleAt
+antiFarmWindow
+rewardCooldown
+```
+
+Prompt 30 owns cooldown/anti-farming.
+
+Existing timestamps such as:
+
+```text
+lastPresentedAt
+lastAnsweredAt
+```
+
+are allowed as factual state.
+
+---
+
+# 19. NO RETENTION SCORE
+
+Do NOT create:
+
+```text
+retentionScore
+forgettingScore
+memoryStrength
+decayFactor
+```
+
+Prompt 32 owns retention.
+
+---
+
+# 20. NO MASTERY SCORE
+
+Do NOT mutate or calculate Mastery.
+
+Prompts 31–33 own Mastery.
+
+---
+
+# 21. ATTEMPT LIFECYCLE
+
+Freeze Recall Attempt lifecycle:
+
+```text
+PRESENTED
+ANSWERED
+SKIPPED
+EXPIRED
+```
+
+---
+
+# 22. VALID TRANSITIONS
+
+Only:
+
+```text
+PRESENTED → ANSWERED
+PRESENTED → SKIPPED
+PRESENTED → EXPIRED
+```
+
+All terminal states are final.
+
+---
+
+# 23. INVALID TRANSITIONS
+
+Forbidden:
+
+```text
+ANSWERED → SKIPPED
+ANSWERED → PRESENTED
+SKIPPED → ANSWERED
+SKIPPED → PRESENTED
+EXPIRED → ANSWERED
+EXPIRED → SKIPPED
+```
+
+No reopen.
+
+---
+
+# 24. SKIP IS NOT WRONG
+
+Mandatory:
+
+```text
+SKIPPED != INCORRECT
+```
+
+Skip must:
+
+```text
+increment skipCount
+```
+
+but must NOT increment:
+
+```text
+objectiveIncorrectCount
+selfReportedNotRememberedCount
+```
+
+unless product semantics explicitly distinguish a later “I forgot” action from Skip.
+
+---
+
+# 25. SKIP HAS NO PENALTY
+
+Prompt 28 must NOT:
+
+* subtract Points;
+* reduce Mastery;
+* create IntegritySignal;
+* mark student weak;
+* penalize streak.
+
+Skip is a valid user choice.
+
+---
+
+# 26. ATTEMPT EXPIRATION
+
+Support optional:
+
+```text
+expiresAt
+```
+
+owned by the backend issuer.
+
+Prompt 28 does NOT define the product-wide expiry duration.
+
+Future issuing policy may choose one.
+
+If:
+
+```text
+expiresAt = null
+```
+
+no automatic expiry is implied.
+
+---
+
+# 27. LAZY EXPIRATION
+
+If an attempt has:
+
+```text
+expiresAt <= server now
+```
+
+and remains PRESENTED:
+
+answer/skip processing should deterministically transition or treat it as:
+
+```text
+EXPIRED
+```
+
+according to service semantics.
+
+No cron is required.
+
+---
+
+# 28. NO GLOBAL EXPIRATION JOB
+
+Do not add a background scan over all Recall attempts.
+
+---
+
+# 29. ISSUANCE IDEMPOTENCY
+
+Every internally issued attempt must receive a server/caller-owned:
+
+```text
+issuanceIdempotencyKey
+```
+
+Never generated from arbitrary client input.
+
+---
+
+# 30. ISSUANCE UNIQUENESS
+
+Enforce a race-safe uniqueness strategy such as:
+
+```text
+(userId, issuanceIdempotencyKey) UNIQUE
+```
+
+or repository-equivalent.
+
+---
+
+# 31. SAME ISSUANCE REPLAY
+
+Same key + same semantic payload:
+
+```text
+returns existing RecallAttempt
+```
+
+No second presentation row.
+
+No second presentationCount increment.
+
+---
+
+# 32. ISSUANCE CONFLICT
+
+Same issuance key + different:
+
+```text
+itemType
+itemId
+lectureId
+expiresAt semantics
+```
+
+must return:
+
+```text
+RECALL_IDEMPOTENCY_CONFLICT
+```
+
+or repository-equivalent.
+
+---
+
+# 33. ISSUANCE FINGERPRINT
+
+Reuse existing canonical semantic fingerprint infrastructure from Prompts 8/17/19.
+
+Do not invent incompatible JSON hashing.
+
+---
+
+# 34. ITEM VALIDATION AT ISSUANCE
+
+The internal issuance service must validate:
+
+```text
+item exists
+item type matches source table
+item belongs to canonical lecture
+lecture exists
+```
+
+Use current content architecture.
+
+---
+
+# 35. NO PREVIOUSLY-STUDIED CHECK YET
+
+Do NOT decide whether the lecture is eligible because the student previously studied it.
+
+That belongs to:
+
+**Prompt 29 — Recall eligibility / candidate.**
+
+Prompt 28's issuance service is internal and intentionally has no public caller yet.
+
+---
+
+# 36. CONTENT ACCESS
+
+Where repository has canonical publication/visibility rules:
+
+validate that the Recall source item is valid usable content.
+
+Do not issue deleted/invalid source items.
+
+Do not build new content authorization architecture.
+
+---
+
+# 37. MCQ ANSWER AUTHORITY
+
+For MCQ Recall:
+
+client submits only its selected canonical answer identifier/value required by current MCQ architecture.
+
+Client must NOT submit:
+
+```text
+correct = true
+outcome = CORRECT
+evidence = SERVER_DERIVED
+```
+
+---
+
+# 38. MCQ CORRECTNESS
+
+Backend derives correctness from the canonical MCQ answer key.
+
+Expected evidence:
+
+```text
+SERVER_DERIVED
+```
+
+or the exact strongest appropriate frozen evidence class from Prompt 17.
+
+Do not trust client correctness.
+
+---
+
+# 39. MCQ OUTCOME
+
+Use:
+
+```text
+CORRECT
+INCORRECT
+```
+
+for objectively gradable MCQ Recall answers.
+
+---
+
+# 40. MCQ ANSWER STORAGE
+
+Persist only bounded canonical response information needed for auditability.
+
+Preferred:
+
+```text
+selected option ID/index
+```
+
+according to current MCQ schema.
+
+Do NOT duplicate full question/answers.
+
+---
+
+# 41. CONTENT EDIT AFTER ATTEMPT
+
+Persist derived MCQ outcome at answer time.
+
+Do not retroactively change old RecallAttempt correctness merely because the content author later edits an MCQ.
+
+If the source model already has a revision/version field:
+
+store/reference it.
+
+If not:
+
+do NOT invent a full content snapshot.
+
+Report this limitation clearly.
+
+---
+
+# 42. FLASHCARD AUTHORITY
+
+Inspect current Flashcard review semantics first.
+
+A Flashcard normally lacks a server-verifiable “correct answer” in the same sense as an MCQ.
+
+Do NOT falsely represent user self-assessment as server-derived correctness.
+
+---
+
+# 43. FLASHCARD SELF-ASSESSMENT
+
+If existing Flashcard UX already has a canonical rating system:
+
+reuse it exactly.
+
+Examples might be:
+
+```text
+remembered / not remembered
+```
+
+or another existing bounded enum.
+
+Do not invent a second competing review vocabulary unnecessarily.
+
+---
+
+# 44. FLASHCARD EVIDENCE
+
+A Flashcard self-assessment may be:
+
+```text
+CLIENT_OBSERVED
+```
+
+as a memory outcome claim,
+
+while the backend can still validate:
+
+```text
+the attempt exists
+the state transition is valid
+the submitted enum is valid
+```
+
+Do NOT promote self-reported memory success to objective `SERVER_DERIVED` correctness.
+
+---
+
+# 45. FLASHCARD OUTCOMES
+
+If the app has no existing canonical Flashcard rating contract, use the smallest possible Recall-only semantic distinction:
+
+```text
+SELF_REPORTED_REMEMBERED
+SELF_REPORTED_NOT_REMEMBERED
+```
+
+Do not call them objectively CORRECT/INCORRECT.
+
+---
+
+# 46. FLASHCARD COUNTERS
+
+Self-report outcomes update:
+
+```text
+selfReportedRememberedCount
+selfReportedNotRememberedCount
+```
+
+They do NOT update:
+
+```text
+objectiveCorrectCount
+objectiveIncorrectCount
+```
+
+---
+
+# 47. EVIDENCE DISTINCTION
+
+Mandatory:
+
+```text
+MCQ objective correctness
+!=
+Flashcard self-reported memory result
+```
+
+Do not collapse them into one misleading evidence class.
+
+---
+
+# 48. FROZEN EVIDENCE CONTRACTS
+
+Reuse Prompt 17 exact hierarchy:
+
+```text
+UNVERIFIED_CLIENT
+CLIENT_OBSERVED
+SERVER_VALIDATED
+SERVER_DERIVED
+REALTIME_VERIFIED
+ADMIN_VERIFIED
+```
+
+Do NOT create Recall-specific evidence ranks.
+
+---
+
+# 49. PRIVACY
+
+Recall attempts/state are:
+
+```text
+PRIVATE_STUDY
+```
+
+by default.
+
+They must never be:
+
+```text
+PUBLIC
+PROFILE_PUBLIC
+```
+
+---
+
+# 50. NO PUBLIC RECALL DATA
+
+Do NOT expose another student's Recall history/state.
+
+---
+
+# 51. ANSWER ROUTE
+
+Create authenticated equivalent:
+
+```text
+POST /api/recall/attempts/:attemptId/answer
+```
+
+Use repository route conventions.
+
+---
+
+# 52. SKIP ROUTE
+
+Create:
+
+```text
+POST /api/recall/attempts/:attemptId/skip
+```
+
+Authenticated.
+
+---
+
+# 53. NO ITEM-ID ANSWER ROUTE
+
+Forbidden:
+
+```text
+POST /api/recall/items/:itemId/answer
+```
+
+Answer must reference a valid issued attempt.
+
+This prevents bypassing future candidate/anti-farming systems.
+
+---
+
+# 54. ATTEMPT OWNERSHIP
+
+Authenticated user may answer/skip only their own RecallAttempt.
+
+Do not accept:
+
+```text
+userId
+```
+
+from request body.
+
+---
+
+# 55. CROSS-USER ATTEMPT ACCESS
+
+User A attempting to answer User B's attempt:
+
+deny using repository-consistent 403/404 privacy behavior.
+
+No attempt details leaked.
+
+---
+
+# 56. ANSWER BODY — MCQ
+
+Accept only the current canonical answer input.
+
+Example conceptually:
+
+```json
+{
+  "selectedOptionId": "..."
+}
+```
+
+Do not accept:
+
+```text
+correct
+outcome
+evidenceClass
+answeredAt
+points
+```
+
+---
+
+# 57. ANSWER BODY — FLASHCARD
+
+Accept only the bounded current/self-rating value required by the Recall contract.
+
+No arbitrary text.
+
+---
+
+# 58. SKIP BODY
+
+Skip should require little/no semantic body.
+
+Optional request idempotency according to existing mutation convention.
+
+Do not let client submit a skip reason as unbounded free text.
+
+---
+
+# 59. TERMINAL ATTEMPT REPLAY — SAME MCQ ANSWER
+
+Lost-response retry:
+
+same attempt + same selected answer:
+
+```text
+safe idempotent replay
+```
+
+Return canonical existing result.
+
+Do not increment state again.
+
+---
+
+# 60. TERMINAL ATTEMPT CONFLICT
+
+Attempt already ANSWERED with option A.
+
+Retry with option B:
+
+```text
+RECALL_ATTEMPT_ALREADY_FINALIZED
+```
+
+or specific idempotency conflict.
+
+No state mutation.
+
+---
+
+# 61. ANSWER THEN SKIP
+
+Reject.
+
+---
+
+# 62. SKIP THEN ANSWER
+
+Reject.
+
+---
+
+# 63. CONCURRENT ANSWER
+
+20 simultaneous identical MCQ answer requests:
+
+Expected:
+
+```text
+one terminal transition
+one answerCount increment
+one correct/incorrect increment
+```
+
+All safe replays converge.
+
+---
+
+# 64. CONCURRENT CONFLICTING ANSWERS
+
+Concurrent A/B answers:
+
+exactly one semantic answer wins.
+
+Other conflicting requests fail deterministically.
+
+Do not count both.
+
+---
+
+# 65. CONCURRENT ANSWER VS SKIP
+
+Exactly one terminal transition wins.
+
+State counters reflect one terminal outcome only.
+
+---
+
+# 66. ROW LOCKING
+
+Use:
+
+```text
+SELECT ... FOR UPDATE
+```
+
+or equivalent safe Prisma transaction strategy for attempt finalization.
+
+Do not rely on race-prone:
+
+```text
+read status
+then update later
+```
+
+outside one transaction.
+
+---
+
+# 67. ATTEMPT + STATE ATOMICITY
+
+Answer transaction must atomically:
+
+```text
+lock RecallAttempt
+validate PRESENTED
+derive outcome
+transition attempt
+update RecallItemState
+commit
+```
+
+No:
+
+```text
+attempt ANSWERED
+but state counter missing
+```
+
+---
+
+# 68. SKIP + STATE ATOMICITY
+
+Same principle.
+
+---
+
+# 69. ISSUANCE + STATE ATOMICITY
+
+First-seen attempt issuance must atomically:
+
+```text
+insert RecallAttempt
+upsert RecallItemState
+increment presentationCount
+set lastPresentedAt
+```
+
+Replay must not increment twice.
+
+---
+
+# 70. STATE REVISION
+
+Increment:
+
+```text
+RecallItemState.revision
+```
+
+once for each real state-changing Recall interaction.
+
+Do not increment on pure replay.
+
+---
+
+# 71. COUNTER SAFETY
+
+All counters:
+
+```text
+>= 0
+```
+
+Use atomic database increments.
+
+Protect against overflow.
+
+Client never supplies counter values.
+
+---
+
+# 72. STATE LAST OUTCOME
+
+Store a bounded last outcome enum.
+
+Do not store freeform explanation.
+
+---
+
+# 73. PRESENTATION COUNT
+
+Every canonical first-seen issuance:
+
+```text
+presentationCount += 1
+```
+
+---
+
+# 74. ANSWER COUNT
+
+Every canonical first-seen ANSWERED terminal transition:
+
+```text
+answerCount += 1
+```
+
+---
+
+# 75. SKIP COUNT
+
+Every canonical first-seen SKIPPED transition:
+
+```text
+skipCount += 1
+```
+
+---
+
+# 76. EXPIRED ATTEMPT
+
+Expiration:
+
+* does NOT increment answerCount;
+* does NOT increment skipCount unless product semantics explicitly equate expiry with skip, which Prompt 28 must NOT do;
+* may leave presentationCount already counted.
+
+Do not treat expired as incorrect.
+
+---
+
+# 77. STATE REBUILD SERVICE
+
+Implement:
+
+```ts
+rebuildRecallItemState({
+  userId,
+  itemType,
+  itemId,
+  repair?: boolean
+})
+```
+
+or repository-equivalent.
+
+---
+
+# 78. REBUILD AUTHORITY
+
+Recompute entirely from:
+
+```text
+RecallAttempt
+```
+
+ordered/counted canonically.
+
+---
+
+# 79. STATE RECONCILIATION
+
+Detect at minimum:
+
+```text
+STATE_MISSING
+PRESENTATION_COUNT_MISMATCH
+ANSWER_COUNT_MISMATCH
+SKIP_COUNT_MISMATCH
+OBJECTIVE_CORRECT_COUNT_MISMATCH
+OBJECTIVE_INCORRECT_COUNT_MISMATCH
+SELF_REPORTED_REMEMBERED_COUNT_MISMATCH
+SELF_REPORTED_NOT_REMEMBERED_COUNT_MISMATCH
+LAST_TIMESTAMP_MISMATCH
+LAST_OUTCOME_MISMATCH
+```
+
+---
+
+# 80. REPAIR
+
+Repair may change only:
+
+```text
+RecallItemState
+```
+
+from canonical RecallAttempt history.
+
+It must NOT rewrite attempts.
+
+---
+
+# 81. INVALID ATTEMPT HISTORY
+
+If test corruption creates impossible canonical attempt history:
+
+report:
+
+```text
+RECALL_ATTEMPT_INVARIANT_FAILURE
+```
+
+Do not silently rewrite canonical attempt history.
+
+---
+
+# 82. NO GLOBAL REBUILD
+
+Do not scan/rebuild all users/items.
+
+Prompt 49 owns large migration/backfill tooling.
+
+---
+
+# 83. OPTIONAL ADMIN RECONCILIATION
+
+If useful and consistent with current operations routes:
+
+```text
+GET /api/admin/recall/users/:userId/items/:itemType/:itemId/reconciliation
+POST /api/admin/recall/users/:userId/items/:itemType/:itemId/reconciliation/repair
+```
+
+owner/admin only.
+
+No UI.
+
+---
+
+# 84. STUDENT CANNOT REPAIR STATE
+
+Mandatory.
+
+---
+
+# 85. NO GENERAL RECALL HISTORY UI API REQUIRED
+
+Prompt 28 does not need a student-facing full Recall history endpoint.
+
+UI comes later.
+
+Keep public surface minimal.
+
+---
+
+# 86. SAFE ATTEMPT RESPONSE
+
+Answer/skip response may contain:
+
+```text
+attemptId
+status
+outcome
+itemType
+itemId
+lectureId
+answeredAt/skippedAt
+evidenceClass
+```
+
+Do not return raw private content beyond what the active Recall UI already possesses.
+
+---
+
+# 87. CORRECT ANSWER DISCLOSURE
+
+Do not alter current MCQ product behavior regarding when correct answer/explanation is revealed.
+
+Reuse current MCQ response policy.
+
+Prompt 28 is not a new MCQ teaching UI.
+
+---
+
+# 88. HINTS / EXPLANATIONS
+
+No Recall-specific AI-generated hint/explanation system.
+
+Use existing content if later UI chooses to expose it.
+
+---
+
+# 89. STUDY EVENT CONTRACT DISCOVERY
+
+Inspect the frozen Prompt 4 StudyEvent catalog.
+
+Determine whether exact Recall event types already exist.
+
+Do NOT add new StudyEvent types casually because the catalog was frozen.
+
+---
+
+# 90. IF RECALL STUDY EVENTS ALREADY EXIST
+
+Reuse their exact names and policies.
+
+Potential semantics may include concepts equivalent to:
+
+```text
+recall_presented
+recall_answered
+recall_skipped
+```
+
+but use only actual existing names.
+
+---
+
+# 91. IF NO RECALL STUDY EVENTS EXIST
+
+Do NOT invent them in Prompt 28.
+
+Canonical RecallAttempt remains sufficient foundation.
+
+Report:
+
+```text
+RECALL STUDY EVENT TYPES AVAILABLE: NO
+```
+
+and defer event integration to the correct schema-contract change.
+
+---
+
+# 92. STUDY EVENT SOURCE
+
+Where Recall StudyEvents already exist:
+
+server-created Recall facts must use canonical backend source and exact Prompt 17 evidence/privacy policy.
+
+Client does not select evidence.
+
+---
+
+# 93. NO MANUAL DAILY METRIC LOGIC
+
+If existing StudyEvent reducer already handles Recall:
+
+use it.
+
+Otherwise:
+
+```text
+StudyDailyMetric delta = 0
+```
+
+Do not manually invent Recall metric columns.
+
+---
+
+# 94. NO RETENTION MUTATION
+
+Recall answer does not directly update retention score in Prompt 28.
+
+Future Prompt 32 consumes canonical attempts.
+
+---
+
+# 95. NO MASTERY MUTATION
+
+Mandatory:
+
+```text
+Mastery writes = 0
+```
+
+---
+
+# 96. NO POINTS
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry delta = 0
+PointsLog delta = 0
+```
+
+Recall Points must NOT activate before Prompt 30 anti-farming/cooldown.
+
+---
+
+# 97. CORRECT MCQ STILL EARNS ZERO POINTS IN PROMPT 28
+
+Even:
+
+```text
+objective CORRECT
+```
+
+creates no Points.
+
+---
+
+# 98. FLASHCARD SELF-REPORTED REMEMBERED EARNS ZERO POINTS
+
+Mandatory.
+
+---
+
+# 99. SKIP EARNS ZERO POINTS
+
+Mandatory.
+
+---
+
+# 100. NO ACHIEVEMENTS
+
+Recall does not create Achievement progress/definitions in Prompt 28.
+
+---
+
+# 101. NO LEVEL SIDE EFFECT
+
+Zero.
+
+---
+
+# 102. NO CHALLENGE SIDE EFFECT
+
+Zero.
+
+---
+
+# 103. NO LEADERBOARD SIDE EFFECT
+
+Zero.
+
+---
+
+# 104. NO INTEGRITY SIGNAL FOR NORMAL RECALL
+
+Normal:
+
+```text
+answer
+wrong answer
+self-reported not remembered
+skip
+expiry
+```
+
+must NOT create Integrity Signals merely because of the outcome.
+
+---
+
+# 105. STRUCTURAL ABUSE
+
+Prompt 28 may reject:
+
+```text
+wrong ownership
+invalid transition
+conflicting replay
+invalid answer enum
+```
+
+through normal validation.
+
+Do not implement Prompt 30 farming detection yet.
+
+---
+
+# 106. NO “CHEATING” CLASSIFICATION
+
+Mandatory.
+
+---
+
+# 107. NO CALENDAR
+
+Spaced Recall must never create:
+
+```text
+CalendarEvent
+```
+
+Academic Schedule remains admin academic data only.
+
+---
+
+# 108. NO FOCUS PLAN CREATION
+
+Recall interaction does not create Focus Plan items.
+
+---
+
+# 109. NO QUICK NOTE
+
+No automatic note.
+
+---
+
+# 110. NO NOTIFICATION SCHEDULING
+
+Prompt 28 does not schedule periodic Recall notifications.
+
+---
+
+# 111. NO LAUNCH CARD FREQUENCY
+
+Deferred to candidate/eligibility product integration.
+
+---
+
+# 112. NO D1
+
+Recall canonical attempt/state is PostgreSQL only in Prompt 28.
+
+Expected:
+
+```text
+D1 migration = NO
+D1 writes = 0
+```
+
+---
+
+# 113. NO PRIVATE D1 OUTBOX
+
+Do not project raw Recall attempts or state.
+
+Expected:
+
+```text
+PrivateD1SyncOutbox delta = 0
+```
+
+---
+
+# 114. NO R2
+
+No binary data.
+
+---
+
+# 115. NO KV
+
+No Recall cache yet.
+
+---
+
+# 116. NO DURABLE OBJECT
+
+No Recall realtime state.
+
+---
+
+# 117. NO AI
+
+No Workers AI.
+
+No Gemini.
+
+No AI decides correctness, memory quality, or eligibility.
+
+---
+
+# 118. MIGRATION
+
+Create one additive PostgreSQL migration for:
+
+```text
+RecallAttempt
+RecallItemState
+```
+
+No other subsystem schema.
+
+---
+
+# 119. MIGRATION SAFETY
+
+Explicitly verify:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+Points destructive change: NO
+Gamification destructive change: NO
+Leaderboard destructive change: NO
+```
+
+---
+
+# 120. NO MIGRATION BACKFILL
+
+Migration inserts:
+
+```text
+RecallAttempt rows = 0
+RecallItemState rows = 0
+```
+
+until real/internal Recall issuance.
+
+Do not derive old MCQ/Flashcard attempts automatically.
+
+---
+
+# 121. ATTEMPT INDEXES
+
+Evaluate at minimum:
+
+```text
+(userId, issuanceIdempotencyKey) UNIQUE
+
+(userId, status, presentedAt)
+
+(userId, itemType, itemId, presentedAt)
+
+(itemType, itemId, presentedAt)
+```
+
+Avoid over-indexing.
+
+---
+
+# 122. STATE INDEXES
+
+At minimum:
+
+```text
+(userId, itemType, itemId) UNIQUE
+
+(userId, lastPresentedAt)
+(userId, lectureId, lastPresentedAt)
+```
+
+The latter may help Prompt 29 candidate selection.
+
+Do NOT create candidate-score index.
+
+---
+
+# 123. TERMINAL TIMESTAMP INVARIANT
+
+For ANSWERED:
+
+```text
+answeredAt != null
+skippedAt = null
+expiredAt = null
+```
+
+For SKIPPED:
+
+```text
+skippedAt != null
+answeredAt = null
+expiredAt = null
+```
+
+For EXPIRED:
+
+```text
+expiredAt != null
+answeredAt = null
+skippedAt = null
+```
+
+Enforce in service/tests.
+
+---
+
+# 124. PRESENTED INVARIANT
+
+For PRESENTED:
+
+```text
+all terminal timestamps = null
+outcome = null
+```
+
+---
+
+# 125. OUTCOME INVARIANT
+
+MCQ ANSWERED:
+
+```text
+outcome = CORRECT | INCORRECT
+```
+
+Flashcard ANSWERED:
+
+```text
+outcome = bounded self-report outcome
+```
+
+SKIPPED/EXPIRED:
+
+```text
+no correctness outcome
+```
+
+---
+
+# 126. ANSWER VALUE SIZE
+
+Bound stored answer value.
+
+Do not allow arbitrary multi-kilobyte JSON.
+
+Use canonical IDs/enums.
+
+---
+
+# 127. SAFE INPUT VALIDATION
+
+Use strict Zod or repository-standard validation.
+
+Reject unknown fields where appropriate.
+
+---
+
+# 128. REQUEST BODY LIMIT
+
+Recall answer/skip payloads are tiny.
+
+Use a small bounded body limit consistent with existing route architecture.
+
+---
+
+# 129. CLIENT TIMESTAMPS
+
+Do NOT accept client:
+
+```text
+presentedAt
+answeredAt
+skippedAt
+```
+
+as authority.
+
+Use server timestamps.
+
+---
+
+# 130. SERVER CLOCK
+
+Use injectable/current project clock abstraction where practical for deterministic tests.
+
+Do not scatter uncontrollable `Date.now()` calls.
+
+---
+
+# 131. NO DEVICE FINGERPRINT
+
+No:
+
+```text
+IP identity
+canvas fingerprint
+hardware fingerprint
+```
+
+Recall state only uses canonical authenticated user identity and optional existing bounded clientInstanceId if current mutation conventions require it.
+
+---
+
+# 132. CLIENT INSTANCE ID
+
+If used:
+
+it is a correlation hint only.
+
+Not identity authority.
+
+Not correctness evidence.
+
+---
+
+# 133. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt28_recall_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply the complete migration history.
+
+---
+
+# 134. MIGRATION REPLAY
+
+Verify coexistence:
+
+```text
+RecallAttempt
+RecallItemState
+LeaderboardSeason
+LeaderboardSnapshot
+GamificationRuleSet
+UserAchievement
+UserGamificationLevel
+ChallengeInstance
+StudyPointsLedgerEntry
+IntegritySignal
+FocusSession
+```
+
+---
+
+# 135. EMPTY AFTER MIGRATION
+
+Expected before explicit Recall issuance:
+
+```text
+RecallAttempt = 0
+RecallItemState = 0
+```
+
+---
+
+# 136. MCQ ISSUANCE TEST
+
+Issue one canonical MCQ Recall attempt.
+
+Expected:
+
+```text
+RecallAttempt = 1
+status = PRESENTED
+
+RecallItemState.presentationCount = 1
+```
+
+---
+
+# 137. MCQ ISSUANCE REPLAY TEST
+
+Same issuance request twice.
+
+Expected:
+
+```text
+attempt rows = 1
+presentationCount = 1
+```
+
+---
+
+# 138. MCQ ISSUANCE CONFLICT TEST
+
+Same idempotency key, different MCQ.
+
+Expected conflict.
+
+No new attempt/state increment.
+
+---
+
+# 139. MCQ CORRECT TEST
+
+Answer objectively correct option.
+
+Expected:
+
+```text
+attempt = ANSWERED
+outcome = CORRECT
+evidence = SERVER_DERIVED or exact frozen equivalent
+
+answerCount += 1
+objectiveCorrectCount += 1
+```
+
+---
+
+# 140. MCQ INCORRECT TEST
+
+Expected:
+
+```text
+objectiveIncorrectCount += 1
+```
+
+No penalty elsewhere.
+
+---
+
+# 141. CLIENT CORRECTNESS SPOOF TEST
+
+Client submits/attempts to submit:
+
+```text
+correct = true
+```
+
+for wrong answer.
+
+Server ignores/rejects field.
+
+Canonical outcome remains:
+
+```text
+INCORRECT
+```
+
+---
+
+# 142. MCQ REPLAY TEST
+
+Repeat same answer request after lost response.
+
+Expected:
+
+```text
+no duplicate counter
+same canonical result
+```
+
+---
+
+# 143. MCQ CONFLICTING REPLAY TEST
+
+Answer A terminally.
+
+Retry B.
+
+Expected deterministic conflict.
+
+---
+
+# 144. FLASHCARD ISSUANCE TEST
+
+Issue canonical Flashcard attempt.
+
+State presentation count increments once.
+
+---
+
+# 145. FLASHCARD SELF-REPORT TEST
+
+Submit supported “remembered” rating.
+
+Expected:
+
+```text
+selfReportedRememberedCount += 1
+objectiveCorrectCount unchanged
+```
+
+---
+
+# 146. FLASHCARD NOT-REMEMBERED TEST
+
+Expected:
+
+```text
+selfReportedNotRememberedCount += 1
+objectiveIncorrectCount unchanged
+```
+
+---
+
+# 147. FLASHCARD EVIDENCE TEST
+
+Self-report must NOT be falsely stored as objective SERVER_DERIVED correctness.
+
+Report exact evidence class.
+
+---
+
+# 148. SKIP TEST
+
+Issue attempt then skip.
+
+Expected:
+
+```text
+status = SKIPPED
+skipCount += 1
+answerCount unchanged
+incorrect counters unchanged
+Points = 0
+```
+
+---
+
+# 149. ANSWER THEN SKIP TEST
+
+Reject.
+
+Counters unchanged after terminal answer.
+
+---
+
+# 150. SKIP THEN ANSWER TEST
+
+Reject.
+
+---
+
+# 151. EXPIRY TEST
+
+Issue with test-controlled `expiresAt`.
+
+Advance clock beyond expiry.
+
+Answer attempt.
+
+Expected canonical expiry handling.
+
+No incorrect count.
+
+---
+
+# 152. EXPIRED THEN SKIP TEST
+
+Reject.
+
+---
+
+# 153. CONCURRENT IDENTICAL ANSWER TEST
+
+20 simultaneous same MCQ answer requests.
+
+Expected:
+
+```text
+terminal attempt count = 1
+answerCount increment = 1
+correct/incorrect increment = 1
+```
+
+---
+
+# 154. CONCURRENT CONFLICTING ANSWERS TEST
+
+20 mixed A/B submissions.
+
+Expected:
+
+```text
+one winning canonical terminal answer
+one state increment
+conflicting requests rejected/replayed safely
+```
+
+---
+
+# 155. CONCURRENT ANSWER/SKIP TEST
+
+Expected exactly one terminal outcome.
+
+No double state increment.
+
+---
+
+# 156. MULTIPLE RECALL ATTEMPTS SAME ITEM
+
+Different issuance keys may create multiple legitimate historical attempts for the same user/item.
+
+Expected:
+
+```text
+RecallAttempt rows > 1
+RecallItemState row = 1
+```
+
+Counters aggregate correctly.
+
+Prompt 30 later restricts abusive repeat frequency.
+
+---
+
+# 157. STATE REBUILD TEST
+
+Create multiple attempts:
+
+```text
+present
+correct
+present
+incorrect
+present
+skip
+```
+
+Delete/corrupt `RecallItemState` in disposable DB.
+
+Rebuild.
+
+Expected exact counters/timestamps/outcome.
+
+---
+
+# 158. STATE DRIFT TEST
+
+Corrupt one counter.
+
+Dry-run detects mismatch.
+
+Repair fixes state only.
+
+---
+
+# 159. STATE REPAIR SIDE EFFECTS
+
+Expected zero changes to:
+
+```text
+RecallAttempt
+StudyPointsLedgerEntry
+PointsLog
+Mastery
+StudyEvent except pre-existing canonical events
+StudyDailyMetric except pre-existing reducer effects
+IntegritySignal
+CalendarEvent
+UserAchievement
+UserGamificationLevel
+ChallengeInstance
+LeaderboardSnapshot
+PrivateD1SyncOutbox
+```
+
+---
+
+# 160. CROSS-USER OWNERSHIP TEST
+
+User B attempts to answer User A's attempt.
+
+Denied.
+
+User A's attempt/state unchanged.
+
+---
+
+# 161. INVALID ITEM TEST
+
+Internal issuance with missing/deleted/wrong-type item.
+
+Reject before attempt insertion.
+
+---
+
+# 162. LECTURE MISMATCH TEST
+
+If internal issuer supplies inconsistent item/lecture context:
+
+reject or derive lecture from canonical item.
+
+Prefer deriving `lectureId` from source item where feasible.
+
+Do not trust caller's redundant lecture ID.
+
+---
+
+# 163. STUDY EVENT TESTS
+
+If frozen Recall event types exist:
+
+test exact emitted events and evidence/privacy.
+
+If none exist:
+
+verify Recall works with:
+
+```text
+StudyEvent delta = 0
+```
+
+and report clearly.
+
+---
+
+# 164. NO MANUAL STUDY METRIC TEST
+
+No new ad hoc `StudyDailyMetric` update code.
+
+---
+
+# 165. NO POINTS TEST
+
+For:
+
+```text
+MCQ correct
+MCQ incorrect
+Flashcard remembered
+Flashcard not remembered
+Skip
+Expiry
+```
+
+expected:
+
+```text
+StudyPointsLedgerEntry delta = 0
+PointsLog delta = 0
+```
+
+---
+
+# 166. NO MASTERY TEST
+
+Expected:
+
+```text
+Mastery-related table delta = 0
+```
+
+for Prompt 28 operations.
+
+---
+
+# 167. NO INTEGRITY TEST
+
+Ordinary wrong/skip/not-remembered:
+
+```text
+IntegritySignal delta = 0
+```
+
+---
+
+# 168. NO GAMIFICATION SIDE EFFECT TEST
+
+Expected zero deltas:
+
+```text
+UserAchievement
+UserGamificationLevel
+ChallengeInstance
+UserChallengeProgress
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+```
+
+---
+
+# 169. NO CALENDAR TEST
+
+Expected:
+
+```text
+CalendarEvent delta = 0
+```
+
+---
+
+# 170. NO D1 TEST
+
+Expected:
+
+```text
+D1 writes = 0
+PrivateD1SyncOutbox delta = 0
+```
+
+---
+
+# 171. PERFORMANCE
+
+Recall answer/skip is high-frequency enough that the transactional path should remain small.
+
+Target behavior:
+
+```text
+1 RecallAttempt lock/update
+1 RecallItemState update
+optional existing StudyEvent/reducer writes only if already supported
+```
+
+No scans of all Recall history during normal answer path.
+
+---
+
+# 172. NO HISTORY SCAN ON EVERY ANSWER
+
+Use materialized state incrementally.
+
+Full attempt scan belongs only to reconciliation/rebuild.
+
+---
+
+# 173. RECALL STATE IS NOT CANDIDATE AUTHORITY YET
+
+Prompt 29 will decide how to use:
+
+```text
+lastPresentedAt
+outcome history
+counts
+lecture/source context
+```
+
+Do not embed candidate formula now.
+
+---
+
+# 174. RECALL ATTEMPT IS FUTURE RETENTION EVIDENCE
+
+Prompt 32 will later consume:
+
+```text
+objective MCQ outcomes
+Flashcard self-reports
+timestamps
+repetition history
+```
+
+Prompt 28 must preserve their semantic distinction.
+
+---
+
+# 175. DO NOT COLLAPSE OUTCOME TYPES
+
+Mandatory for future retention accuracy:
+
+```text
+objective MCQ incorrect
+!=
+Flashcard self-reported not remembered
+!=
+skip
+!=
+expiry
+```
+
+---
+
+# 176. PROMPT 27 REGRESSION
+
+Leaderboard D1/cache unchanged.
+
+---
+
+# 177. PROMPT 26 REGRESSION
+
+Canonical Leaderboards unchanged.
+
+---
+
+# 178. PROMPT 25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 179. PROMPT 24 REGRESSION
+
+Levels/profile-safe Gamification unchanged.
+
+---
+
+# 180. PROMPT 23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 181. PROMPT 22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 182. PROMPT 19–21 REGRESSION
+
+Points ledger/award/reconciliation unchanged.
+
+---
+
+# 183. PROMPT 17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 184. PROMPT 13–16 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 185. PROMPT 9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 186. PROMPT 8 REGRESSION
+
+Study Event ingestion unchanged except use of already-frozen Recall events if they already existed.
+
+---
+
+# 187. FOUNDATION REGRESSION
+
+Run current relevant:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 188. MCQ REGRESSION
+
+Run current canonical MCQ answer/content tests affected by server-side answer-key reuse.
+
+Do not change normal MCQ UX/awarding behavior.
+
+---
+
+# 189. FLASHCARD REGRESSION
+
+Run existing Flashcard review/content tests affected by reused rating semantics.
+
+Do not change normal Flashcard UX.
+
+---
+
+# 190. CALENDAR BASELINE
+
+Use the repository's actual current baseline.
+
+Expected:
+
+```text
+no new Calendar regressions
+```
+
+Do not hard-code stale historical failure counts if they have changed.
+
+No Calendar files should be modified.
+
+---
+
+# 191. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Recall models/services
+Recall routes
+MCQ/Flashcard adapters
+Prompt 28 tests
+```
+
+Expected PASS.
+
+---
+
+# 192. TARGETED LINT
+
+Prompt 28 changed code/tests:
+
+```text
+PASS
+```
+
+No new repository lint errors.
+
+---
+
+# 193. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 194. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus fresh disposable migration replay.
+
+---
+
+# 195. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply Prompt 28 migration to production;
+* create production Recall attempts;
+* backfill Recall state;
+* enable periodic Recall UI;
+* award Recall Points;
+* modify production Mastery;
+* modify production Supabase;
+* modify remote D1;
+* deploy Worker;
+* modify production env.
+
+---
+
+# 196. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<recall_attempt_state>/
+
+server/features/recall/
+  constants.ts
+  types.ts
+  sourceAdapters.ts
+  repository.ts
+  attemptService.ts
+  stateReducer.ts
+  reconciliation.ts
+  errors.ts
+  index.ts
+
+server/routes/recall.ts
+
+tests/recall-attempt*.test.ts
+tests/recall-postgres*.test.ts
+tests/recall-state*.test.ts
+```
+
+Minimal MCQ/Flashcard adapter files only where necessary.
+
+Use actual repository structure.
+
+---
+
+# 197. FILES EXPECTED UNCHANGED
+
+Unless minimal adapter/import changes are required:
+
+```text
+Prompt 20 Points rules
+Prompt 21 accounting
+Gamification semantics
+Leaderboard semantics
+Focus lifecycle
+Group Focus lifecycle
+Calendar
+D1 Worker
+visible frontend UI
+```
+
+---
+
+# 198. ACCEPTANCE CRITERIA
+
+Prompt 28 succeeds only if:
+
+1. `RecallAttempt` exists.
+2. `RecallItemState` exists.
+3. Migration additive.
+4. No migration backfill.
+5. MCQ and Flashcard supported.
+6. No public attempt-creation route.
+7. Internal issuance is idempotent.
+8. Conflicting issuance rejects.
+9. Attempt lifecycle is frozen.
+10. Terminal attempts cannot reopen.
+11. Skip is not incorrect.
+12. Expiry is not incorrect.
+13. MCQ correctness is server-derived.
+14. Client cannot spoof correctness.
+15. Flashcard self-report remains semantically distinct from objective correctness.
+16. Evidence hierarchy reused.
+17. Recall data remains PRIVATE_STUDY.
+18. Attempt/state update atomic.
+19. Concurrency cannot double-count.
+20. RecallItemState is rebuildable.
+21. State reconciliation/repair works.
+22. Attempt history is not mutated by state repair.
+23. No candidate ranking.
+24. No eligibility engine.
+25. No cooldown.
+26. No anti-farming.
+27. No Recall Points.
+28. No Mastery mutation.
+29. No Retention score.
+30. No automatic Integrity Signal for wrong/skip.
+31. No Calendar.
+32. No D1/outbox.
+33. No AI.
+34. No visible UI.
+35. Existing MCQ behavior unchanged.
+36. Existing Flashcard behavior unchanged.
+37. Production unchanged.
+38. Build passes.
+39. New regressions = 0.
+
+---
+
+# 199. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List:
+
+* current MCQ architecture;
+* current Flashcard architecture;
+* Prompt 27 Leaderboard cache;
+* Prompt 26 Leaderboard;
+* Gamification;
+* Points;
+* Integrity;
+* Focus;
+* Group Focus;
+* Study Events;
+* Auth.
+
+---
+
+## B. Recall Architecture
+
+Explain:
+
+```text
+internal canonical issuance
+→ RecallAttempt PRESENTED
+→ ANSWERED / SKIPPED / EXPIRED
+→ RecallItemState
+→ future Prompt 29/30/32 consumers
+```
+
+---
+
+## C. Content Model Discovery
+
+Report exact existing canonical models/fields used for:
+
+```text
+MCQ ID:
+MCQ correct-answer authority:
+MCQ lecture relation:
+
+Flashcard ID:
+Flashcard review/rating semantics:
+Flashcard lecture relation:
+```
+
+Do not omit this.
+
+---
+
+## D. Prisma Models
+
+Show final fields, relations, indexes and uniqueness for:
+
+```text
+RecallAttempt
+RecallItemState
+```
+
+---
+
+## E. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic Recall backfill:
+```
+
+Expected destructive operations/backfill:
+
+```text
+NO
+```
+
+---
+
+## F. Attempt Lifecycle
+
+Explicitly report:
+
+```text
+PRESENTED → ANSWERED:
+PRESENTED → SKIPPED:
+PRESENTED → EXPIRED:
+
+ANSWERED terminal:
+SKIPPED terminal:
+EXPIRED terminal:
+```
+
+---
+
+## G. Issuance API Boundary
+
+Explicitly:
+
+```text
+PUBLIC CLIENT CAN CHOOSE RECALL ITEM: NO
+PUBLIC CREATE-ATTEMPT ROUTE: NO
+INTERNAL ISSUANCE SERVICE: YES
+```
+
+Show exact service contract.
+
+---
+
+## H. Issuance Idempotency
+
+Report:
+
+```text
+unique key:
+semantic fingerprint:
+same replay:
+conflict:
+concurrent issuance:
+```
+
+---
+
+## I. RecallItemState
+
+Report exact counters/timestamps.
+
+Explicitly:
+
+```text
+CANONICAL HISTORY = RecallAttempt
+REBUILDABLE STATE = RecallItemState
+```
+
+---
+
+## J. MCQ Evaluation
+
+Report:
+
+```text
+client answer input:
+correct-answer authority:
+outcome derivation:
+evidence class:
+client can submit correctness:
+```
+
+Expected final field:
+
+```text
+client can submit correctness: NO
+```
+
+---
+
+## K. Flashcard Evaluation
+
+Report exact existing/reused review semantics.
+
+Explicitly distinguish:
+
+```text
+objective correctness
+vs
+self-reported memory outcome
+```
+
+Report exact evidence class used.
+
+---
+
+## L. Skip Semantics
+
+Explicitly:
+
+```text
+SKIP COUNTS AS INCORRECT: NO
+SKIP REDUCES MASTERY: NO
+SKIP DEDUCTS POINTS: NO
+SKIP CREATES INTEGRITY SIGNAL: NO
+```
+
+---
+
+## M. Expiry Semantics
+
+Report optional `expiresAt` behavior.
+
+Explicitly:
+
+```text
+EXPIRED COUNTS AS INCORRECT: NO
+GLOBAL EXPIRATION CRON IMPLEMENTED: NO
+```
+
+---
+
+## N. Answer / Skip Routes
+
+Report exact method/path/auth/body/response.
+
+---
+
+## O. Ownership
+
+Report cross-user attempt behavior.
+
+---
+
+## P. Concurrency
+
+Report exact results for:
+
+```text
+identical concurrent answers:
+conflicting concurrent answers:
+answer-vs-skip:
+state counter increments:
+```
+
+---
+
+## Q. Transaction Atomicity
+
+Explain:
+
+```text
+attempt terminal transition
++
+RecallItemState update
+```
+
+transaction behavior.
+
+---
+
+## R. State Rebuild
+
+Report exact canonical aggregation/rebuild algorithm.
+
+---
+
+## S. State Reconciliation
+
+List implemented mismatch/status codes.
+
+---
+
+## T. Repair Safety
+
+Explicitly:
+
+```text
+STATE REPAIR MODIFIES RecallAttempt: NO
+STATE REPAIR MODIFIES RecallItemState: YES
+```
+
+---
+
+## U. Study Event Contract
+
+Report exact frozen Recall event types found in Prompt 4.
+
+If none:
+
+```text
+RECALL STUDY EVENT TYPES AVAILABLE: NO
+NEW STUDY EVENT TYPES ADDED: NO
+```
+
+If present:
+
+list exact names and evidence/privacy.
+
+---
+
+## V. StudyDailyMetric
+
+Explicitly report whether any existing reducer changes occur.
+
+Confirm:
+
+```text
+NEW MANUAL RECALL METRIC LOGIC ADDED: NO
+```
+
+---
+
+## W. Evidence & Privacy
+
+Report:
+
+```text
+MCQ objective answer evidence:
+Flashcard self-report evidence:
+RecallAttempt privacy:
+RecallItemState privacy:
+```
+
+---
+
+## X. Candidate / Eligibility Boundary
+
+Explicitly:
+
+```text
+PREVIOUSLY-STUDIED ELIGIBILITY IMPLEMENTED: NO
+WEAKNESS WEIGHTING IMPLEMENTED: NO
+FORGETTING WEIGHTING IMPLEMENTED: NO
+RECENCY WEIGHTING IMPLEMENTED: NO
+CANDIDATE SELECTION IMPLEMENTED: NO
+```
+
+---
+
+## Y. Cooldown / Anti-Farming Boundary
+
+Explicitly:
+
+```text
+RECALL COOLDOWN IMPLEMENTED: NO
+REPEAT SUPPRESSION IMPLEMENTED: NO
+RAPID-FARM DETECTION IMPLEMENTED: NO
+```
+
+---
+
+## Z. Points Boundary
+
+Explicitly:
+
+```text
+MCQ CORRECT RECALL POINTS: 0
+MCQ INCORRECT RECALL POINTS: 0
+FLASHCARD REMEMBERED RECALL POINTS: 0
+SKIP POINTS: 0
+PointsLog writes: 0
+StudyPointsLedgerEntry writes: 0
+```
+
+---
+
+## AA. Mastery / Retention Boundary
+
+Explicitly:
+
+```text
+MASTERY MUTATION: NO
+RETENTION SCORE IMPLEMENTED: NO
+FORGETTING DECAY IMPLEMENTED: NO
+```
+
+---
+
+## AB. Side Effects
+
+Report deltas from Recall operations:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+UserChallengeProgress:
+LeaderboardSnapshot:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+For StudyEvent/StudyDailyMetric, report exact behavior based on frozen pre-existing Recall event support.
+
+---
+
+## AC. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 28 TESTS EXECUTED: YES/NO
+```
+
+Include schema:
+
+```text
+prompt28_recall_gate
+```
+
+---
+
+## AD. Real PostgreSQL Results
+
+Report:
+
+* migration replay;
+* MCQ issuance;
+* issuance replay;
+* issuance conflict;
+* correct answer;
+* incorrect answer;
+* answer replay;
+* conflicting answer;
+* Flashcard remembered;
+* Flashcard not remembered;
+* skip;
+* expiry;
+* concurrency;
+* state rebuild;
+* state repair.
+
+---
+
+## AE. Content Regression
+
+Report existing MCQ and Flashcard regression suites.
+
+Explicitly state whether normal non-Recall behavior changed.
+
+---
+
+## AF. Tests Added / Modified
+
+Exact paths/counts/results.
+
+---
+
+## AG. Regression Results
+
+Include:
+
+* Prompt 27 D1 Leaderboard cache;
+* Prompt 26 canonical Leaderboards;
+* Prompt 25 Challenges;
+* Prompt 24 Levels/profile;
+* Prompt 23 Achievements;
+* Prompt 22 definitions;
+* Prompt 19–21 Points;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* MCQ;
+* Flashcards;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* targeted typecheck;
+* targeted lint;
+* Calendar baseline.
+
+---
+
+## AH. Files Created
+
+Exact paths/purposes.
+
+---
+
+## AI. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Points reward rules unchanged?
+Mastery unchanged?
+Retention unchanged?
+Leaderboard unchanged?
+Gamification unchanged?
+Focus unchanged?
+Group Focus unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+visible frontend UI unchanged?
+```
+
+---
+
+## AJ. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 28 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION RECALL ATTEMPTS CREATED: NO
+PRODUCTION RECALL STATE BACKFILLED: NO
+PRODUCTION RECALL POINTS ENABLED: NO
+PRODUCTION MASTERY MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AK. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AL. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## AM. Risks / Blockers
+
+Only actual unresolved Recall state/attempt issues.
+
+Do not list Prompt 29 candidate selection, Prompt 30 cooldown, or future UI as blockers.
+
+---
+
+## AN. Architecture Compliance
+
+Answer YES/NO:
+
+* RecallAttempt canonical?
+* RecallItemState rebuildable?
+* PostgreSQL canonical?
+* MCQ + Flashcard supported?
+* Public client cannot choose Recall item?
+* Issuance idempotent?
+* Attempt lifecycle deterministic?
+* Terminal state immutable?
+* Skip not incorrect?
+* Expiry not incorrect?
+* MCQ correctness server-derived?
+* Client correctness ignored/rejected?
+* Flashcard self-report semantically distinct?
+* Evidence hierarchy reused?
+* Recall private?
+* Attempt/state transaction atomic?
+* Concurrent answer race-safe?
+* State rebuild deterministic?
+* No candidate ranking?
+* No eligibility engine?
+* No cooldown?
+* No anti-farming?
+* No Recall Points?
+* No Mastery?
+* No Retention score?
+* No automatic Integrity penalty?
+* No Calendar?
+* No D1/outbox?
+* No AI?
+* No visible UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+---
+
+## AO. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 29 — Spaced Recall Eligibility, Deterministic Candidate Generation & Weakness/Forgetting/Recency Weighting**
+
+Do not implement Prompt 29.
+
+---
+
+# 200. STOP CONDITION
+
+After implementation, testing and mandatory report:
+
+STOP.
+
+Do NOT implement Recall candidate selection.
+
+Do NOT add weakness/forgetting/recency scoring.
+
+Do NOT implement Recall cooldown.
+
+Do NOT implement Recall anti-farming.
+
+Do NOT award Recall Points.
+
+Do NOT implement Mastery or retention decay.
+
+Do NOT build Recall UI.
+
+Do NOT deploy Prompt 28 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 28 COMPLETE — SPACED RECALL CANONICAL STATE, ATTEMPT LIFECYCLE & EVIDENCE CONTRACTS READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
