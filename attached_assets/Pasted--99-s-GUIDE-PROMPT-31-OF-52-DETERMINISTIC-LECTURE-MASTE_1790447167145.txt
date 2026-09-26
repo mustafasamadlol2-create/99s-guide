@@ -1,0 +1,3670 @@
+# 99’s GUIDE — PROMPT 31 OF 52
+## DETERMINISTIC LECTURE MASTERY
+## EVIDENCE AGGREGATION + CANONICAL MASTERY STATES
+## SERVER-AUTHORITATIVE PROGRESS EVALUATION
+### NO RETENTION DECAY YET — NO D1 YET — NO AI — NO UI
+
+Prompts 1–30 have been completed.
+
+Prompt 31 begins the canonical Mastery subsystem.
+
+Frozen roadmap:
+
+```text
+Prompt 31 — Mastery initial deterministic
+Prompt 32 — Retention decay / review
+Prompt 33 — Mastery D1 / dashboard API
+Prompt 34 — Owner aggregate metrics
+Prompt 35 — Owner privacy/access
+Prompt 36 — deterministic Analyzer DTO/metrics
+Prompt 37 — AI Study Insight cache/Workers AI
+Prompt 38 — Ask My Study Data
+```
+
+Do NOT implement Prompt 32+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement deterministic, server-authoritative Lecture Mastery based on canonical study evidence.
+
+Prompt 31 must provide:
+
+1. canonical per-user/per-lecture Mastery state;
+2. deterministic evidence aggregation;
+3. frozen Mastery state machine;
+4. objective MCQ evidence handling;
+5. Flashcard self-report handling;
+6. Recall evidence handling;
+7. meaningful Focus/progress evidence;
+8. bounded confidence/evidence sufficiency;
+9. deterministic recomputation;
+10. reconciliation and repair;
+11. internal/private own-Mastery read service;
+12. event-driven/best-effort refresh hooks.
+
+Prompt 31 must NOT implement retention decay, forgetting curves, next-review scheduling, D1 projection, AI explanations, owner analytics, or visible UI.
+
+---
+
+# 2. FROZEN MASTERY STATES
+
+Use exactly:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+Do NOT add:
+
+```text
+EXPERT
+WEAK
+FAILED
+PERFECT
+```
+
+or any other states.
+
+---
+
+# 3. CORE PRINCIPLE
+
+Mastery must be:
+
+```text
+canonical study evidence
+→ deterministic aggregation
+→ deterministic Mastery evaluation
+→ rebuildable Mastery state
+```
+
+Never:
+
+```text
+client says “I mastered this lecture”
+→ MASTERED
+```
+
+Never:
+
+```text
+AI says this user understands it
+→ MASTERED
+```
+
+---
+
+# 4. DATA DETERMINES FACTS
+
+Preserve the architecture principle:
+
+```text
+Data determines facts.
+AI may explain facts later.
+```
+
+Prompt 31 has:
+
+```text
+AI calls = 0
+```
+
+---
+
+# 5. MASTERY IS PRIVATE STUDY DATA
+
+Mastery is:
+
+```text
+PRIVATE_STUDY
+```
+
+It must NOT be:
+
+- public profile data;
+- leaderboard input;
+- social rank;
+- visible to unrelated students;
+- exposed through public Gamification APIs.
+
+---
+
+# 6. NO ACADEMIC-GRADE CLAIM
+
+Mastery state is a Study Engine signal.
+
+It must NOT claim:
+
+```text
+exam grade
+course pass/fail
+medical competence
+official academic mastery
+```
+
+It reflects evidence inside 99’s Guide only.
+
+---
+
+# 7. MASTERY IS PER LECTURE
+
+Canonical identity:
+
+```text
+userId
++
+lectureId
+```
+
+One current Mastery row per user per lecture.
+
+---
+
+# 8. REQUIRED CANONICAL MODEL
+
+Add one durable/rebuildable model:
+
+```text
+LectureMastery
+```
+
+or repository-consistent equivalent.
+
+Do NOT create a separate model for each evidence source.
+
+---
+
+# 9. `LectureMastery`
+
+Support at least:
+
+```text
+id
+
+userId
+lectureId
+
+state
+
+evidenceScore
+evidenceCount
+
+objectiveAttemptCount
+objectiveCorrectCount
+objectiveIncorrectCount
+
+flashcardReviewCount
+flashcardRememberedCount
+flashcardNotRememberedCount
+
+recallObjectiveAttemptCount
+recallObjectiveCorrectCount
+recallObjectiveIncorrectCount
+
+meaningfulFocusSessionCount
+meaningfulFocusSeconds
+
+lastStudyEvidenceAt?
+lastObjectiveEvidenceAt?
+lastRecallEvidenceAt?
+
+ruleVersion
+
+revision
+
+lastEvaluatedAt
+
+createdAt
+updatedAt
+```
+
+Adjust fields only if actual repository semantics demand a better normalized equivalent.
+
+---
+
+# 10. REBUILDABLE STATE
+
+`LectureMastery` is derived current state.
+
+Canonical evidence remains in the underlying source tables.
+
+If a Mastery row is deleted or corrupted:
+
+```text
+recompute from source evidence
+```
+
+must restore it.
+
+---
+
+# 11. MASTERY IS NOT AN EVENT LOG
+
+Do NOT create:
+
+```text
+LectureMasteryEvent
+MasteryHistory
+MasteryTransitionLog
+```
+
+in Prompt 31 unless a current generic audit/event architecture already requires it.
+
+Current-state projection is enough.
+
+---
+
+# 12. HISTORICAL SOURCE DATA REMAINS CANONICAL
+
+Mastery must derive from existing canonical evidence such as:
+
+```text
+MCQ attempts
+Flashcard reviews
+RecallAttempt
+FocusSession
+Group Focus participant summaries
+StudyEvent
+LectureProgress
+```
+
+Use only actual current repository models and semantics.
+
+---
+
+# 13. PRE-FLIGHT DISCOVERY REQUIRED
+
+Before coding, inspect actual current structures for:
+
+```text
+MCQ attempt/history
+Flashcard review/history
+RecallAttempt
+RecallItemState
+FocusSession
+GroupFocusParticipantSummary
+LectureProgress
+StudyEvent
+```
+
+Report exact source models/fields used.
+
+Do not guess historical table names.
+
+---
+
+# 14. NO PDF READ CLAIM
+
+PDF open alone:
+
+```text
+does NOT improve Mastery
+```
+
+Prompt 11 already established resource handoff is not proof of reading.
+
+---
+
+# 15. NO VIDEO OPEN CLAIM
+
+Opening a video alone:
+
+```text
+does NOT improve Mastery
+```
+
+unless there is stronger canonical study evidence elsewhere.
+
+---
+
+# 16. MANUAL COMPLETE ALONE
+
+If Lecture Complete remains a manual user action:
+
+```text
+manual complete alone
+must NOT be sufficient for GOOD or MASTERED
+```
+
+It may contribute only to STARTED/LEARNING if the current architecture genuinely treats it as study evidence.
+
+Prefer stronger evidence.
+
+---
+
+# 17. FOCUS EVIDENCE
+
+A meaningful completed Focus session tied to the lecture may support Mastery progression.
+
+Reuse existing meaningful threshold:
+
+```text
+activeSeconds >= 600
+```
+
+or exact centralized Prompt 20 constant.
+
+Do not create a new Focus threshold.
+
+---
+
+# 18. FOCUS IS SUPPORTING EVIDENCE
+
+Focus time alone can show engagement.
+
+It cannot produce:
+
+```text
+MASTERED
+```
+
+without objective or memory evidence.
+
+Mandatory.
+
+---
+
+# 19. GROUP FOCUS EVIDENCE
+
+Canonical lecture-linked:
+
+```text
+GroupFocusParticipantSummary
+```
+
+with verified participation may contribute meaningful study evidence.
+
+Membership alone:
+
+```text
+0 Mastery evidence
+```
+
+---
+
+# 20. MCQ EVIDENCE
+
+Objective server-verified MCQ performance is the strongest initial Mastery evidence.
+
+Use:
+
+```text
+server-persisted attempt
+server-known correct answer
+server-derived correctness
+```
+
+Do not trust client correctness.
+
+---
+
+# 21. RECALL MCQ EVIDENCE
+
+Prompt 28 objective Recall MCQ outcomes are valid Mastery evidence.
+
+They remain distinct from normal MCQ attempts but may be combined appropriately.
+
+---
+
+# 22. FLASHCARD EVIDENCE
+
+Flashcard outcomes are self-reported memory signals.
+
+They may contribute to Mastery but with lower evidence strength than objective MCQ correctness.
+
+Do not equate:
+
+```text
+SELF_REPORTED_REMEMBERED
+```
+
+with objective correct answer.
+
+---
+
+# 23. RECALL FLASHCARD EVIDENCE
+
+Prompt 28:
+
+```text
+SELF_REPORTED_REMEMBERED
+SELF_REPORTED_NOT_REMEMBERED
+```
+
+may contribute as private memory evidence.
+
+Still not objective correctness.
+
+---
+
+# 24. SKIP
+
+Recall:
+
+```text
+SKIPPED
+```
+
+provides:
+
+```text
+0 positive
+0 negative
+```
+
+Mastery evidence.
+
+Skip does not lower Mastery.
+
+---
+
+# 25. EXPIRED
+
+Recall:
+
+```text
+EXPIRED
+```
+
+is neutral.
+
+No Mastery reduction.
+
+---
+
+# 26. NO POINTS AS EVIDENCE
+
+Do not use:
+
+```text
+StudyPointsLedgerEntry amount
+Level
+Achievement
+Challenge
+Leaderboard rank
+```
+
+as Mastery evidence.
+
+Points are Gamification/accounting, not learning evidence.
+
+---
+
+# 27. NO INTEGRITY SCORE AS MASTERY
+
+Integrity Signals do not directly determine Mastery.
+
+Do not lower Mastery because an IntegritySignal exists.
+
+---
+
+# 28. RULE VERSION
+
+Define:
+
+```text
+mastery-v1
+```
+
+Persist:
+
+```text
+ruleVersion = mastery-v1
+```
+
+on current Mastery projection.
+
+---
+
+# 29. MASTERy RULES MUST BE CENTRALIZED
+
+Create one deterministic rule module.
+
+No state thresholds scattered across routes.
+
+---
+
+# 30. EVIDENCE SCORE
+
+Create an internal deterministic aggregate:
+
+```text
+evidenceScore
+```
+
+for state evaluation.
+
+Use integer math.
+
+This score is an implementation mechanism, not a user-facing intelligence score.
+
+---
+
+# 31. EVIDENCE SCORE RANGE
+
+Normalize to:
+
+```text
+0..100
+```
+
+for current aggregate Mastery confidence/evidence.
+
+Do not allow unbounded accumulation.
+
+---
+
+# 32. IMPORTANT: SCORE IS NOT RETENTION
+
+`evidenceScore` is NOT:
+
+```text
+retention probability
+memory strength
+forgetting curve
+```
+
+Prompt 32 owns retention.
+
+---
+
+# 33. OBJECTIVE PERFORMANCE WINDOW
+
+Do not let very old lifetime performance dominate forever.
+
+For Prompt 31 initial deterministic Mastery, use a bounded recent evidence window.
+
+Recommended:
+
+```text
+most recent 20 objective attempts
+```
+
+across normal MCQ + Recall MCQ for that lecture.
+
+---
+
+# 34. FLASHCARD WINDOW
+
+Use a bounded recent window:
+
+```text
+most recent 20 meaningful Flashcard memory outcomes
+```
+
+excluding skips/expired Recall attempts.
+
+---
+
+# 35. FOCUS WINDOW
+
+Use a bounded recent study window where useful.
+
+Recommended:
+
+```text
+last 30 days
+```
+
+for supporting Focus evidence.
+
+Do NOT introduce retention decay from age yet.
+
+Age only bounds evidence collection.
+
+---
+
+# 36. OBJECTIVE ACCURACY
+
+Compute:
+
+```text
+objectiveAccuracy =
+objectiveCorrect / objectiveAttempts
+```
+
+using integer-safe arithmetic.
+
+Do not use floating value as direct state authority without deterministic threshold comparison.
+
+---
+
+# 37. MINIMUM OBJECTIVE SAMPLE
+
+A tiny sample must not produce MASTERED.
+
+Freeze:
+
+```text
+minimum objective attempts for GOOD = 5
+minimum objective attempts for MASTERED = 10
+```
+
+where sufficient objective items exist.
+
+---
+
+# 38. OBJECTIVE DIVERSITY
+
+If canonical question IDs are available:
+
+count:
+
+```text
+distinct objective question/item IDs
+```
+
+Prefer distinct questions over repeated farming of the same MCQ.
+
+---
+
+# 39. DISTINCT-ITEM REQUIREMENT
+
+Freeze:
+
+```text
+GOOD requires >= 5 distinct objective items
+MASTERED requires >= 10 distinct objective items
+```
+
+If lecture has fewer available objective MCQs than threshold:
+
+do not make mastery impossible.
+
+Handle limited-content lectures explicitly.
+
+---
+
+# 40. LIMITED-CONTENT LECTURES
+
+Inspect available valid objective MCQ count for lecture.
+
+Define:
+
+```text
+requiredDistinctForGood =
+min(5, availableObjectiveItemCount)
+
+requiredDistinctForMastered =
+min(10, availableObjectiveItemCount)
+```
+
+But require at least:
+
+```text
+3 distinct objective items
+```
+
+for objective-based GOOD/MASTERED if the lecture has >=3 valid objective items.
+
+---
+
+# 41. VERY LOW CONTENT
+
+If lecture has:
+
+```text
+0 objective MCQs
+```
+
+MASTERED must NOT be claimed from Flashcards/Focus alone in Prompt 31.
+
+Maximum state without objective evidence:
+
+```text
+LEARNING
+```
+
+or `NEEDS_REVIEW` based on self-reported failures.
+
+---
+
+# 42. ONE OR TWO OBJECTIVE ITEMS
+
+If a lecture has only 1–2 valid objective items:
+
+do not allow MASTERED from repeated answers to those same items.
+
+Maximum:
+
+```text
+GOOD
+```
+
+only with perfect/high objective evidence plus supporting study evidence.
+
+Document exact rule.
+
+---
+
+# 43. OBJECTIVE WEIGHT
+
+Recommended V1 Mastery composition:
+
+```text
+Objective MCQ evidence:       70 points max
+Flashcard memory evidence:    20 points max
+Meaningful study evidence:    10 points max
+```
+
+Total:
+
+```text
+100
+```
+
+---
+
+# 44. OBJECTIVE COMPONENT
+
+Recommended deterministic formula:
+
+For >=1 objective attempt:
+
+```text
+objectiveScore =
+accuracyPercent
+* sampleConfidencePercent
+/ 100
+```
+
+then scale to:
+
+```text
+0..70
+```
+
+---
+
+# 45. SAMPLE CONFIDENCE
+
+Use bounded deterministic sample confidence:
+
+```text
+1 attempt  → 20%
+2          → 35%
+3          → 50%
+4          → 65%
+5–7        → 80%
+8–9        → 90%
+10+        → 100%
+```
+
+Use exact centralized mapping.
+
+---
+
+# 46. DISTINCTNESS CONFIDENCE
+
+Apply a separate bounded diversity factor where same question repetition would otherwise inflate confidence.
+
+Example:
+
+```text
+distinctFactor =
+min(distinctObjectiveItems / requiredDistinctForMastered, 1)
+```
+
+Use integer deterministic implementation.
+
+---
+
+# 47. OBJECTIVE FINAL COMPONENT
+
+Recommended:
+
+```text
+objectiveComponent =
+accuracy
+× sample confidence
+× distinctness confidence
+scaled to 0..70
+```
+
+Do not allow one repeated MCQ to yield high objective score.
+
+---
+
+# 48. FLASHCARD COMPONENT
+
+Use recent meaningful Flashcard outcomes.
+
+Recommended:
+
+```text
+rememberedRatio
+× bounded sample confidence
+scaled to 0..20
+```
+
+Self-report remains weaker evidence.
+
+---
+
+# 49. FLASHCARD SAMPLE CONFIDENCE
+
+Recommended:
+
+```text
+1 review  → 25%
+2         → 40%
+3         → 55%
+4         → 70%
+5–7       → 85%
+8+        → 100%
+```
+
+---
+
+# 50. FLASHCARD FAILURE SIGNAL
+
+Repeated:
+
+```text
+NOT_REMEMBERED
+```
+
+must lower the Flashcard component.
+
+It may also contribute to:
+
+```text
+NEEDS_REVIEW
+```
+
+when sufficiently recent/repeated.
+
+---
+
+# 51. STUDY COMPONENT
+
+Supporting study evidence max:
+
+```text
+10
+```
+
+Recommended:
+
+```text
+meaningful Focus / verified Group Focus / legitimate study activity
+```
+
+Scale conservatively.
+
+Example:
+
+```text
+>=10 min  → 3
+>=25 min  → 5
+>=45 min  → 7
+>=90 min  → 10
+```
+
+across recent bounded lecture study evidence.
+
+---
+
+# 52. STUDY TIME MUST NOT DOMINATE
+
+A student cannot become MASTERED by running a Focus timer for hours.
+
+Objective evidence gate remains mandatory.
+
+---
+
+# 53. `NOT_STARTED`
+
+State when there is no meaningful canonical study evidence.
+
+Examples:
+
+```text
+no meaningful Focus
+no objective MCQ activity
+no Flashcard review
+no verified Group Focus
+```
+
+PDF/video open alone remains irrelevant.
+
+---
+
+# 54. `STARTED`
+
+Use when there is some meaningful canonical study evidence, but insufficient evidence for learning confidence.
+
+Examples:
+
+```text
+one short legitimate quiz attempt
+one meaningful Focus session
+small amount of Flashcard review
+```
+
+---
+
+# 55. `LEARNING`
+
+Use when there is meaningful continuing evidence but not enough for GOOD.
+
+Examples:
+
+```text
+objective attempts exist but sample too small
+mixed accuracy
+Flashcard review underway
+Focus + early quiz evidence
+```
+
+---
+
+# 56. `NEEDS_REVIEW`
+
+This state must be evidence-based.
+
+Use when recent evidence shows difficulty.
+
+Examples:
+
+```text
+repeated objective errors
+low recent objective accuracy with sufficient sample
+repeated Flashcard not-remembered evidence
+recent Recall objective misses
+```
+
+---
+
+# 57. `NEEDS_REVIEW` IS NOT A PUNISHMENT
+
+It is a private study recommendation signal.
+
+Do not create:
+
+- negative Points;
+- IntegritySignal;
+- public label.
+
+---
+
+# 58. `GOOD`
+
+Freeze initial V1 requirements.
+
+A lecture may be `GOOD` only when:
+
+```text
+objective evidence exists
+minimum objective sample/diversity is satisfied
+recent objective accuracy >= 70%
+evidenceScore >= 65
+```
+
+plus no strong recent failure override.
+
+---
+
+# 59. `MASTERED`
+
+Freeze initial V1 requirements.
+
+A lecture may be `MASTERED` only when:
+
+```text
+objective evidence exists
+required MASTERED distinctness satisfied
+objective attempts >= required sample
+recent objective accuracy >= 85%
+evidenceScore >= 85
+```
+
+and no recent strong failure override.
+
+---
+
+# 60. STRONG FAILURE OVERRIDE
+
+A recent pattern of objective failure should prevent `GOOD`/`MASTERED`.
+
+Recommended:
+
+```text
+last 3 objective outcomes contain >=2 INCORRECT
+```
+
+→ maximum:
+
+```text
+NEEDS_REVIEW
+```
+
+unless the exact history ordering suggests a more accurate deterministic rule.
+
+Use canonical recent ordering.
+
+---
+
+# 61. REPEATED FLASHCARD FAILURE OVERRIDE
+
+If recent Flashcard outcomes:
+
+```text
+last 3 meaningful = >=2 NOT_REMEMBERED
+```
+
+and objective evidence is not strongly contradictory:
+
+state may become:
+
+```text
+NEEDS_REVIEW
+```
+
+---
+
+# 62. OBJECTIVE EVIDENCE OUTRANKS SELF-REPORT
+
+If objective MCQ evidence is strong and recent while Flashcard self-report is mixed:
+
+do not automatically force NEEDS_REVIEW from one self-report.
+
+Document exact conflict-resolution rule.
+
+---
+
+# 63. RECOMMENDED FAILURE PRECEDENCE
+
+Use:
+
+```text
+recent objective failure
+>
+recent Flashcard self-report failure
+>
+supporting Focus evidence
+```
+
+Objective evidence is strongest.
+
+---
+
+# 64. NO AGE DECAY YET
+
+Do NOT reduce:
+
+```text
+GOOD
+MASTERED
+```
+
+merely because time passed.
+
+That belongs to Prompt 32.
+
+Prompt 31 may preserve:
+
+```text
+lastEvidence timestamps
+```
+
+for future decay.
+
+---
+
+# 65. IMPORTANT TEMPORAL RULE
+
+With no new evidence:
+
+```text
+Mastery state stays unchanged over time in Prompt 31.
+```
+
+Prompt 32 changes that.
+
+---
+
+# 66. NEW NEGATIVE EVIDENCE MAY LOWER MASTERY
+
+Example:
+
+```text
+MASTERED
+→ subsequent objective Recall misses
+→ NEEDS_REVIEW
+```
+
+This is permitted because new evidence changed.
+
+---
+
+# 67. STATE IS NOT MONOTONIC
+
+Mastery can move:
+
+```text
+up or down
+```
+
+based on canonical evidence.
+
+Do not permanently lock `MASTERED`.
+
+---
+
+# 68. NO DIRECT STATE TRANSITION TABLE
+
+Mastery should be recomputed from current evidence rather than applying arbitrary:
+
+```text
+GOOD → MASTERED
+```
+
+commands.
+
+The current state is a deterministic result.
+
+---
+
+# 69. CLIENT CANNOT SET STATE
+
+Forbidden:
+
+```text
+POST /api/mastery/:lectureId
+{ state: "MASTERED" }
+```
+
+---
+
+# 70. NO ADMIN SET-MASTERY ENDPOINT
+
+Owner/admin also should not arbitrarily set Mastery.
+
+Repair recomputes from canonical evidence.
+
+---
+
+# 71. MASTERy EVALUATOR
+
+Create:
+
+```ts
+evaluateLectureMastery({
+  userId,
+  lectureId,
+  asOf,
+  tx?
+})
+```
+
+Return deterministic:
+
+```text
+state
+evidenceScore
+component scores
+evidence counts
+ruleVersion
+```
+
+Internal details remain private.
+
+---
+
+# 72. MASTERy REFRESH
+
+Create:
+
+```ts
+refreshLectureMastery({
+  userId,
+  lectureId,
+  asOf,
+  tx?
+})
+```
+
+It:
+
+1. gathers canonical evidence;
+2. evaluates;
+3. compares current `LectureMastery`;
+4. writes only if changed.
+
+---
+
+# 73. MASTERy BATCH REFRESH
+
+Create bounded:
+
+```ts
+refreshUserLectureMastery({
+  userId,
+  lectureIds,
+  asOf
+})
+```
+
+Hard bound:
+
+```text
+<= 100 lectureIds per call
+```
+
+No unbounded all-user scan.
+
+---
+
+# 74. ONE EVIDENCE SNAPSHOT
+
+All source queries for one evaluation should use one captured:
+
+```text
+asOf
+```
+
+timestamp.
+
+---
+
+# 75. EVIDENCE AGGREGATOR
+
+Create a dedicated normalized internal DTO.
+
+Conceptually:
+
+```ts
+type LectureMasteryEvidence = {
+  lectureId: string;
+
+  objective: {
+    attempts: number;
+    correct: number;
+    incorrect: number;
+    distinctItems: number;
+    availableItems: number;
+    recentOutcomes: ...
+  };
+
+  flashcards: {
+    reviews: number;
+    remembered: number;
+    notRemembered: number;
+    recentOutcomes: ...
+  };
+
+  study: {
+    meaningfulFocusSessions: number;
+    meaningfulFocusSeconds: number;
+    verifiedGroupFocusSeconds: number;
+  };
+
+  recall: {
+    objectiveAttempts: number;
+    objectiveCorrect: number;
+    objectiveIncorrect: number;
+  };
+
+  timestamps: ...
+}
+```
+
+Do not expose raw attempt records outside the evidence layer.
+
+---
+
+# 76. NORMAL MCQ + RECALL MCQ
+
+Avoid double counting the same canonical interaction if Recall answers already also enter the regular MCQ attempt table.
+
+Inspect actual architecture.
+
+Each real learning interaction must count once per relevant component.
+
+---
+
+# 77. FLASHCARD DUPLICATE AVOIDANCE
+
+Same principle.
+
+If Recall Flashcard review is persisted in an existing generic review table plus RecallAttempt:
+
+avoid counting it twice.
+
+---
+
+# 78. SOURCE DEDUPLICATION
+
+Define explicit source-precedence/deduplication rules.
+
+Final report must state them.
+
+---
+
+# 79. EVIDENCE QUERY PERFORMANCE
+
+Do not query per MCQ/Flashcard item.
+
+Use set-based aggregation by:
+
+```text
+userId + lectureId
+```
+
+and bounded recent history queries.
+
+---
+
+# 80. NO FULL USER HISTORY SCAN
+
+For evaluating one lecture:
+
+query only relevant lecture evidence.
+
+---
+
+# 81. AVAILABLE OBJECTIVE ITEM COUNT
+
+Use valid/published canonical objective MCQ inventory for that lecture.
+
+Do not count malformed/deleted items.
+
+---
+
+# 82. RECENT ATTEMPT ORDER
+
+Use canonical server timestamps.
+
+No client time.
+
+---
+
+# 83. TIE/TIMESTAMP STABILITY
+
+If two evidence rows have identical timestamps:
+
+use stable ID ordering.
+
+Deterministic result required.
+
+---
+
+# 84. NO RANDOMNESS
+
+Mandatory.
+
+---
+
+# 85. NO AI
+
+Mandatory.
+
+---
+
+# 86. NO SECRET MULTIPLIERS
+
+All weights/thresholds live in centralized versioned constants.
+
+---
+
+# 87. COMPONENT SCORE DIAGNOSTICS
+
+Internally store/return during evaluation:
+
+```text
+objectiveComponent
+flashcardComponent
+studyComponent
+```
+
+Do NOT necessarily persist all component scores unless required.
+
+Prefer persisting only summary Mastery state/evidenceScore + useful counts.
+
+---
+
+# 88. NO USER-FACING “83% MASTERY” CLAIM YET
+
+Do not expose `evidenceScore` as:
+
+```text
+83% mastered
+```
+
+It is an internal deterministic score.
+
+Future UI may map state safely.
+
+---
+
+# 89. REQUIRED MASTERy READ SERVICE
+
+Create:
+
+```ts
+getMyLectureMastery({
+  userId,
+  lectureId
+})
+```
+
+private/authenticated service.
+
+---
+
+# 90. OPTIONAL PRIVATE API
+
+Implement authenticated:
+
+```text
+GET /api/me/mastery/lectures/:lectureId
+```
+
+if consistent with current routes.
+
+This may perform bounded refresh before returning.
+
+---
+
+# 91. PRIVATE RESPONSE
+
+Return safe state data such as:
+
+```json
+{
+  "lectureId": "...",
+  "state": "LEARNING",
+  "ruleVersion": "mastery-v1",
+  "lastEvaluatedAt": "...",
+  "evidence": {
+    "objectiveAttempts": 4,
+    "objectiveAccuracyPercent": 75,
+    "flashcardReviews": 3,
+    "meaningfulFocusSeconds": 1800
+  }
+}
+```
+
+Do not expose arbitrary raw answer history.
+
+---
+
+# 92. USER CAN SEE OWN MASTERY
+
+Yes.
+
+Another normal student:
+
+```text
+cannot read it
+```
+
+---
+
+# 93. NO PUBLIC PROFILE MASTERY
+
+Prompt 24 public profile remains unchanged.
+
+---
+
+# 94. OWNER ACCESS
+
+Do not build owner individual-student Mastery browsing in Prompt 31.
+
+Prompt 34–35 will define aggregate owner analytics/privacy.
+
+---
+
+# 95. NO CLASS-WIDE MASTERY API
+
+Not yet.
+
+---
+
+# 96. EVENT-DRIVEN REFRESH — MCQ
+
+After canonical objective MCQ interaction tied to lecture:
+
+best-effort refresh that lecture's Mastery.
+
+Do not duplicate MCQ persistence.
+
+---
+
+# 97. EVENT-DRIVEN REFRESH — FLASHCARD
+
+After canonical meaningful Flashcard review:
+
+best-effort refresh.
+
+---
+
+# 98. EVENT-DRIVEN REFRESH — RECALL
+
+After Prompt 28/30 Recall terminal answer:
+
+best-effort refresh relevant lecture Mastery.
+
+This is now allowed because Prompt 31 exists.
+
+---
+
+# 99. RECALL SKIP
+
+Skip does not need a Mastery refresh unless timestamps/state architecture requires it.
+
+It carries no Mastery evidence.
+
+Prefer no refresh.
+
+---
+
+# 100. RECALL EXPIRY
+
+No Mastery evidence.
+
+No refresh required.
+
+---
+
+# 101. EVENT-DRIVEN REFRESH — FOCUS
+
+Meaningful completed lecture-linked Focus session:
+
+best-effort refresh.
+
+---
+
+# 102. GROUP FOCUS REFRESH
+
+Verified lecture-linked Group Focus completion may refresh.
+
+---
+
+# 103. COSMETIC/DERIVED FAILURE POLICY
+
+Mastery refresh failure must NOT roll back canonical:
+
+```text
+MCQ answer
+Flashcard review
+Recall answer
+Focus completion
+Group Focus summary
+```
+
+Mastery is rebuildable.
+
+Use:
+
+```text
+canonical source commits
+→ best-effort Mastery refresh
+→ private on-read reconciliation if missed
+```
+
+---
+
+# 104. NO QUEUE REQUIRED
+
+Do not make Mastery correctness depend on Cloudflare Queue.
+
+Future optimization may use async infrastructure later.
+
+---
+
+# 105. ON-READ CONVERGENCE
+
+Own Mastery API may refresh the requested lecture before response.
+
+This repairs missed hooks.
+
+---
+
+# 106. NO GLOBAL AUTO-BACKFILL
+
+Do not evaluate all users/lectures on deploy.
+
+Prompt 49 owns backfill tooling.
+
+---
+
+# 107. MASTERy RECONCILIATION
+
+Create:
+
+```ts
+reconcileLectureMastery({
+  userId,
+  lectureId,
+  repair?: boolean
+})
+```
+
+---
+
+# 108. RECONCILIATION STATES
+
+At minimum:
+
+```text
+IN_SYNC
+MASTERY_MISSING
+STATE_MISMATCH
+EVIDENCE_SCORE_MISMATCH
+EVIDENCE_COUNT_MISMATCH
+SOURCE_SUMMARY_MISMATCH
+RULE_VERSION_STALE
+```
+
+---
+
+# 109. REPAIR
+
+Repair may:
+
+```text
+create/update LectureMastery
+```
+
+from canonical evidence.
+
+It must NOT mutate source evidence.
+
+---
+
+# 110. REPAIR MUST NOT ALTER
+
+Mandatory zero mutation to:
+
+```text
+MCQ attempts
+Flashcard reviews
+RecallAttempt
+RecallItemState
+FocusSession
+GroupFocusParticipantSummary
+StudyEvent
+StudyPointsLedgerEntry
+PointsLog
+```
+
+---
+
+# 111. RULE VERSION STALE
+
+If stored:
+
+```text
+mastery-v0
+```
+
+but active evaluator is:
+
+```text
+mastery-v1
+```
+
+recompute.
+
+No historical evidence mutation.
+
+---
+
+# 112. NO DIRECT MASTERy HISTORY EDIT
+
+Do not accept:
+
+```text
+targetState
+evidenceScore
+```
+
+from admin repair request.
+
+Repair derives exact result.
+
+---
+
+# 113. OPTIONAL ADMIN RECONCILIATION
+
+Owner/admin-only operational endpoints may be added:
+
+```text
+GET /api/admin/mastery/users/:userId/lectures/:lectureId/reconciliation
+
+POST /api/admin/mastery/users/:userId/lectures/:lectureId/reconciliation/repair
+```
+
+No UI.
+
+---
+
+# 114. STUDENT CANNOT ADMIN REPAIR
+
+Mandatory.
+
+---
+
+# 115. MASTERy DOES NOT AWARD POINTS
+
+Prompt 31 must NOT add:
+
+```text
+mastery state → Points
+```
+
+Even:
+
+```text
+MASTERED
+```
+
+awards:
+
+```text
+0 Points
+```
+
+unless later roadmap explicitly adds a deterministic reward source.
+
+---
+
+# 116. PROMPT 20 `MASTERY` CATEGORY ≠ MASTERy STATE REWARD
+
+Important:
+
+The Points category:
+
+```text
+MASTERY
+```
+
+already exists for certain learning rewards.
+
+Do NOT assume:
+
+```text
+LectureMastery state change
+→ MASTERY-category reward
+```
+
+These are separate concepts.
+
+---
+
+# 117. NO ACHIEVEMENT
+
+Do not auto-unlock Achievement when a lecture reaches MASTERED.
+
+---
+
+# 118. NO CHALLENGE
+
+Do not create/update Challenges from Mastery state.
+
+---
+
+# 119. NO LEADERBOARD
+
+Mastery does not affect Leaderboard rank.
+
+---
+
+# 120. NO LEVEL
+
+Mastery state does not directly affect Level.
+
+---
+
+# 121. NO INTEGRITY SIGNAL
+
+Low Mastery or regression:
+
+```text
+does not create IntegritySignal
+```
+
+---
+
+# 122. NO NEGATIVE POINTS
+
+A lecture moving:
+
+```text
+MASTERED → NEEDS_REVIEW
+```
+
+must not deduct Points.
+
+---
+
+# 123. NO CALENDAR
+
+Mastery does not create:
+
+```text
+CalendarEvent
+```
+
+or study schedule entries.
+
+---
+
+# 124. NO FOCUS PLAN
+
+Prompt 31 does not automatically add weak lectures to Focus Plan.
+
+AI Study Planner later may recommend Focus Hub items.
+
+---
+
+# 125. NO RECALL SCHEDULING
+
+Even `NEEDS_REVIEW` does not create Recall schedule.
+
+Prompt 32 later handles review/retention semantics.
+
+---
+
+# 126. NO NEXT REVIEW DATE
+
+Do NOT add:
+
+```text
+nextReviewAt
+```
+
+in Prompt 31.
+
+---
+
+# 127. NO RETENTION DECAY
+
+Do NOT add:
+
+```text
+retentionScore
+memoryStrength
+decayRate
+halfLife
+forgettingProbability
+```
+
+---
+
+# 128. NO “FORGETTING” STATE CHANGE FROM TIME
+
+Time passing alone cannot move:
+
+```text
+GOOD → NEEDS_REVIEW
+MASTERED → GOOD
+```
+
+in Prompt 31.
+
+---
+
+# 129. NO D1
+
+Prompt 31 Mastery remains PostgreSQL only.
+
+Expected:
+
+```text
+D1 migration = NO
+PrivateD1SyncOutbox Mastery writes = 0
+```
+
+Prompt 33 owns Mastery D1/dashboard projection.
+
+---
+
+# 130. NO KV
+
+No Mastery cache.
+
+---
+
+# 131. NO AI
+
+No Workers AI.
+
+---
+
+# 132. REQUIRED MIGRATION
+
+Create one additive PostgreSQL migration for:
+
+```text
+LectureMastery
+```
+
+Only.
+
+---
+
+# 133. MIGRATION SAFETY
+
+Explicitly:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+Recall destructive change: NO
+Points destructive change: NO
+Gamification destructive change: NO
+```
+
+---
+
+# 134. NO MIGRATION BACKFILL
+
+Migration creates no Mastery rows.
+
+Do not evaluate production/test users automatically.
+
+---
+
+# 135. MASTERy UNIQUE KEY
+
+Enforce:
+
+```text
+(userId, lectureId) UNIQUE
+```
+
+---
+
+# 136. INDEXES
+
+Evaluate:
+
+```text
+(userId, state)
+(userId, lastEvaluatedAt)
+(lectureId, state)
+```
+
+Do NOT add classwide analytics indexes excessively yet.
+
+Prompt 34 will inspect owner analytics needs.
+
+---
+
+# 137. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt31_mastery_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply complete migration history.
+
+---
+
+# 138. EMPTY AFTER MIGRATION
+
+Expected:
+
+```text
+LectureMastery rows = 0
+```
+
+before explicit evaluation.
+
+---
+
+# 139. TEST — NO EVIDENCE
+
+User has:
+
+```text
+PDF open only
+```
+
+or no canonical study evidence.
+
+Expected:
+
+```text
+NOT_STARTED
+```
+
+---
+
+# 140. TEST — FOCUS ONLY
+
+Meaningful completed Focus but no objective/Flashcard evidence.
+
+Expected at most:
+
+```text
+STARTED
+or
+LEARNING
+```
+
+Never GOOD/MASTERED.
+
+Report exact deterministic result.
+
+---
+
+# 141. TEST — EARLY OBJECTIVE EVIDENCE
+
+Example:
+
+```text
+2/2 correct
+2 distinct items
+```
+
+Must NOT produce MASTERED due insufficient sample/diversity.
+
+Likely:
+
+```text
+LEARNING
+```
+
+---
+
+# 142. TEST — MIXED LEARNING
+
+Example:
+
+```text
+3/5 objective correct
+```
+
+with some study evidence.
+
+Expected LEARNING/NEEDS_REVIEW according to exact rule.
+
+Document.
+
+---
+
+# 143. TEST — NEEDS_REVIEW OBJECTIVE
+
+Example:
+
+```text
+last 3 objective:
+INCORRECT
+CORRECT
+INCORRECT
+```
+
+Expected:
+
+```text
+NEEDS_REVIEW
+```
+
+under strong-failure override.
+
+---
+
+# 144. TEST — GOOD
+
+Construct:
+
+```text
+>=5 objective attempts
+>=required distinct items
+accuracy >=70%
+evidenceScore >=65
+```
+
+without failure override.
+
+Expected:
+
+```text
+GOOD
+```
+
+---
+
+# 145. TEST — MASTERED
+
+Construct:
+
+```text
+>=10 objective attempts
+>=required distinct items
+accuracy >=85%
+evidenceScore >=85
+```
+
+Expected:
+
+```text
+MASTERED
+```
+
+---
+
+# 146. TEST — ONE REPEATED QUESTION FARMING
+
+Answer same objective MCQ correctly 20 times.
+
+Expected:
+
+```text
+does NOT satisfy MASTERED diversity requirement
+```
+
+---
+
+# 147. TEST — LIMITED CONTENT 2 MCQS
+
+Lecture has only two valid objective MCQs.
+
+Repeated perfect performance:
+
+```text
+cannot become MASTERED
+```
+
+Maximum according to frozen limited-content rule.
+
+---
+
+# 148. TEST — ZERO OBJECTIVE ITEMS
+
+Flashcard + Focus only.
+
+Expected:
+
+```text
+not MASTERED
+not GOOD
+```
+
+Maximum:
+
+```text
+LEARNING
+```
+
+unless the exact rule intentionally allows NEEDS_REVIEW from failures.
+
+---
+
+# 149. TEST — FLASHCARD SUPPORT
+
+Objective evidence near GOOD threshold + positive Flashcard reviews may strengthen evidenceScore.
+
+Self-report alone cannot bypass objective gates.
+
+---
+
+# 150. TEST — FLASHCARD FAILURE
+
+Repeated NOT_REMEMBERED with weak/mixed objective evidence:
+
+Expected:
+
+```text
+NEEDS_REVIEW
+```
+
+where frozen rule applies.
+
+---
+
+# 151. TEST — OBJECTIVE VS FLASHCARD CONFLICT
+
+Strong objective performance + one Flashcard not-remembered.
+
+Do not immediately collapse to NEEDS_REVIEW.
+
+Verify precedence rule.
+
+---
+
+# 152. TEST — RECALL OBJECTIVE MISS
+
+Previously GOOD/MASTERED evidence.
+
+Add repeated objective Recall misses.
+
+Expected deterministic downgrade:
+
+```text
+NEEDS_REVIEW
+```
+
+where override triggers.
+
+---
+
+# 153. TEST — RECALL SKIP
+
+Skip:
+
+```text
+Mastery unchanged
+```
+
+except harmless last-evaluation timestamp if implementation writes, though prefer no refresh.
+
+---
+
+# 154. TEST — RECALL EXPIRED
+
+Mastery unchanged.
+
+---
+
+# 155. TEST — TIME PASSING
+
+Evaluate MASTERED lecture.
+
+Advance test clock 30 days with no new evidence.
+
+Prompt 31 expected:
+
+```text
+still MASTERED
+```
+
+This test is mandatory to prove Prompt 32 boundary.
+
+---
+
+# 156. TEST — NEW NEGATIVE EVIDENCE
+
+After time advance, add objective misses.
+
+Then Mastery may fall.
+
+Difference must come from new evidence, not elapsed time.
+
+---
+
+# 157. TEST — NEW POSITIVE EVIDENCE
+
+NEEDS_REVIEW lecture receives sufficient recent strong objective performance.
+
+Can recover to GOOD/MASTERED if gates satisfied.
+
+---
+
+# 158. TEST — PDF OPEN
+
+No Mastery improvement.
+
+---
+
+# 159. TEST — VIDEO OPEN
+
+No Mastery improvement.
+
+---
+
+# 160. TEST — GROUP MEMBERSHIP
+
+Membership alone:
+
+```text
+0 evidence
+```
+
+---
+
+# 161. TEST — GROUP VERIFIED STUDY
+
+Lecture-linked verified participation contributes supporting study evidence only.
+
+Cannot independently produce MASTERED.
+
+---
+
+# 162. TEST — MCQ CLIENT SPOOF
+
+Client-controlled correctness field must not affect Mastery.
+
+Use canonical persisted correctness only.
+
+---
+
+# 163. TEST — FLASHCARD SELF-REPORT DISTINCTION
+
+Verify it enters weaker self-report component, not objective counts.
+
+---
+
+# 164. TEST — DUPLICATE SOURCE DEDUP
+
+If a Recall MCQ answer exists in both generic MCQ history and RecallAttempt:
+
+Mastery counts one objective interaction, not two.
+
+Mandatory where architecture can duplicate storage.
+
+---
+
+# 165. TEST — SAME FOR FLASHCARD
+
+No double counting.
+
+---
+
+# 166. TEST — EVIDENCE SCORE BOUNDS
+
+Always:
+
+```text
+0 <= evidenceScore <= 100
+```
+
+---
+
+# 167. TEST — DETERMINISM
+
+Same DB + same `asOf`:
+
+```text
+same counts
+same component scores
+same evidenceScore
+same state
+```
+
+---
+
+# 168. TEST — CONCURRENT REFRESH
+
+20 concurrent refreshes for same user+lecture.
+
+Expected:
+
+```text
+LectureMastery rows = 1
+final state exact
+no unique-constraint 500
+```
+
+---
+
+# 169. TEST — NO-OP REFRESH
+
+Source evidence unchanged.
+
+Second refresh should preferably create:
+
+```text
+0 writes
+```
+
+Do not rewrite every time.
+
+---
+
+# 170. TEST — MISSED HOOK CONVERGENCE
+
+Simulate new MCQ evidence without calling Mastery hook.
+
+Then:
+
+```text
+GET /api/me/mastery/lectures/:lectureId
+```
+
+Expected:
+
+```text
+Mastery catches up
+```
+
+---
+
+# 171. TEST — RECONCILIATION DRIFT
+
+Corrupt stored state/evidenceScore.
+
+Dry-run detects mismatch.
+
+---
+
+# 172. TEST — REPAIR
+
+Repair restores exact computed Mastery.
+
+Canonical source tables unchanged.
+
+---
+
+# 173. TEST — RULE VERSION STALE
+
+Set stored row to old version in disposable fixture.
+
+Reconciliation updates to:
+
+```text
+mastery-v1
+```
+
+---
+
+# 174. TEST — OWNERSHIP
+
+User A cannot read User B Mastery through own API.
+
+---
+
+# 175. TEST — PUBLIC PROFILE
+
+Prompt 24 public profile must not expose Mastery after Prompt 31.
+
+---
+
+# 176. TEST — POINTS SIDE EFFECT
+
+Mastery evaluation/state change:
+
+```text
+StudyPointsLedgerEntry delta = 0
+PointsLog delta = 0
+```
+
+---
+
+# 177. TEST — GAMIFICATION SIDE EFFECT
+
+Mastery evaluation creates no direct:
+
+```text
+Achievement
+Level
+Challenge
+Leaderboard
+```
+
+mutation.
+
+---
+
+# 178. TEST — INTEGRITY SIDE EFFECT
+
+Low/NEEDS_REVIEW Mastery:
+
+```text
+IntegritySignal delta = 0
+```
+
+---
+
+# 179. TEST — CALENDAR SIDE EFFECT
+
+Expected:
+
+```text
+CalendarEvent delta = 0
+```
+
+---
+
+# 180. TEST — D1 SIDE EFFECT
+
+Expected:
+
+```text
+PrivateD1SyncOutbox Mastery delta = 0
+D1 writes = 0
+```
+
+---
+
+# 181. TEST — RECALL POINTS INDEPENDENCE
+
+Prompt 30 Recall +2 may exist.
+
+Mastery must derive from canonical Recall answer outcome, not whether Points were awarded.
+
+Example:
+
+```text
+correct Recall answer
+but reward cap reached
+```
+
+still counts as objective Mastery evidence.
+
+Mandatory.
+
+---
+
+# 182. TEST — INTEGRITY-BLOCKED RECALL REWARD
+
+Correct Recall outcome with reward blocked by Integrity:
+
+Mastery still sees the objective correct evidence.
+
+Points eligibility and Mastery evidence are separate.
+
+---
+
+# 183. IMPORTANT SEPARATION
+
+Freeze:
+
+```text
+Learning evidence
+!=
+Gamification reward eligibility
+```
+
+This is mandatory architecture.
+
+---
+
+# 184. QUERY PERFORMANCE
+
+For one lecture evaluation:
+
+use bounded/set-based source queries.
+
+Do not query each MCQ individually.
+
+---
+
+# 185. BATCH REFRESH PERFORMANCE
+
+For <=100 lectures:
+
+avoid:
+
+```text
+100 × every source query
+```
+
+where batch aggregation can be used.
+
+However correctness is more important than premature complexity.
+
+Report actual query strategy.
+
+---
+
+# 186. SOURCE HISTORY LIMITS
+
+Recent objective:
+
+```text
+20
+```
+
+Recent Flashcard:
+
+```text
+20
+```
+
+Use database ordering/limit.
+
+Do not load full lifetime attempt history merely for current Mastery.
+
+---
+
+# 187. AGGREGATE COUNTS
+
+If lifetime counts are persisted on Mastery projection, compute safely.
+
+State decision remains based on frozen recent/bounded rules.
+
+Document difference between:
+
+```text
+summary counts
+vs
+evaluation window
+```
+
+---
+
+# 188. LAST EVIDENCE TIMESTAMPS
+
+Persist reliable canonical timestamps:
+
+```text
+lastStudyEvidenceAt
+lastObjectiveEvidenceAt
+lastRecallEvidenceAt
+```
+
+when available.
+
+Prompt 32 will consume them.
+
+---
+
+# 189. DO NOT STORE FUTURE DECAY FIELDS
+
+No:
+
+```text
+nextReviewAt
+retentionScore
+decayedScore
+lastDecayAt
+halfLife
+```
+
+---
+
+# 190. MIGRATION REPLAY
+
+Fresh migration replay in disposable PostgreSQL.
+
+Existing Recall/Points/Gamification/Leaderboard tables remain intact.
+
+---
+
+# 191. PROMPT 30 REGRESSION
+
+Run:
+
+- `/next`;
+- cooldown;
+- anti-farming;
+- interaction tokens;
+- Recall reward;
+- reward caps.
+
+Mastery integration must not change Prompt 30 behavior.
+
+---
+
+# 192. PROMPT 29 REGRESSION
+
+Candidate scoring unchanged.
+
+Mastery must not influence candidate ranking in Prompt 31.
+
+---
+
+# 193. PROMPT 28 REGRESSION
+
+Recall lifecycle/evidence unchanged.
+
+---
+
+# 194. PROMPT 27 REGRESSION
+
+Leaderboard D1 unchanged.
+
+---
+
+# 195. PROMPT 26 REGRESSION
+
+Leaderboard canonical ranking unchanged.
+
+---
+
+# 196. PROMPT 25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 197. PROMPT 24 REGRESSION
+
+Levels/profile unchanged.
+
+---
+
+# 198. PROMPT 23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 199. PROMPT 22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 200. PROMPT 19–21 REGRESSION
+
+Points accounting unchanged.
+
+---
+
+# 201. PROMPT 17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 202. PROMPT 13–16 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 203. PROMPT 9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 204. PROMPT 8 REGRESSION
+
+Study Event ingestion unchanged.
+
+---
+
+# 205. MCQ / FLASHCARD REGRESSION
+
+Existing normal behavior remains unchanged.
+
+---
+
+# 206. CALENDAR BASELINE
+
+Use actual current repository baseline.
+
+Required:
+
+```text
+Calendar files unchanged
+new Calendar regressions = 0
+```
+
+Do not hard-code stale historical failure numbers.
+
+---
+
+# 207. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Mastery evidence adapters
+Mastery evaluator
+Mastery repository
+Mastery routes
+Mastery reconciliation
+Prompt 31 tests
+```
+
+Expected PASS.
+
+---
+
+# 208. TARGETED LINT
+
+Prompt 31 changed code:
+
+```text
+PASS
+```
+
+No new repository lint errors.
+
+---
+
+# 209. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 210. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus disposable migration replay.
+
+---
+
+# 211. PRODUCTION SAFETY
+
+Do NOT:
+
+- apply Prompt 31 migration to production;
+- backfill production Mastery;
+- expose production owner Mastery analytics;
+- modify production Retention state;
+- enable D1 Mastery projection;
+- change Recall candidate rules;
+- change Recall Points;
+- modify production Points;
+- modify production Supabase;
+- modify remote D1;
+- deploy Worker;
+- modify production env.
+
+---
+
+# 212. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+prisma/schema.prisma
+prisma/migrations/<lecture_mastery>/
+
+server/features/mastery/
+  constants.ts
+  types.ts
+  evidence.ts
+  evidenceAdapters.ts
+  evaluator.ts
+  repository.ts
+  refresh.ts
+  reconciliation.ts
+  errors.ts
+  index.ts
+
+server/routes/mastery.ts
+
+tests/mastery-evaluator*.test.ts
+tests/mastery-evidence*.test.ts
+tests/mastery-postgres*.test.ts
+tests/mastery-reconciliation*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 213. FILES EXPECTED UNCHANGED
+
+Unless a minimal best-effort refresh hook is required:
+
+```text
+Prompt 29 candidate weights
+Prompt 30 cooldown/reward constants
+Points reward amounts/caps
+Gamification definitions
+Leaderboard semantics
+Calendar
+D1 Worker
+visible frontend UI
+```
+
+---
+
+# 214. ACCEPTANCE CRITERIA
+
+Prompt 31 succeeds only if:
+
+1. `LectureMastery` exists.
+2. Migration additive.
+3. No migration backfill.
+4. Exactly six frozen Mastery states used.
+5. Mastery is per user+lecture.
+6. State is deterministic.
+7. State is rebuildable.
+8. Client cannot set state.
+9. Objective MCQ evidence is strongest.
+10. Recall objective MCQ evidence counts.
+11. Flashcard self-report remains weaker/distinct.
+12. Skip is neutral.
+13. Expiry is neutral.
+14. Focus is supporting evidence only.
+15. Group Focus membership alone is zero evidence.
+16. PDF open alone is zero evidence.
+17. Video open alone is zero evidence.
+18. Points are not Mastery evidence.
+19. Reward eligibility is separate from learning evidence.
+20. Objective sample confidence exists.
+21. Distinct-item diversity exists.
+22. Same-question farming cannot produce MASTERED.
+23. Limited-content lectures handled safely.
+24. Zero-objective-content lecture cannot become MASTERED.
+25. GOOD requires objective evidence.
+26. MASTERED requires stronger objective evidence.
+27. Recent objective failure can cause NEEDS_REVIEW.
+28. New negative evidence can lower Mastery.
+29. Time alone cannot lower Mastery yet.
+30. No retention decay.
+31. No nextReviewAt.
+32. No AI.
+33. No Points reward from Mastery state.
+34. No Integrity penalty.
+35. No Calendar.
+36. No D1/outbox.
+37. Private own read supported.
+38. No public profile Mastery.
+39. Reconciliation/repair works.
+40. Repair mutates Mastery projection only.
+41. Event hooks are best-effort/rebuildable.
+42. No visible UI.
+43. Production unchanged.
+44. Build passes.
+45. New regressions = 0.
+
+---
+
+# 215. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List exact current canonical source models/fields for:
+
+```text
+MCQ evidence
+Flashcard evidence
+Recall evidence
+Focus evidence
+Group Focus evidence
+Lecture progress/study evidence
+```
+
+Also report Prompt 30/29/28 baselines.
+
+---
+
+## B. Mastery Architecture
+
+Explain:
+
+```text
+canonical learning evidence
+→ normalized LectureMasteryEvidence
+→ mastery-v1 evaluator
+→ LectureMastery derived projection
+→ private read / reconciliation
+```
+
+---
+
+## C. Prisma Model
+
+Show final `LectureMastery` fields, relation, indexes and numeric types.
+
+---
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic Mastery backfill:
+```
+
+Expected:
+
+```text
+NO
+```
+
+for all destructive/backfill items.
+
+---
+
+## E. Frozen States
+
+Explicitly list:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+Confirm no extra states.
+
+---
+
+## F. Rule Version
+
+Report:
+
+```text
+mastery-v1
+```
+
+or exact final version.
+
+---
+
+## G. Evidence Sources
+
+Report exact source models for:
+
+```text
+normal MCQ:
+Recall MCQ:
+normal Flashcards:
+Recall Flashcards:
+Focus:
+Group Focus:
+other study evidence:
+```
+
+---
+
+## H. Evidence Deduplication
+
+Explain how duplicate storage across:
+
+```text
+generic MCQ/Flashcard history
++
+RecallAttempt
+```
+
+is prevented from double counting.
+
+---
+
+## I. Objective Evidence Window
+
+Report:
+
+```text
+recent objective attempt limit:
+distinct-item logic:
+available-objective-item logic:
+```
+
+---
+
+## J. Flashcard Evidence Window
+
+Report exact recent review limit and self-report semantics.
+
+---
+
+## K. Study Evidence
+
+Report:
+
+```text
+Focus meaningful threshold:
+Focus contribution:
+Group Focus contribution:
+PDF open contribution:
+video open contribution:
+manual complete contribution:
+```
+
+---
+
+## L. Component Weights
+
+Report exact final V1 maximums.
+
+Expected conceptual:
+
+```text
+Objective = 70
+Flashcard = 20
+Study = 10
+```
+
+Report actual implementation if adjusted.
+
+---
+
+## M. Objective Sample Confidence
+
+Show exact mapping.
+
+---
+
+## N. Flashcard Sample Confidence
+
+Show exact mapping.
+
+---
+
+## O. Evidence Score
+
+Report:
+
+```text
+range:
+calculation:
+integer arithmetic:
+clamping:
+```
+
+Explicitly:
+
+```text
+EVIDENCE SCORE IS RETENTION PROBABILITY: NO
+EVIDENCE SCORE IS USER INTELLIGENCE SCORE: NO
+```
+
+---
+
+## P. NOT_STARTED Rule
+
+Show exact deterministic criteria.
+
+---
+
+## Q. STARTED Rule
+
+Show exact criteria.
+
+---
+
+## R. LEARNING Rule
+
+Show exact criteria.
+
+---
+
+## S. NEEDS_REVIEW Rule
+
+Show:
+
+```text
+objective failure override:
+Flashcard failure rule:
+objective-vs-self-report precedence:
+```
+
+---
+
+## T. GOOD Rule
+
+Report exact:
+
+```text
+minimum objective attempts:
+distinct item requirement:
+accuracy threshold:
+evidenceScore threshold:
+failure override behavior:
+```
+
+---
+
+## U. MASTERED Rule
+
+Report exact:
+
+```text
+minimum objective attempts:
+distinct item requirement:
+accuracy threshold:
+evidenceScore threshold:
+failure override behavior:
+```
+
+---
+
+## V. Limited-Content Lectures
+
+Report exact behavior for:
+
+```text
+0 objective MCQs
+1 objective MCQ
+2 objective MCQs
+3–4 objective MCQs
+5–9 objective MCQs
+10+ objective MCQs
+```
+
+---
+
+## W. Same-Question Farming Test
+
+Explicitly report result of many correct attempts on one MCQ.
+
+---
+
+## X. Time / Decay Boundary
+
+Explicitly:
+
+```text
+TIME ALONE CAN LOWER MASTERY IN PROMPT 31: NO
+RETENTION DECAY IMPLEMENTED: NO
+NEXT REVIEW DATE IMPLEMENTED: NO
+```
+
+Report 30-day no-new-evidence test.
+
+---
+
+## Y. New Negative Evidence
+
+Report downgrade behavior from GOOD/MASTERED after new objective misses.
+
+---
+
+## Z. Recovery
+
+Report NEEDS_REVIEW → GOOD/MASTERED after new strong evidence.
+
+---
+
+## AA. Recall Independence From Reward
+
+Explicitly report:
+
+```text
+CORRECT RECALL WITH 0 POINTS DUE TO CAP STILL COUNTS AS LEARNING EVIDENCE: YES
+CORRECT RECALL WITH INTEGRITY-BLOCKED REWARD STILL COUNTS AS OBJECTIVE EVIDENCE: YES
+```
+
+assuming canonical answer itself is valid.
+
+---
+
+## AB. Mastery Read API
+
+Report:
+
+```text
+method/path:
+auth:
+on-read refresh:
+response:
+```
+
+---
+
+## AC. Privacy
+
+Explicitly:
+
+```text
+OTHER STUDENT CAN READ MASTERY: NO
+PUBLIC PROFILE EXPOSES MASTERY: NO
+LEADERBOARD USES MASTERY: NO
+```
+
+---
+
+## AD. Refresh Hooks
+
+Report integrations with:
+
+```text
+MCQ:
+Flashcard:
+Recall:
+Focus:
+Group Focus:
+```
+
+and whether each is best-effort/post-commit.
+
+---
+
+## AE. Cosmetic/Derived Failure Policy
+
+Explain why Mastery refresh failure does not roll back canonical learning actions.
+
+---
+
+## AF. Mastery Reconciliation
+
+List implemented statuses/checks.
+
+---
+
+## AG. Repair Safety
+
+Explicitly:
+
+```text
+REPAIR MODIFIES LectureMastery: YES
+REPAIR MODIFIES MCQ HISTORY: NO
+REPAIR MODIFIES FLASHCARD HISTORY: NO
+REPAIR MODIFIES RecallAttempt: NO
+REPAIR MODIFIES FocusSession: NO
+REPAIR MODIFIES Points: NO
+```
+
+---
+
+## AH. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 31 TESTS EXECUTED: YES/NO
+```
+
+Include:
+
+```text
+prompt31_mastery_gate
+```
+
+---
+
+## AI. Real PostgreSQL Results
+
+Report:
+
+- migration replay;
+- NOT_STARTED;
+- Focus-only;
+- early objective evidence;
+- LEARNING;
+- NEEDS_REVIEW;
+- GOOD;
+- MASTERED;
+- repeated same-item farming;
+- limited-content lectures;
+- Flashcard support;
+- Recall objective misses;
+- skip/expiry neutrality;
+- 30-day no-decay;
+- downgrade after new evidence;
+- recovery;
+- concurrent refresh;
+- reconciliation repair.
+
+---
+
+## AJ. No Side Effects
+
+Report direct Mastery-operation deltas:
+
+```text
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+UserChallengeProgress:
+LeaderboardSnapshot:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero.
+
+---
+
+## AK. Mastery / Gamification Separation
+
+Explicitly:
+
+```text
+MASTERED STATE AWARDS POINTS: NO
+MASTERED STATE AUTO-UNLOCKS ACHIEVEMENT: NO
+MASTERED STATE CHANGES LEVEL: NO
+MASTERED STATE AFFECTS LEADERBOARD: NO
+```
+
+---
+
+## AL. Retention Boundary
+
+Explicitly:
+
+```text
+retentionScore:
+memoryStrength:
+decayRate:
+halfLife:
+nextReviewAt:
+forgettingProbability:
+```
+
+Expected:
+
+```text
+NOT IMPLEMENTED
+```
+
+for all.
+
+---
+
+## AM. Query / Performance Architecture
+
+Report:
+
+```text
+objective evidence query:
+Flashcard evidence query:
+Focus query:
+Group Focus query:
+per-item N+1:
+batch refresh strategy:
+```
+
+---
+
+## AN. Tests Added / Modified
+
+Exact paths/counts/results.
+
+---
+
+## AO. Regression Results
+
+Include:
+
+- Prompt 30 Recall policy/reward;
+- Prompt 29 candidate engine;
+- Prompt 28 Recall lifecycle;
+- Prompt 27 Leaderboard D1;
+- Prompt 26 Leaderboard canonical;
+- Prompt 25 Challenges;
+- Prompt 24 Levels/profile;
+- Prompt 23 Achievements;
+- Prompt 22 definitions;
+- Prompt 19–21 Points;
+- Prompt 17–18 Integrity;
+- Prompt 13–16 Group Focus;
+- Prompt 9–12 Solo Focus;
+- Prompt 8 Study Events;
+- MCQ;
+- Flashcards;
+- Auth;
+- Build;
+- Prisma;
+- targeted typecheck;
+- targeted lint;
+- Calendar baseline.
+
+---
+
+## AP. Files Created
+
+Exact paths/purposes.
+
+---
+
+## AQ. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 30 cooldown/reward semantics unchanged?
+Prompt 29 candidate weights unchanged?
+Prompt 28 Recall lifecycle unchanged?
+Points rules unchanged?
+Gamification unchanged?
+Leaderboard unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+visible frontend UI unchanged?
+```
+
+---
+
+## AR. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 31 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION MASTERY BACKFILL RUN: NO
+PRODUCTION MASTERY ROWS CREATED BY TESTING: NO
+PRODUCTION RETENTION STATE CREATED: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AS. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AT. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## AU. Risks / Blockers
+
+Only real unresolved Mastery-evidence issues.
+
+Do not list Prompt 32 retention decay, Prompt 33 D1 projection, owner analytics, AI Analyzer, or UI as blockers.
+
+---
+
+## AV. Architecture Compliance
+
+Answer YES/NO:
+
+- Six frozen Mastery states only?
+- Mastery per user+lecture?
+- PostgreSQL canonical projection?
+- Mastery rebuildable?
+- Data determines Mastery?
+- No AI?
+- Objective MCQ evidence strongest?
+- Recall objective evidence supported?
+- Flashcard self-report distinct/weaker?
+- Skip neutral?
+- Expiry neutral?
+- Focus supporting only?
+- Group membership alone excluded?
+- PDF open excluded?
+- Video open excluded?
+- Points not used as evidence?
+- Reward eligibility separate from learning evidence?
+- Objective sample confidence implemented?
+- Distinct-item diversity implemented?
+- Same-item farming cannot produce MASTERED?
+- Limited-content lectures safe?
+- Zero-objective lecture cannot become MASTERED?
+- GOOD requires objective evidence?
+- MASTERED requires strong objective evidence?
+- Recent objective failure can produce NEEDS_REVIEW?
+- New negative evidence can lower Mastery?
+- Time alone does not lower Mastery yet?
+- No retention decay?
+- No nextReviewAt?
+- No Point reward from Mastery?
+- No Integrity penalty?
+- No public Mastery?
+- No Calendar?
+- No D1/outbox?
+- Reconciliation deterministic?
+- Repair source-safe?
+- No visible UI?
+- Migration additive?
+- Production unchanged?
+- Build passes?
+- New regressions = 0?
+
+---
+
+## AW. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 32 — Deterministic Retention Decay, Forgetting Detection, Review Urgency & Mastery Time Evolution**
+
+Do not implement Prompt 32.
+
+---
+
+# 216. STOP CONDITION
+
+After implementation, testing and mandatory report:
+
+STOP.
+
+Do NOT implement Retention decay.
+
+Do NOT add next-review scheduling.
+
+Do NOT add Mastery D1 projection.
+
+Do NOT build owner analytics.
+
+Do NOT add AI explanations.
+
+Do NOT build Mastery UI.
+
+Do NOT deploy Prompt 31 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 31 COMPLETE — DETERMINISTIC LECTURE MASTERY & CANONICAL EVIDENCE EVALUATION READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
