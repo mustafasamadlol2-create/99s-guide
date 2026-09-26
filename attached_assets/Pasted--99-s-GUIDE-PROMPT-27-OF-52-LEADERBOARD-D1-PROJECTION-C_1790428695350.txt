@@ -1,0 +1,3676 @@
+# 99’s GUIDE — PROMPT 27 OF 52
+
+## LEADERBOARD D1 PROJECTION + CACHE DELIVERY
+
+## CANONICAL POSTGRESQL FALLBACK + CACHE RECONCILIATION
+
+### D1 IS DERIVED ONLY — NO RANK RECOMPUTATION — NO UI
+
+Prompts 1–26 have been completed.
+
+Prompt 26 established:
+
+```text
+StudyPointsLedgerEntry
+→ canonical season score
+→ LeaderboardSeason
+→ LeaderboardSnapshot
+→ LeaderboardSnapshotEntry
+→ deterministic competition rank
+```
+
+Prompt 27 now adds the Cloudflare D1 delivery/cache layer.
+
+Frozen roadmap:
+
+```text
+Prompt 27 — Leaderboard D1 / cache
+Prompt 28 — Recall canonical state / attempt
+Prompt 29 — Recall eligibility / candidate
+Prompt 30 — Recall cooldown / anti-farming
+```
+
+Do NOT implement Recall or later roadmap features.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a low-latency Leaderboard cache/projection architecture where:
+
+```text
+PostgreSQL
+= canonical Leaderboard authority
+
+D1
+= derived disposable cache only
+```
+
+Prompt 27 must provide:
+
+1. D1 schema for leaderboard snapshots and entries;
+2. projection from canonical PostgreSQL snapshots;
+3. race-safe two-phase publication;
+4. idempotent chunked projection;
+5. version-aware current snapshot pointers;
+6. low-latency cached leaderboard reads;
+7. own-rank cached lookup;
+8. canonical PostgreSQL fallback;
+9. stale-cache handling;
+10. pagination snapshot pinning;
+11. cache reconciliation and repair;
+12. privacy-safe backend enrichment;
+13. independent projection/read kill switches;
+14. zero change to ranking semantics.
+
+---
+
+# 2. NON-NEGOTIABLE AUTHORITY RULE
+
+Mandatory:
+
+```text
+PostgreSQL LeaderboardSeason
+PostgreSQL LeaderboardSnapshot
+PostgreSQL LeaderboardSnapshotEntry
+=
+CANONICAL
+```
+
+D1 must never become ranking authority.
+
+---
+
+# 3. D1 MAY NOT CALCULATE RANK
+
+The Cloudflare Worker must NOT:
+
+* sum Study Points;
+* calculate season score;
+* apply tie rules;
+* run `RANK()` over user activity;
+* decide eligibility;
+* decide season boundaries.
+
+It only stores and serves canonical Prompt 26 snapshot output.
+
+---
+
+# 4. POSTGRESQL ALWAYS WINS
+
+On conflict:
+
+```text
+PostgreSQL wins.
+```
+
+If D1 disagrees with PostgreSQL:
+
+```text
+serve PostgreSQL
+mark cache stale/mismatched
+repair/reproject D1
+```
+
+Never alter PostgreSQL from D1.
+
+---
+
+# 5. D1 IS REBUILDABLE
+
+Deleting the entire Prompt 27 D1 Leaderboard cache must not destroy:
+
+* season history;
+* rank history;
+* score history;
+* Points history.
+
+Everything must be reconstructable from PostgreSQL.
+
+---
+
+# 6. NO NEW RANKING SEMANTICS
+
+Preserve Prompt 26 exactly:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+Preserve:
+
+```text
+standard competition ranking:
+1, 2, 2, 4
+```
+
+Preserve equal-score ties.
+
+Do not change score calculation.
+
+---
+
+# 7. NO POINTS CHANGES
+
+Prompt 27 must NOT change:
+
+* Prompt 20 award amounts;
+* daily caps;
+* Focus rewards;
+* Group Focus rewards;
+* consistency rewards;
+* legacy compatibility;
+* reversal behavior.
+
+Mandatory:
+
+```text
+StudyPointsLedgerEntry delta from cache operations = 0
+PointsLog delta = 0
+```
+
+---
+
+# 8. NO POSTGRESQL LEADERBOARD SCHEMA CHANGE EXPECTED
+
+Prefer:
+
+```text
+prisma/schema.prisma unchanged
+PostgreSQL migration = NO
+```
+
+unless the existing projection/outbox infrastructure demonstrably cannot support safe Leaderboard projection.
+
+Do NOT change Prompt 26 models merely to satisfy D1.
+
+---
+
+# 9. OUTBOX DECISION GATE
+
+Inspect the existing canonical D1 projection/outbox system from Prompts 6/8.
+
+Especially inspect:
+
+```text
+PrivateD1SyncOutbox
+server/services/privateD1Sync.ts
+private D1 Worker projection code
+existing retry / revision semantics
+```
+
+Use the existing outbox if it can safely support a global Leaderboard projection without violating its contract.
+
+---
+
+# 10. DO NOT SEMANTICALLY CORRUPT PRIVATE OUTBOX
+
+If `PrivateD1SyncOutbox` is explicitly and structurally private-user projection only:
+
+do NOT overload it merely to avoid a new model.
+
+In that case create a small additive:
+
+```text
+LeaderboardD1SyncOutbox
+```
+
+only if genuinely required.
+
+Report the decision and why.
+
+---
+
+# 11. CANONICAL WRITE MUST NOT DEPEND ON D1
+
+Prompt 26 canonical snapshot creation/finalization must succeed even if:
+
+```text
+Cloudflare unavailable
+D1 unavailable
+Worker unavailable
+projection retry pending
+```
+
+D1 failure must never roll back a successfully committed canonical PostgreSQL snapshot.
+
+---
+
+# 12. PROJECTION EVENTUAL CONSISTENCY
+
+Expected architecture:
+
+```text
+PostgreSQL snapshot READY
+→ durable projection work recorded
+→ D1 receives manifest/chunks
+→ D1 verifies completeness
+→ D1 atomically publishes current pointer
+```
+
+---
+
+# 13. FEATURE FLAGS
+
+Add server-owned kill switches using existing feature-flag architecture:
+
+```text
+LEADERBOARD_D1_PROJECTION_ENABLED
+LEADERBOARD_D1_READ_ENABLED
+```
+
+Defaults:
+
+```text
+false
+false
+```
+
+Production behavior remains unchanged until explicitly enabled later.
+
+---
+
+# 14. INDEPENDENT FLAGS
+
+Projection and reads must be independent.
+
+This supports:
+
+```text
+projection ON
+read OFF
+```
+
+for cache warming/shadow validation.
+
+Also:
+
+```text
+projection OFF
+read OFF
+```
+
+must preserve Prompt 26 PostgreSQL behavior exactly.
+
+---
+
+# 15. MALFORMED CONFIGURATION
+
+Malformed D1 Leaderboard config must fail safely.
+
+Do NOT accidentally disable PostgreSQL leaderboard reads.
+
+Preferred:
+
+```text
+cache unavailable
+→ PostgreSQL fallback
+```
+
+---
+
+# 16. D1 MIGRATION
+
+Prompt 27 should create a Cloudflare D1 migration.
+
+No remote migration may be applied.
+
+Expected new cache tables conceptually:
+
+```text
+leaderboard_cache_snapshots
+leaderboard_cache_entries
+leaderboard_cache_current
+leaderboard_cache_chunks
+```
+
+Use repository naming conventions.
+
+---
+
+# 17. `leaderboard_cache_snapshots`
+
+Store projection metadata only.
+
+Support fields equivalent to:
+
+```text
+snapshot_id TEXT PRIMARY KEY
+
+season_id TEXT NOT NULL
+scope TEXT NOT NULL
+season_key TEXT NOT NULL
+
+snapshot_type TEXT NOT NULL
+revision INTEGER NOT NULL
+
+season_status TEXT NOT NULL
+
+starts_at TEXT
+ends_at TEXT
+
+generated_at TEXT NOT NULL
+score_through TEXT NOT NULL
+
+entry_count INTEGER NOT NULL
+
+source_fingerprint TEXT NOT NULL
+projection_checksum TEXT NOT NULL
+
+chunk_count INTEGER NOT NULL
+
+state TEXT NOT NULL
+
+projected_at TEXT
+
+ranking_version TEXT NOT NULL
+cache_schema_version INTEGER NOT NULL
+```
+
+---
+
+# 18. CACHE SNAPSHOT STATE
+
+Use:
+
+```text
+BUILDING
+READY
+```
+
+Do not serve BUILDING snapshots.
+
+---
+
+# 19. `leaderboard_cache_entries`
+
+Store only canonical rank projection fields:
+
+```text
+snapshot_id
+user_id
+
+rank
+tie_size
+score
+
+level_snapshot?
+```
+
+Primary/unique:
+
+```text
+(snapshot_id, user_id)
+```
+
+---
+
+# 20. NO PROFILE PII IN D1
+
+Do NOT store in D1:
+
+```text
+email
+phone
+signature
+display name
+avatar URL
+Quick Notes
+MCQ accuracy
+Mastery
+weaknesses
+Integrity Signals
+Focus time
+Challenge progress
+```
+
+This is mandatory.
+
+---
+
+# 21. WHY DISPLAY NAME / AVATAR MUST NOT BE CACHED
+
+Profile privacy may change after snapshot generation.
+
+Therefore D1 must not permanently serve stale profile identity data.
+
+Prompt 27 backend will enrich D1 rank rows from current canonical safe profile data.
+
+---
+
+# 22. `leaderboard_cache_current`
+
+Store the current canonical cache pointer for a season:
+
+```text
+scope
+season_key
+
+snapshot_id
+snapshot_type
+revision
+
+generated_at
+score_through
+
+updated_at
+```
+
+Unique:
+
+```text
+(scope, season_key)
+```
+
+---
+
+# 23. CURRENT POINTER PURPOSE
+
+Leaderboard reads should not search all D1 snapshots to guess the current version.
+
+Resolve:
+
+```text
+scope + seasonKey
+→ current READY snapshot
+```
+
+---
+
+# 24. `leaderboard_cache_chunks`
+
+Used only for projection completeness/idempotency.
+
+Support:
+
+```text
+snapshot_id
+chunk_index
+chunk_hash
+row_count
+received_at
+```
+
+Unique:
+
+```text
+(snapshot_id, chunk_index)
+```
+
+---
+
+# 25. CACHE SCHEMA VERSION
+
+Start:
+
+```text
+cache_schema_version = 1
+```
+
+Worker/read adapter must reject unsupported schema versions.
+
+Fallback:
+
+```text
+PostgreSQL
+```
+
+---
+
+# 26. RANKING VERSION
+
+Persist Prompt 26:
+
+```text
+leaderboard-ranking-v1
+```
+
+D1 does not invent a second ranking version.
+
+---
+
+# 27. TIME FORMAT
+
+Store timestamps as canonical UTC ISO-8601 strings unless current D1 conventions use epoch integers consistently.
+
+Do not store locale-dependent dates.
+
+---
+
+# 28. INTEGER SAFETY
+
+Validate:
+
+```text
+rank > 0
+tieSize > 0
+entryCount >= 0
+score safe integer
+revision >= 1
+```
+
+Do not silently coerce unsafe values.
+
+---
+
+# 29. PROJECTION CHECKSUM
+
+Create a deterministic projection checksum over ordered canonical snapshot rows.
+
+Include at least:
+
+```text
+snapshotId
+revision
+entryCount
+rankingVersion
+
+for each entry in canonical order:
+userId
+rank
+tieSize
+score
+levelSnapshot
+```
+
+Use:
+
+```text
+SHA-256
+canonical serialization
+```
+
+---
+
+# 30. PROJECTION CHECKSUM ≠ SOURCE FINGERPRINT
+
+Preserve Prompt 26:
+
+```text
+sourceFingerprint
+```
+
+separately.
+
+Use:
+
+```text
+sourceFingerprint
+= canonical scoring/source state identity
+
+projectionChecksum
+= exact projected snapshot row payload identity
+```
+
+---
+
+# 31. CHUNKING
+
+Do not push thousands of entries as one giant projection payload.
+
+Use bounded chunks.
+
+Recommended:
+
+```text
+100 entries/chunk
+```
+
+Hard max should remain bounded.
+
+Centralize it.
+
+---
+
+# 32. CHUNK ORDER
+
+Canonical order must match Prompt 26:
+
+```text
+rank ASC
+score DESC
+userId ASC
+```
+
+or the exact implemented Prompt 26 ordering.
+
+Do not reorder competitively in Worker.
+
+---
+
+# 33. CHUNK HASH
+
+Each chunk must have a deterministic:
+
+```text
+SHA-256
+```
+
+hash over:
+
+```text
+snapshotId
+chunkIndex
+ordered entries
+```
+
+---
+
+# 34. TWO-PHASE D1 PUBLICATION
+
+Do not update `leaderboard_cache_current` before all entries are present.
+
+Required sequence:
+
+```text
+1. BEGIN snapshot
+2. receive chunks
+3. COMMIT snapshot
+4. update current pointer
+```
+
+---
+
+# 35. BEGIN SNAPSHOT
+
+Projection manifest creates/validates:
+
+```text
+leaderboard_cache_snapshots
+state = BUILDING
+```
+
+It includes:
+
+```text
+snapshot metadata
+entryCount
+chunkCount
+projectionChecksum
+sourceFingerprint
+rankingVersion
+```
+
+---
+
+# 36. BEGIN REPLAY
+
+Same snapshot + same metadata/checksums:
+
+```text
+safe replay
+```
+
+Different metadata for same canonical snapshot ID/revision:
+
+```text
+reject
+```
+
+Use explicit:
+
+```text
+LEADERBOARD_CACHE_PROJECTION_CONFLICT
+```
+
+---
+
+# 37. CHUNK INSERT
+
+Chunk write must be idempotent.
+
+Same chunk index + same hash:
+
+```text
+safe replay
+```
+
+Same chunk index + different hash:
+
+```text
+reject
+```
+
+---
+
+# 38. ENTRY UPSERT SEMANTICS
+
+For BUILDING snapshot, chunk replay may safely replace identical rows.
+
+Do not allow a conflicting row payload under an already accepted chunk hash.
+
+---
+
+# 39. COMMIT VALIDATION
+
+Before READY:
+
+verify at minimum:
+
+```text
+received chunk count == expected chunkCount
+cached entry count == expected entryCount
+all chunk indexes present
+snapshot still BUILDING
+```
+
+---
+
+# 40. CHECKSUM VALIDATION
+
+Where practical, recompute exact D1 projection checksum before commit.
+
+If full D1-side recomputation is unnecessarily expensive:
+
+signed canonical manifest + chunk hashes + count completeness is acceptable.
+
+Report exact chosen strategy.
+
+Do not pretend a checksum was verified if it was only trusted from signed server payload.
+
+---
+
+# 41. READY PUBLICATION
+
+Only after completeness checks:
+
+```text
+snapshot.state = READY
+projectedAt = server/Worker timestamp
+```
+
+Then update current pointer atomically/batched as safely as D1 supports.
+
+---
+
+# 42. PARTIAL SNAPSHOT MUST NEVER SERVE
+
+Mandatory:
+
+```text
+BUILDING snapshot
+→ never leaderboard response
+```
+
+---
+
+# 43. OUT-OF-ORDER PROJECTION DELIVERY
+
+Outbox retries can arrive out of order.
+
+An older snapshot must not overwrite a newer current pointer.
+
+---
+
+# 44. CURRENT POINTER PRECEDENCE
+
+For same season:
+
+```text
+FINAL > LIVE
+```
+
+Once current pointer is FINAL:
+
+a delayed LIVE projection must not replace it.
+
+---
+
+# 45. FINAL REVISION PRECEDENCE
+
+For FINAL snapshots:
+
+```text
+higher revision wins
+```
+
+A delayed revision 1 cannot replace revision 2.
+
+---
+
+# 46. LIVE PRECEDENCE
+
+For LIVE snapshots:
+
+newer canonical:
+
+```text
+generatedAt
+```
+
+wins.
+
+If equal:
+
+use a deterministic snapshot ID tie-breaker only for pointer safety.
+
+Do not alter ranking.
+
+---
+
+# 47. FINAL CORRECTION
+
+Prompt 26 corrected FINAL revision:
+
+```text
+revision 2
+```
+
+must project separately.
+
+D1 current pointer moves from:
+
+```text
+FINAL revision 1
+→ FINAL revision 2
+```
+
+Old revision remains historical/cache-auditable according to retention policy.
+
+---
+
+# 48. LIVE SNAPSHOT RETENTION
+
+Prompt 26 required old LIVE snapshot retention long enough for cursor pagination.
+
+Use at least:
+
+```text
+15 minutes
+```
+
+Prefer:
+
+```text
+30 minutes
+```
+
+for D1 cache safety.
+
+Centralize constant.
+
+---
+
+# 49. FINAL SNAPSHOT RETENTION
+
+FINAL cache snapshots may remain indefinitely unless future storage policy says otherwise.
+
+They are still disposable because PostgreSQL can rebuild them.
+
+---
+
+# 50. CACHE CLEANUP
+
+Implement bounded cleanup.
+
+On successful new LIVE publication:
+
+remove expired old LIVE cache snapshots/entries/chunk receipts beyond retention.
+
+Do NOT run an unbounded full-table scan.
+
+---
+
+# 51. NO REQUIRED CRON
+
+Do not introduce a scheduled Worker cron solely for Prompt 27 unless repository already has a safe maintenance schedule.
+
+Cleanup can be opportunistic/bounded after publication.
+
+---
+
+# 52. CHUNK RECEIPT CLEANUP
+
+After snapshot READY:
+
+chunk receipts may be retained briefly for replay/audit.
+
+They can later be deleted safely.
+
+Do not delete before commit validation.
+
+---
+
+# 53. CANONICAL PROJECTION HOOK
+
+Hook Prompt 26 snapshot creation so every canonical READY snapshot can enqueue projection work after PostgreSQL commit.
+
+Prefer durable outbox recording as part of canonical transaction where existing infrastructure supports it.
+
+---
+
+# 54. SNAPSHOT CREATION MUST NOT CALL D1 INLINE AS AUTHORITY
+
+Forbidden architecture:
+
+```text
+PostgreSQL transaction
+→ HTTP to Worker must succeed
+→ commit PostgreSQL
+```
+
+Do not make external D1 availability part of canonical transaction success.
+
+---
+
+# 55. PROJECTION WORK TYPES
+
+Use clear work semantics such as:
+
+```text
+LEADERBOARD_CACHE_BEGIN
+LEADERBOARD_CACHE_CHUNK
+LEADERBOARD_CACHE_COMMIT
+```
+
+or repository-equivalent operation types.
+
+---
+
+# 56. PROJECTION ORDER
+
+Logical ordering:
+
+```text
+BEGIN
+CHUNK 0..N-1
+COMMIT
+```
+
+But retry delivery may be out of order.
+
+Worker must reject/defer COMMIT until completeness exists.
+
+---
+
+# 57. COMMIT EARLY ARRIVAL
+
+If COMMIT arrives before all chunks:
+
+return a retryable:
+
+```text
+CACHE_INCOMPLETE
+```
+
+Do not mark READY.
+
+Outbox must retry later.
+
+---
+
+# 58. OUTBOX RETRY
+
+Reuse existing bounded retry/backoff infrastructure where possible.
+
+Do not create an unbounded hot retry loop.
+
+---
+
+# 59. PROJECTION FAILURE
+
+D1 projection failure:
+
+```text
+canonical PG snapshot remains READY
+```
+
+Users must still be served through PostgreSQL fallback.
+
+---
+
+# 60. DEAD-LETTER / TERMINAL FAILURE
+
+If existing outbox supports:
+
+```text
+attempt count
+nextAttemptAt
+lastError
+dead-letter state
+```
+
+reuse it.
+
+Do not invent a second retry framework unnecessarily.
+
+---
+
+# 61. NO RAW POINTS IN OUTBOX
+
+Projection payload contains canonical leaderboard snapshot rows only.
+
+Do not include:
+
+```text
+StudyPointsLedgerEntry history
+PointsLog history
+MCQ data
+Focus details
+```
+
+---
+
+# 62. WORKER WRITE AUTH
+
+D1 projection write endpoints must be server-to-worker authenticated.
+
+Reuse existing secure Worker sync authentication if available.
+
+Do NOT accept browser-authorized projection writes.
+
+---
+
+# 63. NO QUERY-TOKEN AUTH
+
+Do not place secrets in query strings.
+
+---
+
+# 64. MACHINE AUTH
+
+If the existing Worker already has signed internal requests:
+
+reuse that exact mechanism.
+
+Do not create unnecessary parallel secrets.
+
+If a separate namespace is genuinely required:
+
+use bounded HMAC/WebCrypto server-to-worker auth following existing project patterns.
+
+---
+
+# 65. REPLAY PROTECTION
+
+Internal projection write auth should preserve existing:
+
+```text
+timestamp
+nonce
+body hash
+signature
+```
+
+or equivalent replay protection.
+
+Do not weaken current Worker security.
+
+---
+
+# 66. D1 READS MUST NOT BE DIRECTLY PUBLIC
+
+Preferred architecture:
+
+```text
+Client
+→ Render API
+→ Leaderboard Cache Adapter
+→ internal Worker/D1
+```
+
+Do NOT expose raw D1 cache tables directly to browser/native clients.
+
+---
+
+# 67. WHY BACKEND REMAINS IN THE PATH
+
+Backend must enforce:
+
+* current profile privacy;
+* banned/deleted filtering;
+* display-name/avatar safety;
+* fallback;
+* cursor validation;
+* auth.
+
+D1 only supplies cached rank rows.
+
+---
+
+# 68. INTERNAL WORKER READ ENDPOINTS
+
+Implement server-only operations equivalent to:
+
+```text
+GET current snapshot metadata
+GET leaderboard page
+GET user rank
+GET projection metadata
+```
+
+Use actual Worker routing conventions.
+
+---
+
+# 69. BACKEND CACHE ADAPTER
+
+Create a modular abstraction, conceptually:
+
+```ts
+interface LeaderboardCacheStore {
+  getCurrentSnapshot(...): ...
+  listEntries(...): ...
+  getUserEntry(...): ...
+  getProjectionMetadata(...): ...
+}
+```
+
+D1 implementation must be replaceable.
+
+---
+
+# 70. POSTGRESQL ADAPTER
+
+Preserve Prompt 26 PostgreSQL snapshot reader as canonical fallback.
+
+Do not duplicate ranking queries.
+
+---
+
+# 71. LEADERBOARD READ STRATEGY
+
+When:
+
+```text
+LEADERBOARD_D1_READ_ENABLED = false
+```
+
+use:
+
+```text
+PostgreSQL
+```
+
+exactly as Prompt 26.
+
+---
+
+# 72. CACHE-FIRST READ
+
+When cache read flag is enabled:
+
+```text
+1. attempt D1
+2. validate cache metadata/freshness/schema
+3. use D1 if acceptable
+4. otherwise fallback to PostgreSQL
+```
+
+---
+
+# 73. FALLBACK MUST BE TRANSPARENT
+
+User should not receive a 500 merely because D1 cache failed.
+
+If PostgreSQL is healthy:
+
+serve canonical result.
+
+---
+
+# 74. FALLBACK CONDITIONS
+
+Fallback on at least:
+
+```text
+Worker timeout
+network failure
+D1 error
+cache miss
+snapshot BUILDING
+unsupported cache schema
+ranking version mismatch
+projection checksum metadata mismatch
+hard-stale LIVE snapshot
+invalid cursor/cache snapshot
+incomplete entry page
+```
+
+---
+
+# 75. FINAL SNAPSHOT CACHE FRESHNESS
+
+A READY FINAL snapshot does not become stale merely because time passed.
+
+It remains valid until superseded by a higher canonical FINAL revision.
+
+---
+
+# 76. LIVE SOFT FRESHNESS
+
+Preserve Prompt 26:
+
+```text
+5 minutes
+```
+
+as soft freshness.
+
+If age:
+
+```text
+<= 5 min
+```
+
+serve as fresh.
+
+---
+
+# 77. LIVE HARD STALE LIMIT
+
+Use:
+
+```text
+15 minutes
+```
+
+as conservative V1 hard-stale limit.
+
+If:
+
+```text
+5–15 min
+```
+
+may serve with:
+
+```text
+isStale = true
+```
+
+if no known newer cache exists.
+
+If:
+
+```text
+>15 min
+```
+
+fallback to PostgreSQL.
+
+Centralize constants.
+
+---
+
+# 78. NO FALSE REAL-TIME CLAIM
+
+Continue exposing:
+
+```text
+generatedAt
+scoreThrough
+isStale
+```
+
+from Prompt 26 API.
+
+D1 does not make data “real-time”.
+
+---
+
+# 79. PAGINATION SNAPSHOT PINNING
+
+Prompt 26 cursor must remain pinned to one snapshot.
+
+D1 read must honor cursor snapshot ID.
+
+Do NOT silently switch page 2 to a newer snapshot.
+
+---
+
+# 80. CURRENT FIRST PAGE
+
+Without cursor:
+
+resolve current cached snapshot pointer.
+
+---
+
+# 81. CURSOR PAGE
+
+With cursor:
+
+query the exact:
+
+```text
+snapshotId
+```
+
+encoded/validated by Prompt 26 cursor.
+
+Do not use `leaderboard_cache_current` for subsequent pages.
+
+---
+
+# 82. CURSOR SORT
+
+Use exact Prompt 26 canonical order:
+
+```text
+rank ASC
+score DESC
+userId ASC
+```
+
+No D1-specific ordering.
+
+---
+
+# 83. TIE-BOUNDARY SAFETY
+
+Pagination through tied users must:
+
+```text
+skip 0 rows
+duplicate 0 rows
+change 0 rank values
+```
+
+---
+
+# 84. SNAPSHOT MISSING IN D1 DURING CURSOR READ
+
+If the cursor's snapshot has aged out of D1:
+
+fallback to canonical PostgreSQL snapshot using the same snapshot ID.
+
+If PostgreSQL snapshot has also been retired/deleted according to Prompt 26 LIVE retention:
+
+return explicit:
+
+```text
+LEADERBOARD_CURSOR_EXPIRED
+```
+
+Do not mix snapshots.
+
+---
+
+# 85. OWN-RANK CACHE LOOKUP
+
+For:
+
+```text
+GET /api/me/leaderboard-rank
+```
+
+D1 may use:
+
+```text
+(snapshot_id, user_id)
+```
+
+direct lookup.
+
+No scan.
+
+---
+
+# 86. OWN-RANK FALLBACK
+
+If D1 missing/fails:
+
+use Prompt 26 PostgreSQL own-rank lookup.
+
+---
+
+# 87. OWN SCORE <= 0
+
+Preserve:
+
+```text
+rank = null
+notRanked = true
+```
+
+No cache-specific behavior change.
+
+---
+
+# 88. PROFILE ENRICHMENT
+
+After receiving cached entry rows:
+
+backend batch-loads current profile-safe fields from PostgreSQL.
+
+Do not perform one profile query per row.
+
+---
+
+# 89. PROFILE BATCH QUERY
+
+For page of up to:
+
+```text
+100
+```
+
+users:
+
+use one bounded set query or existing batch profile service.
+
+Mandatory:
+
+```text
+N+1 profile queries = NO
+```
+
+---
+
+# 90. PROFILE PRIVACY AFTER SNAPSHOT
+
+If a user becomes hidden/banned/deleted after D1 projection:
+
+the backend safe profile layer must suppress/anonymize them according to Prompt 26 rules.
+
+D1 cannot force stale public identity exposure.
+
+---
+
+# 91. HIDDEN ROW AND RANK NUMBERS
+
+If current privacy rules hide a snapshot user row:
+
+do NOT recompute everyone else's canonical rank in cache delivery.
+
+Ranks remain canonical snapshot ranks.
+
+This may produce visible gaps.
+
+That is acceptable.
+
+Do not fabricate new ranks.
+
+---
+
+# 92. NO RANK RECOMPUTATION AFTER PRIVACY FILTER
+
+Example canonical snapshot:
+
+```text
+1
+2
+3
+```
+
+If rank 2 is hidden by current profile policy:
+
+public-safe response may show:
+
+```text
+1
+3
+```
+
+Do not renumber 3 → 2.
+
+---
+
+# 93. PROFILE FIELDS NOT PART OF CACHE CHECKSUM
+
+Projection checksum concerns ranking projection fields only.
+
+Current display name/avatar are resolved dynamically and are not canonical snapshot score state.
+
+---
+
+# 94. LEVEL SNAPSHOT
+
+If Prompt 26 stores:
+
+```text
+levelSnapshot
+```
+
+D1 may cache it.
+
+This is safe profile-level Gamification metadata.
+
+Do not recompute Level in Worker.
+
+---
+
+# 95. MISSING LEVEL SNAPSHOT
+
+If null:
+
+return null/omit Level according to Prompt 26 DTO.
+
+Do not trigger Level writes from D1 read.
+
+---
+
+# 96. NO ACHIEVEMENT DATA IN D1 LEADERBOARD CACHE
+
+Prompt 27 does not add Achievement badges to leaderboard rows.
+
+---
+
+# 97. NO CHALLENGE DATA
+
+Mandatory.
+
+---
+
+# 98. NO MASTERy DATA
+
+Mandatory.
+
+---
+
+# 99. D1 CACHE RECONCILIATION
+
+Create internal/admin service:
+
+```ts
+reconcileLeaderboardD1Projection({
+  snapshotId,
+  repair?
+})
+```
+
+---
+
+# 100. RECONCILIATION CHECKS
+
+At minimum:
+
+```text
+CACHE_MISSING
+CACHE_BUILDING
+CACHE_SCHEMA_MISMATCH
+RANKING_VERSION_MISMATCH
+ENTRY_COUNT_MISMATCH
+SOURCE_FINGERPRINT_MISMATCH
+PROJECTION_CHECKSUM_MISMATCH
+CURRENT_POINTER_MISMATCH
+MISSING_CHUNKS
+STALE_LIVE_CACHE
+```
+
+---
+
+# 101. CANONICAL COMPARISON
+
+Compare D1 to PostgreSQL Prompt 26 snapshot.
+
+PostgreSQL values are expected values.
+
+---
+
+# 102. RECONCILIATION MUST NOT MODIFY POSTGRESQL SNAPSHOT
+
+Mandatory:
+
+```text
+D1 repair
+→ D1 only
+```
+
+No LeaderboardSnapshot/Entry mutation.
+
+---
+
+# 103. D1 REPAIR
+
+`repair = true` may:
+
+```text
+enqueue clean re-projection
+```
+
+or directly rebuild D1 using internal canonical projection service if safe.
+
+Preferred:
+
+```text
+re-enqueue canonical projection
+```
+
+to preserve one write path.
+
+---
+
+# 104. D1 REPAIR MUST NOT RECALCULATE RANK
+
+Use existing canonical snapshot entries.
+
+---
+
+# 105. ADMIN CACHE RECONCILIATION ROUTE
+
+Add owner/admin-only operational route equivalent to:
+
+```text
+GET /api/admin/leaderboards/snapshots/:snapshotId/cache-reconciliation
+```
+
+No UI.
+
+---
+
+# 106. ADMIN CACHE REPAIR ROUTE
+
+Equivalent:
+
+```text
+POST /api/admin/leaderboards/snapshots/:snapshotId/reproject-cache
+```
+
+This schedules/rebuilds D1 cache only.
+
+---
+
+# 107. STUDENT CANNOT REPROJECT
+
+Mandatory:
+
+```text
+403
+```
+
+---
+
+# 108. GROUP FOCUS HOST CANNOT REPROJECT
+
+Mandatory.
+
+---
+
+# 109. NO MANUAL CACHE SCORE INPUT
+
+Admin request must not accept:
+
+```text
+rank
+score
+tieSize
+user rows
+```
+
+It references canonical snapshot only.
+
+---
+
+# 110. READ FALLBACK OBSERVABILITY
+
+Use bounded server logs for cache fallback reason.
+
+Examples:
+
+```text
+D1_MISS
+D1_TIMEOUT
+D1_HARD_STALE
+D1_SCHEMA_MISMATCH
+D1_BUILDING
+```
+
+Do not log sensitive profile or authentication data.
+
+---
+
+# 111. NO NEW ANALYTICS ENGINE REQUIREMENT
+
+Prompt 50 handles full observability.
+
+Do not overbuild telemetry.
+
+---
+
+# 112. CACHE HIT/MISS COUNTERS
+
+If an existing lightweight metrics mechanism exists, reuse it.
+
+Otherwise normal structured logs are enough.
+
+---
+
+# 113. WORKER RESPONSE VALIDATION
+
+Backend must strictly validate Worker cache response.
+
+Do not trust arbitrary JSON merely because it came from internal Worker.
+
+Validate:
+
+```text
+snapshotId
+schema version
+ranking version
+entry count
+rank
+tie size
+score
+userId
+timestamps
+```
+
+---
+
+# 114. D1 RESPONSE SIZE
+
+Maximum page:
+
+```text
+100 entries
+```
+
+Do not expose an unbounded Worker response.
+
+---
+
+# 115. INTERNAL WORKER REQUEST LIMIT
+
+Keep projection request bodies bounded.
+
+Chunk size ensures this.
+
+---
+
+# 116. PROJECTION PAYLOAD SIZE
+
+Add hard serialized request limit appropriate to existing Worker.
+
+Do not allow a malformed outbox row to send multi-megabyte JSON unexpectedly.
+
+---
+
+# 117. D1 SQL SAFETY
+
+Use bound parameters.
+
+No string-concatenated user-controlled SQL.
+
+---
+
+# 118. SCOPE VALIDATION
+
+Worker/backend accept only:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+---
+
+# 119. SNAPSHOT TYPE VALIDATION
+
+Only:
+
+```text
+LIVE
+FINAL
+```
+
+---
+
+# 120. STATE VALIDATION
+
+Only:
+
+```text
+BUILDING
+READY
+```
+
+in cache.
+
+---
+
+# 121. CACHE ENTRY DUPLICATION
+
+D1 unique:
+
+```text
+(snapshot_id, user_id)
+```
+
+must prevent duplicate cached row.
+
+---
+
+# 122. CURRENT POINTER ATOMICITY
+
+Pointer must never reference:
+
+```text
+BUILDING
+missing
+incomplete
+```
+
+snapshot.
+
+Mandatory test.
+
+---
+
+# 123. D1 MIGRATION SAFETY
+
+D1 migration must be additive.
+
+Do NOT drop unrelated existing private projection tables.
+
+Explicitly inspect migration SQL for:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+DELETE existing D1 data: NO
+```
+
+unless only Prompt 27 test-local cache tables are recreated in disposable local test setup.
+
+Production migration itself must be additive.
+
+---
+
+# 124. LOCAL D1 TESTING
+
+Use local/disposable D1 only.
+
+Preferred existing repo method:
+
+```text
+wrangler d1 migrations apply ... --local
+```
+
+or the project's current Worker test harness.
+
+Do NOT apply remote D1 migration.
+
+---
+
+# 125. LOCAL D1 DATABASE
+
+Create/use isolated local test database/state for Prompt 27.
+
+Do not mutate remote Cloudflare resources.
+
+---
+
+# 126. TEST — BEGIN
+
+Canonical snapshot manifest sent.
+
+Expected:
+
+```text
+cache snapshot rows = 1
+state = BUILDING
+current pointer = absent
+```
+
+---
+
+# 127. TEST — BEGIN REPLAY
+
+Same manifest twice.
+
+Expected:
+
+```text
+1 snapshot row
+```
+
+No conflict.
+
+---
+
+# 128. TEST — BEGIN CONFLICT
+
+Same snapshot ID but changed:
+
+```text
+entryCount
+projectionChecksum
+revision
+```
+
+Expected conflict.
+
+---
+
+# 129. TEST — CHUNK
+
+Send one chunk.
+
+Expected:
+
+```text
+chunk receipt = 1
+entry rows = chunk row count
+snapshot remains BUILDING
+```
+
+---
+
+# 130. TEST — CHUNK REPLAY
+
+Same chunk/hash twice.
+
+No duplicate entries.
+
+No duplicate chunk record.
+
+---
+
+# 131. TEST — CHUNK CONFLICT
+
+Same chunk index, changed hash/payload.
+
+Reject.
+
+Do not partially overwrite accepted projection.
+
+---
+
+# 132. TEST — EARLY COMMIT
+
+Missing chunk(s).
+
+Expected:
+
+```text
+CACHE_INCOMPLETE
+snapshot remains BUILDING
+current pointer unchanged
+```
+
+---
+
+# 133. TEST — COMPLETE COMMIT
+
+All chunks delivered.
+
+Expected:
+
+```text
+state = READY
+entryCount exact
+current pointer updated
+```
+
+---
+
+# 134. TEST — PARTIAL SNAPSHOT READ
+
+Attempt read before commit.
+
+Expected:
+
+```text
+cache miss/not-ready
+```
+
+Never partial entries.
+
+---
+
+# 135. TEST — OUT-OF-ORDER CHUNKS
+
+Deliver:
+
+```text
+chunk 2
+chunk 0
+chunk 1
+```
+
+then COMMIT.
+
+Expected correct READY snapshot.
+
+Chunk delivery order must not affect canonical entry ordering.
+
+---
+
+# 136. TEST — OUT-OF-ORDER COMMIT
+
+COMMIT before final chunk.
+
+Retry after final chunk.
+
+Expected eventual correct READY state.
+
+---
+
+# 137. TEST — OLD LIVE POINTER
+
+Project LIVE A.
+
+Then newer LIVE B.
+
+Then retry old LIVE A COMMIT.
+
+Expected current pointer remains B.
+
+---
+
+# 138. TEST — FINAL WINS
+
+Project:
+
+```text
+LIVE
+FINAL revision 1
+```
+
+Then delayed LIVE projection.
+
+Expected FINAL pointer remains current.
+
+---
+
+# 139. TEST — FINAL REVISION
+
+Project:
+
+```text
+FINAL revision 1
+FINAL revision 2
+```
+
+Expected pointer:
+
+```text
+revision 2
+```
+
+Delayed revision 1 cannot overwrite.
+
+---
+
+# 140. TEST — ENTRY PARITY
+
+For canonical Prompt 26 snapshot:
+
+D1 entry rows must exactly match:
+
+```text
+userId
+rank
+tieSize
+score
+levelSnapshot
+```
+
+---
+
+# 141. TEST — PROJECTION CHECKSUM
+
+Canonical projection and D1 projected rows produce matching checksum when full verification strategy supports it.
+
+If D1 does not recompute full checksum, test backend-generated checksum determinism separately.
+
+---
+
+# 142. TEST — D1 CURRENT READ
+
+Read current leaderboard page.
+
+Expected exact Prompt 26 canonical values.
+
+---
+
+# 143. TEST — OWN RANK
+
+Lookup one user by:
+
+```text
+snapshotId + userId
+```
+
+No table scan.
+
+---
+
+# 144. TEST — TIE PAGINATION
+
+Use Prompt 26 tie fixture:
+
+```text
+100
+80
+80
+60
+```
+
+paginate across the two `80` rows.
+
+Expected:
+
+```text
+same shared rank
+no duplicate
+no missing row
+```
+
+---
+
+# 145. TEST — SNAPSHOT-PINNED CURSOR
+
+Page 1 from LIVE A.
+
+Publish LIVE B.
+
+Page 2 with A cursor.
+
+Expected:
+
+```text
+still reads A
+```
+
+if retained.
+
+---
+
+# 146. TEST — EXPIRED CURSOR
+
+Remove old LIVE A after retention in test.
+
+Cursor A:
+
+fallback to PostgreSQL A if still available.
+
+If canonical A also unavailable:
+
+```text
+LEADERBOARD_CURSOR_EXPIRED
+```
+
+---
+
+# 147. TEST — SOFT STALE
+
+D1 LIVE snapshot age:
+
+```text
+> 5 min
+< 15 min
+```
+
+Expected cache result may be served with:
+
+```text
+isStale = true
+```
+
+---
+
+# 148. TEST — HARD STALE
+
+Age:
+
+```text
+> 15 min
+```
+
+Expected:
+
+```text
+PostgreSQL fallback
+```
+
+---
+
+# 149. TEST — FINAL AGE
+
+Old FINAL snapshot remains cache-valid despite wall-clock age.
+
+---
+
+# 150. TEST — D1 UNAVAILABLE
+
+Simulate Worker/D1 failure.
+
+Leaderboard endpoint still returns canonical PostgreSQL result.
+
+---
+
+# 151. TEST — UNSUPPORTED CACHE SCHEMA
+
+Worker/cache returns wrong schema version.
+
+Backend falls back.
+
+---
+
+# 152. TEST — RANKING VERSION MISMATCH
+
+Wrong:
+
+```text
+leaderboard-ranking-v2
+```
+
+when backend expects v1.
+
+Fallback.
+
+No mixed semantics.
+
+---
+
+# 153. TEST — BUILDING CURRENT POINTER DEFENSE
+
+Manually create malformed pointer to BUILDING snapshot in local fixture.
+
+Reader must reject it and fallback.
+
+---
+
+# 154. TEST — PROFILE ENRICHMENT
+
+D1 stores:
+
+```text
+userId
+rank
+score
+```
+
+Backend returns current safe:
+
+```text
+displayName
+avatar
+level
+```
+
+according to existing Prompt 26/24 privacy semantics.
+
+---
+
+# 155. TEST — D1 CONTAINS NO PII
+
+Inspect schema/rows.
+
+Explicitly verify no:
+
+```text
+email
+phone
+signature
+display name
+avatar URL
+```
+
+columns.
+
+---
+
+# 156. TEST — PRIVACY TIGHTENING AFTER CACHE
+
+1. project rank while user profile visible;
+2. change test profile to hidden/banned/deleted state;
+3. read cached leaderboard.
+
+Expected current privacy rules apply.
+
+D1 cannot leak stale identity.
+
+---
+
+# 157. TEST — NO RANK RENUMBERING
+
+Hide rank 2 user after snapshot.
+
+Response may contain:
+
+```text
+rank 1
+rank 3
+```
+
+Do not rewrite rank 3 → 2.
+
+---
+
+# 158. TEST — PROFILE N+1
+
+For 100-entry page:
+
+profile enrichment uses bounded batch query.
+
+Report:
+
+```text
+N+1 = NO
+```
+
+---
+
+# 159. TEST — CACHE RECONCILIATION CLEAN
+
+Canonical PG vs D1 match.
+
+Expected:
+
+```text
+IN_SYNC
+```
+
+---
+
+# 160. TEST — CACHE ENTRY COUNT DRIFT
+
+Delete one local D1 row.
+
+Reconciliation detects:
+
+```text
+ENTRY_COUNT_MISMATCH
+```
+
+---
+
+# 161. TEST — CACHE POINTER DRIFT
+
+Point current cache to older snapshot.
+
+Detect:
+
+```text
+CURRENT_POINTER_MISMATCH
+```
+
+---
+
+# 162. TEST — CACHE SOURCE FINGERPRINT DRIFT
+
+Corrupt local D1 metadata.
+
+Detect mismatch.
+
+---
+
+# 163. TEST — REPROJECT
+
+Repair/reproject from canonical PG.
+
+Expected D1 returns to:
+
+```text
+IN_SYNC
+```
+
+PostgreSQL unchanged.
+
+---
+
+# 164. TEST — PG SIDE EFFECTS OF CACHE REPAIR
+
+D1 cache repair must create zero changes in:
+
+```text
+LeaderboardSeason canonical semantics
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+PointsLog
+```
+
+Only outbox retry metadata may change if existing projection infrastructure records work.
+
+---
+
+# 165. TEST — SNAPSHOT CREATION WITH D1 DOWN
+
+Create canonical PG LIVE snapshot while Worker simulated unavailable.
+
+Expected:
+
+```text
+PG snapshot success
+projection pending/retry
+leaderboard PG read works
+```
+
+---
+
+# 166. TEST — EVENTUAL RECOVERY
+
+Restore Worker.
+
+Drain retry work.
+
+Expected D1 becomes correct without rebuilding canonical ranking.
+
+---
+
+# 167. PROJECTION CONCURRENCY
+
+Simulate multiple outbox workers delivering same manifest/chunks concurrently.
+
+Expected one correct cache projection.
+
+No duplicate current pointer corruption.
+
+---
+
+# 168. 1,000-USER CACHE TEST
+
+Use synthetic Prompt 26 canonical snapshot with roughly:
+
+```text
+1,000 users
+```
+
+Project into local D1.
+
+Report:
+
+```text
+entry count
+chunk count
+projection strategy
+approximate local projection time
+read page behavior
+```
+
+No brittle CI latency threshold.
+
+---
+
+# 169. CHUNK COUNT EXAMPLE
+
+At 100 entries/chunk:
+
+```text
+1000 entries
+≈ 10 chunks
+```
+
+Do not hard-code expected chunk count when final page smaller.
+
+---
+
+# 170. LARGE TIE TEST
+
+Project large tie group.
+
+D1 must preserve canonical shared ranks exactly.
+
+---
+
+# 171. CACHE DOES NOT MODIFY LEVEL
+
+D1 stores optional snapshot Level only.
+
+No:
+
+```text
+UserGamificationLevel
+```
+
+writes.
+
+---
+
+# 172. CACHE DOES NOT MODIFY ACHIEVEMENTS
+
+Mandatory.
+
+---
+
+# 173. CACHE DOES NOT MODIFY CHALLENGES
+
+Mandatory.
+
+---
+
+# 174. CACHE DOES NOT MODIFY INTEGRITY
+
+Mandatory.
+
+---
+
+# 175. CACHE DOES NOT MODIFY CALENDAR
+
+Mandatory.
+
+---
+
+# 176. CACHE DOES NOT MODIFY FOCUS
+
+Mandatory.
+
+---
+
+# 177. CACHE DOES NOT MODIFY GROUP FOCUS
+
+Mandatory.
+
+---
+
+# 178. NO STUDY EVENT
+
+Projection/read/reconciliation:
+
+```text
+StudyEvent delta = 0
+```
+
+---
+
+# 179. NO DAILY METRIC
+
+Mandatory.
+
+---
+
+# 180. NO POINTS
+
+Mandatory.
+
+---
+
+# 181. NO LEADERBOARD UI
+
+Do not modify visible React pages/components.
+
+Prompt 44 later owns Gamification/Leaderboard UI.
+
+---
+
+# 182. OPTIONAL HEADLESS CLIENT TYPES
+
+Only if current frontend API layer benefits, update typed Leaderboard response contracts.
+
+Do not render anything.
+
+---
+
+# 183. API COMPATIBILITY
+
+Existing Prompt 26 routes should retain the same user-facing response shape.
+
+D1 cache is an implementation detail.
+
+Do not force frontend changes just because source becomes D1.
+
+---
+
+# 184. NO CACHE SOURCE FIELD REQUIRED PUBLICLY
+
+Do not expose:
+
+```text
+cacheSource = D1
+```
+
+to end users unless existing debugging conventions require it.
+
+Tests/internal service may expose source metadata.
+
+---
+
+# 185. WORKER SECURITY TESTS
+
+Test:
+
+```text
+missing machine auth → reject
+bad signature → reject
+expired timestamp → reject
+replayed nonce → reject where existing auth enforces it
+```
+
+Use existing security mechanism.
+
+---
+
+# 186. BROWSER WRITE TEST
+
+Browser/user auth must not be enough to call projection write endpoints.
+
+---
+
+# 187. READ AUTH BOUNDARY
+
+Worker cache read endpoints are backend-internal.
+
+A user session token alone should not bypass backend privacy enrichment.
+
+---
+
+# 188. LOCAL D1 MIGRATION REPLAY
+
+Apply the complete Worker/D1 migration sequence locally.
+
+Existing private D1 projection tables must continue to exist/work.
+
+---
+
+# 189. EXISTING D1 REGRESSION
+
+Rerun Prompt 6/private projection tests.
+
+Leaderboard migration must not break:
+
+* FocusPlan projection;
+* FocusSession projection;
+* StudyDailyMetric projection;
+* existing private reads.
+
+---
+
+# 190. PROMPT 26 REGRESSION
+
+Run canonical PostgreSQL Leaderboard suites.
+
+All rank/tie/season semantics unchanged.
+
+---
+
+# 191. PROMPT 25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 192. PROMPT 24 REGRESSION
+
+Levels/public profile-safe Gamification unchanged.
+
+---
+
+# 193. PROMPT 23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 194. PROMPT 22 REGRESSION
+
+Gamification rule-set definitions unchanged.
+
+---
+
+# 195. PROMPT 19–21 REGRESSION
+
+Points ledger, award engine, reconciliation unchanged.
+
+---
+
+# 196. PROMPT 17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 197. PROMPT 13–16 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 198. PROMPT 9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 199. PROMPT 8 REGRESSION
+
+Study Event ingestion unchanged.
+
+---
+
+# 200. FOUNDATION REGRESSION
+
+Run current relevant:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 201. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = existing baseline
+typecheck = existing Calendar baseline errors only
+lint = existing baseline errors only
+```
+
+Do not modify Calendar.
+
+Use actual current counts from the repository rather than fabricating numbers if they have changed since earlier prompts.
+
+---
+
+# 202. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Leaderboard cache adapter
+projection builder
+outbox integration
+Worker Leaderboard routes
+Prompt 27 tests
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 203. TARGETED LINT
+
+Prompt 27 changed files:
+
+```text
+PASS
+```
+
+No new full-repo lint errors.
+
+---
+
+# 204. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 205. PRISMA
+
+If PostgreSQL schema unchanged:
+
+run current validation/generation as appropriate.
+
+Expected:
+
+```text
+no Prompt 27 PG migration
+```
+
+unless the outbox gate genuinely required one.
+
+---
+
+# 206. WORKER BUILD / TYPECHECK
+
+Run the repository's actual Worker checks.
+
+At minimum verify:
+
+```text
+Cloudflare Worker typecheck/build = PASS
+```
+
+Do not invent scripts; inspect package configuration.
+
+---
+
+# 207. D1 LOCAL MIGRATION
+
+Run actual local migration command supported by repository.
+
+Report exact command/result.
+
+Remote:
+
+```text
+NOT APPLIED
+```
+
+---
+
+# 208. PRODUCTION SAFETY
+
+Do NOT:
+
+* apply D1 migration remotely;
+* deploy Worker;
+* enable D1 leaderboard flags in production;
+* modify production PostgreSQL;
+* rebuild production snapshots;
+* project production leaderboard data;
+* modify production Points;
+* modify production env.
+
+---
+
+# 209. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+workers/private-data/
+workers/.../migrations/<leaderboard_cache>.sql
+
+server/features/leaderboard/
+  cacheTypes.ts
+  cacheProjection.ts
+  cacheAdapter.ts
+  cacheRead.ts
+  cacheReconciliation.ts
+
+server/services/privateD1Sync.ts
+or existing outbox/drainer files
+
+Worker leaderboard cache handlers
+
+tests/leaderboard-d1*.test.ts
+tests/leaderboard-cache-fallback*.test.ts
+tests/leaderboard-cache-privacy*.test.ts
+```
+
+Use actual repository structure.
+
+---
+
+# 210. EXPECTED FILES UNCHANGED
+
+Unless minimally required for projection hook:
+
+```text
+Prompt 20 award rules
+Prompt 21 accounting semantics
+Prompt 22 definitions
+Prompt 23 Achievement semantics
+Prompt 24 Level semantics
+Prompt 25 Challenge semantics
+Prompt 26 ranking semantics
+
+Calendar
+Focus lifecycle
+Group Focus runtime
+visible frontend UI
+```
+
+---
+
+# 211. ACCEPTANCE CRITERIA
+
+Prompt 27 succeeds only if:
+
+1. PostgreSQL remains canonical.
+2. D1 is derived/disposable only.
+3. D1 never computes score/rank.
+4. D1 migration is additive.
+5. No profile PII is stored in Leaderboard D1 tables.
+6. Snapshot metadata cache exists.
+7. Snapshot entry cache exists.
+8. Current pointer exists.
+9. Chunk receipts exist.
+10. Projection checksum exists.
+11. Projection is chunked.
+12. BEGIN is idempotent.
+13. Chunk writes are idempotent.
+14. Conflicting chunk replay rejects.
+15. COMMIT before completeness rejects.
+16. BUILDING snapshot never serves.
+17. READY publication occurs only after completeness.
+18. Old LIVE cannot overwrite newer LIVE.
+19. LIVE cannot overwrite FINAL.
+20. Older FINAL revision cannot overwrite newer FINAL.
+21. Cursor reads stay snapshot-pinned.
+22. Tie pagination remains correct.
+23. Own-rank lookup is indexed/direct.
+24. Soft stale state works.
+25. Hard stale falls back to PG.
+26. FINAL cache remains valid until superseded.
+27. D1 outage falls back to PG.
+28. Schema/ranking mismatch falls back to PG.
+29. Backend batch-enriches safe profiles.
+30. Privacy changes after projection are respected.
+31. Rank numbers are not recomputed after privacy filtering.
+32. D1 reconciliation exists.
+33. D1 re-projection repairs cache only.
+34. PG snapshot creation does not depend on D1.
+35. Projection retries are durable.
+36. Existing private D1 projections remain working.
+37. No Points mutation.
+38. No StudyEvent mutation.
+39. No Integrity mutation.
+40. No Calendar mutation.
+41. No Gamification semantic changes.
+42. No visible UI.
+43. Production unchanged.
+44. Build/typecheck pass.
+45. New regressions = 0.
+
+---
+
+# 212. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List:
+
+* Prompt 26 Leaderboard baseline;
+* existing D1/private projection baseline;
+* outbox baseline;
+* Gamification;
+* Points;
+* Integrity;
+* Focus;
+* Group Focus;
+* Study Events;
+* Auth.
+
+---
+
+## B. Canonical / Cache Architecture
+
+Explain exactly:
+
+```text
+PostgreSQL canonical snapshot
+→ durable projection work
+→ D1 BUILDING snapshot
+→ chunk projection
+→ READY commit
+→ current pointer
+→ backend cache read
+→ privacy enrichment
+→ PG fallback
+```
+
+---
+
+## C. PostgreSQL Schema Changes
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+```
+
+If YES because a separate Leaderboard D1 outbox was genuinely required:
+
+show exact model/migration and justify why existing outbox could not be reused safely.
+
+---
+
+## D. Outbox Decision
+
+Report:
+
+```text
+existing outbox inspected:
+reused:
+new outbox created:
+reason:
+```
+
+---
+
+## E. D1 Migration
+
+Report exact migration path.
+
+List every created table/index.
+
+Explicitly:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+DELETE EXISTING DATA:
+REMOTE D1 MIGRATION APPLIED:
+```
+
+Expected remote migration:
+
+```text
+NO
+```
+
+---
+
+## F. D1 Cache Schema
+
+Show exact final fields for:
+
+```text
+leaderboard_cache_snapshots
+leaderboard_cache_entries
+leaderboard_cache_current
+leaderboard_cache_chunks
+```
+
+---
+
+## G. PII Boundary
+
+Explicitly confirm D1 does NOT store:
+
+```text
+email
+phone
+signature
+displayName
+avatarUrl
+Focus time
+MCQ accuracy
+Mastery
+Integrity Signals
+Quick Notes
+Challenge progress
+```
+
+---
+
+## H. Cache Schema / Ranking Versions
+
+Report:
+
+```text
+cache schema version:
+ranking version:
+```
+
+---
+
+## I. Projection Checksum
+
+Report:
+
+```text
+algorithm:
+canonical ordering:
+included fields:
+domain separation:
+```
+
+Explain whether D1 recomputes it or trusts the signed canonical manifest plus chunk verification.
+
+---
+
+## J. Chunking
+
+Report:
+
+```text
+entries per chunk:
+max payload guard:
+chunk hash:
+chunk identity:
+```
+
+---
+
+## K. Two-Phase Publication
+
+Report behavior for:
+
+```text
+BEGIN
+CHUNK
+COMMIT
+```
+
+and why partial snapshots cannot serve.
+
+---
+
+## L. Projection Replay
+
+Report:
+
+```text
+BEGIN replay:
+BEGIN conflict:
+CHUNK replay:
+CHUNK conflict:
+early COMMIT:
+```
+
+---
+
+## M. Current Pointer Precedence
+
+Explicitly report:
+
+```text
+newer LIVE vs older LIVE:
+FINAL vs LIVE:
+FINAL revision 2 vs revision 1:
+```
+
+---
+
+## N. Projection Concurrency
+
+Report results for concurrent manifest/chunk delivery.
+
+---
+
+## O. Durable Retry
+
+Report:
+
+```text
+retry mechanism:
+retry backoff:
+terminal/dead-letter behavior:
+D1 failure impact on PG snapshot:
+```
+
+---
+
+## P. Worker Authentication
+
+Report exact reused/new internal security mechanism.
+
+Explicitly:
+
+```text
+BROWSER SESSION CAN WRITE CACHE: NO
+QUERY-STRING SECRET USED: NO
+```
+
+---
+
+## Q. Read Architecture
+
+Explain:
+
+```text
+LEADERBOARD_D1_READ_ENABLED=false
+→ PG
+
+enabled
+→ D1 first
+→ validation/freshness
+→ PG fallback
+```
+
+---
+
+## R. Feature Flags
+
+Report defaults:
+
+```text
+LEADERBOARD_D1_PROJECTION_ENABLED:
+LEADERBOARD_D1_READ_ENABLED:
+```
+
+Expected both default false.
+
+---
+
+## S. Fallback Matrix
+
+Report behavior for:
+
+```text
+D1 timeout:
+D1 error:
+cache miss:
+BUILDING snapshot:
+schema mismatch:
+ranking-version mismatch:
+soft stale:
+hard stale:
+FINAL snapshot:
+```
+
+---
+
+## T. Freshness
+
+Report:
+
+```text
+LIVE soft freshness:
+LIVE hard stale:
+old LIVE retention:
+FINAL freshness:
+```
+
+---
+
+## U. Pagination
+
+Report:
+
+```text
+snapshot pinning:
+cursor ordering:
+tie-boundary behavior:
+old LIVE cursor retention:
+cursor fallback:
+cursor expiration:
+```
+
+---
+
+## V. Own-Rank Cache
+
+Report D1 index/query strategy and PG fallback.
+
+---
+
+## W. Profile Enrichment
+
+Report:
+
+```text
+source:
+batch strategy:
+N+1 profile queries:
+```
+
+Expected N+1:
+
+```text
+NO
+```
+
+---
+
+## X. Privacy After Projection
+
+Explain behavior if a cached user later becomes:
+
+```text
+hidden
+banned
+deleted
+```
+
+---
+
+## Y. Rank Preservation After Privacy Filter
+
+Explicitly:
+
+```text
+RANKS RECOMPUTED AFTER HIDING A USER: NO
+```
+
+---
+
+## Z. D1 Reconciliation
+
+List implemented states/checks:
+
+```text
+CACHE_MISSING
+CACHE_BUILDING
+CACHE_SCHEMA_MISMATCH
+RANKING_VERSION_MISMATCH
+ENTRY_COUNT_MISMATCH
+SOURCE_FINGERPRINT_MISMATCH
+PROJECTION_CHECKSUM_MISMATCH
+CURRENT_POINTER_MISMATCH
+MISSING_CHUNKS
+STALE_LIVE_CACHE
+```
+
+or exact repository names.
+
+---
+
+## AA. D1 Repair
+
+Explain how re-projection occurs.
+
+Explicitly:
+
+```text
+CACHE REPAIR MODIFIES POSTGRESQL RANKING SNAPSHOT: NO
+CACHE REPAIR RECALCULATES RANK: NO
+```
+
+---
+
+## AB. Admin Cache APIs
+
+Report reconciliation/reproject routes and authorization.
+
+---
+
+## AC. Local D1 Environment
+
+Report:
+
+```text
+LOCAL D1 MIGRATION EXECUTED: YES/NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+```
+
+Include exact local command.
+
+---
+
+## AD. Local D1 Projection Results
+
+Report:
+
+* BEGIN;
+* BEGIN replay/conflict;
+* chunk;
+* chunk replay/conflict;
+* early COMMIT;
+* successful COMMIT;
+* out-of-order chunks;
+* old LIVE protection;
+* FINAL protection;
+* FINAL revision replacement.
+
+---
+
+## AE. Cache Read Tests
+
+Report:
+
+* current page;
+* own rank;
+* tie pagination;
+* snapshot-pinned cursor;
+* stale cursor;
+* soft stale;
+* hard stale;
+* FINAL age;
+* D1 outage fallback.
+
+---
+
+## AF. Privacy Tests
+
+Report:
+
+* no PII in D1 schema;
+* batch profile enrichment;
+* profile privacy change after projection;
+* banned/deleted/hidden behavior;
+* rank-gap preservation.
+
+---
+
+## AG. Reconciliation Tests
+
+Report:
+
+* clean cache;
+* missing entry;
+* pointer mismatch;
+* fingerprint mismatch;
+* reproject recovery.
+
+---
+
+## AH. 1,000-User Synthetic Test
+
+Report:
+
+```text
+canonical entry count:
+chunk count:
+D1 entry count:
+projection approach:
+N+1:
+approx local projection time:
+page read result:
+```
+
+No brittle latency threshold.
+
+---
+
+## AI. Existing D1 Regression
+
+Report existing private D1 projection test results.
+
+Confirm Leaderboard migration did not break existing projection tables.
+
+---
+
+## AJ. PostgreSQL Fallback Regression
+
+Run Prompt 26 with both D1 flags disabled.
+
+Explicitly:
+
+```text
+PROMPT 26 PG-ONLY BEHAVIOR PRESERVED: YES/NO
+```
+
+---
+
+## AK. Side Effects
+
+Report deltas from Prompt 27 projection/read/cache reconciliation:
+
+```text
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+UserChallengeProgress:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+FocusSession:
+GroupFocusRun:
+```
+
+Expected zero.
+
+Canonical Leaderboard snapshot tables may only change through pre-existing Prompt 26 behavior, not D1 cache repair.
+
+---
+
+## AL. Tests Added / Modified
+
+Exact paths/counts/results.
+
+---
+
+## AM. Regression Results
+
+Include:
+
+* Prompt 26 Leaderboards;
+* Prompt 25 Challenges;
+* Prompt 24 Levels/profile;
+* Prompt 23 Achievements;
+* Prompt 22 definitions;
+* Prompt 19–21 Points;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* existing D1/private projection;
+* Outbox;
+* Auth;
+* Build;
+* Worker build/typecheck;
+* Prisma;
+* targeted TypeScript;
+* targeted lint;
+* Calendar baseline.
+
+---
+
+## AN. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AO. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text
+Prompt 26 ranking semantics unchanged?
+Prompt 20 reward rules unchanged?
+Prompt 21 accounting unchanged?
+Achievement semantics unchanged?
+Level semantics unchanged?
+Challenge semantics unchanged?
+Calendar unchanged?
+visible frontend UI unchanged?
+```
+
+---
+
+## AP. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+REMOTE D1 MIGRATION APPLIED: NO
+REMOTE D1 DATA MODIFIED: NO
+WORKER DEPLOYED: NO
+LEADERBOARD D1 READ ENABLED IN PRODUCTION: NO
+LEADERBOARD D1 PROJECTION ENABLED IN PRODUCTION: NO
+PRODUCTION SNAPSHOTS REPROJECTED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AQ. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AR. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## AS. Risks / Blockers
+
+Only real unresolved D1/cache issues.
+
+Do not list future Leaderboard UI or Recall work as blockers.
+
+---
+
+## AT. Architecture Compliance
+
+Answer YES/NO:
+
+* PostgreSQL remains canonical?
+* D1 purely derived?
+* D1 never computes rank?
+* D1 never computes score?
+* Projection chunked?
+* Projection idempotent?
+* Partial cache never published?
+* Out-of-order delivery safe?
+* Older LIVE cannot replace newer?
+* LIVE cannot replace FINAL?
+* Older FINAL revision cannot replace newer?
+* Cache reads kill-switchable?
+* Projection kill-switchable?
+* Both flags default disabled?
+* D1 outage falls back to PostgreSQL?
+* Hard-stale LIVE falls back?
+* FINAL cache remains valid?
+* Cursor remains snapshot-pinned?
+* Tie pagination preserved?
+* Own-rank lookup indexed?
+* No profile PII cached?
+* Profile privacy rechecked at read?
+* No rank renumbering after privacy filtering?
+* Cache repair changes D1 only?
+* No Points mutation?
+* No StudyEvent side effect?
+* No Integrity side effect?
+* No Calendar side effect?
+* Existing private D1 features preserved?
+* No visible UI?
+* Remote D1 unchanged?
+* Worker not deployed?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+---
+
+## AU. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 28 — Spaced Recall Canonical State, Recall Attempt Lifecycle & Evidence Contracts**
+
+Do not implement Prompt 28.
+
+---
+
+# 213. STOP CONDITION
+
+After implementation, tests and mandatory report:
+
+STOP.
+
+Do NOT implement Recall.
+
+Do NOT build Leaderboard UI.
+
+Do NOT deploy Worker.
+
+Do NOT apply D1 migration remotely.
+
+Do NOT enable cache flags in production.
+
+Do NOT alter Points or ranking semantics.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 27 COMPLETE — LEADERBOARD D1 PROJECTION, CACHE DELIVERY & POSTGRESQL FALLBACK READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**

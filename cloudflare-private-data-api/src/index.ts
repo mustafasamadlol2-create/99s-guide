@@ -1,3 +1,4 @@
+import { handleLeaderboardCache } from "./leaderboardCache";
 type PrivateEntity = "User" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
@@ -1204,6 +1205,10 @@ export default {
 
     if (url.pathname === "/internal/private-sync") {
       return handlePrivateSync(request, env);
+    }
+
+    if (url.pathname.startsWith("/internal/leaderboard-cache/")) {
+      return handleLeaderboardCache(request, env);
     }
 
     if (url.pathname.startsWith("/internal/private-read/")) {
