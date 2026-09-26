@@ -32,6 +32,7 @@ CREATE TABLE "RecallAttempt" (
       CHECK (
         (
           "status" = 'PRESENTED'
+          AND "evidenceClass" = 'SERVER_VALIDATED'
           AND "answeredAt" IS NULL
           AND "skippedAt" IS NULL
           AND "expiredAt" IS NULL
@@ -42,8 +43,13 @@ CREATE TABLE "RecallAttempt" (
         OR (
           "status" = 'ANSWERED'
           AND "answeredAt" IS NOT NULL
+          AND "answeredAt" >= "presentedAt"
+          AND ("expiresAt" IS NULL OR "answeredAt" < "expiresAt")
           AND "skippedAt" IS NULL
           AND "expiredAt" IS NULL
+          AND "answerKind" IS NOT NULL
+          AND "answerValue" IS NOT NULL
+          AND "outcome" IS NOT NULL
           AND (
             (
               "itemType" = 'MCQ'
@@ -56,10 +62,10 @@ CREATE TABLE "RecallAttempt" (
               "itemType" = 'FLASHCARD'
               AND "answerKind" = 'FLASHCARD_RECALL_RATING'
               AND "answerValue" IN ('hard', 'medium', 'easy')
-              AND "outcome" IN (
-                'SELF_REPORTED_HARD',
-                'SELF_REPORTED_MEDIUM',
-                'SELF_REPORTED_EASY'
+              AND (
+                ("answerValue" = 'hard' AND "outcome" = 'SELF_REPORTED_HARD')
+                OR ("answerValue" = 'medium' AND "outcome" = 'SELF_REPORTED_MEDIUM')
+                OR ("answerValue" = 'easy' AND "outcome" = 'SELF_REPORTED_EASY')
               )
               AND "evidenceClass" = 'CLIENT_OBSERVED'
             )
@@ -69,6 +75,8 @@ CREATE TABLE "RecallAttempt" (
           "status" = 'SKIPPED'
           AND "answeredAt" IS NULL
           AND "skippedAt" IS NOT NULL
+          AND "skippedAt" >= "presentedAt"
+          AND ("expiresAt" IS NULL OR "skippedAt" < "expiresAt")
           AND "expiredAt" IS NULL
           AND "answerKind" IS NULL
           AND "answerValue" IS NULL
@@ -80,6 +88,9 @@ CREATE TABLE "RecallAttempt" (
           AND "answeredAt" IS NULL
           AND "skippedAt" IS NULL
           AND "expiredAt" IS NOT NULL
+          AND "expiresAt" IS NOT NULL
+          AND "expiredAt" >= "presentedAt"
+          AND "expiredAt" >= "expiresAt"
           AND "answerKind" IS NULL
           AND "answerValue" IS NULL
           AND "outcome" IS NULL
@@ -134,19 +145,44 @@ CREATE TABLE "RecallItemState" (
         AND "selfReportedHardCount" >= 0
         AND "selfReportedMediumCount" >= 0
         AND "selfReportedEasyCount" >= 0
+        AND "answerCount" = (
+          "objectiveCorrectCount"
+          + "objectiveIncorrectCount"
+          + "selfReportedHardCount"
+          + "selfReportedMediumCount"
+          + "selfReportedEasyCount"
+        )
         AND "revision" >= 0
+      ),
+    CONSTRAINT "RecallItemState_item_outcome_counters_check"
+      CHECK (
+        (
+          "itemType" = 'MCQ'
+          AND "selfReportedHardCount" = 0
+          AND "selfReportedMediumCount" = 0
+          AND "selfReportedEasyCount" = 0
+        )
+        OR (
+          "itemType" = 'FLASHCARD'
+          AND "objectiveCorrectCount" = 0
+          AND "objectiveIncorrectCount" = 0
+        )
       ),
     CONSTRAINT "RecallItemState_last_outcome_check"
       CHECK (
         "lastOutcome" IS NULL
-        OR "lastOutcome" IN (
-          'CORRECT',
-          'INCORRECT',
-          'SELF_REPORTED_HARD',
-          'SELF_REPORTED_MEDIUM',
-          'SELF_REPORTED_EASY',
-          'SKIPPED',
-          'EXPIRED'
+        OR "lastOutcome" IN ('SKIPPED', 'EXPIRED')
+        OR (
+          "itemType" = 'MCQ'
+          AND "lastOutcome" IN ('CORRECT', 'INCORRECT')
+        )
+        OR (
+          "itemType" = 'FLASHCARD'
+          AND "lastOutcome" IN (
+            'SELF_REPORTED_HARD',
+            'SELF_REPORTED_MEDIUM',
+            'SELF_REPORTED_EASY'
+          )
         )
       ),
     CONSTRAINT "RecallItemState_userId_fkey"

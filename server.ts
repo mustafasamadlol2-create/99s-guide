@@ -57,6 +57,8 @@ import {
 } from "./server/routes/personalization.js";
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
+import { createRecallAttemptService } from "./server/features/recall/attemptService.js";
+import { createRecallJsonParser, createRecallRouter } from "./server/routes/recall.js";
 import { createAchievementsRouter } from "./server/routes/achievements.js";
 import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
@@ -1085,6 +1087,7 @@ app.use(
   "/api/admin/study-points",
   createAdminStudyPointsJsonParser(),
 );
+app.use("/api/recall", createRecallJsonParser());
 
 app.use(compression());
 app.use(express.json({ limit: "20mb" }));
@@ -7657,6 +7660,13 @@ app.use(
     refreshAchievements: refreshUserAchievementsBestEffort,
     refreshChallenges: (userId, metricIds) =>
       refreshUserChallenges({ userId, metricIds }),
+  }),
+);
+app.use(
+  "/api/recall",
+  createRecallRouter({
+    requireUser,
+    service: createRecallAttemptService(),
   }),
 );
 app.use(
