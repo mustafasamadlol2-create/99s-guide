@@ -164,6 +164,7 @@ const policies: readonly IntegrityPolicy[] = [
     "SERVER_VALIDATED",
     backendOnly,
     serverTimestampPolicy,
+    ["SERVER_DERIVED"],
   ),
 ];
 

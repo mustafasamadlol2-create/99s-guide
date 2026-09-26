@@ -3,7 +3,7 @@ import { getPrisma } from "../../services/prismaClient.js";
 import type { StudyEventSource } from "../study-core/events.js";
 import { INTEGRITY_ACTION_TYPES } from "../study-integrity/constants.js";
 import type { StudyPointsCategory, StudyPointsSourceType } from "./constants.js";
-import { getStudyPointsBaghdadDayBounds, getStudyPointsDailyUsage, getGroupSocialBonusCount, STUDY_POINTS_CATEGORY_DAILY_CAPS, STUDY_POINTS_TOTAL_DAILY_CAP, studyPointsBaghdadDate, studyPointsDailyCapLockKey } from "./caps.js";
+import { getStudyPointsBaghdadDayBounds, getStudyPointsDailyUsage, getGroupSocialBonusCount, getStudyPointsBaghdadWeekUsage, getStudyPointsBaghdadDailyRuleUsage, STUDY_POINTS_CATEGORY_DAILY_CAPS, STUDY_POINTS_TOTAL_DAILY_CAP, studyPointsBaghdadDate, studyPointsDailyCapLockKey, studyPointsWeeklyCapLockKey } from "./caps.js";
 import {
   DAILY_CONSISTENCY_AMOUNT,
   DAILY_CONSISTENCY_MINIMUM_SECONDS,
@@ -15,6 +15,10 @@ import {
   GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS,
   GROUP_FOCUS_SOCIAL_BONUS_RULE,
   GROUP_FOCUS_PARTICIPATION_RULE,
+  RECALL_MAX_POINTS_PER_DAY,
+  RECALL_MAX_POINTS_PER_WEEK,
+  RECALL_OBJECTIVE_CORRECT_AMOUNT,
+  RECALL_OBJECTIVE_CORRECT_RULE,
   focusCompletionAmount,
 } from "./awardRules.js";
 import type {
@@ -35,6 +39,8 @@ import { StudyPointsError } from "./errors.js";
 import { getEligibleBaghdadDayFocusSeconds } from "./sources/consistency.js";
 import { loadCompletedFocusSource } from "./sources/focus.js";
 import { loadGroupFocusSource } from "./sources/groupFocus.js";
+import { loadObjectiveRecallSource } from "./sources/recall.js";
+import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
 import type { StudyPointsLedgerEntryRecord } from "./types.js";
 
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
@@ -269,6 +275,51 @@ export class StudyPointsAwardEngine {
       return { sourceType: input.sourceType, sourceId: input.sourceId, attempts };
     }
 
+    if (input.sourceType === "RECALL_ATTEMPT") {
+      const loaded = await loadObjectiveRecallSource(tx, input.userId, input.sourceId);
+      if (!("source" in loaded)) {
+        return {
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          attempts: [noAward(loaded.reason)],
+        };
+      }
+      const source = loaded.source;
+      const integrityFailure = await getStudyPointsIntegrityFailure(tx, {
+        userId: source.userId,
+        actionType: source.actionType,
+        source: source.source,
+        evidenceClass: source.evidenceClass,
+        occurredAt: source.effectiveAt,
+        now,
+        resource: source.resource,
+      });
+      if (integrityFailure) {
+        return {
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          attempts: [noAward(integrityFailure)],
+        };
+      }
+      return {
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        attempts: [await this.appendCappedAward(tx, {
+          userId: source.userId,
+          sourceType: "RECALL_ATTEMPT",
+          sourceId: source.sourceId,
+          effectiveAt: source.effectiveAt,
+          rule: RECALL_OBJECTIVE_CORRECT_RULE,
+          baseRuleAmount: RECALL_OBJECTIVE_CORRECT_AMOUNT,
+          baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
+          now,
+          maxPointsPerDay: RECALL_MAX_POINTS_PER_DAY,
+          maxPointsPerWeek: RECALL_MAX_POINTS_PER_WEEK,
+          specialDailyRule: RECALL_OBJECTIVE_CORRECT_RULE,
+        })],
+      };
+    }
+
     return {
       sourceType: input.sourceType,
       sourceId: input.sourceId,
@@ -324,6 +375,13 @@ export class StudyPointsAwardEngine {
       canonicalDurationSeconds?: number;
       maxAwardsPerDay?: number;
       maxPointsPerDay?: number;
+      maxPointsPerWeek?: number;
+      specialDailyRule?: {
+        category: StudyPointsCategory;
+        reasonCode: string;
+        ruleVersion: string;
+        sourceType: StudyPointsSourceType;
+      };
       consistencyIdempotencyKey?: string;
       compareEffectiveAtOnReplay?: boolean;
     },
@@ -337,8 +395,14 @@ export class StudyPointsAwardEngine {
         ruleVersion: input.rule.ruleVersion,
         reasonCode: input.rule.reasonCode,
       });
+    const weeklyPeriod = input.maxPointsPerWeek === undefined
+      ? undefined
+      : getBaghdadWeekPeriod(input.effectiveAt);
     await lockStudyPointsKeys(tx, [
       studyPointsDailyCapLockKey(input.userId, input.baghdadDate),
+      ...(weeklyPeriod
+        ? [studyPointsWeeklyCapLockKey(input.userId, weeklyPeriod.startsAt)]
+        : []),
     ]);
 
     const where = {
@@ -384,13 +448,33 @@ export class StudyPointsAwardEngine {
     const dailyCap = STUDY_POINTS_CATEGORY_DAILY_CAPS[input.rule.category];
     const categoryRemaining = dailyCap - usage.byCategory[input.rule.category];
     const totalRemaining = STUDY_POINTS_TOTAL_DAILY_CAP - usage.total;
+    const specialDailyUsage = input.maxPointsPerDay === undefined
+      ? 0
+      : input.specialDailyRule
+        ? await getStudyPointsBaghdadDailyRuleUsage(
+            tx,
+            input.userId,
+            input.baghdadDate,
+            input.specialDailyRule,
+          )
+        : await this.groupSocialPointsUsed(tx, input.userId, bounds);
     const specialRemaining = input.maxPointsPerDay === undefined
       ? Number.POSITIVE_INFINITY
-      : input.maxPointsPerDay - await this.groupSocialPointsUsed(tx, input.userId, bounds);
+      : input.maxPointsPerDay - specialDailyUsage;
+    const weeklySpecialRemaining = input.maxPointsPerWeek === undefined || !weeklyPeriod
+      ? Number.POSITIVE_INFINITY
+      : input.maxPointsPerWeek - await getStudyPointsBaghdadWeekUsage(
+        tx,
+        input.userId,
+        input.effectiveAt,
+        input.rule.ruleVersion,
+        input.rule.reasonCode,
+      );
     const remainingBeforeAward = Math.min(
       categoryRemaining,
       totalRemaining,
       specialRemaining,
+      weeklySpecialRemaining,
     );
     if (remainingBeforeAward <= 0) return noAward("CAP_REACHED");
     const amount = Math.min(input.baseRuleAmount, remainingBeforeAward);
@@ -402,6 +486,12 @@ export class StudyPointsAwardEngine {
       remainingBeforeAward,
       totalDailyCap: STUDY_POINTS_TOTAL_DAILY_CAP,
       remainingTotalBeforeAward: totalRemaining,
+      ...(input.specialDailyRule !== undefined
+        ? { recallDailyRemainingBeforeAward: specialRemaining }
+        : {}),
+      ...(input.maxPointsPerWeek !== undefined
+        ? { recallWeeklyRemainingBeforeAward: weeklySpecialRemaining }
+        : {}),
       BaghdadDate: input.baghdadDate,
       ...(input.canonicalDurationSeconds !== undefined
         ? { canonicalDurationSeconds: input.canonicalDurationSeconds }

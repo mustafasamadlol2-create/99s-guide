@@ -10,3 +10,4 @@
 - [Study Integrity boundary](study-integrity-boundary.md) — keep evaluation pure; share primitives without importing event ingestion or querying product tables.
 - [Gamification checksum compatibility](challenge-checksum-compatibility.md) — keep Challenge hashes separate to preserve persisted Achievement and Level checksums.
 - [Prisma CLI URL requirements](prisma-cli-url-requirements.md) — schema validation needs a nonempty `DIRECT_URL`; use inert URLs only for schema-only CLI work.
+- [Nullable SQL check constraints](nullable-sql-check-constraints.md) — PostgreSQL CHECK accepts UNKNOWN; paired nullable provenance fields need an explicitly false invalid state.

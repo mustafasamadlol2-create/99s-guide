@@ -1196,6 +1196,8 @@ model RecallAttempt {
   outcome                  String?   @db.VarChar(48)
   evidenceClass            String    @default("SERVER_VALIDATED") @db.VarChar(32)
   privacyClass             String    @default("PRIVATE_STUDY") @db.VarChar(32)
+  issuanceSource           String?   @db.VarChar(16)
+  issuancePolicyVersion    String?   @db.VarChar(64)
   issuanceIdempotencyKey   String    @db.VarChar(200)
   issuanceFingerprint      String    @db.Char(64)
   createdAt                DateTime  @default(now())
@@ -1206,6 +1208,7 @@ model RecallAttempt {
   @@unique([userId, issuanceIdempotencyKey], map: "recall_attempt_user_issuance_key")
   @@index([userId, status, presentedAt], map: "recall_attempt_user_status_presented_idx")
   @@index([userId, itemType, itemId, presentedAt], map: "recall_attempt_user_item_presented_idx")
+  @@index([userId, issuanceSource, issuancePolicyVersion, presentedAt], map: "recall_attempt_user_periodic_presented_idx")
   @@index([itemType, itemId, presentedAt], map: "recall_attempt_item_presented_idx")
   @@map("RecallAttempt")
 }

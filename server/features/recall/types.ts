@@ -7,6 +7,7 @@ import type {
   RecallAttemptStatus,
   RecallFlashcardRating,
   RecallItemType,
+  RecallIssuanceSource,
   RecallMcqOption,
   RecallTerminalOutcome,
 } from "./constants.js";
@@ -27,6 +28,8 @@ export interface IssueRecallAttemptInput {
   /** Server-owned timestamp supplied by an internal caller, never by a route. */
   presentedAt?: Date;
   expiresAt?: Date | null;
+  issuanceSource?: RecallIssuanceSource;
+  issuancePolicyVersion?: string | null;
   tx?: RecallTransaction;
 }
 
@@ -76,6 +79,15 @@ export interface PublicRecallTransition {
   outcome: RecallTerminalOutcome | null;
   evidenceClass: EvidenceClass;
   replayed: boolean;
+  reward?: {
+    awarded: boolean;
+    points: number;
+    reason?: "NOT_OBJECTIVELY_CORRECT"
+      | "NOT_PROTECTED_RECALL"
+      | "REWARD_DISABLED"
+      | "CAP_REACHED"
+      | "INTEGRITY_BLOCKED";
+  };
 }
 
 export interface RecallAttemptService {
@@ -86,5 +98,5 @@ export interface RecallAttemptService {
     answer: RecallAttemptAnswer,
   ): Promise<PublicRecallTransition>;
   skip(userId: string, attemptId: string): Promise<PublicRecallTransition>;
-  expire(userId: string, attemptId: string): Promise<PublicRecallTransition>;
+  expire(userId: string, attemptId: string, tx?: RecallTransaction): Promise<PublicRecallTransition>;
 }

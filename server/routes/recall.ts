@@ -9,10 +9,28 @@ import {
   recallSkipBodySchema,
 } from "../features/recall/schemas.js";
 import type { RecallAttemptService } from "../features/recall/types.js";
+import { createRecallCandidateService } from "../features/recall/candidateService.js";
+import { mintRecallInteractionToken, verifyRecallInteractionToken } from "../features/recall/interactionToken.js";
+import { isStudyFeatureEnabled } from "../features/study-core/featureFlags.js";
+import { getPrisma } from "../services/prismaClient.js";
+import { lockRecallScope } from "../features/recall/repository.js";
+import {
+  RECALL_DAILY_ISSUANCE_CAP,
+  RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS,
+  RECALL_POLICY_VERSION,
+  RECALL_PROTECTED_ATTEMPT_TTL_MS,
+  RECALL_WEEKLY_ISSUANCE_CAP,
+} from "../features/recall/constants.js";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { getStudyPointsBaghdadDayBounds } from "../features/study-points/caps.js";
+import { getBaghdadWeekPeriod } from "../features/gamification/challengePeriods.js";
+import { studyPointsBaghdadDate } from "../features/study-points/caps.js";
 
 export interface RecallRouteDependencies {
   requireUser: RequestHandler;
   service?: RecallAttemptService;
+  database?: PrismaClient;
+  now?: () => Date;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -48,7 +66,130 @@ export function createRecallRouter(
 ): express.Router {
   const router = express.Router();
   const service = dependencies.service ?? createRecallAttemptService();
+  const database = dependencies.database ?? getPrisma();
+  const now = dependencies.now ?? (() => new Date());
+  const candidates = createRecallCandidateService({ database, attemptService: service });
   router.use(dependencies.requireUser);
+
+  router.post("/next", route(async (req, res) => {
+    if (!isStudyFeatureEnabled("SPACED_RECALL_ENABLED")) {
+      return res.status(404).json({ error: "Spaced Recall is not available.", code: "FEATURE_DISABLED" });
+    }
+    if (
+      req.body !== undefined &&
+      (!req.body ||
+        typeof req.body !== "object" ||
+        Array.isArray(req.body) ||
+        Object.keys(req.body).length > 0)
+    ) {
+      return res.status(400).json({
+        error: "Recall next does not accept client-selected input.",
+        code: "INVALID_REQUEST",
+      });
+    }
+    const id = userId(req);
+    const asOf = now();
+    if (!(asOf instanceof Date) || !Number.isFinite(asOf.getTime())) {
+      throw new Error("Recall server clock is invalid.");
+    }
+    const result = await database.$transaction(async (tx) => {
+      await lockRecallScope(tx, "policy", [id]);
+      const stale = await tx.recallAttempt.findMany({
+        where: { userId: id, status: "PRESENTED", issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, expiresAt: { lte: asOf } },
+        select: { id: true },
+      });
+      for (const row of stale) await service.expire(id, row.id, tx);
+      const active = await tx.recallAttempt.findFirst({
+        where: { userId: id, status: "PRESENTED", issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, expiresAt: { gt: asOf } },
+        orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
+      });
+      if (active) {
+        const expiresAt = active.expiresAt ?? new Date(active.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS);
+        return {
+          kind: "attempt" as const,
+          attempt: active,
+          reused: true,
+          interactionToken: mintRecallInteractionToken(id, active.id, expiresAt, asOf),
+        };
+      }
+      const latest = await tx.recallAttempt.findFirst({
+        where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION },
+        orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
+        select: { presentedAt: true },
+      });
+      if (latest && latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS > asOf.getTime()) {
+        return {
+          kind: "status" as const,
+          status: "NOT_DUE" as const,
+          nextEligibleAt: new Date(latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS),
+        };
+      }
+      const day = await getStudyPointsBaghdadDayBounds(tx, studyPointsBaghdadDate(asOf));
+      const dayCount = await tx.recallAttempt.count({ where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, presentedAt: { gte: day.start, lt: day.end } } });
+      if (dayCount >= RECALL_DAILY_ISSUANCE_CAP) {
+        return {
+          kind: "status" as const,
+          status: "DAILY_LIMIT_REACHED" as const,
+          nextEligibleAt: day.end,
+        };
+      }
+      const week = getBaghdadWeekPeriod(asOf);
+      const weekCount = await tx.recallAttempt.count({ where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, presentedAt: { gte: week.startsAt, lt: week.endsAt } } });
+      if (weekCount >= RECALL_WEEKLY_ISSUANCE_CAP) {
+        return {
+          kind: "status" as const,
+          status: "WEEKLY_LIMIT_REACHED" as const,
+          nextEligibleAt: week.endsAt,
+        };
+      }
+      try {
+        const attempt = await candidates.selectAndIssueProtectedRecallCandidate({
+          userId: id,
+          asOf,
+          issuanceIdempotencyKey: `periodic:${id}:${asOf.toISOString()}`,
+          expiresAt: new Date(asOf.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS),
+          tx: tx as never,
+        });
+        const expiresAt = attempt.expiresAt ?? new Date(attempt.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS);
+        return {
+          kind: "attempt" as const,
+          attempt,
+          reused: false,
+          interactionToken: mintRecallInteractionToken(id, attempt.id, expiresAt, asOf),
+        };
+      } catch (error) {
+        if (isRecallError(error) && error.code === "NO_RECALL_CANDIDATE") {
+          return { kind: "status" as const, status: "NO_CANDIDATE" as const };
+        }
+        throw error;
+      }
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      maxWait: 5_000,
+      timeout: 15_000,
+    });
+    if (result.kind === "status") {
+      return res.json({
+        status: result.status,
+        ...("nextEligibleAt" in result
+          ? { nextEligibleAt: result.nextEligibleAt }
+          : {}),
+      });
+    }
+    return res.json({
+      status: result.reused ? "ACTIVE_ATTEMPT" : "AVAILABLE",
+      attempt: {
+        id: result.attempt.id,
+        itemType: result.attempt.itemType,
+        itemId: result.attempt.itemId,
+        lectureId: result.attempt.lectureId,
+        presentedAt: result.attempt.presentedAt,
+        expiresAt: result.attempt.expiresAt ?? new Date(result.attempt.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS),
+      },
+      interactionToken: result.interactionToken,
+      policyVersion: RECALL_POLICY_VERSION,
+    });
+  }));
 
   router.post(
     "/attempts/:attemptId/answer",
@@ -66,7 +207,9 @@ export function createRecallRouter(
         "selectedOption" in parsedBody.data
           ? { kind: "MCQ_OPTION" as const, value: parsedBody.data.selectedOption }
           : { kind: "FLASHCARD_RECALL_RATING" as const, value: parsedBody.data.rating };
-      const result = await service.answer(userId(req), parsedId.data, answer);
+       const attempt = await database.recallAttempt.findFirst({ where: { id: parsedId.data, userId: userId(req) }, select: { issuanceSource: true } });
+       if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, new Date());
+       const result = await service.answer(userId(req), parsedId.data, answer);
       return res.json(result);
     }),
   );
@@ -82,7 +225,9 @@ export function createRecallRouter(
           code: "INVALID_REQUEST",
         });
       }
-      const result = await service.skip(userId(req), parsedId.data);
+       const attempt = await database.recallAttempt.findFirst({ where: { id: parsedId.data, userId: userId(req) }, select: { issuanceSource: true } });
+       if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, new Date());
+       const result = await service.skip(userId(req), parsedId.data);
       return res.json(result);
     }),
   );

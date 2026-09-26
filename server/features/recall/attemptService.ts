@@ -11,8 +11,12 @@ import {
   RECALL_ITEM_TYPES,
   RECALL_MCQ_OPTIONS,
   RECALL_PRIVACY_CLASS,
+  RECALL_PROTECTED_ATTEMPT_TTL_MS,
   outcomeForFlashcardRating,
+  RECALL_POLICY_VERSION,
 } from "./constants.js";
+import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
+import { StudyPointsAwardEngine } from "../study-points/awardEngine.js";
 import type {
   RecallAnswerOutcome,
   RecallAttemptStatus,
@@ -49,6 +53,7 @@ export function createRecallAttemptService(
 ): RecallAttemptService {
   const database = options.database ?? getPrisma();
   const now = options.now ?? (() => new Date());
+  const points = new StudyPointsAwardEngine(database, now);
 
   return {
     async issue(input) {
@@ -133,14 +138,54 @@ export function createRecallAttemptService(
           outcome,
           operationTime,
         );
-        return publicTransition(updated, false);
+        const transition = publicTransition(updated, false);
+        if (updated.issuanceSource === "PERIODIC") {
+          if (!isStudyFeatureEnabled("RECALL_POINTS_ENABLED")) {
+            transition.reward = {
+              awarded: false,
+              points: 0,
+              reason: "REWARD_DISABLED",
+            };
+          } else {
+            const awarded = await points.awardStudyPointsForSource({
+              userId,
+              sourceType: "RECALL_ATTEMPT",
+              sourceId: updated.id,
+              tx,
+              now: operationTime,
+            });
+            const decision = awarded.attempts[0]?.decision;
+            transition.reward = decision?.outcome === "AWARD"
+              ? { awarded: true, points: decision.amount }
+              : {
+                  awarded: false,
+                  points: 0,
+                  reason: publicNoAwardReason(
+                    decision?.reason,
+                    updated.itemType,
+                    updated.outcome,
+                  ),
+                };
+          }
+        }
+        return transition;
       });
     },
     async skip(userId, attemptId) {
       validatePathIdentity(userId, attemptId);
       return withTransaction(database, undefined, async (tx) => {
         const attempt = await lockOwnedAttempt(tx, userId, attemptId);
-        if (attempt.status === "SKIPPED") return publicTransition(attempt, true);
+        if (attempt.status === "SKIPPED") {
+          const replay = publicTransition(attempt, true);
+          if (attempt.issuanceSource === "PERIODIC") {
+            replay.reward = {
+              awarded: false,
+              points: 0,
+              reason: "NOT_OBJECTIVELY_CORRECT",
+            };
+          }
+          return replay;
+        }
         if (attempt.status !== "PRESENTED") {
           throw new RecallError(
             "RECALL_ATTEMPT_FINALIZED",
@@ -171,12 +216,20 @@ export function createRecallAttemptService(
           "SKIPPED",
           operationTime,
         );
-        return publicTransition(updated, false);
+        const transition = publicTransition(updated, false);
+        if (updated.issuanceSource === "PERIODIC") {
+          transition.reward = {
+            awarded: false,
+            points: 0,
+            reason: "NOT_OBJECTIVELY_CORRECT",
+          };
+        }
+        return transition;
       });
     },
-    async expire(userId, attemptId) {
+    async expire(userId, attemptId, suppliedTx) {
       validatePathIdentity(userId, attemptId);
-      return withTransaction(database, undefined, async (tx) => {
+      return withTransaction(database, suppliedTx, async (tx) => {
         const attempt = await lockOwnedAttempt(tx, userId, attemptId);
         if (attempt.status === "EXPIRED") return publicTransition(attempt, true);
         if (attempt.status !== "PRESENTED") {
@@ -204,6 +257,7 @@ async function issueInTransaction(
   input: IssueRecallAttemptInput,
   now: () => Date,
 ): Promise<RecallAttempt> {
+  await lockRecallScope(tx, "policy", [input.userId]);
   await lockRecallScope(tx, "issuance", [
     input.userId,
     input.issuanceIdempotencyKey,
@@ -218,6 +272,15 @@ async function issueInTransaction(
     },
   });
   if (existing) {
+    const requestedIssuanceSource = input.issuanceSource ?? "INTERNAL";
+    const requestedPolicyVersion =
+      requestedIssuanceSource === "PERIODIC"
+        ? input.issuancePolicyVersion ?? RECALL_POLICY_VERSION
+        : null;
+    const existingIsLegacyInternal =
+      requestedIssuanceSource === "INTERNAL" &&
+      existing.issuanceSource === null &&
+      existing.issuancePolicyVersion === null;
     const requestedLectureId = input.lectureId ?? existing.lectureId;
     const expectedFingerprint = recallIssuanceFingerprint({
       userId: input.userId,
@@ -230,7 +293,10 @@ async function issueInTransaction(
     });
     if (
       requestedLectureId !== existing.lectureId ||
-      expectedFingerprint !== existing.issuanceFingerprint
+      expectedFingerprint !== existing.issuanceFingerprint ||
+      (!existingIsLegacyInternal &&
+        (existing.issuanceSource !== requestedIssuanceSource ||
+          existing.issuancePolicyVersion !== requestedPolicyVersion))
     ) {
       throw new RecallError(
         "RECALL_ISSUANCE_CONFLICT",
@@ -283,6 +349,11 @@ async function issueInTransaction(
         presentedAt: input.presentedAt,
         expiresAt,
       }),
+      issuanceSource: input.issuanceSource ?? "INTERNAL",
+      issuancePolicyVersion:
+        input.issuanceSource === "PERIODIC"
+          ? input.issuancePolicyVersion ?? RECALL_POLICY_VERSION
+          : null,
     },
   });
   await applyPresentationState(tx, attempt);
@@ -441,7 +512,15 @@ async function expireLockedAttempt(
     },
   });
   await applyTerminalState(tx, updated, "EXPIRED", "EXPIRED", at);
-  return publicTransition(updated, replayed);
+  const transition = publicTransition(updated, replayed);
+  if (updated.issuanceSource === "PERIODIC") {
+    transition.reward = {
+      awarded: false,
+      points: 0,
+      reason: "NOT_OBJECTIVELY_CORRECT",
+    };
+  }
+  return transition;
 }
 
 async function lockOwnedAttempt(
@@ -509,7 +588,25 @@ function validateIssueInput(input: IssueRecallAttemptInput): void {
     (input.presentedAt !== undefined && !isValidDate(input.presentedAt)) ||
     (input.expiresAt !== undefined &&
       input.expiresAt !== null &&
-      !isValidDate(input.expiresAt))
+      !isValidDate(input.expiresAt)) ||
+    (input.issuanceSource !== undefined &&
+      !["INTERNAL", "PERIODIC"].includes(input.issuanceSource)) ||
+    (input.issuancePolicyVersion !== undefined &&
+      input.issuancePolicyVersion !== null &&
+      (typeof input.issuancePolicyVersion !== "string" ||
+        input.issuancePolicyVersion.length > 64)) ||
+    (input.issuanceSource === "PERIODIC" &&
+      input.issuancePolicyVersion !== undefined &&
+      input.issuancePolicyVersion !== null &&
+      input.issuancePolicyVersion !== RECALL_POLICY_VERSION) ||
+    (input.issuanceSource === "PERIODIC" &&
+      (!(input.presentedAt instanceof Date) ||
+        !(input.expiresAt instanceof Date) ||
+        input.expiresAt.getTime() !==
+          input.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS)) ||
+    (input.issuanceSource !== "PERIODIC" &&
+      input.issuancePolicyVersion !== undefined &&
+      input.issuancePolicyVersion !== null)
   ) {
     throw new RecallError("INVALID_RECALL_INPUT", "Invalid Recall issuance input.");
   }
@@ -548,6 +645,21 @@ function sameAnswer(
     attempt.answerKind === answer.kind &&
     attempt.answerValue === answer.value
   );
+}
+
+function publicNoAwardReason(
+  reason: string | undefined,
+  itemType: string,
+  outcome: string | null,
+): "NOT_OBJECTIVELY_CORRECT" | "NOT_PROTECTED_RECALL" | "CAP_REACHED" | "INTEGRITY_BLOCKED" {
+  if (reason === "CAP_REACHED") return "CAP_REACHED";
+  if (reason === "INTEGRITY_BLOCKED") return "INTEGRITY_BLOCKED";
+  if (reason === "NOT_ELIGIBLE" || reason === "INSUFFICIENT_EVIDENCE") {
+    return itemType === "MCQ" && outcome === "CORRECT"
+      ? "NOT_PROTECTED_RECALL"
+      : "NOT_OBJECTIVELY_CORRECT";
+  }
+  return "NOT_PROTECTED_RECALL";
 }
 
 function publicTransition(

@@ -7667,6 +7667,7 @@ app.use(
   createRecallRouter({
     requireUser,
     service: createRecallAttemptService(),
+    database: getPrisma(),
   }),
 );
 app.use(

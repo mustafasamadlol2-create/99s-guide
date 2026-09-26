@@ -91,6 +91,9 @@ export interface RecallCandidateService {
   selectAndIssueRecallCandidate(
     input: SelectAndIssueRecallCandidateInput,
   ): Promise<RecallAttempt>;
+  selectAndIssueProtectedRecallCandidate(
+    input: SelectAndIssueRecallCandidateInput,
+  ): Promise<RecallAttempt>;
 }
 
 export interface RecallLectureStudyFact {

@@ -6,6 +6,10 @@ import { createRecallAttemptService } from "./attemptService.js";
 import { canonicalJson } from "../study-core/canonicalJson.js";
 import { lockRecallScope } from "./repository.js";
 import {
+  RECALL_SAME_ITEM_COOLDOWN_MS,
+  RECALL_POLICY_VERSION,
+} from "./constants.js";
+import {
   RECALL_CANDIDATE_LIMITS,
 } from "./candidateWeights.js";
 import {
@@ -141,6 +145,7 @@ export function createRecallCandidateService(
     const issueInTransaction = async (
       tx: RecallTransaction,
     ): Promise<RecallAttempt> => {
+      await lockRecallScope(tx, "policy", [input.userId]);
       await lockRecallScope(tx, "issuance", [input.userId, derivedKey]);
       const existing = await tx.recallAttempt.findUnique({
         where: {
@@ -171,11 +176,104 @@ export function createRecallCandidateService(
     );
   }
 
+  async function selectAndIssueProtectedRecallCandidate(
+    input: SelectAndIssueRecallCandidateInput,
+  ): Promise<RecallAttempt> {
+    validateSelectionInput(input);
+    const issueInTransaction = async (tx: RecallTransaction) => {
+      await lockRecallScope(tx, "policy", [input.userId]);
+      const candidates = await selectCandidates({ ...input, tx });
+      const cutoff = new Date(
+        input.asOf.getTime() - RECALL_SAME_ITEM_COOLDOWN_MS,
+      );
+      const mcqIds = [...new Set(
+        candidates
+          .filter((candidate) => candidate.itemType === "MCQ")
+          .map((candidate) => candidate.itemId),
+      )];
+      const flashcardIds = [...new Set(
+        candidates
+          .filter((candidate) => candidate.itemType === "FLASHCARD")
+          .map((candidate) => candidate.itemId),
+      )];
+      const [mcqStates, flashcardStates] = await Promise.all([
+        mcqIds.length > 0
+          ? tx.recallItemState.findMany({
+              where: {
+                userId: input.userId,
+                itemType: "MCQ",
+                itemId: { in: mcqIds },
+                lastPresentedAt: { gt: cutoff },
+              },
+              select: { itemType: true, itemId: true, lastPresentedAt: true },
+            })
+          : Promise.resolve([]),
+        flashcardIds.length > 0
+          ? tx.recallItemState.findMany({
+              where: {
+                userId: input.userId,
+                itemType: "FLASHCARD",
+                itemId: { in: flashcardIds },
+                lastPresentedAt: { gt: cutoff },
+              },
+              select: { itemType: true, itemId: true, lastPresentedAt: true },
+            })
+          : Promise.resolve([]),
+      ]);
+      const lastPresentedAtByItem = new Map(
+        [...mcqStates, ...flashcardStates]
+          .filter((state) => state.lastPresentedAt instanceof Date)
+          .map((state) => [
+            itemKey(state.itemType, state.itemId),
+            state.lastPresentedAt as Date,
+          ]),
+      );
+      const eligible = filterRecallCandidatesByCooldown(
+        candidates,
+        lastPresentedAtByItem,
+        input.asOf,
+      );
+      const candidate = eligible[0];
+      if (!candidate) throw new RecallError("NO_RECALL_CANDIDATE", "No eligible Recall candidate is available.");
+      return attemptService.issue({
+        userId: input.userId,
+        itemType: candidate.itemType,
+        itemId: candidate.itemId,
+        lectureId: candidate.lectureId,
+        issuanceIdempotencyKey: input.issuanceIdempotencyKey,
+        presentedAt: input.asOf,
+        expiresAt: input.expiresAt,
+        issuanceSource: "PERIODIC",
+        issuancePolicyVersion: RECALL_POLICY_VERSION,
+        tx,
+      });
+    };
+    if (input.tx) return issueInTransaction(input.tx);
+    return database.$transaction((tx) => issueInTransaction(tx as RecallTransaction));
+  }
+
   return {
     selectRecallCandidate,
     previewRecallCandidates,
     selectAndIssueRecallCandidate,
+    selectAndIssueProtectedRecallCandidate,
   };
+}
+
+export function filterRecallCandidatesByCooldown(
+  candidates: readonly RecallCandidate[],
+  lastPresentedAtByItem: ReadonlyMap<string, Date>,
+  asOf: Date,
+): RecallCandidate[] {
+  const cutoff = asOf.getTime() - RECALL_SAME_ITEM_COOLDOWN_MS;
+  return candidates.filter(
+    (candidate) => {
+      const lastPresentedAt = lastPresentedAtByItem.get(
+        itemKey(candidate.itemType, candidate.itemId),
+      );
+      return !lastPresentedAt || lastPresentedAt.getTime() <= cutoff;
+    },
+  );
 }
 
 export function deriveCandidateIssuanceKey(

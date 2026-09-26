@@ -5,6 +5,7 @@ import {
 } from "./aggregate.js";
 import type { StudyPointsCategory } from "./constants.js";
 import { isStudyPointsCategory } from "./awardRules.js";
+import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
 
 export const STUDY_POINTS_TOTAL_DAILY_CAP = 100;
 
@@ -48,6 +49,61 @@ export function studyPointsDailyCapLockKey(
   baghdadDate: string,
 ): string {
   return `study-points:daily-cap:${JSON.stringify([userId, baghdadDate])}`;
+}
+
+export function studyPointsWeeklyCapLockKey(
+  userId: string,
+  startsAt: Date,
+): string {
+  return `study-points:weekly-cap:${JSON.stringify([userId, startsAt.toISOString()])}`;
+}
+
+export async function getStudyPointsBaghdadWeekUsage(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  asOf: Date,
+  ruleVersion: string,
+  reasonCode: string,
+): Promise<number> {
+  const period = getBaghdadWeekPeriod(asOf);
+  const result = await tx.studyPointsLedgerEntry.aggregate({
+    where: {
+      userId,
+      sourceType: "RECALL_ATTEMPT",
+      category: "MASTERY",
+      ruleVersion,
+      reasonCode,
+      effectiveAt: { gte: period.startsAt, lt: period.endsAt },
+    },
+    _sum: { amount: true },
+  });
+  return safeStudyPointsAggregate(result._sum.amount);
+}
+
+export async function getStudyPointsBaghdadDailyRuleUsage(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  baghdadDate: string,
+  rule: {
+    category: StudyPointsCategory;
+    reasonCode: string;
+    ruleVersion: string;
+    sourceType: string;
+  },
+): Promise<number> {
+  const bounds = await getStudyPointsBaghdadDayBounds(tx, baghdadDate);
+  const result = await tx.studyPointsLedgerEntry.aggregate({
+    where: {
+      userId,
+      category: rule.category,
+      reasonCode: rule.reasonCode,
+      ruleVersion: rule.ruleVersion,
+      sourceType: rule.sourceType,
+      effectiveAt: { gte: bounds.start, lt: bounds.end },
+    },
+    _sum: { amount: true },
+  });
+  return safeStudyPointsAggregate(result._sum.amount);
 }
 
 export async function getStudyPointsBaghdadDayBounds(

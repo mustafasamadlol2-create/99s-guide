@@ -42,6 +42,14 @@ export const RECALL_TERMINAL_OUTCOMES = [
 export type RecallTerminalOutcome = (typeof RECALL_TERMINAL_OUTCOMES)[number];
 
 export const RECALL_PRIVACY_CLASS = "PRIVATE_STUDY" as const;
+export const RECALL_POLICY_VERSION = "recall-policy-v1" as const;
+export const RECALL_ISSUANCE_SOURCES = ["INTERNAL", "PERIODIC"] as const;
+export type RecallIssuanceSource = (typeof RECALL_ISSUANCE_SOURCES)[number];
+export const RECALL_PROTECTED_ATTEMPT_TTL_MS = 30 * 60 * 1000;
+export const RECALL_SAME_ITEM_COOLDOWN_MS = 72 * 60 * 60 * 1000;
+export const RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+export const RECALL_DAILY_ISSUANCE_CAP = 3;
+export const RECALL_WEEKLY_ISSUANCE_CAP = 12;
 
 export function outcomeForFlashcardRating(
   rating: RecallFlashcardRating,

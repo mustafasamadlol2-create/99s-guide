@@ -10,7 +10,9 @@ export type RecallErrorCode =
   | "RECALL_ANSWER_KIND_MISMATCH"
   | "NO_RECALL_CANDIDATE"
   | "RECALL_STATE_CORRUPT"
-  | "RECALL_COUNTER_OVERFLOW";
+  | "RECALL_COUNTER_OVERFLOW"
+  | "RECALL_TOKEN_CONFIG_INVALID"
+  | "RECALL_TOKEN_INVALID";
 
 const statusByCode: Record<RecallErrorCode, number> = {
   INVALID_RECALL_INPUT: 400,
@@ -25,6 +27,8 @@ const statusByCode: Record<RecallErrorCode, number> = {
   NO_RECALL_CANDIDATE: 404,
   RECALL_STATE_CORRUPT: 409,
   RECALL_COUNTER_OVERFLOW: 409,
+  RECALL_TOKEN_CONFIG_INVALID: 503,
+  RECALL_TOKEN_INVALID: 401,
 };
 
 export class RecallError extends Error {

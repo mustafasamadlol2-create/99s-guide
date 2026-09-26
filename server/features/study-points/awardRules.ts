@@ -44,12 +44,23 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     sourceType: "FLASHCARD_REVIEW",
     status: "INACTIVE_UNSUPPORTED",
   },
+  {
+    ruleVersion: "recall-objective-correct-v1",
+    category: "MASTERY",
+    reasonCode: "recall.objective_correct",
+    sourceType: "RECALL_ATTEMPT",
+    status: "ACTIVE",
+  },
 ] as const satisfies readonly StudyPointsAwardRuleDescriptor[]);
 
 export const FOCUS_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[0];
 export const GROUP_FOCUS_PARTICIPATION_RULE = STUDY_POINTS_AWARD_RULES[1];
 export const GROUP_FOCUS_SOCIAL_BONUS_RULE = STUDY_POINTS_AWARD_RULES[2];
 export const DAILY_CONSISTENCY_RULE = STUDY_POINTS_AWARD_RULES[3];
+export const RECALL_OBJECTIVE_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[6];
+export const RECALL_OBJECTIVE_CORRECT_AMOUNT = 2;
+export const RECALL_MAX_POINTS_PER_DAY = 6;
+export const RECALL_MAX_POINTS_PER_WEEK = 20;
 
 export const FOCUS_MINIMUM_SECONDS = 600;
 export const GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS = 1_500;
