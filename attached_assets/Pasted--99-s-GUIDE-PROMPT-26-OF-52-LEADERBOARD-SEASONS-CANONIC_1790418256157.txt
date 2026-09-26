@@ -1,0 +1,3452 @@
+# 99’s GUIDE — PROMPT 26 OF 52
+
+## LEADERBOARD SEASONS + CANONICAL SNAPSHOTS
+
+## DETERMINISTIC RANK SEMANTICS + PRIVACY-SAFE COMPETITION
+
+### POSTGRESQL CANONICAL — NO D1 CACHE YET — NO UI
+
+Prompts 1–25 have been completed.
+
+Prompt 26 now implements the canonical Leaderboard domain.
+
+Frozen roadmap:
+
+```text
+Prompt 26 — Leaderboard seasons / snapshots
+Prompt 27 — Leaderboard D1 / cache
+Prompt 28 — Recall canonical state / attempt
+```
+
+Do NOT implement Prompt 27 or later features early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. canonical Leaderboard season definitions;
+2. weekly, monthly, semester, and all-time scopes;
+3. deterministic score calculation;
+4. canonical PostgreSQL Leaderboard snapshots;
+5. deterministic ranking and tie semantics;
+6. privacy-safe leaderboard rows;
+7. safe public/private exposure;
+8. rebuildable snapshots;
+9. historical snapshot preservation;
+10. reconciliation and repair;
+11. cursor-based leaderboard read APIs;
+12. own-rank lookup.
+
+No D1 leaderboard cache yet.
+
+No visible Leaderboard UI yet.
+
+---
+
+# 2. CORE PRINCIPLE
+
+Leaderboard is:
+
+```text
+canonical Study Points
+→ deterministic season window
+→ deterministic score
+→ canonical snapshot
+→ privacy-safe rank DTO
+```
+
+It is NOT:
+
+```text
+AI ranking
+intelligence ranking
+academic ranking
+medical competence ranking
+popularity ranking
+```
+
+---
+
+# 3. LEADERBOARD MEASURES ENGAGEMENT ONLY
+
+Leaderboard represents Gamification activity / Study Points.
+
+Never describe rank as:
+
+```text
+smartest
+best student
+strongest academically
+highest mastery
+most intelligent
+```
+
+Use neutral wording such as:
+
+```text
+Study Points rank
+weekly activity rank
+Gamification rank
+```
+
+---
+
+# 4. CANONICAL SCORE SOURCE
+
+Canonical leaderboard score must derive from:
+
+```text
+StudyPointsLedgerEntry
+```
+
+according to Prompt 19–21 accounting rules.
+
+Do NOT derive rank from:
+
+```text
+UserGamificationLevel
+Achievement count
+Challenge count
+Focus hours
+MCQ accuracy
+Mastery
+online presence
+```
+
+unless a later explicit roadmap changes semantics.
+
+---
+
+# 5. LEGACY POINTS
+
+Prompt 21 established:
+
+```text
+LEGACY_ONLY
+LEGACY_PLUS_LEDGER
+LEDGER_ONLY
+```
+
+Leaderboard scoring needs explicit historical semantics.
+
+For Prompt 26:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+```
+
+must use only canonical new-ledger entries occurring inside the season window.
+
+Do NOT try to spread historical legacy PointsLog totals across historical time windows.
+
+---
+
+# 6. ALL-TIME LEGACY COMPATIBILITY
+
+For:
+
+```text
+ALL_TIME
+```
+
+use Prompt 21 compatible lifetime Points total:
+
+```text
+legacyPoints + ledgerPoints
+```
+
+while legacy cutover remains active.
+
+This preserves lifetime historical value without inventing dates/categories.
+
+---
+
+# 7. CRITICAL DISTINCTION
+
+Therefore:
+
+```text
+Weekly score
+= new StudyPointsLedgerEntry score within weekly window
+
+Monthly score
+= new StudyPointsLedgerEntry score within monthly window
+
+Semester score
+= new StudyPointsLedgerEntry score within semester window
+
+All-Time score
+= Prompt 21 compatible lifetime Points total
+```
+
+Document this prominently.
+
+---
+
+# 8. NO LEGACY TIME FABRICATION
+
+Do NOT infer:
+
+```text
+when legacy Points were earned
+which week
+which month
+which semester
+```
+
+unless legacy PointsLog already contains exact canonical effective timestamps and Prompt 21 explicitly treats them as compatible.
+
+If current legacy model lacks trustworthy historical timing:
+
+exclude legacy from time-bounded seasons.
+
+---
+
+# 9. LEADERBOARD SCOPES
+
+Support exactly:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+---
+
+# 10. DEFAULT USER VIEW
+
+Future UI should default to:
+
+```text
+WEEKLY
+```
+
+Prompt 26 backend may expose this as metadata.
+
+No UI now.
+
+---
+
+# 11. REQUIRED MODELS
+
+Add only the canonical models required for:
+
+```text
+LeaderboardSeason
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+```
+
+Use repository naming conventions if equivalent models exist.
+
+Do NOT add D1 tables.
+
+---
+
+# 12. `LeaderboardSeason`
+
+Represents one canonical competition window.
+
+Support at least:
+
+```text
+id
+
+scope
+
+seasonKey
+
+startsAt?
+endsAt?
+
+status
+
+gamificationRuleSetVersion?
+pointsRuleVersionSetHash?
+
+createdAt
+updatedAt
+closedAt?
+```
+
+Use exact final repository conventions.
+
+---
+
+# 13. SEASON STATUS
+
+Use:
+
+```text
+UPCOMING
+ACTIVE
+CLOSED
+```
+
+No CANCELLED unless genuinely necessary.
+
+---
+
+# 14. ALL-TIME SEASON
+
+ALL_TIME is logically open-ended.
+
+Preferred:
+
+```text
+startsAt = null or product epoch
+endsAt = null
+status = ACTIVE
+```
+
+or another clean representation.
+
+Do not invent fake weekly dates.
+
+---
+
+# 15. WEEKLY SEASON
+
+Timezone:
+
+```text
+Asia/Baghdad
+```
+
+Window:
+
+```text
+Monday 00:00 Baghdad
+≤ effectiveAt
+<
+next Monday 00:00 Baghdad
+```
+
+---
+
+# 16. MONTHLY SEASON
+
+Timezone:
+
+```text
+Asia/Baghdad
+```
+
+Window:
+
+```text
+first day of month 00:00
+≤ effectiveAt
+<
+first day next month 00:00
+```
+
+---
+
+# 17. SEMESTER SEASON
+
+Do NOT infer arbitrary academic semester dates.
+
+Inspect existing academic calendar/config.
+
+If canonical semester dates already exist:
+
+reuse them.
+
+If not:
+
+create an explicit server-owned semester configuration contract and test fixture, but do NOT invent production dates silently.
+
+Prompt 26 must report exactly where semester boundaries come from.
+
+---
+
+# 18. NO STUDENT-CREATED SEASONS
+
+Students cannot create/edit/close seasons.
+
+Academic Schedule remains separate.
+
+---
+
+# 19. SEASON KEY
+
+Use deterministic stable keys.
+
+Examples:
+
+```text
+weekly:2026-W40
+monthly:2026-09
+semester:2026-phase3-semester1
+all-time
+```
+
+Do not use localized strings as identity.
+
+---
+
+# 20. SEASON UNIQUENESS
+
+Enforce:
+
+```text
+(scope, seasonKey) UNIQUE
+```
+
+---
+
+# 21. SEASON CREATION
+
+Create internal:
+
+```ts
+ensureLeaderboardSeason({
+  scope,
+  asOf
+})
+```
+
+or equivalent.
+
+It must be:
+
+```text
+idempotent
+concurrency-safe
+deterministic
+```
+
+---
+
+# 22. NO STARTUP MASS GENERATION
+
+Do not generate years of seasons on boot.
+
+Create current/needed seasons on demand.
+
+---
+
+# 23. SEASON CLOSING
+
+A time-bounded season becomes CLOSED after:
+
+```text
+now >= endsAt
+```
+
+once its final canonical snapshot has been produced.
+
+Do not close before final scoring.
+
+---
+
+# 24. CLOSED SEASON IMMUTABILITY
+
+Once CLOSED and final snapshot persisted:
+
+historical snapshot semantics should remain immutable.
+
+Do not silently recompute historical rank every read.
+
+Corrections must use explicit reconciliation/rebuild flow.
+
+---
+
+# 25. SCORE SOURCE — LEDGER
+
+For bounded seasons, include canonical ledger entries whose:
+
+```text
+effectiveAt
+```
+
+falls in season window.
+
+Use net accounting:
+
+```text
+SUM(amount)
+```
+
+including legitimate reversals/corrections in that same effective window according to current ledger semantics.
+
+---
+
+# 26. REVERSAL SEMANTICS
+
+Inspect Prompt 19 reversal `effectiveAt`.
+
+Leaderboard score must follow canonical accounting date semantics exactly.
+
+Do not create custom ranking-only reversal behavior.
+
+---
+
+# 27. NEGATIVE SCORE
+
+A user can theoretically have negative season net Points due to corrections.
+
+Do NOT silently clamp to zero in canonical score.
+
+However public ranking may optionally exclude non-positive scores if defined explicitly.
+
+Prompt 26 should use:
+
+```text
+score > 0
+```
+
+as eligibility for appearing in public leaderboard rows.
+
+Own-rank endpoint may still report:
+
+```text
+score = 0 or negative
+notRanked = true
+```
+
+---
+
+# 28. PUBLIC ELIGIBILITY
+
+To appear in public leaderboard:
+
+```text
+score > 0
+```
+
+and existing profile must be eligible for public-safe exposure.
+
+Inspect current user account states.
+
+Exclude at minimum:
+
+```text
+deleted
+banned
+disabled
+```
+
+if those states exist.
+
+Do not invent profile data beyond current schema.
+
+---
+
+# 29. PRIVACY
+
+Leaderboard row may expose only safe fields.
+
+Allowed:
+
+```text
+rank
+userId or public profile identifier
+safe display name if existing public profile allows it
+avatar if already profile-public
+current Level
+score
+```
+
+Potential profile-safe Achievement badges may be omitted from Prompt 26.
+
+Keep rows compact.
+
+---
+
+# 30. FORBIDDEN LEADERBOARD FIELDS
+
+Do NOT expose:
+
+```text
+email
+phone
+signature if not public
+Focus time
+MCQ accuracy
+Mastery
+weaknesses
+retention
+Integrity Signals
+Quick Notes
+Points categories
+Points ledger history
+Group Focus details
+Challenge progress
+```
+
+---
+
+# 31. EXISTING PROFILE PRIVACY
+
+Respect the current profile visibility/blocking/account-status architecture.
+
+Do not create a Leaderboard-specific bypass.
+
+---
+
+# 32. LEVEL IN LEADERBOARD
+
+Current Level may be included because Prompt 24 treats it as profile-safe.
+
+Use canonical derived `UserGamificationLevel`.
+
+Do not calculate Level from client.
+
+---
+
+# 33. SCORE DOES NOT EQUAL LEVEL
+
+Leaderboard score is season-specific Points.
+
+Level uses lifetime compatible Points.
+
+Do not confuse them.
+
+---
+
+# 34. REQUIRED SNAPSHOT MODEL
+
+`LeaderboardSnapshot` should represent a materialized ranking computation.
+
+Support at least:
+
+```text
+id
+
+seasonId
+
+snapshotType
+status
+
+generatedAt
+scoreThrough
+
+sourceFingerprint
+entryCount
+
+createdAt
+```
+
+---
+
+# 35. SNAPSHOT TYPE
+
+Use:
+
+```text
+LIVE
+FINAL
+```
+
+or equivalent.
+
+---
+
+# 36. SNAPSHOT STATUS
+
+Use:
+
+```text
+BUILDING
+READY
+FAILED
+```
+
+only if state is needed.
+
+Prefer atomic creation such that incomplete snapshots are not publicly readable.
+
+---
+
+# 37. LIVE SNAPSHOT
+
+For ACTIVE season:
+
+a LIVE snapshot is a rebuildable current ranking.
+
+It may be replaced by a newer LIVE snapshot.
+
+Do not mutate a snapshot’s semantic entry set after READY.
+
+---
+
+# 38. FINAL SNAPSHOT
+
+For CLOSED season:
+
+create one immutable:
+
+```text
+FINAL
+```
+
+snapshot.
+
+Historical reads use FINAL.
+
+---
+
+# 39. `LeaderboardSnapshotEntry`
+
+Support at least:
+
+```text
+id
+
+snapshotId
+userId
+
+score
+
+rank
+tieSize
+
+levelSnapshot?
+
+publicDisplayNameSnapshot?
+publicAvatarSnapshot?
+
+createdAt
+```
+
+Consider whether public profile fields should be snapshotted or resolved dynamically.
+
+---
+
+# 40. PREFERRED PROFILE SNAPSHOT POLICY
+
+For historical rank correctness:
+
+snapshot only:
+
+```text
+userId
+score
+rank
+tieSize
+levelSnapshot
+```
+
+Resolve current safe profile display fields dynamically when reading, subject to current privacy/account status.
+
+This avoids permanently exposing old names/avatars after privacy changes.
+
+---
+
+# 41. USER PRIVACY CAN TIGHTEN LATER
+
+If a user later becomes:
+
+```text
+deleted
+banned
+private/unavailable
+```
+
+historical snapshot must not force their old profile details public.
+
+Public API may:
+
+```text
+hide row
+or
+return anonymized safe row
+```
+
+according to current profile rules.
+
+Do not leak old PII from snapshot.
+
+---
+
+# 42. RANK SEMANTICS
+
+Use standard competition ranking:
+
+```text
+1, 2, 2, 4
+```
+
+for ties.
+
+Not dense ranking:
+
+```text
+1, 2, 2, 3
+```
+
+---
+
+# 43. TIE DEFINITION
+
+Users tie when:
+
+```text
+score equal
+```
+
+Do not break score ties using:
+
+```text
+userId
+earlier award time
+Level
+Achievements
+alphabetical name
+```
+
+for rank number.
+
+Stable row ordering may use userId only after rank assignment.
+
+---
+
+# 44. STABLE DISPLAY ORDER WITHIN TIE
+
+Within same rank/score:
+
+sort by:
+
+```text
+userId ASC
+```
+
+or another deterministic non-competitive key.
+
+Do not imply winner within the tie.
+
+---
+
+# 45. `tieSize`
+
+Each tied row may expose:
+
+```text
+tieSize
+```
+
+Example:
+
+three users share rank 2:
+
+```text
+rank = 2
+tieSize = 3
+```
+
+---
+
+# 46. ZERO USERS
+
+Season may have:
+
+```text
+0 eligible entries
+```
+
+Snapshot still valid.
+
+---
+
+# 47. RANK CALCULATION
+
+Prefer PostgreSQL window function:
+
+```sql
+RANK() OVER (ORDER BY score DESC)
+```
+
+or deterministic equivalent.
+
+Do not rank in memory if avoidable for large cohorts.
+
+Target cohort may reach 700–900+, potentially 1,000–2,000 concurrent.
+
+---
+
+# 48. SCORE QUERY PERFORMANCE
+
+Use SQL aggregation directly.
+
+Do NOT:
+
+```text
+load every ledger row into Node
+then sum in JavaScript
+```
+
+---
+
+# 49. BOUNDED SEASON SCORE QUERY
+
+Conceptually:
+
+```sql
+GROUP BY userId
+SUM(amount)
+WHERE effectiveAt >= startsAt
+AND effectiveAt < endsAt
+```
+
+then filter:
+
+```text
+score > 0
+```
+
+for public ranking.
+
+---
+
+# 50. ALL-TIME SCORE QUERY
+
+Because legacy compatibility matters:
+
+do not attempt one naive ledger-only SQL query.
+
+Use Prompt 21 compatible lifetime balance semantics.
+
+For scalability, inspect how legacy totals are currently aggregated.
+
+Build a safe canonical all-time score query/service without double counting.
+
+---
+
+# 51. ALL-TIME PERFORMANCE
+
+Do not issue one N+1 balance query per user.
+
+Build a set-based/batched all-time aggregation.
+
+If current legacy PointsLog semantics allow:
+
+```text
+legacy aggregate GROUP BY userId
++
+ledger aggregate GROUP BY userId
+```
+
+combine server-side/batched.
+
+---
+
+# 52. ALL-TIME CATEGORY DATA
+
+Do not expose category totals in leaderboard.
+
+Only total score.
+
+---
+
+# 53. SNAPSHOT SOURCE FINGERPRINT
+
+Compute deterministic:
+
+```text
+sourceFingerprint
+```
+
+for the snapshot.
+
+It should capture enough canonical inputs such as:
+
+```text
+season identity
+scoreThrough
+entry count
+aggregate score checksum
+ranking semantics version
+```
+
+Use canonical SHA-256.
+
+---
+
+# 54. RANKING SEMANTICS VERSION
+
+Define:
+
+```text
+leaderboard-ranking-v1
+```
+
+and include it in snapshot fingerprint/metadata.
+
+Future ranking semantic change must not silently rewrite history.
+
+---
+
+# 55. SNAPSHOT BUILD
+
+Create service:
+
+```ts
+buildLeaderboardSnapshot({
+  seasonId,
+  snapshotType,
+  scoreThrough
+})
+```
+
+---
+
+# 56. LIVE SNAPSHOT `scoreThrough`
+
+For ACTIVE season:
+
+```text
+scoreThrough <= now
+```
+
+and:
+
+```text
+scoreThrough <= endsAt
+```
+
+---
+
+# 57. FINAL SNAPSHOT `scoreThrough`
+
+For closed bounded season:
+
+```text
+scoreThrough = endsAt
+```
+
+or canonical final boundary.
+
+---
+
+# 58. ATOMIC SNAPSHOT BUILD
+
+Do not expose partially created entries.
+
+Use transaction or build-then-promote semantics.
+
+Preferred:
+
+1. calculate scores/ranks;
+2. create snapshot;
+3. batch insert entries;
+4. mark READY;
+5. commit.
+
+---
+
+# 59. SNAPSHOT REPLAY
+
+Same:
+
+```text
+season
+snapshot type
+scoreThrough
+sourceFingerprint
+```
+
+should safely replay or return existing equivalent snapshot.
+
+Do not duplicate identical FINAL snapshot.
+
+---
+
+# 60. FINAL SNAPSHOT UNIQUENESS
+
+One FINAL snapshot per season.
+
+Enforce database/service uniqueness.
+
+---
+
+# 61. LIVE SNAPSHOT RETENTION
+
+Do not keep unlimited LIVE snapshots.
+
+Prompt 26 may retain:
+
+```text
+latest LIVE snapshot only
+```
+
+per ACTIVE season.
+
+Preferred.
+
+Old LIVE snapshot may be deleted only because it is derived/nonhistorical.
+
+FINAL snapshots are immutable historical records.
+
+---
+
+# 62. NO PUBLIC SNAPSHOT BUILD ON EVERY REQUEST
+
+Leaderboard GET must not scan ledger and rebuild every time.
+
+Read latest READY snapshot.
+
+If LIVE snapshot is stale/missing:
+
+use a bounded refresh strategy.
+
+---
+
+# 63. LIVE SNAPSHOT FRESHNESS
+
+Use centralized freshness threshold such as:
+
+```text
+5 minutes
+```
+
+for Prompt 26 PostgreSQL-only implementation.
+
+Prompt 27 will add D1/cache.
+
+---
+
+# 64. READ-TRIGGERED REFRESH
+
+If LIVE snapshot missing/stale:
+
+leaderboard service may trigger synchronous rebuild only if safely bounded.
+
+For ~1,000 users, this should be manageable.
+
+Do not rebuild repeatedly under concurrent requests.
+
+---
+
+# 65. SNAPSHOT BUILD LOCK
+
+Use PostgreSQL advisory lock keyed by:
+
+```text
+seasonId
+snapshotType
+```
+
+to prevent thundering-herd rebuilds.
+
+---
+
+# 66. STALE SNAPSHOT PREFERENCE
+
+If a valid READY snapshot exists but refresh is already in progress:
+
+return the existing stale-but-safe snapshot rather than blocking all readers.
+
+Report:
+
+```text
+isStale = true
+```
+
+if appropriate.
+
+---
+
+# 67. NO FALSE REAL-TIME CLAIM
+
+Prompt 26 PostgreSQL snapshot leaderboard is not millisecond real-time.
+
+Expose:
+
+```text
+generatedAt
+```
+
+and potentially:
+
+```text
+scoreThrough
+```
+
+Do not call it “live” in a way that implies instant updates.
+
+---
+
+# 68. SEASON FINALIZATION
+
+Create:
+
+```ts
+finalizeLeaderboardSeason({
+  seasonId,
+  now
+})
+```
+
+Requirements:
+
+1. season ended;
+2. acquire season lock;
+3. build FINAL snapshot through exact end;
+4. mark season CLOSED;
+5. set closedAt;
+6. commit safely.
+
+---
+
+# 69. FINALIZATION REPLAY
+
+Repeated finalization:
+
+```text
+same FINAL snapshot
+same CLOSED season
+```
+
+No duplicate entries.
+
+---
+
+# 70. ACTIVE SEASON CANNOT FINALIZE EARLY
+
+Reject if:
+
+```text
+now < endsAt
+```
+
+unless explicit test/admin override exists only in safe test helpers.
+
+No client override.
+
+---
+
+# 71. ALL-TIME SNAPSHOT
+
+ALL_TIME remains ACTIVE.
+
+Use latest LIVE-type snapshot concept.
+
+No FINAL unless future product retirement occurs.
+
+---
+
+# 72. OWN RANK
+
+Implement:
+
+```text
+GET /api/me/leaderboard-rank?scope=WEEKLY|MONTHLY|SEMESTER|ALL_TIME
+```
+
+or repository-consistent equivalent.
+
+Authenticated.
+
+Return:
+
+```text
+rank
+score
+tieSize
+totalRankedUsers
+season
+snapshotGeneratedAt
+```
+
+If score <= 0:
+
+```text
+rank = null
+notRanked = true
+score = actual canonical score or 0
+```
+
+---
+
+# 73. LEADERBOARD LIST API
+
+Implement:
+
+```text
+GET /api/leaderboards/:scope
+```
+
+or repository-consistent path.
+
+Support current season by default.
+
+---
+
+# 74. HISTORICAL SEASON API
+
+Support selecting a specific closed season using bounded canonical key/ID.
+
+Example:
+
+```text
+GET /api/leaderboards/weekly?seasonKey=2026-W39
+```
+
+Do not accept arbitrary SQL-like dates.
+
+---
+
+# 75. LIST RESPONSE
+
+Conceptually:
+
+```json
+{
+  "scope": "WEEKLY",
+  "seasonKey": "2026-W40",
+  "startsAt": "...",
+  "endsAt": "...",
+  "status": "ACTIVE",
+  "generatedAt": "...",
+  "scoreThrough": "...",
+  "isStale": false,
+  "totalRankedUsers": 742,
+  "entries": [
+    {
+      "rank": 1,
+      "tieSize": 1,
+      "userId": "...",
+      "displayName": "...",
+      "avatarUrl": "...",
+      "level": 7,
+      "score": 84
+    }
+  ],
+  "nextCursor": "..."
+}
+```
+
+Purpose-built safe DTO only.
+
+---
+
+# 76. PAGINATION
+
+Use cursor pagination.
+
+Default:
+
+```text
+50
+```
+
+Hard max:
+
+```text
+100
+```
+
+Do not use unbounded list.
+
+---
+
+# 77. CURSOR ORDER
+
+Cursor must preserve:
+
+```text
+rank ASC
+score DESC
+userId ASC
+```
+
+or equivalent stable tuple.
+
+Do not rely only on rank because ties exist.
+
+---
+
+# 78. TOP N
+
+First page shows top-ranked rows naturally.
+
+No special `top10` table needed.
+
+---
+
+# 79. OWN POSITION WHEN OUTSIDE PAGE
+
+Future UI may need current user context.
+
+Leaderboard list response may include:
+
+```text
+myRank
+```
+
+for authenticated caller.
+
+Or separate own-rank endpoint may be used.
+
+Avoid duplicating private fields.
+
+---
+
+# 80. AUTH
+
+Leaderboard list may be authenticated-only if current app is private to enrolled students.
+
+Follow existing app architecture.
+
+Do not create anonymous public internet ranking unless product already supports it.
+
+---
+
+# 81. PRIVACY-SAFE DISPLAY NAME
+
+Use the existing public/profile-safe display naming rules.
+
+Do not expose:
+
+```text
+email as fallback
+```
+
+unless email is already explicitly public, which it should not be.
+
+If no safe display name:
+
+use a generic safe representation or user profile identifier consistent with existing app.
+
+---
+
+# 82. AVATAR
+
+Only return avatar using existing profile-safe semantics.
+
+No raw storage secrets/private signed URLs beyond current safe profile architecture.
+
+---
+
+# 83. BLOCKED USERS
+
+Respect existing block relationships if current profile/list semantics require hiding blocked users.
+
+Inspect architecture.
+
+Do not invent inconsistent behavior.
+
+---
+
+# 84. SELF ROW
+
+The user can still see their own rank through own-rank API even if normal public eligibility filters would hide them due to profile visibility, unless account disabled/banned semantics prohibit it.
+
+Document exact behavior.
+
+---
+
+# 85. PRIMARY OWNER
+
+Owner/admin receive no automatic rank bonus.
+
+Roles do not affect score.
+
+---
+
+# 86. GROUP HOST
+
+No bonus.
+
+---
+
+# 87. ACHIEVEMENTS
+
+Achievement count does not affect rank.
+
+---
+
+# 88. LEVEL
+
+Level does not affect rank.
+
+---
+
+# 89. CHALLENGES
+
+Challenge completion does not affect rank directly because Prompt 25 awards zero Points.
+
+---
+
+# 90. POINTS CAPS
+
+Leaderboard consumes final ledger results after Prompt 20 daily caps.
+
+Do not independently cap leaderboard score again.
+
+---
+
+# 91. INTEGRITY
+
+Leaderboard does not query Integrity Signals directly.
+
+Prompt 20 already gates reward issuance.
+
+Do not publicly expose integrity state.
+
+---
+
+# 92. ACCOUNTING RECONCILIATION
+
+If Prompt 21 detects invalid ledger accounting:
+
+Leaderboard builder should prefer canonical ledger/read semantics as currently accepted.
+
+Do not silently “repair” accounting while building rank.
+
+---
+
+# 93. PROJECTION VS LEDGER
+
+For bounded time seasons:
+
+query ledger because time-window score is needed.
+
+Do not derive weekly/monthly score from lifetime projection.
+
+---
+
+# 94. ALL-TIME FAST PATH
+
+For ALL_TIME, use Prompt 21 balance projections/batched compatible totals where safe.
+
+Fallback to canonical aggregates if projection missing.
+
+Do not mutate projections during leaderboard read.
+
+---
+
+# 95. NO READ SIDE-EFFECT ON POINTS
+
+Leaderboard build/read creates:
+
+```text
+StudyPointsLedgerEntry delta = 0
+StudyPointsBalanceProjection accounting delta = 0
+PointsLog delta = 0
+```
+
+---
+
+# 96. SNAPSHOT IS DERIVED
+
+`LeaderboardSnapshot` and entries are rebuildable.
+
+They are not accounting authority.
+
+---
+
+# 97. SNAPSHOT RECONCILIATION
+
+Create:
+
+```ts
+reconcileLeaderboardSnapshot({
+  seasonId,
+  snapshotId?,
+  repair?: boolean
+})
+```
+
+---
+
+# 98. RECONCILIATION CHECKS
+
+At minimum detect:
+
+```text
+SNAPSHOT_MISSING
+ENTRY_COUNT_MISMATCH
+SCORE_MISMATCH
+RANK_MISMATCH
+TIE_SIZE_MISMATCH
+SOURCE_FINGERPRINT_MISMATCH
+FINAL_SNAPSHOT_MISSING
+MULTIPLE_FINAL_SNAPSHOTS
+SEASON_STATUS_MISMATCH
+```
+
+---
+
+# 99. REPAIR
+
+For LIVE snapshot:
+
+repair may rebuild/replace derived snapshot.
+
+For FINAL snapshot:
+
+repair requires explicit admin operation and must create a new corrected FINAL snapshot version or atomically replace derived snapshot while preserving auditability.
+
+Do not silently mutate historical rank without record.
+
+---
+
+# 100. FINAL CORRECTION STRATEGY
+
+Preferred:
+
+add:
+
+```text
+revision
+```
+
+to LeaderboardSnapshot.
+
+FINAL snapshots can have:
+
+```text
+revision 1
+revision 2
+```
+
+with only latest valid revision active/current.
+
+Historical prior revisions remain for audit.
+
+If this complicates schema excessively, use an explicit `supersededBySnapshotId`.
+
+Choose one clear immutable-history strategy.
+
+---
+
+# 101. SNAPSHOT REVISION
+
+Recommended fields:
+
+```text
+revision
+supersedesSnapshotId?
+```
+
+Final correction does NOT edit old FINAL entries.
+
+---
+
+# 102. LIVE SNAPSHOT
+
+LIVE snapshot does not need revision history.
+
+Derived stale LIVE snapshots may be deleted/replaced.
+
+---
+
+# 103. ADMIN REBUILD
+
+Implement owner/admin operational route:
+
+```text
+POST /api/admin/leaderboards/seasons/:seasonId/rebuild
+```
+
+or equivalent.
+
+Purpose:
+
+```text
+rebuild LIVE
+or create corrected FINAL revision
+```
+
+No UI.
+
+---
+
+# 104. ADMIN DRY-RUN
+
+Implement:
+
+```text
+GET /api/admin/leaderboards/seasons/:seasonId/reconciliation
+```
+
+No mutation.
+
+---
+
+# 105. STUDENT CANNOT REBUILD
+
+Mandatory:
+
+```text
+403
+```
+
+---
+
+# 106. GROUP HOST CANNOT REBUILD
+
+Mandatory.
+
+---
+
+# 107. NO USER-SUPPLIED SCORE
+
+Admin rebuild request must not accept:
+
+```text
+score
+rank
+winner
+```
+
+It derives from canonical accounting.
+
+---
+
+# 108. NO MANUAL RANK OVERRIDE
+
+Forbidden:
+
+```text
+set user rank = 1
+```
+
+---
+
+# 109. NO MANUAL SCORE OVERRIDE
+
+Forbidden.
+
+---
+
+# 110. SNAPSHOT ENTRY USER ID
+
+Reference canonical `User`.
+
+Do not create duplicate identity.
+
+---
+
+# 111. DELETED USER HANDLING
+
+Historical snapshot entry may remain referencing user according to DB deletion policy.
+
+Public read should suppress/anonymize according to current account semantics.
+
+Do not leak deleted profile fields.
+
+---
+
+# 112. SEASON RULE METADATA
+
+Store enough metadata to reproduce scoring semantics.
+
+At minimum:
+
+```text
+leaderboard-ranking-v1
+```
+
+and optionally relevant Points/Gamification version hashes.
+
+Do not claim a single reward-rule version if entries can originate from multiple Prompt 20 rule versions.
+
+---
+
+# 113. POINTS RULE VERSION SET HASH
+
+Optional but useful:
+
+derive a bounded hash of ruleVersions represented in score rows.
+
+Do not store giant arrays.
+
+---
+
+# 114. SEASON SOURCE FINGERPRINT DETERMINISM
+
+Same canonical score inputs:
+
+```text
+same fingerprint
+```
+
+Different score:
+
+```text
+different fingerprint
+```
+
+---
+
+# 115. LIVE SNAPSHOT BUILD CONCURRENCY
+
+20 simultaneous requests for stale/missing LIVE snapshot:
+
+Expected:
+
+```text
+one effective rebuild
+one READY current snapshot
+no duplicate active LIVE state
+```
+
+Other callers may reuse stale or wait according to implementation.
+
+---
+
+# 116. FINALIZATION CONCURRENCY
+
+20 simultaneous season-finalization attempts:
+
+Expected:
+
+```text
+season CLOSED once
+one current FINAL revision
+entry set once
+```
+
+No unique errors.
+
+---
+
+# 117. RANK TIE TEST
+
+Scores:
+
+```text
+100
+80
+80
+60
+```
+
+Expected ranks:
+
+```text
+1
+2
+2
+4
+```
+
+---
+
+# 118. MULTIPLE TIE TEST
+
+Scores:
+
+```text
+100
+100
+100
+90
+```
+
+Expected:
+
+```text
+1
+1
+1
+4
+```
+
+---
+
+# 119. STABLE TIE ORDER TEST
+
+Tied users ordered deterministically by userId, but same rank.
+
+---
+
+# 120. NEGATIVE / ZERO TEST
+
+Scores:
+
+```text
+20
+0
+-5
+```
+
+Public leaderboard includes only score 20 under Prompt 26 eligibility.
+
+Own-rank for score 0/-5:
+
+```text
+rank = null
+notRanked = true
+```
+
+---
+
+# 121. WEEKLY BOUNDARY TEST
+
+Baghdad:
+
+```text
+Sunday 23:59:59
+Monday 00:00:00
+```
+
+must fall into different weekly seasons.
+
+---
+
+# 122. MONTHLY BOUNDARY TEST
+
+Last millisecond/second before month boundary vs first of next month.
+
+---
+
+# 123. SEMESTER BOUNDARY TEST
+
+Use canonical configured semester dates.
+
+No inferred approximate dates.
+
+---
+
+# 124. ENTRY AT EXACT END
+
+For bounded season:
+
+```text
+effectiveAt == endsAt
+```
+
+belongs to next period / not current season.
+
+---
+
+# 125. ALL-TIME LEGACY TEST
+
+Fixture:
+
+```text
+legacyPoints = 100
+ledgerPoints = 40
+```
+
+Expected ALL_TIME score:
+
+```text
+140
+```
+
+subject to Prompt 21 compatibility semantics.
+
+---
+
+# 126. WEEKLY LEGACY TEST
+
+Same user with no new ledger Points this week:
+
+```text
+WEEKLY score = 0
+```
+
+Legacy 100 is not assigned to week.
+
+---
+
+# 127. MONTHLY LEGACY TEST
+
+Same:
+
+legacy not fabricated into month.
+
+---
+
+# 128. SEMESTER LEGACY TEST
+
+Same unless trustworthy dated legacy semantics already explicitly support inclusion.
+
+Report actual outcome.
+
+---
+
+# 129. REVERSAL TEST
+
+Create:
+
+```text
++20
+-20
+```
+
+inside same season.
+
+Net seasonal score:
+
+```text
+0
+```
+
+and user not publicly ranked.
+
+---
+
+# 130. CROSS-SEASON REVERSAL
+
+If original +20 occurred previous week and reversal effectiveAt is this week:
+
+use exact Prompt 19 effectiveAt semantics.
+
+Do not rewrite previous historical season unless reconciliation/accounting policy explicitly says reversal is backdated.
+
+Report actual behavior.
+
+---
+
+# 131. FINAL SNAPSHOT AND LATE CORRECTION
+
+If a legitimate accounting correction changes a CLOSED season's canonical score:
+
+reconciliation must detect drift.
+
+Do NOT silently mutate old FINAL snapshot.
+
+Admin rebuild creates corrected FINAL revision/supersession.
+
+---
+
+# 132. HISTORICAL READ
+
+Historical leaderboard should return current valid FINAL revision.
+
+Do not return superseded revision as default.
+
+---
+
+# 133. AUDIT READ
+
+Admin reconciliation may expose prior snapshot revisions.
+
+Normal users should not need them.
+
+---
+
+# 134. TOTAL RANKED USERS
+
+Persist or compute:
+
+```text
+entryCount
+```
+
+and expose as:
+
+```text
+totalRankedUsers
+```
+
+---
+
+# 135. OWN RANK WITH TIES
+
+If user tied:
+
+return shared rank and tieSize.
+
+---
+
+# 136. OWN RANK NOT IN TOP PAGE
+
+Must still be retrievable efficiently.
+
+Index:
+
+```text
+(snapshotId, userId) UNIQUE
+```
+
+or equivalent.
+
+---
+
+# 137. REQUIRED INDEXES — SEASON
+
+At minimum evaluate:
+
+```text
+(scope, seasonKey) UNIQUE
+(status, scope, startsAt, endsAt)
+```
+
+---
+
+# 138. REQUIRED INDEXES — SNAPSHOT
+
+Evaluate:
+
+```text
+(seasonId, snapshotType, generatedAt)
+(seasonId, snapshotType, revision)
+```
+
+plus final uniqueness strategy.
+
+---
+
+# 139. REQUIRED INDEXES — ENTRY
+
+At minimum:
+
+```text
+(snapshotId, rank, score, userId)
+(snapshotId, userId) UNIQUE
+```
+
+No unnecessary profile-field indexes.
+
+---
+
+# 140. MIGRATION
+
+Create one additive PostgreSQL migration for:
+
+```text
+LeaderboardSeason
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+```
+
+No D1 migration.
+
+---
+
+# 141. MIGRATION SAFETY
+
+Explicitly:
+
+```text
+DROP TABLE: NO
+DROP COLUMN: NO
+TRUNCATE: NO
+DELETE EXISTING DATA: NO
+EXISTING COLUMN TYPE CHANGE: NO
+
+StudyPointsLedgerEntry destructive change: NO
+UserGamificationLevel destructive change: NO
+Challenge models destructive change: NO
+```
+
+---
+
+# 142. NO MIGRATION SEED
+
+Migration creates no seasons/snapshots.
+
+---
+
+# 143. NO PRODUCTION SNAPSHOTS
+
+Do not build real production leaderboard data in Prompt 26.
+
+---
+
+# 144. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt26_leaderboard_gate
+```
+
+on verified development PostgreSQL only.
+
+Apply complete migration history.
+
+---
+
+# 145. MIGRATION REPLAY
+
+Verify coexistence of:
+
+```text
+LeaderboardSeason
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+ChallengeInstance
+UserChallengeProgress
+UserGamificationLevel
+UserAchievement
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection
+PointsLog
+IntegritySignal
+```
+
+---
+
+# 146. EMPTY AFTER MIGRATION
+
+Before explicit test season creation:
+
+```text
+LeaderboardSeason = 0
+LeaderboardSnapshot = 0
+LeaderboardSnapshotEntry = 0
+```
+
+---
+
+# 147. WEEKLY SEASON CREATION TEST
+
+Ensure current week repeatedly.
+
+Expected:
+
+```text
+one season row
+```
+
+---
+
+# 148. WEEKLY CREATION CONCURRENCY
+
+20 simultaneous ensures:
+
+```text
+one row
+```
+
+---
+
+# 149. MONTHLY CREATION TEST
+
+Same semantics.
+
+---
+
+# 150. SEMESTER CREATION TEST
+
+Use canonical test configuration.
+
+---
+
+# 151. ALL-TIME CREATION TEST
+
+Exactly one all-time season.
+
+---
+
+# 152. LIVE SNAPSHOT TEST
+
+Create deterministic users/scores.
+
+Build LIVE snapshot.
+
+Verify exact:
+
+```text
+scores
+ranks
+tieSize
+entryCount
+```
+
+---
+
+# 153. LIVE SNAPSHOT CONCURRENCY TEST
+
+20 simultaneous rebuild/read triggers.
+
+No duplicate current snapshot corruption.
+
+---
+
+# 154. FINAL SNAPSHOT TEST
+
+Advance fake time beyond bounded season end.
+
+Finalize.
+
+Verify:
+
+```text
+status CLOSED
+one current FINAL snapshot
+scoreThrough = endsAt
+```
+
+---
+
+# 155. FINALIZATION CONCURRENCY TEST
+
+20 simultaneous.
+
+Safe.
+
+---
+
+# 156. HISTORICAL IMMUTABILITY TEST
+
+Final snapshot rows do not change during ordinary historical reads.
+
+---
+
+# 157. FINAL CORRECTION TEST
+
+Modify canonical test ledger after finalization to simulate legitimate late accounting correction.
+
+Reconciliation detects mismatch.
+
+Admin rebuild creates corrected revision/supersession.
+
+Old snapshot retained for audit.
+
+---
+
+# 158. PUBLIC PRIVACY TEST
+
+Leaderboard entry builder exposes only allowlisted fields.
+
+---
+
+# 159. PRIVATE FIELD LEAK TEST
+
+Ensure response does not contain:
+
+```text
+email
+Focus seconds
+MCQ accuracy
+Mastery
+Integrity
+Quick Notes
+Points categories
+ledger metadata
+Challenge progress
+```
+
+---
+
+# 160. ACCOUNT STATUS TEST
+
+Verify disabled/deleted/banned fixture behavior according to current user model.
+
+Report actual filtering.
+
+---
+
+# 161. LEVEL SNAPSHOT / READ TEST
+
+Leaderboard row Level comes from safe Prompt 24 Level state.
+
+If Level state missing/stale:
+
+prefer safe on-read derivation or omit Level rather than mutating public ranking request unexpectedly.
+
+Do not trigger broad Gamification writes from public leaderboard read.
+
+---
+
+# 162. PUBLIC LEADERBOARD READ SIDE EFFECT
+
+Expected:
+
+```text
+StudyPointsLedgerEntry writes = 0
+StudyPointsBalanceProjection writes = 0
+UserGamificationLevel writes = 0
+Achievement writes = 0
+Challenge writes = 0
+```
+
+Snapshot may be rebuilt only when stale/missing according to explicit service behavior.
+
+---
+
+# 163. LEADERBOARD BUILD SIDE EFFECTS
+
+Builder may write only:
+
+```text
+LeaderboardSeason
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+```
+
+where applicable.
+
+Expected zero deltas in:
+
+```text
+StudyPointsLedgerEntry
+StudyPointsBalanceProjection accounting values
+PointsLog
+UserAchievement
+UserGamificationLevel
+ChallengeInstance semantics
+UserChallengeProgress
+StudyEvent
+StudyDailyMetric
+IntegritySignal
+CalendarEvent
+PrivateD1SyncOutbox
+```
+
+---
+
+# 164. NO POINT AWARD
+
+Mandatory.
+
+---
+
+# 165. NO STUDY EVENT
+
+Leaderboard rank calculation creates:
+
+```text
+StudyEvent delta = 0
+```
+
+---
+
+# 166. NO INTEGRITY SIGNAL
+
+Being low/high rank is not an Integrity condition.
+
+---
+
+# 167. NO CALENDAR
+
+No Leaderboard season inserted into academic Calendar.
+
+---
+
+# 168. NO NOTIFICATIONS
+
+Do not notify “you are rank X”.
+
+Frontend/later product prompt can decide.
+
+---
+
+# 169. NO D1
+
+Prompt 26:
+
+```text
+Leaderboard D1 table: NO
+D1 migration: NO
+D1 write: NO
+```
+
+Prompt 27 owns cache/projection.
+
+---
+
+# 170. NO KV
+
+No KV leaderboard cache.
+
+---
+
+# 171. NO ANALYTICS ENGINE
+
+No new ranking telemetry needed.
+
+---
+
+# 172. NO CLIENT SCORE SUBMISSION
+
+Mandatory.
+
+---
+
+# 173. NO CLIENT SEASON CREATION
+
+Mandatory.
+
+---
+
+# 174. NO CLIENT FINALIZATION
+
+Mandatory.
+
+---
+
+# 175. ADMIN ROUTES
+
+If implemented:
+
+```text
+GET /api/admin/leaderboards/seasons
+GET /api/admin/leaderboards/seasons/:seasonId/reconciliation
+POST /api/admin/leaderboards/seasons/:seasonId/rebuild
+POST /api/admin/leaderboards/seasons/:seasonId/finalize
+```
+
+Use actual route conventions.
+
+No UI.
+
+---
+
+# 176. FINALIZE AUTH
+
+Owner/admin only.
+
+No student.
+
+No Group Focus Host privilege.
+
+---
+
+# 177. PUBLIC/USER READ ROUTES
+
+Use safe DTOs.
+
+Suggested:
+
+```text
+GET /api/leaderboards/:scope
+GET /api/me/leaderboard-rank
+```
+
+Authenticated user context as appropriate.
+
+---
+
+# 178. NO RAW SNAPSHOT DB ROWS
+
+Do not expose internal:
+
+```text
+sourceFingerprint
+superseded IDs
+database revision metadata
+```
+
+in ordinary public/user DTO unless needed.
+
+---
+
+# 179. FRESHNESS RESPONSE
+
+Expose:
+
+```text
+generatedAt
+scoreThrough
+isStale
+```
+
+where useful.
+
+---
+
+# 180. SNAPSHOT MAX AGE
+
+Prompt 26 V1:
+
+```text
+LIVE snapshot freshness = 5 minutes
+```
+
+centralized constant.
+
+Prompt 27 may improve delivery latency.
+
+---
+
+# 181. NO POLLING CLIENT
+
+No frontend polling implementation.
+
+---
+
+# 182. RECONCILIATION REPAIR SAFETY
+
+Leaderboard repair changes only derived Leaderboard tables.
+
+No Points/accounting mutation.
+
+---
+
+# 183. ADMIN REPAIR SIDE EFFECT TEST
+
+Expected only:
+
+```text
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+possibly LeaderboardSeason status metadata
+```
+
+change.
+
+---
+
+# 184. PROMPT 25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 185. PROMPT 24 REGRESSION
+
+Levels/public Gamification unchanged.
+
+---
+
+# 186. PROMPT 23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 187. PROMPT 22 REGRESSION
+
+Definitions/checksum unchanged.
+
+---
+
+# 188. PROMPT 19–21 REGRESSION
+
+Ledger/award/reconciliation unchanged.
+
+---
+
+# 189. INTEGRITY REGRESSION
+
+Prompts 17–18 unchanged.
+
+---
+
+# 190. GROUP FOCUS REGRESSION
+
+Prompts 13–16 unchanged.
+
+---
+
+# 191. SOLO FOCUS REGRESSION
+
+Prompts 9–12 unchanged.
+
+---
+
+# 192. STUDY EVENT REGRESSION
+
+Prompt 8 unchanged.
+
+---
+
+# 193. FOUNDATION REGRESSION
+
+Run current green suites:
+
+```text
+Study Core
+Batch A
+Prompt 6
+Prompt 7
+Outbox
+Auth
+```
+
+---
+
+# 194. CALENDAR BASELINE
+
+Expected unchanged:
+
+```text
+Calendar Import = 16 passed / 9 failed
+typecheck = same 2 Calendar errors
+lint = same 10 baseline errors
+```
+
+No Calendar changes.
+
+---
+
+# 195. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Leaderboard models/services
+ranking SQL/helpers
+routes
+Prompt 26 tests
+```
+
+Expected PASS.
+
+---
+
+# 196. TARGETED LINT
+
+Expected PASS.
+
+No new full-repo lint failures.
+
+---
+
+# 197. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 198. PRISMA
+
+Run:
+
+```text
+prisma format
+prisma validate
+prisma generate
+```
+
+plus fresh disposable migration replay.
+
+---
+
+# 199. PERFORMANCE TEST
+
+Use at least a synthetic fixture roughly representing:
+
+```text
+1,000 users
+```
+
+for snapshot generation.
+
+Do not impose brittle millisecond CI thresholds.
+
+Report:
+
+```text
+query strategy
+row counts
+approximate local runtime
+N+1 status
+```
+
+Expected:
+
+```text
+N+1 per-user Points queries = NO
+```
+
+---
+
+# 200. LARGE-TIE TEST
+
+Create many users with same score.
+
+Verify stable ordering and same rank.
+
+---
+
+# 201. PAGINATION TIE BOUNDARY TEST
+
+Cursor crossing a tie group must not:
+
+```text
+skip
+duplicate
+change rank
+```
+
+rows.
+
+Mandatory.
+
+---
+
+# 202. PAGINATION SNAPSHOT CONSISTENCY
+
+Cursor must identify one snapshot.
+
+Do not paginate page 1 from snapshot A and page 2 from newer snapshot B.
+
+Encode snapshot identity in cursor or otherwise pin query to one snapshot.
+
+---
+
+# 203. STALE CURSOR
+
+If LIVE snapshot was replaced while user paginates:
+
+old cursor should still safely resolve old retained snapshot if retained long enough, or return explicit:
+
+```text
+LEADERBOARD_CURSOR_EXPIRED
+```
+
+Do not silently mix snapshots.
+
+---
+
+# 204. LIVE SNAPSHOT RETENTION FOR PAGINATION
+
+If deleting old LIVE snapshots, retain enough recent snapshot lifetime for cursor pagination.
+
+Recommended:
+
+```text
+15 minutes
+```
+
+or until no longer needed.
+
+Do not keep unlimited history.
+
+---
+
+# 205. CURSOR SECURITY
+
+Cursor must be opaque/bounded.
+
+Do not accept client-provided arbitrary rank SQL parameters.
+
+Signed cursor is optional; strict encoded validation is required.
+
+---
+
+# 206. SORT FILTERS
+
+Do not allow arbitrary sort field.
+
+Ranking order is fixed.
+
+---
+
+# 207. USER SEARCH
+
+Do not add Leaderboard user search in Prompt 26.
+
+---
+
+# 208. FRIENDS-ONLY LEADERBOARD
+
+Not implemented.
+
+---
+
+# 209. SUBJECT LEADERBOARD
+
+Not implemented.
+
+---
+
+# 210. GROUP FOCUS LEADERBOARD
+
+Not implemented.
+
+---
+
+# 211. DAILY LEADERBOARD
+
+Not implemented.
+
+Supported exactly:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+---
+
+# 212. LEVEL-BASED LEADERBOARD
+
+Not implemented.
+
+---
+
+# 213. ACHIEVEMENT-COUNT LEADERBOARD
+
+Not implemented.
+
+---
+
+# 214. CHALLENGE LEADERBOARD
+
+Not implemented.
+
+---
+
+# 215. ACCEPTANCE CRITERIA
+
+Prompt 26 succeeds only if:
+
+1. LeaderboardSeason exists.
+2. LeaderboardSnapshot exists.
+3. LeaderboardSnapshotEntry exists.
+4. Migration additive.
+5. No D1 migration.
+6. Weekly scope works.
+7. Monthly scope works.
+8. Semester scope uses explicit canonical boundaries.
+9. All-Time works.
+10. Legacy Points only contribute to All-Time unless trustworthy bounded timing exists.
+11. Time-bounded score uses canonical ledger.
+12. Ranking uses standard competition ranking.
+13. Equal score means equal rank.
+14. Stable ordering exists within ties.
+15. Nonpositive users excluded from public ranking.
+16. Own rank handles not-ranked state.
+17. Snapshots are derived/rebuildable.
+18. LIVE snapshot bounded/stale-aware.
+19. FINAL snapshot immutable/historically auditable.
+20. Final corrections preserve prior revision.
+21. Season finalization concurrency-safe.
+22. Snapshot build concurrency-safe.
+23. Cursor pagination stable across ties.
+24. Cursor pins one snapshot.
+25. Privacy-safe DTO enforced.
+26. No private analytics leak.
+27. No role/Host bonuses.
+28. Achievements do not affect score.
+29. Level does not affect score.
+30. Challenges do not affect score directly.
+31. No client score submission.
+32. No manual rank override.
+33. No Points mutation.
+34. No StudyEvent side effect.
+35. No Integrity side effect.
+36. No Calendar integration.
+37. No D1/KV.
+38. No visible UI.
+39. Production unchanged.
+40. Build passes.
+41. New regressions = 0.
+
+---
+
+# 216. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+List Prompt 22–25, Points, Integrity, Focus, Group Focus, Study Events, Foundation and Auth baselines.
+
+## B. Leaderboard Architecture
+
+Explain:
+
+```text
+canonical Points
+→ season score
+→ snapshot
+→ deterministic rank
+→ privacy-safe DTO
+```
+
+## C. Prisma Models
+
+Show final:
+
+```text
+LeaderboardSeason
+LeaderboardSnapshot
+LeaderboardSnapshotEntry
+```
+
+fields, relations, indexes and unique constraints.
+
+## D. Migration
+
+Report exact path and:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+TRUNCATE:
+DELETE EXISTING DATA:
+EXISTING COLUMN TYPE CHANGE:
+automatic season seed:
+D1 migration:
+```
+
+## E. Supported Scopes
+
+Explicitly:
+
+```text
+WEEKLY
+MONTHLY
+SEMESTER
+ALL_TIME
+```
+
+## F. Weekly Semantics
+
+Report:
+
+```text
+timezone:
+week start:
+start inclusive:
+end exclusive:
+season key:
+```
+
+## G. Monthly Semantics
+
+Report exact month boundary behavior.
+
+## H. Semester Source
+
+Report exactly where semester start/end dates come from.
+
+Explicitly state whether any dates were invented.
+
+Expected:
+
+```text
+INVENTED PRODUCTION SEMESTER DATES: NO
+```
+
+## I. Legacy Points Semantics
+
+Explicitly report:
+
+```text
+WEEKLY legacy contribution:
+MONTHLY legacy contribution:
+SEMESTER legacy contribution:
+ALL_TIME legacy contribution:
+```
+
+## J. Seasonal Score Query
+
+Explain set-based ledger aggregation.
+
+Explicitly:
+
+```text
+N+1 PER-USER LEDGER QUERY: NO
+```
+
+## K. All-Time Score Query
+
+Explain safe legacy + ledger aggregation and double-counting protection.
+
+## L. Ranking Semantics
+
+Explicitly:
+
+```text
+ranking algorithm:
+tie definition:
+tie ranks:
+stable order inside tie:
+```
+
+## M. Tie Tests
+
+Report exact test fixtures/results.
+
+## N. Public Eligibility
+
+Report handling for:
+
+```text
+score > 0
+score = 0
+score < 0
+disabled/deleted/banned users
+```
+
+using actual user model semantics.
+
+## O. Snapshot Architecture
+
+Explain:
+
+```text
+LIVE
+FINAL
+```
+
+and derived/noncanonical nature.
+
+## P. LIVE Snapshot Freshness
+
+Report:
+
+```text
+freshness threshold:
+rebuild lock:
+stale-read behavior:
+retention:
+```
+
+## Q. FINAL Snapshot
+
+Report:
+
+```text
+creation timing:
+uniqueness:
+immutability:
+historical read:
+```
+
+## R. Final Correction Strategy
+
+Explain revision/supersession semantics.
+
+Explicitly:
+
+```text
+OLD FINAL SNAPSHOT MUTATED IN PLACE: NO
+```
+
+## S. Source Fingerprint
+
+Report:
+
+```text
+algorithm:
+inputs:
+ranking semantics version:
+```
+
+## T. Season Finalization
+
+Report first/replay/concurrent behavior.
+
+## U. Pagination
+
+Report:
+
+```text
+default limit:
+hard max:
+cursor tuple:
+snapshot pinning:
+tie-boundary behavior:
+stale cursor behavior:
+```
+
+## V. Leaderboard User API
+
+Report list route, auth, request parameters and safe response.
+
+## W. Own Rank API
+
+Report route and fields.
+
+## X. Privacy-Safe Row
+
+Show exact public/user leaderboard row DTO.
+
+## Y. Forbidden Data Verification
+
+Explicitly confirm leaderboard response excludes:
+
+```text
+email
+Focus time
+MCQ accuracy
+Mastery
+weak topics
+retention
+Integrity Signals
+Quick Notes
+Points category balances
+Points ledger history
+Group Focus details
+Challenge progress
+```
+
+## Z. Score Independence
+
+Explicitly:
+
+```text
+LEVEL AFFECTS LEADERBOARD SCORE: NO
+ACHIEVEMENTS AFFECT SCORE: NO
+CHALLENGES AFFECT SCORE DIRECTLY: NO
+GROUP HOST ROLE AFFECTS SCORE: NO
+OWNER/ADMIN ROLE AFFECTS SCORE: NO
+```
+
+## AA. Reversal Semantics
+
+Report same-season and cross-season correction behavior.
+
+## AB. Leaderboard Reconciliation
+
+Show statuses/checks.
+
+## AC. Rebuild Safety
+
+Explicitly:
+
+```text
+REBUILD MODIFIES POINTS LEDGER: NO
+REBUILD MODIFIES POINTS BALANCE: NO
+MANUAL SCORE OVERRIDE: NO
+MANUAL RANK OVERRIDE: NO
+```
+
+## AD. Admin APIs
+
+Report reconciliation/rebuild/finalize routes and authorization.
+
+## AE. Admin Authorization
+
+Report:
+
+```text
+owner:
+admin:
+student:
+Group Focus HOST-only:
+```
+
+## AF. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 26 TESTS EXECUTED: YES/NO
+```
+
+Include disposable schema.
+
+## AG. Real PostgreSQL Results
+
+Report:
+
+* season creation;
+* concurrent season ensure;
+* weekly;
+* monthly;
+* semester;
+* all-time;
+* LIVE snapshot;
+* snapshot concurrency;
+* FINAL snapshot;
+* finalization concurrency;
+* ties;
+* negative/zero scores;
+* late correction;
+* reconciliation.
+
+## AH. Performance
+
+Report 1,000-user synthetic snapshot result:
+
+```text
+user count:
+ledger rows:
+query strategy:
+N+1:
+approx local runtime:
+```
+
+Do not use brittle pass/fail latency unless a real performance bug appears.
+
+## AI. Side Effects
+
+Report deltas from leaderboard operations:
+
+```text
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection accounting values:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+UserChallengeProgress:
+StudyEvent:
+StudyDailyMetric:
+IntegritySignal:
+CalendarEvent:
+PrivateD1SyncOutbox:
+```
+
+Expected zero except Leaderboard tables.
+
+## AJ. D1 Boundary
+
+Explicitly:
+
+```text
+LEADERBOARD D1 TABLE CREATED: NO
+D1 MIGRATION: NO
+D1 WRITE: NO
+KV CACHE: NO
+```
+
+## AK. Tests Added / Modified
+
+Exact paths/counts/results.
+
+## AL. Regression Results
+
+Include:
+
+* Prompt 22 definitions;
+* Prompt 23 Achievements;
+* Prompt 24 Levels/profile;
+* Prompt 25 Challenges;
+* Prompt 19–21 Points;
+* Prompt 17–18 Integrity;
+* Prompt 13–16 Group Focus;
+* Prompt 9–12 Solo Focus;
+* Prompt 8 Study Events;
+* Foundation;
+* Auth;
+* Build;
+* Prisma;
+* Typecheck;
+* Lint;
+* Calendar baseline.
+
+## AM. Files Created
+
+Exact paths/purposes.
+
+## AN. Files Modified
+
+Exact paths/reasons.
+
+Confirm:
+
+```text
+Prompt 20 reward rules unchanged?
+Prompt 21 accounting unchanged?
+Achievement semantics unchanged?
+Level semantics unchanged?
+Challenge semantics unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+visible frontend UI unchanged?
+```
+
+## AO. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 26 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION LEADERBOARD SEASONS CREATED: NO
+PRODUCTION SNAPSHOTS BUILT: NO
+PRODUCTION FINALIZATION RUN: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+## AP. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+## AQ. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+## AR. Risks / Blockers
+
+Only actual canonical Leaderboard issues.
+
+Do not list Prompt 27 D1 caching or frontend UI as blockers.
+
+## AS. Architecture Compliance
+
+Answer YES/NO:
+
+* PostgreSQL canonical for seasons/snapshots?
+* Points ledger canonical for bounded score?
+* All-Time legacy compatibility preserved?
+* No fabricated historical legacy timing?
+* Weekly deterministic?
+* Monthly deterministic?
+* Semester boundaries explicit?
+* All-Time deterministic?
+* Competition ranking used?
+* Equal scores share rank?
+* Stable tie ordering?
+* Nonpositive scores excluded publicly?
+* Snapshot derived/rebuildable?
+* LIVE refresh bounded?
+* FINAL immutable/auditable?
+* Late corrections versioned/superseded?
+* Snapshot build race-safe?
+* Finalization race-safe?
+* Cursor snapshot-pinned?
+* Pagination tie-safe?
+* Privacy allowlist enforced?
+* No intelligence/academic ranking semantics?
+* No client score authority?
+* No manual rank override?
+* No Points mutation?
+* No StudyEvent side effect?
+* No Integrity side effect?
+* No Calendar?
+* No D1/KV?
+* No UI?
+* Migration additive?
+* Production unchanged?
+* Build passes?
+* New regressions = 0?
+
+## AT. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 27 — Leaderboard D1 Projection, Cache Delivery & Canonical PostgreSQL Fallback**
+
+Do not implement Prompt 27.
+
+---
+
+# 217. STOP CONDITION
+
+After implementation, testing and mandatory report:
+
+STOP.
+
+Do NOT implement D1 leaderboard caching.
+
+Do NOT build Leaderboard UI.
+
+Do NOT add leaderboard notifications.
+
+Do NOT change Study Points rules.
+
+Do NOT add extra leaderboard scopes.
+
+Do NOT deploy Prompt 26 migration.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 26 COMPLETE — CANONICAL LEADERBOARD SEASONS, SNAPSHOTS & PRIVACY-SAFE RANKING READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
