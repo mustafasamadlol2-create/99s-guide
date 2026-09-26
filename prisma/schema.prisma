@@ -62,6 +62,8 @@ model User {
   focusQuickNotes                FocusQuickNote[]
   studyEvents                    StudyEvent[]
   studyDailyMetrics              StudyDailyMetric[]
+  recallAttempts                 RecallAttempt[]
+  recallItemStates               RecallItemState[]
   groupFocusRoomsHosted          GroupFocusRoom[]               @relation("GroupFocusRoomHost")
   groupFocusMemberships          GroupFocusMembership[]
   groupFocusParticipantSummaries GroupFocusParticipantSummary[]
@@ -1174,4 +1176,67 @@ model LeaderboardSnapshotEntry {
   @@unique([snapshotId, userId], map: "leaderboard_entry_snapshot_user_key")
   @@index([snapshotId, rank, score, userId], map: "leaderboard_entry_page_idx")
   @@map("LeaderboardSnapshotEntry")
+}
+
+/// Immutable history of internally issued Recall interactions.
+model RecallAttempt {
+  id                       String    @id @default(uuid())
+  userId                   String
+  itemType                 String    @db.VarChar(16)
+  itemId                   String
+  lectureId                String
+  status                   String    @default("PRESENTED") @db.VarChar(16)
+  presentedAt              DateTime  @default(now())
+  expiresAt                DateTime?
+  answeredAt               DateTime?
+  skippedAt                DateTime?
+  expiredAt                DateTime?
+  answerKind               String?   @db.VarChar(32)
+  answerValue              String?   @db.VarChar(32)
+  outcome                  String?   @db.VarChar(48)
+  evidenceClass            String    @default("SERVER_VALIDATED") @db.VarChar(32)
+  privacyClass             String    @default("PRIVATE_STUDY") @db.VarChar(32)
+  issuanceIdempotencyKey   String    @db.VarChar(200)
+  issuanceFingerprint      String    @db.Char(64)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, issuanceIdempotencyKey], map: "recall_attempt_user_issuance_key")
+  @@index([userId, status, presentedAt], map: "recall_attempt_user_status_presented_idx")
+  @@index([userId, itemType, itemId, presentedAt], map: "recall_attempt_user_item_presented_idx")
+  @@index([itemType, itemId, presentedAt], map: "recall_attempt_item_presented_idx")
+  @@map("RecallAttempt")
+}
+
+/// Rebuildable per-user/item counters derived only from RecallAttempt history.
+model RecallItemState {
+  id                          String    @id @default(uuid())
+  userId                      String
+  itemType                    String    @db.VarChar(16)
+  itemId                      String
+  lectureId                   String
+  presentationCount           Int       @default(0)
+  answerCount                 Int       @default(0)
+  skipCount                   Int       @default(0)
+  objectiveCorrectCount       Int       @default(0)
+  objectiveIncorrectCount     Int       @default(0)
+  selfReportedHardCount       Int       @default(0)
+  selfReportedMediumCount     Int       @default(0)
+  selfReportedEasyCount       Int       @default(0)
+  lastPresentedAt             DateTime?
+  lastAnsweredAt              DateTime?
+  lastSkippedAt               DateTime?
+  lastOutcome                 String?   @db.VarChar(48)
+  revision                    Int       @default(0)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemType, itemId], map: "recall_item_state_user_item_key")
+  @@index([userId, lastPresentedAt], map: "recall_item_state_user_presented_idx")
+  @@index([userId, lectureId, lastPresentedAt], map: "recall_item_state_user_lecture_presented_idx")
+  @@map("RecallItemState")
 }
