@@ -23,6 +23,7 @@ import {
   leaderboardSeasonToWindow,
 } from "./seasons.js";
 import { readRankedLeaderboardScores } from "./scores.js";
+import { enqueueLeaderboardSnapshotProjection } from "./d1Outbox.js";
 import type {
   LeaderboardScope,
   LeaderboardSnapshotType,
@@ -32,6 +33,7 @@ import type {
 
 export const LEADERBOARD_LIVE_FRESHNESS_MS = 5 * 60 * 1000;
 export const LEADERBOARD_LIVE_CURSOR_RETENTION_MS = 15 * 60 * 1000;
+export const LEADERBOARD_LIVE_HARD_STALE_MS = 15 * 60 * 1000;
 const ENTRY_INSERT_BATCH_SIZE = 1000;
 
 type Transaction = Prisma.TransactionClient;
@@ -257,6 +259,24 @@ async function buildSnapshotInTransaction(input: {
       })),
     });
   }
+  await enqueueLeaderboardSnapshotProjection(tx, {
+    season: {
+      id: season.id,
+      scope: season.scope,
+      seasonKey: season.seasonKey,
+      status: snapshotType === "FINAL" ? "CLOSED" : season.status,
+      startsAt: season.startsAt,
+      endsAt: season.endsAt,
+    },
+    snapshot,
+    entries: rankedRows.map((row) => ({
+      userId: row.userId,
+      rank: row.rank,
+      tieSize: row.tieSize,
+      score: row.score,
+      levelSnapshot: row.levelSnapshot,
+    })),
+  });
   if (snapshotType === "LIVE") {
     const cutoff = new Date(
       generatedAt.getTime() - LEADERBOARD_LIVE_CURSOR_RETENTION_MS,

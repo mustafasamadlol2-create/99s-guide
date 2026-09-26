@@ -4,16 +4,22 @@ import { getPrisma } from "../services/prismaClient.js";
 import { decodeLeaderboardCursor } from "../features/leaderboard/cursor.js";
 import { LeaderboardError } from "../features/leaderboard/errors.js";
 import {
-  getLeaderboardPage,
-  getMyLeaderboardRank,
   parseLeaderboardPageSize,
 } from "../features/leaderboard/queries.js";
+import {
+  getLeaderboardPageWithCache,
+  getMyLeaderboardRankWithCache,
+} from "../features/leaderboard/cacheReads.js";
 import {
   finalizeLeaderboardSeason,
   rebuildLeaderboardSnapshot,
 } from "../features/leaderboard/snapshots.js";
 import { parseLeaderboardScope } from "../features/leaderboard/seasons.js";
 import { reconcileLeaderboardSnapshot } from "../features/leaderboard/reconciliation.js";
+import {
+  reconcileLeaderboardD1Cache,
+  repairLeaderboardD1Cache,
+} from "../features/leaderboard/cacheReconciliation.js";
 
 function errorStatus(error: LeaderboardError): number {
   switch (error.code) {
@@ -109,7 +115,7 @@ export function createLeaderboardRouter(dependencies: {
       const cursor = cursorValue
         ? decodeLeaderboardCursor(cursorValue)
         : undefined;
-      const result = await getLeaderboardPage({
+      const result = await getLeaderboardPageWithCache({
         viewerId,
         scope,
         ...(seasonKey ? { seasonKey } : {}),
@@ -142,7 +148,7 @@ export function createLeaderboardRouter(dependencies: {
     }
     try {
       const seasonKey = queryString(req.query.seasonKey, "seasonKey");
-      const result = await getMyLeaderboardRank({
+      const result = await getMyLeaderboardRankWithCache({
         viewerId,
         scope,
         ...(seasonKey ? { seasonKey } : {}),
@@ -276,6 +282,78 @@ export function createAdminLeaderboardRouter(dependencies: {
         .json(result);
     } catch (error) {
       return sendLeaderboardError(res, error);
+    }
+  });
+
+  router.get("/snapshots/:snapshotId/d1-cache-reconciliation", async (req, res) => {
+    if (!req.params.snapshotId || req.params.snapshotId.length > 128) {
+      return res.status(400).json({
+        error: "Snapshot ID is invalid.",
+        code: "LEADERBOARD_INVALID_INPUT",
+      });
+    }
+    try {
+      const result = await reconcileLeaderboardD1Cache({
+        snapshotId: req.params.snapshotId,
+        database,
+      });
+      return res
+        .set("Cache-Control", "private, no-store")
+        .json(result);
+    } catch {
+      return res.status(500).json({
+        error: "Leaderboard D1 cache reconciliation failed.",
+        code: "LEADERBOARD_D1_RECONCILIATION_FAILED",
+      });
+    }
+  });
+
+  router.post("/snapshots/:snapshotId/d1-cache-repair", async (req, res) => {
+    if (!requestBodyIsEmpty(req)) {
+      return res.status(400).json({
+        error: "Cache repair accepts no client-provided projection data.",
+        code: "LEADERBOARD_INVALID_REPAIR_REQUEST",
+      });
+    }
+    if (!req.params.snapshotId || req.params.snapshotId.length > 128) {
+      return res.status(400).json({
+        error: "Snapshot ID is invalid.",
+        code: "LEADERBOARD_INVALID_INPUT",
+      });
+    }
+    try {
+      const result = await repairLeaderboardD1Cache({
+        snapshotId: req.params.snapshotId,
+        database,
+      });
+      return res
+        .status(202)
+        .set("Cache-Control", "private, no-store")
+        .json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("projection is disabled")) {
+        return res.status(409).json({
+          error: "Leaderboard D1 projection is disabled.",
+          code: "LEADERBOARD_D1_PROJECTION_DISABLED",
+        });
+      }
+      if (message.includes("not READY")) {
+        return res.status(404).json({
+          error: "Canonical leaderboard snapshot is unavailable.",
+          code: "LEADERBOARD_SNAPSHOT_NOT_FOUND",
+        });
+      }
+      if (message.includes("D1 projection limit")) {
+        return res.status(409).json({
+          error: "Leaderboard snapshot exceeds the supported D1 projection size.",
+          code: "LEADERBOARD_D1_PROJECTION_LIMIT_EXCEEDED",
+        });
+      }
+      return res.status(503).json({
+        error: "Leaderboard D1 cache repair could not be queued.",
+        code: "LEADERBOARD_D1_REPAIR_UNAVAILABLE",
+      });
     }
   });
   return router;

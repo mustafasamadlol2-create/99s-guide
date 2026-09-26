@@ -9,7 +9,7 @@ type Manifest = {
   cacheSchemaVersion: 1;
 };
 type Entry = { userId: string; rank: number; tieSize: number; score: number; levelSnapshot: number | null };
-const MAX_BODY = 512 * 1024, MAX_CHUNK = 100, MAX_ENTRIES = 100_000;
+const MAX_BODY = 512 * 1024, MAX_CHUNK = 100, MAX_ENTRIES = 20_000;
 const SCHEMA = 1, RANKING = "leaderboard-ranking-v1";
 
 const response = (body: unknown, status = 200) => Response.json(body, {
@@ -66,10 +66,13 @@ async function authenticate(request: Request, env: Env, raw: string): Promise<Re
     .map((b) => b.toString(16).padStart(2, "0")).join("");
   if (!(await equal(signature, sig))) return response({ ok: false, code: "LEADERBOARD_CACHE_UNAUTHORIZED" }, 401);
   try {
-    await env.DB.prepare("DELETE FROM \"leaderboard_cache_nonces\" WHERE \"expires_at\" < ?").bind(now).run();
+    await env.DB.prepare("DELETE FROM \"leaderboard_cache_nonces\" WHERE \"nonce\" IN (SELECT \"nonce\" FROM \"leaderboard_cache_nonces\" WHERE \"expires_at\" < ? ORDER BY \"expires_at\" ASC LIMIT 100)").bind(now).run();
     await env.DB.prepare("INSERT INTO \"leaderboard_cache_nonces\" (\"nonce\",\"expires_at\") VALUES (?,?)")
       .bind(nonce, sec + 600).run();
-  } catch { return response({ ok: false, code: "LEADERBOARD_CACHE_REPLAY" }, 409); }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return response({ ok: false, code: message.includes("UNIQUE") ? "LEADERBOARD_CACHE_REPLAY" : "LEADERBOARD_CACHE_UNAVAILABLE" }, message.includes("UNIQUE") ? 409 : 503);
+  }
   return null;
 }
 
@@ -113,7 +116,7 @@ function manifestDto(row: any): Record<string, unknown> {
 function parseEntry(v: unknown): Entry {
   if (!record(v)) throw new Error("Invalid entry.");
   return { userId: text(v.userId, "userId", 200), rank: integer(v.rank, "rank", 1, 2147483647),
-    tieSize: integer(v.tieSize, "tieSize", 1, 2147483647), score: integer(v.score, "score", -9007199254740991, 9007199254740991),
+    tieSize: integer(v.tieSize, "tieSize", 1, 2147483647), score: integer(v.score, "score", 1, 9007199254740991),
     levelSnapshot: v.levelSnapshot === null || v.levelSnapshot === undefined ? null : integer(v.levelSnapshot, "levelSnapshot", 0, 2147483647) };
 }
 function manifestArgs(m: Manifest): unknown[] {
@@ -130,7 +133,16 @@ function sameManifest(row: any, m: Manifest): boolean {
 async function ensureManifest(env: Env, m: Manifest): Promise<any> {
   const current = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_snapshots\" WHERE \"snapshot_id\" = ?").bind(m.snapshotId).first();
   if (current) { if (!sameManifest(current, m)) throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT"); return current; }
-  await env.DB.prepare(`INSERT INTO "leaderboard_cache_snapshots" ("snapshot_id","season_id","scope","season_key","snapshot_type","revision","season_status","starts_at","ends_at","generated_at","score_through","entry_count","source_fingerprint","projection_checksum","chunk_count","state","ranking_version","cache_schema_version") VALUES (${Array(18).fill("?").join(",")})`).bind(...manifestArgs(m)).run();
+  try {
+    await env.DB.prepare(`INSERT INTO "leaderboard_cache_snapshots" ("snapshot_id","season_id","scope","season_key","snapshot_type","revision","season_status","starts_at","ends_at","generated_at","score_through","entry_count","source_fingerprint","projection_checksum","chunk_count","state","ranking_version","cache_schema_version") VALUES (${Array(18).fill("?").join(",")})`).bind(...manifestArgs(m)).run();
+  } catch (error) {
+    const raced = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_snapshots\" WHERE \"snapshot_id\" = ?").bind(m.snapshotId).first();
+    if (raced) {
+      if (!sameManifest(raced, m)) throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
+      return raced;
+    }
+    throw error;
+  }
   return m;
 }
 async function checksum(m: Manifest, entries: Entry[]): Promise<string> {
@@ -146,24 +158,46 @@ async function chunk(env: Env, m: Manifest, index: number, entries: Entry[], has
   const manifest = await ensureManifest(env,m);
   const actual = await digest(JSON.stringify([m.snapshotId,index,entries]));
   if (!await equal(actual,hash)) throw new Error("Chunk hash mismatch.");
+  // Claim the receipt before writing any entries. A conflicting delivery can
+  // therefore never overwrite rows accepted under another hash.
   const old = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_chunks\" WHERE \"snapshot_id\"=? AND \"chunk_index\"=?").bind(m.snapshotId,index).first();
-  if (old) { if (old.chunk_hash !== hash) throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT"); return response({ok:true,result:"idempotent"}); }
-  if (manifest.state === "READY") throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
-  for (const e of entries) await env.DB.prepare(`INSERT INTO "leaderboard_cache_entries" ("snapshot_id","user_id","rank","tie_size","score","level_snapshot") VALUES (?,?,?,?,?,?) ON CONFLICT ("snapshot_id","user_id") DO UPDATE SET "rank"=excluded."rank","tie_size"=excluded."tie_size","score"=excluded."score","level_snapshot"=excluded."level_snapshot"`).bind(m.snapshotId,e.userId,e.rank,e.tieSize,e.score,e.levelSnapshot).run();
-  await env.DB.prepare("INSERT INTO \"leaderboard_cache_chunks\" VALUES (?,?,?,?,?)").bind(m.snapshotId,index,hash,entries.length,new Date().toISOString()).run();
+  if (old && (old.chunk_hash !== hash || Number(old.row_count) !== entries.length)) {
+    throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
+  }
+  if (manifest.state === "READY") {
+    if (old) return response({ok:true,result:"idempotent"});
+    throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
+  }
+  try {
+    await env.DB.prepare("INSERT INTO \"leaderboard_cache_chunks\" VALUES (?,?,?,?,?)")
+      .bind(m.snapshotId,index,hash,entries.length,new Date().toISOString()).run();
+  } catch {
+    const claimed = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_chunks\" WHERE \"snapshot_id\"=? AND \"chunk_index\"=?").bind(m.snapshotId,index).first();
+    if (!claimed || claimed.chunk_hash !== hash || Number(claimed.row_count) !== entries.length) {
+      throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
+    }
+  }
+  const statements = entries.map((e) => env.DB.prepare(`INSERT INTO "leaderboard_cache_entries" ("snapshot_id","user_id","rank","tie_size","score","level_snapshot") VALUES (?,?,?,?,?,?) ON CONFLICT ("snapshot_id","user_id") DO UPDATE SET "rank"=excluded."rank","tie_size"=excluded."tie_size","score"=excluded."score","level_snapshot"=excluded."level_snapshot"`).bind(m.snapshotId,e.userId,e.rank,e.tieSize,e.score,e.levelSnapshot));
+  if (statements.length) await env.DB.batch(statements);
   return response({ok:true,result:"applied"});
 }
 async function commit(env: Env, m: Manifest): Promise<Response> {
   await ensureManifest(env,m);
   const chunks = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_chunks\" WHERE \"snapshot_id\"=? ORDER BY \"chunk_index\"").bind(m.snapshotId).all();
-  if ((chunks.results || []).length !== m.chunkCount) return response({ok:false,code:"CACHE_INCOMPLETE"},409);
+  const chunkRows = (chunks.results || []) as any[];
+  if (chunkRows.length !== m.chunkCount ||
+      chunkRows.some((row, index) => Number(row.chunk_index) !== index) ||
+      chunkRows.some((row) => Number(row.row_count) < 0 || Number(row.row_count) > MAX_CHUNK) ||
+      chunkRows.reduce((sum, row) => sum + Number(row.row_count), 0) !== m.entryCount) {
+    return response({ok:false,code:"CACHE_INCOMPLETE"},409);
+  }
   const rows = await env.DB.prepare(`SELECT "user_id" userId,"rank", "tie_size" tieSize,"score","level_snapshot" levelSnapshot FROM "leaderboard_cache_entries" WHERE "snapshot_id"=? ORDER BY "rank" ASC,"score" DESC,"user_id" ASC`).bind(m.snapshotId).all();
   if ((rows.results || []).length !== m.entryCount || await checksum(m,(rows.results || []).map((r:any)=>({userId:String(r.userId),rank:Number(r.rank),tieSize:Number(r.tieSize),score:Number(r.score),levelSnapshot:r.levelSnapshot === null ? null : Number(r.levelSnapshot)}))) !== m.projectionChecksum) throw new Error("Projection checksum mismatch.");
   const now = new Date().toISOString();
-  await env.DB.prepare("UPDATE \"leaderboard_cache_snapshots\" SET \"state\"='READY',\"projected_at\"=? WHERE \"snapshot_id\"=? AND \"state\"='BUILDING'").bind(now,m.snapshotId).run();
-  const old = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_current\" WHERE \"scope\"=? AND \"season_key\"=?").bind(m.scope,m.seasonKey).first();
-  const wins = !old || (m.snapshotType === "FINAL" && old.snapshot_type !== "FINAL") || (m.snapshotType === "FINAL" && old.snapshot_type === "FINAL" && m.revision > Number(old.revision)) || (m.snapshotType === old.snapshot_type && m.snapshotType === "LIVE" && (m.generatedAt > old.generated_at || m.generatedAt === old.generated_at && m.snapshotId > old.snapshot_id));
-  if (wins) await env.DB.prepare(`INSERT INTO "leaderboard_cache_current" VALUES (?,?,?,?,?,?,?,?) ON CONFLICT ("scope","season_key") DO UPDATE SET "snapshot_id"=excluded."snapshot_id","snapshot_type"=excluded."snapshot_type","revision"=excluded."revision","generated_at"=excluded."generated_at","score_through"=excluded."score_through","updated_at"=excluded."updated_at"`).bind(m.scope,m.seasonKey,m.snapshotId,m.snapshotType,m.revision,m.generatedAt,m.scoreThrough,now).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE \"leaderboard_cache_snapshots\" SET \"state\"='READY',\"projected_at\"=? WHERE \"snapshot_id\"=? AND \"state\"='BUILDING'").bind(now,m.snapshotId),
+    env.DB.prepare(`INSERT INTO "leaderboard_cache_current" VALUES (?,?,?,?,?,?,?,?) ON CONFLICT ("scope","season_key") DO UPDATE SET "snapshot_id"=excluded."snapshot_id","snapshot_type"=excluded."snapshot_type","revision"=excluded."revision","generated_at"=excluded."generated_at","score_through"=excluded."score_through","updated_at"=excluded."updated_at" WHERE ("leaderboard_cache_current"."snapshot_type"='LIVE' AND excluded."snapshot_type"='FINAL') OR ("leaderboard_cache_current"."snapshot_type"='FINAL' AND excluded."snapshot_type"='FINAL' AND excluded."revision">"leaderboard_cache_current"."revision") OR ("leaderboard_cache_current"."snapshot_type"='LIVE' AND excluded."snapshot_type"='LIVE' AND (excluded."generated_at">"leaderboard_cache_current"."generated_at" OR (excluded."generated_at"="leaderboard_cache_current"."generated_at" AND excluded."snapshot_id">"leaderboard_cache_current"."snapshot_id")))`).bind(m.scope,m.seasonKey,m.snapshotId,m.snapshotType,m.revision,m.generatedAt,m.scoreThrough,now),
+  ]);
   if (m.snapshotType === "LIVE") {
     const expired = await env.DB.prepare(`SELECT "snapshot_id" FROM "leaderboard_cache_snapshots" WHERE "snapshot_type"='LIVE' AND "state"='READY' AND "snapshot_id" NOT IN (SELECT "snapshot_id" FROM "leaderboard_cache_current") AND "generated_at" < ? LIMIT 25`).bind(new Date(Date.now()-30*60*1000).toISOString()).all();
     for (const row of (expired.results || []) as any[]) {
@@ -175,6 +209,16 @@ async function commit(env: Env, m: Manifest): Promise<Response> {
     }
   }
   return response({ok:true,state:"READY",snapshotId:m.snapshotId});
+}
+async function reset(env: Env, snapshotId: string): Promise<Response> {
+  const current = await env.DB.prepare("SELECT 1 FROM \"leaderboard_cache_current\" WHERE \"snapshot_id\"=? LIMIT 1").bind(snapshotId).first();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM \"leaderboard_cache_entries\" WHERE \"snapshot_id\"=?").bind(snapshotId),
+    env.DB.prepare("DELETE FROM \"leaderboard_cache_chunks\" WHERE \"snapshot_id\"=?").bind(snapshotId),
+    env.DB.prepare("DELETE FROM \"leaderboard_cache_snapshots\" WHERE \"snapshot_id\"=?").bind(snapshotId),
+    ...(current ? [env.DB.prepare("DELETE FROM \"leaderboard_cache_current\" WHERE \"snapshot_id\"=?").bind(snapshotId)] : []),
+  ]);
+  return response({ ok: true, snapshotId, reset: true });
 }
 function queryText(url: URL, key: string, max = 300): string { return text(url.searchParams.get(key), key, max); }
 async function read(env: Env, url: URL): Promise<Response> {
@@ -188,9 +232,52 @@ async function read(env: Env, url: URL): Promise<Response> {
     return response({ok:true,manifest:manifestDto(row)});
   }
   const snapshotId = queryText(url,"snapshotId");
-  const snapshot = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_snapshots\" WHERE \"snapshot_id\"=? AND \"state\"='READY'").bind(snapshotId).first();
+  const includeBuilding = path.endsWith("/metadata") && url.searchParams.get("includeBuilding") === "true";
+  const snapshot = await env.DB.prepare(`SELECT * FROM "leaderboard_cache_snapshots" WHERE "snapshot_id"=? ${includeBuilding ? "" : "AND \"state\"='READY'"}`).bind(snapshotId).first();
   if (!snapshot) return response({ok:false,code:"CACHE_MISSING"},404);
-  if (path.endsWith("/metadata")) return response({ok:true,manifest:manifestDto(snapshot)});
+  if (path.endsWith("/metadata")) {
+    const [entries, chunks] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) count FROM \"leaderboard_cache_entries\" WHERE \"snapshot_id\"=?").bind(snapshotId).first(),
+      env.DB.prepare("SELECT \"chunk_index\" FROM \"leaderboard_cache_chunks\" WHERE \"snapshot_id\"=? ORDER BY \"chunk_index\" ASC").bind(snapshotId).all(),
+    ]);
+    const actualEntryCount = Number(entries?.count || 0);
+    const chunkRows = (chunks.results || []) as any[];
+    let actualProjectionChecksum: string | null = null;
+    if (Number.isSafeInteger(actualEntryCount) && actualEntryCount >= 0 && actualEntryCount <= MAX_ENTRIES) {
+      try {
+        const cached = await env.DB.prepare(`SELECT "user_id" userId,"rank","tie_size" tieSize,"score","level_snapshot" levelSnapshot
+          FROM "leaderboard_cache_entries" WHERE "snapshot_id"=?
+          ORDER BY "rank" ASC,"score" DESC,"user_id" ASC`).bind(snapshotId).all();
+        const rows = (cached.results || []) as any[];
+        if (rows.length === actualEntryCount && rows.length <= MAX_ENTRIES) {
+          const m: Manifest = {
+            snapshotId: String(snapshot.snapshot_id), seasonId: String(snapshot.season_id),
+            scope: String(snapshot.scope), seasonKey: String(snapshot.season_key),
+            snapshotType: snapshot.snapshot_type, revision: Number(snapshot.revision),
+            seasonStatus: String(snapshot.season_status), startsAt: snapshot.starts_at ?? null,
+            endsAt: snapshot.ends_at ?? null, generatedAt: String(snapshot.generated_at),
+            scoreThrough: String(snapshot.score_through), entryCount: Number(snapshot.entry_count),
+            sourceFingerprint: String(snapshot.source_fingerprint),
+            projectionChecksum: String(snapshot.projection_checksum),
+            chunkCount: Number(snapshot.chunk_count), rankingVersion: RANKING,
+            cacheSchemaVersion: SCHEMA,
+          };
+          actualProjectionChecksum = await checksum(m, rows.map((r: any) => ({
+            userId: String(r.userId), rank: Number(r.rank), tieSize: Number(r.tieSize),
+            score: Number(r.score), levelSnapshot: r.levelSnapshot === null ? null : Number(r.levelSnapshot),
+          })));
+        }
+      } catch {
+        actualProjectionChecksum = null;
+      }
+    }
+    return response({
+      ok:true, manifest:manifestDto(snapshot), actualEntryCount,
+      actualChunkCount:chunkRows.length,
+      chunkIndexes:chunkRows.map((row) => Number(row.chunk_index)),
+      actualProjectionChecksum,
+    });
+  }
   if (path.endsWith("/rank")) {
     const userId=queryText(url,"userId",200); const row=await env.DB.prepare("SELECT * FROM \"leaderboard_cache_entries\" WHERE snapshot_id=? AND user_id=?").bind(snapshotId,userId).first();
     return response({ok:true,manifest:manifestDto(snapshot),entry:row || null});
@@ -209,11 +296,22 @@ export async function handleLeaderboardCache(request: Request, env: Env): Promis
   const auth=await authenticate(request,env,raw); if(auth)return auth;
   try {
     if(request.method==="GET") return await read(env,url);
+    if (url.pathname === "/internal/leaderboard-cache/reset") {
+      const payload = JSON.parse(raw);
+      if (!record(payload) || typeof payload.snapshotId !== "string" || !payload.snapshotId || payload.snapshotId.length > 300) throw new Error("Invalid snapshotId.");
+      return await reset(env, payload.snapshotId);
+    }
     const payload=JSON.parse(raw); if(!record(payload))throw new Error("Invalid JSON.");
     const m=parseManifest(payload.manifest);
     if(url.pathname.endsWith("/begin")) return await begin(env,m);
     if(url.pathname.endsWith("/chunk")) return await chunk(env,m,integer(payload.chunkIndex,"chunkIndex",0,m.chunkCount-1),Array.isArray(payload.entries)?payload.entries.map(parseEntry):[],hex(payload.chunkHash,"chunkHash"));
     if(url.pathname.endsWith("/commit")) return await commit(env,m);
     return response({ok:false,error:"Unknown leaderboard cache endpoint."},404);
-  } catch(error) { const message=error instanceof Error?error.message:"Leaderboard cache failed."; const conflict=message.includes("CONFLICT")||message.includes("checksum")||message.includes("hash"); return response({ok:false,code:conflict?message:"LEADERBOARD_CACHE_INVALID",error:message.slice(0,160)},conflict?409:400); }
+  } catch(error) {
+    const message=error instanceof Error?error.message:"Leaderboard cache failed.";
+    const conflict=message.includes("CONFLICT")||message.includes("checksum")||message.includes("hash");
+    const invalid=message.startsWith("Invalid")||message.includes("required")||message.includes("Unsupported")||message.includes("inconsistent")||message.includes("Cursor");
+    const status=conflict?409:invalid?400:500;
+    return response({ok:false,code:conflict?message:"LEADERBOARD_CACHE_"+(invalid?"INVALID":"UNAVAILABLE"),error:invalid?message.slice(0,160):"Leaderboard cache unavailable."},status);
+  }
 }

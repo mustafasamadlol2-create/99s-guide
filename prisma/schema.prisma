@@ -895,6 +895,27 @@ model PrivateD1SyncOutbox {
   @@index([nextAttemptAt, id])
 }
 
+/// Durable global Leaderboard snapshot projection work. PostgreSQL remains
+/// canonical; this queue contains only rebuildable D1 delivery payloads.
+model LeaderboardD1SyncOutbox {
+  id             BigInt   @id @default(autoincrement())
+  workType       String   @db.VarChar(16)
+  snapshotId     String
+  chunkIndex     Int      @default(-1)
+  payload        Json
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  createdAt      DateTime @default(now())
+  lastError      String?  @db.VarChar(500)
+  leaseGeneration Int     @default(0)
+  leaseUntil     DateTime?
+
+  @@unique([snapshotId, workType, chunkIndex], map: "leaderboard_d1_outbox_snapshot_work_key")
+  @@index([nextAttemptAt, id], map: "leaderboard_d1_outbox_next_attempt_idx")
+  @@map("LeaderboardD1SyncOutbox")
+}
+
 /// Append-only canonical Study Points accounting rows. Corrections use reversals.
 model StudyPointsLedgerEntry {
   id                String   @id @default(uuid())

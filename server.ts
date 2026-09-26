@@ -43,6 +43,7 @@ import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
 import { startPrivateD1SyncDrainer, stopPrivateD1SyncDrainer } from "./server/services/privateD1Sync.js";
+import { startLeaderboardD1OutboxDrainer, stopLeaderboardD1OutboxDrainer } from "./server/features/leaderboard/d1Outbox.js";
 import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./server/services/privateD1Read.js";
 import { execFile } from "child_process";
 import {
@@ -11037,6 +11038,7 @@ async function startServer() {
     // When disabled, PostgreSQL triggers still queue changes durably but no
     // network delivery occurs until PRIVATE_D1_WRITE_MIRROR_ENABLED is enabled.
     startPrivateD1SyncDrainer();
+    startLeaderboardD1OutboxDrainer();
     
     // Fold legacy ephemeral local files into durable database storage. Runs a
     // few seconds after boot (non-blocking) and only in production.
@@ -11095,6 +11097,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
     await new Promise<void>((resolve) => io.close(() => resolve()));
     // Stop the private D1 outbox poller before closing Prisma.
     stopPrivateD1SyncDrainer();
+    stopLeaderboardD1OutboxDrainer();
     // Release Prisma connection pool
     await disconnectPrisma();
     clearTimeout(forceExit);

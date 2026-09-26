@@ -29,7 +29,7 @@ export type LeaderboardSeasonDto = {
   status: string;
 };
 
-function seasonDto(season: LeaderboardSeason): LeaderboardSeasonDto {
+export function seasonDto(season: LeaderboardSeason): LeaderboardSeasonDto {
   const scope = leaderboardSeasonToWindow(season).scope;
   return {
     id: season.id,
@@ -65,7 +65,7 @@ export function parseLeaderboardPageSize(value: unknown): number {
   return parsePageSize(value);
 }
 
-async function resolveSeason(input: {
+export async function resolveSeason(input: {
   scope: LeaderboardScope;
   seasonKey?: string;
   now: Date;
@@ -112,7 +112,7 @@ async function resolveSeason(input: {
   }, input.database);
 }
 
-function buildBaseEntryWhere(
+export function buildBaseEntryWhere(
   snapshotId: string,
   blockedUserIds: readonly string[],
 ): Prisma.LeaderboardSnapshotEntryWhereInput {
@@ -126,7 +126,7 @@ function buildBaseEntryWhere(
   };
 }
 
-async function getBlockedUserIds(
+export async function getBlockedUserIds(
   viewerId: string,
   database: PrismaClient,
 ): Promise<string[]> {
@@ -149,7 +149,7 @@ function cursorExpiry(snapshot: LeaderboardSnapshot): number | null {
     : null;
 }
 
-async function validateCursorSnapshot(input: {
+export async function validateCursorSnapshot(input: {
   cursor: LeaderboardCursorPayload;
   season: LeaderboardSeason;
   database: PrismaClient;
