@@ -12,6 +12,7 @@ import type {
 import { test } from "node:test";
 import { checksumGamificationDefinitionBundle } from "../server/features/gamification/checksum.js";
 import { GAMIFICATION_DEFINITION_CHECKSUM_NAMESPACE } from "../server/features/gamification/constants.js";
+import { checksumGamificationChallengeDefinitions } from "../server/features/gamification/challengeChecksum.js";
 import { getGamificationDefinitionBundle } from "../server/features/gamification/definitions.js";
 import { checksumGamificationLevelDefinitions } from "../server/features/gamification/levelChecksum.js";
 import {
@@ -31,6 +32,7 @@ const version = "gamification-v1";
 const bundle = getGamificationDefinitionBundle(version);
 const checksum = checksumGamificationDefinitionBundle(bundle);
 const levelChecksum = checksumGamificationLevelDefinitions(bundle);
+const challengeChecksum = checksumGamificationChallengeDefinitions(bundle);
 const ruleSet = {
   id: "test-ruleset",
   version,
@@ -38,6 +40,7 @@ const ruleSet = {
   schemaVersion: bundle.schemaVersion,
   definitionChecksum: checksum,
   levelDefinitionChecksum: levelChecksum,
+  challengeDefinitionChecksum: challengeChecksum,
   effectiveFrom: new Date("2026-09-26T00:00:00.000Z"),
   retiredAt: null,
   createdAt: new Date("2026-09-26T00:00:00.000Z"),
@@ -80,7 +83,11 @@ test("lifetime Level thresholds are inclusive and reversals can lower the curren
 });
 
 test("Prompt 24 preserves Prompt 23 Achievement checksums and checksums Levels separately", () => {
-  const prompt23Bundle = { ...bundle, levelDefinitions: [] };
+  const prompt23Bundle = {
+    ...bundle,
+    levelDefinitions: [],
+    challengeDefinitionContracts: [],
+  };
   const prompt23Checksum = createHash("sha256")
     .update(GAMIFICATION_DEFINITION_CHECKSUM_NAMESPACE, "utf8")
     .update(canonicalJson(prompt23Bundle), "utf8")
@@ -177,6 +184,10 @@ test("active rule-version changes recompute the Level from unchanged Points", as
       ...definition,
       ruleSetVersion: nextVersion,
     })),
+    challengeDefinitionContracts: bundle.challengeDefinitionContracts.map((definition) => ({
+      ...definition,
+      ruleSetVersion: nextVersion,
+    })),
     levelDefinitions: bundle.levelDefinitions.map((definition, index) => ({
       ...definition,
       minimumLifetimePoints: index === 0
@@ -192,6 +203,8 @@ test("active rule-version changes recompute the Level from unchanged Points", as
       definitionChecksum: nextChecksum,
       levelDefinitionChecksum:
         checksumGamificationLevelDefinitions(nextDefinitions),
+      challengeDefinitionChecksum:
+        checksumGamificationChallengeDefinitions(nextDefinitions),
     },
     definitions: nextDefinitions,
   } satisfies GamificationRuleSetWithDefinition;

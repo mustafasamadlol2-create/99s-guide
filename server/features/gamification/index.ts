@@ -5,6 +5,14 @@ export {
 export type { LeaderboardPeriod } from "../study-core/leaderboard.js";
 
 export * from "./checksum.js";
+export * from "./challengeChecksum.js";
+export * from "./challengeInstances.js";
+export * from "./challengeMetrics.js";
+export * from "./challengePeriods.js";
+export * from "./challengeRefresh.js";
+export * from "./challengeReconciliation.js";
+export * from "./challengeRuleSets.js";
+export * from "./challengeTypes.js";
 export * from "./constants.js";
 export * from "./definitions.js";
 export * from "./errors.js";

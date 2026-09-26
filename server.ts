@@ -57,11 +57,16 @@ import {
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
 import { createAchievementsRouter } from "./server/routes/achievements.js";
+import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
 import {
   getMyAchievements,
   refreshUserAchievementsBestEffort,
 } from "./server/features/gamification/achievementService.js";
+import {
+  getMyChallenges,
+  refreshUserChallenges,
+} from "./server/features/gamification/index.js";
 import {
   getMyGamificationSummary,
   refreshUserGamificationBestEffort,
@@ -7622,11 +7627,20 @@ app.use(
   }),
 );
 app.use(
+  "/api/me/challenges",
+  createChallengesRouter({
+    requireUser,
+    getMyChallenges,
+  }),
+);
+app.use(
   "/api/focus",
   createFocusRouter({
     requireUser,
     service: createFocusService(),
     refreshAchievements: refreshUserAchievementsBestEffort,
+    refreshChallenges: (userId, metricIds) =>
+      refreshUserChallenges({ userId, metricIds }),
   }),
 );
 app.use(
@@ -7641,6 +7655,8 @@ app.use(
   createGroupFocusRuntimeInternalRouter({
     service: createGroupFocusRuntimeSummaryService({
       postCommitAchievementRefresh: refreshUserAchievementsBestEffort,
+      postCommitChallengeRefresh: (userId, metricIds) =>
+        refreshUserChallenges({ userId, metricIds }),
     }),
   }),
 );

@@ -90,7 +90,7 @@ test("v1 achievements use the source-controlled Prompt 22 definitions only", () 
       { level: 10, minimumLifetimePoints: 5600 },
     ],
   );
-  assert.deepEqual(bundle.challengeDefinitionContracts, []);
+  assert.equal(bundle.challengeDefinitionContracts.length, 4);
   assert.deepEqual(bundle.leaderboardDefinitionContracts, []);
 });
 

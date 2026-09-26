@@ -8,10 +8,14 @@ export function checksumGamificationDefinitionBundle(
   bundle: GamificationDefinitionBundle,
 ): string {
   validateGamificationDefinitionBundle(bundle);
-  // Prompt 23 persisted this bundle with an empty Level definition array.
-  // Keep that exact checksum payload while Level definitions receive a
-  // separate checksum so existing rule-set rows and unlock proofs stay valid.
-  const achievementBundle = { ...bundle, levelDefinitions: [] };
+  // Prompt 23/24 persisted this bundle with empty Level and Challenge arrays.
+  // Keep that payload stable while those versioned definitions use separate
+  // checksums, so existing rule-set rows and unlock proofs remain valid.
+  const achievementBundle = {
+    ...bundle,
+    levelDefinitions: [],
+    challengeDefinitionContracts: [],
+  };
   return createHash("sha256")
     .update(GAMIFICATION_DEFINITION_CHECKSUM_NAMESPACE, "utf8")
     .update(canonicalJson(achievementBundle), "utf8")

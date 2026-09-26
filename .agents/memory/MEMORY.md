@@ -8,3 +8,4 @@
 - [Local Worker runtime tests](worker-local-runtime-tests.md) — Wrangler local mode follows configured bindings and avoids version-sensitive direct Miniflare setup.
 - [Worker credential forwarding](worker-credential-forwarding.md) — client WebSocket credentials must be explicitly forwarded from Worker ingress to the Durable Object.
 - [Study Integrity boundary](study-integrity-boundary.md) — keep evaluation pure; share primitives without importing event ingestion or querying product tables.
+- [Gamification checksum compatibility](challenge-checksum-compatibility.md) — keep Challenge hashes separate to preserve persisted Achievement and Level checksums.

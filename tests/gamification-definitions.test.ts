@@ -4,6 +4,7 @@ import {
   GAMIFICATION_METRIC_IDS,
   GAMIFICATION_V1_RULE_SET_VERSION,
   GamificationError,
+  checksumGamificationChallengeDefinitions,
   checksumGamificationDefinitionBundle,
   checksumGamificationLevelDefinitions,
   getGamificationDefinitionBundle,
@@ -65,6 +66,13 @@ test("v1 bundle is immutable, deterministic, and excludes unavailable lifetime c
   assert.notEqual(
     checksumGamificationLevelDefinitions(changedLevel),
     checksumGamificationLevelDefinitions(bundle),
+  );
+  const changedChallenge = cloneBundle();
+  changedChallenge.challengeDefinitionContracts[0]!.target += 1;
+  assert.equal(checksumGamificationDefinitionBundle(changedChallenge), checksum);
+  assert.notEqual(
+    checksumGamificationChallengeDefinitions(changedChallenge),
+    checksumGamificationChallengeDefinitions(bundle),
   );
 });
 

@@ -58,20 +58,21 @@ export type LevelDefinition = {
   titleKey?: string;
 };
 
-export type ChallengeStartPolicy =
-  | "FIXED_WINDOW"
-  | "ENROLLMENT_TIME";
-export type ChallengeEndPolicy =
-  | "FIXED_WINDOW"
-  | "TARGET_REACHED";
+export type ChallengeEnrollmentPolicy = "AUTO" | "MANUAL";
+export type ChallengeWindowPolicy = "WEEKLY";
+export type ChallengeVisibility = "PRIVATE_STUDY";
 
 export type ChallengeDefinitionContract = {
   id: string;
   ruleSetVersion: string;
   metricId: string;
   target: number;
-  startPolicy: ChallengeStartPolicy;
-  endPolicy: ChallengeEndPolicy;
+  enrollmentPolicy: ChallengeEnrollmentPolicy;
+  windowPolicy: ChallengeWindowPolicy;
+  titleKey: string;
+  descriptionKey: string;
+  visibility: ChallengeVisibility;
+  sortOrder: number;
 };
 
 export type GamificationLeaderboardPeriod =

@@ -39,8 +39,12 @@ const CHALLENGE_KEYS = [
   "ruleSetVersion",
   "metricId",
   "target",
-  "startPolicy",
-  "endPolicy",
+  "enrollmentPolicy",
+  "windowPolicy",
+  "titleKey",
+  "descriptionKey",
+  "visibility",
+  "sortOrder",
 ];
 const LEADERBOARD_KEYS = [
   "id",
@@ -53,8 +57,15 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$/u;
 const LOCALIZATION_KEY_PATTERN = /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$/u;
 const TIERS = new Set(["BRONZE", "SILVER", "GOLD"]);
 const VISIBILITIES = new Set(["PRIVATE", "PROFILE_SAFE"]);
-const START_POLICIES = new Set(["FIXED_WINDOW", "ENROLLMENT_TIME"]);
-const END_POLICIES = new Set(["FIXED_WINDOW", "TARGET_REACHED"]);
+const CHALLENGE_ENROLLMENT_POLICIES = new Set(["AUTO", "MANUAL"]);
+const CHALLENGE_WINDOW_POLICIES = new Set(["WEEKLY"]);
+const CHALLENGE_VISIBILITIES = new Set(["PRIVATE_STUDY"]);
+const CHALLENGE_WINDOW_METRIC_IDS = new Set<string>([
+  GAMIFICATION_METRIC_IDS.focusCompletedSessions,
+  GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
+  GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
+  GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
+]);
 const LEADERBOARD_PERIODS = new Set(["WEEKLY", "MONTHLY", "ALL_TIME"]);
 
 function invalid(message: string): never {
@@ -242,6 +253,7 @@ function validateChallengeContracts(
   if (!Array.isArray(value)) {
     invalid("challengeDefinitionContracts must be an array.");
   }
+  const sortOrders = new Set<number>();
   for (const [index, candidate] of value.entries()) {
     const label = `challengeDefinitionContracts[${index}]`;
     if (!isRecord(candidate)) invalid(`${label} must be an object.`);
@@ -252,7 +264,16 @@ function validateChallengeContracts(
     if (candidate.ruleSetVersion !== bundleVersion) {
       invalid(`${label}.ruleSetVersion must match the bundle version.`);
     }
-    const metric = requireMetric(candidate.metricId, registry, label);
+    if (
+      typeof candidate.metricId !== "string"
+      || !CHALLENGE_WINDOW_METRIC_IDS.has(candidate.metricId)
+    ) {
+      invalid(`${label}.metricId is not supported by the Challenge window adapter.`);
+    }
+    const metric = registry.get(candidate.metricId);
+    if (!metric || metric.privacyClass !== "PRIVATE_STUDY") {
+      invalid(`${label}.metricId must be a registered private-study metric.`);
+    }
     if (metric.valueType !== "INTEGER") {
       invalid(`${label} must use an integer metric.`);
     }
@@ -262,12 +283,24 @@ function validateChallengeContracts(
     ) {
       invalid(`${label}.target must be a positive safe integer.`);
     }
-    if (!START_POLICIES.has(String(candidate.startPolicy))) {
-      invalid(`${label}.startPolicy is unsupported.`);
+    if (!CHALLENGE_ENROLLMENT_POLICIES.has(String(candidate.enrollmentPolicy))) {
+      invalid(`${label}.enrollmentPolicy is unsupported.`);
     }
-    if (!END_POLICIES.has(String(candidate.endPolicy))) {
-      invalid(`${label}.endPolicy is unsupported.`);
+    if (!CHALLENGE_WINDOW_POLICIES.has(String(candidate.windowPolicy))) {
+      invalid(`${label}.windowPolicy is unsupported.`);
     }
+    requireLocalizationKey(candidate.titleKey, `${label}.titleKey`);
+    requireLocalizationKey(candidate.descriptionKey, `${label}.descriptionKey`);
+    if (!CHALLENGE_VISIBILITIES.has(String(candidate.visibility))) {
+      invalid(`${label}.visibility is unsupported.`);
+    }
+    if (!isSafeNonnegativeInteger(candidate.sortOrder)) {
+      invalid(`${label}.sortOrder must be a nonnegative safe integer.`);
+    }
+    if (sortOrders.has(candidate.sortOrder as number)) {
+      invalid(`${label}.sortOrder must be unique within the Challenge definitions.`);
+    }
+    sortOrders.add(candidate.sortOrder as number);
   }
 }
 

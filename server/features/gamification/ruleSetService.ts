@@ -10,6 +10,10 @@ import {
   checksumGamificationLevelDefinitions,
 } from "./levelChecksum.js";
 import {
+  assertGamificationChallengeDefinitionsChecksum,
+  checksumGamificationChallengeDefinitions,
+} from "./challengeChecksum.js";
+import {
   GAMIFICATION_RULE_VERSION_PATTERN,
 } from "./constants.js";
 import { getGamificationDefinitionBundle } from "./definitions.js";
@@ -22,6 +26,7 @@ import type {
 
 type RuleSetDatabase = PrismaClient;
 type RuleSetTransaction = Prisma.TransactionClient;
+type RuleSetReadDatabase = RuleSetDatabase | RuleSetTransaction;
 
 const LOCK_NAMESPACE = "99s-guide:gamification:ruleset:";
 
@@ -61,6 +66,10 @@ function assertStoredChecksumMatches(
     bundle,
     row.levelDefinitionChecksum,
   );
+  assertGamificationChallengeDefinitionsChecksum(
+    bundle,
+    row.challengeDefinitionChecksum,
+  );
   if (
     row.version !== bundle.version
     || row.schemaVersion !== bundle.schemaVersion
@@ -99,6 +108,7 @@ export async function registerGamificationRuleSetDraftForBundle(
   assertBundleVersion(bundle.version, bundle);
   const checksum = checksumGamificationDefinitionBundle(bundle);
   const levelChecksum = checksumGamificationLevelDefinitions(bundle);
+  const challengeChecksum = checksumGamificationChallengeDefinitions(bundle);
 
   return database.$transaction(async (tx) => {
     await acquireAdvisoryLock(
@@ -113,6 +123,7 @@ export async function registerGamificationRuleSetDraftForBundle(
         existing.schemaVersion !== bundle.schemaVersion
         || existing.definitionChecksum !== checksum
         || existing.levelDefinitionChecksum !== levelChecksum
+        || existing.challengeDefinitionChecksum !== challengeChecksum
       ) {
         throw new GamificationError(
           "GAMIFICATION_RULE_VERSION_CONFLICT",
@@ -128,6 +139,7 @@ export async function registerGamificationRuleSetDraftForBundle(
         schemaVersion: bundle.schemaVersion,
         definitionChecksum: checksum,
         levelDefinitionChecksum: levelChecksum,
+        challengeDefinitionChecksum: challengeChecksum,
       },
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
@@ -149,6 +161,7 @@ async function activateGamificationRuleSetForBundle(
   assertBundleVersion(bundle.version, bundle);
   const checksum = checksumGamificationDefinitionBundle(bundle);
   const levelChecksum = checksumGamificationLevelDefinitions(bundle);
+  const challengeChecksum = checksumGamificationChallengeDefinitions(bundle);
   return database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
     const target = await tx.gamificationRuleSet.findUnique({
@@ -164,6 +177,7 @@ async function activateGamificationRuleSetForBundle(
       target.schemaVersion !== bundle.schemaVersion
       || target.definitionChecksum !== checksum
       || target.levelDefinitionChecksum !== levelChecksum
+      || target.challengeDefinitionChecksum !== challengeChecksum
     ) {
       throw new GamificationError(
         "GAMIFICATION_DEFINITION_CHECKSUM_MISMATCH",
@@ -236,7 +250,7 @@ export async function activateGamificationRuleSet(
 
 export async function getGamificationRuleSetVersion(
   version: string,
-  database: RuleSetDatabase = getPrisma() as RuleSetDatabase,
+  database: RuleSetReadDatabase = getPrisma() as RuleSetDatabase,
 ): Promise<GamificationRuleSetWithDefinition> {
   validateRuleVersion(version);
   const row = await database.gamificationRuleSet.findUnique({

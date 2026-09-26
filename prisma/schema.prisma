@@ -73,6 +73,7 @@ model User {
   userAchievementProgresses    UserAchievementProgress[]
   achievements                 UserAchievement[]
   gamificationLevel            UserGamificationLevel?
+  challengeProgresses          UserChallengeProgress[]
 
   @@index([role])
   @@index([isOnline, lastActive])
@@ -941,19 +942,21 @@ model StudyPointsBalanceProjection {
 /// Versioned, server-owned definition lifecycle. Definitions remain in source
 /// control; this row records their checksum and active/retired lifecycle.
 model GamificationRuleSet {
-  id                      String                    @id @default(uuid())
-  version                 String                    @unique @db.VarChar(64)
-  status                  String                    @default("DRAFT") @db.VarChar(16)
-  schemaVersion           Int
-  definitionChecksum      String                    @db.Char(64)
-  levelDefinitionChecksum String?                   @db.Char(64)
-  effectiveFrom           DateTime?
-  retiredAt               DateTime?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  gamificationLevels      UserGamificationLevel[]
-  achievementProgresses   UserAchievementProgress[]
-  achievementUnlocks      UserAchievement[]
+  id                          String                    @id @default(uuid())
+  version                     String                    @unique @db.VarChar(64)
+  status                      String                    @default("DRAFT") @db.VarChar(16)
+  schemaVersion               Int
+  definitionChecksum          String                    @db.Char(64)
+  levelDefinitionChecksum     String?                   @db.Char(64)
+  challengeDefinitionChecksum String?                   @db.Char(64)
+  effectiveFrom               DateTime?
+  retiredAt                   DateTime?
+  createdAt                   DateTime                  @default(now())
+  updatedAt                   DateTime                  @updatedAt
+  gamificationLevels          UserGamificationLevel[]
+  achievementProgresses       UserAchievementProgress[]
+  achievementUnlocks          UserAchievement[]
+  challengeInstances          ChallengeInstance[]
 
   @@index([status])
   @@index([status, effectiveFrom])
@@ -1025,4 +1028,59 @@ model UserGamificationLevel {
 
   @@index([ruleSetVersion], map: "ugl_ruleset_version_idx")
   @@map("UserGamificationLevel")
+}
+
+/// One immutable, version-frozen weekly Challenge occurrence.
+model ChallengeInstance {
+  id                    String   @id @default(uuid())
+  challengeDefinitionId String   @db.VarChar(128)
+  ruleSetVersion        String   @db.VarChar(64)
+  logicalPeriodKey      String   @db.VarChar(10)
+  metricId              String   @db.VarChar(128)
+  targetValue           BigInt   @db.BigInt
+  enrollmentPolicy      String   @db.VarChar(16)
+  windowPolicy          String   @db.VarChar(16)
+  titleKey              String   @db.VarChar(160)
+  descriptionKey        String   @db.VarChar(160)
+  visibility            String   @db.VarChar(32)
+  sortOrder             Int
+  startsAt              DateTime
+  endsAt                DateTime
+  status                String   @default("UPCOMING") @db.VarChar(16)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  ruleSet  GamificationRuleSet     @relation(fields: [ruleSetVersion], references: [version], onDelete: Restrict)
+  progress UserChallengeProgress[]
+
+  @@unique([challengeDefinitionId, ruleSetVersion, logicalPeriodKey], map: "cci_definition_version_period_key")
+  @@unique([challengeDefinitionId, logicalPeriodKey], map: "cci_definition_period_key")
+  @@index([status, startsAt, endsAt], map: "cci_status_period_idx")
+  @@map("ChallengeInstance")
+}
+
+/// Private canonical progress for one user and one immutable Challenge instance.
+model UserChallengeProgress {
+  id                  String    @id @default(uuid())
+  userId              String
+  challengeInstanceId String
+  status              String    @default("ACTIVE") @db.VarChar(16)
+  metricId            String    @db.VarChar(128)
+  baselineValue       BigInt    @default(0) @db.BigInt
+  currentValue        BigInt    @default(0) @db.BigInt
+  targetValue         BigInt    @db.BigInt
+  enrolledAt          DateTime  @default(now())
+  lastEvaluatedAt     DateTime  @default(now())
+  completedAt         DateTime?
+  expiredAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instance ChallengeInstance @relation(fields: [challengeInstanceId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, challengeInstanceId], map: "ucp_user_instance_key")
+  @@index([userId, status, updatedAt], map: "ucp_user_status_updated_idx")
+  @@index([challengeInstanceId, status], map: "ucp_instance_status_idx")
+  @@map("UserChallengeProgress")
 }

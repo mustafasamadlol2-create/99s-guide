@@ -229,6 +229,10 @@ export function createGroupFocusRuntimeSummaryService(options: {
   ingestEvent?: typeof ingestStudyEvent;
   studyPointsAwarder?: StudyPointsAwarder;
   postCommitAchievementRefresh?: (userId: string) => Promise<unknown>;
+  postCommitChallengeRefresh?: (
+    userId: string,
+    metricIds: readonly string[],
+  ) => Promise<unknown>;
 } = {}) {
   const prisma = options.prisma ?? getPrisma();
   const ingestEvent = options.ingestEvent ?? ingestStudyEvent;
@@ -460,7 +464,10 @@ export function createGroupFocusRuntimeSummaryService(options: {
       });
       if (
         acknowledgement.status === "APPLIED"
-        && options.postCommitAchievementRefresh
+        && (
+          options.postCommitAchievementRefresh
+          || options.postCommitChallengeRefresh
+        )
       ) {
         const userIds = new Set(
           summary.participants
@@ -468,11 +475,24 @@ export function createGroupFocusRuntimeSummaryService(options: {
             .map((participant) => participant.userId),
         );
         for (const userId of userIds) {
-          try {
-            await options.postCommitAchievementRefresh(userId);
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : "unknown error";
-            console.warn(`[Group Focus] Post-commit Achievement refresh failed: ${reason}`);
+          if (options.postCommitAchievementRefresh) {
+            try {
+              await options.postCommitAchievementRefresh(userId);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "unknown error";
+              console.warn(`[Group Focus] Post-commit Achievement refresh failed: ${reason}`);
+            }
+          }
+          if (options.postCommitChallengeRefresh) {
+            try {
+              await options.postCommitChallengeRefresh(userId, [
+                "group_focus.completed_runs",
+                "consistency.qualifying_days",
+              ]);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : "unknown error";
+              console.warn(`[Group Focus] Post-commit Challenge refresh failed: ${reason}`);
+            }
           }
         }
       }
