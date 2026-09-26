@@ -8,6 +8,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum LectureMasteryState {
+  NOT_STARTED
+  STARTED
+  LEARNING
+  NEEDS_REVIEW
+  GOOD
+  MASTERED
+}
+
 model User {
   id                             String                         @id @default(uuid())
   email                          String                         @unique
@@ -64,6 +73,7 @@ model User {
   studyDailyMetrics              StudyDailyMetric[]
   recallAttempts                 RecallAttempt[]
   recallItemStates               RecallItemState[]
+  lectureMastery                  LectureMastery[]
   groupFocusRoomsHosted          GroupFocusRoom[]               @relation("GroupFocusRoomHost")
   groupFocusMemberships          GroupFocusMembership[]
   groupFocusParticipantSummaries GroupFocusParticipantSummary[]
@@ -104,6 +114,7 @@ model Lecture {
   focusSessions                  FocusSession[]
   focusQuickNotes                FocusQuickNote[]               @relation("FocusQuickNoteLecture")
   studyEvents                    StudyEvent[]
+  masteryProjections             LectureMastery[]
   groupFocusRoomsShared          GroupFocusRoom[]               @relation("GroupFocusRoomSharedLecture")
   groupFocusMemberships          GroupFocusMembership[]         @relation("GroupFocusMembershipSelectedLecture")
   groupFocusParticipantSummaries GroupFocusParticipantSummary[] @relation("GroupFocusSummaryLecture")
@@ -1242,4 +1253,41 @@ model RecallItemState {
   @@index([userId, lastPresentedAt], map: "recall_item_state_user_presented_idx")
   @@index([userId, lectureId, lastPresentedAt], map: "recall_item_state_user_lecture_presented_idx")
   @@map("RecallItemState")
+}
+
+/// Rebuildable private per-user/per-lecture projection of canonical study evidence.
+model LectureMastery {
+  id                            String              @id @default(uuid())
+  userId                        String
+  lectureId                     String
+  state                         LectureMasteryState @default(NOT_STARTED)
+  evidenceScore                 Int                 @default(0)
+  evidenceCount                 Int                 @default(0)
+  objectiveAttemptCount         Int                 @default(0)
+  objectiveCorrectCount         Int                 @default(0)
+  objectiveIncorrectCount       Int                 @default(0)
+  flashcardReviewCount          Int                 @default(0)
+  flashcardRememberedCount      Int                 @default(0)
+  flashcardNotRememberedCount   Int                 @default(0)
+  recallObjectiveAttemptCount   Int                 @default(0)
+  recallObjectiveCorrectCount   Int                 @default(0)
+  recallObjectiveIncorrectCount Int                 @default(0)
+  meaningfulFocusSessionCount   Int                 @default(0)
+  meaningfulFocusSeconds        Int                 @default(0)
+  lastStudyEvidenceAt           DateTime?
+  lastObjectiveEvidenceAt       DateTime?
+  lastRecallEvidenceAt          DateTime?
+  ruleVersion                   String              @default("mastery-v1")
+  revision                      Int                 @default(0)
+  lastEvaluatedAt               DateTime            @default(now())
+  createdAt                     DateTime            @default(now())
+  updatedAt                     DateTime            @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lectureId], map: "lecture_mastery_user_lecture_key")
+  @@index([userId, state], map: "lecture_mastery_user_state_idx")
+  @@index([userId, lastEvaluatedAt], map: "lecture_mastery_user_evaluated_idx")
+  @@index([lectureId, state], map: "lecture_mastery_lecture_state_idx")
 }
