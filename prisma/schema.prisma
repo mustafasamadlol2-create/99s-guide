@@ -90,6 +90,7 @@ model User {
   recallItemStates               RecallItemState[]
   lectureMastery                  LectureMastery[]
   lectureRetentionProjections    LectureRetention[]
+  masteryD1ProjectionState       MasteryD1ProjectionState?
   groupFocusRoomsHosted          GroupFocusRoom[]               @relation("GroupFocusRoomHost")
   groupFocusMemberships          GroupFocusMembership[]
   groupFocusParticipantSummaries GroupFocusParticipantSummary[]
@@ -1343,4 +1344,16 @@ model LectureRetention {
   @@index([userId, reviewState, nextReviewAt], map: "lecture_retention_user_review_due_idx")
   @@index([userId, effectiveMasteryState], map: "lecture_retention_user_effective_state_idx")
   @@index([userId, nextEvaluationAt], map: "lecture_retention_user_next_evaluation_idx")
+}
+
+/// PostgreSQL-side expected D1 watermarks; D1 remains a rebuildable read cache.
+model MasteryD1ProjectionState {
+  userId             String   @id
+  masteryWatermark   BigInt?
+  retentionWatermark BigInt?
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("MasteryD1ProjectionState")
 }

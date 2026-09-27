@@ -4,6 +4,12 @@ type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
 const MAX_PROJECTION_DATA_BYTES = 64 * 1024;
 const MAX_PROJECTION_REVISION_DIGITS = 40;
+const MASTERY_ENTITIES = new Set(["LectureMastery", "LectureRetention", "MasteryProjectionUser"]);
+const MASTERY_FIELDS: Record<string, string[]> = {
+  LectureMastery: ["user_id","lecture_id","subject_id","state","evidence_score","evidence_count","objective_attempt_count","objective_correct_count","objective_incorrect_count","flashcard_review_count","flashcard_remembered_count","flashcard_not_remembered_count","recall_objective_attempt_count","recall_objective_correct_count","recall_objective_incorrect_count","meaningful_focus_session_count","meaningful_focus_seconds","last_study_evidence_at","last_objective_evidence_at","last_recall_evidence_at","rule_version","revision","projection_revision","last_evaluated_at","created_at","updated_at","projected_at"],
+  LectureRetention: ["user_id","lecture_id","source_mastery_revision","source_mastery_rule_version","effective_mastery_state","retention_score","review_state","review_urgency_score","retention_anchor_at","next_review_at","next_evaluation_at","last_positive_memory_evidence_at","last_negative_memory_evidence_at","last_forgetting_evidence_at","objective_forgetting_item_count","self_reported_forgetting_item_count","forgetting_evidence_kind","rule_version","revision","projection_revision","last_evaluated_at","created_at","updated_at","projected_at"],
+};
+const MASTERY_INT_FIELDS = new Set(["evidence_score","evidence_count","objective_attempt_count","objective_correct_count","objective_incorrect_count","flashcard_review_count","flashcard_remembered_count","flashcard_not_remembered_count","recall_objective_attempt_count","recall_objective_correct_count","recall_objective_incorrect_count","meaningful_focus_session_count","meaningful_focus_seconds","source_mastery_revision","retention_score","review_urgency_score","objective_forgetting_item_count","self_reported_forgetting_item_count","revision"]);
 
 type SqliteType = "TEXT" | "INTEGER" | "REAL" | "BLOB";
 type TableConfig = {
@@ -634,6 +640,133 @@ async function authenticate(request: Request, env: any): Promise<Response | null
   return null;
 }
 
+function masteryRevision(value: unknown): bigint {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
+  if (typeof value === "string" && /^\d{1,40}$/.test(value)) return BigInt(value);
+  throw new Error("Invalid mastery envelope revision.");
+}
+
+function masteryUser(key: Record<string, unknown>, data: Record<string, unknown> | null): string {
+  const value = key.user_id ?? key.userId ?? data?.user_id ?? data?.userId;
+  if (typeof value !== "string" || !value || value.length > 200) throw new Error("user_id is required.");
+  return value;
+}
+
+function masteryKey(key: Record<string, unknown>): { user_id: string; lecture_id: string } {
+  const user_id = masteryUser(key, null);
+  const lecture_id = key.lecture_id ?? key.lectureId;
+  if (typeof lecture_id !== "string" || !lecture_id || lecture_id.length > 200) throw new Error("lecture_id is required.");
+  return { user_id, lecture_id };
+}
+
+function masteryRow(entity: "LectureMastery" | "LectureRetention", key: Record<string, unknown>, data: Record<string, unknown>, now: string) {
+  const k = masteryKey(key);
+  const out: Record<string, unknown> = { user_id: k.user_id, lecture_id: k.lecture_id };
+  for (const column of MASTERY_FIELDS[entity]) {
+    if (column === "user_id" || column === "lecture_id" || column === "projected_at") continue;
+    const camel = column.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const value = column === "projection_revision"
+      ? undefined
+      : Object.prototype.hasOwnProperty.call(data, column)
+        ? data[column]
+        : data[camel];
+    if (column === "projection_revision") { out[column] = "0"; continue; }
+    if (value === undefined) throw new Error(`Missing projection field: ${column}`);
+    if (MASTERY_INT_FIELDS.has(column)) {
+      if (!Number.isInteger(Number(value)) || Number(value) < 0 || Number(value) > 2147483647) throw new Error(`Invalid projection field: ${column}`);
+      out[column] = Number(value);
+    } else if (value === null) out[column] = null;
+    else if (typeof value !== "string" || value.length > 500) throw new Error(`Invalid projection field: ${column}`);
+    else out[column] = value;
+  }
+  out.projected_at = now;
+  return out;
+}
+
+async function advanceMasteryState(env: any, userId: string, kind: "mastery" | "retention", revision: bigint, deleted?: { at: string; revision: bigint }) {
+  const now = deleted?.at || new Date().toISOString();
+  const row = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
+  const field = kind === "mastery" ? "mastery_watermark" : "retention_watermark";
+  const old = row ? masteryRevision(row[field]) : 0n;
+  const next = revision > old ? revision.toString() : old.toString();
+  if (row) {
+    await env.DB.prepare(`UPDATE private_mastery_projection_state SET ${field} = ?, updated_at = ?, deleted_at = COALESCE(?, deleted_at), deletion_revision = COALESCE(?, deletion_revision) WHERE user_id = ?`)
+      .bind(next, now, deleted?.at || null, deleted?.revision.toString() || null, userId).run();
+  } else {
+    await env.DB.prepare(`INSERT INTO private_mastery_projection_state (user_id, mastery_watermark, retention_watermark, updated_at, deleted_at, deletion_revision) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(userId, kind === "mastery" ? next : "0", kind === "retention" ? next : "0", now, deleted?.at || null, deleted?.revision.toString() || null).run();
+  }
+}
+
+async function syncMasteryProjection(env: any, entity: string, key: Record<string, unknown>, data: Record<string, unknown> | null, payload: Record<string, unknown>) {
+  const envelope = masteryRevision(payload.revision);
+  const userId = masteryUser(key, data);
+  if (entity === "MasteryProjectionUser") {
+    if (payload.operation !== "delete") throw new Error("MasteryProjectionUser only supports delete.");
+    const currentState = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
+    const deletionRevision = currentState ? masteryRevision(currentState.deletion_revision ?? 0) : 0n;
+    if (currentState?.deleted_at && envelope === deletionRevision) return "idempotent";
+    const latest = currentState
+      ? [masteryRevision(currentState.mastery_watermark), masteryRevision(currentState.retention_watermark), deletionRevision]
+        .reduce((max, value) => value > max ? value : max, 0n)
+      : 0n;
+    if (envelope < latest) return "stale";
+    await env.DB.prepare(`DELETE FROM private_mastery WHERE user_id = ?`).bind(userId).run();
+    await env.DB.prepare(`DELETE FROM private_retention WHERE user_id = ?`).bind(userId).run();
+    await advanceMasteryState(env, userId, "mastery", envelope, { at: new Date().toISOString(), revision: envelope });
+    await advanceMasteryState(env, userId, "retention", envelope);
+    return "applied";
+  }
+  const table = entity === "LectureMastery" ? "private_mastery" : "private_retention";
+  const kind = entity === "LectureMastery" ? "mastery" : "retention";
+  const k = masteryKey(key);
+  const tombstone = await env.DB.prepare(`SELECT * FROM private_mastery_projection_tombstones WHERE entity = ? AND user_id = ? AND lecture_id = ?`).bind(entity, k.user_id, k.lecture_id).first() as Record<string, unknown> | null;
+  if (payload.operation === "delete") {
+    const canonical = data?.revision;
+    if (!Number.isInteger(Number(canonical)) || Number(canonical) < 0 || Number(canonical) > 2147483647) throw new Error("Delete revision is required.");
+    const revision = Number(canonical);
+    if (tombstone && (envelope < masteryRevision(tombstone.projection_revision) || revision < Number(tombstone.revision))) return "stale";
+    const current = await env.DB.prepare(`SELECT revision, projection_revision FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(k.user_id, k.lecture_id).first() as Record<string, unknown> | null;
+    if (current && (envelope < masteryRevision(current.projection_revision) || revision < Number(current.revision))) return "stale";
+    await env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(k.user_id, k.lecture_id).run();
+    await env.DB.prepare(`INSERT OR REPLACE INTO private_mastery_projection_tombstones (entity,user_id,lecture_id,projection_revision,revision,deleted_at) VALUES (?,?,?,?,?,?)`).bind(entity, k.user_id, k.lecture_id, envelope.toString(), revision, new Date().toISOString()).run();
+    await advanceMasteryState(env, k.user_id, kind as "mastery" | "retention", envelope);
+    return "applied";
+  }
+  if (payload.operation !== "upsert" || !data) throw new Error("Projection upsert data is required.");
+  if (data.projection_revision !== undefined && masteryRevision(data.projection_revision) !== envelope) {
+    throw new Error("Projection revision does not match envelope revision.");
+  }
+  const row = masteryRow(entity as "LectureMastery" | "LectureRetention", key, data, new Date().toISOString());
+  row.projection_revision = envelope.toString();
+  const current = await env.DB.prepare(`SELECT * FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(row.user_id, row.lecture_id).first() as Record<string, unknown> | null;
+  const state = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
+  if (state?.deleted_at && envelope <= masteryRevision(state.deletion_revision)) return "stale";
+  if (tombstone && (envelope <= masteryRevision(tombstone.projection_revision) || Number(row.revision) <= Number(tombstone.revision))) return "stale";
+  if (current) {
+    const incoming = Number(row.revision), existing = Number(current.revision);
+    const incomingEnvelope = envelope;
+    const existingEnvelope = masteryRevision(current.projection_revision);
+    if (incomingEnvelope < existingEnvelope || incoming < existing) return "stale";
+    const comparable = (x: Record<string, unknown>) => JSON.stringify(MASTERY_FIELDS[entity as string]
+      .filter((f) => f !== "projected_at" && f !== "projection_revision").map((f) => x[f] ?? null));
+    if (incomingEnvelope === existingEnvelope) {
+      if (comparable(current) === comparable(row)) return "idempotent";
+      throw new Error("Projection revision conflict.");
+    }
+    if (incoming === existing && comparable(current) !== comparable(row)) {
+      throw new Error("Projection revision conflict.");
+    }
+    // A newer outbox envelope may repair/re-publish the same canonical row.
+    // It is safe to replace the envelope marker while preserving semantics.
+  }
+  const columns = MASTERY_FIELDS[entity];
+  await env.DB.prepare(`INSERT OR REPLACE INTO ${table} (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`).bind(...columns.map(c => row[c])).run();
+  if (tombstone) await env.DB.prepare(`DELETE FROM private_mastery_projection_tombstones WHERE entity = ? AND user_id = ? AND lecture_id = ?`).bind(entity, userId, row.lecture_id).run();
+  await advanceMasteryState(env, userId, kind as "mastery" | "retention", envelope);
+  return "applied";
+}
+
 async function handlePrivateSync(request: Request, env: any): Promise<Response> {
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", {
@@ -662,6 +795,10 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
       throw new Error("Unsupported private sync payload.");
     }
 
+    if (typeof payload.entity === "string" && MASTERY_ENTITIES.has(payload.entity)) {
+      const result = await syncMasteryProjection(env, payload.entity, isRecord(payload.key) ? payload.key : {}, isRecord(payload.data) ? payload.data : null, payload);
+      return jsonNoStore({ ok: true, entity: payload.entity, operation: payload.operation, result, syncedAt: new Date().toISOString() });
+    }
     assertEntity(payload.entity);
     const entity = payload.entity;
 
@@ -725,6 +862,12 @@ function readLimit(url: URL, fallback: number, max: number): number {
   return Math.min(raw, max);
 }
 
+function strictEnum(url: URL, name: string, values: string[]): string | null | "invalid" {
+  const value = url.searchParams.get(name);
+  if (value === null) return null;
+  return values.includes(value) ? value : "invalid";
+}
+
 function mapIntegerBooleans(
   row: Record<string, unknown> | null,
   fields: string[],
@@ -757,6 +900,39 @@ function readProjectionPlanRows(rows: Record<string, unknown>[]): Record<string,
   }));
 }
 
+async function masteryReadMetadata(env: any, userId: string) {
+  const [state, stateCounts, counts, reviewCounts] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first(),
+    env.DB.prepare(`SELECT state, COUNT(*) AS count FROM private_mastery WHERE user_id = ? GROUP BY state`).bind(userId).all(),
+    env.DB.prepare(`SELECT
+      (SELECT COUNT(*) FROM private_mastery WHERE user_id = ?) AS mastery_count,
+      (SELECT COUNT(*) FROM private_retention WHERE user_id = ?) AS retention_count,
+      (SELECT COUNT(*) FROM private_mastery WHERE user_id = ? AND rule_version <> 'mastery-v1') +
+        (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND rule_version <> 'retention-v1') AS unsupported_rule_count,
+      (SELECT MIN(next_evaluation_at) FROM private_retention WHERE user_id = ? AND next_evaluation_at IS NOT NULL) AS min_next_evaluation_at,
+      (SELECT COUNT(*) FROM private_mastery WHERE user_id = ? AND last_evaluated_at >= ?) AS recently_evaluated_count,
+      (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND effective_mastery_state = 'NEEDS_REVIEW' AND review_state IN ('DUE','OVERDUE')) AS due_review_count,
+      (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND effective_mastery_state = 'NEEDS_REVIEW' AND review_state = 'OVERDUE') AS overdue_count`)
+      .bind(
+        userId, userId, userId, userId, userId, userId,
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        userId, userId,
+      ).first(),
+    env.DB.prepare(`SELECT review_state, COUNT(*) AS count FROM private_retention WHERE user_id = ? GROUP BY review_state`).bind(userId).all(),
+  ]);
+  const byState = Object.fromEntries((stateCounts.results || []).map((row: any) => [row.state, Number(row.count || 0)]));
+  const byReviewState = Object.fromEntries((reviewCounts.results || []).map((row: any) => [row.review_state, Number(row.count || 0)]));
+  return {
+    schema_version: "mastery-private-cache-v1",
+    state: state || { user_id: userId, mastery_watermark: "0", retention_watermark: "0" },
+    counts: {
+      ...(counts || {}),
+      mastery_state_counts: byState,
+      review_state_counts: byReviewState,
+    },
+  };
+}
+
 async function handlePrivateRead(request: Request, env: any, url: URL): Promise<Response> {
   if (request.method !== "GET") {
     return new Response("Method Not Allowed", {
@@ -770,6 +946,171 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
 
   try {
     const path = url.pathname;
+    const masteryPaths = ["/internal/private-read/mastery-dashboard", "/internal/private-read/mastery-lectures", "/internal/private-read/mastery-lecture", "/internal/private-read/mastery-reviews", "/internal/private-read/mastery-reconcile"];
+    if (masteryPaths.includes(path)) {
+      const userId = readStringParam(url, "userId", 200);
+      if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
+      const safeMastery = `user_id, lecture_id, subject_id, state, evidence_score, evidence_count,
+        objective_attempt_count, objective_correct_count, objective_incorrect_count,
+        flashcard_review_count, flashcard_remembered_count, flashcard_not_remembered_count,
+        recall_objective_attempt_count, recall_objective_correct_count, recall_objective_incorrect_count,
+        meaningful_focus_session_count, meaningful_focus_seconds, last_study_evidence_at,
+        last_objective_evidence_at, last_recall_evidence_at, rule_version, revision,
+        last_evaluated_at, created_at, updated_at, projected_at`;
+      const safeRetention = `user_id, lecture_id, source_mastery_revision,
+        source_mastery_rule_version, effective_mastery_state, retention_score, review_state,
+        review_urgency_score, retention_anchor_at, next_review_at, next_evaluation_at,
+        last_positive_memory_evidence_at, last_negative_memory_evidence_at,
+        last_forgetting_evidence_at, objective_forgetting_item_count,
+        self_reported_forgetting_item_count, forgetting_evidence_kind, rule_version,
+        revision, last_evaluated_at, created_at, updated_at, projected_at`;
+      const qualifiedMastery = safeMastery.replace(/\b(user_id|lecture_id|subject_id|state|evidence_score|evidence_count|objective_attempt_count|objective_correct_count|objective_incorrect_count|flashcard_review_count|flashcard_remembered_count|flashcard_not_remembered_count|recall_objective_attempt_count|recall_objective_correct_count|recall_objective_incorrect_count|meaningful_focus_session_count|meaningful_focus_seconds|last_study_evidence_at|last_objective_evidence_at|last_recall_evidence_at|rule_version|revision|last_evaluated_at|created_at|updated_at|projected_at)\b/g, "m.$1");
+      if (path === "/internal/private-read/mastery-reconcile") {
+        const limit = readLimit(url, 25, 100);
+        const cursor = readStringParam(url, "cursor", 200);
+        const where = ["ids.user_id = ?"], binds: unknown[] = [userId, userId, userId];
+        if (cursor) { where.push("ids.lecture_id > ?"); binds.push(cursor); }
+        const masteryReconcileSelect = safeMastery.split(",").map((column) => `m.${column.trim()} AS mastery_${column.trim()}`).join(", ");
+        const retentionReconcileSelect = safeRetention.split(",").map((column) => `r.${column.trim()} AS retention_${column.trim()}`).join(", ");
+        const rows = await env.DB.prepare(`WITH ids AS (
+            SELECT user_id, lecture_id FROM private_mastery WHERE user_id = ?
+            UNION
+            SELECT user_id, lecture_id FROM private_retention WHERE user_id = ?
+          )
+          SELECT ids.lecture_id AS reconciliation_lecture_id, ${masteryReconcileSelect}, ${retentionReconcileSelect}
+          FROM ids
+          LEFT JOIN private_mastery m ON m.user_id=ids.user_id AND m.lecture_id=ids.lecture_id
+          LEFT JOIN private_retention r ON r.user_id=ids.user_id AND r.lecture_id=ids.lecture_id
+          WHERE ${where.join(" AND ")} ORDER BY ids.lecture_id ASC LIMIT ?`).bind(...binds, limit + 1).all();
+        const page = (rows.results || []).slice(0, limit).map((raw: any) => {
+          const mastery: Record<string, unknown> = {}, retention: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(raw)) {
+            if (key.startsWith("mastery_")) mastery[key.slice(8)] = value;
+            if (key.startsWith("retention_")) retention[key.slice(10)] = value;
+          }
+          return {
+            lectureId: raw.reconciliation_lecture_id,
+            mastery: mastery.user_id != null ? mastery : null,
+            retention: retention.user_id != null ? retention : null,
+          };
+        });
+        const next = page.length === limit && (rows.results || []).length > limit ? (page[page.length - 1] as any).lectureId : null;
+        return jsonNoStore({ ...(await masteryReadMetadata(env, userId)), rows: page, nextCursor: next, next_cursor: next });
+      }
+      if (path === "/internal/private-read/mastery-lecture") {
+        const lectureId = readStringParam(url, "lectureId", 200);
+        if (!lectureId) return jsonNoStore({ ok: false, error: "lectureId is required." }, 400);
+        const [mastery, retention] = await Promise.all([
+          env.DB.prepare(`SELECT ${safeMastery} FROM private_mastery WHERE user_id = ? AND lecture_id = ?`).bind(userId, lectureId).first(),
+          env.DB.prepare(`SELECT ${safeRetention} FROM private_retention WHERE user_id = ? AND lecture_id = ?`).bind(userId, lectureId).first(),
+        ]);
+        return jsonNoStore({ ...(await masteryReadMetadata(env, userId)), mastery, retention });
+      }
+      if (path === "/internal/private-read/mastery-lectures") {
+        const limit = readLimit(url, 25, 100);
+        const masteryState = strictEnum(url, "state", ["NOT_STARTED", "STARTED", "LEARNING", "NEEDS_REVIEW", "GOOD", "MASTERED"]);
+        const reviewState = strictEnum(url, "reviewState", ["INSUFFICIENT_EVIDENCE", "FRESH", "DUE_SOON", "DUE", "OVERDUE"]);
+        if (masteryState === "invalid" || reviewState === "invalid") return jsonNoStore({ ok: false, error: "Invalid filter enum." }, 400);
+        const subject = readStringParam(url, "subjectId", 200);
+        const cursor = readStringParam(url, "cursor", 200);
+        const where = ["m.user_id = ?"], binds: unknown[] = [userId];
+        if (masteryState) { where.push("m.state = ?"); binds.push(masteryState); }
+        if (reviewState) { where.push("r.review_state = ?"); binds.push(reviewState); }
+        if (subject) { where.push("m.subject_id = ?"); binds.push(subject); }
+        if (cursor) { where.push("m.lecture_id > ?"); binds.push(cursor); }
+        const rows = await env.DB.prepare(`SELECT ${qualifiedMastery}, r.effective_mastery_state, r.review_state, r.next_review_at AS nextReviewAt,
+          r.objective_forgetting_item_count, r.self_reported_forgetting_item_count, r.last_evaluated_at AS lastEvaluatedAt
+          FROM private_mastery m LEFT JOIN private_retention r ON r.user_id=m.user_id AND r.lecture_id=m.lecture_id
+          WHERE ${where.join(" AND ")} ORDER BY m.lecture_id ASC LIMIT ?`).bind(...binds, limit + 1).all();
+        const page = (rows.results || []).slice(0, limit) as any[];
+        const next = page.length === limit && (rows.results || []).length > limit ? page[page.length - 1].lecture_id : null;
+        return jsonNoStore({ ...(await masteryReadMetadata(env, userId)), rows: page, nextCursor: next, next_cursor: next });
+      }
+      if (path === "/internal/private-read/mastery-reviews") {
+        const limit = readLimit(url, 25, 100);
+        const state = strictEnum(url, "reviewState", ["DUE", "OVERDUE"]);
+        if (state === "invalid") return jsonNoStore({ ok: false, error: "reviewState must be DUE or OVERDUE." }, 400);
+        const subject = readStringParam(url, "subjectId", 200);
+        const cursor = readStringParam(url, "cursor", 200);
+        const where = ["r.user_id = ?"], binds: unknown[] = [userId];
+        where.push("r.effective_mastery_state = 'NEEDS_REVIEW'");
+        if (state) { where.push("r.review_state = ?"); binds.push(state); } else where.push("r.review_state IN ('DUE','OVERDUE')");
+        if (subject) { where.push("m.subject_id = ?"); binds.push(subject); }
+        if (cursor) { where.push("r.lecture_id > ?"); binds.push(cursor); }
+        const qualifiedRetention = safeRetention.split(",").map((column) => `r.${column.trim()}`).join(", ");
+        const rows = await env.DB.prepare(`SELECT ${qualifiedRetention}, m.subject_id, m.state,
+          m.objective_attempt_count, m.objective_correct_count, m.objective_incorrect_count,
+          m.flashcard_review_count, r.next_review_at AS nextReviewAt, r.last_evaluated_at AS lastEvaluatedAt
+          FROM private_retention r LEFT JOIN private_mastery m ON m.user_id=r.user_id AND m.lecture_id=r.lecture_id WHERE ${where.join(" AND ")} ORDER BY r.lecture_id ASC LIMIT ?`).bind(...binds, limit + 1).all();
+        const page = (rows.results || []).slice(0, limit) as any[];
+        return jsonNoStore({ ...(await masteryReadMetadata(env, userId)), rows: page, nextCursor: page.length === limit && (rows.results || []).length > limit ? page[page.length - 1].lecture_id : null, next_cursor: page.length === limit && (rows.results || []).length > limit ? page[page.length - 1].lecture_id : null });
+      }
+      const [counts, stateCounts, due, subjects, state] = await Promise.all([
+        env.DB.prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN state = 'MASTERED' THEN 1 ELSE 0 END) AS mastered FROM private_mastery WHERE user_id = ?`).bind(userId).first(),
+        env.DB.prepare(`SELECT state, COUNT(*) AS count FROM private_mastery WHERE user_id = ? GROUP BY state ORDER BY state`).bind(userId).all(),
+        env.DB.prepare(`SELECT COUNT(*) AS due FROM private_retention WHERE user_id = ? AND review_state IN ('DUE','OVERDUE') AND effective_mastery_state = 'NEEDS_REVIEW' AND next_review_at IS NOT NULL AND next_review_at <= ?`).bind(userId, new Date().toISOString()).first(),
+        env.DB.prepare(`SELECT m.subject_id, m.state, r.review_state, COUNT(*) AS count,
+          SUM(CASE WHEN r.review_state IN ('DUE','OVERDUE') AND r.effective_mastery_state = 'NEEDS_REVIEW' THEN 1 ELSE 0 END) AS due_review_count,
+          SUM(CASE WHEN r.review_state = 'OVERDUE' AND r.effective_mastery_state = 'NEEDS_REVIEW' THEN 1 ELSE 0 END) AS overdue_count,
+          SUM(CASE WHEN m.last_evaluated_at >= ? THEN 1 ELSE 0 END) AS recently_evaluated_count
+          FROM private_mastery m LEFT JOIN private_retention r ON r.user_id=m.user_id AND r.lecture_id=m.lecture_id
+          WHERE m.user_id = ? GROUP BY m.subject_id, m.state, r.review_state ORDER BY m.subject_id, m.state, r.review_state`).bind(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), userId).all(),
+        env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first(),
+      ]);
+      const dueRows = await env.DB.prepare(`SELECT r.user_id, r.lecture_id, m.subject_id, m.state, r.effective_mastery_state, r.review_state,
+        r.next_review_at AS nextReviewAt, r.last_evaluated_at AS lastEvaluatedAt,
+        m.objective_attempt_count, m.objective_correct_count, m.objective_incorrect_count,
+        m.flashcard_review_count, r.review_urgency_score
+        FROM private_retention r LEFT JOIN private_mastery m ON m.user_id=r.user_id AND m.lecture_id=r.lecture_id
+        WHERE r.user_id = ? AND r.review_state IN ('DUE','OVERDUE') AND r.effective_mastery_state = 'NEEDS_REVIEW'
+          AND r.next_review_at IS NOT NULL AND r.next_review_at <= ? ORDER BY r.next_review_at ASC LIMIT 10`).bind(userId, new Date().toISOString()).all();
+      const metadata = await env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM private_mastery WHERE user_id = ?) AS mastery_count,
+        (SELECT COUNT(*) FROM private_retention WHERE user_id = ?) AS retention_count,
+        (SELECT COUNT(*) FROM private_mastery WHERE user_id = ? AND rule_version <> 'mastery-v1') +
+          (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND rule_version <> 'retention-v1') AS unsupported_rule_count,
+        (SELECT MIN(next_evaluation_at) FROM private_retention WHERE user_id = ? AND next_evaluation_at IS NOT NULL) AS min_next_evaluation_at,
+        (SELECT COUNT(*) FROM private_mastery WHERE user_id = ? AND last_evaluated_at >= ?) AS recently_evaluated_count,
+        (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND effective_mastery_state = 'NEEDS_REVIEW' AND review_state IN ('DUE','OVERDUE')) AS due_review_count,
+        (SELECT COUNT(*) FROM private_retention WHERE user_id = ? AND effective_mastery_state = 'NEEDS_REVIEW' AND review_state = 'OVERDUE') AS overdue_count`)
+        .bind(
+          userId, userId, userId, userId, userId, userId,
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          userId, userId,
+        ).first();
+      const reviewCountRows = await env.DB.prepare(
+        `SELECT review_state, COUNT(*) AS count FROM private_retention WHERE user_id = ? GROUP BY review_state`
+      ).bind(userId).all();
+      const reviewStateCounts = Object.fromEntries(
+        (reviewCountRows.results || []).map((row: any) => [row.review_state, Number(row.count || 0)])
+      );
+      const byState = Object.fromEntries((stateCounts.results || []).map((row: any) => [row.state, Number(row.count || 0)]));
+      const subjectAggregates = new Map<string, any>();
+      for (const row of (subjects.results || []) as any[]) {
+        const key = String(row.subject_id || "");
+        const item = subjectAggregates.get(key) || { subject_id: row.subject_id, count: 0, due_review_count: 0, overdue_count: 0, recently_evaluated_count: 0, mastery_state_counts: {}, review_state_counts: {} };
+        item.count += Number(row.count || 0);
+        item.due_review_count += Number(row.due_review_count || 0);
+        item.overdue_count += Number(row.overdue_count || 0);
+        item.recently_evaluated_count += Number(row.recently_evaluated_count || 0);
+        if (row.state) item.mastery_state_counts[row.state] = (item.mastery_state_counts[row.state] || 0) + Number(row.count || 0);
+        if (row.review_state) item.review_state_counts[row.review_state] = (item.review_state_counts[row.review_state] || 0) + Number(row.count || 0);
+        subjectAggregates.set(key, item);
+      }
+      return jsonNoStore({
+        totals: { ...(counts || {}), byState },
+        counts: {
+          ...(metadata || {}),
+          recently_evaluated: Number((metadata as any)?.recently_evaluated_count || 0),
+          recentlyEvaluatedWindowDays: 7,
+          review_state_counts: reviewStateCounts,
+        },
+        schema_version: "mastery-private-cache-v1",
+        due: dueRows.results || [],
+        subjectAggregates: [...subjectAggregates.values()],
+        state: state || { user_id: userId, mastery_watermark: "0", retention_watermark: "0" },
+      });
+    }
 
     if (path === "/internal/private-read/focus-plans") {
       const userId = projectionReadUser(url);

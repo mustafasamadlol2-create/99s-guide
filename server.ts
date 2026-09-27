@@ -42,7 +42,11 @@ import * as OAuthService from "./server/services/oauthService.js";
 import { EmailService } from "./server/services/emailService.js";
 import crypto from "crypto";
 import { prisma, getPrisma, disconnectPrisma } from "./server/services/prismaClient.js";
-import { startPrivateD1SyncDrainer, stopPrivateD1SyncDrainer } from "./server/services/privateD1Sync.js";
+import {
+  enqueueMasteryD1RowDeletion,
+  startPrivateD1SyncDrainer,
+  stopPrivateD1SyncDrainer,
+} from "./server/services/privateD1Sync.js";
 import { startLeaderboardD1OutboxDrainer, stopLeaderboardD1OutboxDrainer } from "./server/features/leaderboard/d1Outbox.js";
 import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./server/services/privateD1Read.js";
 import { execFile } from "child_process";
@@ -2687,7 +2691,35 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
     
-    await prismaClient.lecture.delete({ where: { id: lectureId } });
+    await prismaClient.$transaction(async (tx) => {
+      // Lock the parent row before collecting projection owners. The FK lock
+      // prevents a concurrent mastery write from appearing between this read
+      // and the cascading delete without its own D1 tombstone.
+      await tx.$queryRaw`SELECT "id" FROM "Lecture" WHERE "id" = ${lectureId} FOR UPDATE`;
+      const masteryRows = await tx.lectureMastery.findMany({
+        where: { lectureId },
+        select: { userId: true },
+      });
+      const retentionRows = await tx.lectureRetention.findMany({
+        where: { lectureId },
+        select: { userId: true },
+      });
+      for (const row of masteryRows) {
+        await enqueueMasteryD1RowDeletion(tx, {
+          entity: "LectureMastery",
+          userId: row.userId,
+          lectureId,
+        });
+      }
+      for (const row of retentionRows) {
+        await enqueueMasteryD1RowDeletion(tx, {
+          entity: "LectureRetention",
+          userId: row.userId,
+          lectureId,
+        });
+      }
+      await tx.lecture.delete({ where: { id: lectureId } });
+    });
 
     for (const mat of materials) {
       if (mat.storagePath) {

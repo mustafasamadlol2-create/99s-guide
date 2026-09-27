@@ -11,6 +11,7 @@ import {
 } from "./repository.js";
 import { evaluateLectureMasteryEvidence } from "./evaluator.js";
 import type { LectureMasteryEvaluation } from "./types.js";
+import { masteryD1ProjectionEnabled } from "./d1Projection.js";
 
 export type LectureMasteryInput = {
   userId: string;
@@ -180,7 +181,15 @@ async function refreshWithClient(
   asOf: Date,
 ): Promise<LectureMasteryRefreshResult> {
   const evaluation = await evaluateWithClient(client, userId, lectureId, asOf);
-  const projection = await writeLectureMasteryProjection(client, evaluation, asOf);
+  const subjectId = masteryD1ProjectionEnabled()
+    ? await findCanonicalSubjectId(client, lectureId)
+    : null;
+  const projection = await writeLectureMasteryProjection(
+    client,
+    evaluation,
+    asOf,
+    subjectId,
+  );
   return { evaluation, ...projection };
 }
 
@@ -196,6 +205,21 @@ async function refreshBatchWithClient(
     lectureIds,
     asOf,
   );
+  const subjectByLecture = new Map<string, string | null>();
+  if (masteryD1ProjectionEnabled()) {
+    const lectures = await client.lecture.findMany({
+      where: { id: { in: [...lectureIds] } },
+      select: { id: true, mainSubject: true },
+    });
+    for (const lecture of lectures) {
+      subjectByLecture.set(
+        lecture.id,
+        typeof lecture.mainSubject === "string" && lecture.mainSubject.trim()
+          ? lecture.mainSubject
+          : null,
+      );
+    }
+  }
   const results: LectureMasteryRefreshResult[] = [];
   for (const item of evidence) {
     const evaluation = evaluateLectureMasteryEvidence(item);
@@ -203,10 +227,24 @@ async function refreshBatchWithClient(
       client,
       evaluation,
       asOf,
+      subjectByLecture.get(evaluation.lectureId) ?? null,
     );
     results.push({ evaluation, ...projection });
   }
   return results;
+}
+
+async function findCanonicalSubjectId(
+  client: MasteryQueryClient,
+  lectureId: string,
+): Promise<string | null> {
+  const lecture = await client.lecture.findUnique({
+    where: { id: lectureId },
+    select: { mainSubject: true },
+  });
+  return typeof lecture?.mainSubject === "string" && lecture.mainSubject.trim()
+    ? lecture.mainSubject
+    : null;
 }
 
 export async function readStoredLectureMastery(

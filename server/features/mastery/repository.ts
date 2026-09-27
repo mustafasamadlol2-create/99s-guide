@@ -2,6 +2,10 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import type { MasteryState } from "../study-core/constants.js";
 import type { LectureMasteryEvaluation } from "./types.js";
+import {
+  enqueueLectureMasteryD1Projection,
+  masteryD1ProjectionEnabled,
+} from "./d1Projection.js";
 
 export type MasteryRepositoryClient = PrismaClient | Prisma.TransactionClient;
 
@@ -47,6 +51,7 @@ export async function writeLectureMasteryProjection(
   client: MasteryRepositoryClient,
   evaluation: LectureMasteryEvaluation,
   asOf: Date,
+  subjectId: string | null = null,
 ): Promise<{ row: LectureMasteryProjection; changed: boolean }> {
   const values = {
     state: evaluation.state,
@@ -177,5 +182,9 @@ export async function writeLectureMasteryProjection(
   if (!row) {
     throw new Error("LectureMastery upsert completed without a projection row.");
   }
-  return { row, changed: changedRows.length > 0 };
+  const changed = changedRows.length > 0;
+  if (changed && masteryD1ProjectionEnabled()) {
+    await enqueueLectureMasteryD1Projection(client, row, subjectId);
+  }
+  return { row, changed };
 }

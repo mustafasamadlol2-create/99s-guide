@@ -1,5 +1,6 @@
 import { getPrisma } from "./prismaClient.js";
 import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./privateD1Read.js";
+import { enqueueMasteryD1UserDeletion } from "./privateD1Sync.js";
 import crypto from "node:crypto";
 import {
   deleteManagedAvatarByUrl,
@@ -464,13 +465,14 @@ export class UserService {
     const client = getPrisma();
     try {
       // Atomic cascading deletes of dependent records
-      await client.$transaction([
-        client.lectureProgress.deleteMany({ where: { userId } }),
-        client.pointsLog.deleteMany({ where: { userId } }),
-        client.userProgress.deleteMany({ where: { userId } }),
-        client.notification.deleteMany({ where: { targetUserId: userId } }),
-        client.user.delete({ where: { id: userId } })
-      ]);
+      await client.$transaction(async (tx) => {
+        await tx.lectureProgress.deleteMany({ where: { userId } });
+        await tx.pointsLog.deleteMany({ where: { userId } });
+        await tx.userProgress.deleteMany({ where: { userId } });
+        await tx.notification.deleteMany({ where: { targetUserId: userId } });
+        await enqueueMasteryD1UserDeletion(tx, userId);
+        await tx.user.delete({ where: { id: userId } });
+      });
 
       setTimeout(() => {
         try {

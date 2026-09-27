@@ -4,6 +4,10 @@ import type {
   LectureRetentionProjection,
 } from "./retentionTypes.js";
 import type { RetentionQueryClient } from "./retentionEvidence.js";
+import {
+  enqueueLectureRetentionD1Projection,
+  masteryD1ProjectionEnabled,
+} from "./d1Projection.js";
 
 export type RetentionRepositoryClient = PrismaClient | Prisma.TransactionClient;
 
@@ -60,6 +64,9 @@ export async function writeLectureRetentionProjection(
       lastEvaluatedAt: asOf,
     },
   });
+  if (masteryD1ProjectionEnabled()) {
+    await enqueueLectureRetentionD1Projection(client, row);
+  }
   return { row, changed: true };
 }
 

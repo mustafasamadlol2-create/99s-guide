@@ -20,12 +20,18 @@ type PrivateMirrorEntity =
   | "UserCalendarEvent"
   | "FocusPlan"
   | "FocusSession"
-  | "StudyDailyMetric";
+  | "StudyDailyMetric"
+  | "LectureMastery"
+  | "LectureRetention"
+  | "MasteryProjectionUser";
 
 const PROJECTION_ENTITIES = new Set<PrivateMirrorEntity>([
   "FocusPlan",
   "FocusSession",
   "StudyDailyMetric",
+  "LectureMastery",
+  "LectureRetention",
+  "MasteryProjectionUser",
 ]);
 
 export type PrivateD1SyncOutboxRow = {
@@ -54,8 +60,13 @@ type OutboxExecutor = {
 export async function enqueuePrivateD1Projection(
   executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
   input: {
-    entity: "FocusPlan" | "FocusSession" | "StudyDailyMetric";
-    key: { id: string };
+    entity:
+      | "FocusPlan"
+      | "FocusSession"
+      | "StudyDailyMetric"
+      | "LectureMastery"
+      | "LectureRetention";
+    key: Record<string, unknown>;
     data: Record<string, unknown>;
   },
 ): Promise<string> {
@@ -68,25 +79,70 @@ export async function enqueuePrivateD1Projection(
        SELECT nextval(
          pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
        )::bigint AS value
-     )
-     INSERT INTO "PrivateD1SyncOutbox"
+     ),
+     inserted AS (
+       INSERT INTO "PrivateD1SyncOutbox"
        ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
-     SELECT
-       allocated_revision.value,
-       $1,
-       'upsert',
-       $2::jsonb,
-       allocated_revision.value,
-       jsonb_set($3::jsonb, '{revision}', to_jsonb(allocated_revision.value::text), true),
-       0,
-       NULL,
-       NOW(),
-       NOW()
-     FROM allocated_revision
-      RETURNING "id"::text AS "id", "revision"::text AS "revision"`,
+       SELECT
+         allocated_revision.value,
+         $1,
+         'upsert',
+         $2::jsonb,
+         allocated_revision.value,
+         jsonb_set(
+           $3::jsonb,
+           CASE
+             WHEN $1 IN ('LectureMastery', 'LectureRetention')
+               THEN ARRAY['projection_revision']::text[]
+             ELSE ARRAY['revision']::text[]
+           END,
+           to_jsonb(allocated_revision.value::text),
+           true
+         ),
+         0,
+         NULL,
+         NOW(),
+         NOW()
+       FROM allocated_revision
+       RETURNING "id", "revision"
+     ),
+     updated_projection_state AS (
+       INSERT INTO "MasteryD1ProjectionState"
+         ("userId", "masteryWatermark", "retentionWatermark", "updatedAt")
+       SELECT
+         $4,
+         CASE WHEN $1 = 'LectureMastery' THEN inserted."revision" ELSE NULL END,
+         CASE WHEN $1 = 'LectureRetention' THEN inserted."revision" ELSE NULL END,
+         NOW()
+       FROM inserted
+       WHERE $1 IN ('LectureMastery', 'LectureRetention')
+       ON CONFLICT ("userId") DO UPDATE SET
+         "masteryWatermark" = CASE
+           WHEN $1 = 'LectureMastery'
+             THEN GREATEST(
+               COALESCE("MasteryD1ProjectionState"."masteryWatermark", 0),
+               EXCLUDED."masteryWatermark"
+             )
+           ELSE "MasteryD1ProjectionState"."masteryWatermark"
+         END,
+         "retentionWatermark" = CASE
+           WHEN $1 = 'LectureRetention'
+             THEN GREATEST(
+               COALESCE("MasteryD1ProjectionState"."retentionWatermark", 0),
+               EXCLUDED."retentionWatermark"
+             )
+           ELSE "MasteryD1ProjectionState"."retentionWatermark"
+         END,
+         "updatedAt" = NOW()
+       RETURNING "userId"
+     )
+     SELECT inserted."id"::text AS "id",
+            inserted."revision"::text AS "revision"
+     FROM inserted`,
     input.entity,
     JSON.stringify(input.key),
     JSON.stringify(input.data),
+    String(input.data.user_id ?? input.data.userId ?? input.key.user_id ?? input.key.userId ?? ""),
   );
   const row = Array.isArray(rows) ? rows[0] : undefined;
   const revision = row?.revision;
@@ -99,6 +155,134 @@ export async function enqueuePrivateD1Projection(
     throw new Error("Private D1 projection outbox did not return a valid revision.");
   }
   return revision;
+}
+
+export async function enqueueMasteryD1UserDeletion(
+  executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
+  userId: string,
+): Promise<string> {
+  if (typeof userId !== "string" || !userId.trim() || userId.length > 200) {
+    throw new Error("Private D1 deletion user scope is invalid.");
+  }
+  const rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+    `WITH allocated_revision AS (
+       SELECT nextval(
+         pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+       )::bigint AS value
+     )
+     INSERT INTO "PrivateD1SyncOutbox"
+       ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+     SELECT
+       allocated_revision.value,
+       'MasteryProjectionUser',
+       'delete',
+       jsonb_build_object('user_id', $1::text),
+       allocated_revision.value,
+       NULL,
+       0,
+       NULL,
+       NOW(),
+       NOW()
+     FROM allocated_revision
+     RETURNING "id"::text AS "id", "revision"::text AS "revision"`,
+    userId,
+  );
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (
+    typeof row?.id !== "string" ||
+    typeof row.revision !== "string" ||
+    !/^\d+$/.test(row.revision) ||
+    row.id !== row.revision
+  ) {
+    throw new Error("Private D1 deletion outbox did not return a valid revision.");
+  }
+  return row.revision;
+}
+
+export async function enqueueMasteryD1RowDeletion(
+  executor: Pick<OutboxExecutor, "$queryRawUnsafe">,
+  input: {
+    entity: "LectureMastery" | "LectureRetention";
+    userId: string;
+    lectureId: string;
+  },
+): Promise<string> {
+  const { entity, userId, lectureId } = input;
+  if (
+    typeof userId !== "string" || !userId.trim() || userId.length > 200 ||
+    typeof lectureId !== "string" || !lectureId.trim() || lectureId.length > 200
+  ) {
+    throw new Error("Private D1 projection deletion scope is invalid.");
+  }
+  const rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+    `WITH allocated_revision AS (
+       SELECT nextval(
+         pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+       )::bigint AS value
+     ),
+     inserted AS (
+       INSERT INTO "PrivateD1SyncOutbox"
+         ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+       SELECT
+         allocated_revision.value,
+         $1,
+         'delete',
+         jsonb_build_object('user_id', $2::text, 'lecture_id', $3::text),
+         allocated_revision.value,
+         NULL,
+         0,
+         NULL,
+         NOW(),
+         NOW()
+       FROM allocated_revision
+       RETURNING "id", "revision"
+     ),
+     updated_projection_state AS (
+       INSERT INTO "MasteryD1ProjectionState"
+         ("userId", "masteryWatermark", "retentionWatermark", "updatedAt")
+       SELECT
+         $2,
+         CASE WHEN $1 = 'LectureMastery' THEN inserted."revision" ELSE NULL END,
+         CASE WHEN $1 = 'LectureRetention' THEN inserted."revision" ELSE NULL END,
+         NOW()
+       FROM inserted
+       ON CONFLICT ("userId") DO UPDATE SET
+         "masteryWatermark" = CASE
+           WHEN $1 = 'LectureMastery'
+             THEN GREATEST(
+               COALESCE("MasteryD1ProjectionState"."masteryWatermark", 0),
+               EXCLUDED."masteryWatermark"
+             )
+           ELSE "MasteryD1ProjectionState"."masteryWatermark"
+         END,
+         "retentionWatermark" = CASE
+           WHEN $1 = 'LectureRetention'
+             THEN GREATEST(
+               COALESCE("MasteryD1ProjectionState"."retentionWatermark", 0),
+               EXCLUDED."retentionWatermark"
+             )
+           ELSE "MasteryD1ProjectionState"."retentionWatermark"
+         END,
+         "updatedAt" = NOW()
+       RETURNING "userId"
+     )
+     SELECT inserted."id"::text AS "id",
+            inserted."revision"::text AS "revision"
+     FROM inserted`,
+    entity,
+    userId,
+    lectureId,
+  );
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (
+    typeof row?.id !== "string" ||
+    typeof row.revision !== "string" ||
+    !/^\d+$/.test(row.revision) ||
+    row.id !== row.revision
+  ) {
+    throw new Error("Private D1 projection deletion outbox did not return a valid revision.");
+  }
+  return row.revision;
 }
 
 const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
@@ -180,6 +364,23 @@ const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
   "StudyDailyMetric": [
     "updatedAt",
     "deletedAt"
+  ],
+  "LectureMastery": [
+    "last_study_evidence_at",
+    "last_objective_evidence_at",
+    "last_recall_evidence_at",
+    "last_evaluated_at"
+  ],
+  "LectureRetention": [
+    "retention_anchor_at",
+    "next_review_at",
+    "next_evaluation_at",
+    "last_positive_memory_evidence_at",
+    "last_negative_memory_evidence_at",
+    "last_forgetting_evidence_at",
+    "last_evaluated_at"
+  ],
+  "MasteryProjectionUser": [
   ]
 } as Record<PrivateMirrorEntity, string[]>;
 
@@ -260,7 +461,12 @@ export async function postPrivateD1SyncMutation(
     const projectionMetadata = isProjection
       ? {
           projectionVersion: Number(data?.projectionVersion ?? 1),
-          userScope: data?.userScope ?? data?.userId ?? row.key.userId,
+          userScope:
+            data?.userScope ??
+            data?.userId ??
+            data?.user_id ??
+            row.key.userId ??
+            row.key.user_id,
           ...(data?.updatedAt ? { updatedAt: data.updatedAt } : {}),
           ...(data?.deletedAt ? { deletedAt: data.deletedAt } : {}),
         }
