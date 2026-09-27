@@ -1,0 +1,252 @@
+import type { StudyAnalyzerDto } from "../server/features/study-analyzer/types.js";
+import type { StudyInsightV1 } from "../shared/studyInsights.js";
+
+export function makeStudyAnalyzerDto(): StudyAnalyzerDto {
+  return {
+    analyzerVersion: "study-analyzer-v1",
+    factRegistryVersion: "study-analyzer-facts-v1",
+    generatedAt: "2026-09-27T10:00:00.000Z",
+    asOf: "2026-09-27T10:00:00.000Z",
+    timezone: "Asia/Baghdad",
+    windows: {
+      last7Days: { status: "AVAILABLE", from: "2026-09-20", to: "2026-09-27", asOf: "2026-09-27T10:00:00.000Z" },
+      last30Days: { status: "AVAILABLE", from: "2026-08-28", to: "2026-09-27", asOf: "2026-09-27T10:00:00.000Z" },
+      currentSemester: { status: "UNAVAILABLE", from: null, to: "2026-09-27", asOf: "2026-09-27T10:00:00.000Z" },
+    },
+    dataQuality: {
+      trackedLectureCount: 2,
+      masteryRows: 2,
+      retention: { freshRows: 2, staleRows: 0, missingRows: 0 },
+      mcqDataAvailable: true,
+      flashcardDataAvailable: true,
+      recallDataAvailable: true,
+      focusDataAvailable: true,
+      groupFocusDataAvailable: false,
+      masteryDataAvailable: true,
+      retentionDataAvailable: true,
+      sources: {
+        focus: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        groupFocus: { available: false, collectionEnabled: false, complete: false, truncated: false, coverageStart: null },
+        mcq: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        flashcards: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        recall: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        mastery: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        retention: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+        lectureSubjects: { available: true, collectionEnabled: true, complete: true, truncated: false, coverageStart: null },
+      },
+      incompleteWindows: [],
+      insufficientForTimeOfDayPattern: true,
+      insufficientForSessionLengthPattern: true,
+      subjectFactsTruncated: false,
+    },
+    activity: {
+      activeStudyDays: { last7Days: 3, last30Days: 8, currentSemester: null },
+      activeDayEvidenceTypes: ["FOCUS"],
+      activeDayTimeBasisBySource: {
+        soloFocus: "ACTUAL_ENDED_AT",
+        groupFocus: "RUNTIME_ENDED_AT",
+        studyEvents: "RECEIVED_AT",
+        recall: "ANSWERED_AT",
+      },
+      excludedActivityEvidence: [],
+    },
+    focus: {
+      meaningfulThresholdSeconds: 600,
+      meaningfulCompletedSessions: { last7Days: 2, last30Days: 6, currentSemester: null },
+      verifiedFocusSeconds: { last7Days: 5_400, last30Days: 18_000, currentSemester: null },
+      averageMeaningfulSessionSeconds: { last7Days: 2_700, last30Days: 3_000, currentSemester: null },
+      uncompletedSessionCount: { last7Days: 0, last30Days: 1, currentSemester: null },
+      completion: {
+        last7Days: { completedSessions: 2, terminalSessions: 2, completionRateBps: 10_000 },
+        last30Days: { completedSessions: 5, terminalSessions: 6, completionRateBps: 8_333 },
+        currentSemester: { completedSessions: null, terminalSessions: null, completionRateBps: null },
+      },
+      durationDistributionLast30Days: [],
+      completionStatusesIncluded: [],
+      uncompletedStatusesIncluded: [],
+    },
+    consistency: {
+      activeStudyDays: { last7Days: 3, last30Days: 8, currentSemester: null },
+      activeStudyDayRateBpsLast30Days: 2_666,
+      currentConsistencyStreakDays: 2,
+      streakCappedAtLookback: false,
+      streakAnchorRule: "TODAY_OR_YESTERDAY",
+      currentWeekActiveDays: 3,
+      daysElapsedInCurrentWeek: 7,
+      completedWeeks: [],
+      trend: {
+        state: "IMPROVED",
+        latestActiveDays: 5,
+        previousActiveDays: 3,
+        minimumChangeDays: 2,
+      },
+    },
+    objectivePractice: {
+      normalMcq: {
+        last7Days: { attempts: 2, correct: 1, incorrect: 1, accuracyRateBps: 5_000 },
+        last30Days: { attempts: 8, correct: 5, incorrect: 3, accuracyRateBps: 6_250 },
+        currentSemester: { attempts: null, correct: null, incorrect: null, accuracyRateBps: null },
+      },
+      recallObjective: {
+        last7Days: { attempts: 0, correct: 0, incorrect: 0, accuracyRateBps: null },
+        last30Days: { attempts: 0, correct: 0, incorrect: 0, accuracyRateBps: null },
+        currentSemester: { attempts: null, correct: null, incorrect: null, accuracyRateBps: null },
+      },
+      combinedObjective: {
+        last7Days: { attempts: 2, correct: 1, incorrect: 1, accuracyRateBps: 5_000 },
+        last30Days: { attempts: 8, correct: 5, incorrect: 3, accuracyRateBps: 6_250 },
+        currentSemester: { attempts: null, correct: null, incorrect: null, accuracyRateBps: null },
+      },
+      trend: {
+        state: "STABLE",
+        latest: { attempts: 4, correct: 3, incorrect: 1, accuracyRateBps: 7_500 },
+        previous: { attempts: 4, correct: 2, incorrect: 2, accuracyRateBps: 5_000 },
+        sampleStrategy: "LATEST_20_VS_PREVIOUS_20_OR_EQUAL_HALVES",
+        minimumTotalOutcomes: 20,
+        changeThresholdBps: 500,
+      },
+      repeatedErrors: [{
+        itemId: "item-a",
+        lectureId: "lecture-a",
+        subjectId: "subject-a",
+        recentIncorrectCount: 3,
+        recentCorrectCount: 1,
+        lastOutcome: "INCORRECT",
+        lastAttemptAt: "2026-09-26T08:00:00.000Z",
+      }],
+    },
+    flashcards: {
+      reviews: {
+        last7Days: {
+          meaningfulReviews: 1,
+          selfReportedRemembered: 1,
+          selfReportedNotRemembered: 0,
+          selfReportedNeutral: 0,
+          selfReportedRememberedRateBps: 10_000,
+          distinctCardsReviewed: 1,
+        },
+        last30Days: {
+          meaningfulReviews: 4,
+          selfReportedRemembered: 3,
+          selfReportedNotRemembered: 1,
+          selfReportedNeutral: 0,
+          selfReportedRememberedRateBps: 7_500,
+          distinctCardsReviewed: 3,
+        },
+        currentSemester: {
+          meaningfulReviews: null,
+          selfReportedRemembered: null,
+          selfReportedNotRemembered: null,
+          selfReportedNeutral: null,
+          selfReportedRememberedRateBps: null,
+          distinctCardsReviewed: null,
+        },
+      },
+    },
+    recall: {
+      periodicActivityWindowBasis: "PRESENTED_AT",
+      periodicActivity: {
+        last7Days: { presented: 1, answered: 1, skipped: 0, expired: 0 },
+        last30Days: { presented: 2, answered: 2, skipped: 0, expired: 0 },
+        currentSemester: { presented: null, answered: null, skipped: null, expired: null },
+      },
+      answeredOutcomes: {
+        last7Days: { objectiveCorrect: 1, objectiveIncorrect: 0, flashcardRemembered: 0, flashcardNotRemembered: 0, flashcardNeutral: 0 },
+        last30Days: { objectiveCorrect: 1, objectiveIncorrect: 1, flashcardRemembered: 1, flashcardNotRemembered: 0, flashcardNeutral: 0 },
+        currentSemester: { objectiveCorrect: null, objectiveIncorrect: null, flashcardRemembered: null, flashcardNotRemembered: null, flashcardNeutral: null },
+      },
+      skipAndExpiryAreLearningFailures: false,
+    },
+    mastery: {
+      trackedLectureCount: 2,
+      baseMasteryDistribution: { NEEDS_REVIEW: 1, DEVELOPING: 1 },
+      effectiveMasteryDistributionFreshOnly: { NEEDS_REVIEW: 1, DEVELOPING: 1 },
+      projectionEvaluatedAt: { oldest: null, newest: null },
+      historicalImprovementAvailable: false,
+    },
+    retention: {
+      freshRows: 2,
+      staleRows: 0,
+      missingRows: 0,
+      due: 1,
+      overdue: 1,
+      needsReview: 1,
+      dueReviews: [{
+        lectureId: "lecture-a",
+        subjectId: "subject-a",
+        effectiveMasteryState: "NEEDS_REVIEW",
+        reviewState: "OVERDUE",
+        reviewUrgencyScore: 10,
+        nextReviewAt: "2026-09-26T00:00:00.000Z",
+        hasActiveObjectiveForgetting: true,
+      }],
+      staleRetentionPresentedAsCurrent: false,
+    },
+    subjects: [],
+    weaknesses: [{
+      id: "REPEATED_OBJECTIVE_ERRORS",
+      scope: "ITEM",
+      itemId: "item-a",
+      lectureId: "lecture-a",
+      subjectId: "subject-a",
+      evidence: { metricId: "mcq.repeated_errors.90d", count: 3, window: "LAST_90_DAYS" },
+      severity: "HIGH",
+    }],
+    positives: [{
+      id: "CONSISTENCY_IMPROVED",
+      scope: "GLOBAL",
+      evidence: { metricId: "activity.active_days.equal_7d_trend", count: 2, window: "LAST_30_DAYS" },
+    }],
+    patterns: {
+      sessionLength: {
+        status: "INSUFFICIENT_DATA",
+        interpretationScope: "OBSERVED_ASSOCIATION",
+        window: "LAST_90_DAYS",
+        minimumMeaningfulSessions: 8,
+        minimumLinkedSessionsPerBucket: 3,
+        outcomeLinkWindowHours: 24,
+        tieBreakOrder: [],
+      },
+      timeOfDay: {
+        mostUsedTimeOfDay: { status: "INSUFFICIENT_DATA", minimumSessions: 5 },
+        bestSupportedOutcomeTimeBucket: {
+          status: "INSUFFICIENT_DATA",
+          interpretationScope: "OBSERVED_ASSOCIATION",
+          window: "LAST_90_DAYS",
+          minimumMeaningfulSessions: 10,
+          minimumLinkedSessionsPerBucket: 3,
+          outcomeLinkWindowHours: 24,
+          tieBreakOrder: [],
+        },
+        bucketBoundariesBaghdad: { MORNING: "05:00–12:00", AFTERNOON: "12:00–17:00", EVENING: "17:00–22:00", NIGHT: "22:00–05:00" },
+      },
+    },
+  } as StudyAnalyzerDto;
+}
+
+export function validInsight(locale: "ar" | "en" = "en"): StudyInsightV1 {
+  return {
+    version: "study-insight-v1",
+    locale,
+    headline: locale === "en" ? "A steady study pattern" : "نمط دراسة مستقر",
+    summary: locale === "en"
+      ? "Objective practice and study consistency provide useful signals to review."
+      : "توفر الممارسة الموضوعية والانتظام الدراسي مؤشرات مفيدة للمراجعة.",
+    observations: [{
+      id: "obs-1",
+      text: locale === "en" ? "Objective practice has recent evidence." : "توجد أدلة حديثة على الممارسة الموضوعية.",
+      factIds: ["mcq.objective_attempts.30d"],
+    }],
+    reviewPriorities: [{
+      text: locale === "en" ? "Review the flagged lecture." : "راجع المحاضرة المحددة.",
+      lectureId: "lecture-a",
+      subjectId: "subject-a",
+      reasonFactIds: ["weakness:REPEATED_OBJECTIVE_ERRORS:ITEM:0"],
+    }],
+    studySuggestions: [{
+      text: locale === "en" ? "Continue using objective practice to check recall." : "واصل استخدام الممارسة الموضوعية للتحقق من الاسترجاع.",
+      reasonFactIds: ["mcq.objective_attempts.30d"],
+    }],
+    dataLimitations: [],
+  };
+}

@@ -110,6 +110,7 @@ import {
 import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
 import { createMasteryRouter } from "./server/routes/mastery.js";
 import { createStudyAnalyzerRouter } from "./server/routes/studyAnalyzer.js";
+import { createStudyInsightsRouter } from "./server/routes/studyInsights.js";
 import {
   createOwnerAnalyticsRouter,
   ownerAnalyticsNoStore,
@@ -7770,6 +7771,10 @@ app.use(
 app.use(
   "/api/me/study-analyzer",
   createStudyAnalyzerRouter({ requireUser }),
+);
+app.use(
+  "/api/me/study-insights",
+  createStudyInsightsRouter({ requireUser }),
 );
 app.use(
   "/api/focus",

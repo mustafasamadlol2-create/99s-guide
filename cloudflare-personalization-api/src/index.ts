@@ -1,3 +1,8 @@
+import {
+  handleStudyInsightsRequest,
+  type StudyInsightsWorkerEnvironment,
+} from "./studyInsights.js";
+
 const MAX_CONFIG_BYTES = 16 * 1024;
 const MAX_RECORD_BYTES = 32 * 1024;
 const USER_ID = /^(?:usr_[A-Za-z0-9-]{1,120}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
@@ -13,10 +18,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-interface Env {
+interface Env extends StudyInsightsWorkerEnvironment {
   PERSONALIZATION_KV: {
-    get(key: string, options?: { type: "json"; cacheTtl?: number }): Promise<unknown>;
-    put(key: string, value: string): Promise<void>;
+    get(key: string): Promise<string | null>;
+    get(key: string, options: { type: "json"; cacheTtl?: number }): Promise<unknown>;
+    put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
   };
   PERSONALIZATION_SYNC_SECRET: string;
 }
@@ -123,6 +129,10 @@ function newRevision(): string {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (!authorized(request, env)) return json({ error: "Unauthorized." }, 401);
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/internal/ai/study-insights") {
+      return handleStudyInsightsRequest(request, env);
+    }
     if (request.method !== "GET" && request.method !== "PUT") return json({ error: "Method not allowed." }, 405);
     const userId = canonicalId(new URL(request.url).pathname);
     if (!userId) return json({ error: "Invalid canonical user ID." }, 400);

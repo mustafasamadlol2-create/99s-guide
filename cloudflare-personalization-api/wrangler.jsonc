@@ -2,6 +2,14 @@
   "name": "cloudflare-personalization-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-03-01",
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "AI_STUDY_INSIGHTS_ENABLED": "false",
+    "AI_STUDY_INSIGHTS_CACHE_ENABLED": "false",
+    "CLOUDFLARE_AI_STUDY_INSIGHT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+  },
   "kv_namespaces": [
     {
       "binding": "PERSONALIZATION_KV",
@@ -11,6 +19,14 @@
   "env": {
     "staging": {
       "name": "cloudflare-personalization-api-staging",
+      "ai": {
+        "binding": "AI"
+      },
+      "vars": {
+        "AI_STUDY_INSIGHTS_ENABLED": "false",
+        "AI_STUDY_INSIGHTS_CACHE_ENABLED": "false",
+        "CLOUDFLARE_AI_STUDY_INSIGHT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
       "kv_namespaces": [
         {
           "binding": "PERSONALIZATION_KV",
