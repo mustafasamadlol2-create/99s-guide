@@ -1068,6 +1068,7 @@ app.use((req, res, next) => {
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: wss:",
+      "media-src 'self' blob:",
       "frame-src 'self' https://www.youtube.com https://accounts.google.com",
       "form-action 'self' https://appleid.apple.com",
     ].join("; "));

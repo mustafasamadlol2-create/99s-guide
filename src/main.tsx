@@ -4,7 +4,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import React, { StrictMode, useState } from "react";
+import React, { StrictMode, Suspense, lazy, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 
@@ -14,6 +14,7 @@ import { LaunchScreen } from "./components/ui/LaunchScreen";
 import "./index.css";
 import { HapticFeedback } from "./core/device/haptic";
 import { isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
+import { FOCUS_AUDIO_ENABLED } from "./config/featureFlags";
 
 // Note: dark/light class and pre-paint background are applied by the inline
 // script in index.html before any JS loads — no duplicate needed here.
@@ -463,10 +464,30 @@ function Root() {
   );
 }
 
+const LazyFocusAudioProvider = FOCUS_AUDIO_ENABLED
+  ? lazy(() =>
+      import("./features/focus-audio/provider").then((module) => ({
+        default: module.FocusAudioProvider,
+      })),
+    )
+  : null;
+
+function ApplicationRoot() {
+  if (!LazyFocusAudioProvider) return <Root />;
+  const Provider = LazyFocusAudioProvider;
+  return (
+    <Suspense fallback={null}>
+      <Provider>
+        <Root />
+      </Provider>
+    </Suspense>
+  );
+}
+
 createRoot(
   document.getElementById("root")!,
 ).render(
   <StrictMode>
-    <Root />
+    <ApplicationRoot />
   </StrictMode>,
 );
