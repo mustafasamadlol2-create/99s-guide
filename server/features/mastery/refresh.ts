@@ -28,6 +28,7 @@ export type LectureMasteryRefreshResult = {
 export async function evaluateLectureMastery(
   input: LectureMasteryInput,
 ): Promise<LectureMasteryEvaluation> {
+  validateIdentity(input.userId, input.lectureId);
   const asOf = captureAsOf(input.asOf);
   if (input.tx) {
     return evaluateWithClient(
@@ -52,6 +53,7 @@ export async function evaluateLectureMastery(
 export async function refreshLectureMastery(
   input: LectureMasteryInput,
 ): Promise<LectureMasteryRefreshResult> {
+  validateIdentity(input.userId, input.lectureId);
   const asOf = captureAsOf(input.asOf);
   if (input.tx) {
     return refreshWithClient(
@@ -84,6 +86,9 @@ export async function refreshUserLectureMastery(input: {
       "INVALID_INPUT",
       "A Mastery batch can contain at most 100 lecture IDs.",
     );
+  }
+  if (typeof input.userId !== "string" || input.userId.length === 0) {
+    throw new LectureMasteryError("INVALID_INPUT", "Mastery user ID must be nonempty.");
   }
   const lectureIds = [...new Set(input.lectureIds)];
   if (lectureIds.some((id) => typeof id !== "string" || id.length === 0)) {
@@ -222,4 +227,18 @@ function captureAsOf(value?: Date): Date {
     throw new LectureMasteryError("INVALID_INPUT", "Mastery asOf timestamp is invalid.");
   }
   return asOf;
+}
+
+function validateIdentity(userId: string, lectureId: string): void {
+  if (
+    typeof userId !== "string" ||
+    userId.length === 0 ||
+    typeof lectureId !== "string" ||
+    lectureId.length === 0
+  ) {
+    throw new LectureMasteryError(
+      "INVALID_INPUT",
+      "Mastery user and lecture IDs must be nonempty strings.",
+    );
+  }
 }

@@ -21,11 +21,13 @@ import {
   focusMetricsQuerySchema,
 } from "../features/focus/schemas.js";
 import type { FocusBackendService } from "../features/focus/types.js";
+import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../features/mastery/constants.js";
 
 export interface FocusRouteDependencies {
   requireUser: RequestHandler;
   service: FocusBackendService;
   refreshAchievements?(userId: string): Promise<unknown>;
+  refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
   refreshChallenges?(
     userId: string,
     metricIds: readonly string[],
@@ -294,6 +296,19 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
         parsedBody.data,
       );
       if (result.idempotency === "FIRST_SEEN") {
+        if (
+          result.session.status === "COMPLETED" &&
+          (result.session.activeSeconds ?? 0) >= MASTERY_MEANINGFUL_FOCUS_SECONDS
+        ) {
+          try {
+            await dependencies.refreshMastery?.(
+              userId(req),
+              result.session.lectureId,
+            );
+          } catch {
+            // Projection failures must not change a committed Focus completion.
+          }
+        }
         try {
           await dependencies.refreshAchievements?.(userId(req));
         } catch (error) {

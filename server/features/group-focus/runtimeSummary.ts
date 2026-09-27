@@ -11,6 +11,7 @@ import {
   type GroupFocusRuntimeSummaryAck,
 } from "../../../shared/group-focus-reconciliation/contract.js";
 import { getPrisma } from "../../services/prismaClient.js";
+import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../mastery/constants.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { StudyEventError } from "../study-events/errors.js";
 import type { StudyEventTransaction } from "../study-events/types.js";
@@ -229,6 +230,10 @@ export function createGroupFocusRuntimeSummaryService(options: {
   ingestEvent?: typeof ingestStudyEvent;
   studyPointsAwarder?: StudyPointsAwarder;
   postCommitAchievementRefresh?: (userId: string) => Promise<unknown>;
+  postCommitMasteryRefresh?: (
+    userId: string,
+    lectureId: string,
+  ) => Promise<unknown>;
   postCommitChallengeRefresh?: (
     userId: string,
     metricIds: readonly string[],
@@ -466,15 +471,37 @@ export function createGroupFocusRuntimeSummaryService(options: {
         acknowledgement.status === "APPLIED"
         && (
           options.postCommitAchievementRefresh
+          || options.postCommitMasteryRefresh
           || options.postCommitChallengeRefresh
         )
       ) {
         const userIds = new Set(
           summary.participants
-            .filter((participant) => participant.verifiedFocusSeconds > 0)
+            .filter((participant) =>
+              participant.verifiedFocusSeconds >=
+                MASTERY_MEANINGFUL_FOCUS_SECONDS
+            )
             .map((participant) => participant.userId),
         );
         for (const userId of userIds) {
+          if (options.postCommitMasteryRefresh) {
+            const lectureIds = new Set(
+              summary.participants
+                .filter((participant) =>
+                  participant.userId === userId &&
+                  participant.verifiedFocusSeconds >=
+                    MASTERY_MEANINGFUL_FOCUS_SECONDS
+                )
+                .map((participant) => participant.effectiveLectureId),
+            );
+            for (const lectureId of lectureIds) {
+              try {
+                await options.postCommitMasteryRefresh(userId, lectureId);
+              } catch {
+                console.warn("[Group Focus] Post-commit Mastery refresh failed.");
+              }
+            }
+          }
           if (options.postCommitAchievementRefresh) {
             try {
               await options.postCommitAchievementRefresh(userId);

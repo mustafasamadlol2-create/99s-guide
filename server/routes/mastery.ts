@@ -13,10 +13,13 @@ export function createMasteryRouter(dependencies: {
   getMyMastery?: typeof getMyLectureMastery;
 }): express.Router {
   const router = express.Router();
+  router.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    next();
+  });
   router.use(dependencies.requireUser);
 
   router.get("/lectures/:lectureId", async (req, res) => {
-    res.setHeader("Cache-Control", "no-store, private");
     const userId = (req as AuthenticatedRequest).user?.id;
     if (!userId) return res.status(401).json({ error: "Authentication required." });
 

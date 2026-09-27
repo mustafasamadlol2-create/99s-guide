@@ -31,6 +31,7 @@ export interface RecallRouteDependencies {
   service?: RecallAttemptService;
   database?: PrismaClient;
   now?: () => Date;
+  refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -207,9 +208,20 @@ export function createRecallRouter(
         "selectedOption" in parsedBody.data
           ? { kind: "MCQ_OPTION" as const, value: parsedBody.data.selectedOption }
           : { kind: "FLASHCARD_RECALL_RATING" as const, value: parsedBody.data.rating };
-       const attempt = await database.recallAttempt.findFirst({ where: { id: parsedId.data, userId: userId(req) }, select: { issuanceSource: true } });
+        const id = userId(req);
+        const attempt = await database.recallAttempt.findFirst({
+          where: { id: parsedId.data, userId: id },
+          select: { issuanceSource: true, lectureId: true },
+        });
        if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, new Date());
-       const result = await service.answer(userId(req), parsedId.data, answer);
+        const result = await service.answer(id, parsedId.data, answer);
+        if (result.status === "ANSWERED" && attempt?.lectureId) {
+          try {
+            await dependencies.refreshMastery?.(id, attempt.lectureId);
+          } catch {
+            // Projection failures must not change a committed Recall answer.
+          }
+        }
       return res.json(result);
     }),
   );

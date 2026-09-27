@@ -299,7 +299,7 @@ export async function loadLectureMasteryEvidence(
       INNER JOIN "GroupFocusRun" AS run ON run."id" = summary."runId"
       WHERE summary."userId" = ${userId}
         AND summary."effectiveLectureId" IN (${lectureList})
-        AND summary."verifiedFocusSeconds" > 0
+        AND summary."verifiedFocusSeconds" >= ${MASTERY_MEANINGFUL_FOCUS_SECONDS}
         AND run."runtimeEndedAt" <= ${asOf}
       GROUP BY summary."effectiveLectureId"
     `),

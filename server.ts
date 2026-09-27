@@ -76,6 +76,11 @@ import {
 } from "./server/features/gamification/gamificationRead.js";
 import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
+import {
+  flashcardStudyQualityFromStatus,
+  recordMasteryStudyEventsAndRefreshBestEffort,
+  refreshLectureMasteryBestEffort,
+} from "./server/features/mastery/postCommitHooks.js";
 import { createGroupFocusService } from "./server/features/group-focus/service.js";
 import { createGroupFocusRuntimeSummaryService } from "./server/features/group-focus/runtimeSummary.js";
 import {
@@ -99,6 +104,7 @@ import {
   createLeaderboardRouter,
 } from "./server/routes/leaderboards.js";
 import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
+import { createMasteryRouter } from "./server/routes/mastery.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -2297,19 +2303,55 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
       return res.status(400).json({ error: "Invalid updates payload" });
     }
 
+    const statusUpdates = Object.entries(updates).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    );
     const upserts = [];
-    for (const [flashcardId, status] of Object.entries(updates)) {
-      if (typeof status === "string") {
-        upserts.push(
-          prismaClient.flashcardProgress.upsert({
-            where: { userId_flashcardId: { userId, flashcardId } },
-            update: { status },
-            create: { userId, flashcardId, status }
-          })
-        );
-      }
+    for (const [flashcardId, status] of statusUpdates) {
+      upserts.push(
+        prismaClient.flashcardProgress.upsert({
+          where: { userId_flashcardId: { userId, flashcardId } },
+          update: { status },
+          create: { userId, flashcardId, status }
+        })
+      );
     }
     await prismaClient.$transaction(upserts);
+
+    const flashcards = statusUpdates.length > 0
+      ? await prismaClient.flashcard.findMany({
+        where: { id: { in: statusUpdates.map(([flashcardId]) => flashcardId) } },
+        select: { id: true, lectureId: true },
+      })
+      : [];
+    const lectureByFlashcard = new Map<string, string>();
+    for (const flashcard of flashcards) {
+      if (
+        typeof flashcard.id === "string" &&
+        typeof flashcard.lectureId === "string"
+      ) {
+        lectureByFlashcard.set(flashcard.id, flashcard.lectureId);
+      }
+    }
+    const occurredAt = new Date();
+    const idempotencyPrefix = `flashcard-rating:${crypto.randomUUID()}`;
+    const events = statusUpdates.flatMap(([flashcardId, status]) => {
+      const lectureId = lectureByFlashcard.get(flashcardId);
+      const quality = flashcardStudyQualityFromStatus(status);
+      if (!lectureId || !quality) return [];
+      return [{
+        eventType: "flashcard_reviewed" as const,
+        userId,
+        occurredAt,
+        source: "backend" as const,
+        idempotencyKey: `${idempotencyPrefix}:${flashcardId}`,
+        lectureId,
+        flashcardId,
+        evidenceClass: "SERVER_VALIDATED" as const,
+        payload: { quality },
+      }];
+    });
+    await recordMasteryStudyEventsAndRefreshBestEffort({ userId, events });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -4387,7 +4429,7 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
     const prismaClient = getPrisma();
     const mcqs = await prismaClient.mcq.findMany({
       where: { id: { in: ids } },
-      select: { id: true, correctAnswer: true, explanation: true, hint: true },
+      select: { id: true, lectureId: true, correctAnswer: true, explanation: true, hint: true },
     });
     const byId = new Map<string, any>(mcqs.map((m: any) => [m.id, m] as [string, any]));
 
@@ -4402,6 +4444,29 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
       };
     });
 
+    const answerById = new Map(normalized.map(({ id, answer }) => [id, answer]));
+    const occurredAt = new Date();
+    const idempotencyPrefix = `mcq-submit:${crypto.randomUUID()}`;
+    const events = results.flatMap((result) => {
+      const answer = answerById.get(result.id);
+      const mcq = byId.get(result.id);
+      if (answer === null || !mcq?.lectureId) return [];
+      return [{
+        eventType: "mcq_attempted" as const,
+        userId: (req as any).user.id,
+        occurredAt,
+        source: "backend" as const,
+        idempotencyKey: `${idempotencyPrefix}:${result.id}`,
+        lectureId: mcq.lectureId,
+        mcqId: result.id,
+        evidenceClass: "SERVER_VALIDATED" as const,
+        payload: { correct: result.correct },
+      }];
+    });
+    await recordMasteryStudyEventsAndRefreshBestEffort({
+      userId: (req as any).user.id,
+      events,
+    });
     res.json({ results });
   } catch (err: any) {
     console.error("[MCQ Submit Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
@@ -7653,11 +7718,17 @@ app.use(
   }),
 );
 app.use(
+  "/api/me/mastery",
+  createMasteryRouter({ requireUser }),
+);
+app.use(
   "/api/focus",
   createFocusRouter({
     requireUser,
     service: createFocusService(),
     refreshAchievements: refreshUserAchievementsBestEffort,
+    refreshMastery: (userId, lectureId) =>
+      refreshLectureMasteryBestEffort({ userId, lectureId }),
     refreshChallenges: (userId, metricIds) =>
       refreshUserChallenges({ userId, metricIds }),
   }),
@@ -7668,6 +7739,8 @@ app.use(
     requireUser,
     service: createRecallAttemptService(),
     database: getPrisma(),
+    refreshMastery: (userId, lectureId) =>
+      refreshLectureMasteryBestEffort({ userId, lectureId }),
   }),
 );
 app.use(
@@ -7682,6 +7755,8 @@ app.use(
   createGroupFocusRuntimeInternalRouter({
     service: createGroupFocusRuntimeSummaryService({
       postCommitAchievementRefresh: refreshUserAchievementsBestEffort,
+      postCommitMasteryRefresh: (userId, lectureId) =>
+        refreshLectureMasteryBestEffort({ userId, lectureId }),
       postCommitChallengeRefresh: (userId, metricIds) =>
         refreshUserChallenges({ userId, metricIds }),
     }),
