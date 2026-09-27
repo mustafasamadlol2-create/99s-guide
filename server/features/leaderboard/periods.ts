@@ -107,6 +107,25 @@ function atBaghdadMidnight(date: CalendarDate): Date {
   return candidate;
 }
 
+/**
+ * Return a Baghdad-local calendar midnight relative to a server-owned instant.
+ * Shared with fixed owner analytics windows so UTC offsets and calendar-day
+ * boundaries stay consistent with leaderboard season calculations.
+ */
+export function getBaghdadCalendarMidnightDaysBefore(
+  asOf: Date,
+  daysBefore: number,
+): Date {
+  if (!Number.isInteger(daysBefore) || daysBefore < 0 || daysBefore > 366) {
+    throw new RangeError("Baghdad calendar day offset is invalid.");
+  }
+  const local = calendarParts(asOf);
+  return atBaghdadMidnight(addCalendarDays(
+    { year: local.year, month: local.month, day: local.day },
+    -daysBefore,
+  ));
+}
+
 function isoWeekKey(monday: CalendarDate): string {
   const thursday = addCalendarDays(monday, 3);
   const weekYear = thursday.year;

@@ -60,6 +60,13 @@ export type RecallAggregateRow = ScopedAggregateRow & {
   flashcard_remembered: bigint | number;
   flashcard_not_remembered: bigint | number;
   unique_users: bigint | number;
+  periodic_presented_users: bigint | number;
+  periodic_answered_users: bigint | number;
+  periodic_skipped_users: bigint | number;
+  periodic_expired_users: bigint | number;
+  objective_mcq_unique_users: bigint | number;
+  flashcard_remembered_users: bigint | number;
+  flashcard_not_remembered_users: bigint | number;
 };
 
 export type ResourceAggregateRow = ScopedAggregateRow & {
@@ -67,6 +74,8 @@ export type ResourceAggregateRow = ScopedAggregateRow & {
   unique_users: bigint | number;
   pdf_handoffs: bigint | number;
   video_handoffs: bigint | number;
+  pdf_unique_users: bigint | number;
+  video_unique_users: bigint | number;
 };
 
 export type ActiveUsersAggregateRow = ScopedAggregateRow & {
@@ -100,6 +109,30 @@ export type CurrentStateAggregateRow = ScopedAggregateRow & {
   forgetting_self_reported: bigint | number;
   forgetting_mixed: bigint | number;
   forgetting_none: bigint | number;
+  base_not_started_users: bigint | number;
+  base_started_users: bigint | number;
+  base_learning_users: bigint | number;
+  base_needs_review_users: bigint | number;
+  base_good_users: bigint | number;
+  base_mastered_users: bigint | number;
+  fresh_effective_not_started_users: bigint | number;
+  fresh_effective_started_users: bigint | number;
+  fresh_effective_learning_users: bigint | number;
+  fresh_effective_needs_review_users: bigint | number;
+  fresh_effective_good_users: bigint | number;
+  fresh_effective_mastered_users: bigint | number;
+  fresh_retention_users: bigint | number;
+  stale_retention_users: bigint | number;
+  missing_retention_users: bigint | number;
+  review_insufficient_evidence_users: bigint | number;
+  review_fresh_users: bigint | number;
+  review_due_soon_users: bigint | number;
+  review_due_users: bigint | number;
+  review_overdue_users: bigint | number;
+  forgetting_objective_users: bigint | number;
+  forgetting_self_reported_users: bigint | number;
+  forgetting_mixed_users: bigint | number;
+  forgetting_none_users: bigint | number;
 };
 
 export async function aggregatePopulation(
@@ -334,7 +367,43 @@ export async function aggregateRecall(
       )::bigint AS flashcard_not_remembered,
       COUNT(DISTINCT s.user_id) FILTER (
         WHERE s.presented_at >= ${input.window.from} AND s.presented_at < ${input.window.to}
-      )::bigint AS unique_users
+      )::bigint AS unique_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.presented_at >= ${input.window.from} AND s.presented_at < ${input.window.to}
+      )::bigint AS periodic_presented_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'ANSWERED'
+          AND s.answered_at >= ${input.window.from} AND s.answered_at < ${input.window.to}
+      )::bigint AS periodic_answered_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'SKIPPED'
+          AND s.skipped_at >= ${input.window.from} AND s.skipped_at < ${input.window.to}
+      )::bigint AS periodic_skipped_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'EXPIRED'
+          AND s.expired_at >= ${input.window.from} AND s.expired_at < ${input.window.to}
+      )::bigint AS periodic_expired_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'ANSWERED'
+          AND s.item_type = 'MCQ'
+          AND s.answered_at >= ${input.window.from} AND s.answered_at < ${input.window.to}
+          AND s.evidence_class = 'SERVER_DERIVED'
+          AND s.outcome IN ('CORRECT', 'INCORRECT')
+      )::bigint AS objective_mcq_unique_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'ANSWERED'
+          AND s.item_type = 'FLASHCARD'
+          AND s.answered_at >= ${input.window.from} AND s.answered_at < ${input.window.to}
+          AND s.evidence_class = 'CLIENT_OBSERVED'
+          AND s.outcome = 'SELF_REPORTED_EASY'
+      )::bigint AS flashcard_remembered_users,
+      COUNT(DISTINCT s.user_id) FILTER (
+        WHERE s.status = 'ANSWERED'
+          AND s.item_type = 'FLASHCARD'
+          AND s.answered_at >= ${input.window.from} AND s.answered_at < ${input.window.to}
+          AND s.evidence_class = 'CLIENT_OBSERVED'
+          AND s.outcome = 'SELF_REPORTED_HARD'
+      )::bigint AS flashcard_not_remembered_users
     `,
     Prisma.sql`
       WITH ${ELIGIBLE_STUDENTS_CTE}
@@ -377,7 +446,9 @@ export async function aggregateResources(
       COUNT(*)::bigint AS resource_handoffs,
       COUNT(DISTINCT s.user_id)::bigint AS unique_users,
       COUNT(*) FILTER (WHERE s.resource_type = 'PDF')::bigint AS pdf_handoffs,
-      COUNT(*) FILTER (WHERE s.resource_type = 'VIDEO')::bigint AS video_handoffs
+      COUNT(*) FILTER (WHERE s.resource_type = 'VIDEO')::bigint AS video_handoffs,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.resource_type = 'PDF')::bigint AS pdf_unique_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.resource_type = 'VIDEO')::bigint AS video_unique_users
     `,
     Prisma.sql`
       WITH ${ELIGIBLE_STUDENTS_CTE}
@@ -521,7 +592,31 @@ export async function aggregateCurrentState(
       COUNT(*) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'OBJECTIVE')::bigint AS forgetting_objective,
       COUNT(*) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'SELF_REPORTED')::bigint AS forgetting_self_reported,
       COUNT(*) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'MIXED')::bigint AS forgetting_mixed,
-      COUNT(*) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'NONE')::bigint AS forgetting_none
+      COUNT(*) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'NONE')::bigint AS forgetting_none,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'NOT_STARTED')::bigint AS base_not_started_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'STARTED')::bigint AS base_started_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'LEARNING')::bigint AS base_learning_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'NEEDS_REVIEW')::bigint AS base_needs_review_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'GOOD')::bigint AS base_good_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.mastery_state = 'MASTERED')::bigint AS base_mastered_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'NOT_STARTED')::bigint AS fresh_effective_not_started_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'STARTED')::bigint AS fresh_effective_started_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'LEARNING')::bigint AS fresh_effective_learning_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'NEEDS_REVIEW')::bigint AS fresh_effective_needs_review_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'GOOD')::bigint AS fresh_effective_good_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.effective_state = 'MASTERED')::bigint AS fresh_effective_mastered_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh)::bigint AS fresh_retention_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.retention_id IS NOT NULL AND NOT s.is_fresh)::bigint AS stale_retention_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.retention_id IS NULL)::bigint AS missing_retention_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.review_state = 'INSUFFICIENT_EVIDENCE')::bigint AS review_insufficient_evidence_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.review_state = 'FRESH')::bigint AS review_fresh_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.review_state = 'DUE_SOON')::bigint AS review_due_soon_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.review_state = 'DUE')::bigint AS review_due_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.review_state = 'OVERDUE')::bigint AS review_overdue_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'OBJECTIVE')::bigint AS forgetting_objective_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'SELF_REPORTED')::bigint AS forgetting_self_reported_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'MIXED')::bigint AS forgetting_mixed_users,
+      COUNT(DISTINCT s.user_id) FILTER (WHERE s.is_fresh AND s.forgetting_kind = 'NONE')::bigint AS forgetting_none_users
     `,
     Prisma.sql`
       WITH ${ELIGIBLE_STUDENTS_CTE}

@@ -151,6 +151,46 @@ export type OwnerAnalyticsFreshness = {
   resourceMetricsAvailable: boolean;
 };
 
+/**
+ * Internal-only contributor counts used by Prompt 35's privacy transformer.
+ * Never serialize this metadata directly from an HTTP route.
+ */
+export type OwnerAnalyticsScopePrivacyMetadata = {
+  activity: {
+    activeStudyUsers: number;
+    focusUsers: number;
+    groupFocusUsers: number;
+    mcqUsers: number;
+    flashcardUsers: number;
+    recallPresentedUsers: number;
+    recallAnsweredUsers: number;
+    recallSkippedUsers: number;
+    recallExpiredUsers: number;
+    recallObjectiveMcqUsers: number;
+    recallFlashcardRememberedUsers: number;
+    recallFlashcardNotRememberedUsers: number;
+    resourceUsers: number;
+    resourcePdfUsers: number;
+    resourceVideoUsers: number;
+  };
+  currentState: {
+    trackedUsers: number;
+    baseMasteryBucketUsers: OwnerMasteryDistribution;
+    effectiveMasteryBucketUsers: OwnerMasteryDistribution;
+    freshRetentionUsers: number;
+    staleRetentionUsers: number;
+    missingRetentionUsers: number;
+    reviewBucketUsers: OwnerReviewDistribution;
+    forgettingBucketUsers: OwnerForgettingDistribution;
+  };
+};
+
+export type OwnerAcademicAnalyticsPrivacyMetadata = {
+  cohort: OwnerAnalyticsScopePrivacyMetadata;
+  subjects: Record<string, OwnerAnalyticsScopePrivacyMetadata>;
+  lectures: Record<string, OwnerAnalyticsScopePrivacyMetadata>;
+};
+
 export type OwnerParticipationRates = {
   activeStudyUsers: OwnerAnalyticsRate;
   meaningfulFocusUsers: OwnerAnalyticsRate;
@@ -200,6 +240,8 @@ export type OwnerAcademicAggregates = {
   subjects: OwnerSubjectAggregate[];
   /** Empty unless a bounded lectureIds filter was supplied. */
   lectures: OwnerLectureAggregate[];
+  /** Internal contributor metadata; safe DTOs must be produced before HTTP serialization. */
+  privacyMetadata: OwnerAcademicAnalyticsPrivacyMetadata;
 };
 
 export type OwnerMetricSourceDefinition = {

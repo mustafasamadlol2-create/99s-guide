@@ -109,6 +109,10 @@ import {
 } from "./server/routes/leaderboards.js";
 import { StudyIntegrityService } from "./server/features/study-integrity/persistence/index.js";
 import { createMasteryRouter } from "./server/routes/mastery.js";
+import {
+  createOwnerAnalyticsRouter,
+  ownerAnalyticsNoStore,
+} from "./server/routes/ownerAnalytics.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -1222,6 +1226,7 @@ const adminLimiter = rateLimit({
   message: { error: "Too many admin requests from this IP, please try again after 15 minutes." }
 });
 app.use("/api/roster", adminLimiter);
+app.use("/api/admin/owner-analytics", ownerAnalyticsNoStore);
 app.use("/api/admin", adminLimiter);
 app.use("/api/users/role", adminLimiter);
 app.use("/api/mottos", adminLimiter);
@@ -7709,6 +7714,14 @@ async function requireUser(req: express.Request, res: express.Response, next: ex
     return sendAuthFailure(res, err, "Access denied. Session has expired or is invalid.");
   }
 }
+
+app.use(
+  "/api/admin/owner-analytics",
+  createOwnerAnalyticsRouter({
+    requireOwner,
+    database: getPrisma(),
+  }),
+);
 
 app.use(
   "/api/personalization",

@@ -25,9 +25,11 @@ import { safeAggregateInteger, type OwnerAnalyticsDatabase } from "./queryParts.
 import { OWNER_ACADEMIC_ANALYTICS_VERSION } from "./version.js";
 import type {
   OwnerAcademicAggregateInput,
+  OwnerAcademicAnalyticsPrivacyMetadata,
   OwnerAcademicAggregates,
   OwnerActivityWindowMetrics,
   OwnerAnalyticsFreshness,
+  OwnerAnalyticsScopePrivacyMetadata,
   OwnerAnalyticsScope,
   OwnerAnalyticsSourceFilter,
   OwnerCurrentStateMetrics,
@@ -108,6 +110,7 @@ type ScopeAccumulator = {
     review: OwnerReviewDistribution;
     forgetting: OwnerForgettingDistribution;
   };
+  privacy: OwnerAnalyticsScopePrivacyMetadata;
 };
 
 function emptyMasteryDistribution(): OwnerMasteryDistribution {
@@ -137,6 +140,38 @@ function emptyForgettingDistribution(): OwnerForgettingDistribution {
     SELF_REPORTED: 0,
     MIXED: 0,
     NONE: 0,
+  };
+}
+
+function emptyScopePrivacyMetadata(): OwnerAnalyticsScopePrivacyMetadata {
+  return {
+    activity: {
+      activeStudyUsers: 0,
+      focusUsers: 0,
+      groupFocusUsers: 0,
+      mcqUsers: 0,
+      flashcardUsers: 0,
+      recallPresentedUsers: 0,
+      recallAnsweredUsers: 0,
+      recallSkippedUsers: 0,
+      recallExpiredUsers: 0,
+      recallObjectiveMcqUsers: 0,
+      recallFlashcardRememberedUsers: 0,
+      recallFlashcardNotRememberedUsers: 0,
+      resourceUsers: 0,
+      resourcePdfUsers: 0,
+      resourceVideoUsers: 0,
+    },
+    currentState: {
+      trackedUsers: 0,
+      baseMasteryBucketUsers: emptyMasteryDistribution(),
+      effectiveMasteryBucketUsers: emptyMasteryDistribution(),
+      freshRetentionUsers: 0,
+      staleRetentionUsers: 0,
+      missingRetentionUsers: 0,
+      reviewBucketUsers: emptyReviewDistribution(),
+      forgettingBucketUsers: emptyForgettingDistribution(),
+    },
   };
 }
 
@@ -193,6 +228,7 @@ function emptyScope(
       review: emptyReviewDistribution(),
       forgetting: emptyForgettingDistribution(),
     },
+    privacy: emptyScopePrivacyMetadata(),
   };
 }
 
@@ -327,6 +363,7 @@ function mergeFocusRows(
       verifiedStudySeconds: numberField(row, "verified_study_seconds"),
       uniqueUsers: numberField(row, "unique_users"),
     };
+    scope.privacy.activity.focusUsers = numberField(row, "unique_users");
   });
 }
 
@@ -341,6 +378,7 @@ function mergeGroupFocusRows(
       verifiedFocusSeconds: numberField(row, "verified_focus_seconds"),
       uniqueParticipants: numberField(row, "unique_participants"),
     };
+    scope.privacy.activity.groupFocusUsers = numberField(row, "unique_participants");
   });
 }
 
@@ -356,6 +394,7 @@ function mergeMcqRows(
       uniqueUsers: numberField(row, "unique_users"),
       distinctItems: numberField(row, "distinct_items_attempted"),
     };
+    scope.privacy.activity.mcqUsers = numberField(row, "unique_users");
   });
 }
 
@@ -372,6 +411,7 @@ function mergeFlashcardRows(
       uniqueUsers: numberField(row, "unique_users"),
       distinctCards: numberField(row, "distinct_cards_reviewed"),
     };
+    scope.privacy.activity.flashcardUsers = numberField(row, "unique_users");
   });
 }
 
@@ -392,6 +432,13 @@ function mergeRecallRows(
       flashcardNotRemembered: numberField(row, "flashcard_not_remembered"),
       uniqueUsers: numberField(row, "unique_users"),
     };
+    scope.privacy.activity.recallPresentedUsers = numberField(row, "periodic_presented_users");
+    scope.privacy.activity.recallAnsweredUsers = numberField(row, "periodic_answered_users");
+    scope.privacy.activity.recallSkippedUsers = numberField(row, "periodic_skipped_users");
+    scope.privacy.activity.recallExpiredUsers = numberField(row, "periodic_expired_users");
+    scope.privacy.activity.recallObjectiveMcqUsers = numberField(row, "objective_mcq_unique_users");
+    scope.privacy.activity.recallFlashcardRememberedUsers = numberField(row, "flashcard_remembered_users");
+    scope.privacy.activity.recallFlashcardNotRememberedUsers = numberField(row, "flashcard_not_remembered_users");
   });
 }
 
@@ -406,6 +453,9 @@ function mergeResourceRows(
       pdfHandoffs: numberField(row, "pdf_handoffs"),
       videoHandoffs: numberField(row, "video_handoffs"),
     };
+    scope.privacy.activity.resourceUsers = numberField(row, "unique_users");
+    scope.privacy.activity.resourcePdfUsers = numberField(row, "pdf_unique_users");
+    scope.privacy.activity.resourceVideoUsers = numberField(row, "video_unique_users");
   });
 }
 
@@ -415,6 +465,7 @@ function mergeActiveUserRows(
 ): void {
   mergeActivityRows(scopes, rows, (scope, row) => {
     scope.activeStudyUsers = numberField(row, "active_users");
+    scope.privacy.activity.activeStudyUsers = numberField(row, "active_users");
   });
 }
 
@@ -469,6 +520,39 @@ function mergeCurrentStateRows(
       },
     };
     scope.trackedUsers = numberField(row, "tracked_users");
+    scope.privacy.currentState.trackedUsers = numberField(row, "tracked_users");
+    scope.privacy.currentState.baseMasteryBucketUsers = {
+      NOT_STARTED: numberField(row, "base_not_started_users"),
+      STARTED: numberField(row, "base_started_users"),
+      LEARNING: numberField(row, "base_learning_users"),
+      NEEDS_REVIEW: numberField(row, "base_needs_review_users"),
+      GOOD: numberField(row, "base_good_users"),
+      MASTERED: numberField(row, "base_mastered_users"),
+    };
+    scope.privacy.currentState.effectiveMasteryBucketUsers = {
+      NOT_STARTED: numberField(row, "fresh_effective_not_started_users"),
+      STARTED: numberField(row, "fresh_effective_started_users"),
+      LEARNING: numberField(row, "fresh_effective_learning_users"),
+      NEEDS_REVIEW: numberField(row, "fresh_effective_needs_review_users"),
+      GOOD: numberField(row, "fresh_effective_good_users"),
+      MASTERED: numberField(row, "fresh_effective_mastered_users"),
+    };
+    scope.privacy.currentState.freshRetentionUsers = numberField(row, "fresh_retention_users");
+    scope.privacy.currentState.staleRetentionUsers = numberField(row, "stale_retention_users");
+    scope.privacy.currentState.missingRetentionUsers = numberField(row, "missing_retention_users");
+    scope.privacy.currentState.reviewBucketUsers = {
+      INSUFFICIENT_EVIDENCE: numberField(row, "review_insufficient_evidence_users"),
+      FRESH: numberField(row, "review_fresh_users"),
+      DUE_SOON: numberField(row, "review_due_soon_users"),
+      DUE: numberField(row, "review_due_users"),
+      OVERDUE: numberField(row, "review_overdue_users"),
+    };
+    scope.privacy.currentState.forgettingBucketUsers = {
+      OBJECTIVE: numberField(row, "forgetting_objective_users"),
+      SELF_REPORTED: numberField(row, "forgetting_self_reported_users"),
+      MIXED: numberField(row, "forgetting_mixed_users"),
+      NONE: numberField(row, "forgetting_none_users"),
+    };
   });
 }
 
@@ -643,6 +727,19 @@ async function aggregateWithDatabase(
     .filter((scope) => scope.scope === "LECTURE")
     .map(lectureAggregate)
     .sort((left, right) => left.lectureId.localeCompare(right.lectureId));
+  const privacyMetadata: OwnerAcademicAnalyticsPrivacyMetadata = {
+    cohort: cohort.privacy,
+    subjects: Object.fromEntries(
+      [...scopes.values()]
+        .filter((scope) => scope.scope === "SUBJECT" && scope.subjectId !== null)
+        .map((scope) => [scope.subjectId!, scope.privacy]),
+    ),
+    lectures: Object.fromEntries(
+      [...scopes.values()]
+        .filter((scope) => scope.scope === "LECTURE" && scope.lectureId !== null)
+        .map((scope) => [scope.lectureId!, scope.privacy]),
+    ),
+  };
 
   return {
     analyticsVersion: OWNER_ACADEMIC_ANALYTICS_VERSION,
@@ -668,6 +765,7 @@ async function aggregateWithDatabase(
     freshness: makeFreshness(cohort, input.asOf),
     subjects,
     lectures,
+    privacyMetadata,
   };
 }
 

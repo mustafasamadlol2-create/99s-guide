@@ -10,6 +10,16 @@ export {
 export { OWNER_METRIC_SOURCES } from "./metricSources.js";
 export { rateBps, rateMetric } from "./rate.js";
 export { OWNER_ACADEMIC_ANALYTICS_VERSION } from "./version.js";
+export {
+  applyOwnerAnalyticsPrivacy,
+  MIN_OWNER_ANALYTICS_CONTRIBUTORS,
+  MIN_OWNER_ANALYTICS_INTERACTIONS,
+  OWNER_ANALYTICS_PRIVACY_VERSION,
+} from "./privacy.js";
+export {
+  OWNER_ANALYTICS_WINDOW_PRESETS,
+  resolveOwnerAnalyticsWindow,
+} from "./windows.js";
 export type {
   OwnerAcademicAggregateInput,
   OwnerAcademicAggregates,
@@ -22,3 +32,11 @@ export type {
   OwnerParticipationRates,
   OwnerSubjectAggregate,
 } from "./types.js";
+export type {
+  AnalyticsDisclosure,
+  OwnerAnalyticsScopeStatus,
+  OwnerSafeAcademicAnalytics,
+  OwnerSafeLecture,
+  OwnerSafeScope,
+  OwnerSafeSubject,
+} from "./privacy.js";
