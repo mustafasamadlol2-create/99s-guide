@@ -111,6 +111,7 @@ import { StudyIntegrityService } from "./server/features/study-integrity/persist
 import { createMasteryRouter } from "./server/routes/mastery.js";
 import { createStudyAnalyzerRouter } from "./server/routes/studyAnalyzer.js";
 import { createStudyInsightsRouter } from "./server/routes/studyInsights.js";
+import { createAskStudyDataRouter } from "./server/routes/askStudyData.js";
 import {
   createOwnerAnalyticsRouter,
   ownerAnalyticsNoStore,
@@ -1106,6 +1107,12 @@ app.use(
 app.use("/api/recall", createRecallJsonParser());
 
 app.use(compression());
+app.use("/api/me/study-data/ask", (_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Vary", "Authorization, Cookie");
+  next();
+});
+app.use("/api/me/study-data/ask", express.json({ limit: "16kb" }));
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
@@ -7775,6 +7782,10 @@ app.use(
 app.use(
   "/api/me/study-insights",
   createStudyInsightsRouter({ requireUser }),
+);
+app.use(
+  "/api/me/study-data/ask",
+  createAskStudyDataRouter({ requireUser }),
 );
 app.use(
   "/api/focus",

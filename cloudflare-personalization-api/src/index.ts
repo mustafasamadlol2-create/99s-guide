@@ -2,6 +2,10 @@ import {
   handleStudyInsightsRequest,
   type StudyInsightsWorkerEnvironment,
 } from "./studyInsights.js";
+import {
+  handleAskStudyDataRequest,
+  type AskStudyDataWorkerEnvironment,
+} from "./askStudyData.js";
 
 const MAX_CONFIG_BYTES = 16 * 1024;
 const MAX_RECORD_BYTES = 32 * 1024;
@@ -18,7 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-interface Env extends StudyInsightsWorkerEnvironment {
+interface Env extends StudyInsightsWorkerEnvironment, AskStudyDataWorkerEnvironment {
   PERSONALIZATION_KV: {
     get(key: string): Promise<string | null>;
     get(key: string, options: { type: "json"; cacheTtl?: number }): Promise<unknown>;
@@ -132,6 +136,9 @@ export default {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/internal/ai/study-insights") {
       return handleStudyInsightsRequest(request, env);
+    }
+    if (pathname === "/internal/ai/ask-study-data") {
+      return handleAskStudyDataRequest(request, env);
     }
     if (request.method !== "GET" && request.method !== "PUT") return json({ error: "Method not allowed." }, 405);
     const userId = canonicalId(new URL(request.url).pathname);

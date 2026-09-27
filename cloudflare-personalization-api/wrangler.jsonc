@@ -8,6 +8,8 @@
   "vars": {
     "AI_STUDY_INSIGHTS_ENABLED": "false",
     "AI_STUDY_INSIGHTS_CACHE_ENABLED": "false",
+    "ASK_MY_STUDY_DATA_ENABLED": "false",
+    "ASK_MY_STUDY_DATA_AI_ENABLED": "false",
     "CLOUDFLARE_AI_STUDY_INSIGHT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
   },
   "kv_namespaces": [
@@ -25,6 +27,8 @@
       "vars": {
         "AI_STUDY_INSIGHTS_ENABLED": "false",
         "AI_STUDY_INSIGHTS_CACHE_ENABLED": "false",
+        "ASK_MY_STUDY_DATA_ENABLED": "false",
+        "ASK_MY_STUDY_DATA_AI_ENABLED": "false",
         "CLOUDFLARE_AI_STUDY_INSIGHT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
       },
       "kv_namespaces": [
