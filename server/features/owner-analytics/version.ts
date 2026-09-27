@@ -1,0 +1,1 @@
+export const OWNER_ACADEMIC_ANALYTICS_VERSION = "owner-academic-analytics-v1" as const;
