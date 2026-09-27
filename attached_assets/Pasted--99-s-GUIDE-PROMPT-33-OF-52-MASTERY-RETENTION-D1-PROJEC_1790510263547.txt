@@ -1,0 +1,3680 @@
+# 99’s GUIDE — PROMPT 33 OF 52
+## MASTERY + RETENTION D1 PROJECTION
+## PRIVATE STUDENT DASHBOARD READ MODELS
+## CANONICAL POSTGRESQL FALLBACK + CACHE RECONCILIATION
+### NO OWNER ANALYTICS — NO AI — NO VISIBLE UI
+
+Prompts 1–32 have been completed.
+
+Prompt 31 established:
+
+```text
+canonical learning evidence
+→ mastery-v1
+→ LectureMastery
+```
+
+Prompt 32 established:
+
+```text
+LectureMastery
++
+memory-evidence timing
++
+retention-v1
+→ LectureRetention
+→ effectiveMasteryState
+→ reviewState
+→ review urgency
+→ nextReviewAt
+```
+
+Prompt 33 now builds the fast private read layer required for the future Study Analyzer and student dashboard.
+
+Frozen roadmap:
+
+```text
+Prompt 33 — Mastery D1 / dashboard API
+Prompt 34 — Owner aggregate metrics
+Prompt 35 — Owner privacy / access
+Prompt 36 — deterministic Analyzer DTO / metrics
+Prompt 37 — AI Study Insight cache / Workers AI
+Prompt 38 — Ask My Study Data
+```
+
+Do NOT implement Prompt 34+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement:
+
+1. derived D1 projection for `LectureMastery`;
+2. derived D1 projection for `LectureRetention`;
+3. private student Mastery/Retention dashboard read model;
+4. subject-level aggregation;
+5. review-due aggregation;
+6. deterministic dashboard summary metrics;
+7. canonical PostgreSQL fallback;
+8. cache freshness/version validation;
+9. outbox-driven projection;
+10. projection reconciliation/repair;
+11. paginated private lecture-status APIs;
+12. zero exposure of raw attempt/evidence history;
+13. zero owner/cohort analytics;
+14. zero AI.
+
+---
+
+# 2. NON-NEGOTIABLE AUTHORITY RULE
+
+Mandatory:
+
+```text
+PostgreSQL LectureMastery
++
+PostgreSQL LectureRetention
+=
+CANONICAL
+```
+
+D1 is only:
+
+```text
+derived
+rebuildable
+private read optimization
+```
+
+On conflict:
+
+```text
+PostgreSQL wins
+```
+
+---
+
+# 3. D1 MUST NEVER BECOME MASTERY AUTHORITY
+
+D1 must NOT:
+
+- recalculate evidenceScore;
+- determine Mastery state;
+- apply retention decay;
+- detect forgetting;
+- calculate nextReviewAt;
+- alter reviewState;
+- infer missing evidence.
+
+D1 stores canonical projection values produced by PostgreSQL-side services.
+
+---
+
+# 4. NO RAW LEARNING EVIDENCE IN D1
+
+Do NOT project:
+
+```text
+MCQ attempt history
+selected answers
+correct/incorrect item history
+Flashcard review history
+RecallAttempt rows
+RecallItemState history
+FocusSession rows
+GroupFocusParticipantSummary rows
+Quick Notes
+Integrity Signals
+```
+
+Only bounded final Mastery/Retention projection fields.
+
+---
+
+# 5. PRIVATE D1 ARCHITECTURE
+
+Prompt 33 must integrate with the existing private D1 projection architecture established earlier.
+
+Inspect before coding:
+
+```text
+PrivateD1SyncOutbox
+server/services/privateD1Sync.ts
+existing Worker private read/write routes
+FocusPlan projection
+FocusSession projection
+StudyDailyMetric projection
+revision conflict semantics
+canonical PG-ID strategy
+```
+
+Reuse existing infrastructure wherever semantically correct.
+
+---
+
+# 6. DO NOT CREATE A SECOND PRIVATE-DATA PLATFORM
+
+If the existing private D1 architecture can support Mastery/Retention projections:
+
+reuse it.
+
+Do NOT create:
+
+```text
+another Worker
+another private auth scheme
+another identity mapping
+another generic outbox
+```
+
+without a concrete architectural reason.
+
+---
+
+# 7. CANONICAL IDS ONLY
+
+D1 rows must use canonical PostgreSQL IDs:
+
+```text
+userId
+lectureId
+subject/module ID if needed
+```
+
+No second identity universe.
+
+---
+
+# 8. FEATURE FLAGS
+
+Use existing feature-flag conventions.
+
+Add/reuse:
+
+```text
+MASTERY_D1_PROJECTION_ENABLED
+MASTERY_D1_READ_ENABLED
+```
+
+Defaults:
+
+```text
+false
+false
+```
+
+If existing generic private-D1 projection flags make separate flags unnecessary, reuse them but still provide Mastery-specific kill-switch behavior if feasible.
+
+---
+
+# 9. INDEPENDENT READ / WRITE FLAGS
+
+Support:
+
+```text
+projection ON
+read OFF
+```
+
+for shadow validation.
+
+Also:
+
+```text
+projection OFF
+read OFF
+```
+
+must preserve canonical PostgreSQL-only behavior.
+
+---
+
+# 10. NO PRODUCTION FLAG CHANGES
+
+Do NOT modify Render or Cloudflare production environment variables.
+
+---
+
+# 11. D1 MIGRATION
+
+Create an additive D1 migration for Mastery/Retention private projections.
+
+Use existing migration conventions.
+
+Suggested tables:
+
+```text
+private_mastery
+private_retention
+```
+
+or repository-consistent equivalents.
+
+Do NOT alter unrelated D1 tables destructively.
+
+---
+
+# 12. `private_mastery`
+
+Store only bounded canonical projection data such as:
+
+```text
+user_id
+lecture_id
+
+state
+evidence_score
+evidence_count
+
+objective_attempt_count
+objective_correct_count
+objective_incorrect_count
+
+flashcard_review_count
+flashcard_remembered_count
+flashcard_not_remembered_count
+
+recall_objective_attempt_count
+recall_objective_correct_count
+recall_objective_incorrect_count
+
+meaningful_focus_session_count
+meaningful_focus_seconds
+
+last_study_evidence_at
+last_objective_evidence_at
+last_recall_evidence_at
+
+rule_version
+revision
+last_evaluated_at
+
+projection_revision
+projected_at
+```
+
+Use exact fields based on actual Prompt 31 implementation.
+
+---
+
+# 13. `private_retention`
+
+Store only bounded canonical Retention projection data:
+
+```text
+user_id
+lecture_id
+
+source_mastery_revision
+source_mastery_rule_version
+
+effective_mastery_state
+
+retention_score
+review_state
+review_urgency_score
+
+retention_anchor_at
+next_review_at
+next_evaluation_at
+
+last_positive_memory_evidence_at
+last_negative_memory_evidence_at
+last_forgetting_evidence_at
+
+objective_forgetting_item_count
+self_reported_forgetting_item_count
+forgetting_evidence_kind
+
+rule_version
+revision
+last_evaluated_at
+
+projection_revision
+projected_at
+```
+
+Use actual Prompt 32 fields.
+
+---
+
+# 14. D1 PRIMARY KEYS
+
+Prefer:
+
+```text
+(user_id, lecture_id)
+```
+
+for both projections.
+
+One row per user/lecture.
+
+---
+
+# 15. USER SCOPING
+
+Every private D1 read must require canonical authenticated user context.
+
+No route may accept another arbitrary `userId` from the normal student client.
+
+---
+
+# 16. D1 PRIVACY
+
+These tables are private.
+
+Do NOT expose them through:
+
+```text
+public profile APIs
+leaderboards
+unauthenticated Worker routes
+client-direct SQL-like endpoints
+```
+
+---
+
+# 17. NO EMAIL / PHONE / SIGNATURE
+
+Do NOT store in Mastery D1 tables:
+
+```text
+email
+phone
+signature
+avatar
+display name
+```
+
+They are unnecessary.
+
+---
+
+# 18. PROJECTION SOURCE
+
+Projection must come from canonical:
+
+```text
+LectureMastery
+LectureRetention
+```
+
+not from raw study evidence directly.
+
+---
+
+# 19. MASTERy PROJECTION TRIGGER
+
+When canonical `LectureMastery` changes:
+
+enqueue/project the current Mastery row.
+
+---
+
+# 20. RETENTION PROJECTION TRIGGER
+
+When canonical `LectureRetention` changes:
+
+enqueue/project the current Retention row.
+
+---
+
+# 21. TRANSACTIONAL OUTBOX PRINCIPLE
+
+Where existing private D1 architecture supports it:
+
+```text
+canonical PG projection row update
++
+outbox enqueue
+```
+
+should occur atomically in PostgreSQL.
+
+D1 delivery remains asynchronous.
+
+---
+
+# 22. D1 FAILURE MUST NOT ROLLBACK LEARNING ACTIONS
+
+Mandatory:
+
+```text
+MCQ answer
+Flashcard review
+Recall answer
+Focus completion
+Group Focus completion
+Mastery refresh
+Retention refresh
+```
+
+must not fail solely because D1 is unavailable.
+
+---
+
+# 23. REVISION SEMANTICS
+
+Reuse the established canonical projection revision strategy.
+
+Do NOT use:
+
+```text
+updatedAt string comparison only
+```
+
+as conflict authority.
+
+Projection must carry an explicit monotonic revision.
+
+---
+
+# 24. MASTERy REVISION
+
+Use the canonical Prompt 31 `LectureMastery.revision`.
+
+If the existing private-D1 framework wraps source revision into a separate outbox/projected revision, preserve both semantics clearly.
+
+---
+
+# 25. RETENTION REVISION
+
+Use canonical Prompt 32 `LectureRetention.revision`.
+
+---
+
+# 26. OUT-OF-ORDER DELIVERY
+
+A delayed older projection must NOT overwrite a newer D1 row.
+
+Mandatory.
+
+---
+
+# 27. SAME REVISION REPLAY
+
+Same:
+
+```text
+userId
+lectureId
+revision
+payload
+```
+
+must be idempotent.
+
+---
+
+# 28. SAME REVISION CONFLICT
+
+Same revision but different semantic payload:
+
+```text
+reject / log conflict
+```
+
+Do not silently overwrite.
+
+---
+
+# 29. HIGHER REVISION
+
+Higher valid revision replaces lower revision.
+
+---
+
+# 30. DELETION SEMANTICS
+
+If canonical Mastery/Retention rows are deliberately removed during account deletion or source cleanup:
+
+inspect existing D1 tombstone/delete projection conventions.
+
+Do not invent unsafe orphan behavior.
+
+---
+
+# 31. ACCOUNT DELETION
+
+Private Mastery/Retention D1 rows must not survive indefinitely after canonical user deletion.
+
+Reuse current private projection deletion flow.
+
+---
+
+# 32. NO USER-INITIATED MASTERY DELETE
+
+Students cannot delete Mastery/Retention state through the dashboard.
+
+---
+
+# 33. D1 WRITE AUTH
+
+Reuse existing internal server-to-Worker authentication.
+
+Browser/native sessions must NOT be sufficient to write projection rows.
+
+---
+
+# 34. NO QUERY-STRING SECRETS
+
+Mandatory.
+
+---
+
+# 35. D1 READ ARCHITECTURE
+
+Preferred:
+
+```text
+client
+→ Render API
+→ private Mastery read service
+→ D1
+→ PG fallback
+```
+
+Do NOT expose raw D1 tables directly to client applications.
+
+---
+
+# 36. WHY BACKEND STAYS IN PATH
+
+The backend remains responsible for:
+
+```text
+auth
+ownership
+fallback
+DTO shaping
+freshness validation
+pagination
+feature flags
+privacy
+```
+
+---
+
+# 37. PRIVATE DASHBOARD API
+
+Implement authenticated:
+
+```text
+GET /api/me/mastery
+```
+
+or repository-consistent path.
+
+This is the primary private Mastery/Retention dashboard read API.
+
+---
+
+# 38. DASHBOARD IS READ-ONLY
+
+The endpoint must NOT accept:
+
+```text
+state
+retentionScore
+reviewState
+nextReviewAt
+lectureIds to modify
+```
+
+No mutation authority.
+
+---
+
+# 39. DASHBOARD RESPONSE GOAL
+
+Return a compact student-private overview:
+
+```text
+total tracked lectures
+counts by effective Mastery state
+counts by review state
+due review count
+overdue count
+recently evaluated count
+subject-level summary
+top due-review lectures
+```
+
+No raw attempt history.
+
+---
+
+# 40. DASHBOARD TOP-LEVEL DTO
+
+Conceptually:
+
+```ts
+type MyMasteryDashboard = {
+  generatedAt: string;
+  sourceFreshness: {
+    source: "D1" | "POSTGRESQL";
+    stale: boolean;
+  };
+
+  totals: {
+    trackedLectures: number;
+    notStarted: number;
+    started: number;
+    learning: number;
+    needsReview: number;
+    good: number;
+    mastered: number;
+  };
+
+  review: {
+    insufficientEvidence: number;
+    fresh: number;
+    dueSoon: number;
+    due: number;
+    overdue: number;
+  };
+
+  subjects: MyMasterySubjectSummary[];
+
+  dueReviews: MyMasteryLectureSummary[];
+};
+```
+
+Adapt exact field names to repository style.
+
+---
+
+# 41. TRACKED LECTURE DEFINITION
+
+Do not count every lecture in the entire database as “tracked” merely because it exists.
+
+Tracked means the user has:
+
+```text
+LectureMastery row
+or
+canonical evidence sufficient to materialize one
+```
+
+The dashboard may separately expose total academic lectures only if existing content services make that useful and safe.
+
+---
+
+# 42. NOT_STARTED DASHBOARD SEMANTICS
+
+Be careful:
+
+A `LectureMastery` row can legitimately be `NOT_STARTED`.
+
+But absence of a Mastery row is not automatically equivalent unless the read service intentionally materializes it.
+
+Do not perform unbounded materialization of every lecture.
+
+---
+
+# 43. NO MASS MATERIALIZATION
+
+Opening `/api/me/mastery` must NOT create Mastery/Retention rows for all ~300 lectures.
+
+Only existing/projection-backed user study state should be included initially.
+
+Prompt 49 can backfill if later required.
+
+---
+
+# 44. SUBJECT-LEVEL SUMMARY
+
+Aggregate by existing canonical subject/module structure.
+
+Inspect actual model names.
+
+Do NOT create a second subject taxonomy.
+
+---
+
+# 45. SUBJECT SUMMARY DTO
+
+Conceptually:
+
+```ts
+type MyMasterySubjectSummary = {
+  subjectId: string;
+  trackedLectures: number;
+
+  mastery: {
+    notStarted: number;
+    started: number;
+    learning: number;
+    needsReview: number;
+    good: number;
+    mastered: number;
+  };
+
+  review: {
+    dueSoon: number;
+    due: number;
+    overdue: number;
+  };
+};
+```
+
+No “best subject” or “worst subject” judgment.
+
+---
+
+# 46. NO RANKING OF SUBJECTS
+
+Do NOT rank subjects by intelligence/performance.
+
+A deterministic private sort such as:
+
+```text
+subject display order
+subjectId
+```
+
+is fine.
+
+---
+
+# 47. DUE REVIEW SUMMARY
+
+Dashboard should include a bounded due-review list.
+
+Reuse Prompt 32 review-service semantics:
+
+```text
+DUE
+OVERDUE
+effectiveMasteryState = NEEDS_REVIEW
+```
+
+Do not redefine due-review logic.
+
+---
+
+# 48. DUE REVIEW HARD MAX
+
+Dashboard embedded due-review list:
+
+```text
+10
+```
+
+recommended.
+
+Full paginated endpoint handles larger lists.
+
+---
+
+# 49. FULL LECTURE STATUS API
+
+Implement:
+
+```text
+GET /api/me/mastery/lectures
+```
+
+with cursor pagination.
+
+---
+
+# 50. LECTURE LIST FILTERS
+
+Support bounded exact filters:
+
+```text
+state=
+reviewState=
+subjectId=
+```
+
+Use enums and canonical IDs only.
+
+Do not support arbitrary query expressions.
+
+---
+
+# 51. LECTURE LIST DEFAULT LIMIT
+
+```text
+25
+```
+
+Hard max:
+
+```text
+100
+```
+
+---
+
+# 52. LECTURE LIST ROW
+
+Purpose-built DTO:
+
+```ts
+type MyMasteryLectureSummary = {
+  lectureId: string;
+  subjectId?: string;
+
+  masteryState: MasteryState;
+  effectiveMasteryState: MasteryState;
+
+  reviewState: ReviewState;
+
+  nextReviewAt?: string;
+  lastEvaluatedAt: string;
+
+  objectiveAttempts: number;
+  objectiveAccuracyPercent?: number;
+
+  flashcardReviews: number;
+};
+```
+
+Use only safe private summary fields.
+
+---
+
+# 53. DO NOT EXPOSE RAW RETENTION SCORE BY DEFAULT
+
+Do not expose:
+
+```text
+retentionScore
+evidenceScore
+reviewUrgencyScore
+```
+
+in normal dashboard/list DTO unless clearly needed.
+
+These are internal heuristics.
+
+Prefer semantic states.
+
+---
+
+# 54. INTERNAL SCORES MAY REMAIN ADMIN/DIAGNOSTIC
+
+Operational reconciliation can inspect them.
+
+Normal student read does not need them.
+
+---
+
+# 55. OBJECTIVE ACCURACY
+
+If returned:
+
+derive from canonical stored projection counts.
+
+Do not recompute from raw attempt history during D1 read.
+
+If denominator is zero:
+
+```text
+null
+```
+
+rather than misleading `0%`.
+
+---
+
+# 56. NO “WEAKNESS” FIELD
+
+Do not return:
+
+```text
+weaknessScore
+```
+
+in Prompt 33 APIs.
+
+---
+
+# 57. NO RETENTION PROBABILITY
+
+Do not return language suggesting memory probability.
+
+---
+
+# 58. SUBJECT NAME ENRICHMENT
+
+If frontend requires subject name/icon/order:
+
+prefer enriching from existing canonical content metadata outside D1 projection.
+
+Do not duplicate mutable display metadata into private Mastery D1 unnecessarily.
+
+---
+
+# 59. LECTURE TITLE ENRICHMENT
+
+Same.
+
+D1 projection may store IDs only.
+
+Backend can batch-enrich current lecture metadata where required.
+
+---
+
+# 60. NO N+1 CONTENT ENRICHMENT
+
+For one page:
+
+batch-load lecture/subject display metadata.
+
+Mandatory:
+
+```text
+N+1 content metadata queries = NO
+```
+
+---
+
+# 61. D1 DASHBOARD AGGREGATION
+
+Use D1 set-based aggregation for fast private dashboard reads.
+
+Do NOT pull every row into Node and aggregate manually where SQL can do it efficiently.
+
+---
+
+# 62. MASTERy STATE COUNTS
+
+D1 may run:
+
+```text
+GROUP BY effective state / base state
+```
+
+for current authenticated user.
+
+---
+
+# 63. REVIEW STATE COUNTS
+
+D1 may aggregate:
+
+```text
+review_state
+```
+
+for user.
+
+---
+
+# 64. SUBJECT COUNTS
+
+D1 projection needs subject association to avoid expensive PG join if dashboard must aggregate by subject.
+
+Choose carefully.
+
+---
+
+# 65. SUBJECT ID PROJECTION DECISION
+
+Preferred:
+
+include canonical:
+
+```text
+subject_id
+```
+
+in the private Mastery projection if lecture→subject membership is stable enough and already known during projection.
+
+Do NOT store subject display text.
+
+---
+
+# 66. SUBJECT ID SOURCE
+
+Must come from canonical lecture/content relationship.
+
+Client cannot choose it.
+
+---
+
+# 67. SUBJECT RELATION CHANGE
+
+If lecture moves between subjects administratively:
+
+projection must eventually refresh.
+
+Inspect current content-update invalidation architecture.
+
+---
+
+# 68. IF SUBJECT ID IS NOT SAFE TO PROJECT
+
+Alternative:
+
+batch-enrich lecture→subject from PG during dashboard read.
+
+Document actual design.
+
+Avoid unnecessary schema complexity.
+
+---
+
+# 69. CACHE-FIRST READ
+
+When:
+
+```text
+MASTERY_D1_READ_ENABLED = true
+```
+
+attempt D1 first.
+
+Validate:
+
+```text
+row schema
+revision
+projection freshness
+supported rule versions
+```
+
+Then return cache-derived dashboard/list if acceptable.
+
+---
+
+# 70. PG-ONLY READ
+
+When flag is false:
+
+use canonical PostgreSQL read path.
+
+Prompt 33 must preserve this fully functional path.
+
+---
+
+# 71. FALLBACK CONDITIONS
+
+Fallback to PostgreSQL on:
+
+```text
+Worker timeout
+D1 unavailable
+D1 query error
+unsupported D1 schema
+unsupported mastery rule version
+unsupported retention rule version
+projection missing
+projection obviously incomplete
+projection revision mismatch when canonical freshness is known
+```
+
+---
+
+# 72. FALLBACK MUST BE USER-TRANSPARENT
+
+If PostgreSQL is healthy:
+
+D1 failure must not cause normal dashboard 500.
+
+---
+
+# 73. NO FALSE CACHE COMPLETENESS CLAIM
+
+If D1 contains only part of a user's canonical rows because projection has not caught up:
+
+do not return a misleading full dashboard as canonical.
+
+---
+
+# 74. PROJECTION COMPLETENESS STRATEGY
+
+Implement one explicit per-user projection completeness/watermark strategy.
+
+Possible approach:
+
+```text
+private_mastery_projection_state
+```
+
+with:
+
+```text
+user_id
+mastery_watermark
+retention_watermark
+updated_at
+```
+
+or reuse existing private D1 user projection metadata.
+
+Inspect existing architecture before creating a new table.
+
+---
+
+# 75. DO NOT GUESS COMPLETENESS FROM ROW COUNT ALONE
+
+A user may legitimately have few rows.
+
+Need a real watermark/revision strategy if completeness is required.
+
+---
+
+# 76. EXISTING PRIVATE D1 METADATA
+
+If Prompt 6 already tracks per-user projection revision/completeness:
+
+reuse it.
+
+Do not duplicate.
+
+---
+
+# 77. CACHE FRESHNESS
+
+Mastery/Retention projections are event-driven, but Retention also changes from time alone.
+
+Therefore D1 Retention rows can become time-stale even without a new projection event.
+
+This is critical.
+
+---
+
+# 78. D1 MUST NOT CALCULATE RETENTION DECAY
+
+Worker cannot advance Retention state itself.
+
+So when:
+
+```text
+now >= nextEvaluationAt
+```
+
+the cached Retention row is stale.
+
+---
+
+# 79. TIME-STALE CACHE RULE
+
+If a requested D1 Retention row has:
+
+```text
+nextEvaluationAt <= server now
+```
+
+the backend must NOT trust it as current.
+
+Fallback to PostgreSQL Prompt 32 lazy refresh.
+
+---
+
+# 80. POSTGRESQL FALLBACK MAY REFRESH RETENTION
+
+For time-stale rows:
+
+```text
+PG read
+→ Prompt 32 retention refresh
+→ canonical result
+→ outbox projection
+```
+
+This is expected.
+
+---
+
+# 81. DASHBOARD TIME STALENESS
+
+For dashboard aggregate D1 reads:
+
+if any relevant projected Retention rows are past `nextEvaluationAt`, cached aggregate may be stale.
+
+Use a bounded D1 query to detect:
+
+```text
+MIN(next_evaluation_at)
+```
+
+for that user.
+
+---
+
+# 82. DASHBOARD D1 VALIDITY
+
+D1 dashboard may be used only if:
+
+```text
+no required row has nextEvaluationAt <= now
+```
+
+and projection completeness is valid.
+
+Otherwise fallback to PG.
+
+---
+
+# 83. DO NOT UPDATE D1 ON READ DIRECTLY
+
+Backend PG fallback should update canonical `LectureRetention` through Prompt32 and let normal projection/outbox handle D1.
+
+Do not create an alternate direct D1 write path from dashboard reads.
+
+---
+
+# 84. D1 SCHEMA VERSION
+
+Define/reuse:
+
+```text
+mastery-private-cache-v1
+```
+
+or existing private-cache schema version conventions.
+
+Do not create unnecessary string versions if Worker already versions migrations/schema structurally.
+
+---
+
+# 85. RULE VERSION VALIDATION
+
+D1 rows must preserve:
+
+```text
+mastery-v1
+retention-v1
+```
+
+or actual canonical versions.
+
+Unsupported versions:
+
+```text
+fallback PG
+```
+
+Do not reinterpret them in Worker.
+
+---
+
+# 86. PRIVATE DASHBOARD GENERATED AT
+
+Response should include:
+
+```text
+generatedAt
+```
+
+using server response time or canonical aggregation time.
+
+---
+
+# 87. CACHE SOURCE METADATA
+
+Internal service should know:
+
+```text
+D1
+POSTGRESQL
+```
+
+for testing/observability.
+
+Normal user response may expose only bounded freshness metadata if useful.
+
+Do not expose implementation internals unnecessarily.
+
+---
+
+# 88. D1 FAILURE LOGGING
+
+Use structured bounded logs:
+
+```text
+MASTERY_D1_MISS
+MASTERY_D1_TIMEOUT
+MASTERY_D1_TIME_STALE
+MASTERY_D1_INCOMPLETE
+MASTERY_D1_SCHEMA_MISMATCH
+```
+
+Do not log private raw evidence.
+
+---
+
+# 89. NO RAW SCORES IN LOGS
+
+Avoid logging:
+
+```text
+user's full mastery state list
+retention scores
+weak topics
+```
+
+Normal operational logs should use IDs/status codes only where needed.
+
+---
+
+# 90. PROJECTION RECONCILIATION
+
+Create:
+
+```ts
+reconcileMasteryD1Projection({
+  userId,
+  lectureId?,
+  repair?
+})
+```
+
+---
+
+# 91. RECONCILIATION AUTHORITY
+
+Compare:
+
+```text
+PostgreSQL LectureMastery
+PostgreSQL LectureRetention
+```
+
+against D1.
+
+PostgreSQL is expected truth.
+
+---
+
+# 92. RECONCILIATION STATES
+
+At minimum detect:
+
+```text
+MASTERY_CACHE_MISSING
+RETENTION_CACHE_MISSING
+MASTERY_REVISION_MISMATCH
+RETENTION_REVISION_MISMATCH
+MASTERY_PAYLOAD_MISMATCH
+RETENTION_PAYLOAD_MISMATCH
+RULE_VERSION_MISMATCH
+TIME_STALE_RETENTION
+PROJECTION_METADATA_MISMATCH
+IN_SYNC
+```
+
+Use exact repository naming.
+
+---
+
+# 93. REPAIR
+
+`repair=true` should:
+
+```text
+enqueue/re-enqueue canonical projection
+```
+
+through the normal private D1 projection path.
+
+Do not mutate canonical Mastery/Retention to match D1.
+
+---
+
+# 94. D1 REPAIR MUST NOT RECOMPUTE MASTERy
+
+Reconciliation may call canonical refresh first if PG projection itself is stale.
+
+But the D1 repair step itself does not implement Mastery/Retention algorithms.
+
+---
+
+# 95. OPTIONAL ADMIN D1 RECONCILIATION API
+
+Owner/admin-only operational endpoints may be added:
+
+```text
+GET /api/admin/mastery/users/:userId/cache-reconciliation
+
+POST /api/admin/mastery/users/:userId/cache-reconciliation/reproject
+```
+
+No UI.
+
+---
+
+# 96. STUDENT CANNOT REPROJECT CACHE
+
+Mandatory.
+
+---
+
+# 97. GROUP FOCUS HOST CANNOT REPROJECT
+
+Mandatory.
+
+---
+
+# 98. NO OWNER ANALYTICS THROUGH THIS ROUTE
+
+Admin reconciliation is operational only.
+
+Do not add cohort-level Mastery visibility yet.
+
+---
+
+# 99. PRIVATE DUE-REVIEW API
+
+Implement authenticated:
+
+```text
+GET /api/me/mastery/reviews
+```
+
+or consistent equivalent.
+
+---
+
+# 100. REVIEW API FILTERS
+
+Support bounded:
+
+```text
+reviewState=DUE|OVERDUE
+subjectId=
+```
+
+Do not accept arbitrary urgency thresholds.
+
+---
+
+# 101. REVIEW API SORT
+
+Reuse Prompt 32:
+
+```text
+reviewUrgency DESC
+objective forgetting first
+nextReviewAt ASC
+lectureId ASC
+```
+
+---
+
+# 102. REVIEW API PAGINATION
+
+Default:
+
+```text
+20
+```
+
+Hard max:
+
+```text
+100
+```
+
+Cursor must be deterministic.
+
+---
+
+# 103. NO FULL RAW HISTORY API
+
+Do NOT implement:
+
+```text
+GET /api/me/mastery/:lectureId/raw-attempts
+```
+
+Prompt 33 is summary/dashboard only.
+
+---
+
+# 104. SINGLE-LECTURE API
+
+Preserve/extend Prompt31/32:
+
+```text
+GET /api/me/mastery/lectures/:lectureId
+```
+
+It may use D1 only if the row is current.
+
+If Retention is time-stale:
+
+fallback PG and refresh.
+
+---
+
+# 105. DASHBOARD SUMMARY COUNT DEFINITIONS
+
+Use:
+
+```text
+effectiveMasteryState
+```
+
+for current student-facing Mastery summary counts.
+
+Do NOT mix some base `LectureMastery.state` and some effective Retention state.
+
+---
+
+# 106. BASE STATE MAY STILL BE RETURNED PRIVATELY
+
+Lecture detail/list may return both:
+
+```text
+masteryState
+effectiveMasteryState
+```
+
+to distinguish:
+
+```text
+evidence state
+vs
+time-aware current state
+```
+
+---
+
+# 107. DASHBOARD MAIN COUNTS
+
+Use effective state only:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+---
+
+# 108. REVIEW COUNTS
+
+Use Prompt32 exact:
+
+```text
+INSUFFICIENT_EVIDENCE
+FRESH
+DUE_SOON
+DUE
+OVERDUE
+```
+
+---
+
+# 109. NO “OVERALL MASTERY PERCENT”
+
+Do NOT calculate:
+
+```text
+average evidenceScore
+average retentionScore
+overall mastery 74%
+```
+
+in Prompt 33.
+
+Prompt 36 Analyzer may define deterministic summary metrics later.
+
+---
+
+# 110. NO SUBJECT SCORE
+
+Do not calculate a synthetic:
+
+```text
+Cardiology = 82%
+```
+
+from Mastery states unless already frozen elsewhere.
+
+Subject summary is counts only.
+
+---
+
+# 111. NO “BEST/WORST SUBJECT”
+
+Not implemented.
+
+---
+
+# 112. NO STUDY RECOMMENDATIONS
+
+Dashboard may show due-review items.
+
+Do NOT generate:
+
+```text
+you should study lecture X next
+```
+
+planner recommendations.
+
+---
+
+# 113. NO AI EXPLANATION
+
+Mandatory.
+
+---
+
+# 114. NO OWNER COHORT AGGREGATES
+
+Do NOT calculate:
+
+```text
+hardest lecture across cohort
+average class Mastery
+most overdue subject
+lowest-performing students
+```
+
+Prompts 34–35 own owner analytics/privacy.
+
+---
+
+# 115. NO PUBLIC PROFILE CHANGES
+
+Prompt24 public profile remains unchanged.
+
+---
+
+# 116. NO LEADERBOARD CHANGES
+
+Prompt26/27 unchanged.
+
+---
+
+# 117. NO GAMIFICATION CHANGES
+
+Achievements, Levels, Challenges unchanged.
+
+---
+
+# 118. NO POINTS CHANGES
+
+Mastery dashboard does not award/deduct Points.
+
+---
+
+# 119. NO CALENDAR
+
+`nextReviewAt` still does not create Schedule events.
+
+---
+
+# 120. NO FOCUS PLAN
+
+Dashboard does not automatically create FocusPlan items.
+
+---
+
+# 121. NO RECALL AUTO-ISSUANCE
+
+Opening dashboard does not create `RecallAttempt`.
+
+---
+
+# 122. NO NOTIFICATIONS
+
+Do not add review notifications.
+
+---
+
+# 123. NO ANALYTICS ENGINE YET
+
+Prompt 50 handles broader observability.
+
+Do not build event telemetry for every dashboard open.
+
+---
+
+# 124. D1 OUTBOX PAYLOAD
+
+Projection payload should contain only the current canonical projection fields.
+
+No raw evidence.
+
+---
+
+# 125. BOUNDED PAYLOAD
+
+Mastery/Retention rows are small.
+
+Keep projection payload strictly bounded.
+
+---
+
+# 126. NO CHUNKING REQUIRED PER ROW
+
+Unlike Leaderboard snapshots, one Mastery/Retention projection row is small.
+
+Use normal private projection semantics.
+
+---
+
+# 127. BATCH DRAIN
+
+Existing outbox may batch multiple projection rows when draining.
+
+Reuse current infrastructure.
+
+---
+
+# 128. PROJECTION TYPE NAMES
+
+Use clear types such as:
+
+```text
+MASTERY
+RETENTION
+```
+
+or the existing private entity naming convention.
+
+Do not use ambiguous `STUDY_DATA`.
+
+---
+
+# 129. PROJECTED ROW VALIDATION
+
+Worker validates:
+
+```text
+canonical IDs
+enum values
+ruleVersion
+revision
+timestamps
+counts >= 0
+retentionScore range/null
+reviewUrgency range
+```
+
+Reject malformed projection.
+
+---
+
+# 130. MASTERy ENUM VALIDATION
+
+Exactly:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+---
+
+# 131. REVIEW ENUM VALIDATION
+
+Exactly:
+
+```text
+INSUFFICIENT_EVIDENCE
+FRESH
+DUE_SOON
+DUE
+OVERDUE
+```
+
+---
+
+# 132. FORGETTING KIND VALIDATION
+
+Exactly:
+
+```text
+NONE
+OBJECTIVE
+SELF_REPORTED
+MIXED
+```
+
+---
+
+# 133. RETENTION SCORE VALIDATION
+
+```text
+null
+or
+0..100
+```
+
+---
+
+# 134. REVIEW URGENCY VALIDATION
+
+```text
+0..100
+```
+
+---
+
+# 135. COUNT VALIDATION
+
+All counters:
+
+```text
+>= 0
+safe integer
+```
+
+---
+
+# 136. TIMESTAMP VALIDATION
+
+No locale-specific strings.
+
+Use canonical UTC timestamps consistent with existing D1 format.
+
+---
+
+# 137. LOCAL D1 ONLY
+
+Run D1 migration/tests locally.
+
+Do NOT apply remote migration.
+
+---
+
+# 138. WORKER NOT DEPLOYED
+
+Mandatory.
+
+---
+
+# 139. REAL POSTGRESQL + LOCAL D1 TEST ENVIRONMENT
+
+Use:
+
+```text
+prompt33_mastery_dashboard_gate
+```
+
+or safe disposable PostgreSQL equivalent plus isolated local D1.
+
+---
+
+# 140. MIGRATION REPLAY — POSTGRESQL
+
+Prompt 33 should preferably require:
+
+```text
+no new PostgreSQL migration
+```
+
+unless existing projection infrastructure genuinely needs additive canonical outbox support.
+
+Report exact result.
+
+---
+
+# 141. MIGRATION REPLAY — D1
+
+Apply full local D1 migration sequence.
+
+Existing private projection tables must remain intact.
+
+---
+
+# 142. TEST — MASTERy PROJECTION
+
+Canonical `LectureMastery` row projected.
+
+Expected D1 parity for all allowed fields.
+
+---
+
+# 143. TEST — RETENTION PROJECTION
+
+Canonical `LectureRetention` row projected.
+
+Exact parity.
+
+---
+
+# 144. TEST — PROJECTION REPLAY
+
+Same revision/payload twice:
+
+```text
+one row
+same values
+```
+
+---
+
+# 145. TEST — OUT-OF-ORDER MASTERy
+
+Project revision 2, then delayed revision 1.
+
+D1 remains revision 2.
+
+---
+
+# 146. TEST — OUT-OF-ORDER RETENTION
+
+Same.
+
+---
+
+# 147. TEST — SAME REVISION CONFLICT
+
+Same revision, different payload:
+
+reject.
+
+---
+
+# 148. TEST — D1 UNAVAILABLE
+
+Canonical PG Mastery/Retention update succeeds.
+
+Outbox retry remains pending.
+
+Private dashboard falls back to PostgreSQL.
+
+---
+
+# 149. TEST — EVENTUAL RECOVERY
+
+Restore D1.
+
+Drain retry.
+
+D1 returns to parity.
+
+---
+
+# 150. TEST — D1 READ FLAG OFF
+
+Expected:
+
+```text
+dashboard source = PostgreSQL
+```
+
+D1 not required.
+
+---
+
+# 151. TEST — D1 READ FLAG ON / CACHE CURRENT
+
+Expected D1-backed summary/list matches PostgreSQL result.
+
+---
+
+# 152. TEST — MISSING MASTERy ROW IN D1
+
+Canonical PG row exists.
+
+Dashboard must not silently omit it if completeness check detects missing projection.
+
+Fallback PG.
+
+---
+
+# 153. TEST — MISSING RETENTION ROW IN D1
+
+Same.
+
+---
+
+# 154. TEST — TIME-STALE RETENTION
+
+D1 row:
+
+```text
+nextEvaluationAt <= now
+```
+
+Expected:
+
+```text
+D1 rejected as current
+PG fallback
+Prompt32 lazy refresh
+new projection queued
+```
+
+---
+
+# 155. TEST — FUTURE `nextEvaluationAt`
+
+Current D1 row may be served without PG Retention recomputation.
+
+---
+
+# 156. TEST — RULE VERSION MISMATCH
+
+D1:
+
+```text
+mastery-v0
+or
+retention-v0
+```
+
+while server supports v1.
+
+Fallback PG.
+
+---
+
+# 157. TEST — SUBJECT SUMMARY
+
+Create user data across multiple subjects.
+
+Verify exact per-subject state/review counts.
+
+---
+
+# 158. TEST — NO SYNTHETIC SUBJECT SCORE
+
+Response contains counts, not invented percentage/rating.
+
+---
+
+# 159. TEST — DASHBOARD EFFECTIVE STATE
+
+Base state:
+
+```text
+MASTERED
+```
+
+Retention effective state:
+
+```text
+GOOD
+```
+
+Dashboard Mastery count must place lecture under:
+
+```text
+GOOD
+```
+
+for current state summary.
+
+Do not double count.
+
+---
+
+# 160. TEST — BASE + EFFECTIVE DETAIL
+
+Lecture detail may correctly expose:
+
+```text
+masteryState = MASTERED
+effectiveMasteryState = GOOD
+```
+
+---
+
+# 161. TEST — REVIEW COUNTS
+
+Verify exact:
+
+```text
+INSUFFICIENT_EVIDENCE
+FRESH
+DUE_SOON
+DUE
+OVERDUE
+```
+
+counts.
+
+---
+
+# 162. TEST — DUE REVIEW EMBEDDED LIST
+
+Dashboard returns bounded top due items in Prompt32 sort order.
+
+---
+
+# 163. TEST — FULL DUE REVIEW PAGINATION
+
+No duplicates/skips across cursor pages.
+
+---
+
+# 164. TEST — LECTURE STATUS PAGINATION
+
+Stable ordering.
+
+Suggested deterministic default:
+
+```text
+lastEvaluatedAt DESC
+lectureId ASC
+```
+
+or repository-appropriate order.
+
+Document.
+
+---
+
+# 165. TEST — FILTER BY STATE
+
+Exact enum filtering.
+
+---
+
+# 166. TEST — FILTER BY REVIEW STATE
+
+Exact.
+
+---
+
+# 167. TEST — FILTER BY SUBJECT
+
+Only canonical subject ID.
+
+---
+
+# 168. TEST — OWNERSHIP
+
+User A cannot query User B dashboard/list/detail.
+
+---
+
+# 169. TEST — NO `userId` PARAMETER
+
+Normal student route must derive user from auth.
+
+---
+
+# 170. TEST — CONTENT METADATA BATCH ENRICHMENT
+
+For 100 lecture rows:
+
+```text
+N+1 metadata query = NO
+```
+
+---
+
+# 171. TEST — PUBLIC PROFILE
+
+No Mastery/Retention appears.
+
+---
+
+# 172. TEST — LEADERBOARD
+
+No Mastery/Retention appears.
+
+---
+
+# 173. TEST — D1 PII
+
+Mastery D1 schema contains no:
+
+```text
+email
+phone
+signature
+display name
+avatar
+```
+
+---
+
+# 174. TEST — D1 RAW EVIDENCE
+
+Schema/rows contain no:
+
+```text
+selected answer
+MCQ item history
+Flashcard history
+RecallAttempt raw rows
+Quick Notes
+IntegritySignal
+```
+
+---
+
+# 175. TEST — DASHBOARD READ SIDE EFFECTS
+
+Current D1 read:
+
+```text
+PostgreSQL Mastery writes = 0
+PostgreSQL Retention writes = 0
+Points writes = 0
+RecallAttempt writes = 0
+CalendarEvent writes = 0
+```
+
+---
+
+# 176. TIME-STALE PG FALLBACK SIDE EFFECT
+
+A PG fallback may legitimately update:
+
+```text
+LectureRetention
++
+outbox
+```
+
+through Prompt32 lazy refresh if time evolution requires it.
+
+It must still create zero:
+
+```text
+Points
+Calendar
+RecallAttempt
+Gamification
+Integrity
+```
+
+---
+
+# 177. TEST — DASHBOARD DOES NOT CREATE NEW RECALL
+
+Mandatory.
+
+---
+
+# 178. TEST — DASHBOARD DOES NOT CREATE FOCUS PLAN
+
+Mandatory.
+
+---
+
+# 179. TEST — DASHBOARD DOES NOT AWARD POINTS
+
+Mandatory.
+
+---
+
+# 180. TEST — DASHBOARD DOES NOT CREATE STUDY EVENT
+
+Opening/read alone:
+
+```text
+StudyEvent delta = 0
+```
+
+---
+
+# 181. TEST — D1 RECONCILIATION CLEAN
+
+Expected:
+
+```text
+IN_SYNC
+```
+
+---
+
+# 182. TEST — MASTERy REVISION DRIFT
+
+Corrupt local D1 revision.
+
+Detect mismatch.
+
+---
+
+# 183. TEST — RETENTION REVISION DRIFT
+
+Detect.
+
+---
+
+# 184. TEST — PAYLOAD DRIFT
+
+Same revision but altered state in local fixture.
+
+Detect.
+
+---
+
+# 185. TEST — TIME-STALE RECONCILIATION
+
+D1 values match stored PG row but `nextEvaluationAt` is in past.
+
+Expected:
+
+```text
+TIME_STALE_RETENTION
+```
+
+because current canonical evaluation requires PG refresh.
+
+---
+
+# 186. TEST — REPROJECT
+
+Repair via normal projection path.
+
+D1 returns to parity.
+
+---
+
+# 187. TEST — REPAIR DOES NOT MODIFY CANONICAL EVIDENCE
+
+Mandatory.
+
+---
+
+# 188. TEST — ACCOUNT DELETION / TOMBSTONE
+
+If existing project has deletion flow:
+
+verify private Mastery/Retention rows are removed/tombstoned consistently.
+
+Do not invent a new user deletion architecture.
+
+---
+
+# 189. PERFORMANCE TEST
+
+Create synthetic user dataset around:
+
+```text
+300 tracked lectures
+```
+
+matching app scale.
+
+Measure:
+
+```text
+dashboard aggregation
+subject aggregation
+due-review query
+25-row page
+100-row page
+```
+
+Do not use brittle CI latency thresholds.
+
+---
+
+# 190. PERFORMANCE REPORT
+
+Report:
+
+```text
+D1 query count
+PG fallback query count
+N+1 status
+approx local timings
+rows scanned
+```
+
+where available.
+
+---
+
+# 191. NO FULL RAW HISTORY SCANS
+
+Dashboard must read projection tables, not aggregate thousands of raw attempts on every request.
+
+---
+
+# 192. POSTGRESQL FALLBACK READ MODEL
+
+PG fallback should also read:
+
+```text
+LectureMastery
+LectureRetention
+```
+
+projections.
+
+Do NOT recompute every historical source from scratch unless a projection is stale/missing.
+
+---
+
+# 193. MISSING PG MASTERy PROJECTION
+
+If a requested known studied lecture lacks `LectureMastery`, Prompt31 bounded on-read convergence may materialize it.
+
+Do not globally materialize all course lectures.
+
+---
+
+# 194. MISSING PG RETENTION PROJECTION
+
+Prompt32 may materialize bounded requested rows.
+
+---
+
+# 195. D1 PROJECTION MUST FOLLOW NEW PG MATERIALIZATION
+
+Normal outbox integration should cover it.
+
+---
+
+# 196. NO GLOBAL DASHBOARD BACKFILL
+
+Do not populate all production users/lectures.
+
+Prompt49 owns bulk backfill.
+
+---
+
+# 197. NO CRON
+
+No periodic dashboard projection cron.
+
+Projection is event-driven/outbox-driven.
+
+Retention time staleness is resolved lazily via PG.
+
+---
+
+# 198. NO PER-SECOND PROJECTION
+
+Mandatory:
+
+```text
+per-second D1 writes = 0
+```
+
+---
+
+# 199. NO PER-MINUTE RETENTION CACHE REFRESH
+
+Mandatory.
+
+---
+
+# 200. D1 CACHE MAY BE STALE BY TIME
+
+This is acceptable because:
+
+```text
+nextEvaluationAt
+```
+
+allows the backend to identify it safely.
+
+---
+
+# 201. PROMPT 32 REGRESSION
+
+Run:
+
+```text
+retention decay
+review intervals
+forgetting detection
+nextEvaluationAt
+time evolution
+review sorting
+```
+
+unchanged.
+
+---
+
+# 202. PROMPT 31 REGRESSION
+
+Base Mastery semantics unchanged.
+
+---
+
+# 203. PROMPT 30 REGRESSION
+
+Recall policy/rewards unchanged.
+
+---
+
+# 204. PROMPT 29 REGRESSION
+
+Recall candidate weights unchanged.
+
+---
+
+# 205. PROMPT 28 REGRESSION
+
+Recall lifecycle unchanged.
+
+---
+
+# 206. PROMPT 27 REGRESSION
+
+Leaderboard D1 cache unchanged.
+
+Mastery D1 migration must not break it.
+
+---
+
+# 207. EXISTING PRIVATE D1 REGRESSION
+
+Rerun existing private D1 projection/read tests for:
+
+```text
+FocusPlan
+FocusSession
+StudyDailyMetric
+```
+
+and any additional current private entities.
+
+---
+
+# 208. PROMPT 26 REGRESSION
+
+Canonical Leaderboard unchanged.
+
+---
+
+# 209. PROMPT 25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 210. PROMPT 24 REGRESSION
+
+Levels/public profile unchanged.
+
+---
+
+# 211. PROMPT 23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 212. PROMPT 22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 213. PROMPT 19–21 REGRESSION
+
+Points unchanged.
+
+---
+
+# 214. PROMPT 17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 215. PROMPT 13–16 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 216. PROMPT 9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 217. PROMPT 8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 218. MCQ / FLASHCARD REGRESSION
+
+Normal functionality unchanged.
+
+---
+
+# 219. CALENDAR BASELINE
+
+Use the actual current repository baseline.
+
+Mandatory:
+
+```text
+Calendar files unchanged
+new Calendar regressions = 0
+```
+
+Do not hard-code stale historical counts.
+
+---
+
+# 220. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Mastery D1 projection code
+Mastery private read adapters
+dashboard services
+routes
+Worker handlers
+Prompt 33 tests
+```
+
+Expected PASS.
+
+---
+
+# 221. TARGETED LINT
+
+Prompt33 changed files:
+
+```text
+PASS
+```
+
+No new lint regressions.
+
+---
+
+# 222. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 223. WORKER BUILD / TYPECHECK
+
+Run the repository's actual Cloudflare Worker checks.
+
+Expected PASS.
+
+---
+
+# 224. PRISMA
+
+If PG schema unchanged:
+
+run validate/generate as appropriate.
+
+Expected:
+
+```text
+Prompt33 PostgreSQL migration = NO
+```
+
+unless existing outbox architecture genuinely requires one.
+
+---
+
+# 225. LOCAL D1 MIGRATION
+
+Apply using actual local repository workflow.
+
+Do NOT apply remotely.
+
+---
+
+# 226. PRODUCTION SAFETY
+
+Do NOT:
+
+- modify production PostgreSQL;
+- run production Mastery backfill;
+- apply D1 migration remotely;
+- deploy Worker;
+- enable Mastery D1 projection;
+- enable Mastery D1 reads;
+- expose production dashboard changes;
+- modify production Points;
+- modify production Recall rules;
+- create production owner analytics;
+- change production env.
+
+---
+
+# 227. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+workers/.../migrations/<mastery_private_projection>.sql
+
+workers/.../
+  private mastery projection handlers
+  private mastery read handlers
+
+server/features/mastery/
+  projection.ts
+  dashboardTypes.ts
+  dashboardRead.ts
+  dashboardPg.ts
+  dashboardD1.ts
+  dashboardService.ts
+  cacheReconciliation.ts
+
+server/services/privateD1Sync.ts
+or existing projection/outbox modules
+
+server/routes/mastery.ts
+
+tests/mastery-d1*.test.ts
+tests/mastery-dashboard*.test.ts
+tests/mastery-cache-fallback*.test.ts
+tests/mastery-cache-reconciliation*.test.ts
+```
+
+Use actual repository structure.
+
+---
+
+# 228. FILES EXPECTED UNCHANGED
+
+Unless minimal projection/read integration is required:
+
+```text
+Prompt31 Mastery rules
+Prompt32 Retention rules
+Prompt29 Recall candidate weights
+Prompt30 Recall policy/reward
+Points rules
+Gamification semantics
+Leaderboard ranking semantics
+Calendar
+visible frontend UI
+```
+
+---
+
+# 229. ACCEPTANCE CRITERIA
+
+Prompt 33 succeeds only if:
+
+1. PostgreSQL remains Mastery authority.
+2. PostgreSQL remains Retention authority.
+3. D1 is derived/rebuildable.
+4. D1 migration additive.
+5. No raw attempt history projected.
+6. No PII projected.
+7. Mastery projection uses canonical IDs.
+8. Retention projection uses canonical IDs.
+9. Projection revision semantics exist.
+10. Older revision cannot overwrite newer.
+11. Same revision replay is idempotent.
+12. Same revision conflicting payload rejects.
+13. D1 failure never rolls back canonical learning actions.
+14. D1 read kill switch exists.
+15. D1 projection kill switch exists.
+16. Both default disabled.
+17. PG-only fallback remains complete.
+18. D1 current rows can power dashboard.
+19. Time-stale Retention cache is rejected.
+20. PG fallback can lazily refresh Retention.
+21. Dashboard uses effective Mastery state.
+22. Base Mastery state remains available in detail DTO.
+23. Review counts use Prompt32 semantics.
+24. Subject aggregation uses canonical subject IDs.
+25. No synthetic subject score.
+26. No best/worst subject ranking.
+27. Dashboard due-review list is bounded.
+28. Full lecture API paginated.
+29. Due-review API paginated.
+30. No raw evidence API.
+31. No user-facing retention probability.
+32. No public profile Mastery.
+33. No Leaderboard Mastery.
+34. No owner cohort analytics.
+35. No AI.
+36. No Points side effect.
+37. No Calendar.
+38. No Focus Plan auto-creation.
+39. No Recall auto-issuance.
+40. No per-second projection.
+41. Cache reconciliation exists.
+42. Reprojection modifies D1 only.
+43. Existing private D1 projections remain working.
+44. Leaderboard D1 remains working.
+45. No visible UI.
+46. Production unchanged.
+47. Build/Worker checks pass.
+48. New regressions = 0.
+
+---
+
+# 230. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Results
+
+Report:
+
+- Prompt31 Mastery implementation;
+- Prompt32 Retention implementation;
+- existing private D1 architecture;
+- `PrivateD1SyncOutbox`;
+- existing Worker authentication;
+- existing private projection tables;
+- Prompt27 Leaderboard D1 architecture;
+- current Mastery routes.
+
+---
+
+## B. Canonical / Cache Architecture
+
+Explain:
+
+```text
+canonical learning evidence
+→ PostgreSQL LectureMastery
+→ PostgreSQL LectureRetention
+→ durable private D1 projection
+→ D1 private read model
+→ PostgreSQL fallback
+```
+
+---
+
+## C. PostgreSQL Changes
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+```
+
+If YES, justify exactly why existing outbox infrastructure required it.
+
+Expected preference:
+
+```text
+NO
+NO
+```
+
+---
+
+## D. D1 Migration
+
+Report exact path.
+
+List every table/index created or changed.
+
+Explicitly:
+
+```text
+DROP TABLE:
+DROP COLUMN:
+DELETE EXISTING D1 DATA:
+REMOTE D1 MIGRATION APPLIED:
+```
+
+Expected remote:
+
+```text
+NO
+```
+
+---
+
+## E. Mastery Projection Schema
+
+Show exact D1 fields for the Mastery projection.
+
+---
+
+## F. Retention Projection Schema
+
+Show exact D1 fields for the Retention projection.
+
+---
+
+## G. D1 Privacy Boundary
+
+Explicitly confirm D1 does NOT contain:
+
+```text
+email
+phone
+signature
+display name
+avatar
+raw MCQ answers/history
+raw Flashcard review history
+RecallAttempt history
+Quick Notes
+Integrity Signals
+```
+
+---
+
+## H. Subject Projection Strategy
+
+Report:
+
+```text
+subjectId projected in D1: YES/NO
+canonical source:
+handling subject relation changes:
+```
+
+If not projected, explain PG enrichment strategy.
+
+---
+
+## I. Outbox Integration
+
+Report:
+
+```text
+existing outbox reused:
+new outbox created:
+canonical transaction behavior:
+retry behavior:
+dead-letter behavior:
+```
+
+---
+
+## J. Projection Revision Semantics
+
+Report exact behavior for:
+
+```text
+same revision/same payload:
+same revision/different payload:
+higher revision:
+delayed lower revision:
+```
+
+---
+
+## K. Worker Authentication
+
+Report exact reused security mechanism.
+
+Explicitly:
+
+```text
+BROWSER SESSION CAN WRITE PRIVATE MASTERY CACHE: NO
+QUERY-STRING SECRET USED: NO
+```
+
+---
+
+## L. Feature Flags
+
+Report exact flags/defaults:
+
+```text
+MASTERY_D1_PROJECTION_ENABLED:
+MASTERY_D1_READ_ENABLED:
+```
+
+or exact reused equivalents.
+
+Confirm production values unchanged.
+
+---
+
+## M. Dashboard API
+
+Report:
+
+```text
+method/path:
+auth:
+D1-first behavior:
+fallback:
+top-level response:
+```
+
+---
+
+## N. Dashboard Totals
+
+Show exact fields and explain why:
+
+```text
+effectiveMasteryState
+```
+
+is used for current-state counts.
+
+---
+
+## O. Subject Summary
+
+Show exact DTO.
+
+Explicitly:
+
+```text
+SYNTHETIC SUBJECT SCORE CREATED: NO
+BEST/WORST SUBJECT RANKING CREATED: NO
+```
+
+---
+
+## P. Review Summary
+
+Report exact review-state counts.
+
+---
+
+## Q. Embedded Due-Review List
+
+Report:
+
+```text
+limit:
+sort:
+eligibility:
+```
+
+---
+
+## R. Lecture List API
+
+Report:
+
+```text
+method/path:
+filters:
+default limit:
+hard max:
+cursor order:
+```
+
+---
+
+## S. Lecture List DTO
+
+Show exact safe fields.
+
+Explicitly state whether:
+
+```text
+evidenceScore
+retentionScore
+reviewUrgencyScore
+```
+
+are exposed to normal students.
+
+Expected preference:
+
+```text
+NO
+```
+
+---
+
+## T. Due-Review API
+
+Report exact path, filters, pagination and order.
+
+---
+
+## U. Single-Lecture Read
+
+Report D1-current vs PG-time-stale behavior.
+
+---
+
+## V. Time-Stale D1 Retention
+
+Explain exact rule using:
+
+```text
+nextEvaluationAt
+```
+
+Explicitly:
+
+```text
+D1 WORKER RECALCULATES RETENTION DECAY: NO
+TIME-STALE D1 ROW FALLS BACK TO POSTGRESQL: YES
+```
+
+---
+
+## W. Dashboard Cache Completeness
+
+Report exact strategy/watermark used to avoid silently missing canonical rows.
+
+---
+
+## X. Fallback Matrix
+
+Report behavior for:
+
+```text
+D1 disabled
+D1 timeout
+D1 unavailable
+cache row missing
+cache incomplete
+rule version mismatch
+unsupported schema
+time-stale retention
+```
+
+---
+
+## Y. Content Metadata Enrichment
+
+Report:
+
+```text
+lecture title source:
+subject metadata source:
+batch strategy:
+N+1:
+```
+
+Expected:
+
+```text
+N+1 = NO
+```
+
+---
+
+## Z. Private / Public Boundary
+
+Explicitly:
+
+```text
+OTHER STUDENT CAN READ DASHBOARD: NO
+PUBLIC PROFILE EXPOSES MASTERY: NO
+LEADERBOARD EXPOSES MASTERY: NO
+OWNER COHORT ANALYTICS IMPLEMENTED: NO
+```
+
+---
+
+## AA. Raw Evidence Boundary
+
+Explicitly:
+
+```text
+RAW MCQ HISTORY API ADDED: NO
+RAW FLASHCARD HISTORY API ADDED: NO
+RAW RECALL HISTORY API ADDED: NO
+```
+
+---
+
+## AB. User-Facing Score Semantics
+
+Explicitly:
+
+```text
+RETENTION PROBABILITY EXPOSED: NO
+WEAKNESS SCORE EXPOSED: NO
+SYNTHETIC OVERALL MASTERY PERCENT EXPOSED: NO
+```
+
+---
+
+## AC. Read Side Effects
+
+Report direct dashboard/list/detail read deltas:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+LeaderboardSnapshot:
+IntegritySignal:
+CalendarEvent:
+FocusPlanItem:
+RecallAttempt:
+StudyEvent:
+```
+
+Expected zero.
+
+Explain legitimate `LectureRetention + outbox` refresh only when PG fallback detects time-stale Retention.
+
+---
+
+## AD. Cache Reconciliation
+
+List implemented status/mismatch codes.
+
+---
+
+## AE. Cache Repair
+
+Explicitly:
+
+```text
+CACHE REPAIR MODIFIES D1: YES
+CACHE REPAIR MODIFIES CANONICAL MASTERY TO MATCH D1: NO
+CACHE REPAIR MODIFIES CANONICAL RETENTION TO MATCH D1: NO
+CACHE REPAIR RECOMPUTES MASTERY IN WORKER: NO
+```
+
+---
+
+## AF. Admin Cache APIs
+
+Report operational reconciliation/reproject routes and authorization if implemented.
+
+---
+
+## AG. Local D1 Environment
+
+Report:
+
+```text
+LOCAL D1 MIGRATION EXECUTED: YES/NO
+REMOTE D1 MIGRATION APPLIED: NO
+REMOTE D1 DATA MODIFIED: NO
+WORKER DEPLOYED: NO
+```
+
+Include exact local migration/test command.
+
+---
+
+## AH. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 33 TESTS EXECUTED: YES/NO
+```
+
+Include exact disposable schema.
+
+---
+
+## AI. Projection Tests
+
+Report:
+
+- Mastery projection;
+- Retention projection;
+- replay;
+- out-of-order revision;
+- same-revision conflict;
+- D1 unavailable;
+- eventual recovery.
+
+---
+
+## AJ. Cache Read Tests
+
+Report:
+
+- flag OFF;
+- flag ON/current cache;
+- missing Mastery cache;
+- missing Retention cache;
+- time-stale Retention;
+- rule-version mismatch;
+- PG fallback.
+
+---
+
+## AK. Dashboard Tests
+
+Report:
+
+- effective-state counts;
+- review counts;
+- subject counts;
+- due-review embedded list;
+- no synthetic subject score;
+- no raw score leakage.
+
+---
+
+## AL. Pagination / Filter Tests
+
+Report:
+
+- lecture pagination;
+- state filter;
+- review filter;
+- subject filter;
+- due-review pagination;
+- duplicate/skip verification.
+
+---
+
+## AM. Privacy Tests
+
+Report:
+
+- cross-user denial;
+- no public-profile exposure;
+- no Leaderboard exposure;
+- no PII in D1;
+- no raw evidence in D1.
+
+---
+
+## AN. 300-Lecture Synthetic Test
+
+Report:
+
+```text
+tracked lecture count:
+subject count:
+D1 dashboard queries:
+PG fallback queries:
+metadata enrichment queries:
+N+1:
+approx local timings:
+```
+
+No brittle latency threshold.
+
+---
+
+## AO. Existing Private D1 Regression
+
+Report results for pre-existing private D1 features.
+
+Confirm no regression to:
+
+```text
+FocusPlan
+FocusSession
+StudyDailyMetric
+```
+
+and any current private entities.
+
+---
+
+## AP. Leaderboard D1 Regression
+
+Confirm Prompt27 D1 cache still works.
+
+---
+
+## AQ. Prompt31 / Prompt32 Preservation
+
+Explicitly:
+
+```text
+mastery-v1 rules changed: NO
+retention-v1 rules changed: NO
+time-decay formula changed: NO
+forgetting detection changed: NO
+```
+
+---
+
+## AR. Prompt29 / Prompt30 Preservation
+
+Explicitly:
+
+```text
+Recall candidate weights changed: NO
+Recall cooldown changed: NO
+Recall anti-farming changed: NO
+Recall reward rules changed: NO
+```
+
+---
+
+## AS. Side Effects
+
+Report Prompt33 direct deltas:
+
+```text
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+UserChallengeProgress:
+LeaderboardSnapshot:
+IntegritySignal:
+CalendarEvent:
+FocusPlanItem:
+RecallAttempt:
+```
+
+Expected zero.
+
+Mastery/Retention projections and outbox may change only through canonical refresh/projection semantics.
+
+---
+
+## AT. Tests Added / Modified
+
+Exact paths/counts/results.
+
+---
+
+## AU. Regression Results
+
+Include:
+
+- Prompt32 Retention;
+- Prompt31 Mastery;
+- Prompt30 Recall policy/reward;
+- Prompt29 Recall candidate;
+- Prompt28 Recall lifecycle;
+- Prompt27 Leaderboard D1;
+- Prompt26 canonical Leaderboard;
+- Prompt25 Challenges;
+- Prompt24 Levels/profile;
+- Prompt23 Achievements;
+- Prompt22 definitions;
+- Prompt19–21 Points;
+- Prompt17–18 Integrity;
+- Prompt13–16 Group Focus;
+- Prompt9–12 Solo Focus;
+- Prompt8 Study Events;
+- existing private D1;
+- Outbox;
+- MCQ;
+- Flashcards;
+- Auth;
+- Build;
+- Worker build/typecheck;
+- Prisma;
+- targeted typecheck;
+- targeted lint;
+- Calendar baseline.
+
+---
+
+## AV. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AW. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text
+Prompt31 Mastery semantics unchanged?
+Prompt32 Retention semantics unchanged?
+Prompt29 candidate weights unchanged?
+Prompt30 Recall policy/reward unchanged?
+Points unchanged?
+Gamification unchanged?
+Leaderboard semantics unchanged?
+Calendar unchanged?
+visible frontend UI unchanged?
+```
+
+---
+
+## AX. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 33 POSTGRESQL MIGRATION APPLIED TO PRODUCTION: NO
+REMOTE D1 MIGRATION APPLIED: NO
+REMOTE D1 DATA MODIFIED: NO
+MASTERY D1 PROJECTION ENABLED IN PRODUCTION: NO
+MASTERY D1 READ ENABLED IN PRODUCTION: NO
+PRODUCTION MASTERY BACKFILL RUN: NO
+PRODUCTION RETENTION BACKFILL RUN: NO
+PRODUCTION OWNER ANALYTICS EXPOSED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AY. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AZ. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## BA. Risks / Blockers
+
+Only actual unresolved Mastery/Retention D1/read-model issues.
+
+Do not list owner analytics, AI Analyzer, or frontend UI as blockers.
+
+---
+
+## BB. Architecture Compliance
+
+Answer YES/NO:
+
+- PostgreSQL remains Mastery authority?
+- PostgreSQL remains Retention authority?
+- D1 purely derived?
+- D1 contains no raw evidence?
+- D1 contains no profile PII?
+- Canonical PG IDs used?
+- Existing private D1 architecture reused?
+- Projection event-driven?
+- Outbox durable?
+- D1 failure cannot roll back learning actions?
+- Revision ordering enforced?
+- Older revision cannot overwrite newer?
+- Same-revision conflicting payload rejected?
+- Projection flag kill-switchable?
+- Read flag kill-switchable?
+- Both default disabled?
+- PG-only fallback complete?
+- D1 current rows support dashboard?
+- Time-stale Retention rejected?
+- Worker does not calculate decay?
+- PG fallback performs canonical lazy refresh?
+- Dashboard uses effective Mastery state?
+- Base Mastery still preserved?
+- Review counts use Prompt32 semantics?
+- Subject aggregation uses canonical subjects?
+- No synthetic subject score?
+- No best/worst subject ranking?
+- Lecture list bounded/paginated?
+- Due-review list bounded/paginated?
+- No raw evidence API?
+- No retention probability exposed?
+- No public profile Mastery?
+- No Leaderboard Mastery?
+- No owner cohort analytics?
+- No AI?
+- No Points side effect?
+- No Calendar?
+- No Focus Plan auto-create?
+- No Recall auto-issuance?
+- No per-second D1 writes?
+- Cache reconciliation implemented?
+- Cache repair D1-only?
+- Existing private D1 features preserved?
+- Leaderboard D1 preserved?
+- No visible UI?
+- Remote D1 unchanged?
+- Worker not deployed?
+- Production unchanged?
+- Build passes?
+- New regressions = 0?
+
+---
+
+## BC. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 34 — Owner Academic Intelligence: Aggregate Lecture/Subject Metrics, Resource Usage & Cohort Study Signals**
+
+Do not implement Prompt 34.
+
+---
+
+# 231. STOP CONDITION
+
+After implementation, testing, and the mandatory report:
+
+STOP.
+
+Do NOT implement owner/cohort analytics.
+
+Do NOT implement owner privacy policy extensions beyond operational cache reconciliation.
+
+Do NOT build the Mastery dashboard UI.
+
+Do NOT add AI explanations.
+
+Do NOT alter Mastery rules.
+
+Do NOT alter Retention rules.
+
+Do NOT alter Recall candidate/cooldown/reward rules.
+
+Do NOT apply D1 migration remotely.
+
+Do NOT deploy Worker.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 33 COMPLETE — MASTERY & RETENTION D1 PROJECTION, PRIVATE DASHBOARD READ MODELS & POSTGRESQL FALLBACK READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
