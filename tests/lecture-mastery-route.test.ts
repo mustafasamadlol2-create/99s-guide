@@ -41,8 +41,15 @@ test("Mastery own-read uses only the authenticated user and disables caching", a
       return {
         lectureId: input.lectureId,
         state: "LEARNING",
+        evidenceState: "LEARNING",
+        effectiveState: "LEARNING",
+        reviewState: "FRESH",
+        reviewUrgency: "FRESH",
+        nextReviewAt: "2026-10-04T10:00:00.000Z",
         ruleVersion: "mastery-v1",
+        retentionRuleVersion: "retention-v1",
         lastEvaluatedAt: "2026-09-27T10:00:00.000Z",
+        retentionLastEvaluatedAt: "2026-09-27T10:00:00.000Z",
         evidence: {
           objectiveAttempts: 3,
           objectiveCorrect: 2,
@@ -66,7 +73,13 @@ test("Mastery own-read uses only the authenticated user and disables caching", a
       userId: "authenticated-user",
       lectureId: "lecture-7",
     }]);
-    assert.equal((await response.json()).lectureId, "lecture-7");
+    const body = await response.json();
+    assert.equal(body.lectureId, "lecture-7");
+    assert.equal(body.evidenceState, "LEARNING");
+    assert.equal(body.effectiveState, "LEARNING");
+    assert.equal(body.reviewState, "FRESH");
+    assert.equal(body.reviewUrgency, "FRESH");
+    assert.equal(body.nextReviewAt, "2026-10-04T10:00:00.000Z");
   });
 });
 

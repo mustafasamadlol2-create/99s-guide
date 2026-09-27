@@ -11,6 +11,10 @@ import {
   refreshLectureMastery,
   refreshUserLectureMastery,
 } from "./refresh.js";
+import {
+  refreshLectureRetention,
+  refreshUserLectureRetention,
+} from "./retentionRefresh.js";
 
 const EVENT_WRITE_BATCH_SIZE = 100;
 const LECTURE_REFRESH_BATCH_SIZE = 100;
@@ -81,10 +85,20 @@ export async function recordMasteryStudyEventsAndRefreshBestEffort(input: {
   ) {
     const batch = lectureIds.slice(start, start + LECTURE_REFRESH_BATCH_SIZE);
     try {
-      await refreshUserLectureMastery({
-        userId: input.userId,
-        lectureIds: batch,
-      });
+      try {
+        await refreshUserLectureRetention({
+          userId: input.userId,
+          lectureIds: batch,
+        });
+      } catch {
+        logger.error("[Retention]", "Post-commit projection refresh failed.", {
+          errorCode: "RETENTION_REFRESH_FAILED",
+        });
+        await refreshUserLectureMastery({
+          userId: input.userId,
+          lectureIds: batch,
+        });
+      }
     } catch {
       logger.error("[Mastery]", "Post-commit projection refresh failed.", {
         errorCode: "PROJECTION_REFRESH_FAILED",
@@ -98,7 +112,14 @@ export async function refreshLectureMasteryBestEffort(input: {
   lectureId: string;
 }): Promise<void> {
   try {
-    await refreshLectureMastery(input);
+    try {
+      await refreshLectureRetention(input);
+    } catch {
+      logger.error("[Retention]", "Post-commit projection refresh failed.", {
+        errorCode: "RETENTION_REFRESH_FAILED",
+      });
+      await refreshLectureMastery(input);
+    }
   } catch {
     logger.error("[Mastery]", "Post-commit projection refresh failed.", {
       errorCode: "PROJECTION_REFRESH_FAILED",

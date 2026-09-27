@@ -1,7 +1,7 @@
 import express from "express";
 import {
-  getMyLectureMastery,
-} from "../features/mastery/refresh.js";
+  getMyLectureMasteryWithRetention,
+} from "../features/mastery/privateRead.js";
 import { LectureMasteryError } from "../features/mastery/errors.js";
 
 type AuthenticatedRequest = express.Request & {
@@ -10,7 +10,7 @@ type AuthenticatedRequest = express.Request & {
 
 export function createMasteryRouter(dependencies: {
   requireUser: express.RequestHandler;
-  getMyMastery?: typeof getMyLectureMastery;
+  getMyMastery?: typeof getMyLectureMasteryWithRetention;
 }): express.Router {
   const router = express.Router();
   router.use((_req, res, next) => {
@@ -24,7 +24,7 @@ export function createMasteryRouter(dependencies: {
     if (!userId) return res.status(401).json({ error: "Authentication required." });
 
     try {
-      const result = await (dependencies.getMyMastery ?? getMyLectureMastery)({
+      const result = await (dependencies.getMyMastery ?? getMyLectureMasteryWithRetention)({
         userId,
         lectureId: req.params.lectureId,
       });
