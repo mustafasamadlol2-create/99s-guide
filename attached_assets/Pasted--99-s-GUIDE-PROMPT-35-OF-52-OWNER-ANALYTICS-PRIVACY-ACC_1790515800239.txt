@@ -1,0 +1,3952 @@
+# 99’s GUIDE — PROMPT 35 OF 52
+## OWNER ANALYTICS PRIVACY + ACCESS CONTROL
+## SMALL-COHORT SUPPRESSION + ANTI-INFERENCE RULES
+## SAFE AGGREGATE API EXPOSURE
+### OWNER-ONLY BY DEFAULT — NO INDIVIDUAL STUDENT ANALYTICS — NO AI — NO UI
+
+Prompts 1–34 have been completed.
+
+Prompt 34 established:
+
+```text
+canonical PostgreSQL academic/study facts
+→ deterministic aggregate queries
+→ lecture / subject / cohort aggregate DTOs
+→ owner-academic-analytics-v1
+```
+
+Prompt 34 deliberately did **not** expose those analytics through HTTP because privacy and access-control semantics had not yet been frozen.
+
+Prompt 35 now adds that safety boundary.
+
+Frozen roadmap:
+
+```text
+Prompt 35 — Owner privacy / access
+Prompt 36 — deterministic Analyzer DTO / metrics
+Prompt 37 — AI Study Insight cache / Workers AI
+Prompt 38 — Ask My Study Data
+Prompt 39 — local-first audio / ambient
+```
+
+Do NOT implement Prompt 36+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Safely expose Prompt 34 deterministic aggregate analytics to the authorized owner while preventing:
+
+1. individual-student analytics;
+2. small-sample disclosure;
+3. accidental student identification;
+4. behavioral disclosure from tiny groups;
+5. sensitive Mastery/Retention leakage;
+6. differencing through arbitrary windows;
+7. custom subgroup probing;
+8. raw evidence access;
+9. analytics-based student ranking;
+10. insecure shared caching.
+
+Prompt 35 must implement:
+
+```text
+authorization
++
+privacy transformation
++
+small-sample suppression
++
+fixed safe query windows
++
+bounded owner APIs
++
+privacy-safe logging
+```
+
+---
+
+# 2. NON-NEGOTIABLE PRIVACY PRINCIPLE
+
+Prompt 35 exposes:
+
+```text
+aggregate facts
+```
+
+only.
+
+It must never expose:
+
+```text
+individual student study history
+individual Mastery
+individual Retention
+individual weakness
+individual Recall history
+individual MCQ accuracy
+individual Focus duration
+```
+
+to the owner analytics API.
+
+---
+
+# 3. OWNER ANALYTICS ≠ STUDENT SURVEILLANCE
+
+The analytics feature must help understand:
+
+```text
+cohort-level patterns
+subject-level patterns
+lecture-level patterns
+resource usage patterns
+aggregate study engagement
+```
+
+It must NOT become:
+
+```text
+"show me Mustafa's weak lectures"
+"show students with low accuracy"
+"rank students by study time"
+"which student is overdue"
+```
+
+No such endpoint/service should be added.
+
+---
+
+# 4. PRIVACY POLICY VERSION
+
+Define:
+
+```text
+owner-analytics-privacy-v1
+```
+
+Keep separate from:
+
+```text
+owner-academic-analytics-v1
+```
+
+Meaning:
+
+```text
+owner-academic-analytics-v1
+= metric semantics
+
+owner-analytics-privacy-v1
+= disclosure/access semantics
+```
+
+---
+
+# 5. NO AI
+
+Prompt 35:
+
+```text
+AI calls = 0
+```
+
+No Workers AI.
+
+No LLM privacy decisions.
+
+All privacy rules deterministic.
+
+---
+
+# 6. POSTGRESQL REMAINS CANONICAL
+
+Prompt 35 continues to consume Prompt 34 canonical aggregate service.
+
+Do NOT recompute analytics from:
+
+```text
+client values
+D1 private student projections
+browser state
+AI output
+```
+
+---
+
+# 7. NO NEW ANALYTICS DATABASE
+
+Do NOT create:
+
+```text
+OwnerAnalyticsSnapshot
+AnalyticsUserProfile
+StudentRiskScore
+PrivacyScore
+```
+
+tables.
+
+Preferred:
+
+```text
+Prisma schema change = NO
+PostgreSQL migration = NO
+D1 migration = NO
+```
+
+---
+
+# 8. ACCESS MODEL — OWNER-ONLY DEFAULT
+
+The owner analytics HTTP APIs must be accessible only to the canonical:
+
+```text
+owner
+```
+
+role by default.
+
+Do NOT automatically grant analytics access to:
+
+```text
+admin
+user/student
+Group Focus HOST
+moderator-like contextual roles
+```
+
+---
+
+# 9. EXISTING DEDICATED PERMISSION EXCEPTION
+
+Inspect the repository's actual RBAC system first.
+
+If there is already a dedicated, intentional permission equivalent to:
+
+```text
+OWNER_ANALYTICS_VIEW
+```
+
+then reuse it exactly.
+
+Do NOT create a new broad admin permission solely to expand access.
+
+If no dedicated permission already exists:
+
+```text
+role = owner
+```
+
+is the only allowed analytics role in Prompt 35.
+
+---
+
+# 10. PRIMARY OWNER SEMANTICS
+
+Preserve existing immutable primary-owner architecture.
+
+Prompt 35 must NOT:
+
+```text
+create another owner
+modify owner immutability
+delegate ownership
+```
+
+---
+
+# 11. STUDENT ACCESS
+
+Authenticated normal student:
+
+```text
+403
+```
+
+or the repository's standard authorization denial.
+
+---
+
+# 12. ADMIN ACCESS
+
+Unless an existing dedicated analytics permission explicitly grants access:
+
+```text
+admin → 403
+```
+
+Do not infer that admin automatically means analytics access.
+
+---
+
+# 13. GROUP FOCUS HOST
+
+Mandatory:
+
+```text
+HOST-only privilege → NO analytics access
+```
+
+---
+
+# 14. UNAUTHENTICATED ACCESS
+
+Mandatory:
+
+```text
+401
+```
+
+according to existing auth middleware.
+
+---
+
+# 15. NO CLIENT-SUPPLIED ACTOR
+
+Never accept:
+
+```text
+ownerId
+actorUserId
+role
+```
+
+from analytics request body/query.
+
+Actor comes from authenticated canonical session/token only.
+
+---
+
+# 16. NO IMPERSONATION PARAMETER
+
+Forbidden:
+
+```text
+?userId=
+?studentId=
+?email=
+```
+
+on owner aggregate analytics APIs.
+
+---
+
+# 17. NO STUDENT DRILL-DOWN
+
+Do NOT implement:
+
+```text
+GET /analytics/students/:userId
+GET /analytics/users/:userId
+GET /analytics/weak-students
+GET /analytics/student-performance
+```
+
+---
+
+# 18. NO INDIVIDUAL SEARCH
+
+Do not support analytics search by:
+
+```text
+name
+email
+student ID
+user ID
+```
+
+---
+
+# 19. SMALL-SAMPLE POLICY
+
+Freeze:
+
+```text
+MIN_OWNER_ANALYTICS_CONTRIBUTORS = 10
+```
+
+A non-zero behavioral/performance metric with:
+
+```text
+1..9 distinct contributing users
+```
+
+must be suppressed.
+
+---
+
+# 20. WHY DISTINCT USERS
+
+Privacy threshold is based primarily on:
+
+```text
+distinct contributing students
+```
+
+not raw event count.
+
+Example:
+
+```text
+1 student answering 100 MCQs
+```
+
+is still a one-person sample.
+
+It must remain suppressed.
+
+---
+
+# 21. ZERO IS SPECIAL
+
+A true canonical sample count of:
+
+```text
+0
+```
+
+may be safely represented as:
+
+```text
+NO_DATA
+```
+
+with zero activity.
+
+Do not pretend zero is LOW_SAMPLE.
+
+---
+
+# 22. EXACT SMALL SAMPLE MUST NEVER LEAK
+
+If actual contributor count is:
+
+```text
+1
+2
+...
+9
+```
+
+the HTTP response must NOT reveal which one.
+
+Return a uniform suppression result.
+
+---
+
+# 23. DO NOT RETURN `<10` AS AN EXACT COUNT FIELD
+
+You may communicate:
+
+```text
+suppressed because sample is below privacy threshold
+```
+
+but do not return:
+
+```text
+contributors = 7
+```
+
+or similar.
+
+---
+
+# 24. PRIVACY DISCLOSURE TYPE
+
+Implement a reusable typed wrapper conceptually:
+
+```ts
+type AnalyticsDisclosure<T> =
+  | {
+      status: "VISIBLE";
+      value: T;
+      contributingUsers: number;
+    }
+  | {
+      status: "NO_DATA";
+      value: T;
+      contributingUsers: 0;
+    }
+  | {
+      status: "SUPPRESSED";
+      value: null;
+      contributingUsers: null;
+      reason:
+        | "LOW_SAMPLE"
+        | "LOW_INTERACTION_COUNT"
+        | "DISTRIBUTION_PRIVACY";
+    }
+  | {
+      status: "UNAVAILABLE";
+      value: null;
+      contributingUsers: null;
+      reason: "SOURCE_UNAVAILABLE";
+    };
+```
+
+Adapt exact types to repository conventions.
+
+---
+
+# 25. UNIFORM SUPPRESSION SHAPE
+
+A metric with 1 contributor and one with 9 contributors should have the same externally visible structure:
+
+```text
+status = SUPPRESSED
+value = null
+contributingUsers = null
+reason = LOW_SAMPLE
+```
+
+Do not leak through field presence.
+
+---
+
+# 26. POPULATION COUNT
+
+The owner already has legitimate administrative roster access.
+
+Therefore exact:
+
+```text
+eligibleStudents
+```
+
+may remain visible.
+
+However, when:
+
+```text
+eligibleStudents < 10
+```
+
+all sensitive behavioral/performance analytics for that population must be suppressed.
+
+---
+
+# 27. LOW-POPULATION SCOPE
+
+Define:
+
+```text
+LOW_POPULATION
+```
+
+for an entire subject/lecture/cohort analytics scope whose eligible population is below 10.
+
+In that state:
+
+```text
+content identity may remain visible
+analytics metrics suppressed
+```
+
+---
+
+# 28. CONTENT IDENTITY IS NOT ANALYTICS DISCLOSURE
+
+Canonical subject/lecture metadata already visible through normal app/admin content systems may remain visible even if analytics are suppressed.
+
+Example:
+
+```text
+lectureId
+lecture title
+subject
+```
+
+can still identify the lecture.
+
+What is suppressed is:
+
+```text
+student behavior/performance for that lecture
+```
+
+---
+
+# 29. PERFORMANCE METRICS REQUIRE TWO THRESHOLDS
+
+For performance/rate metrics, freeze:
+
+```text
+MIN_OWNER_ANALYTICS_CONTRIBUTORS = 10
+MIN_OWNER_ANALYTICS_INTERACTIONS = 20
+```
+
+A rate is visible only when:
+
+```text
+distinct contributing users >= 10
+AND
+relevant interactions >= 20
+```
+
+---
+
+# 30. MCQ ACCURACY PRIVACY
+
+Objective MCQ accuracy is visible only if:
+
+```text
+unique objective MCQ users >= 10
+AND
+objective attempts >= 20
+```
+
+Otherwise suppress.
+
+---
+
+# 31. FLASHCARD REMEMBERED RATE PRIVACY
+
+Visible only if:
+
+```text
+unique meaningful Flashcard reviewers >= 10
+AND
+meaningful Flashcard reviews >= 20
+```
+
+---
+
+# 32. RECALL OBJECTIVE ACCURACY PRIVACY
+
+Visible only if:
+
+```text
+unique periodic objective Recall users >= 10
+AND
+objective Recall answers >= 20
+```
+
+---
+
+# 33. FOCUS AVERAGE DURATION PRIVACY
+
+Visible only if:
+
+```text
+unique meaningful Focus users >= 10
+AND
+meaningful completed Focus sessions >= 20
+```
+
+---
+
+# 34. SIMPLE BEHAVIORAL COUNTS
+
+Behavioral counts such as:
+
+```text
+activeStudyUsers
+meaningfulFocusSessions
+resourceLaunches
+Recall participation
+```
+
+must still satisfy:
+
+```text
+10 distinct contributing users
+```
+
+unless the canonical value is exactly zero.
+
+---
+
+# 35. DO NOT REVEAL RAW INTERACTION COUNT WHEN USER SAMPLE IS LOW
+
+Example:
+
+```text
+3 students
+100 Focus sessions
+```
+
+must still be suppressed.
+
+Do not reveal the 100.
+
+---
+
+# 36. MASTERY IS SENSITIVE
+
+Mastery distributions require privacy transformation.
+
+Do not expose exact sensitive state counts from a small contributing group.
+
+---
+
+# 37. RETENTION IS SENSITIVE
+
+Review state, forgetting evidence, overdue state, and effective Mastery are sensitive private study data.
+
+Apply strict suppression.
+
+---
+
+# 38. DISTRIBUTION POLICY
+
+For sensitive distributions such as:
+
+```text
+Mastery states
+effective Mastery states
+review states
+forgetting evidence kinds
+```
+
+the distribution is visible only if:
+
+1. at least 10 distinct students contribute; and
+2. every non-zero disclosed bucket has at least 10 distinct student contributors.
+
+---
+
+# 39. SMALL DISTRIBUTION BUCKET
+
+If any non-zero bucket would disclose data from:
+
+```text
+1..9 students
+```
+
+do NOT expose that raw bucket.
+
+---
+
+# 40. V1 DISTRIBUTION SAFETY RULE
+
+To avoid subtraction/residual inference, use the conservative V1 rule:
+
+```text
+if any non-zero sensitive bucket is below 10
+→ suppress the entire sensitive distribution
+```
+
+Do not attempt complicated bucket merging in Prompt 35.
+
+---
+
+# 41. WHY ENTIRE DISTRIBUTION SUPPRESSION
+
+This prevents:
+
+```text
+known total
+-
+visible buckets
+=
+hidden bucket
+```
+
+inference.
+
+---
+
+# 42. SUPPRESSED DISTRIBUTION RESPONSE
+
+Return conceptually:
+
+```json
+{
+  "status": "SUPPRESSED",
+  "value": null,
+  "reason": "DISTRIBUTION_PRIVACY"
+}
+```
+
+Do not return the sensitive distribution's exact sample denominator alongside it.
+
+---
+
+# 43. NO RESIDUAL INFERENCE FIELD
+
+If a distribution is suppressed:
+
+do NOT include:
+
+```text
+exact distribution sample size
+hidden bucket total
+suppressed bucket count
+```
+
+where those values could reconstruct the suppressed cells.
+
+---
+
+# 44. ZERO DISTRIBUTION
+
+If there are genuinely zero tracked samples:
+
+return:
+
+```text
+NO_DATA
+```
+
+not SUPPRESSED.
+
+---
+
+# 45. ACTIVITY METRICS VS SENSITIVE LEARNING METRICS
+
+Create explicit internal privacy classes, for example:
+
+```text
+ADMINISTRATIVE_POPULATION
+BEHAVIORAL_COUNT
+BEHAVIORAL_AVERAGE
+PERFORMANCE_RATE
+SENSITIVE_STATE_DISTRIBUTION
+SENSITIVE_FORGETTING_DISTRIBUTION
+RESOURCE_USAGE
+```
+
+Do not scatter privacy checks across routes.
+
+---
+
+# 46. CENTRAL PRIVACY TRANSFORMER
+
+Create one reusable module conceptually:
+
+```ts
+applyOwnerAnalyticsPrivacy({
+  aggregate,
+  policyVersion,
+  scopePopulation
+})
+```
+
+All exposed analytics responses must pass through it.
+
+---
+
+# 47. ROUTE MUST NEVER RETURN PROMPT 34 RAW DTO DIRECTLY
+
+Mandatory architecture:
+
+```text
+Prompt34 raw aggregate
+→ Prompt35 privacy transformer
+→ owner-safe API DTO
+```
+
+Never:
+
+```text
+route → raw Prompt34 DTO
+```
+
+---
+
+# 48. INTERNAL RAW AGGREGATES REMAIN INTERNAL
+
+Prompt34 service can still return exact aggregate counts internally for deterministic processing/tests.
+
+Only Prompt35 safe DTO crosses the owner HTTP boundary.
+
+---
+
+# 49. PRIVACY METADATA REQUIREMENTS
+
+Prompt34 may need small additive internal metadata to support suppression, such as:
+
+```text
+distinct contributors per metric
+distinct contributors per sensitive bucket
+interaction counts
+eligible population
+```
+
+This metadata remains internal.
+
+---
+
+# 50. PROMPT 34 METRIC SEMANTICS MUST NOT CHANGE
+
+If Prompt35 extends Prompt34 internal query results with contributor counts:
+
+do NOT change the underlying meaning of Prompt34 academic metrics.
+
+---
+
+# 51. NO IDENTITY LIST FOR CONTRIBUTOR COUNTS
+
+Use SQL:
+
+```text
+COUNT(DISTINCT userId)
+```
+
+or equivalent.
+
+Do not return arrays of contributing user IDs from Prompt34 to Prompt35.
+
+---
+
+# 52. FIXED EXTERNAL TIME WINDOWS
+
+To reduce differencing/inference, owner HTTP routes must NOT accept arbitrary:
+
+```text
+from=
+to=
+```
+
+timestamps.
+
+---
+
+# 53. ALLOWED WINDOW PRESETS
+
+Freeze external owner analytics windows to:
+
+```text
+LAST_7_DAYS
+LAST_30_DAYS
+CURRENT_SEMESTER
+```
+
+---
+
+# 54. NO CUSTOM WINDOW
+
+Forbidden:
+
+```text
+?from=...
+?to=...
+?days=13
+?hours=6
+```
+
+---
+
+# 55. LAST_7_DAYS
+
+Define using Baghdad calendar semantics:
+
+```text
+from = Baghdad local 00:00 six calendar days before current local day
+to = server asOf
+```
+
+This includes the current partial day plus the previous six Baghdad calendar days.
+
+---
+
+# 56. LAST_30_DAYS
+
+Define:
+
+```text
+from = Baghdad local 00:00 twenty-nine calendar days before current local day
+to = server asOf
+```
+
+---
+
+# 57. CURRENT_SEMESTER
+
+Use the canonical semester configuration already discovered/used in Prompt 26.
+
+Do NOT invent semester dates.
+
+If no canonical semester configuration exists:
+
+return:
+
+```text
+SEMESTER_CONFIGURATION_UNAVAILABLE
+```
+
+for this window.
+
+---
+
+# 58. SERVER TIME AUTHORITY
+
+`asOf` comes from the server.
+
+Client cannot backdate/future-date analytics.
+
+---
+
+# 59. BAGHDAD TIMEZONE
+
+Use:
+
+```text
+Asia/Baghdad
+```
+
+through existing centralized date helpers.
+
+---
+
+# 60. NO CUSTOM TIMEZONE
+
+Owner cannot submit timezone.
+
+---
+
+# 61. NO OVERLAPPING MICRO-WINDOW PROBING
+
+Because only the three frozen windows exist, do not expose arbitrary hour/day boundaries that enable fine-grained differencing.
+
+---
+
+# 62. NO CUSTOM SEGMENTS
+
+External API must NOT support:
+
+```text
+custom user groups
+custom roster lists
+section filters not already canonical
+gender
+age
+attendance group
+selected students
+```
+
+---
+
+# 63. ALLOWED CONTENT FILTERS
+
+Safe bounded dimensions:
+
+```text
+subjectId
+lectureId
+```
+
+because they refer to canonical curriculum content rather than student identity.
+
+---
+
+# 64. NO MULTI-LECTURE ARBITRARY SUBGROUP QUERY
+
+Do not accept:
+
+```text
+lectureIds[]=A&B&C
+```
+
+as a custom combined analytics segment in the public owner route.
+
+Use:
+
+```text
+one subject
+one lecture
+or fixed cohort overview
+```
+
+---
+
+# 65. API ROUTES
+
+Expose repository-consistent owner-only equivalents of:
+
+```text
+GET /api/admin/owner-analytics/academic
+GET /api/admin/owner-analytics/subjects/:subjectId
+GET /api/admin/owner-analytics/lectures
+GET /api/admin/owner-analytics/lectures/:lectureId
+```
+
+Use existing admin/router conventions if different.
+
+---
+
+# 66. COHORT OVERVIEW ROUTE
+
+Conceptually:
+
+```text
+GET /api/admin/owner-analytics/academic
+  ?window=LAST_7_DAYS
+```
+
+Returns:
+
+```text
+safe cohort summary
++
+privacy-safe subject summaries
+```
+
+---
+
+# 67. SUBJECT DETAIL ROUTE
+
+Conceptually:
+
+```text
+GET /api/admin/owner-analytics/subjects/:subjectId
+  ?window=LAST_30_DAYS
+```
+
+---
+
+# 68. LECTURE LIST ROUTE
+
+Conceptually:
+
+```text
+GET /api/admin/owner-analytics/lectures
+  ?subjectId=...
+  &window=LAST_30_DAYS
+  &cursor=...
+  &limit=...
+```
+
+---
+
+# 69. LECTURE DETAIL ROUTE
+
+Conceptually:
+
+```text
+GET /api/admin/owner-analytics/lectures/:lectureId
+  ?window=CURRENT_SEMESTER
+```
+
+---
+
+# 70. NO ANALYTICS MUTATION ROUTES
+
+Do NOT add:
+
+```text
+POST /analytics/recalculate
+POST /analytics/set-score
+POST /analytics/override
+DELETE /analytics/...
+```
+
+Prompt35 analytics exposure is read-only.
+
+---
+
+# 71. LECTURE LIST DEFAULT LIMIT
+
+Freeze:
+
+```text
+25
+```
+
+---
+
+# 72. LECTURE LIST HARD MAX
+
+Freeze:
+
+```text
+100
+```
+
+---
+
+# 73. SAFE LECTURE LIST ORDER
+
+Use canonical content ordering.
+
+Prefer existing:
+
+```text
+subject order
+lecture order
+lectureId
+```
+
+Do NOT sort by:
+
+```text
+lowest accuracy
+highest overdue
+weakest Mastery
+most difficult
+```
+
+---
+
+# 74. NO PERFORMANCE SORT PARAMETER
+
+Forbidden:
+
+```text
+?sort=accuracy
+?sort=mastery
+?sort=overdue
+```
+
+Prompt35 must not implicitly create rankings of lectures.
+
+---
+
+# 75. SUBJECT ORDER
+
+Use canonical curriculum ordering.
+
+Do not rank subjects by analytics.
+
+---
+
+# 76. CONTENT ROW PRESENCE
+
+Lecture/subject rows may exist in the owner response even with:
+
+```text
+NO_DATA
+LOW_SAMPLE
+```
+
+because curriculum existence is not sensitive behavior.
+
+This avoids leaking activity simply through row presence.
+
+---
+
+# 77. LOW-SAMPLE LECTURE
+
+Example safe response:
+
+```json
+{
+  "lectureId": "...",
+  "analyticsStatus": "LOW_SAMPLE",
+  "metrics": {
+    "mcq": {
+      "status": "SUPPRESSED",
+      "value": null,
+      "reason": "LOW_SAMPLE"
+    }
+  }
+}
+```
+
+Do not omit the lecture only because 1–9 students contributed.
+
+---
+
+# 78. NO-DATA LECTURE
+
+A true zero-activity lecture may safely return:
+
+```text
+analyticsStatus = NO_DATA
+```
+
+---
+
+# 79. SENSITIVE STATE DISTRIBUTION IN LECTURE DETAIL
+
+Even if the lecture has 100 tracked users:
+
+if a non-zero sensitive Mastery/review bucket has <10 contributors:
+
+```text
+suppress the whole sensitive distribution
+```
+
+under V1 policy.
+
+---
+
+# 80. MASTERy/RETENTION RAW SCORES
+
+Do NOT expose aggregate averages of:
+
+```text
+evidenceScore
+retentionScore
+reviewUrgencyScore
+```
+
+in Prompt35.
+
+Prompt34 did not need to invent such aggregate scores.
+
+Keep it that way.
+
+---
+
+# 81. NO INDIVIDUAL WEAK TOPICS
+
+Mandatory.
+
+---
+
+# 82. NO LOW-PERFORMING STUDENT COUNT BY MICROGROUP
+
+Do not return:
+
+```text
+number of students below 50% accuracy
+```
+
+unless it is a future separately privacy-reviewed metric.
+
+Prompt35 does not introduce it.
+
+---
+
+# 83. NO TOP/BOTTOM STUDENTS
+
+Mandatory.
+
+---
+
+# 84. NO OWNER STUDENT RANKING
+
+Mandatory.
+
+---
+
+# 85. NO EXPORT
+
+Do NOT add:
+
+```text
+CSV
+Excel
+PDF analytics export
+```
+
+in Prompt35.
+
+---
+
+# 86. NO BULK DOWNLOAD
+
+Do not provide machine-readable raw analytics dumps beyond normal bounded API responses.
+
+---
+
+# 87. NO GRAPHQL-LIKE ARBITRARY METRIC SELECTION
+
+Do not allow:
+
+```text
+fields=
+metrics=
+groupBy=
+```
+
+arbitrary analytics querying.
+
+Response contract is fixed.
+
+---
+
+# 88. PRIVATE HTTP CACHE POLICY
+
+Owner analytics responses contain sensitive aggregate information.
+
+Set:
+
+```text
+Cache-Control: private, no-store
+```
+
+or stricter repository-equivalent.
+
+---
+
+# 89. NO SHARED CDN CACHE
+
+Do not allow Cloudflare/shared proxy caching of owner analytics responses.
+
+---
+
+# 90. VARY AUTHORIZATION
+
+Where compatible with existing API infrastructure:
+
+```text
+Vary: Authorization
+```
+
+or equivalent authenticated response handling.
+
+But:
+
+```text
+no-store
+```
+
+remains primary.
+
+---
+
+# 91. NO CLIENT LOCALSTORAGE PERSISTENCE IMPLEMENTATION
+
+Prompt35 has no UI/client analytics cache.
+
+Do not store owner analytics in localStorage.
+
+---
+
+# 92. NO D1 OWNER ANALYTICS CACHE
+
+Prompt35:
+
+```text
+D1 analytics cache = NO
+```
+
+Prompt34 canonical PG aggregation remains the source.
+
+---
+
+# 93. NO KV CACHE
+
+No KV owner analytics cache.
+
+---
+
+# 94. ROUTE RATE LIMIT
+
+Reuse existing API rate-limit infrastructure if present.
+
+Apply a conservative authenticated owner analytics limit.
+
+Recommended:
+
+```text
+60 requests / minute / owner
+```
+
+unless repository conventions use another standard value.
+
+Do not invent a large new rate-limit system solely for this feature.
+
+---
+
+# 95. RATE-LIMIT HIT
+
+Normal:
+
+```text
+429
+```
+
+No IntegritySignal.
+
+---
+
+# 96. RATE LIMIT IS NOT PRIVACY THRESHOLD
+
+Keep separate:
+
+```text
+rate limiting
+!=
+small-sample suppression
+```
+
+---
+
+# 97. RESPONSE PRIVACY METADATA
+
+Include bounded metadata such as:
+
+```json
+{
+  "privacy": {
+    "policyVersion": "owner-analytics-privacy-v1",
+    "minimumContributors": 10,
+    "minimumRateInteractions": 20
+  }
+}
+```
+
+This is safe for the authorized owner.
+
+---
+
+# 98. NO HIDDEN ACTUAL SAMPLE IN METADATA
+
+Suppressed metric must not expose:
+
+```text
+actualContributorCount
+actualInteractionCount
+```
+
+---
+
+# 99. SCOPE PRIVACY STATUS
+
+Each cohort/subject/lecture aggregate may include:
+
+```text
+VISIBLE
+PARTIALLY_SUPPRESSED
+LOW_POPULATION
+NO_DATA
+UNAVAILABLE
+```
+
+or repository-equivalent.
+
+---
+
+# 100. PARTIALLY SUPPRESSED
+
+Use when some metrics meet thresholds and others do not.
+
+Do not suppress an entire 800-student cohort because one optional metric has only 4 contributors.
+
+---
+
+# 101. LOW_POPULATION
+
+Use when the canonical eligible population for the requested scope itself is:
+
+```text
+< 10
+```
+
+Then all behavioral/performance metrics are suppressed.
+
+---
+
+# 102. NO_DATA
+
+Use only when canonical relevant activity truly equals zero.
+
+---
+
+# 103. UNAVAILABLE
+
+Use when the source itself is unavailable.
+
+Example:
+
+```text
+resource usage source not implemented/canonical
+```
+
+Do not confuse with zero.
+
+---
+
+# 104. ZERO VS UNAVAILABLE
+
+Mandatory:
+
+```text
+0 resource launches
+!=
+resource metric unavailable
+```
+
+---
+
+# 105. RESOURCE PRIVACY
+
+Resource launches/handoffs are still behavioral data.
+
+If:
+
+```text
+1..9 distinct users
+```
+
+used a resource:
+
+suppress exact usage metrics.
+
+---
+
+# 106. PDF SEMANTICS REMAIN
+
+Even when visible:
+
+```text
+PDF launches
+```
+
+are launches only.
+
+Never:
+
+```text
+PDF read
+PDF completed
+pages read
+```
+
+---
+
+# 107. VIDEO SEMANTICS REMAIN
+
+Video launch does not mean video completion.
+
+---
+
+# 108. FOCUS PRIVACY
+
+When Focus metrics are suppressed:
+
+do not expose:
+
+```text
+session count
+verified seconds
+average duration
+```
+
+that could reveal small-sample behavior.
+
+---
+
+# 109. GROUP FOCUS PRIVACY
+
+Same.
+
+Room membership/presence details never appear.
+
+---
+
+# 110. MCQ PRIVACY
+
+When objective MCQ performance is suppressed:
+
+do not reveal:
+
+```text
+correct
+incorrect
+attempts
+accuracy
+```
+
+individually.
+
+All related values become hidden as one privacy unit.
+
+---
+
+# 111. FLASHCARD PRIVACY
+
+When Flashcard performance/review metric is suppressed:
+
+hide:
+
+```text
+remembered
+not remembered
+review count
+remembered rate
+```
+
+as appropriate.
+
+---
+
+# 112. RECALL PRIVACY
+
+When Recall sample is below threshold:
+
+hide exact:
+
+```text
+presented
+answered
+skipped
+expired
+correct
+incorrect
+```
+
+for that sensitive scope.
+
+---
+
+# 113. NO INTEGRITY ANALYTICS
+
+Prompt35 owner academic analytics must NOT expose:
+
+```text
+IntegritySignal counts
+review queue counts
+fraud indicators
+```
+
+---
+
+# 114. NO QUICK NOTES ANALYTICS
+
+Quick Notes content/counts are private.
+
+Do not expose.
+
+---
+
+# 115. NO RAW POINTS LEDGER
+
+No Points ledger history in owner academic analytics.
+
+---
+
+# 116. NO GAMIFICATION PROFILE ANALYTICS
+
+Do not add aggregate:
+
+```text
+average Level
+Achievement rate
+Leaderboard position
+Challenge completion
+```
+
+in Prompt35.
+
+Not part of frozen owner academic metrics.
+
+---
+
+# 117. ACCESS LOGGING
+
+Owner analytics access is privacy-sensitive.
+
+Inspect existing audit/security logging infrastructure.
+
+If a generic audit facility already exists:
+
+reuse it.
+
+---
+
+# 118. DO NOT CREATE A NEW AUDIT DOMAIN
+
+If no suitable audit log exists:
+
+use bounded structured security logs.
+
+Do not create a new major Audit subsystem in Prompt35.
+
+---
+
+# 119. SAFE ACCESS LOG CONTENT
+
+May log:
+
+```text
+actorUserId
+analytics route
+window preset
+subjectId/lectureId if requested
+HTTP status
+privacy result class
+request timestamp
+```
+
+---
+
+# 120. DO NOT LOG ANALYTICS VALUES
+
+Do not log:
+
+```text
+accuracy
+Mastery distributions
+review counts
+Focus seconds
+resource counts
+```
+
+---
+
+# 121. DO NOT LOG SUPPRESSED ACTUAL COUNTS
+
+Mandatory.
+
+---
+
+# 122. LOG ACTOR ID IS INTERNAL SECURITY DATA
+
+It must not appear in analytics response.
+
+---
+
+# 123. ERROR MESSAGES
+
+Do not return errors containing:
+
+```text
+actual small sample = 4
+```
+
+Return generic privacy-safe reason.
+
+---
+
+# 124. RESPONSE TIMING
+
+Do not intentionally branch into radically different expensive paths based on exact small count.
+
+Compute aggregate normally, then apply centralized privacy transformation.
+
+---
+
+# 125. FIXED SHAPE
+
+Suppressed and visible metrics should use predictable DTO shapes.
+
+Do not leak small samples through missing nested objects.
+
+---
+
+# 126. AUTHORIZATION MUST RUN BEFORE ANALYTICS QUERY
+
+Mandatory:
+
+```text
+authenticate
+→ authorize owner
+→ validate request
+→ run aggregate query
+```
+
+Do not run sensitive aggregate SQL before discovering caller is unauthorized.
+
+---
+
+# 127. REQUEST VALIDATION
+
+Strictly validate:
+
+```text
+window
+subjectId
+lectureId
+cursor
+limit
+```
+
+Reject unknown analytics query controls.
+
+---
+
+# 128. STRICT WINDOW ENUM
+
+Exactly:
+
+```text
+LAST_7_DAYS
+LAST_30_DAYS
+CURRENT_SEMESTER
+```
+
+---
+
+# 129. SUBJECT ID VALIDATION
+
+Canonical ID only.
+
+Do not accept subject title as SQL selector.
+
+---
+
+# 130. LECTURE ID VALIDATION
+
+Canonical ID only.
+
+---
+
+# 131. CONTENT NOT FOUND
+
+Unknown subject/lecture follows repository-standard:
+
+```text
+404
+```
+
+Do not convert to an analytics privacy response.
+
+---
+
+# 132. CURSOR PRIVACY
+
+Lecture-list cursor contains only content-order pagination state.
+
+Do not encode analytics values/sensitive metrics in cursor.
+
+---
+
+# 133. CURSOR SIGNING/VALIDATION
+
+Reuse existing cursor helper if present.
+
+At minimum strict opaque validation.
+
+---
+
+# 134. CURRENT SEMESTER CONFIG FAILURE
+
+If semester dates unavailable:
+
+return explicit bounded:
+
+```text
+SEMESTER_CONFIGURATION_UNAVAILABLE
+```
+
+No guessed dates.
+
+---
+
+# 135. INTERNAL PROMPT34 WINDOW SERVICE
+
+Prompt35 translates fixed presets into Prompt34's:
+
+```text
+from
+to
+asOf
+```
+
+contract.
+
+Prompt34 itself remains capable of deterministic internal explicit windows.
+
+---
+
+# 136. NO CHANGE TO PROMPT34 INTERNAL TESTABILITY
+
+Keep Prompt34 raw internal service reusable by Prompt36 later.
+
+---
+
+# 137. PRIVACY TRANSFORMATION IS PURE
+
+Prefer:
+
+```text
+raw aggregate + privacy metadata
+→ safe DTO
+```
+
+as a pure deterministic function.
+
+No DB writes.
+
+---
+
+# 138. SAME INPUT, SAME OUTPUT
+
+Same raw aggregate + same privacy version:
+
+```text
+same privacy-safe response
+```
+
+---
+
+# 139. NO RANDOM NOISE
+
+Do NOT implement:
+
+```text
+randomized response
+Laplace noise
+differential-privacy noise
+```
+
+in Prompt35.
+
+The V1 policy uses deterministic suppression.
+
+---
+
+# 140. NO APPROXIMATE COUNTS
+
+Visible counts remain exact.
+
+Suppressed counts remain hidden.
+
+Do not return noisy approximations.
+
+---
+
+# 141. TEST — UNAUTHENTICATED
+
+Owner analytics route:
+
+```text
+401
+```
+
+---
+
+# 142. TEST — STUDENT
+
+Normal user:
+
+```text
+403
+```
+
+---
+
+# 143. TEST — ADMIN
+
+Without a pre-existing dedicated analytics permission:
+
+```text
+403
+```
+
+---
+
+# 144. TEST — OWNER
+
+Canonical owner:
+
+```text
+200
+```
+
+subject to valid request.
+
+---
+
+# 145. TEST — GROUP HOST
+
+User with Group Focus HOST role/state but no owner authority:
+
+```text
+403
+```
+
+---
+
+# 146. TEST — NO QUERY BEFORE AUTH
+
+Instrument Prompt34 service.
+
+Unauthorized request must call aggregate service:
+
+```text
+0 times
+```
+
+---
+
+# 147. TEST — ZERO CONTRIBUTORS
+
+Metric with zero contributors.
+
+Expected:
+
+```text
+NO_DATA
+```
+
+and safe zero value where appropriate.
+
+---
+
+# 148. TEST — ONE CONTRIBUTOR
+
+Expected:
+
+```text
+SUPPRESSED
+LOW_SAMPLE
+```
+
+No exact count.
+
+---
+
+# 149. TEST — NINE CONTRIBUTORS
+
+Same response shape as one contributor.
+
+No exact count.
+
+---
+
+# 150. TEST — TEN CONTRIBUTORS
+
+Behavioral count may become visible.
+
+Boundary is inclusive:
+
+```text
+10 → visible
+```
+
+provided any additional metric-specific thresholds are met.
+
+---
+
+# 151. TEST — MCQ 10 USERS / 19 ATTEMPTS
+
+Expected:
+
+```text
+SUPPRESSED
+LOW_INTERACTION_COUNT
+```
+
+for performance rate/count unit.
+
+---
+
+# 152. TEST — MCQ 10 USERS / 20 ATTEMPTS
+
+Expected performance metric visible.
+
+---
+
+# 153. TEST — FLASHCARD RATE BOUNDARY
+
+Same 10 users / 20 reviews rule.
+
+---
+
+# 154. TEST — RECALL RATE BOUNDARY
+
+Same.
+
+---
+
+# 155. TEST — FOCUS AVERAGE BOUNDARY
+
+Require:
+
+```text
+10 users
+20 meaningful sessions
+```
+
+before revealing average duration.
+
+---
+
+# 156. TEST — LOW-POPULATION SUBJECT
+
+Canonical subject eligible population:
+
+```text
+9
+```
+
+Expected:
+
+```text
+LOW_POPULATION
+all behavioral/performance metrics suppressed
+```
+
+Subject identity remains visible.
+
+---
+
+# 157. TEST — LOW-POPULATION LECTURE
+
+Same.
+
+---
+
+# 158. TEST — DISTRIBUTION WITH SAFE BUCKETS
+
+Example state counts from distinct contributors where each non-zero bucket satisfies privacy threshold.
+
+Expected distribution visible.
+
+---
+
+# 159. TEST — DISTRIBUTION WITH ONE SMALL BUCKET
+
+Example:
+
+```text
+GOOD = 100
+MASTERED = 4
+```
+
+Expected:
+
+```text
+entire sensitive distribution SUPPRESSED
+```
+
+No exact MASTERED count.
+
+---
+
+# 160. TEST — DISTRIBUTION SUBTRACTION DEFENSE
+
+When distribution suppressed:
+
+verify the response does not include an exact same-distribution denominator that reveals the hidden cell through subtraction.
+
+---
+
+# 161. TEST — ZERO SENSITIVE DISTRIBUTION
+
+No tracked sample:
+
+```text
+NO_DATA
+```
+
+not LOW_SAMPLE.
+
+---
+
+# 162. TEST — RESOURCE 1–9 USERS
+
+Resource launch count suppressed.
+
+---
+
+# 163. TEST — RESOURCE 10 USERS
+
+Visible launch count.
+
+Still labeled launch/handoff only.
+
+---
+
+# 164. TEST — PDF LANGUAGE
+
+Response contains no field implying:
+
+```text
+read
+pagesRead
+completion
+```
+
+---
+
+# 165. TEST — VIDEO LANGUAGE
+
+No:
+
+```text
+watchedToCompletion
+viewDuration
+```
+
+unless canonical evidence genuinely exists, which Prompt35 should not introduce.
+
+---
+
+# 166. TEST — NO CUSTOM WINDOW
+
+Request with:
+
+```text
+from=
+to=
+```
+
+rejected.
+
+---
+
+# 167. TEST — INVALID WINDOW ENUM
+
+Rejected.
+
+---
+
+# 168. TEST — LAST_7_DAYS BOUNDARY
+
+Verify Baghdad local day calculation exactly.
+
+---
+
+# 169. TEST — LAST_30_DAYS BOUNDARY
+
+Verify.
+
+---
+
+# 170. TEST — CURRENT_SEMESTER
+
+Uses exact canonical semester config.
+
+No invented dates.
+
+---
+
+# 171. TEST — NO CUSTOM SEGMENT
+
+Requests containing:
+
+```text
+userId
+studentId
+email
+```
+
+rejected as unknown/forbidden parameters.
+
+---
+
+# 172. TEST — NO MULTI-LECTURE SEGMENT
+
+Arbitrary combined `lectureIds[]` rejected.
+
+---
+
+# 173. TEST — LECTURE LIST ORDER
+
+Canonical content order.
+
+No analytics-performance ranking.
+
+---
+
+# 174. TEST — PERFORMANCE SORT
+
+Request:
+
+```text
+sort=accuracy
+```
+
+rejected.
+
+---
+
+# 175. TEST — MASTERy SORT
+
+Rejected.
+
+---
+
+# 176. TEST — OVERDUE SORT
+
+Rejected.
+
+---
+
+# 177. TEST — SUBJECT ORDER
+
+Canonical curriculum order.
+
+---
+
+# 178. TEST — NO INDIVIDUAL IDENTITY
+
+Serialize all owner analytics responses.
+
+Assert absent:
+
+```text
+userId
+studentId
+email
+phone
+studentName
+avatar
+signature
+```
+
+except content IDs such as subjectId/lectureId.
+
+---
+
+# 179. TEST — NO RAW STUDY DATA
+
+Assert absent:
+
+```text
+attemptId
+RecallAttempt ID
+selectedAnswer
+Quick Note
+FocusSession ID
+Group membership ID
+IntegritySignal
+Points ledger row
+```
+
+---
+
+# 180. TEST — NO STUDENT RANKING
+
+Assert response contains no:
+
+```text
+rankedStudents
+topStudents
+bottomStudents
+weakStudents
+```
+
+---
+
+# 181. TEST — NO SYNTHETIC SCORE
+
+Assert no:
+
+```text
+engagementScore
+difficultyScore
+studentScore
+subjectScore
+```
+
+---
+
+# 182. TEST — HTTP CACHE HEADERS
+
+Every successful owner analytics response includes:
+
+```text
+Cache-Control: private, no-store
+```
+
+or stricter equivalent.
+
+---
+
+# 183. TEST — AUTH ERROR CACHE HEADERS
+
+Sensitive authorization responses should not become publicly cacheable.
+
+Follow existing secure API defaults.
+
+---
+
+# 184. TEST — NO D1 OWNER CACHE
+
+Owner analytics request causes:
+
+```text
+D1 write delta = 0
+```
+
+---
+
+# 185. TEST — NO LOCAL STORAGE
+
+No frontend changes.
+
+---
+
+# 186. TEST — PRIVACY LOGGING
+
+Owner access may create safe audit/security entry if infrastructure exists.
+
+Verify log excludes actual analytics metric values.
+
+---
+
+# 187. TEST — SUPPRESSED VALUES NOT LOGGED
+
+Mandatory.
+
+---
+
+# 188. TEST — RATE LIMIT
+
+If existing middleware supports it:
+
+verify owner route uses configured bounded rate.
+
+Rate-limit denial creates:
+
+```text
+0 IntegritySignals
+```
+
+---
+
+# 189. TEST — PROMPT34 RAW VS SAFE DTO
+
+Prompt34 raw aggregate may contain exact small sample.
+
+Prompt35 safe HTTP DTO must suppress it.
+
+Mandatory explicit test.
+
+---
+
+# 190. TEST — NO PROMPT34 RAW DTO ESCAPE
+
+Search route code/tests to ensure raw aggregate is never directly serialized.
+
+---
+
+# 191. TEST — PARTIAL SUPPRESSION
+
+Example:
+
+```text
+Focus sample = 50
+MCQ sample = 4
+Flashcard sample = 30
+```
+
+Expected:
+
+```text
+Focus visible
+MCQ suppressed
+Flashcard visible
+scope = PARTIALLY_SUPPRESSED
+```
+
+---
+
+# 192. TEST — LOW_POPULATION OVERRIDES ALL
+
+If eligible scope population is 8:
+
+even a malformed fixture containing 20 interactions must still suppress behavioral analytics.
+
+---
+
+# 193. TEST — CURRENT STATE DISTRIBUTION PRIVACY
+
+Mastery/Retention distribution follows strict distribution policy.
+
+---
+
+# 194. TEST — STALE RETENTION
+
+Prompt34 stale/missing Retention semantics remain intact.
+
+Prompt35 must not attempt to refresh them.
+
+---
+
+# 195. TEST — OWNER ANALYTICS READ WRITES
+
+Expected deltas:
+
+```text
+LectureMastery = 0
+LectureRetention = 0
+RecallAttempt = 0
+RecallItemState = 0
+FocusSession = 0
+StudyPointsLedgerEntry = 0
+PointsLog = 0
+PrivateD1SyncOutbox = 0
+CalendarEvent = 0
+```
+
+---
+
+# 196. NO RETENTION RECOMPUTE
+
+Owner analytics route:
+
+```text
+Prompt32 refreshLectureRetention calls = 0
+```
+
+---
+
+# 197. NO MASTERY RECOMPUTE
+
+Owner analytics route:
+
+```text
+Prompt31 refreshLectureMastery calls = 0
+```
+
+Use current canonical projections and Prompt34 freshness metadata.
+
+---
+
+# 198. NO RECALL ISSUANCE
+
+Owner analytics request:
+
+```text
+RecallAttempt delta = 0
+```
+
+---
+
+# 199. NO POINTS
+
+Mandatory.
+
+---
+
+# 200. NO GAMIFICATION
+
+No:
+
+```text
+Achievement
+Level
+Challenge
+Leaderboard
+```
+
+mutation.
+
+---
+
+# 201. NO INTEGRITY SIDE EFFECT
+
+Viewing analytics creates no IntegritySignal.
+
+---
+
+# 202. NO CALENDAR
+
+Mandatory.
+
+---
+
+# 203. NO FOCUS PLAN
+
+Mandatory.
+
+---
+
+# 204. PERFORMANCE
+
+Privacy transformation should operate over aggregate DTOs only.
+
+Do not redo raw study-history queries.
+
+---
+
+# 205. PROMPT34 REMAINS QUERY ENGINE
+
+Architecture:
+
+```text
+Prompt34 aggregation
+→ Prompt35 privacy transform
+```
+
+Do not duplicate all aggregate SQL in route files.
+
+---
+
+# 206. PERFORMANCE TEST DATA
+
+Use realistic synthetic dataset:
+
+```text
+~800 students
+~300 lectures
+multiple subjects
+study activity across sources
+```
+
+plus dedicated tiny-sample fixtures.
+
+---
+
+# 207. PERFORMANCE REPORT
+
+Report:
+
+```text
+Prompt34 query count
+privacy-transform runtime
+route serialization runtime
+pagination behavior
+```
+
+No brittle latency threshold.
+
+---
+
+# 208. PRIVACY TRANSFORM COMPLEXITY
+
+Must not iterate through raw students.
+
+It should transform already aggregated records.
+
+---
+
+# 209. REAL POSTGRESQL TEST ENVIRONMENT
+
+Use safe disposable:
+
+```text
+prompt35_owner_privacy_gate
+```
+
+on verified development PostgreSQL only.
+
+---
+
+# 210. NO PRODUCTION DATA
+
+Do not test suppression behavior against production student data.
+
+---
+
+# 211. NO MIGRATION EXPECTED
+
+Expected:
+
+```text
+Prompt35 PG migration = NO
+Prompt35 D1 migration = NO
+```
+
+---
+
+# 212. IF A MIGRATION APPEARS NECESSARY
+
+STOP and inspect architecture carefully.
+
+Prompt35 privacy/access should normally be code-only.
+
+Do not persist privacy copies of analytics.
+
+---
+
+# 213. NO WORKER CHANGE EXPECTED
+
+Prompt35 should not require Cloudflare Worker modification.
+
+---
+
+# 214. NO FRONTEND CHANGE
+
+Prompt47 owns Owner Analytics UI.
+
+Prompt35 implements backend contracts only.
+
+---
+
+# 215. SHARED TYPES
+
+Headless DTO types may be added to shared contracts if appropriate.
+
+No rendered component.
+
+---
+
+# 216. PROMPT34 REGRESSION
+
+Raw aggregate semantics must remain unchanged except necessary internal contributor-count metadata.
+
+---
+
+# 217. PROMPT33 REGRESSION
+
+Student private Mastery dashboard/D1 unchanged.
+
+---
+
+# 218. PROMPT32 REGRESSION
+
+Retention rules unchanged.
+
+---
+
+# 219. PROMPT31 REGRESSION
+
+Mastery rules unchanged.
+
+---
+
+# 220. PROMPT30 REGRESSION
+
+Recall policy/reward unchanged.
+
+---
+
+# 221. PROMPT29 REGRESSION
+
+Recall candidate weights unchanged.
+
+---
+
+# 222. PROMPT28 REGRESSION
+
+Recall lifecycle unchanged.
+
+---
+
+# 223. PROMPT27 REGRESSION
+
+Leaderboard D1 unchanged.
+
+---
+
+# 224. PROMPT26 REGRESSION
+
+Canonical Leaderboard unchanged.
+
+---
+
+# 225. PROMPT25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 226. PROMPT24 REGRESSION
+
+Levels/public profile unchanged.
+
+---
+
+# 227. PROMPT23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 228. PROMPT22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 229. PROMPT19–21 REGRESSION
+
+Points unchanged.
+
+---
+
+# 230. PROMPT17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 231. PROMPT13–16 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 232. PROMPT9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 233. PROMPT8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 234. MCQ / FLASHCARD REGRESSION
+
+Normal functionality unchanged.
+
+---
+
+# 235. CALENDAR BASELINE
+
+Use actual current repository baseline.
+
+Required:
+
+```text
+Calendar files unchanged
+new Calendar regressions = 0
+```
+
+Do not hard-code stale historical counts.
+
+---
+
+# 236. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+privacy policy constants
+privacy disclosure types
+privacy transformer
+window resolver
+owner analytics routes
+authorization middleware integration
+Prompt35 tests
+```
+
+Expected PASS.
+
+---
+
+# 237. TARGETED LINT
+
+Prompt35 changed files:
+
+```text
+PASS
+```
+
+No new lint regressions.
+
+---
+
+# 238. BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 239. PRISMA
+
+Run validate/generate as appropriate.
+
+Expected:
+
+```text
+schema unchanged
+```
+
+---
+
+# 240. PRODUCTION SAFETY
+
+Do NOT:
+
+- modify production PostgreSQL;
+- apply any Prompt35 migration;
+- query production analytics during testing;
+- broaden admin permissions;
+- expose individual student analytics;
+- create analytics exports;
+- create owner UI;
+- modify Mastery;
+- modify Retention;
+- modify Recall;
+- modify Points;
+- modify D1;
+- deploy Worker;
+- modify production env.
+
+---
+
+# 241. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+server/features/owner-analytics/
+  privacyVersion.ts
+  privacyConstants.ts
+  privacyTypes.ts
+  privacyPolicy.ts
+  privacyTransform.ts
+  windowPresets.ts
+  safeDtos.ts
+  safeService.ts
+  index.ts
+
+server/routes/
+  ownerAnalytics.ts
+  or existing admin route module
+
+server/middleware/
+  existing owner authorization helpers only if needed
+
+packages/shared/
+  owner analytics safe DTO contracts if appropriate
+
+tests/
+  owner-analytics-privacy*.test.ts
+  owner-analytics-auth*.test.ts
+  owner-analytics-suppression*.test.ts
+  owner-analytics-routes*.test.ts
+  owner-analytics-postgres*.test.ts
+```
+
+Use actual repository conventions.
+
+---
+
+# 242. FILES EXPECTED UNCHANGED
+
+Unless minimal integration is required:
+
+```text
+prisma/schema.prisma
+prisma/migrations/*
+Prompt31 Mastery rules
+Prompt32 Retention rules
+Prompt29 Recall candidate weights
+Prompt30 Recall policy/reward
+Points
+Gamification
+Leaderboard
+Calendar
+D1 Worker
+visible frontend UI
+```
+
+---
+
+# 243. ACCEPTANCE CRITERIA
+
+Prompt35 succeeds only if:
+
+1. `owner-analytics-privacy-v1` exists.
+2. Prompt34 metric version remains unchanged.
+3. Owner analytics routes are authenticated.
+4. Owner-only access is default.
+5. Student denied.
+6. Admin denied unless a pre-existing dedicated analytics permission explicitly allows it.
+7. Group Focus HOST denied.
+8. Authorization occurs before aggregate query.
+9. No user/student filter exists.
+10. No individual-student endpoint exists.
+11. No individual student identity appears in responses.
+12. Minimum contributor threshold is 10.
+13. Performance interaction threshold is 20.
+14. Exact zero can return NO_DATA.
+15. Contributor counts 1–9 are hidden.
+16. Small interaction rates are hidden.
+17. Distribution privacy is conservative.
+18. Any non-zero distribution bucket below 10 suppresses the whole sensitive distribution.
+19. Suppressed distribution denominator cannot reveal hidden bucket by subtraction.
+20. Low-population scope suppresses behavioral metrics.
+21. Prompt34 raw DTO never reaches HTTP directly.
+22. Central privacy transformer exists.
+23. Fixed windows only.
+24. Arbitrary `from/to` rejected.
+25. Baghdad window semantics used.
+26. Semester dates canonical.
+27. No custom student subgroup.
+28. No multi-lecture custom segment.
+29. No performance sorting.
+30. Canonical content ordering used.
+31. Subject/lecture content identity may remain visible while analytics are suppressed.
+32. Partial suppression works.
+33. Resource usage receives privacy protection.
+34. No PDF-reading claim.
+35. No video-completion claim.
+36. No Integrity analytics.
+37. No Quick Notes analytics.
+38. No Points ledger exposure.
+39. No student ranking.
+40. No synthetic subject/engagement/difficulty score.
+41. No exports.
+42. Responses use private/no-store caching.
+43. No shared CDN analytics cache.
+44. No D1 owner analytics cache.
+45. Privacy-safe access logging only.
+46. Suppressed exact values not logged.
+47. Aggregate reads create no learning-state writes.
+48. No Retention refresh.
+49. No Mastery refresh.
+50. No Points side effect.
+51. No Recall issuance.
+52. No Integrity side effect.
+53. No Calendar.
+54. No AI.
+55. No UI.
+56. No migration expected.
+57. Production unchanged.
+58. Build passes.
+59. New regressions = 0.
+
+---
+
+# 244. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Access Architecture
+
+Report exact current:
+
+```text
+role enum
+owner role
+admin role
+user/student role
+permission helpers
+admin middleware
+primary owner behavior
+```
+
+Also report whether a pre-existing dedicated analytics permission existed.
+
+---
+
+## B. Privacy Architecture
+
+Explain:
+
+```text
+Prompt34 raw aggregate
+→ owner-analytics-privacy-v1
+→ disclosure classification
+→ suppression
+→ owner-safe DTO
+→ HTTP response
+```
+
+---
+
+## C. Privacy Version
+
+Report:
+
+```text
+owner-analytics-privacy-v1
+```
+
+---
+
+## D. Schema Changes
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+D1 MIGRATION CREATED: YES/NO
+```
+
+Expected:
+
+```text
+NO
+NO
+NO
+```
+
+---
+
+## E. Authorization Matrix
+
+Report exact behavior:
+
+```text
+unauthenticated:
+owner:
+admin:
+student/user:
+Group Focus HOST-only:
+```
+
+If admin is permitted because an already-existing dedicated permission exists, name that exact permission and prove Prompt35 did not broaden it.
+
+---
+
+## F. Authorization Ordering
+
+Explicitly:
+
+```text
+AUTHENTICATION BEFORE ANALYTICS QUERY: YES
+AUTHORIZATION BEFORE ANALYTICS QUERY: YES
+UNAUTHORIZED REQUEST RUNS PROMPT34 AGGREGATE QUERY: NO
+```
+
+---
+
+## G. Privacy Constants
+
+Report exact:
+
+```text
+MIN_OWNER_ANALYTICS_CONTRIBUTORS:
+MIN_OWNER_ANALYTICS_INTERACTIONS:
+```
+
+Expected:
+
+```text
+10
+20
+```
+
+---
+
+## H. Disclosure Type
+
+Show final safe disclosure contract for:
+
+```text
+VISIBLE
+NO_DATA
+SUPPRESSED
+UNAVAILABLE
+```
+
+and suppression reasons.
+
+---
+
+## I. Zero / Small Sample Semantics
+
+Report exact behavior for:
+
+```text
+0 contributors:
+1 contributor:
+9 contributors:
+10 contributors:
+```
+
+---
+
+## J. Performance Rate Semantics
+
+Report exact visibility requirements for:
+
+```text
+MCQ accuracy
+Flashcard remembered rate
+Recall objective accuracy
+Focus average duration
+```
+
+---
+
+## K. Sensitive Distribution Policy
+
+Explicitly explain:
+
+```text
+minimum contributors
+per-bucket rule
+whole-distribution suppression
+subtraction/residual protection
+```
+
+---
+
+## L. Distribution Privacy Tests
+
+Report:
+
+- all-safe buckets;
+- one bucket <10;
+- zero sample;
+- denominator leakage prevention.
+
+---
+
+## M. Low-Population Scope
+
+Report exact behavior when canonical eligible population is:
+
+```text
+<10
+```
+
+for cohort/subject/lecture scope.
+
+---
+
+## N. Prompt34 Internal Metadata Changes
+
+Report any contributor-count/interactions metadata added internally to support privacy.
+
+Explicitly:
+
+```text
+PROMPT34 METRIC SEMANTICS CHANGED: NO
+```
+
+---
+
+## O. Raw Aggregate Boundary
+
+Explicitly:
+
+```text
+PROMPT34 RAW DTO SERIALIZED DIRECTLY TO HTTP: NO
+```
+
+Describe enforcement.
+
+---
+
+## P. Window Presets
+
+Report exact semantics for:
+
+```text
+LAST_7_DAYS
+LAST_30_DAYS
+CURRENT_SEMESTER
+```
+
+including Baghdad boundary resolution.
+
+---
+
+## Q. Arbitrary Window Protection
+
+Explicitly:
+
+```text
+CUSTOM from/to SUPPORTED: NO
+CLIENT-SUPPLIED timezone SUPPORTED: NO
+```
+
+---
+
+## R. Semester Configuration
+
+Report exact source for canonical semester dates.
+
+Explicitly:
+
+```text
+PRODUCTION SEMESTER DATES INVENTED: NO
+```
+
+---
+
+## S. Query Filter Boundary
+
+Report allowed external filters.
+
+Explicitly:
+
+```text
+userId:
+studentId:
+email:
+custom student group:
+multi-lecture arbitrary segment:
+```
+
+Expected all:
+
+```text
+NOT SUPPORTED
+```
+
+---
+
+## T. Owner Analytics APIs
+
+Report exact final:
+
+```text
+cohort overview route
+subject detail route
+lecture list route
+lecture detail route
+```
+
+with methods, auth, query parameters and safe response purposes.
+
+---
+
+## U. Lecture Pagination
+
+Report:
+
+```text
+default limit:
+hard max:
+cursor:
+ordering:
+```
+
+---
+
+## V. Sorting Boundary
+
+Explicitly:
+
+```text
+accuracy sorting:
+Mastery sorting:
+overdue sorting:
+difficulty sorting:
+```
+
+Expected:
+
+```text
+NOT SUPPORTED
+```
+
+Report canonical content ordering.
+
+---
+
+## W. Cohort Safe DTO
+
+Show exact final safe cohort response structure.
+
+---
+
+## X. Subject Safe DTO
+
+Show exact structure.
+
+---
+
+## Y. Lecture Safe DTO
+
+Show exact structure.
+
+---
+
+## Z. Partial Suppression
+
+Report test where:
+
+```text
+one metric visible
+one suppressed
+one visible
+```
+
+and scope status becomes the exact repository equivalent of:
+
+```text
+PARTIALLY_SUPPRESSED
+```
+
+---
+
+## AA. Content Identity vs Analytics Privacy
+
+Explain why a canonical lecture row may still be present while its metrics are suppressed.
+
+---
+
+## AB. Resource Privacy
+
+Report exact handling for:
+
+```text
+PDF launch
+video launch
+resource handoff
+```
+
+and contributor threshold.
+
+Explicitly:
+
+```text
+PDF READING CLAIMED: NO
+PDF COMPLETION CLAIMED: NO
+VIDEO COMPLETION CLAIMED: NO
+```
+
+---
+
+## AC. Mastery Privacy
+
+Report exact disclosure rules for base/effective Mastery distributions.
+
+Explicitly:
+
+```text
+INDIVIDUAL MASTERY EXPOSED: NO
+```
+
+---
+
+## AD. Retention Privacy
+
+Report exact disclosure rules for:
+
+```text
+review states
+forgetting evidence
+stale/missing freshness metadata
+```
+
+Explicitly:
+
+```text
+INDIVIDUAL RETENTION EXPOSED: NO
+```
+
+---
+
+## AE. No Individual Analytics
+
+Explicitly:
+
+```text
+STUDENT DETAIL ANALYTICS ENDPOINT CREATED: NO
+STUDENT SEARCH CREATED: NO
+WEAK-STUDENT LIST CREATED: NO
+TOP/BOTTOM STUDENT LIST CREATED: NO
+```
+
+---
+
+## AF. No Synthetic Ranking / Scores
+
+Explicitly:
+
+```text
+STUDENT RANKING: NO
+LECTURE DIFFICULTY RANKING: NO
+BEST/WORST SUBJECT RANKING: NO
+ENGAGEMENT SCORE: NO
+SUBJECT SCORE: NO
+DIFFICULTY SCORE: NO
+```
+
+---
+
+## AG. Cache Headers
+
+Report exact HTTP headers for analytics responses.
+
+Explicitly:
+
+```text
+SHARED/CDN CACHE ALLOWED: NO
+D1 OWNER ANALYTICS CACHE ADDED: NO
+```
+
+---
+
+## AH. Rate Limiting
+
+Report:
+
+```text
+existing middleware reused:
+rate:
+rate-limit Integrity side effect:
+```
+
+---
+
+## AI. Logging / Audit
+
+Report exact existing audit/security logging reused.
+
+If none:
+
+state structured logging strategy.
+
+Explicitly:
+
+```text
+RAW ANALYTICS VALUES LOGGED: NO
+SUPPRESSED ACTUAL COUNTS LOGGED: NO
+```
+
+---
+
+## AJ. Error Privacy
+
+Confirm low-sample errors/responses do not reveal actual hidden counts.
+
+---
+
+## AK. Real PostgreSQL Environment
+
+```text
+SAFE DISPOSABLE POSTGRESQL VERIFIED: YES/NO
+REAL POSTGRESQL PROMPT 35 TESTS EXECUTED: YES/NO
+```
+
+Include:
+
+```text
+prompt35_owner_privacy_gate
+```
+
+---
+
+## AL. Authorization Tests
+
+Report:
+
+- unauthenticated;
+- owner;
+- admin;
+- student;
+- Group Focus HOST;
+- aggregate query call count for unauthorized requests.
+
+---
+
+## AM. Suppression Boundary Tests
+
+Report:
+
+- 0;
+- 1;
+- 9;
+- 10 contributors;
+- 10 users / 19 interactions;
+- 10 users / 20 interactions.
+
+---
+
+## AN. Distribution Tests
+
+Report:
+
+- safe distribution;
+- one low bucket;
+- subtraction protection;
+- zero-data distribution.
+
+---
+
+## AO. Window Tests
+
+Report:
+
+- LAST_7_DAYS;
+- LAST_30_DAYS;
+- CURRENT_SEMESTER;
+- invalid preset;
+- custom from/to rejection.
+
+---
+
+## AP. Query-Surface Tests
+
+Report rejection of:
+
+```text
+userId
+studentId
+email
+multi-lecture custom segment
+performance sort
+```
+
+---
+
+## AQ. Privacy Leak Tests
+
+Confirm HTTP payloads contain none of:
+
+```text
+student userId
+student name
+email
+phone
+avatar
+signature
+attemptId
+selected answer
+Quick Notes
+Integrity details
+Points ledger rows
+```
+
+---
+
+## AR. HTTP Cache Tests
+
+Report `Cache-Control` behavior.
+
+---
+
+## AS. Read Side Effects
+
+Report exact deltas:
+
+```text
+LectureMastery:
+LectureRetention:
+RecallAttempt:
+RecallItemState:
+FocusSession:
+GroupFocusRun:
+StudyPointsLedgerEntry:
+StudyPointsBalanceProjection:
+PointsLog:
+UserAchievement:
+UserGamificationLevel:
+ChallengeInstance:
+LeaderboardSnapshot:
+IntegritySignal:
+CalendarEvent:
+FocusPlanItem:
+PrivateD1SyncOutbox:
+```
+
+Expected:
+
+```text
+0
+```
+
+for all.
+
+---
+
+## AT. Prompt34 Preservation
+
+Explicitly:
+
+```text
+owner-academic-analytics-v1 changed: NO
+core metric definitions changed: NO
+raw aggregate internal service still available: YES
+```
+
+---
+
+## AU. AI / D1 / UI Boundary
+
+Explicitly:
+
+```text
+AI CALLS: 0
+D1 MIGRATION: NO
+OWNER ANALYTICS D1 CACHE: NO
+VISIBLE OWNER UI CREATED: NO
+```
+
+---
+
+## AV. Tests Added / Modified
+
+Exact paths/counts/results.
+
+---
+
+## AW. Regression Results
+
+Include:
+
+- Prompt34 owner aggregate metrics;
+- Prompt33 Mastery/Retention D1;
+- Prompt32 Retention;
+- Prompt31 Mastery;
+- Prompt30 Recall policy/reward;
+- Prompt29 Recall candidate;
+- Prompt28 Recall lifecycle;
+- Prompt27 Leaderboard D1;
+- Prompt26 canonical Leaderboard;
+- Prompt25 Challenges;
+- Prompt24 Levels/profile;
+- Prompt23 Achievements;
+- Prompt22 definitions;
+- Prompt19–21 Points;
+- Prompt17–18 Integrity;
+- Prompt13–16 Group Focus;
+- Prompt9–12 Solo Focus;
+- Prompt8 Study Events;
+- MCQ;
+- Flashcards;
+- Auth/RBAC;
+- Build;
+- Prisma;
+- targeted typecheck;
+- targeted lint;
+- Calendar baseline.
+
+---
+
+## AX. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AY. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text
+Prisma schema unchanged?
+Prompt34 metrics unchanged?
+Prompt31 Mastery rules unchanged?
+Prompt32 Retention rules unchanged?
+Prompt29 candidate weights unchanged?
+Prompt30 Recall policy/reward unchanged?
+Points unchanged?
+Gamification unchanged?
+Leaderboard unchanged?
+Calendar unchanged?
+D1 Worker unchanged?
+visible frontend UI unchanged?
+```
+
+---
+
+## AZ. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT 35 MIGRATION APPLIED TO PRODUCTION: NO
+PRODUCTION RBAC BROADENED: NO
+PRODUCTION ADMIN ANALYTICS ACCESS GRANTED: NO
+PRODUCTION OWNER ANALYTICS TEST DATA QUERIED: NO
+PRODUCTION ANALYTICS EXPORT CREATED: NO
+PRODUCTION OWNER UI CREATED: NO
+PRODUCTION MASTERY/RETENTION MODIFIED: NO
+PRODUCTION POINTS MODIFIED: NO
+REMOTE D1 MODIFIED: NO
+WORKER DEPLOYED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## BA. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## BB. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## BC. Risks / Blockers
+
+Only actual unresolved privacy/access/suppression issues.
+
+Do not list Prompt36 Analyzer, Prompt37 AI, or owner frontend UI as blockers.
+
+---
+
+## BD. Architecture Compliance
+
+Answer YES/NO:
+
+- Prompt34 remains canonical aggregate source?
+- Privacy policy versioned?
+- Owner-only access default?
+- Student denied?
+- Admin denied unless dedicated pre-existing permission exists?
+- Group Focus HOST denied?
+- Authorization happens before analytics query?
+- No individual student endpoint?
+- No student-search filter?
+- No student identifiers in payload?
+- Minimum contributor threshold = 10?
+- Minimum rate interactions = 20?
+- Zero-data semantics explicit?
+- Samples 1–9 hidden?
+- Performance rates suppressed safely?
+- Sensitive distributions protected?
+- Entire sensitive distribution suppressed for small non-zero bucket?
+- Residual/subtraction inference prevented?
+- Low-population scopes protected?
+- Raw Prompt34 DTO never directly exposed?
+- Central privacy transformer used?
+- Fixed external windows only?
+- Baghdad time used?
+- Semester dates canonical?
+- No custom time ranges?
+- No custom student groups?
+- No multi-lecture custom segment?
+- No performance sorting?
+- Canonical curriculum ordering used?
+- Partial suppression supported?
+- Resource behavior privacy protected?
+- No PDF-reading claims?
+- No video-completion claims?
+- No Integrity analytics?
+- No Quick Notes analytics?
+- No Points-ledger analytics?
+- No student ranking?
+- No synthetic engagement/subject/difficulty score?
+- No export?
+- Sensitive responses no-store?
+- No D1 analytics cache?
+- Privacy-safe logging only?
+- Hidden counts never logged?
+- Analytics reads source-write-free?
+- No Mastery refresh?
+- No Retention refresh?
+- No Recall issuance?
+- No Points side effect?
+- No Integrity side effect?
+- No Calendar?
+- No AI?
+- No visible UI?
+- No migration?
+- Production unchanged?
+- Build passes?
+- New regressions = 0?
+
+---
+
+## BE. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 36 — Deterministic Study Analyzer: Student Metrics DTO, Weakness Signals, Consistency, Progress & Explainable Study Facts**
+
+Do not implement Prompt 36.
+
+---
+
+# 245. STOP CONDITION
+
+After implementation, testing, and the mandatory report:
+
+STOP.
+
+Do NOT implement Prompt36 Study Analyzer.
+
+Do NOT implement AI insights.
+
+Do NOT build Owner Analytics UI.
+
+Do NOT create exports.
+
+Do NOT expose individual student analytics to owner/admin.
+
+Do NOT relax privacy thresholds.
+
+Do NOT grant admins analytics access unless that permission already existed before Prompt35.
+
+Do NOT alter Mastery/Retention semantics.
+
+Do NOT alter Recall rules.
+
+Do NOT modify production.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 35 COMPLETE — OWNER ANALYTICS PRIVACY, ACCESS CONTROL & SAFE AGGREGATE EXPOSURE READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
