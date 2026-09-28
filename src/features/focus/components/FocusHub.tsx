@@ -41,7 +41,7 @@ import {
 } from "../focusHubModel";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
-import { FocusSessionHandoff } from "./FocusSessionHandoff";
+import { ActiveFocusScreen } from "./ActiveFocusScreen";
 
 type LectureCatalogStatus = "loading" | "ready" | "error";
 type FocusHubNoticeKey =
@@ -200,12 +200,12 @@ export function FocusHub({
 
   useEffect(() => {
     mountedRef.current = true;
-    void loadCanonical().catch(() => {});
+    if (!sessionRouteId) void loadCanonical().catch(() => {});
     return () => {
       mountedRef.current = false;
       requestGenerationRef.current += 1;
     };
-  }, [loadCanonical]);
+  }, [loadCanonical, sessionRouteId]);
 
   const orderedLectures = useMemo(
     () => lectures.filter((lecture) => isAccessibleLectureId(lecture.id)),
@@ -569,10 +569,6 @@ export function FocusHub({
   };
 
   const useSessionRoute = Boolean(sessionRouteId);
-  const sessionForRoute =
-    sessionRouteId && currentSession?.id === sessionRouteId
-      ? currentSession
-      : null;
   const sessionPlan = currentSession
     ? canonicalPlan?.id === currentSession.planId
       ? canonicalPlan
@@ -585,6 +581,21 @@ export function FocusHub({
   const currentLectureTitle = currentSession
     ? lectureMap.get(currentSession.lectureId)?.name
     : undefined;
+
+  if (useSessionRoute && sessionRouteId) {
+    return (
+      <ActiveFocusScreen
+        key={sessionRouteId}
+        sessionRouteId={sessionRouteId}
+        lectures={lectures}
+        language={language}
+        catalogStatus={catalogStatus}
+        onRefreshLectures={onRefreshLectures}
+        onReturnToPlanner={onReturnToPlanner}
+        onOpenSession={onOpenSession}
+      />
+    );
+  }
 
   if (loadState === "loading") {
     return <FocusHubSkeleton language={language} />;
@@ -613,20 +624,6 @@ export function FocusHub({
           {t("focusHubRetry")}
         </button>
       </div>
-    );
-  }
-
-  if (useSessionRoute) {
-    return (
-      <FocusSessionHandoff
-        language={language}
-        session={sessionForRoute}
-        lectureTitle={currentLectureTitle}
-        planItemPosition={planItemIndex !== undefined && planItemIndex >= 0 ? planItemIndex + 1 : undefined}
-        planItemCount={sessionPlan?.items.length}
-        isLoading={false}
-        onReturnToPlanner={onReturnToPlanner}
-      />
     );
   }
 

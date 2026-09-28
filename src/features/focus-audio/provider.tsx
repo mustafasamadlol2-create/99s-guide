@@ -26,6 +26,11 @@ export interface FocusAudioContextValue extends FocusAudioStoreSnapshot {
   setVolume(value: number): void;
   setLoop(enabled: boolean): void;
   setPauseOnFocusEnd(enabled: boolean): void;
+  onFocusStarted(): void;
+  onFocusPaused(): void;
+  onFocusResumed(): Promise<FocusAudioResult | void>;
+  onFocusCompleted(): void;
+  onFocusAbandoned(): void;
 }
 
 export const FocusAudioContext = createContext<FocusAudioContextValue | null>(null);
@@ -69,6 +74,11 @@ export function FocusAudioProvider({ children }: FocusAudioProviderProps) {
     setVolume: (volume) => store.setVolume(volume),
     setLoop: (enabled) => store.setLoop(enabled),
     setPauseOnFocusEnd: (enabled) => store.setPauseOnFocusEnd(enabled),
+    onFocusStarted: () => store.focusBridge.onFocusStarted(),
+    onFocusPaused: () => store.focusBridge.onFocusPaused(),
+    onFocusResumed: () => store.focusBridge.onFocusResumed(),
+    onFocusCompleted: () => store.focusBridge.onFocusCompleted(),
+    onFocusAbandoned: () => store.focusBridge.onFocusAbandoned(),
   }), [snapshot, store]);
 
   return (
