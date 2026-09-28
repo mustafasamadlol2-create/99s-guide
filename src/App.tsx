@@ -11,6 +11,7 @@ import { CommandPalette, SearchResultItem } from "./components/ui/CommandPalette
 import IOSAlert from "./core/layout/iOSAlert";
 import { showiOSAlert } from "./core/device/alert";
 import { Language, useTranslation } from "./core/i18n/translations";
+import { FOCUS_HUB_V2_ENABLED } from "./config/featureFlags";
 import { useLegacyArabicUiLocalization } from "./core/i18n/legacyArabicUi";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
 import { filterAcademicCalendarEvents } from "./core/calendar/academicEvents";
@@ -38,6 +39,7 @@ import {
   Database,
   Search,
   X,
+  Timer,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform, useMotionValue, animate } from "motion/react";
 import { createPortal } from "react-dom";
@@ -90,6 +92,7 @@ import {
   SubjectView,
   LectureDetailView,
   CalendarView,
+  FocusHub,
   ProfileView,
   ControlCenterView,
   SettingsView,
@@ -335,7 +338,23 @@ function AppContent({
   }, [currentUser?.id]);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [authState, setAuthState] = useState<AuthState>("INITIALIZING");
-  const [activeTab, setActiveTab] = useState<string>("home"); // home | subjects | calendar | pomodoro | profile | settings
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return "home";
+    return window.location.hash.replace(/^#/, "").split("/")[0] === "focus"
+      ? "focus"
+      : "home";
+  }); // home | subjects | calendar | focus | profile | settings
+  const [focusSessionRouteId, setFocusSessionRouteId] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return null;
+    const parts = window.location.hash.replace(/^#/, "").split("/");
+    return parts[0] === "focus" && parts[1] === "session" && parts[2]
+      ? parts[2]
+      : null;
+  });
+  const [hasVisitedFocusHub, setHasVisitedFocusHub] = useState(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return false;
+    return window.location.hash.replace(/^#/, "").split("/")[0] === "focus";
+  });
   const [oauthRedirectError, setOauthRedirectError] = useState<string | null>(null);
   const [verificationRedirectError, setVerificationRedirectError] = useState<string | null>(null);
   const [oauthRecoveryPending, setOauthRecoveryPending] = useState(() => {
@@ -1332,6 +1351,8 @@ function AppContent({
   } | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>(seedSubjects);
   const [dbLectures, setDbLectures] = useState<DatabaseLecture[]>([]);
+  const [lectureCatalogStatus, setLectureCatalogStatus] =
+    useState<"loading" | "ready" | "error">("loading");
   const refreshAcademicDataRef = useRef<((bypassCache?: boolean) => Promise<void>) | null>(null);
   const academicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const lastAcademicRefreshAtRef = useRef(0);
@@ -2160,6 +2181,8 @@ function AppContent({
       return;
     }
 
+    if (id === "focus") setHasVisitedFocusHub(true);
+    setFocusSessionRouteId(null);
     const isSelectedMainTab = activeTab === id;
     const isRootReselect =
       isSelectedMainTab &&
@@ -2247,6 +2270,8 @@ function AppContent({
           hashStr += `/lecture/${activeLecture.id}`;
         }
       }
+    } else if (activeTab === "focus" && focusSessionRouteId) {
+      hashStr += `/session/${focusSessionRouteId}`;
     }
 
     if (window.location.hash !== hashStr) {
@@ -2259,6 +2284,7 @@ function AppContent({
     activeModuleId,
     activeSubjectId,
     activeLecture,
+    focusSessionRouteId,
   ]);
 
   // Sync URL hash -> state variables (handles back/forward browser controls, deep/universal links)
@@ -2272,6 +2298,7 @@ function AppContent({
         "home",
         "subjects",
         "calendar",
+        ...(FOCUS_HUB_V2_ENABLED ? ["focus"] : []),
         "control-center",
         "profile",
         "settings",
@@ -2284,6 +2311,14 @@ function AppContent({
       if (!validTabs.includes(tab)) return;
 
       setActiveTab(tab);
+      if (tab === "focus" && FOCUS_HUB_V2_ENABLED) {
+        setHasVisitedFocusHub(true);
+        setFocusSessionRouteId(
+          parts[1] === "session" && parts[2] ? parts[2] : null,
+        );
+      } else {
+        setFocusSessionRouteId(null);
+      }
 
       if (tab === "home") {
         if (parts[1] === "subject" && parts[2]) {
@@ -2720,31 +2755,52 @@ function AppContent({
 
   const fetchDbLectures = async (bypassCache = false) => {
     if (!currentUserRef.current) return;
+    setLectureCatalogStatus((previous) =>
+      previous === "ready" && dbLectures.length > 0 ? "ready" : "loading",
+    );
     // Stale-while-revalidate: render from cache instantly, then update with fresh data
     if (!bypassCache) {
-      const cached = await CacheManager.get<any[]>("lectures", CACHE_TTL.LECTURES);
-      if (cached) setDbLectures(cached);
+      try {
+        const cached = await CacheManager.get<any[]>("lectures", CACHE_TTL.LECTURES);
+        if (cached) {
+          setDbLectures(cached);
+          setLectureCatalogStatus("ready");
+        }
+      } catch {
+        // A cache failure should not prevent the network refresh from running.
+      }
     }
     try {
       const res = await apiClient("/api/lectures", { bypassCache });
       if (res.ok) {
         const data = await res.json();
         setDbLectures(data);
+        setLectureCatalogStatus("ready");
         CacheManager.set("lectures", data, CACHE_TTL.LECTURES).catch(() => {});
         IDBManager.setItem("db_lectures_list_cache", data).catch(() => {});
       } else {
         throw new Error("HTTP error " + res.status);
       }
     } catch (e) {
+      let restoredCachedData = false;
       try {
         const idbCached = await IDBManager.getItem("db_lectures_list_cache");
         if (idbCached) {
           setDbLectures(idbCached as any);
+          setLectureCatalogStatus("ready");
+          restoredCachedData = true;
         } else {
           const cachedStr = localStorage.getItem("db_lectures_list_cache");
-          if (cachedStr) setDbLectures(safeJsonParse(cachedStr, []));
+          if (cachedStr) {
+            setDbLectures(safeJsonParse(cachedStr, []));
+            setLectureCatalogStatus("ready");
+            restoredCachedData = true;
+          }
         }
       } catch (err) {}
+      if (!restoredCachedData) {
+        setLectureCatalogStatus(dbLectures.length > 0 ? "ready" : "error");
+      }
     }
   };
 
@@ -4571,6 +4627,15 @@ const handleSignOut = useCallback(async () => {
         icon: CalIcon,
         label: language === "ar" ? "الجدول" : "Schedule",
       },
+      ...(FOCUS_HUB_V2_ENABLED
+        ? [
+            {
+              id: "focus",
+              icon: Timer,
+              label: t("focusHubNav"),
+            },
+          ]
+        : []),
       ...(currentUser?.isAdmin ||
       currentUser?.role === "admin" ||
       currentUser?.role === "owner"
@@ -4586,7 +4651,7 @@ const handleSignOut = useCallback(async () => {
           ]
         : []),
     ],
-    [language, currentUser],
+    [language, currentUser, t],
   );
 
   const sidebarSystemItems = useMemo(
@@ -6622,6 +6687,38 @@ const handleSignOut = useCallback(async () => {
 </Suspense>
               </motion.div>
             </motion.div>
+
+            {FOCUS_HUB_V2_ENABLED && hasVisitedFocusHub && (
+              <motion.div
+                data-main-tab-panel="focus"
+                style={{
+                  display: activeTab === "focus" ? "block" : "none",
+                  position: "relative",
+                  minHeight: navigationSurfaceMinHeight,
+                }}
+                className="w-full min-h-full"
+              >
+                <Suspense fallback={iOSLoadingFallback}>
+                  <ErrorBoundary>
+                    <FocusHub
+                      lectures={dbLectures}
+                      subjects={subjects}
+                      language={language}
+                      catalogStatus={lectureCatalogStatus}
+                      sessionRouteId={focusSessionRouteId}
+                      onRefreshLectures={() => fetchDbLectures(true)}
+                      onBackToHome={() => handleSidebarTabClick("home")}
+                      onReturnToPlanner={() => setFocusSessionRouteId(null)}
+                      onOpenSession={(sessionId) => {
+                        setHasVisitedFocusHub(true);
+                        setFocusSessionRouteId(sessionId);
+                        setActiveTab("focus");
+                      }}
+                    />
+                  </ErrorBoundary>
+                </Suspense>
+              </motion.div>
+            )}
 
             {/* Tab 4: Profile */}
             <motion.div

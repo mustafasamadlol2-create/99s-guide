@@ -14,3 +14,4 @@
 - [Nullable SQL check constraints](nullable-sql-check-constraints.md) — PostgreSQL CHECK accepts UNKNOWN; paired nullable provenance fields need an explicitly false invalid state.
 - [Owner analytics scope population](owner-analytics-scope-population.md) — use the canonical global eligible-student count until content-specific enrollment exists; never infer it from activity.
 - [Arabic number-word validation](arabic-number-word-validation.md) — match Arabic numeric words at Unicode letter boundaries to avoid rejecting ordinary words containing short numeral substrings.
+- [Capacitor sync version pin](capacitor-sync-version-pin.md) — iOS sync may refresh the Swift package pin; review and revert unrelated native changes after web-only checks.

@@ -66,6 +66,7 @@ import { Language, useTranslation } from "../../../core/i18n/translations";
 import { CommandPalette, SearchResultItem } from "../../../components/ui/CommandPalette";
 import { usePersonalization } from "../../personalization/PersonalizationProvider";
 import { resolveHomeSubjectVisibility } from "../../personalization/homeSubjectVisibility";
+import { FOCUS_HUB_V2_ENABLED } from "../../../config/featureFlags";
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1430,6 +1431,30 @@ const HomeDashboard = memo(function HomeDashboard({
                 isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
                 isPhone={device.isPhone}
               />
+
+              {FOCUS_HUB_V2_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab("focus")}
+                  className="ios-staggered-card group flex min-h-[76px] w-full items-center gap-3 rounded-[22px] border border-indigo-200/70 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 px-4 py-3 text-start shadow-sm transition hover:border-indigo-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/10 dark:from-indigo-300/[0.08] dark:via-white/[0.025] dark:to-cyan-300/[0.05]"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-700 text-white shadow-sm">
+                    <Timer className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-slate-950 dark:text-white">
+                      {t("focusHubHomeCtaTitle")}
+                    </span>
+                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
+                      {t("focusHubHomeCtaDescription")}
+                    </span>
+                  </span>
+                  <ArrowRight
+                    className={`h-4 w-4 shrink-0 text-indigo-700 transition-transform group-hover:translate-x-0.5 dark:text-indigo-200 ${isRtl ? "rotate-180 group-hover:-translate-x-0.5" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
 
               {/* 2. Banner Notification alert */}
               {nextEvent && <UpcomingEventAlert nextEvent={nextEvent} isRtl={isRtl} onNavigateTab={onNavigateTab} t={t} />}

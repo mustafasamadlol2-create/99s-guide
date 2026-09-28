@@ -33,6 +33,11 @@ export const ModulePlaceholderView = lazyWithPreload(() => import("../../feature
 export const SubjectView = lazyWithPreload(() => import("../../features/subjects/components/SubjectView"));
 export const LectureDetailView = lazyWithPreload(() => import("../../features/lectures/components/LectureDetailView"));
 export const CalendarView = lazyWithPreload(() => import("../../features/calendar/components/CalendarView"));
+export const FocusHub = lazyWithPreload(() =>
+  import("../../features/focus/components/FocusHub").then((module) => ({
+    default: module.FocusHub,
+  })),
+);
 export const ProfileView = lazyWithPreload(() => import("../../features/profile/components/ProfileView"));
 export const ControlCenterView = lazyWithPreload(() => import("../../features/admin/components/ControlCenterView"));
 export const SettingsView = lazyWithPreload(() => import("../../features/settings/components/SettingsView"));
