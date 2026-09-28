@@ -43,3 +43,10 @@ exposeLocalhost = true
 localPort = 9230
 externalPort = 3000
 exposeLocalhost = true
+
+[userenv]
+
+[userenv.development]
+VITE_MASTERY_FRONTEND_ENABLED = "true"
+VITE_SPACED_RECALL_FRONTEND_ENABLED = "true"
+SPACED_RECALL_ENABLED = "true"

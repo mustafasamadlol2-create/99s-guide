@@ -21,7 +21,7 @@
     "worker:group-focus:typecheck": "wrangler types cloudflare-group-focus-worker/worker-configuration.d.ts --config cloudflare-group-focus-worker/wrangler.jsonc --check && tsc --project cloudflare-group-focus-worker/tsconfig.json",
     "worker:group-focus:dry-run": "wrangler deploy --config cloudflare-group-focus-worker/wrangler.jsonc --dry-run --outdir /tmp/99sguide-group-focus-worker-dry-run",
     "test:postgres": "tsx --test tests/private-d1-outbox-schema.test.ts && tsx --test tests/private-d1-outbox-postgres.test.ts && tsx --test tests/study-event-postgres-integration.test.ts",
-    "test:recall": "tsx --test tests/recall-candidate.test.ts tests/recall-eligibility.test.ts tests/recall-contracts.test.ts tests/recall-policy-cooldown.test.ts tests/recall-interaction-token.test.ts tests/recall-postgres.test.ts tests/recall-candidate-postgres.test.ts tests/recall-prompt30-postgres.test.ts",
+    "test:recall": "tsx --test tests/recall-candidate.test.ts tests/recall-eligibility.test.ts tests/recall-private-routes.test.ts tests/recall-contracts.test.ts tests/recall-policy-cooldown.test.ts tests/recall-interaction-token.test.ts tests/recall-postgres.test.ts tests/recall-candidate-postgres.test.ts tests/recall-prompt30-postgres.test.ts",
     "test:leaderboard": "tsx --test tests/leaderboard.test.ts tests/leaderboard-postgres.test.ts",
     "test:ai": "tsx --test tests/ai-foundation.test.ts",
     "test:ai-input": "tsx --test tests/ai-input.test.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --allowSyntheticDefaultImports server/services/ai/input/*.ts tests/ai-input-contracts.type-test.ts",

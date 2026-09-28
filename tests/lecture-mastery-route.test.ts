@@ -105,3 +105,56 @@ test("Mastery own-read rejects unauthenticated requests before reading data", as
     assert.equal(readCount, 0);
   });
 });
+
+test("canonical due reviews preserve server pagination and omit private ordering scores", async () => {
+  const app = express();
+  let captured: { userId: string; limit?: number; cursor?: string; asOf?: Date } | null = null;
+  const requireUser: RequestHandler = (req, res, next) => {
+    const id = req.header("x-test-user");
+    if (!id) return res.status(401).json({ error: "Authentication required." });
+    (req as AuthenticatedRequest).user = { id };
+    return next();
+  };
+  const privateRow = {
+    lectureId: "lecture-overdue",
+    effectiveMasteryState: "NEEDS_REVIEW",
+    reviewState: "OVERDUE",
+    nextReviewAt: "2026-09-28T10:00:00.000Z",
+    reviewUrgencyScore: 99,
+  };
+  app.use("/api/me/mastery", createMasteryRouter({
+    requireUser,
+    listCanonicalReviews: async (input) => {
+      captured = input;
+      return {
+        items: [privateRow] as any,
+        nextCursor: "opaque-next-page",
+      } as any;
+    },
+  }));
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/me/mastery/reviews/canonical?limit=1&cursor=opaque-page&userId=other-user`,
+      { headers: { "x-test-user": "authenticated-user" } },
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store, private");
+    assert.deepEqual(captured, {
+      userId: "authenticated-user",
+      limit: 1,
+      cursor: "opaque-page",
+    });
+    const body = await response.json();
+    assert.deepEqual(body, {
+      items: [{
+        lectureId: "lecture-overdue",
+        effectiveMasteryState: "NEEDS_REVIEW",
+        reviewState: "OVERDUE",
+        nextReviewAt: "2026-09-28T10:00:00.000Z",
+      }],
+      nextCursor: "opaque-next-page",
+    });
+    assert.doesNotMatch(JSON.stringify(body), /reviewUrgencyScore/);
+  });
+});

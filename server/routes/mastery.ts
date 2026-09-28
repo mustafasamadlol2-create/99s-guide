@@ -8,6 +8,7 @@ import {
   readMasteryReviews,
   readMasteryLectureDetail,
 } from "../features/mastery/privateDashboard.js";
+import { listDueLectureReviews } from "../features/mastery/dueReviewService.js";
 import { MASTERY_STATES } from "../features/study-core/constants.js";
 import { LectureMasteryError } from "../features/mastery/errors.js";
 
@@ -30,6 +31,7 @@ export function validateMasteryQuery(q: express.Request["query"], reviews = fals
 export function createMasteryRouter(dependencies: {
   requireUser: express.RequestHandler;
   getMyMastery?: typeof getMyLectureMasteryWithRetention;
+  listCanonicalReviews?: typeof listDueLectureReviews;
 }): express.Router {
   const router = express.Router();
   router.use((_req, res, next) => {
@@ -70,6 +72,43 @@ export function createMasteryRouter(dependencies: {
         cursor: req.query.cursor as string | undefined, limit: req.query.limit === undefined ? 25 : Number(req.query.limit),
       }));
     } catch { return res.status(500).json({ error: "Unable to load Mastery reviews." }); }
+  });
+
+  router.get("/reviews/canonical", async (req, res) => {
+    const userId = user(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required." });
+    const limit = req.query.limit === undefined ? 25 : Number(req.query.limit);
+    const cursor = req.query.cursor;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({ error: "limit must be an integer from 1 to 100." });
+    }
+    if (
+      (cursor !== undefined &&
+        (typeof cursor !== "string" || cursor.length < 1 || cursor.length > 50_000)) ||
+      req.query.subjectId !== undefined ||
+      req.query.reviewState !== undefined
+    ) {
+      return res.status(400).json({ error: "Invalid canonical review query." });
+    }
+    try {
+      const listReviews = dependencies.listCanonicalReviews ?? listDueLectureReviews;
+      const result = await listReviews({
+        userId,
+        limit,
+        cursor: typeof cursor === "string" ? cursor : undefined,
+      });
+      return res.json({
+        items: result.items.map((row) => ({
+          lectureId: row.lectureId,
+          effectiveMasteryState: row.effectiveMasteryState,
+          reviewState: row.reviewState,
+          nextReviewAt: row.nextReviewAt,
+        })),
+        nextCursor: result.nextCursor,
+      });
+    } catch {
+      return res.status(500).json({ error: "Unable to load canonical review queue." });
+    }
   });
 
   router.get("/lectures/:lectureId", async (req, res) => {

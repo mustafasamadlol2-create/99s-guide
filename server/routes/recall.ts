@@ -36,6 +36,87 @@ export interface RecallRouteDependencies {
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
 
+type PeriodicEligibilityBlock =
+  | { status: "NOT_DUE"; nextEligibleAt: Date }
+  | { status: "DAILY_LIMIT_REACHED"; nextEligibleAt: Date }
+  | { status: "WEEKLY_LIMIT_REACHED"; nextEligibleAt: Date };
+
+async function findActivePeriodicAttempt(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  asOf: Date,
+) {
+  return tx.recallAttempt.findFirst({
+    where: {
+      userId,
+      status: "PRESENTED",
+      issuanceSource: "PERIODIC",
+      issuancePolicyVersion: RECALL_POLICY_VERSION,
+      expiresAt: { gt: asOf },
+    },
+    orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
+  });
+}
+
+async function findPeriodicEligibilityBlock(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  asOf: Date,
+): Promise<PeriodicEligibilityBlock | null> {
+  const latest = await tx.recallAttempt.findFirst({
+    where: {
+      userId,
+      issuanceSource: "PERIODIC",
+      issuancePolicyVersion: RECALL_POLICY_VERSION,
+    },
+    orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
+    select: { presentedAt: true },
+  });
+  if (
+    latest &&
+    latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS >
+      asOf.getTime()
+  ) {
+    return {
+      status: "NOT_DUE",
+      nextEligibleAt: new Date(
+        latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS,
+      ),
+    };
+  }
+
+  const day = await getStudyPointsBaghdadDayBounds(
+    tx,
+    studyPointsBaghdadDate(asOf),
+  );
+  const dayCount = await tx.recallAttempt.count({
+    where: {
+      userId,
+      issuanceSource: "PERIODIC",
+      issuancePolicyVersion: RECALL_POLICY_VERSION,
+      presentedAt: { gte: day.start, lt: day.end },
+    },
+  });
+  if (dayCount >= RECALL_DAILY_ISSUANCE_CAP) {
+    return { status: "DAILY_LIMIT_REACHED", nextEligibleAt: day.end };
+  }
+
+  const week = getBaghdadWeekPeriod(asOf);
+  const weekCount = await tx.recallAttempt.count({
+    where: {
+      userId,
+      issuanceSource: "PERIODIC",
+      issuancePolicyVersion: RECALL_POLICY_VERSION,
+      presentedAt: { gte: week.startsAt, lt: week.endsAt },
+    },
+  });
+  if (weekCount >= RECALL_WEEKLY_ISSUANCE_CAP) {
+    return { status: "WEEKLY_LIMIT_REACHED", nextEligibleAt: week.endsAt };
+  }
+
+  return null;
+}
+
 export function createRecallJsonParser(): RequestHandler {
   const parser = express.json({ limit: "2kb" });
   return (req, res, next) => {
@@ -70,7 +151,163 @@ export function createRecallRouter(
   const database = dependencies.database ?? getPrisma();
   const now = dependencies.now ?? (() => new Date());
   const candidates = createRecallCandidateService({ database, attemptService: service });
+  router.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    next();
+  });
   router.use(dependencies.requireUser);
+
+  router.get("/eligibility", route(async (req, res) => {
+    if (!isStudyFeatureEnabled("SPACED_RECALL_ENABLED")) {
+      return res.status(404).json({ error: "Spaced Recall is not available.", code: "FEATURE_DISABLED" });
+    }
+    res.setHeader("Cache-Control", "no-store, private");
+    const id = userId(req);
+    const asOf = now();
+    if (!(asOf instanceof Date) || !Number.isFinite(asOf.getTime())) {
+      throw new Error("Recall server clock is invalid.");
+    }
+    const result = await database.$transaction(async (tx) => {
+      if (await findActivePeriodicAttempt(tx, id, asOf)) {
+        return { status: "ACTIVE_ATTEMPT" as const };
+      }
+      const block = await findPeriodicEligibilityBlock(tx, id, asOf);
+      if (block) return block;
+      const available = await candidates.hasEligibleProtectedRecallCandidate({
+        userId: id,
+        asOf,
+        tx: tx as never,
+      });
+      return { status: available ? "AVAILABLE" as const : "NO_CANDIDATE" as const };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      maxWait: 5_000,
+      timeout: 15_000,
+    });
+    return res.json(result);
+  }));
+
+  router.get(
+    "/attempts/:attemptId",
+    route(async (req, res) => {
+      if (!isStudyFeatureEnabled("SPACED_RECALL_ENABLED")) {
+        return res.status(404).json({ error: "Spaced Recall is not available.", code: "FEATURE_DISABLED" });
+      }
+      res.setHeader("Cache-Control", "no-store, private");
+      const parsedId = recallAttemptIdSchema.safeParse(req.params.attemptId);
+      if (!parsedId.success) {
+        return res.status(400).json({ error: "Recall attempt is invalid.", code: "INVALID_REQUEST" });
+      }
+
+      const id = userId(req);
+      const attempt = await database.recallAttempt.findFirst({
+        where: { id: parsedId.data, userId: id },
+        select: {
+          id: true,
+          itemType: true,
+          itemId: true,
+          lectureId: true,
+          issuanceSource: true,
+          status: true,
+          outcome: true,
+          presentedAt: true,
+          expiresAt: true,
+        },
+      });
+      if (!attempt || attempt.issuanceSource !== "PERIODIC") {
+        return res.status(404).json({ error: "Recall attempt not found.", code: "ATTEMPT_NOT_FOUND" });
+      }
+
+      const expiresAt =
+        attempt.expiresAt ??
+        new Date(attempt.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS);
+      const status =
+        attempt.status === "PRESENTED" && expiresAt.getTime() <= now().getTime()
+          ? "EXPIRED"
+          : attempt.status;
+      if (status !== "PRESENTED") {
+        return res.json({
+          attemptId: attempt.id,
+          itemType: attempt.itemType,
+          status,
+          outcome: attempt.outcome,
+        });
+      }
+
+      const lecture = await database.lecture.findUnique({
+        where: { id: attempt.lectureId },
+        select: {
+          id: true,
+          title: true,
+          mcqs: {
+            where: { id: attempt.itemId },
+            select: {
+              id: true,
+              question: true,
+              optionA: true,
+              optionB: true,
+              optionC: true,
+              optionD: true,
+            },
+          },
+          flashcards: {
+            where: { id: attempt.itemId },
+            select: {
+              id: true,
+              clinicalConcept: true,
+              explanation: true,
+            },
+          },
+        },
+      });
+
+      if (attempt.itemType === "MCQ") {
+        const item = lecture?.mcqs.find((row) => row.id === attempt.itemId);
+        if (!item || typeof item.question !== "string") {
+          return res.status(404).json({ error: "Recall item is unavailable.", code: "ITEM_NOT_FOUND" });
+        }
+        const options = [
+          { key: "A", text: item.optionA },
+          { key: "B", text: item.optionB },
+          { key: "C", text: item.optionC },
+          { key: "D", text: item.optionD },
+        ].filter((option): option is { key: "A" | "B" | "C" | "D"; text: string } =>
+          typeof option.text === "string" && option.text.trim().length > 0
+        );
+        return res.json({
+          attemptId: attempt.id,
+          status,
+          itemType: "MCQ",
+          lectureId: attempt.lectureId,
+          lectureTitle: lecture?.title ?? null,
+          expiresAt,
+          item: { id: item.id, question: item.question, options },
+        });
+      }
+
+      if (attempt.itemType === "FLASHCARD") {
+        const item = lecture?.flashcards.find((row) => row.id === attempt.itemId);
+        if (!item || typeof item.clinicalConcept !== "string") {
+          return res.status(404).json({ error: "Recall item is unavailable.", code: "ITEM_NOT_FOUND" });
+        }
+        return res.json({
+          attemptId: attempt.id,
+          status,
+          itemType: "FLASHCARD",
+          lectureId: attempt.lectureId,
+          lectureTitle: lecture?.title ?? null,
+          expiresAt,
+          item: {
+            id: item.id,
+            front: item.clinicalConcept,
+            back: item.explanation ?? "",
+          },
+        });
+      }
+
+      return res.status(404).json({ error: "Recall item is unavailable.", code: "ITEM_NOT_FOUND" });
+    }),
+  );
 
   router.post("/next", route(async (req, res) => {
     if (!isStudyFeatureEnabled("SPACED_RECALL_ENABLED")) {
@@ -100,10 +337,7 @@ export function createRecallRouter(
         select: { id: true },
       });
       for (const row of stale) await service.expire(id, row.id, tx);
-      const active = await tx.recallAttempt.findFirst({
-        where: { userId: id, status: "PRESENTED", issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, expiresAt: { gt: asOf } },
-        orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
-      });
+      const active = await findActivePeriodicAttempt(tx, id, asOf);
       if (active) {
         const expiresAt = active.expiresAt ?? new Date(active.presentedAt.getTime() + RECALL_PROTECTED_ATTEMPT_TTL_MS);
         return {
@@ -113,36 +347,8 @@ export function createRecallRouter(
           interactionToken: mintRecallInteractionToken(id, active.id, expiresAt, asOf),
         };
       }
-      const latest = await tx.recallAttempt.findFirst({
-        where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION },
-        orderBy: [{ presentedAt: "desc" }, { id: "desc" }],
-        select: { presentedAt: true },
-      });
-      if (latest && latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS > asOf.getTime()) {
-        return {
-          kind: "status" as const,
-          status: "NOT_DUE" as const,
-          nextEligibleAt: new Date(latest.presentedAt.getTime() + RECALL_GLOBAL_ISSUANCE_COOLDOWN_MS),
-        };
-      }
-      const day = await getStudyPointsBaghdadDayBounds(tx, studyPointsBaghdadDate(asOf));
-      const dayCount = await tx.recallAttempt.count({ where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, presentedAt: { gte: day.start, lt: day.end } } });
-      if (dayCount >= RECALL_DAILY_ISSUANCE_CAP) {
-        return {
-          kind: "status" as const,
-          status: "DAILY_LIMIT_REACHED" as const,
-          nextEligibleAt: day.end,
-        };
-      }
-      const week = getBaghdadWeekPeriod(asOf);
-      const weekCount = await tx.recallAttempt.count({ where: { userId: id, issuanceSource: "PERIODIC", issuancePolicyVersion: RECALL_POLICY_VERSION, presentedAt: { gte: week.startsAt, lt: week.endsAt } } });
-      if (weekCount >= RECALL_WEEKLY_ISSUANCE_CAP) {
-        return {
-          kind: "status" as const,
-          status: "WEEKLY_LIMIT_REACHED" as const,
-          nextEligibleAt: week.endsAt,
-        };
-      }
+      const block = await findPeriodicEligibilityBlock(tx, id, asOf);
+      if (block) return { kind: "status" as const, ...block };
       try {
         const attempt = await candidates.selectAndIssueProtectedRecallCandidate({
           userId: id,

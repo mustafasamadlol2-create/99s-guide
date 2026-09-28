@@ -88,6 +88,9 @@ export interface RecallCandidateService {
   previewRecallCandidates(
     input: RecallCandidatePreviewInput,
   ): Promise<RecallCandidate[]>;
+  hasEligibleProtectedRecallCandidate(
+    input: RecallCandidateSelectionInput,
+  ): Promise<boolean>;
   selectAndIssueRecallCandidate(
     input: SelectAndIssueRecallCandidateInput,
   ): Promise<RecallAttempt>;

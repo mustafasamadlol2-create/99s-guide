@@ -66,7 +66,13 @@ import { Language, useTranslation } from "../../../core/i18n/translations";
 import { CommandPalette, SearchResultItem } from "../../../components/ui/CommandPalette";
 import { usePersonalization } from "../../personalization/PersonalizationProvider";
 import { resolveHomeSubjectVisibility } from "../../personalization/homeSubjectVisibility";
-import { FOCUS_HUB_V2_ENABLED } from "../../../config/featureFlags";
+import {
+  FOCUS_HUB_V2_ENABLED,
+  MASTERY_FRONTEND_ENABLED,
+  SPACED_RECALL_FRONTEND_ENABLED,
+} from "../../../config/featureFlags";
+import { RecallEntryCard } from "../../recall/components/RecallEntryCard";
+import { MasteryDashboard } from "../../mastery/components/MasteryDashboard";
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1086,6 +1092,7 @@ const HomeDashboard = memo(function HomeDashboard({
   );
 
   const isMountedRef = useRef(true);
+  const [showMasteryDashboard, setShowMasteryDashboard] = useState(false);
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
@@ -1399,6 +1406,18 @@ const HomeDashboard = memo(function HomeDashboard({
     }
   }, [device]);
 
+  if (showMasteryDashboard) {
+    return (
+      <MasteryDashboard
+        language={language}
+        subjects={subjects}
+        dbLectures={dbLectures}
+        onBack={() => setShowMasteryDashboard(false)}
+        onSelectLecture={onSelectLecture}
+      />
+    );
+  }
+
   return (
     <div className={`home-root relative ${suppressEntranceAnimations ? "navigation-return-static" : ""}`}>
       <motion.div
@@ -1431,6 +1450,29 @@ const HomeDashboard = memo(function HomeDashboard({
                 isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
                 isPhone={device.isPhone}
               />
+
+              {SPACED_RECALL_FRONTEND_ENABLED && (
+                <RecallEntryCard language={language} isActive={isActive} />
+              )}
+
+              {MASTERY_FRONTEND_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => setShowMasteryDashboard(true)}
+                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-start shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-indigo-300/40 dark:hover:bg-indigo-400/10"
+                  aria-label={isRtl ? "فتح لوحة الإتقان والمراجعة" : "Open Mastery and reviews"}
+                >
+                  <span>
+                    <span className="block font-semibold text-slate-950 dark:text-white">
+                      {isRtl ? "الإتقان والمراجعة" : "Mastery & reviews"}
+                    </span>
+                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-300">
+                      {isRtl ? "حالاتك ومراجعاتك الخاصة" : "Your private learning and review status"}
+                    </span>
+                  </span>
+                  <span aria-hidden="true" className={`text-lg text-indigo-700 dark:text-indigo-200 ${isRtl ? "rotate-180" : ""}`}>→</span>
+                </button>
+              )}
 
               {FOCUS_HUB_V2_ENABLED && (
                 <button

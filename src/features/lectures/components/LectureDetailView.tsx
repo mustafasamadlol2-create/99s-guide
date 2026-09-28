@@ -67,6 +67,8 @@ import {
   normalizeMCQDifficulty,
   type MCQCategoryFilter,
 } from "../../../../shared/mcqMetadata";
+import { MASTERY_FRONTEND_ENABLED } from "../../../config/featureFlags";
+import { LectureMasteryCard } from "../../mastery/components/LectureMasteryCard";
 
 interface LectureDetailViewProps {
   isActive?: boolean;
@@ -912,6 +914,7 @@ export const LectureDetailView = function LectureDetailView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates: finalUpdates })
       });
+      window.dispatchEvent(new Event("study:mastery-updated"));
     } catch (err) {
     }
 
@@ -1082,6 +1085,7 @@ export const LectureDetailView = function LectureDetailView({
   if (!res.ok) throw new Error("Submission rejected by server.");
 
   const data = await res.json();
+   window.dispatchEvent(new Event("study:mastery-updated"));
   const serverResults: any[] = Array.isArray(data?.results) ? data.results : [];
   verifiedResults = {};
   serverResults.forEach((r: any) => {
@@ -1889,6 +1893,21 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  })()}
  </div>
  </div>
+
+ {MASTERY_FRONTEND_ENABLED && (
+   <LectureMasteryCard
+     lectureId={String(lecture.id)}
+     lectureTitle={lecture.title}
+     language={language}
+     onReview={() => handleLectureTabChange(
+       filteredQuizQuestions.length > 0
+         ? "mcqs"
+         : getRelevantCards().length > 0
+           ? "flashcards"
+           : "pdf",
+     )}
+   />
+ )}
 
  {/* Global tab shortcuts inside header */}
   <div
