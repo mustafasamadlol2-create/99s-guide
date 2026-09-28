@@ -13,6 +13,7 @@ import type {
   FocusQuickNoteListQuery,
   ConvertFocusQuickNoteInput,
   FocusMetricsPeriod,
+  FocusHistoryQuery,
 } from "./schemas.js";
 import type { FocusSessionState } from "../study-core/focus.js";
 
@@ -127,6 +128,83 @@ export interface FocusMetricsDto {
   daily: FocusMetricsDaily[];
 }
 
+export interface FocusHistoryResourceDto {
+  resourceId: string;
+  resourceType: "PDF" | "VIDEO";
+  title: string | null;
+  launchCount: number;
+}
+
+export interface FocusSessionSummaryDto {
+  sessionId: string;
+  status: FocusSessionState;
+  plan: {
+    id: string;
+    title: string;
+    status: string;
+  };
+  lecture: {
+    id: string;
+    title: string;
+    subject: string;
+  };
+  progress: {
+    sessionNumber: number;
+    plannedSessionCount: number;
+    isLastPlannedSession: boolean;
+    completedSessions: number;
+    totalPlannedSessions: number;
+  };
+  timing: {
+    plannedFocusSeconds: number;
+    verifiedFocusSeconds: number | null;
+    plannedBreakSeconds: number;
+    startedAt: string | null;
+    terminalAt: string | null;
+  };
+  points: {
+    amount: number;
+    reasonCode: string;
+  } | null;
+  resources: {
+    launchCount: number;
+    uniqueResourceCount: number;
+    items: FocusHistoryResourceDto[];
+  };
+  quickNotes: FocusQuickNoteDto[];
+  nextAction: {
+    kind: "NEXT_SESSION" | "NEXT_LECTURE" | "PLAN_FINISHED" | "UNAVAILABLE";
+    planItemId: string | null;
+    lectureId: string | null;
+    lectureTitle: string | null;
+  };
+}
+
+export interface FocusHistoryRowDto {
+  sessionId: string;
+  status: FocusSessionState;
+  planId: string;
+  planTitle: string;
+  planStatus: string;
+  planItemId: string;
+  lectureId: string;
+  lectureTitle: string;
+  subject: string;
+  plannedFocusSeconds: number;
+  verifiedFocusSeconds: number | null;
+  startedAt: string | null;
+  terminalAt: string | null;
+  points: number | null;
+  resourceLaunchCount: number;
+  uniqueResourceCount: number;
+}
+
+export interface FocusHistoryPageDto {
+  items: FocusHistoryRowDto[];
+  nextCursor: string | null;
+  limit: number;
+}
+
 export interface PostFocusActionContext {
   sessionId: string;
   lectureId: string;
@@ -171,4 +249,6 @@ export interface FocusBackendService {
   convertQuickNote(userId: string, noteId: string, input: ConvertFocusQuickNoteInput): Promise<FocusQuickNoteConversionResult>;
   getMetrics(userId: string, period: FocusMetricsPeriod): Promise<FocusMetricsDto>;
   getPostFocusActionContext(userId: string, sessionId: string): Promise<PostFocusActionContext>;
+  getSessionSummary(userId: string, sessionId: string): Promise<FocusSessionSummaryDto>;
+  listHistory(userId: string, query: FocusHistoryQuery): Promise<FocusHistoryPageDto>;
 }

@@ -217,3 +217,99 @@ test("Quick Note, metrics, and post-Focus client methods use authenticated canon
   });
   assert.deepEqual(calls[5].body, { targetPlanId: planId });
 });
+
+test("Focus history and terminal summaries validate canonical responses and preserve filters", async () => {
+  const note = {
+    id,
+    focusSessionId: itemId,
+    lectureId,
+    content: "Private summary note",
+    status: "ACTIVE",
+    convertedToPlanItemId: null,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+    convertedAt: null,
+  };
+  const summary = {
+    sessionId: itemId,
+    status: "COMPLETED",
+    plan: { id: planId, title: "Plan", status: "ACTIVE" },
+    lecture: { id: lectureId, title: "Lecture", subject: "Chemistry" },
+    progress: {
+      sessionNumber: 1,
+      plannedSessionCount: 2,
+      isLastPlannedSession: false,
+      completedSessions: 1,
+      totalPlannedSessions: 2,
+    },
+    timing: {
+      plannedFocusSeconds: 2_700,
+      verifiedFocusSeconds: 2_650,
+      plannedBreakSeconds: 300,
+      startedAt: now,
+      terminalAt: now,
+    },
+    points: { amount: 5, reasonCode: "focus.verified_completion" },
+    resources: {
+      launchCount: 1,
+      uniqueResourceCount: 1,
+      items: [{ resourceId: id, resourceType: "PDF", title: "Notes", launchCount: 1 }],
+    },
+    quickNotes: [note],
+    nextAction: {
+      kind: "NEXT_SESSION",
+      planItemId: itemId,
+      lectureId,
+      lectureTitle: "Lecture",
+    },
+  };
+  const history = {
+    items: [{
+      sessionId: itemId,
+      status: "COMPLETED",
+      planId,
+      planTitle: "Plan",
+      planStatus: "ACTIVE",
+      planItemId: itemId,
+      lectureId,
+      lectureTitle: "Lecture",
+      subject: "Chemistry",
+      plannedFocusSeconds: 2_700,
+      verifiedFocusSeconds: 2_650,
+      startedAt: now,
+      terminalAt: now,
+      points: 5,
+      resourceLaunchCount: 1,
+      uniqueResourceCount: 1,
+    }],
+    nextCursor: null,
+    limit: 1,
+  };
+  const calls: string[] = [];
+  const client = createFocusApi(async (path) => {
+    calls.push(String(path));
+    return String(path).includes("/summary")
+      ? response(summary)
+      : response(history);
+  });
+  const summaryResult = await client.getSessionSummary(itemId);
+  const historyResult = await client.listHistory({
+    limit: 1,
+    status: "COMPLETED",
+    subject: "Chemistry",
+    lectureId,
+  });
+  assert.equal(summaryResult.timing.verifiedFocusSeconds, 2_650);
+  assert.equal(summaryResult.quickNotes[0]?.content, "Private summary note");
+  assert.equal(historyResult.items[0]?.points, 5);
+  assert.equal("quickNotes" in (historyResult.items[0] ?? {}), false);
+  assert.deepEqual(calls, [
+    `/api/focus/sessions/${itemId}/summary`,
+    `/api/focus/history?limit=1&status=COMPLETED&subject=Chemistry&lectureId=${lectureId}`,
+  ]);
+
+  const malformed = createFocusApi(async () => response({ ...summary, status: "UNKNOWN" }));
+  await assert.rejects(malformed.getSessionSummary(itemId), (error: unknown) =>
+    error instanceof FocusApiError && error.kind === "protocol");
+});

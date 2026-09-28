@@ -23,7 +23,10 @@ import type {
   PostFocusActionContext,
   FocusSessionDto,
   FocusSessionMutationResult,
+  FocusHistoryPageDto,
+  FocusSessionSummaryDto,
 } from "../../../../server/features/focus/types";
+import type { FocusHistoryQuery } from "../../../../server/features/focus/schemas";
 
 export type FocusResourceType = "PDF" | "VIDEO";
 export type FocusClientSource = "web" | "pwa" | "ios" | "android";
@@ -101,6 +104,8 @@ export interface FocusApi {
   convertQuickNote(noteId: string, input: ConvertFocusQuickNoteInput): Promise<FocusQuickNoteConversionResult>;
   getMetrics(period: FocusMetricsPeriod): Promise<FocusMetricsDto>;
   getPostFocusActionContext(sessionId: string): Promise<PostFocusActionContext>;
+  getSessionSummary(sessionId: string): Promise<FocusSessionSummaryDto>;
+  listHistory(query?: Partial<FocusHistoryQuery>): Promise<FocusHistoryPageDto>;
 }
 
 const SESSION_STATES = new Set([
@@ -330,6 +335,181 @@ function current(value: unknown): FocusCurrentSessionResult {
   return item as unknown as FocusCurrentSessionResult;
 }
 
+function nullableDateField(value: unknown, name: string): string | null {
+  if (value === null) return null;
+  stringField(value, name);
+  if (!Number.isFinite(Date.parse(value as string))) throw protocol(`Invalid ${name}.`);
+  return value as string;
+}
+
+function textField(value: unknown, name: string): string {
+  if (typeof value !== "string" || !value.trim()) throw protocol(`Invalid ${name}.`);
+  return value;
+}
+
+function focusSessionSummary(value: unknown): FocusSessionSummaryDto {
+  const item = record(value, "Focus session summary");
+  stringField(item.sessionId, "sessionId", { uuid: true });
+  if (typeof item.status !== "string" || !SESSION_STATES.has(item.status)) {
+    throw protocol("Invalid Focus summary status.");
+  }
+  const plan = record(item.plan, "summary plan");
+  stringField(plan.id, "plan.id", { uuid: true });
+  textField(plan.title, "plan.title");
+  textField(plan.status, "plan.status");
+  const lecture = record(item.lecture, "summary lecture");
+  stringField(lecture.id, "lecture.id", { uuid: true });
+  textField(lecture.title, "lecture.title");
+  textField(lecture.subject, "lecture.subject");
+  const progress = record(item.progress, "summary progress");
+  for (const field of [
+    "sessionNumber",
+    "plannedSessionCount",
+    "completedSessions",
+    "totalPlannedSessions",
+  ] as const) numberField(progress[field], `progress.${field}`);
+  booleanField(progress.isLastPlannedSession, "progress.isLastPlannedSession");
+  const timing = record(item.timing, "summary timing");
+  for (const field of ["plannedFocusSeconds", "plannedBreakSeconds"] as const) {
+    numberField(timing[field], `timing.${field}`);
+  }
+  if (timing.verifiedFocusSeconds !== null) {
+    numberField(timing.verifiedFocusSeconds, "timing.verifiedFocusSeconds");
+  }
+  nullableDateField(timing.startedAt, "timing.startedAt");
+  nullableDateField(timing.terminalAt, "timing.terminalAt");
+  let points: FocusSessionSummaryDto["points"] = null;
+  if (item.points !== null) {
+    const pointData = record(item.points, "summary points");
+    numberField(pointData.amount, "points.amount");
+    textField(pointData.reasonCode, "points.reasonCode");
+    points = {
+      amount: pointData.amount as number,
+      reasonCode: pointData.reasonCode as string,
+    };
+  }
+  const resources = record(item.resources, "summary resources");
+  numberField(resources.launchCount, "resources.launchCount");
+  numberField(resources.uniqueResourceCount, "resources.uniqueResourceCount");
+  if (!Array.isArray(resources.items)) throw protocol("Invalid summary resources.");
+  const resourceItems = resources.items.map((value) => {
+    const entry = record(value, "resource summary item");
+    stringField(entry.resourceId, "resourceId", { uuid: true });
+    if (entry.resourceType !== "PDF" && entry.resourceType !== "VIDEO") {
+      throw protocol("Invalid resource type in summary.");
+    }
+    if (entry.title !== null) textField(entry.title, "resource title");
+    numberField(entry.launchCount, "resource launch count");
+    return {
+      resourceId: entry.resourceId as string,
+      resourceType: entry.resourceType as "PDF" | "VIDEO",
+      title: entry.title as string | null,
+      launchCount: entry.launchCount as number,
+    };
+  });
+  if (!Array.isArray(item.quickNotes)) throw protocol("Invalid summary Quick Notes.");
+  const notes = item.quickNotes.map(quickNote);
+  const nextAction = record(item.nextAction, "summary next action");
+  if (!["NEXT_SESSION", "NEXT_LECTURE", "PLAN_FINISHED", "UNAVAILABLE"].includes(String(nextAction.kind))) {
+    throw protocol("Invalid summary next action.");
+  }
+  for (const field of ["planItemId", "lectureId"] as const) {
+    if (nextAction[field] !== null) stringField(nextAction[field], `nextAction.${field}`, { uuid: true });
+  }
+  if (nextAction.lectureTitle !== null) textField(nextAction.lectureTitle, "nextAction.lectureTitle");
+  return {
+    sessionId: item.sessionId as string,
+    status: item.status as FocusSessionSummaryDto["status"],
+    plan: {
+      id: plan.id as string,
+      title: plan.title as string,
+      status: plan.status as string,
+    },
+    lecture: {
+      id: lecture.id as string,
+      title: lecture.title as string,
+      subject: lecture.subject as string,
+    },
+    progress: {
+      sessionNumber: progress.sessionNumber as number,
+      plannedSessionCount: progress.plannedSessionCount as number,
+      isLastPlannedSession: progress.isLastPlannedSession as boolean,
+      completedSessions: progress.completedSessions as number,
+      totalPlannedSessions: progress.totalPlannedSessions as number,
+    },
+    timing: {
+      plannedFocusSeconds: timing.plannedFocusSeconds as number,
+      verifiedFocusSeconds: timing.verifiedFocusSeconds as number | null,
+      plannedBreakSeconds: timing.plannedBreakSeconds as number,
+      startedAt: timing.startedAt as string | null,
+      terminalAt: timing.terminalAt as string | null,
+    },
+    points,
+    resources: {
+      launchCount: resources.launchCount as number,
+      uniqueResourceCount: resources.uniqueResourceCount as number,
+      items: resourceItems,
+    },
+    quickNotes: notes,
+    nextAction: {
+      kind: nextAction.kind as FocusSessionSummaryDto["nextAction"]["kind"],
+      planItemId: nextAction.planItemId as string | null,
+      lectureId: nextAction.lectureId as string | null,
+      lectureTitle: nextAction.lectureTitle as string | null,
+    },
+  };
+}
+
+function focusHistoryPage(value: unknown): FocusHistoryPageDto {
+  const item = record(value, "Focus history page");
+  numberField(item.limit, "history limit");
+  if (item.nextCursor !== null) stringField(item.nextCursor, "history cursor");
+  if (!Array.isArray(item.items)) throw protocol("Invalid Focus history items.");
+  const items = item.items.map((value) => {
+    const row = record(value, "Focus history row");
+    stringField(row.sessionId, "sessionId", { uuid: true });
+    if (typeof row.status !== "string" || !SESSION_STATES.has(row.status)) {
+      throw protocol("Invalid Focus history status.");
+    }
+    for (const field of ["planId", "planItemId", "lectureId"] as const) {
+      stringField(row[field], field, { uuid: true });
+    }
+    for (const field of ["planTitle", "planStatus", "lectureTitle", "subject"] as const) {
+      textField(row[field], field);
+    }
+    for (const field of [
+      "plannedFocusSeconds",
+      "resourceLaunchCount",
+      "uniqueResourceCount",
+    ] as const) numberField(row[field], field);
+    if (row.verifiedFocusSeconds !== null) numberField(row.verifiedFocusSeconds, "verifiedFocusSeconds");
+    if (row.points !== null) numberField(row.points, "points");
+    return {
+      sessionId: row.sessionId as string,
+      status: row.status as FocusHistoryPageDto["items"][number]["status"],
+      planId: row.planId as string,
+      planTitle: row.planTitle as string,
+      planStatus: row.planStatus as string,
+      planItemId: row.planItemId as string,
+      lectureId: row.lectureId as string,
+      lectureTitle: row.lectureTitle as string,
+      subject: row.subject as string,
+      plannedFocusSeconds: row.plannedFocusSeconds as number,
+      verifiedFocusSeconds: row.verifiedFocusSeconds as number | null,
+      startedAt: nullableDateField(row.startedAt, "startedAt"),
+      terminalAt: nullableDateField(row.terminalAt, "terminalAt"),
+      points: row.points as number | null,
+      resourceLaunchCount: row.resourceLaunchCount as number,
+      uniqueResourceCount: row.uniqueResourceCount as number,
+    };
+  });
+  return {
+    items,
+    limit: item.limit as number,
+    nextCursor: item.nextCursor as string | null,
+  };
+}
+
 async function json<T>(request: Requester, path: string, options: FocusApiRequestOptions, validate: (value: unknown) => T): Promise<T> {
   let response: Response;
   try {
@@ -489,6 +669,19 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       requestOptions(),
       postFocusActionContext,
     ),
+    getSessionSummary: (id) => call(
+      `/api/focus/sessions/${encodeURIComponent(id)}/summary`,
+      requestOptions(),
+      focusSessionSummary,
+    ),
+    listHistory: (query = {}) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) params.set(key, String(value));
+      }
+      const suffix = params.size ? `?${params.toString()}` : "";
+      return call(`/api/focus/history${suffix}`, requestOptions(), focusHistoryPage);
+    },
   };
 }
 

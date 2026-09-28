@@ -168,6 +168,28 @@ export const focusMetricsQuerySchema = z.object({
   period: z.enum(["today", "last7Days", "month"]),
 }).strict();
 
+export const FOCUS_HISTORY_DEFAULT_LIMIT = 20;
+export const FOCUS_HISTORY_MAX_LIMIT = 50;
+
+export const FOCUS_SESSION_STATUSES = [
+  "CREATED",
+  "ACTIVE",
+  "PAUSED",
+  "RESOURCE_HANDOFF",
+  "RECONCILIATION_REQUIRED",
+  "COMPLETED",
+  "ABANDONED",
+  "EXPIRED",
+] as const;
+
+export const focusHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(FOCUS_HISTORY_MAX_LIMIT).default(FOCUS_HISTORY_DEFAULT_LIMIT),
+  cursor: z.string().min(1).max(512).optional(),
+  status: z.enum(FOCUS_SESSION_STATUSES).optional(),
+  subject: z.string().trim().min(1).max(64).optional(),
+  lectureId: uuid.optional(),
+}).strict();
+
 export type CreateFocusPlanInput = z.infer<typeof createFocusPlanSchema>;
 export type UpdateFocusPlanInput = z.infer<typeof updateFocusPlanSchema>;
 export type FocusPlanItemInput = z.infer<typeof focusPlanItemInputSchema>;
@@ -183,3 +205,4 @@ export type UpdateFocusQuickNoteInput = z.infer<typeof updateFocusQuickNoteSchem
 export type FocusQuickNoteListQuery = z.infer<typeof focusQuickNoteListQuerySchema>;
 export type ConvertFocusQuickNoteInput = z.infer<typeof convertFocusQuickNoteSchema>;
 export type FocusMetricsPeriod = z.infer<typeof focusMetricsQuerySchema>["period"];
+export type FocusHistoryQuery = z.infer<typeof focusHistoryQuerySchema>;

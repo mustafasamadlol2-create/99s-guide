@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildFocusPlanProjection,
   buildFocusSessionProjection,
@@ -43,13 +43,18 @@ import {
   focusQuickNoteListQuerySchema,
   convertFocusQuickNoteSchema,
   focusMetricsQuerySchema,
+  focusHistoryQuerySchema,
+  FOCUS_HISTORY_DEFAULT_LIMIT,
+  FOCUS_HISTORY_MAX_LIMIT,
   type CreateFocusQuickNoteInput,
   type UpdateFocusQuickNoteInput,
   type FocusQuickNoteListQuery,
   type ConvertFocusQuickNoteInput,
   type FocusMetricsPeriod,
+  type FocusHistoryQuery,
 } from "./schemas.js";
 import { FocusRepository, type FocusTransaction } from "./repository.js";
+import { decodeFocusHistoryCursor, encodeFocusHistoryCursor } from "./historyCursor.js";
 import type { StudyEventRecord } from "../study-events/types.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { enqueuePrivateD1Projection } from "../../services/privateD1Sync.js";
@@ -77,6 +82,9 @@ import type {
   FocusMetricsDto,
   FocusMetricCounters,
   FocusMetricsDaily,
+  FocusHistoryPageDto,
+  FocusHistoryRowDto,
+  FocusSessionSummaryDto,
   PostFocusActionContext,
 } from "./types.js";
 
@@ -87,6 +95,80 @@ const NONTERMINAL_STATES = [
   "RESOURCE_HANDOFF",
   "RECONCILIATION_REQUIRED",
 ] as const;
+
+type FocusHistoryEventRecord = {
+  focusSessionId: string | null;
+  eventType: string;
+  source: string;
+  occurredAt: Date;
+  payload: unknown;
+};
+
+type FocusLedgerRecord = {
+  sourceId: string | null;
+  amount: number;
+  reasonCode: string;
+  reversedBy: { amount: number } | null;
+};
+
+type FocusResourceLaunch = {
+  resourceId: string;
+  resourceType: "PDF" | "VIDEO";
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function resourceLaunch(payload: unknown): FocusResourceLaunch | null {
+  if (!isRecord(payload)) return null;
+  const resourceId = payload.resourceId;
+  const resourceType = payload.resourceType;
+  if (
+    typeof resourceId !== "string" ||
+    !resourceId ||
+    (resourceType !== "PDF" && resourceType !== "VIDEO")
+  ) return null;
+  return { resourceId, resourceType };
+}
+
+function hasVerifiedCompletionEvent(
+  session: { status: string; activeSeconds: number; actualEndedAt: Date | null },
+  events: FocusHistoryEventRecord[],
+): boolean {
+  if (
+    session.status !== "COMPLETED" ||
+    !session.actualEndedAt ||
+    !Number.isSafeInteger(session.activeSeconds) ||
+    session.activeSeconds < 0
+  ) return false;
+  return events.some((event) => {
+    if (
+      event.eventType !== "focus_session_completed" ||
+      event.source !== "backend" ||
+      event.occurredAt.getTime() !== session.actualEndedAt?.getTime() ||
+      !isRecord(event.payload)
+    ) return false;
+    return event.payload.activeSeconds === session.activeSeconds;
+  });
+}
+
+function focusPointsBySession(
+  entries: FocusLedgerRecord[],
+): Map<string, { amount: number; reasonCode: string }> {
+  const totals = new Map<string, { amount: number; reasonCode: string }>();
+  for (const entry of entries) {
+    if (!entry.sourceId) continue;
+    const current = totals.get(entry.sourceId) ?? { amount: 0, reasonCode: entry.reasonCode };
+    current.amount += entry.amount + (entry.reversedBy?.amount ?? 0);
+    if (entry.amount > 0) current.reasonCode = entry.reasonCode;
+    totals.set(entry.sourceId, current);
+  }
+  for (const [sessionId, value] of totals) {
+    if (value.amount <= 0) totals.delete(sessionId);
+  }
+  return totals;
+}
 
 type PlanItemRecord = {
   id: string;
@@ -1896,6 +1978,346 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         }
         return buildFocusMetrics(period, range, rows);
       });
+    },
+
+    async getSessionSummary(userId, sessionId): Promise<FocusSessionSummaryDto> {
+      requireFocus();
+      return safely(async () => repository.database.$transaction(async (tx) => {
+        const session = await tx.focusSession.findFirst({
+          where: { id: sessionId, userId },
+          include: {
+            planItem: true,
+            plan: {
+              include: {
+                items: {
+                  orderBy: [{ sequence: "asc" }, { id: "asc" }],
+                  include: { lecture: true },
+                },
+              },
+            },
+            lecture: true,
+          },
+        }) as (SessionRecord & {
+          planItem: PlanItemRecord;
+          plan: {
+            id: string;
+            title: string;
+            status: string;
+            items: Array<PlanItemRecord & {
+              lecture: { id: string; name: string; mainSubject: string };
+            }>;
+          };
+          lecture: { id: string; name: string; mainSubject: string };
+        }) | null;
+        if (!session) throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
+        if (!["COMPLETED", "ABANDONED", "EXPIRED"].includes(session.status)) {
+          throw new FocusError(
+            "INVALID_SESSION_STATE",
+            "A completion summary is available only after a Focus Session ends.",
+          );
+        }
+
+        const [events, groups, completedBefore, notes] = await Promise.all([
+          tx.studyEvent.findMany({
+            where: {
+              userId,
+              focusSessionId: session.id,
+              eventType: { in: ["focus_session_completed", "focus_resource_handoff_started"] },
+            },
+            select: {
+              focusSessionId: true,
+              eventType: true,
+              source: true,
+              occurredAt: true,
+              payload: true,
+            },
+          }) as Promise<FocusHistoryEventRecord[]>,
+          tx.focusSession.groupBy({
+            by: ["planItemId", "status"],
+            where: { userId, planId: session.planId },
+            _count: { _all: true },
+          }),
+          session.startedAt
+            ? tx.focusSession.count({
+                where: {
+                  userId,
+                  planItemId: session.planItemId,
+                  status: "COMPLETED",
+                  OR: [
+                    { startedAt: { lt: session.startedAt } },
+                    { startedAt: session.startedAt, id: { lt: session.id } },
+                  ],
+                },
+              })
+            : Promise.resolve(0),
+          tx.focusQuickNote.findMany({
+            where: { userId, focusSessionId: session.id },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          }) as Promise<QuickNoteRecord[]>,
+        ]);
+
+        const verified = hasVerifiedCompletionEvent(session, events);
+        const launches = events
+          .filter((event) => event.eventType === "focus_resource_handoff_started")
+          .flatMap((event) => {
+            const launch = resourceLaunch(event.payload);
+            return launch ? [launch] : [];
+          });
+        const launchMap = new Map<string, { resourceType: "PDF" | "VIDEO"; launchCount: number }>();
+        for (const launch of launches) {
+          const current = launchMap.get(launch.resourceId);
+          if (current) current.launchCount += 1;
+          else launchMap.set(launch.resourceId, { resourceType: launch.resourceType, launchCount: 1 });
+        }
+        const materials = launchMap.size
+          ? await tx.material.findMany({
+              where: { id: { in: [...launchMap.keys()] } },
+              select: { id: true, title: true, type: true },
+            })
+          : [];
+        const materialById = new Map(materials.map((material) => [material.id, material]));
+        const resourceItems = [...launchMap.entries()].map(([resourceId, launch]) => {
+          const material = materialById.get(resourceId);
+          const normalizedType = material?.type.trim().toUpperCase();
+          return {
+            resourceId,
+            resourceType: launch.resourceType,
+            title: normalizedType === launch.resourceType ? material?.title ?? null : null,
+            launchCount: launch.launchCount,
+          };
+        });
+
+        const pointRows = verified
+          ? await tx.studyPointsLedgerEntry.findMany({
+              where: {
+                userId,
+                sourceType: "FOCUS_SESSION",
+                sourceId: session.id,
+                category: "FOCUS",
+              },
+              select: {
+                sourceId: true,
+                amount: true,
+                reasonCode: true,
+                reversedBy: { select: { amount: true } },
+              },
+            }) as FocusLedgerRecord[]
+          : [];
+        const points = focusPointsBySession(pointRows).get(session.id) ?? null;
+        const completedByItem = new Map<string, number>();
+        let completedSessions = 0;
+        for (const group of groups) {
+          if (group.status !== "COMPLETED") continue;
+          const count = group._count._all;
+          completedByItem.set(group.planItemId, count);
+          completedSessions += count;
+        }
+        const totalPlannedSessions = session.plan.items.reduce(
+          (total, item) => total + item.sessionCount,
+          0,
+        );
+        const nextItem = session.plan.items.find(
+          (item) => (completedByItem.get(item.id) ?? 0) < item.sessionCount,
+        );
+        const nextAction = !nextItem
+          ? { kind: "PLAN_FINISHED" as const, planItemId: null, lectureId: null, lectureTitle: null }
+          : session.plan.status !== "ACTIVE"
+            ? { kind: "UNAVAILABLE" as const, planItemId: null, lectureId: null, lectureTitle: null }
+            : {
+                kind: nextItem.lectureId === session.lectureId ? "NEXT_SESSION" as const : "NEXT_LECTURE" as const,
+                planItemId: nextItem.id,
+                lectureId: nextItem.lectureId,
+                lectureTitle: nextItem.lecture.name,
+              };
+        const sessionNumber = Math.min(completedBefore + 1, session.planItem.sessionCount);
+        const isLastPlannedSession =
+          session.status === "COMPLETED" &&
+          sessionNumber >= session.planItem.sessionCount;
+
+        return {
+          sessionId: session.id,
+          status: session.status,
+          plan: {
+            id: session.plan.id,
+            title: session.plan.title,
+            status: session.plan.status,
+          },
+          lecture: {
+            id: session.lecture.id,
+            title: session.lecture.name,
+            subject: session.lecture.mainSubject,
+          },
+          progress: {
+            sessionNumber,
+            plannedSessionCount: session.planItem.sessionCount,
+            isLastPlannedSession,
+            completedSessions,
+            totalPlannedSessions,
+          },
+          timing: {
+            plannedFocusSeconds: session.planItem.focusDurationSeconds,
+            verifiedFocusSeconds: verified ? session.activeSeconds : null,
+            plannedBreakSeconds: session.planItem.breakDurationSeconds,
+            startedAt: iso(session.startedAt),
+            terminalAt: iso(session.actualEndedAt),
+          },
+          points,
+          resources: {
+            launchCount: launches.length,
+            uniqueResourceCount: launchMap.size,
+            items: resourceItems,
+          },
+          quickNotes: notes.map(quickNoteDto),
+          nextAction,
+        };
+      }, { isolationLevel: "RepeatableRead" }));
+    },
+
+    async listHistory(userId, rawQuery: FocusHistoryQuery): Promise<FocusHistoryPageDto> {
+      requireFocus();
+      const parsed = focusHistoryQuerySchema.safeParse(rawQuery);
+      if (!parsed.success) throw requestInputError("Focus history query is invalid.");
+      const query = parsed.data;
+      const limit = Math.min(
+        Math.max(query.limit ?? FOCUS_HISTORY_DEFAULT_LIMIT, 1),
+        FOCUS_HISTORY_MAX_LIMIT,
+      );
+      const cursor = query.cursor ? decodeFocusHistoryCursor(query.cursor) : null;
+      return safely(async () => repository.database.$transaction(async (tx) => {
+        const where: Prisma.FocusSessionWhereInput = {
+          userId,
+          startedAt: { not: null },
+          ...(query.status ? { status: query.status } : {}),
+          ...(query.lectureId ? { lectureId: query.lectureId } : {}),
+          ...(query.subject ? { lecture: { is: { mainSubject: query.subject } } } : {}),
+          ...(cursor
+            ? {
+                OR: [
+                  { startedAt: { lt: cursor.startedAt } },
+                  { startedAt: cursor.startedAt, id: { lt: cursor.sessionId } },
+                ],
+              }
+            : {}),
+        };
+        const rows = await tx.focusSession.findMany({
+          where,
+          orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+          take: limit + 1,
+          select: {
+            id: true,
+            status: true,
+            planId: true,
+            planItemId: true,
+            lectureId: true,
+            startedAt: true,
+            actualEndedAt: true,
+            activeSeconds: true,
+            plan: { select: { title: true, status: true } },
+            planItem: { select: { focusDurationSeconds: true } },
+            lecture: { select: { name: true, mainSubject: true } },
+          },
+        }) as Array<{
+          id: string;
+          status: string;
+          planId: string;
+          planItemId: string;
+          lectureId: string;
+          startedAt: Date | null;
+          actualEndedAt: Date | null;
+          activeSeconds: number;
+          plan: { title: string; status: string };
+          planItem: { focusDurationSeconds: number };
+          lecture: { name: string; mainSubject: string };
+        }>;
+        const hasMore = rows.length > limit;
+        const pageRows = rows.slice(0, limit);
+        const sessionIds = pageRows.map((row) => row.id);
+        const completionIds = pageRows
+          .filter((row) => row.status === "COMPLETED")
+          .map((row) => row.id);
+        const [events, pointRows] = sessionIds.length
+          ? await Promise.all([
+              tx.studyEvent.findMany({
+                where: { userId, focusSessionId: { in: sessionIds } },
+                select: {
+                  focusSessionId: true,
+                  eventType: true,
+                  source: true,
+                  occurredAt: true,
+                  payload: true,
+                },
+              }) as Promise<FocusHistoryEventRecord[]>,
+              completionIds.length
+                ? tx.studyPointsLedgerEntry.findMany({
+                    where: {
+                      userId,
+                      sourceType: "FOCUS_SESSION",
+                      sourceId: { in: completionIds },
+                      category: "FOCUS",
+                    },
+                    select: {
+                      sourceId: true,
+                      amount: true,
+                      reasonCode: true,
+                      reversedBy: { select: { amount: true } },
+                    },
+                  }) as Promise<FocusLedgerRecord[]>
+                : Promise.resolve([] as FocusLedgerRecord[]),
+            ])
+          : [[], []] as [FocusHistoryEventRecord[], FocusLedgerRecord[]];
+        const eventRows = events as FocusHistoryEventRecord[];
+        const launchesBySession = new Map<string, FocusResourceLaunch[]>();
+        const completionEventsBySession = new Map<string, FocusHistoryEventRecord[]>();
+        for (const event of eventRows) {
+          if (!event.focusSessionId) continue;
+          if (event.eventType === "focus_resource_handoff_started") {
+            const launch = resourceLaunch(event.payload);
+            if (launch) {
+              const current = launchesBySession.get(event.focusSessionId) ?? [];
+              current.push(launch);
+              launchesBySession.set(event.focusSessionId, current);
+            }
+          }
+          if (event.eventType === "focus_session_completed") {
+            const current = completionEventsBySession.get(event.focusSessionId) ?? [];
+            current.push(event);
+            completionEventsBySession.set(event.focusSessionId, current);
+          }
+        }
+        const pointsBySession = focusPointsBySession(pointRows as FocusLedgerRecord[]);
+        const items: FocusHistoryRowDto[] = pageRows.map((row) => {
+          const sessionEvents = completionEventsBySession.get(row.id) ?? [];
+          const verified = hasVerifiedCompletionEvent(row, sessionEvents);
+          const launches = launchesBySession.get(row.id) ?? [];
+          const uniqueResources = new Set(launches.map((launch) => launch.resourceId));
+          return {
+            sessionId: row.id,
+            status: row.status as FocusHistoryRowDto["status"],
+            planId: row.planId,
+            planTitle: row.plan.title,
+            planStatus: row.plan.status,
+            planItemId: row.planItemId,
+            lectureId: row.lectureId,
+            lectureTitle: row.lecture.name,
+            subject: row.lecture.mainSubject,
+            plannedFocusSeconds: row.planItem.focusDurationSeconds,
+            verifiedFocusSeconds: verified ? row.activeSeconds : null,
+            startedAt: iso(row.startedAt),
+            terminalAt: iso(row.actualEndedAt),
+            points: verified ? pointsBySession.get(row.id)?.amount ?? null : null,
+            resourceLaunchCount: launches.length,
+            uniqueResourceCount: uniqueResources.size,
+          };
+        });
+        const last = pageRows.at(-1);
+        return {
+          items,
+          limit,
+          nextCursor: hasMore && last?.startedAt
+            ? encodeFocusHistoryCursor({ startedAt: last.startedAt, sessionId: last.id })
+            : null,
+        };
+      }, { isolationLevel: "RepeatableRead" }));
     },
 
     async getPostFocusActionContext(userId, sessionId): Promise<PostFocusActionContext> {

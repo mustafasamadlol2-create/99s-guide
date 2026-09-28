@@ -19,6 +19,7 @@ import {
   focusQuickNoteListQuerySchema,
   convertFocusQuickNoteSchema,
   focusMetricsQuerySchema,
+  focusHistoryQuerySchema,
 } from "../features/focus/schemas.js";
 import type { FocusBackendService } from "../features/focus/types.js";
 import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../features/mastery/constants.js";
@@ -232,6 +233,26 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
   router.get("/sessions/current", route(async (req, res) => {
     try {
       return res.json(await dependencies.service.currentSession(userId(req)));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/history", route(async (req, res) => {
+    const parsed = focusHistoryQuerySchema.safeParse(req.query);
+    if (!parsed.success) return invalid(res, "Focus history query is invalid.");
+    try {
+      return res.json(await dependencies.service.listHistory(userId(req), parsed.data));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/sessions/:sessionId/summary", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    if (!parsedId.success) return invalid(res, "Focus Session ID is invalid.");
+    try {
+      return res.json(await dependencies.service.getSessionSummary(userId(req), parsedId.data));
     } catch (error) {
       return sendError(res, error);
     }

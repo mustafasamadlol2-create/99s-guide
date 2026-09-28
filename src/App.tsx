@@ -351,6 +351,24 @@ function AppContent({
       ? parts[2]
       : null;
   });
+  const [focusSummaryRouteId, setFocusSummaryRouteId] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return null;
+    const parts = window.location.hash.replace(/^#/, "").split("/");
+    return parts[0] === "focus" && parts[1] === "summary" && parts[2]
+      ? parts[2]
+      : null;
+  });
+  const [focusHistoryOpen, setFocusHistoryOpen] = useState(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return false;
+    return window.location.hash.replace(/^#/, "").split("/")[1] === "history";
+  });
+  const [focusHistoryDetailId, setFocusHistoryDetailId] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return null;
+    const parts = window.location.hash.replace(/^#/, "").split("/");
+    return parts[0] === "focus" && parts[1] === "history" && parts[2]
+      ? parts[2]
+      : null;
+  });
   const [hasVisitedFocusHub, setHasVisitedFocusHub] = useState(() => {
     if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return false;
     return window.location.hash.replace(/^#/, "").split("/")[0] === "focus";
@@ -2270,8 +2288,14 @@ function AppContent({
           hashStr += `/lecture/${activeLecture.id}`;
         }
       }
-    } else if (activeTab === "focus" && focusSessionRouteId) {
-      hashStr += `/session/${focusSessionRouteId}`;
+    } else if (activeTab === "focus") {
+      if (focusSessionRouteId) {
+        hashStr += `/session/${focusSessionRouteId}`;
+      } else if (focusSummaryRouteId) {
+        hashStr += `/summary/${focusSummaryRouteId}`;
+      } else if (focusHistoryOpen) {
+        hashStr += `/history${focusHistoryDetailId ? `/${focusHistoryDetailId}` : ""}`;
+      }
     }
 
     if (window.location.hash !== hashStr) {
@@ -2285,6 +2309,9 @@ function AppContent({
     activeSubjectId,
     activeLecture,
     focusSessionRouteId,
+    focusSummaryRouteId,
+    focusHistoryOpen,
+    focusHistoryDetailId,
   ]);
 
   // Sync URL hash -> state variables (handles back/forward browser controls, deep/universal links)
@@ -2316,8 +2343,18 @@ function AppContent({
         setFocusSessionRouteId(
           parts[1] === "session" && parts[2] ? parts[2] : null,
         );
+        setFocusSummaryRouteId(
+          parts[1] === "summary" && parts[2] ? parts[2] : null,
+        );
+        setFocusHistoryOpen(parts[1] === "history");
+        setFocusHistoryDetailId(
+          parts[1] === "history" && parts[2] ? parts[2] : null,
+        );
       } else {
         setFocusSessionRouteId(null);
+        setFocusSummaryRouteId(null);
+        setFocusHistoryOpen(false);
+        setFocusHistoryDetailId(null);
       }
 
       if (tab === "home") {
@@ -6706,13 +6743,51 @@ const handleSignOut = useCallback(async () => {
                       language={language}
                       catalogStatus={lectureCatalogStatus}
                       sessionRouteId={focusSessionRouteId}
+                      summaryRouteId={focusSummaryRouteId}
+                      historyOpen={focusHistoryOpen}
+                      historyDetailId={focusHistoryDetailId}
                       onRefreshLectures={() => fetchDbLectures(true)}
                       onBackToHome={() => handleSidebarTabClick("home")}
-                      onReturnToPlanner={() => setFocusSessionRouteId(null)}
+                      onReturnToPlanner={() => {
+                        setFocusSessionRouteId(null);
+                        setFocusSummaryRouteId(null);
+                        setFocusHistoryOpen(false);
+                        setFocusHistoryDetailId(null);
+                      }}
                       onOpenSession={(sessionId) => {
                         setHasVisitedFocusHub(true);
+                        setFocusSummaryRouteId(null);
+                        setFocusHistoryOpen(false);
+                        setFocusHistoryDetailId(null);
                         setFocusSessionRouteId(sessionId);
                         setActiveTab("focus");
+                      }}
+                      onOpenSummary={(sessionId) => {
+                        setFocusSessionRouteId(null);
+                        setFocusSummaryRouteId(sessionId);
+                        setFocusHistoryOpen(false);
+                        setFocusHistoryDetailId(null);
+                        setActiveTab("focus");
+                      }}
+                      onOpenHistory={() => {
+                        setFocusSessionRouteId(null);
+                        setFocusSummaryRouteId(null);
+                        setFocusHistoryOpen(true);
+                        setFocusHistoryDetailId(null);
+                        setActiveTab("focus");
+                      }}
+                      onOpenHistoryDetail={(sessionId) => {
+                        setFocusSessionRouteId(null);
+                        setFocusSummaryRouteId(null);
+                        setFocusHistoryOpen(true);
+                        setFocusHistoryDetailId(sessionId);
+                        setActiveTab("focus");
+                      }}
+                      onReturnToHistory={() => {
+                        setFocusSessionRouteId(null);
+                        setFocusSummaryRouteId(null);
+                        setFocusHistoryOpen(true);
+                        setFocusHistoryDetailId(null);
                       }}
                     />
                   </ErrorBoundary>

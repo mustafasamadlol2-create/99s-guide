@@ -42,6 +42,10 @@ import {
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
 import { ActiveFocusScreen } from "./ActiveFocusScreen";
+import {
+  FocusHistoryScreen,
+  FocusSessionSummaryScreen,
+} from "./FocusHistoryScreens";
 
 type LectureCatalogStatus = "loading" | "ready" | "error";
 type FocusHubNoticeKey =
@@ -59,10 +63,17 @@ interface FocusHubProps {
   language: Language;
   catalogStatus: LectureCatalogStatus;
   sessionRouteId: string | null;
+  summaryRouteId: string | null;
+  historyOpen: boolean;
+  historyDetailId: string | null;
   onRefreshLectures: () => Promise<void>;
   onBackToHome: () => void;
   onReturnToPlanner: () => void;
   onOpenSession: (sessionId: string) => void;
+  onOpenSummary: (sessionId: string) => void;
+  onOpenHistory: () => void;
+  onOpenHistoryDetail: (sessionId: string) => void;
+  onReturnToHistory: () => void;
 }
 
 interface StartAttempt {
@@ -114,10 +125,17 @@ export function FocusHub({
   language,
   catalogStatus,
   sessionRouteId,
+  summaryRouteId,
+  historyOpen,
+  historyDetailId,
   onRefreshLectures,
   onBackToHome,
   onReturnToPlanner,
   onOpenSession,
+  onOpenSummary,
+  onOpenHistory,
+  onOpenHistoryDetail,
+  onReturnToHistory,
 }: FocusHubProps) {
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
@@ -129,6 +147,7 @@ export function FocusHub({
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [summaryStarting, setSummaryStarting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [serverConflict, setServerConflict] = useState<FocusPlanRecord | null>(null);
   const [notice, setNotice] = useState<{
@@ -137,6 +156,8 @@ export function FocusHub({
   } | null>(null);
   const [highlightedLectureId, setHighlightedLectureId] = useState<string | null>(null);
   const startAttemptRef = useRef<StartAttempt | null>(null);
+  const summaryStartAttemptRef = useRef<StartAttempt | null>(null);
+  const summaryStartLockRef = useRef(false);
   const startLockRef = useRef(false);
   const requestGenerationRef = useRef(0);
   const mountedRef = useRef(true);
@@ -200,12 +221,14 @@ export function FocusHub({
 
   useEffect(() => {
     mountedRef.current = true;
-    if (!sessionRouteId) void loadCanonical().catch(() => {});
+    if (!sessionRouteId && !summaryRouteId && !historyOpen) {
+      void loadCanonical().catch(() => {});
+    }
     return () => {
       mountedRef.current = false;
       requestGenerationRef.current += 1;
     };
-  }, [loadCanonical, sessionRouteId]);
+  }, [historyOpen, loadCanonical, sessionRouteId, summaryRouteId]);
 
   const orderedLectures = useMemo(
     () => lectures.filter((lecture) => isAccessibleLectureId(lecture.id)),
@@ -568,6 +591,68 @@ export function FocusHub({
     }
   };
 
+  const startFromSummary = async (planId: string, planItemId: string) => {
+    if (summaryStartLockRef.current) return;
+    summaryStartLockRef.current = true;
+    setSummaryStarting(true);
+    try {
+      const current = await focusApi.getCurrentFocusSession();
+      if (current.session) {
+        setSession(current.session);
+        onOpenSession(current.session.id);
+        return;
+      }
+      const previous = summaryStartAttemptRef.current;
+      const attempt =
+        previous?.planId === planId && previous.planItemId === planItemId
+          ? previous
+          : { planId, planItemId, idempotencyKey: createFocusIdempotencyKey() };
+      summaryStartAttemptRef.current = attempt;
+      const result = await focusApi.startFocusSession({
+        planId: attempt.planId,
+        planItemId: attempt.planItemId,
+        idempotencyKey: attempt.idempotencyKey,
+        source: getFocusClientSource(),
+      });
+      summaryStartAttemptRef.current = null;
+      setSession(result.session);
+      onOpenSession(result.session.id);
+    } finally {
+      summaryStartLockRef.current = false;
+      setSummaryStarting(false);
+    }
+  };
+
+  const summarySessionId = historyOpen && historyDetailId
+    ? historyDetailId
+    : summaryRouteId;
+
+  if (historyOpen && !historyDetailId) {
+    return (
+      <FocusHistoryScreen
+        language={language}
+        lectures={lectures}
+        subjects={subjects}
+        onBack={onReturnToPlanner}
+        onOpenSession={onOpenSession}
+        onOpenSummary={onOpenHistoryDetail}
+      />
+    );
+  }
+
+  if (summarySessionId) {
+    return (
+      <FocusSessionSummaryScreen
+        key={summarySessionId}
+        sessionId={summarySessionId}
+        language={language}
+        starting={summaryStarting}
+        onStartNext={startFromSummary}
+        onBack={historyOpen ? onReturnToHistory : onReturnToPlanner}
+      />
+    );
+  }
+
   const useSessionRoute = Boolean(sessionRouteId);
   const sessionPlan = currentSession
     ? canonicalPlan?.id === currentSession.planId
@@ -593,6 +678,7 @@ export function FocusHub({
         onRefreshLectures={onRefreshLectures}
         onReturnToPlanner={onReturnToPlanner}
         onOpenSession={onOpenSession}
+          onOpenSummary={onOpenSummary}
       />
     );
   }
@@ -669,18 +755,29 @@ export function FocusHub({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onBackToHome}
-            className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-          >
-            {isRtl ? (
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            )}
-            <span className="hidden sm:inline">{t("focusHubBack")}</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              aria-label={t("focusHubHistory")}
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              <Clock3 className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">{t("focusHubHistory")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            >
+              {isRtl ? (
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">{t("focusHubBack")}</span>
+            </button>
+          </div>
         </div>
       </header>
 

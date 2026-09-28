@@ -124,6 +124,8 @@ function makeApi(overrides: Partial<FocusApi> = {}): FocusApi {
     convertQuickNote: async () => { throw new Error("unused"); },
     getMetrics: async () => { throw new Error("unused"); },
     getPostFocusActionContext: async () => { throw new Error("unused"); },
+    getSessionSummary: async () => { throw new Error("unused"); },
+    listHistory: async () => ({ items: [], nextCursor: null, limit: 20 }),
     ...overrides,
   };
 }

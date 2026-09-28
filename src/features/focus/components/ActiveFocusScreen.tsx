@@ -99,6 +99,7 @@ const ACTIVE_FOCUS_COPY_KEYS = [
   "focusActiveRound",
   "focusActiveSessionOutOfDate",
   "focusActiveStartNext",
+  "focusSummaryTitle",
   "focusActiveStatusActive",
   "focusActiveStatusLabel",
   "focusActiveStatusOffline",
@@ -135,6 +136,7 @@ interface ActiveFocusScreenProps {
   onRefreshLectures: () => Promise<void>;
   onReturnToPlanner: () => void;
   onOpenSession: (sessionId: string) => void;
+  onOpenSummary: (sessionId: string) => void;
 }
 
 type FocusPlanLoad =
@@ -225,6 +227,7 @@ function ActiveFocusScreenCore({
   onRefreshLectures,
   onReturnToPlanner,
   onOpenSession,
+  onOpenSummary,
   audio,
 }: ActiveFocusScreenProps & { audio: FocusAudioContextValue | null }) {
   const t = useActiveFocusCopy(language);
@@ -851,6 +854,13 @@ function ActiveFocusScreenCore({
               itemCount={planItems.length}
               t={t}
             />
+            <button
+              type="button"
+              onClick={() => onOpenSummary(localTerminalResult.session.id)}
+              className="min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+            >
+              {t.focusSummaryTitle}
+            </button>
             {currentPlan && (
               <QueuePreview
                 items={planItems}
@@ -890,12 +900,21 @@ function ActiveFocusScreenCore({
         manualLectureCompletionRequired={localTerminalResult.manualLectureCompletionRequired}
         onReturn={() => void leaveForPlanner()}
       >
-        <FocusQuickNotesPanel
-          ref={notesRef}
-          sessionId={localTerminalResult.session.id}
-          language={language}
-          online={online}
-        />
+        <>
+          <button
+            type="button"
+            onClick={() => onOpenSummary(localTerminalResult.session.id)}
+            className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+          >
+            {t.focusSummaryTitle}
+          </button>
+          <FocusQuickNotesPanel
+            ref={notesRef}
+            sessionId={localTerminalResult.session.id}
+            language={language}
+            online={online}
+          />
+        </>
       </TerminalHandoff>
     );
   }
@@ -908,12 +927,21 @@ function ActiveFocusScreenCore({
         body={t.focusActiveAbandonedBody}
         onReturn={() => void leaveForPlanner()}
       >
-        <FocusQuickNotesPanel
-          ref={notesRef}
-          sessionId={localTerminalResult.session.id}
-          language={language}
-          online={online}
-        />
+        <>
+          <button
+            type="button"
+            onClick={() => onOpenSummary(localTerminalResult.session.id)}
+            className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+          >
+            {t.focusSummaryTitle}
+          </button>
+          <FocusQuickNotesPanel
+            ref={notesRef}
+            sessionId={localTerminalResult.session.id}
+            language={language}
+            online={online}
+          />
+        </>
       </TerminalHandoff>
     );
   }
@@ -935,12 +963,21 @@ function ActiveFocusScreenCore({
           manualLectureCompletionRequired={completedRoute.context.manualLectureCompletionRequired}
           onReturn={() => void leaveForPlanner()}
         >
-          <FocusQuickNotesPanel
-            ref={notesRef}
-            sessionId={completedRoute.context.sessionId}
-            language={language}
-            online={online}
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenSummary(completedRoute.context.sessionId)}
+              className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+            >
+              {t.focusSummaryTitle}
+            </button>
+            <FocusQuickNotesPanel
+              ref={notesRef}
+              sessionId={completedRoute.context.sessionId}
+              language={language}
+              online={online}
+            />
+          </>
         </TerminalHandoff>
       );
     }
