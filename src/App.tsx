@@ -11,7 +11,11 @@ import { CommandPalette, SearchResultItem } from "./components/ui/CommandPalette
 import IOSAlert from "./core/layout/iOSAlert";
 import { showiOSAlert } from "./core/device/alert";
 import { Language, useTranslation } from "./core/i18n/translations";
-import { FOCUS_HUB_V2_ENABLED } from "./config/featureFlags";
+import {
+  FOCUS_HUB_V2_ENABLED,
+  GROUP_FOCUS_FRONTEND_ENABLED,
+  GROUP_FOCUS_WORKER_URL,
+} from "./config/featureFlags";
 import { useLegacyArabicUiLocalization } from "./core/i18n/legacyArabicUi";
 import { OfflineEngine } from "./core/offline/OfflineEngine";
 import { filterAcademicCalendarEvents } from "./core/calendar/academicEvents";
@@ -93,6 +97,7 @@ import {
   LectureDetailView,
   CalendarView,
   FocusHub,
+  GroupFocusFrontend,
   ProfileView,
   ControlCenterView,
   SettingsView,
@@ -369,10 +374,30 @@ function AppContent({
       ? parts[2]
       : null;
   });
+  const [groupFocusRoute, setGroupFocusRoute] = useState<string | null>(() => {
+    if (
+      typeof window === "undefined"
+      || !FOCUS_HUB_V2_ENABLED
+      || !GROUP_FOCUS_FRONTEND_ENABLED
+    ) return null;
+    const parts = window.location.hash.replace(/^#/, "").split("/");
+    return parts[0] === "focus" && parts[1] === "group"
+      ? parts.slice(2).join("/")
+      : null;
+  });
   const [hasVisitedFocusHub, setHasVisitedFocusHub] = useState(() => {
     if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return false;
     return window.location.hash.replace(/^#/, "").split("/")[0] === "focus";
   });
+  const handleGroupFocusRouteChange = useCallback((route: string) => {
+    setGroupFocusRoute(route);
+    setFocusSessionRouteId(null);
+    setFocusSummaryRouteId(null);
+    setFocusHistoryOpen(false);
+    setFocusHistoryDetailId(null);
+    setHasVisitedFocusHub(true);
+    setActiveTab("focus");
+  }, []);
   const [oauthRedirectError, setOauthRedirectError] = useState<string | null>(null);
   const [verificationRedirectError, setVerificationRedirectError] = useState<string | null>(null);
   const [oauthRecoveryPending, setOauthRecoveryPending] = useState(() => {
@@ -2289,7 +2314,9 @@ function AppContent({
         }
       }
     } else if (activeTab === "focus") {
-      if (focusSessionRouteId) {
+      if (GROUP_FOCUS_FRONTEND_ENABLED && groupFocusRoute !== null) {
+        hashStr += `/group${groupFocusRoute ? `/${groupFocusRoute}` : ""}`;
+      } else if (focusSessionRouteId) {
         hashStr += `/session/${focusSessionRouteId}`;
       } else if (focusSummaryRouteId) {
         hashStr += `/summary/${focusSummaryRouteId}`;
@@ -2312,6 +2339,7 @@ function AppContent({
     focusSummaryRouteId,
     focusHistoryOpen,
     focusHistoryDetailId,
+    groupFocusRoute,
   ]);
 
   // Sync URL hash -> state variables (handles back/forward browser controls, deep/universal links)
@@ -2340,17 +2368,27 @@ function AppContent({
       setActiveTab(tab);
       if (tab === "focus" && FOCUS_HUB_V2_ENABLED) {
         setHasVisitedFocusHub(true);
-        setFocusSessionRouteId(
-          parts[1] === "session" && parts[2] ? parts[2] : null,
-        );
-        setFocusSummaryRouteId(
-          parts[1] === "summary" && parts[2] ? parts[2] : null,
-        );
-        setFocusHistoryOpen(parts[1] === "history");
-        setFocusHistoryDetailId(
-          parts[1] === "history" && parts[2] ? parts[2] : null,
-        );
+        if (GROUP_FOCUS_FRONTEND_ENABLED && parts[1] === "group") {
+          setGroupFocusRoute(parts.slice(2).join("/"));
+          setFocusSessionRouteId(null);
+          setFocusSummaryRouteId(null);
+          setFocusHistoryOpen(false);
+          setFocusHistoryDetailId(null);
+        } else {
+          setGroupFocusRoute(null);
+          setFocusSessionRouteId(
+            parts[1] === "session" && parts[2] ? parts[2] : null,
+          );
+          setFocusSummaryRouteId(
+            parts[1] === "summary" && parts[2] ? parts[2] : null,
+          );
+          setFocusHistoryOpen(parts[1] === "history");
+          setFocusHistoryDetailId(
+            parts[1] === "history" && parts[2] ? parts[2] : null,
+          );
+        }
       } else {
+        setGroupFocusRoute(null);
         setFocusSessionRouteId(null);
         setFocusSummaryRouteId(null);
         setFocusHistoryOpen(false);
@@ -6735,9 +6773,41 @@ const handleSignOut = useCallback(async () => {
                 }}
                 className="w-full min-h-full"
               >
-                <Suspense fallback={iOSLoadingFallback}>
-                  <ErrorBoundary>
-                    <FocusHub
+                {GROUP_FOCUS_FRONTEND_ENABLED && (
+                  <nav
+                    aria-label={language === "ar" ? "أقسام التركيز" : "Focus sections"}
+                    className="mx-auto flex w-full max-w-7xl gap-2 px-4 pt-4 sm:px-8 lg:px-12"
+                  >
+                    <button
+                      type="button"
+                      aria-current={groupFocusRoute === null ? "page" : undefined}
+                      onClick={() => setGroupFocusRoute(null)}
+                      className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                        groupFocusRoute === null
+                          ? "bg-[#173f35] text-white"
+                          : "bg-[#edf2ee] text-[#35554a] hover:bg-[#e3ebe5]"
+                      }`}
+                    >
+                      {language === "ar" ? "التركيز الفردي" : "Solo Focus"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-current={groupFocusRoute !== null ? "page" : undefined}
+                      onClick={() => handleGroupFocusRouteChange("")}
+                      className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                        groupFocusRoute !== null
+                          ? "bg-[#173f35] text-white"
+                          : "bg-[#edf2ee] text-[#35554a] hover:bg-[#e3ebe5]"
+                      }`}
+                    >
+                      {language === "ar" ? "التركيز الجماعي" : "Group Focus"}
+                    </button>
+                  </nav>
+                )}
+                <div style={{ display: groupFocusRoute === null ? "block" : "none" }}>
+                  <Suspense fallback={iOSLoadingFallback}>
+                    <ErrorBoundary>
+                      <FocusHub
                       lectures={dbLectures}
                       subjects={subjects}
                       language={language}
@@ -6789,9 +6859,29 @@ const handleSignOut = useCallback(async () => {
                         setFocusHistoryOpen(true);
                         setFocusHistoryDetailId(null);
                       }}
-                    />
-                  </ErrorBoundary>
-                </Suspense>
+                      />
+                    </ErrorBoundary>
+                  </Suspense>
+                </div>
+                {GROUP_FOCUS_FRONTEND_ENABLED
+                  && groupFocusRoute !== null
+                  && activeTab === "focus" && (
+                  <Suspense fallback={iOSLoadingFallback}>
+                    <ErrorBoundary>
+                      <GroupFocusFrontend
+                        accountId={currentUser?.id ?? null}
+                        language={language}
+                        lectures={dbLectures}
+                        subjects={subjects}
+                        catalogStatus={lectureCatalogStatus}
+                        onRefreshLectures={() => fetchDbLectures(true)}
+                        workerUrl={GROUP_FOCUS_WORKER_URL}
+                        routePath={groupFocusRoute}
+                        onRouteChange={handleGroupFocusRouteChange}
+                      />
+                    </ErrorBoundary>
+                  </Suspense>
+                )}
               </motion.div>
             )}
 

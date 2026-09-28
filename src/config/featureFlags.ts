@@ -17,3 +17,15 @@ export const FOCUS_AUDIO_ENABLED = buildFlags.VITE_FOCUS_AUDIO_ENABLED === "true
  */
 export const FOCUS_HUB_V2_ENABLED =
   buildFlags.DEV === true && buildFlags.VITE_FOCUS_HUB_V2_ENABLED !== "false";
+
+/**
+ * Group Focus UI is an opt-in development surface until its staged rollout.
+ * It remains disabled in production regardless of build-time flag values.
+ */
+export const GROUP_FOCUS_FRONTEND_ENABLED =
+  buildFlags.DEV === true && buildFlags.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true";
+
+export const GROUP_FOCUS_WORKER_URL =
+  typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
+    ? buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim()
+    : "";

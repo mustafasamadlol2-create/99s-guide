@@ -5,9 +5,13 @@ import { useFocusAudio } from "../../focus-audio/hooks";
 
 interface FocusAudioPlanningCardProps {
   language: Language;
+  idPrefix?: string;
 }
 
-export function FocusAudioPlanningCard({ language }: FocusAudioPlanningCardProps) {
+export function FocusAudioPlanningCard({
+  language,
+  idPrefix = "focus-audio",
+}: FocusAudioPlanningCardProps) {
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
   const audioContext = useFocusAudio();
@@ -17,6 +21,7 @@ export function FocusAudioPlanningCard({ language }: FocusAudioPlanningCardProps
   const hasSelection = audio.sourceType !== "NONE";
   const isPlaying = audio.state === "PLAYING";
   const isPaused = audio.state === "PAUSED" || audio.state === "INTERRUPTED";
+  const titleId = `${idPrefix}-title`;
 
   const chooseFile = async () => {
     setBusy(true);
@@ -53,7 +58,7 @@ export function FocusAudioPlanningCard({ language }: FocusAudioPlanningCardProps
   return (
     <section
       dir={isRtl ? "rtl" : "ltr"}
-      aria-labelledby="focus-audio-title"
+      aria-labelledby={titleId}
       className="rounded-[24px] border border-indigo-100 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/80 p-5 dark:border-indigo-300/10 dark:from-indigo-300/[0.08] dark:via-white/[0.025] dark:to-violet-300/[0.06]"
     >
       <div className="flex items-start gap-3">
@@ -61,7 +66,7 @@ export function FocusAudioPlanningCard({ language }: FocusAudioPlanningCardProps
           <Headphones className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 id="focus-audio-title" className="font-semibold text-slate-950 dark:text-white">
+          <h3 id={titleId} className="font-semibold text-slate-950 dark:text-white">
             {t("focusHubAudioTitle")}
           </h3>
           <p className="mt-1 text-sm leading-5 text-slate-600 dark:text-slate-400">

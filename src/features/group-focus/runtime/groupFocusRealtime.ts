@@ -1,3 +1,5 @@
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   requestGroupFocusCapability,
   type GroupFocusCapabilityResponse,
@@ -177,10 +179,11 @@ export class GroupFocusRealtimeRuntime {
   private resumeToken: string | null = null;
   private resumeStorageKey: string | null = null;
   private currentAccountId: string | null = null;
+  private nativeLifecycleListener: Promise<PluginListenerHandle | null> | null = null;
   private readonly onlineHandler = () => { void this.retryConnection(); };
   private readonly visibilityHandler = () => {
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      void this.retryConnection();
+      this.notifyApplicationActive();
     }
   };
 
@@ -204,6 +207,14 @@ export class GroupFocusRealtimeRuntime {
     if (typeof window !== "undefined") window.addEventListener("online", this.onlineHandler);
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", this.visibilityHandler);
+    }
+    if (Capacitor.isNativePlatform()) {
+      this.nativeLifecycleListener = CapacitorApp.addListener(
+        "appStateChange",
+        ({ isActive }) => {
+          if (isActive) this.notifyApplicationActive();
+        },
+      ).catch(() => null);
     }
   }
 
@@ -506,6 +517,14 @@ export class GroupFocusRealtimeRuntime {
   }
 
   notifyApplicationActive(): void {
+    if (this.snapshot.status === "CONNECTED") {
+      try {
+        this.requestRoomState();
+        return;
+      } catch {
+        // Fall through to the bounded authenticated reconnect path.
+      }
+    }
     this.retryConnection();
   }
 
@@ -563,6 +582,24 @@ export class GroupFocusRealtimeRuntime {
   private clearReconnectTimer(): void {
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+  }
+
+  private removeNativeLifecycleListener(): void {
+    const listener = this.nativeLifecycleListener;
+    this.nativeLifecycleListener = null;
+    if (listener) {
+      void listener.then((handle) => handle?.remove()).catch(() => undefined);
+    }
+  }
+
+  private removeLifecycleListeners(): void {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.onlineHandler);
+    }
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+    }
+    this.removeNativeLifecycleListener();
   }
 
   private readStoredResumeToken(key: string): string | null {
@@ -623,6 +660,7 @@ export class GroupFocusRealtimeRuntime {
       ),
     );
     this.pendingConnectionReject = null;
+    this.removeLifecycleListeners();
     this.generation += 1;
     const socket = this.socket;
     this.socket = null;
@@ -659,10 +697,7 @@ export class GroupFocusRealtimeRuntime {
     this.reconnectEnabled = false;
     this.disposed = true;
     this.clearReconnectTimer();
-    if (typeof window !== "undefined") window.removeEventListener("online", this.onlineHandler);
-    if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.visibilityHandler);
-    }
+    this.removeLifecycleListeners();
     this.generation += 1;
     const socket = this.socket;
     this.socket = null;
@@ -686,6 +721,46 @@ export class GroupFocusRealtimeRuntime {
     }
     this.clearStoredResumeToken();
     this.update({ status: "DISCONNECTED" });
+    this.listeners.clear();
+  }
+
+  /**
+   * HMR cleanup closes development sockets without sending CLIENT_LEAVE or
+   * deleting the sessionStorage resume token. The replacement module reconnects
+   * through the normal authenticated capability flow.
+   */
+  disposeForHotReload(): void {
+    this.pendingConnectionReject?.(
+      new GroupFocusRealtimeRuntimeError(
+        "CONNECTION_CANCELLED",
+        "The Group Focus realtime connection was replaced during development.",
+      ),
+    );
+    this.pendingConnectionReject = null;
+    this.reconnectEnabled = false;
+    this.disposed = true;
+    this.clearReconnectTimer();
+    this.removeLifecycleListeners();
+    this.generation += 1;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      try {
+        socket.close(1000, "Development module replaced");
+      } catch {
+        // The socket may already be closed.
+      }
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      status: "DISCONNECTED",
+      connectionId: null,
+      error: null,
+    };
     this.listeners.clear();
   }
 

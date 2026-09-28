@@ -38,6 +38,11 @@ export const FocusHub = lazyWithPreload(() =>
     default: module.FocusHub,
   })),
 );
+export const GroupFocusFrontend = lazyWithPreload(() =>
+  import("../../features/group-focus/GroupFocusFrontend").then((module) => ({
+    default: module.GroupFocusFrontend,
+  })),
+);
 export const ProfileView = lazyWithPreload(() => import("../../features/profile/components/ProfileView"));
 export const ControlCenterView = lazyWithPreload(() => import("../../features/admin/components/ControlCenterView"));
 export const SettingsView = lazyWithPreload(() => import("../../features/settings/components/SettingsView"));
