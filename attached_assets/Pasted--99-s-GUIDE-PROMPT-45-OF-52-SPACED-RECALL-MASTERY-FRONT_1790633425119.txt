@@ -1,0 +1,4452 @@
+# 99’s GUIDE — PROMPT 45 OF 52
+## SPACED RECALL + MASTERY FRONTEND
+## PERIODIC RECALL CARD + MCQ/FLASHCARD RECALL FLOW
+## LECTURE MASTERY + RETENTION + DUE REVIEWS + REVIEW PRIORITY UI
+### CANONICAL SERVER FACTS ONLY — NO CLIENT MASTERY LOGIC — NO AI AUTHORITY — NO CALENDAR WRITES
+
+Prompts 1–44 have been completed.
+
+Prompt 28 established canonical Recall attempts/state/evidence contracts.
+
+Prompt 29 established deterministic Recall eligibility and candidate selection.
+
+Prompt 30 established cooldown, anti-farming, and any legitimate tiny capped Recall reward semantics.
+
+Prompt 31 established deterministic initial Lecture Mastery.
+
+Prompt 32 established Retention, forgetting, review state, and review timing.
+
+Prompt 33 established private Mastery/Retention read models and D1-backed dashboard delivery where applicable.
+
+Prompt 44 completed the Gamification frontend.
+
+Prompt 45 now builds the complete student-facing **Spaced Recall + Lecture Mastery + Retention frontend** over those already-frozen canonical systems.
+
+Frozen roadmap:
+
+```text id="t1c5rm"
+Prompt 45 — Recall / Mastery UI
+Prompt 46 — Study Analyzer UI
+Prompt 47 — Owner Analytics UI
+Prompt 48 — integration / regression
+Prompt 49 — backfill / compaction / migration tooling
+Prompt 50 — observability / release gates / ops dashboards
+Prompt 51 — E2E / PWA / Capacitor / RTL / native validation
+Prompt 52 — staged rollout / post-release / final audit
+```
+
+Do NOT implement Prompt 46+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a production-grade frontend supporting:
+
+1. periodic Spaced Recall launch card;
+2. Recall eligibility loading;
+3. Recall candidate loading;
+4. one-item Recall experience;
+5. MCQ Recall flow;
+6. Flashcard Recall flow;
+7. Answer / Skip;
+8. objective MCQ correctness feedback from server;
+9. Flashcard self-assessment;
+10. Recall terminal state handling;
+11. Recall cooldown state;
+12. Recall unavailable / insufficient-data state;
+13. no-farming-safe repeated opening behavior;
+14. private Lecture Mastery dashboard;
+15. six frozen Mastery states;
+16. Retention state;
+17. due-review list;
+18. overdue-review list;
+19. review timing;
+20. stale/missing Retention handling;
+21. lecture detail Mastery summary;
+22. subject-level aggregate display only where canonical;
+23. deterministic review-priority presentation;
+24. “Review now” navigation into existing lecture/MCQ/Flashcard surfaces;
+25. no Schedule/Calendar creation;
+26. no client-created Recall candidate;
+27. no client Mastery computation;
+28. no client Retention computation;
+29. no AI deciding study facts;
+30. excellent mobile/iPad/PWA;
+31. Arabic RTL;
+32. accessibility.
+
+---
+
+# 2. CORE AUTHORITY RULE
+
+Freeze:
+
+```text id="4koaxs"
+RecallAttempt
+UserRecallItemState
+Recall eligibility service
+Recall candidate-selection service
+Recall cooldown/anti-farming service
+LectureMastery
+LectureRetention
+Prompt33 read models/projections
+=
+server authority
+```
+
+Frontend only:
+
+```text id="nuul4u"
+requests
+renders
+submits user action
+navigates
+```
+
+---
+
+# 3. NO CLIENT MASTERY ENGINE
+
+Forbidden:
+
+```text id="c05i2o"
+calculateMastery(...)
+guessMastery(...)
+promoteToMastered()
+downgradeToNeedsReview()
+```
+
+in frontend.
+
+---
+
+# 4. NO CLIENT RETENTION ENGINE
+
+Forbidden:
+
+```text id="66hyda"
+calculateForgetting(...)
+calculateNextReviewAt(...)
+calculateReviewState(...)
+```
+
+Client displays canonical results only.
+
+---
+
+# 5. NO CLIENT CANDIDATE SELECTION
+
+Mandatory:
+
+```text id="uj6cm2"
+frontend chooses Recall item = NO
+```
+
+The server selects one canonical eligible candidate.
+
+---
+
+# 6. NO CLIENT WEIGHTING
+
+Do not duplicate:
+
+```text id="cpnxa9"
+forgetting weight
+weakness weight
+recency weight
+cooldown
+anti-farming rules
+```
+
+in React.
+
+---
+
+# 7. DATA DETERMINES FACTS
+
+Preserve frozen principle:
+
+```text id="ypx6to"
+DATA DETERMINES FACTS.
+AI EXPLAINS FACTS.
+```
+
+Prompt45 itself requires:
+
+```text id="pa92kf"
+AI calls = 0
+```
+
+---
+
+# 8. FROZEN MASTERY STATES
+
+Use exactly:
+
+```text id="6y5wzu"
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+Do NOT create:
+
+```text id="1fbz7f"
+EXPERT
+PERFECT
+WEAK
+FAILED
+```
+
+or other new canonical states.
+
+---
+
+# 9. MASTERY IS NOT INTELLIGENCE
+
+UI must never imply:
+
+```text id="6ovpcv"
+MASTERED = intelligent
+NEEDS_REVIEW = bad student
+```
+
+Mastery is a bounded app learning-state estimate from eligible evidence.
+
+---
+
+# 10. MASTERY IS NOT FINAL KNOWLEDGE TRUTH
+
+Use language such as:
+
+```text id="sggy5e"
+Current mastery state
+```
+
+not:
+
+```text id="5cuy6u"
+You definitely know this lecture
+```
+
+---
+
+# 11. RETENTION IS MODEL-BASED
+
+Display as:
+
+```text id="3cwi5y"
+Review state
+Review due
+Review overdue
+```
+
+Do not claim direct measurement of memory.
+
+---
+
+# 12. PREFLIGHT INSPECTION
+
+Before coding inspect exact current:
+
+```text id="4j9fo5"
+Prompt28 RecallAttempt schema/API
+Recall item types
+MCQ answer contract
+Flashcard self-assessment contract
+Recall attempt TTL
+Prompt29 eligibility endpoint
+Prompt29 candidate DTO
+candidate source metadata
+Prompt30 cooldown response
+Prompt30 Points response if any
+Prompt31 LectureMastery API/read model
+Prompt32 LectureRetention API/read model
+Prompt33 D1/private dashboard APIs
+current Lecture detail tabs/cards
+current MCQ components
+current Flashcard components
+current subject/module pages
+current dashboard/home card architecture
+feature flags
+query/cache system
+i18n
+responsive breakpoints
+```
+
+Reuse real contracts.
+
+---
+
+# 13. DO NOT CREATE A SECOND RECALL API
+
+Extend/reuse existing services/hooks.
+
+---
+
+# 14. FEATURE FLAGS
+
+Add/reuse:
+
+```text id="jxzg1l"
+SPACED_RECALL_FRONTEND_ENABLED
+MASTERY_FRONTEND_ENABLED
+```
+
+or repository-equivalent centralized flags.
+
+Default:
+
+```text id="rkgtrf"
+false
+```
+
+until rollout.
+
+---
+
+# 15. PRODUCTION FLAGS
+
+Do NOT enable in production.
+
+---
+
+# 16. PERIODIC RECALL SURFACE
+
+Add a reusable Recall launch card that can appear on an appropriate existing student surface, likely:
+
+```text id="vfkjv1"
+Welcome
+Focus Hub
+Study dashboard
+```
+
+according to actual product IA.
+
+Do not inject it into every page.
+
+---
+
+# 17. RECALL CARD PURPOSE
+
+The card answers:
+
+```text id="mim9zj"
+Do you have a short eligible review available now?
+```
+
+---
+
+# 18. CARD DOES NOT SHOW RAW ALGORITHM
+
+Do not expose:
+
+```text id="6wxy9y"
+weight = 0.817
+forgetting score
+candidate probability
+anti-farming score
+```
+
+---
+
+# 19. ELIGIBILITY CHECK
+
+Use canonical server endpoint.
+
+Possible states:
+
+```text id="a28dfz"
+AVAILABLE
+COOLDOWN
+NO_ELIGIBLE_ITEM
+INSUFFICIENT_DATA
+FEATURE_DISABLED
+ERROR
+```
+
+Use actual contracts.
+
+---
+
+# 20. DO NOT POLL CONSTANTLY
+
+Recall eligibility should not be checked every second.
+
+Recommended refresh triggers:
+
+```text id="m5ja91"
+page load
+app foreground
+after relevant canonical study action
+after Recall attempt terminal action
+manual refresh if needed
+```
+
+---
+
+# 21. COOLDOWN
+
+If server reports cooldown:
+
+render a neutral state.
+
+Example:
+
+```text id="d55g2l"
+Another quick review will be available later.
+```
+
+Do not expose exploit-friendly exact farming thresholds unless product explicitly wants it.
+
+---
+
+# 22. COOLDOWN COUNTDOWN
+
+If server returns safe `availableAt`:
+
+you may show a simple time-until-available display.
+
+Client countdown is presentation only.
+
+When it expires:
+
+```text id="r6e3sh"
+refetch eligibility
+```
+
+Do not self-declare eligible.
+
+---
+
+# 23. NO_ELIGIBLE_ITEM
+
+Use a calm empty state.
+
+No shame.
+
+---
+
+# 24. INSUFFICIENT_DATA
+
+Explain that more normal study activity may be needed before Recall can select something useful.
+
+Do not force activity.
+
+---
+
+# 25. CARD CTA
+
+When eligible:
+
+```text id="vdujqb"
+Quick Recall
+```
+
+or localized equivalent.
+
+---
+
+# 26. OPENING CARD
+
+Opening the Recall flow must not itself award Points.
+
+---
+
+# 27. NO CLIENT-SUPPLIED ITEM ID FOR CANDIDATE CREATION
+
+Critical:
+
+```text id="naxcft"
+frontend:
+POST candidate with arbitrary itemId = forbidden
+```
+
+The server chooses and creates/presents canonical attempt.
+
+---
+
+# 28. RECALL START FLOW
+
+Conceptually:
+
+```text id="rflfoh"
+check canonical eligibility
+→ request canonical candidate
+→ server selects item
+→ canonical RecallAttempt created/presented
+→ return safe presentation DTO
+→ render one item
+```
+
+Adapt to actual Prompt28/29 API.
+
+---
+
+# 29. ONE ITEM ONLY
+
+Frozen Recall product:
+
+```text id="f9ujxb"
+one Recall launch
+=
+one MCQ or one Flashcard
+```
+
+Do not turn Prompt45 into a 20-question quiz.
+
+---
+
+# 30. RECALL ITEM TYPES
+
+Use exactly current canonical support:
+
+```text id="1qt3ol"
+MCQ
+FLASHCARD
+```
+
+No:
+
+```text id="zsro27"
+PDF
+VIDEO
+free text
+lecture itself
+```
+
+---
+
+# 31. NO PDF RECALL ITEM
+
+Mandatory.
+
+---
+
+# 32. RECALL ROUTE / MODAL
+
+Use either:
+
+```text id="c4whvj"
+full-screen mobile sheet/modal
+```
+
+or dedicated route.
+
+Preferred mobile experience:
+
+```text id="g2j19l"
+immersive single-card flow
+```
+
+Use existing routing/modal conventions.
+
+---
+
+# 33. HARD REFRESH
+
+If Recall attempt route contains canonical attempt ID:
+
+hard refresh should safely load an existing non-terminal attempt if API permits.
+
+Do not create a new attempt on refresh.
+
+---
+
+# 34. ATTEMPT OWNERSHIP
+
+Only authenticated user may load/answer their own attempt.
+
+---
+
+# 35. TERMINAL ATTEMPT LOAD
+
+If attempt already:
+
+```text id="sxwmgz"
+ANSWERED
+SKIPPED
+ABANDONED
+EXPIRED
+```
+
+do not permit another answer.
+
+Render terminal state / close flow.
+
+---
+
+# 36. FROZEN ATTEMPT LIFECYCLE
+
+Preserve Prompt28:
+
+```text id="zawdaz"
+PRESENTED
+→ ANSWERED
+| SKIPPED
+| ABANDONED
+| EXPIRED
+```
+
+Use exact current enum.
+
+---
+
+# 37. NO ANSWER CHANGE
+
+After terminal ANSWERED:
+
+do not allow changing answer.
+
+---
+
+# 38. NO SKIP → ANSWER
+
+After SKIPPED:
+
+no answering.
+
+---
+
+# 39. NO EXPIRED ANSWER
+
+Mandatory.
+
+---
+
+# 40. MCQ PRESENTATION
+
+Reuse existing MCQ visual components where safe, but adapt to Recall single-item context.
+
+Show:
+
+```text id="3wlb49"
+question
+options
+lecture/subject context if appropriate
+```
+
+Do not display correct answer before submission.
+
+---
+
+# 41. MCQ SERVER AUTHORITY
+
+Frontend submits only canonical option identifier/index as existing API requires.
+
+Do NOT submit:
+
+```text id="odn3y2"
+isCorrect
+score
+masteryDelta
+```
+
+---
+
+# 42. MCQ ANSWER FLOW
+
+Sequence:
+
+```text id="jfn59e"
+select option
+→ submit answer
+→ server evaluates canonical answer key
+→ canonical attempt terminal response
+→ render server result
+```
+
+---
+
+# 43. DOUBLE ANSWER
+
+Disable repeated submission.
+
+Backend idempotency remains authority.
+
+---
+
+# 44. MCQ CORRECTNESS
+
+Display:
+
+```text id="0myf5m"
+Correct
+Incorrect
+```
+
+only after canonical response.
+
+---
+
+# 45. MCQ EXPLANATION
+
+If canonical MCQ already has explanation and existing API safely returns it after answer:
+
+may display.
+
+Do not generate with AI in Prompt45.
+
+---
+
+# 46. MCQ HINT
+
+Do not expose hints during Recall unless existing Recall contract explicitly allows them.
+
+Recall should remain consistent with Prompt28–30 evidence semantics.
+
+---
+
+# 47. FLASHCARD PRESENTATION
+
+Reuse existing Flashcard visual style.
+
+Show front/prompt.
+
+---
+
+# 48. FLASHCARD REVEAL
+
+Allow explicit:
+
+```text id="r8fz8w"
+Show Answer
+```
+
+locally.
+
+---
+
+# 49. FLIP IS NOT CORRECTNESS
+
+Mandatory:
+
+```text id="fd8sz3"
+reveal/flip
+!=
+correct answer
+```
+
+---
+
+# 50. FLASHCARD SELF-ASSESSMENT
+
+Use exact Prompt28 contract.
+
+Expected concepts:
+
+```text id="t4i7na"
+KNOWN
+NEEDS_REVIEW
+```
+
+or current equivalent.
+
+Do not invent objective correctness.
+
+---
+
+# 51. FLASHCARD EVIDENCE LANGUAGE
+
+Render:
+
+```text id="8tqws9"
+I remembered this
+I need to review this
+```
+
+or localized equivalents.
+
+Do not render:
+
+```text id="80csbr"
+Correct
+Wrong
+```
+
+for self-assessment unless canonical product already uses those labels, which should be avoided.
+
+---
+
+# 52. FLASHCARD ANSWER FLOW
+
+```text id="92ybpb"
+reveal
+→ user self-assessment
+→ canonical submit
+→ terminal attempt
+```
+
+---
+
+# 53. SKIP
+
+Always provide:
+
+```text id="2oi63z"
+Skip
+```
+
+where frozen product requires it.
+
+---
+
+# 54. SKIP HAS NO PENALTY
+
+Mandatory.
+
+UI must not say:
+
+```text id="ie282s"
+skip hurts Mastery
+skip loses Points
+skip counts wrong
+```
+
+---
+
+# 55. SKIP CONFIRMATION
+
+No confirmation necessary for a one-item quick Recall unless product UX benefits.
+
+Keep friction low.
+
+---
+
+# 56. SKIP RESPONSE
+
+Server terminal state wins.
+
+---
+
+# 57. ABANDON
+
+Closing/backing out may call existing abandon semantics if a presented attempt must be terminally resolved.
+
+Inspect Prompt28 behavior.
+
+Do not silently mark wrong.
+
+---
+
+# 58. EXPIRED
+
+If attempt expires while open:
+
+show:
+
+```text id="sxwlde"
+This Recall attempt expired.
+```
+
+No punishment language.
+
+---
+
+# 59. BACKGROUND
+
+If app backgrounds and attempt remains within TTL:
+
+resume current attempt.
+
+Do not create second candidate.
+
+---
+
+# 60. LONG BACKGROUND
+
+Server decides expiry.
+
+---
+
+# 61. OFFLINE
+
+Do not allow answer to be presented as canonically submitted if backend unavailable.
+
+---
+
+# 62. NO OFFLINE MASTERY CHANGE
+
+Mandatory.
+
+---
+
+# 63. SUBMISSION FAILURE
+
+Retain selected option/self-assessment locally and allow retry while attempt remains valid.
+
+Do not fabricate terminal result.
+
+---
+
+# 64. IDEMPOTENT RETRY
+
+Same attempt/action/idempotency contract.
+
+---
+
+# 65. RECALL RESULT CARD
+
+After terminal answer, may display:
+
+```text id="28cz78"
+answer result
+lecture context
+short next action
+canonical Points if server response safely includes them
+```
+
+---
+
+# 66. POINTS BOUNDARY
+
+Prompt30 may award tiny capped Recall Points for legitimate eligible participation.
+
+Frontend:
+
+```text id="pi6r9g"
+does not calculate them
+```
+
+---
+
+# 67. RECALL POINTS DISPLAY
+
+Only show a reward if canonical response/API says it was awarded.
+
+---
+
+# 68. NO EXPECTED REWARD BEFORE ANSWER
+
+Mandatory.
+
+---
+
+# 69. NO FARMING COPY
+
+Do not say:
+
+```text id="u4cuyp"
+Come back every X minutes for more XP.
+```
+
+---
+
+# 70. ZERO REWARD
+
+A legitimate attempt may produce:
+
+```text id="6b1cfm"
+0 Points
+```
+
+due to cap/cooldown/rules.
+
+UI should not label that as failure.
+
+---
+
+# 71. RESULT → CLOSE
+
+Return to source surface.
+
+---
+
+# 72. RESULT → REVIEW LECTURE
+
+Optional safe CTA:
+
+```text id="okdqj2"
+Review Lecture
+```
+
+navigates to canonical lecture.
+
+---
+
+# 73. RESULT → OPEN FLASHCARDS / MCQS
+
+May offer existing study surface if relevant.
+
+No Calendar event.
+
+---
+
+# 74. NO AUTO-START NEXT RECALL
+
+Mandatory.
+
+One launch = one item.
+
+---
+
+# 75. MASTERY DASHBOARD
+
+Create private student-facing Mastery area.
+
+Conceptually:
+
+```text id="icjyac"
+/mastery
+```
+
+or integrate into Modules/Study dashboard.
+
+Use actual IA.
+
+---
+
+# 76. MASTERY HOME PURPOSE
+
+Show:
+
+```text id="l4iq59"
+where lectures currently stand
+what is due for review
+what is overdue
+what needs review
+what is progressing well
+```
+
+without inventing a global score.
+
+---
+
+# 77. NO OVERALL MASTERY SCORE
+
+Do not create:
+
+```text id="l9d28c"
+72% mastery score
+B-grade mastery
+```
+
+unless Prompt31/33 already has a canonical deterministic metric, which frozen design does not require.
+
+---
+
+# 78. NO CLASS COMPARISON
+
+Mastery is private.
+
+Do not compare to other students.
+
+---
+
+# 79. MASTERY DISTRIBUTION
+
+May show counts by frozen state:
+
+```text id="0zxjob"
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+from Prompt33 canonical read model.
+
+---
+
+# 80. STALE RETENTION
+
+Prompt33/32 may distinguish stale/missing Retention rows.
+
+UI must preserve this.
+
+---
+
+# 81. STALE ≠ CURRENT
+
+Do not present stale Retention state as current.
+
+---
+
+# 82. MISSING RETENTION
+
+Do not invent.
+
+Use:
+
+```text id="j1xqv5"
+Not enough review data
+```
+
+or actual data-quality language.
+
+---
+
+# 83. MASTERY VS RETENTION
+
+Keep visually/semantically separate.
+
+Example:
+
+```text id="gcq4uw"
+Mastery: GOOD
+Review status: DUE
+```
+
+can coexist.
+
+---
+
+# 84. MASTERED CAN BECOME DUE FOR REVIEW
+
+UI must support:
+
+```text id="lm9xnx"
+Mastery state remains strong
++
+Retention review becomes due
+```
+
+if canonical model allows it.
+
+Do not assume MASTERED = never review.
+
+---
+
+# 85. NEEDS_REVIEW
+
+Use as a canonical state.
+
+Do not shame.
+
+---
+
+# 86. REVIEW STATES
+
+Use exact Prompt32 enum.
+
+Inspect before implementation.
+
+Expected concepts may include:
+
+```text id="1mx5do"
+NOT_DUE
+DUE
+OVERDUE
+STALE
+MISSING
+```
+
+but do not invent names if actual code differs.
+
+---
+
+# 87. DUE REVIEWS SECTION
+
+Show bounded canonical lectures currently due.
+
+---
+
+# 88. OVERDUE REVIEWS
+
+Make clear but not alarmist.
+
+---
+
+# 89. REVIEW ORDER
+
+Reuse Prompt32 deterministic order.
+
+Frozen direction from previous work:
+
+```text id="b2nyg3"
+review urgency DESC
+objective forgetting first
+nextReviewAt ASC
+lectureId ASC
+```
+
+Use actual service ordering.
+
+Do NOT rerank client-side.
+
+---
+
+# 90. NO AI PRIORITY
+
+Mandatory.
+
+---
+
+# 91. NO CLIENT PRIORITY SCORE
+
+Do not create:
+
+```text id="mdq5bu"
+priority 94/100
+```
+
+---
+
+# 92. DUE REVIEW ITEM
+
+Display:
+
+```text id="6ihbo6"
+lecture title
+subject
+Mastery state
+review status
+nextReviewAt / overdue context
+brief deterministic reason if API provides it
+Review action
+```
+
+---
+
+# 93. REVIEW REASON
+
+Only use canonical safe reason signals.
+
+Examples:
+
+```text id="xfbdx3"
+recent objective misses
+retention due
+repeated review need
+```
+
+Do not invent a causal explanation.
+
+---
+
+# 94. NO RAW ALGORITHM
+
+Do not show internal weights/formulas.
+
+---
+
+# 95. REVIEW NOW
+
+CTA should navigate to an existing appropriate study surface.
+
+Potential:
+
+```text id="yvytxf"
+lecture detail
+MCQ
+Flashcards
+Recall if currently eligible
+```
+
+Use deterministic safe action selection or a small action sheet.
+
+Do not auto-pick academic content through AI.
+
+---
+
+# 96. REVIEW NOW DOES NOT CREATE CALENDAR EVENT
+
+Mandatory.
+
+---
+
+# 97. REVIEW NOW DOES NOT CREATE FOCUS SESSION AUTOMATICALLY
+
+Mandatory.
+
+User may choose Focus separately.
+
+---
+
+# 98. OPTIONAL START FOCUS CTA
+
+A secondary CTA:
+
+```text id="d1ao1f"
+Focus on this lecture
+```
+
+may route to Prompt40 Focus Hub with lecture preselected locally.
+
+But:
+
+```text id="1s3rkn"
+no automatic session start
+```
+
+and no Schedule write.
+
+---
+
+# 99. FOCUS PRESELECTION
+
+If implemented:
+
+pass canonical lecture ID into Focus Hub draft.
+
+User confirms plan/start.
+
+---
+
+# 100. LECTURE DETAIL MASTERY CARD
+
+Integrate a concise private Mastery/Retention card into lecture detail.
+
+Show:
+
+```text id="m1ju68"
+Current Mastery
+Review status
+next review timing if valid
+small Review action
+```
+
+---
+
+# 101. NO LECTURE PAGE CLUTTER
+
+Keep compact.
+
+Do not duplicate full dashboard.
+
+---
+
+# 102. MASTERED LECTURE
+
+Use calm positive styling.
+
+No “perfect forever” language.
+
+---
+
+# 103. NOT_STARTED LECTURE
+
+Do not imply failure.
+
+---
+
+# 104. STARTED
+
+Use canonical definition.
+
+---
+
+# 105. LEARNING
+
+Use canonical definition.
+
+---
+
+# 106. GOOD
+
+Use canonical definition.
+
+---
+
+# 107. NEEDS_REVIEW
+
+Use action-oriented neutral copy.
+
+---
+
+# 108. MASTERED
+
+Use:
+
+```text id="o0k088"
+Strong evidence so far
+```
+
+or localized product copy if needed.
+
+Do not claim permanent knowledge.
+
+---
+
+# 109. SUBJECT VIEW
+
+If Prompt33 provides subject aggregate counts:
+
+may display:
+
+```text id="djntyh"
+state distribution
+due count
+overdue count
+```
+
+for that subject.
+
+---
+
+# 110. NO SUBJECT “SCORE”
+
+Mandatory.
+
+---
+
+# 111. NO BEST/WORST SUBJECT LABEL
+
+Do not derive one.
+
+---
+
+# 112. NO OWNER DATA
+
+Prompt45 is private student Mastery.
+
+No owner/admin individual view.
+
+---
+
+# 113. MASTERY PRIVACY
+
+Never expose on:
+
+```text id="l7p7pq"
+public profile
+Leaderboard
+Group Focus participant list
+```
+
+---
+
+# 114. D1 ARCHITECTURE
+
+Prompt33 may use D1 projection for private dashboard reads.
+
+Frontend must call only approved API.
+
+Do NOT call D1 directly.
+
+---
+
+# 115. PG WINS
+
+Backend handles canonical fallback.
+
+Frontend does not merge D1/PG.
+
+---
+
+# 116. D1 STALE
+
+API must fall back/return freshness metadata according to Prompt33.
+
+Frontend respects response.
+
+---
+
+# 117. NO RAW D1 DETAILS IN UI
+
+Do not show:
+
+```text id="v1g5tv"
+D1 cache
+projection lag
+schema version
+```
+
+to student.
+
+---
+
+# 118. DATA FRESHNESS
+
+If API exposes meaningful:
+
+```text id="o5tcrq"
+last updated
+```
+
+may show subtle freshness text.
+
+Do not imply real-time precision beyond canonical processing.
+
+---
+
+# 119. STALE DATA UI
+
+If backend explicitly says data is stale:
+
+show:
+
+```text id="cbm42n"
+Updating…
+```
+
+or a limitation label.
+
+Do not silently misrepresent.
+
+---
+
+# 120. MASTERy REFRESH
+
+Relevant triggers:
+
+```text id="p9ch8v"
+after MCQ/Flashcard/Recall terminal action
+after app foreground
+manual refresh
+```
+
+Use existing invalidation.
+
+---
+
+# 121. NO PER-SECOND REFRESH
+
+Mandatory.
+
+---
+
+# 122. RECALL AFTER ANSWER
+
+Invalidate:
+
+```text id="n8616d"
+Recall eligibility
+Mastery
+Retention
+due reviews
+```
+
+through query cache where appropriate.
+
+Do not calculate locally.
+
+---
+
+# 123. MCQ/FLASHCARD OUTSIDE RECALL
+
+Existing app flows may already invalidate Mastery read models.
+
+Do not duplicate backend semantics.
+
+---
+
+# 124. POINTS FRONTEND INTERACTION
+
+Prompt44 Gamification may update after Recall reward.
+
+Use shared canonical invalidation.
+
+Do not calculate reward in Prompt45.
+
+---
+
+# 125. PERIODIC RECALL CARD + MASTERY COEXISTENCE
+
+Do not flood dashboard with multiple review CTAs.
+
+Use hierarchy:
+
+```text id="t9dtwf"
+Quick Recall if currently available
+Due Reviews list for broader work
+```
+
+---
+
+# 126. QUICK RECALL IS OPTIONAL
+
+Student may ignore it.
+
+No penalty.
+
+---
+
+# 127. NO NAGGING
+
+Do not repeatedly reopen modal.
+
+---
+
+# 128. NO PUSH NOTIFICATION IMPLEMENTATION
+
+Prompt45 does not schedule Recall notifications.
+
+---
+
+# 129. NO BACKGROUND AUTOMATION
+
+Do not auto-open Recall on app foreground.
+
+---
+
+# 130. NO MODAL HIJACK
+
+Recall card requires explicit tap.
+
+---
+
+# 131. RECALL ACCESSIBILITY
+
+One-item flow must be fully keyboard/screen-reader accessible.
+
+---
+
+# 132. MCQ OPTIONS
+
+Use semantic:
+
+```text id="4e0vpz"
+radio group
+```
+
+or existing accessible option component.
+
+---
+
+# 133. FLASHCARD FLIP
+
+Keyboard operable.
+
+---
+
+# 134. RESULT ANNOUNCEMENT
+
+After MCQ answer:
+
+screen reader announces correct/incorrect once.
+
+---
+
+# 135. SKIP
+
+Accessible button.
+
+---
+
+# 136. TIMER?
+
+Do NOT add a timed Recall countdown unless Prompt28 attempt TTL must be surfaced.
+
+TTL expiration may show subtle remaining validity only if necessary.
+
+Recall is not a speed quiz.
+
+---
+
+# 137. NO SPEED SCORE
+
+Mandatory.
+
+---
+
+# 138. MOBILE RECALL
+
+Full-height native-feeling flow.
+
+Primary actions reachable one-handed.
+
+---
+
+# 139. IPAD RECALL
+
+Centered card with comfortable width.
+
+Do not stretch question across entire screen.
+
+---
+
+# 140. DESKTOP RECALL
+
+Controlled-width panel.
+
+---
+
+# 141. ARABIC RECALL
+
+Correct RTL for question text/options.
+
+Option letters/numbers remain readable.
+
+---
+
+# 142. FLASHCARD RTL
+
+Front/back content respects stored content direction.
+
+---
+
+# 143. MIXED MEDICAL TERMS
+
+Preserve Latin medical terms naturally inside Arabic layout.
+
+---
+
+# 144. MASTERY DASHBOARD MOBILE
+
+Recommended:
+
+```text id="99devq"
+Mastery distribution
+Due / overdue summary
+Review list
+all lectures / filters
+```
+
+---
+
+# 145. IPAD MASTERY
+
+Two-column:
+
+```text id="mr1bkh"
+distribution / summary
+review queue / lecture list
+```
+
+---
+
+# 146. DESKTOP MASTERY
+
+Dashboard + filterable lecture list.
+
+---
+
+# 147. NO HEAVY CHART LIBRARY
+
+Use simple accessible bars/cards.
+
+---
+
+# 148. MASTERY FILTERS
+
+Safe filters:
+
+```text id="tcdfhl"
+subject
+Mastery state
+review state
+```
+
+---
+
+# 149. NO USER ID FILTER
+
+Mandatory.
+
+---
+
+# 150. SORTING
+
+Use canonical review ordering for due-review list.
+
+For all lectures, safe sorts may include:
+
+```text id="ix0un0"
+curriculum order
+lecture title
+Mastery state group
+```
+
+but do not create hidden “weakest first” score unless canonical.
+
+---
+
+# 151. SEARCH
+
+Allow lecture-title search locally over loaded/bounded metadata or current content search service.
+
+---
+
+# 152. NO STUDY DATA IN SEARCH URL
+
+Do not encode private Mastery details in shareable URL beyond benign filter names if current router does query params.
+
+---
+
+# 153. PAGINATION
+
+If ~300 lectures:
+
+either:
+
+```text id="5j04c0"
+bounded all-lecture read model
+```
+
+or cursor pagination.
+
+Use existing Prompt33 contract.
+
+---
+
+# 154. NO ONE REQUEST PER LECTURE
+
+Mandatory.
+
+---
+
+# 155. NO N+1 MASTERY FETCH
+
+Mandatory.
+
+---
+
+# 156. LECTURE ROW
+
+Display concise:
+
+```text id="1cbm1b"
+lecture
+subject
+Mastery state
+review state
+next review
+```
+
+---
+
+# 157. NO RAW EVIDENCE COUNTS BY DEFAULT
+
+Detailed attempts can clutter.
+
+Only show if canonical UI contract intentionally includes them.
+
+---
+
+# 158. OPTIONAL DETAILS
+
+Expandable row may display safe deterministic facts:
+
+```text id="bm64pv"
+recent objective evidence
+Flashcard self-review evidence
+Recall evidence
+```
+
+if Prompt31/32 API exposes them.
+
+Do not expose internal weighting.
+
+---
+
+# 159. MCQ OBJECTIVE EVIDENCE
+
+Can be described as objective correctness.
+
+---
+
+# 160. FLASHCARD EVIDENCE
+
+Must remain self-assessed.
+
+Do not relabel as correctness.
+
+---
+
+# 161. RECALL EVIDENCE
+
+MCQ Recall can be objective.
+
+Flashcard Recall remains self-assessed.
+
+---
+
+# 162. SKIP / EXPIRED EVIDENCE
+
+Do not present as negative knowledge evidence.
+
+---
+
+# 163. RETENTION DATES
+
+Use server ISO values and display in Baghdad local time.
+
+---
+
+# 164. OVERDUE DURATION
+
+May display:
+
+```text id="5ae149"
+Due 2 days ago
+```
+
+if canonical `nextReviewAt` exists.
+
+This is presentation arithmetic only.
+
+---
+
+# 165. CLIENT TIME IS PRESENTATION ONLY
+
+When local clock passes due time:
+
+refetch canonical state rather than mutating Retention state locally.
+
+---
+
+# 166. NO CLIENT `OVERDUE=true`
+
+as authority.
+
+---
+
+# 167. MISSING DATE
+
+Do not invent.
+
+---
+
+# 168. REVIEW CARD ACTIONS
+
+Allow:
+
+```text id="bw6oqi"
+Open Lecture
+Review MCQs
+Review Flashcards
+Focus on Lecture
+```
+
+only if these surfaces exist.
+
+---
+
+# 169. RECALL NOW ACTION
+
+Only if canonical Recall eligibility API says available.
+
+Do not create an arbitrary RecallAttempt for a specific due lecture unless Prompt29 supports targeted Recall, which frozen roadmap does not specify.
+
+Preferred:
+
+```text id="4kv39x"
+Quick Recall remains globally server-selected
+```
+
+---
+
+# 170. DO NOT TARGET RECALL BY LECTURE CLIENT-SIDE
+
+Mandatory.
+
+---
+
+# 171. MANUAL LECTURE COMPLETE
+
+Prompt42 manual completion is separate.
+
+Do not use it to set Mastery.
+
+---
+
+# 172. LECTURE COMPLETION BADGE
+
+If displayed beside Mastery:
+
+label separately:
+
+```text id="21xfp0"
+Marked complete
+```
+
+vs:
+
+```text id="2dyc3b"
+Mastery: GOOD
+```
+
+---
+
+# 173. FOCUS HISTORY
+
+Do not conflate Focus duration with Mastery.
+
+---
+
+# 174. POINTS
+
+Do not conflate Points with Mastery.
+
+---
+
+# 175. LEVEL
+
+Do not conflate Level with Mastery.
+
+---
+
+# 176. CHALLENGE
+
+Do not conflate challenge completion with Mastery.
+
+---
+
+# 177. LEADERBOARD
+
+Never show on Mastery page.
+
+---
+
+# 178. NO SOCIAL COMPARISON
+
+Mandatory.
+
+---
+
+# 179. NO AI INSIGHT PANEL
+
+Prompt46 owns Study Analyzer UI.
+
+---
+
+# 180. NO “WHY AM I WEAK?” AI
+
+Prompt38 Ask My Study Data exists separately.
+
+Prompt45 may link to it later only if existing product IA allows, but do not embed Q&A here.
+
+---
+
+# 181. NO OWNER ANALYTICS
+
+Prompt47.
+
+---
+
+# 182. NO NEW MASTERY RULES
+
+Mandatory.
+
+---
+
+# 183. NO NEW RETENTION DECAY RULES
+
+Mandatory.
+
+---
+
+# 184. NO NEW RECALL WEIGHTS
+
+Mandatory.
+
+---
+
+# 185. NO NEW RECALL REWARD RULES
+
+Mandatory.
+
+---
+
+# 186. NO SCHEMA MIGRATION EXPECTED
+
+Expected:
+
+```text id="ykf0tt"
+Prisma = unchanged
+PG migration = none
+D1 migration = none
+```
+
+---
+
+# 187. NO WORKER CHANGE EXPECTED
+
+Prompt33 projection architecture already exists.
+
+---
+
+# 188. IF BACKEND PLUMBING IS MISSING
+
+Only additive read-safe DTO/endpoint work.
+
+Examples:
+
+```text id="x0kide"
+my mastery dashboard DTO
+due-review pagination metadata
+safe Recall presentation DTO
+safe terminal attempt DTO
+```
+
+Do not change semantics.
+
+---
+
+# 189. NO AI CHANGES
+
+Mandatory.
+
+---
+
+# 190. RECALL QUERY PRIVACY
+
+All endpoints derive user from auth.
+
+No:
+
+```text id="mrmtvc"
+?userId=
+```
+
+---
+
+# 191. MASTERY QUERY PRIVACY
+
+Same.
+
+---
+
+# 192. OWNER/ADMIN
+
+Do not add admin individual Mastery UI.
+
+---
+
+# 193. PUBLIC PROFILE
+
+Do not expose Mastery/Retention.
+
+---
+
+# 194. GROUP FOCUS
+
+Do not expose participant Mastery.
+
+---
+
+# 195. LEADERBOARD
+
+Do not expose Mastery.
+
+---
+
+# 196. LOGGING
+
+Do not log:
+
+```text id="ldsztt"
+MCQ selected answer
+Flashcard self-assessment text beyond enum if unnecessary
+private Mastery rows
+Retention rows
+Recall candidate details
+```
+
+in production logs.
+
+Safe operational logs:
+
+```text id="c7biyw"
+attempt ID
+item type
+status code
+endpoint latency
+generic error code
+```
+
+with existing privacy standards.
+
+---
+
+# 197. DO NOT LOG CORRECT ANSWER
+
+Mandatory.
+
+---
+
+# 198. NO QUICK NOTES
+
+Prompt45 should not access Quick Note content.
+
+---
+
+# 199. NO RAW STUDY ANALYZER
+
+Prompt45 does not need Prompt36 DTO.
+
+---
+
+# 200. RECALL CARD REQUEST BUDGET
+
+Eligibility:
+
+```text id="mnkrw6"
+bounded
+```
+
+No background spam.
+
+---
+
+# 201. MASTERY DASHBOARD REQUEST BUDGET
+
+Prefer:
+
+```text id="d2a0hv"
+1 summary
+1 paginated/list query
+```
+
+or existing combined endpoint.
+
+No per-lecture calls.
+
+---
+
+# 202. LECTURE DETAIL
+
+One Mastery detail fetch may be acceptable if not already embedded in canonical lecture query.
+
+---
+
+# 203. QUERY CACHE
+
+Reuse current system.
+
+---
+
+# 204. INVALIDATION
+
+After Recall terminal action:
+
+invalidate exact related private queries.
+
+---
+
+# 205. NO FULL APP CACHE CLEAR
+
+Avoid.
+
+---
+
+# 206. PARTIAL FAILURE
+
+Recall unavailable does not break Mastery dashboard.
+
+Mastery API error does not break lecture content.
+
+---
+
+# 207. RECALL ERROR UX
+
+Clean:
+
+```text id="yngvxt"
+Couldn't load a Recall item. Try again.
+```
+
+Do not expose selection internals.
+
+---
+
+# 208. MASTERy ERROR UX
+
+Retry.
+
+Do not show zero counts as if valid.
+
+---
+
+# 209. RETENTION STALE UX
+
+Make limitation visible.
+
+---
+
+# 210. D1 FAILURE
+
+Backend fallback should keep frontend contract stable.
+
+---
+
+# 211. OFFLINE RECALL
+
+Do not start a new Recall attempt without canonical server.
+
+---
+
+# 212. OFFLINE EXISTING ATTEMPT
+
+Do not fake answer submission.
+
+---
+
+# 213. OFFLINE MASTERY
+
+Cached read-only data may display with offline/stale marker if query system supports it.
+
+---
+
+# 214. NO OFFLINE MASTERy MUTATION
+
+Mandatory.
+
+---
+
+# 215. NO OFFLINE REVIEW STATE MUTATION
+
+Mandatory.
+
+---
+
+# 216. TEST — ELIGIBLE RECALL
+
+Server says available.
+
+Card visible.
+
+---
+
+# 217. TEST — COOLDOWN
+
+Card reflects cooldown.
+
+No attempt created.
+
+---
+
+# 218. TEST — NO ELIGIBLE ITEM
+
+Correct empty state.
+
+---
+
+# 219. TEST — INSUFFICIENT DATA
+
+Correct.
+
+---
+
+# 220. TEST — OPEN RECALL
+
+Exactly one canonical attempt.
+
+---
+
+# 221. TEST — DOUBLE OPEN
+
+Must not accidentally create two simultaneous attempts.
+
+Reuse server idempotency/current-attempt logic.
+
+---
+
+# 222. TEST — REFRESH DURING ATTEMPT
+
+Same attempt restored where supported.
+
+---
+
+# 223. TEST — CROSS-USER ATTEMPT
+
+Forbidden/not found.
+
+---
+
+# 224. TEST — MCQ CORRECT
+
+Server evaluates.
+
+UI correct.
+
+---
+
+# 225. TEST — MCQ INCORRECT
+
+Server evaluates.
+
+UI correct.
+
+---
+
+# 226. TEST — CLIENT `isCorrect`
+
+Rejected/not sent.
+
+---
+
+# 227. TEST — DOUBLE MCQ SUBMIT
+
+One terminal answer.
+
+---
+
+# 228. TEST — FLASHCARD REVEAL
+
+No correctness mutation.
+
+---
+
+# 229. TEST — FLASHCARD KNOWN
+
+Canonical self-assessment.
+
+---
+
+# 230. TEST — FLASHCARD NEEDS_REVIEW
+
+Canonical self-assessment.
+
+---
+
+# 231. TEST — FLASHCARD NOT LABELLED OBJECTIVE ACCURACY
+
+Mandatory.
+
+---
+
+# 232. TEST — SKIP
+
+Terminal SKIPPED.
+
+No penalty.
+
+---
+
+# 233. TEST — SKIP POINTS
+
+No client reward.
+
+---
+
+# 234. TEST — ANSWER AFTER SKIP
+
+Blocked.
+
+---
+
+# 235. TEST — ANSWER AFTER EXPIRED
+
+Blocked.
+
+---
+
+# 236. TEST — EXPIRED
+
+Neutral UI.
+
+---
+
+# 237. TEST — BACKGROUND WITHIN TTL
+
+Same attempt.
+
+---
+
+# 238. TEST — BACKGROUND BEYOND TTL
+
+Server expiry wins.
+
+---
+
+# 239. TEST — NETWORK FAILURE ANSWER
+
+No fake result.
+
+---
+
+# 240. TEST — IDEMPOTENT RETRY
+
+Exactly one terminal transition.
+
+---
+
+# 241. TEST — CANONICAL RECALL REWARD
+
+If server returns award:
+
+display exact result.
+
+---
+
+# 242. TEST — ZERO REWARD
+
+No failure/shame.
+
+---
+
+# 243. TEST — NO REWARD PREVIEW
+
+Mandatory.
+
+---
+
+# 244. TEST — NO AUTO NEXT ITEM
+
+Mandatory.
+
+---
+
+# 245. TEST — MASTERY DISTRIBUTION
+
+Counts match server.
+
+---
+
+# 246. TEST — ALL SIX STATES
+
+Each renders correctly.
+
+---
+
+# 247. TEST — MASTERY STATE CHANGE
+
+After canonical backend evidence changes:
+
+UI reflects server state.
+
+---
+
+# 248. TEST — NO CLIENT PROMOTION
+
+Changing local interactions without server response cannot alter state.
+
+---
+
+# 249. TEST — RETENTION DUE
+
+Correct.
+
+---
+
+# 250. TEST — RETENTION OVERDUE
+
+Correct.
+
+---
+
+# 251. TEST — RETENTION NOT DUE
+
+Correct.
+
+---
+
+# 252. TEST — RETENTION STALE
+
+Not shown as current.
+
+---
+
+# 253. TEST — RETENTION MISSING
+
+No invented value.
+
+---
+
+# 254. TEST — MASTERED + DUE
+
+Both display correctly if server returns that combination.
+
+---
+
+# 255. TEST — NEEDS_REVIEW
+
+Neutral action-oriented UI.
+
+---
+
+# 256. TEST — DUE REVIEW ORDER
+
+Matches canonical Prompt32 ordering exactly.
+
+---
+
+# 257. TEST — CLIENT DOES NOT RESORT
+
+Mandatory.
+
+---
+
+# 258. TEST — DUE REVIEW PAGINATION
+
+Stable.
+
+---
+
+# 259. TEST — FILTER BY SUBJECT
+
+Correct.
+
+---
+
+# 260. TEST — FILTER BY MASTERY STATE
+
+Correct.
+
+---
+
+# 261. TEST — FILTER BY REVIEW STATE
+
+Correct.
+
+---
+
+# 262. TEST — SEARCH LECTURE
+
+Correct.
+
+---
+
+# 263. TEST — NO N+1
+
+~300 lectures do not produce per-row API calls.
+
+---
+
+# 264. TEST — LECTURE DETAIL MASTERY CARD
+
+Correct private state.
+
+---
+
+# 265. TEST — PUBLIC PROFILE
+
+No Mastery/Retention leakage.
+
+---
+
+# 266. TEST — LEADERBOARD
+
+No Mastery/Retention leakage.
+
+---
+
+# 267. TEST — GROUP FOCUS
+
+No participant Mastery leakage.
+
+---
+
+# 268. TEST — MANUAL COMPLETE
+
+Does not set Mastery.
+
+---
+
+# 269. TEST — POINTS
+
+High Points do not alter frontend Mastery display absent server change.
+
+---
+
+# 270. TEST — FOCUS
+
+Long Focus session does not client-side set Mastery.
+
+---
+
+# 271. TEST — REVIEW NOW
+
+No Calendar event.
+
+---
+
+# 272. TEST — FOCUS ON LECTURE
+
+Only preselects Focus draft if implemented.
+
+Does not auto-start.
+
+---
+
+# 273. TEST — RECALL TARGETING
+
+Client cannot force server to Recall a specific lecture.
+
+---
+
+# 274. TEST — MOBILE RECALL
+
+No overflow.
+
+Primary actions accessible.
+
+---
+
+# 275. TEST — IPAD RECALL
+
+Controlled width.
+
+---
+
+# 276. TEST — DESKTOP RECALL
+
+Polished.
+
+---
+
+# 277. TEST — ARABIC MCQ
+
+RTL correct.
+
+---
+
+# 278. TEST — ARABIC FLASHCARD
+
+RTL correct.
+
+---
+
+# 279. TEST — MIXED MEDICAL TERMS
+
+Bidi rendering correct.
+
+---
+
+# 280. TEST — MOBILE MASTERY
+
+Cards/list usable.
+
+---
+
+# 281. TEST — IPAD MASTERY
+
+Purpose-built layout.
+
+---
+
+# 282. TEST — DESKTOP MASTERY
+
+Polished.
+
+---
+
+# 283. TEST — ARABIC MASTERY
+
+RTL correct.
+
+---
+
+# 284. TEST — LONG LECTURE TITLE
+
+No layout break.
+
+---
+
+# 285. TEST — ACCESSIBILITY MCQ
+
+Keyboard + screen reader.
+
+---
+
+# 286. TEST — ACCESSIBILITY FLASHCARD
+
+Keyboard + screen reader.
+
+---
+
+# 287. TEST — ACCESSIBILITY MASTERY
+
+Filters/list/progress semantics.
+
+---
+
+# 288. TEST — REDUCED MOTION
+
+No meaning lost.
+
+---
+
+# 289. TEST — GLOBAL SWIPE
+
+Recall modal/page and Mastery filters do not break main app navigation.
+
+---
+
+# 290. TEST — FEATURE OFF
+
+Current production app behavior unchanged.
+
+---
+
+# 291. SIDE EFFECT TEST — OPEN RECALL CARD
+
+Expected:
+
+```text id="1r8an0"
+StudyPointsLedgerEntry = 0
+LectureMastery direct frontend write = 0
+LectureRetention direct frontend write = 0
+CalendarEvent = 0
+```
+
+---
+
+# 292. SIDE EFFECT TEST — VIEW MASTERY
+
+Expected:
+
+```text id="z5gkcs"
+StudyEvent = 0
+Points = 0
+CalendarEvent = 0
+```
+
+---
+
+# 293. SIDE EFFECT TEST — SKIP
+
+No client-side:
+
+```text id="smqmbe"
+Mastery downgrade
+Retention penalty
+Points deduction
+```
+
+---
+
+# 294. SIDE EFFECT TEST — FLASHCARD REVEAL
+
+No Points.
+
+No objective-correctness event.
+
+---
+
+# 295. SIDE EFFECT TEST — REVIEW CTA
+
+No canonical study completion merely from navigation.
+
+---
+
+# 296. AI BOUNDARY
+
+Explicitly:
+
+```text id="bgx3ce"
+WORKERS AI CALLS = 0
+GEMINI CALLS = 0
+STUDY INSIGHT CALLS = 0
+ASK-MY-DATA CALLS = 0
+```
+
+---
+
+# 297. CALENDAR BOUNDARY
+
+Explicitly:
+
+```text id="knlfbx"
+Recall creates Calendar event = NO
+Due Review creates Calendar event = NO
+Review Now creates Calendar event = NO
+Mastery creates Calendar event = NO
+Retention creates Calendar event = NO
+```
+
+---
+
+# 298. GAMIFICATION BOUNDARY
+
+Prompt44 UI remains separate.
+
+Prompt45 may display canonical Recall reward result only.
+
+Do not build:
+
+```text id="xef6na"
+Level
+Achievement
+Challenge
+Leaderboard
+```
+
+into Mastery screen.
+
+---
+
+# 299. NO REWARD ANIMATION OVERLOAD
+
+A tiny canonical Points result may use existing standard Points chip.
+
+No confetti.
+
+---
+
+# 300. PERFORMANCE FIXTURE
+
+Test:
+
+```text id="crha7d"
+~300 lectures
+mixed six Mastery states
+100 due/overdue rows
+stale/missing Retention
+Recall card
+one active Recall attempt
+```
+
+---
+
+# 301. PERFORMANCE REPORT
+
+Measure:
+
+```text id="wbr59c"
+Mastery initial request count
+300-row rendering/pagination
+filter changes
+due-review rendering
+Recall open
+MCQ submit
+Flashcard submit
+query invalidation after attempt
+bundle delta
+```
+
+---
+
+# 302. NO REQUEST PER LECTURE
+
+Mandatory.
+
+---
+
+# 303. NO REQUEST PER MASTERY CARD
+
+Mandatory.
+
+---
+
+# 304. NO RECALL ELIGIBILITY SPAM
+
+Report actual cadence/triggers.
+
+---
+
+# 305. E2E MCQ RECALL
+
+Where E2E framework supports:
+
+```text id="b8nvxs"
+eligible card
+→ open Recall
+→ MCQ
+→ select
+→ submit
+→ canonical result
+→ close
+→ eligibility refresh
+```
+
+---
+
+# 306. E2E FLASHCARD RECALL
+
+```text id="oxehot"
+open
+→ reveal
+→ self-assess
+→ terminal result
+```
+
+---
+
+# 307. E2E SKIP
+
+```text id="7lbfc5"
+open
+→ Skip
+→ terminal
+→ no penalty
+```
+
+---
+
+# 308. E2E MASTERY
+
+```text id="qmvqau"
+open dashboard
+→ filter due
+→ open lecture
+→ inspect private Mastery card
+→ Review Now
+```
+
+---
+
+# 309. E2E STALE RETENTION
+
+Stale row visibly non-current.
+
+---
+
+# 310. E2E PRIVACY
+
+Other user cannot access Mastery/Recall state.
+
+---
+
+# 311. PROMPT44 REGRESSION
+
+Gamification frontend unchanged.
+
+---
+
+# 312. PROMPT43 REGRESSION
+
+Group Focus frontend unchanged.
+
+---
+
+# 313. PROMPT42 REGRESSION
+
+Focus summary/history unchanged.
+
+---
+
+# 314. PROMPT41 REGRESSION
+
+Active Focus unchanged.
+
+---
+
+# 315. PROMPT40 REGRESSION
+
+Focus Hub unchanged.
+
+---
+
+# 316. PROMPT39 REGRESSION
+
+Audio unchanged.
+
+---
+
+# 317. PROMPT38 REGRESSION
+
+Ask My Study Data unchanged.
+
+---
+
+# 318. PROMPT37 REGRESSION
+
+AI Study Insights unchanged.
+
+---
+
+# 319. PROMPT36 REGRESSION
+
+Study Analyzer unchanged.
+
+---
+
+# 320. PROMPT35 REGRESSION
+
+Owner privacy unchanged.
+
+---
+
+# 321. PROMPT34 REGRESSION
+
+Owner analytics unchanged.
+
+---
+
+# 322. PROMPT33 REGRESSION
+
+CRITICAL.
+
+Verify:
+
+```text id="cvr9c2"
+private Mastery D1/read model
+canonical fallback
+privacy
+freshness
+```
+
+unchanged.
+
+---
+
+# 323. PROMPT32 REGRESSION
+
+CRITICAL Retention semantics unchanged.
+
+---
+
+# 324. PROMPT31 REGRESSION
+
+CRITICAL Mastery semantics unchanged.
+
+---
+
+# 325. PROMPT30 REGRESSION
+
+CRITICAL Recall cooldown/reward/anti-farming unchanged.
+
+---
+
+# 326. PROMPT29 REGRESSION
+
+CRITICAL candidate-selection semantics unchanged.
+
+---
+
+# 327. PROMPT28 REGRESSION
+
+CRITICAL Recall attempt lifecycle unchanged.
+
+---
+
+# 328. PROMPT27 REGRESSION
+
+Leaderboard cache unchanged.
+
+---
+
+# 329. PROMPT26 REGRESSION
+
+Leaderboard unchanged.
+
+---
+
+# 330. PROMPT25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 331. PROMPT24 REGRESSION
+
+Levels/public profile unchanged.
+
+---
+
+# 332. PROMPT23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 333. PROMPT22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 334. PROMPT19–21 REGRESSION
+
+Points unchanged.
+
+---
+
+# 335. PROMPT17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 336. PROMPT13–16 REGRESSION
+
+Group Focus backend unchanged.
+
+---
+
+# 337. PROMPT9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 338. PROMPT8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 339. CALENDAR REGRESSION
+
+Mandatory:
+
+```text id="x05qwf"
+new Calendar events from Prompt45 = 0
+```
+
+---
+
+# 340. PUBLIC PROFILE REGRESSION
+
+No Mastery/Retention leakage.
+
+---
+
+# 341. LEADERBOARD REGRESSION
+
+No Mastery/Retention leakage.
+
+---
+
+# 342. GROUP FOCUS REGRESSION
+
+No private Mastery leakage.
+
+---
+
+# 343. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text id="g4iszc"
+Recall eligibility card
+Recall flow
+MCQ Recall
+Flashcard Recall
+Recall result
+Mastery dashboard
+Mastery filters
+Due review list
+Retention presentation
+Lecture detail Mastery card
+Review action routing
+query hooks/services
+Prompt45 tests
+```
+
+Expected PASS.
+
+---
+
+# 344. TARGETED LINT
+
+All Prompt45 changed files:
+
+```text id="nr3ovd"
+PASS
+```
+
+---
+
+# 345. APP BUILD
+
+Run:
+
+```text id="iepa0q"
+npm run build
+```
+
+Expected PASS.
+
+---
+
+# 346. PWA BUILD
+
+Verify.
+
+---
+
+# 347. CAPACITOR VALIDATION
+
+Run safe local checks appropriate to environment.
+
+Do not publish.
+
+---
+
+# 348. PRISMA
+
+Expected:
+
+```text id="m04q4t"
+schema unchanged
+migration none
+```
+
+---
+
+# 349. D1 / WORKER
+
+Expected:
+
+```text id="odww39"
+D1 migration = none
+Worker deployment = none
+```
+
+---
+
+# 350. PRODUCTION SAFETY
+
+Do NOT:
+
+- modify production PostgreSQL;
+- modify production Supabase;
+- apply migrations;
+- modify production D1;
+- modify KV;
+- modify R2;
+- change production Recall policies;
+- create production Recall attempts for testing;
+- modify production Mastery;
+- modify production Retention;
+- modify production Points for testing;
+- enable Recall/Mastery frontend in production;
+- deploy frontend;
+- deploy Worker;
+- modify production flags;
+- submit App Store build;
+- modify production env.
+
+---
+
+# 351. EXPECTED FILE AREAS
+
+Likely:
+
+```text id="qpwz0c"
+src/features/recall/
+  RecallLaunchCard.tsx
+  RecallPage.tsx
+  RecallMCQCard.tsx
+  RecallFlashcardCard.tsx
+  RecallResultCard.tsx
+  RecallCooldownState.tsx
+  RecallEmptyState.tsx
+
+  hooks/
+    useRecallEligibility.ts
+    useRecallAttempt.ts
+    useRecallAnswer.ts
+    useRecallSkip.ts
+
+  services/
+  types.ts
+
+src/features/mastery/
+  MasteryPage.tsx
+
+  components/
+    MasteryOverview.tsx
+    MasteryDistribution.tsx
+    MasteryStateBadge.tsx
+    RetentionStateBadge.tsx
+    DueReviewList.tsx
+    DueReviewItem.tsx
+    MasteryLectureList.tsx
+    MasteryFilters.tsx
+    LectureMasteryCard.tsx
+    MasteryDataQualityNotice.tsx
+
+  hooks/
+    useMyMastery.ts
+    useDueReviews.ts
+    useLectureMastery.ts
+
+  services/
+  formatting.ts
+  types.ts
+
+src/features/lectures/
+  minimal Mastery card integration
+
+src/i18n/
+src/routes/
+src/config/featureFlags.*
+
+tests/
+  recall-launch*.test.tsx
+  recall-mcq*.test.tsx
+  recall-flashcard*.test.tsx
+  recall-skip*.test.tsx
+  recall-security*.test.ts
+  mastery-overview*.test.tsx
+  mastery-due-reviews*.test.tsx
+  mastery-privacy*.test.ts
+  mastery-retention*.test.tsx
+  mastery-responsive*.test.tsx
+  recall-mastery-e2e*
+```
+
+Use actual repository conventions.
+
+---
+
+# 352. FILES EXPECTED UNCHANGED
+
+Unless minimal read-only frontend plumbing is necessary:
+
+```text id="lyvqwx"
+prisma/schema.prisma
+prisma/migrations/*
+Prompt28 Recall lifecycle
+Prompt29 candidate selection
+Prompt30 cooldown/reward
+Prompt31 Mastery rules
+Prompt32 Retention rules
+Prompt33 D1/read-model semantics
+Prompt19–27 Gamification/Leaderboard
+Focus
+Group Focus
+Calendar
+Study Analyzer
+AI Study Insights
+Ask My Study Data
+Cloudflare Worker
+```
+
+---
+
+# 353. ACCEPTANCE CRITERIA
+
+Prompt45 succeeds only if:
+
+1. Periodic Recall card exists.
+2. Recall eligibility is server-authoritative.
+3. Cooldown is server-authoritative.
+4. No client candidate weighting exists.
+5. Server selects one item.
+6. Only MCQ/Flashcard Recall supported.
+7. No PDF Recall item.
+8. One launch presents one item.
+9. MCQ selected option is submitted without `isCorrect`.
+10. MCQ correctness comes from server.
+11. Flashcard reveal is not objective correctness.
+12. Flashcard self-assessment uses canonical contract.
+13. Skip works.
+14. Skip has no penalty.
+15. Expiry is neutral.
+16. Terminal attempt cannot be changed.
+17. Double submission is safe.
+18. Hard refresh does not create duplicate attempt.
+19. No auto-next Recall item.
+20. Client does not calculate Recall Points.
+21. Canonical Recall reward may be displayed only after server response.
+22. Mastery dashboard exists.
+23. All six frozen Mastery states render.
+24. No new Mastery state exists.
+25. Mastery remains private.
+26. Retention remains server-authoritative.
+27. Due and overdue reviews render.
+28. Stale Retention is not presented as current.
+29. Missing Retention is not invented.
+30. Canonical review ordering preserved.
+31. Client does not create review-priority score.
+32. Review Now creates no Calendar event.
+33. Focus-on-lecture does not auto-start Focus.
+34. Lecture detail Mastery card exists.
+35. Manual lecture completion remains separate from Mastery.
+36. Points/Level/Leaderboard remain separate from Mastery.
+37. No peer comparison.
+38. No public-profile Mastery leakage.
+39. No Leaderboard Mastery leakage.
+40. No Group Focus Mastery leakage.
+41. No AI calls.
+42. Mobile Recall polished.
+43. iPad Recall polished.
+44. Mobile Mastery polished.
+45. iPad Mastery purpose-built.
+46. Desktop/PWA polished.
+47. Arabic RTL correct.
+48. Accessibility works.
+49. No N+1 lecture reads.
+50. No schema migration expected.
+51. No D1/Worker semantic changes.
+52. Feature flags default off.
+53. Production unchanged.
+54. Build passes.
+55. New regressions = 0.
+
+---
+
+# 354. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Recall / Mastery Architecture
+
+Report exact existing:
+
+```text id="w72hlh"
+RecallAttempt model
+Recall item types
+attempt statuses
+attempt TTL
+MCQ answer contract
+Flashcard self-assessment contract
+Recall eligibility endpoint
+candidate-selection endpoint
+cooldown endpoint/metadata
+Recall Points result contract
+LectureMastery model/read API
+LectureRetention model/read API
+due-review endpoint
+Prompt33 D1/private dashboard adapter
+feature flags
+frontend query/cache system
+```
+
+---
+
+## B. Frontend Architecture
+
+Explain:
+
+```text id="gw21ca"
+canonical Recall eligibility
+→ canonical server-selected item
+→ canonical RecallAttempt
+→ one-item UI
+→ canonical terminal result
+→ query invalidation
+→ canonical Mastery/Retention read models
+→ private Mastery UI
+```
+
+---
+
+## C. Schema / Infrastructure Changes
+
+Explicitly:
+
+```text id="gpjld2"
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+D1 MIGRATION CREATED: YES/NO
+WORKER MODIFIED: YES/NO
+RECALL RULE CHANGED: YES/NO
+MASTERY RULE CHANGED: YES/NO
+RETENTION RULE CHANGED: YES/NO
+```
+
+Expected:
+
+```text id="vzeecz"
+NO
+NO
+NO
+NO
+NO
+NO
+NO
+```
+
+---
+
+## D. Feature Flags
+
+Report exact names/defaults:
+
+```text id="jiwxs9"
+SPACED_RECALL_FRONTEND_ENABLED:
+MASTERY_FRONTEND_ENABLED:
+```
+
+or actual equivalents.
+
+Confirm:
+
+```text id="kwwn4p"
+PRODUCTION VALUES CHANGED: NO
+```
+
+---
+
+## E. Recall Entry Surface
+
+Report:
+
+```text id="5fcvrx"
+where card appears:
+eligibility refresh triggers:
+polling:
+manual refresh:
+```
+
+Explicitly:
+
+```text id="3nmmi9"
+AUTO-OPEN RECALL MODAL: NO
+```
+
+---
+
+## F. Eligibility States
+
+List exact server states handled and UI behavior.
+
+---
+
+## G. Candidate Authority
+
+Explicitly:
+
+```text id="0i8c6k"
+CLIENT SELECTS CANDIDATE: NO
+CLIENT SENDS ARBITRARY itemId TO CREATE RECALL: NO
+SERVER SELECTS CANDIDATE: YES
+```
+
+---
+
+## H. Recall Route / Presentation
+
+Report:
+
+```text id="u5e2rb"
+route/modal:
+hard refresh:
+attempt ID:
+terminal-attempt behavior:
+```
+
+---
+
+## I. Attempt Lifecycle
+
+Report exact handling for:
+
+```text id="fh373q"
+PRESENTED
+ANSWERED
+SKIPPED
+ABANDONED
+EXPIRED
+```
+
+or actual enum names.
+
+---
+
+## J. MCQ Recall
+
+Report:
+
+```text id="6x5pbk"
+question source:
+option source:
+submitted payload:
+correctness source:
+double-submit protection:
+explanation behavior:
+```
+
+Explicitly:
+
+```text id="fcd5hm"
+CLIENT SENDS isCorrect: NO
+```
+
+---
+
+## K. Flashcard Recall
+
+Report:
+
+```text id="2fi7gz"
+front:
+reveal:
+back:
+self-assessment options:
+submitted payload:
+evidence semantics:
+```
+
+Explicitly:
+
+```text id="b5jezf"
+FLIP = CORRECT: NO
+FLASHCARD SELF-ASSESSMENT = OBJECTIVE ACCURACY: NO
+```
+
+---
+
+## L. Skip
+
+Report:
+
+```text id="feiqze"
+action:
+server transition:
+result:
+```
+
+Explicitly:
+
+```text id="3trte0"
+SKIP LOWERS MASTERY CLIENT-SIDE: NO
+SKIP DEDUCTS POINTS: NO
+SKIP COUNTS WRONG: NO
+```
+
+---
+
+## M. Expiry / Background
+
+Report:
+
+```text id="l5vwrp"
+attempt TTL:
+background within TTL:
+background beyond TTL:
+reload:
+offline:
+```
+
+---
+
+## N. Recall Points Boundary
+
+Report:
+
+```text id="8hsfvl"
+canonical reward source:
+when shown:
+zero-reward behavior:
+```
+
+Explicitly:
+
+```text id="xxrmrj"
+CLIENT CALCULATES RECALL POINTS: NO
+EXPECTED REWARD SHOWN BEFORE ANSWER: NO
+FARMING COPY: NO
+```
+
+---
+
+## O. Mastery States
+
+List exactly:
+
+```text id="31si8q"
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+Explicitly:
+
+```text id="o54w8a"
+NEW FRONTEND-ONLY MASTERY STATE CREATED: NO
+```
+
+---
+
+## P. Mastery Authority
+
+Report:
+
+```text id="tlx8oj"
+canonical source:
+read model:
+refresh strategy:
+```
+
+Explicitly:
+
+```text id="d2nx3g"
+CLIENT CALCULATES MASTERY: NO
+```
+
+---
+
+## Q. Retention Authority
+
+Report:
+
+```text id="udnvqq"
+canonical source:
+review states:
+nextReviewAt:
+stale handling:
+missing handling:
+```
+
+Explicitly:
+
+```text id="klwdm4"
+CLIENT CALCULATES RETENTION: NO
+CLIENT SETS OVERDUE AUTHORITATIVELY: NO
+```
+
+---
+
+## R. Due Review Ordering
+
+Report exact server ordering.
+
+Explicitly:
+
+```text id="o49b6h"
+CLIENT RE-RANKS DUE REVIEWS: NO
+```
+
+---
+
+## S. Mastery Dashboard
+
+Report exact sections:
+
+```text id="g7yefp"
+distribution
+due
+overdue
+lecture list
+filters
+data-quality notice
+```
+
+---
+
+## T. Lecture Detail Integration
+
+Report:
+
+```text id="i1htk1"
+Mastery state:
+Retention/review state:
+next-review display:
+Review CTA:
+```
+
+---
+
+## U. Manual Lecture Completion Boundary
+
+Explicitly:
+
+```text id="08gzd9"
+MANUAL LECTURE COMPLETION = MASTERY: NO
+MANUAL COMPLETE MUTATES MASTERY FROM FRONTEND: NO
+MANUAL COMPLETE MUTATES RETENTION FROM FRONTEND: NO
+```
+
+---
+
+## V. Review Actions
+
+Report supported:
+
+```text id="sx3dnv"
+Open Lecture
+MCQ
+Flashcards
+Focus preselection
+Recall
+```
+
+For Recall explicitly state whether targeted lecture Recall exists.
+
+Preferred:
+
+```text id="rdsi68"
+TARGETED CLIENT-CONTROLLED RECALL: NO
+```
+
+---
+
+## W. Focus Integration
+
+Report:
+
+```text id="vxmdbb"
+Focus-on-lecture behavior:
+auto start:
+Calendar writes:
+```
+
+Expected:
+
+```text id="l5mu28"
+auto start = NO
+Calendar writes = 0
+```
+
+---
+
+## X. Privacy
+
+Explicitly:
+
+```text id="lv4b5l"
+MASTERY PUBLIC PROFILE: NO
+RETENTION PUBLIC PROFILE: NO
+MASTERY LEADERBOARD: NO
+RETENTION LEADERBOARD: NO
+MASTERY GROUP FOCUS PARTICIPANTS: NO
+OWNER INDIVIDUAL MASTERY UI ADDED: NO
+```
+
+---
+
+## Y. D1 / PostgreSQL Boundary
+
+Report:
+
+```text id="34ztzh"
+frontend endpoint:
+D1 access path:
+PG fallback:
+freshness:
+```
+
+Explicitly:
+
+```text id="w6a02c"
+BROWSER CALLS D1 DIRECTLY: NO
+```
+
+---
+
+## Z. Offline Behavior
+
+Report:
+
+```text id="9m0qn9"
+new Recall:
+existing attempt:
+Mastery dashboard:
+Retention:
+answer submission:
+```
+
+Explicitly confirm no fabricated canonical state.
+
+---
+
+## AA. Query / Invalidation
+
+Report:
+
+```text id="foa7m1"
+Recall eligibility query:
+candidate/attempt query:
+Mastery summary query:
+due-review query:
+lecture detail query:
+post-attempt invalidations:
+foreground refresh:
+```
+
+---
+
+## AB. Network Performance
+
+Report:
+
+```text id="975xex"
+eligibility cadence:
+per-lecture requests:
+per-row requests:
+N+1:
+300-lecture fixture:
+```
+
+Expected:
+
+```text id="mjz9zh"
+per-lecture requests = 0
+per-row requests = 0
+N+1 = NO
+```
+
+---
+
+## AC. Recall Tests
+
+Report:
+
+- eligible;
+- cooldown;
+- no candidate;
+- insufficient data;
+- double open;
+- reload;
+- cross-user;
+- expiry;
+- background;
+- offline.
+
+---
+
+## AD. MCQ Tests
+
+Report:
+
+- correct;
+- incorrect;
+- no client `isCorrect`;
+- double submit;
+- network failure;
+- retry;
+- result.
+
+---
+
+## AE. Flashcard Tests
+
+Report:
+
+- reveal;
+- KNOWN/current equivalent;
+- NEEDS_REVIEW/current equivalent;
+- no objective-correctness mislabel;
+- double submit;
+- network failure.
+
+---
+
+## AF. Skip Tests
+
+Report:
+
+```text id="knhl22"
+terminal status:
+Points deduction:
+Mastery penalty:
+wrong-answer count:
+```
+
+Expected latter three:
+
+```text id="qlrj0l"
+0 / NO
+```
+
+---
+
+## AG. Recall Reward Tests
+
+Report:
+
+- canonical positive award;
+- canonical zero award;
+- no preview;
+- no client computation;
+- cooldown/anti-farming semantics unchanged.
+
+---
+
+## AH. Mastery Tests
+
+Report:
+
+- all six states;
+- distribution;
+- canonical state update;
+- no client promotion/demotion;
+- no public leakage.
+
+---
+
+## AI. Retention Tests
+
+Report:
+
+- not due;
+- due;
+- overdue;
+- stale;
+- missing;
+- nextReviewAt;
+- MASTERED + DUE coexistence if supported.
+
+---
+
+## AJ. Due Review Tests
+
+Report:
+
+- canonical ordering;
+- pagination;
+- subject filter;
+- Mastery filter;
+- review-state filter;
+- lecture search;
+- no client re-ranking.
+
+---
+
+## AK. Review Action Tests
+
+Report:
+
+- open lecture;
+- MCQ;
+- Flashcards;
+- Focus preselection;
+- no auto-start;
+- no Calendar;
+- no targeted client Recall unless canonical API supports it.
+
+---
+
+## AL. Responsive Layout
+
+Report:
+
+```text id="4yw72d"
+mobile Recall:
+iPad Recall:
+desktop Recall:
+mobile Mastery:
+iPad portrait:
+iPad landscape:
+desktop/PWA:
+```
+
+---
+
+## AM. RTL / Localization
+
+Report:
+
+```text id="l2lkml"
+Arabic MCQ:
+Arabic Flashcard:
+mixed medical terms:
+Mastery labels:
+review labels:
+dates:
+timer/countdown if shown:
+bidi behavior:
+```
+
+---
+
+## AN. Accessibility
+
+Report:
+
+```text id="53cqvu"
+MCQ radio semantics:
+Flashcard reveal:
+result announcement:
+Skip:
+keyboard:
+screen reader:
+touch targets:
+focus management:
+reduced motion:
+```
+
+---
+
+## AO. Side Effects
+
+Report direct Prompt45 UI deltas:
+
+```text id="zqlyv7"
+CalendarEvent:
+FocusSession:
+GroupFocusRoom:
+manual StudyPointsLedgerEntry writes:
+LectureMastery frontend writes:
+LectureRetention frontend writes:
+UserAchievement direct mutation:
+UserGamificationLevel direct mutation:
+Challenge direct mutation:
+Leaderboard direct mutation:
+IntegritySignal:
+```
+
+Expected:
+
+```text id="8npokc"
+0
+```
+
+Canonical Recall endpoints may legitimately create/update:
+
+```text id="ev5lm7"
+RecallAttempt
+Recall item state
+server-derived Mastery/Retention via existing processors
+canonical tiny Recall Points via Prompt30
+```
+
+only according to frozen backend rules.
+
+State those separately.
+
+---
+
+## AP. AI Boundary
+
+Explicitly:
+
+```text id="q9ftk2"
+WORKERS AI CALLS: 0
+GEMINI CALLS: 0
+STUDY INSIGHT CALLS: 0
+ASK-MY-DATA CALLS: 0
+```
+
+---
+
+## AQ. Calendar Boundary
+
+Explicitly:
+
+```text id="b1iway"
+RECALL CREATES CALENDAR EVENT: NO
+DUE REVIEW CREATES CALENDAR EVENT: NO
+REVIEW NOW CREATES CALENDAR EVENT: NO
+MASTERY CREATES CALENDAR EVENT: NO
+RETENTION CREATES CALENDAR EVENT: NO
+```
+
+---
+
+## AR. Gamification Boundary
+
+Explicitly:
+
+```text id="q1i6ei"
+MASTERY DERIVED FROM POINTS: NO
+MASTERY DERIVED FROM LEVEL: NO
+MASTERY DERIVED FROM LEADERBOARD: NO
+RECALL FRONTEND DIRECTLY UNLOCKS ACHIEVEMENT: NO
+```
+
+---
+
+## AS. Regression Results
+
+Include:
+
+- Prompt44 Gamification frontend;
+- Prompt43 Group Focus frontend;
+- Prompt42 Focus summary/history;
+- Prompt41 Active Focus;
+- Prompt40 Focus Hub;
+- Prompt39 Focus Audio;
+- Prompt38 Ask My Study Data;
+- Prompt37 AI Study Insights;
+- Prompt36 Study Analyzer;
+- Prompt35 owner privacy;
+- Prompt34 owner analytics;
+- Prompt33 Mastery/D1;
+- Prompt32 Retention;
+- Prompt31 Mastery;
+- Prompt30 Recall cooldown/reward;
+- Prompt29 Recall candidate;
+- Prompt28 Recall lifecycle;
+- Prompt27 Leaderboard cache;
+- Prompt26 Leaderboard;
+- Prompt25 Challenges;
+- Prompt24 Levels/profile;
+- Prompt23 Achievements;
+- Prompt22 Gamification definitions;
+- Prompt19–21 Points;
+- Prompt17–18 Integrity;
+- Prompt13–16 Group Focus backend;
+- Prompt9–12 Focus;
+- Prompt8 Study Events;
+- Calendar;
+- public profile;
+- Leaderboard privacy;
+- Lecture page;
+- navigation/swipes;
+- Auth;
+- App build;
+- PWA build;
+- targeted lint/typecheck;
+- Capacitor validation if run.
+
+---
+
+## AT. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AU. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text id="kcayud"
+Prisma schema unchanged?
+Prompt28 lifecycle unchanged?
+Prompt29 candidate selection unchanged?
+Prompt30 Recall cooldown/reward unchanged?
+Prompt31 Mastery rules unchanged?
+Prompt32 Retention rules unchanged?
+Prompt33 D1/read-model semantics unchanged?
+Points rules unchanged?
+Gamification unchanged?
+Leaderboard unchanged?
+Focus unchanged?
+Group Focus unchanged?
+Calendar unchanged?
+Study Analyzer unchanged?
+AI Study Insights unchanged?
+Ask My Study Data unchanged?
+Cloudflare Worker unchanged?
+```
+
+---
+
+## AV. Production Safety
+
+Explicitly:
+
+```text id="f1rwcr"
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT45 MIGRATION APPLIED: NO
+PRODUCTION D1 MODIFIED: NO
+PRODUCTION KV MODIFIED: NO
+PRODUCTION R2 MODIFIED: NO
+PRODUCTION RECALL ATTEMPT CREATED FOR TESTING: NO
+PRODUCTION MASTERY MODIFIED FOR TESTING: NO
+PRODUCTION RETENTION MODIFIED FOR TESTING: NO
+PRODUCTION POINTS MODIFIED FOR TESTING: NO
+SPACED_RECALL_FRONTEND_ENABLED IN PRODUCTION: NO
+MASTERY_FRONTEND_ENABLED IN PRODUCTION: NO
+PRODUCTION FRONTEND DEPLOYED: NO
+WORKER DEPLOYED: NO
+APP STORE BUILD SUBMITTED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AW. Git State
+
+Include:
+
+```text id="skrs2m"
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AX. Deviations
+
+If none:
+
+```text id="85jd7y"
+NONE
+```
+
+---
+
+## AY. Risks / Blockers
+
+Only actual unresolved Prompt45 Recall/Mastery frontend/API/privacy issues.
+
+Do not list Prompt46 Study Analyzer UI or later roadmap items as blockers.
+
+---
+
+## AZ. Architecture Compliance
+
+Answer YES/NO:
+
+- Recall eligibility server-authoritative?
+- Server selects Recall candidate?
+- No client candidate weighting?
+- No arbitrary itemId candidate creation?
+- One Recall launch = one item?
+- Only MCQ/Flashcard Recall?
+- No PDF Recall?
+- RecallAttempt lifecycle preserved?
+- Hard reload avoids duplicate attempt?
+- MCQ correctness server-authoritative?
+- Client does not send `isCorrect`?
+- Flashcard reveal not treated as correctness?
+- Flashcard self-assessment preserved?
+- Skip neutral?
+- Expiry neutral?
+- No answer after terminal state?
+- Double submit protected?
+- No auto-next Recall?
+- Client does not calculate Recall Points?
+- Canonical reward displayed only after response?
+- Cooldown remains server-authoritative?
+- Anti-farming rules unchanged?
+- Six frozen Mastery states only?
+- Client does not calculate Mastery?
+- Client does not calculate Retention?
+- Stale Retention not presented as current?
+- Missing Retention not invented?
+- Due reviews use canonical order?
+- Client does not create priority score?
+- Review Now creates no Calendar event?
+- Focus preselection does not auto-start Focus?
+- Manual lecture completion remains separate from Mastery?
+- Points remain separate from Mastery?
+- Level remains separate from Mastery?
+- Leaderboard remains separate from Mastery?
+- Mastery remains private?
+- No public-profile Mastery?
+- No Leaderboard Mastery leak?
+- No Group Focus Mastery leak?
+- Browser does not call D1 directly?
+- No AI calls?
+- No Quick Notes read?
+- No raw Study Analyzer dependency?
+- No N+1?
+- Mobile Recall polished?
+- iPad Recall polished?
+- Mobile Mastery polished?
+- iPad purpose-built?
+- Desktop polished?
+- Arabic RTL correct?
+- Accessibility covered?
+- No new Recall rules?
+- No new Mastery rules?
+- No new Retention rules?
+- No schema migration?
+- Feature flags default off?
+- Calendar writes = 0?
+- Production unchanged?
+- App build passes?
+- New regressions = 0?
+
+---
+
+## BA. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 46 — Study Analyzer Frontend: Private Learning Dashboard, Deterministic Trends, Weakness/Positive Signals, Study Patterns & Grounded AI Study Insights**
+
+Do not implement Prompt 46.
+
+---
+
+# 355. STOP CONDITION
+
+After implementation, testing, and the mandatory report:
+
+STOP.
+
+Do NOT implement Study Analyzer UI.
+
+Do NOT implement Owner Analytics UI.
+
+Do NOT change Recall eligibility/weighting.
+
+Do NOT change cooldown/anti-farming.
+
+Do NOT change Recall Points rules.
+
+Do NOT change Mastery rules.
+
+Do NOT change Retention decay/review timing.
+
+Do NOT create Calendar events.
+
+Do NOT expose Mastery/Retention publicly.
+
+Do NOT let client target arbitrary Recall items.
+
+Do NOT add AI into Recall/Mastery authority.
+
+Do NOT deploy.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 45 COMPLETE — SPACED RECALL FLOW, PRIVATE LECTURE MASTERY, RETENTION & DUE-REVIEW FRONTEND READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
