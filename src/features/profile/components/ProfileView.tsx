@@ -14,6 +14,7 @@ import InteractiveAvatar from "./InteractiveAvatar";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
+import { GAMIFICATION_FRONTEND_ENABLED } from "../../../config/featureFlags";
 import {
  Award,
  LogOut,
@@ -30,6 +31,8 @@ import {
   Flag,
   Settings,
 } from "lucide-react";
+
+const LazyGamificationFrontend = React.lazy(() => import("../../gamification"));
 
 interface ProfileViewProps {
   isActive?: boolean;
@@ -197,9 +200,9 @@ export const ProfileView = function ProfileView({
  // the native-stack invariant that removes the post-Back vertical jump: the
  // page revealed during the swipe is literally the same already-painted page
  // that remains after the swipe completes.
- const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
+ const [subView, setSubView] = useState<"blocked-users" | "my-reports" | "gamification" | null>(null);
 
- const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
+ const openProfileSubView = useCallback((next: "blocked-users" | "my-reports" | "gamification") => {
    onSubViewChange?.(true);
    setSubView(next);
  }, [onSubViewChange]);
@@ -606,6 +609,17 @@ export const ProfileView = function ProfileView({
             }
             isRtl={isRtl}
           />
+          {GAMIFICATION_FRONTEND_ENABLED && (
+            <SettingsItem
+              Icon={Award}
+              iconBg="bg-emerald-600"
+              title={tr("Study Points & achievements", "نقاط الدراسة والإنجازات")}
+              subtitle={tr("Private progress, challenges, and leaderboard", "تقدمك الخاص وتحدياتك ولوحة النقاط")}
+              showChevron
+              onClick={() => openProfileSubView("gamification")}
+              isRtl={isRtl}
+            />
+          )}
  </SettingsGroup>
 
         {/* Privacy & Safety */}
@@ -701,8 +715,18 @@ export const ProfileView = function ProfileView({
        >
          {subView === "blocked-users" ? (
            <BlockedUsersView onBack={profileBackGesture.triggerBack} language={language} />
-         ) : (
+         ) : subView === "my-reports" ? (
            <MyReportsView onBack={profileBackGesture.triggerBack} language={language} />
+         ) : (
+           <React.Suspense
+             fallback={
+               <div className="min-h-[60vh] flex items-center justify-center text-sm text-neutral-500" role="status" aria-busy="true">
+                 {tr("Loading study engagement...", "جارٍ تحميل التفاعل الدراسي...")}
+               </div>
+             }
+           >
+             <LazyGamificationFrontend language={language} onBack={profileBackGesture.triggerBack} />
+           </React.Suspense>
          )}
        </motion.div>,
        document.body,
