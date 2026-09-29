@@ -39,3 +39,4 @@ Thumbs.db
 
 # Local-only maintenance reports and checkpoints
 /reports/study-maintenance/
+.local/observability-reports/

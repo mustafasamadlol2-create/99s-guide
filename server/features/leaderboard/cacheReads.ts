@@ -1,3 +1,5 @@
+import { recordOperationalOutcome } from "../../observability/metrics.js";
+
 import type { LeaderboardSeason, LeaderboardSnapshot, PrismaClient } from "@prisma/client";
 import { logger } from "../../services/logger.js";
 import { getPrisma } from "../../services/prismaClient.js";
@@ -333,6 +335,11 @@ function cacheIsEnabled(): boolean {
 }
 
 function warnFallback(): void {
+  recordOperationalOutcome({
+    feature: "leaderboard_d1",
+    operation: "fallback",
+    result: "fallback",
+  });
   logger.warn(
     "[LeaderboardD1]",
     "Cache read unavailable or inconsistent; serving canonical PostgreSQL data.",

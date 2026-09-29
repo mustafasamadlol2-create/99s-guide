@@ -16,7 +16,10 @@ import React, {
 import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
 import { IOS_CONSOLE_SMOOTH_MOTION } from "../../../core/motion/swipeMotion";
-import { OWNER_ANALYTICS_FRONTEND_ENABLED } from "../../../config/featureFlags";
+import {
+  OWNER_ANALYTICS_FRONTEND_ENABLED,
+  SYSTEM_HEALTH_FRONTEND_ENABLED,
+} from "../../../config/featureFlags";
 import {
   User,
   UserProgress,
@@ -43,6 +46,7 @@ import {
   ClipboardList,
   BookOpen,
   BarChart3,
+  Activity,
 } from "lucide-react";
 
 // ── Sidebar nav button (md+ vertical list) ──────────────────────────────────
@@ -158,6 +162,7 @@ const loadMutedUsersView = () => import("../../moderation/components/MutedUsersV
 const loadBannedUsersView = () => import("../../moderation/components/BannedUsersView");
 const loadModerationHistoryView = () => import("../../moderation/components/ModerationHistoryView");
 const loadOwnerAnalyticsDashboard = () => import("../../owner-analytics/components/OwnerAnalyticsDashboard");
+const loadSystemHealthDashboard = () => import("../../system-health/components/SystemHealthDashboard");
 
 const UploadMaterial = lazy(loadUploadMaterial);
 const UploadModuleResource = lazy(loadUploadModuleResource);
@@ -172,6 +177,7 @@ const MutedUsersView = lazy(loadMutedUsersView);
 const BannedUsersView = lazy(loadBannedUsersView);
 const ModerationHistoryView = lazy(loadModerationHistoryView);
 const OwnerAnalyticsDashboard = lazy(loadOwnerAnalyticsDashboard);
+const SystemHealthDashboard = lazy(loadSystemHealthDashboard);
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -215,7 +221,8 @@ type SubTab =
   | "muted-users"
   | "banned-users"
   | "moderation-history"
-  | "owner-analytics";
+  | "owner-analytics"
+  | "system-health";
 
 const ControlCenterView = function ControlCenterView({
   currentUser,
@@ -283,6 +290,9 @@ const ControlCenterView = function ControlCenterView({
       loadModerationHistoryView(),
       currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
         ? loadOwnerAnalyticsDashboard()
+        : Promise.resolve(),
+      currentUser.role === "owner" && SYSTEM_HEALTH_FRONTEND_ENABLED
+        ? loadSystemHealthDashboard()
         : Promise.resolve(),
     ]);
   }, [currentUser.role, isPhone]);
@@ -465,6 +475,15 @@ const ControlCenterView = function ControlCenterView({
 
     // Owner-only items
     ...(isOwner ? ([
+      ...(SYSTEM_HEALTH_FRONTEND_ENABLED ? ([{
+        id: "system-health" as SubTab,
+        sidebarLabel: isRtl ? "صحة النظام" : "System Health",
+        pillLabel: isRtl ? "الصحة" : "Health",
+        Icon: Activity,
+        iconColorClass: "text-emerald-600 dark:text-emerald-300",
+        sidebarCategory: "System Operations",
+        sidebarCategoryAr: "عمليات النظام",
+      }] as NavItem[]) : []),
       ...(OWNER_ANALYTICS_FRONTEND_ENABLED ? ([{
         id: "owner-analytics" as SubTab,
         sidebarLabel:   isRtl ? "تحليلات المالك" : "Owner Analytics",
@@ -870,6 +889,10 @@ const ControlCenterView = function ControlCenterView({
       case "owner-analytics":
         return currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
           ? <div className={panelClassName}><OwnerAnalyticsDashboard language={language} subjects={subjects} /></div>
+          : null;
+      case "system-health":
+        return currentUser.role === "owner" && SYSTEM_HEALTH_FRONTEND_ENABLED
+          ? <div className={panelClassName}><SystemHealthDashboard language={language} /></div>
           : null;
       default:
         return null;

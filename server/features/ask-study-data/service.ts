@@ -31,6 +31,7 @@ import {
   createAskStudyDataWorkerCall,
   type AskStudyDataWorkerCall,
 } from "./workerClient.js";
+import { recordOperationalOutcome } from "../../observability/metrics.js";
 
 const SUPPORTED_EXAMPLES: Record<AskStudyDataLocale, string[]> = {
   en: [
@@ -46,6 +47,11 @@ const SUPPORTED_EXAMPLES: Record<AskStudyDataLocale, string[]> = {
 };
 
 function unsupported(locale: AskStudyDataLocale, reason: string): AskMyStudyDataResponse {
+  recordOperationalOutcome({
+    feature: "ask_study_data",
+    operation: "request",
+    result: "unsupported",
+  });
   return {
     status: "UNSUPPORTED",
     reason,
@@ -56,6 +62,11 @@ function unsupported(locale: AskStudyDataLocale, reason: string): AskMyStudyData
 }
 
 function safetyResponse(locale: AskStudyDataLocale, reason: string): AskMyStudyDataResponse {
+  recordOperationalOutcome({
+    feature: "ask_study_data",
+    operation: "request",
+    result: "unsupported",
+  });
   if (reason === "CROSS_USER_DATA") {
     return {
       status: "UNSUPPORTED",
@@ -147,6 +158,16 @@ function resultFromAnswer(input: {
   facts: AskStudyDataFactSetV1;
   answer: ReturnType<typeof buildAskStudyDataDeterministicAnswer>;
 }): AskMyStudyDataResponse {
+  const result = input.source === "AI"
+    ? "success"
+    : input.source === "DETERMINISTIC_FALLBACK"
+      ? "fallback"
+      : hasData(input.facts) ? "success" : "insufficient_data";
+  recordOperationalOutcome({
+    feature: "ask_study_data",
+    operation: input.source === "AI" ? "provider" : "request",
+    result,
+  });
   return {
     status: "ANSWERED",
     source: input.source,

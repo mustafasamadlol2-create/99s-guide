@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { reportSystemClientError } from "../features/system-health/clientTelemetry";
 
 interface Props {
   children?: ReactNode;
@@ -25,8 +26,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    void errorInfo;
+    reportSystemClientError("CLIENT_RENDER_ERROR");
     if (isDevelopment) {
-      console.error("[UI ErrorBoundary]", error, errorInfo.componentStack);
+      // Error messages and component stacks can contain private view data.
+      console.error("[UI ErrorBoundary] render failure", error.name);
     } else {
       // Keep production diagnostics intentionally minimal. Do not print raw
       // exception text, paths, or component data that may contain user input.

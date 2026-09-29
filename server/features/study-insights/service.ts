@@ -8,6 +8,7 @@ import {
 } from "../../../shared/studyInsights.js";
 import { DEFAULT_CLOUDFLARE_MODEL } from "../../services/ai/config.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
+import { recordOperationalOutcome } from "../../observability/metrics.js";
 import { readStudyAnalyzer } from "../study-analyzer/service.js";
 import type { StudyAnalyzerDto } from "../study-analyzer/types.js";
 import { buildDeterministicStudyInsightFallback } from "./deterministicFallback.js";
@@ -67,6 +68,11 @@ export function createStudyInsightService(options: {
     const groundingFingerprint = await fingerprintStudyInsightGrounding(grounding);
 
     if (!hasStudyInsightData(grounding)) {
+      recordOperationalOutcome({
+        feature: "ai_insights",
+        operation: "provider",
+        result: "insufficient_data",
+      });
       return buildDeterministicStudyInsightFallback(
         grounding,
         groundingFingerprint,
@@ -99,6 +105,16 @@ export function createStudyInsightService(options: {
         });
         const parsedEntry = studyInsightCacheEntrySchema.safeParse(result.entry);
         if (!parsedEntry.success) {
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "provider",
+            result: "validation_failure",
+          });
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "request",
+            result: "fallback",
+          });
           return buildDeterministicStudyInsightFallback(
             grounding,
             groundingFingerprint,
@@ -113,6 +129,16 @@ export function createStudyInsightService(options: {
             entry.groundingFingerprint !== groundingFingerprint ||
             entry.locale !== locale ||
             entry.model !== model) {
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "provider",
+            result: "validation_failure",
+          });
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "request",
+            result: "fallback",
+          });
           return buildDeterministicStudyInsightFallback(
             grounding,
             groundingFingerprint,
@@ -122,6 +148,16 @@ export function createStudyInsightService(options: {
         }
         const output = validateStudyInsightOutput(entry.output, grounding, locale);
         if (!output) {
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "provider",
+            result: "validation_failure",
+          });
+          recordOperationalOutcome({
+            feature: "ai_insights",
+            operation: "request",
+            result: "fallback",
+          });
           return buildDeterministicStudyInsightFallback(
             grounding,
             groundingFingerprint,
@@ -133,6 +169,16 @@ export function createStudyInsightService(options: {
           ...output,
           dataLimitations: deterministicDataLimitations(grounding, locale),
         };
+        recordOperationalOutcome({
+          feature: "ai_insights",
+          operation: "provider",
+          result: "success",
+        });
+        recordOperationalOutcome({
+          feature: "ai_insights",
+          operation: "provider",
+          result: result.cacheHit ? "cache_hit" : "cache_miss",
+        });
         return {
           status: "READY",
           source: "AI",
@@ -145,6 +191,16 @@ export function createStudyInsightService(options: {
           generatedAt: entry.generatedAt,
         };
       } catch {
+        recordOperationalOutcome({
+          feature: "ai_insights",
+          operation: "provider",
+          result: "unavailable",
+        });
+        recordOperationalOutcome({
+          feature: "ai_insights",
+          operation: "request",
+          result: "fallback",
+        });
         return buildDeterministicStudyInsightFallback(
           grounding,
           groundingFingerprint,

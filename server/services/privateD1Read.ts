@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { recordOperationalOutcome } from "../observability/metrics.js";
 import {
   parseFocusPlanItems,
   type FocusPlanProjection,
@@ -77,10 +78,21 @@ export async function fetchPrivateReadJson<T>(
 }
 
 export function logPrivateReadFallback(scope: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
+  const failureCode = error instanceof PrivateD1ProjectionReadError
+    ? error.code.toUpperCase().replace(/[^A-Z0-9_]/gu, "_")
+    : "WORKER_UNAVAILABLE";
+  recordOperationalOutcome({
+    feature: "private_d1",
+    operation: "fallback",
+    result: "fallback",
+  });
   logger.warn(
     "[PrivateD1Read]",
-    `${scope} failed; falling back to Supabase: ${message.slice(0, 180)}`,
+    `${scope} failed; falling back to PostgreSQL`,
+    {
+      errorCode: "STUDY_D1_PROJECTION_STALE",
+      details: { failureCode },
+    },
   );
 }
 

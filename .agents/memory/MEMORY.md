@@ -18,3 +18,4 @@
 - [Capacitor sync version pin](capacitor-sync-version-pin.md) — iOS sync may refresh the Swift package pin; review and revert unrelated native changes after web-only checks.
 - [Guide/source reconciliation](guide-source-reconciliation.md) — treat attached snapshots as constraints, then verify current interfaces and surrounding code before edits.
 - [Recall eligibility parity](recall-eligibility-parity.md) — keep eligibility read-only and aligned with issuance gates; never expose candidate or attempt IDs.
+- [Preview API probes](preview-api-probes.md) — shell requests to the dev domain may return a proxy placeholder; confirm disputed routes through app preview before blaming the app.

@@ -14,6 +14,7 @@
  */
 
 import { logger } from "./logger.js";
+import { recordOperationalOutcome } from "../observability/metrics.js";
 
 const SLOW_QUERY_MS = 500;
 const VERY_SLOW_QUERY_MS = 2_000;
@@ -42,6 +43,7 @@ export const dbMonitor = {
 
   /** Log a Prisma/database error that was caught at the route level */
   logQueryError(err: unknown, context: string, userId?: string | null) {
+    void userId;
     const message =
       err instanceof Error ? err.message.substring(0, 120) : "Unknown DB error";
 
@@ -50,29 +52,38 @@ export const dbMonitor = {
       message.toLowerCase().includes("connection") ||
       message.toLowerCase().includes("econnrefused") ||
       message.toLowerCase().includes("timeout");
+    const errorCode = isConnectionError ? "DB_CONNECTION_ERROR" : "DB_QUERY_ERROR";
+    recordOperationalOutcome({
+      feature: "database",
+      operation: "request",
+      result: "failure",
+      errorCode,
+    });
 
     if (isConnectionError) {
       logger.critical("DATABASE", `Database connection error in ${context}`, {
-        userId: userId ?? null,
-        errorCode: "DB_CONNECTION_ERROR",
-        details: { context, sanitizedMessage: message },
+        errorCode,
+        details: { context, errorClass: "CONNECTION_FAILURE" },
       });
     } else {
       logger.error("DATABASE", `Database error in ${context}`, {
-        userId: userId ?? null,
-        errorCode: "DB_QUERY_ERROR",
-        details: { context, sanitizedMessage: message },
+        errorCode,
+        details: { context, errorClass: "QUERY_FAILURE" },
       });
     }
   },
 
   /** Log failed Supabase/Prisma health check */
   logHealthCheckFailed(err: unknown) {
-    const message =
-      err instanceof Error ? err.message.substring(0, 120) : "Unknown error";
+    recordOperationalOutcome({
+      feature: "database",
+      operation: "request",
+      result: "failure",
+      errorCode: "DB_CONNECTION_ERROR",
+    });
     logger.critical("DATABASE", "Database health check failed", {
       errorCode: "DB_HEALTH_CHECK_FAILED",
-      details: { sanitizedMessage: message },
+      details: { errorClass: "HEALTH_QUERY_FAILURE" },
     });
   },
 };

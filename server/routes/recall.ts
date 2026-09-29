@@ -1,3 +1,5 @@
+import { recordOperationalOutcome } from "../observability/metrics.js";
+
 import express, { type RequestHandler } from "express";
 import {
   createRecallAttemptService,
@@ -98,6 +100,11 @@ async function findPeriodicEligibilityBlock(
     },
   });
   if (dayCount >= RECALL_DAILY_ISSUANCE_CAP) {
+    recordOperationalOutcome({
+      feature: "recall",
+      operation: "request",
+      result: "cooldown",
+    });
     return { status: "DAILY_LIMIT_REACHED", nextEligibleAt: day.end };
   }
 
@@ -111,6 +118,11 @@ async function findPeriodicEligibilityBlock(
     },
   });
   if (weekCount >= RECALL_WEEKLY_ISSUANCE_CAP) {
+    recordOperationalOutcome({
+      feature: "recall",
+      operation: "request",
+      result: "cooldown",
+    });
     return { status: "WEEKLY_LIMIT_REACHED", nextEligibleAt: week.endsAt };
   }
 

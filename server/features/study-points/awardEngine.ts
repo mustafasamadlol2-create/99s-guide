@@ -1,3 +1,4 @@
+import { recordOperationalOutcome } from "../../observability/metrics.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import type { StudyEventSource } from "../study-core/events.js";
@@ -46,6 +47,13 @@ import type { StudyPointsLedgerEntryRecord } from "./types.js";
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
 
 function noAward(reason: StudyPointsNoAwardReason): StudyPointsAwardAttempt {
+  if (reason === "CAP_REACHED") {
+    recordOperationalOutcome({
+      feature: "study_points",
+      operation: "request",
+      result: "cap_limited",
+    });
+  }
   return {
     decision: { outcome: "NO_AWARD", reason },
     replayed: false,

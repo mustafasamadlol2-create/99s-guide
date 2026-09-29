@@ -15,9 +15,19 @@ import "./index.css";
 import { HapticFeedback } from "./core/device/haptic";
 import { isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
 import { FOCUS_AUDIO_ENABLED } from "./config/featureFlags";
+import { reportSystemClientError } from "./features/system-health/clientTelemetry";
 
 // Note: dark/light class and pre-paint background are applied by the inline
 // script in index.html before any JS loads — no duplicate needed here.
+
+if (typeof window !== "undefined") {
+  window.addEventListener("error", () => {
+    reportSystemClientError("CLIENT_RUNTIME_ERROR");
+  });
+  window.addEventListener("unhandledrejection", () => {
+    reportSystemClientError("CLIENT_RUNTIME_ERROR");
+  });
+}
 
 // Polyfill localStorage for restrictive iframe security contexts.
 try {

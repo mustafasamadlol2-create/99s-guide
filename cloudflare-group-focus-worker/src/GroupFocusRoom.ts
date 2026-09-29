@@ -594,8 +594,7 @@ export class GroupFocusRoom {
         runtime.reconciliationError = "ROOM_CONFIGURATION_MISMATCH";
         await this.persistRuntimeState(state, runtime);
         console.error("[GroupFocusRuntime] Canonical room configuration mismatch.", {
-          roomId: state.roomId,
-          runtimeInstanceId: runtime.runtimeInstanceId,
+          errorCode: "ROOM_CONFIGURATION_MISMATCH",
         });
         return { state, runtime, ok: false };
       }
@@ -670,11 +669,7 @@ export class GroupFocusRoom {
         ? "CANONICAL_RECONCILIATION_REQUIRED"
         : runtime.reconciliationError;
       console.error("[GroupFocusRuntime] Canonical reconciliation failed.", {
-        roomId: state.roomId,
-        runtimeInstanceId: runtime.runtimeInstanceId,
-        failureCount: runtime.canonicalSyncFailureCount,
-        staleMilliseconds: now - runtime.lastCanonicalSyncAt,
-        error: error instanceof Error ? error.message : "UNKNOWN",
+        errorCode: "CANONICAL_RECONCILIATION_FAILED",
       });
       await this.persistRuntimeState(state, runtime);
       return { state, runtime, ok: false };
@@ -869,14 +864,12 @@ export class GroupFocusRoom {
           pending.retentionUntil = now + GROUP_FOCUS_SUMMARY_ACK_RETENTION_SECONDS * 1000;
         }
       }
-    } catch (error) {
+    } catch {
       pending.attempts += 1;
       pending.nextAttemptAt = now + nextRetryDelay(pending.attempts - 1);
       console.error("[GroupFocusRuntime] Terminal summary delivery failed.", {
-        roomId: runtime.roomId,
-        summaryId: runtime.summaryId,
-        attempts: pending.attempts,
-        error: error instanceof Error ? error.message : "UNKNOWN",
+        errorCode: "TERMINAL_SUMMARY_DELIVERY_FAILED",
+        attemptsBucket: pending.attempts >= 5 ? "5_PLUS" : String(pending.attempts),
       });
     }
     await this.persistRuntimeState(state, runtime);

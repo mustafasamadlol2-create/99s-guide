@@ -6,6 +6,10 @@
  * Never logs passwords, tokens, or raw secrets.
  */
 
+import { redactLogValue, redactText } from "../observability/redaction.js";
+import { OPERATIONAL_ERROR_CODES, type OperationalErrorCode } from "../observability/types.js";
+import { recordOperationalOutcome } from "../observability/metrics.js";
+
 export type LogLevel = "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
 export interface LogEntry {
@@ -72,6 +76,46 @@ const LEVEL_WEIGHT: Record<LogLevel, number> = {
 // ── Core emit function ────────────────────────────────────────────────────────
 function emit(entry: LogEntry) {
   pushToBuffer(entry);
+  if (entry.level === "ERROR" || entry.level === "CRITICAL") {
+    try {
+      const code = entry.errorCode as OperationalErrorCode | null | undefined;
+      if (
+        code
+        && OPERATIONAL_ERROR_CODES.includes(code)
+        && !["HTTP_5XX", "DB_CONNECTION_ERROR", "DB_QUERY_ERROR"].includes(code)
+      ) {
+        const feature = code === "STUDY_POINTS_LEDGER_INVARIANT"
+          ? "study_points"
+          : code === "STUDY_RECALL_ANSWER_FAILED"
+            ? "recall"
+            : code === "STUDY_MASTERY_REBUILD_FAILED"
+              ? "mastery"
+              : code === "STUDY_AI_PROVIDER_UNAVAILABLE"
+                ? "ai_insights"
+                : code === "STUDY_GROUP_RUNTIME_UNAVAILABLE"
+                  ? "group_focus"
+                  : code === "STUDY_OUTBOX_DELIVERY_FAILED" || code === "STUDY_D1_PROJECTION_STALE"
+                    ? entry.category.toLowerCase().includes("leaderboard")
+                      ? "leaderboard_d1"
+                      : "private_d1"
+                    : null;
+        if (feature) {
+          recordOperationalOutcome({
+            feature,
+            operation: feature === "ai_insights"
+              ? "provider"
+              : feature === "private_d1" || feature === "leaderboard_d1"
+                ? "deliver"
+                : feature === "mastery" ? "recompute" : "request",
+            result: "failure",
+            errorCode: code,
+          });
+        }
+      }
+    } catch {
+      // Logging metrics are best-effort and must not affect application work.
+    }
+  }
 
   const weight = LEVEL_WEIGHT[entry.level];
 
@@ -96,19 +140,22 @@ function buildEntry(
   message: string,
   meta: Partial<Omit<LogEntry, "timestamp" | "level" | "category" | "message">> = {}
 ): LogEntry {
+  const safeDetails = redactLogValue(meta.details ?? null) as Record<string, unknown> | null;
   return {
     timestamp: new Date().toISOString(),
     level,
-    category,
-    message,
-    userId: meta.userId ?? null,
-    endpoint: meta.endpoint ?? null,
+    category: redactText(category),
+    message: redactText(message),
+    // Request identity and network address are not needed for operational
+    // aggregates and must not be retained in the log buffer.
+    userId: null,
+    endpoint: meta.endpoint ? redactText(meta.endpoint) : null,
     method: meta.method ?? null,
     statusCode: meta.statusCode ?? null,
     durationMs: meta.durationMs ?? null,
-    ip: meta.ip ?? null,
-    errorCode: meta.errorCode ?? null,
-    details: meta.details ?? null,
+    ip: null,
+    errorCode: meta.errorCode ? redactText(meta.errorCode) : null,
+    details: safeDetails,
   };
 }
 

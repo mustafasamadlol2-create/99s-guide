@@ -59,6 +59,13 @@ export const STUDY_INSIGHTS_FRONTEND_ENABLED =
 export const OWNER_ANALYTICS_FRONTEND_ENABLED =
   buildFlags.DEV === true && buildFlags.VITE_OWNER_ANALYTICS_FRONTEND_ENABLED === "true";
 
+/**
+ * The operational health dashboard is owner-only and opt-in in development.
+ * It remains hidden from production builds until a separate release decision.
+ */
+export const SYSTEM_HEALTH_FRONTEND_ENABLED =
+  buildFlags.DEV === true && buildFlags.VITE_SYSTEM_HEALTH_FRONTEND_ENABLED === "true";
+
 export const GROUP_FOCUS_WORKER_URL =
   typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
     ? buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim()

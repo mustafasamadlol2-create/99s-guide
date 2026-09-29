@@ -220,8 +220,17 @@ export async function readOutboxStatus(database: PrismaClient): Promise<Array<{
   poison: number;
   succeeded: number;
   oldestUpdatedAt: string | null;
+  oldestPendingAt: string | null;
+  highAttempts: number;
   maxAttempts: number;
 }>> {
+  const configuredThreshold = Number.parseInt(
+    process.env.STUDY_OUTBOX_HIGH_ATTEMPT_THRESHOLD ?? "6",
+    10,
+  );
+  const highAttemptThreshold = Number.isInteger(configuredThreshold)
+    ? Math.max(1, Math.min(8, configuredThreshold))
+    : 6;
   const rows = await database.$queryRaw<Array<{
     kind: OutboxKind;
     pending: bigint;
@@ -231,6 +240,8 @@ export async function readOutboxStatus(database: PrismaClient): Promise<Array<{
     poison: bigint;
     succeeded: bigint;
     oldestUpdatedAt: Date | null;
+    oldestPendingAt: Date | null;
+    highAttempts: bigint;
     maxAttempts: number | null;
   }>>(Prisma.sql`
     SELECT 'private'::text AS kind,
@@ -245,6 +256,11 @@ export async function readOutboxStatus(database: PrismaClient): Promise<Array<{
       COUNT(*) FILTER (WHERE "state" = 'POISON')::bigint AS poison,
       COUNT(*) FILTER (WHERE "state" = 'SUCCEEDED')::bigint AS succeeded,
       MIN("updatedAt") FILTER (WHERE "state" IN ('PENDING', 'RETRY')) AS "oldestUpdatedAt",
+      MIN(COALESCE("firstAttemptAt", "updatedAt"))
+        FILTER (WHERE "state" IN ('PENDING', 'RETRY')) AS "oldestPendingAt",
+      COUNT(*) FILTER (
+        WHERE "state" IN ('PENDING', 'RETRY') AND "attempts" >= ${highAttemptThreshold}
+      )::bigint AS "highAttempts",
       COALESCE(MAX("attempts"), 0)::int AS "maxAttempts"
     FROM "PrivateD1SyncOutbox"
     UNION ALL
@@ -260,6 +276,11 @@ export async function readOutboxStatus(database: PrismaClient): Promise<Array<{
       COUNT(*) FILTER (WHERE "state" = 'POISON')::bigint AS poison,
       COUNT(*) FILTER (WHERE "state" = 'SUCCEEDED')::bigint AS succeeded,
       MIN("updatedAt") FILTER (WHERE "state" IN ('PENDING', 'RETRY')) AS "oldestUpdatedAt",
+      MIN(COALESCE("firstAttemptAt", "createdAt"))
+        FILTER (WHERE "state" IN ('PENDING', 'RETRY')) AS "oldestPendingAt",
+      COUNT(*) FILTER (
+        WHERE "state" IN ('PENDING', 'RETRY') AND "attempts" >= ${highAttemptThreshold}
+      )::bigint AS "highAttempts",
       COALESCE(MAX("attempts"), 0)::int AS "maxAttempts"
     FROM "LeaderboardD1SyncOutbox"
   `);
@@ -272,6 +293,8 @@ export async function readOutboxStatus(database: PrismaClient): Promise<Array<{
     poison: Number(row.poison),
     succeeded: Number(row.succeeded),
     oldestUpdatedAt: row.oldestUpdatedAt?.toISOString() ?? null,
+    oldestPendingAt: row.oldestPendingAt?.toISOString() ?? null,
+    highAttempts: Number(row.highAttempts),
     maxAttempts: row.maxAttempts,
   }));
 }

@@ -8,6 +8,7 @@
 
 import express from "express";
 import { logger } from "../services/logger.js";
+import { recordHttpRequest, routeFamilyForPath } from "../observability/metrics.js";
 
 const SLOW_REQUEST_THRESHOLD_MS = 1_000;
 
@@ -18,6 +19,7 @@ const SKIP_PREFIXES = [
   "/prisma-studio",
   "/api/health",
   "/api/admin/health",
+  "/api/observability/client-errors",
 ];
 
 function shouldSkip(path: string): boolean {
@@ -38,38 +40,36 @@ export function requestLogger(
   res.on("finish", () => {
     const durationMs = Date.now() - startMs;
     const statusCode = res.statusCode;
-    const userId: string | null = (req as any).user?.id ?? null;
-    const ip =
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      undefined;
+    const routeFamily = routeFamilyForPath(req.path);
+    recordHttpRequest({ routeFamily, statusCode, durationMs });
 
     const meta = {
       method: req.method,
-      endpoint: req.path,
+      endpoint: routeFamily,
       statusCode,
       durationMs,
-      userId,
-      ip,
     };
 
     if (statusCode >= 500) {
-      logger.error("HTTP", `${req.method} ${req.path} → ${statusCode}`, meta);
+      logger.error("HTTP", `${req.method} ${routeFamily} → ${statusCode}`, {
+        ...meta,
+        errorCode: "HTTP_5XX",
+      });
     } else if (statusCode >= 400) {
       // 401 on auth/me is a normal "unauthenticated session" check and should just be INFO
       if (statusCode === 401 && req.path === "/api/auth/me") {
-        logger.info("HTTP", `${req.method} ${req.path} → ${statusCode}`, meta);
+        logger.info("HTTP", `${req.method} ${routeFamily} → ${statusCode}`, meta);
       } else {
-        logger.warn("HTTP", `${req.method} ${req.path} → ${statusCode}`, meta);
+        logger.warn("HTTP", `${req.method} ${routeFamily} → ${statusCode}`, meta);
       }
     } else if (durationMs > SLOW_REQUEST_THRESHOLD_MS) {
       logger.warn(
         "PERFORMANCE",
-        `Slow request: ${req.method} ${req.path} took ${durationMs}ms`,
+        `Slow request: ${req.method} ${routeFamily} took ${durationMs}ms`,
         meta
       );
     } else {
-      logger.info("HTTP", `${req.method} ${req.path} → ${statusCode}`, meta);
+      logger.info("HTTP", `${req.method} ${routeFamily} → ${statusCode}`, meta);
     }
   });
 

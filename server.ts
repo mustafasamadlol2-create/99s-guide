@@ -121,6 +121,8 @@ import {
 import { logger, getRecentLogs } from "./server/services/logger.js";
 import { authMonitor } from "./server/services/authMonitor.js";
 import { dbMonitor } from "./server/services/dbMonitor.js";
+import { getStudyEngineHealth } from "./server/observability/health.js";
+import { recordOperationalOutcome } from "./server/observability/metrics.js";
 import {
   PDF_DOWNLOAD_SCOPE,
   createPdfDownloadToken,
@@ -2015,6 +2017,16 @@ async function initializeSystem() {
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Readiness is distinct from liveness and intentionally returns no dependency details.
+app.get("/api/ready", async (_req, res) => {
+  try {
+    await getPrisma().$queryRaw`SELECT 1`;
+    res.json({ status: "ready" });
+  } catch {
+    res.status(503).json({ status: "not_ready" });
+  }
 });
 
 // ==========================================
@@ -7733,6 +7745,43 @@ app.use(
   }),
 );
 
+const clientErrorCodes = new Set(["CLIENT_RENDER_ERROR", "CLIENT_RUNTIME_ERROR"]);
+const clientErrorRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.post(
+  "/api/observability/client-errors",
+  clientErrorRateLimit,
+  express.json({ limit: "1kb" }),
+  requireUser,
+  (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const enabled = /^(1|true|yes|on)$/iu.test(
+      process.env.SYSTEM_HEALTH_FRONTEND_ENABLED ?? "",
+    );
+    const body = req.body;
+    if (
+      enabled
+      && typeof body === "object"
+      && body !== null
+      && Object.keys(body).length === 1
+      && typeof body.code === "string"
+      && clientErrorCodes.has(body.code)
+    ) {
+      recordOperationalOutcome({
+        feature: "frontend",
+        operation: "request",
+        result: "failure",
+        errorCode: body.code,
+      });
+    }
+    res.status(204).end();
+  },
+);
+
 app.use(
   "/api/personalization",
   createPersonalizationRouter({
@@ -11020,6 +11069,13 @@ app.get("/api/admin/health", requireOwner, catchAsync(async (req, res) => {
     database: { status: dbStatus },
     nodeVersion: process.version,
   });
+}));
+
+/** GET /api/admin/study-health — owner-only aggregate diagnostics. */
+app.get("/api/admin/study-health", requireOwner, catchAsync(async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const snapshot = await getStudyEngineHealth();
+  res.json(snapshot);
 }));
 
 /** GET /api/admin/logs — recent structured log entries */

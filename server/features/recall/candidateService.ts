@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient, RecallAttempt } from "@prisma/client";
+import { recordOperationalOutcome } from "../../observability/metrics.js";
 import { getPrisma } from "../../services/prismaClient.js";
 import { RecallError } from "./errors.js";
 import { createRecallAttemptService } from "./attemptService.js";
@@ -248,7 +249,14 @@ export function createRecallCandidateService(
       await lockRecallScope(tx, "policy", [input.userId]);
       const eligible = await selectProtectedCandidates({ ...input, tx });
       const candidate = eligible[0];
-      if (!candidate) throw new RecallError("NO_RECALL_CANDIDATE", "No eligible Recall candidate is available.");
+      if (!candidate) {
+        recordOperationalOutcome({
+          feature: "recall",
+          operation: "request",
+          result: "no_eligible",
+        });
+        throw new RecallError("NO_RECALL_CANDIDATE", "No eligible Recall candidate is available.");
+      }
       return attemptService.issue({
         userId: input.userId,
         itemType: candidate.itemType,
