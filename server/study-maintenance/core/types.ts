@@ -12,6 +12,14 @@ export interface MaintenanceRunOptions {
   environment: MaintenanceEnvironment;
   mode: MaintenanceMode;
   scope: string;
+  userId?: string;
+  lectureId?: string;
+  seasonId?: string;
+  snapshotId?: string;
+  all: boolean;
+  allowCloudflare: boolean;
+  allowExternalWrites: boolean;
+  before?: string;
   asOf: string;
   batchSize: number;
   limit?: number;
@@ -69,5 +77,7 @@ export interface MaintenanceReport {
   errors: number;
   skipped: number;
   checkpoint: string | null;
+  status?: "PAUSED" | "COMPLETED";
+  statusCounts?: Record<string, number>;
   errorDetails?: Array<{ code: string; message: string; itemId?: string }>;
 }

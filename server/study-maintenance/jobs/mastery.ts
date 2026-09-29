@@ -64,6 +64,8 @@ export function createMasteryCandidateSource(database: PrismaClient): MasteryCan
           SELECT "userId", "effectiveLectureId" FROM "GroupFocusParticipantSummary"
           UNION
           SELECT "userId", "lectureId" FROM "LectureMastery"
+          UNION
+          SELECT "userId", "lectureId" FROM "LectureRetention"
         ) candidates
         WHERE "userId" IS NOT NULL AND "lectureId" IS NOT NULL
         ${userFilter} ${lectureFilter} ${afterFilter}

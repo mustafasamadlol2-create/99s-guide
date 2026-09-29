@@ -36,3 +36,6 @@ Thumbs.db
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# Local-only maintenance reports and checkpoints
+/reports/study-maintenance/

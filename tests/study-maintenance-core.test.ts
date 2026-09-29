@@ -32,7 +32,8 @@ function adapter(ids: string[], calls: { inspect: number; apply: number }): Main
 function options(overrides: Record<string, unknown> = {}) {
   return {
     jobType: "points-rebuild", jobVersion: "1", environment: "test" as const,
-    mode: "dry-run" as const, scope: "all", asOf: "2026-01-01T00:00:00.000Z",
+    mode: "dry-run" as const, scope: "all", all: true, allowCloudflare: false,
+    allowExternalWrites: false, asOf: "2026-01-01T00:00:00.000Z",
     batchSize: 2, maxErrors: 0, failOnDrift: false, quiet: true, ...overrides,
   };
 }
@@ -42,6 +43,21 @@ test("parser defaults to dry-run and rejects conflicting or unknown options", ()
   assert.equal(parseMaintenanceArgs(["points", "--apply", "--environment=test"]).options.mode, "apply");
   assert.throws(() => parseMaintenanceArgs(["points", "--apply", "--dry-run"]));
   assert.throws(() => parseMaintenanceArgs(["points", "--unknown"]));
+});
+
+test("parser keeps command words while consuming separate option values", () => {
+  const parsed = parseMaintenanceArgs([
+    "mastery", "rebuild", "--user-id", "user-1", "--batch-size", "25",
+  ], { NODE_ENV: "test" });
+  assert.equal(parsed.command, "mastery rebuild");
+  assert.equal(parsed.options.userId, "user-1");
+  assert.equal(parsed.options.batchSize, 25);
+  assert.throws(() => parseMaintenanceArgs(["points", "audit", "--as-of", "yesterday"], { NODE_ENV: "test" }));
+  assert.throws(() => parseMaintenanceArgs(["points", "audit", "--environment=test"], {
+    NODE_ENV: "production",
+    DEPLOYMENT_ENV: "production",
+    MAINTENANCE_ENVIRONMENT: "test",
+  }));
 });
 
 test("production apply requires the fixed confirmation", () => {
@@ -67,7 +83,7 @@ test("dry-run never calls apply and reports bounded paging", async () => {
     const checkpoint = JSON.parse(await readFile(join(dir, "dry-run.json"), "utf8"));
     assert.deepEqual(Object.keys(checkpoint).sort(), [
       "changed", "cursor", "environment", "errors", "jobId", "jobType", "jobVersion",
-      "mode", "scanned", "scope", "skipped", "wouldChange",
+      "mode", "scanned", "scope", "skipped", "startedAt", "status", "statusCounts", "unchanged", "wouldChange",
     ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -87,6 +103,7 @@ test("apply calls only apply and resumes from a validated checkpoint", async () 
     const resumed = await runMaintenance({ ...options(), mode: "apply", resumeJobId: "resume" }, adapter(["1", "2", "3"], calls), {
       jobId: "resumed", checkpointDir: dir,
     });
+    assert.equal(resumed.jobId, "resume");
     assert.equal(resumed.scanned, 3);
     assert.equal(calls.apply, 3);
     await assert.rejects(() => loadCheckpoint(dir, "resume", {
@@ -96,6 +113,28 @@ test("apply calls only apply and resumes from a validated checkpoint", async () 
     await assert.rejects(() => loadCheckpoint(dir, "resume", {
       jobType: "points-rebuild", jobVersion: "1", mode: "apply", environment: "test", scope: "all",
     }));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runner rejects unsafe job IDs and production apply before touching the checkpoint store", async () => {
+  const calls = { inspect: 0, apply: 0 };
+  const dir = await mkdtemp(join(tmpdir(), "study-maintenance-"));
+  try {
+    await assert.rejects(() => runMaintenance(options(), adapter(["1"], calls), {
+      jobId: "../escape",
+      checkpointDir: dir,
+    }), /job ID is invalid/u);
+    await assert.rejects(() => runMaintenance({
+      ...options(),
+      environment: "production",
+      mode: "apply",
+    }, adapter(["1"], calls), {
+      jobId: "blocked-production",
+      checkpointDir: dir,
+    }), /Production apply is disabled/u);
+    assert.equal(calls.apply, 0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
