@@ -50,10 +50,12 @@ npm run study:release-check -- --target=local
 An intended rollout profile may be supplied as JSON. Only known Study Engine feature flags with boolean values are accepted:
 
 ```sh
-npm run study:release-check -- --target=local --profile=study-release-profile.example.json --json
+env VITE_STUDY_INSIGHTS_FRONTEND_ENABLED=false \
+  VITE_OWNER_ANALYTICS_FRONTEND_ENABLED=false \
+  npm run study:release-check -- --target=local --profile=study-release-profile.example.json --json
 ```
 
-The example profile is a disabled-feature baseline, not a set of flags to apply. The check never changes runtime flags.
+The example profile is a disabled-feature baseline, not a set of flags to apply. The release check compares frontend flags with the selected profile; these command-scoped values align the sample baseline without changing project configuration or runtime flags.
 
 To include Worker typechecking and database checks:
 
