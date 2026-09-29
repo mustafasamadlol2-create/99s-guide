@@ -5,6 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, type AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import test from "node:test";
+import { buildFocusPlanProjection } from "../server/features/study-core/projection";
 
 const ROOT = resolve(".");
 const CONFIG = "cloudflare-private-data-api/wrangler.jsonc";
@@ -42,13 +43,32 @@ function mastery(user = "u1", lecture = "l1", revision = 1, projection_revision 
 function retention(user = "u1", lecture = "l1", revision = 1, projection_revision = "2") {
   return { user_id: user, lecture_id: lecture, subject_id: "s1", source_mastery_revision: 1, source_mastery_rule_version: "mastery-v1", effective_mastery_state: "GOOD", retention_score: 80, review_state: "DUE", review_urgency_score: 3, retention_anchor_at: null, next_review_at: "2020-01-01T00:00:00Z", next_evaluation_at: "2027-01-01T00:00:00Z", last_positive_memory_evidence_at: null, last_negative_memory_evidence_at: null, last_forgetting_evidence_at: null, objective_forgetting_item_count: 0, self_reported_forgetting_item_count: 0, forgetting_evidence_kind: "NONE", rule_version: "retention-v1", revision, projection_revision, last_evaluated_at: "2026-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
 }
+function focusPlan(userId: string, title: string, revision: string) {
+  return buildFocusPlanProjection({
+    plan: {
+      id: "race-plan",
+      userId,
+      title,
+      status: "ACTIVE",
+      timezone: "Asia/Baghdad",
+      planVersion: 1,
+      createdAt: "2026-09-29T08:00:00.000Z",
+      updatedAt: "2026-09-29T08:10:00.000Z",
+      archivedAt: null,
+    },
+    items: [],
+    revision,
+  });
+}
 
 test("Prompt 33 local D1 projection replay, reads, isolation, and delete tombstone", async (t) => {
   const w = await worker();
   t.after(async () => { if (w.child.pid) try { process.kill(-w.child.pid, "SIGTERM"); } catch {} await rm(w.dir, { recursive: true, force: true }); });
   const sync = (entity: string, revision: string, data: Record<string, unknown> | null, key: Record<string, unknown>, operation = "upsert") => request(w.base, "/internal/private-sync", { version: 1, entity, operation, revision, key, ...(data ? { data } : {}) });
   const firstMasterySync = await sync("LectureMastery", "1", mastery(), { user_id: "u1", lecture_id: "l1" });
-  assert.equal(firstMasterySync.status, 200, await firstMasterySync.text());
+  const firstMasteryBody = await firstMasterySync.text();
+  if (firstMasterySync.status !== 200) await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(firstMasterySync.status, 200, `${firstMasteryBody}\n${w.logs.join("")}`);
   assert.equal((await sync("LectureRetention", "2", retention(), { user_id: "u1", lecture_id: "l1" })).status, 200);
   assert.equal((await (await sync("LectureMastery", "1", mastery(), { user_id: "u1", lecture_id: "l1" })).json() as any).result, "idempotent");
   assert.equal((await sync("LectureMastery", "1", { ...mastery(), evidence_score: 9 }, { user_id: "u1", lecture_id: "l1" })).status, 400);
@@ -88,4 +108,116 @@ test("Prompt 33 local D1 projection replay, reads, isolation, and delete tombsto
   const deleted = await request(w.base, "/internal/private-read/mastery-dashboard?userId=u1");
   assert.equal((await deleted.json() as any).counts.mastery_count, 0);
   assert.equal((await (await sync("LectureMastery", "4", mastery("u1", "l1", 3, "4"), { user_id: "u1", lecture_id: "l1" })).json() as any).result, "stale");
+
+  const genericRevisions = ["9", "100", "99999999999999999998", "99999999999999999999", "10"];
+  const genericWrites = await Promise.all(genericRevisions.map((revision) =>
+    sync("FocusPlan", revision, focusPlan("race-user", `generic-${revision}`, revision), { id: "race-plan" })
+  ));
+  for (const response of genericWrites) assert.equal(response.status, 200, await response.text());
+  const genericRead = await request(w.base, "/internal/private-read/focus-plans?userId=race-user");
+  assert.equal(genericRead.status, 200);
+  const genericRows = (await genericRead.json() as any).rows;
+  assert.equal(genericRows.length, 1);
+  assert.equal(genericRows[0].title, "generic-99999999999999999999");
+
+  const raceUser = "race-mastery-user";
+  const raceLecture = "race-mastery-lecture";
+  const raceKey = { user_id: raceUser, lecture_id: raceLecture };
+  const largeRevisions = [
+    { envelope: "9007199254740992", canonical: 1 },
+    { envelope: "9007199254740994", canonical: 3 },
+    { envelope: "9007199254740993", canonical: 2 },
+  ];
+  const masteryWrites = await Promise.all(largeRevisions.map(({ envelope, canonical }) =>
+    sync("LectureMastery", envelope, mastery(raceUser, raceLecture, canonical, envelope), raceKey)
+  ));
+  for (const response of masteryWrites) assert.equal(response.status, 200, await response.text());
+  const readRaceMastery = async () => {
+    const response = await request(
+      w.base,
+      `/internal/private-read/mastery-lecture?userId=${raceUser}&lectureId=${raceLecture}`,
+    );
+    assert.equal(response.status, 200);
+    return await response.json() as any;
+  };
+  let raceMastery = await readRaceMastery();
+  assert.equal(raceMastery.mastery.revision, 3);
+  assert.equal(raceMastery.state.mastery_watermark, "9007199254740994");
+
+  const lowerDelete = sync(
+    "LectureMastery",
+    "9007199254740996",
+    { revision: 4 },
+    raceKey,
+    "delete",
+  );
+  const newerUpsert = sync(
+    "LectureMastery",
+    "9007199254740997",
+    mastery(raceUser, raceLecture, 5, "9007199254740997"),
+    raceKey,
+  );
+  const lowerDeleteRace = await Promise.all([lowerDelete, newerUpsert]);
+  for (const response of lowerDeleteRace) assert.equal(response.status, 200, await response.text());
+  raceMastery = await readRaceMastery();
+  assert.equal(raceMastery.mastery.revision, 5);
+
+  const higherDelete = sync(
+    "LectureMastery",
+    "9007199254740999",
+    { revision: 7 },
+    raceKey,
+    "delete",
+  );
+  const olderUpsert = sync(
+    "LectureMastery",
+    "9007199254740998",
+    mastery(raceUser, raceLecture, 6, "9007199254740998"),
+    raceKey,
+  );
+  const higherDeleteRace = await Promise.all([higherDelete, olderUpsert]);
+  for (const response of higherDeleteRace) assert.equal(response.status, 200, await response.text());
+  assert.equal((await readRaceMastery()).mastery, null);
+
+  const reinsert = await sync(
+    "LectureMastery",
+    "9007199254741000",
+    mastery(raceUser, raceLecture, 8, "9007199254741000"),
+    raceKey,
+  );
+  assert.equal(reinsert.status, 200, await reinsert.text());
+  const childNewerThanDelete = sync(
+    "LectureMastery",
+    "9007199254741002",
+    mastery(raceUser, raceLecture, 9, "9007199254741002"),
+    raceKey,
+  );
+  const userDeleteOlderThanChild = sync(
+    "MasteryProjectionUser",
+    "9007199254741001",
+    null,
+    { user_id: raceUser },
+    "delete",
+  );
+  const userDeleteRace = await Promise.all([childNewerThanDelete, userDeleteOlderThanChild]);
+  for (const response of userDeleteRace) assert.equal(response.status, 200, await response.text());
+  raceMastery = await readRaceMastery();
+  assert.equal(raceMastery.mastery.revision, 9);
+
+  const userDeleteNewerThanChild = sync(
+    "MasteryProjectionUser",
+    "9007199254741004",
+    null,
+    { user_id: raceUser },
+    "delete",
+  );
+  const childOlderThanDelete = sync(
+    "LectureMastery",
+    "9007199254741003",
+    mastery(raceUser, raceLecture, 10, "9007199254741003"),
+    raceKey,
+  );
+  const childDeleteRace = await Promise.all([userDeleteNewerThanChild, childOlderThanDelete]);
+  for (const response of childDeleteRace) assert.equal(response.status, 200, await response.text());
+  assert.equal((await readRaceMastery()).mastery, null);
 });

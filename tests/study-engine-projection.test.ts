@@ -202,12 +202,37 @@ test("private Worker requires its sync secret and rejects raw Study Events", asy
 test("private Worker applies newer decimal revisions and ignores stale ones without precision loss", async () => {
   const rows = new Map<string, Record<string, unknown>>();
   const statements: string[] = [];
+  let appliedWrites = 0;
+  const execute = async (statement: { sql: string; values: unknown[] }) => {
+    const { sql, values } = statement;
+    if (sql.startsWith('INSERT INTO "FocusPlan"')) {
+      const match = sql.match(/INSERT INTO "([^"]+)" \(([^)]+)\)/u);
+      if (!match) return { meta: { changes: 0 } };
+      const columns = match[2].split(",").map((column) => column.trim().replaceAll('"', ""));
+      const row = Object.fromEntries(columns.map((column, index) => [column, values[index] ?? null]));
+      const key = String(row.id);
+      const current = rows.get(key);
+      if (!current || BigInt(String(row.revision)) > BigInt(String(current.revision))) {
+        rows.set(key, row);
+        appliedWrites += 1;
+        return { meta: { changes: 1 } };
+      }
+      return { meta: { changes: 0 } };
+    }
+    if (sql.startsWith('SELECT * FROM "FocusPlan"')) {
+      const current = rows.get(String(values[0]));
+      return { results: current ? [{ ...current }] : [], meta: { changes: 0 } };
+    }
+    return { results: [], meta: { changes: 0 } };
+  };
   const db = {
     prepare(sql: string) {
       statements.push(sql);
       return {
         bind(...values: unknown[]) {
           return {
+            sql,
+            values,
             async first() {
               if (!sql.startsWith('SELECT * FROM "FocusPlan"')) return null;
               return rows.get(String(values[0])) ?? null;
@@ -216,16 +241,16 @@ test("private Worker applies newer decimal revisions and ignores stale ones with
               return { results: [] };
             },
             async run() {
-              const match = sql.match(/INSERT INTO "([^"]+)" \(([^)]+)\)/u);
-              if (!match) return {};
-              const columns = match[2].split(",").map((column) => column.trim().replaceAll('"', ""));
-              const row = Object.fromEntries(columns.map((column, index) => [column, values[index] ?? null]));
-              rows.set(String(row.id), row);
-              return {};
+              return execute({ sql, values });
             },
           };
         },
       };
+    },
+    async batch(boundStatements: Array<{ sql: string; values: unknown[] }>) {
+      const results = [];
+      for (const statement of boundStatements) results.push(await execute(statement));
+      return results;
     },
   };
   const env = { DB: db, PRIVATE_DATA_SYNC_SECRET: "secret" };
@@ -254,14 +279,11 @@ test("private Worker applies newer decimal revisions and ignores stale ones with
   );
 
   assert.equal((await privateWorker.fetch(request("2", "new"), env)).status, 200);
-  const writesAfterNew = statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length;
+  const writesAfterNew = appliedWrites;
   assert.equal((await privateWorker.fetch(request("1", "stale"), env)).status, 200);
   assert.equal((await privateWorker.fetch(request("2", "new"), env)).status, 200);
   assert.equal(rows.get("plan-1")?.title, "new");
-  assert.equal(
-    statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length,
-    writesAfterNew,
-  );
+  assert.equal(appliedWrites, writesAfterNew);
 
   let priorRevision = "2";
   const orderedRevisions = [
@@ -276,19 +298,16 @@ test("private Worker applies newer decimal revisions and ignores stale ones with
   ];
 
   for (const revision of orderedRevisions) {
-    const beforeWrites = statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length;
+    const beforeWrites = appliedWrites;
     const title = `revision-${revision}`;
     assert.equal((await privateWorker.fetch(request(revision, title), env)).status, 200);
     assert.equal(rows.get("plan-1")?.revision, revision);
     assert.equal(rows.get("plan-1")?.title, title);
 
-    const writesAfterRevision = statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length;
+    const writesAfterRevision = appliedWrites;
     assert.equal(writesAfterRevision, beforeWrites + 1);
     assert.equal((await privateWorker.fetch(request(priorRevision, `stale-${priorRevision}`), env)).status, 200);
-    assert.equal(
-      statements.filter((statement) => statement.startsWith('INSERT INTO "FocusPlan"')).length,
-      writesAfterRevision,
-    );
+    assert.equal(appliedWrites, writesAfterRevision);
     assert.equal(rows.get("plan-1")?.revision, revision);
     assert.equal(rows.get("plan-1")?.title, title);
     priorRevision = revision;

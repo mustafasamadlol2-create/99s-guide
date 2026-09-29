@@ -30,7 +30,6 @@ const forbiddenFutureModels = [
   "StudyIntegrityFlag",
   "PointsLedgerEntry",
   "SpacedRecallState",
-  "LectureMastery",
   "AIStudyInsight",
   "OwnerAnalyticsAggregate",
 ] as const;
@@ -43,7 +42,7 @@ function modelBlock(modelName: string): string {
   return match[0];
 }
 
-test("Batch A and Prompt 13 models exist without enabling deferred models", () => {
+test("Batch A and Prompt 13 models exist without obsolete deferred aliases", () => {
   const modelNames = [...schema.matchAll(/^model\s+(\w+)\s*\{/gmu)].map(
     (match) => match[1],
   );

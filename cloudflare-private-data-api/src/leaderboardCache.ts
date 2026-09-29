@@ -138,7 +138,9 @@ async function ensureManifest(env: Env, m: Manifest): Promise<any> {
   } catch (error) {
     const raced = await env.DB.prepare("SELECT * FROM \"leaderboard_cache_snapshots\" WHERE \"snapshot_id\" = ?").bind(m.snapshotId).first();
     if (raced) {
-      if (!sameManifest(raced, m)) throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT");
+      if (!sameManifest(raced, m)) {
+        throw new Error("LEADERBOARD_CACHE_PROJECTION_CONFLICT", { cause: error });
+      }
       return raced;
     }
     throw error;
@@ -284,7 +286,8 @@ async function read(env: Env, url: URL): Promise<Response> {
   }
   const limit=Math.min(integer(Number(url.searchParams.get("limit")||50),"limit",1,100),100);
   const rank=url.searchParams.get("afterRank"), score=url.searchParams.get("afterScore"), user=url.searchParams.get("afterUserId");
-  let sql=`SELECT user_id userId,rank,tie_size tieSize,score,level_snapshot levelSnapshot FROM "leaderboard_cache_entries" WHERE snapshot_id=?`, args:any[]=[snapshotId];
+  let sql=`SELECT user_id userId,rank,tie_size tieSize,score,level_snapshot levelSnapshot FROM "leaderboard_cache_entries" WHERE snapshot_id=?`;
+  const args:any[]=[snapshotId];
   if (rank !== null || score !== null || user !== null) { if (!rank || !score || !user) throw new Error("Cursor is incomplete."); integer(Number(rank),"afterRank",1,2147483647); integer(Number(score),"afterScore",-9007199254740991,9007199254740991); sql += ` AND (rank>? OR (rank=? AND score<?) OR (rank=? AND score=? AND user_id>?))`; args.push(Number(rank),Number(rank),Number(score),Number(rank),Number(score),user); }
   sql += ` ORDER BY rank ASC,score DESC,user_id ASC LIMIT ?`; args.push(limit+1);
   const result=await env.DB.prepare(sql).bind(...args).all(); const rows=result.results||[]; const entries=rows.slice(0,limit);

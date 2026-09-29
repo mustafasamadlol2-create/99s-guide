@@ -65,6 +65,7 @@ test("the rule registry keeps evidence-incomplete sources inactive", () => {
     "group_focus.verified_participation",
     "group_focus.verified_social_bonus",
     "consistency.verified_study_day",
+    "recall.objective_correct",
   ]);
   assert.deepEqual(inactive, [
     ["MCQ_ATTEMPT", "INACTIVE_UNSUPPORTED"],

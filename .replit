@@ -1,4 +1,4 @@
-modules = ["web", "swift-5.8", "nodejs-22", "postgresql-16"]
+modules = ["web", "swift-5.8", "nodejs-22", "postgresql-16", "python-base-3.13"]
 
 [nix]
 channel = "stable-25_05"

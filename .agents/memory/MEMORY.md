@@ -8,6 +8,7 @@
 - [Local Worker runtime tests](worker-local-runtime-tests.md) — Wrangler local mode follows configured bindings and avoids version-sensitive direct Miniflare setup.
 - [Worker credential forwarding](worker-credential-forwarding.md) — client WebSocket credentials must be explicitly forwarded from Worker ingress to the Durable Object.
 - [Projection sync nullability](projection-sync-nullability.md) — distinguish explicit null from a missing alias when normalizing canonical projection payloads.
+- [D1 projection revision fencing](d1-projection-revision-fencing.md) — compare decimal revisions in SQL and batch row, tombstone, and watermark writes atomically.
 - [Study Integrity boundary](study-integrity-boundary.md) — keep evaluation pure; share primitives without importing event ingestion or querying product tables.
 - [Gamification checksum compatibility](challenge-checksum-compatibility.md) — keep Challenge hashes separate to preserve persisted Achievement and Level checksums.
 - [Prisma CLI URL requirements](prisma-cli-url-requirements.md) — schema validation needs a nonempty `DIRECT_URL`; use inert URLs only for schema-only CLI work.

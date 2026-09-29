@@ -13,6 +13,7 @@
     "preview": "npm run build && wrangler dev",
     "clean": "node scripts/clean.cjs",
     "test:auth": "tsx --test tests/oauth-state.test.ts",
+    "test:study-engine": "tsx --test --test-concurrency=1 tests/focus-*.test.ts tests/group-focus-*.test.ts tests/study-*.test.ts tests/recall-*.test.ts tests/gamification-*.test.ts tests/leaderboard-*.test.ts tests/mastery-*.test.ts tests/lecture-mastery-*.test.ts tests/lecture-retention-*.test.ts tests/owner-analytics*.test.ts tests/ask-study-data-*.test.ts tests/private-d1-*.test.ts tests/prompt11-focus-client.test.ts",
     "test:owner-analytics-frontend": "tsx --test tests/owner-analytics-frontend-api.test.ts",
     "test:gamification": "tsx --test tests/gamification-definitions.test.ts tests/gamification-metrics.test.ts tests/gamification-migration.test.ts tests/gamification-ruleset-postgres.test.ts",
     "test:gamification-achievements": "tsx --test tests/gamification-achievements.test.ts tests/gamification-achievements-postgres.test.ts",

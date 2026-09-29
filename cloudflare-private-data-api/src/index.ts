@@ -383,6 +383,18 @@ function projectionRevision(value: unknown): bigint {
   return BigInt(text);
 }
 
+function decimalTextGreater(left: string, right: string): string {
+  const leftText = `CAST(${left} AS TEXT)`;
+  const rightText = `CAST(${right} AS TEXT)`;
+  return `(length(${leftText}) > length(${rightText}) OR (length(${leftText}) = length(${rightText}) AND ${leftText} COLLATE BINARY > ${rightText} COLLATE BINARY))`;
+}
+
+function decimalTextGreaterOrEqual(left: string, right: string): string {
+  const leftText = `CAST(${left} AS TEXT)`;
+  const rightText = `CAST(${right} AS TEXT)`;
+  return `(${leftText} COLLATE BINARY = ${rightText} COLLATE BINARY OR ${decimalTextGreater(left, right)})`;
+}
+
 function projectionVersion(value: unknown): number {
   if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 1000) {
     throw new Error("Invalid projection version.");
@@ -497,12 +509,13 @@ async function deleteRow(
     .run();
 }
 
-async function upsertRow(
+function prepareUpsertRow(
   env: any,
   entity: PrivateEntity,
   key: Record<string, unknown>,
   data: Record<string, unknown>,
-): Promise<void> {
+  updateWhere?: string,
+): any {
   const cfg = TABLES[entity];
   const normalizedKey = normalizeKey(entity, key);
   const merged: Record<string, unknown> = { ...data, ...normalizedKey };
@@ -530,7 +543,8 @@ async function upsertRow(
 
   const nonPk = columns.filter((column) => !cfg.primaryKey.includes(column));
   const update = nonPk.length
-    ? "DO UPDATE SET " + nonPk.map((column) => `${q(column)} = excluded.${q(column)}`).join(", ")
+    ? "DO UPDATE SET " + nonPk.map((column) => `${q(column)} = excluded.${q(column)}`).join(", ") +
+      (updateWhere ? ` WHERE ${updateWhere}` : "")
     : "DO NOTHING";
 
   const sql =
@@ -538,7 +552,16 @@ async function upsertRow(
     `VALUES (${columns.map(() => "?").join(", ")}) ` +
     `ON CONFLICT (${cfg.primaryKey.map(q).join(", ")}) ${update}`;
 
-  await env.DB.prepare(sql).bind(...values).run();
+  return env.DB.prepare(sql).bind(...values);
+}
+
+async function upsertRow(
+  env: any,
+  entity: PrivateEntity,
+  key: Record<string, unknown>,
+  data: Record<string, unknown>,
+): Promise<void> {
+  await prepareUpsertRow(env, entity, key, data).run();
 }
 
 async function syncProjectionRow(
@@ -600,27 +623,29 @@ async function syncProjectionRow(
   }
 
   const where = cfg.primaryKey.map((column) => `${q(column)} = ?`).join(" AND ");
-  const current = await env.DB
+  const currentQuery = env.DB
     .prepare(`SELECT * FROM ${q(entity)} WHERE ${where} LIMIT 1`)
-    .bind(...cfg.primaryKey.map((column) => normalizedKey[column]))
-    .first();
+    .bind(...cfg.primaryKey.map((column) => normalizedKey[column]));
+  const revisionGuard = decimalTextGreater(
+    `excluded.${q("revision")}`,
+    `${q(entity)}.${q("revision")}`,
+  );
+  const upsert = prepareUpsertRow(env, entity, key, merged, revisionGuard);
+  const [writeResult, currentResult] = await env.DB.batch([upsert, currentQuery]);
+  const current = ((currentResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+  if (!current) throw new Error("Projection row was not available after its fenced write.");
 
-  if (current) {
-    const currentRevision = projectionRevision((current as Record<string, unknown>).revision);
-    if (incomingRevision < currentRevision) return "stale";
-    if (incomingRevision === currentRevision) {
-      if (
-        projectionDataForCompare(entity, current as Record<string, unknown>) ===
-        projectionDataForCompare(entity, merged)
-      ) {
-        return "idempotent";
-      }
-      throw new Error("Projection revision conflict.");
-    }
+  const currentRevision = projectionRevision(current.revision);
+  if (currentRevision > incomingRevision) return "stale";
+  if (currentRevision < incomingRevision) {
+    if (Number((writeResult as any)?.meta?.changes || 0) > 0) return "applied";
+    throw new Error("Projection revision write was not applied.");
   }
 
-  await upsertRow(env, entity, key, merged);
-  return "applied";
+  if (projectionDataForCompare(entity, current) !== projectionDataForCompare(entity, merged)) {
+    throw new Error("Projection revision conflict.");
+  }
+  return Number((writeResult as any)?.meta?.changes || 0) > 0 ? "applied" : "idempotent";
 }
 
 async function authenticate(request: Request, env: any): Promise<Response | null> {
@@ -683,19 +708,167 @@ function masteryRow(entity: "LectureMastery" | "LectureRetention", key: Record<s
   return out;
 }
 
-async function advanceMasteryState(env: any, userId: string, kind: "mastery" | "retention", revision: bigint, deleted?: { at: string; revision: bigint }) {
-  const now = deleted?.at || new Date().toISOString();
-  const row = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
+function prepareAdvanceMasteryState(
+  env: any,
+  userId: string,
+  kind: "mastery" | "retention",
+  revision: bigint,
+  onlyWhen?: { sql: string; params: unknown[] },
+): any {
+  const stateTable = q("private_mastery_projection_state");
   const field = kind === "mastery" ? "mastery_watermark" : "retention_watermark";
-  const old = row ? masteryRevision(row[field]) : 0n;
-  const next = revision > old ? revision.toString() : old.toString();
-  if (row) {
-    await env.DB.prepare(`UPDATE private_mastery_projection_state SET ${field} = ?, updated_at = ?, deleted_at = COALESCE(?, deleted_at), deletion_revision = COALESCE(?, deletion_revision) WHERE user_id = ?`)
-      .bind(next, now, deleted?.at || null, deleted?.revision.toString() || null, userId).run();
-  } else {
-    await env.DB.prepare(`INSERT INTO private_mastery_projection_state (user_id, mastery_watermark, retention_watermark, updated_at, deleted_at, deletion_revision) VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(userId, kind === "mastery" ? next : "0", kind === "retention" ? next : "0", now, deleted?.at || null, deleted?.revision.toString() || null).run();
-  }
+  const revisionText = revision.toString();
+  const masteryWatermark = kind === "mastery" ? revisionText : "0";
+  const retentionWatermark = kind === "retention" ? revisionText : "0";
+  const greater = decimalTextGreater(
+    `excluded.${q(field)}`,
+    `${stateTable}.${q(field)}`,
+  );
+  const source = onlyWhen
+    ? `SELECT ?, ?, ?, ?, NULL, NULL WHERE ${onlyWhen.sql}`
+    : "VALUES (?, ?, ?, ?, NULL, NULL)";
+  const sql =
+    `INSERT INTO ${stateTable} (user_id, mastery_watermark, retention_watermark, updated_at, deleted_at, deletion_revision) ` +
+    `${source} ON CONFLICT (user_id) DO UPDATE SET ` +
+    `${q(field)} = CASE WHEN ${greater} THEN excluded.${q(field)} ELSE ${stateTable}.${q(field)} END, ` +
+    `${q("updated_at")} = CASE WHEN ${greater} THEN excluded.${q("updated_at")} ELSE ${stateTable}.${q("updated_at")} END, ` +
+    `${q("deleted_at")} = ${stateTable}.${q("deleted_at")}, ` +
+    `${q("deletion_revision")} = ${stateTable}.${q("deletion_revision")}`;
+
+  return env.DB
+    .prepare(sql)
+    .bind(userId, masteryWatermark, retentionWatermark, new Date().toISOString(), ...(onlyWhen?.params || []));
+}
+
+function prepareMasteryProjectionUpsert(
+  env: any,
+  entity: "LectureMastery" | "LectureRetention",
+  row: Record<string, unknown>,
+): any {
+  const table = entity === "LectureMastery" ? "private_mastery" : "private_retention";
+  const tableSql = q(table);
+  const stateTable = q("private_mastery_projection_state");
+  const tombstoneTable = q("private_mastery_projection_tombstones");
+  const fields = MASTERY_FIELDS[entity];
+  const columns = fields.map(q);
+  const comparableFields = fields.filter((field) => field !== "projected_at" && field !== "projection_revision");
+  const comparableSql = comparableFields
+    .map((field) => `${tableSql}.${q(field)} IS excluded.${q(field)}`)
+    .join(" AND ");
+  const updates = fields
+    .filter((field) => field !== "user_id" && field !== "lecture_id")
+    .map((field) => `${q(field)} = excluded.${q(field)}`)
+    .join(", ");
+  const incomingEnvelope = String(row.projection_revision);
+  const incomingRevision = Number(row.revision);
+  const sql =
+    `INSERT INTO ${tableSql} (${columns.join(", ")}) ` +
+    `SELECT ${columns.map(() => "?").join(", ")} ` +
+    `WHERE NOT EXISTS (` +
+    `SELECT 1 FROM ${tombstoneTable} AS tombstone ` +
+    `WHERE tombstone.entity = ? AND tombstone.user_id = ? AND tombstone.lecture_id = ? ` +
+    `AND (${decimalTextGreaterOrEqual("tombstone.projection_revision", "?")} OR tombstone.revision >= ?)) ` +
+    `AND NOT EXISTS (` +
+    `SELECT 1 FROM ${stateTable} AS projection_state ` +
+    `WHERE projection_state.user_id = ? AND projection_state.deleted_at IS NOT NULL ` +
+    `AND ${decimalTextGreaterOrEqual("COALESCE(projection_state.deletion_revision, '0')", "?")}) ` +
+    `ON CONFLICT (user_id, lecture_id) DO UPDATE SET ${updates} ` +
+    `WHERE ${decimalTextGreater(`excluded.${q("projection_revision")}`, `${tableSql}.${q("projection_revision")}`)} ` +
+    `AND excluded.${q("revision")} >= ${tableSql}.${q("revision")} ` +
+    `AND (excluded.${q("revision")} > ${tableSql}.${q("revision")} OR (${comparableSql}))`;
+
+  return env.DB.prepare(sql).bind(
+    ...fields.map((field) => row[field]),
+    entity,
+    row.user_id,
+    row.lecture_id,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingRevision,
+    row.user_id,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingEnvelope,
+  );
+}
+
+function prepareMasteryTombstoneUpsert(
+  env: any,
+  entity: "LectureMastery" | "LectureRetention",
+  userId: string,
+  lectureId: string,
+  envelope: bigint,
+  revision: number,
+  deletedAt: string,
+): any {
+  const table = entity === "LectureMastery" ? "private_mastery" : "private_retention";
+  const tombstoneTable = q("private_mastery_projection_tombstones");
+  const stateTable = q("private_mastery_projection_state");
+  const envelopeText = envelope.toString();
+  const sql =
+    `INSERT INTO ${tombstoneTable} (entity, user_id, lecture_id, projection_revision, revision, deleted_at) ` +
+    `SELECT ?, ?, ?, ?, ?, ? ` +
+    `WHERE NOT EXISTS (` +
+    `SELECT 1 FROM ${q(table)} AS live_row ` +
+    `WHERE live_row.user_id = ? AND live_row.lecture_id = ? ` +
+    `AND (${decimalTextGreater("live_row.projection_revision", "?")} OR live_row.revision > ?)) ` +
+    `AND NOT EXISTS (` +
+    `SELECT 1 FROM ${stateTable} AS projection_state ` +
+    `WHERE projection_state.user_id = ? AND projection_state.deleted_at IS NOT NULL ` +
+    `AND ${decimalTextGreater("projection_state.deletion_revision", "?")}) ` +
+    `ON CONFLICT (entity, user_id, lecture_id) DO UPDATE SET ` +
+    `projection_revision = excluded.projection_revision, revision = excluded.revision, deleted_at = excluded.deleted_at ` +
+    `WHERE ${decimalTextGreaterOrEqual(`excluded.${q("projection_revision")}`, `${tombstoneTable}.${q("projection_revision")}`)} ` +
+    `AND excluded.${q("revision")} >= ${tombstoneTable}.${q("revision")}`;
+
+  return env.DB.prepare(sql).bind(
+    entity,
+    userId,
+    lectureId,
+    envelopeText,
+    revision,
+    deletedAt,
+    userId,
+    lectureId,
+    envelopeText,
+    envelopeText,
+    envelopeText,
+    revision,
+    userId,
+    envelopeText,
+    envelopeText,
+    envelopeText,
+  );
+}
+
+function prepareMasteryUserDeleteState(
+  env: any,
+  userId: string,
+  envelope: bigint,
+  deletedAt: string,
+): any {
+  const stateTable = q("private_mastery_projection_state");
+  const revisionText = envelope.toString();
+  const acceptable = [
+    decimalTextGreaterOrEqual(`excluded.${q("mastery_watermark")}`, `${stateTable}.${q("mastery_watermark")}`),
+    decimalTextGreaterOrEqual(`excluded.${q("retention_watermark")}`, `${stateTable}.${q("retention_watermark")}`),
+    decimalTextGreaterOrEqual(`excluded.${q("deletion_revision")}`, `COALESCE(${stateTable}.${q("deletion_revision")}, '0')`),
+    `(${stateTable}.${q("deleted_at")} IS NULL OR ${stateTable}.${q("deletion_revision")} IS NULL OR ${decimalTextGreater(`excluded.${q("deletion_revision")}`, `${stateTable}.${q("deletion_revision")}`)})`,
+  ].join(" AND ");
+  const sql =
+    `INSERT INTO ${stateTable} (user_id, mastery_watermark, retention_watermark, updated_at, deleted_at, deletion_revision) ` +
+    `VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (user_id) DO UPDATE SET ` +
+    `${q("mastery_watermark")} = excluded.${q("mastery_watermark")}, ` +
+    `${q("retention_watermark")} = excluded.${q("retention_watermark")}, ` +
+    `${q("updated_at")} = excluded.${q("updated_at")}, ` +
+    `${q("deleted_at")} = excluded.${q("deleted_at")}, ` +
+    `${q("deletion_revision")} = excluded.${q("deletion_revision")} ` +
+    `WHERE ${acceptable}`;
+
+  return env.DB.prepare(sql).bind(userId, revisionText, revisionText, deletedAt, deletedAt, revisionText);
 }
 
 async function syncMasteryProjection(env: any, entity: string, key: Record<string, unknown>, data: Record<string, unknown> | null, payload: Record<string, unknown>) {
@@ -703,34 +876,114 @@ async function syncMasteryProjection(env: any, entity: string, key: Record<strin
   const userId = masteryUser(key, data);
   if (entity === "MasteryProjectionUser") {
     if (payload.operation !== "delete") throw new Error("MasteryProjectionUser only supports delete.");
-    const currentState = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
-    const deletionRevision = currentState ? masteryRevision(currentState.deletion_revision ?? 0) : 0n;
-    if (currentState?.deleted_at && envelope === deletionRevision) return "idempotent";
-    const latest = currentState
-      ? [masteryRevision(currentState.mastery_watermark), masteryRevision(currentState.retention_watermark), deletionRevision]
-        .reduce((max, value) => value > max ? value : max, 0n)
-      : 0n;
-    if (envelope < latest) return "stale";
-    await env.DB.prepare(`DELETE FROM private_mastery WHERE user_id = ?`).bind(userId).run();
-    await env.DB.prepare(`DELETE FROM private_retention WHERE user_id = ?`).bind(userId).run();
-    await advanceMasteryState(env, userId, "mastery", envelope, { at: new Date().toISOString(), revision: envelope });
-    await advanceMasteryState(env, userId, "retention", envelope);
-    return "applied";
+    const deletedAt = new Date().toISOString();
+    const revisionText = envelope.toString();
+    const stateTable = q("private_mastery_projection_state");
+    const stateUpdate = prepareMasteryUserDeleteState(env, userId, envelope, deletedAt);
+    const deleteRows = (table: "private_mastery" | "private_retention") => {
+      const tableSql = q(table);
+      const sql =
+        `DELETE FROM ${tableSql} WHERE user_id = ? ` +
+        `AND NOT (${decimalTextGreater(`${tableSql}.${q("projection_revision")}`, "?")}) ` +
+        `AND EXISTS (SELECT 1 FROM ${stateTable} AS projection_state ` +
+        `WHERE projection_state.user_id = ? AND projection_state.deleted_at = ? ` +
+        `AND projection_state.deletion_revision = ?)`;
+      return env.DB.prepare(sql).bind(
+        userId,
+        revisionText,
+        revisionText,
+        revisionText,
+        userId,
+        deletedAt,
+        revisionText,
+      );
+    };
+    const stateQuery = env.DB
+      .prepare(`SELECT * FROM ${stateTable} WHERE user_id = ?`)
+      .bind(userId);
+    const [writeResult, , , stateResult] = await env.DB.batch([
+      stateUpdate,
+      deleteRows("private_mastery"),
+      deleteRows("private_retention"),
+      stateQuery,
+    ]);
+    const state = ((stateResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+    if (Number((writeResult as any)?.meta?.changes || 0) > 0) return "applied";
+    if (state?.deleted_at && masteryRevision(state.deletion_revision) === envelope) return "idempotent";
+    return "stale";
   }
   const table = entity === "LectureMastery" ? "private_mastery" : "private_retention";
   const kind = entity === "LectureMastery" ? "mastery" : "retention";
   const k = masteryKey(key);
-  const tombstone = await env.DB.prepare(`SELECT * FROM private_mastery_projection_tombstones WHERE entity = ? AND user_id = ? AND lecture_id = ?`).bind(entity, k.user_id, k.lecture_id).first() as Record<string, unknown> | null;
+  const tableSql = q(table);
+  const tombstoneTable = q("private_mastery_projection_tombstones");
+  const stateTable = q("private_mastery_projection_state");
+  const incomingEnvelope = envelope.toString();
   if (payload.operation === "delete") {
     const canonical = data?.revision;
     if (!Number.isInteger(Number(canonical)) || Number(canonical) < 0 || Number(canonical) > 2147483647) throw new Error("Delete revision is required.");
     const revision = Number(canonical);
-    if (tombstone && (envelope < masteryRevision(tombstone.projection_revision) || revision < Number(tombstone.revision))) return "stale";
-    const current = await env.DB.prepare(`SELECT revision, projection_revision FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(k.user_id, k.lecture_id).first() as Record<string, unknown> | null;
-    if (current && (envelope < masteryRevision(current.projection_revision) || revision < Number(current.revision))) return "stale";
-    await env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(k.user_id, k.lecture_id).run();
-    await env.DB.prepare(`INSERT OR REPLACE INTO private_mastery_projection_tombstones (entity,user_id,lecture_id,projection_revision,revision,deleted_at) VALUES (?,?,?,?,?,?)`).bind(entity, k.user_id, k.lecture_id, envelope.toString(), revision, new Date().toISOString()).run();
-    await advanceMasteryState(env, k.user_id, kind as "mastery" | "retention", envelope);
+    const deletedAt = new Date().toISOString();
+    const tombstoneWrite = prepareMasteryTombstoneUpsert(
+      env,
+      entity as "LectureMastery" | "LectureRetention",
+      k.user_id,
+      k.lecture_id,
+      envelope,
+      revision,
+      deletedAt,
+    );
+    const deleteRow = env.DB.prepare(
+      `DELETE FROM ${tableSql} WHERE user_id = ? AND lecture_id = ? ` +
+      `AND NOT (${decimalTextGreater(`${tableSql}.${q("projection_revision")}`, "?")}) ` +
+      `AND revision <= ? AND EXISTS (` +
+      `SELECT 1 FROM ${tombstoneTable} AS tombstone ` +
+      `WHERE tombstone.entity = ? AND tombstone.user_id = ? AND tombstone.lecture_id = ? ` +
+      `AND tombstone.projection_revision = ? AND tombstone.revision = ?)`,
+    ).bind(
+      k.user_id,
+      k.lecture_id,
+      incomingEnvelope,
+      incomingEnvelope,
+      incomingEnvelope,
+      revision,
+      entity,
+      k.user_id,
+      k.lecture_id,
+      incomingEnvelope,
+      revision,
+    );
+    const advanceState = prepareAdvanceMasteryState(env, userId, kind as "mastery" | "retention", envelope, {
+      sql: `EXISTS (SELECT 1 FROM ${tombstoneTable} AS tombstone ` +
+        `WHERE tombstone.entity = ? AND tombstone.user_id = ? AND tombstone.lecture_id = ? ` +
+        `AND tombstone.projection_revision = ? AND tombstone.revision = ?)`,
+      params: [entity, k.user_id, k.lecture_id, incomingEnvelope, revision],
+    });
+    const currentQuery = env.DB
+      .prepare(`SELECT * FROM ${tableSql} WHERE user_id = ? AND lecture_id = ?`)
+      .bind(k.user_id, k.lecture_id);
+    const tombstoneQuery = env.DB
+      .prepare(`SELECT * FROM ${tombstoneTable} WHERE entity = ? AND user_id = ? AND lecture_id = ?`)
+      .bind(entity, k.user_id, k.lecture_id);
+    const [, , , currentResult, tombstoneResult] = await env.DB.batch([
+      tombstoneWrite,
+      deleteRow,
+      advanceState,
+      currentQuery,
+      tombstoneQuery,
+    ]);
+    const current = ((currentResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+    const tombstone = ((tombstoneResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+    if (current && (envelope < masteryRevision(current.projection_revision) || revision < Number(current.revision))) {
+      return "stale";
+    }
+    if (
+      !tombstone ||
+      envelope < masteryRevision(tombstone.projection_revision) ||
+      revision < Number(tombstone.revision)
+    ) {
+      return "stale";
+    }
     return "applied";
   }
   if (payload.operation !== "upsert" || !data) throw new Error("Projection upsert data is required.");
@@ -738,33 +991,95 @@ async function syncMasteryProjection(env: any, entity: string, key: Record<strin
     throw new Error("Projection revision does not match envelope revision.");
   }
   const row = masteryRow(entity as "LectureMastery" | "LectureRetention", key, data, new Date().toISOString());
-  row.projection_revision = envelope.toString();
-  const current = await env.DB.prepare(`SELECT * FROM ${table} WHERE user_id = ? AND lecture_id = ?`).bind(row.user_id, row.lecture_id).first() as Record<string, unknown> | null;
-  const state = await env.DB.prepare(`SELECT * FROM private_mastery_projection_state WHERE user_id = ?`).bind(userId).first() as Record<string, unknown> | null;
+  row.projection_revision = incomingEnvelope;
+  const incomingCanonicalRevision = Number(row.revision);
+  const upsert = prepareMasteryProjectionUpsert(
+    env,
+    entity as "LectureMastery" | "LectureRetention",
+    row,
+  );
+  const cleanupTombstone = env.DB.prepare(
+    `DELETE FROM ${tombstoneTable} WHERE entity = ? AND user_id = ? AND lecture_id = ? ` +
+    `AND ${decimalTextGreater("?", `${tombstoneTable}.${q("projection_revision")}`)} ` +
+    `AND ? > ${tombstoneTable}.${q("revision")} AND EXISTS (` +
+    `SELECT 1 FROM ${tableSql} AS live_row ` +
+    `WHERE live_row.user_id = ? AND live_row.lecture_id = ? ` +
+    `AND live_row.projection_revision = ? AND live_row.revision = ?)`,
+  ).bind(
+    entity,
+    row.user_id,
+    row.lecture_id,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingEnvelope,
+    incomingCanonicalRevision,
+    row.user_id,
+    row.lecture_id,
+    incomingEnvelope,
+    incomingCanonicalRevision,
+  );
+  const advanceState = prepareAdvanceMasteryState(env, userId, kind as "mastery" | "retention", envelope, {
+    sql: `EXISTS (SELECT 1 FROM ${tableSql} AS live_row ` +
+      `WHERE live_row.user_id = ? AND live_row.lecture_id = ? ` +
+      `AND live_row.projection_revision = ? AND live_row.revision = ?)`,
+    params: [row.user_id, row.lecture_id, incomingEnvelope, incomingCanonicalRevision],
+  });
+  const currentQuery = env.DB
+    .prepare(`SELECT * FROM ${tableSql} WHERE user_id = ? AND lecture_id = ?`)
+    .bind(row.user_id, row.lecture_id);
+  const tombstoneQuery = env.DB
+    .prepare(`SELECT * FROM ${tombstoneTable} WHERE entity = ? AND user_id = ? AND lecture_id = ?`)
+    .bind(entity, row.user_id, row.lecture_id);
+  const stateQuery = env.DB
+    .prepare(`SELECT * FROM ${stateTable} WHERE user_id = ?`)
+    .bind(userId);
+  const [writeResult, , , currentResult, tombstoneResult, stateResult] = await env.DB.batch([
+    upsert,
+    cleanupTombstone,
+    advanceState,
+    currentQuery,
+    tombstoneQuery,
+    stateQuery,
+  ]);
+  const current = ((currentResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+  const tombstone = ((tombstoneResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
+  const state = ((stateResult as any)?.results || [])[0] as Record<string, unknown> | undefined;
   if (state?.deleted_at && envelope <= masteryRevision(state.deletion_revision)) return "stale";
-  if (tombstone && (envelope <= masteryRevision(tombstone.projection_revision) || Number(row.revision) <= Number(tombstone.revision))) return "stale";
-  if (current) {
-    const incoming = Number(row.revision), existing = Number(current.revision);
-    const incomingEnvelope = envelope;
-    const existingEnvelope = masteryRevision(current.projection_revision);
-    if (incomingEnvelope < existingEnvelope || incoming < existing) return "stale";
-    const comparable = (x: Record<string, unknown>) => JSON.stringify(MASTERY_FIELDS[entity as string]
-      .filter((f) => f !== "projected_at" && f !== "projection_revision").map((f) => x[f] ?? null));
-    if (incomingEnvelope === existingEnvelope) {
-      if (comparable(current) === comparable(row)) return "idempotent";
-      throw new Error("Projection revision conflict.");
-    }
-    if (incoming === existing && comparable(current) !== comparable(row)) {
-      throw new Error("Projection revision conflict.");
-    }
-    // A newer outbox envelope may repair/re-publish the same canonical row.
-    // It is safe to replace the envelope marker while preserving semantics.
+  if (
+    tombstone &&
+    (envelope <= masteryRevision(tombstone.projection_revision) || incomingCanonicalRevision <= Number(tombstone.revision))
+  ) {
+    return "stale";
   }
-  const columns = MASTERY_FIELDS[entity];
-  await env.DB.prepare(`INSERT OR REPLACE INTO ${table} (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`).bind(...columns.map(c => row[c])).run();
-  if (tombstone) await env.DB.prepare(`DELETE FROM private_mastery_projection_tombstones WHERE entity = ? AND user_id = ? AND lecture_id = ?`).bind(entity, userId, row.lecture_id).run();
-  await advanceMasteryState(env, userId, kind as "mastery" | "retention", envelope);
-  return "applied";
+
+  const comparable = (value: Record<string, unknown>) => JSON.stringify(
+    MASTERY_FIELDS[entity]
+      .filter((field) => field !== "projected_at" && field !== "projection_revision")
+      .map((field) => value[field] ?? null),
+  );
+  if (current) {
+    const currentEnvelope = masteryRevision(current.projection_revision);
+    const currentCanonicalRevision = Number(current.revision);
+    if (envelope < currentEnvelope || incomingCanonicalRevision < currentCanonicalRevision) return "stale";
+    const samePayload = comparable(current) === comparable(row);
+    if (envelope === currentEnvelope) {
+      if (samePayload) return "idempotent";
+      throw new Error("Projection revision conflict.");
+    }
+    if (incomingCanonicalRevision === currentCanonicalRevision && !samePayload) {
+      throw new Error("Projection revision conflict.");
+    }
+    if (Number((writeResult as any)?.meta?.changes || 0) > 0) return "applied";
+    if (
+      incomingCanonicalRevision > currentCanonicalRevision ||
+      (incomingCanonicalRevision === currentCanonicalRevision && samePayload)
+    ) {
+      throw new Error("Projection revision write was not applied.");
+    }
+    return "stale";
+  }
+
+  return Number((writeResult as any)?.meta?.changes || 0) > 0 ? "applied" : "stale";
 }
 
 async function handlePrivateSync(request: Request, env: any): Promise<Response> {
