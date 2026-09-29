@@ -1,0 +1,4319 @@
+# 99’s GUIDE — PROMPT 46 OF 52
+## PRIVATE STUDY ANALYZER FRONTEND
+## DETERMINISTIC LEARNING DASHBOARD + TRENDS + WEAKNESS/POSITIVE SIGNALS
+## STUDY PATTERNS + SUBJECT ACTIVITY + GROUNDED AI STUDY INSIGHTS
+### DATA DETERMINES FACTS — AI EXPLAINS FACTS — PRIVATE TO THE STUDENT
+
+Prompts 1–45 have been completed.
+
+Prompt 31 established deterministic Lecture Mastery.
+
+Prompt 32 established Retention and review timing.
+
+Prompt 33 established private Mastery/Retention read models.
+
+Prompt 34 established privacy-bounded owner aggregate metrics.
+
+Prompt 35 established the owner/student privacy boundary.
+
+Prompt 36 established the deterministic private Study Analyzer:
+
+```text
+canonical study data
+→ study-analyzer-v1
+→ deterministic metrics / trends / signals / patterns
+```
+
+Prompt 37 established grounded AI Study Insights:
+
+```text
+Prompt36 deterministic facts
+→ bounded grounding payload
+→ Cloudflare Workers AI
+→ validated explanatory insight
+```
+
+Prompt 38 established private Ask My Study Data Q&A.
+
+Prompt 45 completed the Recall/Mastery frontend.
+
+Prompt 46 now implements the full student-facing **Study Analyzer UI** on top of Prompt36/37.
+
+Frozen roadmap:
+
+```text
+Prompt 46 — Study Analyzer UI
+Prompt 47 — Owner Analytics UI
+Prompt 48 — integration / regression
+Prompt 49 — backfill / compaction / migration tooling
+Prompt 50 — observability / release gates / ops dashboards
+Prompt 51 — E2E / PWA / Capacitor / RTL / native validation
+Prompt 52 — staged rollout / post-release / final audit
+```
+
+Do NOT implement Prompt 47+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a production-grade private Study Analyzer frontend supporting:
+
+1. private Study Analyzer overview;
+2. 7-day view;
+3. 30-day view;
+4. current-semester view where canonical data supports it;
+5. active-study-day metrics;
+6. Focus metrics;
+7. objective MCQ metrics;
+8. objective MCQ trend;
+9. repeated-error signals;
+10. Flashcard metrics;
+11. Recall metrics;
+12. Mastery distribution summary;
+13. Retention/review summary;
+14. consistency metrics;
+15. subject activity;
+16. most-used study time;
+17. best-supported outcome time pattern;
+18. best-supported session-length pattern;
+19. deterministic weakness signals;
+20. deterministic positive signals;
+21. data-quality / insufficient-data states;
+22. grounded AI Study Insights;
+23. Study Insight refresh/regeneration according to Prompt37;
+24. Ask My Study Data entry point;
+25. clear separation between deterministic facts and AI explanation;
+26. private-only access;
+27. no peer comparison;
+28. no owner individual analytics;
+29. no client analytics computation authority;
+30. no new synthetic study score;
+31. excellent mobile layout;
+32. purpose-built iPad layout;
+33. desktop/PWA layout;
+34. Arabic RTL;
+35. accessibility;
+36. bounded query behavior;
+37. no canonical study mutation.
+
+---
+
+# 2. CORE PRINCIPLE
+
+Freeze visibly in architecture:
+
+```text
+DATA DETERMINES FACTS.
+AI EXPLAINS FACTS.
+```
+
+The UI may render:
+
+```text
+deterministic facts
++
+deterministic classifications
++
+grounded AI explanation
+```
+
+Never:
+
+```text
+AI-generated study facts
+```
+
+---
+
+# 3. STUDY ANALYZER IS PRIVATE
+
+Study Analyzer belongs only to the authenticated student.
+
+No public route.
+
+No public-profile data.
+
+No Group Focus participant exposure.
+
+No Leaderboard exposure.
+
+---
+
+# 4. OWNER PRIVACY BOUNDARY
+
+Prompt35 remains authoritative.
+
+Do NOT create:
+
+```text
+/api/admin/users/:userId/study-analyzer
+/admin/student/:id/analyzer
+```
+
+or any UI equivalent.
+
+Owner/admin individual Study Analyzer access remains:
+
+```text
+NO
+```
+
+---
+
+# 5. NO CLIENT-SUPPLIED USER ID
+
+All Analyzer reads derive user from auth.
+
+Reject/avoid:
+
+```text
+userId
+studentId
+email
+```
+
+in frontend query contracts.
+
+---
+
+# 6. PROMPT36 IS FACT AUTHORITY
+
+Frontend must consume `study-analyzer-v1`.
+
+Do NOT recompute canonical metrics from raw frontend arrays.
+
+---
+
+# 7. NO SECOND ANALYTICS ENGINE
+
+Forbidden:
+
+```text
+calculateActiveDaysInReact()
+calculateObjectiveTrendInReact()
+rankWeaknessesInReact()
+determineBestStudyTimeInReact()
+```
+
+if those are already Prompt36 facts.
+
+---
+
+# 8. DISPLAY FORMATTING IS ALLOWED
+
+Frontend may format:
+
+```text
+seconds → hours/minutes
+rate → percentage
+date → Baghdad-local date
+enum → translated label
+```
+
+Formatting is not analytics authority.
+
+---
+
+# 9. NO OVERALL STUDY SCORE
+
+Mandatory.
+
+Do NOT create:
+
+```text
+Study Score 82
+Productivity Score
+Performance Score
+Learning Score
+Efficiency Score
+```
+
+unless a canonical Prompt36 metric already exists—which frozen design does not require.
+
+---
+
+# 10. NO ACADEMIC-GRADE PREDICTION
+
+Do not display:
+
+```text
+Expected exam mark
+Pass probability
+Predicted GPA
+```
+
+---
+
+# 11. NO INTELLIGENCE INFERENCE
+
+Mandatory.
+
+---
+
+# 12. NO MENTAL-HEALTH INFERENCE
+
+Do not infer:
+
+```text
+burnout
+ADHD
+depression
+anxiety
+motivation disorder
+```
+
+from study metrics.
+
+---
+
+# 13. PREFLIGHT INSPECTION
+
+Before coding inspect exact current:
+
+```text
+Prompt36 analyzer endpoint
+StudyAnalyzerDto shape
+analyzer version
+window enum
+comparison/trend enum
+data-quality enums
+Focus metrics
+MCQ metrics
+Flashcard metrics
+Recall metrics
+Mastery metrics
+Retention metrics
+consistency metrics
+subject metrics
+time-of-day patterns
+session-length patterns
+weakness signals
+positive signals
+Prompt37 Study Insight API
+Prompt37 cache metadata
+Prompt37 AI failure/fallback semantics
+Prompt38 Ask My Study Data route
+Prompt45 Mastery route
+current chart/progress primitives
+existing query/cache layer
+feature flag system
+i18n
+RTL
+responsive breakpoints
+```
+
+Use actual current contracts.
+
+---
+
+# 14. FEATURE FLAGS
+
+Add/reuse:
+
+```text
+STUDY_ANALYZER_FRONTEND_ENABLED
+STUDY_INSIGHTS_FRONTEND_ENABLED
+```
+
+or repository-equivalent.
+
+Default:
+
+```text
+false
+```
+
+until rollout.
+
+---
+
+# 15. PRODUCTION
+
+Do NOT enable either flag in production.
+
+---
+
+# 16. ANALYZER ROUTE
+
+Use repository-consistent private route such as:
+
+```text
+/study-analyzer
+```
+
+or existing planned destination.
+
+---
+
+# 17. ENTRY POINTS
+
+Appropriate links may exist from:
+
+```text
+Welcome
+Profile
+Focus Hub
+Mastery
+```
+
+depending current IA.
+
+Do not clutter all pages.
+
+---
+
+# 18. STUDY ANALYZER INFORMATION ARCHITECTURE
+
+Recommended high-level sections:
+
+```text
+Overview
+Activity
+Practice
+Mastery & Review
+Patterns
+Signals
+AI Insight
+```
+
+Use cards/sections rather than seven completely separate routes unless current app navigation favors tabs.
+
+---
+
+# 19. MOBILE INFORMATION HIERARCHY
+
+Recommended:
+
+```text
+Header
+Window selector
+Key facts
+Trends
+Practice
+Mastery/Retention
+Patterns
+Weakness signals
+Positive signals
+AI Study Insight
+Ask My Study Data CTA
+```
+
+---
+
+# 20. IPAD INFORMATION HIERARCHY
+
+Use deliberate two-column dashboard.
+
+Example:
+
+```text
+LEFT
+key metrics
+trends
+practice
+
+RIGHT
+signals
+patterns
+AI insight
+Mastery/review summary
+```
+
+Do not stretch phone cards across iPad Pro.
+
+---
+
+# 21. DESKTOP/PWA
+
+Use bounded dashboard grid.
+
+Avoid giant dashboard walls.
+
+---
+
+# 22. WINDOW SELECTOR
+
+Support canonical Prompt36 windows.
+
+At minimum:
+
+```text
+LAST_7_DAYS
+LAST_30_DAYS
+CURRENT_SEMESTER
+```
+
+where current Analyzer supports them.
+
+---
+
+# 23. DEFAULT WINDOW
+
+Recommended:
+
+```text
+LAST_30_DAYS
+```
+
+unless Prompt36 frozen API declares another default.
+
+---
+
+# 24. NO CUSTOM DATE RANGE IN PROMPT46
+
+Do not build arbitrary:
+
+```text
+from
+to
+```
+
+date pickers.
+
+Keep V1 bounded to canonical windows.
+
+---
+
+# 25. WINDOW SWITCH
+
+Changing window:
+
+```text
+changes Analyzer request
+resets relevant UI state
+does NOT mutate canonical data
+```
+
+---
+
+# 26. NO SERVER WRITE ON WINDOW SWITCH
+
+Mandatory.
+
+---
+
+# 27. WINDOW PERSISTENCE
+
+Selected window may persist locally.
+
+Do not sync server-side.
+
+---
+
+# 28. AS-OF
+
+If Analyzer response includes:
+
+```text
+asOf
+```
+
+use it for subtle freshness display.
+
+---
+
+# 29. TIMEZONE
+
+Display dates in:
+
+```text
+Asia/Baghdad
+```
+
+consistent with backend semantics.
+
+---
+
+# 30. OVERVIEW KEY FACTS
+
+Use a bounded set of Prompt36 facts.
+
+Potential:
+
+```text
+active study days
+verified Focus time
+meaningful Focus sessions
+objective MCQ attempts
+objective MCQ accuracy
+Flashcard reviewed count
+Recall attempts
+due reviews
+```
+
+Only if actually present in Analyzer DTO.
+
+---
+
+# 31. NO METRIC FABRICATION
+
+If Prompt36 does not expose a metric:
+
+do not create it from another metric unless it is pure display formatting.
+
+---
+
+# 32. VERIFIED FOCUS TIME
+
+Label:
+
+```text
+Verified Focus time
+```
+
+not:
+
+```text
+Total time you studied
+```
+
+---
+
+# 33. FOCUS METRICS
+
+Use canonical Prompt36 facts, potentially:
+
+```text
+meaningful sessions
+verified seconds
+average meaningful session duration
+completed sessions
+group Focus facts
+```
+
+where available.
+
+---
+
+# 34. NO PDF TIME
+
+Do not infer study time from PDF launches.
+
+---
+
+# 35. NO VIDEO TIME
+
+Do not infer study time from external video opens.
+
+---
+
+# 36. ACTIVE DAYS
+
+Use exact Prompt36 definition.
+
+Do not invent:
+
+```text
+app open day = active study day
+```
+
+---
+
+# 37. CONSISTENCY
+
+Display exact deterministic Prompt36 consistency fact/classification.
+
+---
+
+# 38. CONSISTENCY TREND
+
+If canonical trend is:
+
+```text
+IMPROVED
+STABLE
+DECLINED
+INSUFFICIENT_DATA
+```
+
+or equivalent:
+
+render exactly.
+
+---
+
+# 39. NO STREAK SHAMING
+
+Avoid:
+
+```text
+You broke your consistency.
+```
+
+---
+
+# 40. OBJECTIVE MCQ METRICS
+
+Use objective facts only.
+
+Potential:
+
+```text
+attempt count
+correct count
+incorrect count
+accuracy
+```
+
+according to actual DTO.
+
+---
+
+# 41. OBJECTIVE ACCURACY DENOMINATOR
+
+Display denominator/context where helpful.
+
+Example:
+
+```text
+72% • 36/50
+```
+
+only from canonical facts.
+
+---
+
+# 42. NO FLASHCARD MIXING
+
+Do not combine Flashcard self-assessment into objective MCQ accuracy.
+
+---
+
+# 43. OBJECTIVE MCQ TREND
+
+Use Prompt36 classification.
+
+Do not recompute regression/trend in chart component.
+
+---
+
+# 44. TREND PRESENTATION
+
+Allowed:
+
+```text
+Improving
+Stable
+Declining
+Not enough data
+```
+
+localized.
+
+---
+
+# 45. NO CAUSAL CLAIM
+
+Do not say:
+
+```text
+Your Focus sessions caused your MCQ accuracy to improve.
+```
+
+unless Analyzer has a canonical causal model—which it does not.
+
+---
+
+# 46. REPEATED ERRORS
+
+Render bounded deterministic repeated-error facts.
+
+---
+
+# 47. NO FULL MCQ QUESTION TEXT REQUIRED
+
+Prefer:
+
+```text
+lecture
+topic/category if canonical
+repeat count / supported signal
+```
+
+unless current DTO safely exposes the item itself.
+
+Prompt36 grounding intentionally avoided full MCQ text.
+
+---
+
+# 48. REPEATED ERROR LIMIT
+
+Respect Analyzer DTO bounds.
+
+Do not load entire attempt history.
+
+---
+
+# 49. REPEATED ERROR CTA
+
+Safe actions:
+
+```text
+Open Lecture
+Practice MCQs
+```
+
+No automatic Schedule creation.
+
+---
+
+# 50. FLASHCARD METRICS
+
+Preserve distinction:
+
+```text
+remembered / needs review
+=
+self-assessment
+```
+
+not objective correctness.
+
+---
+
+# 51. FLASHCARD WORDING
+
+Preferred:
+
+```text
+Remembered
+Needs review
+Self-reviewed cards
+```
+
+not:
+
+```text
+Flashcard accuracy
+```
+
+unless exact canonical naming intentionally uses it with explicit self-report qualification.
+
+---
+
+# 52. RECALL METRICS
+
+Use canonical Recall facts.
+
+Potential:
+
+```text
+meaningful attempts
+objective MCQ Recall accuracy
+Flashcard self-assessment
+skips
+```
+
+only where Prompt36 exposes them.
+
+---
+
+# 53. RECALL SKIP
+
+Skip remains neutral.
+
+Do not classify skip as incorrect.
+
+---
+
+# 54. RECALL EXPIRED
+
+Not knowledge failure.
+
+---
+
+# 55. MASTERY SUMMARY
+
+Reuse Prompt36/Prompt45 canonical distribution.
+
+Frozen states:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+---
+
+# 56. NO MASTERy RECALCULATION
+
+Mandatory.
+
+---
+
+# 57. LINK TO MASTERY
+
+Mastery summary card may link:
+
+```text
+View Mastery
+```
+
+to Prompt45.
+
+---
+
+# 58. RETENTION SUMMARY
+
+Use canonical counts such as:
+
+```text
+due
+overdue
+not due
+stale/missing where relevant
+```
+
+according to current DTO.
+
+---
+
+# 59. STALE RETENTION
+
+Must not be presented as current.
+
+---
+
+# 60. DUE REVIEW CTA
+
+Link to Prompt45 due-review UI.
+
+Do not duplicate full review list unnecessarily.
+
+---
+
+# 61. SUBJECT ACTIVITY
+
+Display canonical Prompt36 subject facts.
+
+Potential:
+
+```text
+verified Focus time
+objective practice volume
+review activity
+```
+
+only where Analyzer provides them.
+
+---
+
+# 62. NO SUBJECT SCORE
+
+Mandatory.
+
+---
+
+# 63. NO “BEST SUBJECT”
+
+Do not generate one overall best/worst subject.
+
+---
+
+# 64. SUBJECT ACTIVITY SORT
+
+Use server order if provided.
+
+Otherwise use stable canonical subject order.
+
+Do NOT sort by a hidden composite.
+
+---
+
+# 65. SUBJECT DETAIL
+
+Click may route to existing Subject page.
+
+Do not expose Analyzer-private facts publicly.
+
+---
+
+# 66. MOST-USED STUDY TIME
+
+Prompt36 may expose:
+
+```text
+mostUsedTimeOfDay
+```
+
+Render only when supported.
+
+---
+
+# 67. MOST-USED ≠ BEST
+
+Mandatory.
+
+UI distinction:
+
+```text
+Most-used study time
+```
+
+is not:
+
+```text
+Best study time
+```
+
+---
+
+# 68. BEST-SUPPORTED OUTCOME TIME
+
+Only show if Prompt36 marks it:
+
+```text
+SUPPORTED
+```
+
+or equivalent sufficient-data state.
+
+---
+
+# 69. INSUFFICIENT TIME PATTERN
+
+If unsupported:
+
+show:
+
+```text
+Not enough data yet
+```
+
+Do not guess.
+
+---
+
+# 70. NO CAUSAL TIME-OF-DAY LANGUAGE
+
+Use:
+
+```text
+Higher objective outcomes were observed in...
+```
+
+not:
+
+```text
+Studying at night makes you perform better.
+```
+
+---
+
+# 71. SESSION-LENGTH PATTERN
+
+Only display if Prompt36 marks sufficient evidence.
+
+---
+
+# 72. SESSION-LENGTH ≠ PRESCRIPTION
+
+Do not say:
+
+```text
+You must study exactly 45 minutes.
+```
+
+Preferred:
+
+```text
+Your stronger observed outcomes were associated with sessions in this range.
+```
+
+---
+
+# 73. DATA THRESHOLD
+
+Never expose unsupported pattern as definitive.
+
+---
+
+# 74. WEAKNESS SIGNALS
+
+Render deterministic Prompt36 weakness signals.
+
+---
+
+# 75. WEAKNESS SIGNAL LIMIT
+
+Use Analyzer-provided bounded list.
+
+Do not independently generate more.
+
+---
+
+# 76. WEAKNESS SIGNAL LANGUAGE
+
+Neutral, actionable.
+
+Avoid:
+
+```text
+You are bad at...
+```
+
+---
+
+# 77. POSITIVE SIGNALS
+
+Render deterministic Prompt36 positive signals.
+
+---
+
+# 78. POSITIVE SIGNALS ARE NOT PRAISE GENERATOR
+
+Keep tied to facts.
+
+---
+
+# 79. SIGNAL TYPES
+
+Use exact Prompt36 signal registry.
+
+Do not add frontend-only signal types.
+
+---
+
+# 80. SIGNAL EXPLANATION
+
+Each signal can display:
+
+```text
+title
+short deterministic explanation
+supporting value
+safe action
+```
+
+if provided by DTO.
+
+---
+
+# 81. NO AI SIGNAL DISCOVERY
+
+AI Study Insight cannot create new weakness/positive signals.
+
+---
+
+# 82. DATA QUALITY
+
+Prompt36 may expose limitations.
+
+Render them when material.
+
+Potential examples:
+
+```text
+insufficient objective attempts
+insufficient Focus sessions
+insufficient time-of-day evidence
+stale Retention
+```
+
+---
+
+# 83. NO SILENT ZERO
+
+If a metric is unknown/insufficient:
+
+do not show:
+
+```text
+0%
+```
+
+as though measured.
+
+---
+
+# 84. UNKNOWN ≠ ZERO
+
+Mandatory.
+
+---
+
+# 85. AI STUDY INSIGHT SECTION
+
+Integrate Prompt37 grounded AI Study Insight.
+
+---
+
+# 86. AI INSIGHT IS SECONDARY
+
+Place after deterministic facts.
+
+Do not make AI prose the first/only content.
+
+---
+
+# 87. AI SECTION LABEL
+
+Clearly label:
+
+```text
+AI Study Insight
+```
+
+or localized equivalent.
+
+---
+
+# 88. AI EXPLANATION DISCLAIMER
+
+Use concise wording if useful:
+
+```text
+Based on your recorded study data.
+```
+
+No excessive disclaimer wall.
+
+---
+
+# 89. AI CANNOT CHANGE FACTS
+
+UI must visually distinguish:
+
+```text
+deterministic metric cards
+```
+
+from:
+
+```text
+AI explanation card
+```
+
+---
+
+# 90. STUDY INSIGHT API
+
+Use exact Prompt37 endpoint/cache.
+
+Do not call Workers AI directly from browser.
+
+---
+
+# 91. CLOUDFARE ONLY
+
+Prompt37 provider remains:
+
+```text
+Cloudflare Workers AI
+```
+
+No Gemini.
+
+---
+
+# 92. FRONTEND DOES NOT SEND RAW ANALYZER DATA TO WORKER
+
+Architecture remains:
+
+```text
+browser
+→ Render backend
+→ Prompt37 service
+→ Worker
+```
+
+not:
+
+```text
+browser
+→ Worker
+```
+
+---
+
+# 93. AI INSIGHT RESPONSE
+
+Consume Prompt37 validated structured result.
+
+Do not accept arbitrary HTML.
+
+---
+
+# 94. AI INSIGHT FAILURE
+
+If AI unavailable:
+
+render deterministic Analyzer normally.
+
+AI section may show:
+
+```text
+AI insight unavailable right now.
+```
+
+or Prompt37 deterministic fallback if returned.
+
+---
+
+# 95. ANALYZER MUST WORK WITHOUT AI
+
+Mandatory.
+
+---
+
+# 96. AI_CACHE
+
+Prompt37 cache remains server/private infrastructure.
+
+Frontend simply consumes response.
+
+---
+
+# 97. AI INSIGHT REFRESH
+
+If product allows refresh:
+
+button:
+
+```text
+Refresh insight
+```
+
+must use Prompt37 canonical refresh semantics.
+
+---
+
+# 98. NO SPAM REGENERATE
+
+Respect Prompt37 cache/call/rate-limit policy.
+
+---
+
+# 99. NO MODEL SELECTOR
+
+Mandatory.
+
+---
+
+# 100. NO PROMPT EDITOR
+
+Mandatory.
+
+---
+
+# 101. NO TEMPERATURE CONTROL
+
+Mandatory.
+
+---
+
+# 102. NO AI PROVIDER UI
+
+Do not display provider/model internals to student.
+
+---
+
+# 103. AI INSIGHT REFERENCES
+
+If Prompt37 returns evidence references:
+
+UI may provide subtle:
+
+```text
+Based on 4 study signals
+```
+
+or expandable evidence.
+
+Do not expose internal raw grounding payload.
+
+---
+
+# 104. AI NUMERIC CLAIMS
+
+Must already have passed Prompt37 validator.
+
+Frontend should not attempt to fix them.
+
+---
+
+# 105. AI INSIGHT COPY
+
+Allow copy only if existing product design wants it.
+
+Not required.
+
+---
+
+# 106. NO AI INSIGHT PUBLIC SHARE
+
+Do not implement social sharing.
+
+---
+
+# 107. ASK MY STUDY DATA CTA
+
+Integrate Prompt38 via:
+
+```text
+Ask about my study data
+```
+
+---
+
+# 108. ASK MY STUDY DATA ROUTE
+
+Use existing Prompt38 route/surface.
+
+Do not implement a second Q&A backend.
+
+---
+
+# 109. PREPOPULATED QUESTION
+
+Safe optional quick prompts:
+
+```text
+What should I review?
+How is my MCQ performance changing?
+What does my Focus data show?
+```
+
+only as client text suggestions.
+
+---
+
+# 110. DO NOT PREPOPULATE OTHER-USER QUERY
+
+Mandatory.
+
+---
+
+# 111. NO MULTI-TURN ANALYZER CHAT
+
+Prompt38 remains single-turn.
+
+Prompt46 does not turn it into persistent chat.
+
+---
+
+# 112. QUICK QUESTION CHIPS
+
+If implemented:
+
+max 3–4.
+
+Do not clutter.
+
+---
+
+# 113. NO AI AUTO-RUN ON PAGE LOAD
+
+Prompt37 fixed insight may load as existing cached/endpoint behavior.
+
+Prompt38 Q&A must never auto-run.
+
+---
+
+# 114. ANALYZER PAGE LOAD
+
+Expected server writes:
+
+```text
+0 canonical study writes
+```
+
+---
+
+# 115. OPENING AI INSIGHT
+
+Should not create study evidence.
+
+---
+
+# 116. NO STUDY POINTS
+
+Opening/refreshing Analyzer:
+
+```text
+0 Study Points
+```
+
+---
+
+# 117. NO ACHIEVEMENT
+
+Mandatory.
+
+---
+
+# 118. NO CHALLENGE PROGRESS
+
+Mandatory.
+
+---
+
+# 119. NO LEADERBOARD EFFECT
+
+Mandatory.
+
+---
+
+# 120. NO MASTERY MUTATION
+
+Analyzer read/AI explanation:
+
+```text
+LectureMastery delta = 0
+```
+
+---
+
+# 121. NO RETENTION MUTATION
+
+Mandatory.
+
+---
+
+# 122. NO RECALL ATTEMPT
+
+Analyzer page does not auto-create Recall.
+
+---
+
+# 123. NO FOCUS SESSION
+
+Analyzer page does not auto-start Focus.
+
+---
+
+# 124. NO CALENDAR
+
+Analyzer creates:
+
+```text
+0 Calendar events
+```
+
+---
+
+# 125. SAFE ACTIONS FROM SIGNALS
+
+A signal may offer:
+
+```text
+Review lecture
+Open Mastery
+Practice MCQs
+Open Flashcards
+Open Focus Hub
+Ask My Study Data
+```
+
+---
+
+# 126. ACTIONS ARE NAVIGATION
+
+Do not silently mutate study state.
+
+---
+
+# 127. FOCUS ACTION
+
+If offering:
+
+```text
+Focus on this lecture
+```
+
+route to Prompt40 with preselection.
+
+Do not auto-start Focus.
+
+---
+
+# 128. REVIEW ACTION
+
+Route to Prompt45.
+
+No Calendar event.
+
+---
+
+# 129. MCQ ACTION
+
+Open existing study MCQ surface.
+
+No client Mastery mutation.
+
+---
+
+# 130. FLASHCARD ACTION
+
+Open existing Flashcard surface.
+
+---
+
+# 131. SIGNAL WITHOUT ACTION
+
+Fine.
+
+Do not invent an action merely to fill layout.
+
+---
+
+# 132. CHARTS
+
+Use simple, accessible visualization.
+
+Potential:
+
+```text
+trend line
+bar
+distribution bar
+```
+
+Reuse existing chart library if already installed.
+
+---
+
+# 133. DO NOT ADD HEAVY CHART LIBRARY WITHOUT NEED
+
+If no chart library exists:
+
+use lightweight SVG/CSS components.
+
+---
+
+# 134. TREND CHART AUTHORITY
+
+Chart visualizes server-provided time-series points/classification.
+
+Do not infer classification from chart shape.
+
+---
+
+# 135. IF PROMPT36 RETURNS NO TIME SERIES
+
+Do not fabricate one from raw attempts.
+
+Use summary trend card instead.
+
+---
+
+# 136. Y-AXIS
+
+For percentages:
+
+```text
+0–100%
+```
+
+where applicable.
+
+---
+
+# 137. SMALL SAMPLE
+
+If data-quality says insufficient:
+
+chart must not imply robust trend.
+
+---
+
+# 138. TOOLTIP
+
+Accessible.
+
+Do not rely on hover only.
+
+---
+
+# 139. MOBILE CHARTS
+
+Must fit width without horizontal page overflow.
+
+---
+
+# 140. RTL CHARTS
+
+Time-series chronological order should remain semantically correct.
+
+Do not mirror chronology incorrectly just because UI is RTL.
+
+---
+
+# 141. DATE AXIS
+
+Chronological progression remains left-to-right unless existing chart conventions intentionally support RTL chronology without confusion.
+
+Text labels can remain localized.
+
+---
+
+# 142. DATA TABLE ALTERNATIVE
+
+Screen readers should have a textual summary or accessible data representation.
+
+---
+
+# 143. OVERVIEW CARDS
+
+Avoid 15 equal cards.
+
+Use hierarchy.
+
+Primary:
+
+```text
+active days
+Focus
+objective MCQ
+due review
+```
+
+Secondary categories later.
+
+---
+
+# 144. NO DASHBOARD OVERLOAD
+
+Use sections and collapsible detail where appropriate.
+
+---
+
+# 145. MOBILE FIRST
+
+Avoid tiny dashboard mini-charts.
+
+---
+
+# 146. IPAD
+
+Use true tablet density.
+
+---
+
+# 147. DESKTOP
+
+No unnecessarily huge numbers.
+
+---
+
+# 148. ARABIC RTL
+
+All cards must handle:
+
+```text
+metric labels
+trend labels
+percentages
+durations
+subject names
+signal explanations
+AI insight
+```
+
+correctly.
+
+---
+
+# 149. MIXED MEDICAL TERMS
+
+Preserve Latin medical names inside Arabic text.
+
+---
+
+# 150. DURATION FORMAT
+
+Use localized human-readable:
+
+```text
+2 h 15 min
+```
+
+or existing localized format.
+
+---
+
+# 151. PERCENT FORMAT
+
+Use consistent decimal precision.
+
+Recommended:
+
+```text
+whole %
+```
+
+unless canonical value requires more precision.
+
+---
+
+# 152. NO FALSE PRECISION
+
+Avoid:
+
+```text
+72.3847%
+```
+
+for user-facing analysis.
+
+---
+
+# 153. COUNT FORMAT
+
+Use locale formatting where appropriate.
+
+---
+
+# 154. EMPTY USER
+
+For a new student with little/no data:
+
+show an intentional onboarding state.
+
+Examples:
+
+```text
+Your study analysis will build as you use Focus, MCQs, Flashcards and Recall.
+```
+
+Do not show meaningless zeros everywhere.
+
+---
+
+# 155. PARTIAL DATA
+
+One subsystem may have data while another does not.
+
+Render component-level empty/insufficient states.
+
+---
+
+# 156. NO FULL PAGE FAILURE FOR ONE SECTION
+
+Mandatory.
+
+---
+
+# 157. ANALYZER API FAILURE
+
+Whole deterministic Analyzer unavailable:
+
+show retry.
+
+Do not substitute AI prose.
+
+---
+
+# 158. AI API FAILURE
+
+Deterministic Analyzer remains visible.
+
+---
+
+# 159. MASTERY LINK FAILURE
+
+Do not break Analyzer.
+
+---
+
+# 160. QUERY ARCHITECTURE
+
+Prefer:
+
+```text
+1 Analyzer request per selected window
+1 AI Study Insight request as needed
+```
+
+plus optional current UI-specific supporting query only when necessary.
+
+---
+
+# 161. NO RAW ATTEMPT FETCH
+
+Analyzer frontend must not fetch:
+
+```text
+all MCQ attempts
+all Flashcard attempts
+all Focus sessions
+```
+
+to calculate dashboard metrics.
+
+---
+
+# 162. NO N+1
+
+Mandatory.
+
+---
+
+# 163. QUERY CACHE
+
+Reuse current query/cache layer.
+
+---
+
+# 164. WINDOW CACHE KEYS
+
+Include:
+
+```text
+analyzerVersion
+window
+```
+
+appropriately.
+
+---
+
+# 165. INVALIDATION
+
+Relevant canonical actions elsewhere may invalidate Analyzer.
+
+Do not manually update every metric client-side.
+
+---
+
+# 166. FOREGROUND REFRESH
+
+Reasonable.
+
+Do not aggressively refetch every navigation event.
+
+---
+
+# 167. NO POLLING EVERY SECOND
+
+Mandatory.
+
+---
+
+# 168. MANUAL REFRESH
+
+If current app has pull-to-refresh:
+
+integrate.
+
+---
+
+# 169. PULL TO REFRESH
+
+Must not cause layout resizing/gesture regressions.
+
+---
+
+# 170. NO DUPLICATE ANALYZER REQUESTS
+
+StrictMode/render changes should deduplicate through query layer.
+
+---
+
+# 171. STUDY INSIGHT QUERY
+
+Keep independent from Analyzer so AI failure does not poison fact cache.
+
+---
+
+# 172. AI INSIGHT CACHE KEY
+
+Backend Prompt37 authority.
+
+Frontend does not reconstruct semantic cache keys.
+
+---
+
+# 173. SECURITY
+
+No Analyzer data in:
+
+```text
+URL
+public logs
+public cache
+```
+
+beyond benign window selector.
+
+---
+
+# 174. HTTP CACHE
+
+Private read response.
+
+Respect backend:
+
+```text
+private / no-store
+```
+
+where configured.
+
+---
+
+# 175. NO LOCAL PERSISTENT RAW ANALYZER SNAPSHOT
+
+Do not write private Analyzer DTO into localStorage.
+
+Query cache memory is sufficient.
+
+---
+
+# 176. OFFLINE
+
+If query cache retains last private Analyzer response in memory:
+
+may show stale read-only data with offline label.
+
+Do not persist extensive private analytics for offline unless current query architecture already does so securely.
+
+---
+
+# 177. NO OFFLINE AI GENERATION
+
+Mandatory.
+
+---
+
+# 178. NO OFFLINE FACT RECOMPUTATION
+
+Mandatory.
+
+---
+
+# 179. PRIVACY LOGGING
+
+Do not log:
+
+```text
+weakness details
+MCQ accuracy values
+Mastery distribution
+Retention counts
+study-time pattern
+AI insight text
+full Analyzer DTO
+```
+
+in routine production logs.
+
+---
+
+# 180. SAFE LOGGING
+
+May log:
+
+```text
+route
+window
+analyzer version
+response status
+latency
+generic error
+```
+
+---
+
+# 181. NO QUICK NOTE CONTENT
+
+Analyzer must not display/use Quick Note text.
+
+---
+
+# 182. NO PRIVATE Q&A HISTORY
+
+Prompt38 has no history.
+
+Prompt46 does not create one.
+
+---
+
+# 183. NO AUDIO DATA
+
+Prompt39 audio remains untracked.
+
+Do not include:
+
+```text
+music
+ambient sound
+volume
+listening time
+```
+
+in Analyzer.
+
+---
+
+# 184. NO PDF READING ANALYTICS
+
+Mandatory.
+
+---
+
+# 185. NO VIDEO COMPLETION ANALYTICS
+
+Mandatory.
+
+---
+
+# 186. GROUP FOCUS ANALYTICS
+
+Only Prompt36 deterministic Group Focus facts may appear.
+
+Do not query room live presence/history directly.
+
+---
+
+# 187. LEADERBOARD DATA
+
+Do not use peer Leaderboard data inside Study Analyzer.
+
+---
+
+# 188. POINTS
+
+Do not use Points/Level as evidence of learning quality.
+
+---
+
+# 189. GAMIFICATION CARD
+
+Study Analyzer should not duplicate Prompt44.
+
+At most a navigation link if product IA requires.
+
+---
+
+# 190. NO POINTS-TO-PERFORMANCE CLAIM
+
+Mandatory.
+
+---
+
+# 191. SIGNAL PRIORITY
+
+Use Prompt36 order.
+
+Do not sort by color/severity invented by UI.
+
+---
+
+# 192. SIGNAL ICONS
+
+Use existing Lucide/icon system.
+
+Do not use alarming warning icons for normal study review signals.
+
+---
+
+# 193. WEAKNESS COLOR
+
+Use neutral caution styling.
+
+Avoid red error styling unless truly severe data error.
+
+---
+
+# 194. POSITIVE SIGNAL COLOR
+
+Use theme tokens, not celebratory casino style.
+
+---
+
+# 195. TREND COLORS
+
+Do not rely solely on green/red.
+
+Include text/icon.
+
+---
+
+# 196. ACCESSIBILITY
+
+All Analyzer screens must support:
+
+```text
+keyboard
+screen reader
+touch
+focus states
+reduced motion
+```
+
+---
+
+# 197. METRIC CARD ACCESSIBILITY
+
+Screen reader reads:
+
+```text
+Objective MCQ accuracy, 72 percent, improving, 50 attempts.
+```
+
+if these facts exist.
+
+---
+
+# 198. CHART ACCESSIBILITY
+
+Provide textual equivalent.
+
+---
+
+# 199. SIGNAL CARD ACCESSIBILITY
+
+Signal title + explanation + action.
+
+---
+
+# 200. AI INSIGHT ACCESSIBILITY
+
+Normal semantic text.
+
+No typewriter animation required.
+
+---
+
+# 201. ASK-MY-DATA BUTTON
+
+Accessible and clearly distinct from AI insight.
+
+---
+
+# 202. TAB/SECTION NAVIGATION
+
+Keyboard operable.
+
+---
+
+# 203. TOUCH TARGETS
+
+>=44×44 where appropriate.
+
+---
+
+# 204. REDUCED MOTION
+
+Disable heavy chart/section entrance animations.
+
+---
+
+# 205. NO CONTINUOUS ANIMATION
+
+Mandatory.
+
+---
+
+# 206. PERFORMANCE FIXTURE
+
+Test Analyzer with realistic scale equivalent to current app:
+
+```text
+~300 lectures
+thousands of MCQ attempts
+thousands of Flashcard interactions
+many Focus sessions
+Recall history
+Mastery/Retention rows
+multiple subjects
+```
+
+Frontend should still receive bounded Analyzer DTO, not raw histories.
+
+---
+
+# 207. FRONTEND RENDER FIXTURE
+
+Use large but bounded DTO:
+
+```text
+all metric sections
+max signal arrays
+all subjects
+time patterns
+Mastery distribution
+```
+
+---
+
+# 208. NO 300-LINE DOM LIST BY DEFAULT
+
+Subject-level data is bounded.
+
+Lecture-level details belong Prompt45.
+
+---
+
+# 209. BUNDLE SIZE
+
+Report delta.
+
+Do not add a large data-viz framework unnecessarily.
+
+---
+
+# 210. CHART DEPENDENCY
+
+If a suitable library already exists:
+
+reuse it.
+
+Otherwise lightweight CSS/SVG.
+
+---
+
+# 211. RESPONSIVE TEST — MOBILE
+
+Representative iPhone widths:
+
+```text
+no horizontal overflow
+window selector usable
+charts fit
+signal cards readable
+AI insight readable
+```
+
+---
+
+# 212. RESPONSIVE TEST — IPAD PORTRAIT
+
+Purpose-built two-column/stack hybrid.
+
+---
+
+# 213. RESPONSIVE TEST — IPAD LANDSCAPE
+
+Use available width intelligently.
+
+---
+
+# 214. RESPONSIVE TEST — DESKTOP
+
+Controlled max width.
+
+---
+
+# 215. RTL TEST — MOBILE
+
+No reversed metric order bugs.
+
+---
+
+# 216. RTL TEST — IPAD
+
+No chart/layout overlap.
+
+---
+
+# 217. LONG SUBJECT TITLE
+
+Safe wrapping.
+
+---
+
+# 218. LONG AI INSIGHT
+
+Bounded by Prompt37 and renders without overflow.
+
+---
+
+# 219. VERY SMALL DATASET
+
+Intentional insufficient-data states.
+
+---
+
+# 220. ALL DATA AVAILABLE
+
+Full dashboard.
+
+---
+
+# 221. WINDOW TEST — 7 DAYS
+
+Exact Prompt36 response rendered.
+
+---
+
+# 222. WINDOW TEST — 30 DAYS
+
+Exact.
+
+---
+
+# 223. WINDOW TEST — SEMESTER
+
+Exact canonical semester data.
+
+---
+
+# 224. WINDOW SWITCH TEST
+
+Does not merge stale 7-day data into 30-day view.
+
+---
+
+# 225. REQUEST RACE
+
+User taps:
+
+```text
+7 days → 30 days → semester
+```
+
+quickly.
+
+Stale response must not overwrite current selected window.
+
+---
+
+# 226. QUERY KEY SAFETY
+
+Window-specific cache keys.
+
+---
+
+# 227. TEST — ACTIVE DAYS
+
+Exact server value.
+
+---
+
+# 228. TEST — FOCUS
+
+Verified Focus duration exact.
+
+No PDF/video time included.
+
+---
+
+# 229. TEST — OBJECTIVE MCQ ACCURACY
+
+Exact server value.
+
+---
+
+# 230. TEST — MCQ TREND
+
+Exact canonical classification.
+
+---
+
+# 231. TEST — FLASHCARD
+
+Self-assessment wording correct.
+
+---
+
+# 232. TEST — RECALL SKIP
+
+Not shown as failure.
+
+---
+
+# 233. TEST — MASTERY DISTRIBUTION
+
+Exact server counts.
+
+---
+
+# 234. TEST — RETENTION DUE
+
+Exact canonical count.
+
+---
+
+# 235. TEST — STALE RETENTION
+
+Visible limitation.
+
+---
+
+# 236. TEST — SUBJECT ACTIVITY
+
+No hidden score.
+
+---
+
+# 237. TEST — MOST-USED TIME
+
+Correct label.
+
+---
+
+# 238. TEST — BEST-SUPPORTED TIME
+
+Shown only if sufficiently supported.
+
+---
+
+# 239. TEST — UNSUPPORTED TIME PATTERN
+
+Not guessed.
+
+---
+
+# 240. TEST — SESSION-LENGTH PATTERN
+
+Canonical.
+
+---
+
+# 241. TEST — WEAKNESS SIGNALS
+
+Exact Prompt36 order/content.
+
+---
+
+# 242. TEST — POSITIVE SIGNALS
+
+Exact Prompt36 order/content.
+
+---
+
+# 243. TEST — UNKNOWN FACT
+
+UI does not fabricate replacement.
+
+---
+
+# 244. TEST — UNKNOWN ≠ ZERO
+
+Mandatory.
+
+---
+
+# 245. TEST — EMPTY ANALYZER
+
+Intentional onboarding.
+
+---
+
+# 246. TEST — PARTIAL DATA
+
+Other sections remain usable.
+
+---
+
+# 247. TEST — ANALYZER FAILURE
+
+No AI substitution.
+
+---
+
+# 248. TEST — AI INSIGHT SUCCESS
+
+Grounded Prompt37 result rendered.
+
+---
+
+# 249. TEST — AI INSIGHT CACHED
+
+Rendered normally.
+
+No client distinction needed unless metadata useful.
+
+---
+
+# 250. TEST — AI INSIGHT FALLBACK
+
+Deterministic Analyzer remains fully visible.
+
+---
+
+# 251. TEST — AI PROVIDER FAILURE
+
+No page failure.
+
+---
+
+# 252. TEST — NO GEMINI
+
+No Gemini client/backend change.
+
+---
+
+# 253. TEST — AI DOES NOT ALTER METRICS
+
+Mandatory.
+
+---
+
+# 254. TEST — ASK MY STUDY DATA
+
+CTA routes to Prompt38.
+
+---
+
+# 255. TEST — QUICK QUESTION
+
+Optional suggestion correctly enters Prompt38 surface.
+
+---
+
+# 256. TEST — NO AUTO Q&A
+
+No API call before explicit user action.
+
+---
+
+# 257. TEST — SIGNAL CTA REVIEW
+
+Routes Prompt45.
+
+No Calendar event.
+
+---
+
+# 258. TEST — SIGNAL CTA FOCUS
+
+Preselects lecture only.
+
+No automatic Focus start.
+
+---
+
+# 259. TEST — SIGNAL CTA MCQ
+
+No client Mastery mutation.
+
+---
+
+# 260. TEST — ANALYZER VIEW SIDE EFFECTS
+
+Opening Analyzer expected deltas:
+
+```text
+StudyPointsLedgerEntry = 0
+PointsLog = 0
+StudyEvent = 0
+LectureMastery = 0
+LectureRetention = 0
+RecallAttempt = 0
+FocusSession = 0
+GroupFocusRoom = 0
+CalendarEvent = 0
+IntegritySignal = 0
+UserAchievement = 0
+UserChallengeProgress = 0
+LeaderboardSnapshot = 0
+```
+
+---
+
+# 261. TEST — REFRESH SIDE EFFECTS
+
+Same:
+
+```text
+0 canonical study writes
+```
+
+---
+
+# 262. TEST — AI INSIGHT SIDE EFFECTS
+
+Same.
+
+---
+
+# 263. TEST — PUBLIC PROFILE
+
+No Analyzer exposure.
+
+---
+
+# 264. TEST — LEADERBOARD
+
+No Analyzer exposure.
+
+---
+
+# 265. TEST — GROUP FOCUS PARTICIPANT
+
+No Analyzer exposure.
+
+---
+
+# 266. TEST — OWNER INDIVIDUAL
+
+No new individual Analyzer UI/API.
+
+---
+
+# 267. TEST — URL PRIVACY
+
+No private metric values encoded in query string.
+
+---
+
+# 268. TEST — LOG PRIVACY
+
+No full Analyzer DTO / AI insight text logged.
+
+---
+
+# 269. TEST — OFFLINE
+
+No fact recomputation.
+
+---
+
+# 270. TEST — CACHED STALE
+
+If supported, clearly stale/offline.
+
+---
+
+# 271. TEST — NO N+1
+
+Mandatory.
+
+---
+
+# 272. TEST — STRICTMODE
+
+No duplicate Analyzer/AI requests beyond query-layer normal dedupe.
+
+---
+
+# 273. TEST — GLOBAL SWIPE
+
+Horizontal charts/window controls do not break app navigation.
+
+---
+
+# 274. TEST — PULL TO REFRESH
+
+If integrated, no page jump/resize regressions.
+
+---
+
+# 275. TEST — ACCESSIBILITY
+
+Keyboard.
+
+---
+
+# 276. TEST — SCREEN READER
+
+Metric summaries.
+
+---
+
+# 277. TEST — CHART TEXT ALTERNATIVE
+
+Available.
+
+---
+
+# 278. TEST — REDUCED MOTION
+
+No essential information loss.
+
+---
+
+# 279. TEST — ARABIC AI INSIGHT
+
+RTL/medical mixed terminology renders safely.
+
+---
+
+# 280. TEST — ENGLISH AI INSIGHT
+
+Normal.
+
+---
+
+# 281. NO BACKEND BUSINESS RULE CHANGE
+
+Prompt46 should primarily be frontend.
+
+---
+
+# 282. BACKEND CHANGES ALLOWED
+
+Only additive read/presentation plumbing if genuinely missing:
+
+```text
+safe Analyzer DTO field required for rendering
+safe localized metadata
+AI Insight read adapter
+```
+
+Do not modify analytical semantics.
+
+---
+
+# 283. NO ANALYZER VERSION CHANGE EXPECTED
+
+Preferred:
+
+```text
+study-analyzer-v1
+```
+
+remains unchanged.
+
+---
+
+# 284. NO AI PROMPT VERSION CHANGE EXPECTED
+
+Preferred:
+
+```text
+study-insight-v1
+```
+
+and Prompt37 prompt version remain unchanged.
+
+---
+
+# 285. NO PRISMA MIGRATION EXPECTED
+
+Expected:
+
+```text
+NO
+```
+
+---
+
+# 286. NO D1 MIGRATION EXPECTED
+
+Expected:
+
+```text
+NO
+```
+
+---
+
+# 287. NO WORKER CHANGE EXPECTED
+
+Prompt37 Worker infrastructure already exists.
+
+---
+
+# 288. IF WORKER CHANGE SEEMS NECESSARY
+
+Reinspect Prompt37.
+
+Frontend should not need Worker changes.
+
+---
+
+# 289. NO ANALYTICS ENGINE TELEMETRY CHANGE
+
+Prompt46 does not create new telemetry.
+
+---
+
+# 290. E2E STUDY ANALYZER
+
+Where current E2E framework supports:
+
+```text
+open Analyzer
+→ LAST_30_DAYS
+→ see deterministic metrics
+→ switch LAST_7_DAYS
+→ inspect trends
+→ inspect signals
+→ open AI Study Insight
+→ open Ask My Study Data
+```
+
+---
+
+# 291. E2E INSUFFICIENT DATA
+
+New/low-data student.
+
+---
+
+# 292. E2E PARTIAL FAILURE
+
+AI unavailable, Analyzer works.
+
+---
+
+# 293. E2E REVIEW ACTION
+
+Signal → Mastery/Review flow.
+
+---
+
+# 294. E2E FOCUS ACTION
+
+Signal → Focus Hub preselection.
+
+No auto-start.
+
+---
+
+# 295. PROMPT45 REGRESSION
+
+Recall/Mastery frontend unchanged.
+
+---
+
+# 296. PROMPT44 REGRESSION
+
+Gamification frontend unchanged.
+
+---
+
+# 297. PROMPT43 REGRESSION
+
+Group Focus frontend unchanged.
+
+---
+
+# 298. PROMPT42 REGRESSION
+
+Focus summary/history unchanged.
+
+---
+
+# 299. PROMPT41 REGRESSION
+
+Active Focus unchanged.
+
+---
+
+# 300. PROMPT40 REGRESSION
+
+Focus Hub unchanged.
+
+---
+
+# 301. PROMPT39 REGRESSION
+
+Audio unchanged.
+
+---
+
+# 302. PROMPT38 REGRESSION
+
+Ask My Study Data unchanged.
+
+---
+
+# 303. PROMPT37 REGRESSION
+
+CRITICAL.
+
+Verify:
+
+```text
+Cloudflare Workers AI only
+bounded grounding
+validated result
+private cache
+fallback
+no raw notes
+no PII
+```
+
+unchanged.
+
+---
+
+# 304. PROMPT36 REGRESSION
+
+CRITICAL.
+
+Verify every displayed fact comes from unchanged deterministic semantics.
+
+---
+
+# 305. PROMPT35 REGRESSION
+
+CRITICAL privacy boundary unchanged.
+
+---
+
+# 306. PROMPT34 REGRESSION
+
+Owner aggregates unchanged.
+
+---
+
+# 307. PROMPT33 REGRESSION
+
+Mastery/Retention private read model unchanged.
+
+---
+
+# 308. PROMPT32 REGRESSION
+
+Retention unchanged.
+
+---
+
+# 309. PROMPT31 REGRESSION
+
+Mastery unchanged.
+
+---
+
+# 310. PROMPT28–30 REGRESSION
+
+Recall unchanged.
+
+---
+
+# 311. PROMPT27 REGRESSION
+
+Leaderboard cache unchanged.
+
+---
+
+# 312. PROMPT26 REGRESSION
+
+Leaderboard unchanged.
+
+---
+
+# 313. PROMPT25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 314. PROMPT24 REGRESSION
+
+Levels/profile unchanged.
+
+---
+
+# 315. PROMPT23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 316. PROMPT22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 317. PROMPT19–21 REGRESSION
+
+Points unchanged.
+
+---
+
+# 318. PROMPT17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 319. PROMPT13–16 REGRESSION
+
+Group Focus backend unchanged.
+
+---
+
+# 320. PROMPT9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 321. PROMPT8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 322. CALENDAR REGRESSION
+
+Mandatory:
+
+```text
+Analyzer open = 0 Calendar events
+Analyzer refresh = 0 Calendar events
+AI Study Insight = 0 Calendar events
+signal actions = 0 Calendar events unless user explicitly navigates elsewhere and separately creates one through existing academic admin flows
+```
+
+For normal student Analyzer:
+
+```text
+0
+```
+
+---
+
+# 323. OWNER PRIVACY REGRESSION
+
+Do not accidentally reuse owner aggregate endpoints for student UI.
+
+---
+
+# 324. PUBLIC PROFILE REGRESSION
+
+No Analyzer leakage.
+
+---
+
+# 325. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text
+Study Analyzer route/page
+window selector
+overview cards
+Focus section
+objective practice section
+Flashcard section
+Recall section
+Mastery/Retention summary
+subject activity
+time patterns
+session-length patterns
+weakness signals
+positive signals
+data-quality notices
+AI Study Insight
+Ask My Study Data CTA
+charts/visualizations
+query hooks/services
+Prompt46 tests
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 326. TARGETED LINT
+
+All Prompt46 changed files:
+
+```text
+PASS
+```
+
+---
+
+# 327. APP BUILD
+
+Run:
+
+```text
+npm run build
+```
+
+Expected:
+
+```text
+PASS
+```
+
+---
+
+# 328. PWA BUILD
+
+Verify.
+
+---
+
+# 329. CAPACITOR VALIDATION
+
+Run safe local validation appropriate to environment.
+
+No publish.
+
+---
+
+# 330. PRISMA
+
+Expected:
+
+```text
+schema unchanged
+migration none
+```
+
+---
+
+# 331. D1 / WORKER
+
+Expected:
+
+```text
+D1 migration none
+Worker deployment none
+```
+
+---
+
+# 332. PRODUCTION SAFETY
+
+Do NOT:
+
+- modify production PostgreSQL;
+- modify production Supabase;
+- apply migration;
+- modify production D1;
+- modify production KV;
+- modify R2;
+- change Prompt36 analyzer semantics;
+- change Prompt37 AI grounding semantics;
+- use production student analytics for automated tests;
+- generate production AI insights during automated testing;
+- expose owner individual analytics;
+- enable Analyzer frontend in production;
+- enable Study Insights frontend in production;
+- deploy frontend;
+- deploy Worker;
+- modify production flags;
+- submit App Store build;
+- modify production env.
+
+---
+
+# 333. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+src/features/study-analyzer/
+  StudyAnalyzerPage.tsx
+
+  components/
+    AnalyzerHeader.tsx
+    AnalyzerWindowSelector.tsx
+    AnalyzerOverview.tsx
+    AnalyzerMetricCard.tsx
+    AnalyzerTrendCard.tsx
+    AnalyzerFocusSection.tsx
+    AnalyzerObjectivePracticeSection.tsx
+    AnalyzerFlashcardSection.tsx
+    AnalyzerRecallSection.tsx
+    AnalyzerMasterySection.tsx
+    AnalyzerRetentionSection.tsx
+    AnalyzerSubjectActivity.tsx
+    AnalyzerStudyTimePattern.tsx
+    AnalyzerSessionLengthPattern.tsx
+    AnalyzerWeaknessSignals.tsx
+    AnalyzerPositiveSignals.tsx
+    AnalyzerSignalCard.tsx
+    AnalyzerDataQualityNotice.tsx
+    AnalyzerInsightCard.tsx
+    AnalyzerAskMyDataCard.tsx
+    AnalyzerEmptyState.tsx
+
+  hooks/
+    useStudyAnalyzer.ts
+    useStudyInsight.ts
+
+  services/
+  types.ts
+  formatting.ts
+  selectors.ts
+
+src/features/mastery/
+  minimal navigation integration if required
+
+src/features/focus/
+  minimal preselection navigation integration if required
+
+src/features/ask-study-data/
+  route integration only
+
+src/i18n/
+src/routes/
+src/config/featureFlags.*
+
+tests/
+  study-analyzer-overview*.test.tsx
+  study-analyzer-trends*.test.tsx
+  study-analyzer-signals*.test.tsx
+  study-analyzer-patterns*.test.tsx
+  study-analyzer-ai-insight*.test.tsx
+  study-analyzer-privacy*.test.ts
+  study-analyzer-responsive*.test.tsx
+  study-analyzer-e2e*
+```
+
+Use actual repository conventions.
+
+---
+
+# 334. FILES EXPECTED UNCHANGED
+
+Unless minimal read-only UI plumbing is genuinely necessary:
+
+```text
+prisma/schema.prisma
+prisma/migrations/*
+Prompt36 Analyzer semantics
+Prompt37 AI Insight grounding/prompt/provider
+Prompt38 Ask My Study Data semantics
+Prompt34 owner aggregate semantics
+Prompt35 privacy semantics
+Prompt31–33 Mastery/Retention
+Prompt28–30 Recall
+Points
+Gamification
+Leaderboard
+Focus
+Group Focus
+Calendar
+Cloudflare Worker
+```
+
+---
+
+# 335. ACCEPTANCE CRITERIA
+
+Prompt46 succeeds only if:
+
+1. Private Study Analyzer frontend exists.
+2. Analyzer uses Prompt36 canonical facts.
+3. No client analytics engine exists.
+4. No synthetic Study Score exists.
+5. 7-day window works.
+6. 30-day window works.
+7. Semester window works where supported.
+8. Active days use canonical definition.
+9. Verified Focus time is correctly labeled.
+10. PDF/video opens are not treated as study time.
+11. Objective MCQ metrics are separate from Flashcard self-report.
+12. MCQ trend is canonical.
+13. Repeated-error signals are canonical.
+14. Flashcard semantics remain self-assessed.
+15. Recall Skip remains neutral.
+16. Mastery distribution is canonical.
+17. Retention due/overdue is canonical.
+18. Stale Retention is not shown as current.
+19. Subject activity has no hidden composite score.
+20. Most-used study time is distinct from best-supported time.
+21. Best-supported time appears only with sufficient data.
+22. Session-length pattern appears only with sufficient data.
+23. No causal claims are made.
+24. Weakness signals use Prompt36 only.
+25. Positive signals use Prompt36 only.
+26. Unknown/insufficient data is not rendered as zero.
+27. AI Study Insight is clearly secondary to facts.
+28. AI uses Prompt37 only.
+29. Browser never calls Worker directly.
+30. No Gemini is introduced.
+31. AI failure does not break Analyzer.
+32. Analyzer works with AI disabled.
+33. Ask My Study Data links to Prompt38.
+34. No multi-turn chat is introduced.
+35. Signal actions navigate only.
+36. Focus action does not auto-start Focus.
+37. Review actions create no Calendar event.
+38. Analyzer page awards 0 Points.
+39. Analyzer creates no StudyEvent.
+40. Analyzer changes no Mastery/Retention.
+41. Analyzer creates no Recall attempt.
+42. Analyzer starts no Focus session.
+43. Analyzer creates no Calendar event.
+44. No owner individual Analyzer access exists.
+45. No public Analyzer exposure exists.
+46. No Leaderboard Analyzer leakage exists.
+47. No Group Focus Analyzer leakage exists.
+48. No Quick Note content is used.
+49. No audio data is used.
+50. No PDF-reading analytics exists.
+51. Mobile layout is polished.
+52. iPad layout is purpose-built.
+53. Desktop/PWA is polished.
+54. Arabic RTL is correct.
+55. Accessibility works.
+56. Charts have textual/accessibility equivalents.
+57. No N+1.
+58. No schema migration expected.
+59. No D1 migration expected.
+60. Feature flags default off.
+61. Production unchanged.
+62. App build passes.
+63. New regressions = 0.
+
+---
+
+# 336. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Analyzer Architecture
+
+Report exact existing:
+
+```text
+study-analyzer-v1 endpoint
+supported windows
+Analyzer DTO
+trend enums
+data-quality enums
+Focus facts
+objective MCQ facts
+Flashcard facts
+Recall facts
+Mastery facts
+Retention facts
+subject facts
+study-time patterns
+session-length patterns
+weakness signals
+positive signals
+Prompt37 Study Insight endpoint
+Prompt37 AI provider/model path
+Prompt37 cache
+Prompt38 Ask My Study Data route
+feature flags
+frontend query/cache layer
+```
+
+---
+
+## B. Frontend Architecture
+
+Explain:
+
+```text
+authenticated student
+→ Prompt36 deterministic Analyzer API
+→ private query cache
+→ responsive deterministic dashboard
+→ optional Prompt37 grounded AI Study Insight
+→ optional Prompt38 Ask My Study Data navigation
+```
+
+---
+
+## C. Schema / Infrastructure Changes
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+D1 MIGRATION CREATED: YES/NO
+WORKER MODIFIED: YES/NO
+ANALYZER VERSION CHANGED: YES/NO
+AI PROMPT/GROUNDING SEMANTICS CHANGED: YES/NO
+```
+
+Expected:
+
+```text
+NO
+NO
+NO
+NO
+NO
+NO
+```
+
+---
+
+## D. Feature Flags
+
+Report exact:
+
+```text
+STUDY_ANALYZER_FRONTEND_ENABLED:
+STUDY_INSIGHTS_FRONTEND_ENABLED:
+```
+
+or actual equivalents.
+
+Include defaults and confirm:
+
+```text
+PRODUCTION VALUES CHANGED: NO
+```
+
+---
+
+## E. Routes / Navigation
+
+Report:
+
+```text
+Study Analyzer route:
+entry points:
+Mastery navigation:
+Focus navigation:
+Ask My Study Data navigation:
+```
+
+---
+
+## F. Supported Windows
+
+Report exact canonical windows implemented.
+
+Include:
+
+```text
+default window:
+timezone:
+client custom from/to:
+```
+
+Expected custom from/to:
+
+```text
+NO
+```
+
+---
+
+## G. Analyzer Authority
+
+Explicitly:
+
+```text
+CLIENT CALCULATES ACTIVE DAYS: NO
+CLIENT CALCULATES MCQ TREND: NO
+CLIENT CALCULATES WEAKNESS SIGNALS: NO
+CLIENT CALCULATES POSITIVE SIGNALS: NO
+CLIENT CALCULATES BEST STUDY TIME: NO
+CLIENT CALCULATES MASTERY: NO
+CLIENT CALCULATES RETENTION: NO
+```
+
+---
+
+## H. Overview Metrics
+
+List exact metrics shown and corresponding Prompt36 field/fact IDs.
+
+---
+
+## I. Focus Section
+
+Report:
+
+```text
+verified Focus metric:
+meaningful sessions:
+duration formatting:
+group Focus inclusion:
+PDF/video inclusion:
+```
+
+Explicitly:
+
+```text
+PDF OPEN COUNTED AS STUDY TIME: NO
+VIDEO OPEN COUNTED AS STUDY TIME: NO
+```
+
+---
+
+## J. Objective Practice
+
+Report exact:
+
+```text
+attempt count:
+correct:
+incorrect:
+accuracy:
+trend:
+sample-size handling:
+```
+
+---
+
+## K. Flashcards
+
+Report exact displayed metrics.
+
+Explicitly:
+
+```text
+FLASHCARD SELF-REPORT LABELED OBJECTIVE ACCURACY: NO
+```
+
+---
+
+## L. Recall
+
+Report exact displayed metrics.
+
+Explicitly:
+
+```text
+RECALL SKIP LABELED WRONG: NO
+RECALL EXPIRED LABELED FAILURE: NO
+```
+
+---
+
+## M. Mastery
+
+Report exact:
+
+```text
+six-state distribution:
+source:
+link to Prompt45:
+```
+
+Explicitly:
+
+```text
+CLIENT MASTERY SCORE CREATED: NO
+```
+
+---
+
+## N. Retention
+
+Report:
+
+```text
+due:
+overdue:
+not due:
+stale:
+missing:
+```
+
+and exact source.
+
+Explicitly:
+
+```text
+STALE PRESENTED AS CURRENT: NO
+```
+
+---
+
+## O. Consistency
+
+Report exact canonical metrics/trend shown.
+
+Explicitly:
+
+```text
+STREAK-BREAK SHAME LANGUAGE: NO
+```
+
+---
+
+## P. Subject Activity
+
+Report:
+
+```text
+facts shown:
+ordering:
+maximum subjects:
+```
+
+Explicitly:
+
+```text
+SUBJECT COMPOSITE SCORE CREATED: NO
+BEST/WORST SUBJECT LABEL CREATED: NO
+```
+
+---
+
+## Q. Study-Time Pattern
+
+Report:
+
+```text
+most-used time:
+best-supported outcome time:
+minimum evidence/data-quality contract:
+unsupported behavior:
+```
+
+Explicitly:
+
+```text
+MOST USED = BEST: NO
+CAUSAL CLAIM MADE: NO
+```
+
+---
+
+## R. Session-Length Pattern
+
+Report:
+
+```text
+canonical bucket:
+support state:
+insufficient-data behavior:
+```
+
+Explicitly:
+
+```text
+PRESCRIPTIVE "MUST STUDY X MINUTES" CLAIM: NO
+```
+
+---
+
+## S. Weakness Signals
+
+List exact Prompt36 signal types rendered.
+
+Report order and max count.
+
+Explicitly:
+
+```text
+FRONTEND INVENTS WEAKNESS SIGNALS: NO
+AI INVENTS WEAKNESS SIGNALS: NO
+```
+
+---
+
+## T. Positive Signals
+
+Same.
+
+---
+
+## U. Data Quality
+
+List every insufficient/stale/unknown state handled.
+
+Explicitly:
+
+```text
+UNKNOWN RENDERED AS ZERO: NO
+```
+
+---
+
+## V. AI Study Insight
+
+Report:
+
+```text
+endpoint:
+provider:
+model source:
+AI version:
+prompt version:
+cache behavior:
+refresh behavior:
+failure behavior:
+deterministic fallback:
+```
+
+---
+
+## W. AI Boundary
+
+Explicitly:
+
+```text
+AI DEFINES METRICS: NO
+AI DEFINES MASTERY: NO
+AI DEFINES RETENTION: NO
+AI CREATES SIGNALS: NO
+AI CREATES CALENDAR EVENTS: NO
+AI AWARDS POINTS: NO
+GEMINI FALLBACK: NO
+BROWSER CALLS WORKER DIRECTLY: NO
+```
+
+---
+
+## X. Ask My Study Data Integration
+
+Report:
+
+```text
+CTA:
+route:
+quick prompts:
+auto-run:
+chat history:
+```
+
+Expected:
+
+```text
+auto-run = NO
+persistent chat history = NO
+```
+
+---
+
+## Y. Actions / Navigation
+
+Report behavior for:
+
+```text
+Review Lecture
+View Mastery
+Practice MCQs
+Open Flashcards
+Focus on Lecture
+Ask My Study Data
+```
+
+Explicitly:
+
+```text
+FOCUS AUTO-START: NO
+CALENDAR WRITE: NO
+```
+
+---
+
+## Z. Charts / Visualization
+
+Report:
+
+```text
+chart library reused/new:
+trend charts:
+distribution visualization:
+text alternative:
+mobile behavior:
+RTL chronology behavior:
+```
+
+---
+
+## AA. Privacy
+
+Explicitly:
+
+```text
+PUBLIC PROFILE ANALYZER: NO
+LEADERBOARD ANALYZER: NO
+GROUP FOCUS PARTICIPANT ANALYZER: NO
+OWNER INDIVIDUAL ANALYZER: NO
+QUICK NOTE CONTENT USED: NO
+AUDIO DATA USED: NO
+```
+
+---
+
+## AB. Logging
+
+Explicitly:
+
+```text
+FULL ANALYZER DTO LOGGED: NO
+WEAKNESS DETAILS LOGGED: NO
+PRIVATE METRIC VALUES LOGGED: NO
+AI INSIGHT TEXT LOGGED: NO
+```
+
+List safe operational metadata only.
+
+---
+
+## AC. Local / Offline Storage
+
+Report:
+
+```text
+Analyzer DTO localStorage:
+AI Insight localStorage:
+query cache:
+offline behavior:
+stale marker:
+```
+
+Preferred persistent localStorage:
+
+```text
+NO
+```
+
+---
+
+## AD. Query Architecture
+
+Report:
+
+```text
+Analyzer requests per window:
+AI Insight requests:
+Mastery supporting requests:
+per-subject requests:
+per-lecture requests:
+polling:
+foreground refresh:
+manual refresh:
+```
+
+---
+
+## AE. Race / Cache Safety
+
+Report:
+
+```text
+7→30→semester rapid switch:
+stale response handling:
+StrictMode dedupe:
+window cache keys:
+AI cache separation:
+```
+
+---
+
+## AF. Responsive Layout
+
+Report exact:
+
+```text
+iPhone:
+iPad portrait:
+iPad landscape:
+desktop/PWA:
+```
+
+---
+
+## AG. RTL / Localization
+
+Report:
+
+```text
+metric cards:
+percentages:
+durations:
+subject names:
+trend labels:
+signals:
+charts:
+AI insight:
+mixed medical terms:
+```
+
+---
+
+## AH. Accessibility
+
+Report:
+
+```text
+keyboard:
+screen reader:
+metric semantics:
+chart text alternatives:
+signal actions:
+touch targets:
+focus states:
+reduced motion:
+```
+
+---
+
+## AI. Analyzer Tests
+
+Report:
+
+- 7-day;
+- 30-day;
+- semester;
+- active days;
+- Focus;
+- objective MCQ;
+- trend;
+- Flashcards;
+- Recall;
+- Mastery;
+- Retention;
+- consistency;
+- subject activity;
+- time pattern;
+- session-length pattern;
+- weakness;
+- positives;
+- empty;
+- partial data.
+
+---
+
+## AJ. AI Insight Tests
+
+Report:
+
+- success;
+- cached;
+- unavailable;
+- provider failure;
+- deterministic fallback;
+- no Gemini;
+- no fact mutation;
+- no browser→Worker direct call.
+
+---
+
+## AK. Ask My Study Data Tests
+
+Report:
+
+- CTA;
+- quick prompt;
+- no auto-run;
+- no persistent chat history added.
+
+---
+
+## AL. Navigation Action Tests
+
+Report:
+
+- review;
+- MCQ;
+- Flashcards;
+- Mastery;
+- Focus preselection;
+- no Focus auto-start;
+- no Calendar write.
+
+---
+
+## AM. Side Effects
+
+Report direct Prompt46 action deltas:
+
+```text
+StudyPointsLedgerEntry:
+PointsLog:
+StudyEvent:
+LectureMastery:
+LectureRetention:
+RecallAttempt:
+FocusSession:
+GroupFocusRoom:
+CalendarEvent:
+IntegritySignal:
+UserAchievement:
+UserGamificationLevel:
+UserChallengeProgress:
+LeaderboardSnapshot:
+```
+
+Expected:
+
+```text
+0
+```
+
+for Analyzer viewing, window switching, refresh, and AI Study Insight viewing.
+
+---
+
+## AN. AI Provider Boundary
+
+Explicitly:
+
+```text
+CLOUDFLARE WORKERS AI USED THROUGH PROMPT37: YES
+GEMINI ADDED: NO
+OPENAI API ADDED: NO
+ANTHROPIC API ADDED: NO
+```
+
+---
+
+## AO. Calendar Boundary
+
+Explicitly:
+
+```text
+ANALYZER OPEN CREATES CALENDAR EVENT: NO
+ANALYZER REFRESH CREATES CALENDAR EVENT: NO
+AI INSIGHT CREATES CALENDAR EVENT: NO
+SIGNAL CTA DIRECTLY CREATES CALENDAR EVENT: NO
+```
+
+---
+
+## AP. Performance
+
+Report:
+
+```text
+realistic Analyzer DTO size:
+initial request count:
+render time observations:
+window-switch behavior:
+signal count:
+subject count:
+chart rendering:
+N+1:
+bundle delta:
+```
+
+No brittle CI threshold.
+
+---
+
+## AQ. Regression Results
+
+Include:
+
+- Prompt45 Recall/Mastery frontend;
+- Prompt44 Gamification frontend;
+- Prompt43 Group Focus frontend;
+- Prompt42 Focus summary/history;
+- Prompt41 Active Focus;
+- Prompt40 Focus Hub;
+- Prompt39 Focus Audio;
+- Prompt38 Ask My Study Data;
+- Prompt37 AI Study Insights;
+- Prompt36 Study Analyzer backend;
+- Prompt35 privacy;
+- Prompt34 owner aggregates;
+- Prompt33 Mastery D1;
+- Prompt32 Retention;
+- Prompt31 Mastery;
+- Prompt28–30 Recall;
+- Prompt27 Leaderboard cache;
+- Prompt26 Leaderboard;
+- Prompt25 Challenges;
+- Prompt24 Levels/profile;
+- Prompt23 Achievements;
+- Prompt22 Gamification;
+- Prompt19–21 Points;
+- Prompt17–18 Integrity;
+- Prompt13–16 Group Focus backend;
+- Prompt9–12 Focus;
+- Prompt8 Study Events;
+- Calendar;
+- public profile;
+- Leaderboard privacy;
+- navigation/swipes;
+- Auth;
+- App build;
+- PWA build;
+- targeted lint/typecheck;
+- Capacitor validation if run.
+
+---
+
+## AR. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AS. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text
+Prisma schema unchanged?
+Prompt36 Analyzer semantics unchanged?
+Prompt37 AI Insight semantics unchanged?
+Prompt38 Ask My Study Data unchanged?
+Prompt35 privacy unchanged?
+Prompt34 owner aggregate semantics unchanged?
+Prompt31–33 Mastery/Retention unchanged?
+Recall unchanged?
+Points unchanged?
+Gamification unchanged?
+Leaderboard unchanged?
+Focus unchanged?
+Group Focus unchanged?
+Calendar unchanged?
+Cloudflare Worker unchanged?
+```
+
+---
+
+## AT. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT46 MIGRATION APPLIED: NO
+PRODUCTION D1 MODIFIED: NO
+PRODUCTION KV MODIFIED: NO
+PRODUCTION R2 MODIFIED: NO
+PRODUCTION ANALYZER DATA USED FOR AUTOMATED TESTING: NO
+PRODUCTION AI INSIGHTS GENERATED FOR AUTOMATED TESTING: NO
+STUDY_ANALYZER_FRONTEND_ENABLED IN PRODUCTION: NO
+STUDY_INSIGHTS_FRONTEND_ENABLED IN PRODUCTION: NO
+PRODUCTION OWNER PRIVACY CHANGED: NO
+PRODUCTION FRONTEND DEPLOYED: NO
+WORKER DEPLOYED: NO
+APP STORE BUILD SUBMITTED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AU. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AV. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## AW. Risks / Blockers
+
+Only actual unresolved Prompt46 Analyzer UI/API/AI-integration/privacy issues.
+
+Do not list Prompt47 Owner Analytics UI or later roadmap work as blockers.
+
+---
+
+## AX. Architecture Compliance
+
+Answer YES/NO:
+
+- Study Analyzer private to authenticated student?
+- No client userId override?
+- Prompt36 remains fact authority?
+- No client analytics engine?
+- No overall Study Score?
+- No exam prediction?
+- No intelligence inference?
+- No mental-health inference?
+- Canonical windows only?
+- Active-day semantics unchanged?
+- Verified Focus correctly scoped?
+- PDF open excluded from study-time claims?
+- Video open excluded from completion/time claims?
+- Objective MCQ separate from Flashcard self-report?
+- Recall Skip remains neutral?
+- Mastery server-authoritative?
+- Retention server-authoritative?
+- Stale Retention not shown as current?
+- Subject composite score absent?
+- Best/worst subject label absent?
+- Most-used time distinct from best-supported time?
+- Best-supported pattern hidden when insufficient?
+- No causal study-pattern claims?
+- Weakness signals only from Prompt36?
+- Positive signals only from Prompt36?
+- Unknown not rendered as zero?
+- AI Study Insight secondary to facts?
+- Prompt37 reused?
+- Browser does not call Worker directly?
+- Cloudflare Workers AI remains provider?
+- No Gemini fallback?
+- AI unavailable does not break Analyzer?
+- Analyzer works with AI disabled?
+- Prompt38 Ask My Study Data reused?
+- No persistent Analyzer chat?
+- Signal actions are navigation only?
+- Focus action does not auto-start?
+- Review actions create no Calendar events?
+- Analyzer awards 0 Points?
+- Analyzer creates 0 StudyEvents?
+- Analyzer changes no Mastery?
+- Analyzer changes no Retention?
+- Analyzer creates no Recall attempt?
+- Analyzer starts no Focus session?
+- Analyzer creates no Calendar event?
+- No owner individual Analyzer?
+- No public Analyzer?
+- No Leaderboard Analyzer leak?
+- No Group Focus Analyzer leak?
+- No Quick Note content?
+- No audio data?
+- No raw history fetch?
+- No N+1?
+- Mobile polished?
+- iPad purpose-built?
+- Desktop polished?
+- Arabic RTL correct?
+- Accessibility covered?
+- Charts have text alternatives?
+- No Analyzer rule changes?
+- No schema migration?
+- No D1 migration?
+- Feature flags default off?
+- Production unchanged?
+- App build passes?
+- New regressions = 0?
+
+---
+
+## AY. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 47 — Owner Analytics Frontend: Privacy-Bounded Cohort Metrics, Aggregate Study Trends, Subject-Level Insights, Adoption & Operational Analytics**
+
+Do not implement Prompt 47.
+
+---
+
+# 337. STOP CONDITION
+
+After implementation, testing, and the mandatory report:
+
+STOP.
+
+Do NOT implement Owner Analytics UI.
+
+Do NOT change Prompt36 Analyzer semantics.
+
+Do NOT change Prompt37 AI Study Insight grounding/prompt/provider.
+
+Do NOT change Prompt38 Ask My Study Data semantics.
+
+Do NOT create a Study Score.
+
+Do NOT expose individual private student analytics to owner/admin.
+
+Do NOT use Points/Leaderboard as learning ability.
+
+Do NOT infer PDF reading or video completion.
+
+Do NOT create Calendar events.
+
+Do NOT mutate Mastery/Retention from frontend.
+
+Do NOT deploy.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 46 COMPLETE — PRIVATE STUDY ANALYZER DASHBOARD, DETERMINISTIC TRENDS, STUDY PATTERNS, SIGNALS & GROUNDED AI INSIGHTS READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
