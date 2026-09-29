@@ -1,0 +1,4067 @@
+# 99’s GUIDE — PROMPT 47 OF 52
+## OWNER ANALYTICS FRONTEND
+## PRIVACY-BOUNDED COHORT METRICS + AGGREGATE STUDY TRENDS
+## SUBJECT-LEVEL INSIGHTS + FEATURE ADOPTION + OPERATIONAL ANALYTICS
+### AGGREGATE ONLY — NO INDIVIDUAL STUDENT STUDY ANALYTICS — NO SURVEILLANCE UI — NO AI AUTHORITY
+
+Prompts 1–46 have been completed.
+
+Prompt 34 established the canonical owner-facing aggregate analytics contracts.
+
+Prompt 35 established the mandatory privacy/access-control boundary between:
+
+```text id="ax9q6z"
+student-private analytics
+```
+
+and:
+
+```text id="p22p4d"
+owner-safe aggregate cohort analytics
+```
+
+Prompt 36 established private deterministic Study Analyzer facts.
+
+Prompt 37–38 established private AI Study Insights and Ask My Study Data.
+
+Prompt 46 completed the student-facing private Study Analyzer frontend.
+
+Prompt 47 now implements the **owner/admin aggregate analytics frontend** while preserving the frozen privacy boundary.
+
+Frozen roadmap:
+
+```text id="0pm49x"
+Prompt 47 — Owner Analytics UI
+Prompt 48 — integration / regression
+Prompt 49 — backfill / compaction / migration tooling
+Prompt 50 — observability / release gates / ops dashboards
+Prompt 51 — E2E / PWA / Capacitor / RTL / native validation
+Prompt 52 — staged rollout / post-release / final audit
+```
+
+Do NOT implement Prompt 48+ early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Implement a production-grade Owner Analytics frontend supporting only privacy-bounded aggregate cohort information, including where supported by Prompt34:
+
+1. aggregate active-user metrics;
+2. study-feature adoption;
+3. Focus adoption;
+4. Group Focus adoption;
+5. MCQ engagement;
+6. Flashcard engagement;
+7. Recall engagement;
+8. Mastery-state aggregate distribution;
+9. Retention/review aggregate distribution;
+10. subject-level aggregate activity;
+11. aggregate study trends;
+12. aggregate time-window comparison;
+13. aggregate completion/adoption funnels where already defined;
+14. anonymous/cohort feature usage;
+15. aggregate content activity;
+16. aggregate operational health surfaced from owner-safe read models;
+17. data-quality notices;
+18. privacy-threshold suppression;
+19. owner/admin authorization;
+20. mobile/tablet/desktop responsiveness;
+21. Arabic RTL;
+22. accessibility;
+23. deterministic charts/tables;
+24. export only if already supported safely by Prompt34;
+25. no individual student drill-down;
+26. no private Study Analyzer exposure;
+27. no individual Mastery/Retention exposure;
+28. no Quick Notes exposure;
+29. no individual Focus history exposure;
+30. no individual MCQ/Flashcard accuracy exposure;
+31. no surveillance-oriented activity logs;
+32. no AI-created facts;
+33. no new owner data domain;
+34. no canonical study mutation.
+
+---
+
+# 2. PRIVACY PRINCIPLE
+
+Freeze:
+
+```text id="zazr6n"
+OWNER ANALYTICS
+=
+cohort / aggregate / operational visibility
+
+OWNER ANALYTICS
+!=
+individual student surveillance
+```
+
+This is the most important Prompt47 rule.
+
+---
+
+# 3. OWNER MUST NOT SEE PRIVATE STUDY ANALYZER
+
+Mandatory:
+
+```text id="0ujpn0"
+Owner/Admin
+cannot open
+a student's Prompt36 Study Analyzer
+```
+
+Do NOT add:
+
+```text id="1o1cgm"
+/admin/users/:userId/analyzer
+/student-insights/:id
+/user-study-performance/:id
+```
+
+or equivalent.
+
+---
+
+# 4. NO INDIVIDUAL WEAKNESS VIEW
+
+Owner/admin must not see:
+
+```text id="kgz1ud"
+individual weakness signals
+individual positive signals
+individual best study time
+individual session-length pattern
+individual retention due list
+individual Mastery state history
+individual Recall history
+individual MCQ accuracy
+individual Flashcard self-assessment
+```
+
+---
+
+# 5. NO QUICK NOTES
+
+Never expose:
+
+```text id="fca77v"
+Quick Note content
+```
+
+to owner analytics.
+
+---
+
+# 6. NO INDIVIDUAL FOCUS HISTORY
+
+Do not expose per-student:
+
+```text id="a2ffki"
+Focus sessions
+verified Focus durations
+resource handoffs
+notes
+session timestamps
+```
+
+through Owner Analytics.
+
+---
+
+# 7. NO ONLINE SURVEILLANCE DASHBOARD
+
+Do NOT implement a page showing:
+
+```text id="fu0u44"
+who is studying right now
+which exact lecture each student is studying
+who paused
+who stopped early
+who opened which PDF
+```
+
+unless this information already exists separately in a legitimate real-time collaborative room context such as Group Focus.
+
+Owner Analytics itself remains aggregate.
+
+---
+
+# 8. NO “WATCH STUDENT” MODE
+
+Mandatory.
+
+---
+
+# 9. NO USER SEARCH FOR ANALYTICS
+
+Owner Analytics must not provide:
+
+```text id="32bi4e"
+search student
+→ open private study analytics
+```
+
+---
+
+# 10. EXISTING ADMIN USER MANAGEMENT REMAINS SEPARATE
+
+The owner/admin console may already manage:
+
+```text id="t7jzbl"
+roles
+accounts
+moderation
+ban/mute
+```
+
+Prompt47 must not convert that into study surveillance.
+
+---
+
+# 11. PROMPT34 IS FACT AUTHORITY
+
+Owner Analytics frontend consumes Prompt34 aggregate DTOs/read models.
+
+Do NOT recompute aggregate study facts from raw student records in React.
+
+---
+
+# 12. PROMPT35 IS PRIVACY AUTHORITY
+
+All privacy suppression/access rules remain unchanged.
+
+---
+
+# 13. NO FRONTEND PRIVACY FILTER AS PRIMARY SECURITY
+
+Critical:
+
+```text id="uhcna9"
+server must already return privacy-safe data
+```
+
+Frontend hiding is defense in depth only.
+
+---
+
+# 14. NO INDIVIDUAL DATA FETCH THEN AGGREGATE IN BROWSER
+
+Forbidden:
+
+```text id="3ibekz"
+GET all users' study data
+→ calculate cohort aggregate in React
+```
+
+All cohort aggregation must happen server-side.
+
+---
+
+# 15. NO CLIENT USER IDs IN AGGREGATE RESPONSE UNLESS STRICTLY NECESSARY
+
+Preferred aggregate DTO:
+
+```text id="23b8xg"
+contains no student identifiers
+```
+
+---
+
+# 16. PRIVACY THRESHOLD
+
+Inspect Prompt34/35 exact minimum cohort threshold.
+
+If frozen there:
+
+reuse it exactly.
+
+Do NOT invent a second threshold.
+
+---
+
+# 17. SMALL-COHORT SUPPRESSION
+
+When a group/filter would fall below the privacy threshold:
+
+server returns:
+
+```text id="yge2lm"
+SUPPRESSED
+INSUFFICIENT_COHORT
+```
+
+or actual equivalent.
+
+Frontend must not attempt to infer the missing values.
+
+---
+
+# 18. NO SUBTRACTION ATTACK
+
+Do not create UI filters that allow owner to isolate tiny groups by repeated subtraction.
+
+---
+
+# 19. FILTER COMBINATIONS
+
+Only expose filters explicitly supported by Prompt34/35.
+
+Do NOT allow arbitrary intersection of:
+
+```text id="brzzmm"
+subject
+small date window
+role
+status
+single lecture
+small cohort
+```
+
+if it can deanonymize students.
+
+---
+
+# 20. NO INDIVIDUAL LECTURE DRILLDOWN IF COHORT TOO SMALL
+
+Mandatory.
+
+---
+
+# 21. NO RAW EVENT TABLE
+
+Owner Analytics should not expose a table of all:
+
+```text id="14pukv"
+StudyEvent
+RecallAttempt
+FocusSession
+Points ledger
+Mastery change
+```
+
+records.
+
+---
+
+# 22. NO STUDY POINTS AUDIT UI HERE
+
+Prompt50 operational/admin tooling may handle safe internal audits later.
+
+Prompt47 is analytics, not ledger forensics.
+
+---
+
+# 23. OWNER ANALYTICS ≠ LEADERBOARD
+
+Do not expose private aggregate analytics as competitive ranking.
+
+---
+
+# 24. NO STUDENT RANKING
+
+Mandatory.
+
+No:
+
+```text id="sp1l6p"
+most active student
+lowest-performing student
+weakest student
+top MCQ student
+```
+
+---
+
+# 25. NO “AT RISK STUDENTS” LIST
+
+Mandatory.
+
+Do not infer or label individuals.
+
+---
+
+# 26. NO ACADEMIC PERFORMANCE PREDICTION
+
+Do not predict:
+
+```text id="tcmayx"
+exam outcomes
+dropout risk
+pass/fail
+GPA
+```
+
+---
+
+# 27. NO INTELLIGENCE / COMPETENCE RANKING
+
+Mandatory.
+
+---
+
+# 28. NO AI FACT GENERATION
+
+Prompt47 deterministic aggregate facts come from server.
+
+AI may not invent owner metrics.
+
+Preferred Prompt47:
+
+```text id="n2lakv"
+AI calls = 0
+```
+
+---
+
+# 29. NO OWNER AI NARRATIVE IN V1
+
+Do not add an AI-generated owner summary unless Prompt34 explicitly established one.
+
+Frozen roadmap does not require it.
+
+---
+
+# 30. PREFLIGHT INSPECTION
+
+Before coding inspect exact current:
+
+```text id="0am1zg"
+Prompt34 owner analytics endpoints
+aggregate DTOs
+supported windows
+supported dimensions
+privacy threshold
+suppression enums
+subject aggregate contracts
+feature-adoption contracts
+Prompt35 access-control middleware
+owner/admin roles
+Console routing
+existing admin/owner pages
+existing chart primitives
+current frontend query/cache layer
+i18n
+RTL
+responsive breakpoints
+feature flags
+```
+
+---
+
+# 31. AUTHORIZATION
+
+Only authorized owner/admin roles may access the page according to Prompt35.
+
+Do not broaden access.
+
+---
+
+# 32. OWNER ROLE
+
+Respect existing immutable primary owner semantics.
+
+---
+
+# 33. ADMIN ROLE
+
+If Prompt35 allows owner-only analytics rather than admin analytics:
+
+do not expose to admins.
+
+Use exact existing policy.
+
+---
+
+# 34. FRONTEND ROUTE
+
+Use repository-consistent route such as:
+
+```text id="u9lwyc"
+/console/analytics
+```
+
+or existing owner Console navigation.
+
+Do not create duplicate admin shells.
+
+---
+
+# 35. FEATURE FLAG
+
+Add/reuse:
+
+```text id="eop83a"
+OWNER_ANALYTICS_FRONTEND_ENABLED
+```
+
+default:
+
+```text id="083x3n"
+false
+```
+
+until staged rollout.
+
+---
+
+# 36. PRODUCTION FLAG
+
+Do NOT enable it.
+
+---
+
+# 37. INFORMATION ARCHITECTURE
+
+Recommended sections:
+
+```text id="w5l1sm"
+Overview
+Feature Adoption
+Study Activity
+Subjects
+Mastery & Review
+Operations
+Data Quality
+```
+
+Use actual Prompt34 data availability.
+
+---
+
+# 38. NO INDIVIDUAL STUDENTS TAB
+
+Mandatory.
+
+---
+
+# 39. NO PRIVATE INSIGHTS TAB
+
+Mandatory.
+
+---
+
+# 40. DEFAULT WINDOW
+
+Use Prompt34 default.
+
+If none frozen, preferred:
+
+```text id="vrx0wb"
+LAST_30_DAYS
+```
+
+---
+
+# 41. SUPPORTED WINDOWS
+
+Use only server-supported bounded windows.
+
+Potential:
+
+```text id="vve19h"
+LAST_7_DAYS
+LAST_30_DAYS
+CURRENT_SEMESTER
+```
+
+Do not invent arbitrary micro-windows.
+
+---
+
+# 42. NO HOUR-BY-HOUR USER FILTERING
+
+Avoid high-granularity owner surveillance.
+
+---
+
+# 43. TIMEZONE
+
+Use canonical Baghdad timezone for aggregate display.
+
+---
+
+# 44. WINDOW SWITCH
+
+Read-only.
+
+Expected canonical writes:
+
+```text id="1ig99p"
+0
+```
+
+---
+
+# 45. OVERVIEW
+
+Use only safe cohort-level facts.
+
+Potential examples if Prompt34 exposes them:
+
+```text id="aq5axe"
+eligible cohort size
+active study users
+active study days aggregate
+verified Focus hours aggregate
+Group Focus adoption
+MCQ participation
+Flashcard participation
+Recall participation
+```
+
+---
+
+# 46. COHORT SIZE
+
+Display only if Prompt35 allows it safely.
+
+---
+
+# 47. UNIQUE USER COUNTS
+
+Use privacy-bounded canonical counts.
+
+---
+
+# 48. NO USER NAMES BEHIND COUNTS
+
+No click-through into individuals.
+
+---
+
+# 49. ACTIVE USER DEFINITION
+
+Use exact Prompt34 definition.
+
+Do not reinterpret app login as studying if backend does not.
+
+---
+
+# 50. FEATURE ADOPTION
+
+Safe aggregate rates/counts may include:
+
+```text id="2114yr"
+Focus adoption
+Group Focus adoption
+MCQ usage
+Flashcard usage
+Recall usage
+Mastery dashboard usage
+Gamification usage
+Study Analyzer usage
+```
+
+only if Prompt34 tracks them.
+
+---
+
+# 51. NO BROWSER EVENT ANALYTICS INVENTION
+
+Do not create new tracking just to populate Prompt47.
+
+Use established canonical/telemetry facts.
+
+---
+
+# 52. NO DARK-PATTERN KPI
+
+Avoid owner metrics such as:
+
+```text id="sgszuf"
+screen time
+time trapped in app
+number of notifications clicked
+```
+
+unless they are legitimate product health metrics already frozen.
+
+---
+
+# 53. STUDY ACTIVITY
+
+Safe aggregate metrics may include:
+
+```text id="86v70k"
+verified Focus hours
+completed Focus sessions
+Group Focus completed runs
+objective MCQ attempts
+Flashcard reviews
+Recall meaningful attempts
+```
+
+at cohort level.
+
+---
+
+# 54. VERIFIED FOCUS
+
+Label:
+
+```text id="6vbvxz"
+Aggregate verified Focus time
+```
+
+not:
+
+```text id="in8qty"
+Total student study time
+```
+
+---
+
+# 55. PDF / VIDEO
+
+Do not infer:
+
+```text id="tdc9a4"
+reading time
+pages read
+videos completed
+```
+
+from resource opens.
+
+---
+
+# 56. RESOURCE OPEN ANALYTICS
+
+If Prompt34 includes resource-opening aggregate counts:
+
+label:
+
+```text id="ivq4kw"
+Resource opens
+```
+
+not completion.
+
+---
+
+# 57. MCQ AGGREGATE
+
+If Prompt34 exposes cohort objective MCQ facts:
+
+safe display may include:
+
+```text id="0qnuye"
+aggregate attempt count
+cohort-level objective accuracy
+trend
+```
+
+only if privacy threshold satisfied.
+
+---
+
+# 58. COHORT ACCURACY
+
+Do not expose one lecture/topic cohort accuracy if small enough to identify individuals.
+
+Server suppression wins.
+
+---
+
+# 59. NO STUDENT ERROR LIST
+
+Mandatory.
+
+---
+
+# 60. FLASHCARD AGGREGATE
+
+Use self-assessment terminology.
+
+Do not call it cohort objective accuracy.
+
+---
+
+# 61. RECALL AGGREGATE
+
+Use Prompt34-safe aggregate facts.
+
+Skip remains neutral.
+
+---
+
+# 62. MASTERY AGGREGATE
+
+Display only cohort distribution counts/percentages where privacy-safe.
+
+States:
+
+```text id="5s4khr"
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+---
+
+# 63. NO INDIVIDUAL MASTERY
+
+Mandatory.
+
+---
+
+# 64. NO STUDENT MASTERED COUNT BY NAME
+
+Mandatory.
+
+---
+
+# 65. RETENTION AGGREGATE
+
+Safe display may include:
+
+```text id="t9sxfl"
+due
+overdue
+not due
+stale/missing
+```
+
+as aggregate counts/rates if Prompt34 exposes them.
+
+---
+
+# 66. NO DUE-REVIEW USER LIST
+
+Mandatory.
+
+---
+
+# 67. SUBJECT ANALYTICS
+
+Use aggregate subject-level facts where privacy threshold permits.
+
+Potential:
+
+```text id="y4dqzg"
+active users
+verified Focus hours
+objective MCQ attempts
+Flashcard reviews
+Recall attempts
+Mastery distribution
+review due counts
+```
+
+only if canonical Prompt34 provides them.
+
+---
+
+# 68. SUBJECT ANALYTICS ≠ SUBJECT QUALITY
+
+Do not label a subject:
+
+```text id="45sxw7"
+bad
+hardest
+easiest
+worst
+best
+```
+
+based solely on engagement or study outcomes.
+
+---
+
+# 69. NO CAUSAL CLAIM
+
+Do not say:
+
+```text id="8o67hd"
+Subject X causes poor performance.
+```
+
+---
+
+# 70. SUBJECT SORTING
+
+Use safe server-provided/default ordering.
+
+Possible:
+
+```text id="mt15mg"
+curriculum order
+activity descending
+```
+
+only if transparent.
+
+Do not invent hidden composite scores.
+
+---
+
+# 71. NO SUBJECT SCORE
+
+Mandatory.
+
+---
+
+# 72. SUBJECT DETAIL
+
+Clicking a subject may open aggregate subject analytics only.
+
+No individual user table.
+
+---
+
+# 73. LECTURE AGGREGATES
+
+Only if Prompt34 explicitly supports privacy-safe lecture aggregates.
+
+---
+
+# 74. LECTURE PRIVACY THRESHOLD
+
+Server suppression required.
+
+---
+
+# 75. SMALL LECTURE COHORT
+
+Render:
+
+```text id="0d2h4s"
+Not enough aggregate data
+```
+
+not zeros.
+
+---
+
+# 76. UNKNOWN ≠ ZERO
+
+Mandatory.
+
+---
+
+# 77. DATA QUALITY
+
+Expose aggregate data-quality limitations.
+
+Examples if canonical:
+
+```text id="r3trcb"
+insufficient cohort
+partial historical coverage
+stale projection
+backfill incomplete
+feature disabled
+```
+
+---
+
+# 78. NO HIDDEN DATA QUALITY
+
+If a metric is incomplete, make it visible.
+
+---
+
+# 79. TREND DATA
+
+Render only canonical Prompt34 series/classifications.
+
+Do not calculate significance/trend labels in frontend.
+
+---
+
+# 80. NO FALSE TREND
+
+Sparse data must not be shown as meaningful trend.
+
+---
+
+# 81. COMPARISON
+
+If Prompt34 supports prior-window comparison:
+
+render exact server-provided:
+
+```text id="thppf4"
+current
+previous
+delta
+classification
+```
+
+---
+
+# 82. NO CLIENT DELTA AUTHORITY
+
+Formatting arithmetic is okay only if server provides components and Prompt34 defines it.
+
+Preferred:
+
+consume server delta.
+
+---
+
+# 83. NO CAUSAL EXPLANATIONS
+
+Owner Analytics is descriptive.
+
+---
+
+# 84. FEATURE ADOPTION FUNNEL
+
+If Prompt34 defines a safe funnel such as:
+
+```text id="etr0sp"
+eligible users
+→ users who opened feature
+→ users with meaningful activity
+```
+
+render it.
+
+Do not create one from raw user tracking.
+
+---
+
+# 85. NO MICRO-TARGETING
+
+Owner Analytics must not produce:
+
+```text id="mit30w"
+list of students who haven't used feature
+```
+
+---
+
+# 86. NO “MESSAGE THESE STUDENTS” ACTION
+
+Mandatory.
+
+---
+
+# 87. NO DIRECT NOTIFICATION CAMPAIGN FROM ANALYTICS
+
+Prompt47 does not add targeting tools.
+
+---
+
+# 88. NO STUDENT SHAMING
+
+Avoid phrases like:
+
+```text id="giyzwu"
+lazy cohort
+poor students
+inactive failures
+```
+
+---
+
+# 89. OPERATIONAL ANALYTICS
+
+Prompt47 may show owner-safe product operational facts already established by Prompt34.
+
+Potential:
+
+```text id="v9irau"
+feature data availability
+projection freshness
+aggregate processing status
+safe ingestion counts
+```
+
+but do not duplicate Prompt50 full observability dashboards.
+
+---
+
+# 90. PROMPT50 BOUNDARY
+
+Do NOT build:
+
+```text id="kgk3ht"
+queue lag dashboard
+worker error dashboard
+database CPU
+API p95
+alerts
+deployment health
+```
+
+unless already a simple Prompt34 owner-safe metric.
+
+Prompt50 owns operations/observability.
+
+---
+
+# 91. OWNER ANALYTICS OPERATIONS SECTION
+
+Keep to product-level availability and aggregate data health, not infrastructure observability.
+
+---
+
+# 92. NO INTEGRITY SIGNAL DASHBOARD HERE
+
+Prompt18 has separate security/admin review.
+
+Do not mix private IntegritySignal data into Owner Analytics.
+
+---
+
+# 93. NO FRAUD COUNTS AS STUDENT PERFORMANCE
+
+Mandatory.
+
+---
+
+# 94. NO USER-BY-USER POINTS VIEW
+
+Gamification/Leaderboard has its own safe public contracts.
+
+Owner Analytics should not show private raw Points ledger per user.
+
+---
+
+# 95. AGGREGATE GAMIFICATION
+
+Only if Prompt34 already includes safe aggregate adoption:
+
+```text id="osvn5y"
+users with Points activity
+Challenge participation
+Achievement unlock aggregate
+```
+
+Not required.
+
+---
+
+# 96. NO LEADERBOARD ADMIN RANKING COPY
+
+Prompt47 is not a hidden admin Leaderboard.
+
+---
+
+# 97. CHARTS
+
+Use lightweight accessible charts.
+
+Potential:
+
+```text id="lxrpj2"
+line trend
+bar chart
+stacked distribution
+adoption progress
+```
+
+---
+
+# 98. CHART LIBRARY
+
+Reuse existing library if present.
+
+Do not add a large chart dependency unless necessary.
+
+---
+
+# 99. CHARTS MUST NOT HIDE SUPPRESSION
+
+If a data point is privacy-suppressed:
+
+do not interpolate it.
+
+---
+
+# 100. SUPPRESSED DATA VISUAL
+
+Use gap / “Insufficient cohort” marker.
+
+---
+
+# 101. NO ZERO-FILLING SUPPRESSED DATA
+
+Mandatory.
+
+---
+
+# 102. CHART TOOLTIP
+
+Must distinguish:
+
+```text id="6qaumq"
+0
+```
+
+from:
+
+```text id="1tturh"
+suppressed / unavailable
+```
+
+---
+
+# 103. ACCESSIBLE CHART SUMMARY
+
+Provide text/table equivalent.
+
+---
+
+# 104. RTL CHARTS
+
+Preserve chronological semantics.
+
+Do not incorrectly reverse time-series chronology solely due RTL layout.
+
+---
+
+# 105. OWNER ANALYTICS MOBILE
+
+Although primarily desktop/admin, mobile must remain usable.
+
+Recommended mobile sections:
+
+```text id="h8m1s5"
+window
+key metrics
+adoption
+activity
+subjects
+Mastery/review
+data quality
+```
+
+---
+
+# 106. IPAD
+
+Purpose-built two-column analytics layout.
+
+---
+
+# 107. DESKTOP
+
+Use dashboard grid plus detailed aggregate sections.
+
+---
+
+# 108. LARGE MONITOR
+
+Set max content width.
+
+Do not stretch charts excessively.
+
+---
+
+# 109. TABLES
+
+Desktop aggregate tables are acceptable.
+
+---
+
+# 110. MOBILE TABLES
+
+Transform into cards/stacked rows.
+
+Avoid forced horizontal scrolling where practical.
+
+---
+
+# 111. FILTER BAR
+
+Use only safe filters.
+
+Potential:
+
+```text id="67cdhe"
+window
+subject
+aggregate metric category
+```
+
+according to backend.
+
+---
+
+# 112. NO USER FILTER
+
+Mandatory.
+
+---
+
+# 113. NO EMAIL FILTER
+
+Mandatory.
+
+---
+
+# 114. NO ROLE FILTER IF IT CREATES SMALL COHORT RISK
+
+Only use if Prompt35 explicitly allows.
+
+---
+
+# 115. NO COMBINATORIAL FILTER BUILDER
+
+Mandatory.
+
+---
+
+# 116. SUBJECT FILTER
+
+If subject selection is supported:
+
+server re-applies privacy threshold.
+
+---
+
+# 117. ALL-SUBJECT DEFAULT
+
+Preferred.
+
+---
+
+# 118. WINDOW CHANGE
+
+Server re-applies privacy.
+
+---
+
+# 119. CURRENT SEMESTER
+
+Use canonical academic semester dates.
+
+Do not invent them.
+
+---
+
+# 120. NO CUSTOM SECOND-LEVEL RANGE
+
+Mandatory.
+
+---
+
+# 121. DATE DISPLAY
+
+Use Baghdad local display.
+
+---
+
+# 122. SUMMARY CARD LABELS
+
+Examples:
+
+```text id="hhzhfw"
+Active study users
+Verified Focus hours
+Objective MCQ attempts
+Recall participation
+```
+
+Use actual canonical terminology.
+
+---
+
+# 123. DO NOT DISPLAY “ACTIVE NOW”
+
+Unless separately supported as a non-analytics operational roster.
+
+Not part of Prompt47.
+
+---
+
+# 124. NO SESSION PLAYBACK
+
+Owner cannot replay a student's study day.
+
+---
+
+# 125. NO TIMELINE PER USER
+
+Mandatory.
+
+---
+
+# 126. NO EXACT LAST-STUDIED TIMESTAMP PER USER
+
+Mandatory.
+
+---
+
+# 127. NO LOCATION DATA
+
+Do not collect/show user location.
+
+---
+
+# 128. NO DEVICE FINGERPRINTING
+
+Mandatory.
+
+---
+
+# 129. NO IP-BASED ANALYTICS UI
+
+Mandatory.
+
+---
+
+# 130. NO PRIVATE AUTH METRICS MIXED WITH STUDY ANALYTICS
+
+Do not show sensitive login/security telemetry here.
+
+---
+
+# 131. AGGREGATE DAILY SERIES
+
+If Prompt34 provides daily buckets:
+
+render them.
+
+---
+
+# 132. AGGREGATE WEEKLY SERIES
+
+If current semester view provides weekly buckets:
+
+use server-provided buckets.
+
+---
+
+# 133. NO FRONTEND REBUCKETING RAW EVENTS
+
+Mandatory.
+
+---
+
+# 134. SUBJECT ACTIVITY SERIES
+
+Only if server returns it.
+
+---
+
+# 135. MASTERY DISTRIBUTION
+
+Use six-state stacked bar/cards.
+
+---
+
+# 136. RETENTION DISTRIBUTION
+
+Use exact server categories.
+
+---
+
+# 137. MASTERED DOES NOT MEAN EXAM READY
+
+Do not label it as such.
+
+---
+
+# 138. NEEDS_REVIEW DOES NOT MEAN FAILING
+
+Mandatory.
+
+---
+
+# 139. COHORT MCQ ACCURACY
+
+Label:
+
+```text id="83x6yc"
+Objective MCQ accuracy
+```
+
+with aggregate/sample context.
+
+---
+
+# 140. FLASHCARD
+
+Use:
+
+```text id="roet0t"
+Self-reported remembered
+Self-reported needs review
+```
+
+where applicable.
+
+---
+
+# 141. NO FLASHCARD “ACCURACY”
+
+Preferred.
+
+---
+
+# 142. RECALL
+
+Separate objective MCQ Recall from Flashcard self-report if Prompt34 exposes both.
+
+---
+
+# 143. SAMPLE SIZE
+
+Show aggregate denominator where useful.
+
+---
+
+# 144. PRIVACY + SAMPLE SIZE
+
+If denominator itself is suppressed, do not infer/display it.
+
+---
+
+# 145. OWNER ANALYTICS AI
+
+Preferred:
+
+```text id="v36dpe"
+not implemented
+```
+
+Prompt47 should remain deterministic.
+
+---
+
+# 146. NO “AI SAYS STUDENTS ARE WEAK”
+
+Mandatory.
+
+---
+
+# 147. NO AI STUDENT LABELS
+
+Mandatory.
+
+---
+
+# 148. NO AI RECOMMENDED DISCIPLINE ACTION
+
+Mandatory.
+
+---
+
+# 149. ACTIONS
+
+Owner Analytics is primarily read-only.
+
+---
+
+# 150. NO STUDENT MUTATION FROM CHART
+
+Clicking a chart does not:
+
+```text id="hnuq0p"
+ban
+mute
+notify
+change role
+edit study state
+award Points
+change Mastery
+```
+
+---
+
+# 151. CONTENT NAVIGATION
+
+Subject aggregate card may link to existing owner content management page.
+
+That action remains separate from analytics.
+
+---
+
+# 152. NO AUTO CONTENT EDIT
+
+Mandatory.
+
+---
+
+# 153. OWNER ANALYTICS REFRESH
+
+Read-only.
+
+No study writes.
+
+---
+
+# 154. PULL TO REFRESH
+
+Optional mobile.
+
+No duplicate requests.
+
+---
+
+# 155. QUERY CACHE
+
+Reuse existing system.
+
+---
+
+# 156. CACHE KEYS
+
+Include safe dimensions:
+
+```text id="whg2sp"
+window
+subject if supported
+metric scope
+```
+
+---
+
+# 157. NO STUDENT-ID CACHE KEY
+
+Mandatory.
+
+---
+
+# 158. FOREGROUND REFRESH
+
+Reasonable.
+
+---
+
+# 159. NO POLLING EVERY SECOND
+
+Mandatory.
+
+---
+
+# 160. NO LIVE STUDENT MONITORING WEBSOCKET
+
+Mandatory.
+
+---
+
+# 161. SOCKET.IO
+
+If aggregate invalidation already exists:
+
+reuse.
+
+Do not add a second socket.
+
+---
+
+# 162. NO PER-EVENT LIVE CHART UPDATE REQUIREMENT
+
+Aggregate refresh can be bounded.
+
+---
+
+# 163. REFRESH CADENCE
+
+If polling required:
+
+use something like:
+
+```text id="8ady08"
+60–300 seconds
+```
+
+depending data semantics.
+
+But prefer on-demand / invalidation.
+
+---
+
+# 164. FRESHNESS LABEL
+
+If server exposes `asOf`:
+
+show subtle:
+
+```text id="teq74a"
+Updated at…
+```
+
+---
+
+# 165. STALE PROJECTION
+
+If Prompt34 says stale:
+
+show it.
+
+Do not silently claim current.
+
+---
+
+# 166. LOADING
+
+Use skeletons.
+
+---
+
+# 167. GLOBAL FAILURE
+
+Show retry.
+
+Do not show fake zeros.
+
+---
+
+# 168. SECTION FAILURE
+
+If API separates sections:
+
+keep unaffected sections visible.
+
+---
+
+# 169. SUPPRESSED DATA
+
+Not an error.
+
+Render privacy-specific empty state.
+
+---
+
+# 170. INSUFFICIENT DATA
+
+Not a failure.
+
+---
+
+# 171. ZERO VALUE
+
+Display zero only when server truly returns measured zero.
+
+---
+
+# 172. UNKNOWN VALUE
+
+Use:
+
+```text id="2snhmq"
+—
+Not enough data
+Unavailable
+```
+
+based on canonical state.
+
+---
+
+# 173. NO OWNER-SIDE ESTIMATION
+
+Mandatory.
+
+---
+
+# 174. EXPORT
+
+Do NOT implement export unless Prompt34 explicitly has safe aggregate export semantics.
+
+---
+
+# 175. IF SAFE EXPORT ALREADY EXISTS
+
+Allow only:
+
+```text id="5ujvwq"
+aggregate anonymized data
+```
+
+and preserve suppression.
+
+---
+
+# 176. NO RAW USER EXPORT
+
+Mandatory.
+
+---
+
+# 177. NO USER EMAIL EXPORT
+
+Mandatory.
+
+---
+
+# 178. NO STUDENT ANALYTICS CSV
+
+Mandatory.
+
+---
+
+# 179. PRINT/PDF
+
+Not required.
+
+---
+
+# 180. PUBLIC SHARE
+
+Not allowed.
+
+---
+
+# 181. SCREENSHOT
+
+No special prevention required.
+
+---
+
+# 182. I18N
+
+Add keys for:
+
+```text id="zz5odr"
+Owner Analytics
+Overview
+Feature Adoption
+Study Activity
+Subjects
+Mastery
+Review
+Data Quality
+Active Study Users
+Verified Focus Time
+Objective MCQ Attempts
+Recall Participation
+Insufficient Cohort
+Suppressed for Privacy
+Updated
+```
+
+Use actual terminology.
+
+---
+
+# 183. ARABIC
+
+Use natural professional administrative Arabic.
+
+Avoid academic judgment wording.
+
+---
+
+# 184. RTL
+
+Ensure:
+
+```text id="gu8fxy"
+metric cards
+filters
+charts
+tables
+subject labels
+Mastery distributions
+legends
+tooltips
+```
+
+render correctly.
+
+---
+
+# 185. NUMERIC LAYOUT
+
+Keep percentages/counts readable in RTL.
+
+---
+
+# 186. CHRONOLOGY
+
+Time-series remains chronologically understandable.
+
+---
+
+# 187. ACCESSIBILITY
+
+Support:
+
+```text id="nmv967"
+keyboard
+screen reader
+focus states
+touch targets
+table semantics
+chart alternatives
+reduced motion
+```
+
+---
+
+# 188. PRIVACY SUPPRESSION ANNOUNCEMENT
+
+Screen reader should understand:
+
+```text id="04vy97"
+Data hidden because the cohort is too small.
+```
+
+without exposing threshold details if Prompt35 treats threshold as internal.
+
+---
+
+# 189. TABLE HEADERS
+
+Semantic.
+
+---
+
+# 190. CHART LEGENDS
+
+Accessible.
+
+---
+
+# 191. COLOR NOT SOLE SIGNAL
+
+Mandatory.
+
+---
+
+# 192. REDUCED MOTION
+
+Disable unnecessary chart animations.
+
+---
+
+# 193. NO AUTO-SCROLL DASHBOARD
+
+Mandatory.
+
+---
+
+# 194. PERFORMANCE SCALE
+
+Current cohort target:
+
+```text id="99m6nn"
+~700–900 students
+```
+
+with possible larger future cohorts.
+
+Frontend receives aggregate read models, not all users.
+
+---
+
+# 195. NO 900-USER CLIENT DATASET
+
+Mandatory.
+
+---
+
+# 196. NO RAW PER-USER LOOP
+
+Mandatory.
+
+---
+
+# 197. SERVER AGGREGATION
+
+All aggregation must be server-side.
+
+---
+
+# 198. QUERY COUNT
+
+Aim for:
+
+```text id="dtd5iu"
+one aggregate overview query
++
+bounded subject/detail queries
+```
+
+depending Prompt34 API shape.
+
+---
+
+# 199. NO REQUEST PER SUBJECT IF BATCHED DATA EXISTS
+
+Mandatory.
+
+---
+
+# 200. NO N+1
+
+Mandatory.
+
+---
+
+# 201. SUBJECT COUNT
+
+~current curriculum subject count is small, but still batch.
+
+---
+
+# 202. RESPONSE SIZE
+
+Bounded aggregate DTO.
+
+---
+
+# 203. NO FULL HISTORY PAYLOAD
+
+Mandatory.
+
+---
+
+# 204. TEST — AUTHORIZED OWNER
+
+Page loads.
+
+---
+
+# 205. TEST — AUTHORIZED ADMIN
+
+Behavior matches exact Prompt35 policy.
+
+---
+
+# 206. TEST — NORMAL STUDENT
+
+Access denied/route absent.
+
+---
+
+# 207. TEST — LOGGED OUT
+
+Auth flow.
+
+---
+
+# 208. TEST — DIRECT URL
+
+Server/API authorization still blocks unauthorized role.
+
+---
+
+# 209. TEST — NO CLIENT-ONLY GUARD
+
+Mandatory.
+
+---
+
+# 210. TEST — 30 DAY OVERVIEW
+
+Exact aggregate facts.
+
+---
+
+# 211. TEST — 7 DAY OVERVIEW
+
+Exact.
+
+---
+
+# 212. TEST — CURRENT SEMESTER
+
+Exact server window.
+
+---
+
+# 213. TEST — WINDOW RACE
+
+Rapid switching does not display stale wrong-window data.
+
+---
+
+# 214. TEST — ACTIVE STUDY USERS
+
+Exact canonical count.
+
+---
+
+# 215. TEST — VERIFIED FOCUS
+
+Exact aggregate.
+
+---
+
+# 216. TEST — PDF OPEN
+
+Does not increase verified study time unless canonical Focus independently does.
+
+---
+
+# 217. TEST — VIDEO OPEN
+
+Same.
+
+---
+
+# 218. TEST — GROUP FOCUS ADOPTION
+
+Exact aggregate.
+
+---
+
+# 219. TEST — MCQ ATTEMPTS
+
+Exact aggregate.
+
+---
+
+# 220. TEST — MCQ ACCURACY
+
+Exact aggregate.
+
+---
+
+# 221. TEST — FLASHCARD SELF-REPORT
+
+Correct terminology.
+
+---
+
+# 222. TEST — RECALL PARTICIPATION
+
+Exact aggregate.
+
+---
+
+# 223. TEST — RECALL SKIP
+
+Not classified as wrong.
+
+---
+
+# 224. TEST — MASTERY DISTRIBUTION
+
+Exact six-state aggregate.
+
+---
+
+# 225. TEST — RETENTION DISTRIBUTION
+
+Exact.
+
+---
+
+# 226. TEST — SUBJECT AGGREGATE
+
+Exact.
+
+---
+
+# 227. TEST — SMALL COHORT SUBJECT
+
+Suppressed.
+
+---
+
+# 228. TEST — SUPPRESSED ≠ ZERO
+
+Mandatory.
+
+---
+
+# 229. TEST — PRIVACY THRESHOLD
+
+Use exact Prompt35 server rule.
+
+---
+
+# 230. TEST — NO USER NAMES IN AGGREGATE RESPONSE
+
+Where expected.
+
+---
+
+# 231. TEST — NO INDIVIDUAL DRILLDOWN
+
+Mandatory.
+
+---
+
+# 232. TEST — NO USER SEARCH
+
+Mandatory.
+
+---
+
+# 233. TEST — NO AT-RISK LIST
+
+Mandatory.
+
+---
+
+# 234. TEST — NO PRIVATE ANALYZER
+
+Owner cannot fetch another user's Prompt36 DTO.
+
+---
+
+# 235. TEST — NO INDIVIDUAL MASTERY
+
+Mandatory.
+
+---
+
+# 236. TEST — NO INDIVIDUAL RETENTION
+
+Mandatory.
+
+---
+
+# 237. TEST — NO INDIVIDUAL MCQ ACCURACY
+
+Mandatory.
+
+---
+
+# 238. TEST — NO INDIVIDUAL FOCUS HISTORY
+
+Mandatory.
+
+---
+
+# 239. TEST — NO QUICK NOTES
+
+Mandatory.
+
+---
+
+# 240. TEST — NO AUDIO DATA
+
+Mandatory.
+
+---
+
+# 241. TEST — NO RESOURCE READING CLAIM
+
+Mandatory.
+
+---
+
+# 242. TEST — FILTER ATTACK
+
+Attempt safe filter combinations that would isolate a tiny cohort.
+
+Server suppresses.
+
+---
+
+# 243. TEST — CLIENT DOES NOT UNSUPPRESS
+
+Mandatory.
+
+---
+
+# 244. TEST — CHART SUPPRESSION
+
+No interpolation/zero fill.
+
+---
+
+# 245. TEST — TREND INSUFFICIENT DATA
+
+No false line/trend claim.
+
+---
+
+# 246. TEST — DATA QUALITY STALE
+
+Visible.
+
+---
+
+# 247. TEST — DATA QUALITY PARTIAL
+
+Visible.
+
+---
+
+# 248. TEST — UNKNOWN METRIC
+
+Not displayed as zero.
+
+---
+
+# 249. TEST — FEATURE ADOPTION
+
+Exact server values.
+
+---
+
+# 250. TEST — NO MESSAGE TARGETING
+
+No analytics-to-notification action.
+
+---
+
+# 251. TEST — NO ROLE MUTATION
+
+Charts cannot alter roles.
+
+---
+
+# 252. TEST — NO BAN/MUTE ACTION
+
+Analytics does not mutate moderation state.
+
+---
+
+# 253. TEST — OPEN PAGE SIDE EFFECTS
+
+Expected:
+
+```text id="7h4207"
+StudyEvent = 0
+StudyPointsLedgerEntry = 0
+LectureMastery = 0
+LectureRetention = 0
+RecallAttempt = 0
+FocusSession = 0
+GroupFocusRoom = 0
+CalendarEvent = 0
+IntegritySignal = 0
+```
+
+---
+
+# 254. TEST — FILTER SIDE EFFECTS
+
+Same.
+
+---
+
+# 255. TEST — REFRESH SIDE EFFECTS
+
+Same.
+
+---
+
+# 256. TEST — AI
+
+Expected:
+
+```text id="zeen0k"
+AI calls = 0
+```
+
+---
+
+# 257. TEST — CALENDAR
+
+Expected:
+
+```text id="v99he0"
+CalendarEvent delta = 0
+```
+
+---
+
+# 258. TEST — MOBILE
+
+Dashboard usable.
+
+---
+
+# 259. TEST — IPAD PORTRAIT
+
+Purpose-built.
+
+---
+
+# 260. TEST — IPAD LANDSCAPE
+
+Purpose-built.
+
+---
+
+# 261. TEST — DESKTOP
+
+Professional analytics layout.
+
+---
+
+# 262. TEST — ARABIC
+
+RTL correct.
+
+---
+
+# 263. TEST — LONG SUBJECT NAMES
+
+No layout break.
+
+---
+
+# 264. TEST — MANY SUBJECTS
+
+Charts/tables remain usable.
+
+---
+
+# 265. TEST — ACCESSIBILITY
+
+Keyboard.
+
+---
+
+# 266. TEST — SCREEN READER
+
+Metric/chart alternatives.
+
+---
+
+# 267. TEST — REDUCED MOTION
+
+No meaning loss.
+
+---
+
+# 268. TEST — OFFLINE
+
+No fabricated aggregate data.
+
+Cached stale data only if existing query cache safely supports it.
+
+---
+
+# 269. TEST — STRICTMODE
+
+No duplicate requests beyond query dedupe.
+
+---
+
+# 270. TEST — NO N+1
+
+Mandatory.
+
+---
+
+# 271. TEST — RESPONSE BOUND
+
+No per-user payload explosion.
+
+---
+
+# 272. PERFORMANCE FIXTURE
+
+Use realistic cohort:
+
+```text id="478qkr"
+900 users
+~300 lectures
+multiple subjects
+thousands of Focus sessions
+thousands of MCQ attempts
+Flashcard activity
+Recall attempts
+Mastery/Retention rows
+```
+
+But frontend receives only aggregate payload.
+
+---
+
+# 273. PERFORMANCE REPORT
+
+Measure:
+
+```text id="65jfvv"
+initial request count
+overview render
+subject section render
+chart render
+window switch
+filter switch
+response size
+bundle delta
+N+1
+```
+
+---
+
+# 274. NO BROWSER AGGREGATION OF 900 USERS
+
+Mandatory.
+
+---
+
+# 275. BACKEND CHANGES
+
+Prompt47 should primarily consume Prompt34 APIs.
+
+---
+
+# 276. BACKEND CHANGES ALLOWED
+
+Only additive privacy-safe read plumbing such as:
+
+```text id="i8eioz"
+aggregate DTO presentation field
+safe subject metadata
+safe freshness metadata
+```
+
+No privacy weakening.
+
+---
+
+# 277. NO PROMPT34 SEMANTIC CHANGE
+
+Mandatory.
+
+---
+
+# 278. NO PROMPT35 PRIVACY CHANGE
+
+Mandatory.
+
+---
+
+# 279. NO PRIVACY THRESHOLD CHANGE
+
+Mandatory.
+
+---
+
+# 280. NO INDIVIDUAL ANALYTICS ENDPOINT
+
+Mandatory.
+
+---
+
+# 281. NO SCHEMA MIGRATION EXPECTED
+
+Expected:
+
+```text id="7hjf8l"
+NO
+```
+
+---
+
+# 282. NO D1 MIGRATION EXPECTED
+
+Expected:
+
+```text id="lrq9r6"
+NO
+```
+
+---
+
+# 283. NO WORKER CHANGE EXPECTED
+
+Prompt47 should not need Worker changes.
+
+---
+
+# 284. NO AI PROVIDER CHANGE
+
+Mandatory.
+
+---
+
+# 285. NO TELEMETRY EXPANSION
+
+Do not instrument extra per-student behavior merely to populate dashboards.
+
+---
+
+# 286. E2E OWNER ANALYTICS
+
+Where current E2E framework supports:
+
+```text id="vpwrdp"
+login owner
+→ open Console
+→ Owner Analytics
+→ view 30-day aggregates
+→ switch window
+→ inspect subject aggregate
+→ inspect Mastery/Review aggregate
+→ observe privacy-suppressed state
+```
+
+---
+
+# 287. E2E UNAUTHORIZED
+
+Student direct route blocked.
+
+---
+
+# 288. E2E PRIVACY
+
+No user drilldown.
+
+---
+
+# 289. E2E SMALL COHORT
+
+Suppressed.
+
+---
+
+# 290. E2E DATA QUALITY
+
+Partial/stale state.
+
+---
+
+# 291. E2E ARABIC
+
+Owner Analytics RTL.
+
+---
+
+# 292. PROMPT46 REGRESSION
+
+Private Study Analyzer frontend unchanged.
+
+---
+
+# 293. PROMPT45 REGRESSION
+
+Recall/Mastery frontend unchanged.
+
+---
+
+# 294. PROMPT44 REGRESSION
+
+Gamification frontend unchanged.
+
+---
+
+# 295. PROMPT43 REGRESSION
+
+Group Focus frontend unchanged.
+
+---
+
+# 296. PROMPT42 REGRESSION
+
+Focus summary/history unchanged.
+
+---
+
+# 297. PROMPT41 REGRESSION
+
+Active Focus unchanged.
+
+---
+
+# 298. PROMPT40 REGRESSION
+
+Focus Hub unchanged.
+
+---
+
+# 299. PROMPT39 REGRESSION
+
+Audio unchanged.
+
+---
+
+# 300. PROMPT38 REGRESSION
+
+Ask My Study Data remains private.
+
+---
+
+# 301. PROMPT37 REGRESSION
+
+AI Study Insight remains private.
+
+---
+
+# 302. PROMPT36 REGRESSION
+
+CRITICAL.
+
+No private Analyzer data becomes owner-visible.
+
+---
+
+# 303. PROMPT35 REGRESSION
+
+CRITICAL privacy/access tests.
+
+---
+
+# 304. PROMPT34 REGRESSION
+
+CRITICAL aggregate analytics semantics.
+
+---
+
+# 305. PROMPT33 REGRESSION
+
+Mastery/Retention private read model unchanged.
+
+---
+
+# 306. PROMPT31–32 REGRESSION
+
+Mastery/Retention semantics unchanged.
+
+---
+
+# 307. PROMPT28–30 REGRESSION
+
+Recall unchanged.
+
+---
+
+# 308. PROMPT27 REGRESSION
+
+Leaderboard cache unchanged.
+
+---
+
+# 309. PROMPT26 REGRESSION
+
+Leaderboard unchanged.
+
+---
+
+# 310. PROMPT25 REGRESSION
+
+Challenges unchanged.
+
+---
+
+# 311. PROMPT24 REGRESSION
+
+Levels/profile privacy unchanged.
+
+---
+
+# 312. PROMPT23 REGRESSION
+
+Achievements unchanged.
+
+---
+
+# 313. PROMPT22 REGRESSION
+
+Gamification definitions unchanged.
+
+---
+
+# 314. PROMPT19–21 REGRESSION
+
+Points unchanged.
+
+---
+
+# 315. PROMPT17–18 REGRESSION
+
+Integrity/admin review unchanged.
+
+---
+
+# 316. PROMPT13–16 REGRESSION
+
+Group Focus backend unchanged.
+
+---
+
+# 317. PROMPT9–12 REGRESSION
+
+Focus unchanged.
+
+---
+
+# 318. PROMPT8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 319. CALENDAR REGRESSION
+
+Mandatory:
+
+```text id="z8rh8p"
+Owner Analytics creates 0 Calendar events
+```
+
+---
+
+# 320. ADMIN CONSOLE REGRESSION
+
+Existing:
+
+```text id="db8tc8"
+users
+roles
+moderation
+content/admin controls
+```
+
+remain unaffected.
+
+---
+
+# 321. OWNER IMMUTABILITY REGRESSION
+
+Primary owner protections unchanged.
+
+---
+
+# 322. TARGETED TYPECHECK
+
+Strictly compile:
+
+```text id="8hg4fi"
+Owner Analytics route/page
+window selector
+overview cards
+feature-adoption section
+study-activity section
+subject aggregate section
+Mastery aggregate section
+Retention aggregate section
+data-quality states
+privacy-suppressed states
+charts/tables
+query hooks/services
+owner auth guard integration
+Prompt47 tests
+```
+
+Expected:
+
+```text id="n8c57z"
+PASS
+```
+
+---
+
+# 323. TARGETED LINT
+
+All Prompt47 changed files:
+
+```text id="c2m0xn"
+PASS
+```
+
+---
+
+# 324. APP BUILD
+
+Run:
+
+```text id="2vrlcc"
+npm run build
+```
+
+Expected:
+
+```text id="arxn8a"
+PASS
+```
+
+---
+
+# 325. PWA BUILD
+
+Verify.
+
+---
+
+# 326. CAPACITOR VALIDATION
+
+Run safe local validation as appropriate.
+
+No publish.
+
+---
+
+# 327. PRISMA
+
+Expected:
+
+```text id="fs3wmx"
+schema unchanged
+migration none
+```
+
+---
+
+# 328. D1 / WORKER
+
+Expected:
+
+```text id="f0qh4m"
+D1 migration none
+Worker deployment none
+```
+
+---
+
+# 329. PRODUCTION SAFETY
+
+Do NOT:
+
+- modify production PostgreSQL;
+- modify production Supabase;
+- apply migrations;
+- modify production D1;
+- modify production KV;
+- modify R2;
+- alter Prompt34 aggregate semantics;
+- alter Prompt35 privacy thresholds;
+- create individual owner analytics endpoints;
+- expose student private Analyzer;
+- access real production student private analytics during automated testing;
+- add per-student tracking;
+- enable Owner Analytics frontend in production;
+- deploy frontend;
+- deploy Worker;
+- modify production flags;
+- submit App Store build;
+- modify production env.
+
+---
+
+# 330. EXPECTED FILE AREAS
+
+Likely:
+
+```text id="cnt7lb"
+src/features/owner-analytics/
+  OwnerAnalyticsPage.tsx
+
+  components/
+    OwnerAnalyticsHeader.tsx
+    OwnerAnalyticsWindowSelector.tsx
+    OwnerAnalyticsOverview.tsx
+    OwnerMetricCard.tsx
+    OwnerFeatureAdoption.tsx
+    OwnerStudyActivity.tsx
+    OwnerSubjectAnalytics.tsx
+    OwnerSubjectAnalyticsRow.tsx
+    OwnerMasteryDistribution.tsx
+    OwnerRetentionDistribution.tsx
+    OwnerAggregateTrend.tsx
+    OwnerDataQualityNotice.tsx
+    OwnerPrivacySuppressedState.tsx
+    OwnerAnalyticsEmptyState.tsx
+
+  hooks/
+    useOwnerAnalytics.ts
+    useOwnerSubjectAnalytics.ts
+
+  services/
+  types.ts
+  formatting.ts
+
+src/features/console/
+  navigation integration
+
+src/routes/
+src/i18n/
+src/config/featureFlags.*
+
+tests/
+  owner-analytics-auth*.test.ts
+  owner-analytics-overview*.test.tsx
+  owner-analytics-privacy*.test.ts
+  owner-analytics-subjects*.test.tsx
+  owner-analytics-mastery*.test.tsx
+  owner-analytics-data-quality*.test.tsx
+  owner-analytics-responsive*.test.tsx
+  owner-analytics-e2e*
+```
+
+Use actual repository conventions.
+
+---
+
+# 331. FILES EXPECTED UNCHANGED
+
+Unless minimal privacy-safe read plumbing is genuinely necessary:
+
+```text id="e4qp6e"
+prisma/schema.prisma
+prisma/migrations/*
+Prompt34 aggregate semantics
+Prompt35 privacy/access semantics
+Prompt36 private Analyzer
+Prompt37 AI Insight
+Prompt38 Ask My Study Data
+Prompt31–33 Mastery/Retention
+Recall
+Points
+Gamification
+Leaderboard
+Focus
+Group Focus
+Calendar
+Cloudflare Worker
+```
+
+---
+
+# 332. ACCEPTANCE CRITERIA
+
+Prompt47 succeeds only if:
+
+1. Owner Analytics frontend exists.
+2. Access follows Prompt35 exactly.
+3. Normal students cannot access it.
+4. Aggregate data comes from Prompt34.
+5. No browser-side aggregation of individual students exists.
+6. No individual Study Analyzer view exists.
+7. No individual weakness/positive signals exist.
+8. No individual Mastery view exists.
+9. No individual Retention view exists.
+10. No individual Focus history exists.
+11. No individual MCQ/Flashcard accuracy exists.
+12. No Quick Notes exposure exists.
+13. No user search for analytics exists.
+14. No at-risk student list exists.
+15. No student ranking exists.
+16. No surveillance timeline exists.
+17. Privacy threshold is server-enforced.
+18. Small cohorts are suppressed.
+19. Suppressed values are not rendered as zero.
+20. Unsafe filter combinations cannot deanonymize users.
+21. Overview aggregate metrics render.
+22. Feature adoption renders where canonical.
+23. Study activity aggregate renders.
+24. Subject aggregates render where safe.
+25. Mastery distribution renders only in aggregate.
+26. Retention distribution renders only in aggregate.
+27. MCQ aggregate remains objective.
+28. Flashcard aggregate remains self-assessed.
+29. Recall Skip remains neutral.
+30. PDF/video opens are not interpreted as learning completion.
+31. No subject composite score exists.
+32. No “best/worst subject” label exists.
+33. No causal claims exist.
+34. Data quality/staleness is visible.
+35. Unknown is distinct from zero.
+36. No AI-generated owner facts exist.
+37. AI calls = 0.
+38. No analytics-to-notification targeting exists.
+39. Analytics actions are read-only.
+40. No role/moderation mutation from analytics.
+41. No Calendar writes.
+42. No Points writes.
+43. No Mastery/Retention writes.
+44. No Recall writes.
+45. No Focus/Group Focus writes.
+46. Mobile layout is usable.
+47. iPad layout is purpose-built.
+48. Desktop/PWA is polished.
+49. Arabic RTL is correct.
+50. Accessibility works.
+51. Charts have textual alternatives.
+52. No N+1.
+53. No 900-user payload reaches browser.
+54. No new per-student telemetry added.
+55. No schema migration expected.
+56. No D1 migration expected.
+57. Feature flag defaults off.
+58. Production unchanged.
+59. App build passes.
+60. New regressions = 0.
+
+---
+
+# 333. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Preflight Owner Analytics Architecture
+
+Report exact existing:
+
+```text id="gxv00k"
+Prompt34 owner aggregate endpoints
+aggregate DTO names/versions
+supported windows
+supported dimensions
+subject aggregate contract
+Mastery aggregate contract
+Retention aggregate contract
+feature adoption contract
+data-quality contract
+Prompt35 privacy threshold
+suppression enum/status
+role access policy
+owner/admin guards
+Console route structure
+frontend query/cache system
+```
+
+---
+
+## B. Frontend Architecture
+
+Explain:
+
+```text id="in5lt5"
+authorized owner/admin
+→ Prompt34 privacy-safe aggregate API
+→ private owner query cache
+→ responsive aggregate dashboard
+```
+
+Explicitly:
+
+```text id="na8acm"
+INDIVIDUAL STUDENT STUDY DATA FLOW: NONE
+```
+
+---
+
+## C. Schema / Infrastructure Changes
+
+Report:
+
+```text id="eojqpm"
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+D1 MIGRATION CREATED: YES/NO
+WORKER MODIFIED: YES/NO
+PRIVACY THRESHOLD CHANGED: YES/NO
+OWNER AGGREGATION SEMANTICS CHANGED: YES/NO
+NEW TELEMETRY ADDED: YES/NO
+```
+
+Expected:
+
+```text id="l87nvd"
+NO
+NO
+NO
+NO
+NO
+NO
+NO
+```
+
+---
+
+## D. Feature Flag
+
+Report:
+
+```text id="obnmx7"
+OWNER_ANALYTICS_FRONTEND_ENABLED:
+default:
+production changed:
+```
+
+Expected:
+
+```text id="yln1sf"
+default = false
+production changed = NO
+```
+
+---
+
+## E. Route / Access
+
+Report:
+
+```text id="oh4ic1"
+route:
+allowed roles:
+student behavior:
+logged-out behavior:
+direct-URL behavior:
+server authorization:
+```
+
+---
+
+## F. Privacy Boundary
+
+Explicitly report whether Owner Analytics exposes any of the following:
+
+```text id="gs650e"
+individual Study Analyzer:
+individual weakness signals:
+individual positive signals:
+individual Mastery:
+individual Retention:
+individual MCQ accuracy:
+individual Flashcard assessment:
+individual Recall history:
+individual Focus history:
+individual Group Focus history:
+Quick Note content:
+audio data:
+exact resource-reading claims:
+```
+
+Expected:
+
+```text id="f6txwb"
+NO
+```
+
+for all.
+
+---
+
+## G. Server Aggregation Boundary
+
+Explicitly:
+
+```text id="fvpcw6"
+BROWSER RECEIVES RAW PER-USER STUDY DATA: NO
+BROWSER AGGREGATES STUDENTS: NO
+SERVER RETURNS PRIVACY-SAFE AGGREGATES: YES
+```
+
+---
+
+## H. Privacy Threshold
+
+Report exact Prompt35 threshold/policy.
+
+Do NOT invent one in report.
+
+Include:
+
+```text id="6bplps"
+server enforcement:
+frontend suppression rendering:
+```
+
+---
+
+## I. Suppression Behavior
+
+Report exact handling for:
+
+```text id="ih2m9l"
+small cohort
+suppressed metric
+suppressed subject
+suppressed chart point
+unknown metric
+measured zero
+```
+
+Explicitly:
+
+```text id="hgkjxx"
+SUPPRESSED RENDERED AS ZERO: NO
+UNKNOWN RENDERED AS ZERO: NO
+```
+
+---
+
+## J. Filter Privacy
+
+List exact filters exposed.
+
+Report how server protects against:
+
+```text id="kb75g5"
+tiny cohort isolation
+filter intersection attacks
+subtraction attacks
+```
+
+Explicitly:
+
+```text id="6jmkw0"
+USER FILTER: NO
+EMAIL FILTER: NO
+ARBITRARY FILTER BUILDER: NO
+```
+
+---
+
+## K. Supported Windows
+
+Report exact:
+
+```text id="go2emv"
+7-day:
+30-day:
+semester:
+default:
+custom arbitrary range:
+timezone:
+```
+
+---
+
+## L. Overview Metrics
+
+List exact aggregate metrics displayed and source DTO fields.
+
+---
+
+## M. Feature Adoption
+
+Report exact feature-adoption metrics shown.
+
+Explicitly note any not implemented because Prompt34 does not support them.
+
+---
+
+## N. Study Activity
+
+Report exact aggregate facts:
+
+```text id="8t12m5"
+verified Focus
+Group Focus
+MCQ
+Flashcard
+Recall
+other canonical activity
+```
+
+---
+
+## O. Resource Semantics
+
+Explicitly:
+
+```text id="9vs80p"
+PDF OPEN = READING: NO
+PDF OPEN = COMPLETION: NO
+VIDEO OPEN = COMPLETION: NO
+RESOURCE OPEN COUNTED AS VERIFIED FOCUS BY ITSELF: NO
+```
+
+---
+
+## P. Objective MCQ Aggregate
+
+Report:
+
+```text id="fbmk06"
+attempts:
+accuracy:
+trend:
+sample-size handling:
+privacy suppression:
+```
+
+---
+
+## Q. Flashcard Aggregate
+
+Report:
+
+```text id="gutixq"
+self-assessment fields:
+terminology:
+```
+
+Explicitly:
+
+```text id="i4y3c8"
+FLASHCARD SELF-ASSESSMENT LABELED OBJECTIVE ACCURACY: NO
+```
+
+---
+
+## R. Recall Aggregate
+
+Report:
+
+```text id="oe78xf"
+participation:
+objective MCQ Recall if present:
+Flashcard self-report if present:
+skip handling:
+```
+
+Explicitly:
+
+```text id="9vwnag"
+SKIP LABELED INCORRECT: NO
+```
+
+---
+
+## S. Mastery Aggregate
+
+Report six-state aggregate display.
+
+Explicitly:
+
+```text id="hwem3m"
+INDIVIDUAL MASTERY VISIBLE: NO
+STUDENT NAME DRILLDOWN: NO
+```
+
+---
+
+## T. Retention Aggregate
+
+Report aggregate review-state fields.
+
+Explicitly:
+
+```text id="bwe67p"
+INDIVIDUAL DUE-REVIEW LIST VISIBLE: NO
+```
+
+---
+
+## U. Subject Analytics
+
+Report exact subject metrics and ordering.
+
+Explicitly:
+
+```text id="mdg1do"
+SUBJECT COMPOSITE SCORE: NO
+BEST SUBJECT LABEL: NO
+WORST SUBJECT LABEL: NO
+CAUSAL CLAIMS: NO
+```
+
+---
+
+## V. Lecture Aggregates
+
+Report:
+
+```text id="gjnlx3"
+implemented: YES/NO
+privacy threshold applied:
+small-cohort behavior:
+```
+
+If not supported by Prompt34:
+
+```text id="xxo76d"
+NOT IMPLEMENTED
+```
+
+---
+
+## W. Data Quality
+
+List every state displayed:
+
+```text id="pspglq"
+stale
+partial
+insufficient cohort
+suppressed
+missing
+feature disabled
+other
+```
+
+using actual server contract.
+
+---
+
+## X. Trend / Comparison
+
+Report exact server trend/comparison data shown.
+
+Explicitly:
+
+```text id="3vengm"
+CLIENT CALCULATES TREND CLASSIFICATION: NO
+CLIENT MAKES CAUSAL CLAIMS: NO
+```
+
+---
+
+## Y. Charts
+
+Report:
+
+```text id="0aqecd"
+chart library:
+line charts:
+bar charts:
+stacked distributions:
+suppressed-value rendering:
+zero rendering:
+text alternatives:
+RTL chronology:
+```
+
+---
+
+## Z. Operations Section
+
+Report exact Prompt34-safe operational/product-data-health fields shown.
+
+Explicitly list infrastructure/observability features intentionally NOT implemented because Prompt50 owns them.
+
+---
+
+## AA. AI Boundary
+
+Explicitly:
+
+```text id="0yot20"
+OWNER ANALYTICS AI CALLS: 0
+AI-GENERATED OWNER FACTS: NO
+AI-GENERATED STUDENT LABELS: NO
+AI-GENERATED DISCIPLINE RECOMMENDATIONS: NO
+```
+
+---
+
+## AB. Surveillance Boundary
+
+Explicitly:
+
+```text id="4kbnhh"
+LIVE WHO-IS-STUDYING DASHBOARD: NO
+PER-STUDENT TIMELINE: NO
+EXACT LAST-STUDIED TIMESTAMP PER USER: NO
+STUDENT SEARCH FOR ANALYTICS: NO
+AT-RISK STUDENT LIST: NO
+INDIVIDUAL PERFORMANCE RANKING: NO
+```
+
+---
+
+## AC. Targeting Boundary
+
+Explicitly:
+
+```text id="zhqpyy"
+ANALYTICS → DIRECT STUDENT NOTIFICATION ACTION: NO
+ANALYTICS → BAN/MUTE ACTION: NO
+ANALYTICS → ROLE CHANGE: NO
+ANALYTICS → POINTS CHANGE: NO
+```
+
+---
+
+## AD. Navigation
+
+Report links from:
+
+```text id="vgw848"
+Console
+subject aggregate cards
+content management if applicable
+```
+
+Confirm no private-student analytics navigation.
+
+---
+
+## AE. Query Architecture
+
+Report:
+
+```text id="jhvxc9"
+overview request count:
+subject requests:
+per-user requests:
+per-subject N+1:
+polling:
+foreground refresh:
+manual refresh:
+Socket.IO use:
+```
+
+Expected:
+
+```text id="xy673z"
+per-user requests = 0
+N+1 = NO
+```
+
+---
+
+## AF. Response Privacy / Size
+
+Report:
+
+```text id="kltt51"
+largest test cohort:
+aggregate payload size:
+per-user records in payload:
+student identifiers in aggregate DTO:
+```
+
+Expected per-user records:
+
+```text id="j0v2po"
+0
+```
+
+unless a field is strictly part of a non-study admin contract and excluded from analytics response.
+
+---
+
+## AG. Mobile Layout
+
+Report.
+
+---
+
+## AH. iPad Layout
+
+Report portrait/landscape.
+
+---
+
+## AI. Desktop/PWA Layout
+
+Report.
+
+---
+
+## AJ. RTL / Localization
+
+Report:
+
+```text id="yub5kf"
+Arabic labels:
+filters:
+metrics:
+charts:
+tables:
+Mastery distribution:
+Retention:
+data-quality messages:
+suppression messages:
+```
+
+---
+
+## AK. Accessibility
+
+Report:
+
+```text id="o65gqf"
+keyboard:
+screen reader:
+tables:
+chart alternatives:
+touch targets:
+focus states:
+reduced motion:
+suppression announcements:
+```
+
+---
+
+## AL. Authorization Tests
+
+Report:
+
+- owner;
+- admin;
+- student;
+- logged out;
+- direct API;
+- direct frontend route.
+
+---
+
+## AM. Privacy Tests
+
+Report:
+
+- no Study Analyzer;
+- no individual weakness;
+- no individual Mastery;
+- no individual Retention;
+- no individual MCQ accuracy;
+- no individual Focus history;
+- no Quick Notes;
+- no audio;
+- no user search;
+- no at-risk list.
+
+---
+
+## AN. Suppression Tests
+
+Report:
+
+- below threshold;
+- exactly at threshold if contract permits;
+- above threshold;
+- filter intersection;
+- subject filter;
+- chart point suppression;
+- zero vs suppressed;
+- unknown vs zero.
+
+---
+
+## AO. Aggregate Metric Tests
+
+Report:
+
+- active study users;
+- verified Focus;
+- Group Focus;
+- MCQ;
+- Flashcards;
+- Recall;
+- Mastery distribution;
+- Retention;
+- subject aggregates;
+- feature adoption.
+
+---
+
+## AP. Data Quality Tests
+
+Report:
+
+- stale;
+- partial;
+- unavailable;
+- missing;
+- insufficient cohort.
+
+---
+
+## AQ. Responsive Tests
+
+Report:
+
+- mobile;
+- iPad portrait;
+- iPad landscape;
+- desktop;
+- Arabic mobile;
+- Arabic desktop;
+- long subject labels;
+- large aggregate values;
+- reduced motion;
+- keyboard;
+- screen reader.
+
+---
+
+## AR. Performance
+
+Report:
+
+```text id="mcb56f"
+900-user aggregate fixture:
+raw users delivered to browser:
+initial requests:
+subject requests:
+chart render:
+window switch:
+filter switch:
+N+1:
+response size:
+bundle delta:
+```
+
+---
+
+## AS. Side Effects
+
+Report direct Prompt47 action deltas:
+
+```text id="cn2zhr"
+StudyEvent:
+StudyPointsLedgerEntry:
+PointsLog:
+LectureMastery:
+LectureRetention:
+RecallAttempt:
+FocusSession:
+GroupFocusRoom:
+CalendarEvent:
+IntegritySignal:
+UserAchievement:
+UserGamificationLevel:
+UserChallengeProgress:
+LeaderboardSnapshot:
+User role:
+Moderation state:
+```
+
+Expected:
+
+```text id="yqak8p"
+0
+```
+
+for Owner Analytics page load, filtering, refresh, and navigation.
+
+---
+
+## AT. Calendar Boundary
+
+Explicitly:
+
+```text id="qtwpmz"
+OWNER ANALYTICS CREATES CALENDAR EVENTS: NO
+OWNER ANALYTICS MODIFIES ACADEMIC SCHEDULE: NO
+```
+
+---
+
+## AU. Regression Results
+
+Include:
+
+- Prompt46 Study Analyzer frontend;
+- Prompt45 Recall/Mastery frontend;
+- Prompt44 Gamification frontend;
+- Prompt43 Group Focus frontend;
+- Prompt42 Focus summary/history;
+- Prompt41 Active Focus;
+- Prompt40 Focus Hub;
+- Prompt39 Focus Audio;
+- Prompt38 Ask My Study Data;
+- Prompt37 AI Study Insights;
+- Prompt36 private Study Analyzer;
+- Prompt35 privacy;
+- Prompt34 aggregate analytics;
+- Prompt33 Mastery D1;
+- Prompt32 Retention;
+- Prompt31 Mastery;
+- Prompt28–30 Recall;
+- Prompt27 Leaderboard cache;
+- Prompt26 Leaderboard;
+- Prompt25 Challenges;
+- Prompt24 Levels/profile;
+- Prompt23 Achievements;
+- Prompt22 Gamification;
+- Prompt19–21 Points;
+- Prompt17–18 Integrity;
+- Prompt13–16 Group Focus backend;
+- Prompt9–12 Focus;
+- Prompt8 Study Events;
+- Calendar;
+- Console users/roles/moderation;
+- primary owner protection;
+- public profile;
+- navigation/swipes;
+- Auth;
+- App build;
+- PWA build;
+- targeted lint/typecheck;
+- Capacitor validation if run.
+
+---
+
+## AV. Files Created
+
+Exact paths and purposes.
+
+---
+
+## AW. Files Modified
+
+Exact paths and reasons.
+
+Confirm:
+
+```text id="7h0dzf"
+Prisma schema unchanged?
+Prompt34 analytics semantics unchanged?
+Prompt35 privacy semantics unchanged?
+privacy threshold unchanged?
+Prompt36 private Analyzer unchanged?
+Prompt37 AI Insight unchanged?
+Prompt38 Ask My Study Data unchanged?
+Mastery unchanged?
+Retention unchanged?
+Recall unchanged?
+Points unchanged?
+Gamification unchanged?
+Leaderboard unchanged?
+Focus unchanged?
+Group Focus unchanged?
+Calendar unchanged?
+Integrity review unchanged?
+Cloudflare Worker unchanged?
+```
+
+---
+
+## AX. Production Safety
+
+Explicitly:
+
+```text id="fpii5k"
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PROMPT47 MIGRATION APPLIED: NO
+PRODUCTION D1 MODIFIED: NO
+PRODUCTION KV MODIFIED: NO
+PRODUCTION R2 MODIFIED: NO
+PRODUCTION STUDENT PRIVATE ANALYTICS ACCESSED FOR AUTOMATED TESTING: NO
+PRODUCTION PRIVACY THRESHOLD CHANGED: NO
+PRODUCTION TELEMETRY EXPANDED: NO
+OWNER_ANALYTICS_FRONTEND_ENABLED IN PRODUCTION: NO
+PRODUCTION FRONTEND DEPLOYED: NO
+WORKER DEPLOYED: NO
+APP STORE BUILD SUBMITTED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## AY. Git State
+
+Include:
+
+```text id="6jocog"
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## AZ. Deviations
+
+If none:
+
+```text id="jz7qmu"
+NONE
+```
+
+---
+
+## BA. Risks / Blockers
+
+Only actual unresolved Prompt47 aggregate analytics/privacy/responsive issues.
+
+Do not list Prompt48 integration/regression or later roadmap items as blockers.
+
+---
+
+## BB. Architecture Compliance
+
+Answer YES/NO:
+
+- Owner Analytics uses Prompt34 aggregate facts?
+- Prompt35 privacy boundary preserved?
+- Server enforces authorization?
+- No client-only privacy security?
+- No browser-side per-user aggregation?
+- No individual Study Analyzer?
+- No individual weakness signals?
+- No individual positive signals?
+- No individual Mastery?
+- No individual Retention?
+- No individual MCQ accuracy?
+- No individual Flashcard assessments?
+- No individual Recall history?
+- No individual Focus history?
+- No Quick Notes?
+- No audio data?
+- No resource-reading claims?
+- No user search for analytics?
+- No at-risk list?
+- No student ranking?
+- No live surveillance dashboard?
+- No per-student timeline?
+- No exact last-study timestamp per student?
+- Small cohorts suppressed?
+- Privacy threshold unchanged?
+- Suppression server-side?
+- Suppressed values not rendered as zero?
+- Unknown values not rendered as zero?
+- Unsafe filter isolation blocked?
+- No subtraction-style drilldown?
+- Feature-adoption metrics aggregate only?
+- Study-activity metrics aggregate only?
+- Subject metrics aggregate only?
+- Mastery aggregate only?
+- Retention aggregate only?
+- Objective MCQ semantics preserved?
+- Flashcard self-report semantics preserved?
+- Recall Skip neutral?
+- No subject composite score?
+- No best/worst subject label?
+- No causal claims?
+- Data-quality limitations visible?
+- No AI owner facts?
+- AI calls = 0?
+- No analytics-to-notification targeting?
+- No moderation mutation?
+- No role mutation?
+- No Points mutation?
+- No Mastery mutation?
+- No Retention mutation?
+- No Recall mutation?
+- No Focus mutation?
+- No Group Focus mutation?
+- No Calendar writes?
+- No new per-student telemetry?
+- No raw user export?
+- No N+1?
+- No per-user payload to browser?
+- Mobile usable?
+- iPad purpose-built?
+- Desktop polished?
+- Arabic RTL correct?
+- Accessibility covered?
+- Charts have text alternatives?
+- Prompt50 observability boundary preserved?
+- No schema migration?
+- No D1 migration?
+- Feature flag defaults off?
+- Production unchanged?
+- App build passes?
+- New regressions = 0?
+
+---
+
+## BC. Exact Recommended Next Step
+
+State whether safe to proceed to:
+
+**Prompt 48 — Full Study Engine Integration & Regression Hardening: Cross-Domain Contracts, End-to-End Invariants, Concurrency, Privacy, Recovery & Backward Compatibility**
+
+Do not implement Prompt 48.
+
+---
+
+# 334. STOP CONDITION
+
+After implementation, testing, and the mandatory report:
+
+STOP.
+
+Do NOT implement Prompt48 integration hardening.
+
+Do NOT implement migration/backfill tooling.
+
+Do NOT implement observability/release dashboards.
+
+Do NOT weaken Prompt35 privacy.
+
+Do NOT add individual student Study Analyzer access for owner/admin.
+
+Do NOT add at-risk student lists.
+
+Do NOT add student performance rankings.
+
+Do NOT add surveillance timelines.
+
+Do NOT expose Quick Notes.
+
+Do NOT create Calendar events.
+
+Do NOT add owner AI-generated facts.
+
+Do NOT deploy.
+
+Wait for the next prompt.
+
+End exactly:
+
+**PROMPT 47 COMPLETE — PRIVACY-BOUNDED OWNER COHORT ANALYTICS, AGGREGATE STUDY TRENDS, SUBJECT INSIGHTS & FEATURE ADOPTION FRONTEND READY — PRODUCTION UNCHANGED — READY FOR NEXT PROMPT**
