@@ -42,6 +42,16 @@ export const SPACED_RECALL_FRONTEND_ENABLED =
 export const MASTERY_FRONTEND_ENABLED =
   buildFlags.DEV === true && buildFlags.VITE_MASTERY_FRONTEND_ENABLED === "true";
 
+/**
+ * Study Analyzer surfaces are staged in development only. Production builds
+ * stay disabled even if a Vite flag is accidentally set to true.
+ */
+export const STUDY_ANALYZER_FRONTEND_ENABLED =
+  buildFlags.DEV === true && buildFlags.VITE_STUDY_ANALYZER_FRONTEND_ENABLED === "true";
+
+export const STUDY_INSIGHTS_FRONTEND_ENABLED =
+  buildFlags.DEV === true && buildFlags.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true";
+
 export const GROUP_FOCUS_WORKER_URL =
   typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
     ? buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim()

@@ -34,6 +34,7 @@ import { getEventIconInfo } from "../../../features/calendar/components/EventIco
 import {
   Award,
   BookOpen,
+  BarChart3,
   Calendar as CalIcon,
   CheckCircle,
   Clock,
@@ -70,9 +71,11 @@ import {
   FOCUS_HUB_V2_ENABLED,
   MASTERY_FRONTEND_ENABLED,
   SPACED_RECALL_FRONTEND_ENABLED,
+  STUDY_ANALYZER_FRONTEND_ENABLED,
 } from "../../../config/featureFlags";
 import { RecallEntryCard } from "../../recall/components/RecallEntryCard";
 import { MasteryDashboard } from "../../mastery/components/MasteryDashboard";
+import { StudyAnalyzerDashboard } from "../../study-analyzer/components/StudyAnalyzerDashboard";
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1093,6 +1096,7 @@ const HomeDashboard = memo(function HomeDashboard({
 
   const isMountedRef = useRef(true);
   const [showMasteryDashboard, setShowMasteryDashboard] = useState(false);
+  const [showStudyAnalyzerDashboard, setShowStudyAnalyzerDashboard] = useState(false);
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
@@ -1418,6 +1422,22 @@ const HomeDashboard = memo(function HomeDashboard({
     );
   }
 
+  if (showStudyAnalyzerDashboard) {
+    return (
+      <StudyAnalyzerDashboard
+        language={language ?? "en"}
+        subjects={subjects}
+        dbLectures={dbLectures}
+        onBack={() => setShowStudyAnalyzerDashboard(false)}
+        onOpenMastery={() => {
+          setShowStudyAnalyzerDashboard(false);
+          setShowMasteryDashboard(true);
+        }}
+        onSelectLecture={onSelectLecture}
+      />
+    );
+  }
+
   return (
     <div className={`home-root relative ${suppressEntranceAnimations ? "navigation-return-static" : ""}`}>
       <motion.div
@@ -1453,6 +1473,33 @@ const HomeDashboard = memo(function HomeDashboard({
 
               {SPACED_RECALL_FRONTEND_ENABLED && (
                 <RecallEntryCard language={language} isActive={isActive} />
+              )}
+
+              {STUDY_ANALYZER_FRONTEND_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => setShowStudyAnalyzerDashboard(true)}
+                  className="group flex min-h-16 w-full items-center gap-3 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-sky-50 px-4 py-3 text-start shadow-sm transition hover:border-violet-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 dark:border-violet-300/15 dark:from-violet-300/[0.08] dark:via-white/[0.025] dark:to-sky-300/[0.05]"
+                  aria-label={isRtl ? "فتح محلل الدراسة الخاص" : "Open your private Study Analyzer"}
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-700 text-white shadow-sm">
+                    <BarChart3 className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-slate-950 dark:text-white">
+                      {isRtl ? "تحليل الدراسة" : "Study Analyzer"}
+                    </span>
+                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
+                      {isRtl
+                        ? "أنماط ونشاط مبنيان على بيانات دراستك"
+                        : "Patterns and activity from your recorded study data"}
+                    </span>
+                  </span>
+                  <ArrowRight
+                    className={`h-4 w-4 shrink-0 text-violet-700 transition-transform group-hover:translate-x-0.5 dark:text-violet-200 ${isRtl ? "rotate-180 group-hover:-translate-x-0.5" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
               )}
 
               {MASTERY_FRONTEND_ENABLED && (
