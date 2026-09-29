@@ -238,6 +238,13 @@ export function parseMaintenanceArgs(
   if (options.resumeJobId && options.afterId) {
     throw new Error("--resume-job and --after-id cannot be combined");
   }
+  const normalizedCommand = command.toLowerCase().replace(/\s+/gu, " ").trim();
+  if (
+    (normalizedCommand === "achievements audit" || normalizedCommand === "achievements rebuild")
+    && !argv.some((argument) => argument === "--as-of" || argument.startsWith("--as-of="))
+  ) {
+    throw new Error("Achievement maintenance requires a fixed --as-of timestamp");
+  }
   if (options.all && (options.userId || options.lectureId)) {
     throw new Error("--all cannot be combined with --user-id or --lecture-id");
   }

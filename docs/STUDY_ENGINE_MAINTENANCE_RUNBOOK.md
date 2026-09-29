@@ -40,6 +40,7 @@ SIGINT and SIGTERM stop after the current item and save the last fully processed
 ## Supported domain operations
 
 - **Points and Levels**: audit or rebuild the canonical projection through their existing reconciliation services.
+- **Achievements**: audit canonical metric-derived progress or rebuild only `UserAchievementProgress`. Both commands require an explicit fixed `--as-of`; missing permanent unlocks are flagged for review and never backfilled by maintenance.
 - **Challenges**: audit progress or rebuild only the current-window progress for a scoped user.
 - **Mastery and Retention**: keyset-scan canonical user/lecture candidates and use the existing deterministic reconciliation services.
 - **Private D1**: audit or re-enqueue the existing canonical Mastery/Retention projections for D1. This reads the Worker, so pass `--allow-cloudflare`; apply also requires `--allow-external-writes`. Apply writes the PostgreSQL outbox, not D1 directly.
@@ -55,7 +56,6 @@ SIGINT and SIGTERM stop after the current item and save the last fully processed
 
 ## Deliberately unavailable operations
 
-- **Achievement progress audit/repair** is blocked because the canonical reconciler can create permanent unlock records. A safe progress-only evaluator is needed before maintenance can preview or repair progress without backfilling unlock history.
 - **Dead-letter classification** is unavailable because the outbox schema has no terminal/dead-letter state or explicit poison policy. Status output reports retry counts and safe error metadata only; it does not label rows unrecoverable.
 - **Outbox compaction** requires `--before`, but currently performs inspection only. Existing outbox rows represent pending or retryable work and do not retain a terminal-delivery state or declared retention policy. The command will not delete them.
 - **Production apply** is unavailable until job state and locking use a durable shared store. Local checkpoint files are not sufficient for multi-process or multi-host production resumability.

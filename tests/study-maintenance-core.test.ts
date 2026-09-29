@@ -63,6 +63,16 @@ test("parser keeps command words while consuming separate option values", () => 
   assert.equal(parsed.options.userId, "user-1");
   assert.equal(parsed.options.batchSize, 25);
   assert.throws(() => parseMaintenanceArgs(["points", "audit", "--as-of", "yesterday"], { NODE_ENV: "test" }));
+  assert.throws(
+    () => parseMaintenanceArgs(["achievements", "audit", "--user-id", "user-1"], { NODE_ENV: "test" }),
+    /fixed --as-of timestamp/u,
+  );
+  assert.equal(
+    parseMaintenanceArgs([
+      "achievements", "rebuild", "--user-id", "user-1", "--as-of", "2026-01-01T00:00:00.000Z",
+    ], { NODE_ENV: "test" }).options.asOf,
+    "2026-01-01T00:00:00.000Z",
+  );
   assert.throws(() => parseMaintenanceArgs(["points", "audit", "--environment=test"], {
     NODE_ENV: "production",
     DEPLOYMENT_ENV: "production",

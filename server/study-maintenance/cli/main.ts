@@ -13,6 +13,7 @@ import {
 } from "../core/index.js";
 import {
   createChallengeAdapter,
+  createAchievementAdapter,
   createLevelAdapter,
   createMasteryMaintenanceAdapter,
   createPointsAdapter,
@@ -34,6 +35,8 @@ Usage:
   npm run study-maintenance -- points audit --user-id <id>
   npm run study-maintenance -- points rebuild --all [--apply]
   npm run study-maintenance -- level audit --user-id <id>
+  npm run study-maintenance -- achievements audit --user-id <id> --as-of <ISO timestamp>
+  npm run study-maintenance -- achievements rebuild --all --as-of <ISO timestamp> [--apply]
   npm run study-maintenance -- challenges audit progress --user-id <id>
   npm run study-maintenance -- challenges rebuild current-window progress --user-id <id> [--apply]
   npm run study-maintenance -- mastery audit --user-id <id> [--lecture-id <id>]
@@ -57,6 +60,8 @@ Usage:
 Safety:
   Writes require --apply. Without it, commands only inspect and report.
   --all is required for an unscoped user-wide scan.
+  Achievement rebuild writes progress only; it never creates or removes permanent unlocks.
+  A completed achievement without an unlock is reported for review, not backfilled.
   Production apply is disabled while maintenance checkpoints are local-only.
   Never run maintenance against production as part of Prompt 49.
 `;
@@ -95,6 +100,14 @@ function selectAdapter(
   const auditOnly = /\baudit\b/u.test(normalized);
   if (auditOnly && options.mode === "apply") {
     throw safeFailure("Audit commands are read-only; remove --apply.");
+  }
+
+  if (normalized === "achievements audit" || normalized === "achievements rebuild") {
+    options.jobType = normalized.endsWith("audit")
+      ? "achievements:audit-progress"
+      : "achievements:rebuild-progress";
+    options.scope = canonicalScope(options, false);
+    return createAchievementAdapter({ database });
   }
 
   if (normalized === "points audit" || normalized === "points rebuild") {
@@ -218,16 +231,6 @@ async function main(): Promise<void> {
   }
   const { command, options } = parsed;
   const normalizedCommand = command.toLowerCase().replace(/\s+/gu, " ").trim();
-  if (normalizedCommand.startsWith("achievements audit")) {
-    throw safeFailure(
-      "Achievement progress audit is unavailable: the canonical reconciler can create permanent unlocks, so a read-only progress-only evaluator is required first.",
-    );
-  }
-  if (normalizedCommand.startsWith("achievements rebuild")) {
-    throw safeFailure(
-      "Achievement repair is unavailable because the canonical reconciler can create permanent unlocks; no unlock backfill is authorized here.",
-    );
-  }
   if (options.environment === "production" && options.mode === "apply") {
     throw safeFailure(
       `Production apply is disabled until a durable shared checkpoint store exists. The production confirmation token is ${PRODUCTION_CONFIRMATION}, but it does not override this restriction.`,
