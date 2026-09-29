@@ -34,12 +34,22 @@ function options(overrides: Record<string, unknown> = {}) {
     jobType: "points-rebuild", jobVersion: "1", environment: "test" as const,
     mode: "dry-run" as const, scope: "all", all: true, allowCloudflare: false,
     allowExternalWrites: false, asOf: "2026-01-01T00:00:00.000Z",
-    batchSize: 2, maxErrors: 0, failOnDrift: false, quiet: true, ...overrides,
+     batchSize: 2, maxErrors: 0, failOnDrift: false, quiet: true,
+     sleepMs: 0, maxRps: 0, ...overrides,
   };
 }
 
 test("parser defaults to dry-run and rejects conflicting or unknown options", () => {
   assert.equal(parseMaintenanceArgs(["points", "--environment=test"]).options.mode, "dry-run");
+  const defaults = parseMaintenanceArgs(["points", "--environment=test"]).options;
+  assert.equal(defaults.sleepMs, 0);
+  assert.equal(defaults.maxRps, 0);
+  assert.equal(parseMaintenanceArgs(["points", "--sleep-ms=25", "--max-rps", "20"], { NODE_ENV: "test" }).options.sleepMs, 25);
+  assert.equal(parseMaintenanceArgs(["points", "--sleep-ms=25", "--max-rps", "20"], { NODE_ENV: "test" }).options.maxRps, 20);
+  assert.throws(() => parseMaintenanceArgs(["points", "--sleep-ms=-1"], { NODE_ENV: "test" }));
+  assert.throws(() => parseMaintenanceArgs(["points", "--sleep-ms=60001"], { NODE_ENV: "test" }));
+  assert.throws(() => parseMaintenanceArgs(["points", "--max-rps=-1"], { NODE_ENV: "test" }));
+  assert.throws(() => parseMaintenanceArgs(["points", "--max-rps=1001"], { NODE_ENV: "test" }));
   assert.equal(parseMaintenanceArgs(["points", "--apply", "--environment=test"]).options.mode, "apply");
   assert.throws(() => parseMaintenanceArgs(["points", "--apply", "--dry-run"]));
   assert.throws(() => parseMaintenanceArgs(["points", "--unknown"]));
@@ -135,6 +145,84 @@ test("runner rejects unsafe job IDs and production apply before touching the che
       checkpointDir: dir,
     }), /Production apply is disabled/u);
     assert.equal(calls.apply, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runner throttles between items but not after the final item", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "study-maintenance-"));
+  try {
+    const started: number[] = [];
+    const calls = { inspect: 0, apply: 0 };
+    const throttled = adapter(["1", "2", "3"], calls);
+    const wrapped: MaintenanceAdapter = {
+      ...throttled,
+      async inspect(item, input) {
+        started.push(Date.now());
+        return throttled.inspect(item, input);
+      },
+    };
+    const before = Date.now();
+    await runMaintenance({ ...options(), sleepMs: 15 }, wrapped, { jobId: "throttle", checkpointDir: dir });
+    const elapsed = Date.now() - before;
+    assert.ok(started[1]! - started[0]! >= 10);
+    assert.ok(started[2]! - started[1]! >= 10);
+    assert.ok(elapsed < 60);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("SIGTERM pauses with a checkpoint and resumes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "study-maintenance-"));
+  try {
+    const calls = { inspect: 0, apply: 0 };
+    let signalled = false;
+    const first = adapter(["1", "2", "3"], calls);
+    const interrupting: MaintenanceAdapter = {
+      ...first,
+      async inspect(item, input) {
+        const result = await first.inspect(item, input);
+        if (!signalled) {
+          signalled = true;
+          process.emit("SIGTERM");
+        }
+        return result;
+      },
+    };
+    const paused = await runMaintenance(options(), interrupting, { jobId: "signal", checkpointDir: dir });
+    assert.equal(paused.status, "PAUSED");
+    assert.equal(paused.scanned, 1);
+    const resumed = await runMaintenance({ ...options(), resumeJobId: "signal" }, first, {
+      jobId: "different-id", checkpointDir: dir,
+    });
+    assert.equal(resumed.status, "COMPLETED");
+    assert.equal(resumed.scanned, 3);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("scope lock rejects same target across job IDs but permits unrelated scopes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "study-maintenance-"));
+  try {
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const blocking: MaintenanceAdapter = {
+      async discoverBatch() {
+        await held;
+        return { items: [], nextCursor: null };
+      },
+      async inspect() { return { status: "OK" }; },
+      async apply() { return { status: "OK" }; },
+    };
+    const first = runMaintenance(options({ scope: "user-1" }), blocking, { jobId: "one", checkpointDir: dir });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await assert.rejects(runMaintenance(options({ scope: "user-1" }), blocking, { jobId: "two", checkpointDir: dir }), /already running/u);
+    const other = runMaintenance(options({ scope: "user-2" }), blocking, { jobId: "three", checkpointDir: dir });
+    release!();
+    await Promise.all([first, other]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

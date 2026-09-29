@@ -48,6 +48,8 @@ Usage:
   npm run study-maintenance -- ruleset audit
   npm run study-maintenance -- focus audit --all [--limit <n>]
   npm run study-maintenance -- group-focus audit --all [--limit <n>]
+  npm run study-maintenance -- orphans audit
+  npm run study-maintenance -- compatibility audit
   npm run study-maintenance -- leaderboard audit snapshot --season-id <id> [--snapshot-id <id>]
   npm run study-maintenance -- leaderboard d1 audit --snapshot-id <id> --allow-cloudflare
   npm run study-maintenance -- leaderboard d1 rebuild --snapshot-id <id> [--apply --allow-external-writes]
@@ -250,6 +252,23 @@ async function main(): Promise<void> {
       }
       console.log(JSON.stringify(report, null, 2));
       if (report.status === "FAIL") process.exitCode = 1;
+      return;
+    }
+    if (normalizedCommand === "orphans audit" || normalizedCommand === "compatibility audit") {
+      if (options.mode === "apply") throw safeFailure("Maintenance audits are read-only; remove --apply.");
+      const report = normalizedCommand === "orphans audit"
+        ? (await import("../jobs/audits.js")).runOrphanAudit(database)
+        : (await import("../jobs/audits.js")).runCompatibilityAudit(database);
+      const resolved = await report;
+      if (options.reportFile) {
+        await mkdir(dirname(options.reportFile), { recursive: true });
+        await writeFile(options.reportFile, `${JSON.stringify(resolved, null, 2)}\n`, {
+          encoding: "utf8",
+          mode: 0o600,
+        });
+      }
+      console.log(JSON.stringify(resolved, null, 2));
+      if (resolved.status !== "PASS") process.exitCode = 1;
       return;
     }
     if (normalizedCommand === "focus audit" || normalizedCommand === "group-focus audit") {

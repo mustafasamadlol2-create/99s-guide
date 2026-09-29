@@ -163,7 +163,8 @@ function mockedScheduleProvider(): AIProvider {
       request: StructuredGenerationRequest<T>,
     ): Promise<StructuredGenerationResult<T>> {
       if (request.trustedSystemInstruction?.startsWith("Verify")) {
-        const context = JSON.parse(request.additionalUntrustedContext ?? "{}") as {
+        const contextPart = request.contents.find((part) => part.kind === "text");
+        const context = JSON.parse(contextPart?.kind === "text" ? contextPart.text : "{}") as {
           candidates?: Array<{ candidateId: string }>;
         };
         return {
@@ -406,7 +407,7 @@ test("different overlapping rows in one import are marked as conflicts", () => {
   assert.equal(marked[1]?.selected, false);
 });
 
-test("extraction is page-grounded and uses bounded three-page batches", async () => {
+test("PDF extraction uses one document fallback when local page text is unavailable", async () => {
   const calls: Array<{ context: string; contents: number }> = [];
   const provider: AIProvider = {
     async generateStructured<T>(
@@ -416,10 +417,9 @@ test("extraction is page-grounded and uses bounded three-page batches", async ()
         context: request.additionalUntrustedContext ?? "",
         contents: request.contents.length,
       });
-      const page = calls.length === 1 ? 1 : 4;
       return {
         data: {
-          items: [rawCandidate({ sourcePage: page })],
+          items: [rawCandidate({ sourcePage: 1 })],
           warnings: [],
         } as T,
         meta: { provider: "test", model: "schedule-test" },
@@ -433,19 +433,34 @@ test("extraction is page-grounded and uses bounded three-page batches", async ()
     sourcePageCount: 4,
     inputKind: "pdf",
   });
-  assert.equal(calls.length, 2);
-  assert.match(calls[0]!.context, /1-3/);
-  assert.match(calls[1]!.context, /4-4/);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.context, /The PDF has 4 pages/u);
+  assert.match(calls[0]!.context, /Inspect the complete document once/u);
   assert.equal(calls[0]!.contents, 1);
-  assert.deepEqual(result.candidates.map((candidate) => candidate.sourcePage), [1, 4]);
+  assert.deepEqual(result.candidates.map((candidate) => candidate.sourcePage), [1]);
 });
 
-test("extraction retains impossible active-range claims as reviewable evidence", async () => {
+test("image extraction retains out-of-range source claims as reviewable evidence", async () => {
+  const contents: AIContentPart[] = Array.from({ length: 4 }, (_, imageIndex) => ({
+    kind: "file",
+    inputType: "image",
+    mimeType: "image/png",
+    fileSource: {
+      kind: "existing_resource",
+      resourceId: `image-${imageIndex}`,
+      ownership: "borrowed",
+    },
+    sizeBytes: 1,
+    sha256: "0".repeat(64),
+    source: { inputType: "image", imageIndex },
+  }));
+  let call = 0;
   const provider: AIProvider = {
     async generateStructured<T>(): Promise<StructuredGenerationResult<T>> {
+      call += 1;
       return {
         data: {
-          items: [rawCandidate({ sourcePage: 4 })],
+          items: [rawCandidate({ sourcePage: null, sourceImageIndex: 3 })],
           warnings: [],
         } as T,
         meta: { provider: "test", model: "schedule-test" },
@@ -454,16 +469,17 @@ test("extraction retains impossible active-range claims as reviewable evidence",
   };
   const result = await extractSchedule({
     provider,
-    contents: [{} as AIContentPart],
-    sourcePageCount: 4,
-    inputKind: "pdf",
+    contents,
+    sourcePageCount: null,
+    inputKind: "image",
   });
+  assert.equal(call, 2);
   assert.equal(result.candidates.length, 2);
   assert.ok(result.candidates[0]?.warnings.includes("Source location is outside the active extraction range."));
   assert.equal(result.candidates[1]?.warnings.includes("Source location is outside the active extraction range."), false);
 });
 
-test("strict schemas reject forged pages, times, and unknown candidate fields", () => {
+test("canonical schemas reject forged data while extraction safely defaults invalid provenance", () => {
   assert.doesNotThrow(() => calendarCandidateSchema.parse({
     candidateId: "candidate-1",
     title: "Valid event",
@@ -489,8 +505,15 @@ test("strict schemas reject forged pages, times, and unknown candidate fields", 
     status: "VERIFIED",
     selected: true,
   }));
-  assert.throws(() => extractionCandidateSchema.parse({ ...rawCandidate(), startTime: "8:00" }));
-  assert.throws(() => extractionCandidateSchema.parse({ ...rawCandidate(), sourcePage: 0 }));
+  assert.throws(() => calendarCandidateSchema.parse({
+    ...normalize(rawCandidate()).candidate,
+    startTime: "8:00",
+  }));
+  assert.equal(extractionCandidateSchema.parse({ ...rawCandidate(), sourcePage: 0 }).sourcePage, null);
+  assert.throws(() => calendarCandidateSchema.parse({
+    ...normalize(rawCandidate()).candidate,
+    sourcePage: 0,
+  }));
   assert.throws(() => calendarCandidateSchema.parse({ ...normalize(rawCandidate()).candidate, arbitrary: true }));
   assert.throws(() => commitRequestSchema.parse({ candidateIds: ["candidate-1"], importFingerprint: "forged" }));
 });

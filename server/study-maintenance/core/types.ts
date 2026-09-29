@@ -22,6 +22,8 @@ export interface MaintenanceRunOptions {
   before?: string;
   asOf: string;
   batchSize: number;
+  sleepMs: number;
+  maxRps?: number;
   limit?: number;
   maxErrors: number;
   failOnDrift: boolean;

@@ -26,6 +26,8 @@ const valueOptions = new Set([
   "--before",
   "--as-of",
   "--batch-size",
+  "--sleep-ms",
+  "--max-rps",
   "--limit",
   "--max-errors",
   "--resume-job",
@@ -35,6 +37,8 @@ const valueOptions = new Set([
 ]);
 
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/u;
+const MAX_SLEEP_MS = 60_000;
+const MAX_RPS = 1_000;
 
 function value(args: string[], index: number, name: string): string {
   const argument = args[index];
@@ -89,6 +93,8 @@ export function parseMaintenanceArgs(
     allowExternalWrites: false,
     asOf: new Date().toISOString(),
     batchSize: 100,
+    sleepMs: 0,
+    maxRps: 0,
     maxErrors: 0,
     failOnDrift: false,
     quiet: false,
@@ -179,6 +185,14 @@ export function parseMaintenanceArgs(
         options.batchSize = Number(value(argv, index, name));
         if (!argument.includes("=")) index += 1;
         break;
+      case "--sleep-ms":
+        options.sleepMs = Number(value(argv, index, name));
+        if (!argument.includes("=")) index += 1;
+        break;
+      case "--max-rps":
+        options.maxRps = Number(value(argv, index, name));
+        if (!argument.includes("=")) index += 1;
+        break;
       case "--limit":
         options.limit = Number(value(argv, index, name));
         if (!argument.includes("=")) index += 1;
@@ -229,6 +243,12 @@ export function parseMaintenanceArgs(
   }
   if (!options.batchSize || options.batchSize < 1 || options.batchSize > 500) {
     throw new Error("--batch-size must be between 1 and 500");
+  }
+  if (!Number.isInteger(options.sleepMs) || options.sleepMs < 0 || options.sleepMs > MAX_SLEEP_MS) {
+    throw new Error(`--sleep-ms must be an integer between 0 and ${MAX_SLEEP_MS}`);
+  }
+  if (!Number.isFinite(options.maxRps) || options.maxRps < 0 || options.maxRps > MAX_RPS) {
+    throw new Error(`--max-rps must be between 0 and ${MAX_RPS}`);
   }
   if (options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1)) {
     throw new Error("--limit must be a positive integer");

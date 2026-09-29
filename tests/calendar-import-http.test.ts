@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { ZodError } from "zod";
 import { createCalendarImportRouter } from "../server/services/calendarImport/router.js";
 import type { CalendarImportService } from "../server/services/calendarImport/service.js";
 
@@ -67,7 +68,11 @@ function makeTestService() {
     get: async (userId: string, id: string) => userId === "admin-a" && id === "job-1" ? job : null,
     updateReview: async (_userId: string, _id: string, value: unknown) => {
       if (!value || typeof value !== "object" || !Array.isArray((value as { candidates?: unknown }).candidates)) {
-        throw new Error("Review candidates are invalid.");
+        throw new ZodError([{
+          code: "custom",
+          path: ["candidates"],
+          message: "Review candidates are invalid.",
+        }]);
       }
       return job;
     },
@@ -161,7 +166,7 @@ test("calendar import HTTP start response is a public DTO without sourcePath", a
   await withServer(service, async (baseUrl) => {
     const form = new FormData();
     form.append("defaultTargetGroups", JSON.stringify(["A"]));
-    form.append("files", new Blob(["not used by the mocked service"], { type: "image/png" }), "schedule.png");
+    form.append("files", new Blob(["not used by the mocked service"], { type: "application/pdf" }), "schedule.pdf");
     const response = await request(baseUrl, "/api/admin/calendar/import", {
       method: "POST",
       headers: { authorization: "Bearer admin-a" },

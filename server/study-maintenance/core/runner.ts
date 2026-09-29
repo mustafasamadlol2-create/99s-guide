@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { loadCheckpoint, saveCheckpoint, type MaintenanceCheckpoint } from "./checkpoint";
@@ -33,7 +33,12 @@ export async function runMaintenance<T extends { id: string }>(
   const checkpointDir = input.checkpointDir ?? options.checkpointDir ?? join("reports", "study-maintenance", "checkpoints");
   const identity = { jobType: options.jobType, jobVersion: options.jobVersion, mode: options.mode, environment: options.environment, scope: options.scope };
   await mkdir(checkpointDir, { recursive: true });
-  const lockPath = join(checkpointDir, `${jobId}.lock`);
+  // Checkpoints remain job-ID keyed so an interrupted run can be resumed
+  // explicitly. The active lock is target keyed so two job IDs cannot mutate
+  // the same target concurrently while unrelated scopes remain independent.
+  const lockKey = [options.jobType, options.jobVersion, options.scope].join("\0");
+  const lockFingerprint = createHash("sha256").update(lockKey).digest("hex");
+  const lockPath = join(checkpointDir, `${lockFingerprint}.lock`);
   let lock;
   try {
     lock = await open(lockPath, "wx", 0o600);
@@ -73,6 +78,15 @@ export async function runMaintenance<T extends { id: string }>(
   let interrupted = false;
   const onSignal = () => { interrupted = true; };
   process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
+  let lastProcessedAt: number | null = null;
+  const intervalMs = options.maxRps && options.maxRps > 0 ? 1000 / options.maxRps : 0;
+  const throttle = async (): Promise<void> => {
+    if (lastProcessedAt === null) return;
+    const nowMs = Date.now();
+    const waitMs = Math.max(options.sleepMs, intervalMs) - (nowMs - lastProcessedAt);
+    if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+  };
   try {
     while (!interrupted && (options.limit === undefined || checkpoint.scanned < options.limit)) {
       const remaining = options.limit === undefined ? options.batchSize : Math.min(options.batchSize, options.limit - checkpoint.scanned);
@@ -86,6 +100,8 @@ export async function runMaintenance<T extends { id: string }>(
       let lastProcessedCursor = cursor;
       for (const item of page.items) {
         if (interrupted) break;
+        await throttle();
+        if (interrupted) break;
         try {
           const result: InspectionResult = options.mode === "apply"
             ? await adapter.apply(item, { asOf: options.asOf })
@@ -98,6 +114,7 @@ export async function runMaintenance<T extends { id: string }>(
           else if (result.wouldChange) checkpoint.wouldChange += 1;
           else checkpoint.unchanged += 1;
           lastProcessedCursor = item.id;
+          lastProcessedAt = Date.now();
         } catch (error) {
           checkpoint.scanned += 1;
           checkpoint.errors += 1;
@@ -112,6 +129,7 @@ export async function runMaintenance<T extends { id: string }>(
               cause: error,
             });
           }
+          lastProcessedAt = Date.now();
         }
       }
       const pageWasFullyProcessed = lastProcessedCursor === page.items.at(-1)?.id;
@@ -129,6 +147,7 @@ export async function runMaintenance<T extends { id: string }>(
     }
   } finally {
     process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
     await lock.close();
     await unlink(lockPath).catch(() => undefined);
   }

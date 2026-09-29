@@ -33,7 +33,8 @@ export type MasteryReconciliationReport = {
 type D1Row = Record<string, any>;
 type D1Payload = { schema_version?: unknown; state?: D1Row; counts?: D1Row; rows?: unknown[]; nextCursor?: unknown; next_cursor?: unknown };
 
-const SCHEMA = "mastery-private-cache-v1";
+export const MASTERY_D1_CACHE_SCHEMA_VERSION = "mastery-private-cache-v1" as const;
+const SCHEMA = MASTERY_D1_CACHE_SCHEMA_VERSION;
 const MAX_PAGE = 100;
 const MAX_ID = 200;
 

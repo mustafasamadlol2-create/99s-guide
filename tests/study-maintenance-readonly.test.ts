@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { PrismaClient } from "@prisma/client";
 import { createOutboxAdapter } from "../server/study-maintenance/jobs/outbox.js";
 import { runFocusAudit, runGroupFocusAudit } from "../server/study-maintenance/jobs/integrityAudits.js";
+import { runCompatibilityAudit, runOrphanAudit } from "../server/study-maintenance/jobs/audits.js";
 
 test("outbox replay is limited to expired leaderboard leases and leaves private D1 rows untouched", async () => {
   let queryCount = 0;
@@ -107,4 +108,75 @@ test("group Focus audit reports invariant counts without exposing participant da
   assert.equal(report.status, "WARN");
   assert.equal(report.writeOperationsPerformed, 0);
   assert.equal(report.checks.find(({ name }) => name === "round_count_bounds")?.count, 1);
+});
+
+test("orphan audit covers PostgreSQL projections, levels, and impossible outbox targets", async () => {
+  let call = 0;
+  const database = {
+    async $queryRaw() {
+      call += 1;
+      if (call === 1) return [{ inspected: 12n, orphaned: 1n }];
+      if (call === 2) return [{ inspected: 4n, orphaned: 0n }];
+      return [{ inspected: 8n, impossible: 2n }];
+    },
+  } as unknown as PrismaClient;
+  const report = await runOrphanAudit(database);
+  assert.equal(report.writeOperationsPerformed, 0);
+  assert.equal(report.status, "WARN");
+  assert.deepEqual(report.checks.map(({ name, status }) => [name, status]), [
+    ["postgres_derived_projection_user", "WARN"],
+    ["derived_level_user", "PASS"],
+    ["outbox_impossible_target", "WARN"],
+    ["d1_projection_postgres_orphan", "UNSUPPORTED"],
+  ]);
+  assert.equal(report.checks.find(({ name }) => name === "d1_projection_postgres_orphan")?.inspected, 0);
+});
+
+test("compatibility audit inventories known versions and refuses to claim unknown AI cache state", async () => {
+  const responses: unknown[] = [
+    [{ value: "mastery-v1" }],
+    [{ value: "retention-v1" }],
+    [{ value: "1" }],
+    [{ value: 1 }],
+    [{ version: "gamification-v1", schemaVersion: 1 }],
+    [{ value: "gamification-v1" }],
+    [{ value: "gamification-v1" }],
+    [{ value: "leaderboard-ranking-v1" }],
+  ];
+  const database = {
+    async $queryRaw() {
+      return responses.shift() ?? [];
+    },
+  } as unknown as PrismaClient;
+  const report = await runCompatibilityAudit(database);
+  assert.equal(report.writeOperationsPerformed, 0);
+  assert.equal(report.status, "UNSUPPORTED");
+  assert.deepEqual(report.versions.find(({ name }) => name === "mastery")?.persisted, ["mastery-v1"]);
+  assert.equal(report.versions.find(({ name }) => name === "retention")?.status, "COMPATIBLE");
+  assert.equal(report.versions.find(({ name }) => name === "leaderboard_ranking")?.persisted[0], "leaderboard-ranking-v1");
+  assert.equal(report.versions.find(({ name }) => name === "ai_schema_or_prompt_cache")?.status, "UNSUPPORTED");
+});
+
+test("compatibility audit warns on mismatched persisted versions", async () => {
+  const responses: unknown[] = [
+    [{ value: "mastery-v2" }],
+    [{ value: "retention-v0" }],
+    [{ value: "points-ledger-v1" }],
+    [{ value: 2 }],
+    [{ version: "gamification-v0", schemaVersion: 9 }],
+    [{ value: "gamification-v0" }],
+    [{ value: "gamification-v0" }],
+    [{ value: "ranking-v0" }],
+  ];
+  const database = {
+    async $queryRaw() {
+      return responses.shift() ?? [];
+    },
+  } as unknown as PrismaClient;
+  const report = await runCompatibilityAudit(database);
+  assert.equal(report.status, "UNSUPPORTED");
+  assert.equal(report.versions.find(({ name }) => name === "mastery")?.status, "WARN");
+  assert.equal(report.versions.find(({ name }) => name === "study_points_projection")?.persisted[0], 2);
+  assert.equal(report.versions.find(({ name }) => name === "gamification_definition_schema")?.status, "WARN");
+  assert.equal(report.versions.find(({ name }) => name === "leaderboard_ranking")?.status, "WARN");
 });
