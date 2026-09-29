@@ -419,7 +419,7 @@ export function createRecallRouter(
           where: { id: parsedId.data, userId: id },
           select: { issuanceSource: true, lectureId: true },
         });
-       if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, new Date());
+       if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, now());
         const result = await service.answer(id, parsedId.data, answer);
         if (result.status === "ANSWERED" && attempt?.lectureId) {
           try {
@@ -444,7 +444,7 @@ export function createRecallRouter(
         });
       }
        const attempt = await database.recallAttempt.findFirst({ where: { id: parsedId.data, userId: userId(req) }, select: { issuanceSource: true } });
-       if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, new Date());
+        if (attempt?.issuanceSource === "PERIODIC") verifyRecallInteractionToken(req.header("X-Recall-Interaction-Token"), userId(req), parsedId.data, now());
        const result = await service.skip(userId(req), parsedId.data);
       return res.json(result);
     }),

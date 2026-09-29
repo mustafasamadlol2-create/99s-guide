@@ -209,6 +209,7 @@ test(
         }),
         service.skip(userId, raceAttempt.id),
       ]);
+      const raceSkipWon = raceResults[1]?.status === "fulfilled";
       assert.equal(
         raceResults.filter((result) => result.status === "fulfilled").length,
         1,
@@ -271,7 +272,7 @@ test(
       });
       assert.equal(mcqState.presentationCount, attemptsBeforeRepair);
       assert.equal(mcqState.objectiveIncorrectCount, 1);
-      assert.equal(mcqState.skipCount, 1);
+      assert.equal(mcqState.skipCount, raceSkipWon ? 2 : 1);
 
       await prisma.recallItemState.delete({
         where: { userId_itemType_itemId: mcqStateKey },

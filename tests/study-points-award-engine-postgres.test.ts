@@ -299,7 +299,10 @@ function makeGroupSummary(input: {
         lastDisconnectedAt: disconnectedAt,
         reconnectCount: 0,
         verifiedFocusSeconds: 0,
-        rounds: [],
+        rounds: [{
+          roundNumber: 1,
+          verifiedFocusSeconds: 0,
+        }],
       },
     ],
   };

@@ -211,10 +211,12 @@ export function normalizeCandidate(
 ): NormalizedCalendarCandidate {
   const warnings = [...raw.warnings];
   const dateSource = clean(raw.date) ?? clean(raw.rawDate);
-  const date = normalizeCalendarDate(dateSource);
-  if (!date) warnings.push(dateSource ? "Date is invalid." : "Date is missing.");
-  if (isAmbiguousNumericDate(raw.rawDate ?? raw.date)) {
-    warnings.push("Numeric date was interpreted using day/month/year order.");
+  const ambiguousNumericDate = isAmbiguousNumericDate(raw.rawDate ?? raw.date);
+  const date = ambiguousNumericDate ? null : normalizeCalendarDate(dateSource);
+  if (ambiguousNumericDate) {
+    warnings.push("Numeric date is ambiguous and requires review.");
+  } else if (!date) {
+    warnings.push(dateSource ? "Date is invalid." : "Date is missing.");
   }
   const startTime = normalizeCalendarTime(clean(raw.startTime) ?? clean(raw.rawStartTime));
   const endTime = normalizeCalendarTime(clean(raw.endTime) ?? clean(raw.rawEndTime));

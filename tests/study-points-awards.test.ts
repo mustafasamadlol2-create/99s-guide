@@ -138,3 +138,38 @@ test("an existing partial-cap award replays only for the same canonical rule dat
     canonicalDurationSeconds: 3_600,
   }), false);
 });
+
+test("daily consistency replay ignores later growth in the same day's focus total", () => {
+  const existing = {
+    userId: "user-1",
+    category: "CONSISTENCY",
+    reasonCode: "consistency.verified_study_day",
+    sourceType: "DAILY_CONSISTENCY",
+    sourceId: "2026-09-25",
+    ruleVersion: "daily-consistency-v1",
+    effectiveAt: new Date("2026-09-24T21:00:00.000Z"),
+    metadata: {
+      baseRuleAmount: 5,
+      awardedAmount: 5,
+      BaghdadDate: "2026-09-25",
+      canonicalDurationSeconds: 2_700,
+    },
+  };
+  const expected = {
+    userId: "user-1",
+    category: "CONSISTENCY" as const,
+    reasonCode: "consistency.verified_study_day",
+    sourceType: "DAILY_CONSISTENCY" as const,
+    sourceId: "2026-09-25",
+    ruleVersion: "daily-consistency-v1",
+    effectiveAt: new Date("2026-09-25T10:00:00.000Z"),
+    baseRuleAmount: 5,
+    canonicalDurationSeconds: 5_400,
+    baghdadDate: "2026-09-25",
+  };
+
+  assert.equal(
+    studyPointsExistingEntryMatchesRule(existing, expected, false),
+    true,
+  );
+});

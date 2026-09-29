@@ -80,7 +80,7 @@ test("PWA install icons, Apple touch icon, and favicon use the primary identity"
   const appleTouch = pngInfo("public/apple-touch-icon.png");
   assert.deepEqual(
     [appleTouch.width, appleTouch.height, appleTouch.colorType],
-    [180, 180, 2],
+    [512, 512, 2],
   );
 
   for (const favicon of ["favicon-16x16.png", "favicon-32x32.png"]) {
@@ -95,15 +95,28 @@ test("PWA install icons, Apple touch icon, and favicon use the primary identity"
   assert.equal(favicon.readUInt16LE(4), 2);
 });
 
-test("native alternate choices never enter PWA install metadata", () => {
+test("static PWA entry points use the primary icon and selectable web variants are precached", () => {
   const manifest = readProjectFile("public/manifest.json");
   const index = readProjectFile("index.html");
   const serviceWorker = readProjectFile("public/sw.js");
-  for (const source of [manifest, index, serviceWorker]) {
+  for (const source of [manifest, index]) {
     assert.doesNotMatch(
       source,
       /AppIconMidnight|AppIconRose|AppIconMonochrome|\/app-icons\//,
     );
+  }
+  for (const path of [
+    "/app-icons/primary.png",
+    "/app-icons/midnight.png",
+    "/app-icons/rose.png",
+    "/app-icons/monochrome.png",
+    "/app-icons/manifest-primary.json",
+    "/app-icons/manifest-midnight.json",
+    "/app-icons/manifest-rose.json",
+    "/app-icons/manifest-monochrome.json",
+  ]) {
+    assert.match(serviceWorker, new RegExp(`['"]${path.replaceAll(".", "\\.")}['"]`));
+    assert.ok(existsSync(new URL(`public${path}`, projectRoot)));
   }
 });
 

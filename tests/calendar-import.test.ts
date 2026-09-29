@@ -222,11 +222,22 @@ test("does not infer a missing time or ambiguous numeric date", () => {
     rawDate: "09/10/26",
     startTime: null,
     endTime: null,
+    rawStartTime: null,
+    rawEndTime: null,
   }));
   assert.equal(normalized.candidate.status, "NEEDS_REVIEW");
   assert.equal(normalized.startDateTime, null);
   assert.ok(normalized.candidate.warnings.some((warning) => warning.includes("ambiguous")));
   assert.ok(normalized.candidate.warnings.some((warning) => warning.includes("missing")));
+
+  const unambiguous = normalize(rawCandidate({
+    date: null,
+    rawDate: "13/10/26",
+  }));
+  assert.equal(
+    unambiguous.startDateTime?.toISOString(),
+    "2026-10-13T05:00:00.000Z",
+  );
 });
 
 test("missing time stays reviewable and is not converted to all-day", () => {

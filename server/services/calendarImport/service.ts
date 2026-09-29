@@ -464,7 +464,21 @@ export class CalendarImportService {
               },
             },
           );
-      const verificationMap = new Map(verification.items.map((item) => [item.candidateId, item]));
+      const verificationMap = new Map<
+        string,
+        {
+          status: NonNullable<(typeof verification.items)[number]["status"]>;
+          issues: string[];
+        }
+      >();
+      for (const item of verification.items) {
+        if (item.status) {
+          verificationMap.set(item.candidateId, {
+            status: item.status,
+            issues: item.issues,
+          });
+        }
+      }
       normalized = normalized.map((item) => applyVerification(
         item,
         verificationMap.get(item.candidate.candidateId) ?? {

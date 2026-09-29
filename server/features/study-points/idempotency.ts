@@ -78,10 +78,11 @@ export function studyPointsExistingEntryMatchesRule(
     return false;
   }
   const metadata = existing.metadata as Record<string, unknown>;
+  const durationMatches =
+    expected.sourceType === "DAILY_CONSISTENCY"
+    || expected.canonicalDurationSeconds === undefined
+    || metadata.canonicalDurationSeconds === expected.canonicalDurationSeconds;
   return metadata.baseRuleAmount === expected.baseRuleAmount
     && metadata.BaghdadDate === expected.baghdadDate
-    && (
-      expected.canonicalDurationSeconds === undefined
-      || metadata.canonicalDurationSeconds === expected.canonicalDurationSeconds
-    );
+    && durationMatches;
 }

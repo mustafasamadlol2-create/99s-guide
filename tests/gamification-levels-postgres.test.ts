@@ -142,6 +142,12 @@ test("Prompt 24 disposable PostgreSQL Level projection lifecycle", {
       (definition as { ruleSetVersion: string }).ruleSetVersion =
         "gamification-v2";
     });
+    testBundle.challengeDefinitionContracts.forEach((challenge) => {
+      challenge.ruleSetVersion = "gamification-v2";
+    });
+    testBundle.leaderboardDefinitionContracts.forEach((leaderboard) => {
+      leaderboard.ruleSetVersion = "gamification-v2";
+    });
     await registerGamificationRuleSetDraftForBundle(testBundle, database);
     await database.userGamificationLevel.update({
       where: { userId },

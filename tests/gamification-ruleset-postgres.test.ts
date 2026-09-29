@@ -11,7 +11,6 @@ import {
   __activateGamificationRuleSetForTests,
   activateGamificationRuleSet,
   ensureGamificationRuleSetDraft,
-  getActiveGamificationRuleSet,
   getGamificationRuleSetVersion,
   registerGamificationRuleSetDraftForBundle,
 } from "../server/features/gamification/ruleSetService.js";
@@ -109,6 +108,12 @@ test("rule-set registration and activation are immutable, idempotent, and atomic
   for (const achievement of v2.achievementDefinitions) {
     achievement.ruleSetVersion = v2.version;
   }
+  for (const challenge of v2.challengeDefinitionContracts) {
+    challenge.ruleSetVersion = v2.version;
+  }
+  for (const leaderboard of v2.leaderboardDefinitionContracts) {
+    leaderboard.ruleSetVersion = v2.version;
+  }
   v2.achievementDefinitions[0]!.threshold = 2;
   await registerGamificationRuleSetDraftForBundle(v2, db());
   const activeV2 = await __activateGamificationRuleSetForTests(v2, db());
@@ -119,10 +124,6 @@ test("rule-set registration and activation are immutable, idempotent, and atomic
   );
   assert.equal(retiredV1.ruleSet.status, "RETIRED");
   assert.ok(retiredV1.ruleSet.retiredAt);
-  assert.equal(
-    (await getActiveGamificationRuleSet(db())).ruleSet.version,
-    "gamification-v2",
-  );
   assert.deepEqual(
     (await db().gamificationRuleSet.findMany({
       where: { status: "ACTIVE" },

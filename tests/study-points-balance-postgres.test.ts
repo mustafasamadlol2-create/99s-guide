@@ -283,17 +283,31 @@ test("invalid ledger refuses repair and projection failures roll back append and
   const triggerName = "prompt21_fail_projection_update";
   const functionName = "prompt21_fail_projection_update_fn";
   try {
-    await db().studyPointsLedgerEntry.create({
+    const invalidReversalOriginal = await db().studyPointsLedgerEntry.create({
       data: {
         user: { connect: { id: invalidUserId } },
         amount: 10,
-        category: "UNSUPPORTED",
-        reasonCode: "test.invalid_category",
+        category: "FOCUS",
+        reasonCode: "focus.verified_completion",
         sourceType: "ADMIN_ADJUSTMENT",
-        sourceId: "invalid-category-fixture",
+        sourceId: "invalid-reversal-original",
         ruleVersion: "test-v1",
-        idempotencyKey: "invalid-category-fixture",
+        idempotencyKey: "invalid-reversal-original",
         effectiveAt: NOW,
+      },
+    });
+    await db().studyPointsLedgerEntry.create({
+      data: {
+        user: { connect: { id: invalidUserId } },
+        amount: -9,
+        category: "FOCUS",
+        reasonCode: "admin.invalid_reversal",
+        sourceType: "REVERSAL",
+        sourceId: invalidReversalOriginal.id,
+        ruleVersion: "test-v1",
+        idempotencyKey: "invalid-reversal-fixture",
+        effectiveAt: NOW,
+        reversalOf: { connect: { id: invalidReversalOriginal.id } },
       },
     });
     const invalidDryRun = await reconcileStudyPointsAccount(

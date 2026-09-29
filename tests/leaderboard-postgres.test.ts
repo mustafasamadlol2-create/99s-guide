@@ -27,6 +27,17 @@ function db(): PrismaClient {
   return prisma;
 }
 
+async function deleteSeasonSnapshots(seasonId: string): Promise<void> {
+  const snapshots = await db().leaderboardSnapshot.findMany({
+    where: { seasonId },
+    select: { id: true, revision: true },
+    orderBy: { revision: "desc" },
+  });
+  for (const snapshot of snapshots) {
+    await db().leaderboardSnapshot.delete({ where: { id: snapshot.id } });
+  }
+}
+
 if (databaseUrl) {
   before(async () => {
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
@@ -175,7 +186,10 @@ test("concurrent season ensure and LIVE snapshot builds converge without account
       projectionBefore,
     );
   } finally {
-    if (seasonId) await db().leaderboardSeason.deleteMany({ where: { id: seasonId } });
+    if (seasonId) {
+      await deleteSeasonSnapshots(seasonId);
+      await db().leaderboardSeason.deleteMany({ where: { id: seasonId } });
+    }
     if (userId) await db().user.deleteMany({ where: { id: userId } });
   }
 });
@@ -225,6 +239,8 @@ test("concurrent finalization is idempotent and late correction creates an audit
       Math.max(window.startsAt.getTime(), now.getTime() - 30_000),
     ));
     await appendPoints({ userId, amount: 5, effectiveAt: lateEffectiveAt });
+    const projectionAfterLateEntry =
+      await db().studyPointsBalanceProjection.findUnique({ where: { userId } });
     const drift = await reconcileLeaderboardSnapshot({
       seasonId: season.id,
       now: finalizeAt,
@@ -259,10 +275,13 @@ test("concurrent finalization is idempotent and late correction creates an audit
     );
     assert.deepEqual(
       await db().studyPointsBalanceProjection.findUnique({ where: { userId } }),
-      accountingBeforeCorrection.projection,
+      projectionAfterLateEntry,
     );
   } finally {
-    if (seasonId) await db().leaderboardSeason.deleteMany({ where: { id: seasonId } });
+    if (seasonId) {
+      await deleteSeasonSnapshots(seasonId);
+      await db().leaderboardSeason.deleteMany({ where: { id: seasonId } });
+    }
     if (userId) await db().user.deleteMany({ where: { id: userId } });
   }
 });

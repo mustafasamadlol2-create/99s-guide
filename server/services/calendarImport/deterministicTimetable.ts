@@ -21,7 +21,7 @@ interface TimeRange {
 }
 
 const DAY_PATTERN = /\b(?:Sun\.?|Mon\.?|Tues?\.?|Wed\.?|Thurs?\.?|Fri\.?|Sat\.?)\b/iu;
-const DATE_PATTERN = /\b(\d{1,2})\s*[/.\-]\s*(\d{1,2})(?:\s*[/.\-]\s*(20\d{2}))?\b/u;
+const DATE_PATTERN = /\b(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(20\d{2}))?\b/u;
 const TIME_RANGE_PATTERN = /\b(\d{1,2}):([0-5]\d)\s*[-–—]\s*(\d{1,2}):([0-5]\d)\b/u;
 const EVENT_START_PATTERN = /^(?:Y3\b|(?:CA|ID|NT|RM|PS|VL|FA|MME|EME)\b)/iu;
 const GROUP_EVENT_PATTERN = /(?:^|\s)([A-E])\s*-\s*/gu;

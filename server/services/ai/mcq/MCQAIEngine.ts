@@ -195,7 +195,7 @@ function meaningfulSourceCharacters(contents: AIContentPart[]): number {
 }
 
 function countQuestionMarkers(text: string | null | undefined): number {
-  return text ? (text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*[iIl|]?\s*)?\d{1,3}\s*[.)、:：\/-]/giu)?.length ?? 0) : 0;
+  return text ? (text.match(/(?:^|\n)\s*(?:q(?:uestion)?\s*[iIl|]?\s*)?\d{1,3}\s*[.)、:：/-]/giu)?.length ?? 0) : 0;
 }
 
 function requiredGenerationOptions(
