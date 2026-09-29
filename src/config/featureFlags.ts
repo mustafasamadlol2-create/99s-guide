@@ -52,6 +52,13 @@ export const STUDY_ANALYZER_FRONTEND_ENABLED =
 export const STUDY_INSIGHTS_FRONTEND_ENABLED =
   buildFlags.DEV === true && buildFlags.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true";
 
+/**
+ * Owner Analytics is staged for development only. Production builds stay
+ * disabled even if a Vite flag is accidentally set to true.
+ */
+export const OWNER_ANALYTICS_FRONTEND_ENABLED =
+  buildFlags.DEV === true && buildFlags.VITE_OWNER_ANALYTICS_FRONTEND_ENABLED === "true";
+
 export const GROUP_FOCUS_WORKER_URL =
   typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
     ? buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim()

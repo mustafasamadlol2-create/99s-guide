@@ -16,6 +16,7 @@ import React, {
 import { flushSync } from "react-dom";
 import { animate, motion, useMotionValue } from "motion/react";
 import { IOS_CONSOLE_SMOOTH_MOTION } from "../../../core/motion/swipeMotion";
+import { OWNER_ANALYTICS_FRONTEND_ENABLED } from "../../../config/featureFlags";
 import {
   User,
   UserProgress,
@@ -41,6 +42,7 @@ import {
   ShieldOff,
   ClipboardList,
   BookOpen,
+  BarChart3,
 } from "lucide-react";
 
 // ── Sidebar nav button (md+ vertical list) ──────────────────────────────────
@@ -155,6 +157,7 @@ const loadModerationView = () => import("../../moderation/components/ModerationV
 const loadMutedUsersView = () => import("../../moderation/components/MutedUsersView");
 const loadBannedUsersView = () => import("../../moderation/components/BannedUsersView");
 const loadModerationHistoryView = () => import("../../moderation/components/ModerationHistoryView");
+const loadOwnerAnalyticsDashboard = () => import("../../owner-analytics/components/OwnerAnalyticsDashboard");
 
 const UploadMaterial = lazy(loadUploadMaterial);
 const UploadModuleResource = lazy(loadUploadModuleResource);
@@ -168,6 +171,7 @@ const ModerationView = lazy(loadModerationView);
 const MutedUsersView = lazy(loadMutedUsersView);
 const BannedUsersView = lazy(loadBannedUsersView);
 const ModerationHistoryView = lazy(loadModerationHistoryView);
+const OwnerAnalyticsDashboard = lazy(loadOwnerAnalyticsDashboard);
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -210,11 +214,13 @@ type SubTab =
   | "moderation"
   | "muted-users"
   | "banned-users"
-  | "moderation-history";
+  | "moderation-history"
+  | "owner-analytics";
 
 const ControlCenterView = function ControlCenterView({
   currentUser,
   language,
+  subjects,
   onRefreshSubjects,
   calendarEventsDb,
   onDeleteEvent,
@@ -275,6 +281,9 @@ const ControlCenterView = function ControlCenterView({
       loadMutedUsersView(),
       loadBannedUsersView(),
       loadModerationHistoryView(),
+      currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
+        ? loadOwnerAnalyticsDashboard()
+        : Promise.resolve(),
     ]);
   }, [currentUser.role, isPhone]);
 
@@ -456,6 +465,15 @@ const ControlCenterView = function ControlCenterView({
 
     // Owner-only items
     ...(isOwner ? ([
+      ...(OWNER_ANALYTICS_FRONTEND_ENABLED ? ([{
+        id: "owner-analytics" as SubTab,
+        sidebarLabel:   isRtl ? "تحليلات المالك" : "Owner Analytics",
+        pillLabel:      isRtl ? "تحليل" : "Analytics",
+        Icon: BarChart3,
+        iconColorClass: "text-teal-600 dark:text-teal-300",
+        sidebarCategory:   "Analytics",
+        sidebarCategoryAr: "التحليلات",
+      }] as NavItem[]) : []),
       {
         id: "daily-motto" as SubTab,
         sidebarLabel:   isRtl ? "إدارة الشعار اليومي" : "Manage Daily Motto",
@@ -849,6 +867,10 @@ const ControlCenterView = function ControlCenterView({
         return currentUser.role === "owner" ? <div className={panelClassName}><BannedUsersView /></div> : null;
       case "moderation-history":
         return currentUser.role === "owner" ? <div className={panelClassName}><ModerationHistoryView language={language} /></div> : null;
+      case "owner-analytics":
+        return currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
+          ? <div className={panelClassName}><OwnerAnalyticsDashboard language={language} subjects={subjects} /></div>
+          : null;
       default:
         return null;
     }
