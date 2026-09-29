@@ -42,7 +42,6 @@ exposeLocalhost = true
 [[ports]]
 localPort = 9230
 externalPort = 3000
-exposeLocalhost = true
 
 [userenv]
 
