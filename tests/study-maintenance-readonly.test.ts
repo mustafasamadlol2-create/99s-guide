@@ -5,7 +5,7 @@ import { createOutboxAdapter } from "../server/study-maintenance/jobs/outbox.js"
 import { runFocusAudit, runGroupFocusAudit } from "../server/study-maintenance/jobs/integrityAudits.js";
 import { runCompatibilityAudit, runOrphanAudit } from "../server/study-maintenance/jobs/audits.js";
 
-test("outbox replay is limited to expired leaderboard leases and leaves private D1 rows untouched", async () => {
+test("outbox replay safely requeues delayed and blocked entries in both pipelines", async () => {
   let queryCount = 0;
   let updateCount = 0;
   const database = {
@@ -18,8 +18,11 @@ test("outbox replay is limited to expired leaderboard leases and leaves private 
         ];
       }
       return [{
+        state: "RETRY",
         nextAttemptAt: new Date("2026-02-01T00:00:00.000Z"),
         leaseUntil: new Date("2025-12-31T00:00:00.000Z"),
+        attempts: 2,
+        terminalAt: null,
       }];
     },
     async $executeRaw() {
@@ -32,35 +35,78 @@ test("outbox replay is limited to expired leaderboard leases and leaves private 
   assert.deepEqual(page.items.map(({ id }) => id), ["leaderboard:7", "private:11"]);
 
   const privateResult = await adapter.inspect(page.items[1]!, { asOf: "2026-01-01T00:00:00.000Z" });
-  assert.equal(privateResult.skipped, true);
-  assert.equal(privateResult.code, "PRIVATE_D1_REPLAY_UNSAFE");
+  assert.equal(privateResult.wouldChange, true);
 
   const leaderboardResult = await adapter.inspect(page.items[0]!, { asOf: "2026-01-01T00:00:00.000Z" });
   assert.equal(leaderboardResult.wouldChange, true);
   const applied = await adapter.apply(page.items[0]!, { asOf: "2026-01-01T00:00:00.000Z" });
   assert.equal(applied.changed, true);
-  assert.equal(updateCount, 1);
+  const privateApplied = await adapter.apply(page.items[1]!, { asOf: "2026-01-01T00:00:00.000Z" });
+  assert.equal(privateApplied.changed, true);
+  assert.equal(updateCount, 2);
 });
 
-test("outbox compaction reports that terminal retention state is unavailable", async () => {
+test("outbox compaction enforces success and poison retention floors", async () => {
+  let readCount = 0;
+  const inspectedRows = [
+    {
+      state: "SUCCEEDED",
+      terminalAt: new Date("2026-02-01T00:00:00.000Z"),
+      nextAttemptAt: new Date("2026-02-01T00:00:00.000Z"),
+      leaseUntil: null,
+      attempts: 1,
+    },
+    {
+      state: "POISON",
+      terminalAt: new Date("2025-12-15T00:00:00.000Z"),
+      nextAttemptAt: new Date("2025-12-15T00:00:00.000Z"),
+      leaseUntil: null,
+      attempts: 8,
+    },
+    {
+      state: "RETRY",
+      terminalAt: null,
+      nextAttemptAt: new Date("2025-12-15T00:00:00.000Z"),
+      leaseUntil: null,
+      attempts: 3,
+    },
+  ];
   const database = {
     async $queryRaw() {
-      return [];
+      readCount += 1;
+      if (readCount === 1) {
+        return [
+          { kind: "private", id: "1" },
+          { kind: "private", id: "2" },
+          { kind: "private", id: "3" },
+        ];
+      }
+      const row = inspectedRows[readCount - 2];
+      return row ? [row] : [];
     },
     async $executeRaw() {
-      assert.fail("Compaction must not delete rows without a retention policy.");
+      return 1;
     },
   } as unknown as PrismaClient;
   const adapter = createOutboxAdapter({
     database,
     operation: "compact",
-    before: "2026-01-01T00:00:00.000Z",
+    before: "2026-02-01T00:00:00.000Z",
+    asOf: "2026-03-31T00:00:00.000Z",
   });
-  const result = await adapter.inspect({ id: "private:1", kind: "private", rowId: "1" }, {
-    asOf: "2026-01-01T00:00:00.000Z",
+  const page = await adapter.discoverBatch({ cursor: null, limit: 5, scope: "bounded-outbox" });
+  assert.equal(page.items.length, 3);
+  const succeeded = await adapter.inspect(page.items[0]!, { asOf: "2026-03-31T00:00:00.000Z" });
+  assert.equal(succeeded.wouldChange, true);
+  const poison = await adapter.inspect(page.items[1]!, { asOf: "2026-03-31T00:00:00.000Z" });
+  assert.equal(poison.wouldChange, true);
+  const retry = await adapter.inspect(page.items[2]!, { asOf: "2026-03-31T00:00:00.000Z" });
+  assert.equal(retry.skipped, true);
+  assert.equal(retry.code, "NON_TERMINAL_OUTBOX_RETAINED");
+  const result = await adapter.apply(page.items[0]!, {
+    asOf: "2026-03-31T00:00:00.000Z",
   });
-  assert.equal(result.skipped, true);
-  assert.equal(result.code, "SAFE_COMPACTION_UNAVAILABLE");
+  assert.equal(result.changed, true);
 });
 
 test("focus integrity audit summarizes bounded read-only samples", async () => {

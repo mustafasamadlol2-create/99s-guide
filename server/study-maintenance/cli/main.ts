@@ -47,7 +47,7 @@ Usage:
   npm run study-maintenance -- private-d1 rebuild --all --allow-cloudflare [--apply --allow-external-writes]
   npm run study-maintenance -- outbox status
   npm run study-maintenance -- outbox replay --allow-cloudflare --allow-external-writes [--apply]
-  npm run study-maintenance -- outbox compact --before <ISO timestamp>
+  npm run study-maintenance -- outbox compact --older-than-days <days> [--apply]
   npm run study-maintenance -- ruleset audit
   npm run study-maintenance -- focus audit --all [--limit <n>]
   npm run study-maintenance -- group-focus audit --all [--limit <n>]
@@ -195,19 +195,31 @@ function selectAdapter(
     if (options.scope !== "all" || options.userId || options.lectureId || options.all) {
       throw safeFailure("Outbox operations do not accept user or content scopes.");
     }
-    if (normalized.endsWith("compact") && !options.before) {
-      throw safeFailure("Outbox compaction inspection requires --before <ISO timestamp>.");
+    if (normalized.endsWith("compact") && (!options.before && options.olderThanDays === undefined)) {
+      throw safeFailure("Outbox compaction requires --older-than-days or --before as an explicit cutoff.");
+    }
+    if (normalized.endsWith("compact") && options.before && options.olderThanDays !== undefined) {
+      throw safeFailure("Choose either --older-than-days or --before, not both.");
+    }
+    if (normalized.endsWith("replay") && (options.before || options.olderThanDays !== undefined)) {
+      throw safeFailure("Outbox replay does not accept compaction cutoffs.");
     }
     if (normalized.endsWith("replay") && options.mode === "apply"
       && (!options.allowCloudflare || !options.allowExternalWrites)) {
       throw safeFailure("Outbox replay can trigger Worker delivery; --apply requires both --allow-cloudflare and --allow-external-writes.");
     }
-    options.jobType = normalized.endsWith("replay") ? "outbox:replay" : "outbox:compact-inspection";
+    options.jobType = normalized.endsWith("replay") ? "outbox:replay" : "outbox:compact";
     options.scope = "bounded-outbox";
+    const before = options.before ?? (
+      options.olderThanDays !== undefined
+        ? new Date(Date.parse(options.asOf) - options.olderThanDays * 24 * 60 * 60 * 1000).toISOString()
+        : undefined
+    );
     return createOutboxAdapter({
       database,
       operation: normalized.endsWith("replay") ? "replay" : "compact",
-      ...(options.before ? { before: options.before } : {}),
+      ...(before ? { before } : {}),
+      asOf: options.asOf,
     });
   }
   throw safeFailure(

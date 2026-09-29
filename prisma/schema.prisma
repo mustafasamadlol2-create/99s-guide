@@ -919,11 +919,20 @@ model PrivateD1SyncOutbox {
   revision      BigInt
   data          Json?
   attempts      Int      @default(0)
+  state         String   @default("PENDING") @db.VarChar(16)
+  failureClass  String?  @db.VarChar(32)
+  failureCode   String?  @db.VarChar(64)
   lastError     String?  @db.VarChar(500)
   nextAttemptAt DateTime @default(now())
+  firstAttemptAt DateTime?
+  lastAttemptAt  DateTime?
+  leaseUntil     DateTime?
+  terminalAt     DateTime?
   updatedAt     DateTime @default(now()) @updatedAt
 
   @@index([nextAttemptAt, id])
+  @@index([state, nextAttemptAt, id], map: "private_d1_outbox_state_due_idx")
+  @@index([state, terminalAt, id], map: "private_d1_outbox_state_terminal_idx")
 }
 
 /// Durable global Leaderboard snapshot projection work. PostgreSQL remains
@@ -933,17 +942,26 @@ model LeaderboardD1SyncOutbox {
   workType       String   @db.VarChar(16)
   snapshotId     String
   chunkIndex     Int      @default(-1)
+  projectionGeneration Int @default(0)
   payload        Json
   attempts       Int      @default(0)
+  state          String   @default("PENDING") @db.VarChar(16)
+  failureClass   String?  @db.VarChar(32)
+  failureCode    String?  @db.VarChar(64)
   nextAttemptAt  DateTime @default(now())
   updatedAt      DateTime @default(now()) @updatedAt
   createdAt      DateTime @default(now())
   lastError      String?  @db.VarChar(500)
+  firstAttemptAt DateTime?
+  lastAttemptAt  DateTime?
+  terminalAt     DateTime?
   leaseGeneration Int     @default(0)
   leaseUntil     DateTime?
 
-  @@unique([snapshotId, workType, chunkIndex], map: "leaderboard_d1_outbox_snapshot_work_key")
+  @@unique([snapshotId, workType, chunkIndex, projectionGeneration], map: "leaderboard_d1_outbox_snapshot_work_generation_key")
   @@index([nextAttemptAt, id], map: "leaderboard_d1_outbox_next_attempt_idx")
+  @@index([state, nextAttemptAt, id], map: "leaderboard_d1_outbox_state_due_idx")
+  @@index([state, terminalAt, id], map: "leaderboard_d1_outbox_state_terminal_idx")
   @@map("LeaderboardD1SyncOutbox")
 }
 

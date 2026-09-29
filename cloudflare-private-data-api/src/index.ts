@@ -654,12 +654,20 @@ async function authenticate(request: Request, env: any): Promise<Response | null
     : "";
 
   if (!configured) {
-    return jsonNoStore({ ok: false, error: "Private data sync is not configured." }, 503);
+    return jsonNoStore({
+      ok: false,
+      code: "PRIVATE_SYNC_AUTH_UNAVAILABLE",
+      error: "Private data sync is not configured.",
+    }, 503);
   }
 
   const supplied = request.headers.get("X-Private-Data-Sync-Secret") || "";
   if (!supplied || !(await secretsEqual(supplied, configured))) {
-    return jsonNoStore({ ok: false, error: "Unauthorized." }, 401);
+    return jsonNoStore({
+      ok: false,
+      code: "PRIVATE_SYNC_UNAUTHORIZED",
+      error: "Unauthorized.",
+    }, 401);
   }
 
   return null;
@@ -1095,14 +1103,14 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
 
   const raw = await request.text();
   if (raw.length > 512 * 1024) {
-    return jsonNoStore({ ok: false, error: "Payload too large." }, 413);
+    return jsonNoStore({ ok: false, code: "PRIVATE_SYNC_PAYLOAD_TOO_LARGE", error: "Payload too large." }, 413);
   }
 
   let payload: unknown;
   try {
     payload = JSON.parse(raw);
   } catch {
-    return jsonNoStore({ ok: false, error: "Invalid JSON." }, 400);
+    return jsonNoStore({ ok: false, code: "PRIVATE_SYNC_INVALID_JSON", error: "Invalid JSON." }, 400);
   }
 
   try {
@@ -1154,10 +1162,25 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
       message.includes("required") ||
       message.includes("empty") ||
       message.includes("conflict");
+    const schemaIncompatible =
+      /no such (?:table|column)|schema.{0,20}(?:version|incompatib|missing)/iu.test(message);
+    const missingTarget = /(?:target|canonical row|projection).{0,40}not found/iu.test(message);
+    const code = schemaIncompatible
+      ? "PRIVATE_SYNC_SCHEMA_INCOMPATIBLE"
+      : missingTarget
+        ? "PRIVATE_SYNC_TARGET_NOT_FOUND"
+        : message.toLowerCase().includes("conflict")
+          ? "PRIVATE_SYNC_DETERMINISTIC_CONFLICT"
+          : message.includes("Unsupported")
+            ? "PRIVATE_SYNC_UNSUPPORTED_VERSION"
+            : validation
+              ? "PRIVATE_SYNC_INVALID_PAYLOAD"
+              : "PRIVATE_SYNC_UNAVAILABLE";
+    const permanent = schemaIncompatible || missingTarget || validation;
 
     return jsonNoStore(
-      { ok: false, error: validation ? message : "Private sync failed." },
-      validation ? 400 : 500,
+      { ok: false, code, error: permanent ? message : "Private sync failed." },
+      permanent ? 400 : 500,
     );
   }
 }

@@ -24,6 +24,7 @@ const valueOptions = new Set([
   "--season-id",
   "--snapshot-id",
   "--before",
+  "--older-than-days",
   "--as-of",
   "--batch-size",
   "--sleep-ms",
@@ -172,6 +173,13 @@ export function parseMaintenanceArgs(
         if (!argument.includes("=")) index += 1;
         if (!ISO_TIMESTAMP.test(options.before) || Number.isNaN(Date.parse(options.before))) {
           throw new Error("--before must be an ISO timestamp with a timezone");
+        }
+        break;
+      case "--older-than-days":
+        options.olderThanDays = Number(value(argv, index, name));
+        if (!argument.includes("=")) index += 1;
+        if (!Number.isInteger(options.olderThanDays) || options.olderThanDays < 1 || options.olderThanDays > 36_500) {
+          throw new Error("--older-than-days must be an integer between 1 and 36500");
         }
         break;
       case "--as-of":

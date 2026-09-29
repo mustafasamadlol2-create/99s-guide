@@ -1,5 +1,11 @@
 import { getPrisma } from "./prismaClient.js";
 import { logger } from "./logger.js";
+import {
+  classifyOutboxDeliveryFailure,
+  OUTBOX_MAX_DELIVERY_ATTEMPTS,
+  OutboxDeliveryError,
+  outboxRetryDelayMs,
+} from "./outboxDeliveryPolicy.js";
 
 type PrivateMirrorEntity =
   | "User"
@@ -407,12 +413,19 @@ function getPollMs(): number {
 }
 
 function getConfig(): { baseUrl: string; secret: string } | null {
-  const baseUrl = String(process.env.PRIVATE_DATA_WORKER_BASE_URL || "")
+  const rawBaseUrl = String(process.env.PRIVATE_DATA_WORKER_BASE_URL || "")
     .trim()
     .replace(/\/+$/, "");
   const secret = String(process.env.PRIVATE_DATA_SYNC_SECRET || "").trim();
-  if (!baseUrl || !secret) return null;
-  return { baseUrl, secret };
+  if (!rawBaseUrl || !secret) return null;
+  try {
+    const url = new URL(rawBaseUrl);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (url.protocol !== "https:" && !(local && url.protocol === "http:")) return null;
+    return { baseUrl: url.toString().replace(/\/+$/, ""), secret };
+  } catch {
+    return null;
+  }
 }
 
 function normalizeDateText(value: unknown): unknown {
@@ -450,7 +463,12 @@ export async function postPrivateD1SyncMutation(
   row: PrivateD1SyncOutboxRow,
 ): Promise<void> {
   const config = getConfig();
-  if (!config) throw new Error("Private D1 Worker configuration is missing.");
+  if (!config) {
+    throw new OutboxDeliveryError("Private D1 Worker configuration is missing or invalid.", {
+      failureClass: "AUTH_CONFIGURATION",
+      failureCode: "CONFIG_MISSING_OR_INVALID",
+    });
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5_000);
@@ -471,13 +489,9 @@ export async function postPrivateD1SyncMutation(
           ...(data?.deletedAt ? { deletedAt: data.deletedAt } : {}),
         }
       : {};
-    const response = await fetch(`${config.baseUrl}/internal/private-sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Private-Data-Sync-Secret": config.secret,
-      },
-      body: JSON.stringify({
+    let body: string;
+    try {
+      body = JSON.stringify({
         version: 1,
         entity: row.entity,
         operation: row.operation,
@@ -486,15 +500,72 @@ export async function postPrivateD1SyncMutation(
         ...projectionMetadata,
         ...(data ? { data } : {}),
         occurredAt: new Date().toISOString(),
-      }),
+      });
+    } catch {
+      throw new OutboxDeliveryError("Private D1 outbox payload is not serializable.", {
+        failureClass: "PERMANENT",
+        failureCode: "INVALID_PAYLOAD",
+      });
+    }
+    const response = await fetch(`${config.baseUrl}/internal/private-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Private-Data-Sync-Secret": config.secret,
+      },
+      body,
       signal: controller.signal,
     });
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(
-        `Private D1 Worker HTTP ${response.status}: ${text.slice(0, 180)}`,
-      );
+      let responseCode: string | undefined;
+      try {
+        const parsed = JSON.parse(text) as { code?: unknown };
+        if (typeof parsed.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/u.test(parsed.code)) {
+          responseCode = parsed.code;
+        }
+      } catch {
+        // Status-based classification remains available for non-JSON Worker errors.
+      }
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        responseCode === "PRIVATE_SYNC_AUTH_UNAVAILABLE" ||
+        responseCode === "PRIVATE_SYNC_UNAUTHORIZED"
+      ) {
+        throw new OutboxDeliveryError("Private D1 Worker authentication/configuration is blocked.", {
+          failureClass: "AUTH_CONFIGURATION",
+          failureCode: responseCode ?? "AUTH_INVALID",
+        });
+      }
+      if (responseCode === "PRIVATE_SYNC_SCHEMA_INCOMPATIBLE") {
+        throw new OutboxDeliveryError("Private D1 Worker schema is incompatible with this projection.", {
+          failureClass: "PERMANENT",
+          failureCode: responseCode,
+        });
+      }
+      if (response.status === 404 || response.status === 405) {
+        throw new OutboxDeliveryError("Private D1 Worker endpoint is unavailable.", {
+          failureClass: "AUTH_CONFIGURATION",
+          failureCode: "WORKER_ENDPOINT_UNAVAILABLE",
+        });
+      }
+      if (
+        response.status === 408 ||
+        response.status === 425 ||
+        response.status === 429 ||
+        response.status >= 500
+      ) {
+        throw new OutboxDeliveryError("Private D1 Worker returned a retryable response.", {
+          failureClass: "TRANSIENT",
+          failureCode: responseCode ?? `PRIVATE_D1_HTTP_${response.status}`,
+        });
+      }
+      throw new OutboxDeliveryError("Private D1 Worker rejected a deterministic projection payload.", {
+        failureClass: "PERMANENT",
+        failureCode: responseCode ?? `PRIVATE_D1_HTTP_${response.status}`,
+      });
     }
   } finally {
     clearTimeout(timeout);
@@ -505,10 +576,28 @@ export async function leasePrivateD1SyncOutboxBatch(
   executor: OutboxExecutor = getPrisma(),
 ): Promise<PrivateD1SyncOutboxRow[]> {
   const rows = await executor.$queryRawUnsafe(`
-    WITH picked AS (
+    WITH exhausted AS (
+      UPDATE "PrivateD1SyncOutbox"
+      SET
+        "state" = 'POISON',
+        "failureClass" = 'PERMANENT',
+        "failureCode" = 'MAX_ATTEMPTS',
+        "lastError" = 'Maximum delivery attempts reached after lease expiry.',
+        "terminalAt" = COALESCE("terminalAt", NOW()),
+        "leaseUntil" = NULL,
+        "updatedAt" = NOW()
+      WHERE "state" IN ('PENDING', 'RETRY')
+        AND "attempts" >= ${OUTBOX_MAX_DELIVERY_ATTEMPTS}
+        AND ("leaseUntil" IS NULL OR "leaseUntil" <= NOW())
+      RETURNING "id"
+    ),
+    picked AS (
       SELECT "id"
       FROM "PrivateD1SyncOutbox"
-      WHERE "nextAttemptAt" <= NOW()
+      WHERE "state" IN ('PENDING', 'RETRY')
+        AND "attempts" < ${OUTBOX_MAX_DELIVERY_ATTEMPTS}
+        AND "nextAttemptAt" <= NOW()
+        AND ("leaseUntil" IS NULL OR "leaseUntil" <= NOW())
       ORDER BY "id" ASC
       LIMIT ${BATCH_SIZE}
       FOR UPDATE SKIP LOCKED
@@ -516,7 +605,9 @@ export async function leasePrivateD1SyncOutboxBatch(
     UPDATE "PrivateD1SyncOutbox" AS o
     SET
       "attempts" = o."attempts" + 1,
-      "nextAttemptAt" = NOW() + INTERVAL '${Math.trunc(LEASE_MS / 1000)} seconds',
+      "firstAttemptAt" = COALESCE(o."firstAttemptAt", NOW()),
+      "lastAttemptAt" = NOW(),
+      "leaseUntil" = NOW() + INTERVAL '${Math.trunc(LEASE_MS / 1000)} seconds',
       "updatedAt" = NOW()
     FROM picked
     WHERE o."id" = picked."id"
@@ -538,10 +629,19 @@ export async function acknowledgePrivateD1SyncOutboxRow(
   executor: OutboxExecutor = getPrisma(),
 ): Promise<number> {
   return executor.$executeRawUnsafe(
-    `DELETE FROM "PrivateD1SyncOutbox"
+    `UPDATE "PrivateD1SyncOutbox"
+     SET "state" = 'SUCCEEDED',
+         "failureClass" = NULL,
+         "failureCode" = NULL,
+         "lastError" = NULL,
+         "terminalAt" = NOW(),
+         "leaseUntil" = NULL,
+         "updatedAt" = NOW()
      WHERE "id" = $1::bigint
        AND "revision" = $2::bigint
-       AND "attempts" = $3`,
+       AND "attempts" = $3
+       AND "state" IN ('PENDING', 'RETRY')
+       AND "leaseUntil" IS NOT NULL`,
     row.id,
     row.revision,
     row.attempts,
@@ -568,25 +668,56 @@ export async function markPrivateD1SyncOutboxRowFailure(
   error: unknown,
   executor: OutboxExecutor = getPrisma(),
 ): Promise<number> {
-  const message = safeErrorMessage(error);
-  const attempts = Math.max(1, Number(row.attempts) || 1);
-  const retrySeconds = Math.min(300, 15 * Math.pow(2, Math.min(attempts - 1, 5)));
+  const failure = classifyOutboxDeliveryFailure(error, Number(row.attempts));
+  const retryDelayMs = failure.state === "RETRY"
+    ? outboxRetryDelayMs(Number(row.attempts))
+    : 0;
+  const message = safeErrorMessage(failure.message);
 
   return executor.$executeRawUnsafe(
     `UPDATE "PrivateD1SyncOutbox"
      SET
-       "lastError" = $4,
-       "nextAttemptAt" = NOW() + ($5::text || ' seconds')::interval,
+       "state" = $4,
+       "failureClass" = $5,
+       "failureCode" = $6,
+       "terminalAt" = CASE WHEN $4 = 'POISON' THEN NOW() ELSE NULL END,
+       "lastError" = $7,
+       "nextAttemptAt" = CASE
+         WHEN $4 = 'RETRY' THEN NOW() + ($8::text || ' milliseconds')::interval
+         ELSE "nextAttemptAt"
+       END,
+       "leaseUntil" = NULL,
        "updatedAt" = NOW()
      WHERE "id" = $1::bigint
        AND "revision" = $2::bigint
-       AND "attempts" = $3`,
+       AND "attempts" = $3
+       AND "state" IN ('PENDING', 'RETRY')
+       AND "leaseUntil" IS NOT NULL`,
     row.id,
     row.revision,
     row.attempts,
+    failure.state,
+    failure.failureClass,
+    failure.failureCode,
     message,
-    String(retrySeconds),
-  ).catch(() => 0);
+    String(retryDelayMs),
+  );
+}
+
+export async function blockPrivateD1OutboxForConfiguration(
+  executor: OutboxExecutor = getPrisma(),
+): Promise<number> {
+  return executor.$executeRawUnsafe(
+    `UPDATE "PrivateD1SyncOutbox"
+     SET "state" = 'BLOCKED',
+         "failureClass" = 'AUTH_CONFIGURATION',
+         "failureCode" = 'CONFIG_MISSING_OR_INVALID',
+         "lastError" = 'Private D1 Worker configuration is missing or invalid.',
+         "leaseUntil" = NULL,
+         "updatedAt" = NOW()
+     WHERE "state" IN ('PENDING', 'RETRY')
+       AND ("leaseUntil" IS NULL OR "leaseUntil" <= NOW())`,
+  );
 }
 
 function schedule(delayMs: number): void {
@@ -601,26 +732,35 @@ function schedule(delayMs: number): void {
 export async function drainPrivateD1SyncOutbox(): Promise<void> {
   if (running || stopping) return;
   if (!boolEnv("PRIVATE_D1_WRITE_MIRROR_ENABLED")) return;
-  if (!getConfig()) return;
 
   running = true;
   let batchWasFull = false;
 
   try {
-    const rows = await leasePrivateD1SyncOutboxBatch();
-    batchWasFull = rows.length === BATCH_SIZE;
-
-    for (const row of rows) {
-      try {
-        await postPrivateD1SyncMutation(row);
-        await acknowledgePrivateD1SyncOutboxRow(row);
-      } catch (error) {
-        await markPrivateD1SyncOutboxRowFailure(row, error);
-        logger.warn(
+    if (!getConfig()) {
+      const blocked = await blockPrivateD1OutboxForConfiguration();
+      if (blocked > 0) {
+        logger.error(
           "[PrivateD1Sync]",
-          `Pending mutation ${row.entity}/${row.operation} remains queued: ` +
-          safeErrorMessage(error),
+          `${blocked} outbox entries are BLOCKED because Worker configuration is missing or invalid.`,
         );
+      }
+    } else {
+      const rows = await leasePrivateD1SyncOutboxBatch();
+      batchWasFull = rows.length === BATCH_SIZE;
+
+      for (const row of rows) {
+        try {
+          await postPrivateD1SyncMutation(row);
+          await acknowledgePrivateD1SyncOutboxRow(row);
+        } catch (error) {
+          const failure = classifyOutboxDeliveryFailure(error, row.attempts);
+          await markPrivateD1SyncOutboxRowFailure(row, error);
+          logger.warn(
+            "[PrivateD1Sync]",
+            `Outbox entry ${row.id} is ${failure.state} (${failure.failureCode}).`,
+          );
+        }
       }
     }
   } catch (error) {
@@ -649,8 +789,9 @@ export function startPrivateD1SyncDrainer(): void {
   if (!getConfig()) {
     logger.warn(
       "[PrivateD1Sync]",
-      "PRIVATE_D1_WRITE_MIRROR_ENABLED is on but PRIVATE_DATA_WORKER_BASE_URL or PRIVATE_DATA_SYNC_SECRET is missing. Outbox rows will remain queued.",
+      "PRIVATE_D1_WRITE_MIRROR_ENABLED is on but Worker configuration is missing or invalid. Outbox entries will be marked BLOCKED for operator review.",
     );
+    schedule(0);
     return;
   }
 

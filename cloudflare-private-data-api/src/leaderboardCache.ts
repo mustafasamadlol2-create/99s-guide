@@ -312,9 +312,15 @@ export async function handleLeaderboardCache(request: Request, env: Env): Promis
     return response({ok:false,error:"Unknown leaderboard cache endpoint."},404);
   } catch(error) {
     const message=error instanceof Error?error.message:"Leaderboard cache failed.";
+    const schemaIncompatible=/no such (?:table|column)|schema.{0,20}(?:version|incompatib|missing)|unsupported.{0,20}(?:version|schema)/iu.test(message);
     const conflict=message.includes("CONFLICT")||message.includes("checksum")||message.includes("hash");
     const invalid=message.startsWith("Invalid")||message.includes("required")||message.includes("Unsupported")||message.includes("inconsistent")||message.includes("Cursor");
-    const status=conflict?409:invalid?400:500;
-    return response({ok:false,code:conflict?message:"LEADERBOARD_CACHE_"+(invalid?"INVALID":"UNAVAILABLE"),error:invalid?message.slice(0,160):"Leaderboard cache unavailable."},status);
+    const status=schemaIncompatible?500:conflict?409:invalid?400:500;
+    const code=schemaIncompatible
+      ?"LEADERBOARD_CACHE_SCHEMA_INCOMPATIBLE"
+      :conflict
+        ?"LEADERBOARD_CACHE_DETERMINISTIC_CONFLICT"
+        :"LEADERBOARD_CACHE_"+(invalid?"INVALID":"UNAVAILABLE");
+    return response({ok:false,code,error:invalid?message.slice(0,160):"Leaderboard cache unavailable."},status);
   }
 }

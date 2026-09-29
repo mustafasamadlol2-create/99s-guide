@@ -13,6 +13,7 @@ This CLI provides scoped, resumable maintenance for canonical Study Engine proje
   `--max-rps` (0–1,000) caps item throughput; both default to disabled.
 - A job stops at the first item error by default. `--max-errors` is an explicit override.
 - Reports contain aggregate counts and safe error codes, not row payloads.
+- Outbox compaction is dry-run by default and requires both `--apply` and an explicit `--older-than-days` or `--before` cutoff. It deletes only retained terminal outbox rows, never canonical study evidence.
 - Production apply is disabled while checkpoints are local files. The parser also requires an explicit production environment and confirmation token, but those do not override the local-checkpoint restriction.
 - Do not run any maintenance command against production as part of Prompt 49.
 
@@ -51,13 +52,13 @@ SIGINT and SIGTERM stop after the current item and save the last fully processed
 - **Orphan audit**: checks PostgreSQL projection/user and outbox-target relationships without deleting rows. D1 projection orphans are explicitly reported as unsupported because this command has no safe local D1 read path.
 - **Compatibility audit**: compares persisted PostgreSQL rule and projection versions with source-controlled definitions. D1-observed and AI prompt/cache versions without a safe inventory path are reported as unsupported, not assumed compatible.
 - **Readiness preflight**: checks database connectivity, required tables and indexes, migration state, active ruleset, rule versions, local Wrangler config-file presence, selected feature-flag presence, outbox backlog, and a read-only Points/Level sample. It does not verify live Cloudflare credentials or remote binding values.
-- **Outbox status**: reports pending and delayed counts without exposing payloads.
-- **Outbox replay**: dry-run inspects pending rows. Apply requires both `--allow-cloudflare` and `--allow-external-writes` because making queued work eligible can trigger Worker delivery. Leaderboard rows are rescheduled only after their lease has expired. Private D1 rows are skipped because their existing `nextAttemptAt` field also acts as a lease and cannot be reset safely.
+- **Outbox status**: reports pending, delayed, leased, blocked, poison, and succeeded counts without exposing payloads.
+- **Outbox delivery lifecycle**: both D1 queues make at most 8 delivery attempts per entry. Network/timeouts, HTTP 429, temporary Worker/D1 unavailability, and retryable 5xx responses use exponential backoff with equal jitter (15-second base, five-minute cap). Malformed or structurally invalid payloads, incompatible schema/projection versions, deterministic validation/conflict failures, impossible targets, and exhausted transient retries become `POISON`. Authentication or configuration failures become `BLOCKED` and are not automatically retried. Delivery happens after the canonical PostgreSQL transaction, so a Worker failure does not roll back canonical study writes.
+- **Outbox replay**: dry-run inspects delayed or `BLOCKED` entries. After correcting configuration, apply can reschedule an entry only while fewer than 8 attempts have been used and its lease is inactive. Apply requires both `--allow-cloudflare` and `--allow-external-writes` because making queued work eligible can trigger Worker delivery. Poison and successful entries are not replayed.
+- **Outbox compaction**: `outbox compact --older-than-days 30` inspects eligible terminal rows; add `--apply` to delete them. Successful rows are retained at least 30 days and poison rows at least 90 days. A requested older cutoff can extend, but never shorten, those retention periods. `BLOCKED`, pending, retryable, or leased rows are never deleted based on age.
 
 ## Deliberately unavailable operations
 
-- **Dead-letter classification** is unavailable because the outbox schema has no terminal/dead-letter state or explicit poison policy. Status output reports retry counts and safe error metadata only; it does not label rows unrecoverable.
-- **Outbox compaction** requires `--before`, but currently performs inspection only. Existing outbox rows represent pending or retryable work and do not retain a terminal-delivery state or declared retention policy. The command will not delete them.
 - **Production apply** is unavailable until job state and locking use a durable shared store. Local checkpoint files are not sufficient for multi-process or multi-host production resumability.
 
 ## Exit behavior

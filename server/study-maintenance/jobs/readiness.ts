@@ -40,7 +40,7 @@ const REQUIRED_TABLES = [
 const REQUIRED_INDEXES = [
   "lecture_mastery_user_lecture_key",
   "lecture_retention_user_lecture_key",
-  "leaderboard_d1_outbox_snapshot_work_key",
+  "leaderboard_d1_outbox_snapshot_work_generation_key",
   "leaderboard_d1_outbox_next_attempt_idx",
 ] as const;
 
@@ -168,7 +168,13 @@ export async function runReadinessPreflight(
   try {
     outboxes = await readOutboxStatus(database);
     const pending = outboxes.reduce((sum, row) => sum + row.pending, 0);
-    check(checks, "outbox_backlog", pending ? "WARN" : "PASS", pending);
+    const blocked = outboxes.reduce((sum, row) => sum + row.blocked, 0);
+    const poison = outboxes.reduce((sum, row) => sum + row.poison, 0);
+    check(checks, "outbox_backlog", pending || blocked || poison ? "WARN" : "PASS", {
+      pending,
+      blocked,
+      poison,
+    });
   } catch {
     check(checks, "outbox_backlog", "FAIL", "OUTBOX_STATUS_UNAVAILABLE");
   }

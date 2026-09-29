@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { PrismaClient } from "@prisma/client";
 import test, { after, before } from "node:test";
+import { OutboxDeliveryError } from "../server/services/outboxDeliveryPolicy.js";
 
 import { getPrompt8PostgresGateUrl } from "./helpers/prompt8PostgresGate.js";
 
@@ -128,7 +129,8 @@ test("expired lease fencing prevents stale acknowledgement and failure updates",
 
   await client().$executeRaw`
     UPDATE "PrivateD1SyncOutbox"
-    SET "nextAttemptAt" = NOW() - INTERVAL '1 second'
+    SET "nextAttemptAt" = NOW() - INTERVAL '1 second',
+        "leaseUntil" = NOW() - INTERVAL '1 second'
     WHERE "id" = ${original[0].id}::bigint
       AND "revision" = ${original[0].revision}::bigint
       AND "attempts" = ${original[0].attempts}
@@ -162,6 +164,13 @@ test("expired lease fencing prevents stale acknowledgement and failure updates",
     await outbox.acknowledgePrivateD1SyncOutboxRow(reclaimed[0], client()),
     1,
   );
+  const [acknowledged] = await client().$queryRaw<Array<{ state: string; terminalAt: Date | null }>>`
+    SELECT "state", "terminalAt"
+    FROM "PrivateD1SyncOutbox"
+    WHERE "id" = ${revision}::bigint
+  `;
+  assert.equal(acknowledged.state, "SUCCEEDED");
+  assert.ok(acknowledged.terminalAt);
   console.log("PROMPT8_PG_STALE_ACK", JSON.stringify({
     firstAttempt: original[0].attempts,
     reclaimedAttempt: reclaimed[0].attempts,
@@ -180,8 +189,9 @@ test("real retry state is bounded, redacted, and follows the capped backoff", { 
     WHERE "id" = ${leased.id}::bigint
   `.then((rows) => rows[0].updatedAt);
 
-  const error = new Error(
+  const error = new OutboxDeliveryError(
     `Bearer abc.def.ghi {"token":"topsecret"} x-private-data-sync-secret: hidden ${"x".repeat(700)}`,
+    { failureClass: "TRANSIENT", failureCode: "NETWORK_OR_TIMEOUT" },
   );
   assert.equal(
     await outbox.markPrivateD1SyncOutboxRowFailure(leased, error, client()),
@@ -201,8 +211,8 @@ test("real retry state is bounded, redacted, and follows the capped backoff", { 
   assert.ok(stored.lastError.length <= 500);
   assert.doesNotMatch(stored.lastError, /abc\.def\.ghi|topsecret|hidden/u);
   assert.match(stored.lastError, /\[REDACTED\]/u);
-  assert.ok(stored.nextAttemptAt.getTime() - Date.now() >= 13_000);
-  assert.ok(stored.nextAttemptAt.getTime() - Date.now() <= 18_000);
+  assert.ok(stored.nextAttemptAt.getTime() - Date.now() >= 7_000);
+  assert.ok(stored.nextAttemptAt.getTime() - Date.now() <= 16_000);
   assert.ok(stored.updatedAt.getTime() >= previousUpdatedAt.getTime());
   await client().$executeRaw`
     UPDATE "PrivateD1SyncOutbox"
@@ -211,15 +221,24 @@ test("real retry state is bounded, redacted, and follows the capped backoff", { 
   `;
   const [retried] = await outbox.leasePrivateD1SyncOutboxBatch(client());
   assert.equal(retried.attempts, 2);
-  const retryDelaysSeconds = [Math.round(
-    (stored.nextAttemptAt.getTime() - Date.now()) / 1000,
-  )];
+  const retryDelaysSeconds = [Math.round((stored.nextAttemptAt.getTime() - Date.now()) / 1000)];
   let currentLease = retried;
-  for (const expectedDelay of [30, 60, 120, 240, 300]) {
+  const retryBoundsSeconds: Array<[number, number]> = [
+    [15, 30],
+    [30, 60],
+    [60, 120],
+    [120, 240],
+    [150, 300],
+    [150, 300],
+  ];
+  for (const [minimum, maximum] of retryBoundsSeconds) {
     assert.equal(
       await outbox.markPrivateD1SyncOutboxRowFailure(
         currentLease,
-        new Error("retry schedule verification"),
+        new OutboxDeliveryError("retry schedule verification", {
+          failureClass: "TRANSIENT",
+          failureCode: "NETWORK_OR_TIMEOUT",
+        }),
         client(),
       ),
       1,
@@ -234,7 +253,8 @@ test("real retry state is bounded, redacted, and follows the capped backoff", { 
     const actualDelay = Math.round(
       (retryState.nextAttemptAt.getTime() - Date.now()) / 1000,
     );
-    assert.ok(Math.abs(actualDelay - expectedDelay) <= 2);
+    assert.ok(actualDelay >= minimum - 1);
+    assert.ok(actualDelay <= maximum + 1);
     retryDelaysSeconds.push(actualDelay);
     await client().$executeRaw`
       UPDATE "PrivateD1SyncOutbox"
@@ -247,16 +267,40 @@ test("real retry state is bounded, redacted, and follows the capped backoff", { 
     currentLease = nextLease;
   }
   assert.equal(
-    await outbox.acknowledgePrivateD1SyncOutboxRow(currentLease, client()),
+    currentLease.attempts,
+    8,
+  );
+  assert.equal(
+    await outbox.markPrivateD1SyncOutboxRowFailure(
+      currentLease,
+      new OutboxDeliveryError("retry limit reached", {
+        failureClass: "TRANSIENT",
+        failureCode: "NETWORK_OR_TIMEOUT",
+      }),
+      client(),
+    ),
     1,
   );
+  const [exhausted] = await client().$queryRaw<Array<{
+    state: string;
+    failureCode: string | null;
+    terminalAt: Date | null;
+  }>>`
+    SELECT "state", "failureCode", "terminalAt"
+    FROM "PrivateD1SyncOutbox"
+    WHERE "id" = ${currentLease.id}::bigint
+  `;
+  assert.equal(exhausted.state, "POISON");
+  assert.equal(exhausted.failureCode, "MAX_ATTEMPTS");
+  assert.ok(exhausted.terminalAt);
   console.log("PROMPT8_PG_RETRY", JSON.stringify({
     attemptsAfterFirstLease: stored.attempts,
     retryDelaysSeconds,
     errorLength: stored.lastError.length,
     redacted: true,
     attemptsAfterRetryLease: retried.attempts,
-    finalAcknowledgedAttempt: currentLease.attempts,
+    exhaustedAttempt: currentLease.attempts,
+    terminalState: exhausted.state,
   }));
 });
 
@@ -279,12 +323,14 @@ test("real acknowledgement requires both the current revision and lease attempt"
     await outbox.acknowledgePrivateD1SyncOutboxRow(leased, client()),
     1,
   );
-  const remaining = await client().$queryRaw<Array<{ id: string }>>`
-    SELECT "id"::text AS id
+  const remaining = await client().$queryRaw<Array<{ id: string; state: string }>>`
+    SELECT "id"::text AS id, "state"
     FROM "PrivateD1SyncOutbox"
     WHERE "id" IN (${leased.id}::bigint, ${unrelated.id}::bigint)
+    ORDER BY "id" ASC
   `;
-  assert.deepEqual(remaining.map((row) => row.id), [unrelated.id]);
+  assert.deepEqual(remaining.map((row) => row.id), [leased.id, unrelated.id]);
+  assert.deepEqual(remaining.map((row) => row.state), ["SUCCEEDED", "PENDING"]);
   assert.equal(
     await outbox.acknowledgePrivateD1SyncOutboxRow(unrelated, client()),
     1,

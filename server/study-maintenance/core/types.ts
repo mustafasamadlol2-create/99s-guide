@@ -20,6 +20,7 @@ export interface MaintenanceRunOptions {
   allowCloudflare: boolean;
   allowExternalWrites: boolean;
   before?: string;
+  olderThanDays?: number;
   asOf: string;
   batchSize: number;
   sleepMs: number;

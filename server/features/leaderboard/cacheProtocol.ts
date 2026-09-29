@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { LeaderboardSeason, LeaderboardSnapshot, LeaderboardSnapshotEntry } from "@prisma/client";
+import { OutboxDeliveryError } from "../../services/outboxDeliveryPolicy.js";
 import type { LeaderboardScope } from "./types.js";
 
 export const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
@@ -179,15 +180,34 @@ export async function requestLeaderboardD1<T = unknown>(
   options: { method?: "GET" | "POST"; timeoutMs?: number } = {},
 ): Promise<T> {
   const config = getLeaderboardD1Config();
-  if (!config) throw new Error("Leaderboard D1 Worker configuration is missing or invalid.");
+  if (!config) {
+    throw new OutboxDeliveryError("Leaderboard D1 Worker configuration is missing or invalid.", {
+      failureClass: "AUTH_CONFIGURATION",
+      failureCode: "CONFIG_MISSING_OR_INVALID",
+    });
+  }
   const url = new URL(path, `${config.baseUrl}/`);
   const method = options.method ?? "POST";
   if (method === "GET" && body !== undefined) {
-    throw new Error("GET Leaderboard D1 requests cannot include a body.");
+    throw new OutboxDeliveryError("GET Leaderboard D1 requests cannot include a body.", {
+      failureClass: "PERMANENT",
+      failureCode: "INVALID_REQUEST",
+    });
   }
-  const raw = method === "GET" ? "" : JSON.stringify(body ?? {});
+  let raw: string;
+  try {
+    raw = method === "GET" ? "" : JSON.stringify(body ?? {});
+  } catch {
+    throw new OutboxDeliveryError("Leaderboard D1 payload is not serializable.", {
+      failureClass: "PERMANENT",
+      failureCode: "INVALID_PAYLOAD",
+    });
+  }
   if (Buffer.byteLength(raw, "utf8") > LEADERBOARD_CACHE_MAX_BODY_BYTES) {
-    throw new Error("Leaderboard D1 projection payload exceeds the maximum body size.");
+    throw new OutboxDeliveryError("Leaderboard D1 projection payload exceeds the maximum body size.", {
+      failureClass: "PERMANENT",
+      failureCode: "PAYLOAD_TOO_LARGE",
+    });
   }
   const timestamp = String(Date.now());
   const nonce = randomBytes(24).toString("base64url");
@@ -207,8 +227,66 @@ export async function requestLeaderboardD1<T = unknown>(
       signal: controller.signal,
     });
     const text = await response.text();
-    if (!response.ok) throw new Error(`Leaderboard D1 Worker HTTP ${response.status}: ${text.slice(0, 160)}`);
-    return JSON.parse(text) as T;
+    if (!response.ok) {
+      let responseCode: string | undefined;
+      try {
+        const parsed = JSON.parse(text) as { code?: unknown };
+        if (typeof parsed.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/u.test(parsed.code)) {
+          responseCode = parsed.code;
+        }
+      } catch {
+        // Classify from the HTTP status if the Worker did not return JSON.
+      }
+      const safeCode = responseCode ?? `LEADERBOARD_D1_HTTP_${response.status}`;
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        responseCode === "LEADERBOARD_CACHE_AUTH_UNAVAILABLE" ||
+        responseCode === "LEADERBOARD_CACHE_UNAUTHORIZED" ||
+        responseCode === "LEADERBOARD_CACHE_AUTH_EXPIRED" ||
+        responseCode === "LEADERBOARD_CACHE_REPLAY"
+      ) {
+        throw new OutboxDeliveryError(
+          `Leaderboard D1 Worker authentication/configuration is blocked (${safeCode}).`,
+          { failureClass: "AUTH_CONFIGURATION", failureCode: safeCode },
+        );
+      }
+      if (responseCode === "LEADERBOARD_CACHE_SCHEMA_INCOMPATIBLE") {
+        throw new OutboxDeliveryError("Leaderboard D1 schema is incompatible with this projection.", {
+          failureClass: "PERMANENT",
+          failureCode: responseCode,
+        });
+      }
+      if (response.status === 404 || response.status === 405) {
+        throw new OutboxDeliveryError("Leaderboard D1 Worker endpoint is unavailable.", {
+          failureClass: "AUTH_CONFIGURATION",
+          failureCode: "WORKER_ENDPOINT_UNAVAILABLE",
+        });
+      }
+      if (
+        response.status === 408 ||
+        response.status === 425 ||
+        response.status === 429 ||
+        response.status >= 500
+      ) {
+        throw new OutboxDeliveryError(`Leaderboard D1 Worker returned a retryable response (${safeCode}).`, {
+          failureClass: "TRANSIENT",
+          failureCode: safeCode,
+        });
+      }
+      throw new OutboxDeliveryError(`Leaderboard D1 Worker rejected the projection (${safeCode}).`, {
+        failureClass: "PERMANENT",
+        failureCode: safeCode,
+      });
+    }
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new OutboxDeliveryError("Leaderboard D1 Worker returned an invalid response.", {
+        failureClass: "OPERATIONAL",
+        failureCode: "INVALID_WORKER_RESPONSE",
+      });
+    }
   } finally {
     clearTimeout(timer);
   }
