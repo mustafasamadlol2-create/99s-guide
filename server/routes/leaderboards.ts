@@ -91,9 +91,12 @@ export function createLeaderboardRouter(dependencies: {
 }): express.Router {
   const router = express.Router();
   const database = dependencies.database ?? getPrisma() as PrismaClient;
-  router.use(dependencies.requireUser);
 
-  router.get("/leaderboards/:scope", async (req, res) => {
+  // This router is mounted at /api. Do not protect the whole mounted router,
+  // otherwise unrelated public routes (notably /api/auth/oauth-url) are
+  // rejected before Express can reach their handlers. Authenticate only the
+  // leaderboard endpoints themselves.
+  router.get("/leaderboards/:scope", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.params.scope);
     if (!scope) {
       return res.status(400).json({
@@ -131,7 +134,7 @@ export function createLeaderboardRouter(dependencies: {
     }
   });
 
-  router.get("/me/leaderboard-rank", async (req, res) => {
+  router.get("/me/leaderboard-rank", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.query.scope);
     if (!scope) {
       return res.status(400).json({

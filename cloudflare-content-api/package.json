@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "d1:migrate:remote": "wrangler d1 migrations apply 99s-guide-content --remote",
+    "deploy": "wrangler deploy",
+    "test": "echo \"No standalone content-worker tests configured\""
   },
   "keywords": [],
   "author": "",

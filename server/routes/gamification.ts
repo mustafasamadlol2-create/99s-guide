@@ -24,9 +24,11 @@ export function createGamificationRouter(
   dependencies: GamificationRouteDependencies,
 ): express.Router {
   const router = express.Router();
-  router.use(dependencies.requireUser);
 
-  router.get("/me/gamification", async (req, res) => {
+  // This router is mounted at /api, so a router-wide auth middleware would
+  // intercept unrelated public endpoints such as /api/auth/oauth-url. Keep
+  // authentication scoped to the routes owned by this router.
+  router.get("/me/gamification", dependencies.requireUser, async (req, res) => {
     const userId = (req as AuthenticatedRequest).user.id;
     try {
       const result = await dependencies.getMyGamificationSummary(userId);
@@ -44,7 +46,7 @@ export function createGamificationRouter(
     }
   });
 
-  router.get("/users/:userId/gamification", async (req, res) => {
+  router.get("/users/:userId/gamification", dependencies.requireUser, async (req, res) => {
     const viewerId = (req as unknown as AuthenticatedRequest).user.id;
     try {
       const result = await dependencies.getPublicGamificationProfile(

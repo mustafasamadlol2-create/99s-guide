@@ -12,7 +12,7 @@
     "start": "node scripts/start-production.cjs",
     "preview": "npm run build && wrangler dev",
     "clean": "node scripts/clean.cjs",
-    "test:auth": "tsx --test tests/oauth-state.test.ts",
+    "test:auth": "tsx --test tests/oauth-state.test.ts tests/public-auth-route-isolation.test.ts",
     "test:study-engine": "tsx --test --test-concurrency=1 tests/focus-*.test.ts tests/group-focus-*.test.ts tests/study-*.test.ts tests/recall-*.test.ts tests/gamification-*.test.ts tests/leaderboard-*.test.ts tests/mastery-*.test.ts tests/lecture-mastery-*.test.ts tests/lecture-retention-*.test.ts tests/owner-analytics*.test.ts tests/ask-study-data-*.test.ts tests/private-d1-*.test.ts tests/prompt11-focus-client.test.ts",
     "test:study-observability": "tsx --test --test-concurrency=1 tests/observability.test.ts tests/release-gates.test.ts tests/release-rollout-guard.test.ts",
     "test:owner-analytics-frontend": "tsx --test tests/owner-analytics-frontend-api.test.ts",

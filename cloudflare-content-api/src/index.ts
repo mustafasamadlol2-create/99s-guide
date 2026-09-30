@@ -430,8 +430,18 @@ async function handleInternalContentSync(request: Request, env: any): Promise<Re
     "CalendarEvent",
   ];
 
+  // Protocol v1 includes ModuleResource. Keep the validation explicit and
+  // return safe capability metadata on mismatch so a stale deployed Content
+  // Worker can be diagnosed immediately from Render logs without exposing the
+  // mutation body. Older deployments that predate ModuleResource return the
+  // generic "Unsupported content sync payload" error seen by the outbox.
   if (version !== 1 || !validEntities.includes(entity as ContentEntity)) {
-    return jsonNoStore({ ok: false, error: "Unsupported content sync payload." }, 400);
+    return jsonNoStore({
+      ok: false,
+      error: "Unsupported content sync payload.",
+      supportedVersion: 1,
+      supportedEntities: validEntities,
+    }, 400);
   }
 
   if (operation !== "upsert" && operation !== "delete") {
