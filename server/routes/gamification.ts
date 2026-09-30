@@ -25,9 +25,9 @@ export function createGamificationRouter(
 ): express.Router {
   const router = express.Router();
 
-  // This router is mounted at /api, so a router-wide auth middleware would
-  // intercept unrelated public endpoints such as /api/auth/oauth-url. Keep
-  // authentication scoped to the routes owned by this router.
+  // This router is mounted at /api. A router-wide auth middleware would also
+  // intercept unrelated public endpoints such as /api/auth/oauth-url and
+  // /api/auth/oauth-session. Keep authentication scoped to owned routes only.
   router.get("/me/gamification", dependencies.requireUser, async (req, res) => {
     const userId = (req as AuthenticatedRequest).user.id;
     try {

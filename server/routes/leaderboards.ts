@@ -93,9 +93,8 @@ export function createLeaderboardRouter(dependencies: {
   const database = dependencies.database ?? getPrisma() as PrismaClient;
 
   // This router is mounted at /api. Do not protect the whole mounted router,
-  // otherwise unrelated public routes (notably /api/auth/oauth-url) are
-  // rejected before Express can reach their handlers. Authenticate only the
-  // leaderboard endpoints themselves.
+  // otherwise unrelated public OAuth endpoints are rejected before Express
+  // can reach them. Authenticate only leaderboard-owned routes.
   router.get("/leaderboards/:scope", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.params.scope);
     if (!scope) {

@@ -913,10 +913,15 @@ model IntegrityReviewAction {
 /// The enqueue path assigns revision from the same generated BIGINT as id.
 model PrivateD1SyncOutbox {
   id            BigInt   @id @default(autoincrement())
+  // Legacy private-D1 mirror compatibility. Existing Supabase trigger
+  // functions created before the Study Engine still reference these fields.
+  // They remain optional so newer projection writers can use the same outbox
+  // without inventing legacy dedupe semantics.
+  dedupeKey     String?  @unique
   entity        String   @db.VarChar(100)
   operation     String   @db.VarChar(16)
   key           Json
-  revision      BigInt
+  revision      BigInt   @default(1)
   data          Json?
   attempts      Int      @default(0)
   state         String   @default("PENDING") @db.VarChar(16)
@@ -928,8 +933,11 @@ model PrivateD1SyncOutbox {
   lastAttemptAt  DateTime?
   leaseUntil     DateTime?
   terminalAt     DateTime?
-  updatedAt     DateTime @default(now()) @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 
+  @@index([entity])
+  @@index([nextAttemptAt])
   @@index([nextAttemptAt, id])
   @@index([state, nextAttemptAt, id], map: "private_d1_outbox_state_due_idx")
   @@index([state, terminalAt, id], map: "private_d1_outbox_state_terminal_idx")

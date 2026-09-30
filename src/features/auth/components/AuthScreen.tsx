@@ -928,15 +928,13 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
               // Pending/network/rate-limit responses are expected while the
               // provider is still completing. Surface a real exchange failure
               // instead of converting it into a misleading timeout.
-              const status = err?.status as number | undefined;
-              const retryable = !status
-                || status === 404
-                || status === 429
-                || status === 503
-                || (status === 502 && err?.body?.retryable === true);
-              if (!retryable) {
+              if (err?.status && ![404, 429].includes(err.status)) {
                 clearInterval(oauthPollRef.current!);
                 oauthPollRef.current = null;
+                // Provider authorization codes are one-time credentials. A
+                // server-side 502/503 may occur after the provider already
+                // consumed the code, so never resubmit the same code and mask
+                // the original failure with a later invalid_grant.
                 onOAuthFailed(err?.body?.error || "OAuth session exchange failed. Please try again.");
               }
             }
@@ -1228,13 +1226,10 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
               // Keep retrying while the callback is pending or rate-limited,
               // but surface a terminal callback failure immediately instead
               // of misclassifying it as a manual popup cancellation.
-              const status = err?.status as number | undefined;
-              const retryable = !status
-                || status === 404
-                || status === 429
-                || status === 503
-                || (status === 502 && err?.body?.retryable === true);
-              if (!retryable) {
+              if (err?.status && ![404, 429].includes(err.status)) {
+                // The OAuth authorization code is single-use. Stop on a real
+                // exchange failure (including 502/503) and require a fresh
+                // provider flow instead of reposting a consumed code.
                 onPopupFailed(err?.body?.error || `${provider} authentication could not be completed. Please try again.`);
                 return;
               }
