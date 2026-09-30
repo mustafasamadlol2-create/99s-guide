@@ -37,6 +37,7 @@ import {
 } from "./src/core/constants/seedData.js";
 
 import { UserService } from "./server/services/userService.js";
+import { buildOAuthRedirectUri } from "./server/services/oauthRedirect.js";
 import { AuthService } from "./server/services/authService.js";
 import * as OAuthService from "./server/services/oauthService.js";
 import { EmailService } from "./server/services/emailService.js";
@@ -7404,12 +7405,13 @@ async function issueEmailVerification(
 }
 
 function oauthRedirectUri(req: express.Request, provider: string): string {
-  // Google Cloud Console must contain exactly this production URI. Do not let
-  // a stale backend/frontend environment value change Google's callback target.
-  const origin = provider === "google" && process.env.NODE_ENV === "production"
-    ? PRODUCTION_BACKEND_ORIGIN
-    : backendOrigin(req);
-  return `${origin}/auth/callback/${provider}`;
+  return buildOAuthRedirectUri({
+    provider,
+    nodeEnv: process.env.NODE_ENV,
+    replitDevDomain: process.env.REPLIT_DEV_DOMAIN,
+    productionBackendOrigin: PRODUCTION_BACKEND_ORIGIN,
+    resolveBackendOrigin: () => backendOrigin(req),
+  });
 }
 
 async function isUserCurrentlyBanned(user: any): Promise<boolean> {
@@ -8405,8 +8407,8 @@ const IS_SANDBOX_AUTH_ENABLED =
 app.get("/api/auth/oauth-url", catchAsync(async (req, res) => {
   const provider = (req.query.provider as string || "").toLowerCase();
 
-  // Google must always return to the Render backend. Never derive this URI from
-  // the frontend request host, which is the Cloudflare Workers origin in prod.
+  // Production Google callbacks return to Render; Replit development callbacks
+  // use REPLIT_DEV_DOMAIN so the code exchange and OAuth state stay in this Repl.
   const redirectUri = oauthRedirectUri(req, provider);
 
   // One-time state token: CSRF protection + native session polling key
