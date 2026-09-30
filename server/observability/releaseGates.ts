@@ -78,23 +78,58 @@ export function validateFeatureConfiguration(
   if (flags.AI_STUDY_INSIGHTS_CACHE_ENABLED && !flags.AI_STUDY_INSIGHTS_ENABLED) {
     impossible.push("AI Insights cache requires AI Insights");
   }
-  if (
-    environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true"
-    && !flags.GROUP_FOCUS_ENABLED
-  ) {
-    impossible.push("Group Focus frontend is enabled while its backend feature is disabled");
+  const frontendRuntimeRequirements = [
+    {
+      frontendFlag: "VITE_FOCUS_HUB_V2_ENABLED",
+      backendFlag: "FOCUS_HUB_ENABLED",
+      label: "Focus Hub",
+    },
+    {
+      frontendFlag: "VITE_GROUP_FOCUS_FRONTEND_ENABLED",
+      backendFlag: "GROUP_FOCUS_ENABLED",
+      label: "Group Focus",
+    },
+    {
+      frontendFlag: "VITE_SPACED_RECALL_FRONTEND_ENABLED",
+      backendFlag: "SPACED_RECALL_ENABLED",
+      label: "Spaced Recall",
+    },
+    {
+      frontendFlag: "VITE_STUDY_ANALYZER_FRONTEND_ENABLED",
+      backendFlag: "STUDY_ANALYZER_ENABLED",
+      label: "Study Analyzer",
+    },
+    {
+      frontendFlag: "VITE_STUDY_INSIGHTS_FRONTEND_ENABLED",
+      backendFlag: "AI_STUDY_INSIGHTS_ENABLED",
+      label: "Study Insights",
+    },
+    {
+      frontendFlag: "VITE_ASK_MY_STUDY_DATA_FRONTEND_ENABLED",
+      backendFlag: "ASK_MY_STUDY_DATA_ENABLED",
+      label: "Ask My Study Data",
+    },
+    {
+      frontendFlag: "VITE_OWNER_ANALYTICS_FRONTEND_ENABLED",
+      backendFlag: "OWNER_STUDY_ANALYTICS_ENABLED",
+      label: "Owner Analytics",
+    },
+  ] as const;
+  for (const requirement of frontendRuntimeRequirements) {
+    if (
+      environment[requirement.frontendFlag] === "true" &&
+      !flags[requirement.backendFlag]
+    ) {
+      impossible.push(
+        `${requirement.label} frontend is enabled while its backend feature is disabled`,
+      );
+    }
   }
   if (
-    environment.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true"
-    && !flags.AI_STUDY_INSIGHTS_ENABLED
+    environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true" &&
+    !environment.VITE_GROUP_FOCUS_WORKER_URL?.trim()
   ) {
-    impossible.push("Study Insights frontend is enabled while its backend feature is disabled");
-  }
-  if (
-    environment.VITE_OWNER_ANALYTICS_FRONTEND_ENABLED === "true"
-    && !flags.OWNER_STUDY_ANALYTICS_ENABLED
-  ) {
-    impossible.push("Owner Analytics frontend is enabled while its backend feature is disabled");
+    impossible.push("Group Focus frontend is enabled without its realtime Worker URL");
   }
 
   return impossible.length > 0

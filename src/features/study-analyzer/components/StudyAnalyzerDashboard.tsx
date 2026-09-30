@@ -25,7 +25,10 @@ import type {
   StudyWeaknessSignal,
 } from "../../../../server/features/study-analyzer/types";
 import type { StudyInsightResponse } from "../../../../server/features/study-insights/types";
-import { STUDY_INSIGHTS_FRONTEND_ENABLED } from "../../../config/featureFlags";
+import {
+  ASK_MY_STUDY_DATA_FRONTEND_ENABLED,
+  STUDY_INSIGHTS_FRONTEND_ENABLED,
+} from "../../../config/featureFlags";
 import { getStudyAnalyzer, getStudyInsight } from "../api";
 import {
   ANALYZER_WINDOW_LABELS,
@@ -66,7 +69,7 @@ interface StudyAnalyzerDashboardProps {
   subjects: Subject[];
   dbLectures?: unknown[];
   onBack: () => void;
-  onOpenMastery: () => void;
+  onOpenMastery?: () => void;
   onSelectLecture: (lecture: Lecture, tab?: "mcqs" | "flashcards") => void;
 }
 
@@ -622,7 +625,7 @@ export function StudyAnalyzerDashboard({
                 title={copy(language, "Mastery and review", "الإتقان والمراجعة")}
                 subtitle={copy(language, "Canonical Mastery and Retention summaries; no client-side recalculation.", "ملخصا الإتقان والاستبقاء المعتمدان، دون إعادة احتساب في الواجهة.")}
                 icon={<Check className="h-4 w-4" aria-hidden="true" />}
-                action={(
+                action={onOpenMastery ? (
                   <button
                     type="button"
                     onClick={onOpenMastery}
@@ -630,7 +633,7 @@ export function StudyAnalyzerDashboard({
                   >
                     {copy(language, "View Mastery", "عرض الإتقان")}
                   </button>
-                )}
+                ) : undefined}
               >
                 <StatRow label={copy(language, "Tracked lectures", "محاضرات متتبعة")} value={valueOrUnknown(dto.mastery.trackedLectureCount, language, "—")} />
                 {sourceHint("mastery") && <DataQualityNote>{sourceHint("mastery")}</DataQualityNote>}
@@ -761,34 +764,36 @@ export function StudyAnalyzerDashboard({
                 />
               )}
 
-              <Panel
-                title={copy(language, "Ask My Study Data", "اسأل عن بيانات دراستي")}
-                subtitle={copy(language, "Ask a single question about your own recorded study data.", "اسأل سؤالًا واحدًا عن بيانات دراستك المسجّلة.")}
-                icon={<MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />}
-                action={(
-                  <button
-                    type="button"
-                    aria-expanded={showAskPanel}
-                    onClick={() => setShowAskPanel((value) => !value)}
-                    className="min-h-11 shrink-0 rounded-xl bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2 dark:bg-sky-600 dark:hover:bg-sky-500"
-                  >
-                    {showAskPanel ? copy(language, "Close", "إغلاق") : copy(language, "Ask a question", "اطرح سؤالًا")}
-                  </button>
-                )}
-              >
-                {showAskPanel ? (
-                  <AskMyStudyDataPanel language={language} />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowAskPanel(true)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 dark:border-sky-200/15 dark:text-sky-100 dark:hover:bg-sky-300/10"
-                  >
-                    {copy(language, "Ask about my study data", "اسأل عن بيانات دراستي")}
-                    <ArrowRight className={`h-4 w-4 ${rtl ? "rotate-180" : ""}`} aria-hidden="true" />
-                  </button>
-                )}
-              </Panel>
+              {ASK_MY_STUDY_DATA_FRONTEND_ENABLED && (
+                <Panel
+                  title={copy(language, "Ask My Study Data", "اسأل عن بيانات دراستي")}
+                  subtitle={copy(language, "Ask a single question about your own recorded study data.", "اسأل سؤالًا واحدًا عن بيانات دراستك المسجّلة.")}
+                  icon={<MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />}
+                  action={(
+                    <button
+                      type="button"
+                      aria-expanded={showAskPanel}
+                      onClick={() => setShowAskPanel((value) => !value)}
+                      className="min-h-11 shrink-0 rounded-xl bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    >
+                      {showAskPanel ? copy(language, "Close", "إغلاق") : copy(language, "Ask a question", "اطرح سؤالًا")}
+                    </button>
+                  )}
+                >
+                  {showAskPanel ? (
+                    <AskMyStudyDataPanel language={language} />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowAskPanel(true)}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 dark:border-sky-200/15 dark:text-sky-100 dark:hover:bg-sky-300/10"
+                    >
+                      {copy(language, "Ask about my study data", "اسأل عن بيانات دراستي")}
+                      <ArrowRight className={`h-4 w-4 ${rtl ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                  )}
+                </Panel>
+              )}
             </div>
           </div>
         </>

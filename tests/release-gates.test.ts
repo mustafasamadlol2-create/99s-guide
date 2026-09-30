@@ -38,6 +38,49 @@ test("impossible feature combinations fail release validation", () => {
   assert.match(result.message, /requires Ask My Study Data/u);
 });
 
+test("Prompt 52 frontend flags require matching backend gates and Group Focus configuration", () => {
+  const disabledResult = validateFeatureConfiguration(
+    { ...DEFAULT_STUDY_FEATURE_FLAGS },
+    {
+      VITE_FOCUS_HUB_V2_ENABLED: "true",
+      VITE_GROUP_FOCUS_FRONTEND_ENABLED: "true",
+      VITE_SPACED_RECALL_FRONTEND_ENABLED: "true",
+      VITE_STUDY_ANALYZER_FRONTEND_ENABLED: "true",
+      VITE_STUDY_INSIGHTS_FRONTEND_ENABLED: "true",
+      VITE_ASK_MY_STUDY_DATA_FRONTEND_ENABLED: "true",
+      VITE_OWNER_ANALYTICS_FRONTEND_ENABLED: "true",
+    },
+  );
+  assert.equal(disabledResult.status, "FAIL");
+  assert.match(disabledResult.message, /Focus Hub frontend/u);
+  assert.match(disabledResult.message, /Ask My Study Data frontend/u);
+  assert.match(disabledResult.message, /realtime Worker URL/u);
+
+  const enabledResult = validateFeatureConfiguration(
+    {
+      ...DEFAULT_STUDY_FEATURE_FLAGS,
+      FOCUS_HUB_ENABLED: true,
+      GROUP_FOCUS_ENABLED: true,
+      SPACED_RECALL_ENABLED: true,
+      STUDY_ANALYZER_ENABLED: true,
+      AI_STUDY_INSIGHTS_ENABLED: true,
+      ASK_MY_STUDY_DATA_ENABLED: true,
+      OWNER_STUDY_ANALYTICS_ENABLED: true,
+    },
+    {
+      VITE_FOCUS_HUB_V2_ENABLED: "true",
+      VITE_GROUP_FOCUS_FRONTEND_ENABLED: "true",
+      VITE_GROUP_FOCUS_WORKER_URL: "https://focus-worker.example.test",
+      VITE_SPACED_RECALL_FRONTEND_ENABLED: "true",
+      VITE_STUDY_ANALYZER_FRONTEND_ENABLED: "true",
+      VITE_STUDY_INSIGHTS_FRONTEND_ENABLED: "true",
+      VITE_ASK_MY_STUDY_DATA_FRONTEND_ENABLED: "true",
+      VITE_OWNER_ANALYTICS_FRONTEND_ENABLED: "true",
+    },
+  );
+  assert.equal(enabledResult.status, "PASS");
+});
+
 test("database target validation accepts only explicit local or staging addresses", () => {
   assert.deepEqual(
     validateTargetDatabaseUrl({

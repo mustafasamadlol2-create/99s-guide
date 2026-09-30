@@ -49,6 +49,9 @@ export const STUDY_ANALYZER_FRONTEND_ENABLED =
 export const STUDY_INSIGHTS_FRONTEND_ENABLED =
   buildFlags.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true";
 
+export const ASK_MY_STUDY_DATA_FRONTEND_ENABLED =
+  buildFlags.VITE_ASK_MY_STUDY_DATA_FRONTEND_ENABLED === "true";
+
 /**
  * Owner Analytics is opt-in in every environment; server owner checks remain
  * mandatory regardless of frontend visibility.

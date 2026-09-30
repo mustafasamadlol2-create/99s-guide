@@ -74,8 +74,30 @@ import {
   STUDY_ANALYZER_FRONTEND_ENABLED,
 } from "../../../config/featureFlags";
 import { RecallEntryCard } from "../../recall/components/RecallEntryCard";
-import { MasteryDashboard } from "../../mastery/components/MasteryDashboard";
-import { StudyAnalyzerDashboard } from "../../study-analyzer/components/StudyAnalyzerDashboard";
+
+const MasteryDashboard = React.lazy(() =>
+  import("../../mastery/components/MasteryDashboard").then((module) => ({
+    default: module.MasteryDashboard,
+  })),
+);
+const StudyAnalyzerDashboard = React.lazy(() =>
+  import("../../study-analyzer/components/StudyAnalyzerDashboard").then((module) => ({
+    default: module.StudyAnalyzerDashboard,
+  })),
+);
+
+function OptionalFeatureLoading({ language }: { language: Language }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="flex min-h-[50vh] items-center justify-center px-4 text-sm text-slate-600 dark:text-slate-300"
+    >
+      {language === "ar" ? "جارٍ تحميل الواجهة…" : "Loading feature…"}
+    </div>
+  );
+}
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1412,29 +1434,35 @@ const HomeDashboard = memo(function HomeDashboard({
 
   if (showMasteryDashboard) {
     return (
-      <MasteryDashboard
-        language={language}
-        subjects={subjects}
-        dbLectures={dbLectures}
-        onBack={() => setShowMasteryDashboard(false)}
-        onSelectLecture={onSelectLecture}
-      />
+      <React.Suspense fallback={<OptionalFeatureLoading language={language ?? "en"} />}>
+        <MasteryDashboard
+          language={language}
+          subjects={subjects}
+          dbLectures={dbLectures}
+          onBack={() => setShowMasteryDashboard(false)}
+          onSelectLecture={onSelectLecture}
+        />
+      </React.Suspense>
     );
   }
 
   if (showStudyAnalyzerDashboard) {
     return (
-      <StudyAnalyzerDashboard
-        language={language ?? "en"}
-        subjects={subjects}
-        dbLectures={dbLectures}
-        onBack={() => setShowStudyAnalyzerDashboard(false)}
-        onOpenMastery={() => {
-          setShowStudyAnalyzerDashboard(false);
-          setShowMasteryDashboard(true);
-        }}
-        onSelectLecture={onSelectLecture}
-      />
+      <React.Suspense fallback={<OptionalFeatureLoading language={language ?? "en"} />}>
+        <StudyAnalyzerDashboard
+          language={language ?? "en"}
+          subjects={subjects}
+          dbLectures={dbLectures}
+          onBack={() => setShowStudyAnalyzerDashboard(false)}
+          onOpenMastery={MASTERY_FRONTEND_ENABLED
+            ? () => {
+              setShowStudyAnalyzerDashboard(false);
+              setShowMasteryDashboard(true);
+            }
+            : undefined}
+          onSelectLecture={onSelectLecture}
+        />
+      </React.Suspense>
     );
   }
 
