@@ -3509,12 +3509,8 @@ function AppContent({
           data = await res.json();
           break;
         } catch (err: any) {
-          const status = err?.status as number | undefined;
-          const retryable = !status
-            || status === 404
-            || status === 429
-            || status === 503
-            || (status === 502 && err?.body?.retryable === true);
+          const status = err?.status;
+          const retryable = !status || [404, 429, 502, 503].includes(status);
           if (!retryable) {
             clearPendingOAuth();
             setOauthRecoveryPending(false);

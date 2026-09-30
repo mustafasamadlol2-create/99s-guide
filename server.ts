@@ -7363,30 +7363,13 @@ async function issueEmailVerification(
 }
 
 function oauthRedirectUri(req: express.Request, provider: string): string {
-  // Google and Apple production callbacks are registered against the Render
-  // backend origin. Pin both providers to that exact origin so a stale or
-  // accidentally changed BACKEND_URL cannot make the authorization request and
-  // token exchange disagree about redirect_uri.
-  const usesPinnedProductionCallback =
-    process.env.NODE_ENV === "production" && (provider === "google" || provider === "apple");
-  const origin = usesPinnedProductionCallback
+  // Google Cloud Console must contain exactly this production URI. Do not let
+  // a stale backend/frontend environment value change Google's callback target.
+  const origin = provider === "google" && process.env.NODE_ENV === "production"
     ? PRODUCTION_BACKEND_ORIGIN
     : backendOrigin(req);
   return `${origin}/auth/callback/${provider}`;
 }
-
-function parseOAuthProviderErrorCode(raw: string): string | null {
-  try {
-    const parsed = JSON.parse(raw) as { error?: unknown };
-    return typeof parsed?.error === "string" && parsed.error.trim()
-      ? parsed.error.trim().slice(0, 80)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-const googleOAuthExchangeInFlight = new Set<string>();
 
 async function isUserCurrentlyBanned(user: any): Promise<boolean> {
   if (!user || String(user.accountStatus || "").toLowerCase() !== "banned") return false;
@@ -8230,20 +8213,6 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
     return res.status(502).json({ error: consumedSession.failureMessage || "OAuth authentication could not be completed." });
   }
 
-  let googleExchangeClaimed = false;
-  if (consumedSession.provider === "google") {
-    // The provider authorization code is single-use. Two browser recovery
-    // pollers can legitimately converge on the same short-lived handoff (for
-    // example, the AuthScreen popup poll and the cold-start recovery path).
-    // Serialize the provider exchange per backend instance so the second poll
-    // observes "pending" instead of spending the same Google code again.
-    if (googleOAuthExchangeInFlight.has(token)) {
-      return res.status(404).json({ pending: true });
-    }
-    googleOAuthExchangeInFlight.add(token);
-    googleExchangeClaimed = true;
-  }
-
   try {
     // Apple's authorization code was already exchanged server-side inside the
     // form_post callback (it needs the client-secret JWT that only the backend
@@ -8265,10 +8234,6 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
     if (consumedSession.provider !== "google") {
       return res.status(400).json({ error: "PKCE exchange is currently supported for Google OAuth." });
     }
-    // Recompute the canonical callback URI instead of trusting a stale value
-    // persisted by an older backend instance/configuration. The authorization
-    // request and token exchange must use the exact same production URI.
-    const googleRedirectUri = oauthRedirectUri(req, "google");
     const response = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -8276,44 +8241,12 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
         code: consumedSession.authorizationCode,
         client_id: process.env.GOOGLE_CLIENT_ID || "",
         client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-        redirect_uri: googleRedirectUri,
+        redirect_uri: consumedSession.redirectUri || "",
         grant_type: "authorization_code",
         code_verifier: codeVerifier,
       }),
     });
     if (!response.ok) {
-      const providerBody = await response.text();
-      const providerError = parseOAuthProviderErrorCode(providerBody);
-      logger.warn("GOOGLE_TOKEN_EXCHANGE_FAILED", "token exchange failed", {
-        details: {
-          httpStatus: response.status,
-          providerError,
-          redirectUriMatchesStored: !consumedSession.redirectUri || consumedSession.redirectUri === googleRedirectUri,
-          hasClientId: !!process.env.GOOGLE_CLIENT_ID,
-          hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-        },
-      });
-
-      // In a multi-instance race another Render instance can finish the same
-      // PKCE handoff first, causing Google to answer invalid_grant to this
-      // instance because the authorization code has already been consumed. If
-      // the shared session now proves a successful server exchange, return a
-      // fresh app JWT instead of surfacing a false login failure.
-      if (providerError === "invalid_grant") {
-        const completedSession = await readOAuthSession(token);
-        if (completedSession?.authorizationCode === "google:server-exchanged" && completedSession.userId) {
-          const retryToken = await issuePendingOAuthToken(res, completedSession);
-          if (retryToken) {
-            return res.json({
-              success: true,
-              token: retryToken,
-              userId: completedSession.userId,
-              email: completedSession.email,
-            });
-          }
-        }
-      }
-
       return res.status(response.status >= 500 ? 503 : 401).json({
         error: "OAuth exchange failed.",
         retryable: response.status >= 500,
@@ -8325,9 +8258,6 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     if (!profileResponse.ok) {
-      logger.warn("GOOGLE_PROFILE_LOOKUP_FAILED", "profile lookup failed", {
-        details: { httpStatus: profileResponse.status },
-      });
       return res.status(profileResponse.status >= 500 ? 503 : 401).json({
         error: "OAuth profile lookup failed.",
         retryable: profileResponse.status >= 500,
@@ -8367,21 +8297,7 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
         retryable: true,
       });
     }
-    logger.error("GOOGLE_OAUTH_SESSION_ERROR", "OAuth session exchange failed", {
-      details: {
-        operation: (err as any)?.name === "PrismaClientKnownRequestError"
-          || (err as any)?.name === "PrismaClientInitializationError"
-          ? "database"
-          : "session_exchange",
-        errorType: (err as any)?.name || "Error",
-        errorCode: (err as any)?.code || "UNKNOWN",
-      },
-    });
     return res.status(500).json({ error: "OAuth exchange failed." });
-  } finally {
-    if (googleExchangeClaimed) {
-      googleOAuthExchangeInFlight.delete(token);
-    }
   }
 }));
 
@@ -8989,20 +8905,8 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
 
     if (!tokenResponse.ok) {
       const errBody = await tokenResponse.text();
-      const providerError = parseOAuthProviderErrorCode(errBody);
-      logger.warn("APPLE_TOKEN_EXCHANGE_FAILED", "token exchange failed", {
-        appleAuth: { httpStatus: tokenResponse.status, redirectUri },
-        details: {
-          providerError,
-          hasClientId: !!clientId,
-          hasTeamId: !!teamId,
-          hasKeyId: !!keyId,
-          hasPrivateKey: !!privateKeyRaw,
-        },
-      });
-      const exchangeError = new Error("Apple token exchange failed.");
-      (exchangeError as any).code = providerError || "APPLE_TOKEN_EXCHANGE_FAILED";
-      throw exchangeError;
+      logger.warn("APPLE_TOKEN_EXCHANGE_FAILED", "token exchange failed", { appleAuth: { httpStatus: tokenResponse.status } });
+      throw new Error(`Apple token exchange failed: ${errBody}`);
     }
 
     const tokenData = await tokenResponse.json() as { id_token?: string };
@@ -9012,34 +8916,22 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
     // Verify signature, issuer, audience, expiration
     const decodedToken = await verifyAppleIdentityToken(tokenData.id_token, clientId);
 
-    const appleSubject = typeof decodedToken?.sub === "string" ? decodedToken.sub.trim() : "";
+    logger.info("APPLE_IDENTITY_TOKEN_VERIFIED", "identity token verified", {
+        appleAuth: { hasSub: true, emailPresent: true, emailVerified: decodedToken.email_verified === true }
+      });
+
+    // Do not synthesize an institutional address when Apple withholds email:
+    // that would let an arbitrary Apple identity pass the domain gate.
     const email = typeof decodedToken?.email === "string" ? decodedToken.email.trim().toLowerCase() : "";
     const emailVerified = decodedToken.email_verified === true || decodedToken.email_verified === "true";
-
-    logger.info("APPLE_IDENTITY_TOKEN_VERIFIED", "identity token verified", {
-      appleAuth: {
-        hasSub: !!appleSubject,
-        emailPresent: !!email,
-        emailVerified,
-      },
-    });
-
-    if (!appleSubject) {
-      const identityError = new Error("Apple identity token subject is missing.");
-      (identityError as any).code = "APPLE_SUBJECT_MISSING";
-      throw identityError;
+    if (!decodedToken.sub) {
+      logger.warn("APPLE_EMAIL_NOT_VERIFIED", "email not verified", { appleAuth: { hasSub: false, emailPresent: false, emailVerified: false } });
+    } else if (!email || !emailVerified) {
+      logger.warn("APPLE_EMAIL_NOT_VERIFIED", "email not verified", { appleAuth: { hasSub: true, emailPresent: !!email, emailVerified: emailVerified } });
+    } else {
+      logger.info("APPLE_EMAIL_NOT_VERIFIED", "email verified", { appleAuth: { hasSub: true, emailPresent: true, emailVerified: true } });
     }
-
-    // Apple commonly omits email on every authorization after the first one.
-    // That is valid only when we can resolve the stable Apple `sub` to an
-    // already-linked application user. First-time linking still requires a
-    // verified email from Apple's signed identity token.
-    if (!email || !emailVerified) {
-      logger.warn("APPLE_EMAIL_NOT_VERIFIED", "email not available for first-time linking", {
-        appleAuth: { hasSub: true, emailPresent: !!email, emailVerified },
-      });
-    }
-    const avatar = "";
+const avatar = "";
 
     // ── 4. Apple identity linking ───────────────────────────────────────────
     // Look up existing Apple identity by sub — this enables subsequent
@@ -9047,7 +8939,7 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
     // the already-established Apple identity instead of creating a new account.
     const prisma = getPrisma();
     const existingIdentity = await prisma.oAuthIdentity.findFirst({
-      where: { provider: "apple", providerSubject: appleSubject },
+      where: { provider: "apple", providerSubject: decodedToken.sub }
     });
     let linkedUser: any = null;
     if (existingIdentity) {
@@ -9070,57 +8962,20 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
       }
     }
 
-    // ── 5. Resolve or create the application user ───────────────────────────
-    // Returning Apple users are authenticated by the stable provider subject,
-    // even when Apple withholds email. Only a first-time link is allowed to
-    // fall back to the signed email claim, and that claim must be verified.
-    let finalUser = linkedUser;
-    if (!finalUser) {
-      if (!email || !emailVerified) {
-        const emailError = new Error("Apple verified email is required for first-time account linking.");
-        (emailError as any).code = "APPLE_VERIFIED_EMAIL_REQUIRED";
-        throw emailError;
-      }
-      finalUser = await OAuthService.verifyAndUpsertOAuthUser({
-        email,
-        name,
-        avatar,
-        allowAnyEmail: true,
-        appleName: name || undefined,
-      });
-    }
+    // ── 5. Domain gate + find-or-create user ────────────────────────────────
+    // Apple accounts use personal emails (gmail, icloud, etc.) — the domain
+    // restriction is bypassed for Apple only. The allowAnyEmail flag is set
+    // server-side here, not from any client-supplied parameter.
+    const user  = await OAuthService.verifyAndUpsertOAuthUser({ email, name, avatar, allowAnyEmail: true, appleName: name || undefined });
 
-    // ── 6. Persist the stable Apple identity link ───────────────────────────
-    // The schema currently permits one OAuthIdentity per application user.
-    // Never overwrite a different provider identity automatically; fail closed
-    // instead of silently changing account ownership.
-    if (!existingIdentity) {
-      const identityForUser = await prisma.oAuthIdentity.findUnique({
-        where: { userId: finalUser.id },
-      });
-      if (identityForUser) {
-        if (identityForUser.provider !== "apple" || identityForUser.providerSubject !== appleSubject) {
-          const linkConflict = new Error("OAuth identity is already linked to this account.");
-          (linkConflict as any).code = "APPLE_IDENTITY_LINK_CONFLICT";
-          throw linkConflict;
-        }
-      } else {
-        await prisma.oAuthIdentity.create({
-          data: {
-            userId: finalUser.id,
-            provider: "apple",
-            providerSubject: appleSubject,
-          },
-        });
-      }
-    }
+    // ── 6. Resolve final user ───────────────────────────────────────────────
+    // If an existing Apple identity was found and linked, use that user;
+    // otherwise the user from verifyAndUpsertOAuthUser is the final user.
+    const finalUser = linkedUser ?? user;
 
-    logger.info("APPLE_USER_UPSERT_SUCCEEDED", "user upsert succeeded", {
-      userId: finalUser.id,
-      appleAuth: { emailPresent: !!email },
-    });
+    logger.info("APPLE_USER_UPSERT_SUCCEEDED", "user upsert succeeded", { userId: finalUser.id, appleAuth: { emailPresent: true } });
 
-    const appleSessionToken = setCookieToken(res, finalUser.id, finalUser.email, finalUser.sessionVersion);
+    const appleSessionToken = setCookieToken(res, user.id, user.email, user.sessionVersion);
 
     // Native (Capacitor in-app browser) flows complete by polling
     // /api/auth/oauth-session/:stateToken with the PKCE verifier. Apple's
@@ -9130,15 +8985,15 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
     if (appleStateRecord?.codeChallenge) {
       try {
         await writeOAuthSession(appleState, {
-          userId: finalUser.id,
-          email: finalUser.email,
+          userId: user.id,
+          email: user.email,
           provider: "apple",
           codeChallenge: appleStateRecord.codeChallenge,
           authorizationCode: "apple:server-exchanged",
           returnOrigin: appleStateRecord.returnOrigin,
           expiresAt: Date.now() + 5 * 60 * 1000,
         });
-        logger.info("APPLE_SESSION_POLLING_PUBLISHED", "session polling published", { userId: finalUser.id });
+        logger.info("APPLE_SESSION_POLLING_PUBLISHED", "session polling published", { userId: user.id });
       } catch (sessionErr) {
         logger.error("APPLE_SESSION_POLLING_FAILED", "session polling failed");
         // The user and JWT are already established. A failed session write
@@ -9165,13 +9020,13 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
 
     const appleSuccessOrigin = JSON.stringify(oauthFrontendOrigin(req, appleStateRecord));
     const needsEmailSelection = !finalUser.profileEmail;
-    logger.info("APPLE_AUTH_SUCCESS", "auth success", { userId: finalUser.id, appleAuth: { emailPresent: !!email } });
+    logger.info("APPLE_AUTH_SUCCESS", "auth success", { userId: user.id, appleAuth: { emailPresent: true } });
     return res.send(`<!DOCTYPE html><html><body><script nonce="${res.locals.cspNonce}">
       (function(){
         var payload = {
           type:   'OAUTH_AUTH_SUCCESS',
-          userId: ${JSON.stringify(finalUser.id)},
-          email:  ${JSON.stringify(finalUser.email)},
+          userId: ${JSON.stringify(user.id)},
+          email:  ${JSON.stringify(user.email)},
           token:  ${JSON.stringify(appleSessionToken)},
           needsEmailSelection: ${JSON.stringify(needsEmailSelection)},
         };
@@ -9222,7 +9077,6 @@ app.post("/auth/callback/apple", catchAsync(async (req, res) => {
           authorizationCode: "apple:failed",
           codeChallenge: appleStateRecord.codeChallenge,
           failed: true,
-          failureMessage: "Apple authentication could not be completed.",
           returnOrigin: appleStateRecord.returnOrigin,
           expiresAt: Date.now() + 5 * 60 * 1000,
         });
