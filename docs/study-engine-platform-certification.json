@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 1,
+  "title": "99's Guide Study Engine Platform Certification",
+  "runDate": "2026-09-30",
+  "overallStatus": "READY_WITH_WARNINGS",
+  "manualGate": "MANUAL_DEVICE_REQUIRED",
+  "allRequiredDeviceChecksPassed": false,
+  "productionRolloutAllowed": false,
+  "productionMutationPerformed": false,
+  "environment": {
+    "os": "Linux x86_64 (NixOS runner)",
+    "node": "v22.22.0",
+    "packageManager": "npm 10.9.4",
+    "chromium": "152.0.7977.64",
+    "webkitSafari": "NOT_AVAILABLE",
+    "playwrightCypress": "NOT_INSTALLED",
+    "capacitorCli": "8.5.2",
+    "macOS": false,
+    "xcode": false,
+    "iosSimulator": false,
+    "physicalIphone": "NOT_AVAILABLE_OR_VERIFIED_IN_RUNNER",
+    "physicalIpad": "NOT_AVAILABLE_OR_VERIFIED_IN_RUNNER",
+    "safeDisposableDatabase": false
+  },
+  "statusLegend": [
+    "PASS",
+    "FAIL",
+    "NOT_RUN",
+    "BLOCKED",
+    "NOT_APPLICABLE"
+  ],
+  "testCaseTotals": {
+    "totalReportedTestCases": 599,
+    "completedAndPassed": 524,
+    "passed": 524,
+    "failed": 0,
+    "blockedOrSkippedForMissingDisposableDatabase": 75,
+    "securityContractAssertionsPassed": 13,
+    "note": "The 75 database-gated cases were reported as skipped by node:test because their explicit disposable-schema markers were not supplied. They are not counted as passed."
+  },
+  "countsByCategory": {
+    "Web": {
+      "PASS": 5,
+      "FAIL": 0,
+      "NOT_RUN": 1,
+      "BLOCKED": 1,
+      "NOT_APPLICABLE": 0
+    },
+    "PWA": {
+      "PASS": 1,
+      "FAIL": 0,
+      "NOT_RUN": 6,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "Capacitor config": {
+      "PASS": 2,
+      "FAIL": 0,
+      "NOT_RUN": 1,
+      "BLOCKED": 2,
+      "NOT_APPLICABLE": 0
+    },
+    "iPhone": {
+      "PASS": 0,
+      "FAIL": 0,
+      "NOT_RUN": 4,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "iPad": {
+      "PASS": 0,
+      "FAIL": 0,
+      "NOT_RUN": 3,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "RTL": {
+      "PASS": 0,
+      "FAIL": 0,
+      "NOT_RUN": 2,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "Accessibility": {
+      "PASS": 1,
+      "FAIL": 0,
+      "NOT_RUN": 3,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "Security": {
+      "PASS": 1,
+      "FAIL": 0,
+      "NOT_RUN": 1,
+      "BLOCKED": 0,
+      "NOT_APPLICABLE": 0
+    },
+    "Study domain": {
+      "PASS": 4,
+      "FAIL": 0,
+      "NOT_RUN": 2,
+      "BLOCKED": 1,
+      "NOT_APPLICABLE": 0
+    }
+  },
+  "results": [
+    {
+      "platform": "Web",
+      "scenario": "production-build",
+      "status": "PASS",
+      "environment": "local Linux runner",
+      "evidence": "npm run build completed; Vite emitted production chunks and server bundle."
+    },
+    {
+      "platform": "Web",
+      "scenario": "typecheck",
+      "status": "PASS",
+      "environment": "local Linux runner",
+      "evidence": "npm run typecheck"
+    },
+    {
+      "platform": "Web",
+      "scenario": "lint",
+      "status": "PASS",
+      "environment": "local Linux runner",
+      "evidence": "npm run lint; zero errors, three existing unused-directive warnings."
+    },
+    {
+      "platform": "Web",
+      "scenario": "client-navigation-contracts",
+      "status": "PASS",
+      "testCases": 4,
+      "environment": "node:test via tsx",
+      "evidence": "tests/client-navigation.test.ts"
+    },
+    {
+      "platform": "Web",
+      "scenario": "app-preview-static-capture",
+      "status": "PASS",
+      "environment": "Replit app preview, 1280x720",
+      "evidence": "Static capture showed the branded startup/splash screen; this is not an interactive student-flow test."
+    },
+    {
+      "platform": "Web",
+      "scenario": "headless-dev-domain-page-load",
+      "status": "BLOCKED",
+      "environment": "Chromium 152.0.7977.64",
+      "evidence": "The shell request returned the proxy placeholder text 'Not yet implemented'; it was not treated as an application failure or pass."
+    },
+    {
+      "platform": "Web",
+      "scenario": "interactive-student-e2e",
+      "status": "NOT_RUN",
+      "environment": "No Playwright, Cypress, or existing browser E2E suite",
+      "evidence": "No browser automation framework is installed; no duplicate framework was added."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "manifest-icons-and-static-precache-contracts",
+      "status": "PASS",
+      "testCases": 6,
+      "environment": "node:test via tsx",
+      "evidence": "tests/app-icon-pwa-assets.test.ts; manifest and icon paths resolve and static shell assets are declared."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "installability-on-supported-browser",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser E2E or install prompt harness",
+      "evidence": "Manual PWA checklist remains outstanding."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "service-worker-install-and-offline-shell",
+      "status": "NOT_RUN",
+      "environment": "Production service-worker runtime was not driven in a browser",
+      "evidence": "Source and precache contract assertions passed; runtime offline behavior was not exercised."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "service-worker-update-and-stale-client-recovery",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser E2E",
+      "evidence": "Update/reload behavior and chunk-failure recovery require browser execution."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "deep-links-auth-storage-and-offline-write-safety",
+      "status": "NOT_RUN",
+      "environment": "No authenticated test account or browser automation",
+      "evidence": "No runtime Cache Storage or canonical-write audit was performed."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "offline-to-online-restoration",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser E2E",
+      "evidence": "Must be completed using the PWA manual checklist."
+    },
+    {
+      "platform": "PWA",
+      "scenario": "blank-screen-recovery",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser E2E",
+      "evidence": "No forced chunk failure or stale-cache runtime experiment was performed."
+    },
+    {
+      "platform": "Capacitor config",
+      "scenario": "capacitor-cli-config-parse",
+      "status": "PASS",
+      "environment": "Capacitor CLI 8.5.2",
+      "evidence": "npx cap config --json; appId com.nine9sguide.app and webDir dist."
+    },
+    {
+      "platform": "Capacitor config",
+      "scenario": "custom-bridge-controller-and-plugin-registration",
+      "status": "PASS",
+      "testCases": 1,
+      "environment": "Static TypeScript test and Xcode project parser",
+      "evidence": "tests/capacitor-native-plugin-registration.test.ts; BridgeViewController is in PBXSourcesBuildPhase and registers AppIconPlugin and CapExternalOpener."
+    },
+    {
+      "platform": "Capacitor config",
+      "scenario": "native-packaging-api-origin-guard",
+      "status": "BLOCKED",
+      "environment": "Local runner has no VITE_API_BASE_URL configured for native packaging",
+      "evidence": "node scripts/validate-capacitor-env.cjs rejected packaging due to missing configuration; no sync was attempted."
+    },
+    {
+      "platform": "Capacitor config",
+      "scenario": "swift-source-parse",
+      "status": "BLOCKED",
+      "environment": "Linux Swift wrapper",
+      "evidence": "swiftc wrapper clears PATH and its invocation failed to find basename; UIKit/Xcode typechecking is unavailable."
+    },
+    {
+      "platform": "Capacitor config",
+      "scenario": "xcode-build",
+      "status": "NOT_RUN",
+      "environment": "No macOS or xcodebuild",
+      "evidence": "No iOS native build or Capacitor sync was performed."
+    },
+    {
+      "platform": "iPhone",
+      "scenario": "real-device-study-journey-and-auth",
+      "status": "NOT_RUN",
+      "environment": "No physical iPhone connected to this runner",
+      "evidence": "See docs/IOS_MANUAL_CERTIFICATION_CHECKLIST.md."
+    },
+    {
+      "platform": "iPhone",
+      "scenario": "safe-area-keyboard-and-orientation",
+      "status": "NOT_RUN",
+      "environment": "No physical iPhone or iOS Simulator",
+      "evidence": "Static CSS/config inspection only; no runtime PASS claimed."
+    },
+    {
+      "platform": "iPhone",
+      "scenario": "background-lock-termination-and-relaunch",
+      "status": "NOT_RUN",
+      "environment": "No physical iPhone or iOS Simulator",
+      "evidence": "Manual lifecycle checks remain required."
+    },
+    {
+      "platform": "iPhone",
+      "scenario": "native-pdf-video-group-and-audio-handoff",
+      "status": "NOT_RUN",
+      "environment": "No physical iPhone or iOS Simulator",
+      "evidence": "Manual resource, realtime, and audio checks remain required."
+    },
+    {
+      "platform": "iPad",
+      "scenario": "portrait-landscape-study-layouts",
+      "status": "NOT_RUN",
+      "environment": "No physical iPad or iOS Simulator",
+      "evidence": "See docs/IPAD_MANUAL_CERTIFICATION_CHECKLIST.md."
+    },
+    {
+      "platform": "iPad",
+      "scenario": "focus-group-recall-mastery-analyzer",
+      "status": "NOT_RUN",
+      "environment": "No physical iPad or iOS Simulator",
+      "evidence": "No visual or interaction certification claimed."
+    },
+    {
+      "platform": "iPad",
+      "scenario": "owner-analytics-system-health-and-lecture-tabs",
+      "status": "NOT_RUN",
+      "environment": "No physical iPad or iOS Simulator",
+      "evidence": "Role-specific and responsive checks remain manual."
+    },
+    {
+      "platform": "RTL",
+      "scenario": "arabic-study-pages-and-bidi-rendering",
+      "status": "NOT_RUN",
+      "environment": "No authenticated browser E2E/device session",
+      "evidence": "The required Arabic page matrix is listed in the implementation report."
+    },
+    {
+      "platform": "RTL",
+      "scenario": "language-switch-during-active-state",
+      "status": "NOT_RUN",
+      "environment": "No live Focus, Group Focus, Recall, or Analyzer session",
+      "evidence": "No canonical session/attempt/socket restart claim is made."
+    },
+    {
+      "platform": "Accessibility",
+      "scenario": "existing-viewport-zoom-policy-preserved",
+      "status": "PASS",
+      "environment": "Static source inspection",
+      "evidence": "The existing native-like page-zoom restriction remains in src/App.tsx; no accessibility certification is inferred from this source check."
+    },
+    {
+      "platform": "Accessibility",
+      "scenario": "automated-accessibility-audit",
+      "status": "NOT_RUN",
+      "environment": "No axe scanner or browser E2E framework installed",
+      "evidence": "No automated accessibility score or certification claimed."
+    },
+    {
+      "platform": "Accessibility",
+      "scenario": "keyboard-focus-screen-reader-and-dialogs",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser or assistive technology session",
+      "evidence": "Manual checks remain outstanding."
+    },
+    {
+      "platform": "Accessibility",
+      "scenario": "reduced-motion-contrast-and-touch-targets",
+      "status": "NOT_RUN",
+      "environment": "No interactive browser/device visual audit",
+      "evidence": "Source-level presence is not treated as runtime PASS."
+    },
+    {
+      "platform": "Security",
+      "scenario": "security-contract-checks",
+      "status": "PASS",
+      "environment": "Local tests",
+      "evidence": "npm run security:check; 13 security contract checks passed."
+    },
+    {
+      "platform": "Security",
+      "scenario": "runtime-storage-idor-and-sensitive-log-audit",
+      "status": "NOT_RUN",
+      "environment": "No authenticated browser session or second test account",
+      "evidence": "No runtime storage, cross-account, or full log audit was performed."
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "study-engine-unit-and-contract-suite",
+      "status": "PASS",
+      "testCases": 475,
+      "environment": "node:test via tsx; database variables fenced to inert loopback",
+      "evidence": "npm run test:study-engine; 475 passed, 0 failed."
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "database-backed-study-integration",
+      "status": "BLOCKED",
+      "testCases": 75,
+      "environment": "No explicit disposable-schema markers or safe test database configured",
+      "evidence": "node:test reported 75 skipped cases with explicit disposable-schema requirements; none are counted as PASS."
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "Prompt49-maintenance-suite",
+      "status": "PASS",
+      "testCases": 26,
+      "environment": "node:test via tsx",
+      "evidence": "npm run test:study-maintenance"
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "Prompt50-observability-and-release-gate-tests",
+      "status": "PASS",
+      "testCases": 9,
+      "environment": "node:test via tsx",
+      "evidence": "npm run test:study-observability"
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "owner-analytics-frontend-contracts",
+      "status": "PASS",
+      "testCases": 3,
+      "environment": "node:test via tsx",
+      "evidence": "npm run test:owner-analytics-frontend"
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "live-student-domain-journeys-and-ai-provider",
+      "status": "NOT_RUN",
+      "environment": "No authenticated disposable test account; no production AI/provider usage",
+      "evidence": "The automated unit/contract suites do not substitute for live UI certification."
+    },
+    {
+      "platform": "Study domain",
+      "scenario": "separate-Prompt48-named-test-suite",
+      "status": "NOT_RUN",
+      "environment": "No Prompt48-named test file or separate package script found",
+      "evidence": "Shared domain contracts ran; a separate Prompt48 suite could not be identified."
+    }
+  ],
+  "manualPrerequisites": [
+    "Run and record the iPhone checklist on a real iPhone using a non-production test account.",
+    "Run and record the iPad checklist on a real iPad in portrait and supported landscape orientations.",
+    "Run the PWA install/update/offline checklist in a supported browser.",
+    "Run database-gated integration tests only after explicitly identifying a disposable local schema; never point them at production.",
+    "Keep production rollout blocked until required real-device checks have PASS evidence."
+  ],
+  "productionSafety": {
+    "productionDatabaseModified": false,
+    "productionMigrationsApplied": false,
+    "productionFeatureFlagsChanged": false,
+    "productionAIQuotaUsed": false,
+    "productionAppOrWorkerDeployed": false,
+    "testFlightUploaded": false,
+    "appStoreSubmitted": false
+  }
+}

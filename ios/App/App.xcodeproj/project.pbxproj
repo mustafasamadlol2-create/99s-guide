@@ -19,6 +19,7 @@
 		A9A1B0012F00000100000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000002 /* PrivacyInfo.xcprivacy */; };
 		A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000010 /* CapExternalOpener.swift */; };
 		A9A1B0012F00000100000021 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000020 /* AppIcon.swift */; };
+B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D6B0A10000000000000002 /* BridgeViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		A9A1B0012F00000100000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A9A1B0012F00000100000010 /* CapExternalOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapExternalOpener.swift; sourceTree = "<group>"; };
 		A9A1B0012F00000100000020 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
+B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 				A9A1B0012F00000100000010 /* CapExternalOpener.swift */,
 				A9A1B0012F00000100000020 /* AppIcon.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
@@ -172,6 +175,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */,
 				A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */,
 				A9A1B0012F00000100000021 /* AppIcon.swift in Sources */,
 			);
