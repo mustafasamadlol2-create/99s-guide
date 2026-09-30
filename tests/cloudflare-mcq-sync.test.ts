@@ -4,6 +4,47 @@ import worker from "../cloudflare-content-api/src/index";
 
 const contentWorker = (worker as any).default ?? (worker as any);
 
+test("D1 ModuleResource sync accepts the version-1 backend payload", async () => {
+  const values: unknown[][] = [];
+  const env = {
+    CONTENT_SYNC_SECRET: "test-secret",
+    DB: {
+      prepare() {
+        return {
+          bind(...bound: unknown[]) {
+            values.push(bound);
+            return { async run() {} };
+          },
+        };
+      },
+    },
+  };
+  const response = await contentWorker.fetch(new Request("https://worker.test/internal/content-sync", {
+    method: "POST",
+    headers: { "X-Content-Sync-Secret": "test-secret", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      version: 1,
+      entity: "ModuleResource",
+      operation: "upsert",
+      id: "resource-1",
+      data: {
+        id: "resource-1",
+        moduleId: "CA",
+        title: "Anatomy resource",
+        fileSizeBytes: 1024,
+        status: "READY",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        storagePath: "module-resources/CA/resource-1.pdf",
+      },
+    }),
+  }), env);
+
+  assert.equal(response.status, 200);
+  assert.equal(values[0]?.[0], "resource-1");
+  assert.equal(values[0]?.[1], "CA");
+  assert.equal(values[0]?.[2], "Anatomy resource");
+});
+
 test("D1 MCQ sync persists canonical category and internal difficulty", async () => {
   const values: unknown[][] = [];
   const env = {

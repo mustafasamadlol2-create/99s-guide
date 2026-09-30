@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { config as loadEnv } from "dotenv";
 import { dbMonitor } from "./dbMonitor.js";
+import { createUnavailablePrisma } from "./databaseUnavailable.js";
 
 // ── Load .env before PrismaClient is instantiated ─────────────────────────────
 // prismaClient.ts is a static import of server.ts, so it is evaluated before
@@ -72,23 +73,8 @@ try {
     });
   }
 } catch {
-  console.warn('[AI Studio] Database not connected — using mock');
-  const noOp: any = { findMany: async () => [], findFirst: async () => null,
-    findUnique: async () => null, create: async (d: any) => d?.data ?? {},
-    update: async (d: any) => d?.data ?? {}, delete: async () => ({}),
-    upsert: async (d: any) => d?.create ?? {},
-    updateMany: async () => ({ count: 0 }), deleteMany: async () => ({ count: 0 }),
-    $connect: async () => {}, $disconnect: async () => {}, $executeRawUnsafe: async () => {},
-    $queryRaw: async () => [], $transaction: async (arg: any) => {
-      if (typeof arg === 'function') return arg(prisma);
-      return Promise.all(arg);
-    } };
-  prisma = new Proxy({}, { 
-    get: (_, prop) => {
-      if (prop in noOp) return noOp[prop];
-      return noOp;
-    }
-  });
+  console.warn("[AI Studio] Database client unavailable; database-backed requests will fail explicitly.");
+  prisma = createUnavailablePrisma();
 }
 export { prisma };
 

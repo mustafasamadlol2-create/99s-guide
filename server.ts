@@ -130,6 +130,7 @@ import {
 } from "./server/services/pdfAccess.js";
 import { requestLogger } from "./server/middleware/requestLogger.js";
 import { buildOAuthPendingQuery, isOAuthStateBound, isValidPkceCodeChallenge, parseOAuthState } from "./server/services/oauthState.js";
+import { claimOAuthSessionRecord } from "./server/services/oauthSessionClaim.js";
 import { getRevokedSessionKey, isRevocationActive } from "./server/services/sessionRevocation.js";
 import { createAIAdminRouter } from "./server/services/ai/http/createAIAdminRouter.js";
 import { createAIImportRouter } from "./server/services/ai/http/createAIImportRouter.js";
@@ -1308,8 +1309,10 @@ type OAuthSessionRecord = {
   rejected?: true;
   /** Kept only for same-browser popup fallback; native polling mints a fresh token after consume. */
   token?: string;
-  /** Set while a form_post callback is exchanging Apple's single-use code. */
-  processing?: true;
+  /** Set while a server instance is exchanging a provider's single-use code. */
+  processing?: boolean;
+  /** Lease deadline allows recovery if a server instance exits mid-exchange. */
+  processingUntil?: number;
   /** Set when the callback reached a terminal provider/server failure. */
   failed?: true;
   /** Generic, non-sensitive failure text for the browser polling handoff. */
@@ -1392,6 +1395,44 @@ async function consumeOAuthSession(token: string): Promise<OAuthSessionRecord | 
 
 async function writeOAuthSession(token: string, session: OAuthSessionRecord): Promise<void> {
   await writeOAuthStoreValue(oauthStoreKey(OAUTH_SESSION_KEY_PREFIX, token), session);
+}
+
+async function claimGoogleOAuthSessionForExchange(
+  token: string,
+  expectedSession: OAuthSessionRecord,
+): Promise<OAuthSessionRecord | null> {
+  const key = oauthStoreKey(OAUTH_SESSION_KEY_PREFIX, token);
+  const client = getPrisma();
+  const row = await client.systemSetting.findUnique({
+    where: { key },
+    select: { value: true },
+  });
+  if (!row || typeof row.value !== "string") return null;
+
+  let current: OAuthSessionRecord;
+  try {
+    current = JSON.parse(row.value) as OAuthSessionRecord;
+  } catch {
+    return null;
+  }
+  if (
+    current.expiresAt < Date.now() ||
+    current.provider !== "google" ||
+    current.provider !== expectedSession.provider ||
+    current.authorizationCode !== expectedSession.authorizationCode ||
+    current.codeChallenge !== expectedSession.codeChallenge ||
+    current.failed
+  ) {
+    return null;
+  }
+
+  return claimOAuthSessionRecord({
+    systemSetting: client.systemSetting,
+    key,
+    session: current,
+    storedValue: row.value,
+    now: Date.now(),
+  });
 }
 
 async function cleanupOAuthStore(): Promise<void> {
@@ -7384,7 +7425,7 @@ function isInfrastructureError(error: unknown): boolean {
   const candidate = error as { code?: unknown; message?: unknown } | null;
   const code = String(candidate?.code || "");
   const message = String(candidate?.message || error || "").toLowerCase();
-  return /^(P1001|P1008|P1017|P2024)$/.test(code) ||
+  return /^(P1001|P1008|P1017|P2024|DATABASE_UNAVAILABLE)$/.test(code) ||
     /database|prisma|connection|connection pool|pool timeout|max clients|too many clients|can't reach|timed out|econn|socket hang up/.test(message);
 }
 
@@ -8164,8 +8205,16 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
   const { token } = req.params;
   const session = await readOAuthSession(token);
   const codeVerifier = typeof req.body?.code_verifier === "string" ? req.body.code_verifier : "";
-  if (session?.processing) {
+  if (
+    session?.processing &&
+    (session.processingUntil === undefined || session.processingUntil > Date.now())
+  ) {
     return res.status(404).json({ pending: true });
+  }
+  if (session?.failed) {
+    return res.status(502).json({
+      error: session.failureMessage || "OAuth authentication could not be completed. Please start a new sign-in.",
+    });
   }
   if (!session || !session.authorizationCode || !session.codeChallenge) {
     return res.status(404).json({ pending: true });
@@ -8198,9 +8247,22 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
   // already exchanged Google's one-time code. Retaining the verified session
   // record lets a retry receive a fresh JWT for the same verified user instead
   // of seeing a false "pending" state after the authorization code was consumed.
-  const consumedSession = session.codeChallenge
-    ? session
-    : await consumeOAuthSession(token);
+  let consumedSession: OAuthSessionRecord | null;
+  try {
+    consumedSession = session.provider === "google" && session.codeChallenge
+      ? await claimGoogleOAuthSessionForExchange(token, session)
+      : session.codeChallenge
+        ? session
+        : await consumeOAuthSession(token);
+  } catch (error) {
+    if (isInfrastructureError(error)) {
+      return res.status(503).json({
+        error: "OAuth service is temporarily unavailable. Please try again.",
+        retryable: true,
+      });
+    }
+    throw error;
+  }
   if (!consumedSession) return res.status(404).json({ pending: true });
   res.clearCookie("oauth_state", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", path: "/" });
   if (consumedSession.rejected) {
@@ -8212,6 +8274,23 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
   if (consumedSession.failed) {
     return res.status(502).json({ error: consumedSession.failureMessage || "OAuth authentication could not be completed." });
   }
+
+  const markGoogleExchangeFailed = async (failureMessage: string) => {
+    if (consumedSession?.provider !== "google" || !consumedSession.processing) return;
+    try {
+      await writeOAuthSession(token, {
+        ...consumedSession,
+        authorizationCode: "google:failed",
+        processing: false,
+        processingUntil: undefined,
+        failed: true,
+        failureMessage,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+    } catch {
+      // Expiry is the cleanup path if the database is unavailable as well.
+    }
+  };
 
   try {
     // Apple's authorization code was already exchanged server-side inside the
@@ -8247,32 +8326,44 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
       }),
     });
     if (!response.ok) {
+      await markGoogleExchangeFailed("Google authentication could not be completed. Please start a new sign-in.");
       return res.status(response.status >= 500 ? 503 : 401).json({
-        error: "OAuth exchange failed.",
-        retryable: response.status >= 500,
+        error: "Google authentication could not be completed. Please start a new sign-in.",
+        retryable: false,
       });
     }
     const tokenData = await response.json() as { access_token?: string };
-    if (!tokenData.access_token) return res.status(401).json({ error: "OAuth exchange failed." });
+    if (!tokenData.access_token) {
+      await markGoogleExchangeFailed("Google authentication could not be completed. Please start a new sign-in.");
+      return res.status(401).json({
+        error: "Google authentication could not be completed. Please start a new sign-in.",
+      });
+    }
     const profileResponse = await fetchWithTimeout("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     if (!profileResponse.ok) {
+      await markGoogleExchangeFailed("Google authentication could not be confirmed. Please start a new sign-in.");
       return res.status(profileResponse.status >= 500 ? 503 : 401).json({
-        error: "OAuth profile lookup failed.",
-        retryable: profileResponse.status >= 500,
+        error: "Google authentication could not be confirmed. Please start a new sign-in.",
+        retryable: false,
       });
     }
     const profile = await profileResponse.json() as { email?: string; email_verified?: boolean; name?: string; picture?: string };
-    if (!profile.email || profile.email_verified !== true) return res.status(403).json({ error: "OAuth email could not be verified." });
+    if (!profile.email || profile.email_verified !== true) {
+      await markGoogleExchangeFailed("Google account email could not be verified. Please start a new sign-in.");
+      return res.status(403).json({ error: "Google account email could not be verified. Please start a new sign-in." });
+    }
     const user = await OAuthService.verifyAndUpsertOAuthUser({ email: profile.email, name: profile.name || profile.email.split("@")[0], avatar: profile.picture || "" });
     const jwtToken = setCookieToken(res, user.id, user.email, user.sessionVersion);
     try {
       await writeOAuthSession(token, {
-        ...session,
+        ...consumedSession,
         userId: user.id,
         email: user.email,
         authorizationCode: "google:server-exchanged",
+        processing: false,
+        processingUntil: undefined,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
     } catch {
@@ -8283,20 +8374,24 @@ app.post("/api/auth/oauth-session/:token", catchAsync(async (req, res) => {
   } catch (err: any) {
     if (err?.code === "OAUTH_DOMAIN_REJECTED") {
       await writeOAuthSession(token, {
-        ...session,
+        ...consumedSession,
         authorizationCode: "google:rejected",
         token: "",
         rejected: true,
+        processing: false,
+        processingUntil: undefined,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
       return res.json({ rejected: true, message: err.message });
     }
     if (err?.name === "AbortError" || err instanceof TypeError || isInfrastructureError(err)) {
+      await markGoogleExchangeFailed("Google authentication could not be confirmed. Please start a new sign-in.");
       return res.status(503).json({
-        error: "OAuth exchange is temporarily unavailable. Please try again.",
-        retryable: true,
+        error: "Google authentication could not be confirmed. Please start a new sign-in.",
+        retryable: false,
       });
     }
+    await markGoogleExchangeFailed("Google authentication could not be completed. Please start a new sign-in.");
     return res.status(500).json({ error: "OAuth exchange failed." });
   }
 }));

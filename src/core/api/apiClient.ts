@@ -1,6 +1,7 @@
 import { SecureStorage } from "../utils/secureStorage";
 import { getApiUrl } from "./api";
 import { NativeBridge } from "../../core/device/capacitor/nativeBridge";
+import { isPublicAuthEndpoint } from "./publicAuthEndpoint";
 
 /** Per-endpoint in-memory TTL (ms). Returns 0 = do not cache. */
 function getEndpointTtl(url: string): number {
@@ -161,6 +162,7 @@ export async function apiClient(
   const method = (options.method || "GET").toUpperCase();
   const isApiCall = url.includes("/api/") || url.startsWith("api/");
   const isGet = method === "GET";
+  const isPublicAuth = isPublicAuthEndpoint(url);
   const isSensitivePdfViewerUrl =
     /\/api\/(?:materials\/pdf\/[^/?#]+\/external-url|module-resources\/[^/?#]+\/pdf)(?:[?#]|$)/.test(url);
 
@@ -233,7 +235,11 @@ export async function apiClient(
       console.error("[API AUTH] SecureStorage auth_token read failed", error);
     }
 
-    if (token) {
+    // Auth initiation and exchange routes are public. A stale bearer token can
+    // otherwise make an OAuth URL request fail before the provider flow starts.
+    if (isPublicAuth) {
+      mergedHeaders.delete("Authorization");
+    } else if (token) {
       mergedHeaders.set("Authorization", `Bearer ${token}`);
     }
 
@@ -248,9 +254,7 @@ export async function apiClient(
       });
     }
 
-    const isAuthFormEndpoint =
-      /\/api\/auth\/(login|register|forgot-password|reset-password)$/.test(url);
-    const hadAuthToken = Boolean(token);
+    const hadAuthToken = Boolean(token && !isPublicAuth);
 
     let lastError: Error | null = null;
     const isIdempotent = !fetchOptions.method || fetchOptions.method.toUpperCase() === "GET";
@@ -297,7 +301,7 @@ export async function apiClient(
             else if (response.status >= 500) errorMsg = "The server is currently unavailable. Please try again later.";
           }
 
-          if (response.status === 401 && hadAuthToken && !isAuthFormEndpoint) {
+          if (response.status === 401 && hadAuthToken && !isPublicAuth) {
             window.dispatchEvent(new CustomEvent("app-session-expired", { detail: errorMsg }));
           }
 
@@ -368,7 +372,7 @@ export async function apiClient(
       lastErrorDetails?.status === 503 && lastErrorDetails.body?.retryable === true;
     const browserIsOffline = typeof navigator !== "undefined" && navigator.onLine === false;
     const isUnauthenticatedResponse =
-      lastErrorDetails?.status === 401 && !hadAuthToken && !isAuthFormEndpoint;
+      lastErrorDetails?.status === 401 && !hadAuthToken && !isPublicAuth;
 
     if (
       !silent &&
