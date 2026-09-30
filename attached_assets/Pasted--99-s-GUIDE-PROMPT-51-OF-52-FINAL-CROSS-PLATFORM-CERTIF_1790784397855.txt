@@ -1,0 +1,4421 @@
+# 99’s GUIDE — PROMPT 51 OF 52
+## FINAL CROSS-PLATFORM CERTIFICATION
+## E2E + PWA + CAPACITOR + IPHONE/IPAD + NATIVE LIFECYCLE
+## ARABIC RTL + ACCESSIBILITY + OFFLINE/RECOVERY + VERSION-SKEW VALIDATION
+### CERTIFY THE CURRENT SYSTEM — FIX REAL DEFECTS — NO PRODUCTION ROLLOUT
+
+Prompts 1–50 have been completed.
+
+Prompt 48 completed full Study Engine integration hardening.
+
+Prompt 49 established safe maintenance/reconciliation tooling.
+
+Prompt 50 established privacy-safe observability, health diagnostics, and release gates.
+
+The roadmap now has only:
+
+```text
+Prompt 51 — Final E2E / PWA / Capacitor / RTL / native validation
+Prompt 52 — Staged rollout / post-release / final audit
+```
+
+Prompt 51 is the final **cross-platform certification pass** before any staged production rollout.
+
+Do NOT implement Prompt 52 early.
+
+---
+
+# 1. PRIMARY OBJECTIVE
+
+Certify the complete current application and Study Engine across:
+
+1. normal browser;
+2. PWA;
+3. Capacitor iOS architecture;
+4. iPhone layouts;
+5. iPad layouts;
+6. portrait;
+7. landscape where supported;
+8. app foreground/background lifecycle;
+9. lock/resume;
+10. app termination/relaunch;
+11. external resource handoff;
+12. offline/reconnect;
+13. service-worker update behavior;
+14. hard-refresh/deep-link recovery;
+15. Arabic RTL;
+16. English LTR;
+17. language switching;
+18. keyboard behavior;
+19. safe areas;
+20. status bar;
+21. native back/navigation behavior;
+22. accessibility;
+23. reduced motion;
+24. low-connectivity behavior;
+25. authentication restoration;
+26. account switching;
+27. all Study Engine user flows;
+28. owner/admin Study Engine flows;
+29. Prompt50 release gates;
+30. backward compatibility.
+
+Fix actual defects discovered during certification.
+
+Do NOT add unrelated product features.
+
+---
+
+# 2. FINAL PRODUCT-CERTIFICATION PRINCIPLE
+
+A test passes only when the actual supported behavior works.
+
+Do NOT:
+
+```text
+mock a platform bug away
+mark NOT_RUN as PASS
+infer physical-device success from a browser screenshot
+claim iOS certification without an iOS-capable environment
+```
+
+---
+
+# 3. HONEST EXECUTION STATUS
+
+Every certification item must be classified as one of:
+
+```text
+PASS
+FAIL
+NOT_RUN
+BLOCKED
+NOT_APPLICABLE
+```
+
+Definitions:
+
+```text
+PASS
+=
+actually executed and passed
+
+FAIL
+=
+executed and failed
+
+NOT_RUN
+=
+environment did not permit execution
+
+BLOCKED
+=
+execution should have been possible but an unresolved dependency/defect prevented it
+
+NOT_APPLICABLE
+=
+not supported / intentionally outside product contract
+```
+
+Never convert `NOT_RUN` into `PASS`.
+
+---
+
+# 4. ENVIRONMENT CAPABILITY PREFLIGHT
+
+Before testing, report:
+
+```text
+OS
+Node version
+npm/pnpm version
+browser versions
+available Chromium browser
+available WebKit/Safari capability
+available mobile emulation
+Capacitor CLI version
+Xcode availability
+macOS availability
+iOS Simulator availability
+physical iPhone availability
+physical iPad availability
+Android tooling if present
+```
+
+Do not assume any tool exists.
+
+---
+
+# 5. IF XCODE / IOS SIMULATOR IS UNAVAILABLE
+
+Do NOT fake native execution.
+
+Still perform all possible:
+
+```text
+Capacitor config validation
+iOS project inspection
+native configuration inspection
+web/native bridge review
+PWA/mobile browser emulation
+safe-area review
+lifecycle integration unit/integration tests
+native plugin configuration audit
+build artifact inspection
+```
+
+Mark true Xcode/device-only items:
+
+```text
+NOT_RUN
+```
+
+and generate an exact manual certification checklist.
+
+These unavailable environment checks are not automatically a code defect.
+
+---
+
+# 6. PROMPT52 ROLLOUT GATE
+
+Prompt52 must not enable production rollout until any genuinely required manual/native certification items are completed.
+
+Prompt51 must clearly identify them.
+
+---
+
+# 7. TEST FRAMEWORK DISCOVERY
+
+Inspect existing:
+
+```text
+Vitest/Jest
+React Testing Library
+Playwright
+Cypress
+Capacitor test infrastructure
+browser automation
+PWA tooling
+Lighthouse tooling
+accessibility tooling
+native scripts
+```
+
+Reuse existing framework.
+
+---
+
+# 8. DO NOT ADD DUPLICATE E2E FRAMEWORK
+
+If Playwright exists:
+
+use it.
+
+If Cypress exists and is the canonical E2E system:
+
+use it.
+
+Do NOT install both.
+
+---
+
+# 9. E2E TEST ENVIRONMENT
+
+Use:
+
+```text
+local / disposable test backend
+disposable PostgreSQL
+local/mock D1
+local/mock Worker
+mocked Workers AI where needed
+```
+
+Never use production student data.
+
+---
+
+# 10. PRODUCTION ACCESS
+
+Prompt51 must perform:
+
+```text
+production mutations = 0
+```
+
+Do not create real production:
+
+```text
+Focus sessions
+Group rooms
+Recall attempts
+Points
+Mastery
+Retention
+Challenges
+Leaderboard state
+AI Insights
+```
+
+---
+
+# 11. RELEASE CHECK FIRST
+
+Run Prompt50 release-check locally before certification.
+
+If it reports:
+
+```text
+FAIL
+```
+
+fix the actual Prompt51-scope blocker before continuing.
+
+Do not bypass the gate.
+
+---
+
+# 12. RELEASE CHECK AFTER FIXES
+
+Run again at the end.
+
+---
+
+# 13. FULL USER E2E JOURNEY
+
+Create at least one realistic integrated student journey:
+
+```text
+login
+→ Welcome
+→ Modules
+→ Subject
+→ Lecture
+→ Focus Hub
+→ create Focus plan
+→ Active Focus
+→ resource handoff
+→ return
+→ Quick Note
+→ pause/resume
+→ complete session
+→ break/next round if configured
+→ Focus completion
+→ Focus summary/history
+→ Gamification
+→ Recall
+→ Mastery
+→ Study Analyzer
+→ Ask My Study Data
+→ Profile
+→ logout
+```
+
+Only include steps enabled by the local certification feature profile.
+
+---
+
+# 14. NO FAKE CROSS-DOMAIN WRITE
+
+During that E2E journey verify:
+
+```text
+Calendar pollution = 0
+duplicate Points = 0
+duplicate StudyEvents = 0
+duplicate Focus sessions = 0
+```
+
+---
+
+# 15. AUTH E2E
+
+Validate:
+
+```text
+existing login
+logout
+session restore
+expired session
+direct deep link while logged out
+direct deep link after login
+account A logout → account B login
+```
+
+---
+
+# 16. ACCOUNT SWITCH PRIVACY
+
+Critical:
+
+User B must never see User A's:
+
+```text
+Focus history
+Quick Notes
+Gamification private totals
+Recall state
+Mastery
+Retention
+Study Analyzer
+AI Study Insight
+Ask My Study Data state
+Group resume token
+```
+
+even briefly.
+
+---
+
+# 17. WELCOME PAGE
+
+Validate new Study Engine cards/navigation do not reintroduce historical mobile first-load unresponsive behavior.
+
+Test:
+
+```text
+fresh launch
+hard reload
+PWA cold start
+Capacitor-like cold start
+```
+
+---
+
+# 18. MAIN NAVIGATION
+
+Validate:
+
+```text
+Welcome
+Modules
+Schedule
+Console where authorized
+Profile
+```
+
+main navigation remains stable.
+
+---
+
+# 19. GLOBAL SWIPE
+
+Regression-test existing main-tab swipe rules.
+
+No Study Engine route may accidentally break global page navigation.
+
+---
+
+# 20. ACTIVE FOCUS IMMERSIVE ROUTE
+
+If global swipe is intentionally disabled here:
+
+verify it is disabled only on that route/context.
+
+---
+
+# 21. GROUP FOCUS IMMERSIVE ROUTE
+
+Same.
+
+---
+
+# 22. SCHEDULE
+
+Do NOT alter Schedule swipe behavior.
+
+Regression-test:
+
+```text
+Month
+Week
+Day
+```
+
+according to current frozen app behavior.
+
+---
+
+# 23. LECTURE DETAIL
+
+Validate existing:
+
+```text
+PDF
+Notes
+MCQ
+Anki/Flashcards
+Video
+Q&A
+```
+
+tabs remain functional.
+
+---
+
+# 24. EXTERNAL PDF
+
+Validate intended behavior:
+
+```text
+tap canonical PDF
+→ native/system/external viewer
+```
+
+No embedded fake reading tracking.
+
+---
+
+# 25. EXTERNAL VIDEO
+
+Same canonical resource navigation.
+
+---
+
+# 26. RESOURCE HANDOFF DURING FOCUS
+
+Critical E2E:
+
+```text
+ACTIVE Focus
+→ open PDF/video through Resource Handoff
+→ app/browser lifecycle changes
+→ return
+→ reconcile
+→ Focus remains valid
+```
+
+---
+
+# 27. RESOURCE HANDOFF FAILURE
+
+Simulate launch failure where possible.
+
+Expected:
+
+```text
+no stuck fake RESOURCE_HANDOFF
+no Focus corruption
+no Points
+```
+
+---
+
+# 28. PDF OPEN SIDE EFFECT
+
+Assert:
+
+```text
+Study Points = 0
+Mastery direct change = 0
+Retention memory anchor = 0
+Calendar event = 0
+```
+
+from PDF open itself.
+
+---
+
+# 29. FOCUS HUB CERTIFICATION
+
+Validate:
+
+```text
+presets
+custom duration
+lecture queue
+session counts
+reordering
+duplicate lecture handling
+plan summary
+save
+start
+resume active session
+```
+
+---
+
+# 30. FOCUS PRESET MATRIX
+
+At minimum:
+
+```text
+25/5
+45/10
+50/10
+90/20
+Custom
+```
+
+where supported.
+
+---
+
+# 31. FOCUS DOUBLE START
+
+UI + E2E should not create duplicate canonical sessions.
+
+---
+
+# 32. ACTIVE FOCUS TIMER
+
+Validate:
+
+```text
+timestamp-derived timer
+no negative time
+1 Hz presentation
+canonical ACTIVE
+PAUSED
+RESOURCE_HANDOFF
+RECONCILIATION_REQUIRED
+terminal state
+```
+
+---
+
+# 33. PAUSE / RESUME
+
+Validate rapidly:
+
+```text
+pause
+resume
+pause
+resume
+```
+
+No duplicate transition/toast.
+
+---
+
+# 34. PAUSED → COMPLETED
+
+Must remain impossible.
+
+---
+
+# 35. BACKGROUND ACTIVE FOCUS
+
+Test where tooling permits:
+
+```text
+ACTIVE
+→ background
+→ wait/simulate elapsed time
+→ foreground
+```
+
+Timer must reconcile from canonical timestamps.
+
+---
+
+# 36. LOCK / RESUME
+
+If real iOS simulation/device is available:
+
+test screen lock or equivalent lifecycle transition.
+
+If unavailable:
+
+mark `NOT_RUN`.
+
+---
+
+# 37. APP TERMINATION DURING FOCUS
+
+Where native simulator/device is available:
+
+```text
+ACTIVE Focus
+→ terminate app
+→ relaunch
+→ resume/recover canonical session
+```
+
+---
+
+# 38. WEB HARD REFRESH DURING FOCUS
+
+Must recover.
+
+---
+
+# 39. NETWORK LOSS DURING FOCUS
+
+Validate:
+
+```text
+known timer may continue visually where architecture allows
+canonical action unavailable
+no fake completion
+reconnect
+server state wins
+```
+
+---
+
+# 40. TIMER REACHES ZERO OFFLINE
+
+Client must not invent canonical completion.
+
+---
+
+# 41. FOCUS BREAK
+
+Validate:
+
+```text
+break start
+countdown
+background
+reload where supported
+skip
+elapsed
+next round ready
+```
+
+No verified Focus credit during break.
+
+---
+
+# 42. MULTI-SESSION PLAN
+
+Test multiple sessions same lecture and multiple lectures.
+
+---
+
+# 43. QUICK NOTES
+
+Validate:
+
+```text
+create/edit if supported
+same session/lecture
+reload
+privacy
+keyboard
+Arabic
+```
+
+---
+
+# 44. QUICK NOTES → CALENDAR
+
+Expected:
+
+```text
+0
+```
+
+---
+
+# 45. MANUAL LECTURE COMPLETE
+
+Validate Prompt42 behavior.
+
+It must remain distinct from:
+
+```text
+Focus completion
+Mastery MASTERED
+Points
+Retention
+```
+
+---
+
+# 46. FOCUS SUMMARY
+
+Validate exact server facts.
+
+No invented:
+
+```text
+pages read
+video completion
+Points estimate
+```
+
+---
+
+# 47. FOCUS HISTORY
+
+Validate:
+
+```text
+pagination
+detail
+privacy
+hard refresh
+empty user
+legacy user
+```
+
+---
+
+# 48. GROUP FOCUS E2E
+
+Use two independent browser contexts/users where possible.
+
+Test:
+
+```text
+host create
+participant join
+lobby
+presence
+countdown
+Focus
+break
+pause/resume if authorized
+reconnect
+completion
+terminal summary
+```
+
+---
+
+# 49. GROUP SHARED STUDY
+
+All participants see canonical shared lecture.
+
+---
+
+# 50. GROUP STUDY TOGETHER
+
+Participants may see/use their own canonical lecture according to existing contract.
+
+---
+
+# 51. GROUP PRIVATE INVITE
+
+Validate:
+
+```text
+create private room
+copy invite
+second user join
+```
+
+---
+
+# 52. INVITE SECURITY
+
+Assert invite contains no:
+
+```text
+runtime capability
+resume token
+internal auth secret
+```
+
+---
+
+# 53. CAPABILITY SECURITY
+
+Capability remains:
+
+```text
+memory only
+```
+
+No:
+
+```text
+localStorage
+sessionStorage
+URL
+logs
+```
+
+---
+
+# 54. GROUP RESUME TOKEN
+
+Preserve Prompt16 semantics.
+
+---
+
+# 55. GROUP RECONNECT
+
+Simulate connection loss shorter than canonical grace.
+
+Reconnect safely.
+
+---
+
+# 56. GROUP GRACE CREDIT
+
+No client claim of study credit for grace.
+
+---
+
+# 57. GROUP LONG DISCONNECT
+
+Runtime canonical result wins.
+
+---
+
+# 58. GROUP APP BACKGROUND
+
+Validate runtime reconnect/recovery.
+
+---
+
+# 59. GROUP ROUTE UNMOUNT
+
+Navigation must not create duplicate WebSocket when returning.
+
+---
+
+# 60. GROUP STRICTMODE
+
+One logical runtime connection.
+
+---
+
+# 61. GROUP TERMINAL SUMMARY
+
+Validate finalizing state if PG reconciliation is delayed.
+
+---
+
+# 62. GROUP POINTS
+
+Frontend must not calculate them.
+
+---
+
+# 63. GROUP JOIN SIDE EFFECT
+
+Join alone:
+
+```text
+Points = 0
+```
+
+---
+
+# 64. GAMIFICATION E2E
+
+Validate:
+
+```text
+total Study Points
+category breakdown
+Level
+Achievements
+Challenges
+Weekly Leaderboard
+Monthly
+Semester
+All-Time
+```
+
+---
+
+# 65. LEVEL
+
+Validate current Level and next-Level progress from server.
+
+---
+
+# 66. LEVEL REVERSAL
+
+Fixture:
+
+```text
+canonical Points reversal
+→ lower Level
+→ unlocked Achievement remains
+```
+
+---
+
+# 67. ACHIEVEMENTS
+
+Validate:
+
+```text
+unlocked
+in progress
+private/public profile-safe
+```
+
+---
+
+# 68. CHALLENGES
+
+Validate:
+
+```text
+active
+completed
+expired
+cancelled
+```
+
+No invented reward.
+
+---
+
+# 69. LEADERBOARD
+
+Validate:
+
+```text
+1, 2, 2, 4
+```
+
+competition ranks.
+
+---
+
+# 70. PRIVACY GAP
+
+Hidden row must not renumber remaining ranks.
+
+---
+
+# 71. LEADERBOARD CURSOR
+
+Load more.
+
+---
+
+# 72. CURSOR EXPIRED
+
+Safe refresh; no mixed snapshots.
+
+---
+
+# 73. D1 FAILURE
+
+Mock/fail D1.
+
+Validate PostgreSQL fallback.
+
+---
+
+# 74. PUBLIC PROFILE
+
+Validate only Prompt24-safe Gamification appears.
+
+No private study analytics.
+
+---
+
+# 75. SPACED RECALL E2E
+
+Test:
+
+```text
+eligible
+open
+one item
+answer/skip
+terminal
+close
+eligibility refresh
+```
+
+---
+
+# 76. RECALL MCQ
+
+Client submits selection only.
+
+Server supplies correctness.
+
+---
+
+# 77. RECALL FLASHCARD
+
+Reveal is not correctness.
+
+Self-assessment semantics preserved.
+
+---
+
+# 78. RECALL SKIP
+
+Neutral.
+
+---
+
+# 79. RECALL EXPIRY
+
+Neutral.
+
+---
+
+# 80. RECALL DOUBLE OPEN
+
+No uncontrolled duplicate protected attempts.
+
+---
+
+# 81. RECALL HARD REFRESH
+
+Restores same active attempt where supported.
+
+---
+
+# 82. RECALL BACKGROUND
+
+Same attempt if still valid.
+
+---
+
+# 83. RECALL OFFLINE ANSWER
+
+No fake canonical result.
+
+---
+
+# 84. RECALL POINTS
+
+Only canonical server reward displayed.
+
+---
+
+# 85. MASTERY E2E
+
+Validate all six states:
+
+```text
+NOT_STARTED
+STARTED
+LEARNING
+NEEDS_REVIEW
+GOOD
+MASTERED
+```
+
+---
+
+# 86. RETENTION E2E
+
+Validate:
+
+```text
+insufficient
+fresh
+due soon
+due
+overdue
+```
+
+using actual current enum.
+
+---
+
+# 87. MASTERED + DUE
+
+If canonical fixture permits, verify both can coexist.
+
+---
+
+# 88. DUE REVIEW LIST
+
+Ordering must match backend.
+
+---
+
+# 89. MASTERY PRIVACY
+
+User A cannot fetch User B's Mastery/Retention.
+
+---
+
+# 90. REVIEW ACTION
+
+No Calendar write.
+
+---
+
+# 91. FOCUS FROM MASTERY
+
+Preselection only.
+
+No auto-start.
+
+---
+
+# 92. STUDY ANALYZER E2E
+
+Validate:
+
+```text
+7 days
+30 days
+semester
+Focus facts
+objective MCQ
+Flashcards
+Recall
+Mastery
+Retention
+consistency
+subject activity
+patterns
+weakness signals
+positive signals
+```
+
+---
+
+# 93. UNKNOWN ≠ ZERO
+
+Critical UI certification.
+
+---
+
+# 94. MOST USED ≠ BEST
+
+Correct wording.
+
+---
+
+# 95. PATTERN INSUFFICIENT DATA
+
+No guessed recommendation.
+
+---
+
+# 96. AI STUDY INSIGHT
+
+Use mocked/local provider path for automated certification.
+
+Do NOT consume production quota.
+
+---
+
+# 97. AI SUCCESS
+
+Grounded result renders.
+
+---
+
+# 98. AI UNAVAILABLE
+
+Deterministic Analyzer still works.
+
+---
+
+# 99. AI INVALID RESULT
+
+Validation/fallback works.
+
+---
+
+# 100. NO GEMINI
+
+Assert no fallback was introduced.
+
+---
+
+# 101. ASK MY STUDY DATA
+
+Validate:
+
+```text
+supported question
+deterministic answer
+AI-assisted answer if applicable
+unsupported/privacy request
+cross-user request
+```
+
+---
+
+# 102. ASK MY DATA HISTORY
+
+No persistent chat history added.
+
+---
+
+# 103. OWNER ANALYTICS E2E
+
+Authorized owner:
+
+```text
+open Console
+→ Owner Analytics
+→ window switch
+→ subject aggregates
+→ Mastery aggregate
+→ Retention aggregate
+→ privacy suppression
+```
+
+---
+
+# 104. STUDENT OWNER-ANALYTICS ACCESS
+
+Expected:
+
+```text
+denied
+```
+
+---
+
+# 105. OWNER INDIVIDUAL ANALYZER
+
+Expected:
+
+```text
+does not exist
+```
+
+---
+
+# 106. PRIVACY SUPPRESSION
+
+Validate small cohort:
+
+```text
+suppressed
+!=
+zero
+```
+
+---
+
+# 107. SYSTEM HEALTH
+
+Authorized technical/owner role only.
+
+---
+
+# 108. STUDENT SYSTEM HEALTH
+
+Denied.
+
+---
+
+# 109. HEALTH STATUS
+
+Validate:
+
+```text
+HEALTHY
+DEGRADED
+UNHEALTHY
+UNKNOWN
+```
+
+or current enum.
+
+---
+
+# 110. HEALTH PRIVACY
+
+No student details.
+
+---
+
+# 111. RELEASE GATES
+
+Final local run after all certification fixes.
+
+---
+
+# 112. PWA CERTIFICATION
+
+Inspect and validate:
+
+```text
+manifest
+icons
+display mode
+scope
+start_url
+service worker
+installability
+offline shell
+route navigation
+update behavior
+cache behavior
+chunk loading
+```
+
+---
+
+# 113. PWA MANIFEST
+
+Check:
+
+```text
+name
+short_name
+icons
+theme/background colors
+orientation
+display
+scope
+start_url
+```
+
+against current product.
+
+---
+
+# 114. PWA INSTALLABILITY
+
+Use available browser tooling.
+
+Mark actual status.
+
+---
+
+# 115. SERVICE WORKER
+
+Validate:
+
+```text
+first load
+reload
+hard reload
+new build/update simulation
+stale client
+new chunk request
+```
+
+---
+
+# 116. STALE PWA CLIENT
+
+New route chunks must not create permanent blank screen.
+
+Use existing recovery strategy.
+
+---
+
+# 117. CHUNK LOAD FAILURE
+
+Validate existing retry/reload UI.
+
+No infinite reload loop.
+
+---
+
+# 118. OFFLINE PWA
+
+For read-only cached shell:
+
+render safe offline state.
+
+Do not claim canonical actions succeeded.
+
+---
+
+# 119. PWA ONLINE RESTORE
+
+Queries refetch canonically.
+
+---
+
+# 120. PWA DEEP LINKS
+
+Validate direct routes:
+
+```text
+/focus
+/focus/history
+/group-focus or actual route
+/gamification
+/mastery
+/study-analyzer
+```
+
+through actual router paths.
+
+---
+
+# 121. PWA AUTH DEEP LINK
+
+Logged-out deep link → auth → return safely.
+
+---
+
+# 122. PWA STORAGE
+
+Audit:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+Cache Storage
+```
+
+for unintended private Study Engine persistence.
+
+---
+
+# 123. CAPACITOR CONFIG CERTIFICATION
+
+Inspect:
+
+```text
+capacitor.config.*
+plugins
+server config
+webDir
+scheme
+StatusBar
+SplashScreen
+Keyboard
+orientation
+content inset
+```
+
+---
+
+# 124. DO NOT BLINDLY CHANGE HISTORICAL CAPACITOR SETTINGS
+
+Fix only actual Prompt51 defect.
+
+---
+
+# 125. IOS MINIMUM VERSION
+
+Validate current configured deployment target remains compatible with product baseline.
+
+Do not arbitrarily raise it.
+
+---
+
+# 126. STATUS BAR
+
+Validate against:
+
+```text
+light mode
+dark mode
+safe area
+top headers
+modal/full-screen pages
+```
+
+---
+
+# 127. SAFE AREA TOP
+
+No content under notch/Dynamic Island unintentionally.
+
+---
+
+# 128. SAFE AREA BOTTOM
+
+No CTA hidden behind home indicator.
+
+---
+
+# 129. KEYBOARD
+
+Validate inputs on:
+
+```text
+Quick Notes
+room name
+invite code
+Mastery search
+Analyzer/Ask My Data question
+profile/search surfaces
+```
+
+---
+
+# 130. KEYBOARD RESIZE
+
+No catastrophic jumps.
+
+No permanent incorrect viewport after dismiss.
+
+---
+
+# 131. INPUT FOCUS
+
+Native keyboard should not hide primary Submit/Save where avoidable.
+
+---
+
+# 132. APP FOREGROUND / BACKGROUND
+
+Central lifecycle listeners must not duplicate.
+
+---
+
+# 133. CAPACITOR APPSTATE
+
+Validate any existing:
+
+```text
+App.addListener(...)
+```
+
+cleanup and re-registration.
+
+---
+
+# 134. VISIBILITY API + CAPACITOR
+
+Ensure duplicate lifecycle events do not trigger duplicate:
+
+```text
+Focus reconcile
+query refetch
+Group reconnect
+```
+
+---
+
+# 135. APP COLD START
+
+Validate no transient stale prior-user Study Engine state.
+
+---
+
+# 136. APP WARM RESUME
+
+Validate no unnecessary route reset.
+
+---
+
+# 137. APP KILL / RELAUNCH
+
+Test where environment permits.
+
+---
+
+# 138. ORIENTATION
+
+Respect current supported orientation policy.
+
+If app is portrait-locked on iPhone:
+
+do not force landscape certification there.
+
+Test iPad orientations if app supports them.
+
+---
+
+# 139. NATIVE EXTERNAL PDF
+
+If physical/simulator available:
+
+verify system/native viewer handoff.
+
+Otherwise inspect native URL/open implementation and mark manual runtime test `NOT_RUN`.
+
+---
+
+# 140. NATIVE EXTERNAL VIDEO
+
+Same.
+
+---
+
+# 141. OAUTH REGRESSION
+
+Do not break existing Google/Apple authentication.
+
+Run safe local/config validation available in environment.
+
+Do not use production credentials in automated tests.
+
+---
+
+# 142. APP LINKS / CALLBACKS
+
+Inspect existing native auth callback/deep-link configuration.
+
+Do not redesign.
+
+---
+
+# 143. AUDIO NATIVE CERTIFICATION
+
+Validate Prompt39 behavior:
+
+```text
+ambient
+local user audio
+volume
+loop
+pause/resume
+background interruption
+cleanup
+```
+
+where environment permits.
+
+---
+
+# 144. AUDIO AUTOPLAY
+
+Still:
+
+```text
+NO
+```
+
+without explicit user interaction.
+
+---
+
+# 145. AUDIO BACKGROUND
+
+Do not claim unsupported native background audio.
+
+---
+
+# 146. AUDIO FILE PRIVACY
+
+User-owned file remains local.
+
+---
+
+# 147. IPHONE VIEWPORT MATRIX
+
+Automated browser emulation should cover representative classes such as:
+
+```text
+small iPhone width
+standard modern iPhone
+large/Max iPhone
+```
+
+Use existing device presets where available.
+
+---
+
+# 148. DO NOT OVERFIT TO ONE IPHONE
+
+Mandatory.
+
+---
+
+# 149. IPAD MATRIX
+
+Cover representative:
+
+```text
+compact iPad/tablet width
+11-inch class
+13-inch class
+portrait
+landscape where supported
+```
+
+through browser emulation and native simulator if available.
+
+---
+
+# 150. IPAD IS NOT DESKTOP
+
+Critical.
+
+Verify actual tablet layout for:
+
+```text
+Focus Hub
+Active Focus
+Focus Summary
+Group Focus
+Gamification
+Mastery
+Study Analyzer
+Owner Analytics
+System Health
+Lecture detail
+```
+
+---
+
+# 151. IPAD LECTURE BAR REGRESSION
+
+Existing:
+
+```text
+PDF
+Notes
+MCQ
+Anki
+Video
+Q&A
+```
+
+bar remains appropriately sized/aligned.
+
+---
+
+# 152. DESKTOP/PWA MATRIX
+
+Test at least:
+
+```text
+1366×768
+1440×900
+large desktop
+```
+
+or representative equivalents.
+
+---
+
+# 153. NO UNBOUNDED MAX WIDTH
+
+Large monitors should not make dashboards unreadably stretched.
+
+---
+
+# 154. MOBILE OVERFLOW AUDIT
+
+Programmatically/visually inspect all Study pages for horizontal overflow.
+
+---
+
+# 155. RTL CERTIFICATION
+
+Every new Study Engine page must be explicitly tested in Arabic.
+
+---
+
+# 156. ARABIC ROUTES / SCREENS
+
+At minimum:
+
+```text
+Focus Hub
+Active Focus
+Focus Summary
+Focus History
+Group Focus
+Gamification
+Leaderboard
+Recall
+Mastery
+Study Analyzer
+Owner Analytics
+System Health
+```
+
+---
+
+# 157. RTL DIRECTION
+
+Correct:
+
+```text
+text alignment
+icons
+chevrons
+lists
+cards
+dialogs
+drawers
+forms
+tabs
+progress
+```
+
+---
+
+# 158. TIMER DIGITS
+
+Remain stable/readable.
+
+---
+
+# 159. LEADERBOARD RANKS
+
+Correct bidi behavior.
+
+---
+
+# 160. MEDICAL TERMS
+
+Mixed Arabic + Latin terminology remains readable.
+
+---
+
+# 161. CHARTS
+
+Do not incorrectly reverse chronological data in RTL.
+
+---
+
+# 162. ARABIC LANGUAGE SWITCH DURING ACTIVE FOCUS
+
+Timer/session must continue without restart.
+
+---
+
+# 163. LANGUAGE SWITCH DURING GROUP FOCUS
+
+Must not create second realtime connection.
+
+---
+
+# 164. LANGUAGE SWITCH DURING RECALL
+
+Must not create second attempt.
+
+---
+
+# 165. LANGUAGE SWITCH DURING ANALYZER
+
+No canonical writes.
+
+---
+
+# 166. ENGLISH REGRESSION
+
+Arabic fixes must not break English.
+
+---
+
+# 167. ACCESSIBILITY CERTIFICATION
+
+Run available automated accessibility checks.
+
+Also inspect critical flows manually/semantically.
+
+---
+
+# 168. KEYBOARD NAVIGATION
+
+Desktop/PWA:
+
+all actionable controls reachable.
+
+---
+
+# 169. FOCUS VISIBLE
+
+No invisible focus state.
+
+---
+
+# 170. DIALOG FOCUS TRAP
+
+Validate:
+
+```text
+create Group room
+join room
+Focus abandon confirmation
+sheets/modals
+```
+
+---
+
+# 171. FOCUS RESTORE
+
+Closing dialog returns focus appropriately.
+
+---
+
+# 172. SCREEN READER TIMER
+
+No per-second announcement spam.
+
+---
+
+# 173. SCREEN READER CHARTS
+
+Text alternatives exist.
+
+---
+
+# 174. SCREEN READER LEADERBOARD
+
+Rank/name/Points semantics.
+
+---
+
+# 175. SCREEN READER RECALL
+
+Question/options/results meaningful.
+
+---
+
+# 176. SCREEN READER HEALTH
+
+Status semantics meaningful.
+
+---
+
+# 177. REDUCED MOTION
+
+Validate:
+
+```text
+page transitions
+timer visuals
+achievement animations
+leaderboard
+charts
+participant changes
+```
+
+remain usable.
+
+---
+
+# 178. COLOR CONTRAST
+
+Use current theme tokens.
+
+Fix actual inaccessible contrast discovered within Prompt51 scope.
+
+---
+
+# 179. COLOR NOT SOLE SIGNAL
+
+Validate:
+
+```text
+correct/incorrect
+health status
+Mastery state
+trend
+privacy suppression
+```
+
+all have textual/icon support.
+
+---
+
+# 180. TOUCH TARGETS
+
+Critical mobile controls should be at least approximately 44×44 where applicable.
+
+---
+
+# 181. PINCH ZOOM REGRESSION
+
+Confirm current native-app-like zoom policy has not regressed.
+
+Do not break accessibility beyond existing intended product constraints.
+
+---
+
+# 182. NETWORK MATRIX
+
+Test:
+
+```text
+online
+offline
+offline → online
+slow connection
+request timeout
+5xx
+429 where relevant
+```
+
+---
+
+# 183. CANONICAL ACTION FAILURE
+
+No optimistic fake success.
+
+---
+
+# 184. RETRY SAFETY
+
+No duplicate mutations after reconnect/retry.
+
+---
+
+# 185. AUTH TOKEN EXPIRY
+
+Simulate where feasible during:
+
+```text
+Focus
+Group Focus
+Recall
+Analyzer read
+```
+
+---
+
+# 186. OFFLINE MATRIX — SOLO FOCUS
+
+Safe.
+
+---
+
+# 187. OFFLINE MATRIX — GROUP FOCUS
+
+No offline room authority.
+
+---
+
+# 188. OFFLINE MATRIX — RECALL
+
+No fake answer.
+
+---
+
+# 189. OFFLINE MATRIX — GAMIFICATION
+
+Cached read-only only.
+
+---
+
+# 190. OFFLINE MATRIX — MASTERY
+
+Cached read-only only.
+
+---
+
+# 191. OFFLINE MATRIX — ANALYZER
+
+No local recompute.
+
+---
+
+# 192. OFFLINE MATRIX — AI
+
+Unavailable/fallback.
+
+---
+
+# 193. OFFLINE MATRIX — OWNER ANALYTICS
+
+No fabricated values.
+
+---
+
+# 194. VERSION-SKEW CERTIFICATION
+
+Test/simulate:
+
+```text
+old frontend + additive new backend
+new frontend + optional Study features disabled
+new frontend + D1 reads disabled
+new frontend + AI disabled
+```
+
+---
+
+# 195. BACKWARD API COMPATIBILITY
+
+No existing App Store client route should break because Prompt51 fixes were added.
+
+---
+
+# 196. OPTIONAL FIELDS
+
+New frontend must tolerate missing optional Study fields when backend feature is disabled/older.
+
+---
+
+# 197. FEATURE FLAG MATRIX
+
+At minimum certify:
+
+```text
+all Study frontend features OFF
+all Study frontend features ON locally
+AI OFF
+Group Focus OFF
+Leaderboard D1 reads OFF
+Owner Analytics OFF
+System Health frontend OFF
+```
+
+---
+
+# 198. ALL FLAGS OFF
+
+Existing production-like app remains usable.
+
+---
+
+# 199. ALL FLAGS ON
+
+No navigation collision.
+
+---
+
+# 200. NO HIDDEN API REQUESTS WHEN FLAG OFF
+
+Validate.
+
+---
+
+# 201. SERVICE FAILURE MATRIX
+
+Simulate:
+
+```text
+PostgreSQL unavailable
+D1 unavailable
+KV unavailable
+Workers AI unavailable
+Group Worker/DO unavailable
+Socket.IO unavailable
+```
+
+where feasible.
+
+---
+
+# 202. FAILURE ISOLATION
+
+Critical examples:
+
+```text
+AI down
+→ deterministic Analyzer works
+
+Group runtime down
+→ Solo Focus works
+
+D1 down
+→ PG fallback works where designed
+
+Socket.IO down
+→ canonical correctness remains
+```
+
+---
+
+# 203. ERROR BOUNDARIES
+
+One Study page error must not crash whole app shell.
+
+---
+
+# 204. TOAST AUDIT
+
+No duplicate success/error toasts from retries/StrictMode.
+
+---
+
+# 205. LOADING AUDIT
+
+No indefinite loading spinner without timeout/error/recovery state.
+
+---
+
+# 206. EMPTY STATE AUDIT
+
+Validate:
+
+```text
+new user
+no Points
+no Recall history
+no Mastery evidence
+no Analyzer data
+no leaderboard rank
+no Focus history
+```
+
+---
+
+# 207. LEGACY USER
+
+User predating Study Engine loads all new surfaces safely.
+
+---
+
+# 208. LEGACY CONTENT
+
+Old lectures/materials work.
+
+---
+
+# 209. MISSING PROJECTION
+
+Safe fallback.
+
+---
+
+# 210. PARTIAL PROJECTION
+
+Safe fallback.
+
+---
+
+# 211. PERFORMANCE CERTIFICATION
+
+Do not invent production SLAs.
+
+Measure practical UI behavior.
+
+---
+
+# 212. WELCOME REQUEST COUNT
+
+Inspect with Study features on.
+
+No request storm.
+
+---
+
+# 213. FOREGROUND REFRESH
+
+No 20-request burst caused by duplicate listeners.
+
+---
+
+# 214. ACTIVE FOCUS RENDER
+
+Timer tick should not rerender entire app shell.
+
+---
+
+# 215. GROUP FOCUS RENDER
+
+Same.
+
+---
+
+# 216. MASTERY LARGE FIXTURE
+
+~300 lectures.
+
+No per-row requests.
+
+---
+
+# 217. LEADERBOARD
+
+50 rows smooth.
+
+---
+
+# 218. OWNER ANALYTICS
+
+No per-user payload.
+
+---
+
+# 219. ANALYZER
+
+Bounded DTO.
+
+---
+
+# 220. PWA BUNDLE
+
+Inspect route chunking.
+
+---
+
+# 221. INITIAL BUNDLE
+
+Ensure large Study dashboards are not unnecessarily loaded on first app paint if current lazy routing supports splitting.
+
+---
+
+# 222. MEMORY LEAK CERTIFICATION
+
+Repeatedly mount/unmount:
+
+```text
+Active Focus
+Group Focus
+Study Analyzer
+Leaderboard
+```
+
+Check:
+
+```text
+timers
+window listeners
+Capacitor listeners
+WebSockets
+Socket.IO handlers
+audio listeners
+```
+
+---
+
+# 223. STRICTMODE
+
+No duplicate canonical effects.
+
+---
+
+# 224. SERVICE WORKER LISTENER LEAK
+
+No duplicate handlers.
+
+---
+
+# 225. AUDIO CLEANUP
+
+Object URLs/listeners cleaned.
+
+---
+
+# 226. GROUP SOCKET CLEANUP
+
+No zombie runtime connection after terminal leave/logout.
+
+---
+
+# 227. LOGOUT CLEANUP
+
+Clear:
+
+```text
+private query cache
+Group capability
+Group resume token where appropriate
+Recall ephemeral state
+private Study state
+```
+
+---
+
+# 228. LOGIN AS SECOND USER
+
+No cross-account data flash.
+
+---
+
+# 229. CONSOLE / OWNER ROLE SWITCH
+
+Authorization updates immediately.
+
+---
+
+# 230. PRIMARY OWNER REGRESSION
+
+Immutable primary-owner rules remain.
+
+---
+
+# 231. SECURITY E2E
+
+Attempt IDOR/cross-user access on:
+
+```text
+Focus history/detail
+Quick Notes
+Recall
+Mastery
+Retention
+Analyzer
+AI Insight
+Gamification private data
+```
+
+---
+
+# 232. PUBLIC PROFILE
+
+Inspect raw response, not only visible CSS.
+
+No hidden private data.
+
+---
+
+# 233. OWNER ANALYTICS
+
+Suppressed values must not exist hidden in raw response.
+
+---
+
+# 234. SYSTEM HEALTH
+
+No secrets in raw response.
+
+---
+
+# 235. TOKEN STORAGE AUDIT
+
+At runtime inspect:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+URL
+```
+
+for:
+
+```text
+Group capability
+Recall protected token
+AI secrets
+machine auth
+```
+
+---
+
+# 236. LOG AUDIT
+
+Check browser/server development logs in tests for:
+
+```text
+capability
+resume token
+correct answer
+Quick Note
+AI grounding
+```
+
+---
+
+# 237. CSP / SECURITY HEADERS
+
+Regression-check current CSP and headers.
+
+Prompt51 may fix an actual regression caused by Study features.
+
+Do not redesign unrelated security policy.
+
+---
+
+# 238. BLOB MEDIA
+
+Prompt39 user audio must still work with intended CSP.
+
+---
+
+# 239. EXTERNAL RESOURCE DOMAINS
+
+Do not broadly weaken CSP to fix one test.
+
+---
+
+# 240. PWA INSTALL / UPDATE DOCUMENTATION
+
+Create exact operator/manual checklist.
+
+---
+
+# 241. IOS MANUAL CERTIFICATION CHECKLIST
+
+If real iOS testing cannot run automatically, create exact checklist covering:
+
+```text
+cold launch
+login
+Focus lifecycle
+background/foreground
+lock/resume
+resource handoff
+keyboard
+safe area
+Group reconnect
+Recall
+audio
+Arabic
+logout/account switch
+```
+
+---
+
+# 242. IPAD MANUAL CHECKLIST
+
+Include:
+
+```text
+portrait
+landscape if supported
+Lecture tab bar
+Focus Hub
+Active Focus
+Group Focus
+Gamification
+Mastery
+Analyzer
+Owner Analytics
+```
+
+---
+
+# 243. SCREENSHOT EVIDENCE
+
+If current E2E tooling supports screenshots:
+
+capture failure-only or selected certification screenshots.
+
+Do not create enormous screenshot archives unnecessarily.
+
+---
+
+# 244. VISUAL REGRESSION
+
+Use existing mechanism if present.
+
+Do not introduce a heavy visual-regression platform solely for Prompt51.
+
+---
+
+# 245. CERTIFICATION MANIFEST
+
+Create a machine-readable certification manifest.
+
+Conceptually:
+
+```json
+{
+  "platform": "pwa",
+  "scenario": "focus-background-recovery",
+  "status": "PASS",
+  "environment": "...",
+  "evidence": "test-name"
+}
+```
+
+Use repository conventions.
+
+---
+
+# 246. CERTIFICATION MANIFEST MUST DISTINGUISH NOT_RUN
+
+Mandatory.
+
+---
+
+# 247. CERTIFICATION SUMMARY
+
+Provide counts:
+
+```text
+PASS
+FAIL
+NOT_RUN
+BLOCKED
+NOT_APPLICABLE
+```
+
+by:
+
+```text
+Web
+PWA
+Capacitor source/config
+iPhone
+iPad
+RTL
+Accessibility
+Study domain
+```
+
+---
+
+# 248. PROMPT50 RELEASE CHECK INTEGRATION
+
+Prompt51 may add a certification gate input to Prompt50 release check only if additive and read-only.
+
+Example:
+
+```text
+platform certification manifest present
+critical executable tests pass
+```
+
+Do not let unavailable physical-device checks masquerade as pass.
+
+---
+
+# 249. MANUAL REQUIRED GATE
+
+Release manifest should explicitly support:
+
+```text
+MANUAL_DEVICE_REQUIRED
+```
+
+or equivalent metadata.
+
+---
+
+# 250. PROMPT52 MUST SEE IT
+
+Prompt52 should be able to tell whether:
+
+```text
+all required device checks passed
+```
+
+before rollout.
+
+---
+
+# 251. NO AUTO DEPLOY
+
+Certification PASS must not deploy anything.
+
+---
+
+# 252. NO APP STORE SUBMISSION
+
+Mandatory.
+
+---
+
+# 253. NO TESTFLIGHT UPLOAD
+
+Mandatory unless user explicitly requests in Prompt52 later.
+
+---
+
+# 254. NO PRODUCTION FEATURE FLAG CHANGE
+
+Mandatory.
+
+---
+
+# 255. NO PRODUCTION HEALTH CHECK MUTATION
+
+Mandatory.
+
+---
+
+# 256. TARGETED DEFECT FIXES
+
+Prompt51 may fix actual issues in:
+
+```text
+responsive CSS
+RTL
+safe areas
+native lifecycle cleanup
+query race
+router recovery
+PWA caching
+Capacitor integration
+keyboard
+accessibility
+```
+
+provided frozen business semantics remain unchanged.
+
+---
+
+# 257. NO BUSINESS-RULE FIX THROUGH UI WORKAROUND
+
+If certification exposes server-rule defect:
+
+fix actual domain code only if it is a regression from Prompts 1–50.
+
+Do not change frozen product meaning.
+
+---
+
+# 258. NO SCHEMA MIGRATION EXPECTED
+
+Preferred:
+
+```text
+Prisma schema = unchanged
+PostgreSQL migration = none
+D1 migration = none
+```
+
+---
+
+# 259. IF SCHEMA CHANGE SEEMS NECESSARY
+
+Re-evaluate.
+
+Cross-platform certification should almost never require domain schema changes.
+
+Report/block rather than invent data model unless the defect truly requires a backward-compatible fix.
+
+---
+
+# 260. PROMPT50 REGRESSION
+
+Observability/release gates remain green.
+
+---
+
+# 261. PROMPT49 REGRESSION
+
+Maintenance tools remain safe.
+
+---
+
+# 262. PROMPT48 REGRESSION
+
+Full integration/privacy/concurrency remains green.
+
+---
+
+# 263. PROMPT47 REGRESSION
+
+Owner Analytics privacy unchanged.
+
+---
+
+# 264. PROMPT46 REGRESSION
+
+Analyzer unchanged.
+
+---
+
+# 265. PROMPT45 REGRESSION
+
+Recall/Mastery unchanged.
+
+---
+
+# 266. PROMPT44 REGRESSION
+
+Gamification unchanged.
+
+---
+
+# 267. PROMPT43 REGRESSION
+
+Group Focus unchanged.
+
+---
+
+# 268. PROMPT42 REGRESSION
+
+Focus summary/history unchanged.
+
+---
+
+# 269. PROMPT41 REGRESSION
+
+Active Focus unchanged.
+
+---
+
+# 270. PROMPT40 REGRESSION
+
+Focus Hub unchanged.
+
+---
+
+# 271. PROMPT39 REGRESSION
+
+Audio unchanged.
+
+---
+
+# 272. PROMPT38 REGRESSION
+
+Ask My Study Data unchanged.
+
+---
+
+# 273. PROMPT37 REGRESSION
+
+Cloudflare Workers AI only.
+
+---
+
+# 274. PROMPT36 REGRESSION
+
+Analyzer deterministic.
+
+---
+
+# 275. PROMPT35 REGRESSION
+
+Privacy unchanged.
+
+---
+
+# 276. PROMPT34 REGRESSION
+
+Owner aggregates unchanged.
+
+---
+
+# 277. PROMPT33 REGRESSION
+
+D1 private read models unchanged.
+
+---
+
+# 278. PROMPT31–32 REGRESSION
+
+Mastery/Retention unchanged.
+
+---
+
+# 279. PROMPT28–30 REGRESSION
+
+Recall unchanged.
+
+---
+
+# 280. PROMPT26–27 REGRESSION
+
+Leaderboard unchanged.
+
+---
+
+# 281. PROMPT19–25 REGRESSION
+
+Points/Gamification unchanged.
+
+---
+
+# 282. PROMPT17–18 REGRESSION
+
+Integrity unchanged.
+
+---
+
+# 283. PROMPT13–16 REGRESSION
+
+Group Focus backend/runtime unchanged.
+
+---
+
+# 284. PROMPT9–12 REGRESSION
+
+Solo Focus unchanged.
+
+---
+
+# 285. PROMPT8 REGRESSION
+
+Study Events unchanged.
+
+---
+
+# 286. CALENDAR REGRESSION
+
+Expected across student Study Engine:
+
+```text
+new student-created Calendar events = 0
+```
+
+---
+
+# 287. BUILD MATRIX
+
+Run every available relevant local command.
+
+At minimum where scripts exist:
+
+```text
+frontend typecheck
+backend typecheck
+lint
+unit tests
+Study Engine integration tests
+Prompt49 maintenance tests
+Prompt50 observability/release tests
+E2E browser tests
+PWA build
+normal production build
+Prisma validate
+Prisma generate
+Capacitor sync/config validation
+Worker tests/build if touched
+```
+
+---
+
+# 288. CAPACITOR SYNC
+
+Run only if safe in current environment and repository conventions permit.
+
+Do not overwrite unrelated native customizations blindly.
+
+Inspect diff after sync.
+
+---
+
+# 289. IOS NATIVE BUILD
+
+If Xcode/macOS exists:
+
+run safe local simulator/native build.
+
+If unavailable:
+
+```text
+NOT_RUN
+```
+
+---
+
+# 290. PHYSICAL DEVICE
+
+If no actual device is connected/available:
+
+do not claim physical-device PASS.
+
+---
+
+# 291. BROWSER E2E
+
+Must run where environment supports it.
+
+---
+
+# 292. E2E SHARDING
+
+Not necessary unless suite is large.
+
+---
+
+# 293. FLAKY TEST POLICY
+
+Do not repeatedly rerun until green and hide instability.
+
+If test fails once due a real race:
+
+fix it.
+
+If known environment flake:
+
+document evidence.
+
+---
+
+# 294. NO TEST SKIP TO GET GREEN
+
+Mandatory.
+
+---
+
+# 295. TEST ARTIFACTS
+
+Keep:
+
+```text
+failure screenshot
+trace
+video
+```
+
+only where current framework supports and they aid debugging.
+
+Do not commit large generated artifacts.
+
+---
+
+# 296. GITIGNORE
+
+Certification artifacts/reports should be ignored unless documentation/manifest is intentionally version-controlled.
+
+---
+
+# 297. EXPECTED FILE AREAS
+
+Likely:
+
+```text
+tests/e2e/study-engine/
+tests/e2e/pwa/
+tests/e2e/rtl/
+tests/e2e/accessibility/
+tests/e2e/auth/
+tests/e2e/cross-platform/
+
+src/
+  focused responsive/RTL/lifecycle fixes only
+
+ios/
+  only if actual native config bug requires a fix
+
+scripts/
+  platform-certification.*
+  pwa-certification.*
+
+docs/
+  STUDY_ENGINE_PLATFORM_CERTIFICATION.md
+  IOS_MANUAL_CERTIFICATION_CHECKLIST.md
+  IPAD_MANUAL_CERTIFICATION_CHECKLIST.md
+
+reports/
+  generated certification reports — gitignored
+
+playwright.config.*
+or current E2E config
+```
+
+Use actual repository conventions.
+
+---
+
+# 298. ACCEPTANCE CRITERIA
+
+Prompt51 succeeds only if:
+
+1. Environment capabilities are honestly documented.
+2. No NOT_RUN test is called PASS.
+3. Browser E2E executes successfully where supported.
+4. Integrated student journey works.
+5. Auth restore works.
+6. Account switching leaks no private data.
+7. Main navigation remains intact.
+8. Global swipe behavior remains correct.
+9. Schedule swipe remains unchanged.
+10. Lecture detail remains functional.
+11. External PDF behavior remains correct.
+12. Resource Handoff recovers correctly.
+13. PDF open creates no Points/Mastery/Calendar side effects.
+14. Focus Hub works.
+15. Active Focus timer is timestamp-derived.
+16. Pause/resume works.
+17. PAUSED→COMPLETED remains blocked.
+18. Background/foreground recovery works.
+19. Offline timer does not fake completion.
+20. Break lifecycle works.
+21. Multi-session plan works.
+22. Quick Notes remain private/non-Calendar.
+23. Manual lecture completion remains separate from Mastery.
+24. Focus Summary/History work.
+25. Group Focus multi-user E2E works where executable.
+26. Group capabilities remain secret.
+27. Group reconnect works.
+28. Group grace does not earn study credit.
+29. Gamification UI works.
+30. Level reversal does not relock Achievements.
+31. Challenges work.
+32. Leaderboard ranking/ties/privacy gaps work.
+33. D1 fallback works.
+34. Recall works.
+35. Recall correctness remains server-authoritative.
+36. Flashcard Recall remains self-assessed.
+37. Skip/expiry remain neutral.
+38. Mastery all six states render.
+39. Retention states render correctly.
+40. Mastery remains private.
+41. Study Analyzer works.
+42. Unknown ≠ zero.
+43. AI failure does not break Analyzer.
+44. No Gemini fallback exists.
+45. Ask My Study Data works.
+46. Owner Analytics privacy works.
+47. System Health access/privacy works.
+48. PWA manifest is valid.
+49. PWA installability is validated where tooling supports it.
+50. Service Worker update path works.
+51. Stale PWA client does not get permanent blank page.
+52. Offline PWA cannot fabricate canonical writes.
+53. PWA deep links work.
+54. Capacitor config is valid.
+55. Safe areas are correct.
+56. Keyboard behavior is correct.
+57. Lifecycle listeners do not duplicate.
+58. Native lifecycle tests pass where environment permits.
+59. Unavailable iOS runtime tests are explicitly NOT_RUN.
+60. Representative iPhone widths are certified.
+61. Representative iPad layouts are certified.
+62. iPad is not treated as stretched phone/desktop.
+63. Desktop/PWA layouts are polished.
+64. Arabic RTL is certified across all Study pages.
+65. English remains correct.
+66. Language switch does not mutate/restart study state.
+67. Accessibility passes available automated/manual checks.
+68. Timers do not spam screen readers.
+69. Reduced motion works.
+70. Touch targets are appropriate.
+71. Network degradation is safe.
+72. Feature-flag OFF state causes no hidden API spam.
+73. All-flags-ON local state works.
+74. Optional-service outages remain isolated.
+75. Legacy users/content work.
+76. No major N+1/request storms.
+77. No critical listener/WebSocket leaks.
+78. Logout cleans private Study state.
+79. IDOR/security E2E passes.
+80. Tokens are not persisted incorrectly.
+81. Logs contain no private secrets/content.
+82. Prompt50 release check passes after certification fixes.
+83. Prompt49 maintenance tests pass.
+84. Prompt48 integration tests pass.
+85. Build/typecheck/lint pass.
+86. Prisma validation passes.
+87. No business-rule semantics changed.
+88. No production data changed.
+89. No production feature flag changed.
+90. No deployment performed.
+91. No App Store/TestFlight submission performed.
+92. Certification manifest exists.
+93. Required manual-device checks are clearly identified.
+94. Prompt52 can determine whether final rollout is allowed.
+95. Critical blockers = 0.
+96. New regressions = 0.
+
+---
+
+# 299. MANDATORY FINAL IMPLEMENTATION REPORT
+
+Return exactly this structure.
+
+## A. Certification Environment
+
+Report:
+
+```text
+OS:
+Node:
+package manager:
+Chromium:
+WebKit/Safari:
+Playwright/Cypress:
+Capacitor CLI:
+macOS available:
+Xcode available:
+iOS Simulator available:
+physical iPhone available:
+physical iPad available:
+```
+
+---
+
+## B. Certification Status Legend
+
+Confirm use of:
+
+```text
+PASS
+FAIL
+NOT_RUN
+BLOCKED
+NOT_APPLICABLE
+```
+
+---
+
+## C. Initial Prompt50 Release Check
+
+Report exact command and result.
+
+---
+
+## D. E2E Framework
+
+Report:
+
+```text
+existing framework:
+new framework added:
+browser engines used:
+mobile emulation:
+test database:
+Worker/D1 strategy:
+AI strategy:
+```
+
+Expected preference:
+
+```text
+new duplicate framework = NO
+production services = NO
+production AI quota = NO
+```
+
+---
+
+## E. Student End-to-End Journey
+
+Report every step executed and result.
+
+---
+
+## F. Authentication Certification
+
+Report:
+
+```text
+login:
+logout:
+restore:
+expired auth:
+deep link:
+account switch:
+cross-account cache leak:
+```
+
+Expected:
+
+```text
+cross-account leak = NO
+```
+
+---
+
+## G. Navigation / Gesture Certification
+
+Report:
+
+```text
+Welcome:
+Modules:
+Schedule:
+Console:
+Profile:
+global swipe:
+Active Focus route swipe behavior:
+Group Focus route swipe behavior:
+Schedule Month/Week/Day:
+native back behavior:
+```
+
+---
+
+## H. Lecture / Resource Certification
+
+Report:
+
+```text
+PDF:
+Notes:
+MCQ:
+Anki/Flashcards:
+Video:
+Q&A:
+external PDF:
+external video:
+resource handoff:
+resource return:
+```
+
+---
+
+## I. Resource Side Effects
+
+Explicitly:
+
+```text
+PDF OPEN POINTS: 0
+PDF OPEN DIRECT MASTERY CHANGE: 0
+PDF OPEN RETENTION MEMORY ANCHOR: NO
+PDF OPEN CALENDAR EVENT: 0
+```
+
+---
+
+## J. Focus Hub Certification
+
+Report:
+
+```text
+presets:
+custom:
+queue:
+reorder:
+duplicate handling:
+save:
+start:
+resume:
+```
+
+---
+
+## K. Active Focus Certification
+
+Report:
+
+```text
+ACTIVE:
+PAUSED:
+RESOURCE_HANDOFF:
+RECONCILIATION_REQUIRED:
+COMPLETED:
+ABANDONED:
+EXPIRED:
+```
+
+and transitions actually tested.
+
+---
+
+## L. Focus Timer / Lifecycle
+
+Report:
+
+```text
+timestamp authority:
+hard refresh:
+background:
+foreground:
+lock/resume:
+app terminate/relaunch:
+offline:
+online restore:
+zero offline:
+```
+
+Use actual PASS/NOT_RUN statuses.
+
+---
+
+## M. Focus Break / Multi-Round
+
+Report:
+
+```text
+break:
+reload:
+background:
+skip:
+next round:
+same lecture multi-session:
+multiple lectures:
+```
+
+---
+
+## N. Quick Notes
+
+Report:
+
+```text
+create:
+edit:
+reload:
+privacy:
+Arabic:
+Calendar write:
+```
+
+---
+
+## O. Focus Completion / History
+
+Report:
+
+```text
+manual lecture completion:
+session summary:
+history list:
+history detail:
+hard refresh:
+legacy user:
+```
+
+---
+
+## P. Group Focus Certification
+
+Report:
+
+```text
+host create:
+public join:
+private invite:
+lobby:
+Shared Study:
+Study Together:
+countdown:
+Focus:
+break:
+pause:
+resume:
+participant leave:
+host behavior:
+completion:
+summary:
+```
+
+---
+
+## Q. Group Security
+
+Explicitly:
+
+```text
+CAPABILITY IN localStorage: NO
+CAPABILITY IN sessionStorage: NO
+CAPABILITY IN URL: NO
+CAPABILITY LOGGED: NO
+RESUME TOKEN SEMANTICS PRESERVED: YES
+INVITE CONTAINS CAPABILITY: NO
+```
+
+---
+
+## R. Group Reconnect / Lifecycle
+
+Report:
+
+```text
+temporary disconnect:
+within grace:
+beyond grace:
+background:
+foreground:
+route unmount:
+StrictMode:
+duplicate socket:
+terminal while disconnected:
+```
+
+---
+
+## S. Gamification Certification
+
+Report:
+
+```text
+Points:
+categories:
+Level:
+level reversal:
+Achievements:
+Challenges:
+public profile:
+```
+
+---
+
+## T. Leaderboard Certification
+
+Report:
+
+```text
+Weekly:
+Monthly:
+Semester:
+All-Time:
+1,2,2,4:
+privacy gap:
+own rank:
+cursor:
+cursor expired:
+D1 fallback:
+```
+
+---
+
+## U. Recall Certification
+
+Report:
+
+```text
+eligibility:
+cooldown:
+MCQ:
+Flashcard:
+skip:
+expiry:
+double-open:
+hard refresh:
+background:
+offline submission:
+canonical reward:
+```
+
+---
+
+## V. Mastery / Retention Certification
+
+Report:
+
+```text
+NOT_STARTED:
+STARTED:
+LEARNING:
+NEEDS_REVIEW:
+GOOD:
+MASTERED:
+Retention insufficient:
+fresh:
+due soon:
+due:
+overdue:
+Mastered + due:
+due-review order:
+privacy:
+```
+
+Use actual enum labels.
+
+---
+
+## W. Study Analyzer Certification
+
+Report:
+
+```text
+7 days:
+30 days:
+semester:
+Focus:
+objective MCQ:
+Flashcards:
+Recall:
+Mastery:
+Retention:
+patterns:
+weakness:
+positives:
+unknown vs zero:
+```
+
+---
+
+## X. AI Study Insight Certification
+
+Report:
+
+```text
+mock/provider path:
+success:
+cache:
+unavailable:
+invalid response:
+fallback:
+Gemini fallback:
+```
+
+Expected:
+
+```text
+Gemini fallback = NO
+```
+
+---
+
+## Y. Ask My Study Data Certification
+
+Report:
+
+```text
+deterministic question:
+AI-assisted question:
+unsupported:
+privacy/cross-user:
+history:
+```
+
+---
+
+## Z. Owner Analytics Certification
+
+Report:
+
+```text
+owner:
+admin according to Prompt35:
+student denied:
+windows:
+subjects:
+Mastery aggregate:
+Retention aggregate:
+small-cohort suppression:
+hidden individual data:
+```
+
+---
+
+## AA. System Health Certification
+
+Report:
+
+```text
+authorized role:
+student denied:
+health states:
+privacy:
+release gates:
+diagnostics:
+```
+
+---
+
+## AB. PWA Certification
+
+Report exact status for:
+
+```text
+manifest:
+installability:
+service worker:
+offline shell:
+update:
+stale client:
+chunk failure:
+deep links:
+auth deep link:
+online restore:
+storage audit:
+```
+
+---
+
+## AC. PWA Manifest
+
+Report actual:
+
+```text
+name:
+short_name:
+display:
+orientation:
+scope:
+start_url:
+icons:
+theme/background:
+```
+
+---
+
+## AD. Service Worker / Cache
+
+Report:
+
+```text
+first load:
+reload:
+hard refresh:
+new build:
+stale client:
+cache invalidation:
+blank-screen recovery:
+```
+
+---
+
+## AE. Capacitor Certification
+
+Report:
+
+```text
+config path:
+webDir:
+scheme:
+StatusBar:
+SplashScreen:
+Keyboard:
+orientation:
+content inset:
+safe-area approach:
+plugins:
+```
+
+---
+
+## AF. Native Runtime Availability
+
+Explicit table:
+
+```text
+Xcode build:
+iOS Simulator:
+physical iPhone:
+physical iPad:
+lock/resume:
+termination/relaunch:
+external native PDF:
+external native video:
+```
+
+Each must be PASS / NOT_RUN / BLOCKED / NOT_APPLICABLE.
+
+---
+
+## AG. iPhone Layout Matrix
+
+List exact viewport/device presets and status for:
+
+```text
+Welcome
+Lecture detail
+Focus Hub
+Active Focus
+Focus Summary
+Group Focus
+Gamification
+Recall
+Mastery
+Analyzer
+```
+
+---
+
+## AH. iPad Layout Matrix
+
+List exact viewport/device presets and status for:
+
+```text
+portrait
+landscape if supported
+Lecture tab bar
+Focus Hub
+Active Focus
+Focus Summary
+Group Focus
+Gamification
+Recall
+Mastery
+Analyzer
+Owner Analytics
+System Health
+```
+
+---
+
+## AI. Desktop/PWA Matrix
+
+Report tested resolutions and results.
+
+---
+
+## AJ. Keyboard Certification
+
+Report:
+
+```text
+Quick Notes:
+Group room name:
+Invite:
+Mastery search:
+Ask My Study Data:
+viewport restore:
+CTA visibility:
+```
+
+---
+
+## AK. Safe Area / Status Bar
+
+Report:
+
+```text
+top safe area:
+bottom safe area:
+notch/Dynamic Island:
+home indicator:
+light theme:
+dark theme:
+```
+
+with actual executable status.
+
+---
+
+## AL. Native Lifecycle
+
+Report:
+
+```text
+cold start:
+warm resume:
+background:
+foreground:
+lock:
+unlock:
+terminate:
+relaunch:
+listener duplication:
+```
+
+---
+
+## AM. Audio Certification
+
+Report:
+
+```text
+ambient:
+local user audio:
+volume:
+loop:
+autoplay:
+pause/resume:
+background:
+cleanup:
+upload:
+analytics:
+```
+
+---
+
+## AN. Arabic RTL Certification
+
+Report each page:
+
+```text
+Focus Hub:
+Active Focus:
+Focus Summary:
+Focus History:
+Group Focus:
+Gamification:
+Leaderboard:
+Recall:
+Mastery:
+Analyzer:
+Owner Analytics:
+System Health:
+Lecture detail:
+```
+
+---
+
+## AO. Bidi / Medical Terminology
+
+Report:
+
+```text
+timer digits:
+rank labels:
+percentages:
+dates:
+mixed Arabic/Latin medical terms:
+charts chronology:
+```
+
+---
+
+## AP. Language Switch During Active State
+
+Report:
+
+```text
+Active Focus:
+Group Focus:
+Recall:
+Analyzer:
+```
+
+Explicitly list whether canonical session/attempt/socket restarted.
+
+Expected:
+
+```text
+NO unintended restart
+```
+
+---
+
+## AQ. Accessibility
+
+Report:
+
+```text
+automated tool:
+keyboard:
+visible focus:
+dialogs:
+focus restore:
+screen reader timers:
+screen reader charts:
+leaderboard semantics:
+Recall semantics:
+health semantics:
+touch targets:
+color-only states:
+reduced motion:
+```
+
+---
+
+## AR. Offline / Network Matrix
+
+Provide table for:
+
+```text
+Solo Focus
+Group Focus
+Recall
+Gamification
+Mastery
+Analyzer
+AI
+Owner Analytics
+```
+
+across:
+
+```text
+offline
+restore
+timeout
+5xx
+429 if relevant
+```
+
+---
+
+## AS. Feature Flag Matrix
+
+List exact combinations tested and results.
+
+---
+
+## AT. Dependency Failure Matrix
+
+Report:
+
+```text
+Postgres:
+D1:
+KV:
+Workers AI:
+Group Worker/DO:
+Socket.IO:
+```
+
+and affected/unaffected features.
+
+---
+
+## AU. Legacy / Backward Compatibility
+
+Report:
+
+```text
+legacy user:
+legacy content:
+missing Points projection:
+missing Mastery:
+missing Retention:
+missing D1:
+old frontend/new backend compatibility:
+new frontend/feature-disabled backend:
+```
+
+---
+
+## AV. Security / IDOR Certification
+
+List exact private object types tested.
+
+---
+
+## AW. Runtime Storage Audit
+
+Report presence/absence in:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+URL
+Cache Storage
+```
+
+for:
+
+```text
+Group capability
+resume token
+Recall protected token
+private Analyzer DTO
+AI grounding
+Quick Notes
+```
+
+---
+
+## AX. Logging Audit
+
+Explicitly:
+
+```text
+CAPABILITY LOGGED: NO
+RESUME TOKEN LOGGED: NO
+RECALL TOKEN LOGGED: NO
+QUICK NOTE CONTENT LOGGED: NO
+MCQ CORRECT ANSWER LOGGED: NO
+AI GROUNDING LOGGED: NO
+AI RESPONSE LOGGED: NO
+```
+
+---
+
+## AY. Performance / Request Audit
+
+Report:
+
+```text
+Welcome request count:
+foreground refresh burst:
+Focus rerender scope:
+Group rerender scope:
+Mastery per-row requests:
+Leaderboard per-row requests:
+Owner per-user requests:
+Analyzer raw-history requests:
+PWA initial bundle:
+Study route chunks:
+```
+
+---
+
+## AZ. Listener / Memory Audit
+
+Report:
+
+```text
+Focus intervals:
+visibility listeners:
+Capacitor listeners:
+Group WebSocket:
+Socket.IO:
+audio listeners:
+service-worker listeners:
+logout cleanup:
+```
+
+---
+
+## BA. Certification Defects Found
+
+For every defect:
+
+```text
+severity:
+platform:
+root cause:
+files:
+fix:
+test added:
+status:
+```
+
+---
+
+## BB. Schema / Frozen Semantics
+
+Explicitly:
+
+```text
+PRISMA SCHEMA MODIFIED: YES/NO
+POSTGRESQL MIGRATION CREATED: YES/NO
+D1 MIGRATION CREATED: YES/NO
+
+FOCUS RULES CHANGED: YES/NO
+GROUP FOCUS RULES CHANGED: YES/NO
+POINTS RULES CHANGED: YES/NO
+MASTERY RULES CHANGED: YES/NO
+RETENTION RULES CHANGED: YES/NO
+RECALL RULES CHANGED: YES/NO
+LEADERBOARD RANKING CHANGED: YES/NO
+PRIVACY THRESHOLD CHANGED: YES/NO
+AI PROVIDER CHANGED: YES/NO
+CALENDAR MODEL CHANGED: YES/NO
+```
+
+Expected preference:
+
+```text
+NO
+```
+
+for all.
+
+---
+
+## BC. Test Counts
+
+Exact:
+
+```text
+unit:
+integration:
+E2E:
+PWA:
+RTL:
+accessibility:
+security:
+Prompt48:
+Prompt49:
+Prompt50:
+passed:
+failed:
+skipped:
+```
+
+Do not hide NOT_RUN platform checks inside “skipped”.
+
+---
+
+## BD. Certification Manifest Summary
+
+Report totals:
+
+```text
+PASS:
+FAIL:
+NOT_RUN:
+BLOCKED:
+NOT_APPLICABLE:
+```
+
+broken down by:
+
+```text
+Web
+PWA
+Capacitor config
+iPhone
+iPad
+RTL
+Accessibility
+Security
+Study domain
+```
+
+---
+
+## BE. Manual Device Requirements
+
+List every remaining real-device/manual item.
+
+If none:
+
+```text
+NONE
+```
+
+If some exist:
+
+provide exact execution steps and expected result.
+
+---
+
+## BF. Prompt50 Final Release Check
+
+Run after fixes.
+
+Report exact:
+
+```text
+command:
+READY/READY_WITH_WARNINGS/FAIL:
+warnings:
+failures:
+```
+
+---
+
+## BG. Commands Executed
+
+List every command exactly.
+
+---
+
+## BH. Command Results
+
+For every command:
+
+```text
+PASS / FAIL
+test count
+warnings
+```
+
+---
+
+## BI. Files Created
+
+Exact paths and purposes.
+
+---
+
+## BJ. Files Modified
+
+Exact paths and reasons.
+
+---
+
+## BK. Production Safety
+
+Explicitly:
+
+```text
+PRODUCTION SUPABASE MODIFIED: NO
+PRODUCTION POSTGRESQL MODIFIED: NO
+PRODUCTION MIGRATION APPLIED: NO
+PRODUCTION BACKFILL RUN: NO
+PRODUCTION PROJECTION REPAIR RUN: NO
+PRODUCTION D1 MODIFIED: NO
+PRODUCTION KV MODIFIED: NO
+PRODUCTION R2 MODIFIED: NO
+PRODUCTION DURABLE OBJECT STATE MODIFIED: NO
+PRODUCTION AI QUOTA USED FOR AUTOMATED TESTING: NO
+PRODUCTION FOCUS SESSION CREATED: NO
+PRODUCTION GROUP ROOM CREATED: NO
+PRODUCTION RECALL ATTEMPT CREATED: NO
+PRODUCTION POINTS MODIFIED: NO
+PRODUCTION MASTERY MODIFIED: NO
+PRODUCTION RETENTION MODIFIED: NO
+PRODUCTION FEATURE FLAGS CHANGED: NO
+PRODUCTION FRONTEND DEPLOYED: NO
+PRODUCTION BACKEND DEPLOYED: NO
+WORKER DEPLOYED: NO
+TESTFLIGHT BUILD UPLOADED: NO
+APP STORE BUILD SUBMITTED: NO
+PRODUCTION ENV MODIFIED: NO
+```
+
+---
+
+## BL. Git State
+
+Include:
+
+```text
+git status --short
+git diff --stat
+git log -5 --oneline
+```
+
+---
+
+## BM. Deviations
+
+If none:
+
+```text
+NONE
+```
+
+---
+
+## BN. Critical Blockers
+
+If none:
+
+```text
+NONE
+```
+
+A critical blocker includes:
+
+```text
+cross-user privacy leak
+duplicate canonical credit
+native lifecycle corruption
+Focus recovery failure
+Group reconnect corruption
+RTL flow unusable
+PWA permanent blank-screen/update failure
+unsafe token persistence
+release gate failure
+build failure
+```
+
+Do NOT emit the READY ending if such a blocker remains.
+
+---
+
+## BO. Platform Certification Compliance
+
+Answer YES/NO/NOT_RUN where appropriate:
+
+- Browser E2E executed?
+- PWA manifest valid?
+- PWA installability tested?
+- Service Worker update tested?
+- Stale PWA client recovery tested?
+- PWA deep links tested?
+- Offline PWA avoids fake writes?
+- Capacitor configuration validated?
+- iOS project inspected?
+- Xcode build executed?
+- iOS Simulator executed?
+- physical iPhone executed?
+- physical iPad executed?
+- safe areas correct?
+- keyboard lifecycle correct?
+- foreground/background correct?
+- lock/resume tested?
+- terminate/relaunch tested?
+- native PDF handoff tested?
+- native video handoff tested?
+- Focus Hub certified?
+- Active Focus certified?
+- Resource Handoff certified?
+- Focus Summary/History certified?
+- Group Focus certified?
+- Gamification certified?
+- Leaderboard certified?
+- Recall certified?
+- Mastery certified?
+- Retention certified?
+- Study Analyzer certified?
+- AI degradation certified?
+- Ask My Study Data certified?
+- Owner Analytics certified?
+- System Health certified?
+- Arabic RTL certified?
+- English LTR certified?
+- language switching safe?
+- accessibility certified?
+- reduced motion certified?
+- network/offline behavior safe?
+- account switching private?
+- IDOR tests pass?
+- token storage safe?
+- logs private?
+- no major listener leaks?
+- no major N+1?
+- legacy users supported?
+- feature flag matrix safe?
+- Prompt48 regression green?
+- Prompt49 regression green?
+- Prompt50 regression green?
+- final Prompt50 release check passes?
+- business rules unchanged?
+- Calendar isolation preserved?
+- production unchanged?
+- rollout not performed?
+- critical blockers = 0?
+- new regressions = 0?
+
+---
+
+## BP. Exact Recommended Next Step
+
+State whether it is safe to proceed to:
+
+**Prompt 52 — Staged Production Rollout, Post-Release Verification, Feature-Flag Activation, Incident Guardrails & Final 99’s Guide Study Engine Audit**
+
+Do NOT implement Prompt52.
+
+If manual physical-device checks remain, explicitly state they are rollout prerequisites for Prompt52.
+
+---
+
+# 300. STOP CONDITION
+
+After completing all executable Prompt51 certification work, fixing genuine defects, running the full regression suite, producing the certification manifest, and writing the mandatory report:
+
+STOP.
+
+Do NOT deploy.
+
+Do NOT enable production feature flags.
+
+Do NOT run production backfills.
+
+Do NOT modify production D1/KV/R2.
+
+Do NOT upload TestFlight.
+
+Do NOT submit App Store build.
+
+Do NOT perform production rollout.
+
+Do NOT fake unavailable native/device results.
+
+Do NOT weaken frozen Study Engine rules to pass certification.
+
+If there are no critical blockers and all executable certification checks pass, end exactly:
+
+**PROMPT 51 COMPLETE — FINAL STUDY ENGINE E2E, PWA, CAPACITOR, IPHONE/IPAD, RTL & NATIVE-LIFECYCLE CERTIFICATION READY — PRODUCTION UNCHANGED — READY FOR FINAL PROMPT**
+
+If a critical cross-platform/native/privacy/release blocker remains, end instead:
+
+**PROMPT 51 BLOCKED — CROSS-PLATFORM OR NATIVE CERTIFICATION ISSUE MUST BE RESOLVED BEFORE STAGED PRODUCTION ROLLOUT / FINAL AUDIT**
