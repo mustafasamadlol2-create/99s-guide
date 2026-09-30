@@ -155,6 +155,9 @@ function buildEntry(
     durationMs: meta.durationMs ?? null,
     ip: null,
     errorCode: meta.errorCode ? redactText(meta.errorCode) : null,
+    appleAuth: meta.appleAuth
+      ? (redactLogValue(meta.appleAuth) as LogEntry["appleAuth"])
+      : undefined,
     details: safeDetails,
   };
 }

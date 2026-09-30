@@ -928,7 +928,13 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
               // Pending/network/rate-limit responses are expected while the
               // provider is still completing. Surface a real exchange failure
               // instead of converting it into a misleading timeout.
-              if (err?.status && ![404, 429, 502, 503].includes(err.status)) {
+              const status = err?.status as number | undefined;
+              const retryable = !status
+                || status === 404
+                || status === 429
+                || status === 503
+                || (status === 502 && err?.body?.retryable === true);
+              if (!retryable) {
                 clearInterval(oauthPollRef.current!);
                 oauthPollRef.current = null;
                 onOAuthFailed(err?.body?.error || "OAuth session exchange failed. Please try again.");
@@ -1222,7 +1228,13 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
               // Keep retrying while the callback is pending or rate-limited,
               // but surface a terminal callback failure immediately instead
               // of misclassifying it as a manual popup cancellation.
-              if (err?.status && ![404, 429, 502, 503].includes(err.status)) {
+              const status = err?.status as number | undefined;
+              const retryable = !status
+                || status === 404
+                || status === 429
+                || status === 503
+                || (status === 502 && err?.body?.retryable === true);
+              if (!retryable) {
                 onPopupFailed(err?.body?.error || `${provider} authentication could not be completed. Please try again.`);
                 return;
               }
