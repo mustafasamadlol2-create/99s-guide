@@ -551,9 +551,10 @@ test("Group Focus round and summary events do not double-count Focus metrics", a
   assert.equal(repository.projections.length, 0);
 });
 
-test("disabled feature flag returns a predictable result without database access", async () => {
-  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_EVENTS_ENABLED, false);
-  assert.equal(isStudyFeatureEnabled("STUDY_EVENTS_ENABLED", {}), false);
+test("explicitly disabled feature flag returns a predictable result without database access", async () => {
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_EVENTS_ENABLED, true);
+  assert.equal(isStudyFeatureEnabled("STUDY_EVENTS_ENABLED", {}), true);
+  assert.equal(isStudyFeatureEnabled("STUDY_EVENTS_ENABLED", { STUDY_EVENTS_ENABLED: "false" }), false);
   const { service, repository } = makeService(new MemoryRepository(), {
     isEnabled: () => false,
   });

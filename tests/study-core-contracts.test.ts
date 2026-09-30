@@ -65,24 +65,32 @@ test("Focus state transitions accept only the frozen map", () => {
   ]);
 });
 
-test("Study feature flags are false by default and parse strictly", () => {
-  for (const flag of STUDY_FEATURE_FLAGS) {
-    assert.equal(DEFAULT_STUDY_FEATURE_FLAGS[flag], false);
-  }
+test("Study feature flags use release defaults and explicit overrides parse strictly", () => {
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.FOCUS_HUB_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_POINTS_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.MASTERY_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_ANALYZER_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.GROUP_FOCUS_ENABLED, false);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.AI_STUDY_INSIGHTS_ENABLED, false);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.LEADERBOARD_D1_READ_ENABLED, false);
+
   assert.equal(parseStudyFeatureFlag("true"), true);
   assert.equal(parseStudyFeatureFlag(" ON "), true);
   assert.equal(parseStudyFeatureFlag("false"), false);
   assert.equal(parseStudyFeatureFlag("maybe"), false);
   assert.equal(parseStudyFeatureFlag(undefined), false);
 
+  const defaults = getStudyFeatureFlags({});
+  assert.deepEqual(defaults, DEFAULT_STUDY_FEATURE_FLAGS);
+
   const flags = getStudyFeatureFlags({
-    FOCUS_HUB_ENABLED: "true",
-    STUDY_POINTS_ENABLED: "1",
-    AI_STUDY_INSIGHTS_ENABLED: "invalid",
+    FOCUS_HUB_ENABLED: "false",
+    STUDY_POINTS_ENABLED: "0",
+    AI_STUDY_INSIGHTS_ENABLED: "true",
   });
-  assert.equal(flags.FOCUS_HUB_ENABLED, true);
-  assert.equal(flags.STUDY_POINTS_ENABLED, true);
-  assert.equal(flags.AI_STUDY_INSIGHTS_ENABLED, false);
+  assert.equal(flags.FOCUS_HUB_ENABLED, false);
+  assert.equal(flags.STUDY_POINTS_ENABLED, false);
+  assert.equal(flags.AI_STUDY_INSIGHTS_ENABLED, true);
   assert.equal(flags.GROUP_FOCUS_ENABLED, false);
 });
 

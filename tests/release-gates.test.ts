@@ -31,6 +31,7 @@ test("release report treats unknown gates as warnings rather than healthy passes
 test("impossible feature combinations fail release validation", () => {
   const flags: Record<string, boolean> = {
     ...DEFAULT_STUDY_FEATURE_FLAGS,
+    ASK_MY_STUDY_DATA_ENABLED: false,
     ASK_MY_STUDY_DATA_AI_ENABLED: true,
   };
   const result = validateFeatureConfiguration(flags, {});

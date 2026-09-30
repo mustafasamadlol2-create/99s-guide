@@ -4,67 +4,78 @@ const buildFlags = (
   }
 ).env ?? {};
 
-/**
- * Focus Audio remains opt-in until its audio behavior is explicitly enabled.
- * This flag is build-time only and defaults to false in every environment.
- */
-export const FOCUS_AUDIO_ENABLED = buildFlags.VITE_FOCUS_AUDIO_ENABLED === "true";
+const ENABLED_VALUES = new Set(["1", "true", "yes", "on"]);
+const DISABLED_VALUES = new Set(["0", "false", "no", "off"]);
+
+function readBuildFlag(name: string, fallback: boolean): boolean {
+  const raw = buildFlags[name];
+
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw !== "string") return fallback;
+
+  const normalized = raw.trim().toLowerCase();
+  if (ENABLED_VALUES.has(normalized)) return true;
+  if (DISABLED_VALUES.has(normalized)) return false;
+  return fallback;
+}
 
 /**
- * Focus Hub is exposed in development by default, but remains hard-disabled
- * in production builds until a later release explicitly changes this policy.
- * Set VITE_FOCUS_HUB_V2_ENABLED=false to hide it in development.
+ * Core Study Engine frontends are now release-ready and visible by default in
+ * production. Every surface still keeps an explicit build-time kill switch:
+ * set the matching VITE_* flag to false to hide it again without code changes.
+ *
+ * Optional infrastructure-dependent surfaces (Group Focus and AI Study
+ * Insights) remain opt-in so an absent Worker/provider cannot expose a dead UI.
  */
-export const FOCUS_HUB_V2_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_FOCUS_HUB_V2_ENABLED !== "false";
+export const FOCUS_AUDIO_ENABLED = readBuildFlag(
+  "VITE_FOCUS_AUDIO_ENABLED",
+  true,
+);
 
-/**
- * Group Focus UI is an opt-in development surface until its staged rollout.
- * It remains disabled in production regardless of build-time flag values.
- */
-export const GROUP_FOCUS_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true";
+export const FOCUS_HUB_V2_ENABLED = readBuildFlag(
+  "VITE_FOCUS_HUB_V2_ENABLED",
+  true,
+);
 
-/**
- * Gamification UI is opt-in during development and remains disabled in
- * production until the student-facing experience is explicitly ready.
- */
-export const GAMIFICATION_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_GAMIFICATION_FRONTEND_ENABLED === "true";
+export const GROUP_FOCUS_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_GROUP_FOCUS_FRONTEND_ENABLED",
+  false,
+);
 
-/**
- * Recall and Mastery frontends are staged for development only. Production
- * builds stay disabled even when a Vite flag is accidentally set to true.
- */
-export const SPACED_RECALL_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_SPACED_RECALL_FRONTEND_ENABLED === "true";
+export const GAMIFICATION_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_GAMIFICATION_FRONTEND_ENABLED",
+  true,
+);
 
-export const MASTERY_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_MASTERY_FRONTEND_ENABLED === "true";
+export const SPACED_RECALL_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_SPACED_RECALL_FRONTEND_ENABLED",
+  true,
+);
 
-/**
- * Study Analyzer surfaces are staged in development only. Production builds
- * stay disabled even if a Vite flag is accidentally set to true.
- */
-export const STUDY_ANALYZER_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_STUDY_ANALYZER_FRONTEND_ENABLED === "true";
+export const MASTERY_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_MASTERY_FRONTEND_ENABLED",
+  true,
+);
 
-export const STUDY_INSIGHTS_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true";
+export const STUDY_ANALYZER_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_STUDY_ANALYZER_FRONTEND_ENABLED",
+  true,
+);
 
-/**
- * Owner Analytics is staged for development only. Production builds stay
- * disabled even if a Vite flag is accidentally set to true.
- */
-export const OWNER_ANALYTICS_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_OWNER_ANALYTICS_FRONTEND_ENABLED === "true";
+export const STUDY_INSIGHTS_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_STUDY_INSIGHTS_FRONTEND_ENABLED",
+  false,
+);
 
-/**
- * The operational health dashboard is owner-only and opt-in in development.
- * It remains hidden from production builds until a separate release decision.
- */
-export const SYSTEM_HEALTH_FRONTEND_ENABLED =
-  buildFlags.DEV === true && buildFlags.VITE_SYSTEM_HEALTH_FRONTEND_ENABLED === "true";
+export const OWNER_ANALYTICS_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_OWNER_ANALYTICS_FRONTEND_ENABLED",
+  true,
+);
+
+export const SYSTEM_HEALTH_FRONTEND_ENABLED = readBuildFlag(
+  "VITE_SYSTEM_HEALTH_FRONTEND_ENABLED",
+  true,
+);
 
 export const GROUP_FOCUS_WORKER_URL =
   typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
