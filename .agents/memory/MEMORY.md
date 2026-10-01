@@ -21,3 +21,4 @@
 - [Preview API probes](preview-api-probes.md) — shell requests to the dev domain may return a proxy placeholder; confirm disputed routes through app preview before blaming the app.
 - [OAuth popup handoff](oauth-popup-handoff.md) — keep one-time OAuth URLs uncached and never let optional web storage delay popup navigation.
 - [Maintenance CLI environment detection](maintenance-cli-env-detection.md) — treat empty runtime variables as unset; the development shell may expose `NODE_ENV` as an empty string.
+- [Focus display behavior](focus-display-behavior.md) — keep visual phases and progress tied to persisted Focus data; don't imply unsupported long breaks or daily completion totals.

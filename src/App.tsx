@@ -6163,8 +6163,7 @@ const handleSignOut = useCallback(async () => {
           <nav
             aria-label={language === "ar" ? "التنقل الرئيسي" : "Main Navigation"}
             data-sidebar-density={sidebarNavDensity}
-            className={`sidebar-nav-list flex flex-col ${sidebarNavDensity === "tight" ? "gap-0.5" : sidebarNavDensity === "compact" ? "gap-1" : "gap-0.5"} overflow-y-auto min-h-0 flex-1 hide-scrollbar overscroll-y-contain`}
-            style={{ scrollbarWidth: "none" }}
+            className={`sidebar-nav-list flex min-h-0 flex-1 flex-col justify-between overflow-hidden pb-2 ${sidebarNavDensity === "tight" ? "gap-0.5" : sidebarNavDensity === "compact" ? "gap-1" : "gap-0.5"}`}
           >
             {sidebarMainItems.map((item) => (
               <SidebarNavItem

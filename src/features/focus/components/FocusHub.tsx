@@ -8,8 +8,11 @@ import {
   BookOpen,
   Check,
   Clock3,
+  Copy,
+  NotebookPen,
   Minus,
   Plus,
+  Play,
   ShieldCheck,
   Target,
   Trash2,
@@ -42,6 +45,7 @@ import {
 } from "../focusHubModel";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
+import { FocusCycleStrip, FocusTimerScene } from "./FocusVisuals";
 import { ActiveFocusScreen } from "./ActiveFocusScreen";
 import {
   FocusHistoryScreen,
@@ -155,6 +159,8 @@ export function FocusHub({
     key: FocusHubNoticeKey;
     tone: "success" | "error" | "info";
   } | null>(null);
+  const [quickNoteDraft, setQuickNoteDraft] = useState("");
+  const [quickNoteFeedback, setQuickNoteFeedback] = useState<"copied" | "error" | null>(null);
   const [highlightedLectureId, setHighlightedLectureId] = useState<string | null>(null);
   const startAttemptRef = useRef<StartAttempt | null>(null);
   const summaryStartAttemptRef = useRef<StartAttempt | null>(null);
@@ -296,6 +302,17 @@ export function FocusHub({
     },
     [],
   );
+
+  const copyQuickNote = async () => {
+    if (!quickNoteDraft.trim()) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(quickNoteDraft);
+      setQuickNoteFeedback("copied");
+    } catch {
+      setQuickNoteFeedback("error");
+    }
+  };
 
   const applyPreset = (presetId: (typeof FOCUS_PRESETS)[number]["id"]) => {
     setNotice(null);
@@ -736,52 +753,6 @@ export function FocusHub({
       dir={isRtl ? "rtl" : "ltr"}
       className="mx-auto w-full max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
-      <header className="relative overflow-hidden rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-[#e4f1f5] px-5 py-6 text-slate-900 shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-white sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -left-10 -top-20 h-56 w-56 rounded-full bg-sky-200/45 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl" aria-hidden="true" />
-        <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/75 text-sky-800 shadow-[0_8px_18px_rgba(57,110,131,0.08)] dark:border-white/15 dark:bg-white/10 dark:text-sky-100 sm:h-14 sm:w-14">
-              <Target className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-800 dark:text-sky-200">
-                {t("focusHubNav")}
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-                {t("focusHubTitle")}
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600 dark:text-slate-300 sm:text-base">
-                {t("focusHubSubtitle")}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={onOpenHistory}
-              aria-label={t("focusHubHistory")}
-              className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200/80 bg-white/65 px-3 text-sm font-medium text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10"
-            >
-              <Clock3 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{t("focusHubHistory")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={onBackToHome}
-              className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200/80 bg-white/65 px-3 text-sm font-medium text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10"
-            >
-              {isRtl ? (
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              )}
-              <span className="hidden sm:inline">{t("focusHubBack")}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
       {notice && (
         <div
           role={notice.tone === "error" ? "alert" : "status"}
@@ -853,11 +824,69 @@ export function FocusHub({
         </section>
       )}
 
-      <div className="mt-5 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(270px,340px)] md:gap-6 lg:gap-8">
-        <div className="min-w-0 space-y-5">
+      <div className="mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1.03fr)_minmax(250px,0.97fr)] md:gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(310px,0.95fr)] lg:gap-5">
+        <header className="order-1 flex min-w-0 items-center justify-between gap-3 md:col-start-1 md:row-start-1">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-sky-200/80 bg-white text-blue-600 shadow-[0_7px_18px_rgba(58,116,173,0.12)] dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-200">
+              <Target className="size-6" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-[28px]">
+                {t("focusHubNav")}
+              </h1>
+              <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-slate-400 sm:text-[15px]">
+                {t("focusHubSubtitle")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onBackToHome}
+            aria-label={t("focusHubBack")}
+            title={t("focusHubBack")}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-white/85 text-slate-600 shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200"
+          >
+            {isRtl ? (
+              <ArrowRight className="size-4" aria-hidden="true" />
+            ) : (
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        </header>
+
+        <FocusCycleStrip
+          language={language}
+          focusMinutes={draft.studyMinutes}
+          breakMinutes={draft.breakMinutes}
+          plannedSessions={estimate.sessionCount}
+          activePhase="focus"
+        />
+
+        <section
+          aria-label={t("focusHubTimerSessionLabel")}
+          className="order-3 min-w-0 md:col-start-1 md:row-start-3"
+        >
+          <FocusTimerScene progress={0.76} className="min-h-[320px] sm:min-h-[360px]">
+            <span className="mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+              <Target className="size-6" aria-hidden="true" />
+            </span>
+            <time
+              className="font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
+              dir="ltr"
+              aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
+            >
+              <bdi>{String(Math.max(0, draft.studyMinutes)).padStart(2, "0")}:00</bdi>
+            </time>
+            <span className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+              {t("focusHubTimerSessionLabel")}
+            </span>
+          </FocusTimerScene>
+        </section>
+
+        <div className="contents">
           <section
             aria-labelledby="focus-setup-title"
-            className="rounded-[24px] border border-slate-200/90 bg-white p-5 shadow-[0_10px_35px_rgba(30,40,80,0.04)] dark:border-white/10 dark:bg-[#17191f] sm:p-6"
+            className="order-7 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-6"
           >
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
@@ -941,7 +970,7 @@ export function FocusHub({
 
           <section
             aria-labelledby="focus-queue-title"
-            className="rounded-[24px] border border-slate-200/90 bg-white p-5 shadow-[0_10px_35px_rgba(30,40,80,0.04)] dark:border-white/10 dark:bg-[#17191f] sm:p-6"
+            className="order-5 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-2 md:row-start-1 md:row-span-3"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -1133,23 +1162,68 @@ export function FocusHub({
               </p>
             )}
           </section>
+
+        <section
+          aria-label={t("focusHubStart")}
+          className="order-6 min-w-0 rounded-[24px] border border-sky-100 bg-white/90 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-1 md:row-start-5"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (currentSession) onOpenSession(currentSession.id);
+              else void startFocus();
+            }}
+            disabled={currentSession ? false : !canStart}
+            className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
+          >
+            <Play className="size-5 fill-current" aria-hidden="true" />
+            {currentSession
+              ? t("focusHubResume")
+              : starting
+                ? <span aria-live="polite">{t("focusHubStarting")}</span>
+                : t("focusHubStart")}
+          </button>
+          {!currentSession && !draft.items.length && (
+            <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
+              {t("focusHubAddAtLeastOne")}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={savePlan}
+              disabled={!canSave}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-300 dark:hover:bg-white/[0.06]"
+            >
+              {saving ? t("focusHubSaving") : t("focusHubSavePlan")}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-sky-200 dark:hover:bg-white/[0.06]"
+            >
+              <Clock3 className="size-4" aria-hidden="true" />
+              {t("focusHubHistory")}
+            </button>
+          </div>
+        </section>
         </div>
 
-        <aside className="min-w-0 space-y-4 md:sticky md:top-4">
+        <aside className="contents">
           <section
             aria-labelledby="focus-plan-summary-title"
-            className="rounded-[24px] border border-slate-200/90 bg-white p-5 shadow-[0_12px_36px_rgba(30,40,80,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6"
+            className="order-4 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_12px_36px_rgba(46,104,158,0.08)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-4"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800 dark:text-sky-200">
-                  {t("focusHubEstimated")}
+                  {t("focusHubPlannedSessions")}
                 </p>
                 <h2 id="focus-plan-summary-title" className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
-                  {t("focusHubPlanSummary")}
+                  {t("focusHubTodayPlan")}
                 </h2>
               </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e9f3f5] text-[#3f7890] dark:bg-sky-300/10 dark:text-sky-100">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-100">
                 <Check className="h-5 w-5" aria-hidden="true" />
               </span>
             </div>
@@ -1161,7 +1235,7 @@ export function FocusHub({
               <SummaryMetric label={t("focusHubBreakTotal")} value={formatMinutes(estimate.breakMinutes)} />
             </div>
 
-            <div className="mt-3 rounded-2xl border border-[#34657a] bg-gradient-to-br from-[#315f75] to-[#234d62] px-4 py-4 text-white">
+            <div className="mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
               <p className="text-xs font-medium text-sky-100/90">
                 {t("focusHubTotalTime")}
               </p>
@@ -1189,53 +1263,79 @@ export function FocusHub({
               </p>
             )}
 
-            <div className="mt-5 space-y-2">
-              <button
-                type="button"
-                onClick={savePlan}
-                disabled={!canSave}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-sky-100 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
-              >
-                {saving ? t("focusHubSaving") : t("focusHubSavePlan")}
-              </button>
-              {currentSession ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenSession(currentSession.id)}
-                  className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#17191f]"
-                >
-                  {t("focusHubResume")}
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void startFocus()}
-                    disabled={!canStart}
-                  className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#315f75] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(54,113,139,0.18)] transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-[#17191f]"
-                  >
-                    {starting ? (
-                      <span aria-live="polite">{t("focusHubStarting")}</span>
-                    ) : (
-                      t("focusHubStart")
-                    )}
-                  </button>
-                  {!draft.items.length && (
-                    <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-                      {t("focusHubAddAtLeastOne")}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
           </section>
 
-          {FOCUS_AUDIO_ENABLED && <FocusAudioPlanningCard language={language} />}
+          {FOCUS_AUDIO_ENABLED && (
+            <div className="order-8 min-w-0 md:col-start-2 md:row-start-4">
+              <FocusAudioPlanningCard language={language} />
+            </div>
+          )}
 
-          <section className="rounded-[22px] border border-slate-200/80 bg-slate-50/75 p-4 dark:border-white/10 dark:bg-white/[0.025]">
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {t("focusHubQuickNotes")}
-            </p>
+          <section
+            aria-labelledby="focus-quick-notes-title"
+            className="order-9 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-2 md:row-start-5"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-200">
+                <NotebookPen className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 id="focus-quick-notes-title" className="font-semibold text-slate-950 dark:text-white">
+                  {t("focusHubQuickNotesTitle")}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {t("focusHubQuickNotes")}
+                </p>
+              </div>
+            </div>
+            <label className="sr-only" htmlFor="focus-planner-quick-note">
+              {t("focusHubQuickNotesTitle")}
+            </label>
+            <textarea
+              id="focus-planner-quick-note"
+              value={quickNoteDraft}
+              onChange={(event) => {
+                setQuickNoteDraft(event.target.value);
+                setQuickNoteFeedback(null);
+              }}
+              placeholder={t("focusHubQuickNotePlaceholder")}
+              className="mt-4 min-h-[150px] w-full resize-y rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-400/10"
+            />
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickNoteDraft("");
+                  setQuickNoteFeedback(null);
+                }}
+                disabled={!quickNoteDraft}
+                aria-label={t("focusHubQuickNoteClear")}
+                title={t("focusHubQuickNoteClear")}
+                className="flex size-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyQuickNote()}
+                disabled={!quickNoteDraft.trim()}
+                aria-label={t("focusHubQuickNoteCopy")}
+                title={t("focusHubQuickNoteCopy")}
+                className="flex size-11 items-center justify-center rounded-xl bg-sky-50 text-blue-700 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-sky-300/10 dark:text-sky-200 dark:hover:bg-sky-300/20"
+              >
+                <Copy className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+            {quickNoteFeedback && (
+              <p
+                role={quickNoteFeedback === "error" ? "alert" : "status"}
+                className={`mt-1 text-xs ${quickNoteFeedback === "error" ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}
+              >
+                {quickNoteFeedback === "copied"
+                  ? t("focusHubQuickNoteCopied")
+                  : t("focusHubQuickNoteCopyUnavailable")}
+              </p>
+            )}
           </section>
         </aside>
       </div>

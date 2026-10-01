@@ -8,6 +8,7 @@ import React, {
 import {
   ArrowLeft,
   BookOpen,
+  Coffee,
   Check,
   ChevronRight,
   CircleAlert,
@@ -39,6 +40,7 @@ import { FocusRuntimeController } from "../runtime/controller";
 import type { FocusRuntimeState } from "../runtime/types";
 import { focusApi } from "../api/focusApi";
 import { deriveFocusProgression, formatFocusClock } from "../focusActiveModel";
+import { FocusCycleStrip, FocusTimerScene } from "./FocusVisuals";
 import { useFocusAudio } from "../../focus-audio/hooks";
 import type { FocusAudioContextValue } from "../../focus-audio/provider";
 
@@ -350,6 +352,7 @@ function ActiveFocusScreenCore({
     [canonicalSession, lectures],
   );
   const planItems = currentPlan?.items ?? [];
+  const currentPlanItem = planItems.find((item) => item.id === canonicalSession?.planItemId) ?? null;
   const currentPlanItemId = canonicalSession?.planItemId ??
     terminalResult?.session.planItemId ??
     null;
@@ -798,9 +801,10 @@ function ActiveFocusScreenCore({
 
   if (localBreak && localTerminalResult?.session.status === "COMPLETED") {
     const nextItem = planItems.find((item) => item.id === localBreak.nextItemId);
+    const completedItem = planItems.find((item) => item.id === localTerminalResult.session.planItemId);
     const isBreakFinished = breakFinished;
     return (
-      <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-6xl bg-gradient-to-b from-[#f3f8f9] to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6">
+      <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
         <header className="mb-5 flex items-center justify-between gap-3">
           <button
             type="button"
@@ -816,21 +820,33 @@ function ActiveFocusScreenCore({
           </span>
         </header>
 
-        <main className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
-          <section className="flex min-h-[390px] flex-col items-center justify-center rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:min-h-[460px]">
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-800 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100">
-              {t.focusActiveBreakPhase}
-            </span>
-            <h1 className="mt-5 text-2xl font-bold text-[#173849] dark:text-white">{t.focusActiveBreakTitle}</h1>
-            <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-              {isBreakFinished ? t.focusActiveNextReady : t.focusActiveBreakBody}
-            </p>
-            <div className="my-7 text-[#235269] dark:text-sky-100">{breakTimer}</div>
+        <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
+          <section className="min-w-0 rounded-[30px] border border-sky-100 bg-white/90 p-4 text-center shadow-[0_18px_48px_rgba(55,119,171,0.08)] dark:border-sky-300/15 dark:bg-[#111923] sm:p-6">
+            <FocusCycleStrip
+              language={language}
+              focusMinutes={Math.round((completedItem?.focusDurationSeconds ?? 1_500) / 60)}
+              breakMinutes={Math.round((completedItem?.breakDurationSeconds ?? 300) / 60)}
+              plannedSessions={planItems.reduce((total, item) => total + item.sessionCount, 0)}
+              activePhase="break"
+            />
+            <div className="mt-5">
+              <h1 className="text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">{t.focusActiveBreakTitle}</h1>
+              <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                {isBreakFinished ? t.focusActiveNextReady : t.focusActiveBreakBody}
+              </p>
+            </div>
+            <FocusTimerScene progress={0.4} className="mt-3 border-0 shadow-none">
+              <span className="mb-2 flex size-10 items-center justify-center rounded-full bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-200">
+                <Coffee className="size-5" aria-hidden="true" />
+              </span>
+              <div className="my-2 text-[#235269] dark:text-sky-100">{breakTimer}</div>
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-300">{t.focusActiveBreakPhase}</span>
+            </FocusTimerScene>
             <button
               type="button"
               disabled={!isBreakFinished || !online || isRuntimeBusy || !nextItem}
               onClick={handleStartNext}
-              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-6 font-semibold text-white shadow-[0_9px_22px_rgba(59,111,223,0.22)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Play className="size-4" aria-hidden="true" />
               {isRuntimeBusy ? t.focusActiveChecking : t.focusActiveStartNext}
@@ -850,7 +866,7 @@ function ActiveFocusScreenCore({
             {!online && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">{t.focusActiveOffline}</p>}
           </section>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <SessionSummary
               session={localTerminalResult.session}
               lecture={lectures.find((item) => item.id === localTerminalResult.session.lectureId) ?? null}
@@ -1040,7 +1056,7 @@ function ActiveFocusScreenCore({
   };
 
   return (
-    <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#f3f8f9] to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
+    <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
       <header className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -1137,12 +1153,12 @@ function ActiveFocusScreenCore({
         </div>
       )}
 
-      <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] lg:gap-6">
+      <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
         <div className="min-w-0 space-y-4">
-          <section className={`relative overflow-hidden rounded-[30px] border p-5 shadow-[0_18px_48px_rgba(54,99,119,0.08)] sm:p-8 ${
+          <section className={`relative overflow-hidden rounded-[30px] border p-4 shadow-[0_18px_48px_rgba(55,119,171,0.08)] sm:p-6 ${
             isPaused
-              ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900"
-              : "border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c]"
+              ? "border-amber-200 bg-gradient-to-br from-amber-50/90 to-white dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900"
+              : "border-sky-100 bg-gradient-to-br from-white via-sky-50/60 to-[#eaf3ff] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c]"
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-3 text-sm font-semibold text-[#315f75] dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
@@ -1156,9 +1172,21 @@ function ActiveFocusScreenCore({
               </span>
             </div>
 
-            <div className="mt-5 text-center">
-              <p className="text-sm font-medium text-muted-foreground">{t.focusActiveTimerLabel}</p>
-              <FocusTimer controller={controller} label={t.focusActiveTimerLabel} />
+            <FocusCycleStrip
+              language={language}
+              focusMinutes={Math.round((currentPlanItem?.focusDurationSeconds ?? 1_500) / 60)}
+              breakMinutes={Math.round((currentPlanItem?.breakDurationSeconds ?? 300) / 60)}
+              plannedSessions={planItems.reduce((total, item) => total + item.sessionCount, 0)}
+              activePhase={phase === "BREAK" ? "break" : "focus"}
+            />
+
+            <div className="mt-3 text-center">
+              <FocusTimer
+                controller={controller}
+                label={t.focusActiveTimerLabel}
+                caption={t.focusActiveTitle}
+                durationSeconds={currentPlanItem?.focusDurationSeconds}
+              />
               {runtime.displayMayBeComplete && runtime.completionEligible !== true && (
                 <p className="mt-2 text-sm text-muted-foreground" role="status">
                   {t.focusActiveChecking}
@@ -1166,13 +1194,23 @@ function ActiveFocusScreenCore({
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-4">
+              <SessionSummary
+                session={canonicalSession}
+                lecture={lecture}
+                itemPosition={currentPlanIndex >= 0 ? currentPlanIndex + 1 : null}
+                itemCount={planItems.length}
+                t={t}
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
               {isActive && (
                 <button
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handlePause}
-                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-5 font-semibold text-[#315f75] shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-sky-100 dark:hover:bg-white/[0.08]"
+                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full border border-sky-200 bg-white px-2 text-xs font-semibold text-[#315f75] shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-sky-100 dark:hover:bg-white/[0.08]"
                 >
                   <Pause className="size-4" aria-hidden="true" />
                   {t.focusActivePause}
@@ -1183,7 +1221,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handleResume}
-                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(59,111,223,0.20)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="size-4" aria-hidden="true" />
                   {t.focusActiveResume}
@@ -1194,7 +1232,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handleComplete}
-                  className="inline-flex min-h-12 min-w-44 items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(59,111,223,0.20)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Check className="size-4" aria-hidden="true" />
                   {t.focusActiveComplete}
@@ -1216,7 +1254,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={() => setConfirmType("end")}
-                  className="min-h-12 rounded-xl px-4 font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  className="min-h-11 rounded-xl px-4 font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   {t.focusActiveEnd}
                 </button>
@@ -1253,14 +1291,6 @@ function ActiveFocusScreenCore({
         </div>
 
         <aside className="min-w-0 space-y-4">
-          <SessionSummary
-            session={canonicalSession}
-            lecture={lecture}
-            itemPosition={currentPlanIndex >= 0 ? currentPlanIndex + 1 : null}
-            itemCount={planItems.length}
-            t={t}
-          />
-
           <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-foreground">{t.focusActiveResourceTitle}</h2>
@@ -1398,9 +1428,13 @@ function ActiveFocusScreenCore({
 function FocusTimer({
   controller,
   label,
+  caption,
+  durationSeconds,
 }: {
   controller: FocusRuntimeController;
   label: string;
+  caption: string;
+  durationSeconds?: number;
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     () => controller.getState().displayRemainingSeconds,
@@ -1414,15 +1448,27 @@ function FocusTimer({
   const clockText = remainingSeconds === null
     ? "--:--"
     : formatFocusClock(remainingSeconds);
+  const progress =
+    durationSeconds && remainingSeconds !== null
+      ? Math.max(0, Math.min(1, remainingSeconds / durationSeconds))
+      : 0.74;
   return (
-    <time
-      className="mt-2 block font-mono text-6xl font-semibold tracking-tight text-[#235269] tabular-nums sm:text-7xl lg:text-8xl dark:text-sky-100"
-      dir="ltr"
-      aria-label={`${label}: ${clockText}`}
-      aria-live="off"
-    >
-      {clockText}
-    </time>
+    <FocusTimerScene progress={progress} className="min-h-[310px] border-0 shadow-none sm:min-h-[350px]">
+      <span className="mb-1 flex size-10 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-200">
+        <Target className="size-5" aria-hidden="true" />
+      </span>
+      <time
+        className="block font-mono text-5xl font-bold tracking-[-0.06em] text-[#235269] tabular-nums sm:text-6xl lg:text-7xl dark:text-sky-100"
+        dir="ltr"
+        aria-label={`${label}: ${clockText}`}
+        aria-live="off"
+      >
+        {clockText}
+      </time>
+      <span className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+        {caption}
+      </span>
+    </FocusTimerScene>
   );
 }
 
@@ -1494,7 +1540,7 @@ function SessionSummary({
   t: ActiveFocusCopy;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+    <section className="rounded-2xl border border-sky-100 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] sm:p-5">
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <BookOpen className="size-5" aria-hidden="true" />
