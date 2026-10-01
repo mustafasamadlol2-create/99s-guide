@@ -41,6 +41,10 @@ function options(overrides: Record<string, unknown> = {}) {
 
 test("parser defaults to dry-run and rejects conflicting or unknown options", () => {
   assert.equal(parseMaintenanceArgs(["points", "--environment=test"]).options.mode, "dry-run");
+  assert.equal(
+    parseMaintenanceArgs(["readiness", "preflight"], { NODE_ENV: "" }).options.environment,
+    "development",
+  );
   const compaction = parseMaintenanceArgs([
     "outbox", "compact", "--older-than-days", "30",
   ], { NODE_ENV: "test" });

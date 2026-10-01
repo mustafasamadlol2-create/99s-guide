@@ -17,7 +17,7 @@ type ReadinessCheck = {
   detail: unknown;
 };
 
-const REQUIRED_TABLES = [
+export const READINESS_REQUIRED_TABLES = [
   "User",
   "StudyEvent",
   "FocusSession",
@@ -27,7 +27,7 @@ const REQUIRED_TABLES = [
   "StudyPointsBalanceProjection",
   "GamificationRuleSet",
   "UserAchievementProgress",
-  "UserAchievementUnlock",
+  "UserAchievement",
   "UserGamificationLevel",
   "LectureMastery",
   "LectureRetention",
@@ -85,7 +85,7 @@ export async function runReadinessPreflight(
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
     `);
     tables = new Set(rows.map((row) => row.table_name));
-    const missing = REQUIRED_TABLES.filter((table) => !tables.has(table));
+    const missing = READINESS_REQUIRED_TABLES.filter((table) => !tables.has(table));
     check(checks, "required_tables", missing.length ? "FAIL" : "PASS", missing);
   } catch {
     check(checks, "required_tables", "FAIL", "SCHEMA_CATALOG_QUERY_FAILED");

@@ -4,6 +4,11 @@ import type { PrismaClient } from "@prisma/client";
 import { createOutboxAdapter } from "../server/study-maintenance/jobs/outbox.js";
 import { runFocusAudit, runGroupFocusAudit } from "../server/study-maintenance/jobs/integrityAudits.js";
 import { runCompatibilityAudit, runOrphanAudit } from "../server/study-maintenance/jobs/audits.js";
+import { READINESS_REQUIRED_TABLES } from "../server/study-maintenance/jobs/readiness.js";
+
+test("readiness checks the mapped achievement unlock table name", () => {
+  assert.ok(READINESS_REQUIRED_TABLES.includes("UserAchievement"));
+});
 
 test("outbox replay safely requeues delayed and blocked entries in both pipelines", async () => {
   let queryCount = 0;

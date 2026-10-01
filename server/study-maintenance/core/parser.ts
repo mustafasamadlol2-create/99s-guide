@@ -55,9 +55,14 @@ export function detectEnvironment(env: NodeJS.ProcessEnv = process.env): Mainten
   const productionRuntime = env.NODE_ENV === "production"
     || env.DEPLOYMENT_ENV === "production"
     || (deploymentMarker !== undefined && deploymentMarker !== "" && deploymentMarker !== "false");
+  const configuredEnvironment = [
+    env.MAINTENANCE_ENVIRONMENT,
+    env.DEPLOYMENT_ENV,
+    env.NODE_ENV,
+  ].find((value) => typeof value === "string" && value.trim().length > 0);
   const raw = productionRuntime
     ? "production"
-    : env.MAINTENANCE_ENVIRONMENT ?? env.DEPLOYMENT_ENV ?? env.NODE_ENV ?? "development";
+    : configuredEnvironment?.trim() ?? "development";
   if (!environments.has(raw as MaintenanceEnvironment)) {
     throw new Error(`Unsupported maintenance environment: ${raw}`);
   }
