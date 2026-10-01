@@ -19,3 +19,4 @@
 - [Guide/source reconciliation](guide-source-reconciliation.md) — treat attached snapshots as constraints, then verify current interfaces and surrounding code before edits.
 - [Recall eligibility parity](recall-eligibility-parity.md) — keep eligibility read-only and aligned with issuance gates; never expose candidate or attempt IDs.
 - [Preview API probes](preview-api-probes.md) — shell requests to the dev domain may return a proxy placeholder; confirm disputed routes through app preview before blaming the app.
+- [OAuth popup handoff](oauth-popup-handoff.md) — keep one-time OAuth URLs uncached and never let optional web storage delay popup navigation.

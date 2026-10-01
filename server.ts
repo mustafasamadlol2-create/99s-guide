@@ -7982,6 +7982,7 @@ app.post("/api/admin/db-sync", requireOwner, (req, res) => {
 // relies on the 401 to know it must drop its stale stored token and cached profile instead
 // of booting a phantom "authenticated" shell whose protected requests all 401.
 app.get("/api/auth/me", catchAsync(async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
   try {
     const token = getRequestToken(req);
     if (!token) {
@@ -8405,6 +8406,8 @@ const IS_SANDBOX_AUTH_ENABLED =
 
 // Generates correct OAuth Authorize URL or offers Sandbox dev mode
 app.get("/api/auth/oauth-url", catchAsync(async (req, res) => {
+  // OAuth URLs contain one-time state and must never be reused from an HTTP cache.
+  res.setHeader("Cache-Control", "no-store");
   const provider = (req.query.provider as string || "").toLowerCase();
 
   // Production Google callbacks return to Render; Replit development callbacks

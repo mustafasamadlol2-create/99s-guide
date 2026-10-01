@@ -97,9 +97,10 @@ export const SecureStorage = {
     if (!Capacitor.isNativePlatform() && isWebSessionKey(key)) {
       writeWebSessionToken(key, value);
       if (key !== "auth_token") {
-        try {
-          await Preferences.set({ key, value });
-        } catch {}
+        // The session copy is already available synchronously above. Keep the
+        // Preferences mirror as best-effort so OAuth popup navigation does not
+        // wait on a web plugin write.
+        try { void Preferences.set({ key, value }).catch(() => {}); } catch {}
       }
       return;
     }

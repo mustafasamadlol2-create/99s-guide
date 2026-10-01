@@ -797,7 +797,10 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
 
       try {
         const pkce = await createPkcePair();
-         const res = await apiClient(`/api/auth/oauth-url?provider=${key}&flow=inapp&code_challenge=${encodeURIComponent(pkce.challenge)}`, { silent: true });
+         const res = await apiClient(
+           `/api/auth/oauth-url?provider=${key}&flow=inapp&code_challenge=${encodeURIComponent(pkce.challenge)}`,
+           { silent: true, bypassCache: true, retries: 0, timeoutMs: 15_000 },
+         );
            if (!res.ok) throw await oauthResponseError(res, `Failed to initialize ${provider} login session.`);
         const data = await res.json();
         const targetUrl = data.url ?? data.sandboxUrl;
@@ -1006,7 +1009,7 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
             const pkce = await createPkcePair();
             const res = await apiClient(
               `/api/auth/oauth-url?provider=${key}&flow=redirect&code_challenge=${encodeURIComponent(pkce.challenge)}`,
-              { silent: true },
+              { silent: true, bypassCache: true, retries: 0, timeoutMs: 15_000 },
             );
            if (!res.ok) throw await oauthResponseError(res, `Failed to initialize ${provider} login session.`);
             const data = await res.json();
@@ -1101,7 +1104,10 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
         try {
           const pkce = await createPkcePair();
           codeVerifier = pkce.verifier;
-           const res = await apiClient(`/api/auth/oauth-url?provider=${key}&code_challenge=${encodeURIComponent(pkce.challenge)}`, { silent: true });
+            const res = await apiClient(
+              `/api/auth/oauth-url?provider=${key}&code_challenge=${encodeURIComponent(pkce.challenge)}`,
+              { silent: true, bypassCache: true, retries: 0, timeoutMs: 15_000 },
+            );
            if (!res.ok) throw await oauthResponseError(res, `Failed to initialize ${provider} login session.`);
           const data = await res.json();
           const targetUrl = data.url ?? data.sandboxUrl;
