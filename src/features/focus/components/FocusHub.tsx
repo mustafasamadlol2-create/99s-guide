@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowDown,
-  ArrowLeft,
-  ArrowRight,
   ArrowUp,
   BookOpen,
   Check,
   Clock3,
+  Coffee,
   Copy,
+  ListChecks,
   NotebookPen,
   Minus,
   Plus,
@@ -45,7 +45,11 @@ import {
 } from "../focusHubModel";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
-import { FocusCycleStrip, FocusTimerScene } from "./FocusVisuals";
+import {
+  FocusCycleStrip,
+  FocusTimerScene,
+  type FocusDisplayPhase,
+} from "./FocusVisuals";
 import { ActiveFocusScreen } from "./ActiveFocusScreen";
 import {
   FocusHistoryScreen,
@@ -134,7 +138,6 @@ export function FocusHub({
   historyOpen,
   historyDetailId,
   onRefreshLectures,
-  onBackToHome,
   onReturnToPlanner,
   onOpenSession,
   onOpenSummary,
@@ -149,6 +152,7 @@ export function FocusHub({
   const [currentSession, setCurrentSession] = useState<FocusSessionRecord | null>(null);
   const currentSessionRef = useRef<FocusSessionRecord | null>(null);
   const [draft, setDraft] = useState<FocusPlanDraft>(createEmptyFocusPlanDraft);
+  const [plannerView, setPlannerView] = useState<FocusDisplayPhase>("focus");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -839,19 +843,6 @@ export function FocusHub({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onBackToHome}
-            aria-label={t("focusHubBack")}
-            title={t("focusHubBack")}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-white/85 text-slate-600 shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-200"
-          >
-            {isRtl ? (
-              <ArrowRight className="size-4" aria-hidden="true" />
-            ) : (
-              <ArrowLeft className="size-4" aria-hidden="true" />
-            )}
-          </button>
         </header>
 
         <FocusCycleStrip
@@ -859,27 +850,68 @@ export function FocusHub({
           focusMinutes={draft.studyMinutes}
           breakMinutes={draft.breakMinutes}
           plannedSessions={estimate.sessionCount}
-          activePhase="focus"
+          activePhase={plannerView}
+          onPhaseChange={setPlannerView}
+          tabPanelId="focus-planner-mode-panel"
+          idPrefix="focus-planner-mode"
         />
 
         <section
-          aria-label={t("focusHubTimerSessionLabel")}
+          id="focus-planner-mode-panel"
+          role="tabpanel"
+          aria-labelledby={`focus-planner-mode-tab-${plannerView}`}
+          aria-label={
+            plannerView === "plan"
+              ? t("focusHubTodayPlan")
+              : plannerView === "break"
+                ? t("focusHubShortBreak")
+                : t("focusHubTimerSessionLabel")
+          }
+          tabIndex={0}
           className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
-          <FocusTimerScene progress={0.76} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
-            <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
-              <Target className="size-6" aria-hidden="true" />
-            </span>
-            <time
-              className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
-              dir="ltr"
-              aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
-            >
-              <bdi>{String(Math.max(0, draft.studyMinutes)).padStart(2, "0")}:00</bdi>
-            </time>
-            <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
-              {t("focusHubTimerSessionLabel")}
-            </span>
+          <FocusTimerScene progress={0} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
+            {plannerView === "plan" ? (
+              <>
+                <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+                  <ListChecks className="size-6" aria-hidden="true" />
+                </span>
+                <span className="focus-hub-timer-caption text-sm font-medium text-slate-500 dark:text-slate-300">
+                  {t("focusHubCyclePlan")}
+                </span>
+                <strong className="focus-hub-timer-value mt-1 font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white">
+                  <bdi>{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(estimate.sessionCount)}</bdi>
+                </strong>
+                <span className="focus-hub-timer-caption text-sm font-medium text-slate-500 dark:text-slate-300">
+                  {t("focusHubSessionCount")}
+                </span>
+                <span className="mt-2 rounded-full border border-sky-200 bg-white/70 px-3 py-1 text-xs font-semibold text-sky-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
+                  {t("focusHubTotalTime")}: {formatMinutes(estimate.totalMinutes)}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+                  {plannerView === "break" ? (
+                    <Coffee className="size-6" aria-hidden="true" />
+                  ) : (
+                    <Target className="size-6" aria-hidden="true" />
+                  )}
+                </span>
+                <time
+                  className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
+                  dir="ltr"
+                  aria-label={`${plannerView === "break" ? t("focusHubShortBreak") : t("focusHubTimerSessionLabel")}: ${plannerView === "break" ? draft.breakMinutes : draft.studyMinutes}:00`}
+                >
+                  <bdi>
+                    {String(Math.max(0, plannerView === "break" ? draft.breakMinutes : draft.studyMinutes)).padStart(2, "0")}:00
+                  </bdi>
+                </time>
+                <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+                  {plannerView === "break" ? t("focusHubShortBreak") : t("focusHubTimerSessionLabel")}
+                </span>
+              </>
+            )}
           </FocusTimerScene>
         </section>
 

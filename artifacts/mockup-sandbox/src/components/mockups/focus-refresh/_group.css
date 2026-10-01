@@ -1,0 +1,83 @@
+@import url("./focus-fonts/fonts.css");
+
+.focus-refresh-root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "SF Compact", "Inter", "Cairo", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "SF Pro Text", "Space Grotesk", "Cairo", sans-serif;
+  --font-mono: "SF Mono", "SFProMono-Regular", "JetBrains Mono", monospace;
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.02);
+  --shadow-elevation-2: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.03);
+  --shadow-elevation-3: 0 8px 32px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.05);
+  --surface-primary: #fbfbfd;
+  --surface-secondary: #f2f2f7;
+  --surface-tertiary: #e5e5ea;
+  --surface-elevated: #ffffff;
+  --surface-grouped: #eef0f5;
+  --surface-card: #fbfbfd;
+  --semantic-background-page: #fafafa;
+  --semantic-background-grouped: #eef0f5;
+  --semantic-surface-primary: #fbfbfd;
+  --semantic-surface-elevated: #ffffff;
+  --semantic-surface-muted: #e5e5ea;
+  --semantic-content-primary: #1c1c1e;
+  --semantic-content-secondary: #8e8e93;
+  --semantic-content-subtle: rgba(60, 60, 67, 0.6);
+  --semantic-border-default: rgba(0, 0, 0, 0.04);
+  --semantic-border-strong: rgba(0, 0, 0, 0.08);
+  --semantic-action-accent: #007aff;
+  --semantic-action-accent-soft: rgba(0, 122, 255, 0.1);
+  --semantic-focus-ring: #007aff;
+  --semantic-glass-surface: rgba(255, 255, 255, 0.6);
+  --semantic-glass-border: rgba(0, 0, 0, 0.05);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+  --status-error: #ff3b30;
+  --status-success: #34c759;
+  --status-warning: #ff9500;
+}
+
+.dark .focus-refresh-root {
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --shadow-elevation-2: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-elevation-3: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --surface-primary: #000000;
+  --surface-secondary: #1c1c1e;
+  --surface-tertiary: #2c2c2e;
+  --surface-elevated: #1c1c1e;
+  --surface-grouped: #000000;
+  --surface-card: #1c1c1e;
+  --semantic-background-page: #000000;
+  --semantic-background-grouped: #000000;
+  --semantic-surface-primary: #000000;
+  --semantic-surface-elevated: #1c1c1e;
+  --semantic-surface-muted: #2c2c2e;
+  --semantic-content-primary: #ffffff;
+  --semantic-content-secondary: rgba(235, 235, 245, 0.72);
+  --semantic-content-subtle: rgba(235, 235, 245, 0.46);
+  --semantic-border-default: rgba(255, 255, 255, 0.06);
+  --semantic-border-strong: rgba(255, 255, 255, 0.12);
+  --semantic-action-accent: #007aff;
+  --semantic-action-accent-soft: rgba(0, 122, 255, 0.1);
+  --semantic-focus-ring: #007aff;
+  --semantic-glass-surface: rgba(34, 34, 36, 0.55);
+  --semantic-glass-border: rgba(255, 255, 255, 0.05);
+  --semantic-shadow-generic: var(--shadow-elevation-1);
+}
+
+.focus-refresh-root {
+  min-height: 100vh;
+  color: #0f172a;
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(219, 239, 255, 0.58), transparent 38rem),
+    #f7faff;
+  font-family: "Inter", "Cairo", system-ui, sans-serif;
+}
+
+.dark .focus-refresh-root {
+  color: #f8fafc;
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(34, 75, 117, 0.2), transparent 38rem),
+    #090f1a;
+}

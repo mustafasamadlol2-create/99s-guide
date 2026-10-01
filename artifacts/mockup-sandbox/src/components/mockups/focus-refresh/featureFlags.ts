@@ -1,0 +1,1 @@
+export const FOCUS_AUDIO_ENABLED = true;

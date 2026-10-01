@@ -5,10 +5,11 @@ const buildFlags = (
 ).env ?? {};
 
 /**
- * Focus Audio remains opt-in until its audio behavior is explicitly enabled.
- * This flag is build-time only and defaults to false in every environment.
+ * Focus Audio is enabled by default; deployments can explicitly disable it.
  */
-export const FOCUS_AUDIO_ENABLED = buildFlags.VITE_FOCUS_AUDIO_ENABLED === "true";
+export const FOCUS_AUDIO_ENABLED =
+  buildFlags.VITE_FOCUS_AUDIO_ENABLED !== "false" &&
+  buildFlags.VITE_FOCUS_AUDIO_ENABLED !== false;
 
 /**
  * Focus Hub is exposed in development by default. Production builds may expose

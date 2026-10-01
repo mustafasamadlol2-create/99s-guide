@@ -22,8 +22,8 @@ class MemoryStorage implements FocusAudioPreferenceStorage {
   }
 }
 
-test("feature flag defaults off", () => {
-  assert.equal(FOCUS_AUDIO_ENABLED, false);
+test("feature flag enables Focus Audio by default", () => {
+  assert.equal(FOCUS_AUDIO_ENABLED, true);
 });
 
 test("corrupt or mismatched preferences safely return defaults", () => {

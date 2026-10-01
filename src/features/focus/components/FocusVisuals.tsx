@@ -1,8 +1,8 @@
 import { Coffee, ListChecks, Target } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 
-export type FocusDisplayPhase = "focus" | "break";
+export type FocusDisplayPhase = "focus" | "break" | "plan";
 
 export function FocusCycleStrip({
   language,
@@ -10,6 +10,9 @@ export function FocusCycleStrip({
   breakMinutes,
   plannedSessions,
   activePhase = "focus",
+  onPhaseChange,
+  tabPanelId,
+  idPrefix = "focus-cycle",
   className = "",
 }: {
   language: Language;
@@ -17,10 +20,14 @@ export function FocusCycleStrip({
   breakMinutes: number;
   plannedSessions: number;
   activePhase?: FocusDisplayPhase;
+  onPhaseChange?: (phase: FocusDisplayPhase) => void;
+  tabPanelId?: string;
+  idPrefix?: string;
   className?: string;
 }) {
   const { t } = useTranslation(language);
   const numberFormat = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const phases = [
     {
       id: "focus",
@@ -44,22 +51,14 @@ export function FocusCycleStrip({
 
   return (
     <div
-      role="group"
+      role={onPhaseChange ? "tablist" : "group"}
       aria-label={t("focusHubCycleLabel")}
       className={`focus-hub-cycle order-2 flex min-w-0 items-center rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_28px_rgba(60,117,158,0.10)] backdrop-blur-sm lg:col-start-1 lg:row-start-2 ${className}`}
     >
-      {phases.map(({ id, label, detail, icon: Icon }) => {
+      {phases.map(({ id, label, detail, icon: Icon }, index) => {
         const isActive = id === activePhase;
-        return (
-          <div
-            key={id}
-            aria-current={isActive ? "step" : undefined}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 sm:gap-2 sm:px-3 ${
-              isActive
-                ? "bg-gradient-to-r from-[#4294ec] to-[#4c66e8] text-white shadow-[0_5px_14px_rgba(59,111,223,0.28)]"
-                : "text-slate-600"
-            }`}
-          >
+        const contents = (
+          <>
             <Icon className={`size-4 shrink-0 sm:size-5 ${isActive ? "text-white" : "text-slate-500"}`} aria-hidden="true" />
             <span className="min-w-0 text-start leading-tight">
               <span className="block truncate text-[11px] font-semibold sm:text-sm">{label}</span>
@@ -67,6 +66,51 @@ export function FocusCycleStrip({
                 <bdi dir="auto">{detail}</bdi>
               </span>
             </span>
+          </>
+        );
+        const optionClassName = `flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:gap-2 sm:px-3 ${
+          isActive
+            ? "bg-gradient-to-r from-[#4294ec] to-[#4c66e8] text-white shadow-[0_5px_14px_rgba(59,111,223,0.28)]"
+            : "text-slate-600 hover:bg-sky-50"
+        }`;
+
+        if (onPhaseChange) {
+          return (
+            <button
+              key={id}
+              ref={(element) => {
+                buttonRefs.current[index] = element;
+              }}
+              id={`${idPrefix}-tab-${id}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={tabPanelId}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => onPhaseChange(id)}
+              onKeyDown={(event) => {
+                const forwardKey = language === "ar" ? "ArrowLeft" : "ArrowRight";
+                const backwardKey = language === "ar" ? "ArrowRight" : "ArrowLeft";
+                let nextIndex: number | null = null;
+                if (event.key === forwardKey) nextIndex = (index + 1) % phases.length;
+                else if (event.key === backwardKey) nextIndex = (index - 1 + phases.length) % phases.length;
+                else if (event.key === "Home") nextIndex = 0;
+                else if (event.key === "End") nextIndex = phases.length - 1;
+                if (nextIndex === null) return;
+                event.preventDefault();
+                onPhaseChange(phases[nextIndex].id);
+                buttonRefs.current[nextIndex]?.focus();
+              }}
+              className={optionClassName}
+            >
+              {contents}
+            </button>
+          );
+        }
+
+        return (
+          <div key={id} aria-current={isActive ? "step" : undefined} className={optionClassName}>
+            {contents}
           </div>
         );
       })}
