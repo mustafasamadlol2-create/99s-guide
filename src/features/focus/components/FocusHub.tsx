@@ -11,6 +11,7 @@ import {
   Minus,
   Plus,
   ShieldCheck,
+  Target,
   Trash2,
 } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
@@ -705,7 +706,7 @@ export function FocusHub({
         <button
           type="button"
           onClick={() => void loadCanonical().catch(() => {})}
-          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:bg-white dark:text-slate-950"
+          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-sky-700 px-5 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:bg-sky-300 dark:text-slate-950 dark:hover:bg-sky-200"
         >
           {t("focusHubRetry")}
         </button>
@@ -728,39 +729,39 @@ export function FocusHub({
       ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-300/15 dark:bg-rose-200/[0.06] dark:text-rose-200"
       : notice?.tone === "success"
         ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-300/15 dark:bg-emerald-200/[0.06] dark:text-emerald-200"
-        : "border-indigo-200 bg-indigo-50 text-indigo-800 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-200";
+        : "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-200";
 
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
       className="mx-auto w-full max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
-      <header className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-5 py-6 text-white shadow-[0_22px_60px_rgba(28,37,75,0.20)] sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -left-10 -top-20 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-48 w-48 rounded-full bg-cyan-300/10 blur-3xl" aria-hidden="true" />
-        <div className="relative flex items-center justify-between gap-4">
+      <header className="relative overflow-hidden rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-[#e4f1f5] px-5 py-6 text-slate-900 shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-white sm:px-8 sm:py-8">
+        <div className="pointer-events-none absolute -left-10 -top-20 h-56 w-56 rounded-full bg-sky-200/45 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl" aria-hidden="true" />
+        <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-inner sm:h-14 sm:w-14">
-              <Clock3 className="h-6 w-6 text-indigo-100 sm:h-7 sm:w-7" aria-hidden="true" />
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/75 text-sky-800 shadow-[0_8px_18px_rgba(57,110,131,0.08)] dark:border-white/15 dark:bg-white/10 dark:text-sky-100 sm:h-14 sm:w-14">
+              <Target className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-200">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-800 dark:text-sky-200">
                 {t("focusHubNav")}
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
                 {t("focusHubTitle")}
               </h1>
-              <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-300 sm:text-base">
+              <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600 dark:text-slate-300 sm:text-base">
                 {t("focusHubSubtitle")}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
             <button
               type="button"
               onClick={onOpenHistory}
               aria-label={t("focusHubHistory")}
-              className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200/80 bg-white/65 px-3 text-sm font-medium text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10"
             >
               <Clock3 className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">{t("focusHubHistory")}</span>
@@ -768,7 +769,7 @@ export function FocusHub({
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200/80 bg-white/65 px-3 text-sm font-medium text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:hover:bg-white/10"
             >
               {isRtl ? (
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -859,7 +860,7 @@ export function FocusHub({
             className="rounded-[24px] border border-slate-200/90 bg-white p-5 shadow-[0_10px_35px_rgba(30,40,80,0.04)] dark:border-white/10 dark:bg-[#17191f] sm:p-6"
           >
             <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-300/10 dark:text-indigo-200">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
                 <Clock3 className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
@@ -891,10 +892,10 @@ export function FocusHub({
                     }
                     onClick={() => applyPreset(preset.id)}
                     disabled={!canEdit}
-                    className={`flex min-h-12 shrink-0 snap-start items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    className={`flex min-h-12 shrink-0 snap-start items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-55 ${
                       isSelected
-                        ? "border-indigo-600 bg-indigo-600 text-white shadow-sm shadow-indigo-900/15 dark:border-indigo-300 dark:bg-indigo-300 dark:text-slate-950"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/60 dark:border-white/10 dark:bg-white/[0.025] dark:text-slate-200 dark:hover:bg-white/[0.06]"
+                        ? "border-[#3e7b98] bg-[#3e7b98] text-white shadow-sm shadow-sky-900/15 dark:border-sky-300 dark:bg-sky-300 dark:text-slate-950"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/60 dark:border-white/10 dark:bg-white/[0.025] dark:text-slate-200 dark:hover:bg-white/[0.06]"
                     }`}
                   >
                     {label}
@@ -944,7 +945,7 @@ export function FocusHub({
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-800 dark:bg-cyan-300/10 dark:text-cyan-100">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#e8f3f6] text-[#3e7b98] dark:bg-sky-300/10 dark:text-sky-100">
                   <BookOpen className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
@@ -960,7 +961,7 @@ export function FocusHub({
                 type="button"
                 onClick={() => setPickerOpen(true)}
                 disabled={!canEdit || draft.items.length >= FOCUS_PLAN_LIMITS.maxItems}
-                className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-50 sm:px-4"
+                className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[#315f75] px-3 text-sm font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-sky-300 dark:text-slate-950 dark:hover:bg-sky-200 sm:px-4"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 <span>{t("focusHubAddLecture")}</span>
@@ -976,7 +977,7 @@ export function FocusHub({
                 <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
                   {t("focusHubQueueEmptyHint")}
                 </p>
-                <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-200">
+                <p className="mt-2 text-xs font-medium text-sky-800 dark:text-sky-200">
                   {t("focusHubAddAtLeastOne")}
                 </p>
               </div>
@@ -992,7 +993,7 @@ export function FocusHub({
                       id={`focus-queue-item-${item.lectureId}`}
                       className={`rounded-2xl border p-4 transition-colors ${
                         isHighlighted
-                          ? "border-indigo-400 bg-indigo-50/80 dark:border-indigo-300/40 dark:bg-indigo-300/[0.07]"
+                          ? "border-sky-400 bg-sky-50/80 dark:border-sky-300/40 dark:bg-sky-300/[0.07]"
                           : "border-slate-200/90 bg-white dark:border-white/10 dark:bg-white/[0.02]"
                       }`}
                     >
@@ -1031,7 +1032,7 @@ export function FocusHub({
                             onClick={() => reorderLecture(index, -1)}
                             disabled={!canEdit || index === 0}
                             aria-label={`${t("focusHubMoveUp")}: ${lecture?.name ?? ""}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
                           >
                             <ArrowUp className="h-4 w-4" aria-hidden="true" />
                           </button>
@@ -1040,7 +1041,7 @@ export function FocusHub({
                             onClick={() => reorderLecture(index, 1)}
                             disabled={!canEdit || index === draft.items.length - 1}
                             aria-label={`${t("focusHubMoveDown")}: ${lecture?.name ?? ""}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
                           >
                             <ArrowDown className="h-4 w-4" aria-hidden="true" />
                           </button>
@@ -1066,7 +1067,7 @@ export function FocusHub({
                             onClick={() => changeSessionCount(item.lectureId, -1)}
                             disabled={!canEdit || item.sessionCount <= 1}
                             aria-label={t("focusHubDecreaseSessions")}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-35 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-35 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
                           >
                             <Minus className="h-4 w-4" aria-hidden="true" />
                           </button>
@@ -1092,14 +1093,14 @@ export function FocusHub({
                             disabled={!canEdit}
                             aria-label={`${t("focusHubSessionCount")}: ${lecture?.name ?? ""}`}
                             aria-invalid={!isValidFocusSessionCount(item.sessionCount)}
-                            className="h-11 w-16 rounded-xl border border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                            className="h-11 w-16 rounded-xl border border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                           />
                           <button
                             type="button"
                             onClick={() => changeSessionCount(item.lectureId, 1)}
                             disabled={!canEdit || item.sessionCount >= FOCUS_PLAN_LIMITS.maxSessionsPerItem}
                             aria-label={t("focusHubIncreaseSessions")}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-35 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-35 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
                           >
                             <Plus className="h-4 w-4" aria-hidden="true" />
                           </button>
@@ -1141,14 +1142,14 @@ export function FocusHub({
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-indigo-700 dark:text-indigo-200">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800 dark:text-sky-200">
                   {t("focusHubEstimated")}
                 </p>
                 <h2 id="focus-plan-summary-title" className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
                   {t("focusHubPlanSummary")}
                 </h2>
               </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-300/10 dark:text-indigo-100">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e9f3f5] text-[#3f7890] dark:bg-sky-300/10 dark:text-sky-100">
                 <Check className="h-5 w-5" aria-hidden="true" />
               </span>
             </div>
@@ -1160,14 +1161,14 @@ export function FocusHub({
               <SummaryMetric label={t("focusHubBreakTotal")} value={formatMinutes(estimate.breakMinutes)} />
             </div>
 
-            <div className="mt-3 rounded-2xl bg-slate-950 px-4 py-4 text-white dark:bg-white/[0.08]">
-              <p className="text-xs font-medium text-slate-300 dark:text-slate-400">
+            <div className="mt-3 rounded-2xl border border-[#34657a] bg-gradient-to-br from-[#315f75] to-[#234d62] px-4 py-4 text-white">
+              <p className="text-xs font-medium text-sky-100/90">
                 {t("focusHubTotalTime")}
               </p>
               <p className="mt-1 text-2xl font-semibold tracking-tight">
                 {formatMinutes(estimate.totalMinutes)}
               </p>
-              <p className="mt-2 text-xs leading-5 text-slate-300 dark:text-slate-400">
+              <p className="mt-2 text-xs leading-5 text-sky-100/80">
                 {t("focusHubNoFinalBreak")}
               </p>
             </div>
@@ -1193,7 +1194,7 @@ export function FocusHub({
                 type="button"
                 onClick={savePlan}
                 disabled={!canSave}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-sky-100 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
               >
                 {saving ? t("focusHubSaving") : t("focusHubSavePlan")}
               </button>
@@ -1211,7 +1212,7 @@ export function FocusHub({
                     type="button"
                     onClick={() => void startFocus()}
                     disabled={!canStart}
-                    className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-700 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(67,56,202,0.22)] transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-[#17191f]"
+                  className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#315f75] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(54,113,139,0.18)] transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-[#17191f]"
                   >
                     {starting ? (
                       <span aria-live="polite">{t("focusHubStarting")}</span>
@@ -1307,7 +1308,7 @@ function DurationStepper({
           onClick={() => onChange(Math.max(min, value - 1))}
           disabled={disabled || value <= min}
           aria-label={t("focusHubDecreaseDuration")}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-35 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/10"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-35 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/10"
         >
           <Minus className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -1321,14 +1322,14 @@ function DurationStepper({
           onChange={(event) => onChange(event.target.value === "" ? 0 : Number(event.target.value))}
           disabled={disabled}
           aria-label={label}
-          className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-center text-base font-semibold tabular-nums text-slate-950 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-center text-base font-semibold tabular-nums text-slate-950 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         />
         <button
           type="button"
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={disabled || value >= max}
           aria-label={t("focusHubIncreaseDuration")}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-35 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/10"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-35 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/10"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -1346,7 +1347,7 @@ function FocusHubSkeleton({ language }: { language: Language }) {
       aria-busy="true"
       aria-label={t("focusHubLoading")}
     >
-      <div className="h-36 animate-pulse rounded-[28px] bg-gradient-to-br from-slate-200 to-indigo-100 dark:from-white/[0.08] dark:to-indigo-300/[0.05]" />
+      <div className="h-36 animate-pulse rounded-[28px] bg-gradient-to-br from-slate-200 to-sky-100 dark:from-white/[0.08] dark:to-sky-300/[0.05]" />
       <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(270px,340px)]">
         <div className="space-y-5">
           <div className="h-48 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />

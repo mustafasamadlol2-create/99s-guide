@@ -43,7 +43,7 @@ import {
   Database,
   Search,
   X,
-  Timer,
+  Target,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform, useMotionValue, animate } from "motion/react";
 import { createPortal } from "react-dom";
@@ -4706,7 +4706,7 @@ const handleSignOut = useCallback(async () => {
         ? [
             {
               id: "focus",
-              icon: Timer,
+              icon: Target,
               label: t("focusHubNav"),
             },
           ]
@@ -6004,6 +6004,12 @@ const handleSignOut = useCallback(async () => {
 
   // Rail nav is always visually "collapsed"; normal tablet/desktop respects user toggle
   const isAsideCollapsed = isSidebarCollapsed || useRailNav;
+  const sidebarNavDensity =
+    device.height < 640
+      ? "tight"
+      : device.isTablet || device.height < 920
+        ? "compact"
+        : "comfortable";
 
   // Desktop Welcome uses the same one-step sidebar geometry path as iPad for
   // the entire Home navigation stack — not only the root hero. Subject views,
@@ -6068,8 +6074,8 @@ const handleSignOut = useCallback(async () => {
         style={{
           width: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
           flexBasis: isAsideCollapsed ? device.sidebarCollapsedWidth : device.sidebarExpandedWidth,
-          paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
-          paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+          paddingTop: `calc(${sidebarNavDensity === "tight" ? 8 : 16}px + env(safe-area-inset-top, 0px))`,
+          paddingBottom: `calc(${sidebarNavDensity === "tight" ? 4 : 12}px + env(safe-area-inset-bottom, 0px))`,
         }}
         onKeyDown={handleSidebarKeyDown}
       >
@@ -6086,9 +6092,12 @@ const handleSignOut = useCallback(async () => {
         <div className={`sidebar-content-shell flex flex-col min-h-0 flex-1 relative z-10 ${isAsideCollapsed ? "px-1" : "px-3"}`}>
           {/* Logo & Brand header — switches between row (expanded) and column (collapsed) */}
           <div
-            className={`sidebar-header flex pt-2 pb-5 ${
+            className={`sidebar-header flex ${
+              sidebarNavDensity === "tight" ? "pt-1 pb-1" : sidebarNavDensity === "compact" ? "pt-1 pb-3" : "pt-2 pb-5"
+            } ${
               isAsideCollapsed ? "sidebar-header-collapsed" : "sidebar-header-expanded"
             }`}
+            style={{ minHeight: sidebarNavDensity === "tight" ? 44 : undefined }}
           >
             {/* id used by LaunchScreen for FLIP shared-element transition */}
             <div id="sidebar-app-logo" style={{ display: "inline-flex", flexShrink: 0 }}>
@@ -6153,7 +6162,8 @@ const handleSignOut = useCallback(async () => {
           {/* Navigation */}
           <nav
             aria-label={language === "ar" ? "التنقل الرئيسي" : "Main Navigation"}
-            className={`sidebar-nav-list flex flex-col ${device.isTablet ? "gap-2" : "gap-0.5"} overflow-y-auto min-h-0 flex-1 hide-scrollbar overscroll-y-contain`}
+            data-sidebar-density={sidebarNavDensity}
+            className={`sidebar-nav-list flex flex-col ${sidebarNavDensity === "tight" ? "gap-0.5" : sidebarNavDensity === "compact" ? "gap-1" : "gap-0.5"} overflow-y-auto min-h-0 flex-1 hide-scrollbar overscroll-y-contain`}
             style={{ scrollbarWidth: "none" }}
           >
             {sidebarMainItems.map((item) => (
@@ -6168,11 +6178,14 @@ const handleSignOut = useCallback(async () => {
                 onClick={handleSidebarTabClick}
                 colorClass={item.colorClass}
                 bgClass={item.bgClass}
+                density={sidebarNavDensity}
               />
             ))}
 
             {/* Section divider */}
-            <div className="sidebar-section-divider flex items-center gap-2.5 px-1.5 mt-5 mb-2">
+            <div className={`sidebar-section-divider flex items-center gap-2.5 px-1.5 ${
+              sidebarNavDensity === "tight" ? "mt-1 mb-1" : sidebarNavDensity === "compact" ? "mt-2 mb-1" : "mt-5 mb-2"
+            }`}>
               <span className="flex-1 h-px bg-neutral-200/80 dark:bg-white/[0.07]" />
               {!isAsideCollapsed && (
                 <span className="text-[10px] font-semibold text-neutral-400 dark:text-[#EBEBF540] uppercase tracking-[0.1em] antialiased select-none">
@@ -6196,21 +6209,26 @@ const handleSignOut = useCallback(async () => {
                 bgClass={item.bgClass}
                 iconBadge={item.iconBadge}
                 rightBadge={item.rightBadge}
+                density={sidebarNavDensity}
               />
             ))}
           </nav>
         </div>
 
         {/* User Profile Card — pinned to bottom */}
-        <div className={`px-3 shrink-0 relative z-10 mt-auto ${device.isTablet ? "pb-3" : "pb-2"}`}>
+        <div className={`px-3 shrink-0 relative z-10 mt-auto ${
+          sidebarNavDensity === "tight" ? "pb-1" : sidebarNavDensity === "compact" ? "pb-2" : device.isTablet ? "pb-3" : "pb-2"
+        }`}>
           {/* Top separator */}
-          <div className="h-px bg-neutral-200/60 dark:bg-white/[0.07] mb-3" />
+          <div className={`h-px bg-neutral-200/60 dark:bg-white/[0.07] ${
+            sidebarNavDensity === "tight" ? "mb-1" : sidebarNavDensity === "compact" ? "mb-2" : "mb-3"
+          }`} />
 
           <div
             className={`flex items-center ${
               isAsideCollapsed
-                ? "justify-center flex-col gap-3"
-                : `${device.isTablet ? "px-3 py-2.5" : "px-2.5 py-2"} sidebar-profile-card justify-between rounded-2xl`
+                ? `justify-center flex-col ${sidebarNavDensity === "tight" ? "gap-1" : sidebarNavDensity === "compact" ? "gap-2" : "gap-3"}`
+                : `${sidebarNavDensity === "tight" ? "px-2 py-1" : sidebarNavDensity === "compact" ? "px-2.5 py-1.5" : device.isTablet ? "px-3 py-2.5" : "px-2.5 py-2"} sidebar-profile-card justify-between rounded-2xl`
             }`}
           >
             {/* Avatar + name */}
@@ -6228,7 +6246,7 @@ const handleSignOut = useCallback(async () => {
                 <UserAvatar
                   name={currentUser.name}
                   avatarUrl={currentUser.avatar}
-                  className={`${(isAsideCollapsed ? "w-11 h-11" : "w-12 h-12")} border border-white/25 dark:border-white/[0.12]`}
+                  className={`${sidebarNavDensity === "tight" ? "w-10 h-10" : isAsideCollapsed ? "w-11 h-11" : "w-12 h-12"} border border-white/25 dark:border-white/[0.12]`}
                 />
                 {/* Online dot */}
                 <span className={`absolute bottom-0 right-0 ${"w-3 h-3"} rounded-full bg-emerald-400 border-2 border-white dark:border-[#1C1C1E]`} />
@@ -6784,8 +6802,8 @@ const handleSignOut = useCallback(async () => {
                       onClick={() => setGroupFocusRoute(null)}
                       className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
                         groupFocusRoute === null
-                          ? "bg-[#173f35] text-white"
-                          : "bg-[#edf2ee] text-[#35554a] hover:bg-[#e3ebe5]"
+                          ? "bg-[#315f75] text-white"
+                          : "bg-sky-50 text-[#35566a] hover:bg-sky-100"
                       }`}
                     >
                       {language === "ar" ? "التركيز الفردي" : "Solo Focus"}
@@ -6796,8 +6814,8 @@ const handleSignOut = useCallback(async () => {
                       onClick={() => handleGroupFocusRouteChange("")}
                       className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
                         groupFocusRoute !== null
-                          ? "bg-[#173f35] text-white"
-                          : "bg-[#edf2ee] text-[#35554a] hover:bg-[#e3ebe5]"
+                          ? "bg-[#315f75] text-white"
+                          : "bg-sky-50 text-[#35566a] hover:bg-sky-100"
                       }`}
                     >
                       {language === "ar" ? "التركيز الجماعي" : "Group Focus"}

@@ -13,6 +13,7 @@ export interface SidebarNavItemProps {
   iconBadge?: React.ReactNode;
   rightBadge?: React.ReactNode;
   isTablet?: boolean;
+  density?: "comfortable" | "compact" | "tight";
 }
 
 const itemVariants = {
@@ -37,7 +38,35 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
     iconBadge,
     rightBadge,
     isTablet,
+    density,
   }) {
+    const itemDensity = density ?? (isTablet ? "compact" : "comfortable");
+    const itemMetrics = {
+      comfortable: {
+        layout: "gap-4 min-h-[60px]",
+        collapsed: "justify-center p-1",
+        expanded: "px-4 py-2 text-left",
+        iconBox: "w-11 h-11",
+        iconSize: "w-[26px] h-[26px]",
+        labelSize: "text-[17px]",
+      },
+      compact: {
+        layout: "gap-3 min-h-[48px]",
+        collapsed: "justify-center p-1",
+        expanded: "px-3 py-1 text-left",
+        iconBox: "w-10 h-10",
+        iconSize: "w-6 h-6",
+        labelSize: "text-[15px]",
+      },
+      tight: {
+        layout: "gap-2 min-h-[40px]",
+        collapsed: "justify-center p-0.5",
+        expanded: "px-3 py-0.5 text-left",
+        iconBox: "w-9 h-9",
+        iconSize: "w-[22px] h-[22px]",
+        labelSize: "text-[14px]",
+      },
+    }[itemDensity];
     const hasCustomColor = !!colorClass;
     const hasCustomBg = !!bgClass;
 
@@ -68,10 +97,8 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
             // layout
             "relative flex items-center w-full border-none outline-none cursor-pointer",
             "z-0 antialiased rounded-xl group",
-            "gap-4 min-h-[60px]",
-            isAsideCollapsed
-              ? "justify-center p-1"
-              : "px-4 py-2 text-left",
+            itemMetrics.layout,
+            isAsideCollapsed ? itemMetrics.collapsed : itemMetrics.expanded,
             // focus ring
             "focus-visible:ring-2 focus-visible:ring-semantic-focus-ring focus-visible:ring-offset-2",
             "dark:focus-visible:ring-offset-neutral-950",
@@ -112,7 +139,7 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
           {/* ── Icon */}
           <div
             className={`relative shrink-0 flex items-center justify-center z-10
-              ${"w-11 h-11"}`}
+              ${itemMetrics.iconBox}`}
           >
             <motion.div
               animate={{ scale: isActive ? 1.08 : 1 }}
@@ -121,7 +148,7 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
             >
               <Icon
                 className={[
-                  "w-[26px] h-[26px]",
+                  itemMetrics.iconSize,
                   "transition-colors duration-200",
                   iconColorClass,
                 ].filter(Boolean).join(" ")}
@@ -135,7 +162,7 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = memo(
             <span
               className={[
                 "relative z-10 flex-1 truncate leading-none",
-                "text-[17px]",
+                itemMetrics.labelSize,
                 "transition-opacity duration-150",
                 labelColorClass,
               ].filter(Boolean).join(" ")}

@@ -160,7 +160,7 @@ export function FocusLecturePicker({
       >
         <div className="flex items-center justify-between gap-4 border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-200">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
               <BookOpen className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -176,7 +176,7 @@ export function FocusLecturePicker({
             type="button"
             onClick={onClose}
             aria-label={t("focusHubClose")}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-white/10 dark:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:hover:bg-white/10 dark:text-slate-300"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -196,7 +196,7 @@ export function FocusLecturePicker({
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("focusHubSearchLectures")}
               dir="auto"
-              className={`h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15 dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
+              className={`h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
             />
           </label>
           <label className="block">
@@ -204,7 +204,7 @@ export function FocusLecturePicker({
             <select
               value={subjectId}
               onChange={(event) => setSubjectId(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/15 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
             >
               <option value="">{t("focusHubAllSubjects")}</option>
               {subjectsInCatalog.map((id) => (
@@ -233,7 +233,7 @@ export function FocusLecturePicker({
                 type="button"
                 onClick={() => void refresh()}
                 disabled={refreshing}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#315f75] px-4 text-sm font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60"
               >
                 {refreshing ? t("focusHubLoading") : t("focusHubRetryLectures")}
               </button>
@@ -270,7 +270,7 @@ export function FocusLecturePicker({
                     <button
                       type="button"
                       onClick={() => onSelect(lecture)}
-                      className="flex min-h-[68px] w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-start transition hover:border-indigo-300 hover:bg-indigo-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/10 dark:bg-white/[0.025] dark:hover:border-indigo-300/30 dark:hover:bg-indigo-300/[0.06]"
+                      className="flex min-h-[68px] w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-start transition hover:border-sky-300 hover:bg-sky-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.025] dark:hover:border-sky-300/30 dark:hover:bg-sky-300/[0.06]"
                     >
                       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isQueued ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200" : "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-300"}`}>
                         {isQueued ? <Check className="h-4 w-4" aria-hidden="true" /> : <BookOpen className="h-4 w-4" aria-hidden="true" />}

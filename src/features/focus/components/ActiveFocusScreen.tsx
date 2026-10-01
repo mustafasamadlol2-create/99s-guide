@@ -17,6 +17,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Target,
   Video,
   WifiOff,
 } from "lucide-react";
@@ -799,34 +800,37 @@ function ActiveFocusScreenCore({
     const nextItem = planItems.find((item) => item.id === localBreak.nextItemId);
     const isBreakFinished = breakFinished;
     return (
-      <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-6xl px-4 pb-8 pt-4 sm:px-6 sm:pt-6">
+      <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-6xl bg-gradient-to-b from-[#f3f8f9] to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6">
         <header className="mb-5 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setConfirmType("exit")}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-medium text-[#315f75] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-sky-100"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             {t.focusActiveExit}
           </button>
-          <span className="text-sm font-semibold text-muted-foreground">{t.focusActiveTitle}</span>
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#285a73] dark:text-sky-100">
+            <Target className="size-4 text-sky-700 dark:text-sky-200" aria-hidden="true" />
+            {t.focusActiveTitle}
+          </span>
         </header>
 
         <main className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
-          <section className="flex min-h-[390px] flex-col items-center justify-center rounded-3xl border border-emerald-500/20 bg-emerald-50 p-6 text-center dark:bg-emerald-950/20 sm:min-h-[460px]">
-            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+          <section className="flex min-h-[390px] flex-col items-center justify-center rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:min-h-[460px]">
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-800 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100">
               {t.focusActiveBreakPhase}
             </span>
-            <h1 className="mt-5 text-2xl font-bold text-foreground">{t.focusActiveBreakTitle}</h1>
+            <h1 className="mt-5 text-2xl font-bold text-[#173849] dark:text-white">{t.focusActiveBreakTitle}</h1>
             <p className="mt-2 max-w-lg text-sm text-muted-foreground">
               {isBreakFinished ? t.focusActiveNextReady : t.focusActiveBreakBody}
             </p>
-            <div className="my-7 text-emerald-800 dark:text-emerald-200">{breakTimer}</div>
+            <div className="my-7 text-[#235269] dark:text-sky-100">{breakTimer}</div>
             <button
               type="button"
               disabled={!isBreakFinished || !online || isRuntimeBusy || !nextItem}
               onClick={handleStartNext}
-              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Play className="size-4" aria-hidden="true" />
               {isRuntimeBusy ? t.focusActiveChecking : t.focusActiveStartNext}
@@ -857,7 +861,7 @@ function ActiveFocusScreenCore({
             <button
               type="button"
               onClick={() => onOpenSummary(localTerminalResult.session.id)}
-              className="min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+            className="min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
             >
               {t.focusSummaryTitle}
             </button>
@@ -904,7 +908,7 @@ function ActiveFocusScreenCore({
           <button
             type="button"
             onClick={() => onOpenSummary(localTerminalResult.session.id)}
-            className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+            className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
           >
             {t.focusSummaryTitle}
           </button>
@@ -931,7 +935,7 @@ function ActiveFocusScreenCore({
           <button
             type="button"
             onClick={() => onOpenSummary(localTerminalResult.session.id)}
-            className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+            className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
           >
             {t.focusSummaryTitle}
           </button>
@@ -967,7 +971,7 @@ function ActiveFocusScreenCore({
             <button
               type="button"
               onClick={() => onOpenSummary(completedRoute.context.sessionId)}
-              className="mb-4 min-h-11 w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/15 dark:bg-indigo-200/[0.06] dark:text-indigo-100"
+              className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
             >
               {t.focusSummaryTitle}
             </button>
@@ -1036,7 +1040,7 @@ function ActiveFocusScreenCore({
   };
 
   return (
-    <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl px-4 pb-8 pt-4 sm:px-6 sm:pt-6 lg:px-8">
+    <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#f3f8f9] to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
       <header className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -1047,7 +1051,10 @@ function ActiveFocusScreenCore({
           {t.focusActiveExit}
         </button>
         <div className="text-end">
-          <h1 className="text-base font-semibold text-foreground">{t.focusActiveTitle}</h1>
+          <h1 className="flex items-center justify-end gap-2 text-base font-semibold text-[#285a73] dark:text-sky-100">
+            <Target className="size-4 text-sky-700 dark:text-sky-200" aria-hidden="true" />
+            {t.focusActiveTitle}
+          </h1>
           <p className="hidden text-xs text-muted-foreground sm:block">{t.focusActiveSubtitle}</p>
         </div>
       </header>
@@ -1132,19 +1139,19 @@ function ActiveFocusScreenCore({
 
       <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] lg:gap-6">
         <div className="min-w-0 space-y-4">
-          <section className={`rounded-3xl border p-5 shadow-sm sm:p-8 ${
+          <section className={`relative overflow-hidden rounded-[30px] border p-5 shadow-[0_18px_48px_rgba(54,99,119,0.08)] sm:p-8 ${
             isPaused
-              ? "border-amber-500/20 bg-amber-50 dark:bg-amber-950/20"
-              : "border-primary/15 bg-card"
+              ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900"
+              : "border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c]"
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-background/80 px-3 text-sm font-semibold text-foreground">
+              <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-3 text-sm font-semibold text-[#315f75] dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
                 <span className={`size-2 rounded-full ${
                   isPaused ? "bg-amber-500" : isResourceHandoff ? "bg-sky-500" : "bg-primary"
                 }`} aria-hidden="true" />
                 {runtimeStatusLabel}
               </span>
-              <span className="rounded-full border border-border bg-background/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
+              <span className="rounded-full border border-sky-100 bg-white/70 px-3 py-1 text-xs font-semibold text-sky-800 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
                 {timerPhaseLabel}
               </span>
             </div>
@@ -1165,7 +1172,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handlePause}
-                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 font-semibold text-foreground shadow-sm transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-5 font-semibold text-[#315f75] shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-sky-100 dark:hover:bg-white/[0.08]"
                 >
                   <Pause className="size-4" aria-hidden="true" />
                   {t.focusActivePause}
@@ -1176,7 +1183,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handleResume}
-                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="size-4" aria-hidden="true" />
                   {t.focusActiveResume}
@@ -1187,7 +1194,7 @@ function ActiveFocusScreenCore({
                   type="button"
                   disabled={!mayChangeSession}
                   onClick={handleComplete}
-                  className="inline-flex min-h-12 min-w-44 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-12 min-w-44 items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white shadow-sm transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Check className="size-4" aria-hidden="true" />
                   {t.focusActiveComplete}
@@ -1409,7 +1416,7 @@ function FocusTimer({
     : formatFocusClock(remainingSeconds);
   return (
     <time
-      className="mt-2 block font-mono text-6xl font-semibold tracking-tight text-foreground tabular-nums sm:text-7xl lg:text-8xl"
+      className="mt-2 block font-mono text-6xl font-semibold tracking-tight text-[#235269] tabular-nums sm:text-7xl lg:text-8xl dark:text-sky-100"
       dir="ltr"
       aria-label={`${label}: ${clockText}`}
       aria-live="off"
@@ -1596,11 +1603,11 @@ function TerminalHandoff({
       className={`mx-auto px-4 py-10 ${children ? "max-w-6xl" : "flex min-h-[70vh] max-w-3xl items-center"}`}
     >
       <div className={children ? "grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(300px,0.85fr)]" : "w-full"}>
-        <section className="w-full rounded-3xl border border-border bg-card p-6 text-center shadow-sm sm:p-10">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <section className="w-full rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:p-10">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-sky-200 bg-white text-sky-800 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
           <Check className="size-7" aria-hidden="true" />
         </span>
-        <h1 className="mt-5 text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="mt-5 text-2xl font-bold text-[#173849] dark:text-white">{title}</h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{body}</p>
         {manualLectureCompletionRequired && (
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">{t.focusActiveManualLecture}</p>
@@ -1608,7 +1615,7 @@ function TerminalHandoff({
         <button
           type="button"
           onClick={onReturn}
-          className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         >
           {t.focusActiveReturn}
         </button>

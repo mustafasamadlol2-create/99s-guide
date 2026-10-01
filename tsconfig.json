@@ -26,6 +26,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "cloudflare-group-focus-worker"
+    "cloudflare-group-focus-worker",
+    "artifacts/mockup-sandbox"
   ]
 }

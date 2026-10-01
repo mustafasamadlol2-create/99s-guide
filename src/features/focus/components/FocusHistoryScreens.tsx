@@ -59,7 +59,7 @@ function PageBackButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-slate-300 dark:hover:bg-white/10"
+      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-slate-300 dark:hover:bg-white/10"
     >
       {language === "ar" ? (
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -156,13 +156,13 @@ export function FocusSessionSummaryScreen({
     >
       <PageBackButton language={language} label={t("focusSummaryBack")} onClick={onBack} />
       <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(25,35,70,0.08)] dark:border-white/10 dark:bg-[#17191f]">
-        <header className="bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-5 py-7 text-white sm:px-8 sm:py-9">
+        <header className="border-b border-sky-100 bg-gradient-to-br from-white via-sky-50 to-[#e4f1f5] px-5 py-7 text-slate-900 dark:border-white/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-white sm:px-8 sm:py-9">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
-              <Clock3 className="h-5 w-5 text-indigo-100" aria-hidden="true" />
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/75 text-sky-800 dark:border-white/15 dark:bg-white/10 dark:text-sky-100">
+              <Clock3 className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-200">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-800 dark:text-sky-200">
                 {t("focusSummaryTitle")}
               </p>
               <h1 ref={headingRef} tabIndex={-1} id="focus-session-summary-title" className="mt-1 text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl">
@@ -263,7 +263,7 @@ export function FocusSessionSummaryScreen({
                       {summary.resources.items.map((resource) => (
                         <li key={resource.resourceId} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/[0.035]">
                           <span className="flex min-w-0 items-center gap-2">
-                            <BookOpen className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
+                            <BookOpen className="h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
                             <span className="min-w-0 truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
                               {resource.title ?? t("focusSummaryResourceUnavailable")}
                             </span>
@@ -281,7 +281,7 @@ export function FocusSessionSummaryScreen({
                   )}
                 </section>
 
-                <section aria-labelledby="focus-summary-next" className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 dark:border-indigo-300/15 dark:bg-indigo-200/[0.05] sm:p-5">
+                <section aria-labelledby="focus-summary-next" className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-300/15 dark:bg-sky-200/[0.05] sm:p-5">
                   <h2 id="focus-summary-next" className="font-semibold text-slate-950 dark:text-white">
                     {t("focusSummaryNextSession")}
                   </h2>
@@ -298,7 +298,7 @@ export function FocusSessionSummaryScreen({
                         type="button"
                         disabled={starting || !online}
                         onClick={() => void startNext()}
-                        className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 px-4 text-sm font-semibold text-white transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#315f75] px-4 text-sm font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Play className="h-4 w-4" aria-hidden="true" />
                         {starting
@@ -482,14 +482,14 @@ export function FocusHistoryScreen({
   return (
     <section dir={rtl ? "rtl" : "ltr"} aria-labelledby="focus-history-title" className="mx-auto w-full max-w-6xl px-4 pb-10 pt-4 sm:px-6 lg:px-8">
       <PageBackButton language={language} label={t("focusSummaryBack")} onClick={onBack} />
-      <header className="mt-4 rounded-[28px] bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-5 py-7 text-white shadow-[0_22px_60px_rgba(28,37,75,0.18)] sm:px-8 sm:py-9">
+      <header className="mt-4 rounded-[28px] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-[#e4f1f5] px-5 py-7 text-slate-900 shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-white sm:px-8 sm:py-9">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
-            <History className="h-5 w-5 text-indigo-100" aria-hidden="true" />
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/75 text-sky-800 dark:border-white/15 dark:bg-white/10 dark:text-sky-100">
+            <History className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <h1 ref={headingRef} tabIndex={-1} id="focus-history-title" className="text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl">{t("focusHistoryTitle")}</h1>
-            <p className="mt-1 text-sm text-slate-300">{t("focusHistorySubtitle")}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t("focusHistorySubtitle")}</p>
           </div>
         </div>
       </header>
@@ -501,7 +501,7 @@ export function FocusHistoryScreen({
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value)}
-              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
             >
               <option value="">{t("focusHistoryAll")}</option>
               {HISTORY_STATUSES.map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
@@ -515,7 +515,7 @@ export function FocusHistoryScreen({
                 setSubject(event.target.value);
                 setLectureId("");
               }}
-              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
             >
               <option value="">{t("focusHistoryAll")}</option>
               {subjectOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -526,7 +526,7 @@ export function FocusHistoryScreen({
             <select
               value={lectureId}
               onChange={(event) => setLectureId(event.target.value)}
-              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
             >
               <option value="">{t("focusHistoryAll")}</option>
               {lectureOptions.map((lecture) => <option key={lecture.id} value={lecture.id}>{lecture.name}</option>)}
@@ -577,7 +577,7 @@ export function FocusHistoryScreen({
             type="button"
             disabled={loadingMore}
             onClick={() => void loadMore()}
-            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-60 dark:border-white/15 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
+            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60 dark:border-white/15 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
           >
             {loadingMore && <span className="size-4 motion-safe:animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />}
             {loadingMore ? t("focusHistoryLoadingMore") : t("focusHistoryLoadMore")}
@@ -612,10 +612,10 @@ function HistoryRow({
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[92px] w-full items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-start transition hover:border-indigo-300 hover:bg-indigo-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-indigo-300/30 dark:hover:bg-indigo-200/[0.04] sm:items-center sm:p-5"
+      className="group flex min-h-[92px] w-full items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-start transition hover:border-sky-300 hover:bg-sky-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-sky-300/30 dark:hover:bg-sky-200/[0.04] sm:items-center sm:p-5"
     >
       <span className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-300/10 dark:text-indigo-200">
+        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-300/10 dark:text-sky-200">
           <BookOpen className="h-5 w-5" aria-hidden="true" />
         </span>
         <span className="min-w-0">
@@ -633,7 +633,7 @@ function HistoryRow({
           </span>
         </span>
       </span>
-      <span className="mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-indigo-700 transition group-hover:bg-indigo-100 dark:text-indigo-200 dark:group-hover:bg-white/10 sm:mt-0">
+      <span className="mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sky-800 transition group-hover:bg-sky-100 dark:text-sky-200 dark:group-hover:bg-white/10 sm:mt-0">
         {language === "ar"
           ? <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
