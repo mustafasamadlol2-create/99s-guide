@@ -7959,10 +7959,12 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
    when it contains more items than fit. The page itself stays within the shell. */
 @media (min-width: 768px) {
   #main-scroll-canvas.focus-planner-viewport {
-    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     padding-top: 8px !important;
     padding-bottom: 8px !important;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    overscroll-behavior-y: contain;
   }
 
   #main-scroll-canvas.focus-planner-viewport > #root-navigation-page-layer,
@@ -8066,16 +8068,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     padding: 3px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > div {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > :is(div, button[role="tab"]) {
     gap: 5px;
     padding: 5px 7px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > div > span:last-child > span:first-child {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > :is(div, button[role="tab"]) > span:last-child > span:first-child {
     font-size: 11px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > div > span:last-child > span:last-child {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > :is(div, button[role="tab"]) > span:last-child > span:last-child {
     margin-top: 0;
     font-size: 9px;
   }
@@ -8528,7 +8530,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     font-size: 10px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > div {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > :is(div, button[role="tab"]) {
     padding: 4px 5px;
   }
 
