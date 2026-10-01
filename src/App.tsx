@@ -5944,6 +5944,14 @@ const handleSignOut = useCallback(async () => {
   // Tablet  → icon rail (< 900 px) or collapsible sidebar (≥ 900 px)
   // Desktop → full collapsible sidebar
   const usePhoneLayout = device.isPhone;
+  const useFocusPlannerViewport =
+    !usePhoneLayout &&
+    activeTab === "focus" &&
+    groupFocusRoute === null &&
+    !focusSessionRouteId &&
+    !focusSummaryRouteId &&
+    !focusHistoryOpen &&
+    !focusHistoryDetailId;
   const visibleLargeTitleTab =
     usePhoneLayout && persistentProfileUnderlay ? "profile" : activeTab;
   const phoneNavigationActiveTab =
@@ -6290,14 +6298,18 @@ const handleSignOut = useCallback(async () => {
         <main
           id="main-scroll-canvas"
           onScroll={handlePhoneTabBarVerticalScroll}
-          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-semantic-background-page ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-semantic-background-page ${useFocusPlannerViewport ? "focus-planner-viewport" : ""} ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
-            paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
+            paddingTop: useFocusPlannerViewport
+              ? "calc(8px + env(safe-area-inset-top, 0px))"
+              : "calc(16px + env(safe-area-inset-top, 0px))",
             // The phone scroll inset is supplied by .ios-main-scroll so it
             // accounts for the fixed bar without creating a separate spacer.
             paddingBottom: usePhoneLayout
               ? undefined
-              : "calc(24px + env(safe-area-inset-bottom, 0px))",
+              : useFocusPlannerViewport
+                ? "calc(8px + env(safe-area-inset-bottom, 0px))"
+                : "calc(24px + env(safe-area-inset-bottom, 0px))",
           }}
         >
           {/* Persistent shell: the scroll workspace and Sidebar never move.
@@ -6308,7 +6320,9 @@ const handleSignOut = useCallback(async () => {
             className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: rootBackGesture.x,
-              minHeight: navigationSurfaceMinHeight,
+              height: useFocusPlannerViewport ? "100%" : undefined,
+              minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
+              overflow: useFocusPlannerViewport ? "hidden" : undefined,
               boxShadow: rootBackGesture.isInteracting
                 ? getNativeSwipeLayerShadow(isRtl)
                 : "none",
@@ -6320,7 +6334,9 @@ const handleSignOut = useCallback(async () => {
             className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: usePhoneLayout ? mainTabSwipeX : 0,
-              minHeight: navigationSurfaceMinHeight,
+              height: useFocusPlannerViewport ? "100%" : undefined,
+              minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
+              overflow: useFocusPlannerViewport ? "hidden" : undefined,
               WebkitBackfaceVisibility: "hidden",
               backfaceVisibility: "hidden",
               transformOrigin: "50% 50%",
@@ -6784,16 +6800,21 @@ const handleSignOut = useCallback(async () => {
               <motion.div
                 data-main-tab-panel="focus"
                 style={{
-                  display: activeTab === "focus" ? "block" : "none",
+                  display: activeTab === "focus"
+                    ? useFocusPlannerViewport ? "flex" : "block"
+                    : "none",
+                  flexDirection: useFocusPlannerViewport ? "column" : undefined,
                   position: "relative",
-                  minHeight: navigationSurfaceMinHeight,
+                  height: useFocusPlannerViewport ? "100%" : undefined,
+                  minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
+                  overflow: useFocusPlannerViewport ? "hidden" : undefined,
                 }}
-                className="w-full min-h-full"
+                className={`w-full min-h-full ${useFocusPlannerViewport ? "focus-planner-route-content" : ""}`}
               >
                 {GROUP_FOCUS_FRONTEND_ENABLED && (
                   <nav
                     aria-label={language === "ar" ? "أقسام التركيز" : "Focus sections"}
-                    className="mx-auto flex w-full max-w-7xl gap-2 px-4 pt-4 sm:px-8 lg:px-12"
+                    className={`mx-auto flex w-full max-w-7xl gap-2 px-4 pt-4 sm:px-8 lg:px-12 ${useFocusPlannerViewport ? "shrink-0" : ""}`}
                   >
                     <button
                       type="button"
@@ -6821,7 +6842,15 @@ const handleSignOut = useCallback(async () => {
                     </button>
                   </nav>
                 )}
-                <div style={{ display: groupFocusRoute === null ? "block" : "none" }}>
+                <div
+                  className={useFocusPlannerViewport ? "focus-planner-hub-host" : undefined}
+                  style={{
+                    display: groupFocusRoute === null ? "block" : "none",
+                    minHeight: useFocusPlannerViewport ? 0 : undefined,
+                    flex: useFocusPlannerViewport ? "1 1 0%" : undefined,
+                    overflow: useFocusPlannerViewport ? "hidden" : undefined,
+                  }}
+                >
                   <Suspense fallback={iOSLoadingFallback}>
                     <ErrorBoundary>
                       <FocusHub

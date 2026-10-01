@@ -751,7 +751,7 @@ export function FocusHub({
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="mx-auto w-full max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:px-8"
+      className="focus-hub-page mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
       {notice && (
         <div
@@ -779,7 +779,7 @@ export function FocusHub({
       {currentSession && (
         <section
           aria-labelledby="focus-current-session-title"
-          className="mt-5 rounded-[24px] border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-300/15 dark:from-emerald-300/[0.09] dark:to-white/[0.025] sm:flex sm:items-center sm:justify-between sm:gap-5 sm:px-6"
+          className="focus-hub-current-session mt-5 rounded-[24px] border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-300/15 dark:from-emerald-300/[0.09] dark:to-white/[0.025] sm:flex sm:items-center sm:justify-between sm:gap-5 sm:px-6"
         >
           <div className="flex min-w-0 items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white">
@@ -809,7 +809,7 @@ export function FocusHub({
                   </>
                 )}
               </p>
-              <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+              <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200 md:hidden">
                 {t("focusHubActiveSessionHelp")}
               </p>
             </div>
@@ -824,8 +824,8 @@ export function FocusHub({
         </section>
       )}
 
-      <div className="mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1.03fr)_minmax(250px,0.97fr)] md:gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(310px,0.95fr)] lg:gap-5">
-        <header className="order-1 flex min-w-0 items-center justify-between gap-3 md:col-start-1 md:row-start-1">
+      <div className={`focus-hub-grid mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1.03fr)_minmax(250px,0.97fr)] md:gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(310px,0.95fr)] lg:gap-5 ${FOCUS_AUDIO_ENABLED ? "focus-hub-grid-audio" : ""}`}>
+        <header className="focus-hub-header order-1 flex min-w-0 items-center justify-between gap-3 md:col-start-1 md:row-start-1">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-sky-200/80 bg-white text-blue-600 shadow-[0_7px_18px_rgba(58,116,173,0.12)] dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-200">
               <Target className="size-6" aria-hidden="true" />
@@ -864,20 +864,20 @@ export function FocusHub({
 
         <section
           aria-label={t("focusHubTimerSessionLabel")}
-          className="order-3 min-w-0 md:col-start-1 md:row-start-3"
+          className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
-          <FocusTimerScene progress={0.76} className="min-h-[320px] sm:min-h-[360px]">
-            <span className="mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+          <FocusTimerScene progress={0.76} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
+            <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
               <Target className="size-6" aria-hidden="true" />
             </span>
             <time
-              className="font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
+              className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
               dir="ltr"
               aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
             >
               <bdi>{String(Math.max(0, draft.studyMinutes)).padStart(2, "0")}:00</bdi>
             </time>
-            <span className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+            <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
               {t("focusHubTimerSessionLabel")}
             </span>
           </FocusTimerScene>
@@ -886,7 +886,7 @@ export function FocusHub({
         <div className="contents">
           <section
             aria-labelledby="focus-setup-title"
-            className="order-7 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-6"
+            className="focus-hub-setup order-7 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-6"
           >
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
@@ -970,7 +970,7 @@ export function FocusHub({
 
           <section
             aria-labelledby="focus-queue-title"
-            className="order-5 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-2 md:row-start-1 md:row-span-3"
+            className="focus-hub-queue order-5 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-2 md:row-start-1 md:row-span-3"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -1011,7 +1011,7 @@ export function FocusHub({
                 </p>
               </div>
             ) : (
-              <ol className="space-y-3">
+              <ol className="focus-hub-queue-list space-y-3">
                 {draft.items.map((item, index) => {
                   const lecture = lectureMap.get(item.lectureId);
                   const itemEstimate = estimate.items[index];
@@ -1020,7 +1020,7 @@ export function FocusHub({
                     <li
                       key={item.lectureId}
                       id={`focus-queue-item-${item.lectureId}`}
-                      className={`rounded-2xl border p-4 transition-colors ${
+                      className={`focus-hub-queue-item rounded-2xl border p-4 transition-colors ${
                         isHighlighted
                           ? "border-sky-400 bg-sky-50/80 dark:border-sky-300/40 dark:bg-sky-300/[0.07]"
                           : "border-slate-200/90 bg-white dark:border-white/10 dark:bg-white/[0.02]"
@@ -1035,12 +1035,20 @@ export function FocusHub({
                             {lecture?.name ?? t("focusHubLectureUnavailable")}
                           </p>
                           {lecture && (
-                            <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                            <p className="focus-hub-queue-subject mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
                               {getSubjectName(lecture.mainSubject)}
                               {lecture.subSubject ? ` · ${lecture.subSubject}` : ""}
                             </p>
                           )}
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {lecture && (
+                            <p className="focus-hub-queue-compact-meta hidden truncate text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+                              {getSubjectName(lecture.mainSubject)}
+                              {" · "}
+                              {t("focusHubEstimated")}{" "}
+                              {formatMinutes(itemEstimate?.totalMinutes ?? 0)}
+                            </p>
+                          )}
+                          <p className="focus-hub-queue-durations mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {formatMinutes(
                               (item.focusDurationSeconds ?? draft.studyMinutes * 60) / 60,
                             )}
@@ -1050,7 +1058,7 @@ export function FocusHub({
                             )}{" "}
                             {t("focusHubBreakDuration").toLocaleLowerCase(language)}
                           </p>
-                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          <p className="focus-hub-queue-estimate mt-2 text-xs text-slate-500 dark:text-slate-400">
                             {t("focusHubEstimated")}{" "}
                             {formatMinutes(itemEstimate?.totalMinutes ?? 0)}
                           </p>
@@ -1086,7 +1094,7 @@ export function FocusHub({
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-white/[0.07]">
+                      <div className="focus-hub-session-count mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-white/[0.07]">
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {t("focusHubSessionCount")}
                         </span>
@@ -1165,7 +1173,7 @@ export function FocusHub({
 
         <section
           aria-label={t("focusHubStart")}
-          className="order-6 min-w-0 rounded-[24px] border border-sky-100 bg-white/90 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-1 md:row-start-5"
+          className="focus-hub-actions order-6 min-w-0 rounded-[24px] border border-sky-100 bg-white/90 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-1 md:row-start-5"
         >
           <button
             type="button"
@@ -1174,7 +1182,7 @@ export function FocusHub({
               else void startFocus();
             }}
             disabled={currentSession ? false : !canStart}
-            className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
+            className="focus-hub-start-button flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
           >
             <Play className="size-5 fill-current" aria-hidden="true" />
             {currentSession
@@ -1184,11 +1192,11 @@ export function FocusHub({
                 : t("focusHubStart")}
           </button>
           {!currentSession && !draft.items.length && (
-            <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
+            <p className="focus-hub-no-queue-hint mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
               {t("focusHubAddAtLeastOne")}
             </p>
           )}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="focus-hub-action-links mt-3 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={savePlan}
@@ -1212,7 +1220,7 @@ export function FocusHub({
         <aside className="contents">
           <section
             aria-labelledby="focus-plan-summary-title"
-            className="order-4 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_12px_36px_rgba(46,104,158,0.08)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-4"
+            className="focus-hub-summary order-4 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_12px_36px_rgba(46,104,158,0.08)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-4"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1228,14 +1236,22 @@ export function FocusHub({
               </span>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            <div className="focus-plan-metrics mt-5 grid grid-cols-2 gap-2 md:grid-cols-5">
               <SummaryMetric label={t("focusHubLectureCount")} value={estimate.lectureCount} language={language} />
               <SummaryMetric label={t("focusHubSessionCount")} value={estimate.sessionCount} language={language} />
               <SummaryMetric label={t("focusHubStudyTotal")} value={formatMinutes(estimate.studyMinutes)} />
               <SummaryMetric label={t("focusHubBreakTotal")} value={formatMinutes(estimate.breakMinutes)} />
+              <div
+                className="focus-hub-total-compact hidden min-w-0 flex-col justify-center rounded-2xl border border-blue-200 bg-blue-50 px-2 py-1.5 text-blue-900 dark:border-sky-300/15 dark:bg-sky-300/[0.08] dark:text-sky-100"
+                title={t("focusHubNoFinalBreak")}
+              >
+                <span className="truncate text-[10px] font-medium">{t("focusHubTotalTime")}</span>
+                <span className="truncate text-sm font-semibold">{formatMinutes(estimate.totalMinutes)}</span>
+                <span className="sr-only">{t("focusHubNoFinalBreak")}</span>
+              </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
+            <div className="focus-hub-summary-total-full mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
               <p className="text-xs font-medium text-sky-100/90">
                 {t("focusHubTotalTime")}
               </p>
@@ -1248,17 +1264,17 @@ export function FocusHub({
             </div>
 
             {!draft.items.length && (
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+              <p className="focus-hub-summary-hint mt-3 text-sm text-slate-500 dark:text-slate-400">
                 {t("focusHubAddAtLeastOne")}
               </p>
             )}
             {hasInvalidLecture && (
-              <p className="mt-3 text-sm text-rose-700 dark:text-rose-300">
+              <p className="focus-hub-summary-hint mt-3 text-sm text-rose-700 dark:text-rose-300">
                 {t("focusHubLectureUnavailableHelp")}
               </p>
             )}
             {currentSession && (
-              <p className="mt-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <p className="focus-hub-summary-hint mt-3 text-sm text-emerald-800 dark:text-emerald-200">
                 {t("focusHubActiveSessionHelp")}
               </p>
             )}
@@ -1266,14 +1282,14 @@ export function FocusHub({
           </section>
 
           {FOCUS_AUDIO_ENABLED && (
-            <div className="order-8 min-w-0 md:col-start-2 md:row-start-4">
+            <div className="focus-hub-audio order-8 min-w-0 md:col-start-2 md:row-start-4">
               <FocusAudioPlanningCard language={language} />
             </div>
           )}
 
           <section
             aria-labelledby="focus-quick-notes-title"
-            className="order-9 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-2 md:row-start-5"
+            className="focus-hub-notes order-9 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-2 md:row-start-5"
           >
             <div className="flex items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-200">
@@ -1291,17 +1307,18 @@ export function FocusHub({
             <label className="sr-only" htmlFor="focus-planner-quick-note">
               {t("focusHubQuickNotesTitle")}
             </label>
-            <textarea
-              id="focus-planner-quick-note"
-              value={quickNoteDraft}
-              onChange={(event) => {
-                setQuickNoteDraft(event.target.value);
-                setQuickNoteFeedback(null);
-              }}
-              placeholder={t("focusHubQuickNotePlaceholder")}
-              className="mt-4 min-h-[150px] w-full resize-y rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-400/10"
-            />
-            <div className="mt-2 flex items-center justify-end gap-2">
+            <div className="focus-hub-note-editor-row mt-4">
+              <textarea
+                id="focus-planner-quick-note"
+                value={quickNoteDraft}
+                onChange={(event) => {
+                  setQuickNoteDraft(event.target.value);
+                  setQuickNoteFeedback(null);
+                }}
+                placeholder={t("focusHubQuickNotePlaceholder")}
+                className="focus-hub-note-editor min-h-[150px] w-full resize-y rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-400/10"
+              />
+              <div className="focus-hub-note-actions mt-2 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -1325,6 +1342,7 @@ export function FocusHub({
               >
                 <Copy className="size-4" aria-hidden="true" />
               </button>
+              </div>
             </div>
             {quickNoteFeedback && (
               <p

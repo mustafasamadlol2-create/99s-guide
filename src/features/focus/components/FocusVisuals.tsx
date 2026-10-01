@@ -10,12 +10,14 @@ export function FocusCycleStrip({
   breakMinutes,
   plannedSessions,
   activePhase = "focus",
+  className = "",
 }: {
   language: Language;
   focusMinutes: number;
   breakMinutes: number;
   plannedSessions: number;
   activePhase?: FocusDisplayPhase;
+  className?: string;
 }) {
   const { t } = useTranslation(language);
   const numberFormat = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
@@ -44,7 +46,7 @@ export function FocusCycleStrip({
     <div
       role="group"
       aria-label={t("focusHubCycleLabel")}
-      className="order-2 flex min-w-0 items-center rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_28px_rgba(60,117,158,0.10)] backdrop-blur-sm lg:col-start-1 lg:row-start-2"
+      className={`focus-hub-cycle order-2 flex min-w-0 items-center rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_28px_rgba(60,117,158,0.10)] backdrop-blur-sm lg:col-start-1 lg:row-start-2 ${className}`}
     >
       {phases.map(({ id, label, detail, icon: Icon }) => {
         const isActive = id === activePhase;
@@ -109,7 +111,7 @@ export function FocusTimerScene({
         </svg>
       </div>
 
-      <div className="relative z-10 aspect-square w-[min(74vw,340px)] max-w-full sm:w-[min(42vw,380px)] lg:w-[min(34vw,400px)]">
+      <div className="focus-timer-ring relative z-10 aspect-square w-[min(74vw,340px)] max-w-full sm:w-[min(42vw,380px)] lg:w-[min(34vw,400px)]">
         <svg className="absolute inset-0 size-full -rotate-90 drop-shadow-[0_10px_16px_rgba(47,113,218,0.18)]" viewBox="0 0 320 320" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={`focus-ring-gradient-${rawId}`} x1="0" x2="1" y1="0" y2="1">
