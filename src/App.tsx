@@ -6320,9 +6320,7 @@ const handleSignOut = useCallback(async () => {
             className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: rootBackGesture.x,
-              height: useFocusPlannerViewport ? "100%" : undefined,
               minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
-              overflow: useFocusPlannerViewport ? "hidden" : undefined,
               boxShadow: rootBackGesture.isInteracting
                 ? getNativeSwipeLayerShadow(isRtl)
                 : "none",
@@ -6334,9 +6332,7 @@ const handleSignOut = useCallback(async () => {
             className="relative w-full min-h-full bg-semantic-background-page"
             style={{
               x: usePhoneLayout ? mainTabSwipeX : 0,
-              height: useFocusPlannerViewport ? "100%" : undefined,
               minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
-              overflow: useFocusPlannerViewport ? "hidden" : undefined,
               WebkitBackfaceVisibility: "hidden",
               backfaceVisibility: "hidden",
               transformOrigin: "50% 50%",
@@ -6801,13 +6797,10 @@ const handleSignOut = useCallback(async () => {
                 data-main-tab-panel="focus"
                 style={{
                   display: activeTab === "focus"
-                    ? useFocusPlannerViewport ? "flex" : "block"
+                    ? "block"
                     : "none",
-                  flexDirection: useFocusPlannerViewport ? "column" : undefined,
                   position: "relative",
-                  height: useFocusPlannerViewport ? "100%" : undefined,
                   minHeight: useFocusPlannerViewport ? 0 : navigationSurfaceMinHeight,
-                  overflow: useFocusPlannerViewport ? "hidden" : undefined,
                 }}
                 className={`w-full min-h-full ${useFocusPlannerViewport ? "focus-planner-route-content" : ""}`}
               >
@@ -6847,8 +6840,6 @@ const handleSignOut = useCallback(async () => {
                   style={{
                     display: groupFocusRoute === null ? "block" : "none",
                     minHeight: useFocusPlannerViewport ? 0 : undefined,
-                    flex: useFocusPlannerViewport ? "1 1 0%" : undefined,
-                    overflow: useFocusPlannerViewport ? "hidden" : undefined,
                   }}
                 >
                   <Suspense fallback={iOSLoadingFallback}>
