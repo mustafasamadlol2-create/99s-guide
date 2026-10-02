@@ -8941,6 +8941,15 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     gap: 8px 12px !important;
     align-content: start;
   }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) {
+    grid-template-areas:
+      "header ."
+      "presets queue"
+      "setup queue"
+      "timer queue"
+      "summary summary"
+      "actions actions" !important;
+  }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-header { grid-area: header !important; }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle { grid-area: presets !important; }
@@ -8984,77 +8993,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
     min-height: clamp(190px, 40dvh, 300px) !important;
-  }
-}
-
-@media (min-width: 768px) and (max-width: 1100px) and (orientation: portrait) {
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-page {
-    max-width: 900px !important;
-    height: auto !important;
-    min-height: 0 !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr) !important;
-    grid-template-rows: 44px 44px auto minmax(260px, 1fr) auto auto !important;
-    grid-template-areas:
-      "header ."
-      "presets queue"
-      "setup queue"
-      "timer queue"
-      "summary support"
-      "actions support" !important;
-    align-items: stretch !important;
-    gap: 8px 12px !important;
-    height: auto !important;
-    min-height: 0 !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) {
-    grid-template-areas:
-      "header ."
-      "presets queue"
-      "setup queue"
-      "timer queue"
-      "summary summary"
-      "actions actions" !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:first-child {
-    display: flex;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid > *,
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid .focus-hub-supporting {
-    width: 100%;
-    min-height: 0;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
-    min-height: clamp(250px, 34dvh, 300px) !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
-    width: min(100%, clamp(220px, 31vw, 280px)) !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue {
-    height: 100% !important;
-    max-height: none !important;
-    min-height: 0 !important;
-    align-self: stretch !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list {
-    flex: 1 1 0 !important;
-    min-height: 0;
-    overflow-y: auto;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid {
-    display: grid;
-    height: 100%;
-    grid-template-columns: minmax(0, 1fr);
-    align-content: end;
-    gap: 12px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
-    grid-column: 1;
-    grid-row: 1;
-    min-height: 0;
-    padding: 0 !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card {
     display: grid;
@@ -9134,6 +9072,79 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     margin: 0;
     font-size: 10px;
     line-height: 12px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) and (orientation: portrait) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-page {
+    max-width: 900px !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr) !important;
+    grid-template-rows: 44px 44px auto minmax(260px, 1fr) auto auto !important;
+    grid-template-areas:
+      "header ."
+      "presets queue"
+      "setup queue"
+      "timer queue"
+      "summary support"
+      "actions support" !important;
+    align-items: stretch !important;
+    gap: 8px 12px !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) {
+    grid-template-areas:
+      "header ."
+      "presets queue"
+      "setup queue"
+      "timer queue"
+      "summary summary"
+      "actions actions" !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:first-child {
+    display: flex;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid > *,
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid .focus-hub-supporting {
+    width: 100%;
+    min-height: 0;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
+    min-height: clamp(250px, 34dvh, 300px) !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
+    width: min(100%, clamp(220px, 31vw, 280px)) !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid {
+    display: grid;
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: end;
+    gap: 12px;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    padding: 0 !important;
+  }
+}
+
+@media (min-width: 768px) and (orientation: landscape) and (max-height: 700px) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
+    grid-template-rows: 44px 44px auto clamp(190px, 40dvh, 215px) auto auto !important;
+    gap: 8px 10px !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
+    min-height: clamp(190px, 40dvh, 215px) !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
+    width: clamp(180px, 20vw, 205px) !important;
   }
 }
 
