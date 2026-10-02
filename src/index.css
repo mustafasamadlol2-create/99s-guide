@@ -8175,7 +8175,9 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     display: flex;
     flex-direction: column;
     min-height: 0;
-    height: 100%;
+    height: auto;
+    max-height: clamp(240px, calc(40dvh - 70px), 420px);
+    align-self: start;
     overflow: hidden;
     padding: 6px;
     border-radius: 18px;
@@ -8218,7 +8220,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list {
     display: flex;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     flex-direction: column;
     min-height: 0;
     gap: 4px;
@@ -8320,7 +8322,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue > div:nth-child(2):not(.focus-hub-queue-list) {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -8956,7 +8958,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     display: grid;
     height: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-content: start;
+    align-content: end;
     gap: 12px;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
@@ -8976,17 +8978,34 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
 @media (min-width: 768px) and (max-width: 1100px) and (orientation: portrait) {
   #main-scroll-canvas.focus-planner-viewport .focus-hub-page {
-    max-width: 700px !important;
+    max-width: 900px !important;
     height: auto !important;
     min-height: 0 !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
-    display: flex !important;
-    flex-direction: column;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr) !important;
+    grid-template-rows: 44px 44px auto minmax(260px, 1fr) auto auto !important;
+    grid-template-areas:
+      "header queue"
+      "presets queue"
+      "setup queue"
+      "timer queue"
+      "summary support"
+      "actions support" !important;
     align-items: stretch !important;
-    gap: 12px !important;
+    gap: 8px 12px !important;
     height: auto !important;
     min-height: 0 !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) {
+    grid-template-areas:
+      "header queue"
+      "presets queue"
+      "setup queue"
+      "timer queue"
+      "summary summary"
+      "actions actions" !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:first-child {
     display: flex;
@@ -8997,14 +9016,23 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     min-height: 0;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
-    min-height: 380px !important;
+    min-height: clamp(250px, 34dvh, 300px) !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
-    width: min(66vw, 360px) !important;
+    width: min(100%, clamp(220px, 31vw, 280px)) !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0,1fr));
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: end;
+    gap: 12px;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    padding: 0 !important;
   }
 }
 
