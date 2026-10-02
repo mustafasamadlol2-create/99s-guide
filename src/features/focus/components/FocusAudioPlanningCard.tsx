@@ -85,7 +85,7 @@ export function FocusAudioPlanningCard({
           />
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
+          <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
             {audio.userAudioDisplayName ?? t("focusHubAudioNoSource")}
           </p>
           {hasSelection && (
@@ -128,7 +128,7 @@ export function FocusAudioPlanningCard({
       </div>
 
       <div className="focus-audio-controls mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        <label className="flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
+        <label className="focus-audio-volume flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
           <Volume2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
           <span className="sr-only">{t("focusHubAudioVolume")}</span>
           <input
@@ -146,7 +146,7 @@ export function FocusAudioPlanningCard({
           </output>
         </label>
 
-        <label className="flex min-h-10 items-center gap-2 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 text-xs font-medium text-slate-700 dark:border-white/[0.07] dark:bg-white/[0.025] dark:text-slate-200 sm:border-0 sm:bg-transparent sm:px-1">
+        <label className="focus-audio-loop flex min-h-10 items-center gap-2 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 text-xs font-medium text-slate-700 dark:border-white/[0.07] dark:bg-white/[0.025] dark:text-slate-200 sm:border-0 sm:bg-transparent sm:px-1">
           <input
             type="checkbox"
             checked={audio.loop}

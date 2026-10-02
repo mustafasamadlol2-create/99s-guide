@@ -8994,85 +8994,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
     min-height: clamp(190px, 40dvh, 300px) !important;
   }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-    grid-template-areas:
-      "heading heading"
-      "source preview"
-      "session session"
-      "controls controls";
-    gap: 6px;
-    padding: 8px !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:first-child {
-    grid-area: heading;
-    align-items: center;
-    gap: 8px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:first-child > span {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card h3 {
-    font-size: 12px;
-    line-height: 16px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:first-child p {
-    font-size: 10px;
-    line-height: 12px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(2) {
-    grid-area: source;
-    min-height: 36px;
-    margin: 0;
-    gap: 4px;
-    padding-inline: 6px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(2) > button {
-    min-height: 32px;
-    padding-inline: 4px;
-    font-size: 10px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > p:nth-child(3) {
-    grid-area: session;
-    margin: 0;
-    font-size: 9px;
-    line-height: 10px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(4) {
-    grid-area: preview;
-    min-width: 0;
-    margin: 0;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(4) > button {
-    min-height: 36px;
-    padding-inline: 6px;
-    font-size: 11px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(5) {
-    grid-area: controls;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 6px;
-    margin: 0;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(5) label {
-    min-height: 34px;
-    gap: 5px;
-    padding-inline: 6px;
-    font-size: 10px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > div:nth-child(5) label > input[type="checkbox"] {
-    width: 13px;
-    height: 13px;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card > p[role="status"] {
-    grid-column: 1 / -1;
-    margin: 0;
-    font-size: 10px;
-    line-height: 12px;
-  }
 }
 
 @media (min-width: 768px) and (max-width: 1100px) and (orientation: portrait) {
@@ -9475,96 +9396,17 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
     display: flex;
+    align-items: flex-end;
     grid-column: 1;
     grid-row: 1;
     min-height: 0;
     padding: 0 !important;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-card {
-    display: grid;
-    width: 100%;
-    height: 100%;
-    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-    grid-template-rows: auto minmax(44px, auto) auto minmax(40px, auto) auto;
-    grid-template-areas:
-      "heading heading"
-      "source preview"
-      "session session"
-      "controls controls"
-      "status status";
-    align-content: space-between;
-    gap: 8px;
-    padding: 14px !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-heading {
-    grid-area: heading;
-    align-items: center;
-    gap: 9px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-heading > span {
-    width: 36px;
-    height: 36px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-source {
-    grid-area: source;
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio {
+    container-type: inline-size;
     min-width: 0;
-    min-height: 44px;
-    margin: 0;
-    gap: 5px;
-    padding-inline: 7px;
-    overflow: hidden;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-source > button {
-    min-height: 40px;
-    padding-inline: 6px;
-    font-size: 10px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-session {
-    grid-area: session;
-    margin: 0;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-preview {
-    grid-area: preview;
-    min-width: 0;
-    margin: 0;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-preview > button {
-    min-height: 44px;
-    padding-inline: 8px;
-    font-size: 11px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-controls {
-    grid-area: controls;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    margin: 0;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-controls label {
-    min-height: 40px;
-    gap: 6px;
-    padding-inline: 7px;
-    font-size: 10px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-controls label > input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-status {
-    grid-area: status;
-    grid-column: 1 / -1;
-    margin: 0;
+    overflow: visible !important;
   }
 }
 
@@ -9658,5 +9500,177 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-audio .focus-audio-controls {
     gap: 6px;
+  }
+}
+
+.focus-hub-audio {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.focus-hub-audio .focus-audio-card {
+  display: grid;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "heading"
+    "source"
+    "session"
+    "controls"
+    "preview"
+    "status";
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.focus-hub-audio .focus-audio-heading {
+  grid-area: heading;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.focus-hub-audio .focus-audio-heading > span {
+  width: 38px;
+  height: 38px;
+}
+
+.focus-hub-audio .focus-audio-heading h3 {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.focus-hub-audio .focus-audio-heading p {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.focus-hub-audio .focus-audio-source {
+  grid-area: source;
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.focus-hub-audio .focus-audio-source > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.focus-hub-audio .focus-audio-source-name {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 17px;
+}
+
+.focus-hub-audio .focus-audio-source > button {
+  min-height: 40px;
+  padding-inline: 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.focus-hub-audio .focus-audio-session,
+.focus-hub-audio .focus-audio-status {
+  grid-area: session;
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.focus-hub-audio .focus-audio-controls {
+  grid-area: controls;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.focus-hub-audio .focus-audio-volume,
+.focus-hub-audio .focus-audio-loop {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(125, 174, 205, 0.28);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.focus-hub-audio .focus-audio-volume > input[type="range"] {
+  width: 100%;
+  min-width: 40px;
+  flex: 1 1 auto;
+}
+
+.focus-hub-audio .focus-audio-volume output {
+  min-width: 38px;
+  flex: 0 0 auto;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.focus-hub-audio .focus-audio-loop {
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.focus-hub-audio .focus-audio-loop input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.focus-hub-audio .focus-audio-preview {
+  grid-area: preview;
+  min-width: 0;
+  margin: 0;
+}
+
+.focus-hub-audio .focus-audio-preview > button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.focus-hub-audio .focus-audio-status {
+  grid-area: status;
+}
+
+.dark .focus-hub-audio .focus-audio-volume,
+.dark .focus-hub-audio .focus-audio-loop {
+  border-color: rgba(172, 195, 230, 0.14);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+@container (min-width: 600px) {
+  .focus-hub-audio .focus-audio-card {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    grid-template-areas:
+      "heading heading"
+      "source controls"
+      "session session"
+      "preview preview"
+      "status status";
+    gap: 10px 14px;
+    padding: 14px;
   }
 }

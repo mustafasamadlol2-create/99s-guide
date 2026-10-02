@@ -1,0 +1,101 @@
+Use the attached screenshot as the current state.
+
+Modify **only the Focus Audio section shown in the screenshot**. Do not change any other part of the Focus page.
+
+### Goal
+
+The current layout is crowded and overlapping. Redesign this section so it is clean, premium, balanced, and consistent with the approved Focus Hub visual style.
+
+### Required changes
+
+- Keep all existing Focus Audio functionality exactly the same.
+- Do not change audio logic, file selection behavior, preview behavior, volume behavior, loop behavior, or any backend logic.
+- Only improve the layout and styling.
+
+### Layout
+
+Rebuild the card into a cleaner two-row layout:
+
+**Top area**
+- Keep the Focus Audio icon.
+- Keep `Focus Audio` title.
+- Keep the subtitle:
+  `Choose audio here; playback starts only when you preview it.`
+
+**Second area**
+Arrange the controls clearly and without overlap:
+
+Left side:
+- local audio file field / selected file display
+- `Choose local audio` button
+
+Right side:
+- volume icon
+- volume slider
+- volume percentage
+- Loop preview checkbox + label
+
+Below these controls:
+- place the `Preview audio` button as a clear full-width or well-sized primary/secondary action.
+
+### Important
+
+Use the available horizontal space instead of compressing everything into one line.
+
+There must be:
+
+- no overlapping text;
+- no controls sitting on top of the Preview button;
+- no clipped labels;
+- no cramped checkbox;
+- no strange empty space;
+- no horizontal overflow.
+
+### Visual style
+
+Keep the current approved blue Focus Hub theme.
+
+Make this card feel more premium with:
+
+- clean spacing;
+- proper alignment;
+- rounded iOS-style controls;
+- subtle frosted/glass surface;
+- soft blue borders;
+- refined shadows;
+- consistent typography;
+- compact but comfortable padding.
+
+The `Preview audio` button should visually match the Focus design system and clearly show disabled/enabled states.
+
+### Responsive behavior
+
+Verify this component on:
+
+- desktop;
+- iPad;
+- mobile if it shares the same component.
+
+On smaller widths, stack the controls vertically instead of squeezing them together.
+
+### Scope
+
+Only modify the Focus Audio component/styles required for this section.
+
+Do not touch:
+
+- timer;
+- lecture queue;
+- planned sessions;
+- start focus;
+- sidebar;
+- quick notes;
+- focus history;
+- any other page layout.
+
+After finishing, report only:
+
+- files modified;
+- Focus Audio layout changes;
+- responsive views verified;
+- build/test result.
