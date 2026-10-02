@@ -1283,6 +1283,61 @@ export function FocusHub({
               </div>
             </div>
 
+            <div className="focus-hub-summary-breakdown" role="list" aria-label={t("focusHubQueue")}>
+              {draft.items.length === 0 ? (
+                <p className="focus-hub-summary-breakdown-empty">{t("focusHubAddAtLeastOne")}</p>
+              ) : (
+                <>
+                  {draft.items.slice(0, 3).map((item, index) => {
+                    const lecture = lectureMap.get(item.lectureId);
+                    const itemEstimate = estimate.items[index];
+                    const itemTotal = itemEstimate?.totalMinutes ?? 0;
+                    const share = estimate.totalMinutes > 0
+                      ? Math.min(100, Math.max(0, (itemTotal / estimate.totalMinutes) * 100))
+                      : 0;
+                    const perSessionMinutes =
+                      (item.focusDurationSeconds ?? draft.studyMinutes * 60) / 60;
+
+                    return (
+                      <div
+                        key={item.lectureId}
+                        className="focus-hub-summary-breakdown-item"
+                        role="listitem"
+                      >
+                        <p className="focus-hub-summary-breakdown-name" dir="auto">
+                          {lecture?.name ?? t("focusHubLectureUnavailable")}
+                        </p>
+                        <span className="focus-hub-summary-breakdown-total">
+                          {formatMinutes(itemTotal)}
+                        </span>
+                        <p className="focus-hub-summary-breakdown-meta">
+                          <bdi dir="ltr">
+                            {new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(item.sessionCount)}
+                            {" × "}
+                            {formatMinutes(perSessionMinutes)}
+                          </bdi>
+                          {" · "}
+                          {t("focusHubStudyTotal").toLocaleLowerCase(language)}{" "}
+                          {formatMinutes(itemEstimate?.studyMinutes ?? 0)}
+                        </p>
+                        <div className="focus-hub-summary-breakdown-meter" aria-hidden="true">
+                          <span style={{ width: `${share}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {draft.items.length > 3 && (
+                    <span
+                      className="focus-hub-summary-breakdown-more"
+                      aria-label={`${draft.items.length - 3} ${t("focusHubLectureCount").toLocaleLowerCase(language)}`}
+                    >
+                      +{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(draft.items.length - 3)}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+
             <div className="focus-hub-summary-total-full mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
               <p className="text-xs font-medium text-sky-100/90">
                 {t("focusHubTotalTime")}
