@@ -8930,15 +8930,15 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
     grid-template-columns: minmax(0, 1.08fr) minmax(350px, .92fr) !important;
-    grid-template-rows: auto auto minmax(310px, 1fr) auto auto auto !important;
+    grid-template-rows: 44px 44px auto clamp(132px, calc(40dvh - 60px), 300px) auto auto !important;
     grid-template-areas:
-      "header queue"
+      "header ."
       "presets queue"
+      "setup queue"
       "timer queue"
       "summary support"
-      "actions support"
-      "setup support" !important;
-    gap: 12px 18px !important;
+      "actions support" !important;
+    gap: 8px 12px !important;
     align-content: start;
   }
 
@@ -8968,11 +8968,22 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     min-height: 0;
     padding: 0 !important;
   }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue {
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    align-self: stretch !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list {
+    flex: 1 1 0 !important;
+    min-height: 0;
+    overflow-y: auto;
+  }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
-    width: clamp(230px, 29vw, 365px) !important;
+    width: clamp(180px, 22vw, 300px) !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
-    min-height: 370px !important;
+    min-height: clamp(190px, 40dvh, 300px) !important;
   }
 }
 
