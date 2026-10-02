@@ -1375,6 +1375,9 @@ export function FocusHub({
 
           </section>
 
+        </aside>
+        <aside className="focus-hub-supporting">
+          <div className="focus-hub-support-grid">
           {FOCUS_AUDIO_ENABLED && (
             <div className="focus-hub-audio order-8 min-w-0 md:col-start-2 md:row-start-4">
               <FocusAudioPlanningCard language={language} />
@@ -1449,6 +1452,7 @@ export function FocusHub({
               </p>
             )}
           </section>
+          </div>
         </aside>
       </div>
 

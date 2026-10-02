@@ -1056,7 +1056,7 @@ function ActiveFocusScreenCore({
   };
 
   return (
-    <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
+    <div dir={language === "ar" ? "rtl" : "ltr"} className="focus-active-screen mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
       <header className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -1153,9 +1153,9 @@ function ActiveFocusScreenCore({
         </div>
       )}
 
-      <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
-        <div className="min-w-0 space-y-4">
-          <section className={`relative overflow-hidden rounded-[30px] border p-4 shadow-[0_18px_48px_rgba(55,119,171,0.08)] sm:p-6 ${
+      <main className="focus-active-layout grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
+        <div className="focus-active-main min-w-0 space-y-4">
+          <section className={`focus-active-timer-card relative overflow-hidden rounded-[30px] border p-4 shadow-[0_18px_48px_rgba(55,119,171,0.08)] sm:p-6 ${
             isPaused
               ? "border-amber-200 bg-gradient-to-br from-amber-50/90 to-white dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900"
               : "border-sky-100 bg-gradient-to-br from-white via-sky-50/60 to-[#eaf3ff] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c]"
@@ -1194,7 +1194,7 @@ function ActiveFocusScreenCore({
               )}
             </div>
 
-            <div className="mt-4">
+            <div className="focus-active-summary mt-4">
               <SessionSummary
                 session={canonicalSession}
                 lecture={lecture}
@@ -1204,7 +1204,7 @@ function ActiveFocusScreenCore({
               />
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <div className="focus-active-controls mt-5 flex flex-wrap items-center justify-center gap-3">
               {isActive && (
                 <button
                   type="button"
@@ -1453,7 +1453,7 @@ function FocusTimer({
       ? Math.max(0, Math.min(1, remainingSeconds / durationSeconds))
       : 0.74;
   return (
-    <FocusTimerScene progress={progress} className="min-h-[310px] border-0 shadow-none sm:min-h-[350px]">
+    <FocusTimerScene progress={progress} className="focus-active-timer-scene min-h-[310px] border-0 shadow-none sm:min-h-[350px]">
       <span className="mb-1 flex size-10 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-200">
         <Target className="size-5" aria-hidden="true" />
       </span>
