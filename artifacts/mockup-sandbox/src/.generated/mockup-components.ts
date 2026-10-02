@@ -2,9 +2,9 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/focus-hub-approved/Current.tsx": () => import("../components/mockups/focus-hub-approved/Current.tsx"),
+  "./components/mockups/focus-hub-baseline/Current.tsx": () => import("../components/mockups/focus-hub-baseline/Current.tsx"),
   "./components/mockups/focus-redesign/AiryFocus.tsx": () => import("../components/mockups/focus-redesign/AiryFocus.tsx"),
   "./components/mockups/focus-redesign/Current.tsx": () => import("../components/mockups/focus-redesign/Current.tsx"),
-  "./components/mockups/focus-hub-baseline/Current.tsx": () => import("../components/mockups/focus-hub-baseline/Current.tsx"),
   "./components/mockups/focus-refresh/Current.tsx": () => import("../components/mockups/focus-refresh/Current.tsx"),
   "./components/mockups/focus-refresh/FocusAudioPlanningCard.tsx": () => import("../components/mockups/focus-refresh/FocusAudioPlanningCard.tsx"),
   "./components/mockups/focus-refresh/FocusHub.tsx": () => import("../components/mockups/focus-refresh/FocusHub.tsx"),

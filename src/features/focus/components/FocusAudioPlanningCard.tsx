@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { useFocusAudio } from "../../focus-audio/hooks";
-import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
+import {
+  DEFAULT_FOCUS_AUDIO_ARTWORK,
+  resolveFocusAudioArtworkUrl,
+} from "./focusAudioArtwork";
 
 interface FocusAudioPlanningCardProps {
   language: Language;
@@ -28,6 +31,7 @@ export function FocusAudioPlanningCard({
     audio.userAudioArtworkUrl,
     failedArtworkUrl,
   );
+  const useDefaultArtwork = artworkUrl === DEFAULT_FOCUS_AUDIO_ARTWORK;
 
   const chooseFile = async () => {
     setBusy(true);
@@ -82,17 +86,42 @@ export function FocusAudioPlanningCard({
       </div>
 
       <div className="focus-audio-source">
-        <img
-          src={artworkUrl}
-          alt=""
-          draggable={false}
-          onError={() => {
-            if (audio.userAudioArtworkUrl) {
-              setFailedArtworkUrl(audio.userAudioArtworkUrl);
-            }
-          }}
-          className="focus-audio-artwork"
-        />
+        {useDefaultArtwork ? (
+          <div className="focus-audio-artwork focus-audio-scene" aria-hidden="true">
+            <svg
+              className="focus-audio-scene-svg"
+              viewBox="0 0 240 220"
+              preserveAspectRatio="xMidYMid slice"
+              focusable="false"
+            >
+              <rect className="focus-art-sky" width="240" height="220" />
+              <circle className="focus-art-sun" cx="174" cy="47" r="23" />
+              <path className="focus-art-back-mountain" d="M0 127 50 82l28 27 49-64 47 57 25-21 41 34v56H0Z" />
+              <path className="focus-art-mid-mountain" d="m0 143 48-39 39 28 40-49 41 40 25-21 47 34v55H0Z" />
+              <path className="focus-art-front-mountain" d="M0 153c35-22 56 7 91-5 36-12 60-14 91-4 25 8 40-2 58-7v48H0Z" />
+              <path className="focus-art-lake" d="M0 164c35-7 65 10 102 3 46-9 88-8 138 1v52H0Z" />
+              <g className="focus-art-reflection" fill="none" strokeLinecap="round" strokeWidth="2.5" opacity=".7">
+                <path d="M94 177h51" />
+                <path d="M76 185h91" opacity=".8" />
+                <path d="M52 194h133" opacity=".7" />
+                <path d="M28 204h176" opacity=".5" />
+                <path d="M88 214h71" opacity=".4" />
+              </g>
+            </svg>
+          </div>
+        ) : (
+          <img
+            src={artworkUrl}
+            alt=""
+            draggable={false}
+            onError={() => {
+              if (audio.userAudioArtworkUrl) {
+                setFailedArtworkUrl(audio.userAudioArtworkUrl);
+              }
+            }}
+            className="focus-audio-artwork"
+          />
+        )}
         <div className="focus-audio-source-details">
           <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
             {audio.userAudioDisplayName ?? t("focusHubAudioNoSource")}

@@ -141,17 +141,18 @@ export function FocusTimerScene({
         <svg className="absolute inset-x-0 bottom-0 h-[76%] w-full opacity-70 dark:opacity-20" viewBox="0 0 760 360" preserveAspectRatio="none" focusable="false">
           <defs>
             <linearGradient id={`focus-mountain-back-${rawId}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#d9eaff" stopOpacity="0.74" />
-              <stop offset="100%" stopColor="#b8d6f5" stopOpacity="0.32" />
+              <stop className="focus-mountain-back-stop" offset="0%" stopColor="#d9eaff" stopOpacity="0.78" />
+              <stop className="focus-mountain-back-stop" offset="100%" stopColor="#b8d6f5" stopOpacity="0.4" />
             </linearGradient>
             <linearGradient id={`focus-mountain-front-${rawId}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#c8e0fa" stopOpacity="0.72" />
-              <stop offset="100%" stopColor="#a8cbee" stopOpacity="0.36" />
+              <stop className="focus-mountain-front-stop" offset="0%" stopColor="#c8e0fa" stopOpacity="0.76" />
+              <stop className="focus-mountain-front-stop" offset="100%" stopColor="#a8cbee" stopOpacity="0.45" />
             </linearGradient>
           </defs>
+          <circle className="focus-scene-sun" cx="650" cy="102" r="33" />
           <path d="M0 183 C95 145 132 194 215 165 C296 137 342 193 429 166 C524 137 581 192 655 157 C699 137 727 143 760 130 V360 H0Z" fill={`url(#focus-mountain-back-${rawId})`} />
           <path d="M0 231 C91 190 149 245 240 207 C328 170 385 237 483 196 C586 153 655 218 760 181 V360 H0Z" fill={`url(#focus-mountain-front-${rawId})`} />
-          <path d="M0 272 C111 229 181 290 285 250 C381 214 449 271 540 242 C630 213 686 251 760 228 V360 H0Z" fill="#dceeff" fillOpacity="0.62" />
+          <path className="focus-scene-near" d="M0 272 C111 229 181 290 285 250 C381 214 449 271 540 242 C630 213 686 251 760 228 V360 H0Z" fill="#dceeff" fillOpacity="0.62" />
         </svg>
       </div>
 
@@ -159,13 +160,13 @@ export function FocusTimerScene({
         <svg className="absolute inset-0 size-full -rotate-90 drop-shadow-[0_10px_16px_rgba(47,113,218,0.18)]" viewBox="0 0 320 320" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={`focus-ring-gradient-${rawId}`} x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#4eb8f5" />
-              <stop offset="55%" stopColor="#347be8" />
-              <stop offset="100%" stopColor="#574fe5" />
+              <stop offset="0%" stopColor="#58baff" />
+              <stop offset="55%" stopColor="#2f83f0" />
+              <stop offset="100%" stopColor="#2868df" />
             </linearGradient>
           </defs>
-          <circle cx="160" cy="160" r="139" fill="none" stroke="#d9e9fa" strokeWidth="12" />
-          <circle cx="160" cy="160" r="128" fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2" />
+          <circle className="focus-ring-track" cx="160" cy="160" r="139" fill="none" stroke="#d9e9fa" strokeWidth="12" />
+          <circle className="focus-ring-inner" cx="160" cy="160" r="128" fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2" />
           <circle
             cx="160"
             cy="160"
@@ -177,7 +178,7 @@ export function FocusTimerScene({
             strokeDasharray={circumference}
             strokeDashoffset={circumference * (1 - progressValue)}
           />
-          <circle cx="299" cy="160" r="8" fill="#38a9f2" stroke="white" strokeWidth="5" />
+          <circle className="focus-ring-marker" cx="299" cy="160" r="8" fill="#38a9f2" stroke="white" strokeWidth="5" />
         </svg>
         <div className="absolute inset-[9%] grid place-items-center rounded-full border border-white/90 bg-white/80 shadow-[inset_0_6px_22px_rgba(85,144,202,0.10),0_8px_28px_rgba(58,116,173,0.10)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45">
           <div className="flex flex-col items-center justify-center px-3 text-center">

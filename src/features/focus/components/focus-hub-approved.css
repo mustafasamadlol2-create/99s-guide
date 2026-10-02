@@ -428,3 +428,54 @@
     padding-inline: 7px;
   }
 }
+
+.focus-hub-current-root .focus-audio-scene {
+  overflow: hidden;
+  background: #c9e2ff;
+}
+
+.focus-hub-current-root .focus-audio-scene-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.focus-hub-current-root .focus-art-sky { fill: #c9e2ff; }
+.focus-hub-current-root .focus-art-sun { fill: #fff7e8; opacity: .92; }
+.focus-hub-current-root .focus-art-back-mountain { fill: #8cb9e9; }
+.focus-hub-current-root .focus-art-mid-mountain { fill: #6599d5; }
+.focus-hub-current-root .focus-art-front-mountain { fill: #407dbd; }
+.focus-hub-current-root .focus-art-lake { fill: #73b0e8; }
+.focus-hub-current-root .focus-art-reflection { stroke: #d8efff; }
+
+.focus-hub-current-root .focus-scene-sun {
+  fill: #fff;
+  opacity: .72;
+}
+
+.focus-hub-current-root .focus-scene-near { fill: #d5e9fd; }
+
+.dark .focus-hub-current-root .focus-art-sky { fill: #0a2148; }
+.dark .focus-hub-current-root .focus-art-sun { fill: #fff0d7; opacity: .94; }
+.dark .focus-hub-current-root .focus-art-back-mountain { fill: #17447e; }
+.dark .focus-hub-current-root .focus-art-mid-mountain { fill: #103568; }
+.dark .focus-hub-current-root .focus-art-front-mountain { fill: #0a2853; }
+.dark .focus-hub-current-root .focus-art-lake { fill: #103b72; }
+.dark .focus-hub-current-root .focus-art-reflection { stroke: #65a9ed; }
+
+.dark .focus-hub-current-root .focus-scene-sun {
+  fill: #b7d5ff;
+  opacity: .34;
+}
+
+.dark .focus-hub-current-root .focus-scene-near {
+  fill: #174578;
+  fill-opacity: .64;
+}
+
+.dark .focus-hub-current-root .focus-mountain-back-stop { stop-color: #24568f; }
+.dark .focus-hub-current-root .focus-mountain-front-stop { stop-color: #1b4578; }
+.dark .focus-hub-current-root .focus-ring-track { stroke: #1d4778; }
+.dark .focus-hub-current-root .focus-ring-inner { stroke: #a7c8f4; stroke-opacity: .18; }
+.dark .focus-hub-current-root .focus-ring-marker { fill: #78c8ff; stroke: #d8ebff; }
