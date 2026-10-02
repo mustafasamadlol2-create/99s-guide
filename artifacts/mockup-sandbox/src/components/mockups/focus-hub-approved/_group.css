@@ -89,43 +89,97 @@
 
 .focus-hub-current-root .focus-hub-presets {
   justify-content: stretch;
-  gap: 5px;
+  gap: 0 !important;
   overflow: visible;
-  border-color: rgba(255,255,255,.84);
-  background: rgba(255,255,255,.58);
-  box-shadow: 0 5px 18px rgba(48,89,137,.08), inset 0 1px 0 rgba(255,255,255,.9);
-  backdrop-filter: blur(14px);
+  border-color: rgba(205,224,248,.92) !important;
+  background: rgba(247,251,255,.82) !important;
+  box-shadow: 0 6px 18px rgba(48,96,159,.1), inset 0 1px 0 rgba(255,255,255,.98) !important;
+  backdrop-filter: blur(16px);
+  transition: background-color 200ms ease, border-color 200ms ease, box-shadow 220ms ease;
 }
 
 .dark .focus-hub-current-root .focus-hub-presets {
-  border-color: rgba(169,195,232,.12);
-  background: rgba(17,34,56,.56);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+  border-color: rgba(93,143,207,.3) !important;
+  background: rgba(10,28,57,.82) !important;
+  box-shadow: 0 8px 22px rgba(0,0,0,.22), 0 0 16px rgba(39,111,207,.12), inset 0 1px 0 rgba(161,197,244,.12) !important;
 }
 
 .focus-hub-current-root .focus-hub-presets button {
+  position: relative;
   min-width: 0;
   flex: 1 1 0;
-  padding-inline: clamp(8px, 1.4vw, 18px);
-  border-color: transparent;
-  color: #455774;
-  background: transparent;
-  font-size: 13px;
+  padding-inline: clamp(4px, .85vw, 10px) !important;
+  border: 1px solid transparent !important;
+  border-radius: 9999px;
+  color: #52627b !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: clamp(10px, 1.1vw, 12px) !important;
+  font-weight: 600;
+  transition: background 200ms ease, border-color 180ms ease, color 160ms ease, box-shadow 220ms ease, transform 150ms cubic-bezier(.2,.8,.2,1) !important;
+}
+
+.focus-hub-current-root .focus-hub-presets button:not(:first-child)::before {
+  position: absolute;
+  inset-block: 25%;
+  inset-inline-start: 0;
+  width: 1px;
+  border-radius: 1px;
+  background: rgba(105,135,178,.2);
+  content: "";
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.focus-hub-current-root .focus-hub-presets button[aria-pressed="true"]::before,
+.focus-hub-current-root .focus-hub-presets button[aria-pressed="true"] + button::before {
+  opacity: 0;
 }
 
 .focus-hub-current-root .focus-hub-presets button[aria-pressed="true"] {
-  color: white;
-  background: linear-gradient(110deg, #58a7ee, #3979df);
-  box-shadow: 0 4px 10px rgba(51,119,209,.23);
+  z-index: 1;
+  border-color: rgba(255,255,255,.34) !important;
+  color: #fff !important;
+  background: linear-gradient(108deg, #50aaf5 0%, #347fea 58%, #286ce5 100%) !important;
+  box-shadow: 0 3px 10px rgba(36,106,217,.3), inset 0 1px 0 rgba(255,255,255,.36) !important;
+}
+
+.focus-hub-current-root .focus-hub-presets button:not([aria-pressed="true"]):hover {
+  color: #285d9c !important;
+  background: rgba(73,145,231,.09) !important;
+}
+
+.focus-hub-current-root .focus-hub-presets button[aria-pressed="true"]:hover {
+  background: linear-gradient(108deg, #5cb5fa 0%, #3e8af2 58%, #3479ee 100%) !important;
+  box-shadow: 0 4px 13px rgba(36,106,217,.36), inset 0 1px 0 rgba(255,255,255,.4) !important;
+}
+
+.focus-hub-current-root .focus-hub-presets button:active {
+  transform: scale(.985);
 }
 
 .dark .focus-hub-current-root .focus-hub-presets button {
-  color: #c5d2e5;
+  color: #c7d5eb !important;
+}
+
+.dark .focus-hub-current-root .focus-hub-presets button:not(:first-child)::before {
+  background: rgba(139,171,216,.17);
+}
+
+.dark .focus-hub-current-root .focus-hub-presets button:not([aria-pressed="true"]):hover {
+  color: #f1f6ff !important;
+  background: rgba(91,151,235,.12) !important;
 }
 
 .dark .focus-hub-current-root .focus-hub-presets button[aria-pressed="true"] {
-  color: #102139;
-  background: linear-gradient(110deg, #64c8fa, #569bea);
+  border-color: rgba(155,224,255,.48) !important;
+  color: #fff !important;
+  background: linear-gradient(108deg, #20c8f1 0%, #238cf5 50%, #195cf1 100%) !important;
+  box-shadow: 0 3px 13px rgba(19,111,255,.44), 0 0 16px rgba(35,124,255,.2), inset 0 1px 0 rgba(255,255,255,.42) !important;
+}
+
+.dark .focus-hub-current-root .focus-hub-presets button[aria-pressed="true"]:hover {
+  background: linear-gradient(108deg, #35d3f7 0%, #3699ff 50%, #286bf8 100%) !important;
 }
 
 .focus-hub-current-root .focus-hub-header h1 {
