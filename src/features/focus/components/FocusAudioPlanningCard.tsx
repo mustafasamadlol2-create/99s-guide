@@ -91,11 +91,7 @@ export function FocusAudioPlanningCard({
               setFailedArtworkUrl(audio.userAudioArtworkUrl);
             }
           }}
-          className={`focus-audio-artwork ${
-            !audio.userAudioArtworkUrl || failedArtworkUrl === audio.userAudioArtworkUrl
-              ? "focus-audio-artwork-fallback"
-              : ""
-          }`}
+          className="focus-audio-artwork"
         />
         <div className="focus-audio-source-details">
           <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">

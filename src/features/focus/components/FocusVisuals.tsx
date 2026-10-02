@@ -138,7 +138,7 @@ export function FocusTimerScene({
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -left-12 -top-20 size-56 rounded-full bg-white/85 blur-3xl dark:bg-sky-300/10" />
         <div className="absolute -right-12 top-4 size-48 rounded-full bg-sky-200/60 blur-3xl dark:bg-blue-400/10" />
-        <svg className="focus-timer-waves absolute inset-x-0 bottom-0 h-[76%] w-full opacity-70" viewBox="0 0 760 360" preserveAspectRatio="none" focusable="false">
+        <svg className="absolute inset-x-0 bottom-0 h-[76%] w-full opacity-70 dark:opacity-20" viewBox="0 0 760 360" preserveAspectRatio="none" focusable="false">
           <defs>
             <linearGradient id={`focus-mountain-back-${rawId}`} x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#d9eaff" stopOpacity="0.74" />
@@ -149,14 +149,9 @@ export function FocusTimerScene({
               <stop offset="100%" stopColor="#a8cbee" stopOpacity="0.36" />
             </linearGradient>
           </defs>
-          <circle cx="646" cy="106" r="34" fill="#fff" fillOpacity=".66" />
           <path d="M0 183 C95 145 132 194 215 165 C296 137 342 193 429 166 C524 137 581 192 655 157 C699 137 727 143 760 130 V360 H0Z" fill={`url(#focus-mountain-back-${rawId})`} />
           <path d="M0 231 C91 190 149 245 240 207 C328 170 385 237 483 196 C586 153 655 218 760 181 V360 H0Z" fill={`url(#focus-mountain-front-${rawId})`} />
-          <path d="M0 268 C86 238 153 269 230 251 C330 227 382 266 471 247 C575 225 661 253 760 225 V360 H0Z" fill="#dceeff" fillOpacity="0.62" />
-          <path d="M0 284 C115 256 190 294 294 277 C400 259 478 290 568 272 C651 256 707 273 760 261 V360 H0Z" fill="#c8e3fb" fillOpacity="0.55" />
-          <path d="M0 302 C113 285 200 309 302 297 C403 285 503 311 596 295 C669 282 724 297 760 289" fill="none" stroke="#f8fcff" strokeOpacity=".78" strokeWidth="3" />
-          <path d="M0 320 C104 306 210 330 326 315 C442 301 537 328 648 312 C703 304 735 310 760 307" fill="none" stroke="#f8fcff" strokeOpacity=".56" strokeWidth="2" />
-          <path d="M0 339 C122 326 217 346 332 334 C452 322 545 348 650 332 C700 325 739 331 760 328" fill="none" stroke="#fff" strokeOpacity=".45" strokeWidth="2" />
+          <path d="M0 272 C111 229 181 290 285 250 C381 214 449 271 540 242 C630 213 686 251 760 228 V360 H0Z" fill="#dceeff" fillOpacity="0.62" />
         </svg>
       </div>
 
