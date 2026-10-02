@@ -1283,12 +1283,14 @@ export function FocusHub({
               </div>
             </div>
 
-            <div className="focus-hub-summary-breakdown" role="list" aria-label={t("focusHubQueue")}>
+            <div className="focus-hub-summary-breakdown hidden" role="list" aria-label={t("focusHubQueue")}>
               {draft.items.length === 0 ? (
-                <p className="focus-hub-summary-breakdown-empty">{t("focusHubAddAtLeastOne")}</p>
+                <p className="focus-hub-summary-breakdown-empty" role="listitem">
+                  {t("focusHubAddAtLeastOne")}
+                </p>
               ) : (
                 <>
-                  {draft.items.slice(0, 3).map((item, index) => {
+                  {draft.items.slice(0, 2).map((item, index) => {
                     const lecture = lectureMap.get(item.lectureId);
                     const itemEstimate = estimate.items[index];
                     const itemTotal = itemEstimate?.totalMinutes ?? 0;
@@ -1326,12 +1328,13 @@ export function FocusHub({
                       </div>
                     );
                   })}
-                  {draft.items.length > 3 && (
+                  {draft.items.length > 2 && (
                     <span
                       className="focus-hub-summary-breakdown-more"
-                      aria-label={`${draft.items.length - 3} ${t("focusHubLectureCount").toLocaleLowerCase(language)}`}
+                      role="listitem"
+                      aria-label={`${draft.items.length - 2} ${t("focusHubLectureCount").toLocaleLowerCase(language)}`}
                     >
-                      +{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(draft.items.length - 3)}
+                      +{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(draft.items.length - 2)}
                     </span>
                   )}
                 </>
