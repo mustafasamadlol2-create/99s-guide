@@ -9417,6 +9417,29 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 }
 
+@media (min-width: 900px) and (min-height: 701px) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
+    grid-template-rows:
+      44px
+      48px
+      auto
+      minmax(clamp(360px, 46dvh, 420px), 1fr)
+      max-content
+      auto !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
+    min-height: clamp(360px, 46dvh, 420px) !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
+    align-self: start !important;
+    height: max-content !important;
+    min-height: 0 !important;
+  }
+}
+
 @media (min-width: 768px) and (max-height: 700px) {
   #main-scroll-canvas.focus-planner-viewport .focus-planner-route-content > nav {
     gap: 6px;
