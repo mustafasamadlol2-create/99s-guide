@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import "./focus-hub-approved.css";
+import "./focus-hub-reference.css";
 import {
   ArrowDown,
   ArrowUp,
+  BarChart3,
   BookOpen,
+  CalendarDays,
   Check,
   Clock3,
+  Coffee,
+  ListChecks,
   Minus,
   Plus,
   Play,
@@ -842,7 +847,8 @@ export function FocusHub({
           aria-label={t("focusHubTimerSessionLabel")}
           className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
-          <FocusTimerScene progress={0} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
+          {/* The planning dial shows the selected duration; elapsed progress belongs to the active session screen. */}
+          <FocusTimerScene progress={1} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
             <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
               <Target className="size-6" aria-hidden="true" />
             </span>
@@ -1160,31 +1166,55 @@ export function FocusHub({
             aria-labelledby="focus-plan-summary-title"
             className="focus-hub-summary order-4 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_12px_36px_rgba(46,104,158,0.08)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-4"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800 dark:text-sky-200">
-                  {t("focusHubPlannedSessions")}
-                </p>
-                <h2 id="focus-plan-summary-title" className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
-                  {t("focusHubTodayPlan")}
-                </h2>
+            <div className="focus-hub-summary-heading flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="focus-hub-summary-icon flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/80 text-sky-700 dark:bg-sky-300/10 dark:text-sky-200">
+                  <BarChart3 className="size-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="sr-only">{t("focusHubPlannedSessions")}</p>
+                  <h2 id="focus-plan-summary-title" className="truncate text-base font-semibold text-slate-950 dark:text-white">
+                    {t("focusHubTodayPlan")}
+                  </h2>
+                </div>
               </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-100">
+              <span className="focus-hub-summary-check flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-100">
                 <Check className="h-5 w-5" aria-hidden="true" />
               </span>
             </div>
 
             <div className="focus-plan-metrics mt-5 grid grid-cols-2 gap-2 md:grid-cols-5">
-              <SummaryMetric label={t("focusHubLectureCount")} value={estimate.lectureCount} language={language} />
-              <SummaryMetric label={t("focusHubSessionCount")} value={estimate.sessionCount} language={language} />
-              <SummaryMetric label={t("focusHubStudyTotal")} value={formatMinutes(estimate.studyMinutes)} />
-              <SummaryMetric label={t("focusHubBreakTotal")} value={formatMinutes(estimate.breakMinutes)} />
+              <SummaryMetric
+                icon={<BookOpen className="size-4" aria-hidden="true" />}
+                label={t("focusHubLectureCount")}
+                value={estimate.lectureCount}
+                language={language}
+              />
+              <SummaryMetric
+                icon={<ListChecks className="size-4" aria-hidden="true" />}
+                label={t("focusHubSessionCount")}
+                value={estimate.sessionCount}
+                language={language}
+              />
+              <SummaryMetric
+                icon={<Clock3 className="size-4" aria-hidden="true" />}
+                label={t("focusHubStudyTotal")}
+                value={formatMinutes(estimate.studyMinutes)}
+              />
+              <SummaryMetric
+                icon={<Coffee className="size-4" aria-hidden="true" />}
+                label={t("focusHubBreakTotal")}
+                value={formatMinutes(estimate.breakMinutes)}
+              />
               <div
                 className="focus-hub-total-compact hidden min-w-0 flex-col justify-center rounded-2xl border border-blue-200 bg-blue-50 px-2 py-1.5 text-blue-900 dark:border-sky-300/15 dark:bg-sky-300/[0.08] dark:text-sky-100"
                 title={t("focusHubNoFinalBreak")}
               >
                 <span className="truncate text-[10px] font-medium">{t("focusHubTotalTime")}</span>
-                <span className="truncate text-sm font-semibold">{formatMinutes(estimate.totalMinutes)}</span>
+                <span className="flex min-w-0 items-center justify-between gap-1 truncate text-sm font-semibold">
+                  {formatMinutes(estimate.totalMinutes)}
+                  <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
+                </span>
                 <span className="sr-only">{t("focusHubNoFinalBreak")}</span>
               </div>
             </div>
@@ -1250,22 +1280,29 @@ function SummaryMetric({
   label,
   value,
   language,
+  icon,
 }: {
   label: string;
   value: ReactNode;
   language?: Language;
+  icon: ReactNode;
 }) {
   return (
     <div
       dir={language === "ar" ? "rtl" : "ltr"}
-      className="min-h-[76px] rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/[0.07] dark:bg-white/[0.025]"
+      className="focus-hub-summary-metric min-h-[76px] rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/[0.07] dark:bg-white/[0.025]"
     >
       <p className="text-[11px] font-medium leading-4 text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">
-        {typeof value === "number" ? <bdi dir="ltr">{new Intl.NumberFormat(language).format(value)}</bdi> : value}
-      </p>
+      <div className="focus-hub-summary-metric-value mt-1 flex min-w-0 items-center justify-between gap-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">
+        <span className="min-w-0 truncate">
+          {typeof value === "number" ? <bdi dir="ltr">{new Intl.NumberFormat(language).format(value)}</bdi> : value}
+        </span>
+        <span className="focus-hub-summary-metric-icon flex size-7 shrink-0 items-center justify-center rounded-lg bg-sky-100/80 text-sky-700 dark:bg-sky-300/10 dark:text-sky-200">
+          {icon}
+        </span>
+      </div>
     </div>
   );
 }
