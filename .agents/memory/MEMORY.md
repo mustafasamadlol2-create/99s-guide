@@ -22,5 +22,5 @@
 - [OAuth popup handoff](oauth-popup-handoff.md) — keep one-time OAuth URLs uncached and never let optional web storage delay popup navigation.
 - [Maintenance CLI environment detection](maintenance-cli-env-detection.md) — treat empty runtime variables as unset; the development shell may expose `NODE_ENV` as an empty string.
 - [Focus display behavior](focus-display-behavior.md) — keep visual phases and progress tied to persisted Focus data; don't imply unsupported long breaks or daily completion totals.
-- [Focus planner layout](focus-planner-layout.md) — preserve the two-column viewport; only the ~2-item queue list scrolls, with Audio aligned to plan actions.
+- [Focus planner layout](focus-planner-layout.md) — keep the two-column viewport and queue boundary; size Today's Plan to content and route spare height to the timer.
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
