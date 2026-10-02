@@ -19,7 +19,6 @@ const PLAN_ID = "44444444-4444-4444-8444-444444444444";
 const PLAN_ITEM_ID = "55555555-5555-4555-8555-555555555555";
 const LECTURE_ID = "66666666-6666-4666-8666-666666666666";
 const PDF_ID = "77777777-7777-4777-8777-777777777777";
-const NOTE_ID = "88888888-8888-4888-8888-888888888888";
 const STARTED_AT = new Date("2026-09-20T10:00:00.000Z");
 const ENDED_AT = new Date("2026-09-20T10:45:00.000Z");
 
@@ -119,7 +118,7 @@ test("Focus history cursors round-trip and reject malformed or noncanonical valu
   );
 });
 
-test("Focus summary uses canonical completion, ledger, resource, and private-note facts", async () => {
+test("Focus summary uses canonical completion, ledger, resource, and plan facts", async () => {
   let pointWhere: Record<string, unknown> | undefined;
   let completedBeforeWhere: Record<string, any> | undefined;
   const tx = {
@@ -137,21 +136,6 @@ test("Focus summary uses canonical completion, ledger, resource, and private-not
       },
     },
     studyEvent: { findMany: async () => events },
-    focusQuickNote: {
-      findMany: async () => [{
-        id: NOTE_ID,
-        userId: USER_ID,
-        focusSessionId: SESSION_ID,
-        lectureId: LECTURE_ID,
-        content: "Review the orbital diagram.",
-        status: "ACTIVE",
-        convertedToPlanItemId: null,
-        createdAt: STARTED_AT,
-        updatedAt: ENDED_AT,
-        archivedAt: null,
-        convertedAt: null,
-      }],
-    },
     material: {
       findMany: async () => [{ id: PDF_ID, title: "Atomic structure notes", type: "PDF" }],
     },
@@ -180,7 +164,7 @@ test("Focus summary uses canonical completion, ledger, resource, and private-not
   assert.equal(result.resources.launchCount, 2);
   assert.equal(result.resources.uniqueResourceCount, 1);
   assert.equal(result.resources.items[0]?.title, "Atomic structure notes");
-  assert.equal(result.quickNotes[0]?.content, "Review the orbital diagram.");
+  assert.equal("quickNotes" in result, false);
   assert.equal(result.nextAction.kind, "NEXT_SESSION");
   assert.equal(pointWhere?.sourceType, "FOCUS_SESSION");
   assert.equal(pointWhere?.sourceId, SESSION_ID);
@@ -193,7 +177,7 @@ test("Focus summary uses canonical completion, ledger, resource, and private-not
   });
 });
 
-test("Focus history is user-scoped, bounded, cursor-paginated, and omits Quick Note text", async () => {
+test("Focus history is user-scoped, bounded, and cursor-paginated", async () => {
   const findManyCalls: Array<Record<string, any>> = [];
   const row = {
     id: SESSION_ID,
@@ -237,7 +221,6 @@ test("Focus history is user-scoped, bounded, cursor-paginated, and omits Quick N
   assert.equal(first.items[0]?.verifiedFocusSeconds, 1_800);
   assert.equal(first.items[0]?.points, null);
   assert.equal(first.items[0]?.resourceLaunchCount, 2);
-  assert.equal("quickNotes" in (first.items[0] ?? {}), false);
   assert.ok(first.nextCursor);
   assert.equal(findManyCalls[0]?.where.userId, USER_ID);
   assert.equal(findManyCalls[0]?.where.status, "COMPLETED");
@@ -271,7 +254,6 @@ test("Focus summaries never infer verified time or Points without matching compl
         count: async () => 0,
       },
       studyEvent: { findMany: async () => [] },
-      focusQuickNote: { findMany: async () => [] },
       material: { findMany: async () => [] },
       studyPointsLedgerEntry: {
         findMany: async () => {

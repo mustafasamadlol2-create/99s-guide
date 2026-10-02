@@ -61,7 +61,6 @@ async function makeUserAndLecture(prefix: string): Promise<{ userId: string; lec
 }
 
 async function cleanup(userIds: string[], lectureIds: string[]): Promise<void> {
-  await db().focusQuickNote.deleteMany({ where: { userId: { in: userIds } } });
   await db().studyEvent.deleteMany({ where: { userId: { in: userIds } } });
   await db().studyDailyMetric.deleteMany({ where: { userId: { in: userIds } } });
   await db().focusSession.deleteMany({ where: { userId: { in: userIds } } });

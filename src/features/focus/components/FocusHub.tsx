@@ -6,10 +6,6 @@ import {
   BookOpen,
   Check,
   Clock3,
-  Coffee,
-  Copy,
-  ListChecks,
-  NotebookPen,
   Minus,
   Plus,
   Play,
@@ -46,9 +42,7 @@ import {
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
 import {
-  FocusCycleStrip,
   FocusTimerScene,
-  type FocusDisplayPhase,
 } from "./FocusVisuals";
 import { ActiveFocusScreen } from "./ActiveFocusScreen";
 import {
@@ -152,7 +146,6 @@ export function FocusHub({
   const [currentSession, setCurrentSession] = useState<FocusSessionRecord | null>(null);
   const currentSessionRef = useRef<FocusSessionRecord | null>(null);
   const [draft, setDraft] = useState<FocusPlanDraft>(createEmptyFocusPlanDraft);
-  const [plannerView, setPlannerView] = useState<FocusDisplayPhase>("focus");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -163,8 +156,6 @@ export function FocusHub({
     key: FocusHubNoticeKey;
     tone: "success" | "error" | "info";
   } | null>(null);
-  const [quickNoteDraft, setQuickNoteDraft] = useState("");
-  const [quickNoteFeedback, setQuickNoteFeedback] = useState<"copied" | "error" | null>(null);
   const [highlightedLectureId, setHighlightedLectureId] = useState<string | null>(null);
   const startAttemptRef = useRef<StartAttempt | null>(null);
   const summaryStartAttemptRef = useRef<StartAttempt | null>(null);
@@ -279,10 +270,6 @@ export function FocusHub({
     !serverConflict &&
     !saving &&
     !starting;
-  const canSave =
-    isValid &&
-    isDirty &&
-    canEdit;
   const canStart =
     isValid &&
     loadState === "ready" &&
@@ -306,17 +293,6 @@ export function FocusHub({
     },
     [],
   );
-
-  const copyQuickNote = async () => {
-    if (!quickNoteDraft.trim()) return;
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
-      await navigator.clipboard.writeText(quickNoteDraft);
-      setQuickNoteFeedback("copied");
-    } catch {
-      setQuickNoteFeedback("error");
-    }
-  };
 
   const applyPreset = (presetId: (typeof FOCUS_PRESETS)[number]["id"]) => {
     setNotice(null);
@@ -540,11 +516,6 @@ export function FocusHub({
     showNotice,
     t,
   ]);
-
-  const savePlan = () => {
-    if (!canSave) return;
-    void saveDraft();
-  };
 
   const startFocus = async () => {
     if (!canStart || startLockRef.current) return;
@@ -780,54 +751,6 @@ export function FocusHub({
         </div>
       )}
 
-      {currentSession && (
-        <section
-          aria-labelledby="focus-current-session-title"
-          className="focus-hub-current-session mt-5 rounded-[24px] border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-300/15 dark:from-emerald-300/[0.09] dark:to-white/[0.025] sm:flex sm:items-center sm:justify-between sm:gap-5 sm:px-6"
-        >
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white">
-              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <h2 id="focus-current-session-title" className="font-semibold text-slate-950 dark:text-white">
-                {t("focusHubCurrentSession")}
-              </h2>
-              <p className="mt-1 truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
-                {currentLectureTitle || t("focusHubCurrentSession")}
-              </p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                {t("focusHubSessionNumber")}{" "}
-                <bdi dir="ltr">{currentSession.sessionNumber}</bdi>
-                {" "}
-                {t("focusHubOf")}
-                {" "}
-                <bdi dir="ltr">{currentSession.plannedSessionCount}</bdi>
-                {" · "}
-                <bdi dir="ltr">{currentSession.status}</bdi>
-                {planItemIndex !== undefined && planItemIndex >= 0 && sessionPlan && (
-                  <>
-                    {" · "}
-                    {t("focusHubPlanProgress")}{" "}
-                    <bdi dir="ltr">{planItemIndex + 1}/{sessionPlan.items.length}</bdi>
-                  </>
-                )}
-              </p>
-              <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200 md:hidden">
-                {t("focusHubActiveSessionHelp")}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenSession(currentSession.id)}
-            className="mt-4 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 sm:mt-0 sm:w-auto"
-          >
-            {t("focusHubResume")}
-          </button>
-        </section>
-      )}
-
       <div className={`focus-hub-grid mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1.03fr)_minmax(250px,0.97fr)] md:gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(310px,0.95fr)] lg:gap-5 ${FOCUS_AUDIO_ENABLED ? "focus-hub-grid-audio" : ""}`}>
         <header className="focus-hub-header order-1 flex min-w-0 items-center justify-between gap-3 md:col-start-1 md:row-start-1">
           <div className="flex min-w-0 items-center gap-3">
@@ -838,87 +761,109 @@ export function FocusHub({
               <h1 className="truncate text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-[28px]">
                 {t("focusHubNav")}
               </h1>
-              <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-slate-400 sm:text-[15px]">
-                {t("focusHubSubtitle")}
-              </p>
             </div>
           </div>
+          {currentSession && (
+            <section
+              aria-labelledby="focus-current-session-title"
+              className="focus-hub-current-session flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-emerald-200/80 bg-emerald-50/75 px-2 py-1.5 shadow-sm dark:border-emerald-300/15 dark:bg-emerald-300/[0.07] sm:max-w-[390px] sm:gap-2.5 sm:px-2.5"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white dark:bg-emerald-300 dark:text-emerald-950">
+                <ShieldCheck className="size-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="focus-current-session-title" className="truncate text-[11px] font-semibold leading-4 text-emerald-900 dark:text-emerald-100">
+                  {t("focusHubCurrentSession")}
+                </h2>
+                <p className="truncate text-xs font-medium leading-4 text-slate-800 dark:text-slate-100" dir="auto">
+                  {currentLectureTitle || t("focusHubCurrentSession")}
+                </p>
+                <p className="truncate text-[10px] leading-3 text-slate-600 dark:text-slate-300">
+                  {t("focusHubSessionNumber")}{" "}
+                  <bdi dir="ltr">{currentSession.sessionNumber}/{currentSession.plannedSessionCount}</bdi>
+                  {" · "}
+                  <bdi dir="ltr">{currentSession.status}</bdi>
+                  {planItemIndex !== undefined && planItemIndex >= 0 && sessionPlan && (
+                    <>
+                      {" · "}
+                      {t("focusHubPlanProgress")}{" "}
+                      <bdi dir="ltr">{planItemIndex + 1}/{sessionPlan.items.length}</bdi>
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenSession(currentSession.id)}
+                className="flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 px-3 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 dark:bg-emerald-300 dark:text-emerald-950 dark:hover:bg-emerald-200"
+              >
+                {t("focusHubResume")}
+              </button>
+            </section>
+          )}
         </header>
 
-        <FocusCycleStrip
-          language={language}
-          focusMinutes={draft.studyMinutes}
-          breakMinutes={draft.breakMinutes}
-          plannedSessions={estimate.sessionCount}
-          activePhase={plannerView}
-          onPhaseChange={setPlannerView}
-          tabPanelId="focus-planner-mode-panel"
-          idPrefix="focus-planner-mode"
-        />
+        <div
+          className="focus-hub-cycle focus-hub-presets order-2 flex min-w-0 items-center gap-2 overflow-x-auto rounded-full border p-1.5"
+          role="group"
+          aria-label={t("focusHubPresets")}
+        >
+          {FOCUS_PRESETS.map((preset) => {
+            const isSelected = draft.presetId === preset.id;
+            const label = preset.id === "CUSTOM"
+              ? t("focusHubCustom")
+              : `${preset.studyMinutes}/${preset.breakMinutes}`;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={
+                  preset.id === "CUSTOM"
+                    ? t("focusHubCustom")
+                    : `${preset.studyMinutes} ${t("focusHubMinutes")}, ${preset.breakMinutes} ${t("focusHubBreakDuration")}`
+                }
+                onClick={() => applyPreset(preset.id)}
+                disabled={!canEdit}
+                className={`flex min-h-11 shrink-0 items-center justify-center rounded-full border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-55 ${
+                  isSelected
+                    ? "border-[#3e7b98] bg-[#3e7b98] text-white shadow-sm shadow-sky-900/15 dark:border-sky-300 dark:bg-sky-300 dark:text-slate-950"
+                    : "border-slate-200/80 bg-white/75 text-slate-700 hover:border-sky-300 hover:bg-sky-50/70 dark:border-white/10 dark:bg-white/[0.025] dark:text-slate-200 dark:hover:bg-white/[0.06]"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
 
         <section
-          id="focus-planner-mode-panel"
-          role="tabpanel"
-          aria-labelledby={`focus-planner-mode-tab-${plannerView}`}
-          aria-label={
-            plannerView === "plan"
-              ? t("focusHubTodayPlan")
-              : plannerView === "break"
-                ? t("focusHubShortBreak")
-                : t("focusHubTimerSessionLabel")
-          }
-          tabIndex={0}
+          aria-label={t("focusHubTimerSessionLabel")}
           className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
           <FocusTimerScene progress={0} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
-            {plannerView === "plan" ? (
-              <>
-                <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
-                  <ListChecks className="size-6" aria-hidden="true" />
-                </span>
-                <span className="focus-hub-timer-caption text-sm font-medium text-slate-500 dark:text-slate-300">
-                  {t("focusHubCyclePlan")}
-                </span>
-                <strong className="focus-hub-timer-value mt-1 font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white">
-                  <bdi>{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(estimate.sessionCount)}</bdi>
-                </strong>
-                <span className="focus-hub-timer-caption text-sm font-medium text-slate-500 dark:text-slate-300">
-                  {t("focusHubSessionCount")}
-                </span>
-                <span className="mt-2 rounded-full border border-sky-200 bg-white/70 px-3 py-1 text-xs font-semibold text-sky-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
-                  {t("focusHubTotalTime")}: {formatMinutes(estimate.totalMinutes)}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
-                  {plannerView === "break" ? (
-                    <Coffee className="size-6" aria-hidden="true" />
-                  ) : (
-                    <Target className="size-6" aria-hidden="true" />
-                  )}
-                </span>
-                <time
-                  className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
-                  dir="ltr"
-                  aria-label={`${plannerView === "break" ? t("focusHubShortBreak") : t("focusHubTimerSessionLabel")}: ${plannerView === "break" ? draft.breakMinutes : draft.studyMinutes}:00`}
-                >
-                  <bdi>
-                    {String(Math.max(0, plannerView === "break" ? draft.breakMinutes : draft.studyMinutes)).padStart(2, "0")}:00
-                  </bdi>
-                </time>
-                <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
-                  {plannerView === "break" ? t("focusHubShortBreak") : t("focusHubTimerSessionLabel")}
-                </span>
-              </>
-            )}
+            <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+              <Target className="size-6" aria-hidden="true" />
+            </span>
+            <time
+              className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
+              dir="ltr"
+              aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
+            >
+              <bdi>{String(Math.max(0, draft.studyMinutes)).padStart(2, "0")}:00</bdi>
+            </time>
+            <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+              {t("focusHubTimerSessionLabel")}
+            </span>
           </FocusTimerScene>
         </section>
 
         <div className="contents">
           <section
             aria-labelledby="focus-setup-title"
-            className="focus-hub-setup order-7 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-6"
+          className={`focus-hub-setup order-7 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-6 ${
+            draft.presetId === "CUSTOM" ? "" : "hidden"
+          }`}
           >
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
@@ -928,45 +873,11 @@ export function FocusHub({
                 <h2 id="focus-setup-title" className="font-semibold text-slate-950 dark:text-white">
                   {t("focusHubSetup")}
                 </h2>
-                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                  {t("focusHubPresets")}
-                </p>
               </div>
             </div>
 
-            <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2" role="group" aria-label={t("focusHubPresets")}>
-              {FOCUS_PRESETS.map((preset) => {
-                const isSelected = draft.presetId === preset.id;
-                const label =
-                  preset.id === "CUSTOM"
-                    ? t("focusHubCustom")
-                    : `${preset.studyMinutes}/${preset.breakMinutes}`;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    aria-label={
-                      preset.id === "CUSTOM"
-                        ? t("focusHubCustom")
-                        : `${preset.studyMinutes} ${t("focusHubMinutes")}, ${preset.breakMinutes} ${t("focusHubBreakDuration")}`
-                    }
-                    onClick={() => applyPreset(preset.id)}
-                    disabled={!canEdit}
-                    className={`flex min-h-12 shrink-0 snap-start items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-55 ${
-                      isSelected
-                        ? "border-[#3e7b98] bg-[#3e7b98] text-white shadow-sm shadow-sky-900/15 dark:border-sky-300 dark:bg-sky-300 dark:text-slate-950"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/60 dark:border-white/10 dark:bg-white/[0.025] dark:text-slate-200 dark:hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
             {draft.presetId === "CUSTOM" && (
-              <div className="mt-4 grid gap-4 rounded-2xl bg-slate-50/80 p-4 dark:bg-white/[0.035] sm:grid-cols-2">
+              <div className="mt-1 grid gap-3 rounded-2xl bg-slate-50/80 p-4 dark:bg-white/[0.035] sm:grid-cols-2">
                 <DurationStepper
                   label={t("focusHubStudyDuration")}
                   value={draft.studyMinutes}
@@ -1044,9 +955,7 @@ export function FocusHub({
               </div>
             ) : (
               <ol
-                className={`focus-hub-queue-list space-y-3${
-                  draft.items.length === 2 ? " focus-hub-queue-list-balanced" : ""
-                }`}
+                className="focus-hub-queue-list space-y-2"
               >
                 {draft.items.map((item, index) => {
                   const lecture = lectureMap.get(item.lectureId);
@@ -1056,13 +965,13 @@ export function FocusHub({
                     <li
                       key={item.lectureId}
                       id={`focus-queue-item-${item.lectureId}`}
-                      className={`focus-hub-queue-item rounded-2xl border p-4 transition-colors ${
+                      className={`focus-hub-queue-item rounded-2xl border p-3 transition-colors ${
                         isHighlighted
                           ? "border-sky-400 bg-sky-50/80 dark:border-sky-300/40 dark:bg-sky-300/[0.07]"
                           : "border-slate-200/90 bg-white dark:border-white/10 dark:bg-white/[0.02]"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-2.5">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold tabular-nums text-slate-600 dark:bg-white/[0.06] dark:text-slate-300">
                           <bdi dir="ltr">{index + 1}</bdi>
                         </span>
@@ -1130,11 +1039,11 @@ export function FocusHub({
                         </div>
                       </div>
 
-                      <div className="focus-hub-session-count mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-white/[0.07]">
+                      <div className="focus-hub-session-count mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-white/[0.07]">
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           {t("focusHubSessionCount")}
                         </span>
-                        <div className="flex min-h-11 items-center gap-2">
+                        <div className="flex min-h-11 shrink-0 items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => changeSessionCount(item.lectureId, -1)}
@@ -1166,7 +1075,7 @@ export function FocusHub({
                             disabled={!canEdit}
                             aria-label={`${t("focusHubSessionCount")}: ${lecture?.name ?? ""}`}
                             aria-invalid={!isValidFocusSessionCount(item.sessionCount)}
-                            className="h-11 w-16 rounded-xl border border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                            className="h-11 w-[68px] min-w-[68px] shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-1 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                           />
                           <button
                             type="button"
@@ -1235,14 +1144,6 @@ export function FocusHub({
           <div className="focus-hub-action-links mt-3 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
-              onClick={savePlan}
-              disabled={!canSave}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-300 dark:hover:bg-white/[0.06]"
-            >
-              {saving ? t("focusHubSaving") : t("focusHubSavePlan")}
-            </button>
-            <button
-              type="button"
               onClick={onOpenHistory}
               className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-sky-200 dark:hover:bg-white/[0.06]"
             >
@@ -1287,64 +1188,6 @@ export function FocusHub({
               </div>
             </div>
 
-            <div className="focus-hub-summary-breakdown hidden" role="list" aria-label={t("focusHubQueue")}>
-              {draft.items.length === 0 ? (
-                <p className="focus-hub-summary-breakdown-empty" role="listitem">
-                  {t("focusHubAddAtLeastOne")}
-                </p>
-              ) : (
-                <>
-                  {draft.items.slice(0, 2).map((item, index) => {
-                    const lecture = lectureMap.get(item.lectureId);
-                    const itemEstimate = estimate.items[index];
-                    const itemTotal = itemEstimate?.totalMinutes ?? 0;
-                    const share = estimate.totalMinutes > 0
-                      ? Math.min(100, Math.max(0, (itemTotal / estimate.totalMinutes) * 100))
-                      : 0;
-                    const perSessionMinutes =
-                      (item.focusDurationSeconds ?? draft.studyMinutes * 60) / 60;
-
-                    return (
-                      <div
-                        key={item.lectureId}
-                        className="focus-hub-summary-breakdown-item"
-                        role="listitem"
-                      >
-                        <p className="focus-hub-summary-breakdown-name" dir="auto">
-                          {lecture?.name ?? t("focusHubLectureUnavailable")}
-                        </p>
-                        <span className="focus-hub-summary-breakdown-total">
-                          {formatMinutes(itemTotal)}
-                        </span>
-                        <p className="focus-hub-summary-breakdown-meta">
-                          <bdi dir="ltr">
-                            {new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(item.sessionCount)}
-                            {" × "}
-                            {formatMinutes(perSessionMinutes)}
-                          </bdi>
-                          {" · "}
-                          {t("focusHubStudyTotal").toLocaleLowerCase(language)}{" "}
-                          {formatMinutes(itemEstimate?.studyMinutes ?? 0)}
-                        </p>
-                        <div className="focus-hub-summary-breakdown-meter" aria-hidden="true">
-                          <span style={{ width: `${share}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {draft.items.length > 2 && (
-                    <span
-                      className="focus-hub-summary-breakdown-more"
-                      role="listitem"
-                      aria-label={`${draft.items.length - 2} ${t("focusHubLectureCount").toLocaleLowerCase(language)}`}
-                    >
-                      +{new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(draft.items.length - 2)}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-
             <div className="focus-hub-summary-total-full mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
               <p className="text-xs font-medium text-sky-100/90">
                 {t("focusHubTotalTime")}
@@ -1383,75 +1226,6 @@ export function FocusHub({
               <FocusAudioPlanningCard language={language} />
             </div>
           )}
-
-          <section
-            aria-labelledby="focus-quick-notes-title"
-            className="focus-hub-notes order-9 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-2 md:row-start-5"
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-200">
-                <NotebookPen className="size-5" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <h2 id="focus-quick-notes-title" className="font-semibold text-slate-950 dark:text-white">
-                  {t("focusHubQuickNotesTitle")}
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                  {t("focusHubQuickNotes")}
-                </p>
-              </div>
-            </div>
-            <label className="sr-only" htmlFor="focus-planner-quick-note">
-              {t("focusHubQuickNotesTitle")}
-            </label>
-            <div className="focus-hub-note-editor-row mt-4">
-              <textarea
-                id="focus-planner-quick-note"
-                value={quickNoteDraft}
-                onChange={(event) => {
-                  setQuickNoteDraft(event.target.value);
-                  setQuickNoteFeedback(null);
-                }}
-                placeholder={t("focusHubQuickNotePlaceholder")}
-                className="focus-hub-note-editor min-h-[150px] w-full resize-y rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-400/10"
-              />
-              <div className="focus-hub-note-actions mt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setQuickNoteDraft("");
-                  setQuickNoteFeedback(null);
-                }}
-                disabled={!quickNoteDraft}
-                aria-label={t("focusHubQuickNoteClear")}
-                title={t("focusHubQuickNoteClear")}
-                className="flex size-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
-              >
-                <Trash2 className="size-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void copyQuickNote()}
-                disabled={!quickNoteDraft.trim()}
-                aria-label={t("focusHubQuickNoteCopy")}
-                title={t("focusHubQuickNoteCopy")}
-                className="flex size-11 items-center justify-center rounded-xl bg-sky-50 text-blue-700 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-sky-300/10 dark:text-sky-200 dark:hover:bg-sky-300/20"
-              >
-                <Copy className="size-4" aria-hidden="true" />
-              </button>
-              </div>
-            </div>
-            {quickNoteFeedback && (
-              <p
-                role={quickNoteFeedback === "error" ? "alert" : "status"}
-                className={`mt-1 text-xs ${quickNoteFeedback === "error" ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}
-              >
-                {quickNoteFeedback === "copied"
-                  ? t("focusHubQuickNoteCopied")
-                  : t("focusHubQuickNoteCopyUnavailable")}
-              </p>
-            )}
-          </section>
           </div>
         </aside>
       </div>

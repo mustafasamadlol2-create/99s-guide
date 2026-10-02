@@ -2,6 +2,7 @@ import { AUDIO_PROGRESS_MIN_INTERVAL_MS, EMPTY_FOCUS_AUDIO_SNAPSHOT } from "./co
 import { FOCUS_AMBIENT_CATALOG, isLocalBundledAudioSource } from "./ambientCatalog";
 import { safeAudioErrorCode } from "./errors";
 import { createFocusAudioLifecycle, type FocusAudioLifecycleSource } from "./lifecycle";
+import { readId3Artwork } from "./id3Artwork";
 import { validateLocalAudioFile } from "./localFile";
 import type {
   AmbientTrackId,
@@ -19,6 +20,7 @@ interface ActiveSource {
   readonly url: string;
   readonly ambientTrackId?: AmbientTrackId;
   readonly displayName?: string;
+  readonly artworkUrl?: string;
   readonly loop: boolean;
 }
 
@@ -28,6 +30,7 @@ export interface FocusAudioEngineOptions {
   catalog?: readonly FocusAmbientTrack[];
   audioFactory?: () => HTMLAudioElement | null;
   createObjectURL?: (file: File) => string;
+  createArtworkObjectURL?: (artwork: Blob) => string;
   revokeObjectURL?: (url: string) => void;
   lifecycle?: FocusAudioLifecycleSource;
   isVisible?: () => boolean;
@@ -54,6 +57,7 @@ export class FocusAudioEngine {
   private readonly catalog: readonly FocusAmbientTrack[];
   private readonly audioFactory: () => HTMLAudioElement | null;
   private readonly createObjectURL: (file: File) => string;
+  private readonly createArtworkObjectURL: (artwork: Blob) => string;
   private readonly revokeObjectURL: (url: string) => void;
   private readonly lifecycle: FocusAudioLifecycleSource;
   private readonly isVisible: () => boolean;
@@ -64,6 +68,7 @@ export class FocusAudioEngine {
   private audio: HTMLAudioElement | null = null;
   private activeSource: ActiveSource | null = null;
   private objectUrl: string | null = null;
+  private artworkObjectUrl: string | null = null;
   private sourceGeneration = 0;
   private playRequest = 0;
   private mediaListeners: Array<[string, MediaListener]> = [];
@@ -77,6 +82,8 @@ export class FocusAudioEngine {
     this.catalog = options.catalog ?? FOCUS_AMBIENT_CATALOG;
     this.audioFactory = options.audioFactory ?? defaultAudioFactory;
     this.createObjectURL = options.createObjectURL ?? ((file) => URL.createObjectURL(file));
+    this.createArtworkObjectURL =
+      options.createArtworkObjectURL ?? ((artwork) => URL.createObjectURL(artwork));
     this.revokeObjectURL = options.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url));
     this.lifecycle = options.lifecycle ?? createFocusAudioLifecycle();
     this.isVisible = options.isVisible ?? (() =>
@@ -119,18 +126,30 @@ export class FocusAudioEngine {
 
     const audio = this.getAudio();
     if (!audio) return this.failAndClear("AUDIO_LOAD_FAILED");
+    let artworkObjectUrl: string | undefined;
     try {
       if (typeof audio.canPlayType === "function" && !audio.canPlayType(validation.mimeType)) {
         return this.failAndClear("UNSUPPORTED_AUDIO");
+      }
+
+      const artwork = await readId3Artwork(validation.file);
+      if (artwork) {
+        try {
+          artworkObjectUrl = this.createArtworkObjectURL(artwork);
+        } catch {
+          // Artwork is optional; failure to create its preview must not block audio.
+        }
       }
       const url = this.createObjectURL(validation.file);
       return this.loadSource({
         type: "USER_AUDIO",
         url,
         displayName: validation.displayName,
+        artworkUrl: artworkObjectUrl,
         loop: this.userAudioLoop,
-      }, url);
+      }, url, artworkObjectUrl);
     } catch {
+      if (artworkObjectUrl) this.safeRevoke(artworkObjectUrl);
       return this.failAndClear("AUDIO_LOAD_FAILED");
     }
   }
@@ -264,10 +283,15 @@ export class FocusAudioEngine {
     });
   }
 
-  private async loadSource(source: ActiveSource, ownedObjectUrl?: string): Promise<FocusAudioResult> {
+  private async loadSource(
+    source: ActiveSource,
+    ownedObjectUrl?: string,
+    ownedArtworkObjectUrl?: string,
+  ): Promise<FocusAudioResult> {
     const audio = this.getAudio();
     if (!audio) {
       if (ownedObjectUrl) this.safeRevoke(ownedObjectUrl);
+      if (ownedArtworkObjectUrl) this.safeRevoke(ownedArtworkObjectUrl);
       return this.failAndClear("AUDIO_LOAD_FAILED");
     }
 
@@ -275,11 +299,13 @@ export class FocusAudioEngine {
     const generation = this.sourceGeneration;
     this.activeSource = source;
     this.objectUrl = ownedObjectUrl ?? null;
+    this.artworkObjectUrl = ownedArtworkObjectUrl ?? null;
     this.update({
       state: "LOADING",
       sourceType: source.type,
       ambientTrackId: source.ambientTrackId,
       userAudioDisplayName: source.displayName,
+      userAudioArtworkUrl: source.artworkUrl,
       volume: this.snapshot.volume,
       loop: source.loop,
       currentTime: 0,
@@ -463,6 +489,9 @@ export class FocusAudioEngine {
     const oldObjectUrl = this.objectUrl;
     this.objectUrl = null;
     if (oldObjectUrl) this.safeRevoke(oldObjectUrl);
+    const oldArtworkObjectUrl = this.artworkObjectUrl;
+    this.artworkObjectUrl = null;
+    if (oldArtworkObjectUrl) this.safeRevoke(oldArtworkObjectUrl);
     this.wasPlayingBeforeBackground = false;
     if (resetSnapshot) {
       this.snapshot = {
@@ -470,6 +499,8 @@ export class FocusAudioEngine {
         volume: this.snapshot.volume,
         loop: this.userAudioLoop,
       };
+    } else {
+      this.update({ userAudioArtworkUrl: undefined });
     }
   }
 

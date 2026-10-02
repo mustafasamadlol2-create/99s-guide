@@ -8,7 +8,6 @@ import type {
   FocusSessionSummaryDto,
 } from "../../../../server/features/focus/types";
 import { focusApi } from "../api/focusApi";
-import { FocusQuickNotesPanel } from "./FocusQuickNotesPanel";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "ABANDONED", "EXPIRED"]);
 const HISTORY_STATUSES = [
@@ -146,8 +145,6 @@ export function FocusSessionSummaryScreen({
       setNextError(true);
     }
   };
-  const otherNotes = summary?.quickNotes.filter((note) => note.status !== "ACTIVE") ?? [];
-
   return (
     <section
       dir={rtl ? "rtl" : "ltr"}
@@ -333,28 +330,6 @@ export function FocusSessionSummaryScreen({
                 </section>
               )}
 
-              {otherNotes.length > 0 && (
-                <section aria-labelledby="focus-summary-other-notes" className="mt-6 rounded-2xl border border-slate-200 p-4 dark:border-white/10 sm:p-5">
-                  <h2 id="focus-summary-other-notes" className="font-semibold text-slate-950 dark:text-white">
-                    {t("focusSummaryOtherNotes")}
-                  </h2>
-                  <ul className="mt-3 space-y-3">
-                    {otherNotes.map((note) => (
-                      <li key={note.id} className="rounded-xl bg-slate-50 p-3 dark:bg-white/[0.035]">
-                        <span className="inline-flex rounded-full border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 dark:border-white/10 dark:text-slate-300">
-                          {note.status === "ARCHIVED" ? t("focusSummaryNoteArchived") : t("focusSummaryNoteConverted")}
-                        </span>
-                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-100" dir="auto">
-                          {note.content}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              <div className="mt-6">
-                <FocusQuickNotesPanel sessionId={summary.sessionId} language={language} online={online} />
-              </div>
             </>
           )}
         </div>

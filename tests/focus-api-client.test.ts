@@ -118,51 +118,13 @@ test("Focus API rejects malformed session DTOs", async () => {
     error instanceof FocusApiError && error.kind === "protocol");
 });
 
-test("Quick Note, metrics, and post-Focus client methods use authenticated canonical routes", async () => {
-  const note = {
-    id,
-    focusSessionId: itemId,
-    lectureId,
-    content: "Private note",
-    status: "ACTIVE",
-    convertedToPlanItemId: null,
-    createdAt: now,
-    updatedAt: now,
-    archivedAt: null,
-    convertedAt: null,
-  };
+test("metrics and post-Focus client methods use authenticated canonical routes", async () => {
   const calls: Array<{ path: string; method?: string; body?: unknown }> = [];
   const client = createFocusApi(async (path, options = {}) => {
     const route = String(path);
     const method = options.method;
     const body = options.body ? JSON.parse(String(options.body)) as unknown : undefined;
     calls.push({ path: route, method, body });
-    if (route.endsWith("/quick-notes") && method === "POST") {
-      return response({ note, idempotency: "CREATED" }, 201);
-    }
-    if (
-      (route.endsWith("/quick-notes") || route.includes("/quick-notes?")) &&
-      (method === undefined || method === "GET")
-    ) {
-      return response({ notes: [note] });
-    }
-    if (route.endsWith("/convert-to-plan-item")) {
-      return response({
-        note: { ...note, status: "CONVERTED", convertedToPlanItemId: itemId, convertedAt: now },
-        planItem: {
-          id: itemId, planId, lectureId, sequence: 2, sessionCount: 1,
-          focusDurationSeconds: 2_700, breakDurationSeconds: 0,
-          includeMcq: true, includeFlashcards: false, includeVideo: true,
-        },
-        idempotency: "CONVERTED",
-      }, 201);
-    }
-    if (route.includes("/quick-notes/")) {
-      const responseNote = method === "POST"
-        ? { ...note, status: "ARCHIVED", archivedAt: now }
-        : method === "PATCH" ? { ...note, content: "Edited" } : note;
-      return response({ note: responseNote });
-    }
     if (route.endsWith("/metrics?period=last7Days")) {
       return response({
         period: "last7Days",
@@ -187,50 +149,16 @@ test("Quick Note, metrics, and post-Focus client methods use authenticated canon
     return response({ error: "not found", code: "NOT_FOUND" }, 404);
   });
 
-  await client.createQuickNote({
-    focusSessionId: itemId,
-    content: "Private note",
-    idempotencyKey: "client-note-create",
-  });
-  await client.listQuickNotes({ sessionId: itemId, status: "ACTIVE", limit: 7 });
-  await client.getQuickNote(id);
-  await client.updateQuickNote(id, { content: "Edited" });
-  await client.archiveQuickNote(id);
-  await client.convertQuickNote(id, { targetPlanId: planId });
   await client.getMetrics("last7Days");
   await client.getPostFocusActionContext(id);
 
   assert.deepEqual(calls.map(({ path, method }) => [method, path]), [
-    ["POST", "/api/focus/quick-notes"],
-    [undefined, `/api/focus/quick-notes?sessionId=${itemId}&status=ACTIVE&limit=7`],
-    [undefined, `/api/focus/quick-notes/${id}`],
-    ["PATCH", `/api/focus/quick-notes/${id}`],
-    ["POST", `/api/focus/quick-notes/${id}/archive`],
-    ["POST", `/api/focus/quick-notes/${id}/convert-to-plan-item`],
     [undefined, "/api/focus/metrics?period=last7Days"],
     [undefined, `/api/focus/sessions/${id}/post-actions`],
   ]);
-  assert.deepEqual(calls[0].body, {
-    focusSessionId: itemId,
-    content: "Private note",
-    idempotencyKey: "client-note-create",
-  });
-  assert.deepEqual(calls[5].body, { targetPlanId: planId });
 });
 
 test("Focus history and terminal summaries validate canonical responses and preserve filters", async () => {
-  const note = {
-    id,
-    focusSessionId: itemId,
-    lectureId,
-    content: "Private summary note",
-    status: "ACTIVE",
-    convertedToPlanItemId: null,
-    createdAt: now,
-    updatedAt: now,
-    archivedAt: null,
-    convertedAt: null,
-  };
   const summary = {
     sessionId: itemId,
     status: "COMPLETED",
@@ -256,7 +184,6 @@ test("Focus history and terminal summaries validate canonical responses and pres
       uniqueResourceCount: 1,
       items: [{ resourceId: id, resourceType: "PDF", title: "Notes", launchCount: 1 }],
     },
-    quickNotes: [note],
     nextAction: {
       kind: "NEXT_SESSION",
       planItemId: itemId,
@@ -301,9 +228,7 @@ test("Focus history and terminal summaries validate canonical responses and pres
     lectureId,
   });
   assert.equal(summaryResult.timing.verifiedFocusSeconds, 2_650);
-  assert.equal(summaryResult.quickNotes[0]?.content, "Private summary note");
   assert.equal(historyResult.items[0]?.points, 5);
-  assert.equal("quickNotes" in (historyResult.items[0] ?? {}), false);
   assert.deepEqual(calls, [
     `/api/focus/sessions/${itemId}/summary`,
     `/api/focus/history?limit=1&status=COMPLETED&subject=Chemistry&lectureId=${lectureId}`,

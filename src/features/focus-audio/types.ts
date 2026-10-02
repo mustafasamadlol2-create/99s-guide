@@ -33,6 +33,8 @@ export interface FocusAudioSnapshot {
   readonly ambientTrackId?: AmbientTrackId;
   /** Basename only. Never persisted or sent to a server. */
   readonly userAudioDisplayName?: string;
+  /** Temporary object URL for embedded local artwork; never persisted or sent to a server. */
+  readonly userAudioArtworkUrl?: string;
   readonly volume: number;
   readonly loop: boolean;
   readonly currentTime: number;

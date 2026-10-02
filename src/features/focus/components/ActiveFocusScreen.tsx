@@ -35,7 +35,6 @@ import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { FOCUS_AUDIO_ENABLED } from "../../../config/featureFlags";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
-import { FocusQuickNotesPanel, type FocusQuickNotesPanelHandle } from "./FocusQuickNotesPanel";
 import { FocusRuntimeController } from "../runtime/controller";
 import type { FocusRuntimeState } from "../runtime/types";
 import { focusApi } from "../api/focusApi";
@@ -48,7 +47,6 @@ const ACTIVE_FOCUS_COPY_KEYS = [
   "focusActiveAbandonedBody",
   "focusActiveAbandonedTitle",
   "focusActiveActionError",
-  "focusActiveAudioTitle",
   "focusActiveBreakBody",
   "focusActiveBreakPhase",
   "focusActiveBreakTitle",
@@ -78,7 +76,6 @@ const ACTIVE_FOCUS_COPY_KEYS = [
   "focusActiveLoading",
   "focusActiveManualLecture",
   "focusActiveNoResources",
-  "focusActiveNotesError",
   "focusActiveNextReady",
   "focusActiveNotCurrentBody",
   "focusActiveNotCurrentTitle",
@@ -254,7 +251,6 @@ function ActiveFocusScreenCore({
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
   const [dismissedInterruption, setDismissedInterruption] = useState<string | null>(null);
   const [interruptionPending, setInterruptionPending] = useState(false);
-  const notesRef = useRef<FocusQuickNotesPanelHandle>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const dialogCancelRef = useRef<HTMLButtonElement>(null);
   const dialogTriggerRef = useRef<HTMLElement | null>(null);
@@ -515,10 +511,7 @@ function ActiveFocusScreenCore({
   const handleComplete = () => {
     if (!controller || !mayChangeSession || runtime.completionEligible !== true) return;
     void perform(
-      async () => {
-        await notesRef.current?.flush();
-        return controller.complete();
-      },
+      () => controller.complete(),
       async (value) => {
         const result = value as FocusSessionMutationResult;
         setTerminalResult(result);
@@ -545,10 +538,7 @@ function ActiveFocusScreenCore({
     if (!controller || !mayChangeSession) return;
     setConfirmType(null);
     void perform(
-      async () => {
-        await notesRef.current?.flush();
-        return controller.abandon();
-      },
+      () => controller.abandon(),
       async (value) => {
         setTerminalResult(value as FocusSessionMutationResult);
         setProgression(null);
@@ -562,13 +552,10 @@ function ActiveFocusScreenCore({
     if (!controller || !terminalResult || progression?.kind !== "next" || !online || isRuntimeBusy) return;
     const nextItem = progression.nextItem;
     void perform(
-      async () => {
-        await notesRef.current?.flush();
-        return controller.start({
-          planId: terminalResult.session.planId,
-          planItemId: nextItem.id,
-        });
-      },
+      () => controller.start({
+        planId: terminalResult.session.planId,
+        planItemId: nextItem.id,
+      }),
       async (value) => {
         const result = value as FocusSessionMutationResult;
         setTerminalResult(null);
@@ -600,15 +587,13 @@ function ActiveFocusScreenCore({
     });
   };
 
-  const leaveForPlanner = async () => {
-    await notesRef.current?.flush();
+  const leaveForPlanner = () => {
     setConfirmType(null);
     onReturnToPlanner();
   };
 
   const openPdf = async (material: Material) => {
     if (!controller || !mayChangeSession) return;
-    await notesRef.current?.flush();
     const popup = NativeBridge.isNativePlatform()
       ? null
       : window.open("about:blank", "_blank");
@@ -662,7 +647,6 @@ function ActiveFocusScreenCore({
 
   const openVideo = async (material: Material) => {
     if (!controller || !mayChangeSession) return;
-    await notesRef.current?.flush();
     const parsed = isTrustedExternalUrl(material.fileUrlOrLink);
     if (!parsed) {
       setResourceError(true);
@@ -889,12 +873,6 @@ function ActiveFocusScreenCore({
                 t={t}
               />
             )}
-            <FocusQuickNotesPanel
-              ref={notesRef}
-              sessionId={localTerminalResult.session.id}
-              language={language}
-              online={online}
-            />
           </div>
         </main>
         {confirmType && (
@@ -928,12 +906,6 @@ function ActiveFocusScreenCore({
           >
             {t.focusSummaryTitle}
           </button>
-          <FocusQuickNotesPanel
-            ref={notesRef}
-            sessionId={localTerminalResult.session.id}
-            language={language}
-            online={online}
-          />
         </>
       </TerminalHandoff>
     );
@@ -955,12 +927,6 @@ function ActiveFocusScreenCore({
           >
             {t.focusSummaryTitle}
           </button>
-          <FocusQuickNotesPanel
-            ref={notesRef}
-            sessionId={localTerminalResult.session.id}
-            language={language}
-            online={online}
-          />
         </>
       </TerminalHandoff>
     );
@@ -991,12 +957,6 @@ function ActiveFocusScreenCore({
             >
               {t.focusSummaryTitle}
             </button>
-            <FocusQuickNotesPanel
-              ref={notesRef}
-              sessionId={completedRoute.context.sessionId}
-              language={language}
-              online={online}
-            />
           </>
         </TerminalHandoff>
       );
@@ -1380,18 +1340,8 @@ function ActiveFocusScreenCore({
             </section>
           )}
 
-          <FocusQuickNotesPanel
-            ref={notesRef}
-            sessionId={canonicalSession.id}
-            language={language}
-            online={online}
-          />
-
           {FOCUS_AUDIO_ENABLED && (
-            <section className="rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
-              <h2 className="mb-2 px-1 font-semibold text-foreground">{t.focusActiveAudioTitle}</h2>
-              <FocusAudioPlanningCard language={language} />
-            </section>
+            <FocusAudioPlanningCard language={language} />
           )}
         </aside>
       </main>

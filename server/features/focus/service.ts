@@ -38,18 +38,10 @@ import {
   type ResourceHandoffStartInput,
   type ResourceHandoffReturnInput,
   type InterruptionRecordInput,
-  createFocusQuickNoteSchema,
-  updateFocusQuickNoteSchema,
-  focusQuickNoteListQuerySchema,
-  convertFocusQuickNoteSchema,
   focusMetricsQuerySchema,
   focusHistoryQuerySchema,
   FOCUS_HISTORY_DEFAULT_LIMIT,
   FOCUS_HISTORY_MAX_LIMIT,
-  type CreateFocusQuickNoteInput,
-  type UpdateFocusQuickNoteInput,
-  type FocusQuickNoteListQuery,
-  type ConvertFocusQuickNoteInput,
   type FocusMetricsPeriod,
   type FocusHistoryQuery,
 } from "./schemas.js";
@@ -76,9 +68,6 @@ import type {
   FocusSessionDto,
   FocusSessionMutationResult,
   FocusInterruptionResult,
-  FocusQuickNoteDto,
-  FocusQuickNoteCreateResult,
-  FocusQuickNoteConversionResult,
   FocusMetricsDto,
   FocusMetricCounters,
   FocusMetricsDaily,
@@ -482,52 +471,12 @@ const ALL_METRIC_FIELDS = [
   "lectureCompletions",
   "interruptionCount",
 ] as const;
-const NOTE_CREATABLE_SESSION_STATES = new Set([
-  "ACTIVE",
-  "PAUSED",
-  "RESOURCE_HANDOFF",
-  "COMPLETED",
-  "ABANDONED",
-]);
-
-type QuickNoteRecord = {
-  id: string;
-  userId: string;
-  focusSessionId: string;
-  lectureId: string;
-  content: string;
-  status: string;
-  convertedToPlanItemId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  archivedAt: Date | null;
-  convertedAt: Date | null;
-};
-
 type MetricRow = {
   metricDate: Date | string;
   focusSeconds: number;
   sessionsCompleted: number;
   interruptionCount: number;
 };
-
-function quickNoteDto(note: QuickNoteRecord): FocusQuickNoteDto {
-  if (!["ACTIVE", "ARCHIVED", "CONVERTED"].includes(note.status)) {
-    throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note has an unsupported stored status.");
-  }
-  return {
-    id: note.id,
-    focusSessionId: note.focusSessionId,
-    lectureId: note.lectureId,
-    content: note.content,
-    status: note.status as FocusQuickNoteDto["status"],
-    convertedToPlanItemId: note.convertedToPlanItemId,
-    createdAt: iso(note.createdAt) as string,
-    updatedAt: iso(note.updatedAt) as string,
-    archivedAt: iso(note.archivedAt),
-    convertedAt: iso(note.convertedAt),
-  };
-}
 
 function metricDateString(value: Date | string): string {
   if (value instanceof Date) {
@@ -958,16 +907,6 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                 throw new FocusError(
                   "PLAN_ITEM_HAS_HISTORY",
                   "A Focus Plan item with session history cannot be removed.",
-                );
-              }
-              const convertedNote = await tx.focusQuickNote.findFirst({
-                where: { convertedToPlanItemId: { in: removed.map((item) => item.id) } },
-                select: { id: true },
-              });
-              if (convertedNote) {
-                throw new FocusError(
-                  "PLAN_ITEM_HAS_QUICK_NOTE_CONVERSION",
-                  "A Focus Plan item created from a Quick Note cannot be removed.",
                 );
               }
             }
@@ -1699,232 +1638,6 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       }));
     },
 
-    async createQuickNote(userId, rawInput): Promise<FocusQuickNoteCreateResult> {
-      requireFocus();
-      const parsed = createFocusQuickNoteSchema.safeParse(rawInput);
-      if (!parsed.success) throw requestInputError("Quick Note request is invalid.");
-      const input: CreateFocusQuickNoteInput = parsed.data;
-      return safely(async () => {
-        const result = await repository.transaction(async (tx) => {
-          await repository.lockUser(tx, userId);
-          const existing = await tx.focusQuickNote.findUnique({
-            where: {
-              userId_idempotencyKey: {
-                userId,
-                idempotencyKey: input.idempotencyKey,
-              },
-            },
-          }) as QuickNoteRecord | null;
-          if (existing) {
-            if (existing.focusSessionId !== input.focusSessionId || existing.content !== input.content) {
-              throw new FocusError("IDEMPOTENCY_CONFLICT", "Quick Note key was already used for different content.");
-            }
-            return { note: existing, idempotency: "REPLAY_SAME_PAYLOAD" as const };
-          }
-
-          const session = await tx.focusSession.findFirst({
-            where: { id: input.focusSessionId, userId },
-            select: { id: true, lectureId: true, status: true },
-          }) as { id: string; lectureId: string; status: string } | null;
-          if (!session) {
-            throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
-          }
-          if (!NOTE_CREATABLE_SESSION_STATES.has(session.status)) {
-            throw new FocusError(
-              "INVALID_SESSION_STATE",
-              "Quick Notes require an initialized, non-expired Focus Session.",
-            );
-          }
-          const note = await tx.focusQuickNote.create({
-            data: {
-              userId,
-              focusSessionId: session.id,
-              lectureId: session.lectureId,
-              content: input.content,
-              idempotencyKey: input.idempotencyKey,
-              status: "ACTIVE",
-            },
-          }) as QuickNoteRecord;
-          return { note, idempotency: "CREATED" as const };
-        });
-        return { note: quickNoteDto(result.note), idempotency: result.idempotency };
-      });
-    },
-
-    async listQuickNotes(userId, rawQuery = {}): Promise<FocusQuickNoteDto[]> {
-      requireFocus();
-      const parsed = focusQuickNoteListQuerySchema.safeParse(rawQuery);
-      if (!parsed.success) throw requestInputError("Quick Note query is invalid.");
-      return safely(async () => {
-        const rows = await repository.database.focusQuickNote.findMany({
-          where: {
-            userId,
-            ...(parsed.data.sessionId ? { focusSessionId: parsed.data.sessionId } : {}),
-            ...(parsed.data.lectureId ? { lectureId: parsed.data.lectureId } : {}),
-            // Keep the default collection useful while archived notes remain
-            // retrievable through an explicit status filter or the detail route.
-            status: parsed.data.status ?? "ACTIVE",
-          },
-          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          take: parsed.data.limit ?? 50,
-        }) as QuickNoteRecord[];
-        return rows.map(quickNoteDto);
-      });
-    },
-
-    async getQuickNote(userId, noteId): Promise<FocusQuickNoteDto> {
-      requireFocus();
-      return safely(async () => {
-        const note = await repository.database.focusQuickNote.findFirst({
-          where: { id: noteId, userId },
-        }) as QuickNoteRecord | null;
-        if (!note) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
-        return quickNoteDto(note);
-      });
-    },
-
-    async updateQuickNote(userId, noteId, rawInput): Promise<FocusQuickNoteDto> {
-      requireFocus();
-      const parsed = updateFocusQuickNoteSchema.safeParse(rawInput);
-      if (!parsed.success) throw requestInputError("Quick Note update is invalid.");
-      const input: UpdateFocusQuickNoteInput = parsed.data;
-      return safely(async () => {
-        const note = await repository.transaction(async (tx) => {
-          await repository.lockUser(tx, userId);
-          const current = await tx.focusQuickNote.findFirst({
-            where: { id: noteId, userId },
-          }) as QuickNoteRecord | null;
-          if (!current) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
-          if (current.status === "ARCHIVED") {
-            throw new FocusError("QUICK_NOTE_ARCHIVED", "Archived Quick Notes cannot be edited.");
-          }
-          return await tx.focusQuickNote.update({
-            where: { id: current.id },
-            data: { content: input.content },
-          }) as QuickNoteRecord;
-        });
-        return quickNoteDto(note);
-      });
-    },
-
-    async archiveQuickNote(userId, noteId): Promise<FocusQuickNoteDto> {
-      requireFocus();
-      return safely(async () => {
-        const note = await repository.transaction(async (tx) => {
-          await repository.lockUser(tx, userId);
-          const current = await tx.focusQuickNote.findFirst({
-            where: { id: noteId, userId },
-          }) as QuickNoteRecord | null;
-          if (!current) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
-          if (current.status === "ARCHIVED") return current;
-          return await tx.focusQuickNote.update({
-            where: { id: current.id },
-            data: {
-              status: "ARCHIVED",
-              archivedAt: assertValidClock(now()),
-            },
-          }) as QuickNoteRecord;
-        });
-        return quickNoteDto(note);
-      });
-    },
-
-    async convertQuickNote(userId, noteId, rawInput): Promise<FocusQuickNoteConversionResult> {
-      requireFocus();
-      const parsed = convertFocusQuickNoteSchema.safeParse(rawInput);
-      if (!parsed.success) throw requestInputError("Quick Note conversion request is invalid.");
-      const input: ConvertFocusQuickNoteInput = parsed.data;
-      return safely(async () => repository.transaction(async (tx) => {
-        await repository.lockUser(tx, userId);
-        const note = await tx.focusQuickNote.findFirst({
-          where: { id: noteId, userId },
-          include: {
-            focusSession: { include: { planItem: true } },
-            convertedToPlanItem: true,
-          },
-        }) as (QuickNoteRecord & {
-          focusSession: { planItem: PlanItemRecord };
-          convertedToPlanItem: (PlanItemRecord & { planId: string }) | null;
-        }) | null;
-        if (!note) throw new FocusError("QUICK_NOTE_NOT_FOUND", "Quick Note was not found.");
-
-        if (note.convertedToPlanItemId) {
-          const convertedItem = note.convertedToPlanItem;
-          if (!convertedItem) {
-            throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note conversion link is missing.");
-          }
-          if (convertedItem.planId !== input.targetPlanId) {
-            throw new FocusError(
-              "QUICK_NOTE_CONVERSION_CONFLICT",
-              "Quick Note was already converted to a different Focus Plan.",
-            );
-          }
-          return {
-            note: quickNoteDto(note),
-            planItem: { ...planItemDto(convertedItem), planId: convertedItem.planId },
-            idempotency: "REPLAY_SAME_PAYLOAD" as const,
-          };
-        }
-        if (note.status === "ARCHIVED") {
-          throw new FocusError("QUICK_NOTE_ARCHIVED", "Archived Quick Notes cannot be converted.");
-        }
-        if (note.status !== "ACTIVE") {
-          throw new FocusError("RECONCILIATION_REQUIRED", "Quick Note conversion state is inconsistent.");
-        }
-
-        const plan = await ownedPlan(tx, userId, input.targetPlanId);
-        if (plan.status !== "ACTIVE") {
-          throw new FocusError("PLAN_ARCHIVED", "Archived Focus Plans cannot receive Quick Note conversions.");
-        }
-        if (await countNonterminal(tx, userId, plan.id) > 0) {
-          throw new FocusError(
-            "PLAN_HAS_ACTIVE_SESSION",
-            "A Focus Plan with a nonterminal Session cannot be structurally edited.",
-          );
-        }
-        const nextSequence = Math.max(0, ...plan.items.map((item) => item.sequence)) + 1;
-        if (plan.items.length >= 100 || nextSequence > 100) {
-          throw new FocusError("PLAN_ITEM_LIMIT_REACHED", "This Focus Plan cannot accept another item.");
-        }
-
-        const source = note.focusSession.planItem;
-        const item = await tx.focusPlanItem.create({
-          data: {
-            planId: plan.id,
-            lectureId: note.lectureId,
-            sequence: nextSequence,
-            sessionCount: 1,
-            focusDurationSeconds: source.focusDurationSeconds,
-            breakDurationSeconds: source.breakDurationSeconds,
-            includeMcq: source.includeMcq,
-            includeFlashcards: source.includeFlashcards,
-            includeVideo: source.includeVideo,
-          },
-        }) as PlanItemRecord & { planId: string };
-
-        const convertedAt = assertValidClock(now());
-        const updatedNote = await tx.focusQuickNote.update({
-          where: { id: note.id },
-          data: {
-            status: "CONVERTED",
-            convertedToPlanItemId: item.id,
-            convertedAt,
-          },
-        }) as QuickNoteRecord;
-        const updatedPlan = await tx.focusPlan.update({
-          where: { id: plan.id },
-          data: { planVersion: { increment: 1 } },
-          include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
-        }) as PlanRecord;
-        await enqueuePlanProjection(tx, updatedPlan);
-        return {
-          note: quickNoteDto(updatedNote),
-          planItem: { ...planItemDto(item), planId: item.planId },
-          idempotency: "CONVERTED" as const,
-        };
-      }));
-    },
-
     async getMetrics(userId, rawPeriod): Promise<FocusMetricsDto> {
       requireFocus();
       const parsed = focusMetricsQuerySchema.safeParse({ period: rawPeriod });
@@ -2017,7 +1730,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           );
         }
 
-        const [events, groups, completedBefore, notes] = await Promise.all([
+        const [events, groups, completedBefore] = await Promise.all([
           tx.studyEvent.findMany({
             where: {
               userId,
@@ -2050,10 +1763,6 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                 },
               })
             : Promise.resolve(0),
-          tx.focusQuickNote.findMany({
-            where: { userId, focusSessionId: session.id },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          }) as Promise<QuickNoteRecord[]>,
         ]);
 
         const verified = hasVerifiedCompletionEvent(session, events);
@@ -2167,7 +1876,6 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             uniqueResourceCount: launchMap.size,
             items: resourceItems,
           },
-          quickNotes: notes.map(quickNoteDto),
           nextAction,
         };
       }, { isolationLevel: "RepeatableRead" }));

@@ -83,7 +83,6 @@ model User {
   resourceMultipartUploads       ResourceMultipartUpload[]
   focusPlans                     FocusPlan[]
   focusSessions                  FocusSession[]
-  focusQuickNotes                FocusQuickNote[]
   studyEvents                    StudyEvent[]
   studyDailyMetrics              StudyDailyMetric[]
   recallAttempts                 RecallAttempt[]
@@ -129,7 +128,6 @@ model Lecture {
   resourceMultipartUploads       ResourceMultipartUpload[]
   focusPlanItems                 FocusPlanItem[]
   focusSessions                  FocusSession[]
-  focusQuickNotes                FocusQuickNote[]               @relation("FocusQuickNoteLecture")
   studyEvents                    StudyEvent[]
   masteryProjections             LectureMastery[]
   retentionProjections           LectureRetention[]
@@ -623,7 +621,6 @@ model FocusPlanItem {
   plan                FocusPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
   lecture             Lecture         @relation(fields: [lectureId], references: [id], onDelete: Restrict)
   focusSessions       FocusSession[]
-  quickNoteConversion FocusQuickNote? @relation("FocusQuickNoteConversion")
 
   @@unique([planId, sequence])
 }
@@ -653,39 +650,12 @@ model FocusSession {
   plan        FocusPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
   planItem    FocusPlanItem    @relation(fields: [planItemId], references: [id], onDelete: Restrict)
   lecture     Lecture          @relation(fields: [lectureId], references: [id], onDelete: Restrict)
-  quickNotes  FocusQuickNote[] @relation("FocusQuickNoteSession")
   studyEvents StudyEvent[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status, updatedAt])
   @@index([userId, startedAt])
   @@index([planId, planItemId])
-}
-
-/// Private, PostgreSQL-only notes attached to a canonical solo Focus Session.
-model FocusQuickNote {
-  id                    String    @id @default(uuid())
-  userId                String
-  focusSessionId        String
-  lectureId             String
-  content               String
-  status                String    @default("ACTIVE")
-  idempotencyKey        String
-  convertedToPlanItemId String?   @unique
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  archivedAt            DateTime?
-  convertedAt           DateTime?
-
-  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  focusSession        FocusSession   @relation("FocusQuickNoteSession", fields: [focusSessionId], references: [id], onDelete: Restrict)
-  lecture             Lecture        @relation("FocusQuickNoteLecture", fields: [lectureId], references: [id], onDelete: Restrict)
-  convertedToPlanItem FocusPlanItem? @relation("FocusQuickNoteConversion", fields: [convertedToPlanItemId], references: [id], onDelete: Restrict)
-
-  @@unique([userId, idempotencyKey])
-  @@index([userId, createdAt])
-  @@index([focusSessionId, createdAt])
-  @@index([lectureId, createdAt])
 }
 
 model GroupFocusRoom {

@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createFocusAudioEngine } from "../src/features/focus-audio/engine";
 import type { FocusAmbientTrack } from "../src/features/focus-audio/types";
-import { makeAudioFile, MockAudioElement, MockLifecycleSource } from "./helpers/focus-audio";
+import {
+  makeAudioFile,
+  makeAudioFileWithArtwork,
+  MockAudioElement,
+  MockLifecycleSource,
+} from "./helpers/focus-audio";
 
 const ambientTracks: readonly FocusAmbientTrack[] = [{
   id: "rain",
@@ -23,6 +28,7 @@ function setup() {
       return audio as unknown as HTMLAudioElement;
     },
     createObjectURL: (file) => `blob:local/${file.name}`,
+    createArtworkObjectURL: (artwork) => `blob:artwork/${artwork.type}`,
     revokeObjectURL: (url) => revoked.push(url),
     lifecycle,
     isVisible: () => true,
@@ -47,6 +53,24 @@ test("one engine reuses one media element and applies the required ambient/user 
   assert.equal(fixture.engine.getSnapshot().userAudioDisplayName, "focus-track.mp3");
   fixture.engine.destroy();
   assert.deepEqual(fixture.revoked, ["blob:local/focus-track.mp3"]);
+});
+
+test("embedded cover art stays local and its object URL is released with the selected file", async () => {
+  const fixture = setup();
+  await fixture.engine.selectUserAudio(makeAudioFileWithArtwork());
+
+  assert.equal(
+    fixture.engine.getSnapshot().userAudioArtworkUrl,
+    "blob:artwork/image/jpeg",
+  );
+  assert.deepEqual(fixture.revoked, []);
+
+  fixture.engine.clear();
+  assert.equal(fixture.engine.getSnapshot().userAudioArtworkUrl, undefined);
+  assert.deepEqual(fixture.revoked, [
+    "blob:local/focus-with-cover.mp3",
+    "blob:artwork/image/jpeg",
+  ]);
 });
 
 test("switching sources stops the prior source, revokes its URL, and never overlaps playback", async () => {

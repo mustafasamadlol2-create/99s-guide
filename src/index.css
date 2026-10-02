@@ -8042,11 +8042,11 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     grid-template-rows: 44px 44px auto clamp(132px, calc(40dvh - 60px), 300px) auto auto;
     grid-template-areas:
       "header queue"
-      "cycle queue"
+      "presets queue"
       "setup queue"
       "timer queue"
-      "summary notes"
-      "actions notes";
+      "summary summary"
+      "actions actions";
     align-content: start;
     align-items: stretch;
     gap: 6px 12px;
@@ -8055,11 +8055,15 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
     grid-template-areas:
       "header queue"
-      "cycle queue"
+      "presets queue"
       "setup queue"
       "timer queue"
-      "summary audio"
-      "actions notes";
+      "summary support"
+      "actions support";
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) .focus-hub-supporting {
+    display: none;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-header {
@@ -8067,7 +8071,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle {
-    grid-area: cycle;
+    grid-area: presets;
     min-height: 44px;
     padding: 3px;
   }
@@ -8099,44 +8103,31 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     display: none;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup [role="group"] {
-    display: flex;
-    min-height: 40px;
-    height: 100%;
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(2) {
     gap: 4px;
-    overflow: hidden;
-    padding: 0;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup [role="group"] button {
-    min-height: 44px;
-    height: 100%;
-    padding: 0 9px;
-    border-radius: 12px;
-    font-size: 11px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(3) {
-    gap: 4px;
-    margin-top: 4px;
+    margin-top: 0;
     padding: 5px;
     border-radius: 12px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(3) label {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(2) label {
     font-size: 10px;
     line-height: 13px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(3) > div > div {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(2) > div > div {
     gap: 4px;
     margin-top: 3px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(3) button,
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(3) input {
-    width: 32px;
-    height: 32px;
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(2) input {
+    height: 44px;
+    padding: 0 4px;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:nth-child(2) button {
+    width: 42px;
+    height: 44px;
     padding: 0;
   }
 
@@ -8241,17 +8232,8 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     margin-bottom: 0 !important;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list-balanced > :not(:last-child) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list > :not(:first-child) {
     margin-top: 0 !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list-balanced > li {
-    display: flex;
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 0;
-    gap: 4px;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-item {
@@ -8333,7 +8315,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-session-count input {
-    width: 48px;
+    width: 68px;
     height: 44px;
   }
 
@@ -8415,121 +8397,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     line-height: 13px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown {
-    display: flex !important;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 4px;
-    min-height: 0;
-    margin-top: 6px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-item {
-    display: grid;
-    flex: 1 1 0;
-    min-width: 0;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    align-content: center;
-    gap: 2px 7px;
-    min-height: 0;
-    padding: 4px 6px;
-    border: 1px solid rgba(203, 213, 225, 0.72);
-    border-radius: 10px;
-    background: rgba(248, 250, 252, 0.72);
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-name {
-    overflow: hidden;
-    font-size: 10px;
-    font-weight: 650;
-    line-height: 12px;
-    color: #334155;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-total {
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 12px;
-    color: #365f91;
-    white-space: nowrap;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-meta {
-    grid-column: 1 / -1;
-    overflow: hidden;
-    font-size: 9px;
-    line-height: 11px;
-    color: #64748b;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-meter {
-    grid-column: 1 / -1;
-    height: 3px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: rgba(148, 163, 184, 0.2);
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-meter > span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #4294ec, #5f57e9);
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-empty,
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-more {
-    padding: 3px 7px;
-    border-radius: 999px;
-    background: rgba(239, 246, 255, 0.9);
-    color: #475569;
-    font-size: 9px;
-    line-height: 12px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-empty {
-    display: flex;
-    flex: 1 1 auto;
-    align-items: center;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-more {
-    align-self: flex-start;
-    flex: 0 0 auto;
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-item {
-    border-color: rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.035);
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-name {
-    color: #e2e8f0;
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-total {
-    color: #bfdbfe;
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-meta {
-    color: #94a3b8;
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-meter {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-empty,
-  .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-more {
-    background: rgba(59, 130, 246, 0.14);
-    color: #cbd5e1;
-  }
-
   #main-scroll-canvas.focus-planner-viewport .focus-hub-total-compact {
     display: flex !important;
   }
@@ -8592,59 +8459,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     white-space: nowrap;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-notes {
-    grid-area: notes;
-    min-height: 0;
-    padding: 8px;
-    border-radius: 16px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-notes > div:first-child > span {
-    width: 30px;
-    height: 30px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-notes h2 {
-    font-size: 13px;
-    line-height: 16px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-notes > div:first-child p {
-    margin-top: 0;
-    font-size: 10px;
-    line-height: 13px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-note-editor-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: stretch;
-    gap: 5px;
-    margin-top: 5px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-note-editor {
-    height: 48px;
-    min-height: 48px;
-    padding: 7px 9px;
-    resize: none;
-    font-size: 11px;
-    line-height: 15px;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-note-actions {
-    align-self: stretch;
-    flex-direction: row;
-    justify-content: center;
-    gap: 2px;
-    margin: 0;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-note-actions button {
-    width: 44px;
-    height: 44px;
-  }
-
   #main-scroll-canvas.focus-planner-viewport .focus-hub-audio {
     grid-area: audio;
     min-height: 0;
@@ -8658,10 +8472,10 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     gap: 4px 8px;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup [role="group"] button {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-presets > button {
     min-height: 44px;
-    padding: 0 6px;
-    font-size: 10px;
+    padding: 0 8px;
+    font-size: 11px;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle > :is(div, button[role="tab"]) {
@@ -8725,6 +8539,10 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   letter-spacing: -0.035em;
 }
 
+.focus-hub-current-session h2 {
+  color: #166534;
+}
+
 .focus-hub-cycle {
   border-color: rgba(255,255,255,.94) !important;
   background: rgba(255,255,255,.88) !important;
@@ -8777,7 +8595,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 .focus-hub-summary,
 .focus-hub-queue,
 .focus-hub-actions,
-.focus-hub-notes,
 .focus-hub-audio,
 .focus-hub-support-grid > * {
   border: 1px solid var(--focus-line) !important;
@@ -8841,20 +8658,20 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   gap: 12px;
 }
 
-.focus-hub-support-grid > .focus-hub-audio,
-.focus-hub-support-grid > .focus-hub-notes {
+.focus-hub-support-grid > .focus-hub-audio {
   min-width: 0;
   margin: 0 !important;
 }
 
-.focus-hub-audio :is(button, [role="button"]) {
-  transition: transform 160ms ease, opacity 160ms ease;
+.focus-hub-audio {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
 }
 
-.focus-hub-note-editor {
-  border-color: rgba(153, 181, 220, .4) !important;
-  border-radius: 18px !important;
-  background: rgba(255,255,255,.78) !important;
+.focus-hub-audio :is(button, [role="button"]) {
+  transition: transform 160ms ease, opacity 160ms ease;
 }
 
 .focus-active-screen {
@@ -8948,18 +8765,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     order: initial;
   }
 
-  .focus-hub-header { order: 1 !important; min-height: 46px; }
+  .focus-hub-header { order: 1 !important; min-height: 46px; align-items: flex-start; flex-wrap: wrap; }
   .focus-hub-header > div:first-child > span { display: none; }
   .focus-hub-header h1 { font-size: 25px !important; line-height: 1.12; }
-  .focus-hub-header p { margin-top: 3px !important; font-size: 13px !important; }
-  .focus-hub-cycle { order: 2 !important; min-height: 60px; padding: 5px !important; }
-  .focus-hub-cycle > :is(div, button[role="tab"]) {
+  .focus-hub-current-session { flex-basis: 100%; max-width: none; margin-top: 0 !important; }
+  .focus-hub-presets { order: 2 !important; min-height: 48px; padding: 4px !important; }
+  .focus-hub-presets > button {
     min-height: 48px;
-    gap: 6px !important;
-    padding: 6px 7px !important;
+    padding-inline: 14px !important;
+    font-size: 12px;
   }
-  .focus-hub-cycle > :is(div, button[role="tab"]) > span:last-child > span:first-child { font-size: 11px !important; }
-  .focus-hub-cycle > :is(div, button[role="tab"]) > span:last-child > span:last-child { font-size: 9px !important; }
   .focus-hub-timer { order: 3 !important; }
   .focus-hub-timer-scene {
     min-height: 322px !important;
@@ -8986,12 +8801,16 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   .focus-hub-summary-total-full > p:last-child { margin-top: 3px !important; font-size: 10px !important; line-height: 14px !important; }
   .focus-hub-queue { order: 5 !important; padding: 13px !important; border-radius: 24px !important; }
   .focus-hub-queue > div:first-child { margin-bottom: 10px !important; }
-  .focus-hub-queue-list { gap: 7px !important; }
-  .focus-hub-queue-item { padding: 10px !important; border-radius: 16px !important; }
+  .focus-hub-queue-list { display: flex; flex-direction: column; gap: 6px !important; }
+  .focus-hub-queue-list > :not(:first-child) { margin-top: 0 !important; }
+  .focus-hub-queue-item { padding: 9px !important; border-radius: 16px !important; }
   .focus-hub-queue-item > div:first-child { align-items: center !important; }
   .focus-hub-queue-item > div:first-child > span:first-child { width: 38px !important; height: 38px !important; }
   .focus-hub-queue-subject { display: block !important; }
   .focus-hub-queue-compact-meta { display: none !important; }
+  .focus-hub-session-count { gap: 6px !important; }
+  .focus-hub-session-count > div { gap: 5px !important; }
+  .focus-hub-session-count input { width: 68px !important; min-width: 68px !important; }
   .focus-hub-queue-durations,
   .focus-hub-queue-estimate { position: static !important; width: auto !important; height: auto !important; clip: auto !important; clip-path: none !important; margin: 3px 0 0 !important; overflow: visible !important; white-space: normal !important; }
   .focus-hub-queue > div:nth-child(2):not(.focus-hub-queue-list) { padding: 18px !important; }
@@ -9005,11 +8824,8 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   .focus-hub-supporting { display: contents; }
   .focus-hub-support-grid { display: contents; }
   .focus-hub-audio { order: 8 !important; }
-  .focus-hub-notes { order: 9 !important; padding: 14px !important; }
-  .focus-hub-note-editor-row { display: block !important; }
-  .focus-hub-note-editor { min-height: 108px !important; height: auto !important; resize: vertical !important; }
-  .focus-hub-note-actions { justify-content: flex-end !important; }
-  .focus-hub-current-session { margin-top: 8px !important; }
+  .focus-hub-current-session > div { min-width: 0; }
+  .focus-hub-current-session button { min-height: 40px; padding-inline: 10px; }
 
   .focus-active-screen {
     width: 100%;
@@ -9064,7 +8880,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     grid-template-rows: auto auto minmax(310px, 1fr) auto auto auto !important;
     grid-template-areas:
       "header queue"
-      "cycle queue"
+      "presets queue"
       "timer queue"
       "summary support"
       "actions support"
@@ -9073,8 +8889,9 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     gap: 12px 18px !important;
     min-height: 0;
   }
+  .focus-hub-grid:not(.focus-hub-grid-audio) .focus-hub-supporting { display: none; }
   .focus-hub-header { grid-area: header !important; }
-  .focus-hub-cycle { grid-area: cycle !important; }
+  .focus-hub-cycle { grid-area: presets !important; }
   .focus-hub-timer { grid-area: timer !important; min-height: 0; }
   .focus-hub-timer-scene { min-height: 370px !important; height: 100%; }
   .focus-hub-setup { grid-area: setup !important; margin: 0 !important; }
@@ -9094,17 +8911,12 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     align-items: stretch;
     gap: 12px;
   }
-  .focus-hub-support-grid > .focus-hub-audio,
-  .focus-hub-support-grid > .focus-hub-notes {
-    min-height: 210px;
+  .focus-hub-support-grid > .focus-hub-audio {
+    min-height: 0;
     margin: 0 !important;
-    padding: 12px !important;
+    padding: 0 !important;
   }
-  .focus-hub-support-grid > .focus-hub-notes { grid-column: 2; grid-row: 1; }
-  .focus-hub-support-grid > .focus-hub-audio { grid-column: 1; grid-row: 1; }
-  .focus-hub-note-editor-row { grid-template-columns: minmax(0, 1fr); }
-  .focus-hub-note-editor { height: 112px !important; min-height: 112px !important; }
-  .focus-hub-note-actions { justify-content: flex-end !important; }
+  .focus-hub-support-grid > .focus-hub-audio { grid-column: 1 / -1; grid-row: 1; }
 
   .focus-active-screen { padding-inline: clamp(16px, 2.2vw, 34px); }
   .focus-active-layout { grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr) !important; gap: 18px !important; }
@@ -9119,7 +8931,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     grid-template-rows: auto auto minmax(310px, 1fr) auto auto auto !important;
     grid-template-areas:
       "header queue"
-      "cycle queue"
+      "presets queue"
       "timer queue"
       "summary support"
       "actions support"
@@ -9129,7 +8941,7 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-header { grid-area: header !important; }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle { grid-area: cycle !important; }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle { grid-area: presets !important; }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer { grid-area: timer !important; }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue { grid-area: queue !important; }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary { grid-area: summary !important; }
@@ -9149,20 +8961,10 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-audio {
     grid-area: auto;
-    grid-column: 1;
-    grid-row: 1;
-    min-height: 210px;
-    padding: 12px !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-support-grid > .focus-hub-notes {
-    grid-area: auto;
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 210px;
-    padding: 12px !important;
-  }
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid:not(.focus-hub-grid-audio) .focus-hub-support-grid > .focus-hub-notes {
     grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 0;
+    padding: 0 !important;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
     width: clamp(230px, 29vw, 365px) !important;
@@ -9185,6 +8987,9 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     gap: 12px !important;
     height: auto !important;
     min-height: 0 !important;
+  }
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-setup > div:first-child {
+    display: flex;
   }
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid > *,
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid .focus-hub-supporting {
@@ -9233,6 +9038,10 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   color: #e7eefc;
 }
 
+.dark .focus-hub-current-session h2 {
+  color: #d1fae5;
+}
+
 .dark .focus-hub-cycle {
   border-color: rgba(255, 255, 255, 0.12) !important;
   background: rgba(19, 27, 40, 0.9) !important;
@@ -9263,12 +9072,17 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 .dark .focus-hub-summary,
 .dark .focus-hub-queue,
 .dark .focus-hub-actions,
-.dark .focus-hub-notes,
 .dark .focus-hub-audio,
 .dark .focus-hub-support-grid > * {
   border-color: var(--focus-line) !important;
   background: rgba(22, 30, 44, 0.91) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
+}
+
+.dark .focus-hub-audio {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .dark .focus-hub-queue-item {
@@ -9284,11 +9098,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 .dark .focus-hub-queue-item > div:first-child > span:first-child {
   background: linear-gradient(145deg, rgba(48, 75, 116, 0.8), rgba(67, 62, 119, 0.72));
   color: #a9d0ff;
-}
-
-.dark .focus-hub-note-editor {
-  border-color: rgba(172, 195, 230, 0.16) !important;
-  background: rgba(13, 20, 32, 0.68) !important;
 }
 
 .dark .focus-active-timer-card {

@@ -100,14 +100,12 @@ test("real Prompt 19 PostgreSQL ledger invariants", { skip: skipped }, async (t)
           'PointsLog',
           'IntegritySignal',
           'GroupFocusRun',
-          'FocusQuickNote'
         )
       ORDER BY table_name
     `;
     assert.deepEqual(
       tables.map((table) => table.table_name),
       [
-        "FocusQuickNote",
         "GroupFocusRun",
         "IntegritySignal",
         "PointsLog",
