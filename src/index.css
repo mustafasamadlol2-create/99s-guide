@@ -9674,3 +9674,24 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     padding: 14px;
   }
 }
+
+@media (min-width: 768px) and (orientation: landscape) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
+    --focus-session-space-transfer: clamp(96px, 12dvh, 120px);
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer {
+    position: relative;
+    z-index: 1;
+    height: calc(100% + var(--focus-session-space-transfer)) !important;
+    margin-block-end: calc(0px - var(--focus-session-space-transfer)) !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
+    position: relative;
+    inset-block-start: var(--focus-session-space-transfer);
+    height: calc(100% - var(--focus-session-space-transfer)) !important;
+    min-height: 0 !important;
+    margin-block-end: var(--focus-session-space-transfer) !important;
+  }
+}
