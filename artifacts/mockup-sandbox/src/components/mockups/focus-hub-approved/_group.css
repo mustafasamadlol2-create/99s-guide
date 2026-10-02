@@ -580,9 +580,9 @@
       "presets queue"
       "setup queue"
       "timer queue"
-      "summary ."
+      "summary support"
       "actions support" !important;
-    align-content: start !important;
+    align-content: stretch !important;
     align-items: stretch !important;
     gap: 8px 12px !important;
   }
@@ -657,14 +657,11 @@
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
     grid-area: summary !important;
-    align-self: start !important;
     min-width: 0;
-    min-height: 0 !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-actions {
     grid-area: actions !important;
-    align-self: start !important;
     min-width: 0;
   }
 

@@ -9503,33 +9503,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 }
 
-/* Keep the plan summary content-sized and keep Audio on the action row. */
-@media (min-width: 768px) {
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
-    align-content: start !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
-    grid-template-areas:
-      "header ."
-      "presets queue"
-      "setup queue"
-      "timer queue"
-      "summary ."
-      "actions support" !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
-    align-self: start !important;
-    min-height: 0 !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-actions {
-    align-self: start !important;
-  }
-}
-
 .focus-hub-audio {
   container-type: inline-size;
   min-width: 0;
