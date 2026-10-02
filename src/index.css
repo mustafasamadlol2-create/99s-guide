@@ -9503,6 +9503,14 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 }
 
+/* Keep spare landscape height in the timer's 1fr row, not stretched plan rows. */
+@media (min-width: 768px) and (orientation: landscape) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
+    align-content: start !important;
+  }
+}
+
 .focus-hub-audio {
   container-type: inline-size;
   min-width: 0;
