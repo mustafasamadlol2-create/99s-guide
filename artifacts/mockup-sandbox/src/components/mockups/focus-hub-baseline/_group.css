@@ -1,0 +1,62 @@
+@import url("./focus-fonts/fonts.css");
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "SF Compact", "Inter", "Cairo", system-ui, sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Space Grotesk", "Cairo", sans-serif;
+  --font-mono: "SF Mono", "SFProMono-Regular", "JetBrains Mono", monospace;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-xs--letter-spacing: 0rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.25rem;
+  --text-sm--letter-spacing: -0.24px;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.375rem;
+  --text-base--letter-spacing: -0.41px;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.5625rem;
+  --text-lg--letter-spacing: 0.38px;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.75rem;
+  --text-xl--letter-spacing: 0.35px;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-2xl--letter-spacing: 0.36px;
+  --text-3xl: 2.125rem;
+  --text-3xl--line-height: 2.5625rem;
+  --text-3xl--letter-spacing: 0.37px;
+}
+
+.focus-hub-current-root {
+  min-height: 100vh;
+  color: #1c1c1e;
+  background: #fafafa;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "SF Compact", "Inter", "Cairo", system-ui, sans-serif;
+}
+
+.dark .focus-hub-current-root {
+  color: #fff;
+  background: #000;
+}
+
+@media (min-width: 768px) {
+  .focus-hub-current-root .focus-hub-page {
+    width: 100%;
+    max-width: 1440px;
+    min-height: 0;
+    margin-inline: auto;
+    padding: 0 clamp(12px, 1.5vw, 24px);
+  }
+
+  .focus-hub-current-root .focus-hub-grid {
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+    align-items: stretch;
+    gap: 8px 12px;
+  }
+}

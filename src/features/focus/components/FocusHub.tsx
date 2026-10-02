@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import "./focus-hub-approved.css";
 import {
   ArrowDown,
   ArrowUp,
@@ -726,7 +727,7 @@ export function FocusHub({
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="focus-hub-page mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
+      className="focus-hub-page focus-hub-current-root mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
       {notice && (
         <div
