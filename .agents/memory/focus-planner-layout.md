@@ -3,8 +3,8 @@ name: Focus planner layout
 description: The intended queue and audio alignment in the Focus Hub planner workspace.
 ---
 
-For the non-phone Focus Hub workspace, keep the Lecture Queue below the Focus Hub heading and stretch it through the available vertical space, leaving only a small gap before Focus Audio. Keep queue overflow scrolling inside the queue. Align the bottom of Focus Audio with the Start Focus / Focus History action row, and avoid page-level scrolling in the short landscape layout.
+For the non-phone Focus Hub workspace, keep the two-column layout, fill the available viewport, and preserve RTL. The preset row must fit without scrollbars. Keep the Lecture Queue header and Add Lecture control fixed while only its list scrolls, with a viewport sized for about two lectures. Give Today's Plan clear spacing from the timer, and align Focus Audio with the Start Focus / Focus History row. Leave phone layout unchanged.
 
-**Why:** the user corrected multiple layout attempts; the target reference is a short landscape workspace, and portrait-only rules did not change the screenshot they were reviewing.
+**Why:** the user specified the queue's internal scroll boundary, two-item viewport, desktop/iPad proportions, and mobile/theme/functionality constraints.
 
-**How to apply:** check both orientation and viewport-height media rules against the actual planner viewport. Do not shrink the queue to its content when the design needs it to fill the space above audio.
+**How to apply:** check desktop, iPad portrait, and short-landscape heights together. Additional lectures must not increase page height; keep the card aligned through the space above Audio.

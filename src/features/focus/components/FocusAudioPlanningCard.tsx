@@ -61,7 +61,7 @@ export function FocusAudioPlanningCard({
       aria-labelledby={titleId}
       className="focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05]"
     >
-      <div className="flex min-w-0 items-start gap-2.5">
+      <div className="focus-audio-heading flex min-w-0 items-start gap-2.5">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#315f75] text-white shadow-sm dark:bg-sky-300 dark:text-slate-950">
           <Headphones className="size-4" aria-hidden="true" />
         </span>
@@ -75,7 +75,7 @@ export function FocusAudioPlanningCard({
         </div>
       </div>
 
-      <div className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-sky-100 bg-white/80 px-2.5 dark:border-white/10 dark:bg-black/10">
+      <div className="focus-audio-source mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-sky-100 bg-white/80 px-2.5 dark:border-white/10 dark:bg-black/10">
         {audio.userAudioArtworkUrl && (
           <img
             src={audio.userAudioArtworkUrl}
@@ -105,12 +105,12 @@ export function FocusAudioPlanningCard({
       </div>
 
       {hasSelection && (
-        <p className="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+        <p className="focus-audio-session mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
           {t("focusHubAudioSessionOnly")}
         </p>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="focus-audio-preview mt-3 flex items-center gap-2">
         <button
           type="button"
           onClick={() => void togglePreview()}
@@ -127,7 +127,7 @@ export function FocusAudioPlanningCard({
         </button>
       </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="focus-audio-controls mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <label className="flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
           <Volume2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
           <span className="sr-only">{t("focusHubAudioVolume")}</span>
@@ -159,7 +159,7 @@ export function FocusAudioPlanningCard({
       </div>
 
       {(localError || audio.state === "ERROR") && (
-        <p role="status" className="mt-2 text-sm text-rose-700 dark:text-rose-300">
+        <p role="status" className="focus-audio-status mt-2 text-sm text-rose-700 dark:text-rose-300">
           {t("focusHubAudioError")}
         </p>
       )}
