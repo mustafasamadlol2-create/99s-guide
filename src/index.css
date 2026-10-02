@@ -7963,6 +7963,8 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     overflow-y: auto !important;
     padding-top: 8px !important;
     padding-bottom: 8px !important;
+    padding-left: max(clamp(8px, 1.25vw, 20px), env(safe-area-inset-left, 0px)) !important;
+    padding-right: max(clamp(8px, 1.25vw, 20px), env(safe-area-inset-right, 0px)) !important;
     scrollbar-width: thin;
     overscroll-behavior-y: contain;
   }
@@ -7988,9 +7990,11 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-page {
     width: 100%;
+    max-width: 1440px !important;
     height: auto;
     min-height: 0;
-    padding: 0 16px !important;
+    margin-inline: auto !important;
+    padding: 0 clamp(12px, 1.5vw, 24px) !important;
     overflow: visible;
   }
 
@@ -8237,6 +8241,19 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     margin-bottom: 0 !important;
   }
 
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list-balanced > :not(:last-child) {
+    margin-top: 0 !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-list-balanced > li {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 0;
+    gap: 4px;
+  }
+
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue-item {
     padding: 3px 8px;
     border-radius: 14px;
@@ -8330,6 +8347,8 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
     grid-area: summary;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     padding: 7px 9px;
     border-radius: 16px;
@@ -8397,18 +8416,23 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr);
+    display: flex !important;
+    flex: 1 1 auto;
+    flex-direction: column;
     gap: 4px;
+    min-height: 0;
     margin-top: 6px;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-item {
     display: grid;
+    flex: 1 1 0;
     min-width: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+    align-content: center;
     gap: 2px 7px;
+    min-height: 0;
     padding: 4px 6px;
     border: 1px solid rgba(203, 213, 225, 0.72);
     border-radius: 10px;
@@ -8460,13 +8484,23 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-empty,
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-more {
-    justify-self: start;
     padding: 3px 7px;
     border-radius: 999px;
     background: rgba(239, 246, 255, 0.9);
     color: #475569;
     font-size: 9px;
     line-height: 12px;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-empty {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-more {
+    align-self: flex-start;
+    flex: 0 0 auto;
   }
 
   .dark #main-scroll-canvas.focus-planner-viewport .focus-hub-summary-breakdown-item {

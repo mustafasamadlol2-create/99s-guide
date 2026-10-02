@@ -1043,7 +1043,11 @@ export function FocusHub({
                 </p>
               </div>
             ) : (
-              <ol className="focus-hub-queue-list space-y-3">
+              <ol
+                className={`focus-hub-queue-list space-y-3${
+                  draft.items.length === 2 ? " focus-hub-queue-list-balanced" : ""
+                }`}
+              >
                 {draft.items.map((item, index) => {
                   const lecture = lectureMap.get(item.lectureId);
                   const itemEstimate = estimate.items[index];
