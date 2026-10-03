@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { config as loadEnv } from "dotenv";
 import { dbMonitor } from "./dbMonitor.js";
 import { createUnavailablePrisma } from "./databaseUnavailable.js";
+import { withDevelopmentPrismaConnectionLimit } from "./prismaConnectionLimit.js";
 
 // ── Load .env before PrismaClient is instantiated ─────────────────────────────
 // prismaClient.ts is a static import of server.ts, so it is evaluated before
@@ -43,6 +44,13 @@ if (process.env.NODE_ENV === "development" && process.env.ALLOW_REMOTE_DEV_DATAB
 }
 
 const configuredDatabaseUrl = process.env.DATABASE_URL;
+
+if (configuredDatabaseUrl && process.env.NODE_ENV === "development") {
+  process.env.DATABASE_URL = withDevelopmentPrismaConnectionLimit(
+    configuredDatabaseUrl,
+    process.env.NODE_ENV,
+  );
+}
 
 // Preserve the configured Supabase connection URL exactly as provided.
 // For this persistent Render/Node backend, the Supavisor Session Pooler on

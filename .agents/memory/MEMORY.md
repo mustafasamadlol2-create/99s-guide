@@ -20,6 +20,7 @@
 - [Recall eligibility parity](recall-eligibility-parity.md) — keep eligibility read-only and aligned with issuance gates; never expose candidate or attempt IDs.
 - [Preview API probes](preview-api-probes.md) — shell requests to the dev domain may return a proxy placeholder; confirm disputed routes through app preview before blaming the app.
 - [OAuth popup handoff](oauth-popup-handoff.md) — keep one-time OAuth URLs uncached and never let optional web storage delay popup navigation.
+- [Supavisor development pool](supavisor-development-pool.md) — cap Prisma in Replit development when a shared 15-client session pool backs database-persisted OAuth state.
 - [Maintenance CLI environment detection](maintenance-cli-env-detection.md) — treat empty runtime variables as unset; the development shell may expose `NODE_ENV` as an empty string.
 - [Focus display behavior](focus-display-behavior.md) — keep visual phases and progress tied to persisted Focus data; don't imply unsupported long breaks or daily completion totals.
 - [Focus planner layout](focus-planner-layout.md) — preserve the two-column viewport; only the ~2-item queue list scrolls, with Audio aligned to plan actions.
