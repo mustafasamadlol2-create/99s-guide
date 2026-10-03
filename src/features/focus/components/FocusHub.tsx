@@ -4,9 +4,12 @@ import "./focus-hub-approved.css";
 import {
   ArrowDown,
   ArrowUp,
+  BarChart3,
   BookOpen,
-  Check,
+  CalendarDays,
   Clock3,
+  Coffee,
+  List,
   Minus,
   Plus,
   Play,
@@ -1160,45 +1163,50 @@ export function FocusHub({
             aria-labelledby="focus-plan-summary-title"
             className="focus-hub-summary order-4 min-w-0 rounded-[24px] border border-sky-100 bg-white/95 p-5 shadow-[0_12px_36px_rgba(46,104,158,0.08)] dark:border-white/10 dark:bg-[#17191f] sm:p-6 md:col-start-1 md:row-start-4"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800 dark:text-sky-200">
-                  {t("focusHubPlannedSessions")}
-                </p>
-                <h2 id="focus-plan-summary-title" className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
-                  {t("focusHubTodayPlan")}
-                </h2>
-              </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-100">
-                <Check className="h-5 w-5" aria-hidden="true" />
+            <div className="focus-hub-summary-header flex items-center gap-2.5">
+              <span className="focus-hub-summary-heading-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+                <BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
+              <h2 id="focus-plan-summary-title" className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">
+                {t("focusHubTodayPlan")}
+              </h2>
             </div>
 
-            <div className="focus-plan-metrics mt-5 grid grid-cols-2 gap-2 md:grid-cols-5">
-              <SummaryMetric label={t("focusHubLectureCount")} value={estimate.lectureCount} language={language} />
-              <SummaryMetric label={t("focusHubSessionCount")} value={estimate.sessionCount} language={language} />
-              <SummaryMetric label={t("focusHubStudyTotal")} value={formatMinutes(estimate.studyMinutes)} />
-              <SummaryMetric label={t("focusHubBreakTotal")} value={formatMinutes(estimate.breakMinutes)} />
-              <div
-                className="focus-hub-total-compact hidden min-w-0 flex-col justify-center rounded-2xl border border-blue-200 bg-blue-50 px-2 py-1.5 text-blue-900 dark:border-sky-300/15 dark:bg-sky-300/[0.08] dark:text-sky-100"
-                title={t("focusHubNoFinalBreak")}
-              >
-                <span className="truncate text-[10px] font-medium">{t("focusHubTotalTime")}</span>
-                <span className="truncate text-sm font-semibold">{formatMinutes(estimate.totalMinutes)}</span>
-                <span className="sr-only">{t("focusHubNoFinalBreak")}</span>
-              </div>
-            </div>
-
-            <div className="focus-hub-summary-total-full mt-3 rounded-2xl border border-blue-500/70 bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-4 py-4 text-white shadow-[0_10px_24px_rgba(59,111,223,0.18)]">
-              <p className="text-xs font-medium text-sky-100/90">
-                {t("focusHubTotalTime")}
-              </p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">
-                {formatMinutes(estimate.totalMinutes)}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-sky-100/80">
-                {t("focusHubNoFinalBreak")}
-              </p>
+            <div className="focus-plan-metrics mt-5 grid grid-cols-2 gap-2 lg:grid-cols-5">
+              <SummaryMetric
+                label={t("focusHubLectureCount")}
+                value={estimate.lectureCount}
+                language={language}
+                icon={<BookOpen className="h-[17px] w-[17px]" />}
+                iconToneClass="focus-plan-metric-icon-blue"
+              />
+              <SummaryMetric
+                label={t("focusHubSessionCount")}
+                value={estimate.sessionCount}
+                language={language}
+                icon={<List className="h-[17px] w-[17px]" />}
+                iconToneClass="focus-plan-metric-icon-indigo"
+              />
+              <SummaryMetric
+                label={t("focusHubStudyTotal")}
+                value={formatMinutes(estimate.studyMinutes)}
+                icon={<Clock3 className="h-[17px] w-[17px]" />}
+                iconToneClass="focus-plan-metric-icon-cyan"
+              />
+              <SummaryMetric
+                label={t("focusHubBreakTotal")}
+                value={formatMinutes(estimate.breakMinutes)}
+                icon={<Coffee className="h-[17px] w-[17px]" />}
+                iconToneClass="focus-plan-metric-icon-slate"
+              />
+              <SummaryMetric
+                label={t("focusHubTotalTime")}
+                value={formatMinutes(estimate.totalMinutes)}
+                icon={<CalendarDays className="h-[17px] w-[17px]" />}
+                iconToneClass="focus-plan-metric-icon-violet"
+                description={t("focusHubNoFinalBreak")}
+                metricClassName="focus-plan-metric-total col-span-2 lg:col-span-1"
+              />
             </div>
 
             {!draft.items.length && (
@@ -1250,22 +1258,43 @@ function SummaryMetric({
   label,
   value,
   language,
+  icon,
+  iconToneClass,
+  description,
+  metricClassName = "",
 }: {
   label: string;
   value: ReactNode;
   language?: Language;
+  icon: ReactNode;
+  iconToneClass: string;
+  description?: string;
+  metricClassName?: string;
 }) {
   return (
     <div
       dir={language === "ar" ? "rtl" : "ltr"}
-      className="min-h-[76px] rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/[0.07] dark:bg-white/[0.025]"
+      className={`focus-plan-metric min-h-[64px] min-w-0 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/[0.07] dark:bg-white/[0.025] ${metricClassName}`}
     >
-      <p className="text-[11px] font-medium leading-4 text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 text-base font-semibold tabular-nums text-slate-900 dark:text-white">
-        {typeof value === "number" ? <bdi dir="ltr">{new Intl.NumberFormat(language).format(value)}</bdi> : value}
-      </p>
+      <div className="focus-plan-metric-copy min-w-0">
+        <p className="focus-plan-metric-label text-[11px] font-medium leading-4 text-slate-500 dark:text-slate-400">
+          {label}
+        </p>
+        <p
+          className="focus-plan-metric-value mt-1 text-sm font-semibold tabular-nums text-slate-900 dark:text-white"
+          aria-describedby={description ? "focus-plan-no-final-break" : undefined}
+        >
+          {typeof value === "number" ? <bdi dir="ltr">{new Intl.NumberFormat(language).format(value)}</bdi> : value}
+        </p>
+        {description && (
+          <span id="focus-plan-no-final-break" className="sr-only">
+            {description}
+          </span>
+        )}
+      </div>
+      <span className={`focus-plan-metric-icon shrink-0 ${iconToneClass}`} aria-hidden="true">
+        {icon}
+      </span>
     </div>
   );
 }

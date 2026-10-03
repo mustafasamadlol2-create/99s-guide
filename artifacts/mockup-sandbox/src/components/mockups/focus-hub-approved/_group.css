@@ -302,74 +302,214 @@
 }
 
 .focus-hub-current-root .focus-hub-summary > div:first-child > span {
-  display: none;
+  display: flex;
 }
 
-.focus-hub-current-root .focus-plan-metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-  margin-top: 10px;
+.focus-hub-current-root .focus-hub-summary-header {
+  min-height: 30px;
+  gap: 9px;
 }
 
-.focus-hub-current-root .focus-plan-metrics > div {
-  min-height: 58px;
-  border-color: rgba(117,148,187,.11);
-  border-radius: 14px;
-  background: rgba(255,255,255,.43);
-  padding: 8px;
+.focus-hub-current-root .focus-hub-summary-heading-icon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(112,160,230,.2);
+  border-radius: 11px;
+  color: #397fe1;
+  background: linear-gradient(145deg, rgba(227,241,255,.98), rgba(239,238,255,.92));
 }
 
-.dark .focus-hub-current-root .focus-plan-metrics > div {
-  background: rgba(255,255,255,.035);
-}
-
-.focus-hub-current-root .focus-plan-metrics > div p:first-child {
-  font-size: 10px;
-  line-height: 1.25;
-}
-
-.focus-hub-current-root .focus-plan-metrics > div p:last-child {
-  margin-top: 3px;
-  font-size: 14px;
-}
-
-.focus-hub-current-root .focus-hub-summary-total-full {
-  margin-top: 8px;
-  border: 1px solid rgba(92,145,218,.17);
-  border-radius: 15px;
-  color: #183251;
-  background: linear-gradient(105deg, rgba(216,235,255,.86), rgba(230,238,255,.87));
-  box-shadow: none;
-  padding: 9px 13px;
-}
-
-.focus-hub-current-root .focus-hub-summary-total-full p:first-child {
-  color: #526985;
-}
-
-.focus-hub-current-root .focus-hub-summary-total-full p:last-child {
-  margin-top: 1px;
-  color: #142c4b;
-  font-size: 20px;
+.focus-hub-current-root .focus-hub-summary h2 {
+  margin: 0;
+  font-size: 16px;
   line-height: 1.3;
 }
 
-.focus-hub-current-root .focus-hub-summary-total-full p:nth-child(3) {
-  display: none;
+.focus-hub-current-root .focus-plan-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
 }
 
-.dark .focus-hub-current-root .focus-hub-summary-total-full {
-  border-color: rgba(107,166,238,.18);
-  color: #eaf4ff;
-  background: linear-gradient(105deg, rgba(48,93,150,.35), rgba(57,74,138,.27));
+@media (max-width: 899px) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-current-root .focus-plan-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-.dark .focus-hub-current-root .focus-hub-summary-total-full p:first-child {
-  color: #b4c9e5;
+@media (min-width: 900px) {
+  .focus-hub-current-root .focus-plan-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-current-root .focus-plan-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .focus-hub-current-root .focus-plan-metric-total {
+    grid-column: auto;
+  }
 }
 
-.dark .focus-hub-current-root .focus-hub-summary-total-full p:last-child {
-  color: #f2f7ff;
+.focus-hub-current-root .focus-plan-metric {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-color: rgba(117,148,187,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.48);
+  padding: 8px 9px;
+}
+
+.dark .focus-hub-current-root .focus-plan-metric {
+  border-color: rgba(155,183,222,.1);
+  background: rgba(255,255,255,.035);
+}
+
+.focus-hub-current-root .focus-plan-metric-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.focus-hub-current-root .focus-plan-metric-label {
+  color: #61728b;
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.focus-hub-current-root .focus-plan-metric-value {
+  margin-top: 0;
+  color: #182a45;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon {
+  display: flex;
+  width: 27px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(101,149,225,.14);
+  border-radius: 9px;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon-blue {
+  color: #397ce0;
+  background: #eaf3ff;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon-indigo {
+  color: #625fda;
+  background: #efefff;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon-cyan {
+  color: #2588bd;
+  background: #e8f7ff;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon-slate {
+  color: #63758f;
+  background: #edf2fa;
+}
+
+.focus-hub-current-root .focus-plan-metric-icon-violet {
+  color: #6359db;
+  background: #f0edff;
+}
+
+.focus-hub-current-root .focus-plan-metric-total {
+  grid-column: 1 / -1;
+  border-color: rgba(112,136,222,.22);
+  background: linear-gradient(135deg, rgba(245,248,255,.7), rgba(248,247,255,.72));
+}
+
+.focus-hub-current-root .focus-plan-metric-total .focus-plan-metric-label {
+  color: #53668a;
+}
+
+.focus-hub-current-root .focus-plan-metric-total .focus-plan-metric-value {
+  color: #314e9d;
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .focus-hub-current-root .focus-plan-metric-total {
+    grid-column: auto;
+  }
+}
+
+.dark .focus-hub-current-root .focus-hub-summary-heading-icon {
+  border-color: rgba(98,158,234,.22);
+  color: #91c7ff;
+  background: linear-gradient(145deg, rgba(38,78,128,.58), rgba(57,63,126,.42));
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-label {
+  color: #aabbd3;
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-value {
+  color: #f0f5ff;
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon {
+  border-color: rgba(112,164,235,.12);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon-blue {
+  color: #8dc2ff;
+  background: rgba(38,101,181,.29);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon-indigo {
+  color: #aaa4ff;
+  background: rgba(86,77,181,.27);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon-cyan {
+  color: #88d5ff;
+  background: rgba(33,126,168,.25);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon-slate {
+  color: #c2d2e8;
+  background: rgba(115,139,174,.17);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-icon-violet {
+  color: #aaa2ff;
+  background: rgba(91,77,188,.28);
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-total {
+  border-color: rgba(121,145,235,.2);
+  background: linear-gradient(135deg, rgba(46,67,113,.24), rgba(62,55,112,.2));
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-total .focus-plan-metric-label {
+  color: #c1c9ec;
+}
+
+.dark .focus-hub-current-root .focus-plan-metric-total .focus-plan-metric-value {
+  color: #f0efff;
+}
+
+@media (max-width: 767px) {
+  .focus-hub-current-root .focus-plan-metric {
+    min-height: 58px;
+    padding: 8px 9px;
+  }
+
+  .focus-hub-current-root .focus-plan-metric-total {
+    min-height: 54px;
+  }
 }
 
 .focus-hub-current-root .focus-hub-actions {
