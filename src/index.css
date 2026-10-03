@@ -9695,3 +9695,28 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     margin-block-end: var(--focus-session-space-transfer) !important;
   }
 }
+
+/* Focus Hub preset strip: compact, equal-width segments without changing the
+   planner grid track or the position of neighboring cards. */
+@media (min-width: 768px) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-page.focus-hub-current-root .focus-hub-presets {
+    gap: 0 !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-page.focus-hub-current-root .focus-hub-presets > button {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding-block: 0 !important;
+    padding-inline: clamp(4px, .85vw, 10px) !important;
+    font-size: clamp(10px, 1.1vw, 12px) !important;
+    white-space: nowrap;
+  }
+
+  .focus-hub-current-root .focus-hub-presets > button {
+    height: 36px !important;
+    min-height: 36px !important;
+    padding-block: 0 !important;
+  }
+}

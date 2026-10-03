@@ -123,6 +123,14 @@
   transform: scale(0.985);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .focus-hub-current-root .focus-hub-presets,
+  .focus-hub-current-root .focus-hub-presets > button,
+  .focus-hub-current-root .focus-hub-presets > button::before {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .dark .focus-hub-current-root .focus-hub-presets > button {
   color: #c7d5eb !important;
 }
