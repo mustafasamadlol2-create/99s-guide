@@ -938,3 +938,181 @@
     margin-block-end: var(--focus-session-space-transfer) !important;
   }
 }
+
+.focus-hub-current-root .focus-hub-timer-scene {
+  border-color: rgba(183, 210, 243, 0.72) !important;
+  background:
+    radial-gradient(ellipse at 50% 43%, rgba(255, 255, 255, 0.98), rgba(242, 248, 255, 0.92) 55%, rgba(218, 234, 251, 0.92)) !important;
+  box-shadow: 0 13px 34px rgba(47, 96, 148, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene {
+  border-color: rgba(79, 137, 219, 0.34) !important;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(13, 43, 91, 0.98), rgba(7, 28, 64, 0.99) 58%, rgba(5, 21, 49, 1)) !important;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(141, 183, 255, 0.08) !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-icon {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-value {
+  font-size: clamp(40px, 4.2vw, 46px) !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene > .focus-timer-ring-planner {
+  width: min(100%, clamp(270px, 28vw, 300px)) !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-caption {
+  margin-top: 3px !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-timer-landscape-planner {
+  height: 100% !important;
+  opacity: 0.78 !important;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-timer-landscape-planner {
+  opacity: 0.72 !important;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-mountain-back-start {
+  stop-color: #c6ddf8;
+  stop-opacity: 0.84;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-mountain-back-end {
+  stop-color: #8fb8ee;
+  stop-opacity: 0.52;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-mountain-front-start {
+  stop-color: #b3d2f7;
+  stop-opacity: 0.86;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-mountain-front-end {
+  stop-color: #7fa9e6;
+  stop-opacity: 0.66;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-landscape-near {
+  fill: #b9d5f8;
+  fill-opacity: 0.68;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-mountain-back-start {
+  stop-color: #1a4f98;
+  stop-opacity: 0.74;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-mountain-back-end {
+  stop-color: #0b2b5e;
+  stop-opacity: 0.9;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-mountain-front-start {
+  stop-color: #16427e;
+  stop-opacity: 0.82;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-mountain-front-end {
+  stop-color: #091f4b;
+  stop-opacity: 0.96;
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-landscape-near {
+  fill: #071a3d;
+  fill-opacity: 0.92;
+}
+
+.focus-hub-current-root .focus-hub-timer-scene .focus-timer-orb {
+  top: 15%;
+  right: 12%;
+  width: 8.5%;
+  min-width: 34px;
+  max-width: 54px;
+  border-color: rgba(255, 255, 255, 0.56);
+  background: rgba(255, 255, 255, 0.36);
+  box-shadow: 0 0 28px rgba(120, 165, 231, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.44);
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-scene .focus-timer-orb {
+  border-color: rgba(132, 174, 255, 0.28);
+  background: rgba(76, 126, 224, 0.48);
+  box-shadow: 0 0 32px rgba(64, 123, 255, 0.3), inset 0 1px 0 rgba(200, 220, 255, 0.2);
+}
+
+.dark .focus-hub-current-root .focus-hub-timer-icon {
+  border-color: rgba(91, 145, 248, 0.4) !important;
+  color: #62a6ff !important;
+  background: rgba(24, 68, 144, 0.42) !important;
+  box-shadow: 0 0 18px rgba(38, 115, 249, 0.22) !important;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner .focus-timer-ring-center {
+  border-color: rgba(255, 255, 255, 0.96);
+  background: radial-gradient(ellipse at 50% 36%, #ffffff 0%, #f8fbff 72%, #f0f6ff 100%) !important;
+  box-shadow: inset 0 5px 18px rgba(104, 151, 207, 0.08), 0 5px 18px rgba(58, 116, 173, 0.08) !important;
+  backdrop-filter: none;
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner .focus-timer-ring-center {
+  border-color: rgba(95, 151, 242, 0.28);
+  background: radial-gradient(ellipse at 50% 35%, #0b2a59 0%, #071e43 68%, #061838 100%) !important;
+  box-shadow: inset 0 4px 20px rgba(72, 131, 232, 0.1), 0 3px 14px rgba(0, 0, 0, 0.16) !important;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner .focus-ring-start {
+  stop-color: #51baff;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner .focus-ring-middle {
+  stop-color: #328cf4;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner .focus-ring-end {
+  stop-color: #2878ee;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner .focus-timer-ring-track {
+  stroke: #d4e5f8;
+}
+
+.focus-hub-current-root .focus-timer-ring-planner > svg {
+  filter: drop-shadow(0 5px 13px rgba(52, 118, 205, 0.18));
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner .focus-ring-start {
+  stop-color: #68caff;
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner .focus-ring-middle {
+  stop-color: #358cff;
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner .focus-ring-end {
+  stop-color: #246fff;
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner .focus-timer-ring-track {
+  stroke: #15386a;
+}
+
+.dark .focus-hub-current-root .focus-timer-ring-planner > svg {
+  filter: drop-shadow(0 0 5px rgba(55, 130, 255, 0.82)) drop-shadow(0 0 22px rgba(37, 112, 255, 0.55));
+}
+
+#main-scroll-canvas.focus-planner-viewport .focus-hub-current-root .focus-hub-timer-scene > .focus-timer-ring-planner {
+  width: min(100%, clamp(270px, 28vw, 300px)) !important;
+}

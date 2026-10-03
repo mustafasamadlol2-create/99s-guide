@@ -122,14 +122,26 @@ export function FocusTimerScene({
   children,
   progress = 0.74,
   className = "",
+  variant = "standard",
 }: {
   children: ReactNode;
   progress?: number;
   className?: string;
+  variant?: "standard" | "planner";
 }) {
   const rawId = useId().replace(/:/g, "");
   const progressValue = Math.max(0, Math.min(1, progress));
   const circumference = 2 * Math.PI * 139;
+  const plannerScene = variant === "planner";
+  const backWavePath = plannerScene
+    ? "M0 136 C95 99 132 155 215 124 C296 95 342 151 429 123 C524 92 581 156 655 117 C699 96 727 102 760 84 V360 H0Z"
+    : "M0 183 C95 145 132 194 215 165 C296 137 342 193 429 166 C524 137 581 192 655 157 C699 137 727 143 760 130 V360 H0Z";
+  const frontWavePath = plannerScene
+    ? "M0 181 C91 145 149 200 240 165 C328 130 385 194 483 157 C586 119 655 182 760 139 V360 H0Z"
+    : "M0 231 C91 190 149 245 240 207 C328 170 385 237 483 196 C586 153 655 218 760 181 V360 H0Z";
+  const nearWavePath = plannerScene
+    ? "M0 228 C111 189 181 245 285 210 C381 175 449 230 540 198 C630 165 686 206 760 176 V360 H0Z"
+    : "M0 272 C111 229 181 290 285 250 C381 214 449 271 540 242 C630 213 686 251 760 228 V360 H0Z";
 
   return (
     <div
@@ -138,35 +150,42 @@ export function FocusTimerScene({
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -left-12 -top-20 size-56 rounded-full bg-white/85 blur-3xl dark:bg-sky-300/10" />
         <div className="absolute -right-12 top-4 size-48 rounded-full bg-sky-200/60 blur-3xl dark:bg-blue-400/10" />
-        <svg className="absolute inset-x-0 bottom-0 h-[76%] w-full opacity-70 dark:opacity-20" viewBox="0 0 760 360" preserveAspectRatio="none" focusable="false">
+        <svg className={`focus-timer-landscape absolute inset-x-0 bottom-0 h-[76%] w-full opacity-70 dark:opacity-20 ${plannerScene ? "focus-timer-landscape-planner" : ""}`} viewBox="0 0 760 360" preserveAspectRatio="none" focusable="false">
           <defs>
             <linearGradient id={`focus-mountain-back-${rawId}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#d9eaff" stopOpacity="0.74" />
-              <stop offset="100%" stopColor="#b8d6f5" stopOpacity="0.32" />
+              <stop className="focus-mountain-back-start" offset="0%" stopColor="#d9eaff" stopOpacity="0.74" />
+              <stop className="focus-mountain-back-end" offset="100%" stopColor="#b8d6f5" stopOpacity="0.32" />
             </linearGradient>
             <linearGradient id={`focus-mountain-front-${rawId}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#c8e0fa" stopOpacity="0.72" />
-              <stop offset="100%" stopColor="#a8cbee" stopOpacity="0.36" />
+              <stop className="focus-mountain-front-start" offset="0%" stopColor="#c8e0fa" stopOpacity="0.72" />
+              <stop className="focus-mountain-front-end" offset="100%" stopColor="#a8cbee" stopOpacity="0.36" />
             </linearGradient>
           </defs>
-          <path d="M0 183 C95 145 132 194 215 165 C296 137 342 193 429 166 C524 137 581 192 655 157 C699 137 727 143 760 130 V360 H0Z" fill={`url(#focus-mountain-back-${rawId})`} />
-          <path d="M0 231 C91 190 149 245 240 207 C328 170 385 237 483 196 C586 153 655 218 760 181 V360 H0Z" fill={`url(#focus-mountain-front-${rawId})`} />
-          <path d="M0 272 C111 229 181 290 285 250 C381 214 449 271 540 242 C630 213 686 251 760 228 V360 H0Z" fill="#dceeff" fillOpacity="0.62" />
+          <path d={backWavePath} fill={`url(#focus-mountain-back-${rawId})`} />
+          <path d={frontWavePath} fill={`url(#focus-mountain-front-${rawId})`} />
+          <path className="focus-landscape-near" d={nearWavePath} fill="#dceeff" fillOpacity="0.62" />
         </svg>
+        {plannerScene && (
+          <span
+            className="focus-timer-orb absolute right-[10%] top-[14%] block aspect-square w-[8.5%] min-w-8 max-w-[54px] rounded-full border border-white/50 bg-white/30 shadow-[0_0_30px_rgba(137,181,244,0.24)] dark:border-white/10 dark:bg-blue-300/20"
+            aria-hidden="true"
+          />
+        )}
       </div>
 
-      <div className="focus-timer-ring relative z-10 aspect-square w-[min(74vw,340px)] max-w-full sm:w-[min(42vw,380px)] lg:w-[min(34vw,400px)]">
-        <svg className="absolute inset-0 size-full -rotate-90 drop-shadow-[0_10px_16px_rgba(47,113,218,0.18)]" viewBox="0 0 320 320" aria-hidden="true" focusable="false">
+      <div className={`focus-timer-ring relative z-10 aspect-square w-[min(74vw,340px)] max-w-full sm:w-[min(42vw,380px)] lg:w-[min(34vw,400px)] ${plannerScene ? "focus-timer-ring-planner" : ""}`}>
+        <svg className="focus-timer-ring-svg absolute inset-0 size-full -rotate-90 drop-shadow-[0_10px_16px_rgba(47,113,218,0.18)]" viewBox="0 0 320 320" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={`focus-ring-gradient-${rawId}`} x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#4eb8f5" />
-              <stop offset="55%" stopColor="#347be8" />
-              <stop offset="100%" stopColor="#574fe5" />
+              <stop className="focus-ring-start" offset="0%" stopColor="#4eb8f5" />
+              <stop className="focus-ring-middle" offset="55%" stopColor="#347be8" />
+              <stop className="focus-ring-end" offset="100%" stopColor="#574fe5" />
             </linearGradient>
           </defs>
-          <circle cx="160" cy="160" r="139" fill="none" stroke="#d9e9fa" strokeWidth="12" />
+          <circle className="focus-timer-ring-track" cx="160" cy="160" r="139" fill="none" stroke="#d9e9fa" strokeWidth="12" />
           <circle cx="160" cy="160" r="128" fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2" />
           <circle
+            className="focus-timer-ring-progress"
             cx="160"
             cy="160"
             r="139"
@@ -177,9 +196,9 @@ export function FocusTimerScene({
             strokeDasharray={circumference}
             strokeDashoffset={circumference * (1 - progressValue)}
           />
-          <circle cx="299" cy="160" r="8" fill="#38a9f2" stroke="white" strokeWidth="5" />
+          <circle className="focus-timer-ring-marker" cx="299" cy="160" r="8" fill="#38a9f2" stroke="white" strokeWidth="5" />
         </svg>
-        <div className="absolute inset-[9%] grid place-items-center rounded-full border border-white/90 bg-white/80 shadow-[inset_0_6px_22px_rgba(85,144,202,0.10),0_8px_28px_rgba(58,116,173,0.10)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45">
+        <div className="focus-timer-ring-center absolute inset-[9%] grid place-items-center rounded-full border border-white/90 bg-white/80 shadow-[inset_0_6px_22px_rgba(85,144,202,0.10),0_8px_28px_rgba(58,116,173,0.10)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45">
           <div className="flex flex-col items-center justify-center px-3 text-center">
             {children}
           </div>

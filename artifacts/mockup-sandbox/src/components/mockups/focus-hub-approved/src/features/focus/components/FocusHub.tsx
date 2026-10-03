@@ -841,12 +841,12 @@ export function FocusHub({
           aria-label={t("focusHubTimerSessionLabel")}
           className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
-          <FocusTimerScene progress={0} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
-            <span className="focus-hub-timer-icon mb-2 flex size-11 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
-              <Target className="size-6" aria-hidden="true" />
+          <FocusTimerScene variant="planner" progress={1} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
+            <span className="focus-hub-timer-icon mb-1 flex size-9 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
+              <Target className="size-5" aria-hidden="true" />
             </span>
             <time
-              className="focus-hub-timer-value font-mono text-5xl font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-6xl md:text-[68px] dark:text-white"
+              className="focus-hub-timer-value font-display text-[42px] font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-[44px] md:text-[46px] dark:text-white"
               dir="ltr"
               aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
             >
