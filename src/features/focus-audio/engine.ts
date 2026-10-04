@@ -124,34 +124,27 @@ export class FocusAudioEngine {
     const validation = validateLocalAudioFile(file);
     if (validation.ok === false) return this.failAndClear(validation.errorCode);
 
-    const audio = this.getAudio();
-    if (!audio) return this.failAndClear("AUDIO_LOAD_FAILED");
-    let artworkObjectUrl: string | undefined;
+    let url: string;
     try {
-      if (typeof audio.canPlayType === "function" && !audio.canPlayType(validation.mimeType)) {
-        return this.failAndClear("UNSUPPORTED_AUDIO");
-      }
-
-      const artwork = await readId3Artwork(validation.file);
-      if (artwork) {
-        try {
-          artworkObjectUrl = this.createArtworkObjectURL(artwork);
-        } catch {
-          // Artwork is optional; failure to create its preview must not block audio.
-        }
-      }
-      const url = this.createObjectURL(validation.file);
-      return this.loadSource({
-        type: "USER_AUDIO",
-        url,
-        displayName: validation.displayName,
-        artworkUrl: artworkObjectUrl,
-        loop: this.userAudioLoop,
-      }, url, artworkObjectUrl);
+      url = this.createObjectURL(validation.file);
     } catch {
-      if (artworkObjectUrl) this.safeRevoke(artworkObjectUrl);
       return this.failAndClear("AUDIO_LOAD_FAILED");
     }
+
+    // Attach the selected file immediately. Artwork is optional and must not delay
+    // the filename, media source, or preview controls becoming available.
+    const loading = this.loadSource({
+      type: "USER_AUDIO",
+      url,
+      displayName: validation.displayName,
+      loop: this.userAudioLoop,
+    }, url);
+    const sourceGeneration = this.sourceGeneration;
+    const result = await loading;
+    if (!result.ok) return result;
+
+    void this.loadUserAudioArtwork(validation.file, url, sourceGeneration);
+    return result;
   }
 
   async play(): Promise<FocusAudioResult> {
@@ -437,6 +430,49 @@ export class FocusAudioEngine {
       this.update({ state: "INTERRUPTED" });
     }
     this.wasPlayingBeforeBackground = false;
+  }
+
+  private async loadUserAudioArtwork(
+    file: File,
+    sourceUrl: string,
+    sourceGeneration: number,
+  ): Promise<void> {
+    let artwork: Blob | null;
+    try {
+      artwork = await readId3Artwork(file);
+    } catch {
+      return;
+    }
+    if (
+      !artwork ||
+      this.destroyed ||
+      sourceGeneration !== this.sourceGeneration ||
+      this.activeSource?.type !== "USER_AUDIO" ||
+      this.activeSource.url !== sourceUrl
+    ) return;
+
+    let artworkUrl: string;
+    try {
+      artworkUrl = this.createArtworkObjectURL(artwork);
+    } catch {
+      return;
+    }
+
+    const activeSource = this.activeSource;
+    if (
+      !activeSource ||
+      this.destroyed ||
+      sourceGeneration !== this.sourceGeneration ||
+      activeSource.type !== "USER_AUDIO" ||
+      activeSource.url !== sourceUrl
+    ) {
+      this.safeRevoke(artworkUrl);
+      return;
+    }
+
+    this.artworkObjectUrl = artworkUrl;
+    this.activeSource = { ...activeSource, artworkUrl };
+    this.update({ userAudioArtworkUrl: artworkUrl });
   }
 
   private setError(errorCode: FocusAudioErrorCode): FocusAudioResult {

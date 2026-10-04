@@ -59,6 +59,9 @@ test("embedded cover art stays local and its object URL is released with the sel
   const fixture = setup();
   await fixture.engine.selectUserAudio(makeAudioFileWithArtwork());
 
+  for (let attempt = 0; attempt < 10 && !fixture.engine.getSnapshot().userAudioArtworkUrl; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
   assert.equal(
     fixture.engine.getSnapshot().userAudioArtworkUrl,
     "blob:artwork/image/jpeg",
@@ -71,6 +74,45 @@ test("embedded cover art stays local and its object URL is released with the sel
     "blob:local/focus-with-cover.mp3",
     "blob:artwork/image/jpeg",
   ]);
+});
+
+test("user audio loads without relying on canPlayType's advisory result", async () => {
+  const fixture = setup();
+  fixture.audio.supportedMimeTypes.clear();
+
+  const result = await fixture.engine.selectUserAudio(makeAudioFile());
+
+  assert.deepEqual(result, { ok: true });
+  assert.equal(fixture.engine.getSnapshot().sourceType, "USER_AUDIO");
+  assert.equal(fixture.engine.getSnapshot().userAudioDisplayName, "focus-track.mp3");
+  assert.equal(fixture.audio.src, "blob:local/focus-track.mp3");
+  fixture.engine.destroy();
+});
+
+test("selected filename and media source are available before optional artwork parsing finishes", async () => {
+  const fixture = setup();
+  let resolveHeader!: (buffer: ArrayBuffer) => void;
+  const file = {
+    name: "slow-cover.mp3",
+    type: "audio/mpeg",
+    size: 10,
+    slice: () => ({
+      arrayBuffer: () => new Promise<ArrayBuffer>((resolve) => {
+        resolveHeader = resolve;
+      }),
+    }),
+  } as unknown as File;
+
+  const selection = fixture.engine.selectUserAudio(file);
+  await Promise.resolve();
+
+  assert.equal(fixture.engine.getSnapshot().state, "LOADING");
+  assert.equal(fixture.engine.getSnapshot().userAudioDisplayName, "slow-cover.mp3");
+  assert.equal(fixture.audio.src, "blob:local/slow-cover.mp3");
+
+  resolveHeader(new ArrayBuffer(10));
+  assert.deepEqual(await selection, { ok: true });
+  fixture.engine.destroy();
 });
 
 test("switching sources stops the prior source, revokes its URL, and never overlaps playback", async () => {

@@ -20,6 +20,14 @@ test("accepts supported local formats and returns only a safe basename", () => {
   assert.equal(m4a.ok, true);
 });
 
+test("normalizes common MP3 MIME aliases returned by file pickers", () => {
+  for (const mimeType of ["audio/mp3", "audio/x-mp3", "audio/x-mpeg"]) {
+    const result = validateLocalAudioFile(makeAudioFile("track.mp3", mimeType));
+    assert.equal(result.ok, true, mimeType);
+    if (result.ok) assert.equal(result.mimeType, "audio/mpeg");
+  }
+});
+
 test("rejects empty, oversized, mismatched, and non-audio files", () => {
   assert.deepEqual(
     validateLocalAudioFile(makeAudioFile("empty.mp3", "audio/mpeg", "")),

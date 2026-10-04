@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { FolderOpen, Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
+import { AUDIO_FILE_PICKER_ACCEPT } from "../../focus-audio/constants";
 import { useFocusAudio } from "../../focus-audio/hooks";
 import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
 
@@ -18,7 +19,9 @@ export function FocusAudioPlanningCard({
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
   const audioContext = useFocusAudio();
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [selectingFile, setSelectingFile] = useState(false);
   const [localError, setLocalError] = useState(false);
   const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
   const audio = audioContext.audio;
@@ -31,17 +34,25 @@ export function FocusAudioPlanningCard({
     failedArtworkUrl,
   );
 
-  const chooseFile = async () => {
+  const chooseFile = async (file: File) => {
     setBusy(true);
+    setSelectingFile(true);
     setLocalError(false);
     try {
-      const result = await audioContext.pickUserAudio();
+      const result = await audioContext.selectUserAudio(file);
       if (!result.ok) setLocalError(true);
     } catch {
       setLocalError(true);
     } finally {
       setBusy(false);
+      setSelectingFile(false);
     }
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (file) void chooseFile(file);
   };
 
   const togglePreview = async () => {
@@ -67,6 +78,7 @@ export function FocusAudioPlanningCard({
     <section
       dir={isRtl ? "rtl" : "ltr"}
       aria-labelledby={titleId}
+      aria-busy={selectingFile}
       className={`focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05] ${
         plannerPresentation ? "focus-audio-card-planner" : ""
       }`}
@@ -102,7 +114,11 @@ export function FocusAudioPlanningCard({
           }`}
         />
         <div className="focus-audio-source-details">
-          <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
+          <p
+            className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100"
+            dir="auto"
+            aria-live="polite"
+          >
             {audio.userAudioDisplayName ?? t("focusHubAudioNoSource")}
           </p>
           {hasSelection && (
@@ -110,14 +126,23 @@ export function FocusAudioPlanningCard({
               {t("focusHubAudioLocalOnly")}
             </p>
           )}
+          <input
+            ref={audioFileInputRef}
+            type="file"
+            accept={AUDIO_FILE_PICKER_ACCEPT}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="sr-only"
+            onChange={handleFileChange}
+          />
           <button
             type="button"
-            onClick={() => void chooseFile()}
+            onClick={() => audioFileInputRef.current?.click()}
             disabled={busy}
             className="flex min-h-10 shrink-0 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-white/10"
           >
             {plannerPresentation && <FolderOpen className="focus-audio-picker-icon size-4" aria-hidden="true" />}
-            {t("focusHubAudioChooseFile")}
+            {selectingFile ? t("focusHubAudioLoading") : t("focusHubAudioChooseFile")}
           </button>
           <label className="focus-audio-volume flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
             <Volume2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />

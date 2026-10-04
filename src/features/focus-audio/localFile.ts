@@ -25,6 +25,14 @@ const EXTENSION_MIME: Readonly<Record<string, string>> = {
   ".oga": "audio/ogg",
 };
 
+const MIME_ALIASES: Readonly<Record<string, string>> = {
+  "audio/mp3": "audio/mpeg",
+  "audio/x-mp3": "audio/mpeg",
+  "audio/x-mpeg": "audio/mpeg",
+  "audio/mpeg3": "audio/mpeg",
+  "audio/x-mpeg-3": "audio/mpeg",
+};
+
 export type LocalAudioFileValidation =
   | {
       readonly ok: true;
@@ -62,7 +70,8 @@ export function validateLocalAudioFile(value: unknown): LocalAudioFileValidation
 
   const displayName = safeBasename(value.name);
   const extension = /\.[^.]+$/u.exec(displayName)?.[0].toLowerCase() ?? "";
-  const declaredMime = value.type.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const rawMime = value.type.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const declaredMime = MIME_ALIASES[rawMime] ?? rawMime;
   const extensionMime = EXTENSION_MIME[extension];
   const allowedMime = ACCEPTED_AUDIO_MIME_TYPES.includes(
     declaredMime as (typeof ACCEPTED_AUDIO_MIME_TYPES)[number],
