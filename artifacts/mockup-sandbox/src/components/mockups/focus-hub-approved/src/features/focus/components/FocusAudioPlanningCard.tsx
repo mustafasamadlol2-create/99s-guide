@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
+import { FolderOpen, Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { useFocusAudio } from "../../focus-audio/hooks";
+import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
 
 interface FocusAudioPlanningCardProps {
   language: Language;
   idPrefix?: string;
+  plannerPresentation?: boolean;
 }
 
 export function FocusAudioPlanningCard({
   language,
   idPrefix = "focus-audio",
+  plannerPresentation = false,
 }: FocusAudioPlanningCardProps) {
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
@@ -23,10 +26,10 @@ export function FocusAudioPlanningCard({
   const isPlaying = audio.state === "PLAYING";
   const isPaused = audio.state === "PAUSED" || audio.state === "INTERRUPTED";
   const titleId = `${idPrefix}-title`;
-  const artworkUrl =
-    audio.userAudioArtworkUrl && failedArtworkUrl !== audio.userAudioArtworkUrl
-      ? audio.userAudioArtworkUrl
-      : DEFAULT_MOUNTAIN_ARTWORK;
+  const artworkUrl = resolveFocusAudioArtworkUrl(
+    audio.userAudioArtworkUrl,
+    failedArtworkUrl,
+  );
 
   const chooseFile = async () => {
     setBusy(true);
@@ -64,7 +67,9 @@ export function FocusAudioPlanningCard({
     <section
       dir={isRtl ? "rtl" : "ltr"}
       aria-labelledby={titleId}
-      className="focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05]"
+      className={`focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05] ${
+        plannerPresentation ? "focus-audio-card-planner" : ""
+      }`}
     >
       <div className="focus-audio-heading flex min-w-0 items-start gap-2.5">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#315f75] text-white shadow-sm dark:bg-sky-300 dark:text-slate-950">
@@ -90,7 +95,11 @@ export function FocusAudioPlanningCard({
               setFailedArtworkUrl(audio.userAudioArtworkUrl);
             }
           }}
-          className="focus-audio-artwork"
+          className={`focus-audio-artwork ${
+            !audio.userAudioArtworkUrl || failedArtworkUrl === audio.userAudioArtworkUrl
+              ? "focus-audio-artwork-fallback"
+              : ""
+          }`}
         />
         <div className="focus-audio-source-details">
           <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
@@ -107,6 +116,7 @@ export function FocusAudioPlanningCard({
             disabled={busy}
             className="flex min-h-10 shrink-0 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-white/10"
           >
+            {plannerPresentation && <FolderOpen className="focus-audio-picker-icon size-4" aria-hidden="true" />}
             {t("focusHubAudioChooseFile")}
           </button>
           <label className="focus-audio-volume flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
@@ -170,6 +180,3 @@ export function FocusAudioPlanningCard({
     </section>
   );
 }
-
-const DEFAULT_MOUNTAIN_ARTWORK =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 280 300'%3E%3Cdefs%3E%3ClinearGradient id='s' x2='0' y2='1'%3E%3Cstop stop-color='%23f4f9ff'/%3E%3Cstop offset='1' stop-color='%23b9d2ef'/%3E%3C/linearGradient%3E%3ClinearGradient id='m' x2='0' y2='1'%3E%3Cstop stop-color='%2395b6db'/%3E%3Cstop offset='1' stop-color='%23dbeafa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='280' height='300' fill='url(%23s)'/%3E%3Ccircle cx='205' cy='57' r='27' fill='%23fff' fill-opacity='.68'/%3E%3Cpath d='M0 169 58 120l35 32 54-64 68 80 31-26 34 31v127H0Z' fill='url(%23m)'/%3E%3Cpath d='m93 152 54-64 35 41-18-9-16 11-15-8-19 12-14-1Z' fill='%23f8fbff' fill-opacity='.9'/%3E%3Cpath d='M0 204c45-22 80 7 122-5s89-14 158 4v97H0Z' fill='%23e8f2fd' fill-opacity='.84'/%3E%3Cpath d='M0 235c42-16 85 13 127 0s92-12 153 5v60H0Z' fill='%23c2d9f1' fill-opacity='.74'/%3E%3C/svg%3E";

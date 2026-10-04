@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
+import { FolderOpen, Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { useFocusAudio } from "../../focus-audio/hooks";
 import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
@@ -7,11 +7,13 @@ import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
 interface FocusAudioPlanningCardProps {
   language: Language;
   idPrefix?: string;
+  plannerPresentation?: boolean;
 }
 
 export function FocusAudioPlanningCard({
   language,
   idPrefix = "focus-audio",
+  plannerPresentation = false,
 }: FocusAudioPlanningCardProps) {
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
@@ -65,7 +67,9 @@ export function FocusAudioPlanningCard({
     <section
       dir={isRtl ? "rtl" : "ltr"}
       aria-labelledby={titleId}
-      className="focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05]"
+      className={`focus-audio-card min-w-0 rounded-[22px] border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white/95 to-blue-50/70 p-4 shadow-[0_10px_28px_rgba(54,112,170,0.08)] dark:border-sky-300/15 dark:from-sky-300/[0.08] dark:via-white/[0.025] dark:to-blue-300/[0.05] ${
+        plannerPresentation ? "focus-audio-card-planner" : ""
+      }`}
     >
       <div className="focus-audio-heading flex min-w-0 items-start gap-2.5">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#315f75] text-white shadow-sm dark:bg-sky-300 dark:text-slate-950">
@@ -91,7 +95,11 @@ export function FocusAudioPlanningCard({
               setFailedArtworkUrl(audio.userAudioArtworkUrl);
             }
           }}
-          className="focus-audio-artwork"
+          className={`focus-audio-artwork ${
+            !audio.userAudioArtworkUrl || failedArtworkUrl === audio.userAudioArtworkUrl
+              ? "focus-audio-artwork-fallback"
+              : ""
+          }`}
         />
         <div className="focus-audio-source-details">
           <p className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100" dir="auto">
@@ -108,6 +116,7 @@ export function FocusAudioPlanningCard({
             disabled={busy}
             className="flex min-h-10 shrink-0 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-white/10"
           >
+            {plannerPresentation && <FolderOpen className="focus-audio-picker-icon size-4" aria-hidden="true" />}
             {t("focusHubAudioChooseFile")}
           </button>
           <label className="focus-audio-volume flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">

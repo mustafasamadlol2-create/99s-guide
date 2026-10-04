@@ -891,3 +891,479 @@
     padding-inline: 7px;
   }
 }
+
+/* Planner-only queue + audio treatment; phone layout remains on its existing rules. */
+@media (min-width: 541px) {
+  .focus-hub-current-root .focus-hub-queue {
+    border-color: rgba(148, 185, 222, 0.28) !important;
+    border-radius: 23px !important;
+    background: linear-gradient(145deg, rgba(245, 250, 255, 0.95), rgba(231, 242, 253, 0.9)) !important;
+    box-shadow: 0 10px 28px rgba(58, 104, 153, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue {
+    border-color: rgba(104, 142, 196, 0.27) !important;
+    background: linear-gradient(150deg, rgba(20, 41, 70, 0.96), rgba(14, 31, 55, 0.96)) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(152, 190, 239, 0.08) !important;
+  }
+
+  .focus-hub-current-root .focus-hub-queue > div:first-child {
+    margin-bottom: 8px !important;
+  }
+
+  .focus-hub-current-root .focus-hub-queue > div:first-child > div:first-child {
+    gap: 10px;
+  }
+
+  .focus-hub-current-root .focus-hub-queue > div:first-child > div:first-child > span {
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(84, 151, 223, 0.16);
+    border-radius: 14px;
+    color: #2875ce;
+    background: linear-gradient(145deg, #e1efff, #f0f7ff);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue > div:first-child > div:first-child > span {
+    border-color: rgba(96, 151, 239, 0.2);
+    color: #8ec6ff;
+    background: linear-gradient(145deg, rgba(27, 73, 132, 0.78), rgba(26, 57, 102, 0.75));
+    box-shadow: inset 0 1px 0 rgba(190, 215, 255, 0.1);
+  }
+
+  .focus-hub-current-root .focus-hub-queue h2 {
+    color: #142747;
+    font-size: 16px;
+    line-height: 21px;
+    letter-spacing: -0.025em;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue h2 {
+    color: #eff6ff;
+  }
+
+  .focus-hub-current-root .focus-hub-queue > div:first-child p {
+    color: #6a7d99;
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue > div:first-child p {
+    color: #91a9cb;
+  }
+
+  .focus-hub-current-root .focus-hub-queue > div:first-child button {
+    min-height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 14px;
+    background: linear-gradient(110deg, #3e9cf2, #246ce8) !important;
+    box-shadow: 0 5px 13px rgba(40, 111, 222, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue > div:first-child button {
+    background: linear-gradient(110deg, #348df8, #235df0) !important;
+    box-shadow: 0 5px 15px rgba(24, 89, 211, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  .focus-hub-current-root .focus-hub-queue-list {
+    gap: 8px !important;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item {
+    border-color: rgba(143, 176, 213, 0.22) !important;
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    padding: 9px 10px !important;
+    box-shadow: 0 3px 10px rgba(65, 103, 147, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-item {
+    border-color: rgba(113, 150, 199, 0.2) !important;
+    background: rgba(11, 28, 50, 0.57) !important;
+    box-shadow: inset 0 1px 0 rgba(174, 203, 241, 0.035);
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item.border-sky-400 {
+    border-color: rgba(66, 145, 236, 0.62) !important;
+    background: #edf6ff !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-item.border-sky-400 {
+    border-color: rgba(92, 166, 255, 0.58) !important;
+    background: rgba(34, 77, 129, 0.42) !important;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item > div:first-child {
+    align-items: center;
+    gap: 9px;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item > div:first-child > span:first-child {
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(71, 140, 229, 0.1);
+    border-radius: 13px;
+    color: #2868dc;
+    background: linear-gradient(145deg, #e7f1ff, #f3f7ff);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-item > div:first-child > span:first-child {
+    border-color: rgba(83, 149, 243, 0.15);
+    color: #a7ceff;
+    background: linear-gradient(145deg, rgba(34, 75, 132, 0.72), rgba(30, 56, 99, 0.64));
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item > div:first-child > div:nth-child(2) > p:first-child {
+    color: #192a48;
+    font-size: 13px;
+    line-height: 17px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-item > div:first-child > div:nth-child(2) > p:first-child {
+    color: #eaf2ff;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-subject,
+  .focus-hub-current-root .focus-hub-queue-durations,
+  .focus-hub-current-root .focus-hub-queue-estimate {
+    display: none !important;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-compact-meta {
+    display: block !important;
+    margin-top: 1px !important;
+    color: #74849d;
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-compact-meta {
+    color: #91a7c7;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item > div:first-child > div:last-child {
+    gap: 1px;
+  }
+
+  .focus-hub-current-root .focus-hub-queue-item > div:first-child > div:last-child button {
+    border-radius: 11px;
+    color: #8292aa;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-queue-item > div:first-child > div:last-child button {
+    color: #a8bddc;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count {
+    min-height: 44px;
+    margin-top: 6px !important;
+    padding-top: 5px !important;
+    border-color: rgba(158, 181, 211, 0.16) !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-session-count {
+    border-color: rgba(150, 181, 222, 0.11) !important;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count > span {
+    color: #31425d;
+    font-size: 11px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-session-count > span {
+    color: #c5d4ea;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count > div {
+    gap: 5px;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count button {
+    border-color: rgba(151, 176, 207, 0.22) !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.47);
+    color: #7e8fa7;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-session-count button {
+    border-color: rgba(137, 168, 209, 0.2) !important;
+    background: rgba(255, 255, 255, 0.025);
+    color: #9eb2d1;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count input {
+    border-color: rgba(148, 174, 207, 0.16) !important;
+    border-radius: 13px !important;
+    background: rgba(237, 241, 247, 0.88) !important;
+    color: #243650 !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-session-count input {
+    border-color: rgba(134, 164, 204, 0.13) !important;
+    background: rgba(8, 22, 42, 0.66) !important;
+    color: #edf4ff !important;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count input[aria-invalid="true"] {
+    border-color: rgba(225, 74, 87, 0.72) !important;
+    background: rgba(255, 244, 244, 0.9) !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-session-count input[aria-invalid="true"] {
+    background: rgba(103, 30, 43, 0.26) !important;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "heading" "source" "session" "preview" "status" !important;
+    align-content: start;
+    gap: 9px !important;
+    padding: 13px !important;
+    border-color: rgba(148, 185, 222, 0.28) !important;
+    border-radius: 23px !important;
+    background: linear-gradient(145deg, rgba(245, 250, 255, 0.96), rgba(231, 242, 253, 0.93)) !important;
+    box-shadow: 0 10px 28px rgba(58, 104, 153, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner {
+    border-color: rgba(104, 142, 196, 0.27) !important;
+    background: linear-gradient(150deg, rgba(20, 41, 70, 0.96), rgba(14, 31, 55, 0.96)) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(152, 190, 239, 0.08) !important;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading {
+    gap: 10px;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading > span {
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(84, 151, 223, 0.16);
+    border-radius: 14px;
+    color: #2875ce;
+    background: linear-gradient(145deg, #e1efff, #f0f7ff);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading > span {
+    border-color: rgba(96, 151, 239, 0.2);
+    color: #8ec6ff;
+    background: linear-gradient(145deg, rgba(27, 73, 132, 0.78), rgba(26, 57, 102, 0.75));
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading h3 {
+    color: #172a49;
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading h3 {
+    color: #eff6ff;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading p {
+    color: #72839e;
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-heading p {
+    color: #9bb0cf;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source {
+    display: grid !important;
+    grid-template-columns: minmax(125px, 36%) minmax(0, 1fr) !important;
+    align-items: stretch;
+    gap: 10px;
+    min-height: 160px;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-artwork {
+    width: 100%;
+    height: 100%;
+    min-height: 154px;
+    aspect-ratio: 1.02;
+    border: 1px solid rgba(117, 151, 191, 0.2);
+    border-radius: 16px;
+    object-fit: cover;
+    box-shadow: 0 5px 14px rgba(52, 95, 145, 0.12);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-artwork {
+    border-color: rgba(125, 164, 219, 0.25);
+    box-shadow: 0 6px 17px rgba(0, 0, 0, 0.24);
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-artwork-fallback {
+    mix-blend-mode: multiply;
+    opacity: 0.72;
+    filter: saturate(1.2) hue-rotate(5deg);
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-details {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid rgba(150, 180, 216, 0.16);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.45);
+    padding: 10px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-details {
+    border-color: rgba(137, 170, 213, 0.13);
+    background: rgba(8, 22, 42, 0.26);
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-name {
+    color: #30425e;
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-name {
+    color: #e1eafa;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-details > p {
+    font-size: 10px;
+    line-height: 14px;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-details > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    align-self: flex-start;
+    gap: 7px;
+    min-height: 38px;
+    border: 1px solid rgba(68, 132, 211, 0.08);
+    border-radius: 11px;
+    background: rgba(55, 132, 219, 0.09);
+    color: #2869c1;
+    padding-inline: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-source-details > button {
+    border-color: rgba(93, 148, 227, 0.13);
+    background: rgba(41, 104, 193, 0.2);
+    color: #a9d2ff;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-picker-icon {
+    flex: 0 0 auto;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume,
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop {
+    min-height: 34px;
+    border: 0;
+    background: transparent;
+    padding-inline: 0;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume {
+    gap: 8px;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume input {
+    accent-color: #2b83e8;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume,
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop {
+    color-scheme: light;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume,
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop {
+    color-scheme: dark;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume input,
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop input {
+    color-scheme: dark;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume output {
+    min-width: 35px;
+    color: #71819a;
+    font-size: 10px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-volume output {
+    color: #9db2d1;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop {
+    color: #3d4e68;
+    font-size: 11px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop {
+    color: #c5d5eb;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-loop input {
+    accent-color: #2b83e8;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-preview {
+    margin: 0 !important;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-preview button {
+    min-height: 40px;
+    border: 1px solid rgba(149, 176, 207, 0.13);
+    border-radius: 13px;
+    background: linear-gradient(105deg, #e4edf8, #dce8f6) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66) !important;
+    color: #778ba7 !important;
+    font-size: 11px;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-preview button:not(:disabled) {
+    background: linear-gradient(105deg, #378fe9, #286fe4) !important;
+    color: #fff !important;
+    box-shadow: 0 5px 13px rgba(41, 112, 221, 0.19) !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-preview button {
+    border-color: rgba(126, 159, 203, 0.13);
+    background: linear-gradient(105deg, #1b3555, #1b3150) !important;
+    box-shadow: inset 0 1px 0 rgba(159, 192, 233, 0.05) !important;
+    color: #8299ba !important;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-preview button:not(:disabled) {
+    background: linear-gradient(105deg, #2867b9, #2853ba) !important;
+    color: #edf6ff !important;
+  }
+
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-session {
+    color: #71819a;
+    font-size: 10px;
+  }
+
+  .dark .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-session {
+    color: #98adcc;
+  }
+}
+
+@media (max-width: 540px) {
+  .focus-hub-current-root .focus-hub-audio .focus-audio-card-planner .focus-audio-picker-icon {
+    display: none;
+  }
+}

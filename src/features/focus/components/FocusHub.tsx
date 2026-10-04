@@ -1233,7 +1233,7 @@ export function FocusHub({
           <div className="focus-hub-support-grid">
           {FOCUS_AUDIO_ENABLED && (
             <div className="focus-hub-audio order-8 min-w-0 md:col-start-2 md:row-start-4">
-              <FocusAudioPlanningCard language={language} />
+              <FocusAudioPlanningCard language={language} plannerPresentation />
             </div>
           )}
           </div>
