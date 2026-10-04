@@ -32,6 +32,39 @@ export interface FocusSessionRecord {
   status: string;
 }
 
+export interface FocusHistoryRowDto {
+  sessionId: string;
+  status: string;
+  planId: string;
+  planTitle: string;
+  planStatus: string;
+  planItemId: string;
+  lectureId: string;
+  lectureTitle: string;
+  subject: string;
+  plannedFocusSeconds: number;
+  verifiedFocusSeconds: number | null;
+  startedAt: string | null;
+  terminalAt: string | null;
+  points: number | null;
+  resourceLaunchCount: number;
+  uniqueResourceCount: number;
+}
+
+export interface FocusHistoryPageDto {
+  items: FocusHistoryRowDto[];
+  nextCursor: string | null;
+  limit: number;
+}
+
+export interface FocusHistoryQuery {
+  limit?: number;
+  cursor?: string;
+  status?: string;
+  subject?: string;
+  lectureId?: string;
+}
+
 type FocusPlanInput = {
   title: string;
   timezone: string;
@@ -50,6 +83,7 @@ export interface FocusApi {
     idempotencyKey: string;
     source: "web";
   }): Promise<{ session: FocusSessionRecord }>;
+  listHistory(query?: FocusHistoryQuery): Promise<FocusHistoryPageDto>;
 }
 
 export class FocusApiError extends Error {
@@ -103,6 +137,63 @@ let plan = fixturePlan;
 let currentSession: FocusSessionRecord | null = null;
 let planCounter = 1;
 
+const fixtureHistory: FocusHistoryRowDto[] = [
+  {
+    sessionId: "a2c6eb58-0ef6-4334-a5e7-870810cc4db5",
+    status: "ABANDONED",
+    planId: fixturePlan.id,
+    planTitle: "Focus",
+    planStatus: "ACTIVE",
+    planItemId: fixturePlan.items[0].id,
+    lectureId: "b98f08e1-b9a2-4f75-9b7c-33e7eaa32f61",
+    lectureTitle: "PHC.TBL",
+    subject: "PHC",
+    plannedFocusSeconds: 25 * 60,
+    verifiedFocusSeconds: null,
+    startedAt: "2026-10-02T15:19:00.000Z",
+    terminalAt: "2026-10-02T15:26:00.000Z",
+    points: null,
+    resourceLaunchCount: 0,
+    uniqueResourceCount: 0,
+  },
+  {
+    sessionId: "719e63a1-0f22-480e-9959-955248227ad6",
+    status: "ABANDONED",
+    planId: fixturePlan.id,
+    planTitle: "Focus",
+    planStatus: "ACTIVE",
+    planItemId: fixturePlan.items[0].id,
+    lectureId: "b98f08e1-b9a2-4f75-9b7c-33e7eaa32f61",
+    lectureTitle: "PHC.TBL",
+    subject: "PHC",
+    plannedFocusSeconds: 25 * 60,
+    verifiedFocusSeconds: null,
+    startedAt: "2026-10-02T15:17:00.000Z",
+    terminalAt: "2026-10-02T15:22:00.000Z",
+    points: null,
+    resourceLaunchCount: 1,
+    uniqueResourceCount: 1,
+  },
+  {
+    sessionId: "c5bb5108-f52e-4b28-868d-f9732e74be4a",
+    status: "ABANDONED",
+    planId: fixturePlan.id,
+    planTitle: "Focus",
+    planStatus: "ACTIVE",
+    planItemId: fixturePlan.items[0].id,
+    lectureId: "b98f08e1-b9a2-4f75-9b7c-33e7eaa32f61",
+    lectureTitle: "PHC.TBL",
+    subject: "PHC",
+    plannedFocusSeconds: 25 * 60,
+    verifiedFocusSeconds: null,
+    startedAt: "2026-10-01T16:32:00.000Z",
+    terminalAt: "2026-10-01T16:39:00.000Z",
+    points: null,
+    resourceLaunchCount: 0,
+    uniqueResourceCount: 0,
+  },
+];
+
 function savePlan(input: FocusPlanInput): FocusPlanRecord {
   planCounter += 1;
   plan = {
@@ -153,5 +244,13 @@ export const focusApi: FocusApi = {
       status: "ACTIVE",
     };
     return { session: currentSession };
+  },
+  async listHistory(query = {}) {
+    const items = fixtureHistory.filter((row) =>
+      (!query.status || row.status === query.status)
+      && (!query.subject || row.subject === query.subject)
+      && (!query.lectureId || row.lectureId === query.lectureId),
+    );
+    return { items, nextCursor: null, limit: query.limit ?? 20 };
   },
 };

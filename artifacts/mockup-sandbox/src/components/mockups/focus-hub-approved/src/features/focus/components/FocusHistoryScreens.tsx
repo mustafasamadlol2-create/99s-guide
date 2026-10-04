@@ -1,5 +1,329 @@
-export function FocusHistoryScreen(_props: any) {
-  return null;
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, BookOpen, Clock3, History } from "lucide-react";
+import type { DatabaseLecture, Subject } from "../../../core/types";
+import { useTranslation, type Language } from "../../../core/i18n/translations";
+import type { FocusHistoryPageDto, FocusHistoryRowDto } from "../api/focusApi";
+import { focusApi } from "../api/focusApi";
+
+const TERMINAL_STATUSES = new Set(["COMPLETED", "ABANDONED", "EXPIRED"]);
+const HISTORY_STATUSES = [
+  ["COMPLETED", "focusHistoryCompleted"],
+  ["ABANDONED", "focusHistoryAbandoned"],
+  ["EXPIRED", "focusHistoryExpired"],
+  ["ACTIVE", "focusHistoryActive"],
+  ["PAUSED", "focusHistoryPaused"],
+  ["RESOURCE_HANDOFF", "focusHistoryResourceHandoff"],
+  ["RECONCILIATION_REQUIRED", "focusHistoryReconciliation"],
+  ["CREATED", "focusHistoryCreated"],
+] as const;
+
+function formatDuration(seconds: number, language: Language, minuteLabel: string, hourLabel: string): string {
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const number = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 0 }).format(value);
+  if (hours > 0 && rest > 0) return `${number(hours)} ${hourLabel} ${number(rest)} ${minuteLabel}`;
+  if (hours > 0) return `${number(hours)} ${hourLabel}`;
+  return `${number(minutes)} ${minuteLabel}`;
+}
+
+function statusTranslationKey(status: string): (typeof HISTORY_STATUSES)[number][1] {
+  return HISTORY_STATUSES.find(([value]) => value === status)?.[1] ?? "focusHistoryCreated";
+}
+
+function dateLabel(value: string | null, language: Language): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function PageBackButton({
+  language,
+  label,
+  onClick,
+}: {
+  language: Language;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-history-back inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-slate-300 dark:hover:bg-white/10"
+    >
+      {language === "ar"
+        ? <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        : <ArrowLeft className="h-4 w-4" aria-hidden="true" />}
+      {label}
+    </button>
+  );
+}
+
+export function FocusHistoryScreen({
+  language,
+  lectures,
+  subjects,
+  onBack,
+  onOpenSession,
+  onOpenSummary,
+}: {
+  language: Language;
+  lectures: DatabaseLecture[];
+  subjects: Subject[];
+  onBack: () => void;
+  onOpenSession: (sessionId: string) => void;
+  onOpenSummary: (sessionId: string) => void;
+}) {
+  const rtl = language === "ar";
+  const { t } = useTranslation(language);
+  const [rows, setRows] = useState<FocusHistoryRowDto[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [subject, setSubject] = useState("");
+  const [lectureId, setLectureId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  const subjectOptions = useMemo(() => {
+    const codes = new Set(lectures.map((lecture) => lecture.mainSubject).filter(Boolean));
+    return subjects
+      .filter((item) => codes.has(item.id))
+      .map((item) => ({ id: item.id, name: item.name }))
+      .sort((left, right) => left.name.localeCompare(right.name, language));
+  }, [lectures, language, subjects]);
+  const lectureOptions = useMemo(
+    () => lectures
+      .filter((lecture) => !subject || lecture.mainSubject === subject)
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name, language)),
+    [lectures, language, subject],
+  );
+
+  useEffect(() => {
+    let current = true;
+    setLoading(true);
+    setError(false);
+    setCursor(null);
+    setRows([]);
+    focusApi.listHistory({
+      limit: 20,
+      ...(status ? { status } : {}),
+      ...(subject ? { subject } : {}),
+      ...(lectureId ? { lectureId } : {}),
+    }).then((page) => {
+      if (!current) return;
+      setRows(page.items);
+      setCursor(page.nextCursor);
+    }).catch(() => {
+      if (current) setError(true);
+    }).finally(() => {
+      if (current) setLoading(false);
+    });
+    return () => {
+      current = false;
+    };
+  }, [lectureId, retry, status, subject]);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  const loadMore = async () => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    setError(false);
+    try {
+      const page: FocusHistoryPageDto = await focusApi.listHistory({
+        limit: 20,
+        cursor,
+        ...(status ? { status } : {}),
+        ...(subject ? { subject } : {}),
+        ...(lectureId ? { lectureId } : {}),
+      });
+      setRows((previous) => [...previous, ...page.items]);
+      setCursor(page.nextCursor);
+    } catch {
+      setError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const statusLabel = (value: string) => t(statusTranslationKey(value));
+  const minute = t("focusHubMinShort");
+  const hour = language === "ar" ? "س" : "h";
+
+  return (
+    <section dir={rtl ? "rtl" : "ltr"} aria-labelledby="focus-history-title" className="focus-history-page">
+      <div className="focus-history-content">
+        <PageBackButton language={language} label={t("focusSummaryBack")} onClick={onBack} />
+        <header className="focus-history-hero mt-4 rounded-[28px] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-[#e4f1f5] px-5 py-7 text-slate-900 shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-white sm:px-8 sm:py-9">
+          <div className="focus-history-hero-content flex items-center gap-3">
+            <span className="focus-history-hero-icon flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/75 text-sky-800 dark:border-white/15 dark:bg-white/10 dark:text-sky-100">
+              <History className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h1 ref={headingRef} tabIndex={-1} id="focus-history-title" className="focus-history-heading text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl">{t("focusHistoryTitle")}</h1>
+              <p className="focus-history-subtitle mt-1 text-sm text-slate-600 dark:text-slate-300">{t("focusHistorySubtitle")}</p>
+            </div>
+          </div>
+        </header>
+
+        <section aria-label={t("focusHistoryTitle")} className="focus-history-filters mt-5 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#17191f] sm:p-6">
+          <div className="focus-history-filter-grid grid gap-3 sm:grid-cols-3">
+            <label className="focus-history-filter-label block text-sm font-medium text-slate-700 dark:text-slate-200">
+              {t("focusHistoryStatus")}
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                className="focus-history-select mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              >
+                <option value="">{t("focusHistoryAll")}</option>
+                {HISTORY_STATUSES.map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
+              </select>
+            </label>
+            <label className="focus-history-filter-label block text-sm font-medium text-slate-700 dark:text-slate-200">
+              {t("focusHistorySubject")}
+              <select
+                value={subject}
+                onChange={(event) => {
+                  setSubject(event.target.value);
+                  setLectureId("");
+                }}
+                className="focus-history-select mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              >
+                <option value="">{t("focusHistoryAll")}</option>
+                {subjectOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="focus-history-filter-label block text-sm font-medium text-slate-700 dark:text-slate-200">
+              {t("focusHistoryLecture")}
+              <select
+                value={lectureId}
+                onChange={(event) => setLectureId(event.target.value)}
+                className="focus-history-select mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/15 dark:bg-[#20232b] dark:text-white"
+              >
+                <option value="">{t("focusHistoryAll")}</option>
+                {lectureOptions.map((lecture) => <option key={lecture.id} value={lecture.id}>{lecture.name}</option>)}
+              </select>
+            </label>
+          </div>
+
+          {loading ? (
+            <div role="status" aria-busy="true" className="focus-history-loading mt-5 space-y-3">
+              <div className="focus-history-skeleton h-24 motion-safe:animate-pulse rounded-2xl bg-slate-100 dark:bg-white/[0.06]" />
+              <div className="focus-history-skeleton h-24 motion-safe:animate-pulse rounded-2xl bg-slate-100 dark:bg-white/[0.06]" />
+            </div>
+          ) : error && rows.length === 0 ? (
+            <div className="focus-history-error-box mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-300/15 dark:bg-rose-200/[0.06] dark:text-rose-100">
+              <p role="alert" className="text-sm">{t("focusHistoryError")}</p>
+              <button type="button" onClick={() => setRetry((value) => value + 1)} className="focus-history-retry mt-3 min-h-11 rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 dark:border-rose-200/20 dark:bg-white/[0.04]">
+                {t("focusHistoryRetry")}
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p role="status" className="focus-history-empty mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-white/15 dark:text-slate-300">
+              {t("focusHistoryEmpty")}
+            </p>
+          ) : (
+            <ol className="focus-history-rows mt-5 space-y-3">
+              {rows.map((row) => (
+                <li key={row.sessionId}>
+                  <HistoryRow
+                    row={row}
+                    language={language}
+                    subjectLabel={subjects.find((item) => item.id === row.subject)?.name ?? row.subject}
+                    statusLabel={statusLabel(row.status)}
+                    formatPlanned={formatDuration(row.plannedFocusSeconds, language, minute, hour)}
+                    onClick={() => TERMINAL_STATUSES.has(row.status)
+                      ? onOpenSummary(row.sessionId)
+                      : onOpenSession(row.sessionId)}
+                  />
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {error && rows.length > 0 && (
+            <p role="alert" className="focus-history-inline-error mt-4 text-sm text-rose-700 dark:text-rose-200">{t("focusHistoryError")}</p>
+          )}
+          {cursor && !loading && (
+            <button
+              type="button"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+              className="focus-history-more mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60 dark:border-white/15 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.07]"
+            >
+              {loadingMore && <span className="size-4 motion-safe:animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />}
+              {loadingMore ? t("focusHistoryLoadingMore") : t("focusHistoryLoadMore")}
+            </button>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function HistoryRow({
+  row,
+  language,
+  subjectLabel,
+  statusLabel,
+  formatPlanned,
+  onClick,
+}: {
+  row: FocusHistoryRowDto;
+  language: Language;
+  subjectLabel: string;
+  statusLabel: string;
+  formatPlanned: string;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation(language);
+  const verified = row.verifiedFocusSeconds === null
+    ? null
+    : formatDuration(row.verifiedFocusSeconds, language, t("focusHubMinShort"), language === "ar" ? "س" : "h");
+  const stamp = dateLabel(row.startedAt, language);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-history-row group flex min-h-[92px] w-full items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-start transition hover:border-sky-300 hover:bg-sky-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-sky-300/30 dark:hover:bg-sky-200/[0.04] sm:items-center sm:p-5"
+    >
+      <span className="focus-history-row-content flex min-w-0 items-start gap-3">
+        <span className="focus-history-row-icon mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800 dark:bg-sky-300/10 dark:text-sky-200">
+          <BookOpen className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <span className="focus-history-row-copy min-w-0">
+          <span className="focus-history-row-title block truncate font-semibold text-slate-950 dark:text-white" dir="auto">{row.lectureTitle}</span>
+          <span className="focus-history-row-subtitle mt-1 block truncate text-sm text-slate-600 dark:text-slate-300" dir="auto">{row.planTitle} · {subjectLabel}</span>
+          <span className="focus-history-meta mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <span className="focus-history-status">{statusLabel}</span>
+            {stamp && <span className="focus-history-date inline-flex items-center gap-1"><Clock3 className="h-3 w-3" aria-hidden="true" />{stamp}</span>}
+            <span className="focus-history-meta-value">{t("focusSummaryPlanned")}: <bdi dir="ltr">{formatPlanned}</bdi></span>
+            {verified !== null && <span className="focus-history-meta-value">{t("focusSummaryVerified")}: <bdi dir="ltr">{verified}</bdi></span>}
+            {row.points !== null && <span className="focus-history-meta-value">{t("focusSummaryPoints")}: <bdi dir="ltr">{row.points}</bdi></span>}
+            {row.resourceLaunchCount > 0 && (
+              <span className="focus-history-meta-value">{t("focusHistoryResourceLaunches")}: <bdi dir="ltr">{row.resourceLaunchCount}</bdi></span>
+            )}
+          </span>
+        </span>
+      </span>
+      <span className="focus-history-row-arrow mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sky-800 transition group-hover:bg-sky-100 dark:text-sky-200 dark:group-hover:bg-white/10 sm:mt-0">
+        {language === "ar"
+          ? <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+      </span>
+    </button>
+  );
 }
 
 export function FocusSessionSummaryScreen(_props: any) {

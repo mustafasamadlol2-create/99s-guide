@@ -47,12 +47,14 @@ const refreshLectures = async () => {};
 export function Current() {
   const [dark, setDark] = useState(false);
   const [language, setLanguage] = useState<"en" | "ar">("en");
+  const [historyView, setHistoryView] = useState(false);
   const [useViewportShell, setUseViewportShell] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setDark(params.get("theme") === "dark");
     setLanguage(params.get("lang") === "ar" ? "ar" : "en");
+    setHistoryView(params.get("view") === "history");
     const updateViewportShell = () => {
       setUseViewportShell(window.matchMedia("(min-width: 768px)").matches);
     };
@@ -75,7 +77,7 @@ export function Current() {
             catalogStatus="ready"
             sessionRouteId={null}
             summaryRouteId={null}
-            historyOpen={false}
+            historyOpen={historyView}
             historyDetailId={null}
             onRefreshLectures={refreshLectures}
             onBackToHome={noOperation}
