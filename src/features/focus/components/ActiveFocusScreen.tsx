@@ -366,6 +366,10 @@ function ActiveFocusScreenCore({
     runtime.session?.status !== "RECONCILIATION_REQUIRED" &&
     !isRuntimeBusy,
   );
+  const visibleActionError = actionError ??
+    (runtime.error && runtime.runtimeStatus !== "OFFLINE_STALE"
+      ? t.focusActiveActionError
+      : null);
   useEffect(() => {
     if (!canonicalSession) return;
     setPlanLoad({ status: "loading" });
@@ -855,7 +859,7 @@ function ActiveFocusScreenCore({
                 {t.focusActiveManualLecture}
               </p>
             )}
-            {actionError && <p className="mt-3 text-sm text-destructive" role="alert">{actionError}</p>}
+            {visibleActionError && <p className="mt-3 text-sm text-destructive" role="alert">{visibleActionError}</p>}
             {!online && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">{t.focusActiveOffline}</p>}
           </section>
 
@@ -1244,20 +1248,15 @@ function ActiveFocusScreenCore({
 
           </section>
 
-          {actionError && (
+          {visibleActionError && (
             <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
               <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>{actionError}</span>
+              <span>{visibleActionError}</span>
             </div>
           )}
           {resourceError && (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
               {t.focusActiveResourceError}
-            </div>
-          )}
-          {runtime.error && runtime.runtimeStatus !== "OFFLINE_STALE" && (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-              {t.focusActiveActionError}
             </div>
           )}
         </div>
