@@ -1123,37 +1123,38 @@ export function FocusHub({
           aria-label={t("focusHubStart")}
           className="focus-hub-actions order-6 min-w-0 rounded-[24px] border border-sky-100 bg-white/90 p-4 shadow-[0_10px_30px_rgba(46,104,158,0.06)] dark:border-white/10 dark:bg-[#17191f] sm:p-5 md:col-start-1 md:row-start-5"
         >
-          <button
-            type="button"
-            onClick={() => {
-              if (currentSession) onOpenSession(currentSession.id);
-              else void startFocus();
-            }}
-            disabled={currentSession ? false : !canStart}
-            className="focus-hub-start-button flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
-          >
-            <Play className="size-5 fill-current" aria-hidden="true" />
-            {currentSession
-              ? t("focusHubResume")
-              : starting
-                ? <span aria-live="polite">{t("focusHubStarting")}</span>
-                : t("focusHubStart")}
-          </button>
+          <div className="focus-hub-action-row">
+            <button
+              type="button"
+              onClick={() => {
+                if (currentSession) onOpenSession(currentSession.id);
+                else void startFocus();
+              }}
+              disabled={currentSession ? false : !canStart}
+              className="focus-hub-start-button flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
+            >
+              <Play className="size-5 fill-current" aria-hidden="true" />
+              {currentSession
+                ? t("focusHubResume")
+                : starting
+                  ? <span aria-live="polite">{t("focusHubStarting")}</span>
+                  : t("focusHubStart")}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              aria-label={t("focusHubHistory")}
+              className="focus-hub-history-button inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-sky-200 dark:hover:bg-white/[0.06]"
+            >
+              <Clock3 className="focus-hub-history-icon size-4 shrink-0" aria-hidden="true" />
+              <span className="focus-hub-history-label">{t("focusHubHistory")}</span>
+            </button>
+          </div>
           {!currentSession && !draft.items.length && (
             <p className="focus-hub-no-queue-hint mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
               {t("focusHubAddAtLeastOne")}
             </p>
           )}
-          <div className="focus-hub-action-links mt-3 flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={onOpenHistory}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-sky-200 dark:hover:bg-white/[0.06]"
-            >
-              <Clock3 className="size-4" aria-hidden="true" />
-              {t("focusHubHistory")}
-            </button>
-          </div>
         </section>
         </div>
 
