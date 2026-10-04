@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   BookOpen,
@@ -476,7 +477,11 @@ function ActiveFocusScreenCore({
   }, [confirmType]);
 
   const notifyOtherTabs = () => {
-    channelRef.current?.postMessage({ type: "focus-state-changed" });
+    try {
+      channelRef.current?.postMessage({ type: "focus-state-changed" });
+    } catch {
+      // Cross-tab notification is best-effort and must not undo a server action.
+    }
   };
 
   const perform = async (
@@ -549,15 +554,55 @@ function ActiveFocusScreenCore({
   const handleAbandon = () => {
     if (!controller || !mayChangeSession) return;
     setConfirmType(null);
-    void perform(
-      () => controller.abandon(),
-      async (value) => {
-        setTerminalResult(value as FocusSessionMutationResult);
-        setProgression(null);
-        setLocalBreak(null);
-        notifyAudioSafely(() => audio?.onFocusAbandoned());
-      },
-    );
+    setActionError(null);
+    setActionPending(true);
+
+    const finishAbandonment = (result: FocusSessionMutationResult) => {
+      setTerminalResult(result);
+      setProgression(null);
+      setLocalBreak(null);
+      notifyAudioSafely(() => audio?.onFocusAbandoned());
+      notifyOtherTabs();
+    };
+
+    void (async () => {
+      try {
+        const result = await controller.abandon();
+        finishAbandonment(result);
+      } catch {
+        let reconciled = false;
+        try {
+          await controller.reconcile();
+          reconciled = true;
+        } catch {
+          // The action may have committed even if the follow-up check is unavailable.
+        }
+
+        const state = controller.getState();
+        const committedAbandon = state.lastMutationResult?.session.id === sessionRouteId &&
+          state.lastMutationResult.session.status === "ABANDONED"
+          ? state.lastMutationResult
+          : null;
+        if (committedAbandon) {
+          finishAbandonment(committedAbandon);
+          return;
+        }
+
+        if (
+          reconciled &&
+          state.sessionAuthority === "CANONICAL" &&
+          (!state.session || state.session.id !== sessionRouteId)
+        ) {
+          notifyOtherTabs();
+          leaveForPlanner();
+          return;
+        }
+
+        setActionError(t.focusActiveActionError);
+      } finally {
+        setActionPending(false);
+      }
+    })();
   };
 
   const handleStartNext = () => {
@@ -892,6 +937,7 @@ function ActiveFocusScreenCore({
           <ConfirmationDialog
             type={confirmType}
             t={t}
+            direction={language === "ar" ? "rtl" : "ltr"}
             dialogRef={dialogRef}
             cancelRef={dialogCancelRef}
             onCancel={() => setConfirmType(null)}
@@ -1373,6 +1419,7 @@ function ActiveFocusScreenCore({
         <ConfirmationDialog
           type={confirmType}
           t={t}
+          direction={language === "ar" ? "rtl" : "ltr"}
           dialogRef={dialogRef}
           cancelRef={dialogCancelRef}
           onCancel={() => setConfirmType(null)}
@@ -1646,6 +1693,7 @@ function TerminalHandoff({
 function ConfirmationDialog({
   type,
   t,
+  direction,
   dialogRef,
   cancelRef,
   onCancel,
@@ -1653,6 +1701,7 @@ function ConfirmationDialog({
 }: {
   type: "end" | "exit";
   t: ActiveFocusCopy;
+  direction: "rtl" | "ltr";
   dialogRef: React.RefObject<HTMLDivElement | null>;
   cancelRef: React.RefObject<HTMLButtonElement | null>;
   onCancel: () => void;
@@ -1662,8 +1711,25 @@ function ConfirmationDialog({
   const body = type === "end" ? t.focusActiveEndBody : t.focusActiveExitBody;
   const confirmText = type === "end" ? t.focusActiveEndConfirm : t.focusActiveLeave;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/35 px-3 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-[3px] sm:items-center sm:px-6 sm:py-6">
+  useEffect(() => {
+    const scrollRoot = document.getElementById("main-scroll-canvas");
+    if (!scrollRoot) return;
+
+    const previousOverflowY = scrollRoot.style.overflowY;
+    const previousOverscrollBehaviorY = scrollRoot.style.overscrollBehaviorY;
+    scrollRoot.style.overflowY = "hidden";
+    scrollRoot.style.overscrollBehaviorY = "none";
+
+    return () => {
+      scrollRoot.style.overflowY = previousOverflowY;
+      scrollRoot.style.overscrollBehaviorY = previousOverscrollBehaviorY;
+    };
+  }, []);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div dir={direction} className="fixed inset-0 z-[100] flex items-end justify-center overscroll-none bg-slate-950/35 px-3 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-[3px] sm:items-center sm:px-6 sm:py-6">
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -1703,6 +1769,7 @@ function ConfirmationDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

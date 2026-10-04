@@ -27,3 +27,4 @@
 - [Focus active-session visuals](focus-active-session-visuals.md) — keep confirmations legible, safe-area-aware, and iOS-inspired without changing session behavior.
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
 - [Focus Audio local-only rule](focus-audio-local-only.md) — selected audio is limited to the current app session; never upload or persist it.
+- [Focus post-commit recovery](focus-post-commit-recovery.md) — reconcile canonical session state when client handling fails after a mutation may have committed.

@@ -148,7 +148,12 @@ function session(value: unknown): FocusSessionDto {
   booleanField(item.isLastPlannedSession, "isLastPlannedSession");
   booleanField(item.completionEligible, "completionEligible");
   booleanField(item.reconciliationRequired, "reconciliationRequired");
-  stringField(item.completionReason, "completionReason", { nullable: true });
+  if (
+    item.completionReason !== null &&
+    (typeof item.completionReason !== "string" || !item.completionReason.trim())
+  ) {
+    throw protocol("Invalid Focus completion reason.");
+  }
   return item as unknown as FocusSessionDto;
 }
 

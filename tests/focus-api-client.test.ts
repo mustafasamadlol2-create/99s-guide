@@ -53,6 +53,29 @@ test("Focus session API sends canonical routes, bodies, and request policy", asy
   assert.deepEqual(JSON.parse(String(calls[3].options.body)), { idempotencyKey: "complete-key" });
 });
 
+test("Focus abandonment accepts the committed terminal response", async () => {
+  const calls: Array<{ path: string; options: FocusApiRequestOptions }> = [];
+  const api = createFocusApi(async (path, options = {}) => {
+    calls.push({ path: String(path), options });
+    return response({
+      session: {
+        ...session("ABANDONED"),
+        actualEndedAt: now,
+        completionReason: "USER_ABANDONED",
+      },
+      idempotency: "FIRST_SEEN",
+    });
+  });
+
+  const result = await api.abandonFocusSession(id, { idempotencyKey: "abandon-key" });
+
+  assert.equal(result.session.status, "ABANDONED");
+  assert.equal(calls[0].path, `/api/focus/sessions/${id}/abandon`);
+  assert.deepEqual(JSON.parse(String(calls[0].options.body)), {
+    idempotencyKey: "abandon-key",
+  });
+});
+
 test("current-session request keys are unique across API instances", async () => {
   const keys: string[] = [];
   const request = async (_path: RequestInfo | URL, options: FocusApiRequestOptions = {}) => {
