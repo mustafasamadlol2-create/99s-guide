@@ -97,7 +97,11 @@ export function FocusAudioPlanningCard({
         </div>
       </div>
 
-      <div className="focus-audio-source">
+      <div
+        className={`focus-audio-source min-w-0 ${
+          plannerPresentation ? "" : "flex items-start gap-3"
+        }`}
+      >
         <img
           src={artworkUrl}
           alt=""
@@ -108,12 +112,22 @@ export function FocusAudioPlanningCard({
             }
           }}
           className={`focus-audio-artwork ${
+            plannerPresentation
+              ? ""
+              : "h-28 w-28 shrink-0 rounded-2xl border border-slate-200/80 object-cover shadow-sm dark:border-white/10"
+          } ${
             !audio.userAudioArtworkUrl || failedArtworkUrl === audio.userAudioArtworkUrl
               ? "focus-audio-artwork-fallback"
               : ""
           }`}
         />
-        <div className="focus-audio-source-details">
+        <div
+          className={`focus-audio-source-details min-w-0 ${
+            plannerPresentation
+              ? ""
+              : "flex flex-1 flex-col justify-center gap-2 rounded-xl border border-slate-200/80 bg-white/55 p-3 dark:border-white/10 dark:bg-white/[0.025]"
+          }`}
+        >
           <p
             className="focus-audio-source-name truncate text-sm font-medium text-slate-800 dark:text-slate-100"
             dir="auto"

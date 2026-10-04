@@ -508,6 +508,14 @@ function ActiveFocusScreenCore({
     );
   };
 
+  const handleReconcile = () => {
+    if (!controller || !online || isRuntimeBusy) return;
+    setActionError(null);
+    void controller.reconcile().catch(() => {
+      setActionError(t.focusActiveActionError);
+    });
+  };
+
   const handleComplete = () => {
     if (!controller || !mayChangeSession || runtime.completionEligible !== true) return;
     void perform(
@@ -741,7 +749,8 @@ function ActiveFocusScreenCore({
           {!forbiddenOrMissing && (
             <button
               type="button"
-              onClick={() => void controller.reconcile()}
+              disabled={!online || isRuntimeBusy}
+              onClick={handleReconcile}
               className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <RefreshCw className="size-4" aria-hidden="true" />
@@ -902,7 +911,7 @@ function ActiveFocusScreenCore({
           <button
             type="button"
             onClick={() => onOpenSummary(localTerminalResult.session.id)}
-            className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
+            className="min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
           >
             {t.focusSummaryTitle}
           </button>
@@ -917,13 +926,14 @@ function ActiveFocusScreenCore({
         language={language}
         title={t.focusActiveAbandonedTitle}
         body={t.focusActiveAbandonedBody}
+        tone="notice"
         onReturn={() => void leaveForPlanner()}
       >
         <>
           <button
             type="button"
             onClick={() => onOpenSummary(localTerminalResult.session.id)}
-            className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
+            className="min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
           >
             {t.focusSummaryTitle}
           </button>
@@ -953,7 +963,7 @@ function ActiveFocusScreenCore({
             <button
               type="button"
               onClick={() => onOpenSummary(completedRoute.context.sessionId)}
-              className="mb-4 min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
+              className="min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
             >
               {t.focusSummaryTitle}
             </button>
@@ -966,6 +976,7 @@ function ActiveFocusScreenCore({
         language={language}
         title={t.focusActiveNotCurrentTitle}
         body={t.focusActiveNotCurrentBody}
+        tone="notice"
         onReturn={() => void leaveForPlanner()}
       />
     );
@@ -1046,7 +1057,8 @@ function ActiveFocusScreenCore({
           <span>{t.focusActiveStatusOffline}</span>
           <button
             type="button"
-            onClick={() => void controller.reconcile()}
+            disabled={!online || isRuntimeBusy}
+            onClick={handleReconcile}
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-current px-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <RefreshCw className="size-4" aria-hidden="true" />
@@ -1202,7 +1214,7 @@ function ActiveFocusScreenCore({
                 <button
                   type="button"
                   disabled={!online || isRuntimeBusy}
-                  onClick={() => void controller.reconcile()}
+                  onClick={handleReconcile}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <RefreshCw className="size-4" aria-hidden="true" />
@@ -1222,7 +1234,7 @@ function ActiveFocusScreenCore({
               <button
                 type="button"
                 disabled={!online || isRuntimeBusy}
-                onClick={() => void controller.reconcile()}
+                onClick={handleReconcile}
                 className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               >
                 <RefreshCw className="size-4" aria-hidden="true" />
@@ -1581,6 +1593,7 @@ function TerminalHandoff({
   language,
   title,
   body,
+  tone = "success",
   manualLectureCompletionRequired,
   onReturn,
   children,
@@ -1588,36 +1601,45 @@ function TerminalHandoff({
   language: Language;
   title: string;
   body: string;
+  tone?: "success" | "notice";
   manualLectureCompletionRequired?: boolean;
   onReturn: () => void;
   children?: React.ReactNode;
 }) {
   const t = useActiveFocusCopy(language);
+  const isSuccess = tone === "success";
+  const StatusIcon = isSuccess ? Check : CircleAlert;
   return (
     <div
       dir={language === "ar" ? "rtl" : "ltr"}
-      className={`mx-auto px-4 py-10 ${children ? "max-w-6xl" : "flex min-h-[70vh] max-w-3xl items-center"}`}
+      className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-8 sm:px-6"
     >
-      <div className={children ? "grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(300px,0.85fr)]" : "w-full"}>
-        <section className="w-full rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:p-10">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-sky-200 bg-white text-sky-800 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
-          <Check className="size-7" aria-hidden="true" />
+      <section className="w-full rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:p-10">
+        <span
+          className={`mx-auto flex size-14 items-center justify-center rounded-2xl border dark:border-white/10 dark:bg-white/[0.06] ${
+            isSuccess
+              ? "border-sky-200 bg-white text-sky-800 dark:text-sky-100"
+              : "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-200/[0.06] dark:text-amber-200"
+          }`}
+        >
+          <StatusIcon className="size-7" aria-hidden="true" />
         </span>
         <h1 className="mt-5 text-2xl font-bold text-[#173849] dark:text-white">{title}</h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{body}</p>
         {manualLectureCompletionRequired && (
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">{t.focusActiveManualLecture}</p>
         )}
-        <button
-          type="button"
-          onClick={onReturn}
-          className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-        >
-          {t.focusActiveReturn}
-        </button>
-        </section>
-        {children && <div className="min-w-0">{children}</div>}
-      </div>
+        <div className="mx-auto mt-7 flex w-full max-w-lg flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={onReturn}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:flex-1"
+          >
+            {t.focusActiveReturn}
+          </button>
+          {children && <div className="w-full sm:flex-1">{children}</div>}
+        </div>
+      </section>
     </div>
   );
 }

@@ -25,3 +25,4 @@
 - [Focus display behavior](focus-display-behavior.md) — keep visual phases and progress tied to persisted Focus data; don't imply unsupported long breaks or daily completion totals.
 - [Focus planner layout](focus-planner-layout.md) — preserve the two-column viewport; only the ~2-item queue list scrolls, with Audio aligned to plan actions.
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
+- [Focus Audio local-only rule](focus-audio-local-only.md) — selected audio is limited to the current app session; never upload or persist it.
