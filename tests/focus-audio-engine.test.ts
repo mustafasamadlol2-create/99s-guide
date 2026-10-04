@@ -115,6 +115,41 @@ test("selected filename and media source are available before optional artwork p
   fixture.engine.destroy();
 });
 
+test("late cover art from a replaced file cannot overwrite the current selection", async () => {
+  const fixture = setup();
+  const artFile = makeAudioFileWithArtwork("replaced-with-cover.mp3");
+  const header = await artFile.slice(0, 10).arrayBuffer();
+  const fullTag = await artFile.arrayBuffer();
+  let resolveTag!: (buffer: ArrayBuffer) => void;
+  const delayedFile = {
+    name: artFile.name,
+    type: artFile.type,
+    size: artFile.size,
+    slice: (_start?: number, end?: number) => ({
+      arrayBuffer: () => end === 10
+        ? Promise.resolve(header)
+        : new Promise<ArrayBuffer>((resolve) => {
+          resolveTag = resolve;
+        }),
+    }),
+  } as unknown as File;
+
+  await fixture.engine.selectUserAudio(delayedFile);
+  for (let attempt = 0; attempt < 10 && !resolveTag; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.equal(typeof resolveTag, "function");
+
+  await fixture.engine.selectUserAudio(makeAudioFile("current.mp3"));
+  resolveTag(fullTag);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fixture.engine.getSnapshot().userAudioDisplayName, "current.mp3");
+  assert.equal(fixture.engine.getSnapshot().userAudioArtworkUrl, undefined);
+  assert.equal(fixture.revoked.some((url) => url.startsWith("blob:artwork/")), false);
+  fixture.engine.destroy();
+});
+
 test("switching sources stops the prior source, revokes its URL, and never overlaps playback", async () => {
   const fixture = setup();
   await fixture.engine.selectUserAudio(makeAudioFile());
