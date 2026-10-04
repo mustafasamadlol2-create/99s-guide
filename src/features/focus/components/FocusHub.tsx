@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import "./focus-hub-approved.css";
 import {
-  ArrowDown,
-  ArrowUp,
   BarChart3,
   BookOpen,
   CalendarDays,
@@ -402,17 +400,6 @@ export function FocusHub({
           : item,
       ),
     }));
-  };
-
-  const reorderLecture = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= draft.items.length) return;
-    setNotice(null);
-    setDraft((previous) => {
-      const items = [...previous.items];
-      [items[index], items[nextIndex]] = [items[nextIndex], items[index]];
-      return { ...previous, items };
-    });
   };
 
   const removeLecture = (lectureId: string) => {
@@ -1013,24 +1000,6 @@ export function FocusHub({
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => reorderLecture(index, -1)}
-                            disabled={!canEdit || index === 0}
-                            aria-label={`${t("focusHubMoveUp")}: ${lecture?.name ?? ""}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
-                          >
-                            <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => reorderLecture(index, 1)}
-                            disabled={!canEdit || index === draft.items.length - 1}
-                            aria-label={`${t("focusHubMoveDown")}: ${lecture?.name ?? ""}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-30 dark:text-slate-300 dark:hover:bg-white/10"
-                          >
-                            <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                          </button>
                           <button
                             type="button"
                             onClick={() => removeLecture(item.lectureId)}
