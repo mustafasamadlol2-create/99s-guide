@@ -24,5 +24,6 @@
 - [Maintenance CLI environment detection](maintenance-cli-env-detection.md) — treat empty runtime variables as unset; the development shell may expose `NODE_ENV` as an empty string.
 - [Focus display behavior](focus-display-behavior.md) — keep visual phases and progress tied to persisted Focus data; don't imply unsupported long breaks or daily completion totals.
 - [Focus planner layout](focus-planner-layout.md) — preserve the two-column viewport; only the ~2-item queue list scrolls, with Audio aligned to plan actions.
+- [Focus active-session visuals](focus-active-session-visuals.md) — keep confirmations legible, safe-area-aware, and iOS-inspired without changing session behavior.
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
 - [Focus Audio local-only rule](focus-audio-local-only.md) — selected audio is limited to the current app session; never upload or persist it.

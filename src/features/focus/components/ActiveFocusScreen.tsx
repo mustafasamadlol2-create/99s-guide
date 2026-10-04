@@ -1663,33 +1663,40 @@ function ConfirmationDialog({
   const confirmText = type === "end" ? t.focusActiveEndConfirm : t.focusActiveLeave;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/35 px-3 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-[3px] sm:items-center sm:px-6 sm:py-6">
       <div
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="focus-active-dialog-title"
         aria-describedby="focus-active-dialog-description"
-        className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6"
+        className="max-h-[calc(100dvh-3rem)] w-full max-w-[28rem] overflow-y-auto overscroll-contain rounded-[28px] border border-white/70 bg-white/95 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.24)] backdrop-blur-xl dark:border-white/10 dark:bg-[#17191f]/95 dark:shadow-[0_28px_90px_rgba(0,0,0,0.55)] sm:p-6"
       >
-        <h2 id="focus-active-dialog-title" className="text-lg font-semibold text-foreground">{title}</h2>
-        <p id="focus-active-dialog-description" className="mt-2 text-sm text-muted-foreground">{body}</p>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-300/80 dark:bg-white/20 sm:hidden" aria-hidden="true" />
+        <div className="min-w-0">
+          <h2 id="focus-active-dialog-title" className="text-lg font-semibold leading-6 tracking-tight text-slate-950 dark:text-white">
+            {title}
+          </h2>
+          <p id="focus-active-dialog-description" className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {body}
+          </p>
+        </div>
+        <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="min-h-11 rounded-xl border border-border px-4 font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-100/90 px-4 py-2 text-center text-sm font-semibold leading-5 text-slate-700 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-white/10 dark:bg-white/[0.07] dark:text-slate-100 dark:hover:bg-white/[0.12] dark:focus-visible:ring-offset-[#17191f]"
           >
             {type === "end" ? t.focusActiveCancel : t.focusActiveStay}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`min-h-11 rounded-xl px-4 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`min-h-12 w-full min-w-0 rounded-2xl px-4 py-2 text-center text-sm font-semibold leading-5 text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#17191f] ${
               type === "end"
-                ? "bg-destructive text-destructive-foreground"
-                : "bg-primary text-primary-foreground"
+                ? "bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+                : "bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400"
             }`}
           >
             {confirmText}
