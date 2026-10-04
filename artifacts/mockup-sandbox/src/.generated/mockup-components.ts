@@ -2,6 +2,7 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/focus-hub-approved/Current.tsx": () => import("../components/mockups/focus-hub-approved/Current.tsx"),
+  "./components/mockups/focus-hub-baseline/Current.tsx": () => import("../components/mockups/focus-hub-baseline/Current.tsx"),
   "./components/mockups/focus-redesign/AiryFocus.tsx": () => import("../components/mockups/focus-redesign/AiryFocus.tsx"),
   "./components/mockups/focus-redesign/Current.tsx": () => import("../components/mockups/focus-redesign/Current.tsx"),
   "./components/mockups/focus-refresh/Current.tsx": () => import("../components/mockups/focus-refresh/Current.tsx"),
@@ -10,7 +11,6 @@ export const modules: ModuleMap = {
   "./components/mockups/focus-refresh/FocusLecturePicker.tsx": () => import("../components/mockups/focus-refresh/FocusLecturePicker.tsx"),
   "./components/mockups/focus-refresh/FocusVisuals.tsx": () => import("../components/mockups/focus-refresh/FocusVisuals.tsx"),
   "./components/mockups/focus-refresh/RouteScreens.tsx": () => import("../components/mockups/focus-refresh/RouteScreens.tsx"),
-  "./components/mockups/focus-hub-baseline/Current.tsx": () => import("../components/mockups/focus-hub-baseline/Current.tsx"),
   "./components/mockups/focus-hub-approved/src/features/focus-audio/provider.tsx": () => import("../components/mockups/focus-hub-approved/src/features/focus-audio/provider.tsx"),
   "./components/mockups/focus-hub-baseline/src/features/focus-audio/provider.tsx": () => import("../components/mockups/focus-hub-baseline/src/features/focus-audio/provider.tsx"),
   "./components/mockups/focus-hub-approved/src/features/focus/components/ActiveFocusScreen.tsx": () => import("../components/mockups/focus-hub-approved/src/features/focus/components/ActiveFocusScreen.tsx"),

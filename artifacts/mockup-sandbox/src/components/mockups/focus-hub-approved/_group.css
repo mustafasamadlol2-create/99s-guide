@@ -1427,6 +1427,9 @@
     border-color: rgba(148, 174, 207, 0.16) !important; border-radius: 13px !important;
     background: rgba(237, 241, 247, 0.88) !important; color: #243650 !important;
   }
+  .focus-hub-current-root .focus-hub-session-count input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  .focus-hub-current-root .focus-hub-session-count input[type="number"]::-webkit-inner-spin-button,
+  .focus-hub-current-root .focus-hub-session-count input[type="number"]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
   .dark .focus-hub-current-root .focus-hub-session-count input { border-color: rgba(134, 164, 204, 0.13) !important; background: rgba(8, 22, 42, 0.66) !important; color: #edf4ff !important; }
   .focus-hub-current-root .focus-hub-session-count input[aria-invalid="true"] { border-color: rgba(225, 74, 87, 0.72) !important; background: rgba(255, 244, 244, 0.9) !important; }
   .dark .focus-hub-current-root .focus-hub-session-count input[aria-invalid="true"] { background: rgba(103, 30, 43, 0.26) !important; }

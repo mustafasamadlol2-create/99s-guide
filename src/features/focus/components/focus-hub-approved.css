@@ -1100,6 +1100,17 @@
     color: #243650 !important;
   }
 
+  .focus-hub-current-root .focus-hub-session-count input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .focus-hub-current-root .focus-hub-session-count input[type="number"]::-webkit-inner-spin-button,
+  .focus-hub-current-root .focus-hub-session-count input[type="number"]::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
   .dark .focus-hub-current-root .focus-hub-session-count input {
     border-color: rgba(134, 164, 204, 0.13) !important;
     background: rgba(8, 22, 42, 0.66) !important;
