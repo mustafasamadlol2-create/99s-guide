@@ -16,3 +16,9 @@ For a five-metric plan summary, use a single row only when each label and value 
 **Why:** a five-column layout became cramped on iPad, and an inherited viewport rule initially forced four columns on desktop.
 
 **How to apply:** inspect both the app and extracted-preview styles, scope overrides to the Focus summary, and verify desktop, iPad, and phone widths.
+
+For per-lecture session counts, keep the custom plus/minus controls and hide the browser’s native number-input spinners. Preserve the separate lecture reorder controls unless the user explicitly asks to remove them.
+
+**Why:** the user clarified that the unwanted up/down arrows were inside the session-count field, not the queue reorder buttons.
+
+**How to apply:** scope spinner suppression to `.focus-hub-session-count input[type="number"]` in both the app and extracted preview; retain numeric input validation and the custom plus/minus handlers.
