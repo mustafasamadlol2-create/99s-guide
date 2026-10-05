@@ -1147,7 +1147,20 @@ export function FocusHub({
               aria-label={t("focusHubHistory")}
               className="focus-hub-history-button inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-sky-200 dark:hover:bg-white/[0.06]"
             >
-              <Clock3 className="focus-hub-history-icon size-4 shrink-0" aria-hidden="true" />
+              <svg
+                className="focus-hub-history-icon size-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7.8 4.4a8.1 8.1 0 1 1-3.6 5.8" />
+                <path d="M4.2 5.2v4.8H9" />
+                <path d="M10 9.5h4v5h-4z" />
+              </svg>
               <span className="focus-hub-history-label">{t("focusHubHistory")}</span>
             </button>
           </div>

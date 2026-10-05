@@ -1,5 +1,5 @@
-import { useRef, useState, type ChangeEvent } from "react";
-import { FolderOpen, Headphones, Pause, Play, Repeat2, Volume2 } from "lucide-react";
+import { useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { Headphones, Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { AUDIO_FILE_PICKER_ACCEPT } from "../../focus-audio/constants";
 import { useFocusAudio } from "../../focus-audio/hooks";
@@ -153,10 +153,12 @@ export function FocusAudioPlanningCard({
             type="button"
             onClick={() => audioFileInputRef.current?.click()}
             disabled={busy}
-            className="flex min-h-10 shrink-0 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-white/10"
+            className="focus-audio-choose-button flex min-h-10 shrink-0 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-white/10"
           >
-            {plannerPresentation && <FolderOpen className="focus-audio-picker-icon size-4" aria-hidden="true" />}
-            {selectingFile ? t("focusHubAudioLoading") : t("focusHubAudioChooseFile")}
+            {plannerPresentation && <Music2 className="focus-audio-picker-icon size-4" aria-hidden="true" />}
+            {selectingFile
+              ? t("focusHubAudioLoading")
+              : t(plannerPresentation ? "focusHubAudioChooseAudio" : "focusHubAudioChooseFile")}
           </button>
           <label className="focus-audio-volume flex min-h-10 items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
             <Volume2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
@@ -169,7 +171,10 @@ export function FocusAudioPlanningCard({
               value={audio.volume}
               onChange={(event) => audioContext.setVolume(Number(event.target.value))}
               aria-label={t("focusHubAudioVolume")}
-              className="h-2 min-w-0 flex-1 accent-sky-700"
+              className={`min-w-0 flex-1 ${
+                plannerPresentation ? "focus-audio-volume-slider h-7" : "h-2 accent-sky-700"
+              }`}
+              style={{ "--focus-audio-volume": `${audio.volume * 100}%` } as CSSProperties}
             />
             <output className="min-w-9 text-end text-xs tabular-nums text-slate-500 dark:text-slate-400">
               <bdi dir="ltr">{Math.round(audio.volume * 100)}%</bdi>
@@ -178,12 +183,16 @@ export function FocusAudioPlanningCard({
           <label className="focus-audio-loop flex min-h-10 items-center gap-2 rounded-xl border border-sky-100/80 bg-white/55 px-2.5 text-xs font-medium text-slate-700 dark:border-white/[0.07] dark:bg-white/[0.025] dark:text-slate-200 sm:border-0 sm:bg-transparent sm:px-1">
             <input
               type="checkbox"
+              role={plannerPresentation ? "switch" : undefined}
+              aria-checked={plannerPresentation ? audio.loop : undefined}
               checked={audio.loop}
               onChange={(event) => audioContext.setLoop(event.target.checked)}
-              className="size-4 rounded border-slate-300 accent-sky-700"
+              className="focus-audio-loop-toggle size-4 rounded border-slate-300 accent-sky-700"
             />
-            <Repeat2 className="size-4 text-slate-500" aria-hidden="true" />
-            {t("focusHubAudioLoop")}
+            <span className="focus-audio-loop-label">
+              <Repeat2 className="focus-audio-loop-icon size-4 text-slate-500" aria-hidden="true" />
+              <span>{t("focusHubAudioLoop")}</span>
+            </span>
           </label>
         </div>
       </div>
