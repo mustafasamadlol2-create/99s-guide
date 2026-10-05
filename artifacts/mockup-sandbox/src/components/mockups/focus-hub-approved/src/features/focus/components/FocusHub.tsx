@@ -1322,7 +1322,7 @@ function DurationStepper({
       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="focus-hub-duration-control mt-2 flex items-center gap-2">
         <button
           type="button"
           onClick={() => onChange(Math.max(min, value - 1))}

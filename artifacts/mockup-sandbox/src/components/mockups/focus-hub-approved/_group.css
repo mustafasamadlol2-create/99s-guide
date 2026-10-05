@@ -2138,3 +2138,14 @@
     padding: 14px;
   }
 }
+
+.focus-hub-current-root .focus-hub-duration-control input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.focus-hub-current-root .focus-hub-duration-control input[type="number"]::-webkit-inner-spin-button,
+.focus-hub-current-root .focus-hub-duration-control input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}

@@ -17,8 +17,8 @@ For a five-metric plan summary, use a single row only when each label and value 
 
 **How to apply:** inspect both the app and extracted-preview styles, scope overrides to the Focus summary, and verify desktop, iPad, and phone widths.
 
-For per-lecture session counts, keep the custom plus/minus controls and hide the browser’s native number-input spinners. Preserve the separate lecture reorder controls unless the user explicitly asks to remove them.
+For per-lecture session counts and study/break duration fields, keep the custom plus/minus controls and hide the browser’s native number-input spinners. Preserve the separate lecture reorder controls unless the user explicitly asks to remove them.
 
-**Why:** the user clarified that the unwanted up/down arrows were inside the session-count field, not the queue reorder buttons.
+**Why:** the user wants the custom side controls to be the only steppers for these numeric fields and wants lecture reorder controls left intact.
 
-**How to apply:** scope spinner suppression to `.focus-hub-session-count input[type="number"]` in both the app and extracted preview; retain numeric input validation and the custom plus/minus handlers.
+**How to apply:** scope spinner suppression to the session-count and duration controls in both the app and extracted preview; retain numeric input validation and the custom plus/minus handlers.
