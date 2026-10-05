@@ -1157,9 +1157,10 @@ export function FocusHub({
                 strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <path d="M7.8 4.4a8.1 8.1 0 1 1-3.6 5.8" />
-                <path d="M4.2 5.2v4.8H9" />
-                <path d="M10 9.5h4v5h-4z" />
+                <path d="M8 5a8.1 8.1 0 1 1-4 5" />
+                <path d="M4 5.5V10h4.5" />
+                <circle cx="12" cy="12" r="2.3" />
+                <circle cx="12" cy="12" r="0.65" fill="currentColor" stroke="none" />
               </svg>
               <span className="focus-hub-history-label">{t("focusHubHistory")}</span>
             </button>
