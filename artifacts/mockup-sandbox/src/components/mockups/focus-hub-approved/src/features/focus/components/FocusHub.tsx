@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -160,12 +160,17 @@ export function FocusHub({
     tone: "success" | "error" | "info";
   } | null>(null);
   const [highlightedLectureId, setHighlightedLectureId] = useState<string | null>(null);
+  const [sessionCountPulse, setSessionCountPulse] = useState<{
+    lectureId: string;
+    sequence: number;
+  } | null>(null);
   const startAttemptRef = useRef<StartAttempt | null>(null);
   const summaryStartAttemptRef = useRef<StartAttempt | null>(null);
   const summaryStartLockRef = useRef(false);
   const startLockRef = useRef(false);
   const requestGenerationRef = useRef(0);
   const mountedRef = useRef(true);
+  const sessionCountPulseTimerRef = useRef<number | null>(null);
 
   const setCanonical = useCallback((plan: FocusPlanRecord | null) => {
     canonicalPlanRef.current = plan;
@@ -234,6 +239,15 @@ export function FocusHub({
       requestGenerationRef.current += 1;
     };
   }, [historyOpen, loadCanonical, sessionRouteId, summaryRouteId]);
+
+  useEffect(
+    () => () => {
+      if (sessionCountPulseTimerRef.current !== null) {
+        window.clearTimeout(sessionCountPulseTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const orderedLectures = useMemo(
     () => lectures.filter((lecture) => isAccessibleLectureId(lecture.id)),
@@ -385,7 +399,22 @@ export function FocusHub({
     return () => window.clearTimeout(timer);
   }, [highlightedLectureId]);
 
+  const pulseSessionCountValue = (lectureId: string) => {
+    setSessionCountPulse((previous) => ({
+      lectureId,
+      sequence: (previous?.sequence ?? 0) + 1,
+    }));
+    if (sessionCountPulseTimerRef.current !== null) {
+      window.clearTimeout(sessionCountPulseTimerRef.current);
+    }
+    sessionCountPulseTimerRef.current = window.setTimeout(() => {
+      setSessionCountPulse(null);
+      sessionCountPulseTimerRef.current = null;
+    }, 220);
+  };
+
   const changeSessionCount = (lectureId: string, delta: number) => {
+    pulseSessionCountValue(lectureId);
     setNotice(null);
     setDraft((previous) => ({
       ...previous,
@@ -729,7 +758,7 @@ export function FocusHub({
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="focus-hub-page mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
+      className="focus-hub-page focus-hub-current-root mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
       {notice && (
         <div
@@ -810,7 +839,13 @@ export function FocusHub({
           className="focus-hub-cycle focus-hub-presets order-2 flex min-w-0 items-center gap-2 overflow-x-auto rounded-full border p-1.5"
           role="group"
           aria-label={t("focusHubPresets")}
+          style={{
+            "--fh-preset-index": FOCUS_PRESETS.findIndex(
+              (preset) => preset.id === draft.presetId,
+            ),
+          } as CSSProperties}
         >
+          <span className="focus-hub-preset-indicator" aria-hidden="true" />
           {FOCUS_PRESETS.map((preset) => {
             const isSelected = draft.presetId === preset.id;
             const label = preset.id === "CUSTOM"
@@ -964,6 +999,10 @@ export function FocusHub({
                   const lecture = lectureMap.get(item.lectureId);
                   const itemEstimate = estimate.items[index];
                   const isHighlighted = highlightedLectureId === item.lectureId;
+                  const sessionCountPulseClass =
+                    sessionCountPulse?.lectureId === item.lectureId
+                      ? `focus-hub-session-count-value-pulse-${sessionCountPulse.sequence % 2 === 0 ? "b" : "a"}`
+                      : "";
                   return (
                     <li
                       key={item.lectureId}
@@ -1064,6 +1103,7 @@ export function FocusHub({
                             step={1}
                             value={item.sessionCount}
                             onChange={(event) => {
+                              pulseSessionCountValue(item.lectureId);
                               const value = event.target.value === "" ? 0 : Number(event.target.value);
                               setDraft((previous) => ({
                                 ...previous,
@@ -1078,7 +1118,7 @@ export function FocusHub({
                             disabled={!canEdit}
                             aria-label={`${t("focusHubSessionCount")}: ${lecture?.name ?? ""}`}
                             aria-invalid={!isValidFocusSessionCount(item.sessionCount)}
-                            className="h-11 w-[68px] min-w-[68px] shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-1 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                            className={`focus-hub-session-count-value h-11 w-[68px] min-w-[68px] shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-1 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 disabled:opacity-55 dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${sessionCountPulseClass}`}
                           />
                           <button
                             type="button"
