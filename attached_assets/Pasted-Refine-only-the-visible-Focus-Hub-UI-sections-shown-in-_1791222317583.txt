@@ -1,0 +1,174 @@
+Refine only the visible Focus Hub UI sections shown in the attached screenshots and push the design from its current state to a **95%+ native iOS/iPadOS quality level**.
+
+Do not change any functionality, backend logic, timer behavior, audio behavior, lecture behavior, data flow, or APIs. This task is **UI/UX polish only**.
+
+Focus specifically on these areas:
+
+- `Start Focus`
+- `Preview Audio`
+- `Today's Plan`
+- session preset selector (`25/5`, `45/10`, `50/10`, `90/20`, `Custom`)
+- `Lecture Queue`
+- lecture planned-session steppers
+- reorder/delete actions
+- volume control
+- Loop Preview
+- related icons, spacing, cards, borders, shadows, and interaction states
+
+### Design goal
+
+The result should look like a real **native iOS/iPadOS application**, not a website styled to look like iOS.
+
+Keep the existing Focus Hub identity and current blue visual language, but refine it significantly.
+
+### Required improvements
+
+- Reduce unnecessary borders and nested card outlines.
+- Replace obvious web-card styling with softer native grouped surfaces.
+- Use consistent premium corner radii and spacing.
+- Make shadows very subtle and Apple-like.
+- Keep blue as the accent color instead of applying strong blue everywhere.
+- Refine typography hierarchy so labels are quieter and important values are stronger.
+- Use consistent SF-Symbol-like icon styling.
+
+### Session preset selector
+
+Make the preset row feel like a real native segmented control:
+
+- one unified background surface;
+- selected segment appears as an inset pill;
+- softer selected-state shadow/highlight;
+- smooth spring-style sliding transition between selections;
+- no scrollbar;
+- no oversized glow.
+
+### Today's Plan
+
+Reduce the “dashboard” feeling.
+
+Instead of making every metric look like a separate web card, make the section feel closer to an iOS grouped summary.
+
+Keep all current values:
+
+- Lectures
+- Planned sessions
+- Estimated study time
+- Estimated break time
+- Total estimated time
+
+Use subtle separators or soft grouped cells rather than strong individual borders.
+
+Give the numerical values stronger visual priority than the labels.
+
+### Lecture Queue
+
+This is one of the most important changes.
+
+Make Lecture Queue feel like an iOS grouped list rather than stacked web cards.
+
+- Keep one main section surface.
+- Treat each lecture as a native list row/cell.
+- Use very subtle separators between lectures.
+- Reduce unnecessary nested borders.
+- Keep titles and metadata clearly aligned.
+- Make reorder and delete controls secondary and visually quieter.
+- Keep the current internal vertical scrolling behavior.
+- Use a thin native-like scroll indicator that appears subtly while scrolling.
+
+Do not change queue behavior.
+
+### Planned-session stepper
+
+Make `−  2  +` feel closer to a native iOS control:
+
+- compact sizing;
+- consistent rounded geometry;
+- softer center value area;
+- tactile pressed feedback;
+- no oversized boxes.
+
+Do not change its behavior.
+
+### Start Focus
+
+Keep it as the primary CTA, but make it feel less like a web banner.
+
+- slightly more compact height;
+- refined blue → indigo gradient;
+- subtle depth;
+- native pressed animation;
+- cleaner `play.fill` style icon;
+- restrained shadow/glow.
+
+### Preview Audio
+
+Apply the same design language.
+
+Enabled and disabled states should look clearly intentional and native.
+
+Avoid the appearance of a large generic HTML button.
+
+### Volume
+
+Redesign the volume control to resemble a native iOS slider:
+
+- thinner track;
+- refined circular thumb;
+- clean active fill;
+- quieter `50%` text;
+- subtle speaker icon.
+
+### Loop Preview
+
+Do not use a web-style checkbox.
+
+Use a proper **native iOS-style switch/toggle** for `Loop Preview`.
+
+Keep exactly the same functionality: when enabled, preview audio repeats when it reaches the end.
+
+### Interaction polish
+
+Add subtle native-style micro-interactions where appropriate:
+
+- pressed-state scale/opacity feedback;
+- spring return;
+- segmented-control transition;
+- smooth stepper value transition;
+- subtle card/list selection feedback.
+
+Do not use exaggerated web hover animations.
+
+Desktop hover may enhance the UI, but all important interactions must remain touch-first for iPhone/iPad.
+
+Respect:
+
+```css
+prefers-reduced-motion
+```
+
+### Responsive behavior
+
+Preserve and verify:
+
+- iPhone
+- iPad
+- desktop/PWA
+- English/LTR
+- Arabic/RTL
+
+Do not introduce overflow, layout shifts, clipping, or unnecessary scrolling.
+
+### Scope
+
+Do not redesign the entire application.
+
+Do not modify unrelated Focus functionality or unrelated pages.
+
+Keep the current page structure and functionality, but polish these sections until the visual result feels genuinely native and production-quality.
+
+After implementation, run the relevant build/typecheck/tests and report:
+
+1. files modified;
+2. UI areas refined;
+3. responsive views verified;
+4. build/test result.
