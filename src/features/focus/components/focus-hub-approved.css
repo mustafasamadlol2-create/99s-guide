@@ -1860,7 +1860,7 @@
 }
 
 .focus-hub-current-root .focus-hub-timer {
-  margin-block-end: clamp(12px, 1.8vw, 20px);
+  margin-block-end: clamp(16px, 2.2vw, 24px);
 }
 
 @media (min-width: 900px) {

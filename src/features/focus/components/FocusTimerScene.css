@@ -25,6 +25,10 @@
   min-height: 400px;
 }
 
+.focus-timer-scene--planner {
+  min-height: 280px;
+}
+
 .focus-timer-scene--break {
   min-height: 330px;
 }
@@ -306,7 +310,7 @@
 
 @media (min-width: 640px) {
   .focus-timer-scene--planner {
-    min-height: 360px;
+    min-height: 300px;
   }
 
   .focus-timer-scene--active {
