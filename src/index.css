@@ -9441,8 +9441,8 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
   #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
-    grid-template-rows: 44px 44px auto minmax(132px, 1fr) auto auto !important;
-    gap: 5px 10px !important;
+    grid-template-rows: 44px 44px auto minmax(210px, clamp(210px, 35dvh, 240px)) auto auto !important;
+    gap: 16px 10px !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-cycle {
@@ -9455,8 +9455,17 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
     font-size: 10px !important;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
-    width: clamp(150px, 17vw, 190px) !important;
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner {
+    width: 100%;
+    height: 100% !important;
+    min-height: clamp(210px, 35dvh, 240px) !important;
+    padding: 4px !important;
+  }
+
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner .focus-timer-glass-panel {
+    min-height: 0 !important;
+    gap: clamp(12px, 2vw, 20px);
+    padding: clamp(16px, 2.4vw, 26px) clamp(14px, 3.5vw, 40px) !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
