@@ -8690,15 +8690,6 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   align-items: start;
 }
 
-.focus-active-layout > .focus-active-audio {
-  min-width: 0;
-  grid-column: 1;
-}
-
-.focus-active-audio > .focus-hub-page::before {
-  inset: 0;
-}
-
 .focus-active-timer-card {
   border-color: rgba(155, 188, 230, .34) !important;
   border-radius: 32px !important;
