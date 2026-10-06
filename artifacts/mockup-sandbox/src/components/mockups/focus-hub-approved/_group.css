@@ -855,7 +855,7 @@
     height: auto !important;
     margin-top: 8px !important;
     grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr) !important;
-    grid-template-rows: 44px 48px auto minmax(210px, 1fr) auto auto !important;
+    grid-template-rows: 44px 48px auto minmax(220px, 1fr) auto auto !important;
     grid-template-areas:
       "header ."
       "presets queue"
@@ -865,7 +865,7 @@
       "actions support" !important;
     align-content: stretch !important;
     align-items: stretch !important;
-    gap: 16px 12px !important;
+    gap: 8px 12px !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-header {
@@ -902,7 +902,6 @@
     min-width: 0;
     min-height: 0 !important;
     height: 100%;
-    margin-block-end: 0 !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-queue {
@@ -979,17 +978,11 @@
     height: 100%;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene {
     width: 100%;
     height: 100% !important;
-    min-height: clamp(210px, 35dvh, 240px) !important;
+    min-height: clamp(220px, 35dvh, 285px) !important;
     padding: 8px !important;
-  }
-
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner .focus-timer-glass-panel {
-    min-height: 0 !important;
-    gap: clamp(12px, 2vw, 20px);
-    padding: clamp(16px, 2.4vw, 26px) clamp(14px, 3.5vw, 40px) !important;
   }
 
   #main-scroll-canvas.focus-planner-viewport .focus-hub-timer-scene > .focus-timer-ring {
@@ -1048,7 +1041,7 @@
       "summary support"
       "actions support" !important;
     align-items: stretch !important;
-    gap: 16px 12px !important;
+    gap: 8px 12px !important;
     height: auto !important;
     min-height: 0 !important;
   }
@@ -1185,24 +1178,24 @@
   }
 }
 
-@media (min-width: 768px) and (max-height: 700px) {
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid,
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid-audio {
-    grid-template-rows: 44px 48px auto minmax(210px, clamp(210px, 35dvh, 240px)) auto auto !important;
-    gap: 16px 12px !important;
+@media (min-width: 768px) and (orientation: landscape) {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-grid {
+    --focus-session-space-transfer: clamp(96px, 12dvh, 120px);
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner {
-    width: 100%;
-    height: 100% !important;
-    min-height: clamp(210px, 35dvh, 240px) !important;
-    padding: 8px !important;
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer {
+    position: relative;
+    z-index: 1;
+    height: calc(100% + var(--focus-session-space-transfer)) !important;
+    margin-block-end: calc(0px - var(--focus-session-space-transfer)) !important;
   }
 
-  #main-scroll-canvas.focus-planner-viewport .focus-hub-timer > .focus-timer-scene--planner .focus-timer-glass-panel {
+  #main-scroll-canvas.focus-planner-viewport .focus-hub-summary {
+    position: relative;
+    inset-block-start: var(--focus-session-space-transfer);
+    height: calc(100% - var(--focus-session-space-transfer)) !important;
     min-height: 0 !important;
-    gap: clamp(12px, 2vw, 20px);
-    padding: clamp(16px, 2.4vw, 26px) clamp(14px, 3.5vw, 40px) !important;
+    margin-block-end: var(--focus-session-space-transfer) !important;
   }
 }
 

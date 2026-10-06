@@ -28,4 +28,3 @@
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
 - [Focus Audio local-only rule](focus-audio-local-only.md) — selected audio is limited to the current app session; never upload or persist it.
 - [Focus post-commit recovery](focus-post-commit-recovery.md) — reconcile canonical session state when client handling fails after a mutation may have committed.
-- [Mockup manifest regeneration](mockup-manifest-regeneration.md) — sandbox startup can create order-only changes in its generated component manifest; discard unrelated churn.
