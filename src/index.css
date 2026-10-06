@@ -8686,6 +8686,12 @@ html[dir="rtl"] .mobile-phone-layout .ios-floating-tabbar-compact .ios-floating-
   background: transparent !important;
 }
 
+@media (min-width: 768px) {
+  .focus-active-screen .focus-hub-page.focus-hub-current-root {
+    transform: translate(8px, 8px);
+  }
+}
+
 .focus-active-layout {
   align-items: start;
 }
