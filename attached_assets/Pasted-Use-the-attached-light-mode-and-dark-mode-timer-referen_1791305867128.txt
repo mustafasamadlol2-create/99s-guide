@@ -1,0 +1,59 @@
+Use the attached light mode and dark mode timer references as the target direction, and refine the current Focus timer UI implementation.
+
+Important: keep all existing functionality, logic, timer behavior, and page flow exactly the same. Do not add or remove features. Only improve the UI/UX, layout, animation, and styling.
+
+Please fix and improve the following:
+
+1) Timer animation quality
+- The current timer animation feels weak and web-like.
+- Redesign the timer motion so it feels like a premium native iOS experience.
+- Use smoother motion, cleaner easing, subtle spring behavior, and polished transitions.
+- The progress/fill animation must feel elegant, fluid, and responsive, not basic or abrupt.
+- Typography, spacing, and state transitions should also feel more like iOS and less like a generic web widget.
+
+2) Layout overlap issue
+- In the light mode implementation, the timer section overlaps visually with the section below (Today’s Plan / plan summary area).
+- Fix all overlap and stacking issues.
+- The timer component must have proper spacing, clear separation, and a clean visual hierarchy.
+- The timer block should sit comfortably above the lower section with enough margin and without collision.
+
+3) Remove the “rectangle inside rectangle” problem
+- In dark mode especially, the current design shows an unnecessary inner rectangle/card inside another rectangle.
+- Remove this double-container look.
+- The timer area should feel like one intentional, unified premium component, not a nested web card.
+- Keep the composition cleaner and more refined.
+
+4) Add proper glassmorphism / frosted iOS feel
+- The current result does not yet achieve the desired glass / frosted native iOS look.
+- Apply refined glassmorphism styling where appropriate:
+  - soft translucent surfaces
+  - subtle blur/frosted effect
+  - elegant highlights
+  - light borders
+  - soft shadows/glow
+- Keep it tasteful and premium, not exaggerated.
+
+5) Improve the overall timer design
+- Upgrade the timer section visually while keeping the same overall theme colors.
+- Make the timer feel more premium, more modern, and more “native iOS app”.
+- Preserve the current color family, but refine it for better harmony and comfort.
+- Keep the design minimal, calm, and polished.
+
+6) Keep consistency across all timer locations
+- Apply the same improved timer design language everywhere this timer appears:
+  - Focus Hub main page
+  - Active/running Focus Session page
+  - any related timer component using the same design
+
+Technical constraints:
+- Keep responsiveness correct across desktop, iPad, and iPhone.
+- Do not break existing layout, interactions, timer logic, audio logic, or navigation.
+- Refactor styles cleanly if needed, but preserve behavior.
+
+Goal:
+Deliver a cleaner, more premium, more native-iOS timer UI with:
+- smoother animation
+- no overlap
+- no nested-card visual issue
+- proper glassmorphism
+- stronger iOS-like polish
