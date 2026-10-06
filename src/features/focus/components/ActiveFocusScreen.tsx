@@ -9,7 +9,6 @@ import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   BookOpen,
-  Coffee,
   Check,
   ChevronRight,
   CircleAlert,
@@ -877,12 +876,9 @@ function ActiveFocusScreenCore({
                 {isBreakFinished ? t.focusActiveNextReady : t.focusActiveBreakBody}
               </p>
             </div>
-            <FocusTimerScene progress={0.4} className="mt-3 border-0 shadow-none">
-              <span className="mb-2 flex size-10 items-center justify-center rounded-full bg-sky-50 text-blue-600 dark:bg-sky-300/10 dark:text-sky-200">
-                <Coffee className="size-5" aria-hidden="true" />
-              </span>
-              <div className="my-2 text-[#235269] dark:text-sky-100">{breakTimer}</div>
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-300">{t.focusActiveBreakPhase}</span>
+            <FocusTimerScene variant="break" progress={0.4} className="mt-3">
+              {breakTimer}
+              <span className="focus-timer-caption">{t.focusActiveBreakPhase}</span>
             </FocusTimerScene>
             <button
               type="button"
@@ -1208,6 +1204,43 @@ function ActiveFocusScreenCore({
                 label={t.focusActiveTimerLabel}
                 caption={t.focusActiveTitle}
                 durationSeconds={currentPlanItem?.focusDurationSeconds}
+                controls={
+                  <div className="focus-active-primary-controls">
+                    {isActive && (
+                      <button
+                        type="button"
+                        disabled={!mayChangeSession}
+                        onClick={handlePause}
+                        className="focus-timer-primary-action"
+                      >
+                        <Pause aria-hidden="true" />
+                        {t.focusActivePause}
+                      </button>
+                    )}
+                    {isPaused && (
+                      <button
+                        type="button"
+                        disabled={!mayChangeSession}
+                        onClick={handleResume}
+                        className="focus-timer-primary-action"
+                      >
+                        <Play aria-hidden="true" />
+                        {t.focusActiveResume}
+                      </button>
+                    )}
+                    {mayComplete && (
+                      <button
+                        type="button"
+                        disabled={!mayChangeSession}
+                        onClick={handleComplete}
+                        className="focus-timer-primary-action"
+                      >
+                        <Check aria-hidden="true" />
+                        {t.focusActiveComplete}
+                      </button>
+                    )}
+                  </div>
+                }
               />
               {runtime.displayMayBeComplete && runtime.completionEligible !== true && (
                 <p className="mt-2 text-sm text-muted-foreground" role="status">
@@ -1227,39 +1260,6 @@ function ActiveFocusScreenCore({
             </div>
 
             <div className="focus-active-controls mt-5 flex flex-wrap items-center justify-center gap-3">
-              {isActive && (
-                <button
-                  type="button"
-                  disabled={!mayChangeSession}
-                  onClick={handlePause}
-                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full border border-sky-200 bg-white px-2 text-xs font-semibold text-[#315f75] shadow-sm transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-sky-100 dark:hover:bg-white/[0.08]"
-                >
-                  <Pause className="size-4" aria-hidden="true" />
-                  {t.focusActivePause}
-                </button>
-              )}
-              {isPaused && (
-                <button
-                  type="button"
-                  disabled={!mayChangeSession}
-                  onClick={handleResume}
-                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(59,111,223,0.20)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Play className="size-4" aria-hidden="true" />
-                  {t.focusActiveResume}
-                </button>
-              )}
-              {mayComplete && (
-                <button
-                  type="button"
-                  disabled={!mayChangeSession}
-                  onClick={handleComplete}
-                  className="inline-flex size-[82px] flex-col items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(59,111,223,0.20)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Check className="size-4" aria-hidden="true" />
-                  {t.focusActiveComplete}
-                </button>
-              )}
               {showCheckCompletion && (
                 <button
                   type="button"
@@ -1442,11 +1442,13 @@ function FocusTimer({
   label,
   caption,
   durationSeconds,
+  controls,
 }: {
   controller: FocusRuntimeController;
   label: string;
   caption: string;
   durationSeconds?: number;
+  controls: React.ReactNode;
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     () => controller.getState().displayRemainingSeconds,
@@ -1465,19 +1467,16 @@ function FocusTimer({
       ? Math.max(0, Math.min(1, remainingSeconds / durationSeconds))
       : 0.74;
   return (
-    <FocusTimerScene progress={progress} className="focus-active-timer-scene min-h-[310px] border-0 shadow-none sm:min-h-[350px]">
-      <span className="mb-1 flex size-10 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-200">
-        <Target className="size-5" aria-hidden="true" />
-      </span>
+    <FocusTimerScene variant="active" progress={progress} controls={controls}>
       <time
-        className="block font-mono text-5xl font-bold tracking-[-0.06em] text-[#235269] tabular-nums sm:text-6xl lg:text-7xl dark:text-sky-100"
+        className="focus-timer-value"
         dir="ltr"
         aria-label={`${label}: ${clockText}`}
         aria-live="off"
       >
         {clockText}
       </time>
-      <span className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+      <span className="focus-timer-caption">
         {caption}
       </span>
     </FocusTimerScene>
@@ -1528,7 +1527,7 @@ function FocusBreakTimer({
   const clockText = formatFocusClock(remainingSeconds);
   return (
     <time
-      className="block font-mono text-6xl font-semibold tracking-tight tabular-nums sm:text-7xl"
+      className="focus-timer-value"
       dir="ltr"
       aria-label={`${label}: ${clockText}`}
       aria-live="off"

@@ -880,18 +880,15 @@ export function FocusHub({
           aria-label={t("focusHubTimerSessionLabel")}
           className="focus-hub-timer order-3 min-w-0 md:col-start-1 md:row-start-3"
         >
-          <FocusTimerScene variant="planner" progress={1} className="focus-hub-timer-scene min-h-[320px] sm:min-h-[360px]">
-            <span className="focus-hub-timer-icon mb-1 flex size-9 items-center justify-center rounded-full border border-sky-200 bg-white/90 text-blue-600 shadow-[0_5px_15px_rgba(60,130,200,0.18)] dark:border-white/10 dark:bg-white/[0.07] dark:text-sky-200">
-              <Target className="size-5" aria-hidden="true" />
-            </span>
+          <FocusTimerScene variant="planner" progress={1}>
             <time
-              className="focus-hub-timer-value font-display text-[42px] font-bold tracking-[-0.06em] text-slate-950 tabular-nums sm:text-[44px] md:text-[46px] dark:text-white"
+              className="focus-timer-value"
               dir="ltr"
               aria-label={`${t("focusHubTimerSessionLabel")}: ${draft.studyMinutes}:00`}
             >
               <bdi>{String(Math.max(0, draft.studyMinutes)).padStart(2, "0")}:00</bdi>
             </time>
-            <span className="focus-hub-timer-caption mt-1 text-sm font-medium text-slate-500 dark:text-slate-300">
+            <span className="focus-timer-caption">
               {t("focusHubTimerSessionLabel")}
             </span>
           </FocusTimerScene>
