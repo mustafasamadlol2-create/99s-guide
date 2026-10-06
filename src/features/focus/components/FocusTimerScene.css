@@ -355,3 +355,165 @@
     transition: none;
   }
 }
+
+/*
+ * One continuous frosted surface: the panel remains a layout wrapper, not a
+ * second card layered inside the scene.
+ */
+.focus-timer-scene {
+  border-color: rgba(255, 255, 255, 0.76);
+  background:
+    radial-gradient(ellipse at 12% 6%, rgba(255, 255, 255, 0.7), transparent 43%),
+    radial-gradient(ellipse at 90% 96%, rgba(129, 178, 235, 0.2), transparent 50%),
+    linear-gradient(135deg, rgba(224, 239, 255, 0.88), rgba(235, 245, 255, 0.79) 52%, rgba(216, 233, 252, 0.88));
+  box-shadow:
+    0 18px 48px rgba(48, 96, 151, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+  -webkit-backdrop-filter: blur(24px) saturate(138%);
+  backdrop-filter: blur(24px) saturate(138%);
+  transition:
+    background-color 320ms ease,
+    border-color 320ms ease,
+    box-shadow 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.focus-timer-glass-panel {
+  width: min(100%, 700px);
+  min-height: 0;
+  gap: clamp(20px, 2.8vw, 30px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.focus-timer-scene--active .focus-timer-glass-panel {
+  min-height: 0;
+}
+
+.focus-timer-content {
+  gap: 10px;
+}
+
+.focus-timer-value {
+  letter-spacing: -0.065em;
+  text-shadow: 0 3px 22px rgba(65, 105, 164, 0.1);
+}
+
+.focus-timer-caption {
+  letter-spacing: 0.14em;
+  font-weight: 650;
+}
+
+.focus-timer-progress-track {
+  height: clamp(18px, 2.25vw, 25px);
+  border-color: rgba(255, 255, 255, 0.84);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(218, 232, 249, 0.58));
+  box-shadow:
+    inset 0 1px 5px rgba(62, 101, 152, 0.11),
+    0 4px 13px rgba(60, 109, 165, 0.08);
+}
+
+.focus-timer-progress-fill {
+  background: linear-gradient(100deg, #5ccde4 0%, #48afe8 37%, #4888e8 74%, #586fe2 100%);
+  box-shadow:
+    0 2px 16px rgba(69, 151, 220, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  transition:
+    width 880ms cubic-bezier(0.2, 0.82, 0.22, 1),
+    background-color 260ms ease,
+    box-shadow 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.focus-timer-primary-action {
+  border-color: rgba(255, 255, 255, 0.58);
+  background: linear-gradient(145deg, #58b7eb 0%, #438fe6 53%, #586fe0 100%);
+  box-shadow:
+    0 10px 24px rgba(55, 109, 190, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    filter 220ms ease,
+    box-shadow 280ms ease,
+    opacity 180ms ease;
+}
+
+.focus-timer-primary-action:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.035);
+  box-shadow:
+    0 13px 27px rgba(55, 109, 190, 0.23),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.dark .focus-timer-scene {
+  border-color: rgba(176, 205, 244, 0.2);
+  background:
+    radial-gradient(ellipse at 15% 5%, rgba(96, 143, 207, 0.19), transparent 42%),
+    radial-gradient(ellipse at 91% 98%, rgba(41, 91, 158, 0.2), transparent 49%),
+    linear-gradient(135deg, rgba(25, 43, 70, 0.94), rgba(17, 32, 55, 0.92) 54%, rgba(14, 28, 49, 0.96));
+  box-shadow:
+    0 20px 54px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(218, 233, 255, 0.12),
+    inset 0 -1px 0 rgba(112, 154, 210, 0.08);
+}
+
+.dark .focus-timer-glass-panel {
+  background: transparent;
+  box-shadow: none;
+}
+
+.dark .focus-timer-progress-track {
+  border-color: rgba(191, 214, 246, 0.2);
+  background: linear-gradient(180deg, rgba(7, 17, 32, 0.5), rgba(12, 26, 45, 0.68));
+  box-shadow:
+    inset 0 1px 6px rgba(0, 0, 0, 0.26),
+    0 4px 13px rgba(0, 0, 0, 0.12);
+}
+
+.dark .focus-timer-progress-fill {
+  background: linear-gradient(100deg, #53c6df 0%, #399fdc 38%, #417fe1 74%, #536ddd 100%);
+  box-shadow:
+    0 2px 16px rgba(57, 151, 216, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.dark .focus-timer-primary-action {
+  background: linear-gradient(145deg, #43afd9 0%, #397fda 53%, #5266d4 100%);
+}
+
+@media (max-width: 480px) {
+  .focus-timer-scene {
+    padding: 22px 15px;
+  }
+
+  .focus-timer-glass-panel {
+    min-height: 0;
+    gap: 19px;
+    padding: 0;
+  }
+
+  .focus-timer-scene--active .focus-timer-glass-panel {
+    min-height: 0;
+  }
+
+  .focus-timer-progress-track {
+    height: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-timer-scene,
+  .focus-timer-progress-fill,
+  .focus-timer-primary-action {
+    transition: none;
+  }
+
+  .focus-timer-primary-action:hover:not(:disabled) {
+    transform: none;
+  }
+}

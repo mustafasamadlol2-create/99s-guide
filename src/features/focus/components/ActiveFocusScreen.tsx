@@ -862,7 +862,7 @@ function ActiveFocusScreenCore({
         </header>
 
         <main className="grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
-          <section className="min-w-0 rounded-[30px] border border-sky-100 bg-white/90 p-4 text-center shadow-[0_18px_48px_rgba(55,119,171,0.08)] dark:border-sky-300/15 dark:bg-[#111923] sm:p-6">
+          <section className="min-w-0 text-center">
             <FocusCycleStrip
               language={language}
               focusMinutes={Math.round((completedItem?.focusDurationSeconds ?? 1_500) / 60)}
@@ -1173,11 +1173,7 @@ function ActiveFocusScreenCore({
 
       <main className="focus-active-layout grid items-start gap-4 md:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:gap-6">
         <div className="focus-active-main min-w-0 space-y-4">
-          <section className={`focus-active-timer-card relative overflow-hidden rounded-[30px] border p-4 shadow-[0_18px_48px_rgba(55,119,171,0.08)] sm:p-6 ${
-            isPaused
-              ? "border-amber-200 bg-gradient-to-br from-amber-50/90 to-white dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900"
-              : "border-sky-100 bg-gradient-to-br from-white via-sky-50/60 to-[#eaf3ff] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c]"
-          }`}>
+          <section className="focus-active-timer-card relative">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-3 text-sm font-semibold text-[#315f75] dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
                 <span className={`size-2 rounded-full ${

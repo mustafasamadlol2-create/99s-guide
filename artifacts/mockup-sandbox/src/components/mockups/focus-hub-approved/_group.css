@@ -3183,3 +3183,7 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.focus-hub-current-root .focus-hub-timer {
+  margin-block-end: clamp(12px, 1.8vw, 20px);
+}

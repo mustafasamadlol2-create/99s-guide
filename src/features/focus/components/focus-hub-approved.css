@@ -1859,6 +1859,10 @@
   color: #c3ddff !important;
 }
 
+.focus-hub-current-root .focus-hub-timer {
+  margin-block-end: clamp(12px, 1.8vw, 20px);
+}
+
 @media (min-width: 900px) {
   .focus-hub-page.focus-hub-current-root .focus-plan-metric:not(:last-child) {
     border-inline-end: 1px solid rgba(133, 157, 187, 0.16) !important;

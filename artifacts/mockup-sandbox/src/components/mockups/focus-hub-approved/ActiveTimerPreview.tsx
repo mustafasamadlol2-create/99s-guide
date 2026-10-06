@@ -6,12 +6,12 @@ function TimerMode({ dark, arabic }: { dark: boolean; arabic: boolean }) {
   return (
     <section className={`flex min-w-0 flex-col gap-3 ${dark ? "dark" : ""}`}>
       <div className="flex items-center justify-between px-1">
-        <h2 className={`text-sm font-semibold ${dark ? "text-slate-200" : "text-slate-700"}`}>
+        <h2 className="text-sm font-semibold text-slate-700">
           {arabic
             ? dark ? "المظهر الداكن" : "المظهر الفاتح"
             : dark ? "Dark appearance" : "Light appearance"}
         </h2>
-        <span className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
+        <span className="text-xs text-slate-500">
           {arabic ? "جلسة نشطة" : "Active session"}
         </span>
       </div>
@@ -44,9 +44,7 @@ export function ActiveTimerPreview() {
       className="grid min-h-[100dvh] grid-cols-1 content-center gap-5 bg-[#edf3fa] p-5 md:grid-cols-2 md:p-7"
     >
       <TimerMode arabic={arabic} dark={false} />
-      <div className="rounded-[34px] bg-[#0c1423] p-2 shadow-[0_20px_55px_rgba(15,23,42,0.18)]">
-        <TimerMode arabic={arabic} dark />
-      </div>
+      <TimerMode arabic={arabic} dark />
     </main>
   );
 }
