@@ -1398,7 +1398,11 @@ function ActiveFocusScreenCore({
           )}
 
           {FOCUS_AUDIO_ENABLED && (
-            <FocusAudioPlanningCard language={language} />
+            <div className="focus-hub-page focus-hub-current-root min-w-0">
+              <div className="focus-hub-audio min-w-0">
+                <FocusAudioPlanningCard language={language} plannerPresentation />
+              </div>
+            </div>
           )}
         </aside>
       </main>
