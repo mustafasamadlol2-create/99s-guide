@@ -1,0 +1,72 @@
+Fix the top Study / Short Break / Plan control on the Active Focus page.
+
+Right now these three items are only visual elements. I need them to become real functional tabs connected correctly to the frontend, backend, and persistent Focus state.
+
+Implement the following:
+
+1. Study tab
+- Study must show the current Focus timer.
+- The timer duration must use the preset selected in the Focus Hub, such as 25, 45, 50, 90, or Custom.
+- Preserve the existing timestamp-based timer architecture.
+- Study time must remain the only time counted as actual Focus time.
+- Pause/resume/recovery must continue working correctly.
+- Returning to the Study tab must show the exact current canonical timer state, not restart the timer.
+
+2. Short Break tab
+- Clicking Short Break must actually switch into the break experience and display the correct break timer.
+- The break duration must come from the selected Focus preset. Example:
+  25/5 → 5-minute break
+  45/10 → 10-minute break
+  50/10 → 10-minute break
+  90/20 → 20-minute break
+  Custom → use the configured custom break duration.
+- The break timer must survive navigation, reload/backgrounding, and restore correctly.
+- Break time must NOT count as Focus time, Study Points, mastery, or verified study time.
+- Do not fake the break timer only in the frontend. Persist/reconcile the phase correctly using the existing Focus backend architecture.
+- If the existing FocusSession schema cannot safely represent break runtime, add the smallest additive backend/database structure needed instead of abusing or replacing the existing FocusSession lifecycle.
+
+3. Plan tab
+- Clicking Plan must show the current Focus plan inside the Active Focus page.
+- Show the lecture queue, current lecture, session numbers, remaining planned sessions, and other existing plan information.
+- This must read the real canonical FocusPlan / FocusPlanItem data.
+- It must update when the plan/session state changes.
+- Do not turn this into the academic Schedule or personal calendar.
+
+4. Tab behavior
+- Study / Short Break / Plan must behave like real native app tabs.
+- Switching tabs should be immediate and smooth.
+- Do not reload the page.
+- Do not reset timers.
+- Do not create duplicate Focus sessions.
+- Do not create duplicate break records.
+- Preserve the current active session when navigating between tabs.
+- If the server reports a newer state, the server state wins.
+
+5. Backend/database
+- Reuse the existing FocusPlan, FocusPlanItem, FocusSession, Focus lifecycle, and current APIs wherever possible.
+- Add only minimal additive backend/database changes if truly required.
+- Keep PostgreSQL/Supabase as the canonical durable authority.
+- Preserve idempotency and concurrency protection.
+- Do not change Study Points, Mastery, Schedule, Recall, or unrelated systems.
+
+6. UI
+- Keep the current visual design of the Study / Short Break / Plan segmented control.
+- Only make it functional and add the correct content for each selected tab.
+- Keep full light/dark mode support, responsive behavior, and Arabic/RTL support.
+
+Before finishing, test:
+- 25/5
+- 45/10
+- 50/10
+- 90/20
+- Custom
+- Study → Break → Study
+- Study → Plan → Study
+- reload during Study
+- reload during Break
+- background/foreground recovery
+- double-click protection
+- no duplicate sessions
+- break time never counted as Focus time
+
+Report the files modified, backend/database changes if any, and test/build results.
