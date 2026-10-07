@@ -84,6 +84,7 @@ export interface FocusBreakDto {
   endsAt: string;
   endedAt: string | null;
   resumeStudyOnReturn: boolean;
+  isPaused: boolean;
   remainingSeconds: number;
 }
 
@@ -231,6 +232,16 @@ export interface FocusBackendService {
   currentSession(userId: string): Promise<FocusCurrentSessionResult>;
   getBreak(userId: string, sessionId: string): Promise<FocusBreakSnapshot>;
   startBreak(
+    userId: string,
+    sessionId: string,
+    input: FocusSessionTransitionInput,
+  ): Promise<FocusBreakMutationResult>;
+  pauseBreak(
+    userId: string,
+    sessionId: string,
+    input: FocusSessionTransitionInput,
+  ): Promise<FocusBreakMutationResult>;
+  resumeBreak(
     userId: string,
     sessionId: string,
     input: FocusSessionTransitionInput,

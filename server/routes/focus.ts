@@ -218,6 +218,42 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
     }
   }));
 
+  router.post("/sessions/:sessionId/break/pause", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = focusBreakTransitionSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Focus Break pause request is invalid.");
+    }
+    try {
+      const result = await dependencies.service.pauseBreak(
+        userId(req),
+        parsedId.data,
+        parsedBody.data,
+      );
+      return res.status(result.idempotency === "FIRST_SEEN" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/break/resume", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = focusBreakTransitionSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Focus Break resume request is invalid.");
+    }
+    try {
+      const result = await dependencies.service.resumeBreak(
+        userId(req),
+        parsedId.data,
+        parsedBody.data,
+      );
+      return res.status(result.idempotency === "FIRST_SEEN" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
   router.post("/sessions/:sessionId/break/return", route(async (req, res) => {
     const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
     const parsedBody = focusBreakTransitionSchema.safeParse(req.body);

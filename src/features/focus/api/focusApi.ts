@@ -84,6 +84,8 @@ export interface FocusApi {
   resumeFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   getFocusBreak(sessionId: string): Promise<FocusBreakSnapshot>;
   startFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
+  pauseFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
+  resumeFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
   returnFromFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
   completeFocusSession(sessionId: string, input: CompleteFocusSessionInput): Promise<FocusSessionMutationResult>;
   abandonFocusSession(sessionId: string, input: AbandonFocusSessionInput): Promise<FocusSessionMutationResult>;
@@ -315,6 +317,7 @@ function focusBreak(value: unknown): FocusBreakDto {
     throw protocol("Invalid Focus break end time.");
   }
   booleanField(item.resumeStudyOnReturn, "resumeStudyOnReturn");
+  booleanField(item.isPaused, "isPaused");
   return item as unknown as FocusBreakDto;
 }
 
@@ -609,6 +612,12 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       focusBreakSnapshot,
     ),
     startFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/start`, requestOptions("POST", {
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), focusBreakMutation),
+    pauseFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/pause`, requestOptions("POST", {
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), focusBreakMutation),
+    resumeFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/resume`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), focusBreakMutation),
     returnFromFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/return`, requestOptions("POST", {

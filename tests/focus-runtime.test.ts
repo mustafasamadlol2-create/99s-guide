@@ -113,6 +113,8 @@ function makeApi(overrides: Partial<FocusApi> = {}): FocusApi {
       serverNow: SERVER_NOW,
     }),
     startFocusBreak: async () => { throw new Error("unused"); },
+    pauseFocusBreak: async () => { throw new Error("unused"); },
+    resumeFocusBreak: async () => { throw new Error("unused"); },
     returnFromFocusBreak: async () => { throw new Error("unused"); },
     completeFocusSession: async (_id: string, _input: CompleteFocusSessionInput) =>
       mutation(makeSession({ status: "COMPLETED" })),

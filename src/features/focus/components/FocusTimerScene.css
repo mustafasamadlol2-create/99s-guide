@@ -360,6 +360,26 @@
   }
 }
 
+.focus-timer-break-controls {
+  margin-top: 18px;
+}
+
+.focus-timer-break-controls .focus-timer-primary-action {
+  flex: 1 1 128px;
+  max-width: 190px;
+}
+
+.focus-timer-break-end-action {
+  background: linear-gradient(135deg, #ef7184 0%, #db4967 58%, #c93e65 100%);
+  box-shadow:
+    0 11px 25px rgba(205, 67, 101, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.dark .focus-timer-break-end-action {
+  background: linear-gradient(145deg, #e96b80 0%, #d94e70 58%, #bd4269 100%);
+}
+
 /*
  * One continuous frosted surface: the panel remains a layout wrapper, not a
  * second card layered inside the scene.

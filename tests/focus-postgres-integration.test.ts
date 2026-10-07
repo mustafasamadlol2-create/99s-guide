@@ -803,7 +803,33 @@ test("real PostgreSQL persists Focus Breaks and preserves study timing and next-
       /Return from the current Focus Break/,
     );
 
-    clock = new Date(T0.getTime() + 90_000);
+    clock = new Date(T0.getTime() + 45_000);
+    const pausedBreak = await firstService.pauseBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-pause",
+      source: "web",
+    });
+    assert.equal(pausedBreak.breakSession.isPaused, true);
+    assert.equal(pausedBreak.breakSession.remainingSeconds, 555);
+
+    clock = new Date(T0.getTime() + 100_000);
+    assert.equal(
+      (await firstService.getBreak(fixture.userId, started.session.id)).breakSession?.remainingSeconds,
+      555,
+    );
+    const pauseReplay = await firstService.pauseBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-pause",
+      source: "web",
+    });
+    assert.equal(pauseReplay.idempotency, "REPLAY_SAME_PAYLOAD");
+    clock = new Date(T0.getTime() + 120_000);
+    const resumedBreak = await firstService.resumeBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-resume",
+      source: "web",
+    });
+    assert.equal(resumedBreak.breakSession.isPaused, false);
+    assert.equal(resumedBreak.breakSession.remainingSeconds, 555);
+
+    clock = new Date(T0.getTime() + 165_000);
     const recoveredService = makeService(() => new Date(clock));
     const recovered = await recoveredService.getBreak(fixture.userId, started.session.id);
     assert.equal(recovered.breakSession?.remainingSeconds, 510);
@@ -813,7 +839,7 @@ test("real PostgreSQL persists Focus Breaks and preserves study timing and next-
     });
     assert.equal(returned.session.status, "ACTIVE");
     assert.equal(returned.session.activeSeconds, 0);
-    assert.equal(returned.session.pauseSeconds, 90);
+    assert.equal(returned.session.pauseSeconds, 165);
     assert.equal(returned.breakSession.endedAt, clock.toISOString());
     assert.equal((await recoveredService.getBreak(fixture.userId, started.session.id)).breakSession, null);
     const returnReplay = await recoveredService.returnFromBreak(fixture.userId, started.session.id, {

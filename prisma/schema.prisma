@@ -84,6 +84,7 @@ model User {
   focusPlans                     FocusPlan[]
   focusSessions                  FocusSession[]
   focusBreaks                    FocusBreak[]
+  focusBreakCommands             FocusBreakCommand[]
   studyEvents                    StudyEvent[]
   studyDailyMetrics              StudyDailyMetric[]
   recallAttempts                 RecallAttempt[]
@@ -672,14 +673,32 @@ model FocusBreak {
   resumeStudyOnReturn   Boolean   @default(false)
   startIdempotencyKey   String
   endIdempotencyKey     String?
+  pausedAt              DateTime?
+  pausedRemainingSeconds Int?
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   focusSession FocusSession @relation(fields: [focusSessionId], references: [id], onDelete: Cascade)
+  commands     FocusBreakCommand[]
 
   @@unique([userId, startIdempotencyKey])
   @@unique([userId, endIdempotencyKey])
   @@index([userId, endedAt, startedAt])
   @@index([focusSessionId, endedAt, startedAt])
+}
+
+model FocusBreakCommand {
+  id              String     @id @default(uuid())
+  userId          String
+  focusBreakId    String
+  idempotencyKey  String
+  action          String
+  createdAt       DateTime   @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusBreak FocusBreak @relation(fields: [focusBreakId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([focusBreakId, createdAt])
 }
 
 model GroupFocusRoom {

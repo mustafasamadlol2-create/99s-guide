@@ -18,6 +18,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Square,
   Target,
   Video,
   WifiOff,
@@ -51,7 +52,13 @@ const ACTIVE_FOCUS_COPY_KEYS = [
   "focusActiveAbandonedTitle",
   "focusActiveActionError",
   "focusActiveBreakBody",
+  "focusActiveBreakContinueBody",
+  "focusActiveBreakEnd",
   "focusActiveBreakPhase",
+  "focusActiveBreakPause",
+  "focusActiveBreakPausedBody",
+  "focusActiveBreakResume",
+  "focusActiveBreakStudyPausedBody",
   "focusActiveBreakTitle",
   "focusActiveCatalogError",
   "focusActiveCancel",
@@ -246,7 +253,11 @@ function ActiveFocusScreenCore({
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const breakStartKeyRef = useRef<string | null>(null);
+  const breakPauseKeyRef = useRef<string | null>(null);
+  const breakResumeKeyRef = useRef<string | null>(null);
   const breakReturnKeyRef = useRef<string | null>(null);
+  const breakAutoEndRef = useRef<string | null>(null);
+  const endBreakHandlerRef = useRef<() => void>(() => {});
   const [resourceError, setResourceError] = useState(false);
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
@@ -342,6 +353,12 @@ function ActiveFocusScreenCore({
       : activeBreak.remainingSeconds
     : null;
   const breakFinished = activeBreak !== null && currentBreakRemaining === 0;
+  const breakProgress = activeBreak && activeBreak.durationSeconds > 0
+    ? Math.min(
+      1,
+      Math.max(0, (activeBreak.durationSeconds - (currentBreakRemaining ?? 0)) / activeBreak.durationSeconds),
+    )
+    : 0;
   const terminalRouteSession = terminalResult?.session.id === sessionRouteId
     ? terminalResult.session
     : runtime.lastMutationResult?.session.id === sessionRouteId
@@ -437,6 +454,13 @@ function ActiveFocusScreenCore({
     (runtime.error && runtime.runtimeStatus !== "OFFLINE_STALE"
       ? t.focusActiveActionError
       : null);
+  const breakBody = activeBreak?.isPaused
+    ? t.focusActiveBreakPausedBody
+    : routeBreakSnapshot?.session.status === "COMPLETED"
+      ? t.focusActiveBreakBody
+      : activeBreak?.resumeStudyOnReturn
+        ? t.focusActiveBreakContinueBody
+        : t.focusActiveBreakStudyPausedBody;
   useEffect(() => {
     if (!sessionForView) return;
     setPlanLoad({ status: "loading" });
@@ -478,6 +502,14 @@ function ActiveFocusScreenCore({
       setBreakClock(null);
       return;
     }
+    if (activeBreak.isPaused) {
+      setBreakClock((previous) =>
+        previous?.id === activeBreak.id &&
+        previous.remainingSeconds === activeBreak.remainingSeconds
+          ? previous
+          : { id: activeBreak.id, remainingSeconds: activeBreak.remainingSeconds });
+      return;
+    }
     const serverOffsetMs = Date.parse(routeBreakSnapshot.serverNow) - Date.now();
     const update = () => {
       const remaining = Math.max(
@@ -498,7 +530,13 @@ function ActiveFocusScreenCore({
       document.removeEventListener("visibilitychange", update);
       window.removeEventListener("pageshow", update);
     };
-  }, [activeBreak?.id, activeBreak?.endsAt, routeBreakSnapshot?.serverNow]);
+  }, [
+    activeBreak?.id,
+    activeBreak?.endsAt,
+    activeBreak?.isPaused,
+    activeBreak?.remainingSeconds,
+    routeBreakSnapshot?.serverNow,
+  ]);
 
   const breakTimer = activeBreak
     ? (
@@ -555,6 +593,7 @@ function ActiveFocusScreenCore({
   const perform = async (
     action: () => Promise<unknown>,
     onSuccess?: (result: unknown) => void | Promise<void>,
+    onError?: () => void | Promise<void>,
   ) => {
     setActionError(null);
     setActionPending(true);
@@ -564,6 +603,11 @@ function ActiveFocusScreenCore({
       notifyOtherTabs();
     } catch {
       setActionError(t.focusActiveActionError);
+      try {
+        await onError?.();
+      } catch {
+        // The original action may have committed; reconciliation is best-effort.
+      }
     } finally {
       setActionPending(false);
     }
@@ -585,6 +629,131 @@ function ActiveFocusScreenCore({
     );
   };
 
+  const handlePauseBreak = () => {
+    if (!activeBreak || activeBreak.isPaused || breakFinished || !online || isRuntimeBusy) return;
+    const idempotencyKey = breakPauseKeyRef.current ?? crypto.randomUUID();
+    breakPauseKeyRef.current = idempotencyKey;
+    void perform(
+      () => focusApi.pauseFocusBreak(activeBreak.focusSessionId, {
+        idempotencyKey,
+        source: getFocusClientSource(),
+      }),
+      (value) => {
+        const result = value as FocusBreakMutationResult;
+        breakPauseKeyRef.current = null;
+        breakResumeKeyRef.current = null;
+        setBreakSnapshot(result);
+        setBreakClock({
+          id: result.breakSession.id,
+          remainingSeconds: result.breakSession.remainingSeconds,
+        });
+        setActivePhase((previous) => previous === "plan" ? "plan" : "break");
+      },
+    );
+  };
+
+  const handleResumeBreak = () => {
+    if (!activeBreak || !activeBreak.isPaused || !online || isRuntimeBusy) return;
+    const idempotencyKey = breakResumeKeyRef.current ?? crypto.randomUUID();
+    breakResumeKeyRef.current = idempotencyKey;
+    void perform(
+      () => focusApi.resumeFocusBreak(activeBreak.focusSessionId, {
+        idempotencyKey,
+        source: getFocusClientSource(),
+      }),
+      (value) => {
+        const result = value as FocusBreakMutationResult;
+        breakPauseKeyRef.current = null;
+        breakResumeKeyRef.current = null;
+        setBreakSnapshot(result);
+        setBreakClock({
+          id: result.breakSession.id,
+          remainingSeconds: result.breakSession.remainingSeconds,
+        });
+        setActivePhase((previous) => previous === "plan" ? "plan" : "break");
+      },
+    );
+  };
+
+  const handleEndBreak = () => {
+    if (!controller || !activeBreak || !online || isRuntimeBusy) return;
+    breakAutoEndRef.current = activeBreak.id;
+    const sessionId = activeBreak.focusSessionId;
+    const idempotencyKey = breakReturnKeyRef.current ?? crypto.randomUUID();
+    breakReturnKeyRef.current = idempotencyKey;
+    void perform(
+      () => focusApi.returnFromFocusBreak(sessionId, {
+        idempotencyKey,
+        source: getFocusClientSource(),
+      }),
+      async (value) => {
+        const result = value as FocusBreakMutationResult;
+        breakPauseKeyRef.current = null;
+        breakResumeKeyRef.current = null;
+        breakReturnKeyRef.current = null;
+        setBreakSnapshot(result);
+        setActivePhase("focus");
+        if (result.breakSession.resumeStudyOnReturn && result.session.status === "ACTIVE") {
+          notifyAudioSafely(() => audio?.onFocusResumed());
+        }
+
+        const canonical = await controller.reconcile();
+        if (result.session.status !== "COMPLETED") return;
+
+        let plan = currentPlan?.id === result.session.planId ? currentPlan : null;
+        if (!plan) {
+          plan = await focusApi.getFocusPlan(result.session.planId);
+          setPlanLoad({ status: "ready", plan });
+        }
+        const nextProgression = deriveFocusProgression(plan.items, result.session);
+        setProgression(nextProgression);
+        if (nextProgression.kind !== "next") return;
+
+        if (canonical.session && canonical.session.id !== result.session.id) {
+          setTerminalResult(null);
+          setProgression(null);
+          setBreakSnapshot(null);
+          onOpenSession(canonical.session.id);
+          return;
+        }
+
+        const nextSession = await controller.start({
+          planId: result.session.planId,
+          planItemId: nextProgression.nextItem.id,
+        });
+        setTerminalResult(null);
+        setProgression(null);
+        setBreakSnapshot(null);
+        notifyAudioSafely(() => audio?.onFocusStarted());
+        onOpenSession(nextSession.session.id);
+      },
+      async () => {
+        try {
+          const snapshot = await focusApi.getFocusBreak(sessionId);
+          setBreakSnapshot(snapshot);
+          setActivePhase(snapshot.breakSession ? "break" : "focus");
+        } catch {
+          // Preserve the canonical session error below if break state is unavailable.
+        }
+        await controller.reconcile().catch(() => {});
+      },
+    );
+  };
+  endBreakHandlerRef.current = handleEndBreak;
+
+  useEffect(() => {
+    if (
+      !activeBreak ||
+      activeBreak.isPaused ||
+      !breakFinished ||
+      !online ||
+      isRuntimeBusy ||
+      breakAutoEndRef.current === activeBreak.id
+    ) return;
+    breakAutoEndRef.current = activeBreak.id;
+    endBreakHandlerRef.current();
+  }, [activeBreak?.id, activeBreak?.isPaused, breakFinished, online, isRuntimeBusy]);
+
   const handlePhaseChange = (nextPhase: FocusDisplayPhase) => {
     if (nextPhase === "plan") {
       setActivePhase("plan");
@@ -595,26 +764,7 @@ function ActiveFocusScreenCore({
         setActivePhase("focus");
         return;
       }
-      if (!online || isRuntimeBusy) return;
-      const idempotencyKey = breakReturnKeyRef.current ?? crypto.randomUUID();
-      breakReturnKeyRef.current = idempotencyKey;
-      void perform(
-        () => focusApi.returnFromFocusBreak(activeBreak.focusSessionId, {
-          idempotencyKey,
-          source: getFocusClientSource(),
-        }),
-        async (value) => {
-          const result = value as FocusBreakMutationResult;
-          breakReturnKeyRef.current = null;
-          setBreakSnapshot(result);
-          setActivePhase((previous) =>
-            previous === "plan" ? "plan" : result.breakSession.endedAt ? "focus" : "break");
-          if (result.breakSession.resumeStudyOnReturn && result.session.status === "ACTIVE") {
-            notifyAudioSafely(() => audio?.onFocusResumed());
-          }
-          await controller?.reconcile().catch(() => {});
-        },
-      );
+      handleEndBreak();
       return;
     }
     if (activeBreak) {
@@ -1060,7 +1210,6 @@ function ActiveFocusScreenCore({
       ? planItems.find((item) => item.id === nextItem.id) ?? null
       : null;
     const completedItem = planItems.find((item) => item.id === localTerminalResult.session.planItemId);
-    const isBreakFinished = breakFinished;
     return (
       <div dir={language === "ar" ? "rtl" : "ltr"} className="mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
         <header className="mb-5 flex items-center justify-between gap-3">
@@ -1101,22 +1250,36 @@ function ActiveFocusScreenCore({
                   <div className="mt-5">
                     <h1 className="text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">{t.focusActiveBreakTitle}</h1>
                     <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                      {isBreakFinished ? t.focusActiveNextReady : t.focusActiveBreakBody}
+                      {breakFinished ? t.focusActiveNextReady : breakBody}
                     </p>
                   </div>
-                  <FocusTimerScene variant="break" progress={0.4} className="mt-3">
+                  <FocusTimerScene variant="break" progress={breakProgress} className="mt-3">
                     {breakTimer}
                     <span className="focus-timer-caption">{t.focusActiveBreakPhase}</span>
                   </FocusTimerScene>
-                  <button
-                    type="button"
-                    disabled={!isBreakFinished || !online || isRuntimeBusy || !nextItem}
-                    onClick={handleStartNext}
-                    className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-full bg-gradient-to-r from-[#438fe9] to-[#594fe5] px-6 font-semibold text-white shadow-[0_9px_22px_rgba(59,111,223,0.22)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Play className="size-4" aria-hidden="true" />
-                    {isRuntimeBusy ? t.focusActiveChecking : t.focusActiveStartNext}
-                  </button>
+                  <div className="focus-active-primary-controls focus-timer-break-controls" role="group" aria-label={t.focusActiveBreakTitle}>
+                    <button
+                      type="button"
+                      aria-pressed={activeBreak.isPaused}
+                      disabled={!online || isRuntimeBusy || (breakFinished && !activeBreak.isPaused)}
+                      onClick={activeBreak.isPaused ? handleResumeBreak : handlePauseBreak}
+                      className="focus-timer-primary-action"
+                    >
+                      {activeBreak.isPaused
+                        ? <Play aria-hidden="true" />
+                        : <Pause aria-hidden="true" />}
+                      {activeBreak.isPaused ? t.focusActiveBreakResume : t.focusActiveBreakPause}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!online || isRuntimeBusy}
+                      onClick={handleEndBreak}
+                      className="focus-timer-primary-action focus-timer-break-end-action"
+                    >
+                      <Square aria-hidden="true" />
+                      {t.focusActiveBreakEnd}
+                    </button>
+                  </div>
                   {nextItem && (
                     <p className="mt-4 text-sm text-muted-foreground">
                       {t.focusActiveUpcoming}:{" "}
@@ -1185,6 +1348,17 @@ function ActiveFocusScreenCore({
         onReturn={() => void leaveForPlanner()}
       >
         <>
+          {progression?.kind === "next" && (
+            <button
+              type="button"
+              disabled={!online || isRuntimeBusy}
+              onClick={handleStartNext}
+              className="focus-timer-primary-action mt-3 w-full"
+            >
+              <Play aria-hidden="true" />
+              {isRuntimeBusy ? t.focusActiveChecking : t.focusActiveStartNext}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onOpenSummary(localTerminalResult.session.id)}
@@ -1192,6 +1366,7 @@ function ActiveFocusScreenCore({
           >
             {t.focusSummaryTitle}
           </button>
+          {visibleActionError && <p className="mt-3 text-sm text-destructive" role="alert">{visibleActionError}</p>}
         </>
       </TerminalHandoff>
     );
@@ -1431,14 +1606,39 @@ function ActiveFocusScreenCore({
                   <h2 className="text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">
                     {t.focusActiveBreakTitle}
                   </h2>
-                  <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                    {t.focusActiveBreakBody}
+                    <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                      {breakBody}
                   </p>
                   {activeBreak ? (
-                    <FocusTimerScene variant="break" progress={0.4} className="mt-3">
-                      {breakTimer}
-                      <span className="focus-timer-caption">{t.focusActiveBreakPhase}</span>
-                    </FocusTimerScene>
+                    <>
+                      <FocusTimerScene variant="break" progress={breakProgress} className="mt-3">
+                        {breakTimer}
+                        <span className="focus-timer-caption">{t.focusActiveBreakPhase}</span>
+                      </FocusTimerScene>
+                      <div className="focus-active-primary-controls focus-timer-break-controls" role="group" aria-label={t.focusActiveBreakTitle}>
+                        <button
+                          type="button"
+                          aria-pressed={activeBreak.isPaused}
+                          disabled={!online || isRuntimeBusy || (breakFinished && !activeBreak.isPaused)}
+                          onClick={activeBreak.isPaused ? handleResumeBreak : handlePauseBreak}
+                          className="focus-timer-primary-action"
+                        >
+                          {activeBreak.isPaused
+                            ? <Play aria-hidden="true" />
+                            : <Pause aria-hidden="true" />}
+                          {activeBreak.isPaused ? t.focusActiveBreakResume : t.focusActiveBreakPause}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!online || isRuntimeBusy}
+                          onClick={handleEndBreak}
+                          className="focus-timer-primary-action focus-timer-break-end-action"
+                        >
+                          <Square aria-hidden="true" />
+                          {t.focusActiveBreakEnd}
+                        </button>
+                      </div>
+                    </>
                   ) : (
                     <p className="mt-4 text-sm text-muted-foreground" role="status">
                       {visibleActionError ?? t.focusActiveChecking}

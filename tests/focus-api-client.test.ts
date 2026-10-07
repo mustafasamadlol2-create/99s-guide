@@ -63,6 +63,7 @@ test("Focus break API reads durable state and uses idempotent transitions", asyn
     endsAt: "2025-01-01T00:10:00.000Z",
     endedAt: null,
     resumeStudyOnReturn: true,
+    isPaused: false,
     remainingSeconds: 600,
   };
   const api = createFocusApi(async (path, options = {}) => {
@@ -70,6 +71,22 @@ test("Focus break API reads durable state and uses idempotent transitions", asyn
     calls.push({ path: route, options });
     if (route.endsWith("/break")) {
       return response({ session: session("PAUSED"), breakSession, serverNow: now });
+    }
+    if (route.endsWith("/break/pause")) {
+      return response({
+        session: session("PAUSED"),
+        breakSession: { ...breakSession, isPaused: true, remainingSeconds: 575 },
+        serverNow: now,
+        idempotency: "FIRST_SEEN",
+      }, 201);
+    }
+    if (route.endsWith("/break/resume")) {
+      return response({
+        session: session("PAUSED"),
+        breakSession: { ...breakSession, remainingSeconds: 575 },
+        serverNow: now,
+        idempotency: "FIRST_SEEN",
+      }, 201);
     }
     return response({
       session: session(route.endsWith("/return") ? "ACTIVE" : "PAUSED"),
@@ -81,14 +98,20 @@ test("Focus break API reads durable state and uses idempotent transitions", asyn
 
   const snapshot = await api.getFocusBreak(id);
   const started = await api.startFocusBreak(id, { idempotencyKey: "break-start-key", source: "web" });
+  const paused = await api.pauseFocusBreak(id, { idempotencyKey: "break-pause-key", source: "web" });
+  const resumed = await api.resumeFocusBreak(id, { idempotencyKey: "break-resume-key", source: "web" });
   const returned = await api.returnFromFocusBreak(id, { idempotencyKey: "break-return-key", source: "pwa" });
 
   assert.equal(snapshot.breakSession?.remainingSeconds, 600);
   assert.equal(started.session.status, "PAUSED");
+  assert.equal(paused.breakSession.isPaused, true);
+  assert.equal(resumed.breakSession.isPaused, false);
   assert.equal(returned.session.status, "ACTIVE");
   assert.deepEqual(calls.map(({ path }) => path), [
     `/api/focus/sessions/${id}/break`,
     `/api/focus/sessions/${id}/break/start`,
+    `/api/focus/sessions/${id}/break/pause`,
+    `/api/focus/sessions/${id}/break/resume`,
     `/api/focus/sessions/${id}/break/return`,
   ]);
   assert.deepEqual(JSON.parse(String(calls[1].options.body)), {
@@ -96,6 +119,14 @@ test("Focus break API reads durable state and uses idempotent transitions", asyn
     source: "web",
   });
   assert.deepEqual(JSON.parse(String(calls[2].options.body)), {
+    idempotencyKey: "break-pause-key",
+    source: "web",
+  });
+  assert.deepEqual(JSON.parse(String(calls[3].options.body)), {
+    idempotencyKey: "break-resume-key",
+    source: "web",
+  });
+  assert.deepEqual(JSON.parse(String(calls[4].options.body)), {
     idempotencyKey: "break-return-key",
     source: "pwa",
   });

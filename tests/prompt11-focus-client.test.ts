@@ -53,6 +53,8 @@ function api(overrides: Partial<FocusApi> = {}): FocusApi {
       };
     },
     startFocusBreak: async () => { throw new Error("unused"); },
+    pauseFocusBreak: async () => { throw new Error("unused"); },
+    resumeFocusBreak: async () => { throw new Error("unused"); },
     returnFromFocusBreak: async () => { throw new Error("unused"); },
     completeFocusSession: async () => mutation(session("COMPLETED", 0)),
     abandonFocusSession: async () => mutation(session("ABANDONED", 0)),
