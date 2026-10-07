@@ -41,7 +41,10 @@ import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusRuntimeController } from "../runtime/controller";
 import type { FocusRuntimeState } from "../runtime/types";
 import { getFocusClientSource } from "../runtime/source";
-import { focusApi } from "../api/focusApi";
+import {
+  focusApi,
+  isRetryableFocusReadError,
+} from "../api/focusApi";
 import { deriveFocusProgression, formatFocusClock } from "../focusActiveModel";
 import { FocusCycleStrip, FocusTimerScene, type FocusDisplayPhase } from "./FocusVisuals";
 import { useFocusAudio } from "../../focus-audio/hooks";
@@ -140,10 +143,11 @@ type ActiveFocusCopy = ReturnType<typeof useActiveFocusCopy>;
 
 interface ActiveFocusScreenProps {
   sessionRouteId: string;
+  runtimeController: FocusRuntimeController;
+  initialPlan: FocusPlanDto | null;
   lectures: DatabaseLecture[];
   language: Language;
   catalogStatus: "loading" | "ready" | "error";
-  onRefreshLectures: () => Promise<void>;
   onReturnToPlanner: () => void;
   onOpenSession: (sessionId: string) => void;
   onOpenSummary: (sessionId: string) => void;
@@ -153,24 +157,6 @@ type FocusPlanLoad =
   | { status: "idle" | "loading" }
   | { status: "ready"; plan: FocusPlanDto }
   | { status: "error" };
-
-function initialRuntimeState(): FocusRuntimeState {
-  return {
-    runtimeStatus: "IDLE",
-    session: null,
-    sessionAuthority: null,
-    lastMutationResult: null,
-    displayRemainingSeconds: null,
-    displayMayBeComplete: false,
-    estimatedServerNow: null,
-    completionEligible: null,
-    pendingOperation: null,
-    semanticResult: null,
-    error: null,
-    lastSyncedAt: null,
-    potentialInterruption: null,
-  };
-}
 
 function sameActiveScreenState(previous: FocusRuntimeState, next: FocusRuntimeState): boolean {
   return previous.runtimeStatus === next.runtimeStatus &&
@@ -226,19 +212,20 @@ export function ActiveFocusScreen(props: ActiveFocusScreenProps) {
 
 function ActiveFocusScreenCore({
   sessionRouteId,
+  runtimeController: controller,
+  initialPlan,
   lectures,
   language,
   catalogStatus,
-  onRefreshLectures,
   onReturnToPlanner,
   onOpenSession,
   onOpenSummary,
   audio,
 }: ActiveFocusScreenProps & { audio: FocusAudioContextValue | null }) {
   const t = useActiveFocusCopy(language);
-  const [controller, setController] = useState<FocusRuntimeController | null>(null);
-  const [runtime, setRuntime] = useState<FocusRuntimeState>(initialRuntimeState);
-  const [planLoad, setPlanLoad] = useState<FocusPlanLoad>({ status: "idle" });
+  const [runtime, setRuntime] = useState<FocusRuntimeState>(() => controller.getState());
+  const [planLoad, setPlanLoad] = useState<FocusPlanLoad>(() =>
+    initialPlan ? { status: "ready", plan: initialPlan } : { status: "idle" });
   const [completedRoute, setCompletedRoute] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | { status: "completed"; context: PostFocusActionContext }
@@ -271,22 +258,33 @@ function ActiveFocusScreenCore({
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
-    const runtimeController = new FocusRuntimeController();
-    setController(runtimeController);
-    const unsubscribe = runtimeController.subscribe((next) => {
+    setRuntime(controller.getState());
+    const unsubscribe = controller.subscribe((next) => {
       setRuntime((previous) =>
         sameActiveScreenState(previous, next) ? previous : next);
     });
-    void runtimeController.initialize().catch(() => {});
-
-    return () => {
-      unsubscribe();
-      runtimeController.dispose();
-    };
-  }, []);
+    return unsubscribe;
+  }, [controller]);
 
   useEffect(() => {
-    if (!controller || typeof BroadcastChannel === "undefined") return;
+    const reconcile = () => {
+      void controller.reconcile().catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") reconcile();
+    };
+    window.addEventListener("focus-state-invalidated", reconcile);
+    window.addEventListener("online", reconcile);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus-state-invalidated", reconcile);
+      window.removeEventListener("online", reconcile);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [controller]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
     const channel = new BroadcastChannel("focus-session-state");
     channelRef.current = channel;
     channel.onmessage = () => {
@@ -307,17 +305,41 @@ function ActiveFocusScreenCore({
 
     let active = true;
     setCompletedRoute({ status: "loading" });
-    void focusApi.getPostFocusActionContext(sessionRouteId)
-      .then((context) => {
-        if (active) setCompletedRoute({ status: "completed", context });
-      })
-      .catch(() => {
-        if (active) setCompletedRoute({ status: "unavailable" });
-      });
+    let retryTimer: number | null = null;
+    let retryAttempt = 0;
+    const loadContext = async () => {
+      if (!active) return;
+      setCompletedRoute({ status: "loading" });
+      try {
+        const context = await focusApi.getPostFocusActionContext(sessionRouteId);
+        if (active) {
+          setCompletedRoute({ status: "completed", context });
+          retryAttempt = 0;
+        }
+      } catch (error) {
+        if (active) {
+          setCompletedRoute({ status: "unavailable" });
+          if (isRetryableFocusReadError(error) &&
+              retryTimer === null &&
+              online &&
+              (typeof navigator === "undefined" || navigator.onLine)) {
+            const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
+            retryAttempt += 1;
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              void loadContext();
+            }, delay);
+          }
+        }
+      }
+    };
+    void loadContext();
     return () => {
       active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
   }, [
+    online,
     runtime.runtimeStatus,
     runtime.session?.id,
     runtime.sessionAuthority,
@@ -366,7 +388,9 @@ function ActiveFocusScreenCore({
       : null;
   const sessionForView = canonicalRouteMatch
     ? canonicalSession
-    : routeBreakSnapshot?.session ?? terminalRouteSession;
+    : routeBreakSnapshot?.session ??
+      terminalRouteSession ??
+      (runtime.session?.id === sessionRouteId ? runtime.session : null);
 
   useEffect(() => {
     setBreakSnapshot(null);
@@ -383,29 +407,78 @@ function ActiveFocusScreenCore({
       return;
     }
     let active = true;
-    void focusApi.getFocusBreak(sessionRouteId).then((snapshot) => {
+    let running = false;
+    let refreshPending = false;
+    let retryTimer: number | null = null;
+    let retryAttempt = 0;
+    const loadBreak = async () => {
       if (!active) return;
-      setBreakSnapshot(snapshot);
-      if (snapshot.breakSession) {
-        setActivePhase((previous) => previous === "focus" ? "break" : previous);
-      } else {
-        setActivePhase((previous) => previous === "break" ? "focus" : previous);
+      if (running) {
+        refreshPending = true;
+        return;
       }
-      if (snapshot.session.status === "COMPLETED" && snapshot.breakSession) {
-        setTerminalResult((previous) =>
-          previous?.session.id === sessionRouteId
-            ? previous
-            : {
-              session: snapshot.session,
-              idempotency: "FIRST_SEEN",
-              manualLectureCompletionRequired: snapshot.session.isLastPlannedSession,
-            });
+      running = true;
+      try {
+        const snapshot = await focusApi.getFocusBreak(sessionRouteId);
+        if (!active) return;
+        setBreakSnapshot(snapshot);
+        if (snapshot.breakSession) {
+          setActivePhase((previous) => previous === "focus" ? "break" : previous);
+        } else {
+          setActivePhase((previous) => previous === "break" ? "focus" : previous);
+        }
+        if (snapshot.session.status === "COMPLETED" && snapshot.breakSession) {
+          setTerminalResult((previous) =>
+            previous?.session.id === sessionRouteId
+              ? previous
+              : {
+                session: snapshot.session,
+                idempotency: "FIRST_SEEN",
+                manualLectureCompletionRequired: snapshot.session.isLastPlannedSession,
+              });
+        }
+        retryAttempt = 0;
+      } catch (error) {
+        if (active && isRetryableFocusReadError(error) && retryTimer === null &&
+            (typeof navigator === "undefined" || navigator.onLine)) {
+          const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
+          retryAttempt += 1;
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            void loadBreak();
+          }, delay);
+        }
+      } finally {
+        running = false;
+        if (active && refreshPending) {
+          refreshPending = false;
+          void loadBreak();
+        }
       }
-    }).catch(() => {
-      // The session route remains usable; canonical session reconciliation is separate.
-    });
+    };
+    const refreshBreak = () => {
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      retryTimer = null;
+      retryAttempt = 0;
+      if (running) {
+        refreshPending = true;
+        return;
+      }
+      void loadBreak();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshBreak();
+    };
+    void loadBreak();
+    window.addEventListener("online", refreshBreak);
+    window.addEventListener("focus-state-invalidated", refreshBreak);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      window.removeEventListener("online", refreshBreak);
+      window.removeEventListener("focus-state-invalidated", refreshBreak);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [
     runtime.session?.id,
@@ -462,18 +535,76 @@ function ActiveFocusScreenCore({
         ? t.focusActiveBreakContinueBody
         : t.focusActiveBreakStudyPausedBody;
   useEffect(() => {
-    if (!sessionForView) return;
+    if (!sessionForView) {
+      setPlanLoad({ status: "idle" });
+      return;
+    }
+    if (initialPlan?.id === sessionForView.planId) {
+      setPlanLoad({ status: "ready", plan: initialPlan });
+      return;
+    }
     setPlanLoad({ status: "loading" });
     let active = true;
-    void focusApi.getFocusPlan(sessionForView.planId).then((plan) => {
-      if (active) setPlanLoad({ status: "ready", plan });
-    }).catch(() => {
-      if (active) setPlanLoad({ status: "error" });
-    });
+    let running = false;
+    let canonicalRefreshPending = false;
+    let retryTimer: number | null = null;
+    let retryAttempt = 0;
+    const loadPlan = async (canonical = false) => {
+      if (!active) return;
+      if (running) {
+        canonicalRefreshPending ||= canonical;
+        return;
+      }
+      running = true;
+      try {
+        const plan = await focusApi.getFocusPlan(sessionForView.planId, { canonical });
+        if (active) {
+          setPlanLoad({ status: "ready", plan });
+          retryAttempt = 0;
+        }
+      } catch (error) {
+        if (active) {
+          setPlanLoad({ status: "error" });
+          if (isRetryableFocusReadError(error) &&
+              retryTimer === null &&
+              (typeof navigator === "undefined" || navigator.onLine)) {
+            const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
+            retryAttempt += 1;
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              void loadPlan(canonical);
+            }, delay);
+          }
+        }
+      } finally {
+        running = false;
+        if (active && canonicalRefreshPending) {
+          canonicalRefreshPending = false;
+          void loadPlan(true);
+        }
+      }
+    };
+    const refreshCanonicalPlan = () => {
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      retryTimer = null;
+      retryAttempt = 0;
+      void loadPlan(true);
+    };
+    void loadPlan();
+    window.addEventListener("online", refreshCanonicalPlan);
+    window.addEventListener("focus-state-invalidated", refreshCanonicalPlan);
     return () => {
       active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      window.removeEventListener("online", refreshCanonicalPlan);
+      window.removeEventListener("focus-state-invalidated", refreshCanonicalPlan);
     };
-  }, [sessionForView?.id, sessionForView?.planId]);
+  }, [
+    initialPlan?.id,
+    initialPlan?.planVersion,
+    sessionForView?.id,
+    sessionForView?.planId,
+  ]);
 
   useEffect(() => {
     if (!currentPlan || !terminalRouteSession || terminalRouteSession.status !== "COMPLETED") return;
@@ -481,11 +612,14 @@ function ActiveFocusScreenCore({
   }, [currentPlan?.id, terminalRouteSession?.id, terminalRouteSession?.status]);
 
   useEffect(() => {
+    if (!runtime.displayMayBeComplete) {
+      completionSyncSessionRef.current = null;
+      return;
+    }
     if (
       !controller ||
       !canonicalSession ||
       !canonicalRouteMatch ||
-      !runtime.displayMayBeComplete ||
       completionSyncSessionRef.current === canonicalSession.id
     ) return;
     completionSyncSessionRef.current = canonicalSession.id;
@@ -791,22 +925,6 @@ function ActiveFocusScreenCore({
         await controller.reconcile().catch(() => {});
       },
     );
-  };
-
-  const handleReconcile = () => {
-    if (!controller || !online || isRuntimeBusy) return;
-    setActionError(null);
-    void controller.reconcile().catch(() => {
-      setActionError(t.focusActiveActionError);
-    });
-  };
-
-  const retryPlan = () => {
-    if (!sessionForView) return;
-    setPlanLoad({ status: "loading" });
-    void focusApi.getFocusPlan(sessionForView.planId)
-      .then((plan) => setPlanLoad({ status: "ready", plan }))
-      .catch(() => setPlanLoad({ status: "error" }));
   };
 
   const handleComplete = () => {
@@ -1122,15 +1240,6 @@ function ActiveFocusScreenCore({
         <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-foreground">{t.focusActiveQueue}</h2>
-            {planLoad.status === "error" && (
-              <button
-                type="button"
-                onClick={retryPlan}
-                className="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {t.focusActiveRetry}
-              </button>
-            )}
           </div>
           {planLoad.status === "loading" && (
             <div className="mt-3 h-20 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" aria-hidden="true" />
@@ -1158,16 +1267,10 @@ function ActiveFocusScreenCore({
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
             {forbiddenOrMissing ? t.focusActiveNotCurrentBody : t.focusActiveActionError}
           </p>
-          {!forbiddenOrMissing && (
-            <button
-              type="button"
-              disabled={!online || isRuntimeBusy}
-              onClick={handleReconcile}
-              className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t.focusActiveRetry}
-            </button>
+          {!forbiddenOrMissing && online && isRetryableFocusReadError(runtime.error) && (
+            <p role="status" className="mt-4 text-sm text-muted-foreground">
+              {t.focusActiveChecking}
+            </p>
           )}
           <button
             type="button"
@@ -1443,9 +1546,6 @@ function ActiveFocusScreenCore({
   const isActive = canonicalSession.status === "ACTIVE";
   const isStale = runtime.sessionAuthority !== "CANONICAL" ||
     runtime.runtimeStatus === "OFFLINE_STALE";
-  const showCheckCompletion = isActive &&
-    runtime.displayMayBeComplete &&
-    runtime.completionEligible !== true;
   const mayComplete = isActive && runtime.completionEligible === true;
   const canOpenResources = isActive && mayChangeSession && materials.length > 0;
   const runtimeStatusLabel = isReconciliationRequired
@@ -1497,17 +1597,13 @@ function ActiveFocusScreenCore({
         </div>
       )}
       {isStale && (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100" role="status">
-          <span>{t.focusActiveStatusOffline}</span>
-          <button
-            type="button"
-            disabled={!online || isRuntimeBusy}
-            onClick={handleReconcile}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-current px-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-            {t.focusActiveRetry}
-          </button>
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100" role="status">
+          {!online
+            ? t.focusActiveStatusOffline
+            : isRetryableFocusReadError(runtime.error) ||
+                runtime.runtimeStatus === "RECONCILING"
+              ? t.focusActiveChecking
+              : t.focusActiveActionError}
         </div>
       )}
       {isReconciliationRequired && (
@@ -1709,17 +1805,6 @@ function ActiveFocusScreenCore({
                   </div>
 
                   <div className="focus-active-controls mt-5 flex flex-wrap items-center justify-center gap-3">
-                    {showCheckCompletion && (
-                      <button
-                        type="button"
-                        disabled={!online || isRuntimeBusy}
-                        onClick={handleReconcile}
-                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      >
-                        <RefreshCw className="size-4" aria-hidden="true" />
-                        {t.focusActiveCheckReady}
-                      </button>
-                    )}
                     {(isActive || isPaused) && (
                       <button
                         type="button"
@@ -1730,15 +1815,6 @@ function ActiveFocusScreenCore({
                         {t.focusActiveEnd}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      disabled={!online || isRuntimeBusy}
-                      onClick={handleReconcile}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                    >
-                      <RefreshCw className="size-4" aria-hidden="true" />
-                      {isRuntimeBusy ? t.focusActiveChecking : t.focusActiveRetry}
-                    </button>
                   </div>
                 </>
               )}
@@ -1763,15 +1839,6 @@ function ActiveFocusScreenCore({
           <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-foreground">{t.focusActiveResourceTitle}</h2>
-              {catalogStatus === "error" && (
-                <button
-                  type="button"
-                  onClick={() => void onRefreshLectures()}
-                  className="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {t.focusActiveRetry}
-                </button>
-              )}
             </div>
             {catalogStatus === "error" && materials.length === 0 ? (
               <p className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
@@ -1831,15 +1898,6 @@ function ActiveFocusScreenCore({
             <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-semibold text-foreground">{t.focusActiveQueue}</h2>
-                {planLoad.status === "error" && (
-                  <button
-                    type="button"
-                    onClick={retryPlan}
-                    className="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {t.focusActiveRetry}
-                  </button>
-                )}
               </div>
               {planLoad.status === "loading" ? (
                 <div className="mt-3 h-20 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" aria-hidden="true" />

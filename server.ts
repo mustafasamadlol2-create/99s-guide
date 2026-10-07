@@ -7885,6 +7885,11 @@ app.use(
   createFocusRouter({
     requireUser,
     service: createFocusService(),
+    broadcastInvalidation: (userId) => {
+      io.to(`user-${userId}`).emit("focus_state_changed", {
+        changedAt: new Date().toISOString(),
+      });
+    },
     refreshAchievements: refreshUserAchievementsBestEffort,
     refreshMastery: (userId, lectureId) =>
       refreshLectureMasteryBestEffort({ userId, lectureId }),

@@ -131,6 +131,8 @@ export const focusPlanIdSchema = uuid;
 export const focusSessionIdSchema = uuid;
 export const focusPlanListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+  canonical: z.literal("1").optional(),
 }).strict();
 
 export const focusMetricsQuerySchema = z.object({

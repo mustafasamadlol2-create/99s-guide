@@ -23,6 +23,7 @@ import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../features/mastery/constants.
 export interface FocusRouteDependencies {
   requireUser: RequestHandler;
   service: FocusBackendService;
+  broadcastInvalidation?(userId: string): void;
   refreshAchievements?(userId: string): Promise<unknown>;
   refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
   refreshChallenges?(
@@ -66,6 +67,23 @@ function invalid(res: express.Response, error: string): express.Response {
 export function createFocusRouter(dependencies: FocusRouteDependencies): express.Router {
   const router = express.Router();
   router.use(dependencies.requireUser);
+  router.use((req, res, next) => {
+    if (!dependencies.broadcastInvalidation ||
+        !["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+      return next();
+    }
+    const authenticatedUserId = userId(req);
+    res.once("finish", () => {
+      if (res.statusCode < 200 || res.statusCode >= 300) return;
+      try {
+        dependencies.broadcastInvalidation?.(authenticatedUserId);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "unknown error";
+        console.warn(`[Focus] Realtime invalidation failed: ${reason}`);
+      }
+    });
+    return next();
+  });
 
   router.get("/metrics", route(async (req, res) => {
     const parsed = focusMetricsQuerySchema.safeParse(req.query);
@@ -92,7 +110,10 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
     const parsed = focusPlanListQuerySchema.safeParse(req.query);
     if (!parsed.success) return invalid(res, "Focus Plan query is invalid.");
     try {
-      const plans = await dependencies.service.listPlans(userId(req), parsed.data.limit);
+      const plans = await dependencies.service.listPlans(userId(req), parsed.data.limit, {
+        status: parsed.data.status,
+        canonical: parsed.data.canonical === "1",
+      });
       return res.json({ plans });
     } catch (error) {
       return sendError(res, error);
@@ -103,7 +124,12 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
     const parsedId = focusPlanIdSchema.safeParse(req.params.planId);
     if (!parsedId.success) return invalid(res, "Focus Plan ID is invalid.");
     try {
-      const plan = await dependencies.service.getPlan(userId(req), parsedId.data);
+      const canonical = req.query.canonical === "1";
+      const plan = await dependencies.service.getPlan(
+        userId(req),
+        parsedId.data,
+        { canonical },
+      );
       return res.json({ plan });
     } catch (error) {
       return sendError(res, error);
@@ -322,31 +348,25 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
           result.session.status === "COMPLETED" &&
           (result.session.activeSeconds ?? 0) >= MASTERY_MEANINGFUL_FOCUS_SECONDS
         ) {
-          try {
-            await dependencies.refreshMastery?.(
-              userId(req),
-              result.session.lectureId,
-            );
-          } catch {
+          void dependencies.refreshMastery?.(
+            userId(req),
+            result.session.lectureId,
+          ).catch(() => {
             // Projection failures must not change a committed Focus completion.
-          }
+          });
         }
-        try {
-          await dependencies.refreshAchievements?.(userId(req));
-        } catch (error) {
+        void dependencies.refreshAchievements?.(userId(req)).catch((error) => {
           const reason = error instanceof Error ? error.message : "unknown error";
           console.warn(`[Focus] Post-commit Achievement refresh failed: ${reason}`);
-        }
-        try {
-          await dependencies.refreshChallenges?.(userId(req), [
-            "focus.completed_sessions",
-            "focus.verified_seconds",
-            "consistency.qualifying_days",
-          ]);
-        } catch (error) {
+        });
+        void dependencies.refreshChallenges?.(userId(req), [
+          "focus.completed_sessions",
+          "focus.verified_seconds",
+          "consistency.qualifying_days",
+        ]).catch((error) => {
           const reason = error instanceof Error ? error.message : "unknown error";
           console.warn(`[Focus] Post-commit Challenge refresh failed: ${reason}`);
-        }
+        });
       }
       return res.json(result);
     } catch (error) {

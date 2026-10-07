@@ -46,7 +46,7 @@ test("Focus session API sends canonical routes, bodies, and request policy", asy
     `/api/focus/sessions/${id}/complete`,
   ]);
   assert.equal(calls.every((call) => call.options.bypassCache === true && call.options.retries === 0 && call.options.timeoutMs === 15_000), true);
-  assert.equal(typeof calls[0].options.requestKey, "string");
+  assert.equal(calls[0].options.requestKey, undefined);
   assert.deepEqual(JSON.parse(String(calls[1].options.body)), {
     planId: id, planItemId: itemId, idempotencyKey: "start-key", source: "web",
   });
@@ -155,10 +155,10 @@ test("Focus abandonment accepts the committed terminal response", async () => {
   });
 });
 
-test("current-session request keys are unique across API instances", async () => {
-  const keys: string[] = [];
+test("current-session reads do not add a request key that defeats in-flight deduplication", async () => {
+  const keys: Array<string | undefined> = [];
   const request = async (_path: RequestInfo | URL, options: FocusApiRequestOptions = {}) => {
-    keys.push(String(options.requestKey));
+    keys.push(options.requestKey);
     return response({ session: null, serverNow: now });
   };
   const firstApi = createFocusApi(request);
@@ -169,8 +169,7 @@ test("current-session request keys are unique across API instances", async () =>
     secondApi.getCurrentFocusSession(),
   ]);
 
-  assert.equal(keys.length, 2);
-  assert.notEqual(keys[0], keys[1]);
+  assert.deepEqual(keys, [undefined, undefined]);
 });
 
 test("Focus plan methods validate envelopes and only send allowed fields", async () => {

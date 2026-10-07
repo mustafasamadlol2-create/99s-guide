@@ -77,6 +77,13 @@ export class FocusApiError extends Error {
   }
 }
 
+export function isRetryableFocusReadError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { kind?: string; status?: number };
+  return candidate.kind === "transport" ||
+    (candidate.kind === "http" && (candidate.status ?? 0) >= 500);
+}
+
 export interface FocusApi {
   getCurrentFocusSession(): Promise<FocusCurrentSessionResult>;
   startFocusSession(input: StartFocusSessionInput): Promise<FocusSessionMutationResult>;
@@ -93,8 +100,11 @@ export interface FocusApi {
   returnFromResourceHandoff?(sessionId: string, input: ResourceHandoffReturnInput): Promise<FocusSessionMutationResult>;
   recordInterruption?(sessionId: string, input: RecordInterruptionInput): Promise<FocusInterruptionResult>;
   createFocusPlan(input: CreateFocusPlanInput): Promise<FocusPlanDto>;
-  listFocusPlans(limit?: number): Promise<FocusPlanDto[]>;
-  getFocusPlan(planId: string): Promise<FocusPlanDto>;
+  listFocusPlans(
+    limit?: number,
+    options?: { status?: "ACTIVE" | "ARCHIVED"; canonical?: boolean },
+  ): Promise<FocusPlanDto[]>;
+  getFocusPlan(planId: string, options?: { canonical?: boolean }): Promise<FocusPlanDto>;
   updateFocusPlan(planId: string, input: UpdateFocusPlanInput): Promise<FocusPlanDto>;
   archiveFocusPlan(planId: string): Promise<FocusPlanDto>;
   getMetrics(period: FocusMetricsPeriod): Promise<FocusMetricsDto>;
@@ -581,8 +591,6 @@ function itemBody(item: CreateFocusPlanInput["items"][number], includeId: boolea
   };
 }
 
-let currentRequestGeneration = 0;
-
 export function createFocusApi(request: Requester = apiClient): FocusApi {
   const call = <T>(path: string, options: FocusApiRequestOptions, validate: (value: unknown) => T) =>
     json(request, path, options, validate);
@@ -594,7 +602,7 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
   return {
     getCurrentFocusSession: () => call(
       "/api/focus/sessions/current",
-      { ...requestOptions(), requestKey: `focus-current-${++currentRequestGeneration}` },
+      requestOptions(),
       current,
     ),
     startFocusSession: (input) => call("/api/focus/sessions/start", requestOptions("POST", {
@@ -608,7 +616,7 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     }), mutation),
     getFocusBreak: (id) => call(
       `/api/focus/sessions/${encodeURIComponent(id)}/break`,
-      { ...requestOptions(), requestKey: `focus-break-${++currentRequestGeneration}` },
+      requestOptions(),
       focusBreakSnapshot,
     ),
     startFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/start`, requestOptions("POST", {
@@ -641,12 +649,27 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), interruption),
     createFocusPlan: (input) => call("/api/focus/plans", requestOptions("POST", planBody(input, false)), (body) => plan(record(body, "plan response").plan)),
-    listFocusPlans: (limit) => call(`/api/focus/plans${limit === undefined ? "" : `?limit=${encodeURIComponent(String(limit))}`}`, requestOptions(), (body) => {
-      const result = record(body, "plan list response");
-      if (!Array.isArray(result.plans)) throw protocol("Invalid Focus plan list.");
-      return result.plans.map(plan);
-    }),
-    getFocusPlan: (id) => call(`/api/focus/plans/${encodeURIComponent(id)}`, requestOptions(), (body) => plan(record(body, "plan response").plan)),
+    listFocusPlans: (limit, options = {}) => {
+      const params = new URLSearchParams();
+      if (limit !== undefined) params.set("limit", String(limit));
+      if (options.status) params.set("status", options.status);
+      if (options.canonical) params.set("canonical", "1");
+      const query = params.toString();
+      const suffix = query ? `?${query}` : "";
+      return call(`/api/focus/plans${suffix}`, requestOptions(), (body) => {
+        const result = record(body, "plan list response");
+        if (!Array.isArray(result.plans)) throw protocol("Invalid Focus plan list.");
+        return result.plans.map(plan);
+      });
+    },
+    getFocusPlan: (id, options = {}) => {
+      const suffix = options.canonical ? "?canonical=1" : "";
+      return call(
+        `/api/focus/plans/${encodeURIComponent(id)}${suffix}`,
+        requestOptions(),
+        (body) => plan(record(body, "plan response").plan),
+      );
+    },
     updateFocusPlan: (id, input) => call(`/api/focus/plans/${encodeURIComponent(id)}`, requestOptions("PATCH", planBody(input, true)), (body) => plan(record(body, "plan response").plan)),
     archiveFocusPlan: (id) => call(`/api/focus/plans/${encodeURIComponent(id)}/archive`, requestOptions("POST"), (body) => plan(record(body, "plan response").plan)),
     getMetrics: (period) => call(

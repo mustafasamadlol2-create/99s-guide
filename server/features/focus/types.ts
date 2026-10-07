@@ -222,8 +222,12 @@ export interface PostFocusActionContext {
 
 export interface FocusBackendService {
   createPlan(userId: string, input: CreateFocusPlanInput): Promise<FocusPlanDto>;
-  listPlans(userId: string, limit?: number): Promise<FocusPlanDto[]>;
-  getPlan(userId: string, planId: string): Promise<FocusPlanDto>;
+  listPlans(
+    userId: string,
+    limit?: number,
+    options?: { status?: "ACTIVE" | "ARCHIVED"; canonical?: boolean },
+  ): Promise<FocusPlanDto[]>;
+  getPlan(userId: string, planId: string, options?: { canonical?: boolean }): Promise<FocusPlanDto>;
   updatePlan(userId: string, planId: string, input: UpdateFocusPlanInput): Promise<FocusPlanDto>;
   archivePlan(userId: string, planId: string): Promise<FocusPlanDto>;
   startSession(userId: string, input: StartFocusSessionInput): Promise<FocusSessionMutationResult>;

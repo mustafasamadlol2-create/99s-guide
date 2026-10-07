@@ -15,7 +15,7 @@ interface FocusLecturePickerProps {
   catalogStatus: LectureCatalogStatus;
   onClose: () => void;
   onSelect: (lecture: DatabaseLecture) => void;
-  onRefresh: () => Promise<void>;
+  onRefresh?: () => Promise<void>;
 }
 
 const UUID_PATTERN =
@@ -130,6 +130,7 @@ export function FocusLecturePicker({
   };
 
   const refresh = async () => {
+    if (!onRefresh) return;
     setRefreshing(true);
     try {
       await onRefresh();
@@ -229,14 +230,16 @@ export function FocusLecturePicker({
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center dark:border-amber-400/20 dark:bg-amber-300/[0.06]">
               <p className="font-medium text-slate-900 dark:text-white">{t("focusHubNoLectures")}</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t("focusHubNoLecturesHelp")}</p>
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={refreshing}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#315f75] px-4 text-sm font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60"
-              >
-                {refreshing ? t("focusHubLoading") : t("focusHubRetryLectures")}
-              </button>
+              {onRefresh && (
+                <button
+                  type="button"
+                  onClick={() => void refresh()}
+                  disabled={refreshing}
+                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#315f75] px-4 text-sm font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-60"
+                >
+                  {refreshing ? t("focusHubLoading") : t("focusHubRetryLectures")}
+                </button>
+              )}
             </div>
           )}
 
@@ -244,14 +247,16 @@ export function FocusLecturePicker({
             <div className="py-12 text-center">
               <p className="font-medium text-slate-900 dark:text-white">{t("focusHubNoLectures")}</p>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t("focusHubNoLecturesHelp")}</p>
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={refreshing}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
-              >
-                {refreshing ? t("focusHubLoading") : t("focusHubRetryLectures")}
-              </button>
+              {onRefresh && (
+                <button
+                  type="button"
+                  onClick={() => void refresh()}
+                  disabled={refreshing}
+                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:opacity-60 dark:border-white/10 dark:text-slate-200"
+                >
+                  {refreshing ? t("focusHubLoading") : t("focusHubRetryLectures")}
+                </button>
+              )}
             </div>
           )}
 

@@ -170,6 +170,8 @@ export class FocusRuntimeController {
   private listeners = new Set<StateListener>();
   private lifecycleUnsubscribe: (() => void) | null = null;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempt = 0;
   private pendingMutation: PendingMutation | null = null;
   private mutationFlight: MutationFlight | null = null;
   private reconcileFlight: ReconcileFlight | null = null;
@@ -221,6 +223,10 @@ export class FocusRuntimeController {
 
   async initialize(): Promise<FocusRuntimeState> {
     this.assertNotDisposed();
+    if (!this.initialized) {
+      const cached = this.cache?.read() ?? null;
+      if (cached) this.applyStaleCache(cached);
+    }
     if (!this.lifecycleUnsubscribe && this.lifecycle) {
       this.lifecycleUnsubscribe = this.lifecycle.subscribe(
         () => { void this.handleForeground().catch(() => {}); },
@@ -458,6 +464,8 @@ export class FocusRuntimeController {
       if (this.disposed || generation !== this.requestGeneration) {
         return this.getState();
       }
+      this.clearReconcileRetry();
+      this.retryAttempt = 0;
       const syncedAt = result.serverNow;
       this.timerBaseline = null;
       const currentSession = result.session && !TERMINAL_STATES.has(result.session.status)
@@ -513,6 +521,10 @@ export class FocusRuntimeController {
         return this.getState();
       }
       const normalized = errorInfo(error);
+      if (normalized.kind === "transport" ||
+          (normalized.kind === "http" && (normalized.status ?? 0) >= 500)) {
+        this.scheduleReconcileRetry();
+      }
       if (normalized.kind === "transport") {
         const cached = this.cache?.read() ?? null;
         if (cached) {
@@ -586,6 +598,7 @@ export class FocusRuntimeController {
 
   private async handleForeground(): Promise<void> {
     if (this.disposed) return;
+    this.clearReconcileRetry();
     const awaySeconds = this.backgroundAt === null
       ? 0
       : Math.max(0, Math.floor((this.clock.monotonicNow() - this.backgroundAt) / 1000));
@@ -618,6 +631,24 @@ export class FocusRuntimeController {
         this.setState({ potentialInterruption: candidate });
       }
     }
+  }
+
+  private scheduleReconcileRetry(): void {
+    if (this.disposed || this.retryTimer !== null) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    const delay = Math.min(30_000, 750 * (2 ** Math.min(this.retryAttempt, 6)));
+    this.retryAttempt += 1;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (!this.disposed) void this.reconcile().catch(() => {});
+    }, delay);
+    (this.retryTimer as unknown as { unref?: () => void }).unref?.();
+  }
+
+  private clearReconcileRetry(): void {
+    if (this.retryTimer === null) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
   }
 
   private applyStaleCache(entry: FocusRuntimeCacheEntry): void {

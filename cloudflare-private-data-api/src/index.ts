@@ -1454,12 +1454,20 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
       const userId = projectionReadUser(url);
       if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
       const limit = readLimit(url, 100, 500);
-      const result = await env.DB.prepare(
-        `SELECT * FROM "FocusPlan"
-         WHERE "userScope" = ? AND "deletedAt" IS NULL
-         ORDER BY "updatedAt" DESC, "id" ASC
-         LIMIT ?`
-      ).bind(userId, limit).all();
+      const status = readStringParam(url, "status", 20);
+      const result = status
+        ? await env.DB.prepare(
+          `SELECT * FROM "FocusPlan"
+           WHERE "userScope" = ? AND "deletedAt" IS NULL AND "status" = ?
+           ORDER BY "updatedAt" DESC, "id" ASC
+           LIMIT ?`
+        ).bind(userId, status, limit).all()
+        : await env.DB.prepare(
+          `SELECT * FROM "FocusPlan"
+           WHERE "userScope" = ? AND "deletedAt" IS NULL
+           ORDER BY "updatedAt" DESC, "id" ASC
+           LIMIT ?`
+        ).bind(userId, limit).all();
       return jsonNoStore({ rows: readProjectionPlanRows(result.results || []) });
     }
 

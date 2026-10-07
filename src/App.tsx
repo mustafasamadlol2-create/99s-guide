@@ -712,6 +712,7 @@ function AppContent({
     });
 
     let socketDisposed = false;
+    let hasConnectedOnce = false;
     void SecureStorage.get("auth_token").then((token) => {
       if (socketDisposed) return;
       socket.auth = token ? { token } : {};
@@ -731,6 +732,8 @@ function AppContent({
     socket.on("connect", () => {
       const socketUser = currentUserRef.current;
       if (!socketUser) return;
+      const isReconnect = hasConnectedOnce;
+      hasConnectedOnce = true;
 
       // Presence-only payload: profile fields (avatar, name, email, etc.) are
       // NEVER sent through socket registration. They belong exclusively to the
@@ -741,6 +744,12 @@ function AppContent({
         id: socketUser.id,
       });
 
+      if (isReconnect) {
+        window.dispatchEvent(new CustomEvent("focus-state-invalidated", {
+          detail: { reason: "socket-reconnected" },
+        }));
+      }
+
       // Re-fetch critical canonical state that could have been missed during disconnect
       apiClient("/api/lectures", { bypassCache: true })
         .then((r) => r.ok ? r.json() : [])
@@ -750,6 +759,13 @@ function AppContent({
         .then((r) => r.ok ? r.json() : [])
         .then((data) => setCalendarEventsDb(Array.isArray(data) ? filterAcademicCalendarEvents(data) : []))
         .catch(() => {});
+    });
+
+    socket.on("focus_state_changed", (payload?: { changedAt?: string }) => {
+      clearApiCache("/api/focus");
+      window.dispatchEvent(new CustomEvent("focus-state-invalidated", {
+        detail: { reason: "server-mutation", changedAt: payload?.changedAt },
+      }));
     });
 
     socket.on("presence-update", (onlineList) => {
@@ -2224,7 +2240,10 @@ function AppContent({
       return;
     }
 
-    if (id === "focus") setHasVisitedFocusHub(true);
+    if (id === "focus") {
+      void FocusHub.preload();
+      setHasVisitedFocusHub(true);
+    }
     setFocusSessionRouteId(null);
     const isSelectedMainTab = activeTab === id;
     const isRootReselect =
@@ -6845,6 +6864,7 @@ const handleSignOut = useCallback(async () => {
                   <Suspense fallback={iOSLoadingFallback}>
                     <ErrorBoundary>
                       <FocusHub
+                      accountId={currentUser?.id ?? null}
                       lectures={dbLectures}
                       subjects={subjects}
                       language={language}

@@ -235,7 +235,7 @@ type FocusServiceOptions = {
   d1PlanReadsEnabled?: () => boolean;
   fetchPlansFromD1?: (
     userId: string,
-    options: { limit?: number },
+    options: { limit?: number; status?: "ACTIVE" | "ARCHIVED" },
   ) => Promise<FocusPlanReadProjection[]>;
   d1MetricReadsEnabled?: () => boolean;
   fetchMetricsFromD1?: (
@@ -986,20 +986,23 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       });
     },
 
-    async listPlans(userId, limit = 100) {
+    async listPlans(userId, limit = 100, options = {}) {
       requireFocus();
       const boundedLimit = Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 100;
-      if (d1PlanReadsEnabled()) {
+      if (!options.canonical && d1PlanReadsEnabled()) {
         try {
-          const projections = await fetchPlansFromD1(userId, { limit: boundedLimit });
-          return projections.map(d1PlanDto);
+          const projections = await fetchPlansFromD1(userId, {
+            limit: boundedLimit,
+            status: options.status,
+          });
+          if (projections.length > 0) return projections.map(d1PlanDto);
         } catch (error) {
           logPrivateReadFallback("Focus Plan projection read", error);
         }
       }
       return safely(async () => {
         const rows = await repository.database.focusPlan.findMany({
-          where: { userId },
+          where: { userId, ...(options.status ? { status: options.status } : {}) },
           include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
           orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
           take: boundedLimit,
@@ -1008,9 +1011,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       });
     },
 
-    async getPlan(userId, planId) {
+    async getPlan(userId, planId, options = {}) {
       requireFocus();
-      if (d1PlanReadsEnabled()) {
+      if (!options.canonical && d1PlanReadsEnabled()) {
         try {
           const projections = await fetchPlansFromD1(userId, { limit: 100 });
           const projection = projections.find((plan) => plan.id === planId);

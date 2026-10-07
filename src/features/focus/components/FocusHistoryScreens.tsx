@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Clock3, History, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Clock3, History, Play } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import "./focus-history.css";
@@ -8,7 +8,10 @@ import type {
   FocusHistoryRowDto,
   FocusSessionSummaryDto,
 } from "../../../../server/features/focus/types";
-import { focusApi } from "../api/focusApi";
+import {
+  focusApi,
+  isRetryableFocusReadError,
+} from "../api/focusApi";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "ABANDONED", "EXPIRED"]);
 const HISTORY_STATUSES = [
@@ -89,9 +92,9 @@ export function FocusSessionSummaryScreen({
   const [summary, setSummary] = useState<FocusSessionSummaryDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [retry, setRetry] = useState(0);
   const [nextError, setNextError] = useState(false);
   const [manualPromptDismissed, setManualPromptDismissed] = useState(false);
+  const [refreshEpoch, setRefreshEpoch] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [online, setOnline] = useState(
     () => typeof navigator === "undefined" || navigator.onLine,
@@ -108,23 +111,64 @@ export function FocusSessionSummaryScreen({
   }, []);
 
   useEffect(() => {
+    const refresh = () => setRefreshEpoch((current) => current + 1);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus-state-invalidated", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus-state-invalidated", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
     let current = true;
+    let retryTimer: number | null = null;
+    let retryAttempt = 0;
     setLoading(true);
     setFailed(false);
     setSummary(null);
     setNextError(false);
     setManualPromptDismissed(false);
-    focusApi.getSessionSummary(sessionId).then((result) => {
-      if (current) setSummary(result);
-    }).catch(() => {
-      if (current) setFailed(true);
-    }).finally(() => {
-      if (current) setLoading(false);
-    });
+    const loadSummary = async () => {
+      if (!current) return;
+      setLoading(true);
+      try {
+        const result = await focusApi.getSessionSummary(sessionId);
+        if (current) {
+          setSummary(result);
+          setFailed(false);
+          retryAttempt = 0;
+        }
+      } catch (error) {
+        if (current) {
+          setFailed(true);
+          if (isRetryableFocusReadError(error) &&
+              retryTimer === null &&
+              online &&
+              (typeof navigator === "undefined" || navigator.onLine)) {
+            const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
+            retryAttempt += 1;
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              void loadSummary();
+            }, delay);
+          }
+        }
+      } finally {
+        if (current) setLoading(false);
+      }
+    };
+    void loadSummary();
     return () => {
       current = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
-  }, [retry, sessionId]);
+  }, [online, refreshEpoch, sessionId]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -182,14 +226,6 @@ export function FocusSessionSummaryScreen({
           ) : failed || !summary ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-300/15 dark:bg-rose-200/[0.06] dark:text-rose-100">
               <p role="alert" className="text-sm">{t("focusSummaryError")}</p>
-              <button
-                type="button"
-                onClick={() => setRetry((value) => value + 1)}
-                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 dark:border-rose-200/20 dark:bg-white/[0.04]"
-              >
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                {t("focusSummaryRetry")}
-              </button>
             </div>
           ) : (
             <>
@@ -383,7 +419,10 @@ export function FocusHistoryScreen({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [retry, setRetry] = useState(0);
+  const [online, setOnline] = useState(
+    () => typeof navigator === "undefined" || navigator.onLine,
+  );
+  const [refreshEpoch, setRefreshEpoch] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const subjectOptions = useMemo(() => {
@@ -402,29 +441,78 @@ export function FocusHistoryScreen({
   );
 
   useEffect(() => {
+    const updateOnline = () => setOnline(navigator.onLine);
+    window.addEventListener("online", updateOnline);
+    window.addEventListener("offline", updateOnline);
+    return () => {
+      window.removeEventListener("online", updateOnline);
+      window.removeEventListener("offline", updateOnline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setRefreshEpoch((current) => current + 1);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus-state-invalidated", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus-state-invalidated", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
     let current = true;
-    setLoading(true);
-    setError(false);
-    setCursor(null);
-    setRows([]);
-    focusApi.listHistory({
-      limit: 20,
-      ...(status ? { status: status as NonNullable<Parameters<typeof focusApi.listHistory>[0]>["status"] } : {}),
-      ...(subject ? { subject } : {}),
-      ...(lectureId ? { lectureId } : {}),
-    }).then((page) => {
+    let retryTimer: number | null = null;
+    let retryAttempt = 0;
+    const loadHistory = async () => {
       if (!current) return;
-      setRows(page.items);
-      setCursor(page.nextCursor);
-    }).catch(() => {
-      if (current) setError(true);
-    }).finally(() => {
-      if (current) setLoading(false);
-    });
+      setLoading(true);
+      setError(false);
+      setCursor(null);
+      setRows([]);
+      try {
+        const page: FocusHistoryPageDto = await focusApi.listHistory({
+          limit: 20,
+          ...(status ? { status: status as NonNullable<Parameters<typeof focusApi.listHistory>[0]>["status"] } : {}),
+          ...(subject ? { subject } : {}),
+          ...(lectureId ? { lectureId } : {}),
+        });
+        if (current) {
+          setRows(page.items);
+          setCursor(page.nextCursor);
+          setError(false);
+          retryAttempt = 0;
+        }
+      } catch (error) {
+        if (current) {
+          setError(true);
+          if (isRetryableFocusReadError(error) &&
+              retryTimer === null &&
+              online &&
+              (typeof navigator === "undefined" || navigator.onLine)) {
+            const delay = Math.min(30_000, 750 * (2 ** Math.min(retryAttempt, 6)));
+            retryAttempt += 1;
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              void loadHistory();
+            }, delay);
+          }
+        }
+      } finally {
+        if (current) setLoading(false);
+      }
+    };
+    void loadHistory();
     return () => {
       current = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
-  }, [lectureId, retry, status, subject]);
+  }, [lectureId, online, refreshEpoch, status, subject]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -519,9 +607,6 @@ export function FocusHistoryScreen({
         ) : error && rows.length === 0 ? (
           <div className="focus-history-error-box mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-300/15 dark:bg-rose-200/[0.06] dark:text-rose-100">
             <p role="alert" className="text-sm">{t("focusHistoryError")}</p>
-            <button type="button" onClick={() => setRetry((value) => value + 1)} className="focus-history-retry mt-3 min-h-11 rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 dark:border-rose-200/20 dark:bg-white/[0.04]">
-              {t("focusHistoryRetry")}
-            </button>
           </div>
         ) : rows.length === 0 ? (
           <p role="status" className="focus-history-empty mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-white/15 dark:text-slate-300">

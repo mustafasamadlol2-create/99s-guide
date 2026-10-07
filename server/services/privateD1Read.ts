@@ -30,6 +30,7 @@ export function privateReadEnabled(flagName: string): boolean {
 export async function fetchPrivateReadJson<T>(
   path: string,
   params: Record<string, string | number | null | undefined> = {},
+  timeoutMs = 4_000,
 ): Promise<T> {
   if (!PRIVATE_DATA_WORKER_BASE_URL || !PRIVATE_DATA_SYNC_SECRET) {
     throw new Error("Private D1 read Worker is not configured.");
@@ -43,7 +44,7 @@ export async function fetchPrivateReadJson<T>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4_000);
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
 
   try {
     const response = await fetch(url, {
@@ -159,7 +160,12 @@ async function projectionRows<T>(
 
   let payload: unknown;
   try {
-    payload = await fetchPrivateReadJson<unknown>(path, { ...params, userId: scope });
+    const timeoutMs = flagName.startsWith("PRIVATE_D1_FOCUS_") ? 600 : 4_000;
+    payload = await fetchPrivateReadJson<unknown>(
+      path,
+      { ...params, userId: scope },
+      timeoutMs,
+    );
   } catch (error) {
     throw new PrivateD1ProjectionReadError(
       error instanceof Error ? error.message : "Private projection read failed.",
@@ -187,13 +193,13 @@ async function projectionRows<T>(
 
 export function fetchFocusPlanProjections(
   userId: string,
-  options: { limit?: number } = {},
+  options: { limit?: number; status?: "ACTIVE" | "ARCHIVED" } = {},
 ): Promise<FocusPlanReadProjection[]> {
   return projectionRows(
     "PRIVATE_D1_FOCUS_PLAN_READS_ENABLED",
     "/internal/private-read/focus-plans",
     userId,
-    { limit: options.limit },
+    { limit: options.limit, status: options.status },
     (row, scope) => {
       metadataRow(row, scope);
       if (
