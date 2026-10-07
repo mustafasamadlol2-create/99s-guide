@@ -8,6 +8,7 @@ import {
   focusPlanListQuerySchema,
   focusSessionIdSchema,
   focusSessionTransitionSchema,
+  focusBreakTransitionSchema,
   startFocusSessionSchema,
   updateFocusPlanSchema,
   resourceHandoffStartSchema,
@@ -183,6 +184,51 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
     try {
       return res.json(await dependencies.service.getPostFocusActionContext(
         userId(req), parsedId.data,
+      ));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.get("/sessions/:sessionId/break", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    if (!parsedId.success) return invalid(res, "Focus Session ID is invalid.");
+    try {
+      return res.json(await dependencies.service.getBreak(userId(req), parsedId.data));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/break/start", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = focusBreakTransitionSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Focus Break start request is invalid.");
+    }
+    try {
+      const result = await dependencies.service.startBreak(
+        userId(req),
+        parsedId.data,
+        parsedBody.data,
+      );
+      return res.status(result.idempotency === "FIRST_SEEN" ? 201 : 200).json(result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.post("/sessions/:sessionId/break/return", route(async (req, res) => {
+    const parsedId = focusSessionIdSchema.safeParse(req.params.sessionId);
+    const parsedBody = focusBreakTransitionSchema.safeParse(req.body);
+    if (!parsedId.success || !parsedBody.success) {
+      return invalid(res, "Focus Break return request is invalid.");
+    }
+    try {
+      return res.json(await dependencies.service.returnFromBreak(
+        userId(req),
+        parsedId.data,
+        parsedBody.data,
       ));
     } catch (error) {
       return sendError(res, error);

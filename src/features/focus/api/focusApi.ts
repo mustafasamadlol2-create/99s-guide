@@ -16,6 +16,9 @@ import type {
   PostFocusActionContext,
   FocusSessionDto,
   FocusSessionMutationResult,
+  FocusBreakDto,
+  FocusBreakMutationResult,
+  FocusBreakSnapshot,
   FocusHistoryPageDto,
   FocusSessionSummaryDto,
 } from "../../../../server/features/focus/types";
@@ -79,6 +82,9 @@ export interface FocusApi {
   startFocusSession(input: StartFocusSessionInput): Promise<FocusSessionMutationResult>;
   pauseFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   resumeFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
+  getFocusBreak(sessionId: string): Promise<FocusBreakSnapshot>;
+  startFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
+  returnFromFocusBreak(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusBreakMutationResult>;
   completeFocusSession(sessionId: string, input: CompleteFocusSessionInput): Promise<FocusSessionMutationResult>;
   abandonFocusSession(sessionId: string, input: AbandonFocusSessionInput): Promise<FocusSessionMutationResult>;
   startResourceHandoff?(sessionId: string, input: ResourceHandoffStartInput): Promise<FocusSessionMutationResult>;
@@ -281,6 +287,62 @@ function current(value: unknown): FocusCurrentSessionResult {
   if (item.session !== null) session(item.session);
   stringField(item.serverNow, "serverNow");
   return item as unknown as FocusCurrentSessionResult;
+}
+
+function focusBreak(value: unknown): FocusBreakDto {
+  const item = record(value, "break");
+  stringField(item.id, "break ID", { uuid: true });
+  stringField(item.focusSessionId, "break session ID", { uuid: true });
+  const durationSeconds = numberField(item.durationSeconds, "break duration") as number;
+  const remainingSeconds = numberField(item.remainingSeconds, "break remaining time") as number;
+  if (
+    !Number.isSafeInteger(durationSeconds) ||
+    durationSeconds < 0 ||
+    !Number.isSafeInteger(remainingSeconds) ||
+    remainingSeconds < 0
+  ) {
+    throw protocol("Invalid Focus break duration.");
+  }
+  const startedAt = stringField(item.startedAt, "break startedAt") as string;
+  const endsAt = stringField(item.endsAt, "break endsAt") as string;
+  const startedAtMs = Date.parse(startedAt);
+  const endsAtMs = Date.parse(endsAt);
+  if (!Number.isFinite(startedAtMs) || !Number.isFinite(endsAtMs) || endsAtMs < startedAtMs) {
+    throw protocol("Invalid Focus break range.");
+  }
+  const endedAt = stringField(item.endedAt, "break endedAt", { nullable: true });
+  if (endedAt !== null && !Number.isFinite(Date.parse(endedAt as string))) {
+    throw protocol("Invalid Focus break end time.");
+  }
+  booleanField(item.resumeStudyOnReturn, "resumeStudyOnReturn");
+  return item as unknown as FocusBreakDto;
+}
+
+function focusBreakSnapshot(value: unknown): FocusBreakSnapshot {
+  const item = record(value, "break snapshot");
+  const currentSession = session(item.session);
+  if (item.breakSession !== null) focusBreak(item.breakSession);
+  const serverNow = stringField(item.serverNow, "serverNow") as string;
+  if (!Number.isFinite(Date.parse(serverNow))) throw protocol("Invalid Focus break server time.");
+  return {
+    session: currentSession,
+    breakSession: item.breakSession === null ? null : item.breakSession as FocusBreakDto,
+    serverNow,
+  };
+}
+
+function focusBreakMutation(value: unknown): FocusBreakMutationResult {
+  const item = record(value, "break mutation");
+  const snapshot = focusBreakSnapshot(item);
+  if (!snapshot.breakSession) throw protocol("Focus break mutation did not return a break.");
+  if (!["FIRST_SEEN", "REPLAY_SAME_PAYLOAD", "ALREADY_ACTIVE", "ALREADY_ENDED"].includes(String(item.idempotency))) {
+    throw protocol("Invalid Focus break idempotency result.");
+  }
+  return {
+    ...snapshot,
+    breakSession: snapshot.breakSession,
+    idempotency: item.idempotency as FocusBreakMutationResult["idempotency"],
+  };
 }
 
 function nullableDateField(value: unknown, name: string): string | null {
@@ -541,6 +603,17 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     resumeFocusSession: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/resume`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), mutation),
+    getFocusBreak: (id) => call(
+      `/api/focus/sessions/${encodeURIComponent(id)}/break`,
+      { ...requestOptions(), requestKey: `focus-break-${++currentRequestGeneration}` },
+      focusBreakSnapshot,
+    ),
+    startFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/start`, requestOptions("POST", {
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), focusBreakMutation),
+    returnFromFocusBreak: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/break/return`, requestOptions("POST", {
+      idempotencyKey: input.idempotencyKey, source: input.source,
+    }), focusBreakMutation),
     completeFocusSession: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/complete`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey,
     }), mutation),

@@ -53,6 +53,54 @@ test("Focus session API sends canonical routes, bodies, and request policy", asy
   assert.deepEqual(JSON.parse(String(calls[3].options.body)), { idempotencyKey: "complete-key" });
 });
 
+test("Focus break API reads durable state and uses idempotent transitions", async () => {
+  const calls: Array<{ path: string; options: FocusApiRequestOptions }> = [];
+  const breakSession = {
+    id: lectureId,
+    focusSessionId: id,
+    durationSeconds: 600,
+    startedAt: now,
+    endsAt: "2025-01-01T00:10:00.000Z",
+    endedAt: null,
+    resumeStudyOnReturn: true,
+    remainingSeconds: 600,
+  };
+  const api = createFocusApi(async (path, options = {}) => {
+    const route = String(path);
+    calls.push({ path: route, options });
+    if (route.endsWith("/break")) {
+      return response({ session: session("PAUSED"), breakSession, serverNow: now });
+    }
+    return response({
+      session: session(route.endsWith("/return") ? "ACTIVE" : "PAUSED"),
+      breakSession: route.endsWith("/return") ? { ...breakSession, endedAt: now, remainingSeconds: 0 } : breakSession,
+      serverNow: now,
+      idempotency: "FIRST_SEEN",
+    }, 201);
+  });
+
+  const snapshot = await api.getFocusBreak(id);
+  const started = await api.startFocusBreak(id, { idempotencyKey: "break-start-key", source: "web" });
+  const returned = await api.returnFromFocusBreak(id, { idempotencyKey: "break-return-key", source: "pwa" });
+
+  assert.equal(snapshot.breakSession?.remainingSeconds, 600);
+  assert.equal(started.session.status, "PAUSED");
+  assert.equal(returned.session.status, "ACTIVE");
+  assert.deepEqual(calls.map(({ path }) => path), [
+    `/api/focus/sessions/${id}/break`,
+    `/api/focus/sessions/${id}/break/start`,
+    `/api/focus/sessions/${id}/break/return`,
+  ]);
+  assert.deepEqual(JSON.parse(String(calls[1].options.body)), {
+    idempotencyKey: "break-start-key",
+    source: "web",
+  });
+  assert.deepEqual(JSON.parse(String(calls[2].options.body)), {
+    idempotencyKey: "break-return-key",
+    source: "pwa",
+  });
+});
+
 test("Focus abandonment accepts the committed terminal response", async () => {
   const calls: Array<{ path: string; options: FocusApiRequestOptions }> = [];
   const api = createFocusApi(async (path, options = {}) => {

@@ -62,6 +62,9 @@ import {
 import type { StudyDailyMetricProjection } from "../study-core/projection.js";
 import type {
   FocusBackendService,
+  FocusBreakDto,
+  FocusBreakMutationResult,
+  FocusBreakSnapshot,
   FocusCurrentSessionResult,
   FocusPlanDto,
   FocusPlanItemDto,
@@ -203,6 +206,19 @@ type SessionRecord = {
   planItem: PlanItemRecord;
 };
 
+type FocusBreakRecord = {
+  id: string;
+  userId: string;
+  focusSessionId: string;
+  durationSeconds: number;
+  startedAt: Date;
+  endsAt: Date;
+  endedAt: Date | null;
+  resumeStudyOnReturn: boolean;
+  startIdempotencyKey: string;
+  endIdempotencyKey: string | null;
+};
+
 type FocusEventOperation =
   | "started" | "paused" | "resumed" | "completed" | "abandoned"
   | "handoff_started" | "handoff_returned" | "interruption";
@@ -328,6 +344,19 @@ function sessionDto(
     isLastPlannedSession: sessionNumber >= session.planItem.sessionCount,
     reconciliationRequired: timer.reconciliationRequired,
     completionReason: session.completionReason,
+  };
+}
+
+function focusBreakDto(row: FocusBreakRecord, now: Date): FocusBreakDto {
+  return {
+    id: row.id,
+    focusSessionId: row.focusSessionId,
+    durationSeconds: row.durationSeconds,
+    startedAt: row.startedAt.toISOString(),
+    endsAt: row.endsAt.toISOString(),
+    endedAt: iso(row.endedAt),
+    resumeStudyOnReturn: row.resumeStudyOnReturn,
+    remainingSeconds: Math.max(0, Math.ceil((row.endsAt.getTime() - now.getTime()) / 1_000)),
   };
 }
 
@@ -690,6 +719,51 @@ async function getSessionDto(
 ): Promise<FocusSessionDto> {
   const count = await completedCount(tx, session.userId, session.planItemId);
   return sessionDto(session, now, count);
+}
+
+async function getBreakSnapshot(
+  tx: FocusTransaction,
+  session: SessionRecord,
+  now: Date,
+): Promise<FocusBreakSnapshot> {
+  const sessionDtoValue = await getSessionDto(tx, session, now);
+  const activeBreak = await tx.focusBreak.findFirst({
+    where: {
+      userId: session.userId,
+      focusSessionId: session.id,
+      endedAt: null,
+    },
+    orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+  }) as FocusBreakRecord | null;
+  return {
+    session: sessionDtoValue,
+    breakSession: activeBreak ? focusBreakDto(activeBreak, now) : null,
+    serverNow: now.toISOString(),
+  };
+}
+
+async function nextUncompletedPlanItemId(
+  tx: FocusTransaction,
+  userId: string,
+  planId: string,
+): Promise<string | null> {
+  const [items, completed] = await Promise.all([
+    tx.focusPlanItem.findMany({
+      where: { planId },
+      select: { id: true, sessionCount: true },
+      orderBy: [{ sequence: "asc" }, { id: "asc" }],
+    }),
+    tx.focusSession.groupBy({
+      by: ["planItemId"],
+      where: { userId, planId, status: "COMPLETED" },
+      _count: { _all: true },
+    }),
+  ]);
+  const completedByItem = new Map(
+    completed.map((entry) => [entry.planItemId, entry._count._all]),
+  );
+  return items.find((item) =>
+    (completedByItem.get(item.id) ?? 0) < item.sessionCount)?.id ?? null;
 }
 
 function requestInputError(message: string): FocusError {
@@ -1055,6 +1129,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           };
         }
 
+        const activeBreak = await tx.focusBreak.findFirst({
+          where: { userId, endedAt: null },
+          select: { id: true },
+        });
+        if (activeBreak) {
+          throw new FocusError("INVALID_SESSION_STATE", "End the current Focus Break before starting another session.");
+        }
+
         const plan = await ownedPlan(tx, userId, input.planId);
         if (plan.status !== "ACTIVE") {
           throw new FocusError("PLAN_ARCHIVED", "Archived Focus Plans cannot start sessions.");
@@ -1210,6 +1292,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             session: await getSessionDto(tx, session, clock),
             idempotency,
           };
+        }
+        const activeBreak = await tx.focusBreak.findFirst({
+          where: { userId, endedAt: null },
+          select: { id: true },
+        });
+        if (activeBreak) {
+          throw new FocusError("INVALID_SESSION_STATE", "Return from the current Focus Break before resuming Study.");
         }
         if (!canTransitionFocusSession(session.status, "ACTIVE")) {
           throw new FocusError("INVALID_SESSION_STATE", "This Focus Session cannot be resumed from its current state.");
@@ -1437,6 +1526,229 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       });
     },
 
+    async getBreak(userId, sessionId): Promise<FocusBreakSnapshot> {
+      requireSessionDependencies();
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        const clock = assertValidClock(now());
+        const session = await ownedSession(tx, userId, sessionId);
+        return getBreakSnapshot(tx, session, clock);
+      }));
+    },
+
+    async startBreak(userId, sessionId, rawInput): Promise<FocusBreakMutationResult> {
+      requireSessionDependencies();
+      const input = validateTransition(rawInput);
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        let session = await ownedSession(tx, userId, sessionId);
+        const clock = assertValidClock(now());
+        const priorByKey = await tx.focusBreak.findUnique({
+          where: {
+            userId_startIdempotencyKey: {
+              userId,
+              startIdempotencyKey: input.idempotencyKey,
+            },
+          },
+        }) as FocusBreakRecord | null;
+        if (priorByKey) {
+          if (
+            priorByKey.focusSessionId !== session.id ||
+            priorByKey.durationSeconds !== session.planItem.breakDurationSeconds
+          ) {
+            throw new FocusError("IDEMPOTENCY_CONFLICT", "Break key was already used for another break.");
+          }
+          return {
+            session: await getSessionDto(tx, session, clock),
+            breakSession: focusBreakDto(priorByKey, clock),
+            serverNow: clock.toISOString(),
+            idempotency: "REPLAY_SAME_PAYLOAD",
+          };
+        }
+
+        const activeBreak = await tx.focusBreak.findFirst({
+          where: { userId, endedAt: null },
+          orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+        }) as FocusBreakRecord | null;
+        if (activeBreak) {
+          if (activeBreak.focusSessionId !== session.id) {
+            throw new FocusError("INVALID_SESSION_STATE", "Another Focus Break is already active.");
+          }
+          return {
+            session: await getSessionDto(tx, session, clock),
+            breakSession: focusBreakDto(activeBreak, clock),
+            serverNow: clock.toISOString(),
+            idempotency: "ALREADY_ACTIVE",
+          };
+        }
+
+        const otherSession = await tx.focusSession.findFirst({
+          where: {
+            userId,
+            id: { not: session.id },
+            status: { in: [...NONTERMINAL_STATES] },
+          },
+          select: { id: true },
+        });
+        if (otherSession) {
+          throw new FocusError("INVALID_SESSION_STATE", "This is no longer the current Focus Session.");
+        }
+        if (!["ACTIVE", "PAUSED", "COMPLETED"].includes(session.status)) {
+          throw new FocusError("INVALID_SESSION_STATE", "A Focus Break cannot start in this session state.");
+        }
+
+        const resumeStudyOnReturn = session.status === "ACTIVE";
+        if (session.status === "ACTIVE") {
+          const action = pauseFocusTimer(timerInput(session), clock);
+          if (action.status === "RECONCILIATION_REQUIRED") {
+            throw new FocusError("RECONCILIATION_REQUIRED", "Session timer needs reconciliation before a break can start.");
+          }
+          if (action.status === "SESSION_READY_TO_COMPLETE") {
+            const dto = await getSessionDto(tx, session, clock);
+            throw new FocusError(
+              "SESSION_READY_TO_COMPLETE",
+              "The planned focus duration has elapsed; complete the session before starting a break.",
+              undefined,
+              { session: dto },
+            );
+          }
+          session = await tx.focusSession.update({
+            where: { id: session.id },
+            data: {
+              status: "PAUSED",
+              activeSeconds: action.activeSeconds as number,
+              lastCheckpointAt: clock,
+            },
+            include: { planItem: true },
+          }) as SessionRecord;
+          await ingestFocusEvent(tx, {
+            eventType: "focus_session_paused",
+            userId,
+            occurredAt: clock,
+            source: input.source,
+            idempotencyKey: focusEventKey("paused", session.id, `break-start:${input.idempotencyKey}`),
+            lectureId: session.lectureId,
+            focusSessionId: session.id,
+            evidenceClass: "CLIENT_OBSERVED",
+            payload: {},
+          });
+          await enqueueSessionProjection(tx, session);
+        }
+
+        const durationSeconds = session.planItem.breakDurationSeconds;
+        const created = await tx.focusBreak.create({
+          data: {
+            userId,
+            focusSessionId: session.id,
+            durationSeconds,
+            startedAt: clock,
+            endsAt: new Date(clock.getTime() + durationSeconds * 1_000),
+            resumeStudyOnReturn,
+            startIdempotencyKey: input.idempotencyKey,
+          },
+        }) as FocusBreakRecord;
+        return {
+          session: await getSessionDto(tx, session, clock),
+          breakSession: focusBreakDto(created, clock),
+          serverNow: clock.toISOString(),
+          idempotency: "FIRST_SEEN",
+        };
+      }));
+    },
+
+    async returnFromBreak(userId, sessionId, rawInput): Promise<FocusBreakMutationResult> {
+      requireSessionDependencies();
+      const input = validateTransition(rawInput);
+      return safely(async () => repository.transaction(async (tx) => {
+        await repository.lockUser(tx, userId);
+        let session = await ownedSession(tx, userId, sessionId);
+        const clock = assertValidClock(now());
+        const priorByKey = await tx.focusBreak.findFirst({
+          where: { userId, endIdempotencyKey: input.idempotencyKey },
+        }) as FocusBreakRecord | null;
+        if (priorByKey) {
+          if (priorByKey.focusSessionId !== session.id) {
+            throw new FocusError("IDEMPOTENCY_CONFLICT", "Break return key was already used for another session.");
+          }
+          return {
+            session: await getSessionDto(tx, session, clock),
+            breakSession: focusBreakDto(priorByKey, clock),
+            serverNow: clock.toISOString(),
+            idempotency: "REPLAY_SAME_PAYLOAD",
+          };
+        }
+
+        const activeBreak = await tx.focusBreak.findFirst({
+          where: { userId, focusSessionId: session.id, endedAt: null },
+          orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+        }) as FocusBreakRecord | null;
+        if (!activeBreak) {
+          const anotherActiveBreak = await tx.focusBreak.findFirst({
+            where: { userId, endedAt: null },
+            select: { focusSessionId: true },
+          });
+          if (anotherActiveBreak) {
+            throw new FocusError("INVALID_SESSION_STATE", "Another Focus Break is active for this account.");
+          }
+          const latestBreak = await tx.focusBreak.findFirst({
+            where: { userId, focusSessionId: session.id },
+            orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+          }) as FocusBreakRecord | null;
+          if (!latestBreak) {
+            throw new FocusError("INVALID_SESSION_STATE", "There is no Focus Break to return from.");
+          }
+          return {
+            session: await getSessionDto(tx, session, clock),
+            breakSession: focusBreakDto(latestBreak, clock),
+            serverNow: clock.toISOString(),
+            idempotency: "ALREADY_ENDED",
+          };
+        }
+
+        const endedBreak = await tx.focusBreak.update({
+          where: { id: activeBreak.id },
+          data: {
+            endedAt: clock,
+            endIdempotencyKey: input.idempotencyKey,
+          },
+        }) as FocusBreakRecord;
+        if (activeBreak.resumeStudyOnReturn && session.status === "PAUSED") {
+          const action = resumeFocusTimer(timerInput(session), clock);
+          if (action.status === "RECONCILIATION_REQUIRED") {
+            throw new FocusError("RECONCILIATION_REQUIRED", "Session timer needs reconciliation before Study can resume.");
+          }
+          session = await tx.focusSession.update({
+            where: { id: session.id },
+            data: {
+              status: "ACTIVE",
+              pauseSeconds: action.pauseSeconds as number,
+              plannedEndAt: new Date(action.plannedEndAt as string | Date),
+              lastCheckpointAt: clock,
+            },
+            include: { planItem: true },
+          }) as SessionRecord;
+          await ingestFocusEvent(tx, {
+            eventType: "focus_session_resumed",
+            userId,
+            occurredAt: clock,
+            source: input.source,
+            idempotencyKey: focusEventKey("resumed", session.id, `break-return:${input.idempotencyKey}`),
+            lectureId: session.lectureId,
+            focusSessionId: session.id,
+            evidenceClass: "CLIENT_OBSERVED",
+            payload: {},
+          });
+          await enqueueSessionProjection(tx, session);
+        }
+        return {
+          session: await getSessionDto(tx, session, clock),
+          breakSession: focusBreakDto(endedBreak, clock),
+          serverNow: clock.toISOString(),
+          idempotency: "FIRST_SEEN",
+        };
+      }));
+    },
+
     async completeSession(userId, sessionId, rawInput) {
       requireSessionDependencies();
       const input = validateComplete(rawInput);
@@ -1481,6 +1793,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               includeVideo: session.planItem.includeVideo,
             },
           };
+        }
+
+        const activeBreak = await tx.focusBreak.findFirst({
+          where: { userId, endedAt: null },
+          select: { focusSessionId: true },
+        });
+        if (activeBreak) {
+          throw new FocusError("INVALID_SESSION_STATE", "Return from the current Focus Break before completing Study.");
         }
 
         if (session.status === "RECONCILIATION_REQUIRED") {
@@ -1550,6 +1870,31 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           tx,
         });
         await enqueueSessionProjection(tx, updated);
+        if (await nextUncompletedPlanItemId(tx, userId, updated.planId)) {
+          const automaticBreakKey = `post-completion:${updated.id}`;
+          const existingBreak = await tx.focusBreak.findUnique({
+            where: {
+              userId_startIdempotencyKey: {
+                userId,
+                startIdempotencyKey: automaticBreakKey,
+              },
+            },
+          });
+          if (!existingBreak) {
+            const durationSeconds = updated.planItem.breakDurationSeconds;
+            await tx.focusBreak.create({
+              data: {
+                userId,
+                focusSessionId: updated.id,
+                durationSeconds,
+                startedAt: clock,
+                endsAt: new Date(clock.getTime() + durationSeconds * 1_000),
+                resumeStudyOnReturn: false,
+                startIdempotencyKey: automaticBreakKey,
+              },
+            });
+          }
+        }
         const count = await completedCount(tx, userId, updated.planItemId);
         const dto = sessionDto(updated, clock, count);
         return {
@@ -1616,6 +1961,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           },
           include: { planItem: true },
         }) as SessionRecord;
+        await tx.focusBreak.updateMany({
+          where: { userId, focusSessionId: session.id, endedAt: null },
+          data: {
+            endedAt: clock,
+            endIdempotencyKey: focusEventKey("abandoned", session.id, input.idempotencyKey),
+          },
+        });
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_session_abandoned",
           userId,

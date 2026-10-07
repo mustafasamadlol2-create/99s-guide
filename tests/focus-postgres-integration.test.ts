@@ -773,3 +773,81 @@ test("real PostgreSQL-backed HTTP routes enforce auth, ownership, flags and serv
     }
   });
 });
+
+test("real PostgreSQL persists Focus Breaks and preserves study timing and next-session flow", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const firstService = makeService(() => new Date(clock));
+    const plan = await createPlan(firstService, fixture, 2);
+    const started = await firstService.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-focus-break-start"),
+    );
+    const breakStarted = await firstService.startBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-enter",
+      source: "web",
+    });
+
+    assert.equal(breakStarted.session.status, "PAUSED");
+    assert.equal(breakStarted.session.activeSeconds, 0);
+    assert.equal(breakStarted.breakSession.durationSeconds, 600);
+    assert.equal(breakStarted.breakSession.resumeStudyOnReturn, true);
+    await assert.rejects(
+      firstService.startSession(fixture.userId, startInput(plan, "prompt-start-during-break")),
+      /Focus Break/,
+    );
+    await assert.rejects(
+      firstService.completeSession(fixture.userId, started.session.id, {
+        idempotencyKey: "prompt-complete-during-break",
+      }),
+      /Return from the current Focus Break/,
+    );
+
+    clock = new Date(T0.getTime() + 90_000);
+    const recoveredService = makeService(() => new Date(clock));
+    const recovered = await recoveredService.getBreak(fixture.userId, started.session.id);
+    assert.equal(recovered.breakSession?.remainingSeconds, 510);
+    const returned = await recoveredService.returnFromBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-return",
+      source: "web",
+    });
+    assert.equal(returned.session.status, "ACTIVE");
+    assert.equal(returned.session.activeSeconds, 0);
+    assert.equal(returned.session.pauseSeconds, 90);
+    assert.equal(returned.breakSession.endedAt, clock.toISOString());
+    assert.equal((await recoveredService.getBreak(fixture.userId, started.session.id)).breakSession, null);
+    const returnReplay = await recoveredService.returnFromBreak(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-return",
+      source: "web",
+    });
+    assert.equal(returnReplay.idempotency, "REPLAY_SAME_PAYLOAD");
+
+    clock = new Date(T0.getTime() + 2_790_000);
+    const completed = await recoveredService.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-focus-break-complete",
+    });
+    assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(completed.session.activeSeconds, 2_700);
+    assert.equal(completed.session.pauseSeconds, 90);
+    const postCompletionBreak = await recoveredService.getBreak(fixture.userId, started.session.id);
+    assert.equal(postCompletionBreak.breakSession?.durationSeconds, 600);
+    assert.equal(postCompletionBreak.breakSession?.resumeStudyOnReturn, false);
+    await assert.rejects(
+      recoveredService.startSession(fixture.userId, startInput(plan, "prompt-next-during-break")),
+      /Focus Break/,
+    );
+
+    clock = new Date(clock.getTime() + 600_000);
+    const returnedFromPostCompletionBreak = await recoveredService.returnFromBreak(
+      fixture.userId,
+      started.session.id,
+      { idempotencyKey: "prompt-post-completion-break-return", source: "web" },
+    );
+    assert.equal(returnedFromPostCompletionBreak.session.status, "COMPLETED");
+    const nextSession = await recoveredService.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-next-after-break"),
+    );
+    assert.equal(nextSession.session.status, "ACTIVE");
+  });
+});

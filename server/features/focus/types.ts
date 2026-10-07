@@ -76,6 +76,28 @@ export interface FocusCurrentSessionResult {
   serverNow: string;
 }
 
+export interface FocusBreakDto {
+  id: string;
+  focusSessionId: string;
+  durationSeconds: number;
+  startedAt: string;
+  endsAt: string;
+  endedAt: string | null;
+  resumeStudyOnReturn: boolean;
+  remainingSeconds: number;
+}
+
+export interface FocusBreakSnapshot {
+  session: FocusSessionDto;
+  breakSession: FocusBreakDto | null;
+  serverNow: string;
+}
+
+export interface FocusBreakMutationResult extends FocusBreakSnapshot {
+  breakSession: FocusBreakDto;
+  idempotency: "FIRST_SEEN" | "REPLAY_SAME_PAYLOAD" | "ALREADY_ACTIVE" | "ALREADY_ENDED";
+}
+
 export interface FocusInterruptionResult {
   idempotency: "FIRST_SEEN" | "REPLAY_SAME_PAYLOAD";
   metricUpdated: boolean;
@@ -207,6 +229,17 @@ export interface FocusBackendService {
   pauseSession(userId: string, sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   resumeSession(userId: string, sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   currentSession(userId: string): Promise<FocusCurrentSessionResult>;
+  getBreak(userId: string, sessionId: string): Promise<FocusBreakSnapshot>;
+  startBreak(
+    userId: string,
+    sessionId: string,
+    input: FocusSessionTransitionInput,
+  ): Promise<FocusBreakMutationResult>;
+  returnFromBreak(
+    userId: string,
+    sessionId: string,
+    input: FocusSessionTransitionInput,
+  ): Promise<FocusBreakMutationResult>;
   completeSession(userId: string, sessionId: string, input: CompleteFocusSessionInput): Promise<FocusSessionMutationResult>;
   abandonSession(userId: string, sessionId: string, input: AbandonFocusSessionInput): Promise<FocusSessionMutationResult>;
   startResourceHandoff(userId: string, sessionId: string, input: ResourceHandoffStartInput): Promise<FocusSessionMutationResult>;

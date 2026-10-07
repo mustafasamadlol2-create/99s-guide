@@ -96,6 +96,8 @@ export const focusSessionTransitionSchema = z.object({
   source: clientSource,
 }).strict();
 
+export const focusBreakTransitionSchema = focusSessionTransitionSchema;
+
 export const completeFocusSessionSchema = z.object({
   idempotencyKey,
 }).strict();

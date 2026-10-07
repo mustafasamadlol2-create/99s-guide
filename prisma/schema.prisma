@@ -83,6 +83,7 @@ model User {
   resourceMultipartUploads       ResourceMultipartUpload[]
   focusPlans                     FocusPlan[]
   focusSessions                  FocusSession[]
+  focusBreaks                    FocusBreak[]
   studyEvents                    StudyEvent[]
   studyDailyMetrics              StudyDailyMetric[]
   recallAttempts                 RecallAttempt[]
@@ -651,11 +652,34 @@ model FocusSession {
   planItem    FocusPlanItem    @relation(fields: [planItemId], references: [id], onDelete: Restrict)
   lecture     Lecture          @relation(fields: [lectureId], references: [id], onDelete: Restrict)
   studyEvents StudyEvent[]
+  breaks      FocusBreak[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status, updatedAt])
   @@index([userId, startedAt])
   @@index([planId, planItemId])
+}
+
+/// Durable break timer associated with a Focus Session; break time is not a study event.
+model FocusBreak {
+  id                    String    @id @default(uuid())
+  userId                String
+  focusSessionId        String
+  durationSeconds       Int
+  startedAt             DateTime  @default(now())
+  endsAt                DateTime
+  endedAt               DateTime?
+  resumeStudyOnReturn   Boolean   @default(false)
+  startIdempotencyKey   String
+  endIdempotencyKey     String?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusSession FocusSession @relation(fields: [focusSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, startIdempotencyKey])
+  @@unique([userId, endIdempotencyKey])
+  @@index([userId, endedAt, startedAt])
+  @@index([focusSessionId, endedAt, startedAt])
 }
 
 model GroupFocusRoom {

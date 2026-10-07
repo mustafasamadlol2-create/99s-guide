@@ -44,6 +44,16 @@ function api(overrides: Partial<FocusApi> = {}): FocusApi {
     startFocusSession: async () => mutation(session()),
     pauseFocusSession: async () => mutation(session("PAUSED")),
     resumeFocusSession: async () => mutation(session()),
+    getFocusBreak: async () => {
+      const currentSession = session();
+      return {
+        session: currentSession,
+        breakSession: null,
+        serverNow: currentSession.serverNow,
+      };
+    },
+    startFocusBreak: async () => { throw new Error("unused"); },
+    returnFromFocusBreak: async () => { throw new Error("unused"); },
     completeFocusSession: async () => mutation(session("COMPLETED", 0)),
     abandonFocusSession: async () => mutation(session("ABANDONED", 0)),
     createFocusPlan: async () => { throw new Error("unused"); },
