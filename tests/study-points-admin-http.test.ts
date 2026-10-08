@@ -16,7 +16,7 @@ type TestServer = {
   close(): Promise<void>;
 };
 
-async function createTestServer(): Promise<TestServer> {
+async function createTestServer(studyPointsEnabled = true): Promise<TestServer> {
   const calls: string[] = [];
   let projection: Record<string, unknown> | null = null;
   const tx = {
@@ -78,7 +78,11 @@ async function createTestServer(): Promise<TestServer> {
   app.use(express.json({ limit: "20mb" }));
   app.use(
     "/api/admin/study-points",
-    createAdminStudyPointsRouter({ requireAdmin, database }),
+    createAdminStudyPointsRouter({
+      requireAdmin,
+      database,
+      isStudyPointsEnabled: () => studyPointsEnabled,
+    }),
   );
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -162,6 +166,25 @@ test("repair parser rejects oversized reconciliation payloads", async () => {
       },
     );
     assert.equal(response.status, 413);
+  } finally {
+    await server.close();
+  }
+});
+
+test("disabled Study Points routes authenticate first and do not reconcile", async () => {
+  const server = await createTestServer(false);
+  try {
+    const path = `${server.baseUrl}/api/admin/study-points/users/user-1/reconciliation`;
+    assert.equal((await fetch(path)).status, 401);
+    const response = await fetch(path, {
+      headers: { "x-test-role": "admin" },
+    });
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), {
+      error: "Study Points are disabled.",
+      code: "FEATURE_DISABLED",
+    });
+    assert.deepEqual(server.calls, []);
   } finally {
     await server.close();
   }

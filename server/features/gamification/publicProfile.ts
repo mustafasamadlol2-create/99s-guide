@@ -2,6 +2,7 @@ import type { PrismaClient, UserAchievement } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { assertDefinitionFitsUnlock } from "./achievementValues.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import { readGamificationLevelView } from "./levelMath.js";
 import type {
   PublicGamificationAchievement,
@@ -84,6 +85,7 @@ export async function getPublicGamificationProfile(
   profileUserId: string,
   database: PrismaClient = getPrisma() as PrismaClient,
 ): Promise<PublicGamificationProfile | null> {
+  assertGamificationEnabled();
   if (!viewerId || !profileUserId) {
     throw new GamificationError(
       "GAMIFICATION_INVALID_INPUT",

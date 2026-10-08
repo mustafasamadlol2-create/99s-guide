@@ -312,6 +312,7 @@ if (databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;
   process.env.DIRECT_URL = databaseUrl;
   process.env.SUPABASE_DATABASE_URL = "";
+  process.env.STUDY_POINTS_ENABLED = "true";
   process.env.FOCUS_HUB_ENABLED = "true";
   process.env.GROUP_FOCUS_ENABLED = "true";
   process.env.STUDY_EVENTS_ENABLED = "true";
@@ -616,6 +617,49 @@ test("Focus below minimum and abandoned completions award nothing", {
   });
 });
 
+test("Focus completion succeeds without awarding Study Points when disabled", {
+  skip: skipped,
+}, async () => {
+  await withFixture(1, async ({ userIds, lectureId }) => {
+    const userId = userIds[0]!;
+    let clock = makePastBaghdadNoon();
+    let awardCalls = 0;
+    const awarder: StudyPointsAwarder = {
+      async awardStudyPointsForSource(): Promise<StudyPointsAwardSourceResult> {
+        awardCalls += 1;
+        throw new Error("disabled Study Points awarder was called");
+      },
+    };
+    const focus = createFocusService({
+      prisma: db(),
+      now: () => new Date(clock),
+      isFocusEnabled: () => true,
+      isStudyEventsEnabled: () => true,
+      isStudyPointsEnabled: () => false,
+      d1PlanReadsEnabled: () => false,
+      d1MetricReadsEnabled: () => false,
+      studyPointsAwarder: awarder,
+    });
+    const plan = await focus.createPlan(userId, focusPlanInput(lectureId));
+    const started = await focus.startSession(userId, {
+      planId: plan.id,
+      planItemId: plan.items[0]!.id,
+      idempotencyKey: `points-disabled-start-${randomUUID()}`,
+      source: "web",
+    });
+    clock = new Date(clock.getTime() + 60 * 60 * 1000);
+    const completed = await focus.completeSession(userId, started.session.id, {
+      idempotencyKey: `points-disabled-complete-${randomUUID()}`,
+    });
+    assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(awardCalls, 0);
+    assert.equal(await db().studyPointsLedgerEntry.count({ where: { userId } }), 0);
+    assert.equal(await db().studyEvent.count({
+      where: { userId, eventType: "focus_session_completed" },
+    }), 1);
+  });
+});
+
 test("Focus completion rolls back its source writes if reward processing fails", {
   skip: skipped,
 }, async () => {
@@ -726,6 +770,51 @@ test("Group Focus summary awards only verified participants and commits atomical
     assert.equal(await db().studyPointsLedgerEntry.count({
       where: { userId: hostUserId },
     }), hostEntries.length);
+  });
+});
+
+test("Group Focus still closes a run when Study Points are disabled", {
+  skip: skipped,
+}, async () => {
+  await withFixture(2, async ({ userIds, lectureId }) => {
+    const [hostUserId, memberUserId] = userIds as [string, string];
+    const runtimeStartedAt = makePastBaghdadNoon();
+    const groupFixture = await createGroupFixture({
+      hostUserId,
+      memberUserId,
+      lectureId,
+      runtimeStartedAt,
+    });
+    const summary = makeGroupSummary({
+      roomId: groupFixture.roomId,
+      hostUserId,
+      hostMembershipId: groupFixture.hostMembershipId,
+      memberUserId,
+      memberMembershipId: groupFixture.memberMembershipId,
+      lectureId,
+      runtimeStartedAt,
+    });
+    let awardCalls = 0;
+    const runtimeService = createGroupFocusRuntimeSummaryService({
+      prisma: db(),
+      isStudyPointsEnabled: () => false,
+      studyPointsAwarder: {
+        async awardStudyPointsForSource(): Promise<StudyPointsAwardSourceResult> {
+          awardCalls += 1;
+          throw new Error("disabled Study Points awarder was called");
+        },
+      },
+    });
+    const result = await runtimeService.persistTerminalSummary(summary);
+    assert.equal(result.status, "APPLIED");
+    assert.equal(awardCalls, 0);
+    assert.equal(await db().studyPointsLedgerEntry.count({
+      where: { userId: { in: [hostUserId, memberUserId] } },
+    }), 0);
+    assert.equal((await db().groupFocusRoom.findUniqueOrThrow({
+      where: { id: groupFixture.roomId },
+      select: { status: true },
+    })).status, "CLOSED");
   });
 });
 

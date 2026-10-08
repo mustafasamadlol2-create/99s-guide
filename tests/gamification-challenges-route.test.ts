@@ -39,11 +39,12 @@ async function withServer(
   requireUser: RequestHandler,
   getMyChallenges: (userId: string) => Promise<MyChallengesResponse>,
   callback: (baseUrl: string) => Promise<void>,
+  isEnabled: () => boolean = () => true,
 ): Promise<void> {
   const app = express();
   app.use(
     "/api/me/challenges",
-    createChallengesRouter({ requireUser, getMyChallenges }),
+    createChallengesRouter({ requireUser, getMyChallenges, isEnabled }),
   );
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -103,5 +104,30 @@ test("own Challenges route requires authentication and exposes no public user pa
       assert.equal(publicResponse.status, 404);
       assert.equal(called, false);
     },
+  );
+});
+
+test("disabled Challenges route returns FEATURE_DISABLED without reading progress", async () => {
+  let called = false;
+  const requireUser: RequestHandler = (req, _res, next) => {
+    (req as typeof req & { user: { id: string } }).user = { id: "authenticated-user" };
+    next();
+  };
+  await withServer(
+    requireUser,
+    async () => {
+      called = true;
+      return responseFor("unexpected");
+    },
+    async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/me/challenges`);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), {
+        error: "Gamification is disabled.",
+        code: "FEATURE_DISABLED",
+      });
+      assert.equal(called, false);
+    },
+    () => false,
   );
 });

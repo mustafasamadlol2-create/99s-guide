@@ -3,6 +3,7 @@ import { getPrisma } from "../../services/prismaClient.js";
 import { getGamificationMetricDefinition } from "./metricRegistry.js";
 import { isGamificationThresholdMet } from "./thresholds.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import { getGamificationRuleSetVersion } from "./ruleSetService.js";
 import { refreshUserAchievementProgress } from "./achievementRefresh.js";
 import {
@@ -33,6 +34,7 @@ export async function getMyAchievements(
   achievements: MyAchievementView[];
   unlockHistory: MyAchievementUnlockView[];
 }> {
+  assertGamificationEnabled();
   if (Boolean(options?.refreshResult) !== Boolean(options?.currentRules)) {
     throw new GamificationError(
       "GAMIFICATION_INVALID_INPUT",

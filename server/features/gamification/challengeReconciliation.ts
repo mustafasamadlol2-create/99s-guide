@@ -11,6 +11,7 @@ import { getBaghdadWeekPeriod } from "./challengePeriods.js";
 import { getChallengeMetricValueForWindow } from "./challengeMetrics.js";
 import { deriveChallengeProgressStatus, refreshUserChallenges } from "./challengeRefresh.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import type {
   ChallengeReconciliationCheck,
   UserChallengeStatus,
@@ -286,6 +287,7 @@ export async function reconcileUserChallenges(
   input: ReconcileUserChallengesInput,
   database: ChallengeDatabase = getPrisma(),
 ): Promise<UserChallengeReconciliation> {
+  assertGamificationEnabled();
   if (
     !input
     || typeof input.userId !== "string"

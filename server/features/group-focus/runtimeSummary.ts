@@ -17,6 +17,8 @@ import { StudyEventError } from "../study-events/errors.js";
 import type { StudyEventTransaction } from "../study-events/types.js";
 import { StudyPointsAwardEngine } from "../study-points/awardEngine.js";
 import type { StudyPointsAwarder } from "../study-points/awardTypes.js";
+import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
+import { isGamificationEnabled as isGamificationFeatureEnabled } from "../gamification/featureGate.js";
 
 const UUID = z.string().uuid();
 const runtimeId = z.string().regex(/^[A-Za-z0-9_-]{22}$/u);
@@ -229,6 +231,8 @@ export function createGroupFocusRuntimeSummaryService(options: {
   prisma?: ReturnType<typeof getPrisma>;
   ingestEvent?: typeof ingestStudyEvent;
   studyPointsAwarder?: StudyPointsAwarder;
+  isStudyPointsEnabled?: () => boolean;
+  isGamificationEnabled?: () => boolean;
   postCommitAchievementRefresh?: (userId: string) => Promise<unknown>;
   postCommitMasteryRefresh?: (
     userId: string,
@@ -241,8 +245,12 @@ export function createGroupFocusRuntimeSummaryService(options: {
 } = {}) {
   const prisma = options.prisma ?? getPrisma();
   const ingestEvent = options.ingestEvent ?? ingestStudyEvent;
+  const isStudyPointsEnabled = options.isStudyPointsEnabled
+    ?? (() => isStudyFeatureEnabled("STUDY_POINTS_ENABLED"));
+  const isGamificationEnabled = options.isGamificationEnabled
+    ?? isGamificationFeatureEnabled;
   const studyPointsAwarder = options.studyPointsAwarder
-    ?? new StudyPointsAwardEngine(prisma);
+    ?? new StudyPointsAwardEngine(prisma, () => new Date(), isStudyPointsEnabled);
 
   async function getCanonicalSnapshot(
     roomId: string,
@@ -434,16 +442,18 @@ export function createGroupFocusRuntimeSummaryService(options: {
           }
         }
 
-        for (const participant of [...summary.participants].sort((left, right) =>
-          left.userId.localeCompare(right.userId)
-        )) {
-          if (participant.verifiedFocusSeconds === 0) continue;
-          await studyPointsAwarder.awardStudyPointsForSource({
-            userId: participant.userId,
-            sourceType: "GROUP_FOCUS_RUN",
-            sourceId: run.id,
-            tx: tx as unknown as Prisma.TransactionClient,
-          });
+        if (isStudyPointsEnabled()) {
+          for (const participant of [...summary.participants].sort((left, right) =>
+            left.userId.localeCompare(right.userId)
+          )) {
+            if (participant.verifiedFocusSeconds === 0) continue;
+            await studyPointsAwarder.awardStudyPointsForSource({
+              userId: participant.userId,
+              sourceType: "GROUP_FOCUS_RUN",
+              sourceId: run.id,
+              tx: tx as unknown as Prisma.TransactionClient,
+            });
+          }
         }
 
         await tx.groupFocusRoom.update({
@@ -470,9 +480,11 @@ export function createGroupFocusRuntimeSummaryService(options: {
       if (
         acknowledgement.status === "APPLIED"
         && (
-          options.postCommitAchievementRefresh
-          || options.postCommitMasteryRefresh
-          || options.postCommitChallengeRefresh
+          options.postCommitMasteryRefresh
+          || (isGamificationEnabled() && (
+            options.postCommitAchievementRefresh
+            || options.postCommitChallengeRefresh
+          ))
         )
       ) {
         const userIds = new Set(
@@ -502,7 +514,7 @@ export function createGroupFocusRuntimeSummaryService(options: {
               }
             }
           }
-          if (options.postCommitAchievementRefresh) {
+          if (isGamificationEnabled() && options.postCommitAchievementRefresh) {
             try {
               await options.postCommitAchievementRefresh(userId);
             } catch (error) {
@@ -510,7 +522,7 @@ export function createGroupFocusRuntimeSummaryService(options: {
               console.warn(`[Group Focus] Post-commit Achievement refresh failed: ${reason}`);
             }
           }
-          if (options.postCommitChallengeRefresh) {
+          if (isGamificationEnabled() && options.postCommitChallengeRefresh) {
             try {
               await options.postCommitChallengeRefresh(userId, [
                 "group_focus.completed_runs",

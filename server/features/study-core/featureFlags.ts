@@ -25,6 +25,16 @@ export type StudyFeatureFlagState = Readonly<
   Record<StudyFeatureFlag, boolean>
 >;
 
+export const CLIENT_VISIBLE_STUDY_FEATURE_FLAGS = [
+  "STUDY_POINTS_ENABLED",
+  "GAMIFICATION_ENABLED",
+  "FOCUS_RESOURCE_HANDOFF_ENABLED",
+] as const;
+
+export type ClientVisibleStudyFeatureFlags = Readonly<
+  Pick<StudyFeatureFlagState, (typeof CLIENT_VISIBLE_STUDY_FEATURE_FLAGS)[number]>
+>;
+
 export const DEFAULT_STUDY_FEATURE_FLAGS: StudyFeatureFlagState = {
   STUDY_EVENTS_ENABLED: false,
   FOCUS_HUB_ENABLED: false,
@@ -69,6 +79,17 @@ export function getStudyFeatureFlags(
   }
 
   return flags;
+}
+
+export function getClientVisibleStudyFeatureFlags(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): ClientVisibleStudyFeatureFlags {
+  const flags = getStudyFeatureFlags(environment);
+  return {
+    STUDY_POINTS_ENABLED: flags.STUDY_POINTS_ENABLED,
+    GAMIFICATION_ENABLED: flags.GAMIFICATION_ENABLED,
+    FOCUS_RESOURCE_HANDOFF_ENABLED: flags.FOCUS_RESOURCE_HANDOFF_ENABLED,
+  };
 }
 
 export function isStudyFeatureEnabled(

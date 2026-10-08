@@ -4,6 +4,7 @@ import {
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
+import { assertGamificationEnabled, isGamificationEnabled } from "./featureGate.js";
 import {
   acquireActiveGamificationRuleSetLock,
   getActiveGamificationRuleSet,
@@ -22,6 +23,7 @@ export async function refreshUserAchievementProgress(
   userId: string,
   database: AchievementDatabase = getPrisma() as PrismaClient,
 ): Promise<AchievementRefreshResult> {
+  assertGamificationEnabled();
   assertValidStudyPointsUserId(userId);
   return database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
@@ -105,6 +107,7 @@ export async function refreshUserAchievementsBestEffort(
   userId: string,
   database: AchievementDatabase = getPrisma() as PrismaClient,
 ): Promise<void> {
+  if (!isGamificationEnabled()) return;
   try {
     await refreshUserAchievementProgress(userId, database);
   } catch (error) {

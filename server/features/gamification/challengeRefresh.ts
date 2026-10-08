@@ -18,6 +18,7 @@ import {
 import { getBaghdadWeekPeriod } from "./challengePeriods.js";
 import { getChallengeMetricValueForWindow } from "./challengeMetrics.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import type {
   ChallengeSummaryItem,
   MyChallengesResponse,
@@ -312,6 +313,7 @@ export async function refreshUserChallenges(
   input: RefreshUserChallengesInput,
   database: ChallengeDatabase = getPrisma(),
 ): Promise<RefreshedUserChallenges> {
+  assertGamificationEnabled();
   assertUserId(input?.userId);
   if (
     input.asOf !== undefined
@@ -434,6 +436,7 @@ export async function evaluateUserChallenge(
   },
   database: ChallengeDatabase = getPrisma(),
 ): Promise<UserChallengeProgress> {
+  assertGamificationEnabled();
   assertUserId(input?.userId);
   if (
     typeof input.challengeInstanceId !== "string"
@@ -530,6 +533,7 @@ export async function getMyChallenges(
   userId: string,
   database: ChallengeDatabase = getPrisma(),
 ): Promise<MyChallengesResponse> {
+  assertGamificationEnabled();
   const refreshed = await refreshUserChallenges({ userId }, database);
   const completed = await database.userChallengeProgress.findMany({
     where: {
@@ -592,6 +596,7 @@ export async function joinChallenge(
   input: { userId: string; challengeInstanceId: string },
   database: ChallengeDatabase = getPrisma(),
 ): Promise<UserChallengeProgress> {
+  assertGamificationEnabled();
   assertUserId(input?.userId);
   if (
     typeof input.challengeInstanceId !== "string"
@@ -700,6 +705,7 @@ export async function leaveChallenge(
   input: { userId: string; challengeInstanceId: string },
   database: ChallengeDatabase = getPrisma(),
 ): Promise<UserChallengeProgress> {
+  assertGamificationEnabled();
   assertUserId(input?.userId);
   if (
     typeof input.challengeInstanceId !== "string"

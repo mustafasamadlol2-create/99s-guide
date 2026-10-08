@@ -151,6 +151,7 @@ test("private achievements route always reads the authenticated user", async () 
   };
   app.use("/api/me/achievements", createAchievementsRouter({
     requireUser,
+    isEnabled: () => true,
     async getMyAchievements(userId) {
       requestedUsers.push(userId);
       return {
@@ -200,6 +201,7 @@ test("private achievements route does not call the reader without authentication
     res.status(401).json({ error: "Authentication required." });
   app.use("/api/me/achievements", createAchievementsRouter({
     requireUser,
+    isEnabled: () => false,
     async getMyAchievements() {
       readerCalled = true;
       return {

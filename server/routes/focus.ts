@@ -19,11 +19,13 @@ import {
 } from "../features/focus/schemas.js";
 import type { FocusBackendService } from "../features/focus/types.js";
 import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../features/mastery/constants.js";
+import { isGamificationEnabled as isGamificationFeatureEnabled } from "../features/gamification/featureGate.js";
 
 export interface FocusRouteDependencies {
   requireUser: RequestHandler;
   service: FocusBackendService;
   broadcastInvalidation?(userId: string): void;
+  isGamificationEnabled?: () => boolean;
   refreshAchievements?(userId: string): Promise<unknown>;
   refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
   refreshChallenges?(
@@ -355,18 +357,22 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
             // Projection failures must not change a committed Focus completion.
           });
         }
-        void dependencies.refreshAchievements?.(userId(req)).catch((error) => {
-          const reason = error instanceof Error ? error.message : "unknown error";
-          console.warn(`[Focus] Post-commit Achievement refresh failed: ${reason}`);
-        });
-        void dependencies.refreshChallenges?.(userId(req), [
-          "focus.completed_sessions",
-          "focus.verified_seconds",
-          "consistency.qualifying_days",
-        ]).catch((error) => {
-          const reason = error instanceof Error ? error.message : "unknown error";
-          console.warn(`[Focus] Post-commit Challenge refresh failed: ${reason}`);
-        });
+        const gamificationEnabled = dependencies.isGamificationEnabled
+          ?? isGamificationFeatureEnabled;
+        if (gamificationEnabled()) {
+          void dependencies.refreshAchievements?.(userId(req)).catch((error) => {
+            const reason = error instanceof Error ? error.message : "unknown error";
+            console.warn(`[Focus] Post-commit Achievement refresh failed: ${reason}`);
+          });
+          void dependencies.refreshChallenges?.(userId(req), [
+            "focus.completed_sessions",
+            "focus.verified_seconds",
+            "consistency.qualifying_days",
+          ]).catch((error) => {
+            const reason = error instanceof Error ? error.message : "unknown error";
+            console.warn(`[Focus] Post-commit Challenge refresh failed: ${reason}`);
+          });
+        }
       }
       return res.json(result);
     } catch (error) {

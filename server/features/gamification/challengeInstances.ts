@@ -13,6 +13,7 @@ import {
 } from "./challengeRuleSets.js";
 import { getBaghdadWeekPeriod } from "./challengePeriods.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import type {
   ChallengeDefinitionContract,
   GamificationDefinitionBundle,
@@ -279,6 +280,7 @@ export async function ensureChallengeInstancesForPeriod(input: {
   ruleSetVersion: string;
   instances: ChallengeInstance[];
 }> {
+  assertGamificationEnabled();
   const asOf = input.asOf ?? new Date();
   return database.$transaction(
     (tx) => ensureChallengeInstancesInTransaction(
@@ -303,6 +305,7 @@ export async function getCurrentChallengeInstances(
   period: ChallengePeriod;
   instances: ChallengeInstance[];
 }> {
+  assertGamificationEnabled();
   const period = getBaghdadWeekPeriod(asOf);
   const ensured = await ensureChallengeInstancesForPeriod(
     { period, asOf },

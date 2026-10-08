@@ -16,6 +16,7 @@ import { HapticFeedback } from "./core/device/haptic";
 import { isAppleTouchNavigationDevice } from "./core/hooks/useSwipeBack";
 import { FOCUS_AUDIO_ENABLED } from "./config/featureFlags";
 import { reportSystemClientError } from "./features/system-health/clientTelemetry";
+import { StudyFeatureFlagsProvider } from "./features/study-core/StudyFeatureFlagsProvider";
 
 // Note: dark/light class and pre-paint background are applied by the inline
 // script in index.html before any JS loads — no duplicate needed here.
@@ -483,20 +484,31 @@ const LazyFocusAudioProvider = FOCUS_AUDIO_ENABLED
   : null;
 
 function ApplicationRoot() {
-  if (!LazyFocusAudioProvider) return <Root />;
-  const Provider = LazyFocusAudioProvider;
   return (
-    <Suspense fallback={null}>
-      <Provider>
-        <Root />
-      </Provider>
-    </Suspense>
+    <StudyFeatureFlagsProvider>
+      {!LazyFocusAudioProvider
+        ? <Root />
+        : <Suspense fallback={null}>
+            {React.createElement(LazyFocusAudioProvider, null, <Root />)}
+          </Suspense>}
+    </StudyFeatureFlagsProvider>
   );
 }
 
-createRoot(
-  document.getElementById("root")!,
-).render(
+declare global {
+  interface Window {
+    __99sGuideReactRoot?: ReturnType<typeof createRoot>;
+  }
+}
+
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("The application root element is missing.");
+}
+const applicationRoot = window.__99sGuideReactRoot
+  ?? createRoot(rootElement);
+window.__99sGuideReactRoot = applicationRoot;
+applicationRoot.render(
   <StrictMode>
     <ApplicationRoot />
   </StrictMode>,

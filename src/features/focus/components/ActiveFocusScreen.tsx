@@ -148,6 +148,7 @@ interface ActiveFocusScreenProps {
   lectures: DatabaseLecture[];
   language: Language;
   catalogStatus: "loading" | "ready" | "error";
+  resourceHandoffEnabled: boolean;
   onReturnToPlanner: () => void;
   onOpenSession: (sessionId: string) => void;
   onOpenSummary: (sessionId: string) => void;
@@ -217,6 +218,7 @@ function ActiveFocusScreenCore({
   lectures,
   language,
   catalogStatus,
+  resourceHandoffEnabled,
   onReturnToPlanner,
   onOpenSession,
   onOpenSummary,
@@ -1619,7 +1621,13 @@ function ActiveFocusScreenCore({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-50 p-4 text-sky-950 dark:bg-sky-950/30 dark:text-sky-100" role="status">
           <div>
             <h2 className="font-semibold">{t.focusActiveStatusResource}</h2>
-            <p className="mt-1 text-sm">{t.focusActiveSubtitle}</p>
+            <p className="mt-1 text-sm">
+              {resourceHandoffEnabled
+                ? t.focusActiveSubtitle
+                : language === "ar"
+                  ? "تم تعطيل تسليم الموارد. عُد إلى التركيز لاستئناف هذه الجلسة."
+                  : "Resource handoff is disabled. Return to Focus to resume this session."}
+            </p>
           </div>
           <button
             type="button"

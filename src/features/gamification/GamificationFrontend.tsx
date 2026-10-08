@@ -16,6 +16,7 @@ import "./gamification.css";
 export interface GamificationFrontendProps {
   language: "en" | "ar";
   onBack: () => void;
+  studyPointsEnabled: boolean;
 }
 
 type ApiFailure = Error & { status?: number; body?: { error?: unknown; code?: unknown; message?: unknown } };
@@ -157,7 +158,11 @@ function formatChallengeAmount(
   return exact;
 }
 
-export function GamificationFrontend({ language, onBack }: GamificationFrontendProps) {
+export function GamificationFrontend({
+  language,
+  onBack,
+  studyPointsEnabled,
+}: GamificationFrontendProps) {
   const { t } = useTranslation(language);
   const tGlobal = t as (key: string) => string;
   const isRtl = language === "ar";
@@ -572,7 +577,7 @@ export function GamificationFrontend({ language, onBack }: GamificationFrontendP
       <div className="g-tab-panel">
         {privateStaleNotice}
         <div className="g-overview-grid">
-          <section className="g-card g-points-card" aria-labelledby="g-points-heading">
+          {studyPointsEnabled && <section className="g-card g-points-card" aria-labelledby="g-points-heading">
             <div className="g-points-label" id="g-points-heading">{tx("gamificationPoints", "Study Points", "نقاط الدراسة")}</div>
             <div className="g-total" aria-label={`${formatNumber(summary.points.totalPoints)} ${tx("gamificationScore", "Points", "النقاط")}`}>{formatNumber(summary.points.totalPoints)}</div>
             <div className="g-point-bar" role="img" aria-label={tx("gamificationCategoryDistribution", "Canonical points by category", "توزيع النقاط حسب الفئة")}>
@@ -594,7 +599,7 @@ export function GamificationFrontend({ language, onBack }: GamificationFrontendP
                 </div>
               ))}
             </div>
-          </section>
+          </section>}
           <section className="g-card g-level-card" aria-labelledby="g-level-heading">
             <div>
               <div className="g-level-top">

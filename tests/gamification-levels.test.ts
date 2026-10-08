@@ -28,6 +28,8 @@ import { createGamificationRouter } from "../server/routes/gamification.js";
 import type { GamificationRuleSetWithDefinition } from "../server/features/gamification/types.js";
 import { canonicalJson } from "../server/features/study-core/canonicalJson.js";
 
+process.env.GAMIFICATION_ENABLED = "true";
+
 const version = "gamification-v1";
 const bundle = getGamificationDefinitionBundle(version);
 const checksum = checksumGamificationDefinitionBundle(bundle);
@@ -363,6 +365,7 @@ test("Gamification routes separate private self-summary from public profile read
   };
   app.use("/api", createGamificationRouter({
     requireUser,
+    isEnabled: () => true,
     getMyGamificationSummary: async (userId) => {
       calls.push({ kind: "private", ids: [userId] });
       return {

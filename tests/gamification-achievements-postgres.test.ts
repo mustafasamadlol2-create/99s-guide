@@ -20,6 +20,7 @@ const gateUrl = getPrompt23AchievementsPostgresGateUrl();
 test("Prompt 23 PostgreSQL migration and achievement lifecycle", {
   skip: !gateUrl,
 }, async () => {
+  process.env.GAMIFICATION_ENABLED = "true";
   const disposableUrl = gateUrl!;
   execFileSync(
     "./node_modules/.bin/prisma",

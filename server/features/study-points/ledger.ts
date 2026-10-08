@@ -4,6 +4,7 @@ import {
   type StudyPointsLedgerEntry as DbStudyPointsLedgerEntry,
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
+import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
 import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import {
   STUDY_POINTS_CATEGORIES,
@@ -174,12 +175,24 @@ async function assertMetadataStorageSize(
 export class StudyPointsLedgerService {
   constructor(
     private readonly database: PrismaClient = getPrisma() as PrismaClient,
+    private readonly isEnabled: () => boolean = () =>
+      isStudyFeatureEnabled("STUDY_POINTS_ENABLED"),
   ) {}
+
+  private assertEnabled(): void {
+    if (!this.isEnabled()) {
+      throw new StudyPointsError(
+        "FEATURE_DISABLED",
+        "Study Points are disabled.",
+      );
+    }
+  }
 
   async appendStudyPointsLedgerEntry(
     input: AppendStudyPointsLedgerEntryInput,
     callerTransaction?: Prisma.TransactionClient,
   ): Promise<StudyPointsMutationResult> {
+    this.assertEnabled();
     const normalized = normalizeStudyPointsLedgerInput(input);
     const where = {
       userId_idempotencyKey: {
@@ -248,6 +261,7 @@ export class StudyPointsLedgerService {
   async reverseStudyPointsLedgerEntry(
     input: ReverseStudyPointsLedgerEntryInput,
   ): Promise<StudyPointsMutationResult> {
+    this.assertEnabled();
     const normalized = normalizeReversalRequest(input);
     if (!input.entryId || input.entryId.length > 128 || input.entryId.includes("\0")) {
       throw new StudyPointsError(
@@ -385,6 +399,7 @@ export class StudyPointsLedgerService {
   }
 
   async getStudyPointsBalance(userId: string): Promise<number> {
+    this.assertEnabled();
     assertValidStudyPointsUserId(userId);
     const result = await this.database.studyPointsLedgerEntry.aggregate({
       where: { userId },
@@ -396,6 +411,7 @@ export class StudyPointsLedgerService {
   async getStudyPointsBalancesByCategory(
     userId: string,
   ): Promise<StudyPointsCategoryBalances> {
+    this.assertEnabled();
     assertValidStudyPointsUserId(userId);
     const balances: StudyPointsCategoryBalances = {
       FOCUS: 0,
@@ -438,6 +454,7 @@ export class StudyPointsLedgerService {
   async listStudyPointsLedgerEntries(
     input: ListStudyPointsLedgerEntriesInput,
   ): Promise<StudyPointsLedgerPage> {
+    this.assertEnabled();
     assertValidStudyPointsUserId(input.userId);
     const limit = input.limit ?? STUDY_POINTS_DEFAULT_HISTORY_LIMIT;
     if (

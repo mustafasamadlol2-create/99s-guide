@@ -27,12 +27,6 @@ export const GROUP_FOCUS_FRONTEND_ENABLED =
   buildFlags.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true";
 
 /**
- * Gamification UI is opt-in in every environment.
- */
-export const GAMIFICATION_FRONTEND_ENABLED =
-  buildFlags.VITE_GAMIFICATION_FRONTEND_ENABLED === "true";
-
-/**
  * Recall and Mastery frontends are opt-in in every environment.
  */
 export const SPACED_RECALL_FRONTEND_ENABLED =

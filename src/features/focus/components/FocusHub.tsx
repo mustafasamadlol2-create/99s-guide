@@ -49,6 +49,7 @@ import {
   FocusTimerScene,
 } from "./FocusVisuals";
 import { ActiveFocusScreen } from "./ActiveFocusScreen";
+import { useStudyFeatureFlags } from "../../study-core/StudyFeatureFlagsProvider";
 import {
   FocusHistoryScreen,
   FocusSessionSummaryScreen,
@@ -139,6 +140,7 @@ export function FocusHub({
   onOpenHistoryDetail,
   onReturnToHistory,
 }: FocusHubProps) {
+  const { FOCUS_RESOURCE_HANDOFF_ENABLED } = useStudyFeatureFlags();
   const isRtl = language === "ar";
   const { t } = useTranslation(language);
   const refreshLecturesRef = useRef(onRefreshLectures);
@@ -839,6 +841,7 @@ export function FocusHub({
         lectures={lectures}
         language={language}
         catalogStatus={catalogStatus}
+        resourceHandoffEnabled={FOCUS_RESOURCE_HANDOFF_ENABLED}
         onReturnToPlanner={onReturnToPlanner}
         onOpenSession={onOpenSession}
           onOpenSummary={onOpenSummary}

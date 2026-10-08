@@ -6,6 +6,7 @@ import { reconcileStudyPointsAccount } from "../features/study-points/reconcilia
 import { StudyPointsError } from "../features/study-points/errors.js";
 import { assertValidStudyPointsUserId } from "../features/study-points/validation.js";
 import { getPrisma } from "../services/prismaClient.js";
+import { isStudyFeatureEnabled } from "../features/study-core/featureFlags.js";
 
 type AdminStudyPointsRequest = express.Request & {
   user?: { id?: string; role?: string };
@@ -49,6 +50,12 @@ function sendStudyPointsError(
   error: unknown,
 ): express.Response {
   if (error instanceof StudyPointsError) {
+    if (error.code === "FEATURE_DISABLED") {
+      return res.status(404).json({
+        error: "Study Points are disabled.",
+        code: error.code,
+      });
+    }
     if (error.code === "POINTS_USER_NOT_FOUND") {
       return res.status(404).json({ error: "User was not found.", code: error.code });
     }
@@ -66,10 +73,22 @@ function sendStudyPointsError(
 export function createAdminStudyPointsRouter(dependencies: {
   requireAdmin: RequestHandler;
   database?: PrismaClient;
+  isStudyPointsEnabled?: () => boolean;
 }): express.Router {
   const router = express.Router();
   const database = dependencies.database ?? getPrisma() as PrismaClient;
   router.use(dependencies.requireAdmin);
+  router.use((_req, res, next) => {
+    const isEnabled = dependencies.isStudyPointsEnabled
+      ?? (() => isStudyFeatureEnabled("STUDY_POINTS_ENABLED"));
+    if (!isEnabled()) {
+      return res.status(404).json({
+        error: "Study Points are disabled.",
+        code: "FEATURE_DISABLED",
+      });
+    }
+    next();
+  });
 
   router.get("/users/:userId/reconciliation", async (req, res) => {
     const userId = req.params.userId;

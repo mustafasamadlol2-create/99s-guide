@@ -40,6 +40,7 @@ async function deleteSeasonSnapshots(seasonId: string): Promise<void> {
 
 if (databaseUrl) {
   before(async () => {
+    process.env.STUDY_POINTS_ENABLED = "true";
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
     await prisma.$connect();
     ledger = new StudyPointsLedgerService(db());

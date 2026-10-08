@@ -14,7 +14,7 @@ import InteractiveAvatar from "./InteractiveAvatar";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
-import { GAMIFICATION_FRONTEND_ENABLED } from "../../../config/featureFlags";
+import { useStudyFeatureFlags } from "../../study-core/StudyFeatureFlagsProvider";
 import {
  Award,
  LogOut,
@@ -191,6 +191,7 @@ export const ProfileView = function ProfileView({
  language = "en",
  onSubViewChange,
 }: ProfileViewProps) {
+  const { GAMIFICATION_ENABLED, STUDY_POINTS_ENABLED } = useStudyFeatureFlags();
  const isRtl = language === "ar";
  const tr = useCallback((english: string, arabic: string) => (isRtl ? arabic : english), [isRtl]);
 
@@ -609,7 +610,7 @@ export const ProfileView = function ProfileView({
             }
             isRtl={isRtl}
           />
-          {GAMIFICATION_FRONTEND_ENABLED && (
+          {GAMIFICATION_ENABLED && (
             <SettingsItem
               Icon={Award}
               iconBg="bg-emerald-600"
@@ -725,7 +726,11 @@ export const ProfileView = function ProfileView({
                </div>
              }
            >
-             <LazyGamificationFrontend language={language} onBack={profileBackGesture.triggerBack} />
+             <LazyGamificationFrontend
+               language={language}
+               onBack={profileBackGesture.triggerBack}
+               studyPointsEnabled={STUDY_POINTS_ENABLED}
+             />
            </React.Suspense>
          )}
        </motion.div>,

@@ -77,6 +77,7 @@ async function sideEffectCounts(userId: string): Promise<number[]> {
 
 if (databaseUrl) {
   before(async () => {
+    process.env.STUDY_POINTS_ENABLED = "true";
     prisma = new PrismaClient({
       datasources: { db: { url: databaseUrl } },
     });

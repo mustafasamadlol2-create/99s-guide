@@ -55,6 +55,7 @@ async function fixture(now: () => Date): Promise<{
   });
   const focus = createFocusService({
     prisma: db(), now, isFocusEnabled: () => true, isStudyEventsEnabled: () => true,
+    isResourceHandoffEnabled: () => true,
     d1PlanReadsEnabled: () => false,
   });
   const plan = await focus.createPlan(user.id, {
@@ -135,6 +136,51 @@ async function focusOutboxCount(userId: string, entity: string): Promise<number>
   `;
   return Number(rows[0].count);
 }
+
+test("disabled handoff blocks new starts but permits recovery return of an active handoff", {
+  skip: skipped,
+}, async () => {
+  let clock = new Date(T0);
+  const f = await fixture(() => new Date(clock));
+  const disabled = createFocusService({
+    prisma: db(),
+    now: () => new Date(clock),
+    isFocusEnabled: () => true,
+    isStudyEventsEnabled: () => true,
+    isResourceHandoffEnabled: () => false,
+    d1PlanReadsEnabled: () => false,
+  });
+  try {
+    await f.focus.startResourceHandoff(f.userId, f.sessionId, {
+      resourceType: "PDF",
+      resourceId: f.materialId,
+      idempotencyKey: "prompt11-disabled-recovery-start",
+      source: "web",
+    });
+    await assert.rejects(
+      disabled.startResourceHandoff(f.userId, f.sessionId, {
+        resourceType: "PDF",
+        resourceId: f.materialId,
+        idempotencyKey: "prompt11-disabled-new-start",
+        source: "web",
+      }),
+      (error: unknown) => (error as { code?: string }).code === "FEATURE_DISABLED",
+    );
+    clock = new Date(T0.getTime() + 20 * 60_000);
+    const returned = await disabled.returnFromResourceHandoff(
+      f.userId,
+      f.sessionId,
+      {
+        targetState: "ACTIVE",
+        idempotencyKey: "prompt11-disabled-recovery-return",
+        source: "web",
+      },
+    );
+    assert.equal(returned.session.status, "ACTIVE");
+  } finally {
+    await cleanup(f.userId, f.sessionId, f.lectureId, f.otherLectureId);
+  }
+});
 
 test("real PostgreSQL rejects a wrong-Lecture resource without side effects", { skip: skipped }, async () => {
   const f = await fixture(() => T0);

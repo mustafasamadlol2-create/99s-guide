@@ -1,6 +1,7 @@
 import { recordOperationalOutcome } from "../../observability/metrics.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
+import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
 import type { StudyEventSource } from "../study-core/events.js";
 import { INTEGRITY_ACTION_TYPES } from "../study-integrity/constants.js";
 import type { StudyPointsCategory, StudyPointsSourceType } from "./constants.js";
@@ -111,13 +112,18 @@ export class StudyPointsAwardEngine {
   constructor(
     private readonly database: PrismaClient = getPrisma() as PrismaClient,
     private readonly now: () => Date = () => new Date(),
+    private readonly isStudyPointsEnabled: () => boolean = () =>
+      isStudyFeatureEnabled("STUDY_POINTS_ENABLED"),
   ) {
-    this.ledger = new StudyPointsLedgerService(database);
+    this.ledger = new StudyPointsLedgerService(database, isStudyPointsEnabled);
   }
 
   async awardStudyPointsForSource(
     input: StudyPointsAwardSourceInput,
   ): Promise<StudyPointsAwardSourceResult> {
+    if (!this.isStudyPointsEnabled()) {
+      throw new StudyPointsError("FEATURE_DISABLED", "Study Points are disabled.");
+    }
     if (
       !input
       || typeof input.userId !== "string"

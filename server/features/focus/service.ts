@@ -231,6 +231,8 @@ type FocusServiceOptions = {
   studyPointsAwarder?: StudyPointsAwarder;
   isFocusEnabled?: () => boolean;
   isStudyEventsEnabled?: () => boolean;
+  isStudyPointsEnabled?: () => boolean;
+  isResourceHandoffEnabled?: () => boolean;
   now?: () => Date;
   d1PlanReadsEnabled?: () => boolean;
   fetchPlansFromD1?: (
@@ -865,6 +867,10 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
     (() => isStudyFeatureEnabled("FOCUS_HUB_ENABLED"));
   const isStudyEventsEnabled = options.isStudyEventsEnabled ??
     (() => isStudyFeatureEnabled("STUDY_EVENTS_ENABLED"));
+  const isStudyPointsEnabled = options.isStudyPointsEnabled ??
+    (() => isStudyFeatureEnabled("STUDY_POINTS_ENABLED"));
+  const isResourceHandoffEnabled = options.isResourceHandoffEnabled ??
+    (() => isStudyFeatureEnabled("FOCUS_RESOURCE_HANDOFF_ENABLED"));
   const now = options.now ?? (() => new Date());
   const studyPointsAwarder = options.studyPointsAwarder
     ?? new StudyPointsAwardEngine(repository.database, now);
@@ -885,6 +891,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
     requireFocus();
     if (!isStudyEventsEnabled()) {
       throw new FocusError("DEPENDENCY_DISABLED", "Study Events must be enabled for Focus sessions.");
+    }
+  }
+
+  function requireResourceHandoff(): void {
+    if (!isResourceHandoffEnabled()) {
+      throw new FocusError("FEATURE_DISABLED", "Focus Resource Handoff is disabled.");
     }
   }
 
@@ -1431,6 +1443,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
 
     async startResourceHandoff(userId, sessionId, rawInput) {
       requireSessionDependencies();
+      requireResourceHandoff();
       const input = validateHandoffStart(rawInput);
       return safely(async () => repository.transaction(async (tx) => {
         await repository.lockUser(tx, userId);
@@ -1452,6 +1465,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           });
           return { session: await getSessionDto(tx, session, clock), idempotency };
         }
+        requireResourceHandoff();
         const material = await tx.material.findFirst({
           where: { id: input.resourceId, lectureId: session.lectureId },
           select: { id: true, type: true },
@@ -1510,8 +1524,11 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           return { session: await getSessionDto(tx, session, clock), idempotency };
         }
         if (session.status !== "RESOURCE_HANDOFF") {
+          requireResourceHandoff();
           throw new FocusError("INVALID_SESSION_STATE", "This Focus Session is not in resource handoff.");
         }
+        // Let an already-running handoff return safely after the flag is
+        // disabled, but do not permit any new handoff transitions.
         const started = await findLatestHandoffStart(tx, userId, session.id);
         const startedPayload = started?.payload as Record<string, unknown> | undefined;
         if (!startedPayload?.resourceType || !startedPayload.resourceId) {
@@ -1978,13 +1995,15 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (idempotency !== "FIRST_SEEN") {
           throw new FocusError("RECONCILIATION_REQUIRED", "A new completion unexpectedly replayed its event.");
         }
-        await studyPointsAwarder.awardStudyPointsForSource({
-          userId,
-          sourceType: "FOCUS_SESSION",
-          sourceId: updated.id,
-          now: clock,
-          tx,
-        });
+        if (isStudyPointsEnabled()) {
+          await studyPointsAwarder.awardStudyPointsForSource({
+            userId,
+            sourceType: "FOCUS_SESSION",
+            sourceId: updated.id,
+            now: clock,
+            tx,
+          });
+        }
         await enqueueSessionProjection(tx, updated);
         if (await nextUncompletedPlanItemId(tx, userId, updated.planId)) {
           const automaticBreakKey = `post-completion:${updated.id}`;

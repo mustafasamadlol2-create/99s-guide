@@ -25,6 +25,7 @@ const gateUrl = getPrompt24LevelsPostgresGateUrl();
 test("Prompt 24 disposable PostgreSQL Level projection lifecycle", {
   skip: !gateUrl,
 }, async () => {
+  process.env.GAMIFICATION_ENABLED = "true";
   const disposableUrl = gateUrl!;
   execFileSync(
     "./node_modules/.bin/prisma",

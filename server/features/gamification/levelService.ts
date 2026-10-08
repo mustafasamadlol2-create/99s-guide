@@ -7,6 +7,7 @@ import { getPrisma } from "../../services/prismaClient.js";
 import { getStudyPointsReadModel } from "../study-points/readModel.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled } from "./featureGate.js";
 import { evaluateLifetimeLevel, readGamificationLevelView } from "./levelMath.js";
 import type {
   GamificationLevelReconciliation,
@@ -122,6 +123,7 @@ export async function refreshUserGamificationLevel(
   userId: string,
   database: LevelDatabase = getPrisma() as LevelDatabase,
 ): Promise<RefreshedUserGamificationLevel> {
+  assertGamificationEnabled();
   assertValidStudyPointsUserId(userId);
   return database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
@@ -155,6 +157,7 @@ export async function reconcileUserGamificationLevel(
   userId: string,
   database: LevelDatabase = getPrisma() as LevelDatabase,
 ): Promise<GamificationLevelReconciliation> {
+  assertGamificationEnabled();
   assertValidStudyPointsUserId(userId);
   const rules = await getActiveGamificationRuleSet(database);
   const row = await database.userGamificationLevel.findUnique({

@@ -62,6 +62,7 @@ import {
 } from "./server/routes/personalization.js";
 import { createFocusService } from "./server/features/focus/service.js";
 import { createFocusRouter } from "./server/routes/focus.js";
+import { createStudyFeatureFlagsRouter } from "./server/routes/studyFeatureFlags.js";
 import { createRecallAttemptService } from "./server/features/recall/attemptService.js";
 import { createRecallJsonParser, createRecallRouter } from "./server/routes/recall.js";
 import { createAchievementsRouter } from "./server/routes/achievements.js";
@@ -7835,6 +7836,7 @@ app.use(
   }),
 );
 setStudyPointsPostCommitHook(refreshUserGamificationBestEffort);
+app.use("/api", createStudyFeatureFlagsRouter());
 app.use(
   "/api",
   createGamificationRouter({

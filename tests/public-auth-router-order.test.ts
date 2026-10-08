@@ -17,6 +17,7 @@ test("public auth routes pass through API routers while their own routes stay pr
 
   app.use("/api", createGamificationRouter({
     requireUser,
+    isEnabled: () => true,
     getMyGamificationSummary: async () => ({}) as never,
     getPublicGamificationProfile: async () => null,
   }));

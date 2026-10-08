@@ -9,6 +9,7 @@ import { getMyAchievements } from "./achievementRead.js";
 import { refreshUserAchievementProgressInTransaction } from "./achievementRefresh.js";
 import { GAMIFICATION_METRIC_IDS } from "./constants.js";
 import { GamificationError } from "./errors.js";
+import { assertGamificationEnabled, isGamificationEnabled } from "./featureGate.js";
 import {
   acquireUserGamificationLevelLock,
   readGamificationLevelView,
@@ -43,6 +44,7 @@ export async function refreshUserGamificationState(
 ): Promise<RefreshedGamificationState & {
   rules: Awaited<ReturnType<typeof getActiveGamificationRuleSet>>;
 }> {
+  assertGamificationEnabled();
   assertValidStudyPointsUserId(userId);
   return database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
@@ -134,6 +136,7 @@ export async function refreshUserGamificationBestEffort(
   userId: string,
   database: GamificationDatabase = getPrisma() as GamificationDatabase,
 ): Promise<void> {
+  if (!isGamificationEnabled()) return;
   try {
     await refreshUserGamificationState(userId, database);
   } catch (error) {

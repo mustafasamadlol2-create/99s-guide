@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { UserService, UserRecord } from "./userService.js";
 import { StudyPointsLedgerService } from "../features/study-points/ledger.js";
+import { isStudyFeatureEnabled } from "../features/study-core/featureFlags.js";
 
 export class AuthService {
   // Use a secure work factor of 10-12
@@ -69,20 +70,22 @@ export class AuthService {
 
     // Welcome points are new Study Points and are recorded in the canonical
     // ledger. Keep account creation successful if this auxiliary award fails.
-    try {
-      await new StudyPointsLedgerService().appendStudyPointsLedgerEntry({
-        userId,
-        amount: 10,
-        category: "PROGRESS",
-        reasonCode: "account.welcome_award",
-        sourceType: "ADMIN_ADJUSTMENT",
-        sourceId: userId,
-        ruleVersion: "registration-welcome-v1",
-        idempotencyKey: `registration-welcome:${userId}`,
-        effectiveAt: new Date(),
-      });
-    } catch (error) {
-      console.error("[AuthService] Welcome Study Points award could not be created:", error instanceof Error ? error.message : "unknown error");
+    if (isStudyFeatureEnabled("STUDY_POINTS_ENABLED")) {
+      try {
+        await new StudyPointsLedgerService().appendStudyPointsLedgerEntry({
+          userId,
+          amount: 10,
+          category: "PROGRESS",
+          reasonCode: "account.welcome_award",
+          sourceType: "ADMIN_ADJUSTMENT",
+          sourceId: userId,
+          ruleVersion: "registration-welcome-v1",
+          idempotencyKey: `registration-welcome:${userId}`,
+          effectiveAt: new Date(),
+        });
+      } catch (error) {
+        console.error("[AuthService] Welcome Study Points award could not be created:", error instanceof Error ? error.message : "unknown error");
+      }
     }
 
     return newUser;

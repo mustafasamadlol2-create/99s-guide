@@ -46,6 +46,15 @@ const MAX_DATABASE_INT = 2_147_483_647;
 export interface RecallAttemptServiceOptions {
   database?: PrismaClient;
   now?: () => Date;
+  isRecallPointsEnabled?: () => boolean;
+  isStudyPointsEnabled?: () => boolean;
+}
+
+export function shouldAwardRecallStudyPoints(
+  recallPointsEnabled: boolean,
+  studyPointsEnabled: boolean,
+): boolean {
+  return recallPointsEnabled && studyPointsEnabled;
 }
 
 export function createRecallAttemptService(
@@ -53,7 +62,11 @@ export function createRecallAttemptService(
 ): RecallAttemptService {
   const database = options.database ?? getPrisma();
   const now = options.now ?? (() => new Date());
-  const points = new StudyPointsAwardEngine(database, now);
+  const isRecallPointsEnabled = options.isRecallPointsEnabled
+    ?? (() => isStudyFeatureEnabled("RECALL_POINTS_ENABLED"));
+  const isStudyPointsEnabled = options.isStudyPointsEnabled
+    ?? (() => isStudyFeatureEnabled("STUDY_POINTS_ENABLED"));
+  const points = new StudyPointsAwardEngine(database, now, isStudyPointsEnabled);
 
   return {
     async issue(input) {
@@ -140,7 +153,10 @@ export function createRecallAttemptService(
         );
         const transition = publicTransition(updated, false);
         if (updated.issuanceSource === "PERIODIC") {
-          if (!isStudyFeatureEnabled("RECALL_POINTS_ENABLED")) {
+          if (!shouldAwardRecallStudyPoints(
+            isRecallPointsEnabled(),
+            isStudyPointsEnabled(),
+          )) {
             transition.reward = {
               awarded: false,
               points: 0,
