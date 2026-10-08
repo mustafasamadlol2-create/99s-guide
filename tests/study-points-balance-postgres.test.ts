@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import test, { after, before } from "node:test";
 import {
+  backfillStudyPointsLegacyBatch,
   getCanonicalStudyPointsLedgerBalance,
   getStudyPointsCutoverReadiness,
   getStudyPointsReadModel,
@@ -226,6 +227,10 @@ test("compatibility modes preserve legacy totals and gate ledger-only cutover", 
 }, async () => {
   const userId = await createUser();
   try {
+    await db().user.update({
+      where: { id: userId },
+      data: { totalPoints: 100 },
+    });
     await db().pointsLog.create({
       data: { userId, points: 100, reason: "Legacy test award" },
     });
@@ -260,16 +265,109 @@ test("compatibility modes preserve legacy totals and gate ledger-only cutover", 
         && error.code === "POINTS_LEDGER_ONLY_NOT_READY",
     );
 
-    await db().pointsLog.deleteMany({ where: { userId } });
+    const backfilled = await backfillStudyPointsLegacyBatch({ userId }, db());
+    assert.equal(backfilled.remainingPointLogRows, 0);
+    assert.equal(backfilled.cutoverStatus, "COMPLETED");
     const cutoverSafe = await getStudyPointsCutoverReadiness(userId, db());
     assert.equal(cutoverSafe.safeForLedgerOnly, true);
     const ledgerOnly = await getStudyPointsReadModel({
       userId,
       compatibilityMode: "LEDGER_ONLY",
     }, db());
-    assert.equal(ledgerOnly.totalPoints, 15);
-    assert.equal(ledgerOnly.legacyPoints, 0);
+    assert.equal(ledgerOnly.totalPoints, 115);
+    assert.equal(ledgerOnly.legacyPoints, 100);
+    assert.equal(ledgerOnly.legacyLedgerPoints, 100);
     assert.equal(ledgerOnly.masteryPoints, 15);
+  } finally {
+    await db().user.delete({ where: { id: userId } });
+  }
+});
+
+test("legacy row backfill is idempotent and produces the same hybrid and ledger-only totals", {
+  skip: skipped,
+}, async () => {
+  const userId = await createUser();
+  try {
+    await db().user.update({
+      where: { id: userId },
+      data: { totalPoints: 75 },
+    });
+    await db().pointsLog.createMany({
+      data: [
+        {
+          id: `legacy-positive-${randomUUID()}`,
+          userId,
+          points: 80,
+          reason: "Preserved legacy award",
+          createdAt: new Date("2026-08-01T12:00:00.000Z"),
+        },
+        {
+          id: `legacy-reversal-${randomUUID()}`,
+          userId,
+          points: -10,
+          reason: "Preserved legacy correction",
+          createdAt: new Date("2026-08-02T12:00:00.000Z"),
+        },
+      ],
+    });
+    await ledger.appendStudyPointsLedgerEntry(request(userId, "new-ledger-award", {
+      amount: 15,
+      category: "MASTERY",
+      sourceType: "MCQ_ATTEMPT",
+      reasonCode: "mcq.verified_set",
+      ruleVersion: "mcq-verified-set-v1",
+    }));
+
+    const before = await getStudyPointsReadModel({
+      userId,
+      compatibilityMode: "LEGACY_PLUS_LEDGER",
+    }, db());
+    assert.equal(before.totalPoints, 90);
+    assert.equal(before.ledgerPoints, 15);
+
+    let batch = await backfillStudyPointsLegacyBatch({
+      userId,
+      batchSize: 1,
+    }, db());
+    while (batch.remainingPointLogRows > 0) {
+      batch = await backfillStudyPointsLegacyBatch({
+        userId,
+        batchSize: 1,
+      }, db());
+    }
+    assert.equal(batch.cutoverStatus, "COMPLETED");
+
+    const ledgerOnly = await getStudyPointsReadModel({
+      userId,
+      compatibilityMode: "LEDGER_ONLY",
+    }, db());
+    assert.equal(ledgerOnly.totalPoints, 90);
+    assert.equal(ledgerOnly.legacyLedgerPoints, 70);
+    assert.equal(ledgerOnly.masteryPoints, 15);
+
+    const [entryCount, readiness, reconciliation] = await Promise.all([
+      db().studyPointsLedgerEntry.count({ where: { userId } }),
+      getStudyPointsCutoverReadiness(userId, db()),
+      reconcileStudyPointsAccount({ userId }, db()),
+    ]);
+    assert.equal(readiness.safeForLedgerOnly, true);
+    assert.equal(reconciliation.status, "IN_SYNC");
+    assert.equal(reconciliation.projection?.legacyPoints, 70);
+    assert.equal(reconciliation.canonical.totalPoints, 90);
+
+    const repeated = await backfillStudyPointsLegacyBatch({ userId }, db());
+    assert.equal(repeated.importedLedgerEntries, 0);
+    assert.equal(
+      await db().studyPointsLedgerEntry.count({ where: { userId } }),
+      entryCount,
+    );
+    assert.equal(
+      (await getStudyPointsReadModel({
+        userId,
+        compatibilityMode: "LEGACY_PLUS_LEDGER",
+      }, db())).totalPoints,
+      90,
+    );
   } finally {
     await db().user.delete({ where: { id: userId } });
   }

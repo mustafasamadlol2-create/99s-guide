@@ -10358,28 +10358,6 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       return res.status(400).json({ error: "Too many points records in one synchronization request." });
     }
 
-    const suppliedPointIds = pointsLogs
-      .map((entry: any) => typeof entry?.id === "string" ? entry.id : "")
-      .filter(Boolean);
-    const existingPointLogs = suppliedPointIds.length > 0
-      ? await prismaClient.pointsLog.findMany({ where: { id: { in: suppliedPointIds } }, select: { id: true, userId: true, points: true, reason: true, createdAt: true } })
-      : [];
-    const pointById = new Map<string, { userId: string; points: number; reason: string; createdAt: Date }>(
-      existingPointLogs.map((entry: any) => [entry.id, entry] as [string, { userId: string; points: number; reason: string; createdAt: Date }])
-    );
-    for (const pointLog of pointsLogs) {
-      const storedPoint = pointLog?.id ? pointById.get(pointLog.id) : undefined;
-      if (storedPoint && storedPoint.userId !== userId) {
-        return res.status(403).json({ error: "A points record belongs to another account." });
-      }
-      if (authUser.role !== "admin" && authUser.role !== "owner" &&
-          (!storedPoint || Number(pointLog.points) !== storedPoint.points ||
-           String(pointLog.reason).trim() !== storedPoint.reason ||
-           (pointLog.createdAt && new Date(pointLog.createdAt).getTime() !== storedPoint.createdAt.getTime()))) {
-        return res.status(403).json({ error: "Client-created or modified point awards are not accepted." });
-      }
-    }
-
     // Save/Sync Course progress items
     for (const p of progress) {
       const score = Number(p.quizScore || 0);
@@ -10409,30 +10387,8 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       }));
     }
 
-    // Save/Sync Points logs
-    for (const l of pointsLogs) {
-      if (!l || (l.id !== undefined && typeof l.id !== "string")) {
-        return res.status(400).json({ error: "Invalid points log identifier." });
-      }
-      if (typeof l.reason !== "string" || !l.reason.trim() || l.reason.length > 500) {
-        return res.status(400).json({ error: "Invalid points log reason." });
-      }
-      const logPoints = Number(l.points || 0);
-      if (authUser.role !== "admin" && authUser.role !== "owner" && (logPoints > 100 || logPoints < -100)) continue;
-      if (!Number.isFinite(logPoints) || !Number.isInteger(logPoints)) {
-        return res.status(400).json({ error: "Invalid points log value." });
-      }
-      const createdAt = l.createdAt ? new Date(l.createdAt) : new Date();
-      if (Number.isNaN(createdAt.getTime())) {
-        return res.status(400).json({ error: "Invalid points log timestamp." });
-      }
-      const logId = l.id || crypto.randomUUID();
-      ops.push(prismaClient.pointsLog.upsert({
-        where: { id: logId },
-        update: { points: logPoints, reason: l.reason.trim(), createdAt },
-        create: { id: logId, userId, points: logPoints, reason: l.reason.trim(), createdAt }
-      }));
-    }
+    // Older clients still submit pointsLogs in their sync payload. Keep
+    // accepting that field, but never let clients create or edit point history.
 
     // Legacy clients may still send `calendarEvents`. The field is accepted
     // only for response compatibility; it is deliberately ignored so stale
@@ -10441,19 +10397,6 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     if (ops.length > 0) {
       await prismaClient.$transaction(ops);
     }
-
-    // Recalculate server-authoritative points
-    const agg = await prismaClient.pointsLog.aggregate({
-      where: { userId },
-      _sum: { points: true }
-    });
-    const calculatedPoints = agg._sum.points ?? 10;
-    
-    // Update user point totals definitively
-    await prismaClient.user.update({
-      where: { id: userId },
-      data: { totalPoints: calculatedPoints }
-    });
 
     // Compile refreshed database aggregates
     const syncData = await UserService.getFullUserData(userId, undefined, { forceSupabaseState: true });

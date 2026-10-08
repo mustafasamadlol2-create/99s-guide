@@ -25,23 +25,29 @@ const MODES = new Set<StudyPointsCompatibilityMode>([
 export function resolveStudyPointsReadMode(
   configured = process.env.STUDY_POINTS_READ_MODE,
 ): StudyPointsCompatibilityMode {
-  if (configured === undefined || configured === "") return "LEGACY_ONLY";
+  if (configured === undefined || configured === "") return "LEGACY_PLUS_LEDGER";
   return MODES.has(configured as StudyPointsCompatibilityMode)
     ? configured as StudyPointsCompatibilityMode
-    : "LEGACY_ONLY";
+    : "LEGACY_PLUS_LEDGER";
 }
 
 function categoriesFrom(
   balance: CanonicalStudyPointsLedgerBalance,
 ): Pick<
   StudyPointsBalanceReadModel,
-  "focusPoints" | "masteryPoints" | "progressPoints" | "consistencyPoints" | "ledgerPoints"
+  | "focusPoints"
+  | "masteryPoints"
+  | "progressPoints"
+  | "consistencyPoints"
+  | "legacyLedgerPoints"
+  | "ledgerPoints"
 > {
   return {
     focusPoints: balance.focusPoints,
     masteryPoints: balance.masteryPoints,
     progressPoints: balance.progressPoints,
     consistencyPoints: balance.consistencyPoints,
+    legacyLedgerPoints: balance.legacyPoints,
     ledgerPoints: balance.totalPoints,
   };
 }
@@ -70,34 +76,41 @@ export async function getStudyPointsReadModel(input: {
   }
 
   const values = await database.$transaction(async (tx) => {
-    const [projection, legacy, baselineCount] = await Promise.all([
+    const [projection, user, nativeLedger] = await Promise.all([
       tx.studyPointsBalanceProjection.findUnique({ where: { userId: input.userId } }),
-      tx.pointsLog.aggregate({
-        where: { userId: input.userId },
-        _sum: { points: true },
+      tx.user.findUnique({
+        where: { id: input.userId },
+        select: { totalPoints: true },
       }),
-      tx.studyPointsLedgerEntry.count({
+      tx.studyPointsLedgerEntry.aggregate({
         where: {
           userId: input.userId,
-          sourceType: "LEGACY_POINTS_LOG",
-          reasonCode: "legacy.baseline_import",
+          sourceType: { not: "LEGACY_POINTS_LOG" },
         },
+        _sum: { amount: true },
       }),
     ]);
+    if (!user) {
+      throw new StudyPointsError(
+        "POINTS_USER_NOT_FOUND",
+        "Study Points user does not exist.",
+      );
+    }
     const ledger = projection
       ? {
         focusPoints: safeStudyPointsAggregate(projection.focusPoints),
         masteryPoints: safeStudyPointsAggregate(projection.masteryPoints),
         progressPoints: safeStudyPointsAggregate(projection.progressPoints),
         consistencyPoints: safeStudyPointsAggregate(projection.consistencyPoints),
+        legacyPoints: safeStudyPointsAggregate(projection.legacyPoints),
         totalPoints: safeStudyPointsAggregate(projection.totalPoints),
         ledgerEntryCount: safeStudyPointsAggregate(projection.ledgerEntryCount),
       }
       : await aggregateCanonicalStudyPointsLedgerBalance(tx, input.userId);
     return {
       ledger,
-      legacyPoints: safeStudyPointsAggregate(legacy._sum.points),
-      baselineCount,
+      legacyPoints: safeStudyPointsAggregate(user.totalPoints),
+      nativeLedgerPoints: safeStudyPointsAggregate(nativeLedger._sum.amount),
       source: projection ? "PROJECTION" as const : "LEDGER_FALLBACK" as const,
       projectionVersion: projection
         ? safeStudyPointsAggregate(projection.projectionVersion)
@@ -105,22 +118,15 @@ export async function getStudyPointsReadModel(input: {
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 
-  if (
-    compatibilityMode === "LEGACY_PLUS_LEDGER"
-    && values.baselineCount > 0
-  ) {
-    throw new StudyPointsError(
-      "POINTS_LEGACY_BASELINE_CONFLICT",
-      "Transitional Study Points mode cannot combine raw legacy history with a ledger baseline.",
-    );
-  }
-
   const categoryValues = categoriesFrom(values.ledger);
   let totalPoints: number;
   if (compatibilityMode === "LEGACY_ONLY") {
     totalPoints = values.legacyPoints;
   } else if (compatibilityMode === "LEGACY_PLUS_LEDGER") {
-    totalPoints = safeStudyPointsSum(values.legacyPoints, categoryValues.ledgerPoints);
+    totalPoints = safeStudyPointsSum(
+      values.legacyPoints,
+      values.nativeLedgerPoints,
+    );
   } else {
     totalPoints = categoryValues.ledgerPoints;
   }

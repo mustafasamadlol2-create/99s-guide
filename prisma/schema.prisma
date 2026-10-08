@@ -100,6 +100,7 @@ model User {
 
   studyPointsLedgerEntries     StudyPointsLedgerEntry[]
   studyPointsBalanceProjection StudyPointsBalanceProjection?
+  studyPointsLegacyCutover     StudyPointsLegacyCutover?
   userAchievementProgresses    UserAchievementProgress[]
   achievements                 UserAchievement[]
   gamificationLevel            UserGamificationLevel?
@@ -1011,6 +1012,7 @@ model StudyPointsBalanceProjection {
   masteryPoints     BigInt    @default(0) @db.BigInt
   progressPoints    BigInt    @default(0) @db.BigInt
   consistencyPoints BigInt    @default(0) @db.BigInt
+  legacyPoints      BigInt    @default(0) @db.BigInt
   totalPoints       BigInt    @default(0) @db.BigInt
   ledgerEntryCount  BigInt    @default(0) @db.BigInt
   projectionVersion BigInt    @default(0) @db.BigInt
@@ -1021,6 +1023,23 @@ model StudyPointsBalanceProjection {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([lastReconciledAt])
+}
+
+/// Captures the legacy account balance before row-level PointLog imports.
+/// The ledger remains canonical after coverage reaches COMPLETED.
+model StudyPointsLegacyCutover {
+  userId                 String    @id
+  legacyUserPoints       Int
+  legacyPointsLogTotal   BigInt    @db.BigInt
+  legacyPointsLogRowCount BigInt   @db.BigInt
+  legacyAdjustment       BigInt    @db.BigInt
+  status                 String    @default("PENDING") @db.VarChar(16)
+  capturedAt             DateTime  @default(now())
+  completedAt            DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, userId])
 }
 
 /// Versioned, server-owned definition lifecycle. Definitions remain in source

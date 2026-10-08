@@ -1,4 +1,5 @@
 import { getPrisma } from "./prismaClient.js";
+import { getStudyPointsReadModel } from "../features/study-points/readModel.js";
 import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./privateD1Read.js";
 import { enqueueMasteryD1UserDeletion } from "./privateD1Sync.js";
 import crypto from "node:crypto";
@@ -336,10 +337,6 @@ export class UserService {
         updateData.avatar = finalAvatarUrl;
         updateData.avatarUrl = finalAvatarUrl;
       }
-    }
-
-    if (user.totalPoints !== undefined) {
-      updateData.totalPoints = user.totalPoints;
     }
 
     if (user.level !== undefined) {
@@ -693,26 +690,6 @@ export class UserService {
     }));
   }
 
-  // Save academic points log
-  static async savePointsLog(log: PointsLogRecord): Promise<void> {
-    const client = getPrisma();
-    await client.pointsLog.upsert({
-      where: { id: log.id },
-      update: {
-        points: log.points,
-        reason: log.reason,
-        createdAt: log.createdAt ? new Date(log.createdAt) : new Date()
-      },
-      create: {
-        id: log.id,
-        userId: log.userId,
-        points: log.points,
-        reason: log.reason,
-        createdAt: log.createdAt ? new Date(log.createdAt) : new Date()
-      }
-    });
-  }
-
   // Legacy response compatibility only. Personal planner rows remain stored
   // but are no longer read by normal application hydration or synchronization.
   static async getCalendarEvents(
@@ -847,6 +824,7 @@ export class UserService {
   static async getLiteUserData(userId: string, knownUser?: UserRecord): Promise<any> {
     const userRow = knownUser || await UserService.findById(userId);
     if (!userRow) return null;
+    const points = await getStudyPointsReadModel({ userId });
 
     return {
       user: {
@@ -857,7 +835,7 @@ export class UserService {
         avatar: userRow.avatar || "",
         avatarUrl: userRow.avatarUrl || userRow.avatar || "",
         signature: userRow.signature,
-        totalPoints: userRow.totalPoints || 0,
+        totalPoints: points.totalPoints,
         level: userRow.level || "Rising (Resident) 🔬",
         levelBadge: userRow.levelBadge || "Lvl 1",
         streakDays: userRow.streakDays || 0,
@@ -884,10 +862,11 @@ export class UserService {
     if (!userRow) return null;
 
     const forceSupabaseState = options.forceSupabaseState === true;
-    const [progress, pointsLogs, calendarEvents] = await Promise.all([
+    const [progress, pointsLogs, calendarEvents, points] = await Promise.all([
       UserService.getProgress(userId, forceSupabaseState),
       UserService.getPointsLogs(userId, forceSupabaseState),
       UserService.getCalendarEvents(userId, forceSupabaseState),
+      getStudyPointsReadModel({ userId }),
     ]);
 
     const mappedUser = {
@@ -898,7 +877,7 @@ export class UserService {
       avatar: userRow.avatar || "",
       avatarUrl: userRow.avatarUrl || userRow.avatar || "",
       signature: userRow.signature,
-      totalPoints: userRow.totalPoints || 0,
+      totalPoints: points.totalPoints,
       level: userRow.level || "Rising (Resident) 🔬",
       levelBadge: userRow.levelBadge || "Lvl 1",
       streakDays: userRow.streakDays || 0,

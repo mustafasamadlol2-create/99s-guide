@@ -7,6 +7,7 @@ export interface PointsBalance {
   masteryPoints: number;
   progressPoints: number;
   consistencyPoints: number;
+  legacyLedgerPoints: number;
   ledgerPoints: number;
   legacyPoints: number;
 }

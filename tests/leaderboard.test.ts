@@ -136,16 +136,16 @@ test("bounded score query uses one set-based canonical-ledger ranking query", as
     season: weekly,
     scoreThrough: end,
   }, tx);
-  const scoreQuery = sqlStatements.find((sql) => sql.includes("WITH scores")) ?? "";
+  const scoreQuery = sqlStatements.find((sql) => sql.includes("WITH period_points")) ?? "";
   assert.match(scoreQuery, /"effectiveAt" >=/u);
   assert.match(scoreQuery, /"effectiveAt" </u);
-  assert.match(scoreQuery, /"sourceType" <> 'LEGACY_POINTS_LOG'/u);
+  assert.match(scoreQuery, /"PointsLog"/u);
+  assert.match(scoreQuery, /'legacy\.points_log'/u);
   assert.match(scoreQuery, /RANK\(\) OVER/u);
   assert.match(scoreQuery, /COUNT\(\*\) OVER \(PARTITION BY eligible\.score\)/u);
   assert.match(scoreQuery, /scores\.score > 0/u);
   assert.match(scoreQuery, /"accountStatus" = 'ACTIVE'/u);
-  assert.doesNotMatch(scoreQuery, /"PointsLog"/u);
-  assert.equal(sqlStatements.filter((sql) => sql.includes("WITH scores")).length, 1);
+  assert.equal(sqlStatements.filter((sql) => sql.includes("WITH period_points")).length, 1);
   assert.deepEqual(result.rows.map((row) => row.rank), [1, 2, 2, 4]);
   assert.deepEqual(result.rows.map((row) => row.score), [100n, 80n, 80n, 60n]);
   assert.deepEqual(result.ruleVersions, ["focus-points-v1"]);
@@ -158,7 +158,7 @@ test("All-Time set query preserves the configured legacy-plus-ledger read mode",
     async $queryRaw(query: unknown) {
       const sql = querySource(query);
       sqlStatements.push(sql);
-      if (sql.includes("legacy.baseline_import")) return [{ found: false }];
+      if (sql.includes("legacy.baseline_import")) return [{ ready: true }];
       return [{
         userId: "user-1",
         score: "140",
@@ -175,9 +175,11 @@ test("All-Time set query preserves the configured legacy-plus-ledger read mode",
     compatibilityMode: "LEGACY_PLUS_LEDGER",
   }, tx);
   const combinedQuery = sqlStatements.find((sql) => sql.includes("FULL OUTER JOIN")) ?? "";
-  assert.match(combinedQuery, /"PointsLog"/u);
+  assert.match(combinedQuery, /"User"/u);
   assert.match(combinedQuery, /"StudyPointsLedgerEntry"/u);
+  assert.match(combinedQuery, /"totalPoints"/u);
   assert.match(combinedQuery, /"createdAt" <=/u);
+  assert.doesNotMatch(combinedQuery, /"PointsLog"/u);
   assert.equal(result.rows[0]?.score, 140n);
   assert.equal(result.compatibilityMode, "LEGACY_PLUS_LEDGER");
   assert.deepEqual(result.ruleVersions, ["focus-v1", "study-v2"]);
@@ -189,7 +191,7 @@ test("own All-Time score sums compatible sources as of the pinned snapshot time"
     async $queryRaw(query: unknown) {
       const sql = querySource(query);
       queries.push(sql);
-      if (sql.includes("legacy.baseline_import")) return [{ found: false }];
+      if (sql.includes("legacy.baseline_import")) return [{ ready: true }];
       return [{ legacy: "100", ledger: "40" }];
     },
   } as unknown as Prisma.TransactionClient;

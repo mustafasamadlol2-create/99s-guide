@@ -402,6 +402,7 @@ export class StudyPointsLedgerService {
       MASTERY: 0,
       PROGRESS: 0,
       CONSISTENCY: 0,
+      legacyPoints: 0,
       total: 0,
     };
     const grouped = await this.database.studyPointsLedgerEntry.groupBy({
@@ -410,6 +411,14 @@ export class StudyPointsLedgerService {
       _sum: { amount: true },
     });
     for (const row of grouped) {
+      if (row.category === "LEGACY") {
+        balances.legacyPoints = safeStudyPointsAggregate(row._sum.amount);
+        balances.total = safeStudyPointsSum(
+          balances.total,
+          balances.legacyPoints,
+        );
+        continue;
+      }
       if (!(STUDY_POINTS_CATEGORIES as readonly string[]).includes(row.category)) {
         throw new StudyPointsError(
           "POINTS_INVALID_CATEGORY",

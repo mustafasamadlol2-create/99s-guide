@@ -6,6 +6,7 @@ import { getPrisma } from "../../services/prismaClient.js";
 import {
   STUDY_POINTS_CATEGORIES,
   type StudyPointsCategory,
+  type StudyPointsLedgerCategory,
 } from "./constants.js";
 import { safeStudyPointsAggregate, safeStudyPointsSum } from "./aggregate.js";
 import { StudyPointsError } from "./errors.js";
@@ -16,6 +17,7 @@ export type CanonicalStudyPointsLedgerBalance = {
   masteryPoints: number;
   progressPoints: number;
   consistencyPoints: number;
+  legacyPoints: number;
   totalPoints: number;
   ledgerEntryCount: number;
 };
@@ -26,11 +28,12 @@ export type ProjectedStudyPointsBalance =
     lastReconciledAt: Date | null;
   };
 
-const CATEGORY_FIELD: Record<StudyPointsCategory, string> = {
+const CATEGORY_FIELD: Record<StudyPointsLedgerCategory, string> = {
   FOCUS: "focusPoints",
   MASTERY: "masteryPoints",
   PROGRESS: "progressPoints",
   CONSISTENCY: "consistencyPoints",
+  LEGACY: "legacyPoints",
 };
 
 function emptyBalance(): CanonicalStudyPointsLedgerBalance {
@@ -39,6 +42,7 @@ function emptyBalance(): CanonicalStudyPointsLedgerBalance {
     masteryPoints: 0,
     progressPoints: 0,
     consistencyPoints: 0,
+    legacyPoints: 0,
     totalPoints: 0,
     ledgerEntryCount: 0,
   };
@@ -63,14 +67,17 @@ export async function aggregateCanonicalStudyPointsLedgerBalance(
   ]);
   const balance = emptyBalance();
   for (const group of groups) {
-    if (!(STUDY_POINTS_CATEGORIES as readonly string[]).includes(group.category)) {
+    if (
+      !(STUDY_POINTS_CATEGORIES as readonly string[]).includes(group.category)
+      && group.category !== "LEGACY"
+    ) {
       if (options.ignoreUnsupportedCategories) continue;
       throw new StudyPointsError(
         "POINTS_INVALID_CATEGORY",
         "Canonical Study Points ledger contains an unsupported category.",
       );
     }
-    const category = group.category as StudyPointsCategory;
+    const category = group.category as StudyPointsLedgerCategory;
     const field = CATEGORY_FIELD[category] as keyof CanonicalStudyPointsLedgerBalance;
     balance[field] = safeStudyPointsAggregate(group._sum.amount);
     balance.totalPoints = safeStudyPointsSum(
@@ -107,6 +114,7 @@ export async function getProjectedStudyPointsBalance(
     masteryPoints: safeStudyPointsAggregate(row.masteryPoints),
     progressPoints: safeStudyPointsAggregate(row.progressPoints),
     consistencyPoints: safeStudyPointsAggregate(row.consistencyPoints),
+    legacyPoints: safeStudyPointsAggregate(row.legacyPoints),
     totalPoints: safeStudyPointsAggregate(row.totalPoints),
     ledgerEntryCount: safeStudyPointsAggregate(row.ledgerEntryCount),
     projectionVersion: safeStudyPointsAggregate(row.projectionVersion),
@@ -117,7 +125,7 @@ export async function getProjectedStudyPointsBalance(
 export async function updateStudyPointsBalanceProjectionAfterAppend(
   tx: Prisma.TransactionClient,
   userId: string,
-  category: StudyPointsCategory,
+  category: StudyPointsLedgerCategory,
   amount: number,
 ): Promise<void> {
   const existing = await tx.studyPointsBalanceProjection.findUnique({
@@ -133,6 +141,7 @@ export async function updateStudyPointsBalanceProjectionAfterAppend(
         masteryPoints: BigInt(canonical.masteryPoints),
         progressPoints: BigInt(canonical.progressPoints),
         consistencyPoints: BigInt(canonical.consistencyPoints),
+        legacyPoints: BigInt(canonical.legacyPoints),
         totalPoints: BigInt(canonical.totalPoints),
         ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
         projectionVersion: 1n,
@@ -145,7 +154,8 @@ export async function updateStudyPointsBalanceProjectionAfterAppend(
     | "focusPoints"
     | "masteryPoints"
     | "progressPoints"
-    | "consistencyPoints";
+    | "consistencyPoints"
+    | "legacyPoints";
   await tx.studyPointsBalanceProjection.update({
     where: { userId },
     data: {

@@ -8,7 +8,10 @@ import {
   STUDY_POINTS_TOTAL_DAILY_CAP,
   studyPointsBaghdadDate,
 } from "./caps.js";
-import { STUDY_POINTS_CATEGORIES } from "./constants.js";
+import {
+  LEGACY_POINTS_CATEGORY,
+  STUDY_POINTS_CATEGORIES,
+} from "./constants.js";
 import { safeStudyPointsSum } from "./aggregate.js";
 
 export type StudyPointsAuditCheck = {
@@ -53,7 +56,10 @@ export function auditStudyPointsLedger(
   const add = (code: string, count = 1) => {
     counts.set(code, (counts.get(code) ?? 0) + count);
   };
-  const validCategories = new Set<string>(STUDY_POINTS_CATEGORIES);
+  const validCategories = new Set<string>([
+    ...STUDY_POINTS_CATEGORIES,
+    LEGACY_POINTS_CATEGORY,
+  ]);
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   const reversalsByOriginal = new Map<string, StudyPointsAuditEntry[]>();
   const sourceAwards = new Map<string, number>();
@@ -91,7 +97,11 @@ export function auditStudyPointsLedger(
       add("INVALID_REVERSAL_RELATION");
     }
 
-    if (entry.amount < 0 && entry.reversalOfEntryId === null) {
+    if (
+      entry.amount < 0
+      && entry.reversalOfEntryId === null
+      && entry.sourceType !== "LEGACY_POINTS_LOG"
+    ) {
       add("INVALID_REVERSAL_RELATION");
     }
 
@@ -132,7 +142,10 @@ export function auditStudyPointsLedger(
       }
     }
 
-    if (validCategories.has(entry.category)) {
+    if (
+      validCategories.has(entry.category)
+      && entry.sourceType !== "LEGACY_POINTS_LOG"
+    ) {
       const dayCategoryKey = `${baghdadDate}:${entry.category}`;
       dailyCategoryNet.set(
         dayCategoryKey,

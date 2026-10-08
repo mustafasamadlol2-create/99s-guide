@@ -13,6 +13,9 @@ export const LEGACY_POINTS_CATEGORY = "LEGACY" as const;
 
 export const STUDY_POINTS_CATEGORIES = POINT_CATEGORIES;
 export type StudyPointsCategory = PointCategory;
+export type StudyPointsLedgerCategory =
+  | StudyPointsCategory
+  | typeof LEGACY_POINTS_CATEGORY;
 
 export const STUDY_POINTS_SOURCE_TYPES = [
   "FOCUS_SESSION",

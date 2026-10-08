@@ -149,6 +149,7 @@ export async function getStudyPointsDailyUsage(
     by: ["category"],
     where: {
       userId,
+      sourceType: { not: "LEGACY_POINTS_LOG" },
       effectiveAt: { gte: bounds.start, lt: bounds.end },
     },
     _sum: { amount: true },

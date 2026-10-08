@@ -29,10 +29,11 @@ function createReadOnlyDatabase() {
             projectionVersion: 3,
           }),
         },
-        pointsLog: {
-          aggregate: async () => ({ _sum: { points: 130 } }),
+        user: {
+          findUnique: async () => ({ totalPoints: 130 }),
         },
         studyPointsLedgerEntry: {
+          aggregate: async () => ({ _sum: { amount: 49 } }),
           count: async () => 0,
         },
       }),
@@ -70,7 +71,7 @@ function createReadOnlyDatabase() {
 
 test("providers read canonical points, personal Focus, and Group Focus values", async () => {
   const oldReadMode = process.env.STUDY_POINTS_READ_MODE;
-  process.env.STUDY_POINTS_READ_MODE = "LEGACY_ONLY";
+  process.env.STUDY_POINTS_READ_MODE = "LEGACY_PLUS_LEDGER";
   try {
     const { database, seen } = createReadOnlyDatabase();
     const asOf = new Date("2026-09-25T10:00:00.000Z");
@@ -99,7 +100,7 @@ test("providers read canonical points, personal Focus, and Group Focus values", 
       database,
     );
 
-    assert.equal(pointTotal.value, 130);
+    assert.equal(pointTotal.value, 179);
     assert.equal(focusPoints.value, 12);
     assert.equal(completedSessions.value, 3);
     assert.equal(focusSeconds.value, 8_400);

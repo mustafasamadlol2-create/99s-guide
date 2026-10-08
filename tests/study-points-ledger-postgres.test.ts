@@ -352,6 +352,14 @@ test("real Prompt 19 PostgreSQL ledger invariants", { skip: skipped }, async (t)
     const ledgerOnly = await createUser("ledger-only");
     const mixed = await createUser("mixed");
     try {
+      await db().user.update({
+        where: { id: legacyOnly.id },
+        data: { totalPoints: 100 },
+      });
+      await db().user.update({
+        where: { id: mixed.id },
+        data: { totalPoints: 100 },
+      });
       await db().pointsLog.create({
         data: {
           userId: legacyOnly.id,

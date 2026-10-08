@@ -405,7 +405,10 @@ export function GamificationFrontend({ language, onBack }: GamificationFrontendP
     summary.points.consistencyPoints,
   ] : [], [summary]);
   const categoryTotal = categoryTotals.reduce((sum, points) => sum + points, 0);
-  const pointTotalsDisagree = Boolean(summary && categoryTotal !== summary.points.totalPoints);
+  const categorizedLedgerTotal = summary
+    ? summary.points.ledgerPoints - summary.points.legacyLedgerPoints
+    : 0;
+  const pointTotalsDisagree = Boolean(summary && categoryTotal !== categorizedLedgerTotal);
   useEffect(() => {
     if (pointTotalsDisagree && !warnedPointMismatch.current) {
       warnedPointMismatch.current = true;

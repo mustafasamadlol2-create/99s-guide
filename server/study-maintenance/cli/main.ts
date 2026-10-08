@@ -17,6 +17,7 @@ import {
   createLevelAdapter,
   createMasteryMaintenanceAdapter,
   createPointsAdapter,
+  createLegacyPointsBackfillAdapter,
   createPrivateD1Adapter,
   createRetentionMaintenanceAdapter,
   createOutboxAdapter,
@@ -34,6 +35,8 @@ const HELP = `Study Engine maintenance (read-only by default)
 Usage:
   npm run study-maintenance -- points audit --user-id <id>
   npm run study-maintenance -- points rebuild --all [--apply]
+  npm run study-maintenance -- points backfill-legacy --user-id <id> [--apply]
+  npm run study-maintenance -- points backfill-legacy --all [--apply]
   npm run study-maintenance -- level audit --user-id <id>
   npm run study-maintenance -- achievements audit --user-id <id> --as-of <ISO timestamp>
   npm run study-maintenance -- achievements rebuild --all --as-of <ISO timestamp> [--apply]
@@ -108,6 +111,12 @@ function selectAdapter(
       : "achievements:rebuild-progress";
     options.scope = canonicalScope(options, false);
     return createAchievementAdapter({ database });
+  }
+
+  if (normalized === "points backfill-legacy") {
+    options.jobType = "points:backfill-legacy";
+    options.scope = canonicalScope(options, false);
+    return createLegacyPointsBackfillAdapter({ database });
   }
 
   if (normalized === "points audit" || normalized === "points rebuild") {

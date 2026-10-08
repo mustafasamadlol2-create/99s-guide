@@ -76,6 +76,14 @@ export type {
 export {
   getStudyPointsCutoverReadiness,
 } from "./cutover.js";
+export {
+  backfillStudyPointsLegacyBatch,
+  getStudyPointsLegacyImportAudit,
+} from "./legacyBackfill.js";
+export type {
+  StudyPointsLegacyBackfillBatchResult,
+  StudyPointsLegacyImportAudit,
+} from "./legacyBackfill.js";
 export type {
   StudyPointsCutoverReadiness,
 } from "./cutover.js";

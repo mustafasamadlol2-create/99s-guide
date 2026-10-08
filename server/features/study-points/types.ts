@@ -63,6 +63,7 @@ export type StudyPointsCategoryBalances = Record<
   StudyPointsCategory,
   number
 > & {
+  legacyPoints: number;
   total: number;
 };
 
@@ -83,6 +84,7 @@ export type StudyPointsBalanceReadModel = {
   masteryPoints: number;
   progressPoints: number;
   consistencyPoints: number;
+  legacyLedgerPoints: number;
   ledgerPoints: number;
   legacyPoints: number;
   totalPoints: number;

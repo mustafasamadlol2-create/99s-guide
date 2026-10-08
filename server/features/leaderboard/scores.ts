@@ -72,47 +72,140 @@ async function assertCompatibleLifetimeRead(
   tx: Transaction,
   mode: StudyPointsCompatibilityMode,
 ): Promise<void> {
-  if (mode === "LEGACY_PLUS_LEDGER") {
-    const baselines = await tx.$queryRaw<Array<{ found: boolean }>>`
-      SELECT EXISTS (
-        SELECT 1
-        FROM "StudyPointsLedgerEntry"
-        WHERE "sourceType" = 'LEGACY_POINTS_LOG'
-          AND "reasonCode" = 'legacy.baseline_import'
-      ) AS found
-    `;
-    if (baselines[0]?.found) {
-      throw new LeaderboardError(
-        "LEADERBOARD_POINTS_COMPATIBILITY_CONFLICT",
-        "Transitional Study Points mode cannot combine legacy history with a ledger baseline.",
-      );
-    }
-  }
-  if (mode === "LEDGER_ONLY") {
-    const [baselines, legacyTotals] = await Promise.all([
-      tx.$queryRaw<Array<{ found: boolean }>>`
-        SELECT EXISTS (
-          SELECT 1
-          FROM "StudyPointsLedgerEntry"
-          WHERE "sourceType" = 'LEGACY_POINTS_LOG'
-            AND "reasonCode" = 'legacy.baseline_import'
-        ) AS found
-      `,
-      tx.$queryRaw<Array<{ found: boolean }>>`
-        SELECT EXISTS (
-          SELECT 1
-          FROM "PointsLog"
-          GROUP BY "userId"
-          HAVING SUM("points") <> 0
-        ) AS found
-      `,
-    ]);
-    if (baselines[0]?.found || legacyTotals[0]?.found) {
-      throw new LeaderboardError(
-        "LEADERBOARD_POINTS_LEDGER_ONLY_NOT_READY",
-        "Leaderboard ledger-only mode is not ready while legacy balances remain.",
-      );
-    }
+  if (mode !== "LEDGER_ONLY") return;
+  const [status] = await tx.$queryRaw<Array<{ ready: boolean }>>`
+    WITH log_totals AS (
+      SELECT
+        "userId",
+        COALESCE(SUM("points"), 0)::bigint AS points,
+        COUNT(*) FILTER (WHERE "points" <> 0)::bigint AS rows
+      FROM "PointsLog"
+      GROUP BY "userId"
+    ),
+    row_coverage AS (
+      SELECT
+        log."userId",
+        log."id",
+        log."points",
+        log."createdAt",
+        COUNT(entry."id")::bigint AS entry_count,
+        COALESCE(SUM(entry."amount"), 0)::bigint AS entry_points,
+        COALESCE(BOOL_AND(
+          entry."category" = 'LEGACY'
+          AND entry."ruleVersion" = 'legacy-pointslog-v1'
+          AND entry."effectiveAt" = log."createdAt"
+          AND entry."reversalOfEntryId" IS NULL
+          AND entry."amount" <> 0
+          AND ABS(entry."amount") <= 100000
+          AND SIGN(entry."amount") = SIGN(log."points")
+        ) FILTER (WHERE entry."id" IS NOT NULL), TRUE) AS valid_entries
+      FROM "PointsLog" AS log
+      LEFT JOIN "StudyPointsLedgerEntry" AS entry
+        ON entry."userId" = log."userId"
+        AND entry."sourceType" = 'LEGACY_POINTS_LOG'
+        AND entry."reasonCode" = 'legacy.points_log'
+        AND entry."sourceId" = log."id"
+      WHERE log."points" <> 0
+      GROUP BY log."userId", log."id", log."points", log."createdAt"
+    ),
+    adjustments AS (
+      SELECT
+        entry."userId",
+        COALESCE(SUM(entry."amount"), 0)::bigint AS points,
+        COUNT(*)::bigint AS entries,
+        COALESCE(BOOL_AND(
+          entry."category" = 'LEGACY'
+          AND entry."ruleVersion" = 'legacy-pointslog-v1'
+          AND entry."reversalOfEntryId" IS NULL
+          AND entry."sourceId" = entry."userId"
+          AND entry."effectiveAt" = cutover."capturedAt"
+        ), TRUE) AS valid_entries
+      FROM "StudyPointsLedgerEntry" AS entry
+      INNER JOIN "StudyPointsLegacyCutover" AS cutover
+        ON cutover."userId" = entry."userId"
+      WHERE entry."sourceType" = 'LEGACY_POINTS_LOG'
+        AND entry."reasonCode" = 'legacy.user_total_adjustment'
+      GROUP BY entry."userId", cutover."capturedAt"
+    ),
+    blockers AS (
+      SELECT 1
+      FROM "StudyPointsLedgerEntry"
+      WHERE "sourceType" = 'LEGACY_POINTS_LOG'
+        AND "reasonCode" = 'legacy.baseline_import'
+      UNION ALL
+      SELECT 1
+      FROM "User" AS account
+      LEFT JOIN "StudyPointsLegacyCutover" AS cutover
+        ON cutover."userId" = account."id"
+      LEFT JOIN log_totals AS logs ON logs."userId" = account."id"
+      WHERE (
+        account."totalPoints" <> 0
+        OR COALESCE(logs.rows, 0) > 0
+      ) AND (
+        cutover."userId" IS NULL
+        OR cutover."status" <> 'COMPLETED'
+        OR cutover."legacyUserPoints" <> account."totalPoints"
+        OR cutover."legacyPointsLogTotal" <> COALESCE(logs.points, 0)
+        OR cutover."legacyPointsLogRowCount" <> COALESCE(logs.rows, 0)
+        OR cutover."legacyAdjustment"
+          <> account."totalPoints" - COALESCE(logs.points, 0)
+      )
+      UNION ALL
+      SELECT 1
+      FROM row_coverage
+      WHERE "entry_points" <> "points"
+        OR "entry_count" <> CEIL(ABS("points")::numeric / 100000)
+        OR NOT valid_entries
+      UNION ALL
+      SELECT 1
+      FROM "StudyPointsLedgerEntry" AS entry
+      WHERE entry."sourceType" = 'LEGACY_POINTS_LOG'
+        AND entry."reasonCode" = 'legacy.points_log'
+        AND NOT EXISTS (
+          SELECT 1 FROM "PointsLog" AS log
+          WHERE log."userId" = entry."userId"
+            AND log."id" = entry."sourceId"
+        )
+      UNION ALL
+      SELECT 1
+      FROM "User" AS account
+      LEFT JOIN log_totals AS logs ON logs."userId" = account."id"
+      LEFT JOIN adjustments
+        ON adjustments."userId" = account."id"
+      LEFT JOIN "StudyPointsLegacyCutover" AS cutover
+        ON cutover."userId" = account."id"
+      WHERE (
+        account."totalPoints" <> 0
+        OR COALESCE(logs.rows, 0) > 0
+      ) AND (
+        COALESCE(adjustments.points, 0)
+          <> account."totalPoints" - COALESCE(logs.points, 0)
+        OR COALESCE(adjustments.entries, 0)
+          <> CEIL(ABS(account."totalPoints" - COALESCE(logs.points, 0))::numeric / 100000)
+        OR NOT COALESCE(adjustments.valid_entries, TRUE)
+        OR (
+          cutover."userId" IS NOT NULL
+          AND cutover."legacyAdjustment"
+            <> account."totalPoints" - COALESCE(logs.points, 0)
+        )
+      )
+      UNION ALL
+      SELECT 1
+      FROM "StudyPointsLedgerEntry"
+      WHERE "sourceType" = 'LEGACY_POINTS_LOG'
+        AND "reasonCode" NOT IN (
+          'legacy.baseline_import',
+          'legacy.points_log',
+          'legacy.user_total_adjustment'
+        )
+    )
+    SELECT NOT EXISTS (SELECT 1 FROM blockers) AS ready
+  `;
+  if (!status?.ready) {
+    throw new LeaderboardError(
+      "LEADERBOARD_POINTS_LEDGER_ONLY_NOT_READY",
+      "Leaderboard ledger-only mode is not ready until legacy balances and history are fully reconciled.",
+    );
   }
 }
 
@@ -122,13 +215,40 @@ async function readBoundedRankedScores(
   scoreThrough: Date,
 ): Promise<{ rows: RankedRow[]; ruleVersions: string[] }> {
   const rows = await tx.$queryRaw<RankedRowWithVersions[]>`
-    WITH scores AS (
-      SELECT entry."userId", SUM(entry."amount")::bigint AS score
+    WITH period_points AS (
+      SELECT
+        entry."userId",
+        entry."amount"::bigint AS points,
+        entry."ruleVersion"
       FROM "StudyPointsLedgerEntry" AS entry
-      WHERE entry."sourceType" <> 'LEGACY_POINTS_LOG'
-        AND entry."effectiveAt" >= ${startsAt}
+      WHERE entry."effectiveAt" >= ${startsAt}
         AND entry."effectiveAt" < ${scoreThrough}
-      GROUP BY entry."userId"
+        AND entry."reasonCode" NOT IN (
+          'legacy.user_total_adjustment',
+          'legacy.baseline_import'
+        )
+      UNION ALL
+      SELECT
+        log."userId",
+        log."points"::bigint AS points,
+        'legacy-pointslog-v1'::text AS "ruleVersion"
+      FROM "PointsLog" AS log
+      WHERE log."points" <> 0
+        AND log."createdAt" >= ${startsAt}
+        AND log."createdAt" < ${scoreThrough}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "StudyPointsLedgerEntry" AS imported
+          WHERE imported."userId" = log."userId"
+            AND imported."sourceType" = 'LEGACY_POINTS_LOG'
+            AND imported."reasonCode" = 'legacy.points_log'
+            AND imported."sourceId" = log."id"
+        )
+    ),
+    scores AS (
+      SELECT "userId", SUM(points)::bigint AS score
+      FROM period_points
+      GROUP BY "userId"
     ),
     eligible AS (
       SELECT scores."userId", scores.score
@@ -148,13 +268,10 @@ async function readBoundedRankedScores(
     versions AS (
       SELECT COALESCE(
         ARRAY(
-          SELECT DISTINCT entry."ruleVersion"
-          FROM "StudyPointsLedgerEntry" AS entry
-          INNER JOIN eligible ON eligible."userId" = entry."userId"
-          WHERE entry."sourceType" <> 'LEGACY_POINTS_LOG'
-            AND entry."effectiveAt" >= ${startsAt}
-            AND entry."effectiveAt" < ${scoreThrough}
-          ORDER BY entry."ruleVersion"
+           SELECT DISTINCT period_points."ruleVersion"
+           FROM period_points
+           INNER JOIN eligible ON eligible."userId" = period_points."userId"
+           ORDER BY period_points."ruleVersion"
         ),
         ARRAY[]::text[]
       ) AS "ruleVersions"
@@ -177,17 +294,19 @@ async function readLifetimeRankedScores(
   const legacyRows = mode === "LEDGER_ONLY"
     ? Prisma.sql``
     : Prisma.sql`
-      SELECT "userId", SUM("points")::bigint AS score
-      FROM "PointsLog"
+      SELECT "id" AS "userId", "totalPoints"::bigint AS score
+      FROM "User"
       WHERE "createdAt" <= ${scoreThrough}
-      GROUP BY "userId"
     `;
   const ledgerRows = mode === "LEGACY_ONLY"
     ? Prisma.sql``
     : Prisma.sql`
       SELECT "userId", SUM("amount")::bigint AS score
       FROM "StudyPointsLedgerEntry"
-      WHERE "createdAt" <= ${scoreThrough}
+      WHERE "effectiveAt" <= ${scoreThrough}
+        ${mode === "LEGACY_PLUS_LEDGER"
+          ? Prisma.sql`AND "sourceType" <> 'LEGACY_POINTS_LOG'`
+          : Prisma.empty}
       GROUP BY "userId"
     `;
   const combined = mode === "LEGACY_ONLY"
@@ -212,10 +331,13 @@ async function readLifetimeRankedScores(
     : Prisma.sql`
       SELECT COALESCE(
         ARRAY(
-          SELECT DISTINCT entry."ruleVersion"
+           SELECT DISTINCT entry."ruleVersion"
           FROM "StudyPointsLedgerEntry" AS entry
           INNER JOIN eligible ON eligible."userId" = entry."userId"
-          WHERE entry."createdAt" <= ${scoreThrough}
+           WHERE entry."effectiveAt" <= ${scoreThrough}
+             ${mode === "LEGACY_PLUS_LEDGER"
+               ? Prisma.sql`AND entry."sourceType" <> 'LEGACY_POINTS_LOG'`
+               : Prisma.empty}
           ORDER BY entry."ruleVersion"
         ),
         ARRAY[]::text[]
@@ -313,16 +435,19 @@ export async function readUserLeaderboardScore(input: {
       const totals = await tx.$queryRaw<Array<{ legacy: string; ledger: string }>>`
         SELECT
           COALESCE((
-            SELECT SUM("points")::bigint
-            FROM "PointsLog"
-            WHERE "userId" = ${input.userId}
+            SELECT "totalPoints"::bigint
+            FROM "User"
+            WHERE "id" = ${input.userId}
               AND "createdAt" <= ${input.scoreThrough}
           ), 0)::text AS legacy,
           COALESCE((
             SELECT SUM("amount")::bigint
             FROM "StudyPointsLedgerEntry"
             WHERE "userId" = ${input.userId}
-              AND "createdAt" <= ${input.scoreThrough}
+              AND "effectiveAt" <= ${input.scoreThrough}
+              ${mode === "LEGACY_PLUS_LEDGER"
+                ? Prisma.sql`AND "sourceType" <> 'LEGACY_POINTS_LOG'`
+                : Prisma.empty}
           ), 0)::text AS ledger
       `;
       const legacy = mode === "LEDGER_ONLY" ? 0n : BigInt(totals[0]?.legacy ?? "0");
@@ -349,12 +474,33 @@ export async function readUserLeaderboardScore(input: {
       );
     }
     const totals = await tx.$queryRaw<Array<{ score: string }>>`
-      SELECT COALESCE(SUM("amount"), 0)::text AS score
-      FROM "StudyPointsLedgerEntry"
-      WHERE "userId" = ${input.userId}
-        AND "sourceType" <> 'LEGACY_POINTS_LOG'
-        AND "effectiveAt" >= ${input.season.startsAt}
-        AND "effectiveAt" < ${input.scoreThrough}
+      WITH period_points AS (
+        SELECT entry."amount"::bigint AS points
+        FROM "StudyPointsLedgerEntry" AS entry
+        WHERE entry."userId" = ${input.userId}
+          AND entry."effectiveAt" >= ${input.season.startsAt}
+          AND entry."effectiveAt" < ${input.scoreThrough}
+          AND entry."reasonCode" NOT IN (
+            'legacy.user_total_adjustment',
+            'legacy.baseline_import'
+          )
+        UNION ALL
+        SELECT log."points"::bigint AS points
+        FROM "PointsLog" AS log
+        WHERE log."userId" = ${input.userId}
+          AND log."points" <> 0
+          AND log."createdAt" >= ${input.season.startsAt}
+          AND log."createdAt" < ${input.scoreThrough}
+          AND NOT EXISTS (
+            SELECT 1 FROM "StudyPointsLedgerEntry" AS imported
+            WHERE imported."userId" = log."userId"
+              AND imported."sourceType" = 'LEGACY_POINTS_LOG'
+              AND imported."reasonCode" = 'legacy.points_log'
+              AND imported."sourceId" = log."id"
+          )
+      )
+      SELECT COALESCE(SUM(points), 0)::text AS score
+      FROM period_points
     `;
     return {
       score: Number(decodeScore(totals[0]?.score ?? "0")),

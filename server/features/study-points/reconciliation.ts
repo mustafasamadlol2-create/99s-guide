@@ -53,6 +53,7 @@ const PROJECTION_FIELDS = [
   ["masteryPoints", "masteryPoints"],
   ["progressPoints", "progressPoints"],
   ["consistencyPoints", "consistencyPoints"],
+  ["legacyPoints", "legacyPoints"],
 ] as const;
 
 type Snapshot = {
@@ -72,7 +73,8 @@ function projectionChanged(
     || projection.focusPoints
       + projection.masteryPoints
       + projection.progressPoints
-      + projection.consistencyPoints !== projection.totalPoints;
+      + projection.consistencyPoints
+      + projection.legacyPoints !== projection.totalPoints;
 }
 
 function toProjection(row: {
@@ -80,6 +82,7 @@ function toProjection(row: {
   masteryPoints: bigint;
   progressPoints: bigint;
   consistencyPoints: bigint;
+  legacyPoints: bigint;
   totalPoints: bigint;
   ledgerEntryCount: bigint;
   projectionVersion: bigint;
@@ -90,6 +93,7 @@ function toProjection(row: {
     masteryPoints: safeStudyPointsAggregate(row.masteryPoints),
     progressPoints: safeStudyPointsAggregate(row.progressPoints),
     consistencyPoints: safeStudyPointsAggregate(row.consistencyPoints),
+    legacyPoints: safeStudyPointsAggregate(row.legacyPoints),
     totalPoints: safeStudyPointsAggregate(row.totalPoints),
     ledgerEntryCount: safeStudyPointsAggregate(row.ledgerEntryCount),
     projectionVersion: safeStudyPointsAggregate(row.projectionVersion),
@@ -145,7 +149,10 @@ async function snapshot(
   const projectionDrift = projectionChanged(canonical, projection);
   const categorySum = safeStudyPointsSum(
     safeStudyPointsSum(canonical.focusPoints, canonical.masteryPoints),
-    safeStudyPointsSum(canonical.progressPoints, canonical.consistencyPoints),
+    safeStudyPointsSum(
+      safeStudyPointsSum(canonical.progressPoints, canonical.consistencyPoints),
+      canonical.legacyPoints,
+    ),
   );
   const checks = [...audit.checks];
   const addProjectionCheck = (code: string, failed: boolean, occurrences = 1) => {
@@ -179,7 +186,8 @@ async function snapshot(
       projection.focusPoints
       + projection.masteryPoints
       + projection.progressPoints
-      + projection.consistencyPoints !== projection.totalPoints
+      + projection.consistencyPoints
+      + projection.legacyPoints !== projection.totalPoints
     )),
   );
   addProjectionCheck("CANONICAL_CATEGORY_SUM_MISMATCH", categorySum !== canonical.totalPoints);
@@ -277,6 +285,7 @@ export async function reconcileStudyPointsAccount(input: {
           masteryPoints: BigInt(canonical.masteryPoints),
           progressPoints: BigInt(canonical.progressPoints),
           consistencyPoints: BigInt(canonical.consistencyPoints),
+          legacyPoints: BigInt(canonical.legacyPoints),
           totalPoints: BigInt(canonical.totalPoints),
           ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
           projectionVersion,
@@ -287,6 +296,7 @@ export async function reconcileStudyPointsAccount(input: {
           masteryPoints: BigInt(canonical.masteryPoints),
           progressPoints: BigInt(canonical.progressPoints),
           consistencyPoints: BigInt(canonical.consistencyPoints),
+          legacyPoints: BigInt(canonical.legacyPoints),
           totalPoints: BigInt(canonical.totalPoints),
           ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
           projectionVersion,

@@ -59,18 +59,27 @@ export class StudyPointsLegacyBridgeService {
   ): Promise<CompatibleStudyPointsBalance> {
     assertValidStudyPointsUserId(userId);
     const result = await this.database.$transaction(async (tx) => {
-      const [legacy, ledger] = await Promise.all([
-        tx.pointsLog.aggregate({
-          where: { userId },
-          _sum: { points: true },
+      const [user, ledger] = await Promise.all([
+        tx.user.findUnique({
+          where: { id: userId },
+          select: { totalPoints: true },
         }),
         tx.studyPointsLedgerEntry.aggregate({
-          where: { userId },
+          where: {
+            userId,
+            sourceType: { not: "LEGACY_POINTS_LOG" },
+          },
           _sum: { amount: true },
         }),
       ]);
+      if (!user) {
+        throw new StudyPointsError(
+          "POINTS_USER_NOT_FOUND",
+          "Study Points user does not exist.",
+        );
+      }
       return {
-        legacyPoints: safeStudyPointsAggregate(legacy._sum.points),
+        legacyPoints: safeStudyPointsAggregate(user.totalPoints),
         ledgerPoints: safeStudyPointsAggregate(ledger._sum.amount),
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });

@@ -27,9 +27,9 @@ function entry(
   };
 }
 
-test("read mode defaults safely and rejects malformed values to LEGACY_ONLY", () => {
-  assert.equal(resolveStudyPointsReadMode(undefined), "LEGACY_ONLY");
-  assert.equal(resolveStudyPointsReadMode("nonsense"), "LEGACY_ONLY");
+test("read mode defaults safely to hybrid reads and rejects malformed values to the same mode", () => {
+  assert.equal(resolveStudyPointsReadMode(undefined), "LEGACY_PLUS_LEDGER");
+  assert.equal(resolveStudyPointsReadMode("nonsense"), "LEGACY_PLUS_LEDGER");
   assert.equal(resolveStudyPointsReadMode("LEDGER_ONLY"), "LEDGER_ONLY");
   assert.equal(resolveStudyPointsReadMode("LEGACY_PLUS_LEDGER"), "LEGACY_PLUS_LEDGER");
 });

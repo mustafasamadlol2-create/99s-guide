@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createChallengeAdapter } from "../server/study-maintenance/jobs/challenges.js";
 import { createLevelAdapter } from "../server/study-maintenance/jobs/levels.js";
-import { createPointsAdapter } from "../server/study-maintenance/jobs/points.js";
+import {
+  createLegacyPointsBackfillAdapter,
+  createPointsAdapter,
+} from "../server/study-maintenance/jobs/points.js";
 
 function fakeDatabase(ids = ["a", "b"]): any {
   return {
@@ -39,6 +42,74 @@ test("points adapter audits without repairing and applies only projection repair
   assert.deepEqual(calls, [
     { userId: "a", repairProjection: false },
     { userId: "a", repairProjection: true },
+  ]);
+});
+
+test("legacy points maintenance audits without writes and drains rerunnable import batches on apply", async () => {
+  const calls: string[] = [];
+  let status = "PENDING";
+  let remaining = 2;
+  const adapter = createLegacyPointsBackfillAdapter({
+    database: fakeDatabase() as any,
+    audit: async (userId) => {
+      calls.push(`audit:${userId}`);
+      return {
+        userId,
+        userExists: true,
+        markerExists: status === "COMPLETED",
+        markerStatus: status === "COMPLETED" ? "COMPLETED" : "PENDING",
+        legacyUserPoints: 30,
+        pointsLogTotal: 30,
+        pointsLogRowCount: 2,
+        importedPointLogRows: status === "COMPLETED" ? 2 : 0,
+        missingPointLogRows: status === "COMPLETED" ? 0 : 2,
+        invalidPointLogRows: 0,
+        orphanPointLogImports: 0,
+        importedPointLogPoints: status === "COMPLETED" ? 30 : 0,
+        legacyAdjustment: 0,
+        importedAdjustment: 0,
+        invalidAdjustmentRows: 0,
+        unsupportedBaselineRows: 0,
+        unsupportedLegacyRows: 0,
+        sourceSnapshotMatches: status === "COMPLETED",
+        complete: status === "COMPLETED",
+      };
+    },
+    backfill: async ({ userId }) => {
+      calls.push(`backfill:${userId}`);
+      remaining -= 1;
+      if (remaining === 0) status = "COMPLETED";
+      return {
+        userId,
+        importedPointLogRows: 1,
+        importedLedgerEntries: 1,
+        remainingPointLogRows: remaining,
+        cutoverStatus: remaining === 0 ? "COMPLETED" : "PENDING",
+      };
+    },
+  });
+
+  assert.deepEqual(await adapter.inspect({ id: "a" }, {
+    asOf: "2026-01-01T00:00:00Z",
+  }), {
+    status: "LEGACY_IMPORT_INCOMPLETE",
+    wouldChange: true,
+    changed: false,
+    code: "LEGACY_CUTOVER_NOT_STARTED",
+  });
+  assert.deepEqual(await adapter.apply({ id: "a" }, {
+    asOf: "2026-01-01T00:00:00Z",
+  }), {
+    status: "LEGACY_IMPORT_COMPLETE",
+    wouldChange: false,
+    changed: true,
+  });
+  assert.deepEqual(calls, [
+    "audit:a",
+    "audit:a",
+    "backfill:a",
+    "backfill:a",
+    "audit:a",
   ]);
 });
 

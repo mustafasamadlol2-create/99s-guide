@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { UserService, UserRecord } from "./userService.js";
+import { StudyPointsLedgerService } from "../features/study-points/ledger.js";
 
 export class AuthService {
   // Use a secure work factor of 10-12
@@ -58,7 +59,7 @@ export class AuthService {
       accountStatus: data.accountStatus === "PENDING_PROFILE" ? "pending_profile" : data.accountStatus === "PENDING" ? "pending" : "active",
       avatar: null,
       signature: data.signature || "",
-      totalPoints: 10,
+      totalPoints: 0,
       level: "Rising (Resident) 🔬",
       levelBadge: "Lvl 1",
       streakDays: 3,
@@ -66,18 +67,22 @@ export class AuthService {
       lastActive: new Date().toISOString()
     });
 
-    // The account is already valid if this auxiliary welcome log fails.
-    // Do not report a successful account creation as a registration failure.
+    // Welcome points are new Study Points and are recorded in the canonical
+    // ledger. Keep account creation successful if this auxiliary award fails.
     try {
-      await UserService.savePointsLog({
-        id: `log_init_${randomUUID()}`,
+      await new StudyPointsLedgerService().appendStudyPointsLedgerEntry({
         userId,
-        points: 10,
-        reason: "Welcome Award: Account profile generated successfully",
-        createdAt: new Date().toISOString()
+        amount: 10,
+        category: "PROGRESS",
+        reasonCode: "account.welcome_award",
+        sourceType: "ADMIN_ADJUSTMENT",
+        sourceId: userId,
+        ruleVersion: "registration-welcome-v1",
+        idempotencyKey: `registration-welcome:${userId}`,
+        effectiveAt: new Date(),
       });
     } catch (error) {
-      console.error("[AuthService] Welcome points log could not be created:", error instanceof Error ? error.message : "unknown error");
+      console.error("[AuthService] Welcome Study Points award could not be created:", error instanceof Error ? error.message : "unknown error");
     }
 
     return newUser;
