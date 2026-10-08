@@ -74,8 +74,9 @@ Safety:
   --all is required for an unscoped user-wide scan.
   Achievement rebuild writes progress only; it never creates or removes permanent unlocks.
   A completed achievement without an unlock is reported for review, not backfilled.
-  Production apply is disabled while maintenance checkpoints are local-only.
-  Never run maintenance against production as part of Prompt 49.
+  General production apply is disabled while maintenance checkpoints are local-only.
+  Atomic ruleset bootstrap/activation are the only production apply exceptions.
+  Production ruleset writes require --apply, --environment=production, and the confirmation token.
 `;
 
 function safeFailure(message: string): Error {

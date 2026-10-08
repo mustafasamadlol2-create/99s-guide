@@ -14,8 +14,7 @@ This CLI provides scoped, resumable maintenance for canonical Study Engine proje
 - A job stops at the first item error by default. `--max-errors` is an explicit override.
 - Reports contain aggregate counts and safe error codes, not row payloads.
 - Outbox compaction is dry-run by default and requires both `--apply` and an explicit `--older-than-days` or `--before` cutoff. It deletes only retained terminal outbox rows, never canonical study evidence.
-- Production apply is disabled while checkpoints are local files. The parser also requires an explicit production environment and confirmation token, but those do not override the local-checkpoint restriction.
-- Do not run any maintenance command against production as part of Prompt 49.
+- General production maintenance apply is disabled while checkpoints are local files. The only exception is the single-transaction Gamification RuleSet bootstrap/activation flow, which requires `--apply` and the explicit production confirmation token.
 
 ## Common commands
 
@@ -28,7 +27,13 @@ npm run study-maintenance -- mastery audit --user-id USER_ID --lecture-id LECTUR
 npm run study-maintenance -- retention rebuild --user-id USER_ID --as-of 2026-09-29T12:00:00Z
 npm run study-maintenance -- orphans audit --environment=development
 npm run study-maintenance -- compatibility audit --environment=development
+npm run study-maintenance -- ruleset audit --environment=development
+npm run study-maintenance -- ruleset bootstrap --apply --environment=development
 ```
+
+For a production first-deploy bootstrap, run
+`npm run study-maintenance -- ruleset bootstrap --apply --environment=production --confirm-production=APPLY_STUDY_MAINTENANCE_TO_PRODUCTION`.
+Bootstrap only activates the current source version when no version is active; it is a no-op when that exact version is already valid, and it refuses duplicates, stale versions, or checksum mismatches. To intentionally move from a valid older active version after reviewing the release, run `ruleset activate --apply` with the same production confirmation. Activation verifies the old active checksums before retiring it and never edits an active row's definitions in place.
 
 Use `--report-file reports/study-maintenance/<name>.json` to save the report. Checkpoints are stored locally under `reports/study-maintenance/checkpoints` by default. Do not delete a lock file from a live process; a leftover lock after a crash needs operator review before removal.
 
@@ -48,7 +53,7 @@ SIGINT and SIGTERM stop after the current item and save the last fully processed
 - **Leaderboard snapshots**: audit or reconcile one season, optionally restricted to one snapshot. Reconciliation can create a replacement revision, so use a dry-run first and pass `--apply` only after reviewing it.
 - **Leaderboard D1 cache**: audit one snapshot with `--allow-cloudflare`. Rebuilding queues a projection in PostgreSQL; apply requires `--allow-external-writes`.
 - **Focus and Group Focus**: bounded, read-only invariant samples. These commands require `--all` to make the global scope explicit; use `--limit` to bound the sample.
-- **Ruleset audit**: validates the single active Gamification ruleset against the source bundle and stored checksums.
+- **Ruleset audit**: requires exactly one ACTIVE row at the current source version and validates schema, lifecycle timestamps, and Achievement, Level, and Challenge checksums. `ruleset bootstrap --apply` safely installs the first active current ruleset; `ruleset activate --apply` is the explicit version transition.
 - **Orphan audit**: checks PostgreSQL projection/user and outbox-target relationships without deleting rows. D1 projection orphans are explicitly reported as unsupported because this command has no safe local D1 read path.
 - **Compatibility audit**: compares persisted PostgreSQL rule and projection versions with source-controlled definitions. D1-observed and AI prompt/cache versions without a safe inventory path are reported as unsupported, not assumed compatible.
 - **Readiness preflight**: checks database connectivity, required tables and indexes, migration state, active ruleset, rule versions, local Wrangler config-file presence, selected feature-flag presence, outbox backlog, and a read-only Points/Level sample. It does not verify live Cloudflare credentials or remote binding values.
@@ -59,7 +64,7 @@ SIGINT and SIGTERM stop after the current item and save the last fully processed
 
 ## Deliberately unavailable operations
 
-- **Production apply** is unavailable until job state and locking use a durable shared store. Local checkpoint files are not sufficient for multi-process or multi-host production resumability.
+- **Other production maintenance apply** remains unavailable until job state and locking use a durable shared store. Local checkpoint files are not sufficient for multi-process or multi-host production resumability.
 
 ## Exit behavior
 
