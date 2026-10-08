@@ -5,6 +5,10 @@ import type { GamificationDefinitionBundle } from "./types.js";
 import { validateGamificationDefinitionBundle } from "./validation.js";
 
 export const GAMIFICATION_V1_RULE_SET_VERSION = "gamification-v1";
+// Bump this pointer only when a new source-controlled bundle is intended to
+// become the active production ruleset. Historical bundles remain readable.
+export const GAMIFICATION_CURRENT_RULE_SET_VERSION =
+  GAMIFICATION_V1_RULE_SET_VERSION;
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -133,6 +137,11 @@ export function getGamificationDefinitionBundle(
   }
   validateGamificationDefinitionBundle(bundle);
   return bundle;
+}
+
+export function getCurrentGamificationDefinitionBundle():
+GamificationDefinitionBundle {
+  return getGamificationDefinitionBundle(GAMIFICATION_CURRENT_RULE_SET_VERSION);
 }
 
 export function getGamificationDefinitionVersions(): readonly string[] {

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getActiveGamificationRuleSet } from "../../features/gamification/ruleSetService.js";
+import { GamificationError } from "../../features/gamification/errors.js";
 import { reconcileUserGamificationLevel } from "../../features/gamification/levelService.js";
 import { reconcileStudyPointsAccount } from "../../features/study-points/reconciliation.js";
 import { MASTERY_RULE_VERSION } from "../../features/mastery/constants.js";
@@ -136,8 +137,15 @@ export async function runReadinessPreflight(
   try {
     const active = await getActiveGamificationRuleSet(database);
     check(checks, "active_gamification_ruleset", "PASS", active.ruleSet.version);
-  } catch {
-    check(checks, "active_gamification_ruleset", "FAIL", "ACTIVE_RULESET_INVALID_OR_MISSING");
+  } catch (error) {
+    check(checks, "active_gamification_ruleset", "FAIL", {
+      code: error instanceof GamificationError
+        ? error.code
+        : "GAMIFICATION_RULE_SET_CHECK_FAILED",
+      message: error instanceof Error
+        ? error.message.slice(0, 240)
+        : "The active Gamification ruleset could not be verified.",
+    });
   }
 
   check(checks, "canonical_rule_versions", "PASS", {

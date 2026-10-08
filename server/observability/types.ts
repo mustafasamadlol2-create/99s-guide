@@ -65,6 +65,7 @@ export interface SystemHealthSnapshot {
     privateD1: HealthComponent;
     leaderboardD1: HealthComponent;
     groupFocus: HealthComponent;
+    gamification: HealthComponent;
     studyPoints: HealthComponent;
     recall: HealthComponent;
     masteryRetention: HealthComponent;

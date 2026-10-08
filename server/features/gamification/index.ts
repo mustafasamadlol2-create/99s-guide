@@ -22,9 +22,11 @@ export * from "./metricRegistry.js";
 export * from "./metrics.js";
 export {
   activateGamificationRuleSet,
+  bootstrapCurrentGamificationRuleSet,
   ensureGamificationRuleSetDraft,
   getActiveGamificationRuleSet,
   getGamificationRuleSetVersion,
+  type GamificationRuleSetBootstrapResult,
 } from "./ruleSetService.js";
 export * from "./thresholds.js";
 export * from "./types.js";

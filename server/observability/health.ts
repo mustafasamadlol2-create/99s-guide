@@ -2,6 +2,8 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getStudyFeatureFlags } from "../features/study-core/featureFlags.js";
+import { GamificationError } from "../features/gamification/errors.js";
+import { getActiveGamificationRuleSet } from "../features/gamification/ruleSetService.js";
 import { getPrisma } from "../services/prismaClient.js";
 import { readOutboxStatus } from "../study-maintenance/jobs/outbox.js";
 import { getOperationalMetricsSnapshot } from "./metrics.js";
@@ -35,7 +37,10 @@ const REQUIRED_TABLES = [
   "LeaderboardD1SyncOutbox",
 ] as const;
 
-type HealthDatabase = Pick<PrismaClient, "$queryRaw">;
+type HealthDatabase = Pick<
+  PrismaClient,
+  "$queryRaw" | "gamificationRuleSet"
+>;
 
 let cachedSnapshot: SystemHealthSnapshot | null = null;
 let cachedAt = 0;
@@ -289,6 +294,33 @@ async function readGroupFocusHealth(database: HealthDatabase, now: number) {
   }
 }
 
+async function readGamificationRuleSetHealth(
+  database: HealthDatabase,
+  now: number,
+  featureEnabled: boolean,
+): Promise<HealthComponent> {
+  try {
+    const active = await getActiveGamificationRuleSet(database);
+    return emptyComponent("HEALTHY", true, now, {
+      featureEnabled,
+      verification: "PASS",
+      activeVersion: active.ruleSet.version,
+      checksumsValidated: true,
+    });
+  } catch (error) {
+    return emptyComponent("UNHEALTHY", true, now, {
+      featureEnabled,
+      verification: "FAIL",
+      errorCode: error instanceof GamificationError
+        ? error.code
+        : "GAMIFICATION_RULE_SET_CHECK_FAILED",
+      diagnostic: error instanceof Error
+        ? error.message.slice(0, 240)
+        : "The active Gamification ruleset could not be queried and verified.",
+    });
+  }
+}
+
 async function computeSnapshot(
   database: HealthDatabase,
   now: number,
@@ -368,6 +400,11 @@ async function computeSnapshot(
   const groupFocus = groupEnabled
     ? await readGroupFocusHealth(database, now)
     : emptyComponent("UNKNOWN", false, now, { featureState: "DISABLED" });
+  const gamification = await readGamificationRuleSetHealth(
+    database,
+    now,
+    flags.GAMIFICATION_ENABLED,
+  );
   const components: SystemHealthSnapshot["components"] = {
     postgres: postgres.component,
     outbox: outboxes
@@ -404,6 +441,7 @@ async function computeSnapshot(
     privateD1,
     leaderboardD1,
     groupFocus,
+    gamification,
     studyPoints: requestComponent({
       enabled: flags.STUDY_POINTS_ENABLED,
       family: "STUDY_POINTS",
@@ -520,6 +558,7 @@ export async function getStudyEngineHealth(options: {
           "privateD1",
           "leaderboardD1",
           "groupFocus",
+          "gamification",
           "studyPoints",
           "recall",
           "masteryRetention",

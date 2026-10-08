@@ -68,6 +68,8 @@ import { createRecallJsonParser, createRecallRouter } from "./server/routes/reca
 import { createAchievementsRouter } from "./server/routes/achievements.js";
 import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
+import { GamificationError } from "./server/features/gamification/errors.js";
+import { getActiveGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
 import {
   getMyAchievements,
   refreshUserAchievementsBestEffort,
@@ -11083,6 +11085,24 @@ async function verifyDatabaseHealth() {
     const client = getPrisma();
     await client.user.findFirst();
     logger.info("DATABASE", "Database health check passed");
+    try {
+      const active = await getActiveGamificationRuleSet(client);
+      logger.info(
+        "[Gamification]",
+        `Verified active RuleSet ${active.ruleSet.version}.`,
+      );
+    } catch (error) {
+      const code = error instanceof GamificationError
+        ? error.code
+        : "GAMIFICATION_RULE_SET_CHECK_FAILED";
+      const message = error instanceof Error
+        ? error.message.slice(0, 240)
+        : "The active Gamification ruleset could not be verified.";
+      logger.error(
+        "[Gamification]",
+        `Active RuleSet verification failed (${code}): ${message}`,
+      );
+    }
   } catch (err: any) {
     dbMonitor.logHealthCheckFailed(err);
   }

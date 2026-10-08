@@ -16,7 +16,10 @@ import {
 import {
   GAMIFICATION_RULE_VERSION_PATTERN,
 } from "./constants.js";
-import { getGamificationDefinitionBundle } from "./definitions.js";
+import {
+  getCurrentGamificationDefinitionBundle,
+  getGamificationDefinitionBundle,
+} from "./definitions.js";
 import { GamificationError } from "./errors.js";
 import { validateGamificationDefinitionBundle } from "./validation.js";
 import type {
@@ -26,7 +29,9 @@ import type {
 
 type RuleSetDatabase = PrismaClient;
 type RuleSetTransaction = Prisma.TransactionClient;
-type RuleSetReadDatabase = RuleSetDatabase | RuleSetTransaction;
+type RuleSetReadDatabase =
+  | Pick<RuleSetDatabase, "gamificationRuleSet">
+  | Pick<RuleSetTransaction, "gamificationRuleSet">;
 
 const LOCK_NAMESPACE = "99s-guide:gamification:ruleset:";
 
@@ -82,6 +87,38 @@ function assertStoredChecksumMatches(
   }
 }
 
+function assertActiveLifecycle(row: GamificationRuleSet): void {
+  if (
+    !(row.effectiveFrom instanceof Date)
+    || Number.isNaN(row.effectiveFrom.getTime())
+    || row.retiredAt !== null
+  ) {
+    throw new GamificationError(
+      "GAMIFICATION_ACTIVE_RULE_SET_LIFECYCLE_INVALID",
+      `Active rule set ${row.version} must have a valid effectiveFrom timestamp and no retiredAt timestamp.`,
+    );
+  }
+}
+
+function getSourceBundleForActiveRuleSet(
+  row: GamificationRuleSet,
+): GamificationDefinitionBundle {
+  try {
+    return getGamificationDefinitionBundle(row.version);
+  } catch (error) {
+    if (
+      error instanceof GamificationError
+      && error.code === "GAMIFICATION_DEFINITION_BUNDLE_NOT_FOUND"
+    ) {
+      throw new GamificationError(
+        "GAMIFICATION_ACTIVE_RULE_SET_STALE",
+        `Active rule set ${row.version} has no source-controlled definition bundle and cannot be verified.`,
+      );
+    }
+    throw error;
+  }
+}
+
 function assertBundleVersion(
   version: string,
   bundle: GamificationDefinitionBundle,
@@ -96,6 +133,43 @@ function assertBundleVersion(
   }
 }
 
+async function registerDraftInTransaction(
+  bundle: GamificationDefinitionBundle,
+  tx: RuleSetTransaction,
+): Promise<GamificationRuleSet> {
+  const checksum = checksumGamificationDefinitionBundle(bundle);
+  const levelChecksum = checksumGamificationLevelDefinitions(bundle);
+  const challengeChecksum = checksumGamificationChallengeDefinitions(bundle);
+  await acquireAdvisoryLock(tx, `${LOCK_NAMESPACE}register:${bundle.version}`);
+  const existing = await tx.gamificationRuleSet.findUnique({
+    where: { version: bundle.version },
+  });
+  if (existing) {
+    if (
+      existing.schemaVersion !== bundle.schemaVersion
+      || existing.definitionChecksum !== checksum
+      || existing.levelDefinitionChecksum !== levelChecksum
+      || existing.challengeDefinitionChecksum !== challengeChecksum
+    ) {
+      throw new GamificationError(
+        "GAMIFICATION_RULE_VERSION_CONFLICT",
+        `Version ${bundle.version} is already registered with different immutable definitions.`,
+      );
+    }
+    return existing;
+  }
+  return tx.gamificationRuleSet.create({
+    data: {
+      version: bundle.version,
+      status: "DRAFT",
+      schemaVersion: bundle.schemaVersion,
+      definitionChecksum: checksum,
+      levelDefinitionChecksum: levelChecksum,
+      challengeDefinitionChecksum: challengeChecksum,
+    },
+  });
+}
+
 /**
  * Internal registration primitive. Production callers use the source-controlled
  * version resolver below; tests may supply a second immutable source bundle to
@@ -106,42 +180,8 @@ export async function registerGamificationRuleSetDraftForBundle(
   database: RuleSetDatabase = getPrisma() as RuleSetDatabase,
 ): Promise<GamificationRuleSet> {
   assertBundleVersion(bundle.version, bundle);
-  const checksum = checksumGamificationDefinitionBundle(bundle);
-  const levelChecksum = checksumGamificationLevelDefinitions(bundle);
-  const challengeChecksum = checksumGamificationChallengeDefinitions(bundle);
-
   return database.$transaction(async (tx) => {
-    await acquireAdvisoryLock(
-      tx,
-      `${LOCK_NAMESPACE}register:${bundle.version}`,
-    );
-    const existing = await tx.gamificationRuleSet.findUnique({
-      where: { version: bundle.version },
-    });
-    if (existing) {
-      if (
-        existing.schemaVersion !== bundle.schemaVersion
-        || existing.definitionChecksum !== checksum
-        || existing.levelDefinitionChecksum !== levelChecksum
-        || existing.challengeDefinitionChecksum !== challengeChecksum
-      ) {
-        throw new GamificationError(
-          "GAMIFICATION_RULE_VERSION_CONFLICT",
-          `Version ${bundle.version} is already registered with different immutable definitions.`,
-        );
-      }
-      return existing;
-    }
-    return tx.gamificationRuleSet.create({
-      data: {
-        version: bundle.version,
-        status: "DRAFT",
-        schemaVersion: bundle.schemaVersion,
-        definitionChecksum: checksum,
-        levelDefinitionChecksum: levelChecksum,
-        challengeDefinitionChecksum: challengeChecksum,
-      },
-    });
+    return registerDraftInTransaction(bundle, tx);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
@@ -152,6 +192,76 @@ export async function ensureGamificationRuleSetDraft(
   validateRuleVersion(version);
   const bundle = getGamificationDefinitionBundle(version);
   return registerGamificationRuleSetDraftForBundle(bundle, database);
+}
+
+export type GamificationRuleSetBootstrapResult = {
+  outcome: "ACTIVATED" | "ALREADY_ACTIVE";
+  ruleSet: GamificationRuleSet;
+};
+
+/**
+ * Safe first-deploy bootstrap. It activates the current source bundle only
+ * when no ruleset is active; a valid older active ruleset requires an explicit
+ * activation command, and invalid state is never repaired implicitly.
+ */
+export async function bootstrapCurrentGamificationRuleSet(
+  database: RuleSetDatabase = getPrisma() as RuleSetDatabase,
+): Promise<GamificationRuleSetBootstrapResult> {
+  const bundle = getCurrentGamificationDefinitionBundle();
+  assertBundleVersion(bundle.version, bundle);
+  return database.$transaction(async (tx) => {
+    await acquireActiveGamificationRuleSetLock(tx);
+    const activeRows = await tx.gamificationRuleSet.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { version: "asc" },
+    });
+    if (activeRows.length > 1) {
+      throw new GamificationError(
+        "GAMIFICATION_ACTIVE_RULE_SET_INVARIANT_FAILED",
+        "More than one gamification rule set is marked ACTIVE.",
+      );
+    }
+    const active = activeRows[0];
+    if (active) {
+      if (active.version !== bundle.version) {
+        throw new GamificationError(
+          "GAMIFICATION_ACTIVE_RULE_SET_STALE",
+          `Active rule set ${active.version} is not the current source version ${bundle.version}; use explicit ruleset activation after review.`,
+        );
+      }
+      assertActiveLifecycle(active);
+      assertStoredChecksumMatches(active, bundle);
+      return { outcome: "ALREADY_ACTIVE", ruleSet: active };
+    }
+
+    const target = await registerDraftInTransaction(bundle, tx);
+    if (target.status === "ACTIVE") {
+      throw new GamificationError(
+        "GAMIFICATION_ACTIVE_RULE_SET_INVARIANT_FAILED",
+        `Rule set ${bundle.version} is ACTIVE but was not returned by the active registry query.`,
+      );
+    }
+    if (target.status === "RETIRED") {
+      throw new GamificationError(
+        "GAMIFICATION_RETIRED_RULE_SET_CANNOT_REACTIVATE",
+        `Retired rule set ${bundle.version} cannot be reactivated.`,
+      );
+    }
+    if (target.status !== "DRAFT") {
+      throw new GamificationError(
+        "GAMIFICATION_RULE_SET_NOT_DRAFT",
+        `Rule set ${bundle.version} is not a DRAFT.`,
+      );
+    }
+    const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`
+      SELECT CURRENT_TIMESTAMP AS now
+    `;
+    const ruleSet = await tx.gamificationRuleSet.update({
+      where: { id: target.id },
+      data: { status: "ACTIVE", effectiveFrom: now, retiredAt: null },
+    });
+    return { outcome: "ACTIVATED", ruleSet };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
 async function activateGamificationRuleSetForBundle(
@@ -201,6 +311,7 @@ async function activateGamificationRuleSetForBundle(
           "The active rule-set registry is inconsistent.",
         );
       }
+      assertActiveLifecycle(target);
       return target;
     }
     if (target.status === "RETIRED") {
@@ -216,10 +327,15 @@ async function activateGamificationRuleSetForBundle(
       );
     }
 
+    const previous = activeRows[0];
+    if (previous) {
+      assertActiveLifecycle(previous);
+      const previousBundle = getSourceBundleForActiveRuleSet(previous);
+      assertStoredChecksumMatches(previous, previousBundle);
+    }
     const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`
       SELECT CURRENT_TIMESTAMP AS now
     `;
-    const previous = activeRows[0];
     if (previous) {
       await tx.gamificationRuleSet.update({
         where: { id: previous.id },
@@ -242,8 +358,15 @@ export async function activateGamificationRuleSet(
   database: RuleSetDatabase = getPrisma() as RuleSetDatabase,
 ): Promise<GamificationRuleSet> {
   validateRuleVersion(version);
+  const currentBundle = getCurrentGamificationDefinitionBundle();
+  if (version !== currentBundle.version) {
+    throw new GamificationError(
+      "GAMIFICATION_ACTIVE_RULE_SET_STALE",
+      `Only the current source version ${currentBundle.version} may be activated; ${version} is not current.`,
+    );
+  }
   return activateGamificationRuleSetForBundle(
-    getGamificationDefinitionBundle(version),
+    currentBundle,
     database,
   );
 }
@@ -268,7 +391,7 @@ export async function getGamificationRuleSetVersion(
 }
 
 export async function getActiveGamificationRuleSet(
-  database: RuleSetDatabase | RuleSetTransaction = getPrisma() as RuleSetDatabase,
+  database: RuleSetReadDatabase = getPrisma() as RuleSetDatabase,
 ): Promise<GamificationRuleSetWithDefinition> {
   const activeRows = await database.gamificationRuleSet.findMany({
     where: { status: "ACTIVE" },
@@ -287,7 +410,14 @@ export async function getActiveGamificationRuleSet(
     );
   }
   const ruleSet = activeRows[0];
-  const definitions = getGamificationDefinitionBundle(ruleSet.version);
+  const definitions = getCurrentGamificationDefinitionBundle();
+  if (ruleSet.version !== definitions.version) {
+    throw new GamificationError(
+      "GAMIFICATION_ACTIVE_RULE_SET_STALE",
+      `Active rule set ${ruleSet.version} is stale; current source version is ${definitions.version}.`,
+    );
+  }
+  assertActiveLifecycle(ruleSet);
   assertStoredChecksumMatches(ruleSet, definitions);
   return { ruleSet, definitions };
 }

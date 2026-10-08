@@ -2,7 +2,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import { disconnectPrisma, getPrisma } from "../../services/prismaClient.js";
-import { getActiveGamificationRuleSet } from "../../features/gamification/ruleSetService.js";
+import {
+  activateGamificationRuleSet,
+  bootstrapCurrentGamificationRuleSet,
+  ensureGamificationRuleSetDraft,
+  getActiveGamificationRuleSet,
+} from "../../features/gamification/ruleSetService.js";
+import { getCurrentGamificationDefinitionBundle } from "../../features/gamification/definitions.js";
+import { GamificationError } from "../../features/gamification/errors.js";
 import { reconcileLeaderboardD1Cache } from "../../features/leaderboard/cacheReconciliation.js";
 import {
   PRODUCTION_CONFIRMATION,
@@ -52,6 +59,8 @@ Usage:
   npm run study-maintenance -- outbox replay --allow-cloudflare --allow-external-writes [--apply]
   npm run study-maintenance -- outbox compact --older-than-days <days> [--apply]
   npm run study-maintenance -- ruleset audit
+  npm run study-maintenance -- ruleset bootstrap --apply
+  npm run study-maintenance -- ruleset activate --apply
   npm run study-maintenance -- focus audit --all [--limit <n>]
   npm run study-maintenance -- group-focus audit --all [--limit <n>]
   npm run study-maintenance -- orphans audit
@@ -71,6 +80,17 @@ Safety:
 
 function safeFailure(message: string): Error {
   return new Error(`MAINTENANCE_SAFE: ${message}`);
+}
+
+function rulesetErrorDetail(error: unknown): { code: string; message: string } {
+  return {
+    code: error instanceof GamificationError
+      ? error.code
+      : "GAMIFICATION_RULE_SET_CHECK_FAILED",
+    message: error instanceof Error
+      ? error.message.slice(0, 240)
+      : "The active Gamification ruleset could not be verified.",
+  };
 }
 
 function canonicalScope(options: MaintenanceRunOptions, allowLecture: boolean): string {
@@ -252,9 +272,15 @@ async function main(): Promise<void> {
   }
   const { command, options } = parsed;
   const normalizedCommand = command.toLowerCase().replace(/\s+/gu, " ").trim();
-  if (options.environment === "production" && options.mode === "apply") {
+  const isRuleSetLifecycleCommand = normalizedCommand === "ruleset bootstrap"
+    || normalizedCommand === "ruleset activate";
+  if (
+    options.environment === "production"
+    && options.mode === "apply"
+    && !isRuleSetLifecycleCommand
+  ) {
     throw safeFailure(
-      `Production apply is disabled until a durable shared checkpoint store exists. The production confirmation token is ${PRODUCTION_CONFIRMATION}, but it does not override this restriction.`,
+      `Production maintenance apply is disabled until a durable shared checkpoint store exists. Only the atomic ruleset bootstrap/activation commands are exempt; the confirmation token is ${PRODUCTION_CONFIRMATION}.`,
     );
   }
   if (!process.env.DATABASE_URL && !process.env.SUPABASE_DATABASE_URL) {
@@ -314,20 +340,38 @@ async function main(): Promise<void> {
       if (report.status === "WARN") process.exitCode = 1;
       return;
     }
-    if (normalizedCommand === "ruleset audit") {
-      if (options.mode === "apply") throw safeFailure("Ruleset audit is read-only; remove --apply.");
-      const active = await getActiveGamificationRuleSet(database);
+    if (isRuleSetLifecycleCommand) {
+      if (options.mode !== "apply") {
+        throw safeFailure("Ruleset bootstrap and activation write the active registry; pass --apply explicitly.");
+      }
+      const currentBundle = getCurrentGamificationDefinitionBundle();
+      let operation: string;
+      let outcome: string;
+      let activeRuleSet;
+      if (normalizedCommand === "ruleset bootstrap") {
+        const result = await bootstrapCurrentGamificationRuleSet(database);
+        operation = "ruleset:bootstrap";
+        outcome = result.outcome;
+        activeRuleSet = result.ruleSet;
+      } else {
+        await ensureGamificationRuleSetDraft(currentBundle.version, database);
+        activeRuleSet = await activateGamificationRuleSet(
+          currentBundle.version,
+          database,
+        );
+        operation = "ruleset:activate";
+        outcome = "CURRENT_SOURCE_VERSION_ACTIVE";
+      }
       const report = {
-        jobType: "ruleset:audit",
+        jobType: operation,
         environment: options.environment,
         asOf: options.asOf,
         status: "PASS",
-        activeRuleSetVersion: active.ruleSet.version,
-        checks: {
-          activeRuleSetCount: 1,
-          sourceDefinitionMatchesStoredChecksum: true,
-          levelAndChallengeChecksumsValidated: true,
-        },
+        outcome,
+        activeRuleSetVersion: activeRuleSet.version,
+        activeRuleSetStatus: activeRuleSet.status,
+        currentSourceVersion: currentBundle.version,
+        checksumsValidated: true,
       };
       if (options.reportFile) {
         await mkdir(dirname(options.reportFile), { recursive: true });
@@ -337,6 +381,54 @@ async function main(): Promise<void> {
         });
       }
       console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    if (normalizedCommand === "ruleset audit") {
+      if (options.mode === "apply") throw safeFailure("Ruleset audit is read-only; remove --apply.");
+      const currentBundle = getCurrentGamificationDefinitionBundle();
+      let report: Record<string, unknown>;
+      try {
+        const active = await getActiveGamificationRuleSet(database);
+        report = {
+          jobType: "ruleset:audit",
+          environment: options.environment,
+          asOf: options.asOf,
+          status: "PASS",
+          currentSourceVersion: currentBundle.version,
+          activeRuleSetVersion: active.ruleSet.version,
+          checks: {
+            exactlyOneActiveRuleSet: true,
+            currentSourceVersionActive: true,
+            allStoredChecksumsMatch: true,
+            activeLifecycleTimestampsValid: true,
+          },
+        };
+      } catch (error) {
+        report = {
+          jobType: "ruleset:audit",
+          environment: options.environment,
+          asOf: options.asOf,
+          status: "FAIL",
+          currentSourceVersion: currentBundle.version,
+          activeRuleSetVersion: null,
+          checks: {
+            exactlyOneActiveRuleSet: false,
+            currentSourceVersionActive: false,
+            allStoredChecksumsMatch: false,
+            activeLifecycleTimestampsValid: false,
+          },
+          diagnostic: rulesetErrorDetail(error),
+        };
+      }
+      if (options.reportFile) {
+        await mkdir(dirname(options.reportFile), { recursive: true });
+        await writeFile(options.reportFile, `${JSON.stringify(report, null, 2)}\n`, {
+          encoding: "utf8",
+          mode: 0o600,
+        });
+      }
+      console.log(JSON.stringify(report, null, 2));
+      if (report.status !== "PASS") process.exitCode = 1;
       return;
     }
     if (normalizedCommand === "leaderboard d1 audit") {
