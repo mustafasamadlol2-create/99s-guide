@@ -7,6 +7,7 @@ import {
 import { getPrisma } from "../../services/prismaClient.js";
 import { LeaderboardError } from "./errors.js";
 import { leaderboardSeasonToWindow } from "./seasons.js";
+import { getLeaderboardRankingSemanticsVersion } from "./fingerprint.js";
 import {
   calculateLeaderboardSnapshotSource,
   finalizeLeaderboardSeason,
@@ -176,7 +177,8 @@ async function inspectSnapshot(input: {
     });
     const sourceFingerprintMismatch =
       snapshot.sourceFingerprint !== source.sourceFingerprint
-      || snapshot.rankingSemanticsVersion !== "leaderboard-ranking-v1"
+      || snapshot.rankingSemanticsVersion
+        !== getLeaderboardRankingSemanticsVersion(scope)
       || (
         snapshot.snapshotType === "FINAL"
         && (

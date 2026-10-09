@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
-import { getStudyPointsReadModel } from "../study-points/readModel.js";
+import { getUnifiedStudyPointsReadModel } from "../study-points/readModel.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
 import { GAMIFICATION_METRIC_IDS, GAMIFICATION_METRIC_SOURCE_VERSIONS } from "./constants.js";
 import { GamificationError } from "./errors.js";
@@ -105,10 +105,9 @@ function pointsProvider(
     async readValue(userId, asOf) {
       assertValidStudyPointsUserId(userId);
       assertValidAsOf(asOf);
-      // The Prompt 21 service owns compatibility-mode and cutover safety checks.
-      // It uses a repeatable-read transaction internally and is the only points
-      // source used here; gamification never writes or repairs points.
-      const balance = await getStudyPointsReadModel({ userId }, database);
+      // The Study Points service owns compatibility-mode and cutover safety
+      // checks. Gamification uses its unified balance and never writes points.
+      const balance = await getUnifiedStudyPointsReadModel({ userId }, database);
       switch (metricId) {
         case GAMIFICATION_METRIC_IDS.pointsTotal:
           return assertCanonicalCount(balance.totalPoints);

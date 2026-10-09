@@ -3,6 +3,14 @@ import { canonicalJson } from "../study-core/canonicalJson.js";
 import type { RankedScore } from "./types.js";
 
 export const LEADERBOARD_RANKING_SEMANTICS_VERSION = "leaderboard-ranking-v1";
+export const LEADERBOARD_ALL_TIME_RANKING_SEMANTICS_VERSION =
+  "leaderboard-all-time-ranking-v2";
+
+export function getLeaderboardRankingSemanticsVersion(scope: string): string {
+  return scope === "ALL_TIME"
+    ? LEADERBOARD_ALL_TIME_RANKING_SEMANTICS_VERSION
+    : LEADERBOARD_RANKING_SEMANTICS_VERSION;
+}
 
 export function hashLeaderboardRuleVersions(versions: readonly string[]): string | null {
   const normalized = [...new Set(versions)].sort();
@@ -30,7 +38,9 @@ export function fingerprintLeaderboardSnapshot(input: {
       || (left.userId < right.userId ? -1 : left.userId > right.userId ? 1 : 0));
   const totalScore = input.rows.reduce((sum, row) => sum + row.score, 0n);
   const payload = {
-    rankingSemanticsVersion: LEADERBOARD_RANKING_SEMANTICS_VERSION,
+    rankingSemanticsVersion: getLeaderboardRankingSemanticsVersion(
+      input.season.scope,
+    ),
     season: {
       id: input.season.id,
       scope: input.season.scope,

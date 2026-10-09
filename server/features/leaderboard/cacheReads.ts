@@ -23,8 +23,9 @@ import {
 } from "./queries.js";
 import {
   getLatestLeaderboardSnapshot,
-  LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
+  isLeaderboardSnapshotScoringCurrent,
   LEADERBOARD_LIVE_FRESHNESS_MS,
+  LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
   LEADERBOARD_LIVE_HARD_STALE_MS,
 } from "./snapshots.js";
 import type {
@@ -153,7 +154,10 @@ function validateManifestForSnapshot(
     || manifest.startsAt !== (season.startsAt?.toISOString() ?? null)
     || manifest.endsAt !== (season.endsAt?.toISOString() ?? null)
     || manifest.revision !== snapshot.revision
-    || manifest.rankingVersion !== snapshot.rankingSemanticsVersion
+    || !isLeaderboardSnapshotScoringCurrent(
+      snapshot,
+      season.scope as LeaderboardScope,
+    )
     || manifest.generatedAt !== snapshot.generatedAt.toISOString()
     || manifest.scoreThrough !== snapshot.scoreThrough.toISOString()
     || manifest.entryCount !== snapshot.entryCount
@@ -388,6 +392,13 @@ export async function getLeaderboardPageWithCache(input: {
         season.status === "CLOSED" ? "FINAL" : "LIVE",
         database,
       );
+    if (
+      snapshot
+      && !input.cursor
+      && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
+    ) {
+      throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
+    }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
     const manifest = input.cursor
       ? null
@@ -511,6 +522,12 @@ export async function getMyLeaderboardRankWithCache(input: {
       season.status === "CLOSED" ? "FINAL" : "LIVE",
       database,
     );
+    if (
+      snapshot
+      && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
+    ) {
+      throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
+    }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
     const manifest = await getCurrentManifest(season);
     validateManifestForSnapshot(manifest, season, snapshot);

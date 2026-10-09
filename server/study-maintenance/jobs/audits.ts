@@ -8,8 +8,9 @@ import {
   STUDY_POINTS_RULE_DESCRIPTORS,
 } from "../../features/study-points/index.js";
 import {
-  LEADERBOARD_CACHE_RANKING_VERSION,
-} from "../../features/leaderboard/cacheProtocol.js";
+  LEADERBOARD_ALL_TIME_RANKING_SEMANTICS_VERSION,
+  LEADERBOARD_RANKING_SEMANTICS_VERSION,
+} from "../../features/leaderboard/fingerprint.js";
 import { GAMIFICATION_DEFINITION_SCHEMA_VERSION } from "../../features/gamification/constants.js";
 import { GAMIFICATION_V1_RULE_SET_VERSION } from "../../features/gamification/definitions.js";
 
@@ -179,10 +180,32 @@ export async function runCompatibilityAudit(database: PrismaClient): Promise<{
     SELECT DISTINCT "ruleSetVersion" AS value FROM "ChallengeInstance" ORDER BY value
   `);
   add("gamification_challenge", GAMIFICATION_V1_RULE_SET_VERSION, challenges.map((row) => row.value));
-  const leaderboard = await database.$queryRaw<Array<{ value: string }>>(Prisma.sql`
-    SELECT DISTINCT "rankingSemanticsVersion" AS value FROM "LeaderboardSnapshot" ORDER BY value
+  const leaderboard = await database.$queryRaw<Array<{ scope: string; value: string }>>(Prisma.sql`
+    SELECT season.scope, latest."rankingSemanticsVersion" AS value
+    FROM (
+      SELECT DISTINCT ON ("seasonId", "snapshotType")
+        "seasonId", "snapshotType", "rankingSemanticsVersion"
+      FROM "LeaderboardSnapshot"
+      WHERE status = 'READY'
+      ORDER BY "seasonId", "snapshotType", revision DESC
+    ) latest
+    JOIN "LeaderboardSeason" season ON season.id = latest."seasonId"
+    ORDER BY season.scope, value
   `);
-  add("leaderboard_ranking", LEADERBOARD_CACHE_RANKING_VERSION, leaderboard.map((row) => row.value));
+  add(
+    "leaderboard_ranking",
+    LEADERBOARD_RANKING_SEMANTICS_VERSION,
+    leaderboard
+      .filter((row) => row.scope !== "ALL_TIME")
+      .map((row) => row.value),
+  );
+  add(
+    "leaderboard_all_time_ranking",
+    LEADERBOARD_ALL_TIME_RANKING_SEMANTICS_VERSION,
+    leaderboard
+      .filter((row) => row.scope === "ALL_TIME")
+      .map((row) => row.value),
+  );
   versions.push(
     {
       name: "private_d1_schema",

@@ -11,8 +11,8 @@ import { getActiveGamificationRuleSet } from "../gamification/ruleSetService.js"
 import { LeaderboardError } from "./errors.js";
 import {
   fingerprintLeaderboardSnapshot,
+  getLeaderboardRankingSemanticsVersion,
   hashLeaderboardRuleVersions,
-  LEADERBOARD_RANKING_SEMANTICS_VERSION,
 } from "./fingerprint.js";
 import {
   acquireLeaderboardSeasonLocks,
@@ -24,6 +24,7 @@ import {
 } from "./seasons.js";
 import { readRankedLeaderboardScores } from "./scores.js";
 import { enqueueLeaderboardSnapshotProjection } from "./d1Outbox.js";
+import { LEADERBOARD_SCOPES } from "./types.js";
 import type {
   LeaderboardScope,
   LeaderboardSnapshotType,
@@ -237,7 +238,9 @@ async function buildSnapshotInTransaction(input: {
       scoreThrough,
       sourceFingerprint,
       entryCount: rankedRows.length,
-      rankingSemanticsVersion: LEADERBOARD_RANKING_SEMANTICS_VERSION,
+      rankingSemanticsVersion: getLeaderboardRankingSemanticsVersion(
+        season.scope,
+      ),
       pointsRuleVersionSetHash,
       revision,
       ...(snapshotType === "FINAL" && latest
@@ -419,6 +422,108 @@ export async function getLatestLeaderboardSnapshot(
   });
 }
 
+export function isLeaderboardSnapshotScoringCurrent(
+  snapshot: LeaderboardSnapshot,
+  scope: LeaderboardScope,
+): boolean {
+  return scope !== "ALL_TIME"
+    || snapshot.rankingSemanticsVersion
+      === getLeaderboardRankingSemanticsVersion(scope);
+}
+
+/**
+ * Rebuild already-published live snapshots after a user's canonical points or
+ * level projection changes. Snapshots that do not yet exist remain lazy and
+ * are created by the normal read path.
+ */
+export async function refreshActiveLeaderboardSnapshotsForUser(
+  input: { userId: string; now?: Date },
+  database: PrismaClient = getPrisma() as PrismaClient,
+): Promise<void> {
+  const now = input.now ? new Date(input.now) : new Date();
+  assertValidInstant(now, "Leaderboard refresh time");
+  if (typeof input.userId !== "string" || input.userId.length === 0) {
+    throw new LeaderboardError(
+      "LEADERBOARD_INVALID_INPUT",
+      "Gamification user identifier is invalid.",
+    );
+  }
+
+  const [level, latestLedgerEntry] = await Promise.all([
+    database.userGamificationLevel.findUnique({
+      where: { userId: input.userId },
+      select: { updatedAt: true },
+    }),
+    database.studyPointsLedgerEntry.findFirst({
+      where: { userId: input.userId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { createdAt: true },
+    }),
+  ]);
+  const changedAt = [level?.updatedAt, latestLedgerEntry?.createdAt]
+    .filter((value): value is Date => value instanceof Date)
+    .reduce<Date | null>(
+      (latest, value) => !latest || value > latest ? value : latest,
+      null,
+    );
+
+  const seasons = await database.leaderboardSeason.findMany({
+    where: {
+      status: "ACTIVE",
+      scope: { in: [...LEADERBOARD_SCOPES] },
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+      ],
+    },
+    select: { id: true, scope: true },
+  });
+  if (seasons.length === 0) return;
+
+  const snapshots = await database.leaderboardSnapshot.findMany({
+    where: {
+      seasonId: { in: seasons.map((season) => season.id) },
+      snapshotType: "LIVE",
+      status: "READY",
+    },
+    orderBy: [{ seasonId: "asc" }, { revision: "desc" }],
+    select: {
+      seasonId: true,
+      generatedAt: true,
+      rankingSemanticsVersion: true,
+    },
+  });
+  const latestBySeason = new Map<string, (typeof snapshots)[number]>();
+  for (const snapshot of snapshots) {
+    if (!latestBySeason.has(snapshot.seasonId)) {
+      latestBySeason.set(snapshot.seasonId, snapshot);
+    }
+  }
+
+  let firstFailure: unknown;
+  for (const season of seasons) {
+    const snapshot = latestBySeason.get(season.id);
+    if (!snapshot) continue;
+    const modeIsCurrent = season.scope !== "ALL_TIME"
+      || snapshot.rankingSemanticsVersion
+        === getLeaderboardRankingSemanticsVersion(season.scope);
+    const sourceIsNewer = changedAt !== null
+      && snapshot.generatedAt.getTime() <= changedAt.getTime();
+    if (modeIsCurrent && !sourceIsNewer) continue;
+    try {
+      await buildLeaderboardSnapshot({
+        seasonId: season.id,
+        snapshotType: "LIVE",
+        now,
+        skipIfFresh: false,
+      }, database);
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  if (firstFailure) throw firstFailure;
+}
+
 export async function getLeaderboardSnapshotById(
   snapshotId: string,
   database: PrismaClient = getPrisma() as PrismaClient,
@@ -456,8 +561,11 @@ export async function getReadableLeaderboardSnapshot(input: {
     "LIVE",
     database,
   );
+  const scoringCurrent = !initial
+    || isLeaderboardSnapshotScoringCurrent(initial, scope);
   if (
     initial
+    && scoringCurrent
     && now.getTime() - initial.generatedAt.getTime()
       <= LEADERBOARD_LIVE_FRESHNESS_MS
   ) {
@@ -468,16 +576,22 @@ export async function getReadableLeaderboardSnapshot(input: {
     snapshotType: "LIVE",
     now,
     tryLock: true,
-    skipIfFresh: true,
+    skipIfFresh: scoringCurrent,
   }, database);
   if (build.snapshot) {
+    if (!isLeaderboardSnapshotScoringCurrent(build.snapshot, scope)) {
+      throw new LeaderboardError(
+        "LEADERBOARD_SNAPSHOT_NOT_FOUND",
+        "Leaderboard scoring mode could not be refreshed.",
+      );
+    }
     return {
       snapshot: build.snapshot,
       isStale: now.getTime() - build.snapshot.generatedAt.getTime()
         > LEADERBOARD_LIVE_FRESHNESS_MS,
     };
   }
-  if (build.lockBusy && initial) {
+  if (build.lockBusy && initial && scoringCurrent) {
     return { snapshot: initial, isStale: true };
   }
   if (build.lockBusy) {
@@ -485,9 +599,15 @@ export async function getReadableLeaderboardSnapshot(input: {
       seasonId: input.season.id,
       snapshotType: "LIVE",
       now,
-      skipIfFresh: true,
+      skipIfFresh: scoringCurrent,
     }, database);
     if (waited.snapshot) {
+      if (!isLeaderboardSnapshotScoringCurrent(waited.snapshot, scope)) {
+        throw new LeaderboardError(
+          "LEADERBOARD_SNAPSHOT_NOT_FOUND",
+          "Leaderboard scoring mode could not be refreshed.",
+        );
+      }
       return {
         snapshot: waited.snapshot,
         isStale: now.getTime() - waited.snapshot.generatedAt.getTime()

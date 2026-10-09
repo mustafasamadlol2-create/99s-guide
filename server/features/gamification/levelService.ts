@@ -4,7 +4,7 @@ import {
   type UserGamificationLevel,
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
-import { getStudyPointsReadModel } from "../study-points/readModel.js";
+import { getUnifiedStudyPointsReadModel } from "../study-points/readModel.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
 import { GamificationError } from "./errors.js";
 import { assertGamificationEnabled } from "./featureGate.js";
@@ -116,7 +116,7 @@ export type RefreshedUserGamificationLevel = {
   rules: GamificationRuleSetWithDefinition;
   row: UserGamificationLevel;
   level: GamificationLevelView;
-  points: Awaited<ReturnType<typeof getStudyPointsReadModel>>;
+  points: Awaited<ReturnType<typeof getUnifiedStudyPointsReadModel>>;
 };
 
 export async function refreshUserGamificationLevel(
@@ -130,7 +130,7 @@ export async function refreshUserGamificationLevel(
     await acquireUserGamificationLevelLock(tx, userId);
     const rules = await getActiveGamificationRuleSet(tx);
     await requireUser(tx, userId);
-    const points = await getStudyPointsReadModel({ userId }, database);
+    const points = await getUnifiedStudyPointsReadModel({ userId }, database);
     const row = await refreshUserGamificationLevelInTransaction(
       tx,
       userId,
@@ -199,7 +199,7 @@ export async function reconcileUserGamificationLevel(
       ruleSetVersion: rules.ruleSet.version,
     };
   }
-  const points = await getStudyPointsReadModel({ userId }, database);
+  const points = await getUnifiedStudyPointsReadModel({ userId }, database);
   const expected = evaluateLifetimeLevel(
     points.totalPoints,
     rules.definitions.levelDefinitions,

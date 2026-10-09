@@ -192,7 +192,10 @@ test("compatibility audit inventories known versions and refuses to claim unknow
     [{ version: "gamification-v1", schemaVersion: 1 }],
     [{ value: "gamification-v1" }],
     [{ value: "gamification-v1" }],
-    [{ value: "leaderboard-ranking-v1" }],
+    [
+      { scope: "WEEKLY", value: "leaderboard-ranking-v1" },
+      { scope: "ALL_TIME", value: "leaderboard-all-time-ranking-v2" },
+    ],
   ];
   const database = {
     async $queryRaw() {
@@ -205,6 +208,8 @@ test("compatibility audit inventories known versions and refuses to claim unknow
   assert.deepEqual(report.versions.find(({ name }) => name === "mastery")?.persisted, ["mastery-v1"]);
   assert.equal(report.versions.find(({ name }) => name === "retention")?.status, "COMPATIBLE");
   assert.equal(report.versions.find(({ name }) => name === "leaderboard_ranking")?.persisted[0], "leaderboard-ranking-v1");
+  assert.equal(report.versions.find(({ name }) => name === "leaderboard_all_time_ranking")?.status, "COMPATIBLE");
+  assert.equal(report.versions.find(({ name }) => name === "leaderboard_all_time_ranking")?.persisted[0], "leaderboard-all-time-ranking-v2");
   assert.equal(report.versions.find(({ name }) => name === "ai_schema_or_prompt_cache")?.status, "UNSUPPORTED");
 });
 
@@ -217,7 +222,7 @@ test("compatibility audit warns on mismatched persisted versions", async () => {
     [{ version: "gamification-v0", schemaVersion: 9 }],
     [{ value: "gamification-v0" }],
     [{ value: "gamification-v0" }],
-    [{ value: "ranking-v0" }],
+    [{ scope: "ALL_TIME", value: "ranking-v0" }],
   ];
   const database = {
     async $queryRaw() {
@@ -229,5 +234,5 @@ test("compatibility audit warns on mismatched persisted versions", async () => {
   assert.equal(report.versions.find(({ name }) => name === "mastery")?.status, "WARN");
   assert.equal(report.versions.find(({ name }) => name === "study_points_projection")?.persisted[0], 2);
   assert.equal(report.versions.find(({ name }) => name === "gamification_definition_schema")?.status, "WARN");
-  assert.equal(report.versions.find(({ name }) => name === "leaderboard_ranking")?.status, "WARN");
+  assert.equal(report.versions.find(({ name }) => name === "leaderboard_all_time_ranking")?.status, "WARN");
 });

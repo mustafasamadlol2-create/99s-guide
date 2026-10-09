@@ -31,6 +31,20 @@ export function resolveStudyPointsReadMode(
     : "LEGACY_PLUS_LEDGER";
 }
 
+/**
+ * Active gamification and lifetime leaderboard reads must never fall back to
+ * the legacy balance alone. Keep ledger-only reads when cutover is explicitly
+ * enabled; otherwise use the compatibility balance that combines the legacy
+ * baseline with native ledger activity.
+ */
+export function resolveUnifiedStudyPointsReadMode(
+  configured = process.env.STUDY_POINTS_READ_MODE,
+): Exclude<StudyPointsCompatibilityMode, "LEGACY_ONLY"> {
+  return resolveStudyPointsReadMode(configured) === "LEDGER_ONLY"
+    ? "LEDGER_ONLY"
+    : "LEGACY_PLUS_LEDGER";
+}
+
 function categoriesFrom(
   balance: CanonicalStudyPointsLedgerBalance,
 ): Pick<
@@ -140,4 +154,14 @@ export async function getStudyPointsReadModel(input: {
       ? { projectionVersion: values.projectionVersion }
       : {}),
   };
+}
+
+export async function getUnifiedStudyPointsReadModel(
+  input: { userId: string },
+  database: PrismaClient = getPrisma() as PrismaClient,
+): Promise<StudyPointsBalanceReadModel> {
+  return getStudyPointsReadModel({
+    userId: input.userId,
+    compatibilityMode: resolveUnifiedStudyPointsReadMode(),
+  }, database);
 }

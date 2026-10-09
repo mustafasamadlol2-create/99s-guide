@@ -34,6 +34,7 @@ export interface RecallRouteDependencies {
   database?: PrismaClient;
   now?: () => Date;
   refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
+  refreshGamification?(userId: string): Promise<unknown>;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -438,6 +439,14 @@ export function createRecallRouter(
             await dependencies.refreshMastery?.(id, attempt.lectureId);
           } catch {
             // Projection failures must not change a committed Recall answer.
+          }
+        }
+        if (result.status === "ANSWERED") {
+          try {
+            await dependencies.refreshGamification?.(id);
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : "unknown error";
+            console.warn(`[Recall] Post-commit Gamification refresh failed: ${reason}`);
           }
         }
       return res.json(result);

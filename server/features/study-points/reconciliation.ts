@@ -15,6 +15,7 @@ import {
 } from "./balanceProjection.js";
 import { StudyPointsError } from "./errors.js";
 import { studyPointsBalanceProjectionLockKey, lockStudyPointsKeys } from "./locks.js";
+import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import { assertValidStudyPointsUserId } from "./validation.js";
 
 export type StudyPointsReconciliationStatus =
@@ -251,7 +252,7 @@ export async function reconcileStudyPointsAccount(input: {
     );
   }
 
-  return database.$transaction(async (tx) => {
+  const result = await database.$transaction(async (tx) => {
     await lockStudyPointsKeys(tx, [
       studyPointsBalanceProjectionLockKey(input.userId),
     ]);
@@ -309,4 +310,8 @@ export async function reconcileStudyPointsAccount(input: {
       repaired: before.accountingChanged,
     };
   }, { maxWait: 5_000, timeout: 30_000 });
+  if (result.repaired) {
+    await notifyStudyPointsPostCommit(input.userId);
+  }
+  return result;
 }

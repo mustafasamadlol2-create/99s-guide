@@ -170,3 +170,55 @@ test("Recall presentation scopes attempts to their owner and omits MCQ answer ke
     else process.env.SPACED_RECALL_ENABLED = previousFlag;
   }
 });
+
+test("Recall awaits Gamification refresh after an answered attempt", async () => {
+  const previousFlag = process.env.SPACED_RECALL_ENABLED;
+  process.env.SPACED_RECALL_ENABLED = "true";
+  let gamificationRefreshed = false;
+  const database = {
+    recallAttempt: {
+      findFirst: async () => ({
+        issuanceSource: "ON_DEMAND",
+        lectureId: null,
+      }),
+    },
+  } as unknown as PrismaClient;
+  const app = express();
+  app.use(express.json());
+  app.use("/api/recall", createRecallRouter({
+    requireUser: createRequireUser(),
+    service: {
+      answer: async () => ({
+        status: "ANSWERED",
+        outcome: "CORRECT",
+      }),
+    } as never,
+    database,
+    refreshGamification: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      gamificationRefreshed = true;
+    },
+  }));
+
+  try {
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/recall/attempts/attempt-1/answer`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-test-user": "student-3",
+          },
+          body: JSON.stringify({ selectedOption: "A" }),
+        },
+      );
+      assert.equal(response.status, 200);
+      assert.equal((await response.json() as { status: string }).status, "ANSWERED");
+      assert.equal(gamificationRefreshed, true);
+    });
+  } finally {
+    if (previousFlag === undefined) delete process.env.SPACED_RECALL_ENABLED;
+    else process.env.SPACED_RECALL_ENABLED = previousFlag;
+  }
+});

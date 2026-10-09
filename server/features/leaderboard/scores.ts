@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
-import { resolveStudyPointsReadMode } from "../study-points/readModel.js";
+import { resolveUnifiedStudyPointsReadMode } from "../study-points/readModel.js";
 import { LeaderboardError } from "./errors.js";
 import type { LeaderboardSeasonWindow } from "./periods.js";
 import type { LeaderboardScope, StudyPointsCompatibilityMode } from "./types.js";
@@ -385,7 +385,7 @@ export async function readRankedLeaderboardScores(input: {
   let ruleVersions: string[];
   let compatibilityMode: StudyPointsCompatibilityMode | null = null;
   if (scope === "ALL_TIME") {
-    compatibilityMode = input.compatibilityMode ?? resolveStudyPointsReadMode();
+    compatibilityMode = resolveUnifiedStudyPointsReadMode(input.compatibilityMode);
     const result = await readLifetimeRankedScores(tx, compatibilityMode, scoreThrough);
     rawRows = result.rows;
     ruleVersions = result.ruleVersions;
@@ -430,7 +430,7 @@ export async function readUserLeaderboardScore(input: {
 }> {
   return database.$transaction(async (tx) => {
     if (input.scope === "ALL_TIME") {
-      const mode = input.compatibilityMode ?? resolveStudyPointsReadMode();
+      const mode = resolveUnifiedStudyPointsReadMode(input.compatibilityMode);
       await assertCompatibleLifetimeRead(tx, mode);
       const totals = await tx.$queryRaw<Array<{ legacy: string; ledger: string }>>`
         SELECT
@@ -451,7 +451,7 @@ export async function readUserLeaderboardScore(input: {
           ), 0)::text AS ledger
       `;
       const legacy = mode === "LEDGER_ONLY" ? 0n : BigInt(totals[0]?.legacy ?? "0");
-      const ledger = mode === "LEGACY_ONLY" ? 0n : BigInt(totals[0]?.ledger ?? "0");
+      const ledger = BigInt(totals[0]?.ledger ?? "0");
       const sum = legacy + ledger;
       return {
         score: Number(decodeScore(sum)),

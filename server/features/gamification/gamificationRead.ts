@@ -3,7 +3,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
-import { getStudyPointsReadModel } from "../study-points/readModel.js";
+import { getUnifiedStudyPointsReadModel } from "../study-points/readModel.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
 import { getMyAchievements } from "./achievementRead.js";
 import { refreshUserAchievementProgressInTransaction } from "./achievementRefresh.js";
@@ -27,7 +27,7 @@ import {
 type GamificationDatabase = PrismaClient;
 
 function pointMetricOverrides(
-  points: Awaited<ReturnType<typeof getStudyPointsReadModel>>,
+  points: Awaited<ReturnType<typeof getUnifiedStudyPointsReadModel>>,
 ): ReadonlyMap<string, number | boolean> {
   return new Map([
     [GAMIFICATION_METRIC_IDS.pointsTotal, points.totalPoints],
@@ -63,7 +63,7 @@ export async function refreshUserGamificationState(
     const [{ now: asOf }] = await tx.$queryRaw<Array<{ now: Date }>>`
       SELECT CURRENT_TIMESTAMP AS now
     `;
-    const points = await getStudyPointsReadModel({ userId }, database);
+    const points = await getUnifiedStudyPointsReadModel({ userId }, database);
     const row = await refreshUserGamificationLevelInTransaction(
       tx,
       userId,

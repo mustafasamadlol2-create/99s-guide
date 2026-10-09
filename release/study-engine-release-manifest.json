@@ -58,6 +58,7 @@
     "mastery": "mastery-v1",
     "retention": "retention-v1",
     "leaderboardRanking": "leaderboard-ranking-v1",
+    "allTimeLeaderboardRanking": "leaderboard-all-time-ranking-v2",
     "studyAnalyzer": "study-analyzer-v1",
     "studyAnalyzerFacts": "study-analyzer-facts-v1",
     "studyInsightSchema": "study-insight-v1",

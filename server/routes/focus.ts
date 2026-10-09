@@ -463,18 +463,22 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
         const gamificationEnabled = dependencies.isGamificationEnabled
           ?? isGamificationFeatureEnabled;
         if (gamificationEnabled()) {
-          void dependencies.refreshAchievements?.(userId(req)).catch((error) => {
+          try {
+            await dependencies.refreshAchievements?.(userId(req));
+          } catch (error) {
             const reason = error instanceof Error ? error.message : "unknown error";
-            console.warn(`[Focus] Post-commit Achievement refresh failed: ${reason}`);
-          });
-          void dependencies.refreshChallenges?.(userId(req), [
-            "focus.completed_sessions",
-            "focus.verified_seconds",
-            "consistency.qualifying_days",
-          ]).catch((error) => {
+            console.warn(`[Focus] Post-commit Gamification refresh failed: ${reason}`);
+          }
+          try {
+            await dependencies.refreshChallenges?.(userId(req), [
+              "focus.completed_sessions",
+              "focus.verified_seconds",
+              "consistency.qualifying_days",
+            ]);
+          } catch (error) {
             const reason = error instanceof Error ? error.message : "unknown error";
             console.warn(`[Focus] Post-commit Challenge refresh failed: ${reason}`);
-          });
+          }
         }
       }
       return res.json(result);

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { LeaderboardSeason, LeaderboardSnapshot, LeaderboardSnapshotEntry } from "@prisma/client";
 import { OutboxDeliveryError } from "../../services/outboxDeliveryPolicy.js";
+import { getLeaderboardRankingSemanticsVersion } from "./fingerprint.js";
 import type { LeaderboardScope } from "./types.js";
 
 export const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
@@ -95,7 +96,10 @@ export function buildLeaderboardCacheManifest(
     "userId" | "rank" | "tieSize" | "score" | "levelSnapshot"
   >[],
 ): LeaderboardCacheManifest {
-  if (snapshot.rankingSemanticsVersion !== LEADERBOARD_CACHE_RANKING_VERSION) {
+  if (
+    snapshot.rankingSemanticsVersion
+    !== getLeaderboardRankingSemanticsVersion(season.scope)
+  ) {
     throw new Error("Unsupported canonical leaderboard ranking version.");
   }
   if (entries.length !== snapshot.entryCount) {

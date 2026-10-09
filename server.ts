@@ -72,7 +72,6 @@ import { GamificationError } from "./server/features/gamification/errors.js";
 import { getActiveGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
 import {
   getMyAchievements,
-  refreshUserAchievementsBestEffort,
 } from "./server/features/gamification/achievementService.js";
 import {
   getMyChallenges,
@@ -89,6 +88,7 @@ import {
   type GamificationUpdateResource,
 } from "./server/features/gamification/realtime.js";
 import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
+import { refreshActiveLeaderboardSnapshotsForUser } from "./server/features/leaderboard/snapshots.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import {
   flashcardStudyQualityFromStatus,
@@ -7858,8 +7858,19 @@ const notifyGamificationUpdate = (
   if (isGamificationEnabled()) broadcastGamificationUpdate(userId, resources);
 };
 const refreshAchievementsAndNotify = async (userId: string) => {
-  await refreshUserAchievementsBestEffort(userId);
-  notifyGamificationUpdate(userId, ["summary", "achievements"]);
+  await refreshUserGamificationBestEffort(userId);
+  try {
+    await refreshActiveLeaderboardSnapshotsForUser({ userId });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
+  }
+  notifyGamificationUpdate(userId, [
+    "summary",
+    "achievements",
+    "leaderboard",
+    "rank",
+  ]);
 };
 const refreshChallengesAndNotify = async (
   userId: string,
@@ -7874,6 +7885,12 @@ const refreshChallengesAndNotify = async (
 
 setStudyPointsPostCommitHook(async (userId) => {
   await refreshUserGamificationBestEffort(userId);
+  try {
+    await refreshActiveLeaderboardSnapshotsForUser({ userId });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
+  }
   notifyGamificationUpdate(userId, [
     "summary",
     "achievements",
@@ -7950,6 +7967,7 @@ app.use(
     database: getPrisma(),
     refreshMastery: (userId, lectureId) =>
       refreshLectureMasteryBestEffort({ userId, lectureId }),
+    refreshGamification: refreshAchievementsAndNotify,
   }),
 );
 app.use(

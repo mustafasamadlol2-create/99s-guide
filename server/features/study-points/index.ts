@@ -89,7 +89,9 @@ export type {
 } from "./cutover.js";
 export {
   getStudyPointsReadModel,
+  getUnifiedStudyPointsReadModel,
   resolveStudyPointsReadMode,
+  resolveUnifiedStudyPointsReadMode,
 } from "./readModel.js";
 export {
   planStudyPointsAccountingRepair,
