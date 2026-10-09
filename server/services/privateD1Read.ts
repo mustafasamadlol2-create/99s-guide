@@ -237,13 +237,29 @@ export function fetchFocusSessionProjections(
         "activeSeconds",
         "pauseSeconds",
       ] as const;
+      const nullableTimestampFields = [
+        "startedAt",
+        "plannedEndAt",
+        "actualEndedAt",
+        "lastCheckpointAt",
+      ] as const;
       if (
         typeof row.planId !== "string" ||
         typeof row.planItemId !== "string" ||
         typeof row.lectureId !== "string" ||
         typeof row.status !== "string" ||
-        integerFields.some((field) => typeof row[field] !== "number" || !Number.isInteger(row[field])) ||
-        typeof row.updatedAt !== "string"
+        integerFields.some((field) =>
+          typeof row[field] !== "number" ||
+          !Number.isSafeInteger(row[field]) ||
+          (row[field] as number) < 0
+        ) ||
+        nullableTimestampFields.some((field) =>
+          row[field] !== null &&
+          (typeof row[field] !== "string" || !Number.isFinite(Date.parse(row[field] as string)))
+        ) ||
+        (row.completionReason !== null && typeof row.completionReason !== "string") ||
+        typeof row.updatedAt !== "string" ||
+        !Number.isFinite(Date.parse(row.updatedAt))
       ) {
         throw new Error("Focus Session projection is malformed.");
       }

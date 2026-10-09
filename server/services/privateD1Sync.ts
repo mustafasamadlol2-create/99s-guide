@@ -142,6 +142,14 @@ export async function enqueuePrivateD1Projection(
          "updatedAt" = NOW()
        RETURNING "userId"
       ),
+       updated_focus_session AS (
+         UPDATE "FocusSession" AS session
+         SET "projectionRevision" = inserted."revision"
+         FROM inserted
+         WHERE $1 = 'FocusSession'
+           AND session."id" = $5
+         RETURNING session."id"
+      ),
       updated_study_daily_metric AS (
         UPDATE "StudyDailyMetric" AS metric
         SET "projectionRevision" = inserted."revision"

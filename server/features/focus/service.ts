@@ -62,6 +62,7 @@ import {
   logPrivateReadFallback,
   privateReadEnabled,
   type FocusPlanReadProjection,
+  fetchFocusSessionProjections,
 } from "../../services/privateD1Read.js";
 import type {
   FocusSessionProjection,
@@ -552,6 +553,19 @@ type MetricProjectionState = {
   updatedAt: Date | string;
 };
 
+type FocusSessionProjectionState = Pick<
+  SessionRecord,
+  "id" | "planId" | "planItemId" | "lectureId" | "status" | "updatedAt"
+> & {
+  projectionRevision: bigint | number | string;
+  planItem: Pick<PlanItemRecord, "sessionCount">;
+};
+
+function canonicalIsoTimestamp(value: Date | string): string | null {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
 function samePlanProjectionSnapshot(
   projected: readonly FocusPlanReadProjection[],
   canonical: readonly Pick<PlanRecord, "id" | "planVersion">[],
@@ -587,6 +601,68 @@ function sameMetricProjectionSnapshot(
       ? row.updatedAt.toISOString()
       : new Date(row.updatedAt).toISOString();
     if (projection.updatedAt !== canonicalUpdatedAt) return false;
+  }
+  return true;
+}
+
+function isValidFocusSessionProjection(
+  projection: FocusSessionProjection,
+  userId: string,
+): boolean {
+  const nullableTimestamps = [
+    projection.startedAt,
+    projection.plannedEndAt,
+    projection.actualEndedAt,
+    projection.lastCheckpointAt,
+  ];
+  return projection.id === projection.canonicalId &&
+    projection.userId === userId &&
+    projection.userScope === userId &&
+    projection.deletedAt === null &&
+    Number.isSafeInteger(projection.projectionVersion) &&
+    projection.projectionVersion === PROJECTION_CONTRACT_VERSION &&
+    /^\d+$/u.test(String(projection.revision)) &&
+    typeof projection.planId === "string" &&
+    typeof projection.planItemId === "string" &&
+    typeof projection.lectureId === "string" &&
+    FOCUS_SESSION_STATES.includes(projection.status as FocusSessionState) &&
+    nullableTimestamps.every((value) =>
+      value === null || (typeof value === "string" && Number.isFinite(Date.parse(value)))
+    ) &&
+    Number.isSafeInteger(projection.activeSeconds) &&
+    projection.activeSeconds >= 0 &&
+    Number.isSafeInteger(projection.pauseSeconds) &&
+    projection.pauseSeconds >= 0 &&
+    (projection.completionReason === null || typeof projection.completionReason === "string") &&
+    Number.isFinite(Date.parse(projection.updatedAt));
+}
+
+function sameFocusSessionProjectionSnapshot(
+  projected: readonly FocusSessionProjection[],
+  canonical: readonly FocusSessionProjectionState[],
+): boolean {
+  if (projected.length !== canonical.length) return false;
+  const canonicalById = new Map(canonical.map((row) => [row.id, row]));
+  if (canonicalById.size !== canonical.length) return false;
+  const seen = new Set<string>();
+  for (const projection of projected) {
+    if (seen.has(projection.id)) return false;
+    seen.add(projection.id);
+    const row = canonicalById.get(projection.id);
+    if (
+      !row ||
+      projection.status !== row.status ||
+      projection.planId !== row.planId ||
+      projection.planItemId !== row.planItemId ||
+      projection.lectureId !== row.lectureId ||
+      projection.updatedAt !== canonicalIsoTimestamp(row.updatedAt) ||
+      !row.planItem ||
+      !Number.isSafeInteger(row.planItem.sessionCount) ||
+      row.planItem.sessionCount < 1
+    ) return false;
+    const revision = String(row.projectionRevision);
+    if (!/^\d+$/u.test(revision)) return false;
+    if (revision !== "0" && String(projection.revision) !== revision) return false;
   }
   return true;
 }
@@ -953,6 +1029,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
   const d1PlanReadsEnabled = options.d1PlanReadsEnabled ??
     (() => privateReadEnabled("PRIVATE_D1_FOCUS_PLAN_READS_ENABLED"));
   const fetchPlansFromD1 = options.fetchPlansFromD1 ?? fetchFocusPlanProjections;
+  const d1SessionReadsEnabled = options.d1SessionReadsEnabled ??
+    (() => privateReadEnabled("PRIVATE_D1_FOCUS_SESSION_READS_ENABLED"));
+  const fetchSessionsFromD1 = options.fetchSessionsFromD1 ?? fetchFocusSessionProjections;
   const d1MetricReadsEnabled = options.d1MetricReadsEnabled ??
     (() => privateReadEnabled("PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED"));
   const fetchMetricsFromD1 = options.fetchMetricsFromD1 ?? fetchStudyDailyMetricProjections;
@@ -1705,6 +1784,90 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       requireSessionDependencies();
       const clock = assertValidClock(now());
       return safely(async () => {
+        let d1Snapshot: {
+          projected: FocusSessionProjection[];
+          canonical: FocusSessionProjectionState[];
+        } | null = null;
+        if (d1SessionReadsEnabled()) {
+          try {
+            // The Worker sorts by updatedAt DESC. Two rows are enough to detect
+            // duplicate current sessions; if the current row falls outside that
+            // window, the canonical snapshot comparison below forces fallback.
+            const projections = await fetchSessionsFromD1(userId, { limit: 2 });
+            if (
+              !Array.isArray(projections) ||
+              projections.length > 2 ||
+              projections.some((projection) => !isValidFocusSessionProjection(projection, userId))
+            ) {
+              throw new Error("Private Focus Session projection is malformed or out of scope.");
+            }
+            const currentProjections = projections.filter((projection) =>
+              NONTERMINAL_STATES.some((status) => status === projection.status)
+            );
+            const canonical = await repository.database.focusSession.findMany({
+              where: { userId, status: { in: [...NONTERMINAL_STATES] } },
+              select: {
+                id: true,
+                planId: true,
+                planItemId: true,
+                lectureId: true,
+                status: true,
+                projectionRevision: true,
+                updatedAt: true,
+                planItem: { select: { sessionCount: true } },
+              },
+              orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+              take: 2,
+            }) as FocusSessionProjectionState[];
+            if (!sameFocusSessionProjectionSnapshot(currentProjections, canonical)) {
+              throw new Error("Private Focus Session projection is behind canonical state.");
+            }
+            d1Snapshot = { projected: currentProjections, canonical };
+          } catch (error) {
+            logPrivateReadFallback("Focus Session projection read", error);
+          }
+        }
+        if (d1Snapshot) {
+          if (d1Snapshot.canonical.length > 1) {
+            throw new FocusError(
+              "RECONCILIATION_REQUIRED",
+              "More than one nonterminal solo session exists for this user.",
+            );
+          }
+          if (!d1Snapshot.canonical.length) {
+            return { session: null, serverNow: clock.toISOString() };
+          }
+          const projection = d1Snapshot.projected[0];
+          const canonical = d1Snapshot.canonical[0];
+          if (!projection || !canonical) {
+            throw new FocusError("RECONCILIATION_REQUIRED", "Focus Session snapshot is incomplete.");
+          }
+          const session: SessionDtoInput = {
+            id: projection.id,
+            planId: projection.planId,
+            planItemId: projection.planItemId,
+            lectureId: projection.lectureId,
+            status: projection.status as FocusSessionState,
+            startedAt: projection.startedAt === null ? null : new Date(projection.startedAt),
+            plannedEndAt: projection.plannedEndAt === null ? null : new Date(projection.plannedEndAt),
+            actualEndedAt: projection.actualEndedAt === null ? null : new Date(projection.actualEndedAt),
+            lastCheckpointAt: projection.lastCheckpointAt === null
+              ? null
+              : new Date(projection.lastCheckpointAt),
+            activeSeconds: projection.activeSeconds,
+            pauseSeconds: projection.pauseSeconds,
+            completionReason: projection.completionReason,
+            planItem: canonical.planItem,
+          };
+          const count = await repository.database.focusSession.count({
+            where: { userId, planItemId: session.planItemId, status: "COMPLETED" },
+          });
+          return {
+            session: sessionDto(session, clock, count),
+            serverNow: clock.toISOString(),
+          };
+        }
+
         const sessions = await repository.database.focusSession.findMany({
           where: { userId, status: { in: [...NONTERMINAL_STATES] } },
           include: { planItem: true },
