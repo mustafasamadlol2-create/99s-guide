@@ -8,7 +8,14 @@ import test from "node:test";
 import { decodeLeaderboardCursor, encodeLeaderboardCursor } from "../server/features/leaderboard/cursor.js";
 import { fingerprintLeaderboardSnapshot, hashLeaderboardRuleVersions } from "../server/features/leaderboard/fingerprint.js";
 import { LeaderboardError } from "../server/features/leaderboard/errors.js";
-import { getLeaderboardSeasonWindow, validateSeasonKey } from "../server/features/leaderboard/periods.js";
+import {
+  getAvailableLeaderboardScopes,
+  getLeaderboardSeasonWindow,
+  SERVER_OWNED_SEMESTER_BOUNDARIES,
+  validateSeasonKey,
+} from "../server/features/leaderboard/periods.js";
+import { getLeaderboardPageWithCache } from "../server/features/leaderboard/cacheReads.js";
+import { resolveSeason } from "../server/features/leaderboard/queries.js";
 import { readRankedLeaderboardScores, readUserLeaderboardScore } from "../server/features/leaderboard/scores.js";
 import type { RankedScore } from "../server/features/leaderboard/types.js";
 import {
@@ -55,26 +62,110 @@ test("Baghdad weekly and monthly boundaries are exact and half-open", () => {
   assert.equal(beforeMonth.endsAt?.getTime(), october.startsAt?.getTime());
 });
 
-test("semester windows require explicit server-owned boundaries", () => {
+test("configured semester ranges use Baghdad-local inclusive dates and half-open instants", () => {
+  assert.deepEqual(
+    SERVER_OWNED_SEMESTER_BOUNDARIES.map((boundary) => [
+      boundary.seasonKey,
+      boundary.startsAt.toISOString(),
+      boundary.endsAt.toISOString(),
+    ]),
+    [
+      [
+        "semester:fall-2026",
+        "2026-08-31T21:00:00.000Z",
+        "2027-01-31T21:00:00.000Z",
+      ],
+      [
+        "semester:spring-2027",
+        "2027-01-31T21:00:00.000Z",
+        "2027-06-30T21:00:00.000Z",
+      ],
+    ],
+  );
   assert.throws(
-    () => getLeaderboardSeasonWindow("SEMESTER", new Date("2026-09-24T12:00:00Z")),
+    () => getLeaderboardSeasonWindow(
+      "SEMESTER",
+      new Date("2026-08-31T20:59:59.999Z"),
+    ),
     (error: unknown) =>
       error instanceof LeaderboardError
       && error.code === "LEADERBOARD_SEASON_CONFIGURATION_MISSING",
   );
-  const configured = getLeaderboardSeasonWindow(
+  const fall = getLeaderboardSeasonWindow(
     "SEMESTER",
-    new Date("2026-10-10T12:00:00Z"),
-    [{
-      seasonKey: "semester:fixture-fall-2026",
-      startsAt: new Date("2026-09-01T00:00:00Z"),
-      endsAt: new Date("2027-01-01T00:00:00Z"),
-    }],
+    new Date("2026-08-31T21:00:00.000Z"),
   );
-  assert.equal(configured.seasonKey, "semester:fixture-fall-2026");
-  assert.equal(configured.startsAt?.toISOString(), "2026-09-01T00:00:00.000Z");
-  assert.equal(validateSeasonKey("SEMESTER", "semester:fixture-fall-2026"), true);
+  const lastMomentOfFall = getLeaderboardSeasonWindow(
+    "SEMESTER",
+    new Date("2027-01-31T20:59:59.999Z"),
+  );
+  const spring = getLeaderboardSeasonWindow(
+    "SEMESTER",
+    new Date("2027-01-31T21:00:00.000Z"),
+  );
+  const lastMomentOfSpring = getLeaderboardSeasonWindow(
+    "SEMESTER",
+    new Date("2027-06-30T20:59:59.999Z"),
+  );
+  assert.equal(fall.seasonKey, "semester:fall-2026");
+  assert.equal(lastMomentOfFall.seasonKey, "semester:fall-2026");
+  assert.equal(spring.seasonKey, "semester:spring-2027");
+  assert.equal(lastMomentOfSpring.seasonKey, "semester:spring-2027");
+  assert.equal(fall.startsAt?.toISOString(), "2026-08-31T21:00:00.000Z");
+  assert.equal(fall.endsAt?.getTime(), spring.startsAt?.getTime());
+  assert.equal(validateSeasonKey("SEMESTER", "semester:fall-2026"), true);
   assert.equal(validateSeasonKey("WEEKLY", "weekly:2026-W00"), false);
+});
+
+test("semester availability hides the scope when no configured term is active", () => {
+  const active = getAvailableLeaderboardScopes(
+    new Date("2026-10-09T12:00:00.000Z"),
+  );
+  const outsideConfiguredTerms = getAvailableLeaderboardScopes(
+    new Date("2027-07-01T00:00:00.000Z"),
+  );
+  const noConfiguration = getAvailableLeaderboardScopes(
+    new Date("2026-10-09T12:00:00.000Z"),
+    [],
+  );
+  assert.deepEqual(active, ["WEEKLY", "MONTHLY", "SEMESTER", "ALL_TIME"]);
+  assert.deepEqual(outsideConfiguredTerms, ["WEEKLY", "MONTHLY", "ALL_TIME"]);
+  assert.deepEqual(noConfiguration, ["WEEKLY", "MONTHLY", "ALL_TIME"]);
+});
+
+test("a past closed semester resolves by its canonical stored key", async () => {
+  const storedSeason = {
+    id: "fall-2026-season",
+    scope: "SEMESTER",
+    seasonKey: "semester:fall-2026",
+    startsAt: new Date("2026-08-31T21:00:00.000Z"),
+    endsAt: new Date("2027-01-31T21:00:00.000Z"),
+    status: "CLOSED",
+  };
+  const lookups: unknown[] = [];
+  const database = {
+    leaderboardSeason: {
+      async findUnique(input: unknown) {
+        lookups.push(input);
+        return storedSeason;
+      },
+    },
+  } as unknown as PrismaClient;
+  const resolved = await resolveSeason({
+    scope: "SEMESTER",
+    seasonKey: "semester:fall-2026",
+    now: new Date("2027-03-01T12:00:00.000Z"),
+    database,
+  });
+  assert.equal(resolved.id, storedSeason.id);
+  assert.deepEqual(lookups, [{
+    where: {
+      scope_seasonKey: {
+        scope: "SEMESTER",
+        seasonKey: "semester:fall-2026",
+      },
+    },
+  }]);
 });
 
 test("competition rank fixtures share ties, skip occupied ranks, and exclude nonpositive scores", () => {
@@ -338,7 +429,30 @@ test("leaderboard user routes require authentication and validate limits before 
   app.use("/api", createLeaderboardRouter({ requireUser, database }));
   const server = await listen(app);
   try {
+    assert.equal(
+      (await fetch(`${server.baseUrl}/api/leaderboards/availability`)).status,
+      401,
+    );
     assert.equal((await fetch(`${server.baseUrl}/api/leaderboards/WEEKLY`)).status, 401);
+    const availability = await fetch(
+      `${server.baseUrl}/api/leaderboards/availability`,
+      { headers: { "x-test-user": "user-1" } },
+    );
+    assert.equal(availability.status, 200);
+    assert.equal(
+      availability.headers.get("cache-control"),
+      "private, no-store",
+    );
+    const availabilityBody = await availability.json() as { scopes: string[] };
+    assert.deepEqual(
+      availabilityBody.scopes.filter((scope) => scope !== "SEMESTER"),
+      ["WEEKLY", "MONTHLY", "ALL_TIME"],
+    );
+    assert.ok(
+      availabilityBody.scopes.length === 3
+      || availabilityBody.scopes.length === 4,
+    );
+    assert.equal(databaseCalls, 0);
     const invalid = await fetch(
       `${server.baseUrl}/api/leaderboards/WEEKLY?limit=101`,
       { headers: { "x-test-user": "user-1" } },
@@ -406,5 +520,87 @@ test("admin leaderboard routes deny students and hosts and reject user-supplied 
     assert.equal(writeCalls, 0);
   } finally {
     await server.close();
+  }
+});
+
+test("D1 read failure falls back to PostgreSQL with semester ties and a next page", async () => {
+  const now = new Date("2026-10-09T12:00:00.000Z");
+  const season = {
+    id: "fall-2026-season",
+    scope: "SEMESTER",
+    seasonKey: "semester:fall-2026",
+    startsAt: new Date("2026-08-31T21:00:00.000Z"),
+    endsAt: new Date("2027-01-31T21:00:00.000Z"),
+    status: "ACTIVE",
+  };
+  const snapshot = {
+    id: "fall-2026-live-snapshot",
+    seasonId: season.id,
+    snapshotType: "LIVE",
+    status: "READY",
+    revision: 1,
+    generatedAt: now,
+    scoreThrough: now,
+    entryCount: 4,
+    sourceFingerprint: "a".repeat(64),
+    rankingSemanticsVersion: "leaderboard-ranking-v1",
+  };
+  const rows = [
+    { userId: "user-a", rank: 1, tieSize: 1, score: 100n, levelSnapshot: 8 },
+    { userId: "user-b", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 7 },
+    { userId: "user-c", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 6 },
+    { userId: "user-d", rank: 4, tieSize: 1, score: 60n, levelSnapshot: 5 },
+  ];
+  const database = {
+    async $transaction(run: (tx: unknown) => Promise<unknown>) {
+      return run({
+        async $executeRaw() { return 1; },
+        leaderboardSeason: {
+          async findUniqueOrThrow() { return season; },
+        },
+      });
+    },
+    leaderboardSnapshot: {
+      async findFirst() { return snapshot; },
+    },
+    leaderboardSnapshotEntry: {
+      async findMany(input: { take: number }) {
+        return rows.slice(0, input.take);
+      },
+      async count() { return rows.length; },
+    },
+    userBlock: {
+      async findMany() { return []; },
+    },
+  } as unknown as PrismaClient;
+
+  const originalFetch = globalThis.fetch;
+  process.env.LEADERBOARD_D1_READ_ENABLED = "true";
+  process.env.LEADERBOARD_D1_WORKER_URL = "https://leaderboard-cache.invalid";
+  process.env.LEADERBOARD_D1_SYNC_SECRET = "leaderboard-test-secret";
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ error: "test cache unavailable" }),
+    { status: 503, headers: { "content-type": "application/json" } },
+  );
+  try {
+    const result = await getLeaderboardPageWithCache({
+      viewerId: "viewer-1",
+      scope: "SEMESTER",
+      limit: 2,
+      now,
+      database,
+    });
+    assert.equal(result.season.seasonKey, "semester:fall-2026");
+    assert.deepEqual(
+      result.entries.map(({ rank, tieSize, score }) => [rank, tieSize, score]),
+      [[1, 1, 100], [2, 2, 80]],
+    );
+    assert.equal(result.totalRankedUsers, 4);
+    assert.ok(result.nextCursor);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.LEADERBOARD_D1_READ_ENABLED;
+    delete process.env.LEADERBOARD_D1_WORKER_URL;
+    delete process.env.LEADERBOARD_D1_SYNC_SECRET;
   }
 });
