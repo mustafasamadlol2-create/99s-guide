@@ -7,6 +7,7 @@ import type {
   AchievementsResponse,
   ChallengesResponse,
   GamificationSummary,
+  LeaderboardAvailabilityResponse,
   LeaderboardResponse,
   LeaderboardScope,
   OwnRankResponse,
@@ -46,6 +47,16 @@ export const gamificationApi = {
       `${scope}:${cursor ?? "first"}`,
       `/api/leaderboards/${scope}?${params.toString()}`,
     );
+  },
+  leaderboardAvailability: async () => {
+    const response = await apiClient("/api/leaderboards/availability", {
+      method: "GET",
+      bypassCache: true,
+      ttl: 0,
+      cache: "no-store",
+      silent: true,
+    });
+    return response.json() as Promise<LeaderboardAvailabilityResponse>;
   },
   ownRank: (scope: LeaderboardScope, seasonKey?: string) => {
     const params = new URLSearchParams({ scope });

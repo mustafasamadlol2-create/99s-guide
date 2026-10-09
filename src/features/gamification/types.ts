@@ -135,6 +135,10 @@ export interface OwnRankResponse {
   snapshotGeneratedAt: string;
 }
 
+export interface LeaderboardAvailabilityResponse {
+  scopes: LeaderboardScope[];
+}
+
 export interface PublicProfile {
   level: number;
   titleKey?: string;

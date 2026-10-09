@@ -1,4 +1,7 @@
-import type { LeaderboardScope } from "./types.js";
+import {
+  LEADERBOARD_SCOPES,
+  type LeaderboardScope,
+} from "./types.js";
 import { LeaderboardError } from "./errors.js";
 
 const TIME_ZONE = "Asia/Baghdad";
@@ -31,11 +34,22 @@ export type ServerOwnedSemesterBoundary = {
 };
 
 /**
- * Production semester boundaries are intentionally empty until an authoritative
- * server-owned academic contract is supplied. Tests may pass explicit fixtures.
+ * Baghdad-local calendar dates for configured terms. Add future academic terms
+ * here; the last listed date is inclusive and is converted to an exclusive
+ * midnight boundary below.
  */
-export const SERVER_OWNED_SEMESTER_BOUNDARIES:
-readonly ServerOwnedSemesterBoundary[] = [];
+const SERVER_OWNED_SEMESTER_DATES = [
+  {
+    seasonKey: "semester:fall-2026",
+    startsOn: "2026-09-01",
+    endsOn: "2027-01-31",
+  },
+  {
+    seasonKey: "semester:spring-2027",
+    startsOn: "2027-02-01",
+    endsOn: "2027-06-30",
+  },
+] as const;
 
 function calendarParts(instant: Date): WallClock {
   if (!(instant instanceof Date) || !Number.isFinite(instant.getTime())) {
@@ -106,6 +120,50 @@ function atBaghdadMidnight(date: CalendarDate): Date {
   }
   return candidate;
 }
+
+function parseCalendarDate(value: string): CalendarDate {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (!match) {
+    throw new LeaderboardError(
+      "LEADERBOARD_SEASON_CONFIGURATION_CONFLICT",
+      "Server-owned semester dates must use YYYY-MM-DD.",
+    );
+  }
+  const date = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+  const normalized = utcCalendarDate(date);
+  if (
+    normalized.getUTCFullYear() !== date.year
+    || normalized.getUTCMonth() + 1 !== date.month
+    || normalized.getUTCDate() !== date.day
+  ) {
+    throw new LeaderboardError(
+      "LEADERBOARD_SEASON_CONFIGURATION_CONFLICT",
+      "Server-owned semester date is not a valid calendar day.",
+    );
+  }
+  return date;
+}
+
+export const SERVER_OWNED_SEMESTER_BOUNDARIES:
+readonly ServerOwnedSemesterBoundary[] = SERVER_OWNED_SEMESTER_DATES.map((term) => {
+  const startsOn = parseCalendarDate(term.startsOn);
+  const endsOn = parseCalendarDate(term.endsOn);
+  if (utcCalendarDate(endsOn) < utcCalendarDate(startsOn)) {
+    throw new LeaderboardError(
+      "LEADERBOARD_SEASON_CONFIGURATION_CONFLICT",
+      "Server-owned semester end date precedes its start date.",
+    );
+  }
+  return {
+    seasonKey: term.seasonKey,
+    startsAt: atBaghdadMidnight(startsOn),
+    endsAt: atBaghdadMidnight(addCalendarDays(endsOn, 1)),
+  };
+});
 
 /**
  * Return a Baghdad-local calendar midnight relative to a server-owned instant.
@@ -221,4 +279,28 @@ export function getLeaderboardSeasonWindow(
     startsAt: new Date(period.startsAt),
     endsAt: new Date(period.endsAt),
   };
+}
+
+export function getAvailableLeaderboardScopes(
+  asOf: Date,
+  semesterBoundaries: readonly ServerOwnedSemesterBoundary[] =
+    SERVER_OWNED_SEMESTER_BOUNDARIES,
+): LeaderboardScope[] {
+  let semesterAvailable = false;
+  try {
+    getLeaderboardSeasonWindow("SEMESTER", asOf, semesterBoundaries);
+    semesterAvailable = true;
+  } catch (error) {
+    if (
+      !(error instanceof LeaderboardError)
+      || (
+        error.code !== "LEADERBOARD_SEASON_CONFIGURATION_MISSING"
+        && error.code !== "LEADERBOARD_SEASON_CONFIGURATION_CONFLICT"
+      )
+    ) {
+      throw error;
+    }
+  }
+  return LEADERBOARD_SCOPES.filter((scope) =>
+    scope !== "SEMESTER" || semesterAvailable);
 }

@@ -59,6 +59,13 @@ function isNotFound(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && (error as ApiFailure).status === 404);
 }
 
+function isSemesterConfigurationUnavailable(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as ApiFailure).body?.code;
+  return code === "LEADERBOARD_SEASON_CONFIGURATION_MISSING"
+    || code === "LEADERBOARD_SEASON_CONFIGURATION_CONFLICT";
+}
+
 function cursorExpired(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const failure = error as ApiFailure;
@@ -179,6 +186,9 @@ export function GamificationFrontend({
   const locale = language === "ar" ? "ar-IQ" : "en";
   const [tab, setTab] = useState<GamificationTab>("overview");
   const [scope, setScope] = useState<LeaderboardScope>("WEEKLY");
+  const [availableScopes, setAvailableScopes] = useState<LeaderboardScope[]>(
+    () => SCOPES.filter((item) => item !== "SEMESTER"),
+  );
   const [summary, setSummary] = useState<GamificationSummary | null>(null);
   const [achievements, setAchievements] = useState<AchievementsResponse | null>(null);
   const [challenges, setChallenges] = useState<ChallengesResponse | null>(null);
@@ -350,6 +360,30 @@ export function GamificationFrontend({
     }
   }, []);
 
+  const loadLeaderboardAvailability = useCallback(async () => {
+    let semesterAvailable = false;
+    try {
+      const availability = await gamificationApi.leaderboardAvailability();
+      semesterAvailable = Array.isArray(availability?.scopes)
+        && availability.scopes.includes("SEMESTER");
+    } catch {
+      // Keep non-semester views available when the availability check fails.
+    }
+    const nextScopes = SCOPES.filter((item) =>
+      item !== "SEMESTER" || semesterAvailable);
+    setAvailableScopes(nextScopes);
+    if (!semesterAvailable && currentScope.current === "SEMESTER") {
+      setScope("WEEKLY");
+      setLeaderboard(null);
+      setOwnRank(null);
+      setRankLoading(false);
+      setRankError(false);
+      setErrors((old) => ({ ...old, leaderboard: false }));
+      setCursorHasExpired(false);
+    }
+    return semesterAvailable;
+  }, []);
+
   const loadLeaderboard = useCallback(async (nextScope: LeaderboardScope, append = false) => {
     if (append && !leaderboard?.nextCursor) return;
     const account = currentAccountId.current;
@@ -393,6 +427,18 @@ export function GamificationFrontend({
         setOwnRank(null);
         setRankLoading(false);
         setCursorHasExpired(true);
+      } else if (
+        nextScope === "SEMESTER"
+        && isSemesterConfigurationUnavailable(error)
+      ) {
+        setAvailableScopes((old) => old.filter((item) => item !== "SEMESTER"));
+        if (currentScope.current === "SEMESTER") setScope("WEEKLY");
+        setLeaderboard(null);
+        setOwnRank(null);
+        setRankLoading(false);
+        setRankError(false);
+        setErrors((old) => ({ ...old, leaderboard: false }));
+        setCursorHasExpired(false);
       } else {
         setLeaderboard(null);
         setOwnRank(null);
@@ -467,6 +513,7 @@ export function GamificationFrontend({
       if (detail?.resources?.length) queueResourceRefresh(detail.resources);
     };
     const onReconnect = () => {
+      void loadLeaderboardAvailability();
       queueResourceRefresh(resourcesForGamificationReconnect(currentTab.current, {
         leaderboard: currentLeaderboard.current !== null,
         rank: currentOwnRank.current !== null || currentOverviewRank.current !== null,
@@ -483,12 +530,13 @@ export function GamificationFrontend({
       }
       pendingResources.current.clear();
     };
-  }, [queueResourceRefresh]);
+  }, [loadLeaderboardAvailability, queueResourceRefresh]);
 
   const refresh = useCallback(async () => {
     const activeTab = currentTab.current;
     const activeScope = currentScope.current;
     const privatePromise = loadPrivateData();
+    const availabilityPromise = loadLeaderboardAvailability();
     const visibleParticipantId = activeTab === "leaderboard" ? selectedParticipant?.userId : undefined;
     const refreshParticipant = async () => {
       if (!visibleParticipantId) return;
@@ -515,11 +563,21 @@ export function GamificationFrontend({
       }
     };
     if (activeTab === "leaderboard") {
-      await Promise.all([privatePromise, loadLeaderboard(activeScope), refreshParticipant()]);
+      const semesterAvailable = await availabilityPromise;
+      const leaderboardPromise = activeScope === "SEMESTER" && !semesterAvailable
+        ? Promise.resolve()
+        : loadLeaderboard(activeScope);
+      await Promise.all([privatePromise, leaderboardPromise, refreshParticipant()]);
     } else if (activeTab === "overview") {
-      await Promise.all([privatePromise, loadOverviewRank()]);
-    } else await privatePromise;
-  }, [loadLeaderboard, loadOverviewRank, loadPrivateData, selectedParticipant?.userId]);
+      await Promise.all([privatePromise, loadOverviewRank(), availabilityPromise]);
+    } else await Promise.all([privatePromise, availabilityPromise]);
+  }, [
+    loadLeaderboard,
+    loadLeaderboardAvailability,
+    loadOverviewRank,
+    loadPrivateData,
+    selectedParticipant?.userId,
+  ]);
 
   useEffect(() => {
     setGamificationReadAccountScope(accountId);
@@ -530,6 +588,7 @@ export function GamificationFrontend({
     setOwnRank(null);
     setOverviewRank(null);
     setSelectedParticipant(null);
+    setAvailableScopes(SCOPES.filter((item) => item !== "SEMESTER"));
     setCursorHasExpired(false);
     setErrors({});
     setLoading({
@@ -539,6 +598,7 @@ export function GamificationFrontend({
       leaderboard: false,
     });
     void loadPrivateData();
+    void loadLeaderboardAvailability();
     return () => {
       summaryGeneration.current += 1;
       achievementsGeneration.current += 1;
@@ -548,7 +608,7 @@ export function GamificationFrontend({
       overviewRankGeneration.current += 1;
       participantGeneration.current += 1;
     };
-  }, [accountId, loadPrivateData]);
+  }, [accountId, loadLeaderboardAvailability, loadPrivateData]);
   useEffect(() => {
     if (tab === "overview") void loadOverviewRank();
   }, [accountId, tab, overviewRankRetrySerial, loadOverviewRank]);
@@ -1008,7 +1068,7 @@ export function GamificationFrontend({
     return (
       <div className="g-tab-panel">
         <div className="g-scope-row" role="group" aria-label={tx("gamificationScopeLabel", "Snapshot period", "فترة اللقطة")}>
-          {SCOPES.map((item) => <button type="button" className="g-scope" key={item} aria-pressed={scope === item} onClick={() => { setScope(item); setLeaderboard(null); setOwnRank(null); setErrors((old) => ({ ...old, leaderboard: false })); setCursorHasExpired(false); closeParticipant(); }}>{scopeLabel(item)}</button>)}
+          {availableScopes.map((item) => <button type="button" className="g-scope" key={item} aria-pressed={scope === item} onClick={() => { setScope(item); setLeaderboard(null); setOwnRank(null); setErrors((old) => ({ ...old, leaderboard: false })); setCursorHasExpired(false); closeParticipant(); }}>{scopeLabel(item)}</button>)}
         </div>
         <section className="g-card">
           <div className="g-leaderboard-head">

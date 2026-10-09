@@ -6,6 +6,7 @@ import { LeaderboardError } from "../features/leaderboard/errors.js";
 import {
   parseLeaderboardPageSize,
 } from "../features/leaderboard/queries.js";
+import { getAvailableLeaderboardScopes } from "../features/leaderboard/periods.js";
 import {
   getLeaderboardPageWithCache,
   getMyLeaderboardRankWithCache,
@@ -91,6 +92,22 @@ export function createLeaderboardRouter(dependencies: {
 }): express.Router {
   const router = express.Router();
   const database = dependencies.database ?? getPrisma() as PrismaClient;
+
+  router.get("/leaderboards/availability", dependencies.requireUser, (req, res) => {
+    if (!authenticatedUserId(req)) {
+      return res.status(401).json({
+        error: "Authentication required.",
+        code: "AUTHENTICATION_REQUIRED",
+      });
+    }
+    try {
+      return res
+        .set("Cache-Control", "private, no-store")
+        .json({ scopes: getAvailableLeaderboardScopes(new Date()) });
+    } catch (error) {
+      return sendLeaderboardError(res, error);
+    }
+  });
 
   router.get("/leaderboards/:scope", dependencies.requireUser, async (req, res) => {
     const scope = parseLeaderboardScope(req.params.scope);
