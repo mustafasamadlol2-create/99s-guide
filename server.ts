@@ -8050,27 +8050,34 @@ app.post("/api/admin/db-sync", requireOwner, (req, res) => {
 // of booting a phantom "authenticated" shell whose protected requests all 401.
 app.get("/api/auth/me", catchAsync(async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
+  let failurePhase = "token";
   try {
     const token = getRequestToken(req);
     if (!token) {
       return res.json({ user: null });
     }
 
+    failurePhase = "token_verification";
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as { userId: string; sessionVersion?: number };
+    failurePhase = "revocation_check";
     if (await isRevokedToken(token)) {
       return res.status(401).json({ user: null });
     }
+    failurePhase = "user_lookup";
     const user = await getAuthenticatedUser(decoded.userId);
 
     if (!user || (decoded.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
       return res.status(401).json({ user: null });
     }
+    failurePhase = "account_status";
     if (user.emailVerified === false || await isUserCurrentlyBanned(user)) {
       return res.json({ user: null });
     }
 
+    failurePhase = "profile_hydration";
     const fullData = await UserService.getFullUserData(user.id, user);
     // Check if this is an Apple user who hasn't selected their profile email yet
+    failurePhase = "oauth_identity";
     const prisma = getPrisma();
     const appleIdentity = await prisma.oAuthIdentity.findFirst({
       where: { provider: "apple", userId: user.id },
@@ -8081,6 +8088,20 @@ app.get("/api/auth/me", catchAsync(async (req, res) => {
     return res.json({ ...fullData, token, needsEmailSelection });
   } catch (err) {
     if (isInfrastructureError(err)) {
+      const candidate = err as { name?: unknown; code?: unknown };
+      const safeCode = typeof candidate?.code === "string" &&
+        /^[A-Z0-9_.-]{1,48}$/iu.test(candidate.code)
+        ? candidate.code
+        : "AUTH_ME_DEPENDENCY_UNCLASSIFIED";
+      const safeName = typeof candidate?.name === "string" &&
+        /^[A-Z][A-Za-z0-9_.-]{0,79}$/u.test(candidate.name)
+        ? candidate.name
+        : "UnknownError";
+      logger.error("AUTH", "Session bootstrap dependency unavailable", {
+        endpoint: "/api/auth/me",
+        errorCode: safeCode,
+        details: { phase: failurePhase, errorName: safeName },
+      });
       return res.status(503).json({
         error: "Authentication service is temporarily unavailable. Please retry.",
         retryable: true,
