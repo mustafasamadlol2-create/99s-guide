@@ -45,6 +45,11 @@ import {
   focusApi,
   isRetryableFocusReadError,
 } from "../api/focusApi";
+import {
+  FOCUS_STATE_INVALIDATED_EVENT,
+  FOCUS_VIEW_RECONCILE_EVENT,
+  isFocusResourceAffected,
+} from "../api/focusSync";
 import { deriveFocusProgression, formatFocusClock } from "../focusActiveModel";
 import { FocusCycleStrip, FocusTimerScene, type FocusDisplayPhase } from "./FocusVisuals";
 import { useFocusAudio } from "../../focus-audio/hooks";
@@ -232,7 +237,10 @@ function ActiveFocusScreenCore({
     | { status: "idle" | "loading" | "unavailable" }
     | { status: "completed"; context: PostFocusActionContext }
   >({ status: "idle" });
-  const [terminalResult, setTerminalResult] = useState<FocusSessionMutationResult | null>(null);
+  const [terminalResult, setTerminalResult] = useState<{
+    session: FocusSessionDto;
+    manualLectureCompletionRequired?: boolean;
+  } | null>(null);
   const [progression, setProgression] = useState<ReturnType<typeof deriveFocusProgression> | null>(null);
   const [breakSnapshot, setBreakSnapshot] = useState<FocusBreakSnapshot | null>(null);
   const [activePhase, setActivePhase] = useState<FocusDisplayPhase>("focus");
@@ -266,23 +274,6 @@ function ActiveFocusScreenCore({
         sameActiveScreenState(previous, next) ? previous : next);
     });
     return unsubscribe;
-  }, [controller]);
-
-  useEffect(() => {
-    const reconcile = () => {
-      void controller.reconcile().catch(() => {});
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") reconcile();
-    };
-    window.addEventListener("focus-state-invalidated", reconcile);
-    window.addEventListener("online", reconcile);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("focus-state-invalidated", reconcile);
-      window.removeEventListener("online", reconcile);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
   }, [controller]);
 
   useEffect(() => {
@@ -409,17 +400,10 @@ function ActiveFocusScreenCore({
       return;
     }
     let active = true;
-    let running = false;
-    let refreshPending = false;
     let retryTimer: number | null = null;
     let retryAttempt = 0;
     const loadBreak = async () => {
       if (!active) return;
-      if (running) {
-        refreshPending = true;
-        return;
-      }
-      running = true;
       try {
         const snapshot = await focusApi.getFocusBreak(sessionRouteId);
         if (!active) return;
@@ -435,7 +419,6 @@ function ActiveFocusScreenCore({
               ? previous
               : {
                 session: snapshot.session,
-                idempotency: "FIRST_SEEN",
                 manualLectureCompletionRequired: snapshot.session.isLastPlannedSession,
               });
         }
@@ -450,37 +433,25 @@ function ActiveFocusScreenCore({
             void loadBreak();
           }, delay);
         }
-      } finally {
-        running = false;
-        if (active && refreshPending) {
-          refreshPending = false;
-          void loadBreak();
-        }
       }
     };
     const refreshBreak = () => {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       retryTimer = null;
       retryAttempt = 0;
-      if (running) {
-        refreshPending = true;
-        return;
-      }
       void loadBreak();
     };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refreshBreak();
+    const onInvalidation = (event: Event) => {
+      if (isFocusResourceAffected(event, "break", sessionRouteId)) refreshBreak();
     };
     void loadBreak();
-    window.addEventListener("online", refreshBreak);
-    window.addEventListener("focus-state-invalidated", refreshBreak);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(FOCUS_STATE_INVALIDATED_EVENT, onInvalidation);
+    window.addEventListener(FOCUS_VIEW_RECONCILE_EVENT, onInvalidation);
     return () => {
       active = false;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
-      window.removeEventListener("online", refreshBreak);
-      window.removeEventListener("focus-state-invalidated", refreshBreak);
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(FOCUS_STATE_INVALIDATED_EVENT, onInvalidation);
+      window.removeEventListener(FOCUS_VIEW_RECONCILE_EVENT, onInvalidation);
     };
   }, [
     runtime.session?.id,
@@ -547,19 +518,12 @@ function ActiveFocusScreenCore({
     }
     setPlanLoad({ status: "loading" });
     let active = true;
-    let running = false;
-    let canonicalRefreshPending = false;
     let retryTimer: number | null = null;
     let retryAttempt = 0;
-    const loadPlan = async (canonical = false) => {
+    const loadPlan = async () => {
       if (!active) return;
-      if (running) {
-        canonicalRefreshPending ||= canonical;
-        return;
-      }
-      running = true;
       try {
-        const plan = await focusApi.getFocusPlan(sessionForView.planId, { canonical });
+        const plan = await focusApi.getFocusPlan(sessionForView.planId);
         if (active) {
           setPlanLoad({ status: "ready", plan });
           retryAttempt = 0;
@@ -574,32 +538,16 @@ function ActiveFocusScreenCore({
             retryAttempt += 1;
             retryTimer = window.setTimeout(() => {
               retryTimer = null;
-              void loadPlan(canonical);
+              void loadPlan();
             }, delay);
           }
         }
-      } finally {
-        running = false;
-        if (active && canonicalRefreshPending) {
-          canonicalRefreshPending = false;
-          void loadPlan(true);
-        }
       }
     };
-    const refreshCanonicalPlan = () => {
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
-      retryTimer = null;
-      retryAttempt = 0;
-      void loadPlan(true);
-    };
     void loadPlan();
-    window.addEventListener("online", refreshCanonicalPlan);
-    window.addEventListener("focus-state-invalidated", refreshCanonicalPlan);
     return () => {
       active = false;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
-      window.removeEventListener("online", refreshCanonicalPlan);
-      window.removeEventListener("focus-state-invalidated", refreshCanonicalPlan);
     };
   }, [
     initialPlan?.id,
@@ -778,6 +726,7 @@ function ActiveFocusScreenCore({
         const result = value as FocusBreakMutationResult;
         breakPauseKeyRef.current = null;
         breakResumeKeyRef.current = null;
+        controller.acceptMutationSession(result.session);
         setBreakSnapshot(result);
         setBreakClock({
           id: result.breakSession.id,
@@ -801,6 +750,7 @@ function ActiveFocusScreenCore({
         const result = value as FocusBreakMutationResult;
         breakPauseKeyRef.current = null;
         breakResumeKeyRef.current = null;
+        controller.acceptMutationSession(result.session);
         setBreakSnapshot(result);
         setBreakClock({
           id: result.breakSession.id,
@@ -827,14 +777,19 @@ function ActiveFocusScreenCore({
         breakPauseKeyRef.current = null;
         breakResumeKeyRef.current = null;
         breakReturnKeyRef.current = null;
+        controller.acceptMutationSession(result.session);
         setBreakSnapshot(result);
         setActivePhase("focus");
         if (result.breakSession.resumeStudyOnReturn && result.session.status === "ACTIVE") {
           notifyAudioSafely(() => audio?.onFocusResumed());
         }
 
-        const canonical = await controller.reconcile();
         if (result.session.status !== "COMPLETED") return;
+        setTerminalResult({
+          session: result.session,
+          manualLectureCompletionRequired: result.session.isLastPlannedSession,
+        });
+        const canonical = await controller.reconcile();
 
         let plan = currentPlan?.id === result.session.planId ? currentPlan : null;
         if (!plan) {
@@ -918,13 +873,13 @@ function ActiveFocusScreenCore({
       async (value) => {
         const result = value as FocusBreakMutationResult;
         breakStartKeyRef.current = null;
+        controller.acceptMutationSession(result.session);
         setBreakSnapshot(result);
         setActivePhase((previous) =>
           previous === "plan" ? "plan" : result.breakSession.endedAt ? "focus" : "break");
         if (canonicalSession.status === "ACTIVE") {
           notifyAudioSafely(() => audio?.onFocusPaused());
         }
-        await controller.reconcile().catch(() => {});
       },
     );
   };
@@ -1031,6 +986,7 @@ function ActiveFocusScreenCore({
             source: getFocusClientSource(),
           });
           breakReturnKeyRef.current = null;
+          controller.acceptMutationSession(returned.session);
           setBreakSnapshot(returned);
           setActivePhase("focus");
           await controller.reconcile().catch(() => {});

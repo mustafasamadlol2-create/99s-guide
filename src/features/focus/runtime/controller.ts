@@ -440,6 +440,72 @@ export class FocusRuntimeController {
     return this.getState();
   }
 
+  /**
+   * Apply the canonical session embedded in a Focus Break mutation response.
+   * This keeps break transitions response-first without fabricating timer data.
+   */
+  acceptMutationSession(session: FocusSessionDto): FocusRuntimeState {
+    this.assertNotDisposed();
+    const lastSyncedAt = this.currentState.lastSyncedAt;
+    if (
+      lastSyncedAt &&
+      Number.isFinite(Date.parse(lastSyncedAt)) &&
+      Date.parse(session.serverNow) < Date.parse(lastSyncedAt)
+    ) {
+      return this.getState();
+    }
+
+    this.requestGeneration += 1;
+    this.reconcileFlight = null;
+    const isTerminal = TERMINAL_STATES.has(session.status);
+    if (isTerminal) {
+      this.timerBaseline = null;
+      this.setState({
+        runtimeStatus: "IDLE",
+        session: null,
+        sessionAuthority: "CANONICAL",
+        lastMutationResult: null,
+        displayRemainingSeconds: null,
+        displayMayBeComplete: false,
+        estimatedServerNow: session.serverNow,
+        completionEligible: null,
+        pendingOperation: null,
+        semanticResult: null,
+        error: null,
+        lastSyncedAt: session.serverNow,
+      });
+      this.writeCache(null, session.serverNow);
+      return this.getState();
+    }
+
+    this.timerBaseline = createFocusTimerBaseline(
+      session,
+      session.serverNow,
+      this.clock.monotonicNow(),
+    );
+    const display = estimateFocusDisplay(
+      session,
+      this.timerBaseline,
+      this.clock.monotonicNow(),
+    );
+    this.setState({
+      runtimeStatus: runtimeStatusForSession(session),
+      session,
+      sessionAuthority: "CANONICAL",
+      lastMutationResult: null,
+      displayRemainingSeconds: display.displayRemainingSeconds,
+      displayMayBeComplete: display.displayMayBeComplete,
+      estimatedServerNow: display.estimatedServerNow,
+      completionEligible: session.completionEligible,
+      pendingOperation: null,
+      semanticResult: null,
+      error: null,
+      lastSyncedAt: session.serverNow,
+    });
+    this.writeCache(session, session.serverNow);
+    return this.getState();
+  }
+
   clearSemanticResult(): void {
     this.setState({ semanticResult: null });
   }

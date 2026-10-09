@@ -1,4 +1,5 @@
 import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
+import { FOCUS_SOCKET_RECONNECTED_EVENT } from "../api/focusSync";
 
 type LifecycleListener = (event: Event) => void;
 
@@ -81,6 +82,8 @@ export function createFocusLifecycle(
       };
       const handlePageShow: LifecycleListener = () => schedule();
       const handleOnline: LifecycleListener = () => schedule();
+      const handleWindowFocus: LifecycleListener = () => schedule();
+      const handleSocketReconnect: LifecycleListener = () => schedule();
 
       if (documentTarget && !nativeBridge.isNativePlatform()) {
         documentTarget.addEventListener("visibilitychange", handleVisibility);
@@ -92,9 +95,13 @@ export function createFocusLifecycle(
       if (windowTarget) {
         windowTarget.addEventListener("pageshow", handlePageShow);
         windowTarget.addEventListener("online", handleOnline);
+        windowTarget.addEventListener("focus", handleWindowFocus);
+        windowTarget.addEventListener(FOCUS_SOCKET_RECONNECTED_EVENT, handleSocketReconnect);
         cleanups.push(() => {
           windowTarget.removeEventListener("pageshow", handlePageShow);
           windowTarget.removeEventListener("online", handleOnline);
+          windowTarget.removeEventListener("focus", handleWindowFocus);
+          windowTarget.removeEventListener(FOCUS_SOCKET_RECONNECTED_EVENT, handleSocketReconnect);
         });
       }
 

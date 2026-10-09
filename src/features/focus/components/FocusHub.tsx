@@ -25,7 +25,18 @@ import {
   focusApi,
   isRetryableFocusReadError,
 } from "../api/focusApi";
+import {
+  FOCUS_SOCKET_RECONNECTED_EVENT,
+  FOCUS_STATE_INVALIDATED_EVENT,
+  FOCUS_VIEW_RECONCILE_EVENT,
+  invalidateFocusResources,
+  isFocusResourceAffected,
+  setFocusReadAccountScope,
+  type FocusInvalidationDetail,
+  type FocusSyncResource,
+} from "../api/focusSync";
 import { FocusRuntimeController } from "../runtime/controller";
+import { createFocusLifecycle } from "../runtime/lifecycle";
 import {
   FOCUS_PLAN_LIMITS,
   FOCUS_PRESETS,
@@ -150,7 +161,7 @@ export function FocusHub({
     new WeakMap<FocusRuntimeController, number>(),
   );
   const runtimeController = useMemo(
-    () => new FocusRuntimeController({ accountId }),
+    () => new FocusRuntimeController({ accountId, lifecycle: null }),
     [accountId],
   );
   const [runtimeState, setRuntimeState] = useState(() => runtimeController.getState());
@@ -177,11 +188,17 @@ export function FocusHub({
   const summaryStartLockRef = useRef(false);
   const startLockRef = useRef(false);
   const requestGenerationRef = useRef(0);
+  const planRequestGenerationRef = useRef(0);
+  const planRetryAttemptRef = useRef(0);
   const loadRetryTimerRef = useRef<number | null>(null);
+  const planRetryTimerRef = useRef<number | null>(null);
   const loadRetryAttemptRef = useRef(0);
   const loadCanonicalRef = useRef<
     (options?: { applyDraft?: boolean; silent?: boolean; canonical?: boolean }) => Promise<unknown>
   >(() => Promise.resolve());
+  const refreshPlanRef = useRef<(canonical?: boolean) => Promise<void>>(
+    async () => {},
+  );
   const mountedRef = useRef(true);
   const sessionCountPulseTimerRef = useRef<number | null>(null);
 
@@ -303,6 +320,64 @@ export function FocusHub({
   );
   loadCanonicalRef.current = loadCanonical;
 
+  const refreshCanonicalPlan = useCallback(async (canonical = true): Promise<void> => {
+    const generation = ++planRequestGenerationRef.current;
+    const session = runtimeController.getState().session ?? currentSessionRef.current;
+    try {
+      const plan = session
+        ? await focusApi.getFocusPlan(session.planId, { canonical })
+        : currentOpenPlan(await focusApi.listFocusPlans(1, {
+            status: "ACTIVE",
+            canonical,
+          }));
+      let latestPlan = plan;
+      const previousPlan = canonicalPlanRef.current;
+      if (
+        previousPlan &&
+        latestPlan?.id === previousPlan.id &&
+        latestPlan.planVersion < previousPlan.planVersion
+      ) {
+        latestPlan = await focusApi.getFocusPlan(previousPlan.id, { canonical: true });
+      }
+      if (!mountedRef.current || generation !== planRequestGenerationRef.current) return;
+
+      setCanonical(latestPlan);
+      if (
+        latestPlan &&
+        (!previousPlan ||
+          latestPlan.id !== previousPlan.id ||
+          latestPlan.planVersion !== previousPlan.planVersion)
+      ) {
+        setServerConflict(latestPlan);
+      }
+      planRetryAttemptRef.current = 0;
+      if (planRetryTimerRef.current !== null) {
+        window.clearTimeout(planRetryTimerRef.current);
+        planRetryTimerRef.current = null;
+      }
+    } catch (error) {
+      if (
+        mountedRef.current &&
+        isRetryableFocusReadError(error) &&
+        planRetryTimerRef.current === null &&
+        (typeof navigator === "undefined" || navigator.onLine)
+      ) {
+        const delay = Math.min(30_000, 750 * (2 ** Math.min(planRetryAttemptRef.current, 6)));
+        planRetryAttemptRef.current += 1;
+        planRetryTimerRef.current = window.setTimeout(() => {
+          planRetryTimerRef.current = null;
+          void refreshPlanRef.current(true).catch(() => {});
+        }, delay);
+      }
+      throw error;
+    }
+  }, [runtimeController, setCanonical]);
+  refreshPlanRef.current = refreshCanonicalPlan;
+
+  useEffect(() => {
+    setFocusReadAccountScope(accountId);
+  }, [accountId]);
+
   useEffect(() => {
     const lifecycle = controllerLifecycleRef.current;
     lifecycle.set(runtimeController, (lifecycle.get(runtimeController) ?? 0) + 1);
@@ -369,34 +444,79 @@ export function FocusHub({
     return () => {
       mountedRef.current = false;
       requestGenerationRef.current += 1;
+      planRequestGenerationRef.current += 1;
       if (loadRetryTimerRef.current !== null) {
         window.clearTimeout(loadRetryTimerRef.current);
         loadRetryTimerRef.current = null;
+      }
+      if (planRetryTimerRef.current !== null) {
+        window.clearTimeout(planRetryTimerRef.current);
+        planRetryTimerRef.current = null;
       }
     };
   }, [historyOpen, loadCanonical, sessionRouteId, summaryRouteId]);
 
   useEffect(() => {
-    const refreshCanonical = () => {
-      if (sessionRouteId || historyOpen || summaryRouteId) return;
-      void loadCanonicalRef.current({
-        applyDraft: false,
-        silent: true,
-        canonical: true,
-      }).catch(() => {});
+    const onInvalidation = (event: Event) => {
+      if (isFocusResourceAffected(event, "current-session")) {
+        void runtimeController.reconcile().catch(() => {});
+      }
+      if (isFocusResourceAffected(event, "plans")) {
+        const detail = (event as CustomEvent<FocusInvalidationDetail>).detail;
+        const currentSession =
+          runtimeController.getState().session ?? currentSessionRef.current;
+        const currentPlanId = currentSession?.planId ?? canonicalPlanRef.current?.id;
+        const planAffectsSession = !sessionRouteId ||
+          !detail?.planId ||
+          !currentPlanId ||
+          detail.planId === currentPlanId;
+        if (!historyOpen && !summaryRouteId && planAffectsSession) {
+          void refreshPlanRef.current(true).catch(() => {});
+        }
+      }
     };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refreshCanonical();
-    };
-    window.addEventListener("focus-state-invalidated", refreshCanonical);
-    window.addEventListener("online", refreshCanonical);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(FOCUS_STATE_INVALIDATED_EVENT, onInvalidation);
     return () => {
-      window.removeEventListener("focus-state-invalidated", refreshCanonical);
-      window.removeEventListener("online", refreshCanonical);
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(FOCUS_STATE_INVALIDATED_EVENT, onInvalidation);
     };
-  }, [historyOpen, sessionRouteId, summaryRouteId]);
+  }, [historyOpen, runtimeController, sessionRouteId, summaryRouteId]);
+
+  useEffect(() => {
+    const lifecycle = createFocusLifecycle();
+    return lifecycle.subscribe(() => {
+      const summarySessionId = historyOpen && historyDetailId
+        ? historyDetailId
+        : summaryRouteId;
+      const resources: FocusSyncResource[] = [];
+      if (summarySessionId) {
+        resources.push("summary", "post-actions");
+      } else if (historyOpen) {
+        resources.push("history");
+      } else {
+        resources.push("plans");
+        if (sessionRouteId) resources.push("break");
+      }
+      invalidateFocusResources({
+        resources: [...new Set<FocusSyncResource>(["current-session", ...resources])],
+        ...(runtimeController.getState().session?.id
+          ? { sessionId: runtimeController.getState().session.id }
+          : {}),
+      });
+      if (!historyOpen && !summarySessionId) {
+        void refreshPlanRef.current(true).catch(() => {});
+      }
+      void runtimeController.reconcile().catch(() => {});
+      window.dispatchEvent(new CustomEvent(FOCUS_VIEW_RECONCILE_EVENT, {
+        detail: { reason: "lifecycle", resources },
+      }));
+    });
+  }, [
+    historyDetailId,
+    historyOpen,
+    runtimeController,
+    sessionRouteId,
+    summaryRouteId,
+  ]);
 
   useEffect(
     () => () => {

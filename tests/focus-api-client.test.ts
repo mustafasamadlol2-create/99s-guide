@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createFocusApi, FocusApiError, type FocusApiRequestOptions } from "../src/features/focus/api/focusApi.ts";
+import { invalidateFocusResources } from "../src/features/focus/api/focusSync.ts";
 
 const id = "00000000-0000-4000-8000-000000000001";
 const itemId = "00000000-0000-4000-8000-000000000002";
@@ -46,7 +47,8 @@ test("Focus session API sends canonical routes, bodies, and request policy", asy
     `/api/focus/sessions/${id}/complete`,
   ]);
   assert.equal(calls.every((call) => call.options.bypassCache === true && call.options.retries === 0 && call.options.timeoutMs === 15_000), true);
-  assert.equal(calls[0].options.requestKey, undefined);
+  assert.match(String(calls[0].options.requestKey), /^anonymous\|current-session:current:\d+$/);
+  assert.match(String((calls[1].options.headers as Record<string, string>)["X-Focus-Client-ID"]), /^[A-Za-z0-9._-]{8,128}$/);
   assert.deepEqual(JSON.parse(String(calls[1].options.body)), {
     planId: id, planItemId: itemId, idempotencyKey: "start-key", source: "web",
   });
@@ -155,7 +157,7 @@ test("Focus abandonment accepts the committed terminal response", async () => {
   });
 });
 
-test("current-session reads do not add a request key that defeats in-flight deduplication", async () => {
+test("concurrent current-session reads share a request key and invalidation starts a new read epoch", async () => {
   const keys: Array<string | undefined> = [];
   const request = async (_path: RequestInfo | URL, options: FocusApiRequestOptions = {}) => {
     keys.push(options.requestKey);
@@ -169,7 +171,13 @@ test("current-session reads do not add a request key that defeats in-flight dedu
     secondApi.getCurrentFocusSession(),
   ]);
 
-  assert.deepEqual(keys, [undefined, undefined]);
+  assert.equal(keys.length, 1);
+  const firstKey = keys[0];
+  assert.match(String(firstKey), /^anonymous\|current-session:current:\d+$/);
+  invalidateFocusResources({ resources: ["current-session"] });
+  await firstApi.getCurrentFocusSession();
+  assert.equal(keys.length, 2);
+  assert.notEqual(keys[1], firstKey);
 });
 
 test("Focus plan methods validate envelopes and only send allowed fields", async () => {

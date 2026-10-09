@@ -768,6 +768,30 @@ test("stale current-session responses cannot overwrite a newer mutation response
   controller.dispose();
 });
 
+test("out-of-order Focus Break mutation sessions keep the newest canonical response", async () => {
+  const { controller } = makeController({
+    api: makeApi({
+      getCurrentFocusSession: async () => currentResult(makeSession()),
+    }),
+  });
+  await controller.initialize();
+
+  controller.acceptMutationSession(makeSession({
+    status: "PAUSED",
+    remainingSeconds: 1_200,
+    serverNow: "2026-10-09T12:01:00.000Z",
+  }));
+  controller.acceptMutationSession(makeSession({
+    status: "ACTIVE",
+    remainingSeconds: 2_400,
+    serverNow: "2026-10-09T12:00:00.000Z",
+  }));
+
+  assert.equal(controller.getState().session?.status, "PAUSED");
+  assert.equal(controller.getState().displayRemainingSeconds, 1_200);
+  controller.dispose();
+});
+
 test("a newer reconciliation response wins over an older in-flight current fetch", async () => {
   let getCalls = 0;
   let resolveOld!: (value: FocusCurrentSessionResult) => void;

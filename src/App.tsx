@@ -26,6 +26,12 @@ import { accountStorageKey, clearAccountData, getActiveAccountId, setActiveAccou
 import { useDeviceProfile } from "./core/hooks/useDeviceProfile";
 import { useUserPreferences } from "./core/hooks/useUserPreferences";
 import { NativeBridge } from "./core/device/capacitor/nativeBridge";
+import {
+  acceptFocusInvalidation,
+  FOCUS_SOCKET_RECONNECTED_EVENT,
+  FOCUS_STATE_INVALIDATED_EVENT,
+  isFocusInvalidationFromCurrentClient,
+} from "./features/focus/api/focusSync";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
@@ -745,9 +751,7 @@ function AppContent({
       });
 
       if (isReconnect) {
-        window.dispatchEvent(new CustomEvent("focus-state-invalidated", {
-          detail: { reason: "socket-reconnected" },
-        }));
+        window.dispatchEvent(new Event(FOCUS_SOCKET_RECONNECTED_EVENT));
       }
 
       // Re-fetch critical canonical state that could have been missed during disconnect
@@ -761,10 +765,12 @@ function AppContent({
         .catch(() => {});
     });
 
-    socket.on("focus_state_changed", (payload?: { changedAt?: string }) => {
-      clearApiCache("/api/focus");
-      window.dispatchEvent(new CustomEvent("focus-state-invalidated", {
-        detail: { reason: "server-mutation", changedAt: payload?.changedAt },
+    socket.on("focus_state_changed", (payload?: unknown) => {
+      if (isFocusInvalidationFromCurrentClient(payload)) return;
+      const detail = acceptFocusInvalidation(payload);
+      if (!detail) return;
+      window.dispatchEvent(new CustomEvent(FOCUS_STATE_INVALIDATED_EVENT, {
+        detail: { ...detail, reason: "server-mutation" },
       }));
     });
 

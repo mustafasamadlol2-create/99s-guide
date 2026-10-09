@@ -23,6 +23,12 @@ import type {
   FocusSessionSummaryDto,
 } from "../../../../server/features/focus/types";
 import type { FocusHistoryQuery } from "../../../../server/features/focus/schemas";
+import {
+  getFocusClientInstanceId,
+  invalidateFocusResources,
+  readFocusResource,
+  resourcesForFocusMutation,
+} from "./focusSync";
 
 export type FocusResourceType = "PDF" | "VIDEO";
 export type FocusClientSource = "web" | "pwa" | "ios" | "android";
@@ -568,8 +574,13 @@ async function json<T>(request: Requester, path: string, options: FocusApiReques
 
 const requestOptions = (method?: string, body?: unknown): FocusApiRequestOptions => ({
   ...(method ? { method } : {}),
+  ...(method ? {
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      "X-Focus-Client-ID": getFocusClientInstanceId(),
+    },
+  } : {}),
   ...(body === undefined ? {} : {
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }),
   bypassCache: true,
@@ -592,15 +603,34 @@ function itemBody(item: CreateFocusPlanInput["items"][number], includeId: boolea
 }
 
 export function createFocusApi(request: Requester = apiClient): FocusApi {
-  const call = <T>(path: string, options: FocusApiRequestOptions, validate: (value: unknown) => T) =>
-    json(request, path, options, validate);
+  const call = async <T>(
+    path: string,
+    options: FocusApiRequestOptions,
+    validate: (value: unknown) => T,
+  ) => {
+    const result = await json(request, path, options, validate);
+    if ((options.method ?? "GET").toUpperCase() !== "GET") {
+      invalidateFocusResources(resourcesForFocusMutation(path, result));
+    }
+    return result;
+  };
+  const read = <T>(
+    scope: string,
+    variant: string,
+    path: string,
+    options: FocusApiRequestOptions,
+    validate: (value: unknown) => T,
+  ) => readFocusResource(scope, variant, (requestKey) =>
+    json(request, path, { ...options, requestKey }, validate));
   const planBody = (input: CreateFocusPlanInput | UpdateFocusPlanInput, includeId: boolean) => ({
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
     ...(input.items !== undefined ? { items: input.items.map((item) => itemBody(item, includeId)) } : {}),
   });
   return {
-    getCurrentFocusSession: () => call(
+    getCurrentFocusSession: () => read(
+      "current-session",
+      "current",
       "/api/focus/sessions/current",
       requestOptions(),
       current,
@@ -614,7 +644,9 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     resumeFocusSession: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/resume`, requestOptions("POST", {
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), mutation),
-    getFocusBreak: (id) => call(
+    getFocusBreak: (id) => read(
+      `break:${id}`,
+      id,
       `/api/focus/sessions/${encodeURIComponent(id)}/break`,
       requestOptions(),
       focusBreakSnapshot,
@@ -656,7 +688,7 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       if (options.canonical) params.set("canonical", "1");
       const query = params.toString();
       const suffix = query ? `?${query}` : "";
-      return call(`/api/focus/plans${suffix}`, requestOptions(), (body) => {
+      return read("plans", suffix, `/api/focus/plans${suffix}`, requestOptions(), (body) => {
         const result = record(body, "plan list response");
         if (!Array.isArray(result.plans)) throw protocol("Invalid Focus plan list.");
         return result.plans.map(plan);
@@ -664,7 +696,9 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     },
     getFocusPlan: (id, options = {}) => {
       const suffix = options.canonical ? "?canonical=1" : "";
-      return call(
+      return read(
+        `plan:${id}`,
+        suffix,
         `/api/focus/plans/${encodeURIComponent(id)}${suffix}`,
         requestOptions(),
         (body) => plan(record(body, "plan response").plan),
@@ -672,17 +706,23 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     },
     updateFocusPlan: (id, input) => call(`/api/focus/plans/${encodeURIComponent(id)}`, requestOptions("PATCH", planBody(input, true)), (body) => plan(record(body, "plan response").plan)),
     archiveFocusPlan: (id) => call(`/api/focus/plans/${encodeURIComponent(id)}/archive`, requestOptions("POST"), (body) => plan(record(body, "plan response").plan)),
-    getMetrics: (period) => call(
+    getMetrics: (period) => read(
+      "metrics",
+      period,
       `/api/focus/metrics?period=${encodeURIComponent(period)}`,
       requestOptions(),
       focusMetrics,
     ),
-    getPostFocusActionContext: (id) => call(
+    getPostFocusActionContext: (id) => read(
+      `post-actions:${id}`,
+      id,
       `/api/focus/sessions/${encodeURIComponent(id)}/post-actions`,
       requestOptions(),
       postFocusActionContext,
     ),
-    getSessionSummary: (id) => call(
+    getSessionSummary: (id) => read(
+      `summary:${id}`,
+      id,
       `/api/focus/sessions/${encodeURIComponent(id)}/summary`,
       requestOptions(),
       focusSessionSummary,
@@ -693,7 +733,7 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
         if (value !== undefined) params.set(key, String(value));
       }
       const suffix = params.size ? `?${params.toString()}` : "";
-      return call(`/api/focus/history${suffix}`, requestOptions(), focusHistoryPage);
+      return read("history", suffix, `/api/focus/history${suffix}`, requestOptions(), focusHistoryPage);
     },
   };
 }

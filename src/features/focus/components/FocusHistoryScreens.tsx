@@ -12,6 +12,11 @@ import {
   focusApi,
   isRetryableFocusReadError,
 } from "../api/focusApi";
+import {
+  FOCUS_STATE_INVALIDATED_EVENT,
+  FOCUS_VIEW_RECONCILE_EVENT,
+  isFocusResourceAffected,
+} from "../api/focusSync";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "ABANDONED", "EXPIRED"]);
 const HISTORY_STATUSES = [
@@ -111,19 +116,18 @@ export function FocusSessionSummaryScreen({
   }, []);
 
   useEffect(() => {
-    const refresh = () => setRefreshEpoch((current) => current + 1);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refresh();
+    const refresh = (event: Event) => {
+      if (isFocusResourceAffected(event, "summary", sessionId)) {
+        setRefreshEpoch((current) => current + 1);
+      }
     };
-    window.addEventListener("focus-state-invalidated", refresh);
-    window.addEventListener("online", refresh);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(FOCUS_STATE_INVALIDATED_EVENT, refresh);
+    window.addEventListener(FOCUS_VIEW_RECONCILE_EVENT, refresh);
     return () => {
-      window.removeEventListener("focus-state-invalidated", refresh);
-      window.removeEventListener("online", refresh);
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(FOCUS_STATE_INVALIDATED_EVENT, refresh);
+      window.removeEventListener(FOCUS_VIEW_RECONCILE_EVENT, refresh);
     };
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
     let current = true;
@@ -451,17 +455,16 @@ export function FocusHistoryScreen({
   }, []);
 
   useEffect(() => {
-    const refresh = () => setRefreshEpoch((current) => current + 1);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refresh();
+    const refresh = (event: Event) => {
+      if (isFocusResourceAffected(event, "history")) {
+        setRefreshEpoch((current) => current + 1);
+      }
     };
-    window.addEventListener("focus-state-invalidated", refresh);
-    window.addEventListener("online", refresh);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(FOCUS_STATE_INVALIDATED_EVENT, refresh);
+    window.addEventListener(FOCUS_VIEW_RECONCILE_EVENT, refresh);
     return () => {
-      window.removeEventListener("focus-state-invalidated", refresh);
-      window.removeEventListener("online", refresh);
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(FOCUS_STATE_INVALIDATED_EVENT, refresh);
+      window.removeEventListener(FOCUS_VIEW_RECONCILE_EVENT, refresh);
     };
   }, []);
 

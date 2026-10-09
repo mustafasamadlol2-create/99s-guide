@@ -1,4 +1,5 @@
 import express, { type RequestHandler } from "express";
+import { randomUUID } from "node:crypto";
 import { FocusError } from "../features/focus/errors.js";
 import {
   abandonFocusSessionSchema,
@@ -24,7 +25,7 @@ import { isGamificationEnabled as isGamificationFeatureEnabled } from "../featur
 export interface FocusRouteDependencies {
   requireUser: RequestHandler;
   service: FocusBackendService;
-  broadcastInvalidation?(userId: string): void;
+  broadcastInvalidation?(userId: string, event: FocusInvalidationPayload): void;
   isGamificationEnabled?: () => boolean;
   refreshAchievements?(userId: string): Promise<unknown>;
   refreshMastery?(userId: string, lectureId: string): Promise<unknown>;
@@ -32,6 +33,24 @@ export interface FocusRouteDependencies {
     userId: string,
     metricIds: readonly string[],
   ): Promise<unknown>;
+}
+
+export type FocusInvalidationResource =
+  | "current-session"
+  | "plans"
+  | "break"
+  | "history"
+  | "metrics"
+  | "summary"
+  | "post-actions";
+
+export interface FocusInvalidationPayload {
+  eventId: string;
+  changedAt: string;
+  resources: FocusInvalidationResource[];
+  sessionId?: string;
+  planId?: string;
+  originClientId?: string;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -66,6 +85,75 @@ function invalid(res: express.Response, error: string): express.Response {
   return res.status(400).json({ error, code: "INVALID_REQUEST" });
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function focusMutationInvalidation(
+  path: string,
+  responseBody: unknown,
+  sessionParam: unknown,
+  planParam: unknown,
+  originClientId: string | undefined,
+): FocusInvalidationPayload | null {
+  const body = asRecord(responseBody);
+  const session = asRecord(body.session);
+  const plan = asRecord(body.plan);
+  const pathSessionId = path.match(/^\/sessions\/([^/]+)/)?.[1];
+  const pathPlanId = path.match(/^\/plans\/([^/]+)/)?.[1];
+  const sessionId =
+    (typeof session.id === "string" ? session.id : undefined) ??
+    (typeof sessionParam === "string" ? sessionParam : undefined) ??
+    (pathSessionId === "start" ? undefined : pathSessionId);
+  const planId =
+    (typeof plan.id === "string" ? plan.id : undefined) ??
+    (typeof planParam === "string" ? planParam : undefined) ??
+    pathPlanId;
+  const status = typeof session.status === "string" ? session.status : "";
+  const terminal = ["COMPLETED", "ABANDONED", "EXPIRED"].includes(status);
+  const terminalResources: FocusInvalidationResource[] = [
+    "history",
+    "metrics",
+    "summary",
+    "post-actions",
+  ];
+
+  let resources: FocusInvalidationResource[];
+  if (path.startsWith("/plans")) {
+    resources = ["plans"];
+  } else if (path.includes("/interruptions")) {
+    if (body.metricUpdated !== true) return null;
+    resources = ["history", "metrics"];
+  } else if (path.includes("/break/")) {
+    resources = [
+      "current-session",
+      "break",
+      ...(terminal ? terminalResources : []),
+    ];
+  } else if (terminal || path.endsWith("/complete") || path.endsWith("/abandon")) {
+    resources = ["current-session", ...terminalResources];
+  } else {
+    resources = ["current-session"];
+  }
+
+  const idempotency = body.idempotency;
+  if (typeof idempotency === "string" &&
+      !["FIRST_SEEN", "CREATED"].includes(idempotency)) {
+    return null;
+  }
+
+  return {
+    eventId: randomUUID(),
+    changedAt: new Date().toISOString(),
+    resources,
+    ...(sessionId ? { sessionId } : {}),
+    ...(planId ? { planId } : {}),
+    ...(originClientId ? { originClientId } : {}),
+  };
+}
+
 export function createFocusRouter(dependencies: FocusRouteDependencies): express.Router {
   const router = express.Router();
   router.use(dependencies.requireUser);
@@ -75,10 +163,25 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
       return next();
     }
     const authenticatedUserId = userId(req);
+    const mutationLocals = res.locals as { focusMutationBody?: unknown };
+    const originalJson = res.json.bind(res);
+    res.json = ((body: unknown) => {
+      mutationLocals.focusMutationBody = body;
+      return originalJson(body);
+    }) as typeof res.json;
     res.once("finish", () => {
       if (res.statusCode < 200 || res.statusCode >= 300) return;
       try {
-        dependencies.broadcastInvalidation?.(authenticatedUserId);
+        const event = focusMutationInvalidation(
+          req.path,
+          mutationLocals.focusMutationBody,
+          req.params.sessionId,
+          req.params.planId,
+          /^[A-Za-z0-9._-]{8,128}$/.test(req.get("x-focus-client-id") ?? "")
+            ? req.get("x-focus-client-id")!
+            : undefined,
+        );
+        if (event) dependencies.broadcastInvalidation?.(authenticatedUserId, event);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
         console.warn(`[Focus] Realtime invalidation failed: ${reason}`);

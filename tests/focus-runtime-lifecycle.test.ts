@@ -4,6 +4,7 @@ import {
   createFocusLifecycle,
   type NativeFocusLifecycleBridge,
 } from "../src/features/focus/runtime/lifecycle";
+import { FOCUS_SOCKET_RECONNECTED_EVENT } from "../src/features/focus/api/focusSync";
 
 type Listener = (event: Event) => void;
 
@@ -86,7 +87,7 @@ function nativeBridgeStub(): NativeFocusLifecycleBridge & {
   };
 }
 
-test("web visibility, pageshow, and online bursts coalesce to one foreground callback", () => {
+test("web foreground, reconnect, and online bursts coalesce to one callback", () => {
   const windowTarget = new FakeEventTarget();
   const documentTarget = new FakeDocument();
   const timers = new ManualTimers();
@@ -106,14 +107,18 @@ test("web visibility, pageshow, and online bursts coalesce to one foreground cal
   documentTarget.visibilityState = "visible";
   documentTarget.dispatch("visibilitychange");
   windowTarget.dispatch("pageshow");
+  windowTarget.dispatch("focus");
   windowTarget.dispatch("online");
+  windowTarget.dispatch(FOCUS_SOCKET_RECONNECTED_EVENT);
   assert.equal(timers.callbacks.size, 1);
   timers.fireAll();
 
   assert.equal(reconciliations, 1);
   unsubscribe();
   assert.equal(windowTarget.count("pageshow"), 0);
+  assert.equal(windowTarget.count("focus"), 0);
   assert.equal(windowTarget.count("online"), 0);
+  assert.equal(windowTarget.count(FOCUS_SOCKET_RECONNECTED_EVENT), 0);
   assert.equal(documentTarget.count("visibilitychange"), 0);
 });
 
