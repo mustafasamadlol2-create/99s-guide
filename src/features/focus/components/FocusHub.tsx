@@ -1027,9 +1027,29 @@ export function FocusHub({
       {canonicalPlan && runtimeState.sessionAuthority !== "CANONICAL" && (
         <div
           role="status"
-          className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:border-amber-300/15 dark:bg-amber-200/[0.06] dark:text-amber-100"
+          className="mt-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:border-amber-300/15 dark:bg-amber-200/[0.06] dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between"
         >
-          {t("focusHubReadOnlyStale")}
+          <p className="min-w-0">{t("focusHubReadOnlyStale")}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void loadCanonical({
+                applyDraft: false,
+                silent: true,
+                canonical: true,
+              }).catch(() => {});
+            }}
+            disabled={
+              runtimeState.runtimeStatus === "LOADING" ||
+              runtimeState.runtimeStatus === "RECONCILING"
+            }
+            aria-busy={runtimeState.runtimeStatus === "RECONCILING"}
+            className="flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-amber-300/80 bg-white/75 px-4 text-sm font-semibold transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 disabled:cursor-wait disabled:opacity-60 dark:border-amber-200/20 dark:bg-white/[0.04] dark:hover:bg-white/10"
+          >
+            {runtimeState.runtimeStatus === "RECONCILING"
+              ? t("focusHubLoading")
+              : t("focusHubRetry")}
+          </button>
         </div>
       )}
 
