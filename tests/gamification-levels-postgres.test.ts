@@ -80,7 +80,9 @@ test("Prompt 24 disposable PostgreSQL Level projection lifecycle", {
       assert.equal(active[0]!.version, GAMIFICATION_V1_RULE_SET_VERSION);
     }
 
-    const user = await database.user.create({ data: { email } });
+    const user = await database.user.create({
+      data: { email, totalPoints: 100 },
+    });
     userId = user.id;
     const missingUser = await database.user.create({
       data: { email: `prompt24-missing-${suffix}@example.invalid` },
@@ -124,6 +126,10 @@ test("Prompt 24 disposable PostgreSQL Level projection lifecycle", {
     await database.pointsLog.update({
       where: { id: pointsLog.id },
       data: { points: 99 },
+    });
+    await database.user.update({
+      where: { id: userId },
+      data: { totalPoints: 99 },
     });
     assert.equal(
       (await reconcileUserGamificationLevel(userId, database)).status,

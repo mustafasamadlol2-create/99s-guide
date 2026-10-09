@@ -191,6 +191,12 @@ async function startAndCompleteFocus(
     });
     assert.equal(completed.session.status, "COMPLETED");
     sessionIds.push(completed.session.id);
+    if (index + 1 < input.sessionCount) {
+      await focus.returnFromBreak(input.userId, completed.session.id, {
+        idempotencyKey: `prompt20-focus-post-completion-break-${randomUUID()}`,
+        source: "web",
+      });
+    }
   }
   return { sessionIds, focus };
 }

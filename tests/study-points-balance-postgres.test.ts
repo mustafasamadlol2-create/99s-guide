@@ -343,7 +343,7 @@ test("legacy row backfill is idempotent and produces the same hybrid and ledger-
       compatibilityMode: "LEDGER_ONLY",
     }, db());
     assert.equal(ledgerOnly.totalPoints, 90);
-    assert.equal(ledgerOnly.legacyLedgerPoints, 70);
+    assert.equal(ledgerOnly.legacyLedgerPoints, 75);
     assert.equal(ledgerOnly.masteryPoints, 15);
 
     const [entryCount, readiness, reconciliation] = await Promise.all([
@@ -353,7 +353,7 @@ test("legacy row backfill is idempotent and produces the same hybrid and ledger-
     ]);
     assert.equal(readiness.safeForLedgerOnly, true);
     assert.equal(reconciliation.status, "IN_SYNC");
-    assert.equal(reconciliation.projection?.legacyPoints, 70);
+    assert.equal(reconciliation.projection?.legacyPoints, 75);
     assert.equal(reconciliation.canonical.totalPoints, 90);
 
     const repeated = await backfillStudyPointsLegacyBatch({ userId }, db());

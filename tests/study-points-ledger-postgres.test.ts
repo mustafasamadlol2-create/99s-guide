@@ -100,7 +100,7 @@ test("real Prompt 19 PostgreSQL ledger invariants", { skip: skipped }, async (t)
           'StudyPointsLedgerEntry',
           'PointsLog',
           'IntegritySignal',
-          'GroupFocusRun',
+          'GroupFocusRun'
         )
       ORDER BY table_name
     `;
@@ -251,6 +251,7 @@ test("real Prompt 19 PostgreSQL ledger invariants", { skip: skipped }, async (t)
         MASTERY: 20,
         PROGRESS: 0,
         CONSISTENCY: 5,
+        legacyPoints: 0,
         total: 35,
       });
 
@@ -283,6 +284,7 @@ test("real Prompt 19 PostgreSQL ledger invariants", { skip: skipped }, async (t)
         MASTERY: 0,
         PROGRESS: 0,
         CONSISTENCY: 5,
+        legacyPoints: 0,
         total: 15,
       });
       await assertErrorCode(

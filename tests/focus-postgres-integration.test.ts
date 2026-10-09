@@ -619,6 +619,10 @@ test("real PostgreSQL serializes the final planned-session edge", { skip: skippe
     await focus.completeSession(fixture.userId, first.session.id, {
       idempotencyKey: "prompt9-count-first-complete",
     });
+    await focus.returnFromBreak(fixture.userId, first.session.id, {
+      idempotencyKey: "prompt9-count-first-post-completion-break-return",
+      source: "web",
+    });
 
     const attempts = await Promise.allSettled([
       focus.startSession(fixture.userId, startInput(plan, "prompt9-count-final-a")),
@@ -848,13 +852,13 @@ test("real PostgreSQL persists Focus Breaks and preserves study timing and next-
     });
     assert.equal(returnReplay.idempotency, "REPLAY_SAME_PAYLOAD");
 
-    clock = new Date(T0.getTime() + 2_790_000);
+    clock = new Date(T0.getTime() + 2_865_000);
     const completed = await recoveredService.completeSession(fixture.userId, started.session.id, {
       idempotencyKey: "prompt-focus-break-complete",
     });
     assert.equal(completed.session.status, "COMPLETED");
     assert.equal(completed.session.activeSeconds, 2_700);
-    assert.equal(completed.session.pauseSeconds, 90);
+    assert.equal(completed.session.pauseSeconds, 165);
     const postCompletionBreak = await recoveredService.getBreak(fixture.userId, started.session.id);
     assert.equal(postCompletionBreak.breakSession?.durationSeconds, 600);
     assert.equal(postCompletionBreak.breakSession?.resumeStudyOnReturn, false);
