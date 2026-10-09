@@ -847,6 +847,8 @@ model StudyDailyMetric {
   id                 String   @id @default(uuid())
   userId             String
   metricDate         DateTime @db.Date
+  /// Last canonical outbox revision applied to this row's D1 projection.
+  projectionRevision BigInt   @default(0)
   focusSeconds       Int      @default(0)
   sessionsCompleted  Int      @default(0)
   mcqAttempts        Int      @default(0)

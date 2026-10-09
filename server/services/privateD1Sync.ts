@@ -141,6 +141,14 @@ export async function enqueuePrivateD1Projection(
          END,
          "updatedAt" = NOW()
        RETURNING "userId"
+      ),
+      updated_study_daily_metric AS (
+        UPDATE "StudyDailyMetric" AS metric
+        SET "projectionRevision" = inserted."revision"
+        FROM inserted
+        WHERE $1 = 'StudyDailyMetric'
+          AND metric."id" = $5
+        RETURNING metric."id"
      )
      SELECT inserted."id"::text AS "id",
             inserted."revision"::text AS "revision"
@@ -149,6 +157,7 @@ export async function enqueuePrivateD1Projection(
     JSON.stringify(input.key),
     JSON.stringify(input.data),
     String(input.data.user_id ?? input.data.userId ?? input.key.user_id ?? input.key.userId ?? ""),
+    String(input.data.id ?? input.key.id ?? ""),
   );
   const row = Array.isArray(rows) ? rows[0] : undefined;
   const revision = row?.revision;

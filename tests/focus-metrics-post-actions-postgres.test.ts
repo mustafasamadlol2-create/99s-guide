@@ -72,14 +72,19 @@ async function cleanup(userIds: string[], lectureIds: string[]): Promise<void> {
   await db().lecture.deleteMany({ where: { id: { in: lectureIds } } });
 }
 
-function metricProjection(userId: string, metricDate: string, focusSeconds = 999): StudyDailyMetricProjection {
-  const id = randomUUID();
+function metricProjection(
+  userId: string,
+  metricDate: string,
+  focusSeconds = 999,
+  options: { id?: string; updatedAt?: Date; revision?: string } = {},
+): StudyDailyMetricProjection {
+  const id = options.id ?? randomUUID();
   return {
     id,
     canonicalId: id,
-    revision: "1",
+    revision: options.revision ?? "1",
     projectionVersion: 1,
-    updatedAt: T0.toISOString(),
+    updatedAt: (options.updatedAt ?? T0).toISOString(),
     deletedAt: null,
     userScope: userId,
     userId,
@@ -219,17 +224,22 @@ test("Focus metrics use Baghdad calendar dates, zero-fill, scope safely, and rem
 test("metric D1 success and every invalid/unavailable state follow the PostgreSQL fallback", { skip: skipped }, async () => {
   const f = await makeUserAndLecture("prompt12-d1-metrics");
   try {
-    await db().studyDailyMetric.create({
+    const canonicalMetric = await db().studyDailyMetric.create({
       data: {
         userId: f.userId,
         metricDate: new Date("2026-09-26T00:00:00.000Z"),
+        projectionRevision: 1n,
         focusSeconds: 321,
         sessionsCompleted: 2,
         interruptionCount: 1,
       },
     });
     const expected = { focusSeconds: 321, sessionsCompleted: 2, interruptionCount: 1 };
-    const successProjection = metricProjection(f.userId, "2026-09-26", 777);
+    const successProjection = metricProjection(f.userId, "2026-09-26", 777, {
+      id: canonicalMetric.id,
+      updatedAt: canonicalMetric.updatedAt,
+      revision: "1",
+    });
     let fetchCount = 0;
     const success = service(() => METRIC_NOW, {
       d1MetricReadsEnabled: () => true,

@@ -150,6 +150,7 @@ test("real PostgreSQL commit persists event, metric and derived outbox projectio
     assert.equal(metric?.mcqAttempts, 1);
     assert.equal(metric?.mcqCorrect, 1);
     assert.equal(rows.length, 1);
+    assert.equal(metric?.projectionRevision.toString(), rows[0].revision);
     assert.equal(rows[0].entity, "StudyDailyMetric");
     assert.equal(rows[0].operation, "upsert");
     assert.equal(rows[0].revision, rows[0].id);

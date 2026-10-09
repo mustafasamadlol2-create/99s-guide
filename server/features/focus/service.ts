@@ -515,6 +515,52 @@ type MetricRow = {
   interruptionCount: number;
 };
 
+type MetricProjectionState = {
+  id: string;
+  metricDate: Date | string;
+  projectionRevision: bigint | number | string;
+  updatedAt: Date | string;
+};
+
+function samePlanProjectionSnapshot(
+  projected: readonly FocusPlanReadProjection[],
+  canonical: readonly Pick<PlanRecord, "id" | "planVersion">[],
+): boolean {
+  return projected.length === canonical.length &&
+    projected.every((plan, index) =>
+      plan.id === canonical[index]?.id &&
+      plan.planVersion === canonical[index]?.planVersion
+    );
+}
+
+function sameMetricProjectionSnapshot(
+  projected: readonly StudyDailyMetricProjection[],
+  canonical: readonly MetricProjectionState[],
+): boolean {
+  if (projected.length !== canonical.length) return false;
+  const canonicalById = new Map(canonical.map((row) => [row.id, row]));
+  if (canonicalById.size !== canonical.length) return false;
+  const seen = new Set<string>();
+  for (const projection of projected) {
+    if (seen.has(projection.id)) return false;
+    seen.add(projection.id);
+    const row = canonicalById.get(projection.id);
+    if (!row || metricDateString(row.metricDate) !== projection.metricDate) return false;
+    const revision = String(row.projectionRevision);
+    if (!/^\d+$/u.test(revision)) return false;
+    if (revision !== "0") {
+      if (String(projection.revision) !== revision) return false;
+      continue;
+    }
+    // Zero is reserved for legacy rows with no retained outbox entry.
+    const canonicalUpdatedAt = row.updatedAt instanceof Date
+      ? row.updatedAt.toISOString()
+      : new Date(row.updatedAt).toISOString();
+    if (projection.updatedAt !== canonicalUpdatedAt) return false;
+  }
+  return true;
+}
+
 function metricDateString(value: Date | string): string {
   if (value instanceof Date) {
     if (!Number.isFinite(value.getTime())) throw new Error("Metric date is invalid.");
@@ -1007,7 +1053,16 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             limit: boundedLimit,
             status: options.status,
           });
-          if (projections.length > 0) return projections.map(d1PlanDto);
+          const canonical = await repository.database.focusPlan.findMany({
+            where: { userId, ...(options.status ? { status: options.status } : {}) },
+            select: { id: true, planVersion: true },
+            orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+            take: boundedLimit,
+          }) as Array<Pick<PlanRecord, "id" | "planVersion">>;
+          if (!samePlanProjectionSnapshot(projections, canonical)) {
+            throw new Error("Private Focus Plan projection is behind canonical state.");
+          }
+          return projections.map(d1PlanDto);
         } catch (error) {
           logPrivateReadFallback("Focus Plan projection read", error);
         }
@@ -1029,7 +1084,16 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         try {
           const projections = await fetchPlansFromD1(userId, { limit: 100 });
           const projection = projections.find((plan) => plan.id === planId);
-          if (projection) return d1PlanDto(projection);
+          if (projection) {
+            const canonical = await repository.database.focusPlan.findFirst({
+              where: { id: planId, userId },
+              select: { id: true, planVersion: true },
+            }) as Pick<PlanRecord, "id" | "planVersion"> | null;
+            if (!canonical || projection.planVersion !== canonical.planVersion) {
+              throw new Error("Private Focus Plan projection is behind canonical state.");
+            }
+            return d1PlanDto(projection);
+          }
         } catch (error) {
           logPrivateReadFallback("Focus Plan detail projection read", error);
         }
@@ -2147,6 +2211,25 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               projected.some((row) => !isValidMetricProjection(row, userId, range.startDate, range.endDate))
             ) {
               throw new Error("Private Study Daily Metric projection is malformed or out of scope.");
+            }
+            const canonical = await repository.database.studyDailyMetric.findMany({
+              where: {
+                userId,
+                metricDate: {
+                  gte: new Date(`${range.startDate}T00:00:00.000Z`),
+                  lte: new Date(`${range.endDate}T00:00:00.000Z`),
+                },
+              },
+              select: {
+                id: true,
+                metricDate: true,
+                projectionRevision: true,
+                updatedAt: true,
+              },
+              orderBy: { metricDate: "asc" },
+            }) as MetricProjectionState[];
+            if (!sameMetricProjectionSnapshot(projected, canonical)) {
+              throw new Error("Private Study Daily Metric projection is behind canonical state.");
             }
             rows = projected.map((row) => ({
               metricDate: row.metricDate,

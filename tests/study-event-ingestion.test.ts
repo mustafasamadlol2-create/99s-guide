@@ -593,9 +593,12 @@ test("transactional outbox adapter uses one identity value for id and revision",
   assert.match(capturedQuery, /nextval/u);
   assert.match(capturedQuery, /"id".*allocated_revision\.value/su);
   assert.match(capturedQuery, /INSERT INTO "PrivateD1SyncOutbox"/u);
+  assert.match(capturedQuery, /UPDATE "StudyDailyMetric" AS metric/u);
+  assert.match(capturedQuery, /"projectionRevision" = inserted\."revision"/u);
   assert.doesNotMatch(capturedQuery, /StudyEvent/u);
   assert.equal(capturedArgs[0], "StudyDailyMetric");
   assert.equal(JSON.parse(String(capturedArgs[1])).id, "metric-1");
+  assert.equal(capturedArgs[4], "metric-1");
 });
 
 test("oversized and malformed event payloads are rejected before canonical writes", async () => {
