@@ -447,7 +447,13 @@ export default function AuthScreen({ language, onNavigateToLegal, onLoginSuccess
           (event.data.message as string | undefined) ??
           "Social authentication could not be completed. Please try again.";
         setSocialState((s) => {
-          const activeKey = Object.keys(s).find((k) => s[k] === "loading");
+          // The provider callback can succeed before App.tsx verifies the
+          // issued session with /api/auth/me. If that final check fails, the
+          // button is already "success", not "loading"; reset it too so the
+          // screen never claims the user is connected while showing an error.
+          const activeKey =
+            Object.keys(s).find((k) => s[k] === "loading") ??
+            Object.keys(s).find((k) => s[k] === "success");
           if (!activeKey) return s;
           scheduleReset(activeKey, 3000);
           return { ...s, [activeKey]: "error" };
