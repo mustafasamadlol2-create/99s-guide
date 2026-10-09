@@ -85,18 +85,18 @@ export function createLegacyPointsBackfillAdapter({
     },
     async apply(item) {
       const before = await audit(item.id, database);
-      let batch: StudyPointsLegacyBackfillBatchResult | undefined;
+      let remainingPointLogRows: number;
       let importedLedgerEntries = 0;
       let iterations = 0;
       do {
-        batch = await backfill({ userId: item.id }, database);
+        const batch = await backfill({ userId: item.id }, database);
         importedLedgerEntries += batch.importedLedgerEntries;
+        remainingPointLogRows = batch.remainingPointLogRows;
         iterations += 1;
-        if (batch.remainingPointLogRows === 0) break;
-        if (iterations >= 100_000) {
+        if (remainingPointLogRows !== 0 && iterations >= 100_000) {
           throw new Error("Legacy Study Points import exceeded the safety batch limit.");
         }
-      } while (true);
+      } while (remainingPointLogRows !== 0);
       const after = await audit(item.id, database);
       return legacyImportResult(
         after,
