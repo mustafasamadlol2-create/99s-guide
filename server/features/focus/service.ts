@@ -6,7 +6,11 @@ import {
 } from "../study-core/projection.js";
 import { PROJECTION_CONTRACT_VERSION } from "../study-core/constants.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
-import { canTransitionFocusSession, type FocusSessionState } from "../study-core/focus.js";
+import {
+  canTransitionFocusSession,
+  FOCUS_SESSION_STATES,
+  type FocusSessionState,
+} from "../study-core/focus.js";
 import type { EvidenceClass } from "../study-core/evidence.js";
 import type { StudyEventSource, StudyEventType } from "../study-core/events.js";
 import {
@@ -59,7 +63,10 @@ import {
   privateReadEnabled,
   type FocusPlanReadProjection,
 } from "../../services/privateD1Read.js";
-import type { StudyDailyMetricProjection } from "../study-core/projection.js";
+import type {
+  FocusSessionProjection,
+  StudyDailyMetricProjection,
+} from "../study-core/projection.js";
 import type {
   FocusBackendService,
   FocusBreakDto,
@@ -206,6 +213,24 @@ type SessionRecord = {
   planItem: PlanItemRecord;
 };
 
+type SessionDtoInput = Pick<
+  SessionRecord,
+  | "id"
+  | "planId"
+  | "planItemId"
+  | "lectureId"
+  | "status"
+  | "startedAt"
+  | "plannedEndAt"
+  | "actualEndedAt"
+  | "lastCheckpointAt"
+  | "activeSeconds"
+  | "pauseSeconds"
+  | "completionReason"
+> & {
+  planItem: Pick<PlanItemRecord, "sessionCount">;
+};
+
 type FocusBreakRecord = {
   id: string;
   userId: string;
@@ -239,6 +264,11 @@ type FocusServiceOptions = {
     userId: string,
     options: { limit?: number; status?: "ACTIVE" | "ARCHIVED" },
   ) => Promise<FocusPlanReadProjection[]>;
+  d1SessionReadsEnabled?: () => boolean;
+  fetchSessionsFromD1?: (
+    userId: string,
+    options?: { status?: string; limit?: number },
+  ) => Promise<FocusSessionProjection[]>;
   d1MetricReadsEnabled?: () => boolean;
   fetchMetricsFromD1?: (
     userId: string,
@@ -299,7 +329,7 @@ function d1PlanDto(plan: FocusPlanReadProjection): FocusPlanDto {
   };
 }
 
-function timerInput(session: SessionRecord): FocusTimerSession {
+function timerInput(session: SessionDtoInput): FocusTimerSession {
   return {
     status: session.status as FocusTimerSession["status"],
     startedAt: session.startedAt,
@@ -315,7 +345,7 @@ function planSessionNumber(status: string, completedCount: number): number {
 }
 
 function sessionDto(
-  session: SessionRecord,
+  session: SessionDtoInput,
   now: Date,
   completedCount: number,
 ): FocusSessionDto {

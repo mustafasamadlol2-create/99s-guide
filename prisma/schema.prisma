@@ -636,6 +636,8 @@ model FocusSession {
   planId           String
   planItemId       String
   lectureId        String
+  /// Last canonical outbox revision applied to this session's D1 projection.
+  projectionRevision BigInt   @default(0)
   status           String    @default("CREATED")
   startedAt        DateTime?
   plannedEndAt     DateTime?
