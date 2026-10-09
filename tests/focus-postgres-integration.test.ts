@@ -95,7 +95,11 @@ async function withFixture(run: (fixture: Fixture) => Promise<void>): Promise<vo
   }
 }
 
-function planInput(fixture: Fixture, sessionCount = 2) {
+function planInput(
+  fixture: Fixture,
+  sessionCount = 2,
+  breakDurationSeconds = 600,
+) {
   return {
     title: "Prompt 9 plan",
     timezone: "Asia/Baghdad",
@@ -104,7 +108,7 @@ function planInput(fixture: Fixture, sessionCount = 2) {
       sequence: 1,
       sessionCount,
       focusDurationSeconds: 2_700,
-      breakDurationSeconds: 600,
+       breakDurationSeconds,
       includeMcq: true,
       includeFlashcards: false,
       includeVideo: true,
@@ -116,8 +120,12 @@ async function createPlan(
   focus: FocusBackendService,
   fixture: Fixture,
   sessionCount = 2,
+  breakDurationSeconds = 600,
 ): Promise<FocusPlanDto> {
-  return focus.createPlan(fixture.userId, planInput(fixture, sessionCount));
+  return focus.createPlan(
+    fixture.userId,
+    planInput(fixture, sessionCount, breakDurationSeconds),
+  );
 }
 
 function startInput(plan: FocusPlanDto, idempotencyKey: string, source = "web" as const) {
@@ -857,6 +865,7 @@ test("real PostgreSQL persists Focus Breaks and preserves study timing and next-
       idempotencyKey: "prompt-focus-break-complete",
     });
     assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(completed.nextSession, undefined);
     assert.equal(completed.session.activeSeconds, 2_700);
     assert.equal(completed.session.pauseSeconds, 165);
     const postCompletionBreak = await recoveredService.getBreak(fixture.userId, started.session.id);
@@ -879,5 +888,178 @@ test("real PostgreSQL persists Focus Breaks and preserves study timing and next-
       startInput(plan, "prompt-next-after-break"),
     );
     assert.equal(nextSession.session.status, "ACTIVE");
+  });
+});
+
+test("real PostgreSQL zero-break completion starts the next session without a break", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const focus = makeService(() => new Date(clock));
+    const plan = await createPlan(focus, fixture, 2, 0);
+    const started = await focus.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-zero-break-start"),
+    );
+    clock = new Date(T0.getTime() + 2_700_000);
+
+    const completed = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-zero-break-complete",
+    });
+    assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(completed.nextSession?.status, "ACTIVE");
+    assert.equal(completed.nextSession?.sessionNumber, 2);
+    assert.notEqual(completed.nextSession?.id, started.session.id);
+    assert.equal((await focus.getBreak(fixture.userId, started.session.id)).breakSession, null);
+    assert.equal(await client().focusBreak.count({ where: { userId: fixture.userId } }), 0);
+    assert.equal(
+      (await focus.currentSession(fixture.userId)).session?.id,
+      completed.nextSession?.id,
+    );
+
+    const nextStartEvent = await client().studyEvent.findFirst({
+      where: {
+        userId: fixture.userId,
+        eventType: "focus_session_started",
+        focusSessionId: completed.nextSession!.id,
+      },
+    });
+    assert.equal(nextStartEvent?.source, "backend");
+    assert.equal(nextStartEvent?.evidenceClass, "SERVER_VALIDATED");
+    assert.equal(
+      (await outboxRows(fixture.userId)).filter((row) => row.entity === "FocusSession").length,
+      3,
+    );
+  });
+});
+
+test("real PostgreSQL does not start a zero-second manual break or pause Study", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    const focus = makeService(() => new Date(T0));
+    const plan = await createPlan(focus, fixture, 2, 0);
+    const started = await focus.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-zero-manual-break-start"),
+    );
+
+    await assert.rejects(
+      focus.startBreak(fixture.userId, started.session.id, {
+        idempotencyKey: "prompt-zero-manual-break",
+        source: "web",
+      }),
+      /does not have a break configured/,
+    );
+    assert.equal(
+      (await focus.currentSession(fixture.userId)).session?.status,
+      "ACTIVE",
+    );
+    assert.equal(await client().focusBreak.count({ where: { userId: fixture.userId } }), 0);
+  });
+});
+
+test("real PostgreSQL zero-break completion retries return the same successor without duplicate writes", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const focus = makeService(() => new Date(clock));
+    const plan = await createPlan(focus, fixture, 2, 0);
+    const started = await focus.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-zero-retry-start"),
+    );
+    clock = new Date(T0.getTime() + 2_700_000);
+
+    const first = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-zero-retry-complete",
+    });
+    const afterFirst = await counts(fixture.userId);
+    const retry = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-zero-retry-complete",
+    });
+
+    assert.equal(first.idempotency, "FIRST_SEEN");
+    assert.equal(retry.idempotency, "REPLAY_SAME_PAYLOAD");
+    assert.equal(retry.nextSession?.id, first.nextSession?.id);
+    assert.deepEqual(await counts(fixture.userId), afterFirst);
+    assert.equal(
+      await client().focusSession.count({
+        where: {
+          userId: fixture.userId,
+          idempotencyKey: `post-completion-next:${started.session.id}`,
+        },
+      }),
+      1,
+    );
+  });
+});
+
+test("real PostgreSQL concurrent zero-break completions create at most one successor", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const firstService = makeService(() => new Date(clock));
+    const secondService = makeService(() => new Date(clock));
+    const plan = await createPlan(firstService, fixture, 2, 0);
+    const started = await firstService.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-zero-concurrent-start"),
+    );
+    clock = new Date(T0.getTime() + 2_700_000);
+    const completionKeys = [
+      "prompt-zero-concurrent-complete-a",
+      "prompt-zero-concurrent-complete-b",
+    ];
+    const outcomes = await Promise.allSettled([
+      firstService.completeSession(fixture.userId, started.session.id, {
+        idempotencyKey: completionKeys[0],
+      }),
+      secondService.completeSession(fixture.userId, started.session.id, {
+        idempotencyKey: completionKeys[1],
+      }),
+    ]);
+    const winner = outcomes.find((outcome) => outcome.status === "fulfilled");
+    const failures = outcomes.filter((outcome) => outcome.status === "rejected");
+    assert.ok(winner && winner.status === "fulfilled");
+    assert.equal(failures.length, 1);
+    assert.equal((failures[0] as PromiseRejectedResult).reason?.code, "INVALID_SESSION_STATE");
+    const winningKey = completionKeys[outcomes.indexOf(winner)];
+    const replay = await firstService.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: winningKey,
+    });
+
+    assert.equal(replay.nextSession?.id, winner.value.nextSession?.id);
+    assert.equal(
+      await client().focusSession.count({
+        where: {
+          userId: fixture.userId,
+          idempotencyKey: `post-completion-next:${started.session.id}`,
+        },
+      }),
+      1,
+    );
+    assert.equal(
+      await client().focusSession.count({ where: { userId: fixture.userId } }),
+      2,
+    );
+  });
+});
+
+test("real PostgreSQL final zero-break completion creates neither a break nor a successor", { skip: skipped }, async () => {
+  await withFixture(async (fixture) => {
+    let clock = new Date(T0);
+    const focus = makeService(() => new Date(clock));
+    const plan = await createPlan(focus, fixture, 1, 0);
+    const started = await focus.startSession(
+      fixture.userId,
+      startInput(plan, "prompt-zero-final-start"),
+    );
+    clock = new Date(T0.getTime() + 2_700_000);
+
+    const completed = await focus.completeSession(fixture.userId, started.session.id, {
+      idempotencyKey: "prompt-zero-final-complete",
+    });
+
+    assert.equal(completed.session.status, "COMPLETED");
+    assert.equal(completed.nextSession, undefined);
+    assert.equal(completed.manualLectureCompletionRequired, true);
+    assert.equal(await client().focusBreak.count({ where: { userId: fixture.userId } }), 0);
+    assert.equal((await focus.currentSession(fixture.userId)).session, null);
   });
 });

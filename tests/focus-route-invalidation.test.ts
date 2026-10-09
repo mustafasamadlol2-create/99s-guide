@@ -100,6 +100,10 @@ test("terminal Focus mutations invalidate only the resources they change", async
         return {
           idempotency: "FIRST_SEEN",
           session: { id: sessionId, status: "COMPLETED" },
+          nextSession: {
+            id: "22222222-2222-4222-8222-222222222222",
+            status: "ACTIVE",
+          },
         };
       },
     } as never,
@@ -133,6 +137,10 @@ test("terminal Focus mutations invalidate only the resources they change", async
       "summary",
       "post-actions",
     ]);
+    assert.equal(
+      invalidations[0].sessionId,
+      "11111111-1111-4111-8111-111111111111",
+    );
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());

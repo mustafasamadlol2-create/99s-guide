@@ -858,6 +858,10 @@ function ActiveFocusScreenCore({
       handleEndBreak();
       return;
     }
+    if (!activeBreak && currentPlanItem?.breakDurationSeconds === 0) {
+      setActivePhase((previous) => previous === "plan" ? "plan" : "focus");
+      return;
+    }
     if (activeBreak) {
       setActivePhase("break");
       return;
@@ -890,6 +894,17 @@ function ActiveFocusScreenCore({
       () => controller.complete(),
       async (value) => {
         const result = value as FocusSessionMutationResult;
+        if (result.nextSession) {
+          controller.acceptMutationSession(result.nextSession);
+          setTerminalResult(null);
+          setProgression(null);
+          setBreakSnapshot(null);
+          setActivePhase("focus");
+          notifyAudioSafely(() => audio?.onFocusCompleted());
+          notifyAudioSafely(() => audio?.onFocusStarted());
+          onOpenSession(result.nextSession.id);
+          return;
+        }
         setTerminalResult(result);
         const progressionResult = currentPlan
           ? deriveFocusProgression(currentPlan.items, result.session)

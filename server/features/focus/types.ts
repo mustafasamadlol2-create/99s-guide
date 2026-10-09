@@ -62,6 +62,7 @@ export interface FocusSessionDto {
 
 export interface FocusSessionMutationResult {
   session: FocusSessionDto;
+  nextSession?: FocusSessionDto;
   idempotency: "CREATED" | "FIRST_SEEN" | "REPLAY_SAME_PAYLOAD";
   manualLectureCompletionRequired?: boolean;
   followUpPreferences?: {

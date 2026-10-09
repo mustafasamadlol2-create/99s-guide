@@ -1009,6 +1009,124 @@ async function nextUncompletedPlanItemId(
     (completedByItem.get(item.id) ?? 0) < item.sessionCount)?.id ?? null;
 }
 
+function automaticNextSessionKey(completedSessionId: string): string {
+  return `post-completion-next:${completedSessionId}`;
+}
+
+async function findAutomaticNextSession(
+  tx: FocusTransaction,
+  userId: string,
+  completedSessionId: string,
+  now: Date,
+): Promise<FocusSessionDto | null> {
+  const session = await tx.focusSession.findUnique({
+    where: {
+      userId_idempotencyKey: {
+        userId,
+        idempotencyKey: automaticNextSessionKey(completedSessionId),
+      },
+    },
+    include: { planItem: true },
+  }) as SessionRecord | null;
+  if (!session) return null;
+  const count = await completedCount(tx, userId, session.planItemId);
+  return sessionDto(session, now, count);
+}
+
+async function startAutomaticNextSession(
+  tx: FocusTransaction,
+  userId: string,
+  completedSession: SessionRecord,
+  nextPlanItemId: string,
+  now: Date,
+): Promise<FocusSessionDto> {
+  const idempotencyKey = automaticNextSessionKey(completedSession.id);
+  const existing = await tx.focusSession.findUnique({
+    where: { userId_idempotencyKey: { userId, idempotencyKey } },
+    include: { planItem: true },
+  }) as SessionRecord | null;
+  if (existing) {
+    if (existing.planId !== completedSession.planId ||
+        existing.planItemId !== nextPlanItemId) {
+      throw new FocusError(
+        "RECONCILIATION_REQUIRED",
+        "The automatic next Focus Session does not match the completed plan.",
+      );
+    }
+    const count = await completedCount(tx, userId, existing.planItemId);
+    return sessionDto(existing, now, count);
+  }
+
+  const plan = await ownedPlan(tx, userId, completedSession.planId);
+  if (plan.status !== "ACTIVE") {
+    throw new FocusError(
+      "INVALID_SESSION_STATE",
+      "The Focus Plan is no longer active.",
+    );
+  }
+  const planItem = plan.items.find((item) => item.id === nextPlanItemId);
+  if (!planItem) {
+    throw new FocusError(
+      "RECONCILIATION_REQUIRED",
+      "The next planned Focus Session could not be found.",
+    );
+  }
+  if (await countNonterminal(tx, userId) > 0) {
+    throw new FocusError(
+      "INVALID_SESSION_STATE",
+      "Another Focus Session is already active.",
+    );
+  }
+
+  const sessionNumber = await completedCount(tx, userId, planItem.id);
+  if (sessionNumber >= planItem.sessionCount) {
+    throw new FocusError(
+      "RECONCILIATION_REQUIRED",
+      "The next planned Focus Session has already been completed.",
+    );
+  }
+  const created = await tx.focusSession.create({
+    data: {
+      userId,
+      planId: plan.id,
+      planItemId: planItem.id,
+      lectureId: planItem.lectureId,
+      status: "ACTIVE",
+      startedAt: now,
+      plannedEndAt: new Date(now.getTime() + planItem.focusDurationSeconds * 1_000),
+      lastCheckpointAt: now,
+      activeSeconds: 0,
+      pauseSeconds: 0,
+      idempotencyKey,
+    },
+    include: { planItem: true },
+  }) as SessionRecord;
+  const startEventIdempotencyKey = focusEventKey(
+    "started",
+    created.id,
+    idempotencyKey,
+  );
+  const startEventResult = await ingestFocusEvent(tx, {
+    eventType: "focus_session_started",
+    userId,
+    occurredAt: now,
+    source: "backend",
+    idempotencyKey: startEventIdempotencyKey,
+    lectureId: created.lectureId,
+    focusSessionId: created.id,
+    evidenceClass: "SERVER_VALIDATED",
+    payload: {},
+  });
+  if (startEventResult !== "FIRST_SEEN") {
+    throw new FocusError(
+      "RECONCILIATION_REQUIRED",
+      "The automatic Focus Session start event unexpectedly replayed.",
+    );
+  }
+  await enqueueSessionProjection(tx, created);
+  return sessionDto(created, now, sessionNumber);
+}
+
 function requestInputError(message: string): FocusError {
   return new FocusError("INVALID_REQUEST", message);
 }
@@ -1909,6 +2027,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         await repository.lockUser(tx, userId);
         let session = await ownedSession(tx, userId, sessionId);
         const clock = assertValidClock(now());
+        if (session.planItem.breakDurationSeconds === 0) {
+          throw new FocusError(
+            "INVALID_SESSION_STATE",
+            "This Focus Plan does not have a break configured.",
+          );
+        }
         const priorByKey = await tx.focusBreak.findUnique({
           where: {
             userId_startIdempotencyKey: {
@@ -2173,8 +2297,15 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           });
           const count = await completedCount(tx, userId, session.planItemId);
           const dto = sessionDto(session, clock, count);
+          const nextSession = await findAutomaticNextSession(
+            tx,
+            userId,
+            session.id,
+            clock,
+          );
           return {
             session: dto,
+            ...(nextSession ? { nextSession } : {}),
             idempotency,
             manualLectureCompletionRequired: dto.isLastPlannedSession,
             followUpPreferences: {
@@ -2262,35 +2393,52 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           });
         }
         await enqueueSessionProjection(tx, updated);
-        if (await nextUncompletedPlanItemId(tx, userId, updated.planId)) {
-          const automaticBreakKey = `post-completion:${updated.id}`;
-          const existingBreak = await tx.focusBreak.findUnique({
-            where: {
-              userId_startIdempotencyKey: {
-                userId,
-                startIdempotencyKey: automaticBreakKey,
-              },
-            },
-          });
-          if (!existingBreak) {
-            const durationSeconds = updated.planItem.breakDurationSeconds;
-            await tx.focusBreak.create({
-              data: {
-                userId,
-                focusSessionId: updated.id,
-                durationSeconds,
-                startedAt: clock,
-                endsAt: new Date(clock.getTime() + durationSeconds * 1_000),
-                resumeStudyOnReturn: false,
-                startIdempotencyKey: automaticBreakKey,
+        let nextSession: FocusSessionDto | undefined;
+        const nextPlanItemId = await nextUncompletedPlanItemId(
+          tx,
+          userId,
+          updated.planId,
+        );
+        if (nextPlanItemId) {
+          if (updated.planItem.breakDurationSeconds === 0) {
+            nextSession = await startAutomaticNextSession(
+              tx,
+              userId,
+              updated,
+              nextPlanItemId,
+              clock,
+            );
+          } else {
+            const automaticBreakKey = `post-completion:${updated.id}`;
+            const existingBreak = await tx.focusBreak.findUnique({
+              where: {
+                userId_startIdempotencyKey: {
+                  userId,
+                  startIdempotencyKey: automaticBreakKey,
+                },
               },
             });
+            if (!existingBreak) {
+              const durationSeconds = updated.planItem.breakDurationSeconds;
+              await tx.focusBreak.create({
+                data: {
+                  userId,
+                  focusSessionId: updated.id,
+                  durationSeconds,
+                  startedAt: clock,
+                  endsAt: new Date(clock.getTime() + durationSeconds * 1_000),
+                  resumeStudyOnReturn: false,
+                  startIdempotencyKey: automaticBreakKey,
+                },
+              });
+            }
           }
         }
         const count = await completedCount(tx, userId, updated.planItemId);
         const dto = sessionDto(updated, clock, count);
         return {
           session: dto,
+          ...(nextSession ? { nextSession } : {}),
           idempotency,
           manualLectureCompletionRequired: dto.isLastPlannedSession,
           followUpPreferences: {

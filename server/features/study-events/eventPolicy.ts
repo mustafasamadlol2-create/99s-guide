@@ -48,7 +48,11 @@ const policy = (values: Partial<StudyEventPolicy> & Pick<StudyEventPolicy, "mini
 });
 
 const registry: Record<StudyEventType, StudyEventPolicy> = {
-  focus_session_started: noMetric("CLIENT_OBSERVED", clientSources, "Focus Service"),
+  focus_session_started: noMetric(
+    "CLIENT_OBSERVED",
+    [...clientSources, "backend"],
+    "Focus Service",
+  ),
   focus_session_paused: noMetric("CLIENT_OBSERVED", clientSources, "Focus Service"),
   focus_session_resumed: noMetric("CLIENT_OBSERVED", clientSources, "Focus Service"),
   focus_session_completed: policy({

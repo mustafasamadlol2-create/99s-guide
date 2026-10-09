@@ -280,6 +280,9 @@ function postFocusActionContext(value: unknown): PostFocusActionContext {
 function mutation(value: unknown): FocusSessionMutationResult {
   const item = record(value, "mutation response");
   const result = session(item.session);
+  const nextSession = item.nextSession === undefined
+    ? undefined
+    : session(item.nextSession);
   if (typeof item.idempotency !== "string" || !IDEMPOTENCY_RESULTS.has(item.idempotency)) {
     throw protocol("Invalid Focus idempotency result.");
   }
@@ -288,7 +291,11 @@ function mutation(value: unknown): FocusSessionMutationResult {
     const preferences = record(item.followUpPreferences, "follow-up preferences");
     for (const name of ["includeMcq", "includeFlashcards", "includeVideo"]) booleanField(preferences[name], name);
   }
-  return item as unknown as FocusSessionMutationResult;
+  return {
+    ...item,
+    session: result,
+    ...(nextSession ? { nextSession } : {}),
+  } as unknown as FocusSessionMutationResult;
 }
 
 function interruption(value: unknown): FocusInterruptionResult {
