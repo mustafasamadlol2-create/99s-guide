@@ -32,6 +32,13 @@ import {
   FOCUS_STATE_INVALIDATED_EVENT,
   isFocusInvalidationFromCurrentClient,
 } from "./features/focus/api/focusSync";
+import {
+  acceptGamificationUpdate,
+  GAMIFICATION_INVALIDATED_EVENT,
+  GAMIFICATION_SOCKET_RECONNECTED_EVENT,
+  GAMIFICATION_UPDATE_EVENT,
+  setGamificationReadAccountScope,
+} from "./features/gamification/realtime";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
@@ -738,6 +745,7 @@ function AppContent({
     socket.on("connect", () => {
       const socketUser = currentUserRef.current;
       if (!socketUser) return;
+      setGamificationReadAccountScope(socketUser.id);
       const isReconnect = hasConnectedOnce;
       hasConnectedOnce = true;
 
@@ -752,6 +760,7 @@ function AppContent({
 
       if (isReconnect) {
         window.dispatchEvent(new Event(FOCUS_SOCKET_RECONNECTED_EVENT));
+        window.dispatchEvent(new Event(GAMIFICATION_SOCKET_RECONNECTED_EVENT));
       }
 
       // Re-fetch critical canonical state that could have been missed during disconnect
@@ -771,6 +780,14 @@ function AppContent({
       if (!detail) return;
       window.dispatchEvent(new CustomEvent(FOCUS_STATE_INVALIDATED_EVENT, {
         detail: { ...detail, reason: "server-mutation" },
+      }));
+    });
+
+    socket.on(GAMIFICATION_UPDATE_EVENT, (payload?: unknown) => {
+      const detail = acceptGamificationUpdate(payload);
+      if (!detail) return;
+      window.dispatchEvent(new CustomEvent(GAMIFICATION_INVALIDATED_EVENT, {
+        detail,
       }));
     });
 

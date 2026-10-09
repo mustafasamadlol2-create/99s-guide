@@ -82,6 +82,12 @@ import {
   getMyGamificationSummary,
   refreshUserGamificationBestEffort,
 } from "./server/features/gamification/gamificationRead.js";
+import { isGamificationEnabled } from "./server/features/gamification/featureGate.js";
+import {
+  createGamificationUpdateBroadcaster,
+  GAMIFICATION_UPDATE_EVENT,
+  type GamificationUpdateResource,
+} from "./server/features/gamification/realtime.js";
 import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import {
@@ -7837,7 +7843,45 @@ app.use(
     putCloud: putPersonalizationToCloud,
   }),
 );
-setStudyPointsPostCommitHook(refreshUserGamificationBestEffort);
+const broadcastGamificationUpdate = createGamificationUpdateBroadcaster(
+  (userId, payload) => {
+    io.to(`user-${userId}`).emit(GAMIFICATION_UPDATE_EVENT, payload);
+  },
+  (payload) => {
+    io.to("authenticated").emit(GAMIFICATION_UPDATE_EVENT, payload);
+  },
+);
+const notifyGamificationUpdate = (
+  userId: string,
+  resources: readonly GamificationUpdateResource[],
+) => {
+  if (isGamificationEnabled()) broadcastGamificationUpdate(userId, resources);
+};
+const refreshAchievementsAndNotify = async (userId: string) => {
+  await refreshUserAchievementsBestEffort(userId);
+  notifyGamificationUpdate(userId, ["summary", "achievements"]);
+};
+const refreshChallengesAndNotify = async (
+  userId: string,
+  metricIds: readonly string[],
+) => {
+  try {
+    await refreshUserChallenges({ userId, metricIds });
+  } finally {
+    notifyGamificationUpdate(userId, ["challenges"]);
+  }
+};
+
+setStudyPointsPostCommitHook(async (userId) => {
+  await refreshUserGamificationBestEffort(userId);
+  notifyGamificationUpdate(userId, [
+    "summary",
+    "achievements",
+    "challenges",
+    "leaderboard",
+    "rank",
+  ]);
+});
 app.use("/api", createStudyFeatureFlagsRouter());
 app.use(
   "/api",
@@ -7892,11 +7936,10 @@ app.use(
     broadcastInvalidation: (userId, event) => {
       io.to(`user-${userId}`).emit("focus_state_changed", event);
     },
-    refreshAchievements: refreshUserAchievementsBestEffort,
+    refreshAchievements: refreshAchievementsAndNotify,
     refreshMastery: (userId, lectureId) =>
       refreshLectureMasteryBestEffort({ userId, lectureId }),
-    refreshChallenges: (userId, metricIds) =>
-      refreshUserChallenges({ userId, metricIds }),
+    refreshChallenges: refreshChallengesAndNotify,
   }),
 );
 app.use(
@@ -7920,11 +7963,10 @@ app.use(
   "/api/internal/group-focus/runtime",
   createGroupFocusRuntimeInternalRouter({
     service: createGroupFocusRuntimeSummaryService({
-      postCommitAchievementRefresh: refreshUserAchievementsBestEffort,
+      postCommitAchievementRefresh: refreshAchievementsAndNotify,
       postCommitMasteryRefresh: (userId, lectureId) =>
         refreshLectureMasteryBestEffort({ userId, lectureId }),
-      postCommitChallengeRefresh: (userId, metricIds) =>
-        refreshUserChallenges({ userId, metricIds }),
+      postCommitChallengeRefresh: refreshChallengesAndNotify,
     }),
   }),
 );

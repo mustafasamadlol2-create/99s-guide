@@ -727,6 +727,7 @@ export const ProfileView = function ProfileView({
              }
            >
              <LazyGamificationFrontend
+              accountId={user.id}
                language={language}
                onBack={profileBackGesture.triggerBack}
                studyPointsEnabled={STUDY_POINTS_ENABLED}

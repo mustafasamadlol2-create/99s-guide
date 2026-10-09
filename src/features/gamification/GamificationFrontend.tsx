@@ -6,6 +6,14 @@ import {
 } from "lucide-react";
 import { useTranslation, type Language } from "../../core/i18n/translations";
 import { gamificationApi } from "./api";
+import {
+  GAMIFICATION_INVALIDATED_EVENT,
+  GAMIFICATION_SOCKET_RECONNECTED_EVENT,
+  resourcesForGamificationReconnect,
+  setGamificationReadAccountScope,
+  type GamificationInvalidationDetail,
+  type GamificationSyncResource,
+} from "./realtime";
 import type {
   Achievement, AchievementsResponse, ChallengesResponse, ChallengeItem, GamificationSummary, UnlockHistory,
   GamificationTab, LeaderboardEntry, LeaderboardResponse, LeaderboardScope, OwnRankResponse,
@@ -14,6 +22,7 @@ import type {
 import "./gamification.css";
 
 export interface GamificationFrontendProps {
+  accountId?: string | null;
   language: "en" | "ar";
   onBack: () => void;
   studyPointsEnabled: boolean;
@@ -159,6 +168,7 @@ function formatChallengeAmount(
 }
 
 export function GamificationFrontend({
+  accountId = null,
   language,
   onBack,
   studyPointsEnabled,
@@ -188,7 +198,9 @@ export function GamificationFrontend({
   const [overviewRankError, setOverviewRankError] = useState(false);
   const [overviewRankRetrySerial, setOverviewRankRetrySerial] = useState(0);
   const [selectedParticipant, setSelectedParticipant] = useState<{ userId: string; profile: PublicProfile | null; unavailable: boolean; loading: boolean } | null>(null);
-  const privateGeneration = useRef(0);
+  const summaryGeneration = useRef(0);
+  const achievementsGeneration = useRef(0);
+  const challengesGeneration = useRef(0);
   const leaderboardGeneration = useRef(0);
   const leaderboardRequestingScope = useRef<LeaderboardScope | null>(null);
   const rankGeneration = useRef(0);
@@ -197,8 +209,16 @@ export function GamificationFrontend({
   const warnedPointMismatch = useRef(false);
   const currentTab = useRef(tab);
   const currentScope = useRef(scope);
+  const currentLeaderboard = useRef(leaderboard);
+  const currentOverviewRank = useRef(overviewRank);
+  const currentOwnRank = useRef(ownRank);
+  const currentAccountId = useRef<string | null>(accountId);
   currentTab.current = tab;
   currentScope.current = scope;
+  currentLeaderboard.current = leaderboard;
+  currentOverviewRank.current = overviewRank;
+  currentOwnRank.current = ownRank;
+  currentAccountId.current = accountId;
 
   const tx = useCallback((key: string, fallbackEn: string, fallbackAr: string) => {
     const translated = tGlobal(key);
@@ -226,39 +246,113 @@ export function GamificationFrontend({
   }, [tGlobal, tx]);
   const formatNumber = useCallback((value: number) => new Intl.NumberFormat(locale).format(value), [locale]);
 
-  const loadPrivateData = useCallback(async () => {
-    const requestId = ++privateGeneration.current;
-    setErrors((old) => ({ ...old, summary: false, achievements: false, challenges: false }));
-    setLoading((old) => ({ ...old, summary: true, achievements: true, challenges: true }));
-    const jobs = [
-      gamificationApi.summary().then((data) => { if (privateGeneration.current === requestId) setSummary(data); }).catch(() => { if (privateGeneration.current === requestId) setErrors((old) => ({ ...old, summary: true })); }),
-      gamificationApi.achievements().then((data) => { if (privateGeneration.current === requestId) setAchievements(data); }).catch(() => { if (privateGeneration.current === requestId) setErrors((old) => ({ ...old, achievements: true })); }),
-      gamificationApi.challenges().then((data) => { if (privateGeneration.current === requestId) setChallenges(data); }).catch(() => { if (privateGeneration.current === requestId) setErrors((old) => ({ ...old, challenges: true })); }),
-    ];
-    await Promise.all(jobs);
-    if (privateGeneration.current === requestId) setLoading((old) => ({ ...old, summary: false, achievements: false, challenges: false }));
+  const loadSummary = useCallback(async () => {
+    const account = currentAccountId.current;
+    const requestId = ++summaryGeneration.current;
+    setErrors((old) => ({ ...old, summary: false }));
+    setLoading((old) => ({ ...old, summary: true }));
+    try {
+      const data = await gamificationApi.summary();
+      if (
+        summaryGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setSummary(data);
+    } catch {
+      if (
+        summaryGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setErrors((old) => ({ ...old, summary: true }));
+    } finally {
+      if (
+        summaryGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setLoading((old) => ({ ...old, summary: false }));
+    }
   }, []);
 
+  const loadAchievements = useCallback(async () => {
+    const account = currentAccountId.current;
+    const requestId = ++achievementsGeneration.current;
+    setErrors((old) => ({ ...old, achievements: false }));
+    setLoading((old) => ({ ...old, achievements: true }));
+    try {
+      const data = await gamificationApi.achievements();
+      if (
+        achievementsGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setAchievements(data);
+    } catch {
+      if (
+        achievementsGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setErrors((old) => ({ ...old, achievements: true }));
+    } finally {
+      if (
+        achievementsGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setLoading((old) => ({ ...old, achievements: false }));
+    }
+  }, []);
+
+  const loadChallenges = useCallback(async () => {
+    const account = currentAccountId.current;
+    const requestId = ++challengesGeneration.current;
+    setErrors((old) => ({ ...old, challenges: false }));
+    setLoading((old) => ({ ...old, challenges: true }));
+    try {
+      const data = await gamificationApi.challenges();
+      if (
+        challengesGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setChallenges(data);
+    } catch {
+      if (
+        challengesGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setErrors((old) => ({ ...old, challenges: true }));
+    } finally {
+      if (
+        challengesGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setLoading((old) => ({ ...old, challenges: false }));
+    }
+  }, []);
+
+  const loadPrivateData = useCallback(async () => {
+    await Promise.all([loadSummary(), loadAchievements(), loadChallenges()]);
+  }, [loadAchievements, loadChallenges, loadSummary]);
+
   const loadOverviewRank = useCallback(async () => {
+    const account = currentAccountId.current;
     const requestId = ++overviewRankGeneration.current;
     setOverviewRank(null);
     setOverviewRankError(false);
     setOverviewRankLoading(true);
     try {
       const result = await gamificationApi.ownRank("WEEKLY");
-      if (overviewRankGeneration.current === requestId) setOverviewRank(result);
+      if (
+        overviewRankGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setOverviewRank(result);
     } catch {
-      if (overviewRankGeneration.current === requestId) {
+      if (
+        overviewRankGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) {
         setOverviewRank(null);
         setOverviewRankError(true);
       }
     } finally {
-      if (overviewRankGeneration.current === requestId) setOverviewRankLoading(false);
+      if (
+        overviewRankGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) setOverviewRankLoading(false);
     }
   }, []);
 
   const loadLeaderboard = useCallback(async (nextScope: LeaderboardScope, append = false) => {
     if (append && !leaderboard?.nextCursor) return;
+    const account = currentAccountId.current;
     const requestId = ++leaderboardGeneration.current;
     leaderboardRequestingScope.current = nextScope;
     if (!append) {
@@ -272,7 +366,11 @@ export function GamificationFrontend({
     try {
       const cursor = append ? leaderboard?.nextCursor : null;
       const result = await gamificationApi.leaderboard(nextScope, cursor);
-      if (leaderboardGeneration.current !== requestId || currentScope.current !== nextScope) return;
+      if (
+        leaderboardGeneration.current !== requestId ||
+        currentScope.current !== nextScope ||
+        currentAccountId.current !== account
+      ) return;
       setLeaderboard((old) => {
         if (!append || old?.scope !== nextScope) return result;
         const seen = new Set(old.entries.map((entry) => entry.userId));
@@ -286,7 +384,10 @@ export function GamificationFrontend({
       setCursorHasExpired(false);
       setOwnRank(null);
     } catch (error) {
-      if (leaderboardGeneration.current !== requestId) return;
+      if (
+        leaderboardGeneration.current !== requestId ||
+        currentAccountId.current !== account
+      ) return;
       if (append && cursorExpired(error)) {
         setLeaderboard(null);
         setOwnRank(null);
@@ -299,13 +400,90 @@ export function GamificationFrontend({
         setErrors((old) => ({ ...old, leaderboard: true }));
       }
     } finally {
-      if (leaderboardGeneration.current === requestId) {
+      if (
+        leaderboardGeneration.current === requestId &&
+        currentAccountId.current === account
+      ) {
         leaderboardRequestingScope.current = null;
         setLoading((old) => ({ ...old, leaderboard: false }));
         setLoadingMore(false);
       }
     }
   }, [leaderboard]);
+
+  const refreshResources = useCallback(async (
+    resources: readonly GamificationSyncResource[],
+  ) => {
+    const jobs: Promise<unknown>[] = [];
+    if (resources.includes("summary")) jobs.push(loadSummary());
+    if (resources.includes("achievements")) jobs.push(loadAchievements());
+    if (resources.includes("challenges")) jobs.push(loadChallenges());
+    if (
+      resources.includes("leaderboard") &&
+      (currentTab.current === "leaderboard" || currentLeaderboard.current !== null)
+    ) {
+      jobs.push(loadLeaderboard(currentScope.current));
+    }
+    if (
+      resources.includes("rank") &&
+      (currentTab.current === "overview" || currentOverviewRank.current !== null)
+    ) {
+      jobs.push(loadOverviewRank());
+    }
+    if (
+      resources.includes("rank") &&
+      currentTab.current === "leaderboard" &&
+      !resources.includes("leaderboard")
+    ) {
+      setRankRetrySerial((value) => value + 1);
+    }
+    await Promise.all(jobs);
+  }, [
+    loadAchievements,
+    loadChallenges,
+    loadLeaderboard,
+    loadOverviewRank,
+    loadSummary,
+  ]);
+
+  const pendingResources = useRef(new Set<GamificationSyncResource>());
+  const resourceRefreshTimer = useRef<number | null>(null);
+  const queueResourceRefresh = useCallback((
+    resources: readonly GamificationSyncResource[],
+  ) => {
+    resources.forEach((resource) => pendingResources.current.add(resource));
+    if (resourceRefreshTimer.current !== null) return;
+    resourceRefreshTimer.current = window.setTimeout(() => {
+      resourceRefreshTimer.current = null;
+      const queued = [...pendingResources.current];
+      pendingResources.current.clear();
+      void refreshResources(queued);
+    }, 60);
+  }, [refreshResources]);
+
+  useEffect(() => {
+    const onInvalidated = (event: Event) => {
+      const detail = (event as CustomEvent<GamificationInvalidationDetail>).detail;
+      if (detail?.resources?.length) queueResourceRefresh(detail.resources);
+    };
+    const onReconnect = () => {
+      queueResourceRefresh(resourcesForGamificationReconnect(currentTab.current, {
+        leaderboard: currentLeaderboard.current !== null,
+        rank: currentOwnRank.current !== null || currentOverviewRank.current !== null,
+      }));
+    };
+    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
+    window.addEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
+    return () => {
+      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
+      window.removeEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
+      if (resourceRefreshTimer.current !== null) {
+        window.clearTimeout(resourceRefreshTimer.current);
+        resourceRefreshTimer.current = null;
+      }
+      pendingResources.current.clear();
+    };
+  }, [queueResourceRefresh]);
 
   const refresh = useCallback(async () => {
     const activeTab = currentTab.current;
@@ -314,17 +492,24 @@ export function GamificationFrontend({
     const visibleParticipantId = activeTab === "leaderboard" ? selectedParticipant?.userId : undefined;
     const refreshParticipant = async () => {
       if (!visibleParticipantId) return;
+      const account = currentAccountId.current;
       const requestId = ++participantGeneration.current;
       setSelectedParticipant((current) => current?.userId === visibleParticipantId
         ? { ...current, profile: null, loading: true, unavailable: false }
         : current);
       try {
         const profile = await gamificationApi.publicProfile(visibleParticipantId);
-        if (participantGeneration.current === requestId) {
+        if (
+          participantGeneration.current === requestId &&
+          currentAccountId.current === account
+        ) {
           setSelectedParticipant({ userId: visibleParticipantId, profile, unavailable: false, loading: false });
         }
       } catch (error) {
-        if (participantGeneration.current === requestId) {
+        if (
+          participantGeneration.current === requestId &&
+          currentAccountId.current === account
+        ) {
           setSelectedParticipant({ userId: visibleParticipantId, profile: null, unavailable: isNotFound(error), loading: false });
         }
       }
@@ -336,15 +521,42 @@ export function GamificationFrontend({
     } else await privatePromise;
   }, [loadLeaderboard, loadOverviewRank, loadPrivateData, selectedParticipant?.userId]);
 
-  useEffect(() => { void loadPrivateData(); }, [loadPrivateData]);
+  useEffect(() => {
+    setGamificationReadAccountScope(accountId);
+    setSummary(null);
+    setAchievements(null);
+    setChallenges(null);
+    setLeaderboard(null);
+    setOwnRank(null);
+    setOverviewRank(null);
+    setSelectedParticipant(null);
+    setCursorHasExpired(false);
+    setErrors({});
+    setLoading({
+      summary: true,
+      achievements: true,
+      challenges: true,
+      leaderboard: false,
+    });
+    void loadPrivateData();
+    return () => {
+      summaryGeneration.current += 1;
+      achievementsGeneration.current += 1;
+      challengesGeneration.current += 1;
+      leaderboardGeneration.current += 1;
+      rankGeneration.current += 1;
+      overviewRankGeneration.current += 1;
+      participantGeneration.current += 1;
+    };
+  }, [accountId, loadPrivateData]);
   useEffect(() => {
     if (tab === "overview") void loadOverviewRank();
-  }, [tab, overviewRankRetrySerial, loadOverviewRank]);
+  }, [accountId, tab, overviewRankRetrySerial, loadOverviewRank]);
   useEffect(() => {
     if (tab === "leaderboard" && !cursorHasExpired &&
         (!leaderboard || leaderboard.scope !== scope) &&
         leaderboardRequestingScope.current !== scope) void loadLeaderboard(scope);
-  }, [tab, scope, leaderboard?.scope, cursorHasExpired, loadLeaderboard]);
+  }, [accountId, tab, scope, leaderboard?.scope, cursorHasExpired, loadLeaderboard]);
   useEffect(() => {
     const seasonKey = leaderboard?.scope === scope ? leaderboard.season.seasonKey : null;
     if (!seasonKey || tab !== "leaderboard") {
@@ -359,12 +571,31 @@ export function GamificationFrontend({
     setOwnRank(null);
     setRankError(false);
     setRankLoading(true);
+    const account = currentAccountId.current;
     void gamificationApi.ownRank(scope, seasonKey)
-      .then((rank) => { if (!cancelled && rankGeneration.current === requestId) setOwnRank(rank); })
-      .catch(() => { if (!cancelled && rankGeneration.current === requestId) setRankError(true); })
-      .finally(() => { if (!cancelled && rankGeneration.current === requestId) setRankLoading(false); });
+      .then((rank) => {
+        if (
+          !cancelled &&
+          rankGeneration.current === requestId &&
+          currentAccountId.current === account
+        ) setOwnRank(rank);
+      })
+      .catch(() => {
+        if (
+          !cancelled &&
+          rankGeneration.current === requestId &&
+          currentAccountId.current === account
+        ) setRankError(true);
+      })
+      .finally(() => {
+        if (
+          !cancelled &&
+          rankGeneration.current === requestId &&
+          currentAccountId.current === account
+        ) setRankLoading(false);
+      });
     return () => { cancelled = true; };
-  }, [leaderboard?.season.seasonKey, leaderboard?.scope, scope, tab, rankRetrySerial]);
+  }, [accountId, leaderboard?.season.seasonKey, leaderboard?.scope, scope, tab, rankRetrySerial]);
   useEffect(() => {
     let lastRefresh = 0;
     const onForeground = () => {
@@ -381,13 +612,6 @@ export function GamificationFrontend({
       window.removeEventListener("focus", onForeground);
     };
   }, [refresh]);
-  useEffect(() => () => {
-    privateGeneration.current += 1;
-    leaderboardGeneration.current += 1;
-    rankGeneration.current += 1;
-    overviewRankGeneration.current += 1;
-    participantGeneration.current += 1;
-  }, []);
 
   const achievementList = useMemo(() => {
     const current = achievements?.achievements ?? summary?.achievements ?? [];
