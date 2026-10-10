@@ -47,6 +47,7 @@ interface ProfileViewProps {
   onOpenSettings?: () => void;
   language?: "en" | "ar";
   onSubViewChange?: (isOpen: boolean) => void;
+  leaderboardNavigationRequest?: number;
 }
 
 const SettingsGroup = memo(({
@@ -190,6 +191,7 @@ export const ProfileView = function ProfileView({
  isActive = false,
  language = "en",
  onSubViewChange,
+  leaderboardNavigationRequest = 0,
 }: ProfileViewProps) {
   const { GAMIFICATION_ENABLED, STUDY_POINTS_ENABLED } = useStudyFeatureFlags();
  const isRtl = language === "ar";
@@ -202,6 +204,7 @@ export const ProfileView = function ProfileView({
  // page revealed during the swipe is literally the same already-painted page
  // that remains after the swipe completes.
  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | "gamification" | null>(null);
+  const [gamificationInitialTab, setGamificationInitialTab] = useState<"overview" | "leaderboard">("overview");
 
  const openProfileSubView = useCallback((next: "blocked-users" | "my-reports" | "gamification") => {
    onSubViewChange?.(true);
@@ -212,6 +215,12 @@ export const ProfileView = function ProfileView({
    setSubView(null);
    onSubViewChange?.(false);
  }, [onSubViewChange]);
+
+  useEffect(() => {
+    if (leaderboardNavigationRequest <= 0) return;
+    setGamificationInitialTab("leaderboard");
+    openProfileSubView("gamification");
+  }, [leaderboardNavigationRequest, openProfileSubView]);
 
  const profileBackGesture = useSwipeBack({
    isEnabled: Boolean(isActive && subView),
@@ -617,7 +626,10 @@ export const ProfileView = function ProfileView({
               title={tr("Study Points & achievements", "نقاط الدراسة والإنجازات")}
               subtitle={tr("Private progress, challenges, and leaderboard", "تقدمك الخاص وتحدياتك ولوحة النقاط")}
               showChevron
-              onClick={() => openProfileSubView("gamification")}
+              onClick={() => {
+                setGamificationInitialTab("overview");
+                openProfileSubView("gamification");
+              }}
               isRtl={isRtl}
             />
           )}
@@ -731,6 +743,8 @@ export const ProfileView = function ProfileView({
                language={language}
                onBack={profileBackGesture.triggerBack}
                studyPointsEnabled={STUDY_POINTS_ENABLED}
+               initialTab={gamificationInitialTab}
+               navigationRequest={leaderboardNavigationRequest}
              />
            </React.Suspense>
          )}

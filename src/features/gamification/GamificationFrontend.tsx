@@ -26,6 +26,8 @@ export interface GamificationFrontendProps {
   language: "en" | "ar";
   onBack: () => void;
   studyPointsEnabled: boolean;
+  initialTab?: GamificationTab;
+  navigationRequest?: number;
 }
 
 type ApiFailure = Error & { status?: number; body?: { error?: unknown; code?: unknown; message?: unknown } };
@@ -179,12 +181,14 @@ export function GamificationFrontend({
   language,
   onBack,
   studyPointsEnabled,
+  initialTab = "overview",
+  navigationRequest = 0,
 }: GamificationFrontendProps) {
   const { t } = useTranslation(language);
   const tGlobal = t as (key: string) => string;
   const isRtl = language === "ar";
   const locale = language === "ar" ? "ar-IQ" : "en";
-  const [tab, setTab] = useState<GamificationTab>("overview");
+  const [tab, setTab] = useState<GamificationTab>(initialTab);
   const [scope, setScope] = useState<LeaderboardScope>("WEEKLY");
   const [availableScopes, setAvailableScopes] = useState<LeaderboardScope[]>(
     () => SCOPES.filter((item) => item !== "SEMESTER"),
@@ -757,6 +761,12 @@ export function GamificationFrontend({
     participantGeneration.current += 1;
     setSelectedParticipant(null);
   }, []);
+
+  useEffect(() => {
+    if (navigationRequest <= 0) return;
+    setTab("leaderboard");
+    closeParticipant();
+  }, [navigationRequest, closeParticipant]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !leaderboard?.nextCursor) return;

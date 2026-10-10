@@ -57,6 +57,7 @@ import {
   Search,
   X,
   Target,
+  Trophy,
 } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion, useTransform, useMotionValue, animate } from "motion/react";
 import { createPortal } from "react-dom";
@@ -1769,6 +1770,8 @@ function AppContent({
   const profileSettingsOverlayScrollRef = useRef<HTMLDivElement | null>(null);
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
+  const [isLeaderboardSubViewActive, setIsLeaderboardSubViewActive] = useState(false);
+  const [leaderboardNavigationRequest, setLeaderboardNavigationRequest] = useState(0);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
   const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
@@ -1787,6 +1790,10 @@ function AppContent({
   const handleProfileSubViewChange = useCallback((open: boolean) => {
     profileSubViewOpenRef.current = open;
     setIsProfileSubViewOpen(open);
+    if (!open) {
+      setIsLeaderboardSubViewActive(false);
+      setLeaderboardNavigationRequest(0);
+    }
   }, []);
 
   const handleHomeSubjectInternalBackChange = useCallback((hasBack: boolean) => {
@@ -2262,6 +2269,16 @@ function AppContent({
       setIsCommandPaletteOpen(true);
       return;
     }
+
+    if (id === "leaderboard") {
+      setIsLeaderboardSubViewActive(true);
+      setLeaderboardNavigationRequest((request) => request + 1);
+      setActiveTab("profile");
+      return;
+    }
+
+    setIsLeaderboardSubViewActive(false);
+    setLeaderboardNavigationRequest(0);
 
     if (id === "focus") {
       void FocusHub.preload();
@@ -4774,6 +4791,14 @@ const handleSignOut = useCallback(async () => {
   const sidebarSystemItems = useMemo(
     () => [
       {
+        id: "leaderboard",
+        icon: Trophy,
+        label: language === "ar" ? "لوحة الصدارة" : "Leaderboard",
+        colorClass: "text-emerald-700 dark:text-emerald-300",
+        bgClass:
+          "bg-emerald-500/[0.08] dark:bg-emerald-400/[0.11] border border-emerald-500/[0.08] dark:border-emerald-400/[0.12]",
+      },
+      {
         id: "profile",
         icon: UserIcon,
         label: language === "ar" ? "الملف الشخصي" : "My Profile",
@@ -6250,7 +6275,9 @@ const handleSignOut = useCallback(async () => {
                 id={item.id}
                 icon={item.icon}
                 label={item.label}
-                isActive={activeTab === item.id}
+                isActive={item.id === "leaderboard"
+                  ? activeTab === "profile" && isLeaderboardSubViewActive
+                  : activeTab === item.id}
                 isAsideCollapsed={isAsideCollapsed}
                 isTablet={device.isTablet}
                 onClick={handleSidebarTabClick}
@@ -7050,6 +7077,7 @@ const handleSignOut = useCallback(async () => {
                     isActive={activeTab === "profile"}
                     language={language}
                     onSubViewChange={handleProfileSubViewChange}
+                    leaderboardNavigationRequest={leaderboardNavigationRequest}
                   />
                 </ErrorBoundary>
 </Suspense>

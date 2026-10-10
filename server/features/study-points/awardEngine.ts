@@ -11,12 +11,14 @@ import {
   DAILY_CONSISTENCY_MINIMUM_SECONDS,
   DAILY_CONSISTENCY_RULE,
   FOCUS_COMPLETION_RULE,
+  FLASHCARD_FIRST_RECALL_RULE,
   GROUP_FOCUS_SOCIAL_BONUS_AMOUNT,
   GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY,
   GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY,
   GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS,
   GROUP_FOCUS_SOCIAL_BONUS_RULE,
   GROUP_FOCUS_PARTICIPATION_RULE,
+  MCQ_FIRST_CORRECT_RULE,
   RECALL_MAX_POINTS_PER_DAY,
   RECALL_MAX_POINTS_PER_WEEK,
   RECALL_OBJECTIVE_CORRECT_AMOUNT,
@@ -42,6 +44,10 @@ import { getEligibleBaghdadDayFocusSeconds } from "./sources/consistency.js";
 import { loadCompletedFocusSource } from "./sources/focus.js";
 import { loadGroupFocusSource } from "./sources/groupFocus.js";
 import { loadObjectiveRecallSource } from "./sources/recall.js";
+import {
+  loadFirstCorrectMcqSource,
+  loadFirstRecalledFlashcardSource,
+} from "./sources/learningActivity.js";
 import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
 import type { StudyPointsLedgerEntryRecord } from "./types.js";
 
@@ -330,6 +336,57 @@ export class StudyPointsAwardEngine {
           maxPointsPerDay: RECALL_MAX_POINTS_PER_DAY,
           maxPointsPerWeek: RECALL_MAX_POINTS_PER_WEEK,
           specialDailyRule: RECALL_OBJECTIVE_CORRECT_RULE,
+        })],
+      };
+    }
+
+    if (
+      input.sourceType === "MCQ_ATTEMPT"
+      || input.sourceType === "FLASHCARD_REVIEW"
+    ) {
+      const loaded = input.sourceType === "MCQ_ATTEMPT"
+        ? await loadFirstCorrectMcqSource(tx, input.userId, input.sourceId)
+        : await loadFirstRecalledFlashcardSource(tx, input.userId, input.sourceId);
+      if (!("source" in loaded)) {
+        return {
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          attempts: [noAward(loaded.reason)],
+        };
+      }
+      const source = loaded.source;
+      const integrityFailure = await getStudyPointsIntegrityFailure(tx, {
+        userId: source.userId,
+        actionType: source.actionType,
+        source: source.source,
+        evidenceClass: source.evidenceClass,
+        occurredAt: source.effectiveAt,
+        now,
+        resource: source.resource,
+      });
+      if (integrityFailure) {
+        return {
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          attempts: [noAward(integrityFailure)],
+        };
+      }
+      const rule = input.sourceType === "MCQ_ATTEMPT"
+        ? MCQ_FIRST_CORRECT_RULE
+        : FLASHCARD_FIRST_RECALL_RULE;
+      return {
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        attempts: [await this.appendCappedAward(tx, {
+          userId: source.userId,
+          sourceType: input.sourceType,
+          sourceId: source.sourceId,
+          effectiveAt: source.effectiveAt,
+          rule,
+          baseRuleAmount: 1,
+          baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
+          now,
+          maxPointsPerDay: 20,
         })],
       };
     }

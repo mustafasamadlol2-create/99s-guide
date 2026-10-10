@@ -10,6 +10,59 @@ import {
   studyPointsConsistencyIdempotencyKey,
   studyPointsExistingEntryMatchesRule,
 } from "../server/features/study-points/idempotency.js";
+import {
+  loadFirstCorrectMcqSource,
+  loadFirstRecalledFlashcardSource,
+} from "../server/features/study-points/sources/learningActivity.js";
+
+test("MCQ points require a server-validated correct answer", async () => {
+  const event = {
+    id: "event-1",
+    source: "backend",
+    evidenceClass: "SERVER_VALIDATED",
+    occurredAt: new Date("2026-09-25T10:00:00.000Z"),
+    payload: { correct: true },
+  };
+  const tx = {
+    studyEvent: { findFirst: async () => event },
+  } as never;
+  const result = await loadFirstCorrectMcqSource(tx, "user-1", "mcq-1");
+  assert.equal("source" in result, true);
+  if ("source" in result) {
+    assert.equal(result.source.sourceId, "mcq-1");
+    assert.equal(result.source.actionType, "mcq.answer");
+  }
+
+  const incorrectTx = {
+    studyEvent: {
+      findFirst: async () => ({ ...event, payload: { correct: false } }),
+    },
+  } as never;
+  assert.deepEqual(
+    await loadFirstCorrectMcqSource(incorrectTx, "user-1", "mcq-1"),
+    { reason: "INSUFFICIENT_EVIDENCE" },
+  );
+});
+
+test("flashcard points require a server-validated successful recall rating", async () => {
+  const tx = {
+    studyEvent: {
+      findFirst: async () => ({
+        id: "event-1",
+        source: "backend",
+        evidenceClass: "SERVER_VALIDATED",
+        occurredAt: new Date("2026-09-25T10:00:00.000Z"),
+        payload: { quality: "GOOD" },
+      }),
+    },
+  } as never;
+  const result = await loadFirstRecalledFlashcardSource(tx, "user-1", "card-1");
+  assert.equal("source" in result, true);
+  if ("source" in result) {
+    assert.equal(result.source.sourceId, "card-1");
+    assert.equal(result.source.actionType, "flashcard.review");
+  }
+});
 
 test("Focus award tiers use exact second boundaries", () => {
   assert.deepEqual([
@@ -52,7 +105,7 @@ test("Baghdad logical dates change at Baghdad midnight", () => {
   );
 });
 
-test("the rule registry keeps evidence-incomplete sources inactive", () => {
+test("the rule registry only activates verified, capped learning sources", () => {
   const active = STUDY_POINTS_AWARD_RULES
     .filter((rule) => rule.status === "ACTIVE")
     .map((rule) => rule.reasonCode);
@@ -65,12 +118,19 @@ test("the rule registry keeps evidence-incomplete sources inactive", () => {
     "group_focus.verified_participation",
     "group_focus.verified_social_bonus",
     "consistency.verified_study_day",
+    "mcq.first_verified_correct",
+    "flashcard.first_verified_recall",
     "recall.objective_correct",
   ]);
-  assert.deepEqual(inactive, [
-    ["MCQ_ATTEMPT", "INACTIVE_UNSUPPORTED"],
-    ["FLASHCARD_REVIEW", "INACTIVE_UNSUPPORTED"],
-  ]);
+  assert.deepEqual(inactive, []);
+  assert.equal(
+    STUDY_POINTS_AWARD_RULES.find((rule) => rule.sourceType === "MCQ_ATTEMPT")?.category,
+    "PROGRESS",
+  );
+  assert.equal(
+    STUDY_POINTS_AWARD_RULES.find((rule) => rule.sourceType === "FLASHCARD_REVIEW")?.category,
+    "PROGRESS",
+  );
 });
 
 test("source idempotency keys are stable and scoped to rule and source", () => {

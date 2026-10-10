@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { logger } from "../../services/logger.js";
 import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
+import { StudyPointsAwardEngine } from "../study-points/awardEngine.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import type {
   IngestStudyEventInput,
@@ -49,6 +50,7 @@ export async function recordMasteryStudyEventsAndRefreshBestEffort(input: {
 
   const committedLectureIds = new Set<string>();
   const database = getPrisma();
+  const studyPointsAwarder = new StudyPointsAwardEngine(database);
   for (let start = 0; start < input.events.length; start += EVENT_WRITE_BATCH_SIZE) {
     const batch = input.events.slice(start, start + EVENT_WRITE_BATCH_SIZE);
     try {
@@ -68,6 +70,25 @@ export async function recordMasteryStudyEventsAndRefreshBestEffort(input: {
       });
       for (const event of batch) {
         if (event.lectureId) committedLectureIds.add(event.lectureId);
+        const sourceType = event.eventType === "mcq_attempted"
+          ? "MCQ_ATTEMPT"
+          : event.eventType === "flashcard_reviewed"
+            ? "FLASHCARD_REVIEW"
+            : null;
+        const sourceId = event.mcqId ?? event.flashcardId;
+        if (sourceType && sourceId) {
+          try {
+            await studyPointsAwarder.awardStudyPointsForSource({
+              userId: input.userId,
+              sourceType,
+              sourceId,
+            });
+          } catch {
+            logger.error("[Study Points]", "Verified learning activity award failed.", {
+              errorCode: "LEARNING_ACTIVITY_AWARD_FAILED",
+            });
+          }
+        }
       }
     } catch {
       logger.error("[Mastery]", "Canonical Study Event batch could not be recorded.", {

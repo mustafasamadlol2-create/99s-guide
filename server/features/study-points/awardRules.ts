@@ -31,18 +31,18 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     status: "ACTIVE",
   },
   {
-    ruleVersion: "mcq-verified-set-v1",
-    category: "MASTERY",
-    reasonCode: "mcq.verified_set",
+    ruleVersion: "mcq-first-correct-v1",
+    category: "PROGRESS",
+    reasonCode: "mcq.first_verified_correct",
     sourceType: "MCQ_ATTEMPT",
-    status: "INACTIVE_UNSUPPORTED",
+    status: "ACTIVE",
   },
   {
-    ruleVersion: "flashcard-due-review-v1",
-    category: "MASTERY",
-    reasonCode: "flashcard.verified_due_review",
+    ruleVersion: "flashcard-first-recall-v1",
+    category: "PROGRESS",
+    reasonCode: "flashcard.first_verified_recall",
     sourceType: "FLASHCARD_REVIEW",
-    status: "INACTIVE_UNSUPPORTED",
+    status: "ACTIVE",
   },
   {
     ruleVersion: "recall-objective-correct-v1",
@@ -57,6 +57,8 @@ export const FOCUS_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[0];
 export const GROUP_FOCUS_PARTICIPATION_RULE = STUDY_POINTS_AWARD_RULES[1];
 export const GROUP_FOCUS_SOCIAL_BONUS_RULE = STUDY_POINTS_AWARD_RULES[2];
 export const DAILY_CONSISTENCY_RULE = STUDY_POINTS_AWARD_RULES[3];
+export const MCQ_FIRST_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[4];
+export const FLASHCARD_FIRST_RECALL_RULE = STUDY_POINTS_AWARD_RULES[5];
 export const RECALL_OBJECTIVE_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[6];
 export const RECALL_OBJECTIVE_CORRECT_AMOUNT = 2;
 export const RECALL_MAX_POINTS_PER_DAY = 6;
