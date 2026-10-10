@@ -35,7 +35,6 @@ import {
   type FocusInvalidationDetail,
   type FocusSyncResource,
 } from "../api/focusSync";
-import { focusTimingNow, logFocusTiming } from "../api/focusTiming";
 import { FocusRuntimeController } from "../runtime/controller";
 import { createFocusLifecycle } from "../runtime/lifecycle";
 import {
@@ -172,7 +171,6 @@ export function FocusHub({
   const currentSessionRef = useRef<FocusSessionRecord | null>(null);
   const [draft, setDraft] = useState<FocusPlanDraft>(createEmptyFocusPlanDraft);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
-  const shellStartedAtRef = useRef(focusTimingNow());
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [summaryStarting, setSummaryStarting] = useState(false);
@@ -440,13 +438,8 @@ export function FocusHub({
 
   useEffect(() => {
     mountedRef.current = true;
-    logFocusTiming("hub.shell-first-frame", shellStartedAtRef.current);
     if (!sessionRouteId && !summaryRouteId && !historyOpen) {
-      const startedAt = focusTimingNow();
-      void loadCanonical().then(
-        () => logFocusTiming("hub.open-ready", startedAt),
-        () => logFocusTiming("hub.open-ready", startedAt, "error"),
-      );
+      void loadCanonical().catch(() => {});
     }
     return () => {
       mountedRef.current = false;
@@ -841,8 +834,6 @@ export function FocusHub({
 
   const startFocus = async () => {
     if (!canStart || startLockRef.current) return;
-    const startedAt = focusTimingNow();
-    let timingOutcome: "success" | "error" = "success";
     startLockRef.current = true;
     setStarting(true);
     setNotice(null);
@@ -868,7 +859,6 @@ export function FocusHub({
       setSession(result.session);
       onOpenSession(result.session.id);
     } catch (error) {
-      timingOutcome = "error";
       if (isConflictStatus(error) || getApiErrorCode(error) === "ACTIVE_SESSION_EXISTS") {
         try {
           const result = await loadCanonical({
@@ -886,7 +876,6 @@ export function FocusHub({
       }
       showNotice("focusHubStartError", "error");
     } finally {
-      logFocusTiming("hub.start-total", startedAt, timingOutcome);
       startLockRef.current = false;
       setStarting(false);
     }
@@ -980,6 +969,10 @@ export function FocusHub({
     );
   }
 
+  if (loadState === "loading") {
+    return <FocusHubSkeleton language={language} />;
+  }
+
   if (loadState === "error") {
     return (
       <div
@@ -1060,11 +1053,6 @@ export function FocusHub({
         </div>
       )}
 
-      {loadState === "loading" && (
-        <p role="status" className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          {t("focusHubLoading")}
-        </p>
-      )}
       {serverConflict && (
         <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-300/15 dark:bg-amber-200/[0.06] dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6">{t("focusHubPlanConflict")}</p>
@@ -1699,6 +1687,28 @@ function DurationStepper({
           <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
+    </div>
+  );
+}
+
+function FocusHubSkeleton({ language }: { language: Language }) {
+  const { t } = useTranslation(language);
+  return (
+    <div
+      dir={language === "ar" ? "rtl" : "ltr"}
+      className="mx-auto w-full max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:px-8"
+      aria-busy="true"
+      aria-label={t("focusHubLoading")}
+    >
+      <div className="h-36 animate-pulse rounded-[28px] bg-gradient-to-br from-slate-200 to-sky-100 dark:from-white/[0.08] dark:to-sky-300/[0.05]" />
+      <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(270px,340px)]">
+        <div className="space-y-5">
+          <div className="h-48 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
+          <div className="h-64 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
+        </div>
+        <div className="h-96 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
+      </div>
+      <p className="sr-only">{t("focusHubLoading")}</p>
     </div>
   );
 }

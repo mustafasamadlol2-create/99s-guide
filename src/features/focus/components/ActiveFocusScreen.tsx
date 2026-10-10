@@ -50,7 +50,6 @@ import {
   FOCUS_VIEW_RECONCILE_EVENT,
   isFocusResourceAffected,
 } from "../api/focusSync";
-import { focusTimingNow, logFocusTiming } from "../api/focusTiming";
 import { deriveFocusProgression, formatFocusClock } from "../focusActiveModel";
 import { FocusCycleStrip, FocusTimerScene, type FocusDisplayPhase } from "./FocusVisuals";
 import { useFocusAudio } from "../../focus-audio/hooks";
@@ -764,10 +763,6 @@ function ActiveFocusScreenCore({
 
   const handleEndBreak = () => {
     if (!controller || !activeBreak || !online || isRuntimeBusy) return;
-    const timingStartedAt = focusTimingNow();
-    setActivePhase("focus");
-    requestAnimationFrame(() =>
-      logFocusTiming("break-to-study.first-frame", timingStartedAt, "optimistic"));
     breakAutoEndRef.current = activeBreak.id;
     const sessionId = activeBreak.focusSessionId;
     const idempotencyKey = breakReturnKeyRef.current ?? crypto.randomUUID();
@@ -778,7 +773,6 @@ function ActiveFocusScreenCore({
         source: getFocusClientSource(),
       }),
       async (value) => {
-        logFocusTiming("break-to-study.canonical", timingStartedAt, "reconciled");
         const result = value as FocusBreakMutationResult;
         breakPauseKeyRef.current = null;
         breakResumeKeyRef.current = null;
@@ -825,13 +819,12 @@ function ActiveFocusScreenCore({
         onOpenSession(nextSession.session.id);
       },
       async () => {
-        logFocusTiming("break-to-study.canonical", timingStartedAt, "error");
         try {
           const snapshot = await focusApi.getFocusBreak(sessionId);
           setBreakSnapshot(snapshot);
-          setActivePhase(snapshot.breakSession?.endedAt === null ? "break" : "focus");
+          setActivePhase(snapshot.breakSession ? "break" : "focus");
         } catch {
-          setActivePhase("break");
+          // Preserve the canonical session error below if break state is unavailable.
         }
         await controller.reconcile().catch(() => {});
       },
@@ -874,10 +867,6 @@ function ActiveFocusScreenCore({
       return;
     }
     if (!controller || !canonicalRouteMatch || !canonicalSession || !mayChangeSession || !online || isRuntimeBusy) return;
-    const timingStartedAt = focusTimingNow();
-    setActivePhase((previous) => previous === "plan" ? "plan" : "break");
-    requestAnimationFrame(() =>
-      logFocusTiming("study-to-break.first-frame", timingStartedAt, "optimistic"));
     const idempotencyKey = breakStartKeyRef.current ?? crypto.randomUUID();
     breakStartKeyRef.current = idempotencyKey;
     void perform(
@@ -886,7 +875,6 @@ function ActiveFocusScreenCore({
         source: getFocusClientSource(),
       }),
       async (value) => {
-        logFocusTiming("study-to-break.canonical", timingStartedAt, "reconciled");
         const result = value as FocusBreakMutationResult;
         breakStartKeyRef.current = null;
         controller.acceptMutationSession(result.session);
@@ -896,17 +884,6 @@ function ActiveFocusScreenCore({
         if (canonicalSession.status === "ACTIVE") {
           notifyAudioSafely(() => audio?.onFocusPaused());
         }
-      },
-      async () => {
-        logFocusTiming("study-to-break.canonical", timingStartedAt, "error");
-        try {
-          const snapshot = await focusApi.getFocusBreak(canonicalSession.id);
-          setBreakSnapshot(snapshot);
-          setActivePhase(snapshot.breakSession?.endedAt === null ? "break" : "focus");
-        } catch {
-          setActivePhase("focus");
-        }
-        await controller.reconcile().catch(() => {});
       },
     );
   };
