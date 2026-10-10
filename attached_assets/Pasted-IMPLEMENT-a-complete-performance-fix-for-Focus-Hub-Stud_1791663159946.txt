@@ -1,0 +1,46 @@
+IMPLEMENT a complete performance fix for Focus Hub + Study Engagement/Gamification/Leaderboard based on the current code. Do not create another plan.
+
+The existing Socket.IO realtime architecture is sufficient. Fix the slow work around it.
+
+1. Before touching Cloudflare D1, EXPORT/BACK UP the existing 99’s Guide D1 Focus/leaderboard projection tables because they may contain pre-database-reset data. Never delete canonical PostgreSQL data.
+
+2. Audit D1 against the newly restored PostgreSQL database. If old projections are stale, safely reset/reseed/version ONLY the derived D1 Focus and leaderboard cache after preserving the export.
+
+3. Focus:
+- Render Focus Hub immediately; do not block the whole screen on every canonical read.
+- Remove unnecessary sequential GET→PATCH→POST waterfalls when starting Focus.
+- Use optimistic concurrency/versioning instead of canonical GET preflight where safe.
+- Batch FocusPlanItem updates instead of sequential per-item DB queries.
+- Study↔Break UI must switch immediately with pending state, then reconcile server response; rollback on failure.
+- Deduplicate reads/socket refetches.
+- Do not pay D1 timeout + PostgreSQL validation/fallback on every normal read. Make D1 a genuine fast read path with revision/freshness protection and bounded fallback.
+
+4. Gamification:
+- Make GET summary/achievements/challenges READ-ONLY and fast.
+- Move achievement/challenge/level recalculation to mutation/post-commit background processing.
+- Do not hold UI GET requests behind advisory-lock refresh transactions.
+- Do not synchronously rebuild leaderboard snapshots inside leaderboard GET requests.
+- Serve the latest READY snapshot immediately; rebuild stale snapshots asynchronously.
+- Do not block Focus completion/points responses while rebuilding Gamification/Leaderboards.
+
+5. Frontend leaderboard:
+- Render the first page immediately.
+- Remove the loop that fetches up to 500 entries before first render.
+- Use 50–100 entries initially; load/prefetch later pages afterward.
+
+6. Use short bounded Gamification request timeouts with 0–1 retry, not the generic 15s + 3 retry behavior.
+- No polling.
+- No manual Refresh/Retry.
+- No page reload.
+- PostgreSQL remains canonical for writes.
+- Preserve scoring rules, idempotency, timer correctness, balances, achievements and ranking semantics.
+
+Add timing instrumentation and test before/after:
+Focus Hub open, Start Focus, Study→Break, Break→Study, Gamification open, Leaderboard first paint.
+
+Target:
+- visible UI response <100ms after interaction
+- warm cached screens ideally <300–500ms
+- normal backend mutations ideally <1s
+
+Report exact root causes fixed, files changed, D1 cleanup/reseed status, before/after timings, and all test/build results.
