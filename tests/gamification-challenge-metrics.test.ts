@@ -58,6 +58,22 @@ test("focus metrics use canonical status, positive duration, and half-open windo
   );
 });
 
+test("an empty verified-seconds aggregate has zero progress", async () => {
+  const { tx } = fakeTx({
+    focusSession: {
+      aggregate: async () => ({ _sum: { activeSeconds: null } }),
+    },
+  });
+  assert.equal(await getChallengeMetricValueForWindow({
+    userId: "u1",
+    metricId: "focus.verified_seconds",
+    startsAt: start,
+    endsAt: end,
+    asOf,
+    tx,
+  }), 0);
+});
+
 test("group runs require the member summary, positive seconds, and both runtime bounds", async () => {
   const { tx, calls } = fakeTx();
   await getChallengeMetricValueForWindow({

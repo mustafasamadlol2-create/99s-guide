@@ -19,11 +19,20 @@ import {
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
+const EMAIL_LIKE = /(?:^|\s)[^\s@]+@[^\s@]+(?:$|\s)/u;
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
-export function sanitizeLeaderboardDisplayName(value: string | null | undefined): string | null {
-  const name = value?.replace(/\s+/gu, " ").trim().slice(0, 80) ?? "";
-  if (!name || name.includes("@")) return null;
-  return name;
+export function safePublicDisplayName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (!normalized || EMAIL_LIKE.test(normalized) || UUID_LIKE.test(normalized)) {
+    return null;
+  }
+  return normalized.slice(0, 80).trim() || null;
 }
 
 export type LeaderboardSeasonDto = {
@@ -314,7 +323,7 @@ export async function getLeaderboardPage(input: {
       tieSize: row.tieSize,
       level: row.levelSnapshot,
       score: decodeLeaderboardScore(row.score),
-      displayName: sanitizeLeaderboardDisplayName(row.user?.name),
+      displayName: safePublicDisplayName(row.user?.name),
     }];
   });
   let nextCursor: string | null = null;

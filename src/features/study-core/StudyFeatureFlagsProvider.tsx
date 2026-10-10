@@ -1,20 +1,31 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 export interface StudyFeatureFlags {
   STUDY_POINTS_ENABLED: boolean;
   GAMIFICATION_ENABLED: boolean;
   FOCUS_RESOURCE_HANDOFF_ENABLED: boolean;
+  status: "loading" | "ready" | "unavailable";
+  reload: () => Promise<void>;
 }
 
-const DISABLED_FLAGS: StudyFeatureFlags = {
+type StudyFeatureFlagValues = Pick<
+  StudyFeatureFlags,
+  "STUDY_POINTS_ENABLED" | "GAMIFICATION_ENABLED" | "FOCUS_RESOURCE_HANDOFF_ENABLED"
+>;
+
+const DISABLED_FLAGS: StudyFeatureFlagValues = {
   STUDY_POINTS_ENABLED: false,
   GAMIFICATION_ENABLED: false,
   FOCUS_RESOURCE_HANDOFF_ENABLED: false,
 };
 
-const StudyFeatureFlagsContext = createContext<StudyFeatureFlags>(DISABLED_FLAGS);
+const StudyFeatureFlagsContext = createContext<StudyFeatureFlags>({
+  ...DISABLED_FLAGS,
+  status: "loading",
+  reload: async () => {},
+});
 
-function parseStudyFeatureFlags(value: unknown): StudyFeatureFlags | null {
+function parseStudyFeatureFlags(value: unknown): StudyFeatureFlagValues | null {
   if (!value || typeof value !== "object") return null;
   const flags = value as Record<string, unknown>;
   if (
@@ -36,31 +47,33 @@ export function StudyFeatureFlagsProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [flags, setFlags] = useState(DISABLED_FLAGS);
+  const [flags, setFlags] = useState<StudyFeatureFlagValues>(DISABLED_FLAGS);
+  const [status, setStatus] = useState<StudyFeatureFlags["status"]>("loading");
 
-  useEffect(() => {
-    let active = true;
-    void fetch("/api/study/features", {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Feature flags are unavailable.");
-        return parseStudyFeatureFlags(await response.json());
-      })
-      .then((resolved) => {
-        if (active && resolved) setFlags(resolved);
-      })
-      .catch(() => {
-        if (active) setFlags(DISABLED_FLAGS);
+  const reload = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const response = await fetch("/api/study/features", {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
       });
-    return () => {
-      active = false;
-    };
+      if (!response.ok) throw new Error("Feature flags are unavailable.");
+      const resolved = parseStudyFeatureFlags(await response.json());
+      if (!resolved) throw new Error("Feature flags are invalid.");
+      setFlags(resolved);
+      setStatus("ready");
+    } catch {
+      setFlags(DISABLED_FLAGS);
+      setStatus("unavailable");
+    }
   }, []);
 
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
   return (
-    <StudyFeatureFlagsContext.Provider value={flags}>
+    <StudyFeatureFlagsContext.Provider value={{ ...flags, status, reload }}>
       {children}
     </StudyFeatureFlagsContext.Provider>
   );

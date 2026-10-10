@@ -17,7 +17,7 @@ import {
 import { getLeaderboardPageWithCache } from "../server/features/leaderboard/cacheReads.js";
 import {
   resolveSeason,
-  sanitizeLeaderboardDisplayName,
+  safePublicDisplayName,
 } from "../server/features/leaderboard/queries.js";
 import { readRankedLeaderboardScores, readUserLeaderboardScore } from "../server/features/leaderboard/scores.js";
 import type { RankedScore } from "../server/features/leaderboard/types.js";
@@ -33,6 +33,13 @@ const weekly = getLeaderboardSeasonWindow(
   "WEEKLY",
   new Date("2026-09-24T20:59:59.999Z"),
 );
+
+test("leaderboard display names reject email and account identifier values", () => {
+  assert.equal(safePublicDisplayName("  Ada   Lovelace  "), "Ada Lovelace");
+  assert.equal(safePublicDisplayName("student@example.test"), null);
+  assert.equal(safePublicDisplayName("123e4567-e89b-42d3-a456-426614174000"), null);
+  assert.equal(safePublicDisplayName(`  ${"x".repeat(100)}  `)?.length, 80);
+});
 
 function querySource(query: unknown): string {
   if (Array.isArray(query)) return query.join("<value>");
@@ -420,10 +427,10 @@ test("synthetic 1,000-user competition-rank reference stays deterministic", (t) 
 });
 
 test("public leaderboard names are normalized and never expose email addresses", () => {
-  assert.equal(sanitizeLeaderboardDisplayName("  زينب   أحمد  "), "زينب أحمد");
-  assert.equal(sanitizeLeaderboardDisplayName("student@example.com"), null);
-  assert.equal(sanitizeLeaderboardDisplayName(""), null);
-  assert.equal(sanitizeLeaderboardDisplayName("x".repeat(100))?.length, 80);
+  assert.equal(safePublicDisplayName("  زينب   أحمد  "), "زينب أحمد");
+  assert.equal(safePublicDisplayName("student@example.com"), null);
+  assert.equal(safePublicDisplayName(""), null);
+  assert.equal(safePublicDisplayName("x".repeat(100))?.length, 80);
 });
 
 type TestServer = { baseUrl: string; close(): Promise<void> };

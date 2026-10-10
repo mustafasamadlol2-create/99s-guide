@@ -12,6 +12,7 @@ import {
   getMyAchievements,
   refreshUserAchievementProgress,
 } from "../server/features/gamification/achievementService.js";
+import { getMyChallenges } from "../server/features/gamification/challengeRefresh.js";
 import { GAMIFICATION_V1_RULE_SET_VERSION } from "../server/features/gamification/definitions.js";
 import { getPrompt23AchievementsPostgresGateUrl } from "./helpers/prompt23AchievementsPostgresGate.js";
 
@@ -102,6 +103,15 @@ test("Prompt 23 PostgreSQL migration and achievement lifecycle", {
       achievement.currentValue === 0
     ));
 
+    const initialChallenges = await getMyChallenges(userId, database);
+    assert.equal(initialChallenges.active.length, 4);
+    assert.ok(initialChallenges.active.every((challenge) =>
+      challenge.status === "ACTIVE"
+        && challenge.current === 0
+        && challenge.progressRatio === 0
+    ));
+    assert.equal(await database.userChallengeProgress.count({ where: { userId } }), 4);
+
     const untouchedAt = new Date("2000-01-01T00:00:00.000Z");
     await database.userAchievementProgress.updateMany({
       where: { userId, ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
@@ -145,6 +155,18 @@ test("Prompt 23 PostgreSQL migration and achievement lifecycle", {
     assert.equal(completed.unlockHistory.filter(
       ({ achievementId }) => achievementId === focusId,
     ).length, 1);
+    const progressedChallenges = await getMyChallenges(userId, database);
+    assert.equal(progressedChallenges.active.length, 4);
+    assert.equal(
+      progressedChallenges.active.find(({ metricId }) =>
+        metricId === "focus.completed_sessions")?.current,
+      1,
+    );
+    assert.equal(
+      progressedChallenges.active.find(({ metricId }) =>
+        metricId === "focus.completed_sessions")?.progressRatio,
+      1 / 3,
+    );
 
     await database.focusSession.update({
       where: { id: session.id },

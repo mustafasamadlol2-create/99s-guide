@@ -15,11 +15,6 @@ import type {
 } from "./types";
 import "./leaderboard-view.css";
 
-export interface LeaderboardLocalizedEntry {
-  displayName?: string | null;
-  label?: string | null;
-}
-
 export interface LeaderboardViewProps {
   scope: LeaderboardScope;
   onScopeChange: (scope: LeaderboardScope) => void;
@@ -37,7 +32,6 @@ export interface LeaderboardViewProps {
   locale: string;
   isRtl: boolean;
   tx: (key: string, en: string, ar: string) => string;
-  localizedEntries?: LeaderboardLocalizedEntry[];
 }
 
 const SCOPE_COPY: Record<LeaderboardScope, [string, string, string]> = {
@@ -59,6 +53,12 @@ function timeLabel(value: string | null | undefined, locale: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function isFeatureDisabled(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const body = (error as { body?: { code?: unknown } }).body;
+  return body?.code === "FEATURE_DISABLED";
 }
 
 function SkeletonRows({ label }: { label: string }) {
@@ -93,7 +93,6 @@ export function LeaderboardView({
   locale,
   isRtl,
   tx,
-  localizedEntries,
 }: LeaderboardViewProps) {
   const formatNumber = (value: number) => new Intl.NumberFormat(locale).format(value);
   const scopeTitle = (value: LeaderboardScope) => {
@@ -110,6 +109,7 @@ export function LeaderboardView({
         ? ["gamificationUpcoming", "Season upcoming", "الموسم قادم", "upcoming"] as const
         : ["gamificationLive", "Live snapshot", "لقطة مباشرة", "live"] as const;
   const showError = Boolean(error);
+  const featureDisabled = isFeatureDisabled(error);
   const entries: LeaderboardEntry[] = currentData?.entries ?? [];
 
   return (
@@ -194,12 +194,18 @@ export function LeaderboardView({
           <div className="lv-error" role="alert">
             <span className="lv-error-icon"><AlertCircle size={17} aria-hidden="true" /></span>
             <div className="lv-error-copy">
-              <strong>{tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط.")}</strong>
-              <span>{tx("gamificationRetryHint", "Check your connection and try again.", "تحقق من الاتصال وحاول مجددًا.")}</span>
+              <strong>{featureDisabled
+                ? tx("gamificationDisabled", "The leaderboard is disabled.", "لوحة الصدارة معطلة.")
+                : tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط.")}</strong>
+              <span>{featureDisabled
+                ? tx("gamificationDisabledHint", "This study engagement feature is currently disabled.", "ميزة التفاعل الدراسي هذه معطلة حاليًا.")
+                : tx("gamificationRetryHint", "Check your connection and try again.", "تحقق من الاتصال وحاول مجددًا.")}</span>
             </div>
-            <button type="button" className="g-action" onClick={onRetry}>
-              {tx("gamificationRetry", "Try again", "حاول مجددًا")}
-            </button>
+            {!featureDisabled && (
+              <button type="button" className="g-action" onClick={onRetry}>
+                {tx("gamificationRetry", "Try again", "حاول مجددًا")}
+              </button>
+            )}
           </div>
         )}
 
@@ -265,9 +271,7 @@ export function LeaderboardView({
         {currentData && entries.length > 0 && (
           <div className="lv-list" role="list" aria-label={tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}>
             {entries.map((entry, index) => {
-              const localized = localizedEntries?.[index];
               const publicLabel = entry.displayName?.trim()
-                || localized?.displayName?.trim() || localized?.label?.trim()
                 || tx("gamificationParticipant", "Student", "طالب");
               const tied = entry.tieSize > 1;
               const podium = entry.rank >= 1 && entry.rank <= 3;

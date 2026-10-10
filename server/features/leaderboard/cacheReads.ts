@@ -18,7 +18,7 @@ import {
   getMyLeaderboardRank,
   parseLeaderboardPageSize,
   resolveSeason,
-  sanitizeLeaderboardDisplayName,
+  safePublicDisplayName,
   seasonDto,
   validateCursorSnapshot,
 } from "./queries.js";
@@ -314,7 +314,7 @@ function compareManifests(a: CacheManifest, b: CacheManifest): boolean {
     && a.rankingVersion === b.rankingVersion;
 }
 
-async function getVisibleUserIds(input: {
+async function getVisibleUsers(input: {
   userIds: string[];
   database: PrismaClient;
   blockedUserIds: string[];
@@ -335,7 +335,7 @@ async function getVisibleUserIds(input: {
   });
   return new Map(users.map((user) => [
     user.id,
-    sanitizeLeaderboardDisplayName(user.name),
+    safePublicDisplayName(user.name),
   ]));
 }
 
@@ -445,7 +445,7 @@ export async function getLeaderboardPageWithCache(input: {
     }
     const blockedUserIds = await getBlockedUserIds(input.viewerId, database);
     const [visibleUserIds, totalRankedUsers] = await Promise.all([
-      getVisibleUserIds({
+      getVisibleUsers({
         userIds: [...new Set(page.entries.map((entry) => entry.userId))],
         database,
         blockedUserIds,

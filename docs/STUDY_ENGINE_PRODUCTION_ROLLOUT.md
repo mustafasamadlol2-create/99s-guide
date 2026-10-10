@@ -68,9 +68,9 @@ The order below is explicit and has no automatic advancement. The status utility
 
 All 18 server Study Engine flags default to OFF. A declared flag is not automatically an effective kill switch. Current service/route runtime reads were confirmed for `STUDY_EVENTS_ENABLED`, `FOCUS_HUB_ENABLED`, `GROUP_FOCUS_ENABLED`, `SPACED_RECALL_ENABLED`, `RECALL_POINTS_ENABLED`, both Leaderboard D1 flags, AI Insights/cache, and Ask My Study Data/AI.
 
-The following declared flags do **not** currently provide a verified runtime guard in feature services/routes: `FOCUS_RESOURCE_HANDOFF_ENABLED`, `STUDY_POINTS_ENABLED`, `STUDY_INTEGRITY_ENABLED`, `GAMIFICATION_ENABLED`, `MASTERY_ENABLED`, and `OWNER_STUDY_ANALYTICS_ENABLED`. Do not use them as rollback promises. Implement and test a guard in a separately scoped maintenance change before relying on one.
+The following declared flags do **not** currently provide a verified runtime guard in feature services/routes: `FOCUS_RESOURCE_HANDOFF_ENABLED`, `STUDY_POINTS_ENABLED`, `STUDY_INTEGRITY_ENABLED`, `MASTERY_ENABLED`, and `OWNER_STUDY_ANALYTICS_ENABLED`. Do not use them as rollback promises. Implement and test a guard in a separately scoped maintenance change before relying on one. Gamification now has a separate verified `GAMIFICATION_ENABLED` API/service gate; see `docs/STUDY_ENGAGEMENT_RELEASE_CHECKS.md`.
 
-Study Engine production frontend routes are currently hard-disabled by `DEV` checks in `src/config/featureFlags.ts`. Build-time `VITE_*` values do not enable these production surfaces. No production client activation path is claimed here.
+The other Study Engine production frontend routes are currently hard-disabled by `DEV` checks in `src/config/featureFlags.ts`. Build-time `VITE_*` values do not enable those production surfaces. The Gamification UI instead reads `/api/study/features` at runtime and distinguishes a failed flag check from an explicit disabled response; no production flag values were inspected for this release check.
 
 ## Observation checkpoints
 

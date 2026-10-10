@@ -263,12 +263,11 @@ test("Prompt 24 disposable PostgreSQL Level projection lifecycle", {
       database,
     );
     assert.ok(reversedSnapshot);
-    assert.equal(
-      await database.leaderboardSnapshotEntry.count({
-        where: { snapshotId: reversedSnapshot!.id, userId: ledgerUserId },
-      }),
-      0,
-    );
+    const reversedEntry = await database.leaderboardSnapshotEntry.findFirst({
+      where: { snapshotId: reversedSnapshot!.id, userId: ledgerUserId },
+      select: { score: true },
+    });
+    assert.equal(reversedEntry?.score, 0n);
 
     await ledger.appendStudyPointsLedgerEntry({
       userId: ledgerUserId,

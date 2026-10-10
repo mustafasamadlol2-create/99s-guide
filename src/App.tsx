@@ -212,7 +212,12 @@ function AppContent({
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
 }) {
   const device = useDeviceProfile();
-  const { GAMIFICATION_ENABLED, STUDY_POINTS_ENABLED } = useStudyFeatureFlags();
+  const {
+    GAMIFICATION_ENABLED,
+    STUDY_POINTS_ENABLED,
+    status: studyFeatureFlagsStatus,
+    reload: reloadStudyFeatureFlags,
+  } = useStudyFeatureFlags();
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
   // important on the 13-inch iPad Pro where short screens can otherwise end
@@ -4757,7 +4762,7 @@ const handleSignOut = useCallback(async () => {
             },
           ]
         : []),
-      ...(GAMIFICATION_ENABLED
+      ...(GAMIFICATION_ENABLED || studyFeatureFlagsStatus !== "ready"
         ? [
             {
               id: "leaderboard",
@@ -7003,6 +7008,9 @@ const handleSignOut = useCallback(async () => {
                       accountId={currentUser?.id ?? null}
                       language={language}
                       studyPointsEnabled={STUDY_POINTS_ENABLED}
+                      gamificationEnabled={GAMIFICATION_ENABLED}
+                      featureFlagsStatus={studyFeatureFlagsStatus}
+                      onRetryFeatureFlags={() => void reloadStudyFeatureFlags()}
                       initialTab="leaderboard"
                     />
                   </ErrorBoundary>

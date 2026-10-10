@@ -111,7 +111,7 @@ export async function getChallengeMetricValueForWindow(
       where,
       _sum: { activeSeconds: true },
     });
-    return assertResult(result._sum.activeSeconds);
+    return assertResult(result._sum.activeSeconds ?? 0);
   }
 
   const where = {

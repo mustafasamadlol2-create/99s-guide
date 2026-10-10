@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import test, { after, before } from "node:test";
 import { reconcileLeaderboardSnapshot } from "../server/features/leaderboard/reconciliation.js";
+import { decodeLeaderboardCursor } from "../server/features/leaderboard/cursor.js";
+import { getLeaderboardPage } from "../server/features/leaderboard/queries.js";
 import {
   ensureLeaderboardSeason,
 } from "../server/features/leaderboard/seasons.js";
@@ -95,9 +97,12 @@ test("Prompt 26 PostgreSQL schema has additive migration history and starts empt
   assert.deepEqual(counts, { seasons: 0n, snapshots: 0n, entries: 0n });
 });
 
-async function createUser(): Promise<{ id: string }> {
+async function createUser(createdAt?: Date): Promise<{ id: string }> {
   return db().user.create({
-    data: { email: `prompt26-leaderboard-${randomUUID()}@example.test` },
+    data: {
+      email: `prompt26-leaderboard-${randomUUID()}@example.test`,
+      ...(createdAt ? { createdAt } : {}),
+    },
     select: { id: true },
   });
 }
@@ -155,7 +160,7 @@ test("concurrent season ensure and LIVE snapshot builds converge without account
     assert.equal(new Set(seasons.map((season) => season.id)).size, 1);
     seasonId = seasons[0]!.id;
 
-    const user = await createUser();
+    const user = await createUser(new Date(reference.now.getTime() - 1_000));
     userId = user.id;
     await appendPoints({
       userId,
@@ -195,6 +200,87 @@ test("concurrent season ensure and LIVE snapshot builds converge without account
   }
 });
 
+test("leaderboard pages return only safe public names and preserve pagination", { skip: skipped }, async () => {
+  const reference = historicalSeasonReference();
+  const previousSecret = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = "prompt26-leaderboard-test-only-session-secret";
+  let seasonId: string | undefined;
+  let firstUserId: string | undefined;
+  let secondUserId: string | undefined;
+  try {
+    const season = await ensureLeaderboardSeason({
+      scope: "WEEKLY",
+      asOf: reference.now,
+    }, db());
+    seasonId = season.id;
+    const eligibleCreatedAt = new Date(reference.now.getTime() - 1_000);
+    const firstUser = await createUser(eligibleCreatedAt);
+    const secondUser = await createUser(eligibleCreatedAt);
+    firstUserId = firstUser.id;
+    secondUserId = secondUser.id;
+    await db().user.update({
+      where: { id: firstUser.id },
+      data: { name: "Maya Noor" },
+    });
+    await db().user.update({
+      where: { id: secondUser.id },
+      data: { name: `private-${randomUUID()}@example.test` },
+    });
+    await appendPoints({
+      userId: firstUser.id,
+      amount: 30,
+      effectiveAt: reference.effectiveAt,
+    });
+    await appendPoints({
+      userId: secondUser.id,
+      amount: 20,
+      effectiveAt: reference.effectiveAt,
+    });
+    await buildLeaderboardSnapshot({
+      seasonId: season.id,
+      snapshotType: "LIVE",
+      now: reference.now,
+    }, db());
+
+    const firstPage = await getLeaderboardPage({
+      viewerId: firstUser.id,
+      scope: "WEEKLY",
+      seasonKey: season.seasonKey,
+      limit: 1,
+      now: reference.now,
+      database: db(),
+    });
+    assert.equal(firstPage.entries.length, 1);
+    assert.equal(firstPage.entries[0]?.displayName, "Maya Noor");
+    assert.ok(firstPage.nextCursor);
+    const cursor = decodeLeaderboardCursor(firstPage.nextCursor, reference.now.getTime());
+    const secondPage = await getLeaderboardPage({
+      viewerId: firstUser.id,
+      scope: "WEEKLY",
+      seasonKey: season.seasonKey,
+      limit: 1,
+      cursor,
+      now: reference.now,
+      database: db(),
+    });
+    assert.equal(secondPage.entries.length, 1);
+    assert.equal(secondPage.entries[0]?.displayName, null);
+    const publicPages = JSON.stringify([firstPage.entries, secondPage.entries]);
+    assert.equal(publicPages.includes(firstUser.id), false);
+    assert.equal(publicPages.includes(secondUser.id), false);
+    assert.equal(publicPages.includes("@example.test"), false);
+  } finally {
+    if (seasonId) {
+      await deleteSeasonSnapshots(seasonId);
+      await db().leaderboardSeason.deleteMany({ where: { id: seasonId } });
+    }
+    if (firstUserId) await db().user.deleteMany({ where: { id: firstUserId } });
+    if (secondUserId) await db().user.deleteMany({ where: { id: secondUserId } });
+    if (previousSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = previousSecret;
+  }
+});
+
 test("concurrent finalization is idempotent and late correction creates an auditable revision", { skip: skipped }, async () => {
   const reference = historicalSeasonReference();
   const now = reference.now;
@@ -208,7 +294,7 @@ test("concurrent finalization is idempotent and late correction creates an audit
       asOf: now,
     }, db());
     seasonId = season.id;
-    const user = await createUser();
+    const user = await createUser(new Date(reference.now.getTime() - 1_000));
     userId = user.id;
     await appendPoints({ userId, amount: 20, effectiveAt });
 
