@@ -4762,15 +4762,6 @@ const handleSignOut = useCallback(async () => {
             },
           ]
         : []),
-      ...(GAMIFICATION_ENABLED || studyFeatureFlagsStatus !== "ready"
-        ? [
-            {
-              id: "leaderboard",
-              icon: Trophy,
-              label: language === "ar" ? "لوحة الصدارة" : "Leaderboard",
-            },
-          ]
-        : []),
       ...(currentUser?.isAdmin ||
       currentUser?.role === "admin" ||
       currentUser?.role === "owner"

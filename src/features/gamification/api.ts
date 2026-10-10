@@ -39,12 +39,12 @@ export const gamificationApi = {
     readJson<AchievementsResponse>("achievements", "current", "/api/me/achievements"),
   challenges: () =>
     readJson<ChallengesResponse>("challenges", "current", "/api/me/challenges"),
-  leaderboard: (scope: LeaderboardScope, cursor?: string | null) => {
-    const params = new URLSearchParams({ limit: "50" });
+  leaderboard: (scope: LeaderboardScope, cursor?: string | null, limit = 100) => {
+    const params = new URLSearchParams({ limit: String(limit) });
     if (cursor) params.set("cursor", cursor);
     return readJson<LeaderboardResponse>(
       "leaderboard",
-      `${scope}:${cursor ?? "first"}`,
+      `${scope}:${limit}:${cursor ?? "first"}`,
       `/api/leaderboards/${scope}?${params.toString()}`,
     );
   },

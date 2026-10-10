@@ -445,7 +445,26 @@ export function GamificationFrontend({
     if (!append) setDisabled((old) => ({ ...old, leaderboard: false }));
     try {
       const cursor = append ? leaderboard?.nextCursor : null;
-      const result = await gamificationApi.leaderboard(nextScope, cursor);
+      let result = await gamificationApi.leaderboard(nextScope, cursor, 100);
+      let pagesLoaded = 1;
+      while (!append && result.nextCursor && result.entries.length < 500) {
+        const nextPage = await gamificationApi.leaderboard(
+          nextScope,
+          result.nextCursor,
+          100,
+        );
+        if (
+          leaderboardGeneration.current !== requestId ||
+          currentScope.current !== nextScope ||
+          currentAccountId.current !== account
+        ) return;
+        result = {
+          ...nextPage,
+          entries: [...result.entries, ...nextPage.entries],
+        };
+        pagesLoaded += 1;
+        if (pagesLoaded >= 5) break;
+      }
       if (
         leaderboardGeneration.current !== requestId ||
         currentScope.current !== nextScope ||
