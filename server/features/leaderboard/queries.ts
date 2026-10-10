@@ -305,7 +305,6 @@ export async function getLeaderboardPage(input: {
     return [{
       rank: row.rank,
       tieSize: row.tieSize,
-      userId: row.userId,
       level: row.levelSnapshot,
       score: decodeLeaderboardScore(row.score),
     }];

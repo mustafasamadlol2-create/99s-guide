@@ -24,7 +24,6 @@ export type RankedScore = {
 export type PublicLeaderboardEntry = {
   rank: number;
   tieSize: number;
-  userId: string;
   level: number | null;
   score: number;
 };

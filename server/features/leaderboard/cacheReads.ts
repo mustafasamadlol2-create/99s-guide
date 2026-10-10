@@ -454,7 +454,6 @@ export async function getLeaderboardPageWithCache(input: {
         ? [{
           rank: entry.rank,
           tieSize: entry.tieSize,
-          userId: entry.userId,
           level: entry.levelSnapshot,
           score: entry.score,
         }]

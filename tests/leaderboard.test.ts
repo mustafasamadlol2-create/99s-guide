@@ -23,6 +23,9 @@ import {
   createLeaderboardRouter,
 } from "../server/routes/leaderboards.js";
 
+// Cursor tests use a disposable key; production reads the existing auth secret.
+process.env.SESSION_SECRET = "leaderboard-test-only-session-secret";
+
 const weekly = getLeaderboardSeasonWindow(
   "WEEKLY",
   new Date("2026-09-24T20:59:59.999Z"),
@@ -345,7 +348,22 @@ test("cursor rejects tampering, noncanonical encoding, unsafe scores, and expiry
     expiresAt: 2_000,
   };
   const encoded = encodeLeaderboardCursor(payload);
+  assert.equal(encoded.includes("user-b"), false);
   assert.deepEqual(decodeLeaderboardCursor(encoded, 1_999), payload);
+  const legacyEncoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  assert.throws(
+    () => decodeLeaderboardCursor(legacyEncoded, 1),
+    (error: unknown) =>
+      error instanceof LeaderboardError
+      && error.code === "LEADERBOARD_CURSOR_EXPIRED",
+  );
+  const tampered = `${encoded.slice(0, -1)}${encoded.endsWith("A") ? "B" : "A"}`;
+  assert.throws(
+    () => decodeLeaderboardCursor(tampered, 1),
+    (error: unknown) =>
+      error instanceof LeaderboardError
+      && error.code === "LEADERBOARD_CURSOR_INVALID",
+  );
   assert.throws(
     () => decodeLeaderboardCursor(encodeLeaderboardCursor({ ...payload, score: "9".repeat(400) }), 1),
     (error: unknown) => error instanceof LeaderboardError && error.code === "LEADERBOARD_CURSOR_INVALID",
@@ -595,6 +613,11 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
       result.entries.map(({ rank, tieSize, score }) => [rank, tieSize, score]),
       [[1, 1, 100], [2, 2, 80]],
     );
+    assert.deepEqual(
+      Object.keys(result.entries[0]!).sort(),
+      ["level", "rank", "score", "tieSize"],
+    );
+    assert.equal(JSON.stringify(result).includes("user-a"), false);
     assert.equal(result.totalRankedUsers, 4);
     assert.ok(result.nextCursor);
   } finally {

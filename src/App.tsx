@@ -42,6 +42,7 @@ import {
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
+import { useStudyFeatureFlags } from "./features/study-core/StudyFeatureFlagsProvider";
 import {
   Home,
   BookOpen,
@@ -184,6 +185,7 @@ const handleSidebarKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
 
 const SuspensionScreen = lazy(() => import("./features/auth/components/SuspensionScreen"));
 
+const LazyGamificationFrontend = lazy(() => import("./features/gamification"));
 type BanInfo = { reason: string | null; isPermanent: boolean; endTime: string | null };
 type AuthState = "INITIALIZING" | "AUTHENTICATED" | "UNAUTHENTICATED" | "AUTH_ERROR";
 
@@ -210,6 +212,7 @@ function AppContent({
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
 }) {
   const device = useDeviceProfile();
+  const { GAMIFICATION_ENABLED, STUDY_POINTS_ENABLED } = useStudyFeatureFlags();
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
   // important on the 13-inch iPad Pro where short screens can otherwise end
@@ -4770,6 +4773,15 @@ const handleSignOut = useCallback(async () => {
             },
           ]
         : []),
+      ...(GAMIFICATION_ENABLED
+        ? [
+            {
+              id: "leaderboard",
+              icon: Trophy,
+              label: language === "ar" ? "لوحة الصدارة" : "Leaderboard",
+            },
+          ]
+        : []),
       ...(currentUser?.isAdmin ||
       currentUser?.role === "admin" ||
       currentUser?.role === "owner"
@@ -4785,7 +4797,7 @@ const handleSignOut = useCallback(async () => {
           ]
         : []),
     ],
-    [language, currentUser, t],
+    [language, currentUser, t, GAMIFICATION_ENABLED],
   );
 
   const sidebarSystemItems = useMemo(
@@ -6989,6 +7001,31 @@ const handleSignOut = useCallback(async () => {
                     </ErrorBoundary>
                   </Suspense>
                 )}
+              </motion.div>
+            )}
+
+            {GAMIFICATION_ENABLED && activeTab === "leaderboard" && (
+              <motion.div
+                data-main-tab-panel="leaderboard"
+                style={{
+                  display: "block",
+                  position: "relative",
+                  minHeight: navigationSurfaceMinHeight,
+                }}
+                className="w-full min-h-full"
+              >
+                <Suspense fallback={iOSLoadingFallback}>
+                  <ErrorBoundary>
+                    <LazyGamificationFrontend
+                      key={currentUser?.id ?? "anonymous"}
+                      accountId={currentUser?.id ?? null}
+                      language={language}
+                      onBack={() => handleSidebarTabClick("home")}
+                      studyPointsEnabled={STUDY_POINTS_ENABLED}
+                      initialTab="leaderboard"
+                    />
+                  </ErrorBoundary>
+                </Suspense>
               </motion.div>
             )}
 

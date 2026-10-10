@@ -108,7 +108,6 @@ export interface LeaderboardSeason {
 export interface LeaderboardEntry {
   rank: number;
   tieSize: number;
-  userId: string;
   level: number | null;
   score: number;
 }

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Award, CalendarDays, Check, ChevronDown,
-  CircleHelp, Clock3, LoaderCircle, Medal, RefreshCw, ShieldCheck,
+  CircleHelp, Clock3, LoaderCircle, Medal, RefreshCw,
   Sparkles, Target, Trophy, UsersRound, LockKeyhole,
 } from "lucide-react";
 import { useTranslation, type Language } from "../../core/i18n/translations";
@@ -17,7 +17,6 @@ import {
 import type {
   Achievement, AchievementsResponse, ChallengesResponse, ChallengeItem, GamificationSummary, UnlockHistory,
   GamificationTab, LeaderboardEntry, LeaderboardResponse, LeaderboardScope, OwnRankResponse,
-  PublicProfile,
 } from "./types";
 import "./gamification.css";
 
@@ -55,10 +54,6 @@ const BACKEND_COPY: Record<string, string> = {
 
 function pickLocalized(language: Language, en: string, ar: string): string {
   return language === "ar" ? ar : en;
-}
-
-function isNotFound(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && (error as ApiFailure).status === 404);
 }
 
 function isSemesterConfigurationUnavailable(error: unknown): boolean {
@@ -211,7 +206,6 @@ export function GamificationFrontend({
   const [overviewRankLoading, setOverviewRankLoading] = useState(false);
   const [overviewRankError, setOverviewRankError] = useState(false);
   const [overviewRankRetrySerial, setOverviewRankRetrySerial] = useState(0);
-  const [selectedParticipant, setSelectedParticipant] = useState<{ userId: string; profile: PublicProfile | null; unavailable: boolean; loading: boolean } | null>(null);
   const summaryGeneration = useRef(0);
   const achievementsGeneration = useRef(0);
   const challengesGeneration = useRef(0);
@@ -219,7 +213,6 @@ export function GamificationFrontend({
   const leaderboardRequestingScope = useRef<LeaderboardScope | null>(null);
   const rankGeneration = useRef(0);
   const overviewRankGeneration = useRef(0);
-  const participantGeneration = useRef(0);
   const warnedPointMismatch = useRef(false);
   const currentTab = useRef(tab);
   const currentScope = useRef(scope);
@@ -411,13 +404,7 @@ export function GamificationFrontend({
       ) return;
       setLeaderboard((old) => {
         if (!append || old?.scope !== nextScope) return result;
-        const seen = new Set(old.entries.map((entry) => entry.userId));
-        const addedEntries = result.entries.filter((entry) => {
-          if (seen.has(entry.userId)) return false;
-          seen.add(entry.userId);
-          return true;
-        });
-        return { ...result, entries: [...old.entries, ...addedEntries] };
+        return { ...result, entries: [...old.entries, ...result.entries] };
       });
       setCursorHasExpired(false);
       setOwnRank(null);
@@ -541,37 +528,12 @@ export function GamificationFrontend({
     const activeScope = currentScope.current;
     const privatePromise = loadPrivateData();
     const availabilityPromise = loadLeaderboardAvailability();
-    const visibleParticipantId = activeTab === "leaderboard" ? selectedParticipant?.userId : undefined;
-    const refreshParticipant = async () => {
-      if (!visibleParticipantId) return;
-      const account = currentAccountId.current;
-      const requestId = ++participantGeneration.current;
-      setSelectedParticipant((current) => current?.userId === visibleParticipantId
-        ? { ...current, profile: null, loading: true, unavailable: false }
-        : current);
-      try {
-        const profile = await gamificationApi.publicProfile(visibleParticipantId);
-        if (
-          participantGeneration.current === requestId &&
-          currentAccountId.current === account
-        ) {
-          setSelectedParticipant({ userId: visibleParticipantId, profile, unavailable: false, loading: false });
-        }
-      } catch (error) {
-        if (
-          participantGeneration.current === requestId &&
-          currentAccountId.current === account
-        ) {
-          setSelectedParticipant({ userId: visibleParticipantId, profile: null, unavailable: isNotFound(error), loading: false });
-        }
-      }
-    };
     if (activeTab === "leaderboard") {
       const semesterAvailable = await availabilityPromise;
       const leaderboardPromise = activeScope === "SEMESTER" && !semesterAvailable
         ? Promise.resolve()
         : loadLeaderboard(activeScope);
-      await Promise.all([privatePromise, leaderboardPromise, refreshParticipant()]);
+      await Promise.all([privatePromise, leaderboardPromise]);
     } else if (activeTab === "overview") {
       await Promise.all([privatePromise, loadOverviewRank(), availabilityPromise]);
     } else await Promise.all([privatePromise, availabilityPromise]);
@@ -580,7 +542,6 @@ export function GamificationFrontend({
     loadLeaderboardAvailability,
     loadOverviewRank,
     loadPrivateData,
-    selectedParticipant?.userId,
   ]);
 
   useEffect(() => {
@@ -591,7 +552,6 @@ export function GamificationFrontend({
     setLeaderboard(null);
     setOwnRank(null);
     setOverviewRank(null);
-    setSelectedParticipant(null);
     setAvailableScopes(SCOPES.filter((item) => item !== "SEMESTER"));
     setCursorHasExpired(false);
     setErrors({});
@@ -610,9 +570,11 @@ export function GamificationFrontend({
       leaderboardGeneration.current += 1;
       rankGeneration.current += 1;
       overviewRankGeneration.current += 1;
-      participantGeneration.current += 1;
     };
   }, [accountId, loadLeaderboardAvailability, loadPrivateData]);
+  useEffect(() => {
+    if (navigationRequest > 0) setTab("leaderboard");
+  }, [navigationRequest]);
   useEffect(() => {
     if (tab === "overview") void loadOverviewRank();
   }, [accountId, tab, overviewRankRetrySerial, loadOverviewRank]);
@@ -741,32 +703,6 @@ export function GamificationFrontend({
     const [key, en, ar] = map[status];
     return tx(key, en, ar);
   };
-
-  const openParticipant = useCallback(async (entry: LeaderboardEntry) => {
-    const requestId = ++participantGeneration.current;
-    setSelectedParticipant({ userId: entry.userId, profile: null, unavailable: false, loading: true });
-    try {
-      const profile = await gamificationApi.publicProfile(entry.userId);
-      if (participantGeneration.current === requestId) {
-        setSelectedParticipant({ userId: entry.userId, profile, unavailable: false, loading: false });
-      }
-    } catch (error) {
-      if (participantGeneration.current === requestId) {
-        setSelectedParticipant({ userId: entry.userId, profile: null, unavailable: isNotFound(error), loading: false });
-      }
-    }
-  }, []);
-
-  const closeParticipant = useCallback(() => {
-    participantGeneration.current += 1;
-    setSelectedParticipant(null);
-  }, []);
-
-  useEffect(() => {
-    if (navigationRequest <= 0) return;
-    setTab("leaderboard");
-    closeParticipant();
-  }, [navigationRequest, closeParticipant]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !leaderboard?.nextCursor) return;
@@ -1030,35 +966,7 @@ export function GamificationFrontend({
     </div>
   );
 
-  const renderPublicProfile = () => {
-    if (!selectedParticipant) return null;
-    return (
-      <section className="g-card g-profile" aria-live="polite">
-        <div className="g-profile-title">
-          <div><p className="g-eyebrow" style={{ marginBottom: 6 }}>{tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}</p><h2>{tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}</h2></div>
-          <button className="g-action" type="button" onClick={closeParticipant}><ArrowLeft size={15} /> {tx("gamificationBackToLeaderboard", "Back to leaderboard", "العودة إلى لوحة النقاط")}</button>
-        </div>
-        {selectedParticipant.loading ? skeleton(2)
-          : selectedParticipant.unavailable || !selectedParticipant.profile
-            ? <div className="g-empty" style={{ marginTop: 18 }}><div className="g-empty-mark"><ShieldCheck size={20} /></div><h3>{tx("gamificationUnavailable", "Public progress is unavailable", "التقدم العام غير متاح")}</h3><p>{tx("gamificationUnavailableHint", "This participant’s safe public progress could not be shown.", "تعذر عرض التقدم العام الآمن لهذا المشارك.")}</p></div>
-            : <>
-              <div className="g-profile-level"><div className="g-level-mark"><Sparkles size={21} /></div><div><span className="g-level-caption">{tx("gamificationLevel", "Current level", "المستوى الحالي")}</span><div style={{ fontWeight: 750, fontSize: 18 }}>{tx("gamificationLevelLabel", "Level", "المستوى")} {formatNumber(selectedParticipant.profile.level)}</div></div></div>
-              <h3 style={{ fontSize: 14, margin: "18px 0 4px" }}>{tx("gamificationProfileAchievements", "Unlocked achievements", "الإنجازات المفتوحة")}</h3>
-              {selectedParticipant.profile.achievements.slice(0, 6).length > 0
-                ? selectedParticipant.profile.achievements.slice(0, 6).map((item, index) => (
-                  <div className="g-profile-achievement" key={`${item.achievementId}-${index}`}>
-                    <strong>{localizedBackendText(item.titleKey, "title")}</strong>
-                    <span>{localizedBackendText(item.descriptionKey, "description")}</span>
-                  </div>
-                ))
-                : <p className="g-subtle">{tx("gamificationNoPublicAchievements", "No public achievements to show yet.", "لا توجد إنجازات عامة لعرضها بعد.")}</p>}
-            </>}
-      </section>
-    );
-  };
-
   const renderLeaderboard = () => {
-    if (selectedParticipant) return renderPublicProfile();
     if (loading.leaderboard && !leaderboard) return skeleton(5);
     if (errors.leaderboard) return renderError(tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط."), () => void loadLeaderboard(scope));
     const data = leaderboard?.scope === scope ? leaderboard : null;
@@ -1078,7 +986,7 @@ export function GamificationFrontend({
     return (
       <div className="g-tab-panel">
         <div className="g-scope-row" role="group" aria-label={tx("gamificationScopeLabel", "Snapshot period", "فترة اللقطة")}>
-          {availableScopes.map((item) => <button type="button" className="g-scope" key={item} aria-pressed={scope === item} onClick={() => { setScope(item); setLeaderboard(null); setOwnRank(null); setErrors((old) => ({ ...old, leaderboard: false })); setCursorHasExpired(false); closeParticipant(); }}>{scopeLabel(item)}</button>)}
+          {availableScopes.map((item) => <button type="button" className="g-scope" key={item} aria-pressed={scope === item} onClick={() => { setScope(item); setLeaderboard(null); setOwnRank(null); setErrors((old) => ({ ...old, leaderboard: false })); setCursorHasExpired(false); }}>{scopeLabel(item)}</button>)}
         </div>
         <section className="g-card">
           <div className="g-leaderboard-head">
@@ -1116,14 +1024,14 @@ export function GamificationFrontend({
           {loading.leaderboard && !data ? skeleton(4) : null}
           {cursorHasExpired && <div className="g-period-note" role="status">{tx("gamificationCursorExpired", "This snapshot has changed. Reload to see the latest list.", "تغيرت هذه اللقطة. أعد التحميل لعرض القائمة الأحدث.")}<button type="button" className="g-action" style={{ marginInlineStart: 10 }} onClick={() => void loadLeaderboard(scope)}>{tx("gamificationReload", "Reload snapshot", "إعادة تحميل اللقطة")}</button></div>}
           {data && <>
-            {data.entries.length ? <div className="g-board-list">
+            {data.entries.length ? <div className="g-board-list" role="list">
               {data.entries.map((entry, index) => (
-                <button type="button" className="g-participant" key={`${entry.rank}-${entry.userId}-${index}`} onClick={() => void openParticipant(entry)} aria-label={`${tx("gamificationParticipantOpen", "View safe public progress", "عرض التقدم العام الآمن")}: ${tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}. ${tx("gamificationYourPlace", "Your place", "ترتيبك")} ${formatNumber(entry.rank)}${entry.tieSize > 1 ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${entry.level === null ? "" : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}. `}${formatNumber(entry.score)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}>
+                <div className="g-participant" key={`${entry.rank}-${index}`} role="listitem" aria-label={`${tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}. ${tx("gamificationYourPlace", "Your place", "ترتيبك")} ${formatNumber(entry.rank)}${entry.tieSize > 1 ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${entry.level === null ? "" : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}. `}${formatNumber(entry.score)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}>
                   <span className="g-rank-number">{formatNumber(entry.rank)}</span>
                   <span className="g-anon-mark" aria-hidden="true"><UsersRound size={17} /></span>
                   <span className="g-participant-label">{tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}<span className="g-participant-meta">{entry.level === null ? "—" : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}`}{entry.tieSize > 1 ? ` · ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}</span></span>
                   <span className="g-score">{formatNumber(entry.score)} <span style={{ fontSize: 10, color: "var(--g-muted)" }}>{tx("gamificationScore", "Points", "النقاط")}</span></span>
-                </button>
+                </div>
               ))}
             </div> : <div className="g-empty"><div className="g-empty-mark"><Trophy size={20} /></div><h3>{tx("gamificationNoLeaderboardEntries", "No leaderboard entries", "لا توجد نتائج في لوحة النقاط")}</h3><p>{tx("gamificationNoRankedParticipants", "There are no ranked participants in this snapshot.", "لا يوجد مشاركون مدرجون في ترتيب هذه اللقطة.")}</p></div>}
             {data.nextCursor && !cursorHasExpired && <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
@@ -1161,7 +1069,7 @@ export function GamificationFrontend({
           </button>
         </header>
         <nav className="g-tabs" aria-label={tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}>
-          {tabs.map((item) => <button type="button" key={item.id} className="g-tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => { setTab(item.id); closeParticipant(); }}>{item.label}</button>)}
+          {tabs.map((item) => <button type="button" key={item.id} className="g-tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
         </nav>
         <div className="g-content">
           {tab === "overview" && renderOverview()}

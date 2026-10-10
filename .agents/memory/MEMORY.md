@@ -34,4 +34,5 @@
 - [Focus Audio local-only rule](focus-audio-local-only.md) — selected audio is limited to the current app session; never upload or persist it.
 - [Focus post-commit recovery](focus-post-commit-recovery.md) — reconcile canonical session state when client handling fails after a mutation may have committed.
 - [Study Points legacy preservation](study-points-legacy-preservation.md) — preserve PointsLog history and reconcile its balance into the authoritative ledger without double-counting.
+- [Study Points reward admission](study-points-reward-admission.md) — new reward sources need trusted completion evidence; preserve the versioned baseline and avoid backfills.
 - [Gamification realtime invalidation](gamification-realtime-invalidation.md) — socket events invalidate affected reads only; PostgreSQL stays authoritative and scoring/projection rules stay unchanged.

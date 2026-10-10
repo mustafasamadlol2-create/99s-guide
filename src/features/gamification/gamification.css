@@ -119,8 +119,7 @@
 .g-own-score { margin-inline-start:auto; text-align:end; font-size:13px;font-weight:750; white-space:nowrap; }
 .g-rank-error { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 15px; margin:14px 0; border:1px solid var(--g-line); border-radius:16px; color:var(--g-muted); font-size:12px; }
 .g-board-list { display:grid; gap:7px; }
-.g-participant { width:100%; min-height:66px; display:flex; align-items:center; gap:13px; padding:10px 13px; text-align:inherit; border:1px solid var(--g-line); border-radius:16px; background:var(--g-paper); color:var(--g-ink); cursor:pointer; font:inherit; }
-.g-participant:hover { border-color:var(--g-accent); background:var(--g-paper-strong); }
+.g-participant { width:100%; min-height:66px; display:flex; align-items:center; gap:13px; padding:10px 13px; text-align:inherit; border:1px solid var(--g-line); border-radius:16px; background:var(--g-paper); color:var(--g-ink); font:inherit; }
 .g-rank-number { width:36px; font-size:14px; font-weight:750; color:var(--g-muted); text-align:center; font-variant-numeric:tabular-nums; }
 .g-anon-mark { width:35px;height:35px;display:grid;place-items:center;border-radius:12px;background:var(--g-bg);color:var(--g-accent); }
 .g-participant-label { flex:1;font-size:13px;font-weight:650; }

@@ -40,6 +40,7 @@ function errorStatus(error: LeaderboardError): number {
     case "LEADERBOARD_POINTS_COMPATIBILITY_CONFLICT":
     case "LEADERBOARD_POINTS_LEDGER_ONLY_NOT_READY":
     case "LEADERBOARD_AGGREGATE_OVERFLOW":
+    case "LEADERBOARD_CURSOR_CONFIGURATION_MISSING":
       return 503;
   }
 }
