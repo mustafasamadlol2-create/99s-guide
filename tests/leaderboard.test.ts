@@ -6,7 +6,11 @@ import { performance } from "node:perf_hooks";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import test from "node:test";
 import { decodeLeaderboardCursor, encodeLeaderboardCursor } from "../server/features/leaderboard/cursor.js";
-import { fingerprintLeaderboardSnapshot, hashLeaderboardRuleVersions } from "../server/features/leaderboard/fingerprint.js";
+import {
+  fingerprintLeaderboardSnapshot,
+  getLeaderboardRankingSemanticsVersion,
+  hashLeaderboardRuleVersions,
+} from "../server/features/leaderboard/fingerprint.js";
 import { LeaderboardError } from "../server/features/leaderboard/errors.js";
 import {
   getAvailableLeaderboardScopes,
@@ -254,7 +258,7 @@ test("bounded score query uses one set-based canonical-ledger ranking query", as
   assert.match(scoreQuery, /RANK\(\) OVER/u);
   assert.match(scoreQuery, /COUNT\(\*\) OVER \(PARTITION BY eligible\.score\)/u);
    assert.match(scoreQuery, /GREATEST\(COALESCE\(scores\.score, 0\), 0\)/u);
-   assert.match(scoreQuery, /"role" = 'user'/u);
+  assert.doesNotMatch(scoreQuery, /"role"\s*=\s*'user'/u);
   assert.match(scoreQuery, /"accountStatus" = 'ACTIVE'/u);
   assert.equal(sqlStatements.filter((sql) => sql.includes("WITH period_points")).length, 1);
   assert.deepEqual(result.rows.map((row) => row.rank), [1, 2, 2, 4]);
@@ -585,7 +589,7 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     scoreThrough: now,
     entryCount: 4,
     sourceFingerprint: "a".repeat(64),
-    rankingSemanticsVersion: "leaderboard-ranking-v1",
+     rankingSemanticsVersion: getLeaderboardRankingSemanticsVersion("SEMESTER"),
   };
   const rows = [
     { userId: "user-a", rank: 1, tieSize: 1, score: 100n, levelSnapshot: 8, user: { name: "Student A" } },
@@ -613,6 +617,9 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     },
     userBlock: {
       async findMany() { return []; },
+    },
+    user: {
+      async count() { return 4; },
     },
   } as unknown as PrismaClient;
 

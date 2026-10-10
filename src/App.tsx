@@ -407,17 +407,12 @@ function AppContent({
       ? parts.slice(2).join("/")
       : null;
   });
-  const [hasVisitedFocusHub, setHasVisitedFocusHub] = useState(() => {
-    if (typeof window === "undefined" || !FOCUS_HUB_V2_ENABLED) return false;
-    return window.location.hash.replace(/^#/, "").split("/")[0] === "focus";
-  });
   const handleGroupFocusRouteChange = useCallback((route: string) => {
     setGroupFocusRoute(route);
     setFocusSessionRouteId(null);
     setFocusSummaryRouteId(null);
     setFocusHistoryOpen(false);
     setFocusHistoryDetailId(null);
-    setHasVisitedFocusHub(true);
     setActiveTab("focus");
   }, []);
   const [oauthRedirectError, setOauthRedirectError] = useState<string | null>(null);
@@ -2274,7 +2269,6 @@ function AppContent({
 
     if (id === "focus") {
       void FocusHub.preload();
-      setHasVisitedFocusHub(true);
     }
     setFocusSessionRouteId(null);
     const isSelectedMainTab = activeTab === id;
@@ -2418,7 +2412,6 @@ function AppContent({
 
       setActiveTab(tab);
       if (tab === "focus" && FOCUS_HUB_V2_ENABLED) {
-        setHasVisitedFocusHub(true);
         if (GROUP_FOCUS_FRONTEND_ENABLED && parts[1] === "group") {
           setGroupFocusRoute(parts.slice(2).join("/"));
           setFocusSessionRouteId(null);
@@ -6851,7 +6844,7 @@ const handleSignOut = useCallback(async () => {
               </motion.div>
             </motion.div>
 
-            {FOCUS_HUB_V2_ENABLED && hasVisitedFocusHub && (
+            {FOCUS_HUB_V2_ENABLED && currentUser && (
               <motion.div
                 data-main-tab-panel="focus"
                 style={{
@@ -6904,6 +6897,7 @@ const handleSignOut = useCallback(async () => {
                   <Suspense fallback={iOSLoadingFallback}>
                     <ErrorBoundary>
                       <FocusHub
+                      key={currentUser.id}
                       accountId={currentUser?.id ?? null}
                       lectures={dbLectures}
                       subjects={subjects}
@@ -6922,7 +6916,6 @@ const handleSignOut = useCallback(async () => {
                         setFocusHistoryDetailId(null);
                       }}
                       onOpenSession={(sessionId) => {
-                        setHasVisitedFocusHub(true);
                         setFocusSummaryRouteId(null);
                         setFocusHistoryOpen(false);
                         setFocusHistoryDetailId(null);
@@ -6982,11 +6975,11 @@ const handleSignOut = useCallback(async () => {
               </motion.div>
             )}
 
-            {activeTab === "leaderboard" && (
+            {currentUser && (
               <motion.div
                 data-main-tab-panel="leaderboard"
                 style={{
-                  display: "block",
+                  display: activeTab === "leaderboard" ? "block" : "none",
                   position: "relative",
                   minHeight: navigationSurfaceMinHeight,
                 }}

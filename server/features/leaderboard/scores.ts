@@ -256,7 +256,6 @@ async function readBoundedRankedScores(
       LEFT JOIN scores ON scores."userId" = account."id"
       WHERE account."createdAt" <= ${scoreThrough}
         AND account."accountStatus" = 'ACTIVE'
-        AND account."role" = 'user'
     ),
     ranked AS (
       SELECT
@@ -352,7 +351,6 @@ async function readLifetimeRankedScores(
       LEFT JOIN combined ON combined."userId" = account."id"
       WHERE account."createdAt" <= ${scoreThrough}
         AND account."accountStatus" = 'ACTIVE'
-        AND account."role" = 'user'
     ),
     ranked AS (
       SELECT

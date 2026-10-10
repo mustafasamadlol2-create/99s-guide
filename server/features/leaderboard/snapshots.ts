@@ -426,9 +426,8 @@ export function isLeaderboardSnapshotScoringCurrent(
   snapshot: LeaderboardSnapshot,
   scope: LeaderboardScope,
 ): boolean {
-  return scope !== "ALL_TIME"
-    || snapshot.rankingSemanticsVersion
-      === getLeaderboardRankingSemanticsVersion(scope);
+  return snapshot.rankingSemanticsVersion
+    === getLeaderboardRankingSemanticsVersion(scope);
 }
 
 /**
@@ -504,9 +503,8 @@ export async function refreshActiveLeaderboardSnapshotsForUser(
   for (const season of seasons) {
     const snapshot = latestBySeason.get(season.id);
     if (!snapshot) continue;
-    const modeIsCurrent = season.scope !== "ALL_TIME"
-      || snapshot.rankingSemanticsVersion
-        === getLeaderboardRankingSemanticsVersion(season.scope);
+    const modeIsCurrent = snapshot.rankingSemanticsVersion
+      === getLeaderboardRankingSemanticsVersion(season.scope);
     const sourceIsNewer = changedAt !== null
       && snapshot.generatedAt.getTime() <= changedAt.getTime();
     if (modeIsCurrent && !sourceIsNewer) continue;
@@ -561,11 +559,19 @@ export async function getReadableLeaderboardSnapshot(input: {
     "LIVE",
     database,
   );
+  const eligibleAccountCount = await database.user.count({
+    where: {
+      accountStatus: "ACTIVE",
+      createdAt: { lte: now },
+    },
+  });
   const scoringCurrent = !initial
     || isLeaderboardSnapshotScoringCurrent(initial, scope);
+  const rosterCurrent = !initial || initial.entryCount === eligibleAccountCount;
   if (
     initial
     && scoringCurrent
+    && rosterCurrent
     && now.getTime() - initial.generatedAt.getTime()
       <= LEADERBOARD_LIVE_FRESHNESS_MS
   ) {

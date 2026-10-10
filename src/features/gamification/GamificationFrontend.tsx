@@ -236,6 +236,8 @@ export function GamificationFrontend({
   const currentOverviewRank = useRef(overviewRank);
   const currentOwnRank = useRef(ownRank);
   const currentAccountId = useRef<string | null>(accountId);
+  const resourceRefreshScheduled = useRef(false);
+  const resourceRefreshMounted = useRef(true);
   currentTab.current = tab;
   currentScope.current = scope;
   currentLeaderboard.current = leaderboard;
@@ -543,18 +545,19 @@ export function GamificationFrontend({
   ]);
 
   const pendingResources = useRef(new Set<GamificationSyncResource>());
-  const resourceRefreshTimer = useRef<number | null>(null);
   const queueResourceRefresh = useCallback((
     resources: readonly GamificationSyncResource[],
   ) => {
     resources.forEach((resource) => pendingResources.current.add(resource));
-    if (resourceRefreshTimer.current !== null) return;
-    resourceRefreshTimer.current = window.setTimeout(() => {
-      resourceRefreshTimer.current = null;
+    if (resourceRefreshScheduled.current) return;
+    resourceRefreshScheduled.current = true;
+    queueMicrotask(() => {
+      resourceRefreshScheduled.current = false;
+      if (!resourceRefreshMounted.current) return;
       const queued = [...pendingResources.current];
       pendingResources.current.clear();
       void refreshResources(queued);
-    }, 60);
+    });
   }, [refreshResources]);
 
   useEffect(() => {
@@ -571,13 +574,11 @@ export function GamificationFrontend({
     };
     window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
     window.addEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
+    resourceRefreshMounted.current = true;
     return () => {
+      resourceRefreshMounted.current = false;
       window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
       window.removeEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
-      if (resourceRefreshTimer.current !== null) {
-        window.clearTimeout(resourceRefreshTimer.current);
-        resourceRefreshTimer.current = null;
-      }
       pendingResources.current.clear();
     };
   }, [loadLeaderboardAvailability, queueResourceRefresh]);

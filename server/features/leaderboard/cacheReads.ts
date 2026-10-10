@@ -329,7 +329,6 @@ async function getVisibleUsers(input: {
           : {}),
       },
       accountStatus: "ACTIVE",
-      role: "user",
     },
     select: { id: true, name: true },
   });
@@ -403,6 +402,18 @@ export async function getLeaderboardPageWithCache(input: {
       && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
     ) {
       throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
+    }
+    if (
+      snapshot
+      && season.status !== "CLOSED"
+      && snapshot.entryCount !== await database.user.count({
+        where: {
+          accountStatus: "ACTIVE",
+          createdAt: { lte: now },
+        },
+      })
+    ) {
+      throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
     }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
     const manifest = input.cursor
@@ -532,6 +543,18 @@ export async function getMyLeaderboardRankWithCache(input: {
       && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
     ) {
       throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
+    }
+    if (
+      snapshot
+      && season.status !== "CLOSED"
+      && snapshot.entryCount !== await database.user.count({
+        where: {
+          accountStatus: "ACTIVE",
+          createdAt: { lte: now },
+        },
+      })
+    ) {
+      throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
     }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
     const manifest = await getCurrentManifest(season);
