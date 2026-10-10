@@ -66,6 +66,9 @@ SPACED_RECALL_ENABLED = "true"
 GAMIFICATION_ENABLED = "true"
 STUDY_POINTS_ENABLED = "true"
 
+[userenv.shared]
+PRIVATE_DATA_WORKER_BASE_URL = "https://99s-private-data-api.mustafasamadlol2.workers.dev"
+
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 480000
