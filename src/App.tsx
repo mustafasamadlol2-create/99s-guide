@@ -6986,7 +6986,7 @@ const handleSignOut = useCallback(async () => {
               </motion.div>
             )}
 
-            {GAMIFICATION_ENABLED && activeTab === "leaderboard" && (
+            {activeTab === "leaderboard" && (
               <motion.div
                 data-main-tab-panel="leaderboard"
                 style={{
