@@ -38,7 +38,7 @@ type LoadingSet = { summary: boolean; achievements: boolean; challenges: boolean
 type AchievementStatus = "unlocked" | "in-progress" | "locked";
 
 const SCOPES: LeaderboardScope[] = ["WEEKLY", "MONTHLY", "SEMESTER", "ALL_TIME"];
-const INITIAL_LEADERBOARD_PAGE_SIZE = 200;
+const INITIAL_LEADERBOARD_PAGE_SIZE = 50;
 const loggedUnknownDisplayKinds = new Set<string>();
 const BACKEND_COPY: Record<string, string> = {
   "gamification.achievement.first_focus.title": "gamificationAchievementFirstFocusTitle",
@@ -373,8 +373,8 @@ export function GamificationFrontend({
 
   const loadPrivateData = useCallback(async () => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
-    await Promise.all([loadSummary(), loadAchievements(), loadChallenges()]);
-  }, [featureFlagsStatus, gamificationEnabled, loadAchievements, loadChallenges, loadSummary]);
+    await loadSummary();
+  }, [featureFlagsStatus, gamificationEnabled, loadSummary]);
 
   const loadOverviewRank = useCallback(async () => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
@@ -446,26 +446,11 @@ export function GamificationFrontend({
     if (!append) setDisabled((old) => ({ ...old, leaderboard: false }));
     try {
       const cursor = append ? leaderboard?.nextCursor : null;
-      let result = await gamificationApi.leaderboard(nextScope, cursor, INITIAL_LEADERBOARD_PAGE_SIZE);
-      let pagesLoaded = 1;
-      while (!append && result.nextCursor && result.entries.length < 500) {
-        const nextPage = await gamificationApi.leaderboard(
-          nextScope,
-          result.nextCursor,
-          INITIAL_LEADERBOARD_PAGE_SIZE,
-        );
-        if (
-          leaderboardGeneration.current !== requestId ||
-          currentScope.current !== nextScope ||
-          currentAccountId.current !== account
-        ) return;
-        result = {
-          ...nextPage,
-          entries: [...result.entries, ...nextPage.entries],
-        };
-        pagesLoaded += 1;
-        if (pagesLoaded >= 5) break;
-      }
+      const result = await gamificationApi.leaderboard(
+        nextScope,
+        cursor,
+        INITIAL_LEADERBOARD_PAGE_SIZE,
+      );
       if (
         leaderboardGeneration.current !== requestId ||
         currentScope.current !== nextScope ||
@@ -657,6 +642,25 @@ export function GamificationFrontend({
       void loadOverviewRank();
     }
   }, [accountId, featureFlagsStatus, gamificationEnabled, tab, overviewRankRetrySerial, loadOverviewRank]);
+  useEffect(() => {
+    if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
+    if (tab === "achievements" && !achievements && !loading.achievements) {
+      void loadAchievements();
+    } else if (tab === "challenges" && !challenges && !loading.challenges) {
+      void loadChallenges();
+    }
+  }, [
+    accountId,
+    achievements,
+    challenges,
+    featureFlagsStatus,
+    gamificationEnabled,
+    loading.achievements,
+    loading.challenges,
+    loadAchievements,
+    loadChallenges,
+    tab,
+  ]);
   useEffect(() => {
     if (featureFlagsStatus === "ready" && gamificationEnabled
         && tab === "leaderboard" && !cursorHasExpired &&

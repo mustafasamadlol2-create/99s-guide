@@ -7857,15 +7857,31 @@ const notifyGamificationUpdate = (
 ) => {
   if (isGamificationEnabled()) broadcastGamificationUpdate(userId, resources);
 };
+const scheduleGamificationProjectionRefresh = (
+  userId: string,
+  resources: readonly GamificationUpdateResource[],
+) => {
+  setImmediate(() => {
+    void (async () => {
+      await refreshUserGamificationBestEffort(userId);
+      try {
+        await refreshActiveLeaderboardSnapshotsForUser({ userId });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "unknown error";
+        console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
+      }
+      notifyGamificationUpdate(userId, resources);
+    })();
+  });
+};
 const refreshAchievementsAndNotify = async (userId: string) => {
-  await refreshUserGamificationBestEffort(userId);
-  try {
-    await refreshActiveLeaderboardSnapshotsForUser({ userId });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown error";
-    console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
-  }
   notifyGamificationUpdate(userId, [
+    "summary",
+    "achievements",
+    "leaderboard",
+    "rank",
+  ]);
+  scheduleGamificationProjectionRefresh(userId, [
     "summary",
     "achievements",
     "leaderboard",
@@ -7876,22 +7892,26 @@ const refreshChallengesAndNotify = async (
   userId: string,
   metricIds: readonly string[],
 ) => {
-  try {
-    await refreshUserChallenges({ userId, metricIds });
-  } finally {
-    notifyGamificationUpdate(userId, ["challenges"]);
-  }
+  notifyGamificationUpdate(userId, ["challenges"]);
+  setImmediate(() => {
+    void refreshUserChallenges({ userId, metricIds })
+      .catch((error) => {
+        const reason = error instanceof Error ? error.message : "unknown error";
+        console.warn(`[Gamification] Post-commit Challenge refresh failed: ${reason}`);
+      })
+      .finally(() => notifyGamificationUpdate(userId, ["challenges"]));
+  });
 };
 
 setStudyPointsPostCommitHook(async (userId) => {
-  await refreshUserGamificationBestEffort(userId);
-  try {
-    await refreshActiveLeaderboardSnapshotsForUser({ userId });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown error";
-    console.warn(`[Leaderboard] Post-commit snapshot refresh failed: ${reason}`);
-  }
   notifyGamificationUpdate(userId, [
+    "summary",
+    "achievements",
+    "challenges",
+    "leaderboard",
+    "rank",
+  ]);
+  scheduleGamificationProjectionRefresh(userId, [
     "summary",
     "achievements",
     "challenges",

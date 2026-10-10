@@ -901,29 +901,6 @@ export function FocusHub({
     );
   }
 
-  if (loadState === "loading") {
-    return <FocusHubSkeleton language={language} />;
-  }
-
-  if (loadState === "error") {
-    return (
-      <div
-        dir={isRtl ? "rtl" : "ltr"}
-        className="mx-auto flex min-h-[65dvh] w-full max-w-3xl flex-col items-center justify-center px-5 py-12 text-center"
-      >
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200">
-          <ShieldCheck className="h-6 w-6" aria-hidden="true" />
-        </span>
-        <h1 className="mt-5 text-2xl font-semibold text-slate-950 dark:text-white">
-          {t("focusHubTitle")}
-        </h1>
-        <p role="alert" className="mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-          {t("focusHubLoadError")}
-        </p>
-      </div>
-    );
-  }
-
   const formatMinutes = (minutes: number) => (
     <span className="whitespace-nowrap tabular-nums">
       <bdi dir="ltr">
@@ -946,6 +923,16 @@ export function FocusHub({
       dir={isRtl ? "rtl" : "ltr"}
       className="focus-hub-page focus-hub-current-root mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
+      {loadState === "loading" && (
+        <p role="status" aria-live="polite" className="sr-only">
+          {t("focusHubLoading")}
+        </p>
+      )}
+      {loadState === "error" && (
+        <div role="alert" className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-300/15 dark:bg-rose-200/[0.06] dark:text-rose-200">
+          {t("focusHubLoadError")}
+        </div>
+      )}
       {notice && (
         <div
           role={notice.tone === "error" ? "alert" : "status"}
@@ -1619,28 +1606,6 @@ function DurationStepper({
           <Plus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-    </div>
-  );
-}
-
-function FocusHubSkeleton({ language }: { language: Language }) {
-  const { t } = useTranslation(language);
-  return (
-    <div
-      dir={language === "ar" ? "rtl" : "ltr"}
-      className="mx-auto w-full max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:px-8"
-      aria-busy="true"
-      aria-label={t("focusHubLoading")}
-    >
-      <div className="h-36 animate-pulse rounded-[28px] bg-gradient-to-br from-slate-200 to-sky-100 dark:from-white/[0.08] dark:to-sky-300/[0.05]" />
-      <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(270px,340px)]">
-        <div className="space-y-5">
-          <div className="h-48 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
-          <div className="h-64 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
-        </div>
-        <div className="h-96 animate-pulse rounded-[24px] bg-slate-100 dark:bg-white/[0.05]" />
-      </div>
-      <p className="sr-only">{t("focusHubLoading")}</p>
     </div>
   );
 }

@@ -1524,22 +1524,25 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           };
         }
 
-        const activeBreak = await tx.focusBreak.findFirst({
-          where: { userId, endedAt: null },
-          select: { id: true },
-        });
+        const [activeBreak, plan, nonterminalCount] = await Promise.all([
+          tx.focusBreak.findFirst({
+            where: { userId, endedAt: null },
+            select: { id: true },
+          }),
+          ownedPlan(tx, userId, input.planId),
+          countNonterminal(tx, userId),
+        ]);
         if (activeBreak) {
           throw new FocusError("INVALID_SESSION_STATE", "End the current Focus Break before starting another session.");
         }
 
-        const plan = await ownedPlan(tx, userId, input.planId);
         if (plan.status !== "ACTIVE") {
           throw new FocusError("PLAN_ARCHIVED", "Archived Focus Plans cannot start sessions.");
         }
         const item = plan.items.find((candidate) => candidate.id === input.planItemId);
         if (!item) throw new FocusError("PLAN_ITEM_NOT_FOUND", "Focus Plan item was not found.");
 
-        if (await countNonterminal(tx, userId) > 0) {
+        if (nonterminalCount > 0) {
           throw new FocusError("ACTIVE_SESSION_EXISTS", "A solo Focus Session is already in progress.");
         }
 

@@ -27,6 +27,8 @@ async function readJson<T>(
       cache: "no-store",
       silent: true,
       requestKey,
+      timeoutMs: 5_000,
+      retries: 0,
     });
     return response.json() as Promise<T>;
   });
@@ -55,6 +57,8 @@ export const gamificationApi = {
       ttl: 0,
       cache: "no-store",
       silent: true,
+      timeoutMs: 5_000,
+      retries: 0,
     });
     return response.json() as Promise<LeaderboardAvailabilityResponse>;
   },
