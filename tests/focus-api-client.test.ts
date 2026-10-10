@@ -319,7 +319,7 @@ test("Focus history and terminal summaries validate canonical responses and pres
       resourceLaunchCount: 1,
       uniqueResourceCount: 1,
     }],
-    nextCursor: null,
+    nextCursor: Buffer.from(JSON.stringify([now, itemId]), "utf8").toString("base64url"),
     limit: 1,
   };
   const calls: string[] = [];
@@ -338,6 +338,7 @@ test("Focus history and terminal summaries validate canonical responses and pres
   });
   assert.equal(summaryResult.timing.verifiedFocusSeconds, 2_650);
   assert.equal(historyResult.items[0]?.points, 5);
+  assert.equal(historyResult.nextCursor, history.nextCursor);
   assert.deepEqual(calls, [
     `/api/focus/sessions/${itemId}/summary`,
     `/api/focus/history?limit=1&status=COMPLETED&subject=Chemistry&lectureId=${lectureId}`,

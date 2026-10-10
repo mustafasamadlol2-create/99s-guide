@@ -142,6 +142,13 @@ function stringField(value: unknown, name: string, options: { uuid?: boolean; nu
   return value;
 }
 
+function cursorField(value: unknown): string {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(value)) {
+    throw protocol("Invalid Focus history cursor.");
+  }
+  return value;
+}
+
 function numberField(value: unknown, name: string, nullable = false): number | null {
   if (value === null && nullable) return null;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw protocol(`Invalid Focus ${name}.`);
@@ -496,7 +503,7 @@ function focusSessionSummary(value: unknown): FocusSessionSummaryDto {
 function focusHistoryPage(value: unknown): FocusHistoryPageDto {
   const item = record(value, "Focus history page");
   numberField(item.limit, "history limit");
-  if (item.nextCursor !== null) stringField(item.nextCursor, "history cursor");
+  if (item.nextCursor !== null) cursorField(item.nextCursor);
   if (!Array.isArray(item.items)) throw protocol("Invalid Focus history items.");
   const items = item.items.map((value) => {
     const row = record(value, "Focus history row");
