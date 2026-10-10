@@ -40,3 +40,4 @@
 - [Learning completion evidence](learning-completion-evidence.md) — client-synced PDF, notes, and video completion flags are not sufficient evidence for points.
 - [Study Engagement readiness](study-engagement-readiness.md) — keep unavailable flags distinct from disabled features and expose only sanitized public leaderboard names.
 - [Post-merge setup duration](post-merge-setup-duration.md) — allow enough time for clean dependency installation and the full build on this Replit workspace.
+- [Private D1 rollout checks](private-d1-rollout.md) — secret updates do not deploy Worker code, and direct D1 SQL does not update Wrangler’s migration ledger.
