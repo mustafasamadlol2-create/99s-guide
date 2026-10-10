@@ -135,6 +135,7 @@ export function routeFamilyForPath(path: string): RouteFamily {
       /^\/api\/internal\/group-focus(?:\/|$)/u.test(path)) return "GROUP_FOCUS";
   if (/^\/api\/recall(?:\/|$)/u.test(path)) return "RECALL";
   if (/^\/api\/(?:admin\/)?study-points(?:\/|$)/u.test(path)) return "STUDY_POINTS";
+  if (/^\/api\/(?:me\/(?:gamification|achievements|challenges|leaderboard-rank)|users\/[^/]+\/gamification)(?:\/|$)/u.test(path)) return "GAMIFICATION";
   if (/^\/api\/me\/mastery(?:\/|$)/u.test(path)) return "MASTERY";
   if (/^\/api\/me\/retention(?:\/|$)/u.test(path)) return "RETENTION";
   if (/^\/api\/(?:admin\/)?leaderboards?(?:\/|$)/u.test(path)) return "LEADERBOARD";

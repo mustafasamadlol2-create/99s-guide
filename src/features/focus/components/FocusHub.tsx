@@ -23,7 +23,6 @@ import { FOCUS_AUDIO_ENABLED } from "../../../config/featureFlags";
 import {
   FocusApiError,
   focusApi,
-  isRetryableFocusReadError,
 } from "../api/focusApi";
 import {
   FOCUS_SOCKET_RECONNECTED_EVENT,
@@ -189,10 +188,6 @@ export function FocusHub({
   const startLockRef = useRef(false);
   const requestGenerationRef = useRef(0);
   const planRequestGenerationRef = useRef(0);
-  const planRetryAttemptRef = useRef(0);
-  const loadRetryTimerRef = useRef<number | null>(null);
-  const planRetryTimerRef = useRef<number | null>(null);
-  const loadRetryAttemptRef = useRef(0);
   const loadCanonicalRef = useRef<
     (options?: { applyDraft?: boolean; silent?: boolean; canonical?: boolean }) => Promise<unknown>
   >(() => Promise.resolve());
@@ -221,10 +216,6 @@ export function FocusHub({
       const generation = ++requestGenerationRef.current;
       const applyDraft = options.applyDraft !== false;
       if (!options.silent) setLoadState("loading");
-      if (loadRetryTimerRef.current !== null) {
-        window.clearTimeout(loadRetryTimerRef.current);
-        loadRetryTimerRef.current = null;
-      }
       try {
         const [currentState, plans] = await Promise.all([
           runtimeController.reconcile(),
@@ -271,47 +262,14 @@ export function FocusHub({
           setServerConflict(plan);
         }
         if (currentState.sessionAuthority === "CANONICAL") {
-          loadRetryAttemptRef.current = 0;
           setLoadState("ready");
         } else {
           setLoadState(plan ? "ready" : "error");
-          if (isRetryableFocusReadError(currentState.error)) {
-            const delay = Math.min(
-              30_000,
-              750 * (2 ** Math.min(loadRetryAttemptRef.current, 6)),
-            );
-            loadRetryAttemptRef.current += 1;
-            loadRetryTimerRef.current = window.setTimeout(() => {
-              loadRetryTimerRef.current = null;
-              void loadCanonicalRef.current({
-                applyDraft: false,
-                silent: true,
-                canonical: options.canonical,
-              }).catch(() => {});
-            }, delay);
-          }
         }
         return { plan, session };
       } catch (error) {
         if (mountedRef.current && generation === requestGenerationRef.current) {
           setLoadState("error");
-          if (isRetryableFocusReadError(error) &&
-              loadRetryTimerRef.current === null &&
-              (typeof navigator === "undefined" || navigator.onLine)) {
-            const delay = Math.min(
-              30_000,
-              750 * (2 ** Math.min(loadRetryAttemptRef.current, 6)),
-            );
-            loadRetryAttemptRef.current += 1;
-            loadRetryTimerRef.current = window.setTimeout(() => {
-              loadRetryTimerRef.current = null;
-              void loadCanonicalRef.current({
-                applyDraft: false,
-                silent: true,
-                canonical: options.canonical,
-              }).catch(() => {});
-            }, delay);
-          }
         }
         throw error;
       }
@@ -350,25 +308,7 @@ export function FocusHub({
       ) {
         setServerConflict(latestPlan);
       }
-      planRetryAttemptRef.current = 0;
-      if (planRetryTimerRef.current !== null) {
-        window.clearTimeout(planRetryTimerRef.current);
-        planRetryTimerRef.current = null;
-      }
     } catch (error) {
-      if (
-        mountedRef.current &&
-        isRetryableFocusReadError(error) &&
-        planRetryTimerRef.current === null &&
-        (typeof navigator === "undefined" || navigator.onLine)
-      ) {
-        const delay = Math.min(30_000, 750 * (2 ** Math.min(planRetryAttemptRef.current, 6)));
-        planRetryAttemptRef.current += 1;
-        planRetryTimerRef.current = window.setTimeout(() => {
-          planRetryTimerRef.current = null;
-          void refreshPlanRef.current(true).catch(() => {});
-        }, delay);
-      }
       throw error;
     }
   }, [runtimeController, setCanonical]);
@@ -445,14 +385,6 @@ export function FocusHub({
       mountedRef.current = false;
       requestGenerationRef.current += 1;
       planRequestGenerationRef.current += 1;
-      if (loadRetryTimerRef.current !== null) {
-        window.clearTimeout(loadRetryTimerRef.current);
-        loadRetryTimerRef.current = null;
-      }
-      if (planRetryTimerRef.current !== null) {
-        window.clearTimeout(planRetryTimerRef.current);
-        planRetryTimerRef.current = null;
-      }
     };
   }, [historyOpen, loadCanonical, sessionRouteId, summaryRouteId]);
 

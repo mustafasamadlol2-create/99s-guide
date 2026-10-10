@@ -11,6 +11,11 @@ import { redactLogValue, redactText } from "../server/observability/redaction.js
 
 test("request paths are reduced to low-cardinality route families", () => {
   assert.equal(routeFamilyForPath("/api/study-points/ledger/private-student-id"), "STUDY_POINTS");
+  assert.equal(routeFamilyForPath("/api/me/gamification"), "GAMIFICATION");
+  assert.equal(routeFamilyForPath("/api/me/achievements"), "GAMIFICATION");
+  assert.equal(routeFamilyForPath("/api/me/challenges"), "GAMIFICATION");
+  assert.equal(routeFamilyForPath("/api/me/leaderboard-rank"), "GAMIFICATION");
+  assert.equal(routeFamilyForPath("/api/users/public-id/gamification"), "GAMIFICATION");
   assert.equal(routeFamilyForPath("/api/focus/sessions/room-secret"), "FOCUS");
   assert.equal(routeFamilyForPath("/api/unclassified/private-student-id"), "GENERAL");
 });

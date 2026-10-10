@@ -3,7 +3,6 @@ import {
   AlertCircle,
   CalendarDays,
   Medal,
-  RefreshCw,
   Trophy,
   UsersRound,
 } from "lucide-react";
@@ -26,8 +25,6 @@ export interface LeaderboardViewProps {
   rankError: boolean;
   loadingMore: boolean;
   error: unknown;
-  onRetry: () => void;
-  onRetryRank: () => void;
   onLoadMore: () => void;
   locale: string;
   isRtl: boolean;
@@ -87,8 +84,6 @@ export function LeaderboardView({
   rankError,
   loadingMore,
   error,
-  onRetry,
-  onRetryRank,
   onLoadMore,
   locale,
   isRtl,
@@ -127,18 +122,6 @@ export function LeaderboardView({
           <h1 id="leaderboard-view-title">{tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}</h1>
           <p>{tx("gamificationRankIntro", "A snapshot of verified study engagement.", "لقطة لنقاط التفاعل الدراسي الموثّقة.")}</p>
         </div>
-        <button
-          type="button"
-          className="g-action lv-refresh"
-          onClick={onRetry}
-          disabled={loading}
-          aria-label={tx("gamificationRefresh", "Refresh leaderboard", "تحديث لوحة النقاط")}
-        >
-          <RefreshCw size={16} className={loading ? "g-spin" : ""} aria-hidden="true" />
-          <span>{loading
-            ? tx("gamificationRefreshing", "Refreshing", "جارٍ التحديث")
-            : tx("gamificationRefresh", "Refresh", "تحديث")}</span>
-        </button>
       </header>
 
       <div
@@ -199,13 +182,8 @@ export function LeaderboardView({
                 : tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط.")}</strong>
               <span>{featureDisabled
                 ? tx("gamificationDisabledHint", "This study engagement feature is currently disabled.", "ميزة التفاعل الدراسي هذه معطلة حاليًا.")
-                : tx("gamificationRetryHint", "Check your connection and try again.", "تحقق من الاتصال وحاول مجددًا.")}</span>
+                : tx("gamificationRetryHint", "Updates resume automatically when the server connection returns.", "يُستأنف التحديث تلقائيًا عند عودة الاتصال بالخادم.")}</span>
             </div>
-            {!featureDisabled && (
-              <button type="button" className="g-action" onClick={onRetry}>
-                {tx("gamificationRetry", "Try again", "حاول مجددًا")}
-              </button>
-            )}
           </div>
         )}
 
@@ -241,9 +219,6 @@ export function LeaderboardView({
           ) : rankError ? (
             <div className="lv-rank-error" role="alert">
               <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
-              <button type="button" className="g-action" onClick={onRetryRank}>
-                {tx("gamificationRetry", "Try again", "حاول مجددًا")}
-              </button>
             </div>
           ) : null}
         </div>

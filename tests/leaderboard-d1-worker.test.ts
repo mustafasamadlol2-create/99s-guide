@@ -9,8 +9,10 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   buildLeaderboardCacheManifest,
+  LEADERBOARD_CACHE_RANKING_VERSION,
   requestLeaderboardD1,
 } from "../server/features/leaderboard/cacheProtocol.js";
+import { getLeaderboardRankingSemanticsVersion } from "../server/features/leaderboard/fingerprint.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = "cloudflare-private-data-api/wrangler.jsonc";
@@ -712,13 +714,13 @@ test("server cache manifests match canonical snapshot metadata", () => {
     scoreThrough: new Date("2026-09-26T00:00:00.000Z"),
     sourceFingerprint: "b".repeat(64),
     entryCount: baseEntries.length,
-    rankingSemanticsVersion: RANKING_VERSION,
+    rankingSemanticsVersion: getLeaderboardRankingSemanticsVersion(SCOPE),
   };
   const entries = baseEntries.map((entry) => ({ ...entry, score: BigInt(entry.score) }));
   const manifest = buildLeaderboardCacheManifest(season, snapshot, entries);
   assert.equal(manifest.entryCount, baseEntries.length);
   assert.equal(manifest.chunkCount, 1);
-  assert.equal(manifest.rankingVersion, RANKING_VERSION);
+  assert.equal(manifest.rankingVersion, LEADERBOARD_CACHE_RANKING_VERSION);
   assert.throws(
     () => buildLeaderboardCacheManifest(
       season,

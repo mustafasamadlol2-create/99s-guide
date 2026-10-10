@@ -16,6 +16,7 @@ import {
 } from "../server/features/leaderboard/periods.js";
 import { getLeaderboardPageWithCache } from "../server/features/leaderboard/cacheReads.js";
 import {
+  parseLeaderboardPageSize,
   resolveSeason,
   safePublicDisplayName,
 } from "../server/features/leaderboard/queries.js";
@@ -39,6 +40,11 @@ test("leaderboard display names reject email and account identifier values", () 
   assert.equal(safePublicDisplayName("student@example.test"), null);
   assert.equal(safePublicDisplayName("123e4567-e89b-42d3-a456-426614174000"), null);
   assert.equal(safePublicDisplayName(`  ${"x".repeat(100)}  `)?.length, 80);
+});
+
+test("leaderboard pages accept a bounded 200-entry cohort page", () => {
+  assert.equal(parseLeaderboardPageSize(200), 200);
+  assert.throws(() => parseLeaderboardPageSize(201));
 });
 
 function querySource(query: unknown): string {
@@ -490,7 +496,7 @@ test("leaderboard user routes require authentication and validate limits before 
     );
     assert.equal(databaseCalls, 0);
     const invalid = await fetch(
-      `${server.baseUrl}/api/leaderboards/WEEKLY?limit=101`,
+      `${server.baseUrl}/api/leaderboards/WEEKLY?limit=201`,
       { headers: { "x-test-user": "user-1" } },
     );
     assert.equal(invalid.status, 400);

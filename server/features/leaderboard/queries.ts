@@ -18,7 +18,7 @@ import {
 } from "./types.js";
 
 const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 200;
 const EMAIL_LIKE = /(?:^|\s)[^\s@]+@[^\s@]+(?:$|\s)/u;
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 

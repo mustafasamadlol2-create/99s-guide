@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Award, CalendarDays, Check, ChevronDown,
-  CircleHelp, Clock3, LoaderCircle, Medal, RefreshCw,
+  CircleHelp, Clock3, LoaderCircle, Medal,
   Sparkles, Target, Trophy, UsersRound, LockKeyhole,
 } from "lucide-react";
 import { useTranslation, type Language } from "../../core/i18n/translations";
@@ -38,6 +38,7 @@ type LoadingSet = { summary: boolean; achievements: boolean; challenges: boolean
 type AchievementStatus = "unlocked" | "in-progress" | "locked";
 
 const SCOPES: LeaderboardScope[] = ["WEEKLY", "MONTHLY", "SEMESTER", "ALL_TIME"];
+const INITIAL_LEADERBOARD_PAGE_SIZE = 200;
 const loggedUnknownDisplayKinds = new Set<string>();
 const BACKEND_COPY: Record<string, string> = {
   "gamification.achievement.first_focus.title": "gamificationAchievementFirstFocusTitle",
@@ -434,7 +435,7 @@ export function GamificationFrontend({
     const account = currentAccountId.current;
     const requestId = ++leaderboardGeneration.current;
     leaderboardRequestingScope.current = nextScope;
-    if (!append) {
+    if (!append && currentLeaderboard.current?.scope !== nextScope) {
       setLeaderboard(null);
       setOwnRank(null);
       setRankError(false);
@@ -445,13 +446,13 @@ export function GamificationFrontend({
     if (!append) setDisabled((old) => ({ ...old, leaderboard: false }));
     try {
       const cursor = append ? leaderboard?.nextCursor : null;
-      let result = await gamificationApi.leaderboard(nextScope, cursor, 100);
+      let result = await gamificationApi.leaderboard(nextScope, cursor, INITIAL_LEADERBOARD_PAGE_SIZE);
       let pagesLoaded = 1;
       while (!append && result.nextCursor && result.entries.length < 500) {
         const nextPage = await gamificationApi.leaderboard(
           nextScope,
           result.nextCursor,
-          100,
+          INITIAL_LEADERBOARD_PAGE_SIZE,
         );
         if (
           leaderboardGeneration.current !== requestId ||
@@ -708,6 +709,7 @@ export function GamificationFrontend({
       const now = Date.now();
       if (now - lastRefresh < 1200) return;
       lastRefresh = now;
+      if (featureFlagsStatus === "unavailable") onRetryFeatureFlags();
       void refresh();
     };
     document.addEventListener("visibilitychange", onForeground);
@@ -716,7 +718,7 @@ export function GamificationFrontend({
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("focus", onForeground);
     };
-  }, [refresh]);
+  }, [featureFlagsStatus, onRetryFeatureFlags, refresh]);
 
   const achievementList = useMemo(() => {
     const current = achievements?.achievements ?? summary?.achievements ?? [];
@@ -758,7 +760,7 @@ export function GamificationFrontend({
   );
   const privateStaleNotice = privateDataMayBeStale
     ? <div className="g-period-note" role="status" aria-live="polite">
-      {tx("gamificationPrivateStale", "Some progress may be out of date. Refresh to check again.", "قد لا يكون بعض التقدم محدثًا. حدّث الصفحة للتحقق مجددًا.")}
+      {tx("gamificationPrivateStale", "Some progress may be out of date. It will update when the server reconnects.", "قد لا يكون بعض التقدم محدثًا. سيُحدّث عند عودة الاتصال بالخادم.")}
     </div>
     : null;
   const statusCopy = (status: ChallengeItem["status"]) => {
@@ -841,14 +843,11 @@ export function GamificationFrontend({
     );
   };
 
-  const renderError = (title: string, retry: () => void) => (
+  const renderError = (title: string) => (
     <div className="g-error" role="alert">
       <div className="g-empty-mark"><CircleHelp size={21} /></div>
       <h3>{title}</h3>
       <p>{tx("gamificationLoadError", "We couldn't load this progress just now.", "تعذر تحميل هذا التقدم الآن.")}</p>
-      <button type="button" className="g-action" onClick={retry} style={{ marginTop: 16 }}>
-        <RefreshCw size={15} /> {tx("gamificationRetry", "Try again", "حاول مجددًا")}
-      </button>
     </div>
   );
 
@@ -869,7 +868,7 @@ export function GamificationFrontend({
   const renderOverview = () => {
     if (loading.summary && !summary) return skeleton(3);
     if (disabled.summary && !summary) return renderDisabled(tx("gamificationDisabled", "Study engagement is disabled.", "التفاعل الدراسي معطل."));
-    if (errors.summary && !summary) return renderError(tx("gamificationOverviewError", "Your engagement summary could not be loaded.", "تعذر تحميل ملخص التفاعل."), () => void loadPrivateData());
+    if (errors.summary && !summary) return renderError(tx("gamificationOverviewError", "Your engagement summary could not be loaded.", "تعذر تحميل ملخص التفاعل."));
     if (!summary) return null;
     const level = summary.level;
     const progress = level.levelProgressRatio === null ? null : safeFraction(level.levelProgressRatio);
@@ -984,9 +983,6 @@ export function GamificationFrontend({
           </div>}
           {overviewRankError && <div className="g-rank-error" role="alert">
             <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
-            <button type="button" className="g-action" onClick={() => setOverviewRankRetrySerial((serial) => serial + 1)}>
-              {tx("gamificationRetry", "Try again", "حاول مجددًا")}
-            </button>
           </div>}
           {overviewRank && <div className="g-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
             <div className="g-own-rank-badge">{overviewRank.notRanked || overviewRank.rank === null ? "—" : formatNumber(overviewRank.rank)}</div>
@@ -1020,7 +1016,7 @@ export function GamificationFrontend({
         {privateStaleNotice}
       {loading.achievements && !achievements ? skeleton(4)
         : disabled.achievements && !achievements ? renderDisabled(tx("gamificationDisabled", "Achievements are disabled.", "الإنجازات معطلة."))
-          : errors.achievements && !achievements ? renderError(tx("gamificationAchievementsError", "Achievements could not be loaded.", "تعذر تحميل الإنجازات."), () => void loadPrivateData())
+          : errors.achievements && !achievements ? renderError(tx("gamificationAchievementsError", "Achievements could not be loaded.", "تعذر تحميل الإنجازات."))
           : achievementList.length ? <div className="g-items">{achievementList.map((item) => renderAchievement(item))}</div>
             : <div className="g-empty"><div className="g-empty-mark"><Medal size={21} /></div><h3>{tx("gamificationNoAchievements", "Your milestones will appear here", "ستظهر إنجازاتك هنا")}</h3><p>{tx("gamificationNoAchievementsHint", "Keep showing up for your study routine. New milestones appear when verified.", "واصل الالتزام بروتينك الدراسي. ستظهر الإنجازات الجديدة بعد توثيقها.")}</p></div>}
       {achievements?.unlockHistory?.length ? <section className="g-card" style={{ marginTop: 14 }}><h2>{tx("gamificationUnlocked", "Unlocked", "مفتوح")}</h2><div style={{ marginTop: 12 }}>{achievements.unlockHistory.map((item, index) => <div className="g-profile-achievement" key={`${item.achievementId}-${index}`}><strong>{localizedBackendText(item.titleKey, "title")}</strong><span>{formatDate(item.unlockedAt, locale)}</span></div>)}</div></section> : null}
@@ -1034,7 +1030,7 @@ export function GamificationFrontend({
       {challenges?.currentPeriod && <div className="g-period-note">{tx("gamificationPeriod", "Current period", "الفترة الحالية")}: {formatDate(challenges.currentPeriod.startsAt, locale, { year: "numeric" })} – {formatDate(challenges.currentPeriod.endsAt, locale, { year: "numeric" })}</div>}
       {loading.challenges && !challenges ? skeleton(4)
         : disabled.challenges && !challenges ? renderDisabled(tx("gamificationDisabled", "Challenges are disabled.", "التحديات معطلة."))
-          : errors.challenges && !challenges ? renderError(tx("gamificationChallengesError", "Challenges could not be loaded.", "تعذر تحميل التحديات."), () => void loadPrivateData())
+          : errors.challenges && !challenges ? renderError(tx("gamificationChallengesError", "Challenges could not be loaded.", "تعذر تحميل التحديات."))
           : (
             <>
               {currentChallenges.length ? <div className="g-items">{currentChallenges.map(renderChallenge)}</div>
@@ -1065,8 +1061,6 @@ export function GamificationFrontend({
         rankError={rankError}
         loadingMore={loadingMore}
         error={disabled.leaderboard ? { body: { code: "FEATURE_DISABLED" } } : errors.leaderboard}
-        onRetry={() => void loadLeaderboard(scope)}
-        onRetryRank={() => setRankRetrySerial((serial) => serial + 1)}
         onLoadMore={loadMore}
         locale={locale}
         isRtl={isRtl}
@@ -1090,9 +1084,6 @@ export function GamificationFrontend({
             <h1>{tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}</h1>
             <p className="g-hero-copy">{tx("gamificationSubtitle", "A private view of verified study engagement. Points reflect recorded activity, not academic ability.", "عرض خاص لتفاعلك الدراسي الموثّق. تعكس النقاط النشاط المسجل، لا القدرة الأكاديمية.")}</p>
           </div>
-          <button type="button" className="g-action g-refresh" onClick={() => void refresh()} disabled={loading.summary || loading.leaderboard}>
-            <RefreshCw size={15} /> {loading.summary || loading.leaderboard ? tx("gamificationRefreshing", "Refreshing", "جارٍ التحديث") : tx("gamificationRefresh", "Refresh", "تحديث")}
-          </button>
         </header>
         <nav className="g-tabs" aria-label={tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}>
           {tabs.map((item) => <button type="button" key={item.id} className="g-tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
@@ -1101,7 +1092,6 @@ export function GamificationFrontend({
           <GamificationFeatureState
             status={featureFlagsStatus}
             enabled={gamificationEnabled}
-            onRetry={onRetryFeatureFlags}
             tx={tx}
           />
           {featureFlagsStatus === "ready" && gamificationEnabled && (
