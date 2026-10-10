@@ -68,6 +68,10 @@ STUDY_POINTS_ENABLED = "true"
 
 [userenv.shared]
 PRIVATE_DATA_WORKER_BASE_URL = "https://99s-private-data-api.mustafasamadlol2.workers.dev"
+PRIVATE_D1_FOCUS_PLAN_READS_ENABLED = "false"
+PRIVATE_D1_FOCUS_SESSION_READS_ENABLED = "false"
+PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED = "false"
+PRIVATE_D1_WRITE_MIRROR_ENABLED = "false"
 
 [postMerge]
 path = "scripts/post-merge.sh"
