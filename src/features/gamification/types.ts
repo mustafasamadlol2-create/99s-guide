@@ -111,6 +111,7 @@ export interface LeaderboardEntry {
   level: number | null;
   score: number;
   displayName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface LeaderboardResponse {

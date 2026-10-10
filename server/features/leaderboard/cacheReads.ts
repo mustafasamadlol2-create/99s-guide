@@ -18,6 +18,7 @@ import {
   getMyLeaderboardRank,
   parseLeaderboardPageSize,
   resolveSeason,
+  safePublicAvatarUrl,
   safePublicDisplayName,
   seasonDto,
   validateCursorSnapshot,
@@ -318,7 +319,7 @@ async function getVisibleUsers(input: {
   userIds: string[];
   database: PrismaClient;
   blockedUserIds: string[];
-}): Promise<Map<string, string | null>> {
+}): Promise<Map<string, { displayName: string | null; avatarUrl: string | null }>> {
   if (input.userIds.length === 0) return new Map();
   const users = await input.database.user.findMany({
     where: {
@@ -330,11 +331,14 @@ async function getVisibleUsers(input: {
       },
       accountStatus: "ACTIVE",
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, avatar: true, avatarUrl: true },
   });
   return new Map(users.map((user) => [
     user.id,
-    safePublicDisplayName(user.name),
+    {
+      displayName: safePublicDisplayName(user.name),
+      avatarUrl: safePublicAvatarUrl(user.avatarUrl || user.avatar),
+    },
   ]));
 }
 
@@ -472,7 +476,8 @@ export async function getLeaderboardPageWithCache(input: {
           tieSize: entry.tieSize,
           level: entry.levelSnapshot,
           score: entry.score,
-          displayName: visibleUserIds.get(entry.userId) ?? null,
+          displayName: visibleUserIds.get(entry.userId)?.displayName ?? null,
+          avatarUrl: visibleUserIds.get(entry.userId)?.avatarUrl ?? null,
         }]
         : []);
     const expiresAt = snapshot.snapshotType === "LIVE"

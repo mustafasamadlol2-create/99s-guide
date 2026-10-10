@@ -75,24 +75,6 @@
 }
 .lv-board-title h2 { margin: 0; font-size: 18px; font-weight: 730; letter-spacing: -.025em; }
 .lv-board-title p { margin: 4px 0 0; color: var(--g-muted); font-size: 12px; line-height: 1.45; }
-.lv-snapshot { margin-top: 2px; }
-.lv-snapshot.final { background: var(--g-warm-soft); color: var(--g-warm); }
-.lv-snapshot.upcoming { background: var(--g-bg); color: var(--g-muted); }
-.lv-season-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 9px 18px;
-  margin-top: 19px;
-  padding: 11px 13px;
-  border-radius: 14px;
-  color: var(--g-muted);
-  background: color-mix(in srgb, var(--g-bg) 72%, var(--g-paper));
-  font-size: 11px;
-}
-.lv-season-line > span { display: inline-flex; align-items: center; gap: 6px; min-height: 18px; }
-.lv-season-line svg { color: var(--g-accent); }
-.lv-participant-count { margin-inline-start: auto; color: var(--g-accent-strong); font-weight: 700; }
 
 .lv-own-wrap { margin-top: 15px; }
 .lv-own-rank {
@@ -186,7 +168,9 @@
   border-radius: 13px;
   color: var(--g-accent);
   background: var(--g-bg);
+  overflow: hidden;
 }
+.lv-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .lv-podium-1 .lv-avatar { color: var(--g-warm); background: var(--g-warm-soft); }
 .lv-student { flex: 1; min-width: 0; }
 .lv-student strong { display: block; overflow: hidden; font-size: 13px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
@@ -194,7 +178,6 @@
 .lv-score { text-align: end; white-space: nowrap; }
 .lv-score strong { display: block; font-size: 14px; font-weight: 780; font-variant-numeric: tabular-nums; }
 .lv-score span { display: block; margin-top: 3px; color: var(--g-muted); font-size: 10px; }
-.lv-footnote { margin: 16px 0 0; color: var(--g-muted); text-align: center; font-size: 11px; line-height: 1.5; }
 .lv-empty { margin-top: 15px; }
 .lv-load-more { display: flex; justify-content: center; margin-top: 14px; }
 .lv-rank-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 14px; border: 1px solid var(--g-line); border-radius: 16px; color: var(--g-muted); font-size: 12px; }
@@ -222,7 +205,6 @@
   .lv-refresh span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .lv-board { padding: 17px 14px 16px; border-radius: 21px; }
   .lv-board-top { flex-direction: column; align-items: flex-start; gap: 11px; }
-  .lv-season-line { gap: 8px 13px; margin-top: 15px; }
   .lv-participant-count { margin-inline-start: 0; }
   .lv-own-rank { gap: 10px; padding: 11px; }
   .lv-own-rank-mark { width: 40px; height: 40px; }

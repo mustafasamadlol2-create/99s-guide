@@ -1,7 +1,6 @@
 import React from "react";
 import {
   AlertCircle,
-  CalendarDays,
   Medal,
   Trophy,
   UsersRound,
@@ -38,20 +37,6 @@ const SCOPE_COPY: Record<LeaderboardScope, [string, string, string]> = {
   ALL_TIME: ["gamificationAllTime", "All time", "طوال الوقت"],
 };
 
-function dateLabel(value: string | null | undefined, locale: string): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).format(date);
-}
-
-function timeLabel(value: string | null | undefined, locale: string): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
-}
-
 function isFeatureDisabled(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const body = (error as { body?: { code?: unknown } }).body;
@@ -70,6 +55,24 @@ function SkeletonRows({ label }: { label: string }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function LeaderboardAvatar({ url }: { url: string | null }) {
+  const [failed, setFailed] = React.useState(false);
+  return (
+    <span className="lv-avatar" aria-hidden="true">
+      {url && !failed
+        ? <img
+            src={url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+          />
+        : <UsersRound size={17} />}
+    </span>
   );
 }
 
@@ -96,13 +99,6 @@ export function LeaderboardView({
   };
   const currentData = data?.scope === scope ? data : null;
   const currentRank = ownRank?.scope === scope ? ownRank : null;
-  const snapshot = currentData?.isStale
-    ? ["gamificationStale", "Snapshot may be out of date", "قد تكون اللقطة غير محدثة", "stale"] as const
-    : currentData?.season.status === "CLOSED"
-      ? ["gamificationFinal", "Final snapshot", "لقطة نهائية", "final"] as const
-      : currentData?.season.status === "UPCOMING"
-        ? ["gamificationUpcoming", "Season upcoming", "الموسم قادم", "upcoming"] as const
-        : ["gamificationLive", "Live snapshot", "لقطة مباشرة", "live"] as const;
   const showError = Boolean(error);
   const featureDisabled = isFeatureDisabled(error);
   const entries: LeaderboardEntry[] = currentData?.entries ?? [];
@@ -120,7 +116,6 @@ export function LeaderboardView({
             {tx("gamificationStudyCommunity", "Study community", "مجتمع الدراسة")}
           </span>
           <h1 id="leaderboard-view-title">{tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}</h1>
-          <p>{tx("gamificationRankIntro", "A snapshot of verified study engagement.", "لقطة لنقاط التفاعل الدراسي الموثّقة.")}</p>
         </div>
       </header>
 
@@ -148,30 +143,9 @@ export function LeaderboardView({
             <div className="lv-title-icon" aria-hidden="true"><Medal size={20} /></div>
             <div>
               <h2>{scopeTitle(scope)}</h2>
-              <p>{tx("gamificationRankDisclaimer", "Engagement, not academic standing.", "مقياس للتفاعل، وليس للتحصيل الأكاديمي.")}</p>
             </div>
           </div>
-          {currentData && (
-            <span className={`g-semantics lv-snapshot ${snapshot[3] === "stale" ? "stale" : ""}`}>
-              {tx(snapshot[0], snapshot[1], snapshot[2])}
-            </span>
-          )}
         </div>
-
-        {currentData && (
-          <div className="lv-season-line">
-            <span><CalendarDays size={14} aria-hidden="true" />
-              {dateLabel(currentData.season.startsAt, locale)} <span aria-hidden="true">–</span> {dateLabel(currentData.season.endsAt, locale)}
-            </span>
-            <span>
-              {tx("gamificationGenerated", "Updated", "تم التحديث")} {timeLabel(currentData.generatedAt, locale)}
-            </span>
-            <span className="lv-participant-count">
-              <UsersRound size={14} aria-hidden="true" />
-              {formatNumber(currentData.totalRankedUsers)} {tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}
-            </span>
-          </div>
-        )}
 
         {showError && (
           <div className="lv-error" role="alert">
@@ -261,7 +235,7 @@ export function LeaderboardView({
                     {podium ? <Medal size={17} aria-hidden="true" /> : null}
                     <span>{formatNumber(entry.rank)}</span>
                   </span>
-                  <span className="lv-avatar" aria-hidden="true"><UsersRound size={17} /></span>
+                  <LeaderboardAvatar key={entry.avatarUrl ?? "no-avatar"} url={entry.avatarUrl} />
                   <span className="lv-student">
                     <strong>{publicLabel}</strong>
                     <span>{entry.level === null
@@ -288,11 +262,6 @@ export function LeaderboardView({
           </div>
         )}
 
-        {currentData && (
-          <p className="lv-footnote">
-            {tx("gamificationRankDisclaimer", "Study Points reflect verified engagement only, not academic ability.", "تعكس نقاط الدراسة التفاعل الموثّق فقط، ولا تعبّر عن القدرة الأكاديمية.")}
-          </p>
-        )}
       </div>
     </section>
   );

@@ -287,6 +287,13 @@ export function GamificationFrontend({
         currentAccountId.current === account
       ) {
         setSummary(data);
+        setAchievements({
+          ruleSetVersion: data.ruleSetVersion,
+          achievements: data.achievements,
+          unlockHistory: data.unlockHistory,
+        });
+        setErrors((old) => ({ ...old, achievements: false }));
+        setDisabled((old) => ({ ...old, achievements: false }));
         setDisabled((old) => ({ ...old, summary: false }));
       }
     } catch (error) {
@@ -295,15 +302,19 @@ export function GamificationFrontend({
         currentAccountId.current === account
       ) {
         setErrors((old) => ({ ...old, summary: true }));
+        setLoading((old) => ({ ...old, achievements: false }));
         const isDisabled = isFeatureDisabledError(error);
         setDisabled((old) => ({ ...old, summary: isDisabled }));
-        if (isDisabled) setSummary(null);
+        if (isDisabled) {
+          setSummary(null);
+          setAchievements(null);
+        }
       }
     } finally {
       if (
         summaryGeneration.current === requestId &&
         currentAccountId.current === account
-      ) setLoading((old) => ({ ...old, summary: false }));
+      ) setLoading((old) => ({ ...old, summary: false, achievements: false }));
     }
   }, []);
 
@@ -622,9 +633,14 @@ export function GamificationFrontend({
       challenges: true,
       leaderboard: false,
     });
+    setOverviewRank(null);
+    setOverviewRankLoading(false);
+    setOverviewRankError(false);
     if (featureFlagsStatus === "ready" && gamificationEnabled) {
       void loadPrivateData();
+      void loadChallenges();
       void loadLeaderboardAvailability();
+      void loadOverviewRank();
     }
     return () => {
       summaryGeneration.current += 1;
@@ -634,15 +650,40 @@ export function GamificationFrontend({
       rankGeneration.current += 1;
       overviewRankGeneration.current += 1;
     };
-  }, [accountId, featureFlagsStatus, gamificationEnabled, loadLeaderboardAvailability, loadPrivateData]);
+  }, [
+    accountId,
+    featureFlagsStatus,
+    gamificationEnabled,
+    loadChallenges,
+    loadLeaderboardAvailability,
+    loadOverviewRank,
+    loadPrivateData,
+  ]);
   useEffect(() => {
     if (navigationRequest > 0) setTab("leaderboard");
   }, [navigationRequest]);
   useEffect(() => {
-    if (featureFlagsStatus === "ready" && gamificationEnabled && tab === "overview") {
+    if (
+      featureFlagsStatus === "ready"
+      && gamificationEnabled
+      && tab === "overview"
+      && !overviewRank
+      && !overviewRankLoading
+      && !overviewRankError
+    ) {
       void loadOverviewRank();
     }
-  }, [accountId, featureFlagsStatus, gamificationEnabled, tab, overviewRankRetrySerial, loadOverviewRank]);
+  }, [
+    accountId,
+    featureFlagsStatus,
+    gamificationEnabled,
+    tab,
+    overviewRank,
+    overviewRankLoading,
+    overviewRankError,
+    overviewRankRetrySerial,
+    loadOverviewRank,
+  ]);
   useEffect(() => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
     if (tab === "achievements" && !achievements && !loading.achievements) {
@@ -765,7 +806,7 @@ export function GamificationFrontend({
   );
   const privateStaleNotice = privateDataMayBeStale
     ? <div className="g-period-note" role="status" aria-live="polite">
-      {tx("gamificationPrivateStale", "Some progress may be out of date. It will update when the server reconnects.", "قد لا يكون بعض التقدم محدثًا. سيُحدّث عند عودة الاتصال بالخادم.")}
+      {tx("gamificationPrivateStale", "Some progress may be out of date. It will sync automatically when the server reconnects.", "قد لا يكون بعض التقدم محدثًا. ستتم مزامنته تلقائيًا عند عودة الاتصال بالخادم.")}
     </div>
     : null;
   const statusCopy = (status: ChallengeItem["status"]) => {
@@ -973,7 +1014,6 @@ export function GamificationFrontend({
               <h2 id="g-overview-rank-heading">
                 {tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")} · {tx("gamificationWeekly", "Weekly", "أسبوعي")}
               </h2>
-              <p>{tx("gamificationRankIntro", "A snapshot of study engagement points", "لقطة لنقاط التفاعل الدراسي")}</p>
               {overviewRank && <p className="g-subtle">
                 {formatDate(overviewRank.season.startsAt, locale, { year: "numeric" })} – {formatDate(overviewRank.season.endsAt, locale, { year: "numeric" })}
               </p>}
@@ -1006,11 +1046,7 @@ export function GamificationFrontend({
               <span style={{ fontSize: 10, display: "block", fontWeight: 500 }}>{tx("gamificationScore", "Points", "النقاط")}</span>
             </div>
           </div>}
-          <p className="g-footer-note" style={{ marginBottom: 0 }}>
-            {tx("gamificationRankDisclaimer", "This is an engagement measure only—not an academic ranking.", "هذا مقياس للتفاعل فقط، وليس ترتيبًا أكاديميًا.")}
-          </p>
         </section>
-        <p className="g-footer-note">{tx("gamificationPrivateNote", "Only your verified totals, progress and milestones are shown here.", "تظهر هنا فقط إجمالياتك وتقدمك وإنجازاتك الموثّقة.")}</p>
       </div>
     );
   };
@@ -1087,7 +1123,6 @@ export function GamificationFrontend({
           <div>
             <p className="g-eyebrow">{tx("gamificationEyebrow", "Your progress, at your pace", "تقدمك، بإيقاعك")}</p>
             <h1>{tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}</h1>
-            <p className="g-hero-copy">{tx("gamificationSubtitle", "A private view of verified study engagement. Points reflect recorded activity, not academic ability.", "عرض خاص لتفاعلك الدراسي الموثّق. تعكس النقاط النشاط المسجل، لا القدرة الأكاديمية.")}</p>
           </div>
         </header>
         <nav className="g-tabs" aria-label={tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}>

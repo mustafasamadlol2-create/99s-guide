@@ -22,6 +22,7 @@ import { getLeaderboardPageWithCache } from "../server/features/leaderboard/cach
 import {
   parseLeaderboardPageSize,
   resolveSeason,
+  safePublicAvatarUrl,
   safePublicDisplayName,
 } from "../server/features/leaderboard/queries.js";
 import { readRankedLeaderboardScores, readUserLeaderboardScore } from "../server/features/leaderboard/scores.js";
@@ -44,6 +45,13 @@ test("leaderboard display names reject email and account identifier values", () 
   assert.equal(safePublicDisplayName("student@example.test"), null);
   assert.equal(safePublicDisplayName("123e4567-e89b-42d3-a456-426614174000"), null);
   assert.equal(safePublicDisplayName(`  ${"x".repeat(100)}  `)?.length, 80);
+});
+
+test("leaderboard public avatars allow web and app-relative image URLs only", () => {
+  assert.equal(safePublicAvatarUrl("https://cdn.example.test/avatar.png"), "https://cdn.example.test/avatar.png");
+  assert.equal(safePublicAvatarUrl("/api/media/avatar/1"), "/api/media/avatar/1");
+  assert.equal(safePublicAvatarUrl("javascript:alert(1)"), null);
+  assert.equal(safePublicAvatarUrl("//tracker.example.test/avatar.png"), null);
 });
 
 test("leaderboard pages accept a bounded 200-entry cohort page", () => {
@@ -646,9 +654,10 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     );
     assert.deepEqual(
       Object.keys(result.entries[0]!).sort(),
-      ["displayName", "level", "rank", "score", "tieSize"],
+      ["avatarUrl", "displayName", "level", "rank", "score", "tieSize"],
     );
     assert.equal(result.entries[0]?.displayName, "Student A");
+    assert.equal(result.entries[0]?.avatarUrl, null);
     assert.equal(JSON.stringify(result).includes("user-a"), false);
     assert.equal(result.totalRankedUsers, 4);
     assert.ok(result.nextCursor);

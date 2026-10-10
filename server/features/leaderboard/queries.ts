@@ -35,6 +35,23 @@ export function safePublicDisplayName(value: unknown): string | null {
   return normalized.slice(0, 80).trim() || null;
 }
 
+export function safePublicAvatarUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 2_048) return null;
+  if (normalized.startsWith("/") && !normalized.startsWith("//")) {
+    return normalized;
+  }
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? normalized
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export type LeaderboardSeasonDto = {
   id: string;
   scope: LeaderboardScope;
@@ -309,7 +326,7 @@ export async function getLeaderboardPage(input: {
         userId: true,
         score: true,
         levelSnapshot: true,
-        user: { select: { name: true } },
+        user: { select: { name: true, avatar: true, avatarUrl: true } },
       },
     }),
     database.leaderboardSnapshotEntry.count({ where: baseWhere }),
@@ -324,6 +341,7 @@ export async function getLeaderboardPage(input: {
       level: row.levelSnapshot,
       score: decodeLeaderboardScore(row.score),
       displayName: safePublicDisplayName(row.user?.name),
+      avatarUrl: safePublicAvatarUrl(row.user?.avatarUrl || row.user?.avatar),
     }];
   });
   let nextCursor: string | null = null;

@@ -10,7 +10,6 @@ function render(status: "loading" | "ready" | "unavailable", enabled: boolean, l
   return renderToStaticMarkup(React.createElement(GamificationFeatureState, {
     status,
     enabled,
-    onRetry: () => {},
     tx: (_key, en, ar) => language === "ar" ? ar : en,
   }));
 }
