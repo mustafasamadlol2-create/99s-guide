@@ -36,3 +36,4 @@
 - [Study Points legacy preservation](study-points-legacy-preservation.md) — preserve PointsLog history and reconcile its balance into the authoritative ledger without double-counting.
 - [Study Points reward admission](study-points-reward-admission.md) — new reward sources need trusted completion evidence; preserve the versioned baseline and avoid backfills.
 - [Gamification realtime invalidation](gamification-realtime-invalidation.md) — socket events invalidate affected reads only; PostgreSQL stays authoritative and scoring/projection rules stay unchanged.
+- [Learning completion evidence](learning-completion-evidence.md) — client-synced PDF, notes, and video completion flags are not sufficient evidence for points.
