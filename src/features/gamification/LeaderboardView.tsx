@@ -1,0 +1,296 @@
+import React from "react";
+import {
+  AlertCircle,
+  CalendarDays,
+  Medal,
+  RefreshCw,
+  Trophy,
+  UsersRound,
+} from "lucide-react";
+import type {
+  LeaderboardEntry,
+  LeaderboardResponse,
+  LeaderboardScope,
+  OwnRankResponse,
+} from "./types";
+import "./leaderboard-view.css";
+
+export interface LeaderboardLocalizedEntry {
+  displayName?: string | null;
+  label?: string | null;
+}
+
+export interface LeaderboardViewProps {
+  scope: LeaderboardScope;
+  onScopeChange: (scope: LeaderboardScope) => void;
+  availableScopes: LeaderboardScope[];
+  data: LeaderboardResponse | null;
+  ownRank: OwnRankResponse | null;
+  loading: boolean;
+  rankLoading: boolean;
+  error: unknown;
+  onRetry: () => void;
+  locale: string;
+  isRtl: boolean;
+  tx: (key: string, en: string, ar: string) => string;
+  localizedEntries?: LeaderboardLocalizedEntry[];
+}
+
+const SCOPE_COPY: Record<LeaderboardScope, [string, string, string]> = {
+  WEEKLY: ["gamificationWeekly", "Weekly", "أسبوعي"],
+  MONTHLY: ["gamificationMonthly", "Monthly", "شهري"],
+  SEMESTER: ["gamificationSemester", "Semester", "فصلي"],
+  ALL_TIME: ["gamificationAllTime", "All time", "طوال الوقت"],
+};
+
+function dateLabel(value: string | null | undefined, locale: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function timeLabel(value: string | null | undefined, locale: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function SkeletonRows({ label }: { label: string }) {
+  return (
+    <div className="lv-skeleton-list" role="status" aria-label={label}>
+      {[0, 1, 2, 3].map((item) => (
+        <div className="lv-skeleton-row" key={item} aria-hidden="true">
+          <span className="lv-skeleton lv-skeleton-rank" />
+          <span className="lv-skeleton lv-skeleton-avatar" />
+          <span className="lv-skeleton lv-skeleton-name" />
+          <span className="lv-skeleton lv-skeleton-score" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function LeaderboardView({
+  scope,
+  onScopeChange,
+  availableScopes,
+  data,
+  ownRank,
+  loading,
+  rankLoading,
+  error,
+  onRetry,
+  locale,
+  isRtl,
+  tx,
+  localizedEntries,
+}: LeaderboardViewProps) {
+  const formatNumber = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const scopeTitle = (value: LeaderboardScope) => {
+    const [key, en, ar] = SCOPE_COPY[value];
+    return tx(key, en, ar);
+  };
+  const currentData = data?.scope === scope ? data : null;
+  const currentRank = ownRank?.scope === scope ? ownRank : null;
+  const snapshot = currentData?.isStale
+    ? ["gamificationStale", "Snapshot may be out of date", "قد تكون اللقطة غير محدثة", "stale"] as const
+    : currentData?.season.status === "CLOSED"
+      ? ["gamificationFinal", "Final snapshot", "لقطة نهائية", "final"] as const
+      : currentData?.season.status === "UPCOMING"
+        ? ["gamificationUpcoming", "Season upcoming", "الموسم قادم", "upcoming"] as const
+        : ["gamificationLive", "Live snapshot", "لقطة مباشرة", "live"] as const;
+  const showError = Boolean(error);
+  const entries: LeaderboardEntry[] = currentData?.entries ?? [];
+
+  return (
+    <section
+      className="g-tab-panel g-leaderboard-view"
+      dir={isRtl ? "rtl" : "ltr"}
+      aria-labelledby="leaderboard-view-title"
+    >
+      <header className="lv-heading">
+        <div className="lv-heading-copy">
+          <span className="lv-kicker">
+            <span className="lv-kicker-mark"><Trophy size={14} aria-hidden="true" /></span>
+            {tx("gamificationStudyCommunity", "Study community", "مجتمع الدراسة")}
+          </span>
+          <h1 id="leaderboard-view-title">{tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}</h1>
+          <p>{tx("gamificationRankIntro", "A snapshot of verified study engagement.", "لقطة لنقاط التفاعل الدراسي الموثّقة.")}</p>
+        </div>
+        <button
+          type="button"
+          className="g-action lv-refresh"
+          onClick={onRetry}
+          disabled={loading}
+          aria-label={tx("gamificationRefresh", "Refresh leaderboard", "تحديث لوحة النقاط")}
+        >
+          <RefreshCw size={16} className={loading ? "g-spin" : ""} aria-hidden="true" />
+          <span>{loading
+            ? tx("gamificationRefreshing", "Refreshing", "جارٍ التحديث")
+            : tx("gamificationRefresh", "Refresh", "تحديث")}</span>
+        </button>
+      </header>
+
+      <div
+        className="g-scope-row lv-scopes"
+        role="group"
+        aria-label={tx("gamificationScopeLabel", "Snapshot period", "فترة اللقطة")}
+      >
+        {availableScopes.map((item) => (
+          <button
+            type="button"
+            className="g-scope"
+            key={item}
+            aria-pressed={scope === item}
+            onClick={() => onScopeChange(item)}
+          >
+            {scopeTitle(item)}
+          </button>
+        ))}
+      </div>
+
+      <div className="lv-board">
+        <div className="lv-board-top">
+          <div className="lv-board-title">
+            <div className="lv-title-icon" aria-hidden="true"><Medal size={20} /></div>
+            <div>
+              <h2>{scopeTitle(scope)}</h2>
+              <p>{tx("gamificationRankDisclaimer", "Engagement, not academic standing.", "مقياس للتفاعل، وليس للتحصيل الأكاديمي.")}</p>
+            </div>
+          </div>
+          {currentData && (
+            <span className={`g-semantics lv-snapshot ${snapshot[3] === "stale" ? "stale" : ""}`}>
+              {tx(snapshot[0], snapshot[1], snapshot[2])}
+            </span>
+          )}
+        </div>
+
+        {currentData && (
+          <div className="lv-season-line">
+            <span><CalendarDays size={14} aria-hidden="true" />
+              {dateLabel(currentData.season.startsAt, locale)} <span aria-hidden="true">–</span> {dateLabel(currentData.season.endsAt, locale)}
+            </span>
+            <span>
+              {tx("gamificationGenerated", "Updated", "تم التحديث")} {timeLabel(currentData.generatedAt, locale)}
+            </span>
+            <span className="lv-participant-count">
+              <UsersRound size={14} aria-hidden="true" />
+              {formatNumber(currentData.totalRankedUsers)} {tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}
+            </span>
+          </div>
+        )}
+
+        {showError && (
+          <div className="lv-error" role="alert">
+            <span className="lv-error-icon"><AlertCircle size={17} aria-hidden="true" /></span>
+            <div className="lv-error-copy">
+              <strong>{tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط.")}</strong>
+              <span>{tx("gamificationRetryHint", "Check your connection and try again.", "تحقق من الاتصال وحاول مجددًا.")}</span>
+            </div>
+            <button type="button" className="g-action" onClick={onRetry}>
+              {tx("gamificationRetry", "Try again", "حاول مجددًا")}
+            </button>
+          </div>
+        )}
+
+        <div className="lv-own-wrap">
+          {rankLoading ? (
+            <div className="lv-own-rank lv-own-loading" role="status" aria-live="polite">
+              <span className="lv-own-rank-mark"><span className="lv-skeleton lv-rank-skeleton" /></span>
+              <span className="lv-skeleton lv-own-skeleton-copy" />
+              <span className="lv-skeleton lv-own-skeleton-score" />
+            </div>
+          ) : currentRank ? (
+            <div className="lv-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
+              <span className="lv-own-rank-mark" aria-hidden="true">
+                {currentRank.notRanked || currentRank.rank === null
+                  ? <UsersRound size={18} />
+                  : formatNumber(currentRank.rank)}
+              </span>
+              <span className="lv-own-copy">
+                <strong>{currentRank.notRanked || currentRank.rank === null
+                  ? tx("gamificationNotRanked", "Not ranked in this snapshot", "غير مدرج في هذه اللقطة")
+                  : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
+                <span>{currentRank.notRanked || currentRank.rank === null
+                  ? currentRank.score === 0
+                    ? tx("gamificationNoRankScore", "No engagement points recorded for this season.", "لا توجد نقاط تفاعل مسجلة لهذا الموسم.")
+                    : tx("gamificationUnrankedWithScore", "Your points are not ranked in this snapshot.", "نقاطك غير مدرجة في ترتيب هذه اللقطة.")
+                  : `${formatNumber(currentRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${currentRank.tieSize && currentRank.tieSize > 1 ? ` · ${formatNumber(currentRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
+              </span>
+              <span className="lv-own-score">
+                <strong>{formatNumber(currentRank.score)}</strong>
+                <span>{tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        {loading && !currentData
+          ? <SkeletonRows label={tx("gamificationLoadingLeaderboard", "Loading leaderboard", "جارٍ تحميل لوحة النقاط")} />
+          : null}
+
+        {!loading && !showError && !currentData && (
+          <div className="g-empty lv-empty">
+            <div className="g-empty-mark"><Trophy size={20} aria-hidden="true" /></div>
+            <h3>{tx("gamificationNoLeaderboardEntries", "Leaderboard is not ready", "لوحة النقاط غير جاهزة")}</h3>
+            <p>{tx("gamificationLeaderboardAwaiting", "The latest verified snapshot will appear here.", "ستظهر هنا أحدث لقطة موثّقة.")}</p>
+          </div>
+        )}
+
+        {currentData && entries.length === 0 && !loading && (
+          <div className="g-empty lv-empty">
+            <div className="g-empty-mark"><Trophy size={20} aria-hidden="true" /></div>
+            <h3>{tx("gamificationNoLeaderboardEntries", "No leaderboard entries", "لا توجد نتائج في لوحة النقاط")}</h3>
+            <p>{tx("gamificationNoRankedParticipants", "There are no ranked participants in this snapshot.", "لا يوجد مشاركون مدرجون في ترتيب هذه اللقطة.")}</p>
+          </div>
+        )}
+
+        {currentData && entries.length > 0 && (
+          <div className="lv-list" role="list" aria-label={tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}>
+            {entries.map((entry, index) => {
+              const localized = localizedEntries?.[index];
+              const publicLabel = localized?.displayName?.trim() || localized?.label?.trim()
+                || tx("gamificationParticipant", "Student", "طالب");
+              const tied = entry.tieSize > 1;
+              const podium = entry.rank >= 1 && entry.rank <= 3;
+              return (
+                <div
+                  className={`lv-row${podium ? ` lv-podium lv-podium-${entry.rank}` : ""}`}
+                  key={`${entry.rank}-${index}`}
+                  role="listitem"
+                  aria-label={`${publicLabel}. ${tx("gamificationYourPlace", "Rank", "الترتيب")} ${formatNumber(entry.rank)}${tied ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${formatNumber(entry.score)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}
+                >
+                  <span className="lv-rank">
+                    {podium ? <Medal size={17} aria-hidden="true" /> : null}
+                    <span>{formatNumber(entry.rank)}</span>
+                  </span>
+                  <span className="lv-avatar" aria-hidden="true"><UsersRound size={17} /></span>
+                  <span className="lv-student">
+                    <strong>{publicLabel}</strong>
+                    <span>{entry.level === null
+                      ? (tied ? `${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : tx("gamificationVerifiedPoints", "Verified activity", "نشاط موثّق"))
+                      : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}${tied ? ` · ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
+                  </span>
+                  <span className="lv-score">
+                    <strong>{formatNumber(entry.score)}</strong>
+                    <span>{tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {currentData && (
+          <p className="lv-footnote">
+            {tx("gamificationRankDisclaimer", "Study Points reflect verified engagement only, not academic ability.", "تعكس نقاط الدراسة التفاعل الموثّق فقط، ولا تعبّر عن القدرة الأكاديمية.")}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default LeaderboardView;
