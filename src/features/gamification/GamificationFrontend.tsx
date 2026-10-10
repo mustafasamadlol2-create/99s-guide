@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Award, CalendarDays, Check, ChevronDown,
+  Award, CalendarDays, Check, ChevronDown,
   CircleHelp, Clock3, LoaderCircle, Medal, RefreshCw,
   Sparkles, Target, Trophy, UsersRound, LockKeyhole,
 } from "lucide-react";
@@ -24,7 +24,6 @@ import "./gamification.css";
 export interface GamificationFrontendProps {
   accountId?: string | null;
   language: "en" | "ar";
-  onBack: () => void;
   studyPointsEnabled: boolean;
   initialTab?: GamificationTab;
   navigationRequest?: number;
@@ -175,7 +174,6 @@ function formatChallengeAmount(
 export function GamificationFrontend({
   accountId = null,
   language,
-  onBack,
   studyPointsEnabled,
   initialTab = "overview",
   navigationRequest = 0,
@@ -227,6 +225,9 @@ export function GamificationFrontend({
   currentOverviewRank.current = overviewRank;
   currentOwnRank.current = ownRank;
   currentAccountId.current = accountId;
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   const tx = useCallback((key: string, fallbackEn: string, fallbackAr: string) => {
     const translated = tGlobal(key);
@@ -992,15 +993,9 @@ export function GamificationFrontend({
     { id: "challenges", label: tx("gamificationChallenges", "Challenges", "التحديات") },
     { id: "leaderboard", label: tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط") },
   ];
-  const BackIcon = isRtl ? ArrowRight : ArrowLeft;
-
   return (
     <main className="gamification" dir={isRtl ? "rtl" : "ltr"}>
       <div className="g-shell">
-        <div className="g-topbar">
-          <button type="button" className="g-icon-button" onClick={onBack} aria-label={tx("gamificationBack", "Back", "رجوع")}><BackIcon size={19} /></button>
-          <span className="g-top-title">{tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}</span>
-        </div>
         <header className="g-hero">
           <div>
             <p className="g-eyebrow">{tx("gamificationEyebrow", "Your progress, at your pace", "تقدمك، بإيقاعك")}</p>

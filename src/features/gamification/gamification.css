@@ -11,9 +11,10 @@
   --g-warm: #ad8455;
   --g-warm-soft: #f4ede1;
   color: var(--g-ink);
-  background: var(--g-bg);
+  background: transparent;
   font-family: inherit;
   min-height: 100%;
+  width: 100%;
 }
 .dark .gamification {
   --g-bg: #182422;
@@ -29,7 +30,7 @@
   --g-warm-soft: #443d31;
 }
 .gamification * { box-sizing: border-box; }
-.g-shell { width: min(100%, 1040px); margin: 0 auto; padding: 18px 18px 44px; }
+.g-shell { width: 100%; max-width: none; margin: 0; padding: 24px clamp(18px, 3vw, 44px) 44px; }
 .g-topbar { display: flex; align-items: center; gap: 12px; min-height: 48px; }
 .g-icon-button, .g-action {
   min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
@@ -143,7 +144,7 @@
 .g-profile-achievement span { display:block;color:var(--g-muted);font-size:12px;line-height:1.5;margin-top:4px; }
 .g-footer-note { color:var(--g-muted);font-size:11px;text-align:center;line-height:1.5;margin:18px 0 0; }
 @media (max-width: 700px) {
-  .g-shell { padding: 12px 13px 34px; }
+  .g-shell { padding: 18px 14px 34px; }
   .g-hero { grid-template-columns:1fr; padding-top:22px; gap:15px; align-items:start; }
   .g-refresh { justify-self:start; }
   .g-overview-grid, .g-split { grid-template-columns:1fr; }

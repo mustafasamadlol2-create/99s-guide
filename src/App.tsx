@@ -7002,7 +7002,6 @@ const handleSignOut = useCallback(async () => {
                       key={currentUser?.id ?? "anonymous"}
                       accountId={currentUser?.id ?? null}
                       language={language}
-                      onBack={() => handleSidebarTabClick("home")}
                       studyPointsEnabled={STUDY_POINTS_ENABLED}
                       initialTab="leaderboard"
                     />
