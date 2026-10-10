@@ -18,6 +18,7 @@ import {
   getMyLeaderboardRank,
   parseLeaderboardPageSize,
   resolveSeason,
+  sanitizeLeaderboardDisplayName,
   seasonDto,
   validateCursorSnapshot,
 } from "./queries.js";
@@ -317,8 +318,8 @@ async function getVisibleUserIds(input: {
   userIds: string[];
   database: PrismaClient;
   blockedUserIds: string[];
-}): Promise<Set<string>> {
-  if (input.userIds.length === 0) return new Set();
+}): Promise<Map<string, string | null>> {
+  if (input.userIds.length === 0) return new Map();
   const users = await input.database.user.findMany({
     where: {
       id: {
@@ -330,9 +331,12 @@ async function getVisibleUserIds(input: {
       accountStatus: "ACTIVE",
       role: "user",
     },
-    select: { id: true },
+    select: { id: true, name: true },
   });
-  return new Set(users.map((user) => user.id));
+  return new Map(users.map((user) => [
+    user.id,
+    sanitizeLeaderboardDisplayName(user.name),
+  ]));
 }
 
 function cacheIsEnabled(): boolean {
@@ -457,6 +461,7 @@ export async function getLeaderboardPageWithCache(input: {
           tieSize: entry.tieSize,
           level: entry.levelSnapshot,
           score: entry.score,
+          displayName: visibleUserIds.get(entry.userId) ?? null,
         }]
         : []);
     const expiresAt = snapshot.snapshotType === "LIVE"

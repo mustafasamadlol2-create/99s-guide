@@ -15,7 +15,10 @@ import {
   validateSeasonKey,
 } from "../server/features/leaderboard/periods.js";
 import { getLeaderboardPageWithCache } from "../server/features/leaderboard/cacheReads.js";
-import { resolveSeason } from "../server/features/leaderboard/queries.js";
+import {
+  resolveSeason,
+  sanitizeLeaderboardDisplayName,
+} from "../server/features/leaderboard/queries.js";
 import { readRankedLeaderboardScores, readUserLeaderboardScore } from "../server/features/leaderboard/scores.js";
 import type { RankedScore } from "../server/features/leaderboard/types.js";
 import {
@@ -416,6 +419,13 @@ test("synthetic 1,000-user competition-rank reference stays deterministic", (t) 
   );
 });
 
+test("public leaderboard names are normalized and never expose email addresses", () => {
+  assert.equal(sanitizeLeaderboardDisplayName("  زينب   أحمد  "), "زينب أحمد");
+  assert.equal(sanitizeLeaderboardDisplayName("student@example.com"), null);
+  assert.equal(sanitizeLeaderboardDisplayName(""), null);
+  assert.equal(sanitizeLeaderboardDisplayName("x".repeat(100))?.length, 80);
+});
+
 type TestServer = { baseUrl: string; close(): Promise<void> };
 
 async function listen(app: express.Express): Promise<TestServer> {
@@ -565,10 +575,10 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     rankingSemanticsVersion: "leaderboard-ranking-v1",
   };
   const rows = [
-    { userId: "user-a", rank: 1, tieSize: 1, score: 100n, levelSnapshot: 8 },
-    { userId: "user-b", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 7 },
-    { userId: "user-c", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 6 },
-    { userId: "user-d", rank: 4, tieSize: 1, score: 60n, levelSnapshot: 5 },
+    { userId: "user-a", rank: 1, tieSize: 1, score: 100n, levelSnapshot: 8, user: { name: "Student A" } },
+    { userId: "user-b", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 7, user: { name: "Student B" } },
+    { userId: "user-c", rank: 2, tieSize: 2, score: 80n, levelSnapshot: 6, user: { name: "Student C" } },
+    { userId: "user-d", rank: 4, tieSize: 1, score: 60n, levelSnapshot: 5, user: { name: "Student D" } },
   ];
   const database = {
     async $transaction(run: (tx: unknown) => Promise<unknown>) {
@@ -616,8 +626,9 @@ test("D1 read failure falls back to PostgreSQL with semester ties and a next pag
     );
     assert.deepEqual(
       Object.keys(result.entries[0]!).sort(),
-      ["level", "rank", "score", "tieSize"],
+      ["displayName", "level", "rank", "score", "tieSize"],
     );
+    assert.equal(result.entries[0]?.displayName, "Student A");
     assert.equal(JSON.stringify(result).includes("user-a"), false);
     assert.equal(result.totalRankedUsers, 4);
     assert.ok(result.nextCursor);

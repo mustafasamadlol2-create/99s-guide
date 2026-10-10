@@ -110,6 +110,7 @@ export interface LeaderboardEntry {
   tieSize: number;
   level: number | null;
   score: number;
+  displayName: string | null;
 }
 
 export interface LeaderboardResponse {

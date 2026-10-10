@@ -20,6 +20,12 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
+export function sanitizeLeaderboardDisplayName(value: string | null | undefined): string | null {
+  const name = value?.replace(/\s+/gu, " ").trim().slice(0, 80) ?? "";
+  if (!name || name.includes("@")) return null;
+  return name;
+}
+
 export type LeaderboardSeasonDto = {
   id: string;
   scope: LeaderboardScope;
@@ -294,6 +300,7 @@ export async function getLeaderboardPage(input: {
         userId: true,
         score: true,
         levelSnapshot: true,
+        user: { select: { name: true } },
       },
     }),
     database.leaderboardSnapshotEntry.count({ where: baseWhere }),
@@ -307,6 +314,7 @@ export async function getLeaderboardPage(input: {
       tieSize: row.tieSize,
       level: row.levelSnapshot,
       score: decodeLeaderboardScore(row.score),
+      displayName: sanitizeLeaderboardDisplayName(row.user?.name),
     }];
   });
   let nextCursor: string | null = null;

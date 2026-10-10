@@ -26,6 +26,7 @@ export type PublicLeaderboardEntry = {
   tieSize: number;
   level: number | null;
   score: number;
+  displayName: string | null;
 };
 
 export type LeaderboardCursorPayload = {

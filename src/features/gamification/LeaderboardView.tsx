@@ -266,7 +266,8 @@ export function LeaderboardView({
           <div className="lv-list" role="list" aria-label={tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")}>
             {entries.map((entry, index) => {
               const localized = localizedEntries?.[index];
-              const publicLabel = localized?.displayName?.trim() || localized?.label?.trim()
+              const publicLabel = entry.displayName?.trim()
+                || localized?.displayName?.trim() || localized?.label?.trim()
                 || tx("gamificationParticipant", "Student", "طالب");
               const tied = entry.tieSize > 1;
               const podium = entry.rank >= 1 && entry.rank <= 3;
