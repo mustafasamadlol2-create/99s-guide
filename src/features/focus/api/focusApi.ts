@@ -29,6 +29,7 @@ import {
   readFocusResource,
   resourcesForFocusMutation,
 } from "./focusSync";
+import { focusTimingNow, logFocusTiming } from "./focusTiming";
 
 export type FocusResourceType = "PDF" | "VIDEO";
 export type FocusClientSource = "web" | "pwa" | "ios" | "android";
@@ -552,9 +553,16 @@ function focusHistoryPage(value: unknown): FocusHistoryPageDto {
 
 async function json<T>(request: Requester, path: string, options: FocusApiRequestOptions, validate: (value: unknown) => T): Promise<T> {
   let response: Response;
+  const method = (options.method ?? "GET").toUpperCase();
+  const safePath = path.split("?")[0]
+    .replace(/\/sessions\/[0-9a-f-]{36}/gi, "/sessions/:sessionId")
+    .replace(/\/plans\/[0-9a-f-]{36}/gi, "/plans/:planId");
+  const timingName = `api.${method.toLowerCase()}.${safePath.replace(/^\/api\/focus\//, "")}`;
+  const startedAt = focusTimingNow();
   try {
     response = await request(path, options);
   } catch (error) {
+    logFocusTiming(timingName, startedAt, "error");
     if (error instanceof FocusApiError) throw error;
     const candidate = error as { status?: unknown; body?: unknown; message?: unknown };
     if (typeof candidate.status === "number") {
@@ -572,6 +580,7 @@ async function json<T>(request: Requester, path: string, options: FocusApiReques
     }
     throw new FocusApiError("transport", "Focus request could not be completed.", "TRANSPORT_ERROR");
   }
+  logFocusTiming(timingName, startedAt, response.ok ? "success" : "error");
   let body: unknown;
   try {
     body = await response.json();
