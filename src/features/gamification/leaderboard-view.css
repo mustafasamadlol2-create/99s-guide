@@ -196,6 +196,8 @@
 .lv-score span { display: block; margin-top: 3px; color: var(--g-muted); font-size: 10px; }
 .lv-footnote { margin: 16px 0 0; color: var(--g-muted); text-align: center; font-size: 11px; line-height: 1.5; }
 .lv-empty { margin-top: 15px; }
+.lv-load-more { display: flex; justify-content: center; margin-top: 14px; }
+.lv-rank-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; padding: 12px 14px; border: 1px solid var(--g-line); border-radius: 16px; color: var(--g-muted); font-size: 12px; }
 
 .lv-skeleton-list { display: grid; gap: 8px; margin-top: 15px; }
 .lv-skeleton-row { display: flex; align-items: center; gap: 13px; min-height: 69px; padding: 10px 13px; border: 1px solid var(--g-line); border-radius: 17px; background: var(--g-paper-strong); }

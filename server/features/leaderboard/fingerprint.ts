@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "../study-core/canonicalJson.js";
 import type { RankedScore } from "./types.js";
 
-export const LEADERBOARD_RANKING_SEMANTICS_VERSION = "leaderboard-ranking-v1";
+export const LEADERBOARD_RANKING_SEMANTICS_VERSION = "leaderboard-ranking-v2";
 export const LEADERBOARD_ALL_TIME_RANKING_SEMANTICS_VERSION =
-  "leaderboard-all-time-ranking-v2";
+  "leaderboard-all-time-ranking-v3";
 
 export function getLeaderboardRankingSemanticsVersion(scope: string): string {
   return scope === "ALL_TIME"

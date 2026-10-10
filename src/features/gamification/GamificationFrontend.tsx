@@ -16,8 +16,9 @@ import {
 } from "./realtime";
 import type {
   Achievement, AchievementsResponse, ChallengesResponse, ChallengeItem, GamificationSummary, UnlockHistory,
-  GamificationTab, LeaderboardEntry, LeaderboardResponse, LeaderboardScope, OwnRankResponse,
+  GamificationTab, LeaderboardResponse, LeaderboardScope, OwnRankResponse,
 } from "./types";
+import { LeaderboardView } from "./LeaderboardView";
 import "./gamification.css";
 
 export interface GamificationFrontendProps {
@@ -682,17 +683,6 @@ export function GamificationFrontend({
       {tx("gamificationPrivateStale", "Some progress may be out of date. Refresh to check again.", "قد لا يكون بعض التقدم محدثًا. حدّث الصفحة للتحقق مجددًا.")}
     </div>
     : null;
-  const scopeLabel = (value: LeaderboardScope) => {
-    const keys: Record<LeaderboardScope, string> = {
-      WEEKLY: "gamificationWeekly", MONTHLY: "gamificationMonthly",
-      SEMESTER: "gamificationSemester", ALL_TIME: "gamificationAllTime",
-    };
-    const fallback: Record<LeaderboardScope, [string, string]> = {
-      WEEKLY: ["Weekly", "أسبوعي"], MONTHLY: ["Monthly", "شهري"],
-      SEMESTER: ["Semester", "فصلي"], ALL_TIME: ["All time", "طوال الوقت"],
-    };
-    return tx(keys[value], ...fallback[value]);
-  };
   const statusCopy = (status: ChallengeItem["status"]) => {
     const map: Record<ChallengeItem["status"], [string, string, string]> = {
       ACTIVE: ["gamificationActive", "Active", "نشط"],
@@ -967,79 +957,32 @@ export function GamificationFrontend({
   );
 
   const renderLeaderboard = () => {
-    if (loading.leaderboard && !leaderboard) return skeleton(5);
-    if (errors.leaderboard) return renderError(tx("gamificationLeaderboardError", "The leaderboard could not be loaded.", "تعذر تحميل لوحة النقاط."), () => void loadLeaderboard(scope));
-    const data = leaderboard?.scope === scope ? leaderboard : null;
-    const season = data?.season;
-    const snapshotStatus = data?.isStale ? "stale"
-      : season?.status === "CLOSED" ? "final"
-        : season?.status === "UPCOMING" ? "upcoming" : "live";
-    const statusKey = snapshotStatus === "stale" ? "gamificationStale"
-      : snapshotStatus === "final" ? "gamificationFinal"
-        : snapshotStatus === "upcoming" ? "gamificationUpcoming" : "gamificationLive";
-    const statusFallback: Record<string, [string, string]> = {
-      stale: ["Snapshot may be out of date", "قد تكون اللقطة غير محدثة"],
-      final: ["Final snapshot", "لقطة نهائية"],
-      upcoming: ["Season upcoming", "الموسم قادم"],
-      live: ["Live snapshot", "لقطة مباشرة"],
-    };
     return (
-      <div className="g-tab-panel">
-        <div className="g-scope-row" role="group" aria-label={tx("gamificationScopeLabel", "Snapshot period", "فترة اللقطة")}>
-          {availableScopes.map((item) => <button type="button" className="g-scope" key={item} aria-pressed={scope === item} onClick={() => { setScope(item); setLeaderboard(null); setOwnRank(null); setErrors((old) => ({ ...old, leaderboard: false })); setCursorHasExpired(false); }}>{scopeLabel(item)}</button>)}
-        </div>
-        <section className="g-card">
-          <div className="g-leaderboard-head">
-            <div>
-              <h2>{tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")} · {scopeLabel(scope)}</h2>
-              <p className="g-subtle">{tx("gamificationRankIntro", "A snapshot of study engagement points", "لقطة لنقاط التفاعل الدراسي")}</p>
-              {season && <div className="g-season">
-                <span><CalendarDays size={13} style={{ verticalAlign: "middle" }} /> {formatDate(season.startsAt, locale, { year: "numeric" })} – {formatDate(season.endsAt, locale, { year: "numeric" })}</span>
-                <span>{tx("gamificationGenerated", "Updated", "تم التحديث")}: {formatDate(data?.generatedAt, locale, { hour: "numeric", minute: "2-digit" })}</span>
-                <span>{tx("gamificationScoresThrough", "Points through", "النقاط حتى")}: {formatDate(data?.scoreThrough, locale, { hour: "numeric", minute: "2-digit" })}</span>
-              </div>}
-            </div>
-            {data && <span className={`g-semantics ${snapshotStatus === "stale" ? "stale" : ""}`}>{tx(statusKey, ...statusFallback[snapshotStatus])}</span>}
-          </div>
-          <p className="g-footer-note" style={{ textAlign: isRtl ? "right" : "left", margin: "12px 0 0" }}>{tx("gamificationRankDisclaimer", "This is an engagement measure only—not an academic ranking.", "هذا مقياس للتفاعل فقط، وليس ترتيبًا أكاديميًا.")}</p>
-          {rankLoading && <div className="g-own-rank" role="status" aria-live="polite">
-            <div className="g-own-rank-badge"><LoaderCircle size={17} /></div>
-            <div><strong>{tx("gamificationRankLoading", "Loading your position", "جارٍ تحميل ترتيبك")}</strong><span>{tx("gamificationRankLoadingHint", "Checking your place in this server snapshot.", "جارٍ التحقق من ترتيبك في لقطة الخادم.")}</span></div>
-          </div>}
-          {rankError && <div className="g-rank-error" role="alert">
-            <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
-            <button type="button" className="g-action" onClick={() => setRankRetrySerial((serial) => serial + 1)}>{tx("gamificationRetry", "Try again", "حاول مجددًا")}</button>
-          </div>}
-          {ownRank && <div className="g-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
-            <div className="g-own-rank-badge">{ownRank.notRanked || ownRank.rank === null ? "—" : formatNumber(ownRank.rank)}</div>
-            <div><strong>{ownRank.notRanked || ownRank.rank === null ? tx("gamificationNotRanked", "Not ranked in this snapshot", "غير مدرج في هذه اللقطة") : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
-              <span>{ownRank.notRanked || ownRank.rank === null
-                ? ownRank.score === 0
-                  ? tx("gamificationNoRankScore", "No engagement points recorded for this season.", "لا توجد نقاط تفاعل مسجلة لهذا الموسم.")
-                  : tx("gamificationUnrankedWithScore", "Your points are not ranked in this snapshot.", "نقاطك غير مدرجة في ترتيب هذه اللقطة.")
-                : `${formatNumber(ownRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${ownRank.tieSize && ownRank.tieSize > 1 ? ` · ${formatNumber(ownRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
-            </div>
-            <div className="g-own-score">{formatNumber(ownRank.score)}<span style={{ fontSize: 10, display: "block", fontWeight: 500 }}>{tx("gamificationScore", "Points", "النقاط")}</span></div>
-          </div>}
-          {loading.leaderboard && !data ? skeleton(4) : null}
-          {cursorHasExpired && <div className="g-period-note" role="status">{tx("gamificationCursorExpired", "This snapshot has changed. Reload to see the latest list.", "تغيرت هذه اللقطة. أعد التحميل لعرض القائمة الأحدث.")}<button type="button" className="g-action" style={{ marginInlineStart: 10 }} onClick={() => void loadLeaderboard(scope)}>{tx("gamificationReload", "Reload snapshot", "إعادة تحميل اللقطة")}</button></div>}
-          {data && <>
-            {data.entries.length ? <div className="g-board-list" role="list">
-              {data.entries.map((entry, index) => (
-                <div className="g-participant" key={`${entry.rank}-${index}`} role="listitem" aria-label={`${tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}. ${tx("gamificationYourPlace", "Your place", "ترتيبك")} ${formatNumber(entry.rank)}${entry.tieSize > 1 ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${entry.level === null ? "" : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}. `}${formatNumber(entry.score)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}>
-                  <span className="g-rank-number">{formatNumber(entry.rank)}</span>
-                  <span className="g-anon-mark" aria-hidden="true"><UsersRound size={17} /></span>
-                  <span className="g-participant-label">{tx("gamificationParticipant", "Anonymous participant", "مشارك مجهول")}<span className="g-participant-meta">{entry.level === null ? "—" : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}`}{entry.tieSize > 1 ? ` · ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}</span></span>
-                  <span className="g-score">{formatNumber(entry.score)} <span style={{ fontSize: 10, color: "var(--g-muted)" }}>{tx("gamificationScore", "Points", "النقاط")}</span></span>
-                </div>
-              ))}
-            </div> : <div className="g-empty"><div className="g-empty-mark"><Trophy size={20} /></div><h3>{tx("gamificationNoLeaderboardEntries", "No leaderboard entries", "لا توجد نتائج في لوحة النقاط")}</h3><p>{tx("gamificationNoRankedParticipants", "There are no ranked participants in this snapshot.", "لا يوجد مشاركون مدرجون في ترتيب هذه اللقطة.")}</p></div>}
-            {data.nextCursor && !cursorHasExpired && <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
-              <button type="button" className="g-action" onClick={loadMore} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={15} className="g-spin" /> : null}{loadingMore ? tx("gamificationLoadingMore", "Loading more", "جارٍ تحميل المزيد") : tx("gamificationLoadMore", "Load more", "تحميل المزيد")}</button>
-            </div>}
-          </>}
-        </section>
-      </div>
+      <LeaderboardView
+        scope={scope}
+        onScopeChange={(nextScope) => {
+          setScope(nextScope);
+          setLeaderboard(null);
+          setOwnRank(null);
+          setRankError(false);
+          setErrors((old) => ({ ...old, leaderboard: false }));
+          setCursorHasExpired(false);
+        }}
+        availableScopes={availableScopes}
+        data={leaderboard}
+        ownRank={ownRank}
+        loading={loading.leaderboard}
+        rankLoading={rankLoading}
+        rankError={rankError}
+        loadingMore={loadingMore}
+        error={errors.leaderboard}
+        onRetry={() => void loadLeaderboard(scope)}
+        onRetryRank={() => setRankRetrySerial((serial) => serial + 1)}
+        onLoadMore={loadMore}
+        locale={locale}
+        isRtl={isRtl}
+        tx={tx}
+      />
     );
   };
 

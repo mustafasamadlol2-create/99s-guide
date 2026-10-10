@@ -9,7 +9,7 @@ export const LEADERBOARD_CACHE_CHUNK_SIZE = 100;
 export const LEADERBOARD_CACHE_MAX_ENTRIES = 20_000;
 export const LEADERBOARD_CACHE_MAX_BODY_BYTES = 512 * 1024;
 export const LEADERBOARD_CACHE_TIMEOUT_MS = 5_000;
-export const LEADERBOARD_CACHE_RANKING_VERSION = "leaderboard-ranking-v1";
+export const LEADERBOARD_CACHE_RANKING_VERSION = "leaderboard-ranking-v2";
 
 export type LeaderboardCacheEntry = {
   userId: string;

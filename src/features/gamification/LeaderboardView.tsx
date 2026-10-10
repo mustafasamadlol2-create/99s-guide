@@ -28,8 +28,12 @@ export interface LeaderboardViewProps {
   ownRank: OwnRankResponse | null;
   loading: boolean;
   rankLoading: boolean;
+  rankError: boolean;
+  loadingMore: boolean;
   error: unknown;
   onRetry: () => void;
+  onRetryRank: () => void;
+  onLoadMore: () => void;
   locale: string;
   isRtl: boolean;
   tx: (key: string, en: string, ar: string) => string;
@@ -80,8 +84,12 @@ export function LeaderboardView({
   ownRank,
   loading,
   rankLoading,
+  rankError,
+  loadingMore,
   error,
   onRetry,
+  onRetryRank,
+  onLoadMore,
   locale,
   isRtl,
   tx,
@@ -224,6 +232,13 @@ export function LeaderboardView({
                 <span>{tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
               </span>
             </div>
+          ) : rankError ? (
+            <div className="lv-rank-error" role="alert">
+              <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
+              <button type="button" className="g-action" onClick={onRetryRank}>
+                {tx("gamificationRetry", "Try again", "حاول مجددًا")}
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -280,6 +295,16 @@ export function LeaderboardView({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {currentData?.nextCursor && (
+          <div className="lv-load-more">
+            <button type="button" className="g-action" onClick={onLoadMore} disabled={loadingMore}>
+              {loadingMore
+                ? tx("gamificationLoadingMore", "Loading more", "جارٍ تحميل المزيد")
+                : tx("gamificationLoadMore", "Load more students", "تحميل المزيد من الطلاب")}
+            </button>
           </div>
         )}
 

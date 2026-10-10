@@ -290,7 +290,7 @@ function parseEntry(value: unknown): CacheEntry {
     || !safeInteger(value.rank, 1)
     || !safeInteger(tieSize, 1)
     || !safeInteger(value.score, Number.MIN_SAFE_INTEGER)
-    || Number(value.score) <= 0
+    || Number(value.score) < 0
   ) {
     throw new CacheRejected("Cache entry contains invalid rank data.");
   }
@@ -328,6 +328,7 @@ async function getVisibleUserIds(input: {
           : {}),
       },
       accountStatus: "ACTIVE",
+      role: "user",
     },
     select: { id: true },
   });

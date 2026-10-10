@@ -251,11 +251,12 @@ async function readBoundedRankedScores(
       GROUP BY "userId"
     ),
     eligible AS (
-      SELECT scores."userId", scores.score
-      FROM scores
-      INNER JOIN "User" AS account ON account."id" = scores."userId"
-      WHERE scores.score > 0
+      SELECT account."id" AS "userId", GREATEST(COALESCE(scores.score, 0), 0)::bigint AS score
+      FROM "User" AS account
+      LEFT JOIN scores ON scores."userId" = account."id"
+      WHERE account."createdAt" <= ${scoreThrough}
         AND account."accountStatus" = 'ACTIVE'
+        AND account."role" = 'user'
     ),
     ranked AS (
       SELECT
@@ -346,11 +347,12 @@ async function readLifetimeRankedScores(
   const rows = await tx.$queryRaw<RankedRowWithVersions[]>(Prisma.sql`
     WITH combined AS (${combined}),
     eligible AS (
-      SELECT combined."userId", combined.score
-      FROM combined
-      INNER JOIN "User" AS account ON account."id" = combined."userId"
-      WHERE combined.score > 0
+      SELECT account."id" AS "userId", GREATEST(COALESCE(combined.score, 0), 0)::bigint AS score
+      FROM "User" AS account
+      LEFT JOIN combined ON combined."userId" = account."id"
+      WHERE account."createdAt" <= ${scoreThrough}
         AND account."accountStatus" = 'ACTIVE'
+        AND account."role" = 'user'
     ),
     ranked AS (
       SELECT

@@ -171,7 +171,7 @@ test("a past closed semester resolves by its canonical stored key", async () => 
   }]);
 });
 
-test("competition rank fixtures share ties, skip occupied ranks, and exclude nonpositive scores", () => {
+test("competition ranks include zero-point students and exclude negative scores", () => {
   const fixtures = [
     { userId: "a", score: 100n },
     { userId: "d", score: 60n },
@@ -179,12 +179,12 @@ test("competition rank fixtures share ties, skip occupied ranks, and exclude non
     { userId: "b", score: 80n },
     { userId: "zero", score: 0n },
     { userId: "negative", score: -5n },
-  ].filter((row) => row.score > 0n)
+  ].filter((row) => row.score >= 0n)
     .sort((left, right) =>
       left.score === right.score
         ? left.userId.localeCompare(right.userId)
         : left.score > right.score ? -1 : 1);
-  const expectedRanks = [1, 2, 2, 4];
+  const expectedRanks = [1, 2, 2, 4, 5];
   const actualRanks: number[] = [];
   let previous: bigint | null = null;
   for (let index = 0; index < fixtures.length; index += 1) {
@@ -194,7 +194,7 @@ test("competition rank fixtures share ties, skip occupied ranks, and exclude non
     previous = score;
   }
   assert.deepEqual(actualRanks, expectedRanks);
-  assert.deepEqual(fixtures.map(({ userId }) => userId), ["a", "b", "c", "d"]);
+  assert.deepEqual(fixtures.map(({ userId }) => userId), ["a", "b", "c", "d", "zero"]);
 
   const multipleTieScores = [100, 100, 100, 90];
   const multipleTieRanks: number[] = [];
@@ -237,7 +237,8 @@ test("bounded score query uses one set-based canonical-ledger ranking query", as
   assert.match(scoreQuery, /'legacy\.points_log'/u);
   assert.match(scoreQuery, /RANK\(\) OVER/u);
   assert.match(scoreQuery, /COUNT\(\*\) OVER \(PARTITION BY eligible\.score\)/u);
-  assert.match(scoreQuery, /scores\.score > 0/u);
+   assert.match(scoreQuery, /GREATEST\(COALESCE\(scores\.score, 0\), 0\)/u);
+   assert.match(scoreQuery, /"role" = 'user'/u);
   assert.match(scoreQuery, /"accountStatus" = 'ACTIVE'/u);
   assert.equal(sqlStatements.filter((sql) => sql.includes("WITH period_points")).length, 1);
   assert.deepEqual(result.rows.map((row) => row.rank), [1, 2, 2, 4]);
