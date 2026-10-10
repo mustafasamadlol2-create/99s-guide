@@ -68,4 +68,4 @@ STUDY_POINTS_ENABLED = "true"
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 240000
+timeoutMs = 480000

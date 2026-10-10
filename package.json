@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "node scripts/predev.cjs",
     "build:frontend": "node scripts/build-frontend.cjs",
-    "postinstall": "npx prisma generate",
+    "postinstall": "prisma generate",
     "dev": "node scripts/run-dev.cjs",
     "build": "npm run build:frontend && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/server.cjs",
     "start": "node scripts/start-production.cjs",

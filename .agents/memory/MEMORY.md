@@ -39,3 +39,4 @@
 - [Gamification realtime invalidation](gamification-realtime-invalidation.md) — socket events invalidate affected reads only; PostgreSQL stays authoritative and scoring/projection rules stay unchanged.
 - [Learning completion evidence](learning-completion-evidence.md) — client-synced PDF, notes, and video completion flags are not sufficient evidence for points.
 - [Study Engagement readiness](study-engagement-readiness.md) — keep unavailable flags distinct from disabled features and expose only sanitized public leaderboard names.
+- [Post-merge setup duration](post-merge-setup-duration.md) — allow enough time for clean dependency installation and the full build on this Replit workspace.
