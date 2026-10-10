@@ -14,9 +14,8 @@ import InteractiveAvatar from "./InteractiveAvatar";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
-import { useStudyFeatureFlags } from "../../study-core/StudyFeatureFlagsProvider";
 import {
- Award,
+  Award,
  LogOut,
  ShieldCheck,
  GraduationCap,
@@ -32,8 +31,6 @@ import {
   Settings,
 } from "lucide-react";
 
-const LazyGamificationFrontend = React.lazy(() => import("../../gamification"));
-
 interface ProfileViewProps {
   isActive?: boolean;
  user: User;
@@ -46,8 +43,7 @@ interface ProfileViewProps {
   showSettingsButton?: boolean;
   onOpenSettings?: () => void;
   language?: "en" | "ar";
-  onSubViewChange?: (isOpen: boolean) => void;
-  leaderboardNavigationRequest?: number;
+   onSubViewChange?: (isOpen: boolean) => void;
 }
 
 const SettingsGroup = memo(({
@@ -191,9 +187,7 @@ export const ProfileView = function ProfileView({
  isActive = false,
  language = "en",
  onSubViewChange,
-  leaderboardNavigationRequest = 0,
 }: ProfileViewProps) {
-  const { GAMIFICATION_ENABLED, STUDY_POINTS_ENABLED } = useStudyFeatureFlags();
  const isRtl = language === "ar";
  const tr = useCallback((english: string, arabic: string) => (isRtl ? arabic : english), [isRtl]);
 
@@ -203,10 +197,9 @@ export const ProfileView = function ProfileView({
  // the native-stack invariant that removes the post-Back vertical jump: the
  // page revealed during the swipe is literally the same already-painted page
  // that remains after the swipe completes.
- const [subView, setSubView] = useState<"blocked-users" | "my-reports" | "gamification" | null>(null);
-  const [gamificationInitialTab, setGamificationInitialTab] = useState<"overview" | "leaderboard">("overview");
+  const [subView, setSubView] = useState<"blocked-users" | "my-reports" | null>(null);
 
- const openProfileSubView = useCallback((next: "blocked-users" | "my-reports" | "gamification") => {
+  const openProfileSubView = useCallback((next: "blocked-users" | "my-reports") => {
    onSubViewChange?.(true);
    setSubView(next);
  }, [onSubViewChange]);
@@ -215,12 +208,6 @@ export const ProfileView = function ProfileView({
    setSubView(null);
    onSubViewChange?.(false);
  }, [onSubViewChange]);
-
-  useEffect(() => {
-    if (leaderboardNavigationRequest <= 0) return;
-    setGamificationInitialTab("leaderboard");
-    openProfileSubView("gamification");
-  }, [leaderboardNavigationRequest, openProfileSubView]);
 
  const profileBackGesture = useSwipeBack({
    isEnabled: Boolean(isActive && subView),
@@ -619,20 +606,6 @@ export const ProfileView = function ProfileView({
             }
             isRtl={isRtl}
           />
-          {GAMIFICATION_ENABLED && (
-            <SettingsItem
-              Icon={Award}
-              iconBg="bg-emerald-600"
-              title={tr("Study Points & achievements", "نقاط الدراسة والإنجازات")}
-              subtitle={tr("Private progress, challenges, and leaderboard", "تقدمك الخاص وتحدياتك ولوحة النقاط")}
-              showChevron
-              onClick={() => {
-                setGamificationInitialTab("overview");
-                openProfileSubView("gamification");
-              }}
-              isRtl={isRtl}
-            />
-          )}
  </SettingsGroup>
 
         {/* Privacy & Safety */}
@@ -726,28 +699,11 @@ export const ProfileView = function ProfileView({
            touchAction: "pan-y",
          }}
        >
-         {subView === "blocked-users" ? (
-           <BlockedUsersView onBack={profileBackGesture.triggerBack} language={language} />
-         ) : subView === "my-reports" ? (
-           <MyReportsView onBack={profileBackGesture.triggerBack} language={language} />
-         ) : (
-           <React.Suspense
-             fallback={
-               <div className="min-h-[60vh] flex items-center justify-center text-sm text-neutral-500" role="status" aria-busy="true">
-                 {tr("Loading study engagement...", "جارٍ تحميل التفاعل الدراسي...")}
-               </div>
-             }
-           >
-             <LazyGamificationFrontend
-              accountId={user.id}
-               language={language}
-               onBack={profileBackGesture.triggerBack}
-               studyPointsEnabled={STUDY_POINTS_ENABLED}
-               initialTab={gamificationInitialTab}
-               navigationRequest={leaderboardNavigationRequest}
-             />
-           </React.Suspense>
-         )}
+          {subView === "blocked-users" ? (
+            <BlockedUsersView onBack={profileBackGesture.triggerBack} language={language} />
+          ) : (
+            <MyReportsView onBack={profileBackGesture.triggerBack} language={language} />
+          )}
        </motion.div>,
        document.body,
      )}

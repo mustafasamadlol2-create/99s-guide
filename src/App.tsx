@@ -1773,8 +1773,6 @@ function AppContent({
   const profileSettingsOverlayScrollRef = useRef<HTMLDivElement | null>(null);
   const [preserveSearchSession, setPreserveSearchSession] = useState(false);
   const [isProfileSubViewOpen, setIsProfileSubViewOpen] = useState(false);
-  const [isLeaderboardSubViewActive, setIsLeaderboardSubViewActive] = useState(false);
-  const [leaderboardNavigationRequest, setLeaderboardNavigationRequest] = useState(0);
   const [controlCenterHasBackHistory, setControlCenterHasBackHistory] = useState(false);
   const [homeSubjectHasInternalBack, setHomeSubjectHasInternalBack] = useState(false);
   const [legacySubjectHasInternalBack, setLegacySubjectHasInternalBack] = useState(false);
@@ -1793,10 +1791,6 @@ function AppContent({
   const handleProfileSubViewChange = useCallback((open: boolean) => {
     profileSubViewOpenRef.current = open;
     setIsProfileSubViewOpen(open);
-    if (!open) {
-      setIsLeaderboardSubViewActive(false);
-      setLeaderboardNavigationRequest(0);
-    }
   }, []);
 
   const handleHomeSubjectInternalBackChange = useCallback((hasBack: boolean) => {
@@ -2272,16 +2266,6 @@ function AppContent({
       setIsCommandPaletteOpen(true);
       return;
     }
-
-    if (id === "leaderboard") {
-      setIsLeaderboardSubViewActive(true);
-      setLeaderboardNavigationRequest((request) => request + 1);
-      setActiveTab("profile");
-      return;
-    }
-
-    setIsLeaderboardSubViewActive(false);
-    setLeaderboardNavigationRequest(0);
 
     if (id === "focus") {
       void FocusHub.preload();
@@ -6287,9 +6271,7 @@ const handleSignOut = useCallback(async () => {
                 id={item.id}
                 icon={item.icon}
                 label={item.label}
-                isActive={item.id === "leaderboard"
-                  ? activeTab === "profile" && isLeaderboardSubViewActive
-                  : activeTab === item.id}
+                isActive={activeTab === item.id}
                 isAsideCollapsed={isAsideCollapsed}
                 isTablet={device.isTablet}
                 onClick={handleSidebarTabClick}
@@ -7114,7 +7096,6 @@ const handleSignOut = useCallback(async () => {
                     isActive={activeTab === "profile"}
                     language={language}
                     onSubViewChange={handleProfileSubViewChange}
-                    leaderboardNavigationRequest={leaderboardNavigationRequest}
                   />
                 </ErrorBoundary>
 </Suspense>

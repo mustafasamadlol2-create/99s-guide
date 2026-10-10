@@ -28,6 +28,7 @@
 - [Focus break return behavior](focus-break-return-behavior.md) — resume Study after a break only when it was active at break start; preserve a pre-existing pause.
 - [Focus read coordination](focus-read-coordination.md) — share reads only when account, resource, query variant, and invalidation epoch all match.
 - [Leaderboard semantics vs cache protocol](leaderboard-semantics-vs-cache-protocol.md) — scope-specific ranking rules are separate from the D1 manifest wire version.
+- [Leaderboard in-app navigation](leaderboard-in-app-navigation.md) — leaderboard must open as a main app tab with the shared sidebar visible, not as a viewport portal.
 - [Focus planner layout](focus-planner-layout.md) — keep the queue viewport and Audio alignment; duration/session-count inputs use custom +/- controls only.
 - [Focus active-session visuals](focus-active-session-visuals.md) — keep confirmations legible, safe-area-aware, and iOS-inspired without changing session behavior.
 - [Focus Quick Notes removal](focus-quick-notes-removal.md) — permanently remove only Focus Quick Notes and its rows; preserve unrelated notes and use a forward migration.
