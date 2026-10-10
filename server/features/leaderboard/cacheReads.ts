@@ -407,22 +407,25 @@ export async function getLeaderboardPageWithCache(input: {
     ) {
       throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
     }
-    if (
-      snapshot
-      && season.status !== "CLOSED"
-      && snapshot.entryCount !== await database.user.count({
-        where: {
-          accountStatus: "ACTIVE",
-          createdAt: { lte: now },
-        },
-      })
-    ) {
+    if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
+    // These reads are independent after resolving the canonical snapshot.
+    // Run the PostgreSQL roster check and both D1 reads together instead of
+    // serially adding a database/Worker round trip to every leaderboard open.
+    const [manifest, page, activeUserCount] = await Promise.all([
+      input.cursor ? Promise.resolve(null) : getCurrentManifest(season),
+      getPage(snapshot, limit, input.cursor),
+      season.status === "CLOSED"
+        ? Promise.resolve(snapshot.entryCount)
+        : database.user.count({
+          where: {
+            accountStatus: "ACTIVE",
+            createdAt: { lte: now },
+          },
+        }),
+    ]);
+    if (season.status !== "CLOSED" && snapshot.entryCount !== activeUserCount) {
       throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
     }
-    if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
-    const manifest = input.cursor
-      ? null
-      : await getCurrentManifest(season);
     if (manifest) validateManifestForSnapshot(manifest, season, snapshot);
     if (!input.cursor && manifest?.snapshotId !== snapshot.id) {
       throw new CacheRejected("D1 current pointer is behind PostgreSQL.");
@@ -430,7 +433,6 @@ export async function getLeaderboardPageWithCache(input: {
     const isStale = manifest
       ? validateFreshness(manifest, now)
       : validateSnapshotFreshness(snapshot, now);
-    const page = await getPage(snapshot, limit, input.cursor);
     validateManifestForSnapshot(page.manifest, season, snapshot);
     if (manifest && !compareManifests(manifest, page.manifest)) {
       throw new CacheRejected("Current pointer and page projection metadata differ.");

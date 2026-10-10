@@ -27,7 +27,10 @@ async function readJson<T>(
       cache: "no-store",
       silent: true,
       requestKey,
-      timeoutMs: 5_000,
+      // Leaderboard D1 reads now fail over quickly, but the canonical
+      // PostgreSQL fallback must be allowed to finish during transient pool
+      // contention instead of being aborted and rendered as an empty result.
+      timeoutMs: 12_000,
       retries: 0,
     });
     return response.json() as Promise<T>;

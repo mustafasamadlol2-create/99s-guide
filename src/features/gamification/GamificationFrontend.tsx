@@ -630,7 +630,7 @@ export function GamificationFrontend({
     setLoading({
       summary: true,
       achievements: true,
-      challenges: true,
+      challenges: currentTab.current === "challenges",
       leaderboard: false,
     });
     setOverviewRank(null);
@@ -638,9 +638,12 @@ export function GamificationFrontend({
     setOverviewRankError(false);
     if (featureFlagsStatus === "ready" && gamificationEnabled) {
       void loadPrivateData();
-      void loadChallenges();
       void loadLeaderboardAvailability();
-      void loadOverviewRank();
+      // Only hydrate the expensive tab-specific resources that are visible.
+      // The other tabs already load on selection; fetching them all on entry
+      // competes for the small database pool and delays the visible section.
+      if (currentTab.current === "challenges") void loadChallenges();
+      if (currentTab.current === "overview") void loadOverviewRank();
     }
     return () => {
       summaryGeneration.current += 1;

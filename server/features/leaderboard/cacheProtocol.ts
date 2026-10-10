@@ -8,7 +8,9 @@ export const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
 export const LEADERBOARD_CACHE_CHUNK_SIZE = 100;
 export const LEADERBOARD_CACHE_MAX_ENTRIES = 20_000;
 export const LEADERBOARD_CACHE_MAX_BODY_BYTES = 512 * 1024;
-export const LEADERBOARD_CACHE_TIMEOUT_MS = 5_000;
+// D1 is an optional read projection. Fail over quickly to canonical PostgreSQL
+// instead of keeping the interactive leaderboard waiting on an unhealthy Worker.
+export const LEADERBOARD_CACHE_TIMEOUT_MS = 1_500;
 export const LEADERBOARD_CACHE_RANKING_VERSION = "leaderboard-ranking-v2";
 
 export type LeaderboardCacheEntry = {
