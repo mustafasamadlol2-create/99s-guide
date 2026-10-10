@@ -67,37 +67,6 @@ import { Language, useTranslation } from "../../../core/i18n/translations";
 import { CommandPalette, SearchResultItem } from "../../../components/ui/CommandPalette";
 import { usePersonalization } from "../../personalization/PersonalizationProvider";
 import { resolveHomeSubjectVisibility } from "../../personalization/homeSubjectVisibility";
-import {
-  FOCUS_HUB_V2_ENABLED,
-  MASTERY_FRONTEND_ENABLED,
-  SPACED_RECALL_FRONTEND_ENABLED,
-  STUDY_ANALYZER_FRONTEND_ENABLED,
-} from "../../../config/featureFlags";
-import { RecallEntryCard } from "../../recall/components/RecallEntryCard";
-
-const MasteryDashboard = React.lazy(() =>
-  import("../../mastery/components/MasteryDashboard").then((module) => ({
-    default: module.MasteryDashboard,
-  })),
-);
-const StudyAnalyzerDashboard = React.lazy(() =>
-  import("../../study-analyzer/components/StudyAnalyzerDashboard").then((module) => ({
-    default: module.StudyAnalyzerDashboard,
-  })),
-);
-
-function OptionalFeatureLoading({ language }: { language: Language }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      className="flex min-h-[50vh] items-center justify-center px-4 text-sm text-slate-600 dark:text-slate-300"
-    >
-      {language === "ar" ? "جارٍ تحميل الواجهة…" : "Loading feature…"}
-    </div>
-  );
-}
 
 interface HomeDashboardProps {
   isActive?: boolean;
@@ -1117,8 +1086,6 @@ const HomeDashboard = memo(function HomeDashboard({
   );
 
   const isMountedRef = useRef(true);
-  const [showMasteryDashboard, setShowMasteryDashboard] = useState(false);
-  const [showStudyAnalyzerDashboard, setShowStudyAnalyzerDashboard] = useState(false);
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
@@ -1432,40 +1399,6 @@ const HomeDashboard = memo(function HomeDashboard({
     }
   }, [device]);
 
-  if (showMasteryDashboard) {
-    return (
-      <React.Suspense fallback={<OptionalFeatureLoading language={language ?? "en"} />}>
-        <MasteryDashboard
-          language={language}
-          subjects={subjects}
-          dbLectures={dbLectures}
-          onBack={() => setShowMasteryDashboard(false)}
-          onSelectLecture={onSelectLecture}
-        />
-      </React.Suspense>
-    );
-  }
-
-  if (showStudyAnalyzerDashboard) {
-    return (
-      <React.Suspense fallback={<OptionalFeatureLoading language={language ?? "en"} />}>
-        <StudyAnalyzerDashboard
-          language={language ?? "en"}
-          subjects={subjects}
-          dbLectures={dbLectures}
-          onBack={() => setShowStudyAnalyzerDashboard(false)}
-          onOpenMastery={MASTERY_FRONTEND_ENABLED
-            ? () => {
-              setShowStudyAnalyzerDashboard(false);
-              setShowMasteryDashboard(true);
-            }
-            : undefined}
-          onSelectLecture={onSelectLecture}
-        />
-      </React.Suspense>
-    );
-  }
-
   return (
     <div className={`home-root relative ${suppressEntranceAnimations ? "navigation-return-static" : ""}`}>
       <motion.div
@@ -1498,80 +1431,6 @@ const HomeDashboard = memo(function HomeDashboard({
                 isWide={device.horizontalSizeClass === "regular" && device.width >= 800}
                 isPhone={device.isPhone}
               />
-
-              {SPACED_RECALL_FRONTEND_ENABLED && (
-                <RecallEntryCard language={language} isActive={isActive} />
-              )}
-
-              {STUDY_ANALYZER_FRONTEND_ENABLED && (
-                <button
-                  type="button"
-                  onClick={() => setShowStudyAnalyzerDashboard(true)}
-                  className="group flex min-h-16 w-full items-center gap-3 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-sky-50 px-4 py-3 text-start shadow-sm transition hover:border-violet-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 dark:border-violet-300/15 dark:from-violet-300/[0.08] dark:via-white/[0.025] dark:to-sky-300/[0.05]"
-                  aria-label={isRtl ? "فتح محلل الدراسة الخاص" : "Open your private Study Analyzer"}
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-700 text-white shadow-sm">
-                    <BarChart3 className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-slate-950 dark:text-white">
-                      {isRtl ? "تحليل الدراسة" : "Study Analyzer"}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
-                      {isRtl
-                        ? "أنماط ونشاط مبنيان على بيانات دراستك"
-                        : "Patterns and activity from your recorded study data"}
-                    </span>
-                  </span>
-                  <ArrowRight
-                    className={`h-4 w-4 shrink-0 text-violet-700 transition-transform group-hover:translate-x-0.5 dark:text-violet-200 ${isRtl ? "rotate-180 group-hover:-translate-x-0.5" : ""}`}
-                    aria-hidden="true"
-                  />
-                </button>
-              )}
-
-              {MASTERY_FRONTEND_ENABLED && (
-                <button
-                  type="button"
-                  onClick={() => setShowMasteryDashboard(true)}
-                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-start shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-indigo-300/40 dark:hover:bg-indigo-400/10"
-                  aria-label={isRtl ? "فتح لوحة الإتقان والمراجعة" : "Open Mastery and reviews"}
-                >
-                  <span>
-                    <span className="block font-semibold text-slate-950 dark:text-white">
-                      {isRtl ? "الإتقان والمراجعة" : "Mastery & reviews"}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-300">
-                      {isRtl ? "حالاتك ومراجعاتك الخاصة" : "Your private learning and review status"}
-                    </span>
-                  </span>
-                  <span aria-hidden="true" className={`text-lg text-indigo-700 dark:text-indigo-200 ${isRtl ? "rotate-180" : ""}`}>→</span>
-                </button>
-              )}
-
-              {FOCUS_HUB_V2_ENABLED && (
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab("focus")}
-                  className="ios-staggered-card group flex min-h-[76px] w-full items-center gap-3 rounded-[22px] border border-indigo-200/70 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 px-4 py-3 text-start shadow-sm transition hover:border-indigo-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-300/10 dark:from-indigo-300/[0.08] dark:via-white/[0.025] dark:to-cyan-300/[0.05]"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-700 text-white shadow-sm">
-                    <Timer className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-slate-950 dark:text-white">
-                      {t("focusHubHomeCtaTitle")}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-slate-600 dark:text-slate-400">
-                      {t("focusHubHomeCtaDescription")}
-                    </span>
-                  </span>
-                  <ArrowRight
-                    className={`h-4 w-4 shrink-0 text-indigo-700 transition-transform group-hover:translate-x-0.5 dark:text-indigo-200 ${isRtl ? "rotate-180 group-hover:-translate-x-0.5" : ""}`}
-                    aria-hidden="true"
-                  />
-                </button>
-              )}
 
               {/* 2. Banner Notification alert */}
               {nextEvent && <UpcomingEventAlert nextEvent={nextEvent} isRtl={isRtl} onNavigateTab={onNavigateTab} t={t} />}

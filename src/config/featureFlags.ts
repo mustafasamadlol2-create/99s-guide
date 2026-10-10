@@ -26,21 +26,6 @@ export const FOCUS_HUB_V2_ENABLED =
 export const GROUP_FOCUS_FRONTEND_ENABLED =
   buildFlags.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true";
 
-/**
- * Recall and Mastery frontends are opt-in in every environment.
- */
-export const SPACED_RECALL_FRONTEND_ENABLED =
-  buildFlags.VITE_SPACED_RECALL_FRONTEND_ENABLED === "true";
-
-export const MASTERY_FRONTEND_ENABLED =
-  buildFlags.VITE_MASTERY_FRONTEND_ENABLED === "true";
-
-/**
- * Study Analyzer surfaces are opt-in in every environment.
- */
-export const STUDY_ANALYZER_FRONTEND_ENABLED =
-  buildFlags.VITE_STUDY_ANALYZER_FRONTEND_ENABLED === "true";
-
 export const STUDY_INSIGHTS_FRONTEND_ENABLED =
   buildFlags.VITE_STUDY_INSIGHTS_FRONTEND_ENABLED === "true";
 
