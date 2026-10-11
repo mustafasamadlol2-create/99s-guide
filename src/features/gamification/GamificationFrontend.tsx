@@ -448,9 +448,20 @@ export function GamificationFrontend({
     const semesterAvailable = await loadLeaderboardAvailability();
     const scopes = SCOPES.filter((item) =>
       item !== "SEMESTER" || semesterAvailable);
-    await Promise.all(scopes.map((item) =>
-      gamificationApi.leaderboard(item, null, INITIAL_LEADERBOARD_PAGE_SIZE)
-        .catch(() => null)));
+    // Keep leaderboard warm-up serialized: these reads can each need the
+    // canonical PostgreSQL fallback, so a four-request burst contends with the
+    // summary/challenge reads and makes every section slower.
+    for (const item of scopes) {
+      try {
+        await gamificationApi.leaderboard(
+          item,
+          null,
+          INITIAL_LEADERBOARD_PAGE_SIZE,
+        );
+      } catch {
+        // A failed background scope remains retryable when that scope is opened.
+      }
+    }
   }, [loadLeaderboardAvailability]);
 
   const loadLeaderboard = useCallback(async (nextScope: LeaderboardScope, append = false) => {
