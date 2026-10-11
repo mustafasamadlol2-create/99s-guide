@@ -445,23 +445,11 @@ export function GamificationFrontend({
   }, []);
 
   const warmLeaderboardScopes = useCallback(async () => {
-    const semesterAvailable = await loadLeaderboardAvailability();
-    const scopes = SCOPES.filter((item) =>
-      item !== "SEMESTER" || semesterAvailable);
-    // Keep leaderboard warm-up serialized: these reads can each need the
-    // canonical PostgreSQL fallback, so a four-request burst contends with the
-    // summary/challenge reads and makes every section slower.
-    for (const item of scopes) {
-      try {
-        await gamificationApi.leaderboard(
-          item,
-          null,
-          INITIAL_LEADERBOARD_PAGE_SIZE,
-        );
-      } catch {
-        // A failed background scope remains retryable when that scope is opened.
-      }
-    }
+    const availability = loadLeaderboardAvailability();
+    const firstPage = gamificationApi
+      .leaderboard(currentScope.current, null, INITIAL_LEADERBOARD_PAGE_SIZE)
+      .catch(() => null);
+    await Promise.all([availability, firstPage]);
   }, [loadLeaderboardAvailability]);
 
   const loadLeaderboard = useCallback(async (nextScope: LeaderboardScope, append = false) => {
@@ -669,12 +657,13 @@ export function GamificationFrontend({
     setOverviewRankLoading(false);
     setOverviewRankError(false);
     if (featureFlagsStatus === "ready" && gamificationEnabled) {
-      // Start independent reads as soon as the authenticated account and
-      // feature flags are ready. Waiting for the summary before warming the
-      // other sections made their first visit look like a cold load.
+      // Prime every first-view resource immediately after authentication.
+      // These are independent reads; the shared API cache deduplicates the
+      // weekly leaderboard request also started by the selected-tab effect.
       void loadPrivateData();
-      if (currentTab.current !== "challenges") void loadChallenges();
-      if (currentTab.current !== "overview") void loadOverviewRank();
+      void loadAchievements();
+      void loadChallenges();
+      void loadOverviewRank();
       void warmLeaderboardScopes();
     }
     return () => {
@@ -690,7 +679,7 @@ export function GamificationFrontend({
     featureFlagsStatus,
     gamificationEnabled,
     loadChallenges,
-    loadLeaderboardAvailability,
+    loadAchievements,
     loadOverviewRank,
     loadPrivateData,
     warmLeaderboardScopes,
