@@ -6223,7 +6223,7 @@ const handleSignOut = useCallback(async () => {
           <nav
             aria-label={language === "ar" ? "التنقل الرئيسي" : "Main Navigation"}
             data-sidebar-density={sidebarNavDensity}
-            className={`sidebar-nav-list flex min-h-0 flex-1 flex-col justify-between overflow-hidden pb-2 ${sidebarNavDensity === "tight" ? "gap-0.5" : sidebarNavDensity === "compact" ? "gap-1" : "gap-0.5"}`}
+            className={`sidebar-nav-list flex min-h-0 flex-1 flex-col justify-start overflow-x-hidden overflow-y-auto overscroll-contain pb-2 ${sidebarNavDensity === "tight" ? "gap-0.5" : sidebarNavDensity === "compact" ? "gap-1" : "gap-0.5"}`}
           >
             {sidebarMainItems.map((item) => (
               <SidebarNavItem
@@ -6350,7 +6350,7 @@ const handleSignOut = useCallback(async () => {
         <main
           id="main-scroll-canvas"
           onScroll={handlePhoneTabBarVerticalScroll}
-          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-semantic-background-page ${useFocusPlannerViewport ? "focus-planner-viewport" : ""} ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
+          className={`flex-1 min-h-0 w-full max-w-full mx-auto ${device.margins} overflow-y-auto overflow-x-hidden ios-scrollable overscroll-y-contain bg-semantic-background-page ${focusHistoryOpen && !focusHistoryDetailId ? "focus-history-native-canvas" : ""} ${useFocusPlannerViewport ? "focus-planner-viewport" : ""} ${usePhoneLayout && (activeTab !== "bulletin" || bulletinReturnsToProfile) ? (isCompactHeight ? "ios-main-scroll ios-main-scroll-compact" : "ios-main-scroll") : ""}`}
           style={{
             paddingTop: useFocusPlannerViewport
               ? "calc(8px + env(safe-area-inset-top, 0px))"

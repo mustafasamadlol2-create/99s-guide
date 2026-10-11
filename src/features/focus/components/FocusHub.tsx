@@ -62,6 +62,7 @@ import { ActiveFocusScreen } from "./ActiveFocusScreen";
 import { useStudyFeatureFlags } from "../../study-core/StudyFeatureFlagsProvider";
 import {
   FocusHistoryScreen,
+  prefetchFocusHistory,
   FocusSessionSummaryScreen,
 } from "./FocusHistoryScreens";
 
@@ -328,6 +329,7 @@ export function FocusHub({
       }
     });
     void runtimeController.initialize().catch(() => {});
+    void prefetchFocusHistory(accountId).catch(() => {});
     return () => {
       unsubscribe();
       const generation = (lifecycle.get(runtimeController) ?? 0) + 1;
@@ -846,6 +848,7 @@ export function FocusHub({
   if (historyOpen && !historyDetailId) {
     return (
       <FocusHistoryScreen
+        accountId={accountId ?? ""}
         language={language}
         lectures={lectures}
         subjects={subjects}

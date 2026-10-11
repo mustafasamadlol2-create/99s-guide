@@ -30,6 +30,32 @@ const HISTORY_STATUSES = [
   ["CREATED", "focusHistoryCreated"],
 ] as const;
 
+const HISTORY_PREFETCH_TTL_MS = 60_000;
+const warmedHistoryPages = new Map<string, {
+  page: FocusHistoryPageDto;
+  loadedAt: number;
+}>();
+
+export async function prefetchFocusHistory(accountId: string | null | undefined): Promise<void> {
+  if (!accountId) return;
+  const existing = warmedHistoryPages.get(accountId);
+  if (existing && Date.now() - existing.loadedAt < HISTORY_PREFETCH_TTL_MS) return;
+  const page = await focusApi.listHistory({ limit: 20 });
+  warmedHistoryPages.set(accountId, { page, loadedAt: Date.now() });
+}
+
+function clearWarmedHistory(): void {
+  warmedHistoryPages.clear();
+}
+
+if (typeof window !== "undefined") {
+  const invalidate = (event: Event) => {
+    if (isFocusResourceAffected(event, "history")) clearWarmedHistory();
+  };
+  window.addEventListener(FOCUS_STATE_INVALIDATED_EVENT, invalidate);
+  window.addEventListener(FOCUS_VIEW_RECONCILE_EVENT, invalidate);
+}
+
 function formatDuration(seconds: number, language: Language, minuteLabel: string, hourLabel: string): string {
   const minutes = Math.floor(Math.max(0, seconds) / 60);
   const hours = Math.floor(minutes / 60);
@@ -399,6 +425,7 @@ function FactCard({
 }
 
 export function FocusHistoryScreen({
+  accountId,
   language,
   lectures,
   subjects,
@@ -406,6 +433,7 @@ export function FocusHistoryScreen({
   onOpenSession,
   onOpenSummary,
 }: {
+  accountId: string;
   language: Language;
   lectures: DatabaseLecture[];
   subjects: Subject[];
@@ -479,12 +507,20 @@ export function FocusHistoryScreen({
       setCursor(null);
       setRows([]);
       try {
-        const page: FocusHistoryPageDto = await focusApi.listHistory({
+        const query = {
           limit: 20,
           ...(status ? { status: status as NonNullable<Parameters<typeof focusApi.listHistory>[0]>["status"] } : {}),
           ...(subject ? { subject } : {}),
           ...(lectureId ? { lectureId } : {}),
-        });
+        };
+        const warmed = !status && !subject && !lectureId
+          ? warmedHistoryPages.get(accountId)
+          : undefined;
+        const page: FocusHistoryPageDto = warmed
+          && Date.now() - warmed.loadedAt < HISTORY_PREFETCH_TTL_MS
+          ? warmed.page
+          : await focusApi.listHistory(query);
+        warmedHistoryPages.set(accountId, { page, loadedAt: Date.now() });
         if (current) {
           setRows(page.items);
           setCursor(page.nextCursor);
@@ -515,7 +551,7 @@ export function FocusHistoryScreen({
       current = false;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
-  }, [lectureId, online, refreshEpoch, status, subject]);
+  }, [accountId, lectureId, online, refreshEpoch, status, subject]);
 
   useEffect(() => {
     headingRef.current?.focus();

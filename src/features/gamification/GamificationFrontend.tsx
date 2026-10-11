@@ -637,7 +637,13 @@ export function GamificationFrontend({
     setOverviewRankLoading(false);
     setOverviewRankError(false);
     if (featureFlagsStatus === "ready" && gamificationEnabled) {
-      void loadPrivateData();
+      void loadPrivateData().finally(() => {
+        if (currentAccountId.current !== accountId) return;
+        // Warm the non-visible tabs after the first private summary finishes,
+        // so opening Challenges or Overview does not start a cold request.
+        if (currentTab.current !== "challenges") void loadChallenges();
+        if (currentTab.current !== "overview") void loadOverviewRank();
+      });
       void loadLeaderboardAvailability();
       // Only hydrate the expensive tab-specific resources that are visible.
       // The other tabs already load on selection; fetching them all on entry
