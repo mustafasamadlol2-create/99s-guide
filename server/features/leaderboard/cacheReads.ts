@@ -439,6 +439,13 @@ export async function getLeaderboardPageWithCache(input: {
     }
     if (
       !input.cursor
+      && snapshot.entryCount > 0
+      && page.entries.length === 0
+    ) {
+      throw new CacheRejected("Cache first page is empty despite canonical snapshot entries.");
+    }
+    if (
+      !input.cursor
       && snapshot.entryCount > page.entries.length
       && page.nextCursor === null
     ) {

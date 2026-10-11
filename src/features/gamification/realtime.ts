@@ -24,6 +24,7 @@ type GamificationReadLoader<T> = (requestKey: string) => Promise<T>;
 
 const readEpochs = new Map<string, number>();
 const readFlights = new Map<string, Promise<unknown>>();
+const readResults = new Map<string, { expiresAt: number; value: unknown }>();
 const seenEventIds = new Set<string>();
 let accountScope = "anonymous";
 
@@ -56,11 +57,17 @@ export async function readGamificationResource<T>(
   resource: GamificationSyncResource,
   variant: string,
   load: GamificationReadLoader<T>,
+  options: { cacheTtlMs?: number } = {},
 ): Promise<T> {
   const scope = `${accountScope}|${resource}`;
   for (;;) {
     const epoch = readEpoch(scope);
     const flightKey = `${scope}|${variant}|${epoch}`;
+    const cached = readResults.get(flightKey);
+    if (cached) {
+      if (cached.expiresAt > Date.now()) return cached.value as T;
+      readResults.delete(flightKey);
+    }
     let flight = readFlights.get(flightKey) as Promise<T> | undefined;
     if (!flight) {
       const requestKey = `${flightKey}`;
@@ -81,7 +88,18 @@ export async function readGamificationResource<T>(
       if (readEpoch(scope) !== epoch) continue;
       throw error;
     }
-    if (readEpoch(scope) === epoch) return result;
+    if (readEpoch(scope) === epoch) {
+      const cacheTtlMs = Math.max(0, options.cacheTtlMs ?? 0);
+      if (cacheTtlMs > 0) {
+        readResults.set(flightKey, { expiresAt: Date.now() + cacheTtlMs, value: result });
+        while (readResults.size > 128) {
+          const oldestKey = readResults.keys().next().value;
+          if (oldestKey === undefined) break;
+          readResults.delete(oldestKey);
+        }
+      }
+      return result;
+    }
   }
 }
 

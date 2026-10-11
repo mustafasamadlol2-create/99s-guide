@@ -209,7 +209,8 @@ export function GamificationFrontend({
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
   const [ownRank, setOwnRank] = useState<OwnRankResponse | null>(null);
   const [loading, setLoading] = useState<LoadingSet>({
-    summary: true, achievements: true, challenges: true, leaderboard: false,
+    summary: true, achievements: true, challenges: true,
+    leaderboard: initialTab === "leaderboard",
   });
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [disabled, setDisabled] = useState<Record<string, boolean>>({});
@@ -238,6 +239,7 @@ export function GamificationFrontend({
   const currentAccountId = useRef<string | null>(accountId);
   const resourceRefreshScheduled = useRef(false);
   const resourceRefreshMounted = useRef(true);
+  const leaderboardWarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   currentTab.current = tab;
   currentScope.current = scope;
   currentLeaderboard.current = leaderboard;
@@ -442,6 +444,15 @@ export function GamificationFrontend({
     return semesterAvailable;
   }, []);
 
+  const warmLeaderboardScopes = useCallback(async () => {
+    const semesterAvailable = await loadLeaderboardAvailability();
+    const scopes = SCOPES.filter((item) =>
+      item !== "SEMESTER" || semesterAvailable);
+    await Promise.all(scopes.map((item) =>
+      gamificationApi.leaderboard(item, null, INITIAL_LEADERBOARD_PAGE_SIZE)
+        .catch(() => null)));
+  }, [loadLeaderboardAvailability]);
+
   const loadLeaderboard = useCallback(async (nextScope: LeaderboardScope, append = false) => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
     if (append && !leaderboard?.nextCursor) return;
@@ -574,10 +585,18 @@ export function GamificationFrontend({
   useEffect(() => {
     const onInvalidated = (event: Event) => {
       const detail = (event as CustomEvent<GamificationInvalidationDetail>).detail;
-      if (detail?.resources?.length) queueResourceRefresh(detail.resources);
+      if (!detail?.resources?.length) return;
+      if (detail.resources.includes("leaderboard")) {
+        if (leaderboardWarmTimer.current) clearTimeout(leaderboardWarmTimer.current);
+        leaderboardWarmTimer.current = setTimeout(() => {
+          leaderboardWarmTimer.current = null;
+          void warmLeaderboardScopes();
+        }, 350);
+      }
+      queueResourceRefresh(detail.resources);
     };
     const onReconnect = () => {
-      void loadLeaderboardAvailability();
+      void warmLeaderboardScopes();
       queueResourceRefresh(resourcesForGamificationReconnect(currentTab.current, {
         leaderboard: currentLeaderboard.current !== null,
         rank: currentOwnRank.current !== null || currentOverviewRank.current !== null,
@@ -588,11 +607,13 @@ export function GamificationFrontend({
     resourceRefreshMounted.current = true;
     return () => {
       resourceRefreshMounted.current = false;
+      if (leaderboardWarmTimer.current) clearTimeout(leaderboardWarmTimer.current);
+      leaderboardWarmTimer.current = null;
       window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, onInvalidated);
       window.removeEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
       pendingResources.current.clear();
     };
-  }, [loadLeaderboardAvailability, queueResourceRefresh]);
+  }, [queueResourceRefresh, warmLeaderboardScopes]);
 
   const refresh = useCallback(async () => {
     const activeTab = currentTab.current;
@@ -631,7 +652,7 @@ export function GamificationFrontend({
       summary: true,
       achievements: true,
       challenges: currentTab.current === "challenges",
-      leaderboard: false,
+      leaderboard: currentTab.current === "leaderboard",
     });
     setOverviewRank(null);
     setOverviewRankLoading(false);
@@ -644,7 +665,7 @@ export function GamificationFrontend({
         if (currentTab.current !== "challenges") void loadChallenges();
         if (currentTab.current !== "overview") void loadOverviewRank();
       });
-      void loadLeaderboardAvailability();
+      void warmLeaderboardScopes();
       // Only hydrate the expensive tab-specific resources that are visible.
       // The other tabs already load on selection; fetching them all on entry
       // competes for the small database pool and delays the visible section.
@@ -667,6 +688,7 @@ export function GamificationFrontend({
     loadLeaderboardAvailability,
     loadOverviewRank,
     loadPrivateData,
+    warmLeaderboardScopes,
   ]);
   useEffect(() => {
     if (navigationRequest > 0) setTab("leaderboard");
@@ -1098,6 +1120,7 @@ export function GamificationFrontend({
         onScopeChange={(nextScope) => {
           setScope(nextScope);
           setLeaderboard(null);
+          setLoading((old) => ({ ...old, leaderboard: true }));
           setOwnRank(null);
           setRankError(false);
           setErrors((old) => ({ ...old, leaderboard: false }));
@@ -1135,7 +1158,19 @@ export function GamificationFrontend({
           </div>
         </header>
         <nav className="g-tabs" aria-label={tx("gamificationTitle", "Study engagement", "التفاعل الدراسي")}>
-          {tabs.map((item) => <button type="button" key={item.id} className="g-tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
+          {tabs.map((item) => <button
+            type="button"
+            key={item.id}
+            className="g-tab"
+            aria-current={tab === item.id ? "page" : undefined}
+            onClick={() => {
+              if (
+                item.id === "leaderboard"
+                && currentLeaderboard.current?.scope !== currentScope.current
+              ) setLoading((old) => ({ ...old, leaderboard: true }));
+              setTab(item.id);
+            }}
+          >{item.label}</button>)}
         </nav>
         <div className="g-content">
           <GamificationFeatureState

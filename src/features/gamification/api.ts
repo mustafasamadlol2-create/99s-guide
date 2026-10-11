@@ -18,6 +18,7 @@ async function readJson<T>(
   resource: GamificationSyncResource,
   variant: string,
   path: string,
+  cacheTtlMs = 0,
 ): Promise<T> {
   return readGamificationResource(resource, variant, async (requestKey) => {
     const response = await apiClient(path, {
@@ -34,7 +35,7 @@ async function readJson<T>(
       retries: 0,
     });
     return response.json() as Promise<T>;
-  });
+  }, { cacheTtlMs });
 }
 
 export const gamificationApi = {
@@ -51,6 +52,7 @@ export const gamificationApi = {
       "leaderboard",
       `${scope}:${limit}:${cursor ?? "first"}`,
       `/api/leaderboards/${scope}?${params.toString()}`,
+      cursor ? 0 : 60_000,
     );
   },
   leaderboardAvailability: async () => {

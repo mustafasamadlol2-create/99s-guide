@@ -39,6 +39,39 @@ test("matching Gamification reads share one in-flight request", async () => {
   setGamificationReadAccountScope(null);
 });
 
+test("cached leaderboard reads stay scoped and are discarded by realtime invalidation", async () => {
+  setGamificationReadAccountScope("gamification-leaderboard-cache-user");
+  let loads = 0;
+  const load = async () => `snapshot-${++loads}`;
+
+  assert.equal(await readGamificationResource(
+    "leaderboard",
+    "WEEKLY:30:first",
+    load,
+    { cacheTtlMs: 10_000 },
+  ), "snapshot-1");
+  assert.equal(await readGamificationResource(
+    "leaderboard",
+    "WEEKLY:30:first",
+    load,
+    { cacheTtlMs: 10_000 },
+  ), "snapshot-1");
+  assert.equal(loads, 1);
+
+  assert.ok(acceptGamificationUpdate({
+    eventId: "gamification-leaderboard-cache-invalidation",
+    resources: ["leaderboard"],
+  }));
+  assert.equal(await readGamificationResource(
+    "leaderboard",
+    "WEEKLY:30:first",
+    load,
+    { cacheTtlMs: 10_000 },
+  ), "snapshot-2");
+  assert.equal(loads, 2);
+  setGamificationReadAccountScope(null);
+});
+
 test("repeated Gamification event IDs invalidate and dispatch only once", () => {
   const payload = {
     eventId: "gamification-duplicate-event",
