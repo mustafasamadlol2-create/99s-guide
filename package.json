@@ -78,6 +78,7 @@
     "@napi-rs/canvas": "^1.0.9",
     "@prisma/client": "^5.22.0",
     "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
     "@types/compression": "^1.8.1",
     "@vitejs/plugin-react": "^5.2.0",
     "bcryptjs": "^3.0.3",
