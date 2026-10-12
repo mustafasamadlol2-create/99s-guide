@@ -238,7 +238,12 @@ export const LectureDetailView = function LectureDetailView({
  muteStatus = null,
 }: LectureDetailViewProps) {
  const sessionStartRef = useRef<number>(Date.now());
+  const onBackRef = useRef(onBack);
   const [detailedLecture, setDetailedLecture] = useState<any>(lecture);
+
+  useEffect(() => {
+    onBackRef.current = onBack;
+  }, [onBack]);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
 
    useEffect(() => {
@@ -246,8 +251,22 @@ export const LectureDetailView = function LectureDetailView({
      setDetailedLecture(lecture);
      if (lecture.isDatabaseLecture) {
       setIsLoadingDetails(true);
-      apiClient(`/api/lectures/${lecture.id}`)
-        .then(res => res.json())
+      apiClient(`/api/lectures/${lecture.id}`, {
+        bypassCache: true,
+        retries: 0,
+        silent: true,
+      })
+        .then(async (res) => {
+          if (res.status === 404) {
+            // A cached card can outlive an admin/database deletion. Do not keep
+            // rendering a ghost lecture and let the user reach a missing PDF.
+            window.dispatchEvent(new Event("academic-content-invalidated"));
+            if (isMounted) onBackRef.current();
+            return null;
+          }
+          if (!res.ok) throw new Error(`Lecture refresh failed (${res.status})`);
+          return res.json();
+        })
         .then(data => {
            if (isMounted && data) {
              setDetailedLecture({ ...data, isDatabaseLecture: true, title: data.name || lecture.title });
@@ -261,7 +280,7 @@ export const LectureDetailView = function LectureDetailView({
       setDetailedLecture(lecture);
     }
     return () => { isMounted = false; };
-  }, [lecture.id, lecture.isDatabaseLecture]);
+  }, [lecture.id, lecture.isDatabaseLecture, lecture.title]);
 
   const isRtl = language === "ar";
   const flashcardTheme = useMemo(() => getFlashcardTheme(lecture.subjectId), [lecture.subjectId]);

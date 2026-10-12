@@ -196,6 +196,30 @@ class OfflineEngineClass {
     try { localStorage.setItem("detailed_lectures_cache", JSON.stringify(cache)); } catch(e){}
   }
 
+  /** Remove one stale lecture detail from the legacy local cache. */
+  public removeCachedLecture(lectureId: string): void {
+    const cache = this.getCachedLectures();
+    if (!(lectureId in cache)) return;
+    delete cache[lectureId];
+    try { localStorage.setItem("detailed_lectures_cache", JSON.stringify(cache)); } catch(e){}
+  }
+
+  /** Keep legacy detailed-lecture cache aligned with the canonical lecture catalog. */
+  public pruneCachedLectures(validLectureIds: Iterable<string>): void {
+    const validIds = new Set(validLectureIds);
+    const cache = this.getCachedLectures();
+    let changed = false;
+    for (const lectureId of Object.keys(cache)) {
+      if (!validIds.has(lectureId)) {
+        delete cache[lectureId];
+        changed = true;
+      }
+    }
+    if (changed) {
+      try { localStorage.setItem("detailed_lectures_cache", JSON.stringify(cache)); } catch(e){}
+    }
+  }
+
   public getCachedCalendarEvents(): CalendarEvent[] {
     try {
       const saved = localStorage.getItem(accountStorageKey("calendar_events"));
@@ -383,8 +407,13 @@ class OfflineEngineClass {
   }
 
   public addToDLQ(mutation: UnsyncedMutation): void {
-    const dlq = this.getDeadLetterQueue();
-    dlq.push(mutation);
+    // Keep one terminal record per mutation id. Re-hydration/retry races used to
+    // append the same rejected mutation repeatedly, which also produced repeated
+    // "offline changes" notifications after app restarts.
+    const existing = this.getDeadLetterQueue();
+    const byId = new Map(existing.map((item) => [item.id, item]));
+    byId.set(mutation.id, mutation);
+    const dlq = Array.from(byId.values());
     try {
       localStorage.setItem(accountStorageKey("offline_dlq"), JSON.stringify(dlq));
       this.inMemoryDeadLetterQueue = null;
@@ -477,6 +506,8 @@ class OfflineEngineClass {
   }
   public clearQueue(): void {
     localStorage.removeItem(accountStorageKey("offline_mutations_queue"));
+    this.inMemoryQueue = [];
+    void this.clearPendingQueue();
   }
 
   /** Remove the account's pending/dead-letter database and in-memory queues. */
@@ -713,10 +744,16 @@ class OfflineEngineClass {
         );
       }
 
-      if (fullyResolved && !hasFailures) {
+      if (fullyResolved) {
+        // Terminal DLQ failures are already preserved for review. There is
+        // nothing left in the active queue, so do not schedule another retry
+        // cycle (the previous behavior could immediately emit duplicate
+        // Retrying/Failed feedback even after all active work was exhausted).
         this.syncRetryCount = 0;
-        window.dispatchEvent(new Event("offline-sync-completed"));
-        processedAny = true;
+        if (!hasFailures) {
+          window.dispatchEvent(new Event("offline-sync-completed"));
+          processedAny = true;
+        }
       } else {
         this.syncRetryCount++;
         this.scheduleQueueProcess();

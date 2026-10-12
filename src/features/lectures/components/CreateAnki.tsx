@@ -78,7 +78,7 @@ function ManualCreateAnki({ language = "en", onSuccess }: CreateAnkiProps) {
  if (trackMode) params.append("trackMode", trackMode);
  if (department) params.append("department", department);
 
- const res = await apiClient(`/api/lectures?${params.toString()}`);
+ const res = await apiClient(`/api/lectures?${params.toString()}`, { bypassCache: true, retries: 1, silent: true });
  if (res.ok) {
  const data = await res.json();
  setLectures(data);

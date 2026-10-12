@@ -129,7 +129,7 @@ function LectureTargetSelector({
       if (subSubject) params.set("subSubject", subSubject);
       if (trackMode) params.set("trackMode", trackMode);
       if (department) params.set("department", department);
-      const response = await apiClient(`/api/lectures?${params.toString()}`);
+      const response = await apiClient(`/api/lectures?${params.toString()}`, { bypassCache: true, retries: 1, silent: true });
       const data = await response.json() as Lecture[];
       if (!response.ok) throw new Error("Unable to load lectures.");
       setLectures(data);

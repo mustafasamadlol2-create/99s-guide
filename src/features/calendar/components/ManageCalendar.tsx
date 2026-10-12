@@ -66,7 +66,7 @@ export default function ManageCalendar({
  useEffect(() => {
  const loadLectures = async () => {
  try {
- const response = await apiClient("/api/lectures");
+ const response = await apiClient("/api/lectures", { bypassCache: true, retries: 1, silent: true });
  if (response.ok) {
  const data = await response.json();
  setDbLectures(data);

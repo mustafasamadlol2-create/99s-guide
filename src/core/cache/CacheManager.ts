@@ -70,10 +70,6 @@ class CacheManagerClass {
     } satisfies StoredEntry).catch(() => {});
   }
 
-  private idbDelete(key: string): void {
-    IDBManager.removeItem(`cache:${key}`).catch(() => {});
-  }
-
   // ── Public API ───────────────────────────────────────────────────────────────
 
   /**
@@ -125,12 +121,26 @@ class CacheManagerClass {
         .catch(() => {});
       return;
     }
-    for (const k of this.memory.keys()) {
-      if (k.includes(pattern)) {
-        this.memory.delete(k);
-        this.idbDelete(k);
-      }
+
+    // Clear matching memory entries immediately.
+    for (const k of Array.from(this.memory.keys())) {
+      if (k.includes(pattern)) this.memory.delete(k);
     }
+
+    // IMPORTANT: a persisted cache entry can exist in IndexedDB even when it
+    // has not been promoted into memory during this app session. The old
+    // implementation only deleted IDB entries that also happened to be in the
+    // memory Map, which allowed deleted lectures/materials to reappear after a
+    // reload. Sweep IDB independently so invalidation is complete.
+    IDBManager.getAllKeys()
+      .then((keys: string[]) => {
+        for (const key of keys) {
+          if (key.startsWith("cache:") && key.includes(pattern)) {
+            IDBManager.removeItem(key).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
   }
 
   /** Synchronous memory-only peek — useful for immediate UI without async overhead */

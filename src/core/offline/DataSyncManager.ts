@@ -25,6 +25,8 @@ interface OfflineProgressItem {
   payload: any; // MCQ score, SM-2 state, or progress status
   lastUpdated: string; // ISO timestamp
   synced: number; // 0 for unsynced, 1 for synced
+  /** Server marks obsolete records (for example progress for a deleted lecture) for local removal. */
+  discarded?: boolean;
 }
 
 class DataSyncManagerClass {
@@ -152,7 +154,14 @@ class DataSyncManagerClass {
       }
 
       
-      const response = await apiClient("/api/materials?scope=offline");
+      const response = await apiClient("/api/materials?scope=offline", {
+        // Offline study packs must mirror the current canonical database. A
+        // cached/D1-stale response can otherwise keep deleted MCQs/flashcards
+        // alive on the device after an admin cleanup.
+        bypassCache: true,
+        retries: 1,
+        silent: true,
+      });
       if (!response.ok) {
         throw new Error("Failed to retrieve academic materials from server");
       }
@@ -478,6 +487,9 @@ class DataSyncManagerClass {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: unsyncedItems }),
+        // This engine owns the retry/DLQ user feedback. Suppress the generic
+        // API toast so one network failure never surfaces twice.
+        silent: true,
       });
 
       if (!response.ok) {
@@ -648,7 +660,15 @@ class DataSyncManagerClass {
       const store = tx.objectStore("offline_progress");
 
       resolvedItems.forEach((item) => {
-        // Force sync status marker to true since backend saved it safely
+        if (item.discarded) {
+          // The canonical server no longer has this lecture/card. Keeping the
+          // obsolete offline record would make every future app launch retry a
+          // mutation that can never succeed. Remove it permanently.
+          store.delete(item.id);
+          return;
+        }
+
+        // Force sync status marker to true since backend saved it safely.
         const updatedItem = {
           ...item,
           synced: 1,

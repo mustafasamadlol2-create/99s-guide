@@ -767,15 +767,16 @@ function AppContent({
         window.dispatchEvent(new Event(GAMIFICATION_SOCKET_RECONNECTED_EVENT));
       }
 
-      // Re-fetch critical canonical state that could have been missed during disconnect
-      apiClient("/api/lectures", { bypassCache: true })
-        .then((r) => r.ok ? r.json() : [])
-        .then((data) => setDbLectures(Array.isArray(data) ? data : []))
-        .catch(() => {});
-      apiClient("/api/calendar/events", { bypassCache: true })
-        .then((r) => r.ok ? r.json() : [])
-        .then((data) => setCalendarEventsDb(Array.isArray(data) ? filterAcademicCalendarEvents(data) : []))
-        .catch(() => {});
+      // Re-fetch the canonical academic catalog after every socket connect/reconnect.
+      // This deliberately includes /api/materials because the dashboard subject
+      // cards are built from that response, not only from /api/lectures.
+      CacheManager.invalidate("materials");
+      CacheManager.invalidate("lectures");
+      void Promise.allSettled([
+        fetchMaterials(true),
+        fetchDbLectures(true),
+        fetchCalendarEvents(true),
+      ]);
     });
 
     socket.on("focus_state_changed", (payload?: unknown) => {
@@ -944,13 +945,22 @@ function AppContent({
     });
 
     // ── Real-time lecture list sync ─────────────────────────────────────────
+    const refreshCanonicalLectureCatalog = () => {
+      CacheManager.invalidate("materials");
+      CacheManager.invalidate("lectures");
+      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
+    };
+
     socket.on("lecture_created", (lecture: any) => {
       setDbLectures((prev: any[]) =>
         prev.some((l) => l.id === lecture.id) ? prev : [...prev, lecture]
       );
+      refreshCanonicalLectureCatalog();
     });
     socket.on("lecture_deleted", (data: { lectureId: string }) => {
       setDbLectures((prev: any[]) => prev.filter((l) => l.id !== data.lectureId));
+      OfflineEngine.removeCachedLecture(data.lectureId);
+      refreshCanonicalLectureCatalog();
     });
 
     // ── Real-time report notifications (admins see new reports instantly) ───
@@ -971,7 +981,9 @@ function AppContent({
       window.dispatchEvent(new CustomEvent("socket-moderation-history-updated"));
     });
     socket.on("materials_updated", () => {
-      fetchMaterials(true).catch(() => {});
+      CacheManager.invalidate("materials");
+      CacheManager.invalidate("lectures");
+      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
     });
     socket.on("roster_updated", () => {
       window.dispatchEvent(new CustomEvent("socket-roster-updated"));
@@ -1253,14 +1265,22 @@ function AppContent({
 
     const handleOfflineStatus = (event: Event) => {
       const detail = (event as CustomEvent<{ status?: string; rejectedCount?: number }>).detail;
+      const retryToastId = "offline-sync-retrying";
+      const failureToastId = "offline-sync-failed";
+
       if (detail?.status === "Failed") {
+        toast.dismiss(retryToastId);
         toast.error(
           language === "ar"
             ? t("offlineChangesFailed")
             : `${detail.rejectedCount || 1} ${t("offlineChangesFailed")}`,
+          { id: failureToastId },
         );
       } else if (detail?.status === "Retrying") {
-        toast.info(t("retryingOfflineChanges"));
+        toast.info(t("retryingOfflineChanges"), { id: retryToastId });
+      } else if (detail?.status === "Resolved") {
+        toast.dismiss(retryToastId);
+        toast.dismiss(failureToastId);
       }
     };
 
@@ -2851,23 +2871,34 @@ function AppContent({
       if (cached) setSubjects(cached);
     }
     try {
-      const response = await apiClient("/api/materials?scope=subjects", { bypassCache });
+      // `bypassCache` controls whether stale local data is shown first. The
+      // network leg itself must always bypass the generic API/browser cache so
+      // deleted lectures/materials disappear as soon as the canonical server responds.
+      const response = await apiClient("/api/materials?scope=subjects", {
+        bypassCache: true,
+        retries: 1,
+        silent: true,
+      });
       if (response.ok) {
         const data = await response.json();
         if (data && data.subjects) {
           setSubjects(data.subjects);
           CacheManager.set("materials", data.subjects, CACHE_TTL.MATERIALS).catch(() => {});
           IDBManager.setItem("subjects_cache", data.subjects).catch(() => {});
+          try { localStorage.setItem("subjects_cache", JSON.stringify(data.subjects)); } catch {}
+          OfflineEngine.setCachedSubjects(data.subjects);
         }
       }
     } catch (err) {
-      // Already served from CacheManager above if available; fall back to IDB/localStorage on hard failure
-      const idbCached = await IDBManager.getItem("subjects_cache");
-      if (idbCached) {
-        setSubjects(idbCached as any);
-      } else {
-        const cachedStr = localStorage.getItem("subjects_cache");
-        if (cachedStr) setSubjects(safeJsonParse(cachedStr, []));
+      // A forced canonical refresh must never restore a stale persisted catalog.
+      if (!bypassCache) {
+        const idbCached = await IDBManager.getItem("subjects_cache");
+        if (idbCached) {
+          setSubjects(idbCached as any);
+        } else {
+          const cachedStr = localStorage.getItem("subjects_cache");
+          if (cachedStr) setSubjects(safeJsonParse(cachedStr, []));
+        }
       }
     }
   };
@@ -2890,33 +2921,43 @@ function AppContent({
       }
     }
     try {
-      const res = await apiClient("/api/lectures", { bypassCache });
+      const res = await apiClient("/api/lectures", {
+        bypassCache: true,
+        retries: 1,
+        silent: true,
+      });
       if (res.ok) {
         const data = await res.json();
         setDbLectures(data);
         setLectureCatalogStatus("ready");
         CacheManager.set("lectures", data, CACHE_TTL.LECTURES).catch(() => {});
         IDBManager.setItem("db_lectures_list_cache", data).catch(() => {});
+        try { localStorage.setItem("db_lectures_list_cache", JSON.stringify(data)); } catch {}
+        OfflineEngine.pruneCachedLectures(
+          Array.isArray(data) ? data.map((item: any) => String(item.id)) : [],
+        );
       } else {
         throw new Error("HTTP error " + res.status);
       }
     } catch (e) {
       let restoredCachedData = false;
-      try {
-        const idbCached = await IDBManager.getItem("db_lectures_list_cache");
-        if (idbCached) {
-          setDbLectures(idbCached as any);
-          setLectureCatalogStatus("ready");
-          restoredCachedData = true;
-        } else {
-          const cachedStr = localStorage.getItem("db_lectures_list_cache");
-          if (cachedStr) {
-            setDbLectures(safeJsonParse(cachedStr, []));
+      if (!bypassCache) {
+        try {
+          const idbCached = await IDBManager.getItem("db_lectures_list_cache");
+          if (idbCached) {
+            setDbLectures(idbCached as any);
             setLectureCatalogStatus("ready");
             restoredCachedData = true;
+          } else {
+            const cachedStr = localStorage.getItem("db_lectures_list_cache");
+            if (cachedStr) {
+              setDbLectures(safeJsonParse(cachedStr, []));
+              setLectureCatalogStatus("ready");
+              restoredCachedData = true;
+            }
           }
-        }
-      } catch (err) {}
+        } catch (err) {}
+      }
       if (!restoredCachedData) {
         setLectureCatalogStatus(dbLectures.length > 0 ? "ready" : "error");
       }
@@ -2931,7 +2972,11 @@ function AppContent({
       if (cached) setCalendarEventsDb(filterAcademicCalendarEvents(cached));
     }
     try {
-      const response = await apiClient("/api/calendar/events", { bypassCache });
+      const response = await apiClient("/api/calendar/events", {
+        bypassCache: true,
+        retries: 1,
+        silent: true,
+      });
       if (response.ok) {
         const data = await response.json();
         const academicEvents = Array.isArray(data) ? filterAcademicCalendarEvents(data) : [];
@@ -2942,9 +2987,11 @@ function AppContent({
         throw new Error("HTTP error " + response.status);
       }
     } catch (e) {
-      const cached = OfflineEngine.getCachedCalendarEvents();
-      if (cached && cached.length > 0) {
-        setCalendarEventsDb(filterAcademicCalendarEvents(cached));
+      if (!bypassCache) {
+        const cached = OfflineEngine.getCachedCalendarEvents();
+        if (cached && cached.length > 0) {
+          setCalendarEventsDb(filterAcademicCalendarEvents(cached));
+        }
       }
     }
   };
@@ -3069,10 +3116,19 @@ function AppContent({
           OfflineEngine.setCachedUser(data.user);
         }
         if (data.progress) {
-          // Resolve any conflict using Pick Newest Timestamp mechanism
-          const resolved = OfflineEngine.resolveConflicts(prog, data.progress);
+          // The server returns lecture ids that were deleted from the canonical
+          // database while this device was offline. Remove those local rows
+          // before conflict resolution so they cannot be re-queued forever.
+          const prunedLectureIds = new Set<string>(
+            Array.isArray(data.prunedLectureIds)
+              ? data.prunedLectureIds.filter((id: unknown): id is string => typeof id === "string")
+              : [],
+          );
+          const localProgress = prog.filter((item) => !prunedLectureIds.has(item.lectureId));
+          const resolved = OfflineEngine.resolveConflicts(localProgress, data.progress);
           setProgressDb(resolved);
           OfflineEngine.setCachedProgress(resolved);
+          try { localStorage.setItem("progress_db", JSON.stringify(resolved)); } catch {}
         }
         if (data.pointsLogs) {
           setPointsLogDb(data.pointsLogs);
@@ -3945,23 +4001,31 @@ function AppContent({
             : "Loading study outlines from device memory.",
       });
       if (status) {
-        fetchMaterials().catch(() => {});
-        fetchDbLectures().catch(() => {});
-        fetchCalendarEvents().catch(() => {});
+        fetchMaterials(true).catch(() => {});
+        fetchDbLectures(true).catch(() => {});
+        fetchCalendarEvents(true).catch(() => {});
       }
     });
 
     const handleSyncFinished = () => {
-      fetchMaterials().catch(() => {});
-      fetchDbLectures().catch(() => {});
-      fetchCalendarEvents().catch(() => {});
+      fetchMaterials(true).catch(() => {});
+      fetchDbLectures(true).catch(() => {});
+      fetchCalendarEvents(true).catch(() => {});
+    };
+
+    const handleAcademicContentInvalidated = () => {
+      CacheManager.invalidate("materials");
+      CacheManager.invalidate("lectures");
+      void Promise.allSettled([fetchMaterials(true), fetchDbLectures(true)]);
     };
 
     window.addEventListener("offline-sync-completed", handleSyncFinished);
+    window.addEventListener("academic-content-invalidated", handleAcademicContentInvalidated);
 
     return () => {
       unsubEngine();
       window.removeEventListener("offline-sync-completed", handleSyncFinished);
+      window.removeEventListener("academic-content-invalidated", handleAcademicContentInvalidated);
     };
   }, [language]);
 
