@@ -12,12 +12,13 @@ export const FOCUS_AUDIO_ENABLED =
   buildFlags.VITE_FOCUS_AUDIO_ENABLED !== false;
 
 /**
- * Focus Hub is exposed in development by default. Production builds may expose
- * it only when its matching frontend build flag is explicitly enabled.
+ * Focus Hub is a released core surface. Keep it visible by default in both
+ * production PWA/Cloudflare builds and native builds. An explicit false value
+ * remains a build-time emergency kill switch.
  */
 export const FOCUS_HUB_V2_ENABLED =
-  buildFlags.VITE_FOCUS_HUB_V2_ENABLED === "true" ||
-  (buildFlags.DEV === true && buildFlags.VITE_FOCUS_HUB_V2_ENABLED !== "false");
+  buildFlags.VITE_FOCUS_HUB_V2_ENABLED !== "false" &&
+  buildFlags.VITE_FOCUS_HUB_V2_ENABLED !== false;
 
 /**
  * Group Focus UI remains opt-in; production visibility requires its explicit

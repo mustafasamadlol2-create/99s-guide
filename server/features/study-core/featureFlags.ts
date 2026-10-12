@@ -36,13 +36,13 @@ export type ClientVisibleStudyFeatureFlags = Readonly<
 >;
 
 export const DEFAULT_STUDY_FEATURE_FLAGS: StudyFeatureFlagState = {
-  STUDY_EVENTS_ENABLED: false,
-  FOCUS_HUB_ENABLED: false,
-  FOCUS_RESOURCE_HANDOFF_ENABLED: false,
+  STUDY_EVENTS_ENABLED: true,
+  FOCUS_HUB_ENABLED: true,
+  FOCUS_RESOURCE_HANDOFF_ENABLED: true,
   GROUP_FOCUS_ENABLED: false,
-  STUDY_POINTS_ENABLED: false,
-  STUDY_INTEGRITY_ENABLED: false,
-  GAMIFICATION_ENABLED: false,
+  STUDY_POINTS_ENABLED: true,
+  STUDY_INTEGRITY_ENABLED: true,
+  GAMIFICATION_ENABLED: true,
   SPACED_RECALL_ENABLED: false,
   RECALL_POINTS_ENABLED: false,
   MASTERY_ENABLED: false,
@@ -57,10 +57,11 @@ export const DEFAULT_STUDY_FEATURE_FLAGS: StudyFeatureFlagState = {
 };
 
 const ENABLED_VALUES = new Set(["1", "true", "yes", "on"]);
+const DISABLED_VALUES = new Set(["0", "false", "no", "off"]);
 
 /**
- * Environment values are deliberately parsed strictly. Missing, malformed,
- * and explicit false values all leave a feature disabled.
+ * Strict parser retained for callers/tests that intentionally treat a missing
+ * value as false. Runtime resolution below separately applies release defaults.
  */
 export function parseStudyFeatureFlag(value: unknown): boolean {
   return (
@@ -69,13 +70,27 @@ export function parseStudyFeatureFlag(value: unknown): boolean {
   );
 }
 
+function resolveStudyFeatureFlag(
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (ENABLED_VALUES.has(normalized)) return true;
+  if (DISABLED_VALUES.has(normalized)) return false;
+  return false;
+}
+
 export function getStudyFeatureFlags(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): StudyFeatureFlagState {
   const flags = {} as Record<StudyFeatureFlag, boolean>;
 
   for (const flag of STUDY_FEATURE_FLAGS) {
-    flags[flag] = parseStudyFeatureFlag(environment[flag]);
+    flags[flag] = resolveStudyFeatureFlag(
+      environment[flag],
+      DEFAULT_STUDY_FEATURE_FLAGS[flag],
+    );
   }
 
   return flags;

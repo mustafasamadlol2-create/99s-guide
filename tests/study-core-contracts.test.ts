@@ -65,10 +65,16 @@ test("Focus state transitions accept only the frozen map", () => {
   ]);
 });
 
-test("Study feature flags are false by default and parse strictly", () => {
-  for (const flag of STUDY_FEATURE_FLAGS) {
-    assert.equal(DEFAULT_STUDY_FEATURE_FLAGS[flag], false);
-  }
+test("released Study feature flags use safe runtime defaults and parse strictly", () => {
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_EVENTS_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.FOCUS_HUB_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.FOCUS_RESOURCE_HANDOFF_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_POINTS_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.STUDY_INTEGRITY_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.GAMIFICATION_ENABLED, true);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.GROUP_FOCUS_ENABLED, false);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.LEADERBOARD_D1_PROJECTION_ENABLED, false);
+  assert.equal(DEFAULT_STUDY_FEATURE_FLAGS.LEADERBOARD_D1_READ_ENABLED, false);
   assert.equal(parseStudyFeatureFlag("true"), true);
   assert.equal(parseStudyFeatureFlag(" ON "), true);
   assert.equal(parseStudyFeatureFlag("false"), false);
