@@ -238,12 +238,7 @@ export const LectureDetailView = function LectureDetailView({
  muteStatus = null,
 }: LectureDetailViewProps) {
  const sessionStartRef = useRef<number>(Date.now());
-  const onBackRef = useRef(onBack);
   const [detailedLecture, setDetailedLecture] = useState<any>(lecture);
-
-  useEffect(() => {
-    onBackRef.current = onBack;
-  }, [onBack]);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
 
    useEffect(() => {
@@ -251,22 +246,8 @@ export const LectureDetailView = function LectureDetailView({
      setDetailedLecture(lecture);
      if (lecture.isDatabaseLecture) {
       setIsLoadingDetails(true);
-      apiClient(`/api/lectures/${lecture.id}`, {
-        bypassCache: true,
-        retries: 0,
-        silent: true,
-      })
-        .then(async (res) => {
-          if (res.status === 404) {
-            // A cached card can outlive an admin/database deletion. Do not keep
-            // rendering a ghost lecture and let the user reach a missing PDF.
-            window.dispatchEvent(new Event("academic-content-invalidated"));
-            if (isMounted) onBackRef.current();
-            return null;
-          }
-          if (!res.ok) throw new Error(`Lecture refresh failed (${res.status})`);
-          return res.json();
-        })
+      apiClient(`/api/lectures/${lecture.id}`)
+        .then(res => res.json())
         .then(data => {
            if (isMounted && data) {
              setDetailedLecture({ ...data, isDatabaseLecture: true, title: data.name || lecture.title });
@@ -280,7 +261,7 @@ export const LectureDetailView = function LectureDetailView({
       setDetailedLecture(lecture);
     }
     return () => { isMounted = false; };
-  }, [lecture.id, lecture.isDatabaseLecture, lecture.title]);
+  }, [lecture.id, lecture.isDatabaseLecture]);
 
   const isRtl = language === "ar";
   const flashcardTheme = useMemo(() => getFlashcardTheme(lecture.subjectId), [lecture.subjectId]);
@@ -463,6 +444,25 @@ export const LectureDetailView = function LectureDetailView({
         return String(a?.id || "").localeCompare(String(b?.id || ""));
       });
   }, [detailedLecture.materials, lecture.materials]);
+
+  const primaryPdfMaterial = useMemo(() => {
+    const materials = (detailedLecture.materials || lecture.materials || []) as any[];
+    return materials
+      .filter((material) => String(material?.type || "").toUpperCase() === "PDF")
+      .slice()
+      .sort((a, b) => {
+        const createdA = Date.parse(String(a?.createdAt || ""));
+        const createdB = Date.parse(String(b?.createdAt || ""));
+        if (Number.isFinite(createdA) && Number.isFinite(createdB) && createdA !== createdB) {
+          return createdA - createdB;
+        }
+        return String(a?.id || "").localeCompare(String(b?.id || ""));
+      })[0];
+  }, [detailedLecture.materials, lecture.materials]);
+
+  const pdfDisplayTitle =
+    String(primaryPdfMaterial?.title || "").trim() ||
+    String(detailedLecture?.title || lecture.title || "").trim();
 
  // --- Sub-States ---
  // PDF Section
@@ -2056,7 +2056,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  <div className="max-w-md w-full space-y-section">
  <div className="space-y-2">
  <h2 className="text-headline font-display font-semibold text-neutral-800 dark:text-[var(--text-primary)] leading-snug whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
- {lecture.title}
+ {pdfDisplayTitle}
  </h2>
  </div>
 
