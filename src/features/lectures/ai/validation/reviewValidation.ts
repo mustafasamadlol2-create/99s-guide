@@ -11,6 +11,7 @@ function normalized(value: string): string {
 export function validateMCQCandidate(
   candidate: Pick<AIMCQCandidate, "question" | "optionA" | "optionB" | "optionC" | "optionD" | "correctAnswer" | "category" | "difficulty">
     & Partial<Pick<AIMCQCandidate, "importReady" | "needsReview" | "warnings">>,
+  validationOptions: { humanReviewed?: boolean } = {},
 ): LocalValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -27,11 +28,20 @@ export function validateMCQCandidate(
     errors.push("Options must not be duplicates.");
   }
   warnings.push(...(candidate.warnings ?? []));
+
+  // AI-side review flags describe the raw preview. Once an administrator has
+  // manually changed the candidate, that edit is the human review/approval
+  // step. Keep the original AI warnings visible for context, but do not let
+  // stale `needsReview` / `importReady` flags keep a structurally valid,
+  // human-reviewed MCQ permanently blocked from import.
+  const aiReviewStillBlocking = !validationOptions.humanReviewed && (
+    candidate.importReady === false ||
+    candidate.needsReview === true ||
+    warnings.length > 0
+  );
+
   return {
-    ready: errors.length === 0 &&
-      candidate.importReady !== false &&
-      candidate.needsReview !== true &&
-      warnings.length === 0,
+    ready: errors.length === 0 && !aiReviewStillBlocking,
     errors,
     warnings,
   };

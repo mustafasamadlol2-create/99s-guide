@@ -147,7 +147,7 @@ function CandidateMeta({
           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
           : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
       }`}>
-        {validation.ready ? aiText(language, "readyForReview") : aiText(language, "needsReview")}
+        {validation.ready ? aiText(language, "ready") : aiText(language, "needsReview")}
       </span>
     </div>
   );
@@ -407,13 +407,16 @@ export function AIReviewStudio({
       setMcqs((items) => items.map((item) => {
         if (item.draft.candidateId !== next.candidateId || item.importStatus || importCheck) return item;
         const draft = next as AIMCQCandidate;
+        const editedFields = editedFieldsFor(item.original, draft);
+        const edited = editedFields.length > 0;
+        const localValidation = validateMCQCandidate(draft, { humanReviewed: edited });
         return {
           ...item,
           draft,
-          editedFields: editedFieldsFor(item.original, draft),
-          edited: editedFieldsFor(item.original, draft).length > 0,
-          localValidation: validateMCQCandidate(draft),
-          selected: item.selected && validateMCQCandidate(draft).ready && !item.importStatus,
+          editedFields,
+          edited,
+          localValidation,
+          selected: item.selected && localValidation.ready && !item.importStatus,
         };
       }));
     } else {

@@ -98,6 +98,54 @@ test("review validation keeps flagged candidates out of the import-ready state",
   assert.ok(result.warnings.length > 0);
 });
 
+
+
+test("human review overrides stale AI review flags once the MCQ is structurally valid", () => {
+  const candidate = {
+    question: "All these diseases are produced by exotoxins except:",
+    optionA: "Scalded skin syndrome",
+    optionB: "Food poisoning",
+    optionC: "Meningitis",
+    optionD: "Toxic shock syndrome",
+    correctAnswer: "D" as const,
+    category: "AI_GENERATED" as const,
+    difficulty: "Medium" as const,
+    importReady: false,
+    needsReview: true,
+    warnings: [
+      "The source did not explicitly establish a correct answer.",
+      "Confidence is below the review threshold.",
+    ],
+  };
+
+  const beforeHumanReview = validateMCQCandidate(candidate);
+  assert.equal(beforeHumanReview.ready, false);
+
+  const afterHumanReview = validateMCQCandidate(candidate, { humanReviewed: true });
+  assert.equal(afterHumanReview.ready, true);
+  assert.equal(afterHumanReview.errors.length, 0);
+  assert.equal(afterHumanReview.warnings.length, 2);
+});
+
+test("human review never bypasses structural MCQ errors", () => {
+  const result = validateMCQCandidate({
+    question: "Which option is correct?",
+    optionA: "First",
+    optionB: "Second",
+    optionC: "",
+    optionD: "Fourth",
+    correctAnswer: "D",
+    category: "AI_GENERATED",
+    difficulty: "Medium",
+    importReady: false,
+    needsReview: true,
+    warnings: ["The source did not explicitly establish a correct answer."],
+  }, { humanReviewed: true });
+
+  assert.equal(result.ready, false);
+  assert.ok(result.errors.some((error) => error.includes("Option C")));
+});
+
 test("review warnings and import errors are localized without exposing internal codes", () => {
   assert.equal(
     localizeAIWarning("en", "AI_IMPORT_INVALID_CANDIDATE"),

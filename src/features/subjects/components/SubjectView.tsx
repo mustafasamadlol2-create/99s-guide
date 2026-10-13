@@ -398,7 +398,23 @@ export const SubjectView = function SubjectView({
   // Derive lectures statically without unnecessary API fetches
 
   const subjectDbLectures = useMemo(() => {
-    return dbLectures.filter((l: any) => l.mainSubject === subject.id);
+    // Lecture order follows creation time: oldest first, newest last.
+    // Keep this presentation-side sort so PostgreSQL, D1, cache, and realtime
+    // payloads all render identically even if an upstream source changes order.
+    return dbLectures
+      .filter((l: any) => l.mainSubject === subject.id)
+      .slice()
+      .sort((a: any, b: any) => {
+        const aTime = Date.parse(String(a?.createdAt || ""));
+        const bTime = Date.parse(String(b?.createdAt || ""));
+
+        if (Number.isFinite(aTime) && Number.isFinite(bTime)) {
+          return aTime - bTime;
+        }
+        if (Number.isFinite(aTime)) return -1;
+        if (Number.isFinite(bTime)) return 1;
+        return 0;
+      });
   }, [dbLectures, subject.id]);
 
   // Filter subjectDbLectures to get active ones matching current selection

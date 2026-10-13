@@ -72,20 +72,14 @@ interface LectureListItemProps {
   >
  <div className="flex items-start justify-between gap-4 relative z-10">
  <div className="flex-1 min-w-0">
- <div className="flex flex-wrap items-center gap-2 mb-2">
- <span className="text-xs font-semibold uppercase text-semantic-chrome-content-secondary">
- {isRtl ? `المحاضرة ${lecture.orderNumber}` : `Lecture ${lecture.orderNumber}`}
- </span>
  {dateBadge && (
- <>
- <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-700 hidden sm:block" />
+ <div className="flex flex-wrap items-center gap-2 mb-2">
  <span className="text-xs font-semibold text-rose-500 flex items-center gap-1">
  <Calendar className="w-3 h-3" />
  {dateBadge.date}
  </span>
- </>
+ </div>
  )}
-  </div>
  <h4 className="text-base font-semibold text-semantic-chrome-content-primary transition-colors leading-snug break-words [overflow-wrap:anywhere]">
  {lecture.title}
  </h4>
@@ -260,11 +254,10 @@ export const LectureListItem = memo(
  : "";
 
  if (isRtl) {
- return `المحاضرة ${lecture.orderNumber}: ${lecture.title}. ${trackStr}. قسم: ${activeSubSubject}. ${progressStr}. ${scheduleStr}.`;
+ return `${lecture.title}. ${trackStr}. قسم: ${activeSubSubject}. ${progressStr}. ${scheduleStr}.`;
  }
- return `Lecture ${lecture.orderNumber}: ${lecture.title}. ${trackStr}. Sub-subject: ${activeSubSubject}. ${progressStr}. ${scheduleStr}.`;
+ return `${lecture.title}. ${trackStr}. Sub-subject: ${activeSubSubject}. ${progressStr}. ${scheduleStr}.`;
  }, [
- lecture.orderNumber,
  lecture.title,
  activeTrack,
  activeSubSubject,

@@ -2190,7 +2190,7 @@ app.get("/api/content", requireUser, catchAsync(async (req, res) => {
         name: true,
         materials: { select: { type: true, fileUrlOrLink: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
     const contentById = new Map(legacyContent.map((item: any) => [item.id, item]));
     for (const lecture of dbLectures) {
@@ -2568,10 +2568,7 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       return res.json(lecturesCache.data);
     }
 
-    // A client no-cache refresh is a canonical reconciliation request. Do not
-    // allow an eventually-consistent D1 projection to resurrect rows that were
-    // deleted directly from PostgreSQL/Supabase.
-    if (contentD1ReadsEnabled() && !forceRefresh) {
+    if (contentD1ReadsEnabled()) {
       try {
         const query = d1Params.toString();
         const lectures = await fetchContentReadJson<any[]>(
@@ -2618,7 +2615,7 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
         mcqs: { select: { id: true } },
         flashcards: { select: { id: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
 
     if (!hasPathFilters) {
@@ -2662,7 +2659,6 @@ app.post("/api/lectures", requireAdmin, catchAsync(async (req, res) => {
 
     invalidateMaterialsCache();
     io.to("authenticated").emit("lecture_created", lecture);
-    io.to("authenticated").emit("materials_updated");
     res.status(201).json(lecture);
   } catch (err: any) {
     console.error("[Post Lecture Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
@@ -2672,8 +2668,7 @@ app.post("/api/lectures", requireAdmin, catchAsync(async (req, res) => {
 
 app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
   try {
-    const forceRefresh = req.get("cache-control") === "no-cache";
-    if (contentD1ReadsEnabled() && !forceRefresh) {
+    if (contentD1ReadsEnabled()) {
       try {
         const lecture = await fetchContentReadJson<any>(
           `/lectures/${encodeURIComponent(req.params.id)}`,
@@ -2827,7 +2822,6 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
 
     invalidateMaterialsCache();
     io.to("authenticated").emit("lecture_deleted", { lectureId });
-    io.to("authenticated").emit("materials_updated");
     res.json({ success: true });
   } catch (err: any) {
     console.error("[Delete Lecture Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
@@ -4624,7 +4618,7 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
     let dbEvents: any[] = [];
     let relationalReadSource: "d1" | "supabase" | "supabase-fallback" = "supabase";
 
-    if (contentD1MaterialsReadsEnabled() && !forceRefresh) {
+    if (contentD1MaterialsReadsEnabled()) {
       try {
         const d1Payload = await fetchContentReadJson<any>(
           `/materials-data?scope=${encodeURIComponent(scope)}`,
@@ -4684,7 +4678,7 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: "asc" },
         }) : Promise.resolve([]),
         needsOfflineStudyData ? prismaClient.mcq.findMany({ take: 2000 }) : Promise.resolve([]),
         needsOfflineStudyData ? prismaClient.flashcard.findMany({ take: 2000 }) : Promise.resolve([]),
@@ -6819,7 +6813,6 @@ app.delete("/api/calendar/events/:id", requireAdmin, catchAsync(async (req, res)
 app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-cache");
-    const forceRefresh = req.get("cache-control") === "no-cache";
 
     const prismaClient = getPrisma();
     const userId = (req as any).user?.id;
@@ -6829,7 +6822,7 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
     let events: any[] = [];
     let readSource: "d1" | "supabase" | "supabase-fallback" = "supabase";
 
-    if (contentD1CalendarReadsEnabled() && !forceRefresh) {
+    if (contentD1CalendarReadsEnabled()) {
       try {
         // The content Worker stores academic/global rows. Personal planner
         // rows are intentionally not part of normal application reads.
@@ -10468,34 +10461,12 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       return res.status(400).json({ error: "Too many points records in one synchronization request." });
     }
 
-    // A device can legitimately still hold cached progress for a lecture that
-    // an admin has deleted since the last sync. Never let that stale client
-    // record turn the entire sync into a FK/500 retry loop. Validate the
-    // canonical lecture ids once, ignore obsolete rows, and tell the client
-    // exactly which ids it should prune locally.
-    const requestedLectureIds = Array.from(new Set(
-      progress
-        .map((item: any) => typeof item?.lectureId === "string" ? item.lectureId.trim() : "")
-        .filter(Boolean),
-    ));
-    const existingLectureRows = requestedLectureIds.length > 0
-      ? await prismaClient.lecture.findMany({
-          where: { id: { in: requestedLectureIds } },
-          select: { id: true },
-        })
-      : [];
-    const validLectureIds = new Set(existingLectureRows.map((row) => row.id));
-    const prunedLectureIds = requestedLectureIds.filter((id) => !validLectureIds.has(id));
-
     // Save/Sync Course progress items
     for (const p of progress) {
-      const lectureId = typeof p?.lectureId === "string" ? p.lectureId.trim() : "";
-      if (!lectureId || !validLectureIds.has(lectureId)) continue;
-
       const score = Number(p.quizScore || 0);
       const safeScore = (score >= 0 && score <= 100) ? score : 0;
       ops.push(prismaClient.lectureProgress.upsert({
-        where: { userId_lectureId: { userId, lectureId } },
+        where: { userId_lectureId: { userId, lectureId: p.lectureId } },
         update: {
           pdfCompleted: !!p.pdfCompleted,
           notesCompleted: !!p.notesCompleted,
@@ -10507,7 +10478,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
         },
         create: {
           userId,
-          lectureId,
+          lectureId: p.lectureId,
           pdfCompleted: !!p.pdfCompleted,
           notesCompleted: !!p.notesCompleted,
           videoCompleted: !!p.videoCompleted,
@@ -10546,9 +10517,6 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
 
     res.json({
       ...syncData,
-      // Allows upgraded clients to delete stale local progress for lectures
-      // that no longer exist in the authoritative catalog.
-      prunedLectureIds,
       calendarEvents: deprecateLegacyCalendarEvents(req.body.calendarEvents),
       globalCalendarEvents: visibleGlobalEvents.map(event => ({
         ...event,
@@ -10597,22 +10565,15 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
         .map((item: any) => item.targetId)
     )).filter(Boolean) as string[];
 
-    const [existingProgs, validLectureRows] = lectureIdsToFetch.length > 0
-      ? await Promise.all([
-          prismaClient.lectureProgress.findMany({
-            where: {
-              userId: authUser.id,
-              lectureId: { in: lectureIdsToFetch }
-            }
-          }),
-          prismaClient.lecture.findMany({
-            where: { id: { in: lectureIdsToFetch } },
-            select: { id: true },
-          }),
-        ])
-      : [[], []];
+    const existingProgs = lectureIdsToFetch.length > 0
+      ? await prismaClient.lectureProgress.findMany({
+          where: {
+            userId: authUser.id,
+            lectureId: { in: lectureIdsToFetch }
+          }
+        })
+      : [];
 
-    const validLectureIds = new Set(validLectureRows.map((row: any) => row.id));
     const progMap = new Map<string, any>();
     existingProgs.forEach((p: any) => {
       progMap.set(p.lectureId, p);
@@ -10625,22 +10586,15 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
         .map((item: any) => item.targetId)
     )).filter(Boolean) as string[];
 
-    const [existingSRs, validFlashcardRows] = flashcardIdsToFetch.length > 0
-      ? await Promise.all([
-          prismaClient.flashcardProgress.findMany({
-            where: {
-              userId: authUser.id,
-              flashcardId: { in: flashcardIdsToFetch }
-            }
-          }),
-          prismaClient.flashcard.findMany({
-            where: { id: { in: flashcardIdsToFetch } },
-            select: { id: true },
-          }),
-        ])
-      : [[], []];
+    const existingSRs = flashcardIdsToFetch.length > 0
+      ? await prismaClient.flashcardProgress.findMany({
+          where: {
+            userId: authUser.id,
+            flashcardId: { in: flashcardIdsToFetch }
+          }
+        })
+      : [];
 
-    const validFlashcardIds = new Set(validFlashcardRows.map((row: any) => row.id));
     const srMap = new Map<string, any>();
     existingSRs.forEach((sr: any) => {
       srMap.set(sr.flashcardId, sr);
@@ -10653,14 +10607,6 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
 
       if (type === 'lecture_progress' || type === 'mcq_score') {
         const lectureId = targetId;
-        if (!validLectureIds.has(lectureId)) {
-          // The canonical lecture was deleted after this device stored an
-          // offline progress mutation. Treat the local item as obsolete rather
-          // than retrying a FK violation forever. Upgraded clients remove it
-          // from IndexedDB when `discarded` is true.
-          resolved.push({ ...item, synced: 1, discarded: true });
-          continue;
-        }
         const existingProg = progMap.get(lectureId);
         const serverTime = existingProg ? new Date(existingProg.lastAccessed).getTime() : 0;
 
@@ -10723,10 +10669,6 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
         }
       } else if (type === 'flashcard_sr') {
         const cardId = targetId;
-        if (!validFlashcardIds.has(cardId)) {
-          resolved.push({ ...item, synced: 1, discarded: true });
-          continue;
-        }
         const existingSR = srMap.get(cardId);
         const serverTime = existingSR ? new Date(existingSR.updatedAt).getTime() : 0;
 
