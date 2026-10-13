@@ -74,6 +74,41 @@ test("flashcard validation becomes ready when both editable fields are present",
   assert.equal(result.ready, true);
 });
 
+
+test("human review overrides stale AI review flags once the flashcard is structurally valid", () => {
+  const candidate = {
+    clinicalConcept: "Renal clearance",
+    explanation: "The volume of plasma cleared of a substance per unit time.",
+    importReady: false,
+    needsReview: true,
+    warnings: [
+      "Confidence is below the review threshold.",
+      "Review source wording before import.",
+    ],
+  };
+
+  const beforeHumanReview = validateFlashcardCandidate(candidate);
+  assert.equal(beforeHumanReview.ready, false);
+
+  const afterHumanReview = validateFlashcardCandidate(candidate, { humanReviewed: true });
+  assert.equal(afterHumanReview.ready, true);
+  assert.equal(afterHumanReview.errors.length, 0);
+  assert.equal(afterHumanReview.warnings.length, 2);
+});
+
+test("human review never bypasses structural flashcard errors", () => {
+  const result = validateFlashcardCandidate({
+    clinicalConcept: "Renal clearance",
+    explanation: "",
+    importReady: false,
+    needsReview: true,
+    warnings: ["Confidence is below the review threshold."],
+  }, { humanReviewed: true });
+
+  assert.equal(result.ready, false);
+  assert.ok(result.errors.some((error) => error.includes("Explanation")));
+});
+
 test("Arabic source text is detected without changing the stored content", () => {
   assert.equal(isArabicText("The renal system الجهاز البولي"), true);
   assert.equal(isArabicText("Clinical lecture notes"), false);

@@ -50,16 +50,26 @@ export function validateMCQCandidate(
 export function validateFlashcardCandidate(
   candidate: Pick<AIFlashcardCandidate, "clinicalConcept" | "explanation">
     & Partial<Pick<AIFlashcardCandidate, "importReady" | "needsReview" | "warnings">>,
+  validationOptions: { humanReviewed?: boolean } = {},
 ): LocalValidation {
   const errors: string[] = [];
   if (!candidate.clinicalConcept.trim()) errors.push("Clinical concept is required.");
   if (!candidate.explanation?.trim()) errors.push("Explanation is required.");
   const warnings = [...(candidate.warnings ?? [])];
+
+  // Mirror the MCQ review behavior: the AI flags describe the untouched
+  // preview. As soon as an administrator manually changes either editable
+  // flashcard field, that change is the human review/approval step. Preserve
+  // the AI warnings for context, but do not let stale review flags keep an
+  // otherwise complete flashcard permanently blocked from import.
+  const aiReviewStillBlocking = !validationOptions.humanReviewed && (
+    candidate.importReady === false ||
+    candidate.needsReview === true ||
+    warnings.length > 0
+  );
+
   return {
-    ready: errors.length === 0 &&
-      candidate.importReady !== false &&
-      candidate.needsReview !== true &&
-      warnings.length === 0,
+    ready: errors.length === 0 && !aiReviewStillBlocking,
     errors,
     warnings,
   };

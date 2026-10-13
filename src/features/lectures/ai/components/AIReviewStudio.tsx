@@ -423,13 +423,16 @@ export function AIReviewStudio({
       setFlashcards((items) => items.map((item) => {
         if (item.draft.candidateId !== next.candidateId || item.importStatus || importCheck) return item;
         const draft = next as AIFlashcardCandidate;
+        const editedFields = editedFieldsFor(item.original, draft);
+        const edited = editedFields.length > 0;
+        const localValidation = validateFlashcardCandidate(draft, { humanReviewed: edited });
         return {
           ...item,
           draft,
-          editedFields: editedFieldsFor(item.original, draft),
-          edited: editedFieldsFor(item.original, draft).length > 0,
-          localValidation: validateFlashcardCandidate(draft),
-          selected: item.selected && validateFlashcardCandidate(draft).ready && !item.importStatus,
+          editedFields,
+          edited,
+          localValidation,
+          selected: item.selected && localValidation.ready && !item.importStatus,
         };
       }));
     }

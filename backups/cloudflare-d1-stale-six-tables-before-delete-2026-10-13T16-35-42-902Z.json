@@ -1,0 +1,1914 @@
+{
+  "FlashcardProgress": [
+    {
+      "id": "08a0b085-cfcc-4734-b0fa-cf5676b6a665",
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "flashcardId": "a4932571-3f70-4d35-9c70-d69bcb30822e"
+    },
+    {
+      "id": "0ed2cd0e-7a0e-43c5-816f-26433145abdc",
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "flashcardId": "af5862ee-999e-4453-9be4-ed4989f2c8a3"
+    },
+    {
+      "id": "1c0d2d81-5cc4-4f16-a779-a05f8bd7c72c",
+      "userId": "usr_da48e9f0-942a-4bb0-ab63-5ffdd8e530a7",
+      "flashcardId": "26ad1496-d090-4bee-ad37-5b51acc3e5a9"
+    },
+    {
+      "id": "233487c3-7691-4e06-809a-1907938e291a",
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "flashcardId": "11ed029b-1714-4be4-b78a-c5f87b52f9cb"
+    },
+    {
+      "id": "2c2a4ddf-5767-481a-a752-49f8f48656e0",
+      "userId": "usr_4b4a9834-e194-4440-b9a6-ffd1ae867aaf",
+      "flashcardId": "d23c6790-1f90-4532-8573-249e42a55a1f"
+    },
+    {
+      "id": "2cb07be6-e773-4ebb-8ca6-39c2f1694043",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "26ad1496-d090-4bee-ad37-5b51acc3e5a9"
+    },
+    {
+      "id": "301082e9-9184-46dd-8451-42e85ed05eb9",
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "flashcardId": "a965e917-0f41-4505-95b0-49f79e8336f8"
+    },
+    {
+      "id": "31d84d5e-5e94-4963-a30b-4be417a8acab",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "63afa825-00c0-4f12-93d9-2c98750d2c70"
+    },
+    {
+      "id": "32f961eb-33f4-4585-a64c-d0a8523972f5",
+      "userId": "usr_262501f4-4de0-403c-8d27-fa0d8ec0792b",
+      "flashcardId": "26ad1496-d090-4bee-ad37-5b51acc3e5a9"
+    },
+    {
+      "id": "3b278d1c-af37-49f1-a5da-b5464c7f8090",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "36cf1095-aacb-4490-b57f-fe0da1c21bba"
+    },
+    {
+      "id": "3b29738e-22bb-41b0-994a-00fa943ec866",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "8ef19f9c-f5bc-4995-8c3b-e86e38f68ba2"
+    },
+    {
+      "id": "3b5989dd-71a1-43bd-a3d9-2a732a77e299",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "cf8fb473-cf46-4a4d-9c22-c5fba295e4af"
+    },
+    {
+      "id": "3b6495b6-59f4-45eb-a32f-4231d49f52e3",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "83fae6c7-2977-474b-8564-ac8bb6480908"
+    },
+    {
+      "id": "3f4e5850-037d-4cb6-a485-18a889504fad",
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "flashcardId": "26ad1496-d090-4bee-ad37-5b51acc3e5a9"
+    },
+    {
+      "id": "436cb763-f2f5-46bd-bddf-a8875754a7c4",
+      "userId": "usr_ed2d4b4b-ce5b-4f33-bbe4-3e144bd0a3cf",
+      "flashcardId": "c5cae9c5-962c-42d0-9dc1-f30021eec53d"
+    },
+    {
+      "id": "51521dbf-60a5-4c95-bc1c-cabc5528bdcc",
+      "userId": "usr_ed2d4b4b-ce5b-4f33-bbe4-3e144bd0a3cf",
+      "flashcardId": "8ef19f9c-f5bc-4995-8c3b-e86e38f68ba2"
+    },
+    {
+      "id": "719116bf-7701-4a10-a5fa-f9ba1f898adc",
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "flashcardId": "bda1ae70-8d01-4d85-8d5b-6d8e6c84c235"
+    },
+    {
+      "id": "71d32354-3003-4a60-adc4-eba5963087b6",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "6d56d29d-1403-4594-8fb5-e27c52213366"
+    },
+    {
+      "id": "78cb185c-a892-4ceb-b14e-585dd8362ef4",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "c5cae9c5-962c-42d0-9dc1-f30021eec53d"
+    },
+    {
+      "id": "84e20ff7-2ba7-4075-94d4-2cfe96032c4e",
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "flashcardId": "d23c6790-1f90-4532-8573-249e42a55a1f"
+    },
+    {
+      "id": "88665c1d-76bd-4c2a-98ac-e223d92efa06",
+      "userId": "usr_4b4a9834-e194-4440-b9a6-ffd1ae867aaf",
+      "flashcardId": "26ad1496-d090-4bee-ad37-5b51acc3e5a9"
+    },
+    {
+      "id": "88fb6cb1-df88-4f17-b125-1ddca2474969",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "d23c6790-1f90-4532-8573-249e42a55a1f"
+    },
+    {
+      "id": "a2c36e6f-2624-4575-bae8-8f52bfa3c639",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "da6ab80a-d188-49c0-bfae-a66e2b5310c1"
+    },
+    {
+      "id": "ac0ad1cd-2cfc-4c02-828e-78f82a1b002f",
+      "userId": "usr_262501f4-4de0-403c-8d27-fa0d8ec0792b",
+      "flashcardId": "d23c6790-1f90-4532-8573-249e42a55a1f"
+    },
+    {
+      "id": "b060decd-6614-4d5b-8e77-28c38dbbc641",
+      "userId": "usr_da48e9f0-942a-4bb0-ab63-5ffdd8e530a7",
+      "flashcardId": "d23c6790-1f90-4532-8573-249e42a55a1f"
+    },
+    {
+      "id": "b5ebccb6-881d-4974-81f9-bc1bc7487781",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "5de0b2f0-8825-4fa6-b6c0-4e44c1d18b25"
+    },
+    {
+      "id": "bed3bc94-b51c-48dc-83c4-2ee4388a2710",
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "flashcardId": "ddb81931-e27b-4197-b0f5-c0802a83dc13"
+    },
+    {
+      "id": "bf0d4c79-1a6d-4274-8c9c-0ae1d204a1e7",
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "flashcardId": "a965e917-0f41-4505-95b0-49f79e8336f8"
+    },
+    {
+      "id": "bf5600f3-b90f-4704-8b30-87524c2f7abc",
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "flashcardId": "13a2ac53-db12-466d-948a-5ed4860e466d"
+    },
+    {
+      "id": "f35a23ca-6ec9-461a-8edb-1e9975f3a5b7",
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "flashcardId": "11ed029b-1714-4be4-b78a-c5f87b52f9cb"
+    }
+  ],
+  "LectureProgress": [
+    {
+      "userId": "usr_0f6dee12-fe4d-4769-b9ee-917c414b50f1",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "userId": "usr_0f6dee12-fe4d-4769-b9ee-917c414b50f1",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_1cc23e61-f2ce-4749-b117-a396a521b02e",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_262501f4-4de0-403c-8d27-fa0d8ec0792b",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_2873f209-bb6b-432a-b209-05803b83ae04",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_30fcce23-34c5-4ae0-92cb-9cafe9c912e1",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "userId": "usr_47c5995a-7c5d-4c56-9111-4b206229bf6a",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_4b4a9834-e194-4440-b9a6-ffd1ae867aaf",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_4b4a9834-e194-4440-b9a6-ffd1ae867aaf",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "userId": "usr_4b4a9834-e194-4440-b9a6-ffd1ae867aaf",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_4fbcaa39-2e2b-45ca-bd35-208e2a7392d0",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "userId": "usr_4fbcaa39-2e2b-45ca-bd35-208e2a7392d0",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_515838a3-06e1-4aa0-9dcc-9a4972957a87",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_618298e1-1d9e-4de8-abad-ed5c754ed8dc",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_65b7b831-7d34-4bf6-bca2-980a205bd72a",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_76645f66-9c76-462a-80ec-b571edc3819a",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "userId": "usr_8495b0ac-bd72-46dd-ae2b-5bf5fa25d35f",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_8cbfc1bb-f26e-4eb2-b836-724d95d1141c",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_a85d12de-9496-4cbc-aa5b-f3de83970a3e",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "userId": "usr_b055626d-481a-4e6c-8488-3da8f6191432",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "userId": "usr_b30096c1-573a-4a49-b43a-cc194e57ce81",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "userId": "usr_bc7d91d0-ef9b-46a2-977f-e8bef5d00788",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_da48e9f0-942a-4bb0-ab63-5ffdd8e530a7",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "userId": "usr_e17b3032-b0ea-497f-bdd6-b5db6ea89988",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_ed2d4b4b-ce5b-4f33-bbe4-3e144bd0a3cf",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "userId": "usr_f9535d0c-1978-45e7-a92e-14f24d3ba6cc",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "userId": "usr_f9535d0c-1978-45e7-a92e-14f24d3ba6cc",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    }
+  ],
+  "Mcq": [
+    {
+      "id": "016094e3-2807-409f-90a2-a639fda42a0a",
+      "lectureId": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "031609b3-31b8-48e1-a951-e690c85ba977",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "03eff926-e617-4320-90c6-77f8bc743aaa",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "06382f52-45b9-4cbf-acbd-5cb441e80639",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "0bc6e99a-7c49-4b85-8bb2-039c06e57bff",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "0d816632-ca7b-49b4-9260-ff14ef52788c",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "0e98c57a-6da7-42fb-8527-b8b5ce2fee2d",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "128fecbe-0773-4b88-b80d-792c2f9c5990",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "129730e9-3c82-4dc9-8978-59c07dbbdf79",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "137e2ffe-3cf4-49f4-bd81-231d82cc69f8",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "139afbd2-7216-4e0e-b941-a78052f51b01",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "14c57f10-cb45-4e38-ac60-476453a197d3",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "15ef5fac-e555-46fe-8a5b-9c749b2b02e3",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "170e1a56-4f7f-4da2-a442-4a2bca92e9f9",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "17381e63-d046-4ec5-a18d-0090dd13af26",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "182ce1be-ae68-4eca-a890-1d01ae84488f",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "248e9c70-a468-4520-ba14-19a802a0b341",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "2892f66f-12b2-43f7-8b5c-26e559daaa50",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "28a7a2f7-603d-474a-91a8-b7a7460c7ecb",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "291ac61a-8cab-4f32-8a71-2715113fcf45",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "293963d0-235f-4154-bf21-8c1b5b7891bb",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "2a3161d2-3fcb-4115-a878-29786bb81e45",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "2ba6a144-6516-46dc-a55a-f978f617fa2f",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "2d5f535d-3bdf-4236-88eb-d3db8be3f6ab",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "2f049e0a-562c-480d-aba2-a137c0153d42",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "309ba730-5e69-490f-8f2a-805ac4dd6887",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "31083664-71cc-442a-b06f-e64fcd2cc24e",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "331324dc-606c-4e9b-8ea6-b7a44803353c",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "34bf8c77-3864-47c1-9982-0c295ae57422",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "3a648dee-da6f-4717-a91b-38e272432773",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "3bf81599-c096-4eb9-b59e-f87d502caa76",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "3c703bcc-c18f-41df-a614-f65de0767de3",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "3eb03032-dcf0-46fd-89bc-c6e52a6edf8a",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "3fe6397a-734b-471e-a238-90d66258310a",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "40332f7b-e557-4c11-8480-c343491ebb9f",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "41601c23-0131-419c-bdd8-7bdb632ae11f",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "4281cebf-fa7d-4979-a762-c698b272b763",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "4708d0c8-18c9-42c4-9ce2-f1bb30fa7dfa",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "4b10bf95-19cd-4f86-a2db-4e16cb7304ce",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "4b10cd71-e5bd-4976-8f4f-52139af52128",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "4b3cb391-546f-4878-8c67-1664567316c5",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "4f550c81-318b-4f7e-a539-04902bf3e07c",
+      "lectureId": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "4fbe1175-5159-4d20-86c9-fcf3b7d04137",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "522938b5-23f5-41ab-8236-6d74373c54bc",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "53c278c8-4c69-4ea3-8208-27f1fd362bb4",
+      "lectureId": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "545f6efa-4443-4dfb-8719-174c27ead31f",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "54bd0679-d7aa-4744-bb12-787c5cabac5a",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "5652180a-d404-42b5-9ecc-62dc70758396",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "5735c13a-2e41-427c-afa7-e51a890441a0",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "57459483-be09-4d11-9e40-3568685ac836",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "5ccddcdd-c307-43da-8e50-856b8234ecfd",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "5e994655-783d-4c64-8a49-50ec4c73f0b7",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "63b239b4-b860-472d-a28f-700b557b1673",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "64a5f27e-d555-440e-bfb1-392d32c58013",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "64e0d6cc-31f7-4c66-aee5-e7bf5754ed88",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "651ad9c4-028b-4fed-87a4-3be86f51d9de",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "66d21bd4-4e6b-4a24-93ba-e665133be3d5",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "66e8a887-ea26-4f12-ae20-747cff19a70e",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "6a730a1f-0492-4916-821f-5b5c7ab66985",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "6b6d6be0-071b-4d10-ab76-f9941ec0c479",
+      "lectureId": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "6bbed16e-6602-42f1-a453-3e4e74627dd6",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "6d9396d9-761b-419d-be17-7d8a25d5b3a0",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "6dc8872a-2a61-474d-90ba-7c0f3f42e295",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "70baf9e2-0099-4dda-b27e-a2de58a974b8",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "7399b063-b113-464f-ad04-6141073aa6b5",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "73ca57d0-967c-4ed2-8d60-837b122569e3",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "75d81df2-32e7-4805-9055-572f67f97372",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "7e29af79-b2cc-4ea8-a5bf-0a1b628c15f9",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "83c67a0a-5242-4da9-becb-530e043afb71",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "83f57820-23ed-47b0-885e-ee5aabe41dba",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "86fe3f2f-a9d3-4d4a-9872-d57fbdf79cb5",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "8a5b4247-c3d9-4548-ac36-050955b0e664",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "8b4beae9-024f-4daf-a9c3-dab57ca90193",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "8d9838b2-c048-4590-abf5-405dc4603cd0",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "8f7b16ba-0bc1-4e81-b4d1-b61fcf626531",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "91f845e4-8d8e-4939-b118-da6ab16f6f20",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "93aeb6a5-97ee-4364-884c-ce3a7fafd42b",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "967801cf-b596-4eb0-87b3-cea5529c3dd8",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "968f03df-6e61-44fb-b3fb-ca77fa5e9be3",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "98387827-64be-4eda-999c-6233e72fc60f",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "9d681036-e1ba-489f-864e-5ce7e8400f51",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "9fb982ea-f9e0-4e40-9bb2-e311f04ea5fe",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "a0e559e8-08f8-42a6-8670-289e35f8175f",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "a11a1f65-779a-43ad-a81c-55e0b1b01061",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "a13ccb1c-89b9-4888-9590-ffd3bd69889d",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "a2fa698a-1a6e-4597-90f2-c807152255df",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "a2fc1cea-f79c-48f0-8854-b79c114d28a1",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "a2fdb3e8-0da7-4138-a424-d539a8205b47",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "a49449f0-71a3-4f17-bc8d-1c1a4dfc6f55",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "a5a71454-f9d2-480c-8c20-105dff8a9be8",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "a64cf482-3445-4fbc-b9a2-1c03b2d1f699",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "acc5b1c4-73f5-43eb-b024-b4f5cb6d86a1",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "ae359cfc-50c7-4902-ab83-99745a46e1ea",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "b0e0c377-021a-4c51-8226-829a5179f506",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "b3d0d122-47fd-4c20-8a7b-a65ec7bbfe68",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "b5fafb94-e04b-4fe9-a64c-4229c54259b7",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "b6a26cc1-43c0-478d-86cd-33f6294c30ee",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "b6effa1e-0847-4752-9f43-788159b64e9e",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "b88869fe-5661-47df-bd8b-c2f849cfbca8",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "b98b28ae-952b-4a75-8d97-2e2ec8e07152",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "b9c560aa-7f33-41b6-8c5f-4f48e045454d",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "bae8c9f3-ca6f-43e7-add9-967af5c2b467",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "bcce8af4-983d-4a5a-b70d-e1fd0a666426",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "c449a33f-65bf-4436-ab3b-631bf3b5ae63",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "c8bd8777-369a-40ad-bb02-b3e4eb9162bb",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "cdec93d6-e71a-48e4-a7cc-fee9240ef34c",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "d03fd314-3d0f-4f7e-88f8-01eb3c934ff9",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "d122b88b-bfea-4040-8d90-1fff9cb53843",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "d1e2acc9-b511-4d08-9bc4-a97b7ddb4022",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "d24fd5ff-95de-46a0-99c3-abf0b6b30f6f",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "d2f232b0-4bde-4cd8-887b-9d06ad7340bc",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "d66072a3-95a5-4529-8031-7f2097e0154a",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "db1c1cd4-bd9c-43f8-926c-9463d4cb697b",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "dd2280d7-636e-4369-aa7a-0c32cf400030",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "dd635a3a-cb69-45e1-85cd-9e2cf7a16003",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "de0335cc-d5d9-41d0-a7d3-c1a5a058b5a0",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "deca1939-522e-4eea-87a4-6828d4f4d28c",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "e3be1dd9-5e49-455d-9f94-163aadaa20dd",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "e77a5058-5b98-42d1-9590-8a343187ce0b",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "e9870989-4626-42cb-ba0a-d867376e4a76",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "eae9b659-5227-4dd2-9ebb-6e523f792e35",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "ebfff85f-8f42-4610-bcbc-cb1c9d2dd845",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "ec4ea15f-8ab0-43e7-9b60-d5e37f63f771",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "f396c76a-837a-4a4c-ae0c-c3cd050f7510",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "f713db7a-c854-438c-a370-56f57fe52863",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "f8b5900f-070f-489a-a3f2-a668a5e6f304",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "f95c824c-5f93-41be-88df-ac44d07f8819",
+      "lectureId": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    },
+    {
+      "id": "fa9112df-d9c2-4d47-9bb4-ea33c7d6f9d4",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "fe122a58-d733-44b7-861c-6268f5502bf7",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "ff0464a9-acd8-4d1f-b753-8ee63dc632c3",
+      "lectureId": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    }
+  ],
+  "Material": [
+    {
+      "id": "029bf406-6ad0-4b5a-88a2-54deaec475fe",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "04784ae5-39f6-4cde-ae69-9f9061115045",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "064429fe-49fc-43db-85c8-7d741e189a33",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "07250089-afeb-48f9-847c-cb9dd0e701a0",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "072c2916-4634-4751-882d-f18953b2d5f6",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "086ba65b-c066-4153-a4bb-7fa349d2908a",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "089c5252-7146-404f-8ff8-bbdd845b79d5",
+      "lectureId": "fff82f3d-758a-4d62-8e55-68f95a079060"
+    },
+    {
+      "id": "095dbf83-cb67-4eb0-8a94-6d9e45ad1f4c",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "0be48fda-7dcb-4cb3-920e-4a3b6e7b935d",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "0cd24515-2756-46ab-9960-0f92b6cdc0ce",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "0e48d870-0b6c-4a59-a02d-9573c69bce92",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "1371a870-117a-4f4d-afd9-763c067d5076",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "17b0cf03-8ad7-4385-a6ab-718bd837b100",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "1a47e922-76a0-4cfc-b2ec-9627e625bd8c",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "1c371665-764f-446b-b17a-b80f4a22ed6a",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "20d8863c-1f3b-423a-bee3-2563a01be813",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "24fc6554-30c2-4bba-b313-a0d775ad8243",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "2bd74ed1-72fd-42d8-82e6-d4a1eaeec1ae",
+      "lectureId": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "2be9c0ac-4c18-486a-ae89-09e4def5711d",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "2c8eb0af-af12-4589-ad02-0e9e3b726f07",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "2e4d2481-cf45-4c25-9d91-a64e277b7df5",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "2e522d60-a1d8-4ebe-a75e-79adaf82e24b",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "33a6148c-6398-4b29-a0b6-8abd01f950e7",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "34f992fe-3e02-4b2a-b1c5-f8d3304671ba",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "3759d5aa-b209-4782-a6e6-c173424ff71a",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "3860a670-2a4f-40a5-9909-77c35ec45320",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "3aa9bea4-9995-4e21-879f-55b4d17d3f43",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "3b4ae7e4-9b34-4051-9730-2ff0e2555d0c",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "3cda55be-74c2-40ea-8250-a58af8b30c0a",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "3e3dd720-ba12-4ec6-88e9-34c33097abae",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "469fb3f2-f86e-4d39-98e6-77f01e54a8da",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "46b2beb2-eae0-4d6f-aa02-a865e6f447c3",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "49503ab0-b3eb-4e7e-9e31-9b9a49cc3f37",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "4e4db0c9-0c01-41f2-88dc-984159fdc738",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "507a75e8-65ac-4f9e-bf29-b525eb610fbc",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "514a310b-1062-4747-a21a-f91963760be7",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "569006f4-a661-4acf-bfb6-a217379c234d",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "576b249c-dbbc-408f-976b-10eec5fa6f6e",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "576bc138-ae98-4922-b9e1-d5d20650d071",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "59c1fec2-2b7c-45b2-a3cf-a7537a820d46",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "5a5da21f-b6f0-4091-b720-ecba124b66fc",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "5b2cde12-6cba-4529-8a88-6a1e755409b2",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "5bc8859a-29db-4851-9fec-dfccdfdea7b5",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "5be43bd0-47b9-412a-adec-f6b739d93dfa",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "5bfcc3b6-85a2-4731-94db-d6b2bf35544f",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "61d2e63f-32d9-4b5e-8da6-52f32491f4d5",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "63d63385-fb1c-4898-a3cf-13c96f790b68",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "6412ee0a-1018-4ed6-bb79-6435d8c3cb80",
+      "lectureId": "7f4734ed-1f5d-44bb-b10b-2bab311aed8c"
+    },
+    {
+      "id": "64970bb9-4caf-4cf7-8616-337c3044f5af",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "6bbe48e9-da16-49fb-8e87-3a12a24f75cd",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "6c3eb5cd-ce12-4b56-a10e-492e62f188ba",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "6d3b2ab2-2a3d-458f-9a14-ad3b244c81b6",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "6ee9e9e3-d4ef-47ec-a560-8b8ce23c9cb3",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "71d601ca-0a31-40ab-9bb8-3b9218a3957f",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "7495bea1-b675-4a72-91cb-8c54b75a4c19",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "78bc3f3f-2f5d-430b-b625-a3642c80f9ec",
+      "lectureId": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    },
+    {
+      "id": "7a48ccbb-71c2-40a1-93af-7e044d929e1c",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "7b5eb44c-8133-45e7-8851-133ff6e29829",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "7be13084-f116-42bd-8c82-d5100dc317c1",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "7c305377-ac01-4b69-a099-bc6b02af049d",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "7ced08f1-2c27-4ae9-b70e-91828d3c895a",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "84521d9f-62fe-4b28-9ba7-ff2968637752",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "86b8855f-325d-4487-bc8d-b8c6ed699fcc",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "8cffe0b1-8ccd-4676-8e71-3c2cec72ca92",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "8d7d30f1-bf23-4ccc-9a92-cb000220a9a1",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "8da8d079-b3d7-43bc-ada0-881fc0e0a031",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "8fc4da24-91ba-458b-b85f-4372391ca8e2",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "94515148-5bc5-4331-a3a0-3db86c9d1200",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "9615f0bc-3d60-4df0-b7ec-67fc5b21c9ca",
+      "lectureId": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "968ba480-ed4c-4c31-95d7-77caf1f06f60",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "9831b448-482b-433a-8973-82903f0a96f0",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "9b1c0a47-e90b-4056-ae92-1867a89d7c32",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "9c109ece-2c78-4e68-9a6b-b3fcd033d8a9",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "9f55d108-ef81-4c08-aca0-0d28b5fc984b",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "9f7f14e7-7f13-47b1-adef-70c3fae1a1a2",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "9fe32beb-db3f-4f12-9803-8977e6f4bd13",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "a350a981-f01d-4d17-b678-7291d2110e71",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "a3566c9b-a08d-418d-b47c-ec7c1af5678f",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "a3d3dc07-bdcd-40c0-9552-e3fca584fb21",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "a4218bfa-167d-4fdc-80d8-dc3ecce3866b",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "a43609aa-a52b-4e04-afce-ecb4ed9fd0a4",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "a4bb8c2c-2394-4f93-9770-9eb9a0132c68",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "a6db9603-06de-4e4d-9610-e029147e0b38",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "a6dc68ce-b46f-474c-a7ca-03db73ea5940",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "a7fc0f86-00b2-4ee1-802c-9bdb4e9ef3d8",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "aa1f7a58-5eaa-4fb2-9fa3-4e852dce00f0",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "aa2363f1-2cdb-4cde-91b1-15af9c1c6b14",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "aaa8c0bd-b55e-4cf5-b51c-c9838bea05be",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "abf03ef5-64dc-46af-b1f4-08976d520c66",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "ac014403-71ea-4967-8f31-75f9e75f6f31",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "ae65d1a0-7e04-4c91-9c87-43ab4e433adc",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "b44712fa-69ab-43a3-b706-59952abe0b2a",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "b6f1be66-f988-4a28-97ae-fb8e58e3c4e8",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "b8aa37ef-7d26-4c65-b6ce-0ab2e176449b",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "bc2013e3-149f-4a4a-88e1-0558b2ca0947",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "bd19038e-9f45-4fc2-9937-96f15602bf38",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "bde581b7-ddb4-478c-9496-3ae0d5579aee",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "c15dc4d6-3e91-459f-aadf-8a507451da72",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "c203e9c1-25c7-4aee-9302-fc64daa217fe",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "c70bb95a-660a-4106-bbec-3f6cb865177b",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "cb71821f-306c-410a-9099-a1114103a02d",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "cedfec00-2512-48f0-8736-0a423c26b983",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "d7e15a80-bf54-4967-b396-3f8c67959d45",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "d969bc7e-a10a-4539-b7b5-43ab54f70fc5",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "dcac314f-4723-4550-b769-f0c31ea8e858",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "df3b32cf-05f4-4d8c-9c80-e0d14843b5e9",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "df44c5aa-8a13-4c8b-aed9-339c24671b95",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "dffbc2bd-4272-47ca-8f9e-508ed908792b",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "e0d2faaf-5cc4-4de4-8d55-316831879a4f",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "e32171a7-2ecd-494d-a762-a5803afa9ee3",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "e6a4ddbf-d6d3-4016-9f7d-484d51c75060",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "e9ff4fde-bb42-4c75-a040-36664cbb3069",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "eda0a27c-48ef-4161-a47a-5afc7f16fbb9",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "f53b1c67-125e-4bee-a295-6ddd07653ad0",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "f5e21e77-5fa4-43d1-af3e-e6fe7191b407",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "f81cb318-f016-42ce-9a9d-95c345032a53",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "f85527b8-cb51-474c-9afc-8e22fe173fa6",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "f9629d64-22ef-4604-b42f-1a9c6e483020",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "ff8a2810-44df-4c72-9b74-2dee2b6832e9",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    }
+  ],
+  "Flashcard": [
+    {
+      "id": "02aca28d-a6bc-4132-a575-c22d21af4e55",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "07daea03-bb84-40ca-b2b0-768b738419a2",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "0843b7d0-9852-442e-bcb6-3bb9fcf3f1a9",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "0ec4c469-c30f-4385-a01e-e2afdb7cc391",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "11ed029b-1714-4be4-b78a-c5f87b52f9cb",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "13a2ac53-db12-466d-948a-5ed4860e466d",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "13c19503-a14d-4f29-9b4a-40ad5d25cef8",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "15ab8834-e39b-49e6-88f2-87c7982e562c",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "18f77160-16d9-43b4-9b37-96f2e416c722",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "19f56657-1613-4802-b6e4-25e774744734",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "1b9b7aac-d024-412e-acde-117d60341e4e",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "1bea2446-3617-4fb6-b1c1-d22f2af42923",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "1f3ef79b-4d78-4caf-875d-2e7d28374381",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "20cf1b17-5f21-4a50-bec1-0756c27938d3",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "26ad1496-d090-4bee-ad37-5b51acc3e5a9",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "270e7c49-4ea5-4c95-adb9-37a8730fa313",
+      "lectureId": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "2c0dc20f-e13d-4286-9579-10a3ed6934c3",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "2f5f8117-4683-4340-ba56-0305c162e4c3",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "337e3ee8-5dfd-46e2-bf8a-e28bbff255a1",
+      "lectureId": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "33a1fdc1-6d22-474e-b44b-d3b4b8f75b96",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "34ea3dee-efc4-4efe-9ae4-cda5fb85c028",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "36cf1095-aacb-4490-b57f-fe0da1c21bba",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "3c0d7db9-3404-455d-bfe3-30c861d7f240",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "3c5f8182-4903-4bb0-bfbe-ac76f35b80b1",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "3f09e2d8-3894-4569-a389-ce8d10b173a9",
+      "lectureId": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "4308c006-e0aa-4a31-b9c6-903db641aa20",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "4803a803-101c-4b2e-8a09-bfe44f093ed2",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "4d5986ef-44a4-41b7-b437-ea6de5816ce6",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "4d7d965a-fe71-4461-8794-5e49991d11c1",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "50c456da-c56f-4006-9b85-ae44270b1b32",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "512da50f-aaaf-4ff0-8e99-067827b32770",
+      "lectureId": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "51ae6d7b-c982-4b9a-8020-1933567b93f3",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "51b347e8-4892-4fc7-a5a8-b8603e71a528",
+      "lectureId": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "53740c46-962a-40fe-a3a4-405dea9fbf6f",
+      "lectureId": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "5656570b-0072-49c9-975d-129c266f8b57",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "5b1f343f-171a-438c-a81f-0fc2cfd7ebc3",
+      "lectureId": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "5d1549f7-d118-4bab-9c88-451597c1e4d1",
+      "lectureId": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "5de0b2f0-8825-4fa6-b6c0-4e44c1d18b25",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "5ef516fb-3aac-453a-b139-9b1191b997ca",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "63afa825-00c0-4f12-93d9-2c98750d2c70",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "63cb495b-2a65-46ad-bb87-4189c7129b6f",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "67fc0f10-b1bc-4646-aa02-117908790c19",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "6aec9cff-336c-4af7-a227-a6b3f0dc81a1",
+      "lectureId": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "6ccb703f-9406-49b2-a721-9d11c15ab895",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "6d56d29d-1403-4594-8fb5-e27c52213366",
+      "lectureId": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "716886fc-c0ef-483a-a0e8-9cee57de5efa",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "75a887d1-a926-4d56-a157-bef4ceda7676",
+      "lectureId": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "75cb4c98-40c7-4102-babf-e4f112651ee8",
+      "lectureId": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "7678711b-e266-4acf-b03e-937ae0a7c40d",
+      "lectureId": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "77a5308b-1c97-4e0c-aa3b-0faca928e3e0",
+      "lectureId": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "77d75cd8-cccc-439f-bd3e-981b3c6e1f3f",
+      "lectureId": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "7af80f0f-0732-4ed5-b267-6b3c8038ea9d",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "7efc3403-f59d-4a21-9f4f-57850f255aa0",
+      "lectureId": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    },
+    {
+      "id": "7ff6503f-356c-4712-829d-2b5776561290",
+      "lectureId": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "831db883-f965-4145-861b-1437e21bd539",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "83fae6c7-2977-474b-8564-ac8bb6480908",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "867b54d0-e7db-4b4d-aeb1-a66b86421472",
+      "lectureId": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "8a6fdde6-ce06-464a-9941-40cee0af5d3d",
+      "lectureId": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "8bf81545-04e1-47af-b00c-a98298de7d13",
+      "lectureId": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "8d1887a1-7228-46d7-8beb-130f8803cd84",
+      "lectureId": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "8e0f6189-1d90-40b1-84c8-471a1d4ecb6f",
+      "lectureId": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "8e80fc4b-cfb0-44ed-a368-5c10c97d1658",
+      "lectureId": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "8ef19f9c-f5bc-4995-8c3b-e86e38f68ba2",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "911d78f4-2007-4795-bfd7-68b46eaac9d2",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "93a42e33-6087-4dc5-a226-1711d1266a8b",
+      "lectureId": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "94459ae1-6bcd-4a5f-87ac-eca273475c4c",
+      "lectureId": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "96bc2b50-80b0-4ed2-8a19-53fed6564e13",
+      "lectureId": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "9a013c06-a65b-40fe-b8ec-6abad585cc13",
+      "lectureId": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "9c799dfa-1550-499f-8aa8-d91bfb8180f2",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "9d6067c7-b7ea-4f82-bb37-6731bba41d02",
+      "lectureId": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "a11630c8-9fb6-4f38-bd59-cd47a37a13f2",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "a19da1c6-4f40-4891-943e-613144ec3b06",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "a41c5b33-1e16-4a4d-a943-2597a0a3786e",
+      "lectureId": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "a4932571-3f70-4d35-9c70-d69bcb30822e",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "a53ec236-7e17-48ce-8ec3-da232f70a1e3",
+      "lectureId": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "a87c30e8-f812-4ca8-9729-4711c6992617",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "a965e917-0f41-4505-95b0-49f79e8336f8",
+      "lectureId": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "acae2df7-6983-4493-a0a8-7d14aa78576c",
+      "lectureId": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "af5862ee-999e-4453-9be4-ed4989f2c8a3",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "afbad588-2e65-4d55-a9ed-d25a0f09e3d6",
+      "lectureId": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "b112cd37-5151-439e-b8e3-b92efd7703c7",
+      "lectureId": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "baef34f3-a6a5-4f11-8158-c753fa6f5611",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "bda1ae70-8d01-4d85-8d5b-6d8e6c84c235",
+      "lectureId": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "bde1209f-b372-4c70-b1f1-b30c1c1a0375",
+      "lectureId": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    },
+    {
+      "id": "bed06c87-4dbb-48c5-81d4-7000e5a423e6",
+      "lectureId": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "c2ad7e04-b435-418e-8be7-e4056e6e6f78",
+      "lectureId": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "c4942919-c920-4575-8070-8fada892170e",
+      "lectureId": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "c5cae9c5-962c-42d0-9dc1-f30021eec53d",
+      "lectureId": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "c7321247-40ff-47b7-ace7-e670a71c7c5b",
+      "lectureId": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "c8673794-29db-47c8-bce0-3b61c3b6d9d6",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "cba2b637-d921-4763-b847-96421b0b507b",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "cf8fb473-cf46-4a4d-9c22-c5fba295e4af",
+      "lectureId": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "d23c6790-1f90-4532-8573-249e42a55a1f",
+      "lectureId": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "da6ab80a-d188-49c0-bfae-a66e2b5310c1",
+      "lectureId": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "db7ae832-4c01-4fc6-a264-938b43f00d03",
+      "lectureId": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "ddb81931-e27b-4197-b0f5-c0802a83dc13",
+      "lectureId": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "e0883f1d-5c80-4cf0-b185-9e3a0d0b3059",
+      "lectureId": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "e8afdc9a-28f2-4936-8a3f-9ba418b17146",
+      "lectureId": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "eb26ee17-c375-448e-a8e5-a41c3758e395",
+      "lectureId": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "f4123e21-e00a-406f-a0d6-e5b5f810735a",
+      "lectureId": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "f5f84fd8-dd8f-4d94-9819-3d5e8050ce8c",
+      "lectureId": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "fcda6692-57db-4c2a-b247-93b94916ca8c",
+      "lectureId": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "ffdc1be5-2287-4a70-8fe2-4bbe76a5a57c",
+      "lectureId": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    }
+  ],
+  "Lecture": [
+    {
+      "id": "01e23f89-5e55-463b-bca7-2c9c268a3925"
+    },
+    {
+      "id": "02365fd2-ed48-451e-b5e2-a5abea48fa12"
+    },
+    {
+      "id": "02cbd85c-5648-4e90-b60d-53e80ddacb8c"
+    },
+    {
+      "id": "064ecddd-5e56-4767-8c03-ad8d1fc7f839"
+    },
+    {
+      "id": "067342ff-5a7c-4d95-a531-0848a8ed3b77"
+    },
+    {
+      "id": "09154094-7505-4872-8fea-6891783b2bbc"
+    },
+    {
+      "id": "1556ee77-6af3-42fb-bffe-d5f13535209f"
+    },
+    {
+      "id": "19bd8c78-7b46-4700-90ee-731cc3b19af7"
+    },
+    {
+      "id": "258f81d5-a28d-4daa-a360-c3ab8d56ff8e"
+    },
+    {
+      "id": "2861ae97-9a5e-4901-8ff5-de5ae94c3ed0"
+    },
+    {
+      "id": "28853e3f-fe21-4632-9ea4-81ca327ed9d2"
+    },
+    {
+      "id": "294f21d4-d795-473c-9cf4-f489a24c55ce"
+    },
+    {
+      "id": "2caaf8b8-4bce-4748-881c-accd1bae2f81"
+    },
+    {
+      "id": "36beb4c8-2b3e-4837-a7d8-93ad4ad7b9ed"
+    },
+    {
+      "id": "386a169d-f5da-41e8-854e-6973ff6d469d"
+    },
+    {
+      "id": "43bc6f2b-e9cd-4965-862f-4b0155d0b2dd"
+    },
+    {
+      "id": "45dcc4c1-3d21-4619-846a-51f04e055f69"
+    },
+    {
+      "id": "47a02f87-5adf-40e3-a9a3-f63fb89020be"
+    },
+    {
+      "id": "4d2c7167-a10d-4b77-97e5-e2785f4c2675"
+    },
+    {
+      "id": "4e3f1f0b-c05f-4cfd-90ce-a29372a7bda5"
+    },
+    {
+      "id": "52eae338-1ea5-4e26-a58e-9370b03b9cac"
+    },
+    {
+      "id": "594639a2-d263-40c2-8132-1af26914c571"
+    },
+    {
+      "id": "6501b955-4d7f-4b3b-9a8e-4477cb412592"
+    },
+    {
+      "id": "698726eb-108f-416c-85ab-f3a4004fc69c"
+    },
+    {
+      "id": "7224208b-3477-4c53-9388-a9dba2d98938"
+    },
+    {
+      "id": "772dd4b2-872d-49cd-af7c-00bdc7797781"
+    },
+    {
+      "id": "7c119fbe-a92a-46d9-901d-b91a04b7ed8e"
+    },
+    {
+      "id": "7f4734ed-1f5d-44bb-b10b-2bab311aed8c"
+    },
+    {
+      "id": "83b4328f-b607-42b2-ad4d-9d9b2501516b"
+    },
+    {
+      "id": "891fa890-fa10-463f-b232-eeced22c17ad"
+    },
+    {
+      "id": "8c447550-d4fc-43a9-9888-607e4e942e28"
+    },
+    {
+      "id": "8faed0ec-286a-4da4-b3f7-7d069ed891f2"
+    },
+    {
+      "id": "99a41fdc-b30e-4999-afce-88f98a4565fc"
+    },
+    {
+      "id": "9a521a28-d005-47e7-8203-d5be9a0d36a7"
+    },
+    {
+      "id": "a7300bd6-7c50-4378-9ec8-f267fc85e6ee"
+    },
+    {
+      "id": "b941856a-0af9-4870-ad3f-08facfb70581"
+    },
+    {
+      "id": "b976ad93-b83e-4b09-9d1f-3db8ac482213"
+    },
+    {
+      "id": "bc63a899-0468-4948-9e5c-55e4c3748ab6"
+    },
+    {
+      "id": "bf625781-0100-477d-b61e-c66edb956a2d"
+    },
+    {
+      "id": "c35d8f13-b583-45db-bd7e-3ada6f25dca9"
+    },
+    {
+      "id": "caeb4b50-a3d9-4e0f-b886-b16e850d7609"
+    },
+    {
+      "id": "d313afd4-10bd-49f7-92d0-30a8be9dfe4b"
+    },
+    {
+      "id": "d379977e-cd22-4b4d-84ac-3055142addc5"
+    },
+    {
+      "id": "da05512e-ab1b-49a5-a983-ad535092061b"
+    },
+    {
+      "id": "dfa13e18-2ffa-4529-bd12-5bd77a4da359"
+    },
+    {
+      "id": "e191691b-7d6a-41e5-bc76-12084dc15ca4"
+    },
+    {
+      "id": "e3c26245-b7be-4a83-bac4-3ba655f28a8a"
+    },
+    {
+      "id": "e6881ece-05a7-4335-99e0-1ac3db391daf"
+    },
+    {
+      "id": "f037b65a-ed17-4628-948f-f348788dd05e"
+    },
+    {
+      "id": "f926cb4a-e328-46c2-97b0-fe2f2d5e0722"
+    },
+    {
+      "id": "fa5a8d0d-09a0-4618-a10e-fdcb1e0a0406"
+    },
+    {
+      "id": "faa0337f-63e2-432a-9c47-70fe9008b4f1"
+    },
+    {
+      "id": "ff140cbc-a1bd-4f0c-8291-b8a217abcce2"
+    },
+    {
+      "id": "fff82f3d-758a-4d62-8e55-68f95a079060"
+    }
+  ]
+}
