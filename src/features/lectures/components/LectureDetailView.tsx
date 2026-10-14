@@ -56,7 +56,7 @@ import { getApiBaseUrl } from "../../../core/api/api";
 import { showiOSAlert } from "../../../core/device/alert";
 import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
-import { extractYouTubeVideoId, normalizeYouTubeUrl } from "../../../core/utils/youtube";
+import { extractYouTubeVideoId, normalizeYouTubeTargetUrl } from "../../../core/utils/youtube";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
@@ -1163,7 +1163,7 @@ export const LectureDetailView = function LectureDetailView({
       typeof youtubeUrl === "string"
         ? youtubeUrl.trim()
         : "";
-    const cleanUrl = normalizeYouTubeUrl(rawUrl);
+    const targetUrl = normalizeYouTubeTargetUrl(rawUrl);
 
     console.log("[YT TAP] handleWatchVideo ENTER", {
       youtubeUrl: rawUrl,
@@ -1181,8 +1181,8 @@ export const LectureDetailView = function LectureDetailView({
 
     console.log("[YT TAP] parsed videoId =", videoId);
 
-    if (!videoId) {
-      console.error("[YT TAP] Invalid YouTube URL:", rawUrl);
+    if (!targetUrl) {
+      console.error("[YT TAP] Invalid YouTube destination:", rawUrl);
 
       showiOSAlert({
         title: "Unable to Open Video",
@@ -1193,9 +1193,10 @@ export const LectureDetailView = function LectureDetailView({
       return;
     }
 
-    // extractYouTubeVideoId and normalizeYouTubeUrl share the same parser, so a
-    // parsed ID guarantees a canonical URL here.
-    const canonicalUrl = cleanUrl || `https://www.youtube.com/watch?v=${videoId}`;
+    // Direct videos are canonicalized to watch?v=<id>. Official YouTube pages
+    // such as search/channel/playlist URLs are also valid and should open
+    // instead of being rejected merely because they do not contain a video id.
+    const canonicalUrl = targetUrl;
 
     try {
       if (isNativeIOS) {
@@ -1213,14 +1214,14 @@ export const LectureDetailView = function LectureDetailView({
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
         const isAndroidWeb = /Android/i.test(userAgent);
 
-        if (isIOSWeb) {
-          // Avoid opening about:blank/Safari first. iOS hands this scheme
-          // directly to the installed YouTube application.
+        if (isIOSWeb && videoId) {
+          // Avoid opening about:blank/Safari first for direct videos. iOS hands
+          // this scheme directly to the installed YouTube application.
           const youtubeAppUrl =
             `youtube://watch?v=${encodeURIComponent(videoId)}`;
 
           window.location.assign(youtubeAppUrl);
-        } else if (isAndroidWeb) {
+        } else if (isAndroidWeb && videoId) {
           // Ask Android to open the official YouTube package directly.
           const youtubeIntentUrl =
             `intent://www.youtube.com/watch?v=${encodeURIComponent(videoId)}` +

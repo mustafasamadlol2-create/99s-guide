@@ -23,7 +23,7 @@ import { AppLauncher } from "@capacitor/app-launcher";
 import { Network } from "@capacitor/network";
 import { getApiBaseUrl } from "../../api/api";
 import CapExternalOpener from "./externalOpener";
-import { extractYouTubeVideoId, normalizeYouTubeUrl } from "../../utils/youtube";
+import { extractYouTubeVideoId, normalizeYouTubeTargetUrl } from "../../utils/youtube";
 
 // --- Global Interface Declarations ---
 interface KeyboardState {
@@ -482,8 +482,8 @@ class NativeBridgeManager {
   public async openYouTubeUrl(url: string): Promise<void> {
     // Canonicalize first so every official YouTube share shape (including
     // /live/ links) follows the exact same native/browser opening path.
-    const canonicalUrl = normalizeYouTubeUrl(url);
-    const safeUrl = canonicalUrl ? this.sanitizeExternalUrl(canonicalUrl) : null;
+    const targetUrl = normalizeYouTubeTargetUrl(url);
+    const safeUrl = targetUrl ? this.sanitizeExternalUrl(targetUrl) : null;
 
     if (!safeUrl) {
       const error = new Error("invalid_youtube_url");
@@ -505,9 +505,18 @@ class NativeBridgeManager {
 
     const videoId = extractYouTubeVideoId(safeUrl);
 
+    // Some imported rows legitimately point to a YouTube search/channel/playlist
+    // page instead of a single video. Those pages cannot use youtube://watch,
+    // but they are still valid YouTube destinations and must not be rejected.
     if (!videoId) {
-      console.error("[YT BRIDGE] Could not extract YouTube video ID:", safeUrl);
-      throw new Error("invalid_youtube_video_id");
+      console.log("[YT BRIDGE] Opening non-video YouTube page:", safeUrl);
+      try {
+        await AppLauncher.openUrl({ url: safeUrl });
+      } catch (error) {
+        console.warn("[YT BRIDGE] AppLauncher HTTPS open failed; using Browser.open", error);
+        await Browser.open({ url: safeUrl });
+      }
+      return;
     }
 
     const nativeUrl = `youtube://watch?v=${encodeURIComponent(videoId)}`;
