@@ -246,7 +246,7 @@ export const LectureDetailView = function LectureDetailView({
      setDetailedLecture(lecture);
      if (lecture.isDatabaseLecture) {
       setIsLoadingDetails(true);
-      apiClient(`/api/lectures/${lecture.id}`)
+      apiClient(`/api/lectures/${lecture.id}`, { bypassCache: true })
         .then(res => res.json())
         .then(data => {
            if (isMounted && data) {
@@ -460,9 +460,12 @@ export const LectureDetailView = function LectureDetailView({
       })[0];
   }, [detailedLecture.materials, lecture.materials]);
 
+  const lectureDisplayTitle =
+    String(detailedLecture?.name || detailedLecture?.title || lecture.title || "").trim();
+
   const pdfDisplayTitle =
     String(primaryPdfMaterial?.title || "").trim() ||
-    String(detailedLecture?.title || lecture.title || "").trim();
+    lectureDisplayTitle;
 
  // --- Sub-States ---
  // PDF Section
@@ -1861,7 +1864,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </span>
  </div>
  <h1 className="text-lg sm:text-2xl leading-[1.25] font-display font-semibold text-semantic-chrome-content-primary mt-1 antialiased whitespace-normal break-words [overflow-wrap:anywhere] max-w-full">
- {lecture.title}
+ {lectureDisplayTitle}
  </h1>
 
  {/* In-place calendar synchronization notification badge */}
@@ -1872,7 +1875,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  if (!isLecType) return false;
  if (evt.lectureId && evt.lectureId === lecture.id) return true;
  const evtTitle = (evt.title || "").trim().toLowerCase();
- const lecTitle = (lecture.title || "").trim().toLowerCase();
+ const lecTitle = lectureDisplayTitle.toLowerCase();
  return (
  evtTitle === lecTitle ||
  evtTitle.includes(lecTitle) ||
