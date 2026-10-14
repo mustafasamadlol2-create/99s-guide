@@ -1945,21 +1945,30 @@ function AppContent({
 
   // Lecture Detail intentionally does not participate in page-level swipe-back:
   // horizontal gestures there belong exclusively to PDF/Notes/MCQ/Anki/Video/Q&A
-  // tab paging. The visible Back button keeps the exact historical Back behavior.
+  // tab paging. The visible Back button follows the real content hierarchy.
   const handleHomeLectureBack = useCallback(() => {
     if (activeHomeLecture === null) return;
 
-    // Every user-driven Home lecture push now owns a stack entry, whether it
-    // came directly from Dashboard or from inside a Subject. Restore that entry
-    // first so its saved scrollTop is applied synchronously before paint.
     if (lectureDetailSource === "dashboard") {
+      // Dashboard/Search can open a lecture directly, but SubjectView is already
+      // mounted underneath and reconstructed at that lecture's real list. The
+      // first Back must therefore reveal Lectures, not pop the older global
+      // history entry (Search/Welcome/another root tab). That older entry stays
+      // on the stack for the *next* parent Back after the subject hierarchy.
       setSuppressHomeEntranceAnimations(true);
+      pendingNavigationScrollRestoreRef.current = 0;
+      pendingNavigationRestoreIsBackRef.current = true;
+      setActiveHomeLecture(null);
+      setLectureDetailSource(null);
+      return;
     }
+
+    // A lecture opened from inside SubjectView owns a true Subject -> Lecture
+    // stack entry, so restore that exact parent (including its saved scroll).
     if (restorePreviousNavigationEntry()) return;
 
-    // Deep links may not have a local stack entry; keep the historical fallback.
+    // Deep links may not have a local stack entry; keep a safe hierarchy fallback.
     setActiveHomeLecture(null);
-    if (lectureDetailSource === "dashboard") setActiveHomeSubjectId(null);
     setLectureDetailSource(null);
   }, [activeHomeLecture, lectureDetailSource, restorePreviousNavigationEntry]);
 
@@ -4032,21 +4041,41 @@ function AppContent({
   // 4. Handle hardware back button for true native mobile navigation
   useEffect(() => {
     const unsubscribe = NativeBridge.registerBackButtonListener(() => {
+      if (activeHomeLecture) {
+        handleHomeLectureBack();
+        return;
+      }
       if (activeLecture) {
-        setActiveLecture(null);
+        handleLegacyLectureBack();
         return;
       }
       if (activeSubjectId) {
+        if (restorePreviousNavigationEntry()) return;
         setActiveSubjectId(null);
         return;
       }
+      if (activeHomeSubjectId && !homeSubjectInternalBackRef.current) {
+        if (restorePreviousNavigationEntry()) return;
+        setActiveHomeSubjectId(null);
+        return;
+      }
       if (activeTab !== "home") {
+        if (restorePreviousNavigationEntry()) return;
         setActiveTab("home");
         return;
       }
     });
     return unsubscribe;
-  }, [activeLecture, activeSubjectId, activeTab]);
+  }, [
+    activeHomeLecture,
+    activeLecture,
+    activeSubjectId,
+    activeHomeSubjectId,
+    activeTab,
+    handleHomeLectureBack,
+    handleLegacyLectureBack,
+    restorePreviousNavigationEntry,
+  ]);
 
   // 6. Push notifications setup
   useEffect(() => {
@@ -6606,6 +6635,19 @@ const handleSignOut = useCallback(async () => {
                               ? -navigationParentVisualScrollOffset
                               : 0,
                           opacity: activeHomeLecture !== null ? homeLectureUnderlayOpacity : 1,
+                          // CSS Grid sizes an auto row from every in-flow item, even
+                          // visibility:hidden ones. On desktop a long Lecture list
+                          // underneath a short Lecture detail therefore created a huge
+                          // blank scroll tail. Keep the live parent mounted, but remove
+                          // it from intrinsic sizing while the detail page is open.
+                          position:
+                            activeHomeLecture !== null && device.isDesktop
+                              ? "absolute"
+                              : undefined,
+                          inset:
+                            activeHomeLecture !== null && device.isDesktop
+                              ? 0
+                              : undefined,
                           minHeight: navigationSurfaceMinHeight,
                           willChange: activeHomeLecture !== null
                             ? "transform, opacity"
@@ -6806,6 +6848,14 @@ const handleSignOut = useCallback(async () => {
                               ? -navigationParentVisualScrollOffset
                               : 0,
                           opacity: activeLecture !== null ? lectureUnderlayOpacity : 1,
+                          position:
+                            activeLecture !== null && device.isDesktop
+                              ? "absolute"
+                              : undefined,
+                          inset:
+                            activeLecture !== null && device.isDesktop
+                              ? 0
+                              : undefined,
                           willChange: activeLecture !== null ? "transform, opacity" : "auto",
                         }}
                         className="w-full isolate bg-semantic-background-page"

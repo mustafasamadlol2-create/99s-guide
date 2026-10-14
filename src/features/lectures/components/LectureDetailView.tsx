@@ -56,6 +56,7 @@ import { getApiBaseUrl } from "../../../core/api/api";
 import { showiOSAlert } from "../../../core/device/alert";
 import { VideoCard } from "./VideoCard";
 import { getSubjectIconInfo } from "../../../core/utils/subjectIcons";
+import { extractYouTubeVideoId, normalizeYouTubeUrl } from "../../../core/utils/youtube";
 import { SubjectFlashcardArtwork } from "./SubjectFlashcardArtwork";
 import { useHorizontalSwipePager } from "../../../core/hooks/useTouchSurfaceGestures";
 import { IOS_SWIPE_MOTION } from "../../../core/motion/swipeMotion";
@@ -1153,40 +1154,35 @@ export const LectureDetailView = function LectureDetailView({
   }
   };
 
- // Extract YouTube video ID from any YouTube URL format
- const extractYouTubeId = (url: string): string | null => {
-   const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-   return match ? match[1] : null;
- };
-
   // Video watching
   // - Capacitor/native iOS: preserve the existing native bridge behavior exactly.
   // - Mobile Web/PWA: launch the installed YouTube app directly via its app scheme.
   // - Desktop Web: open the normal HTTPS YouTube URL in a new tab.
   const handleWatchVideo = async (youtubeUrl: string) => {
-    const cleanUrl =
+    const rawUrl =
       typeof youtubeUrl === "string"
         ? youtubeUrl.trim()
         : "";
+    const cleanUrl = normalizeYouTubeUrl(rawUrl);
 
     console.log("[YT TAP] handleWatchVideo ENTER", {
-      youtubeUrl: cleanUrl,
+      youtubeUrl: rawUrl,
       isNativeIOS,
       isNativePlatform: NativeBridge.isNativePlatform(),
       platform: NativeBridge.getPlatformName(),
     });
 
-    if (!cleanUrl) {
+    if (!rawUrl) {
       console.error("[YT TAP] YouTube URL is empty");
       return;
     }
 
-    const videoId = extractYouTubeId(cleanUrl);
+    const videoId = extractYouTubeVideoId(rawUrl);
 
     console.log("[YT TAP] parsed videoId =", videoId);
 
     if (!videoId) {
-      console.error("[YT TAP] Invalid YouTube URL:", cleanUrl);
+      console.error("[YT TAP] Invalid YouTube URL:", rawUrl);
 
       showiOSAlert({
         title: "Unable to Open Video",
@@ -1197,13 +1193,17 @@ export const LectureDetailView = function LectureDetailView({
       return;
     }
 
+    // extractYouTubeVideoId and normalizeYouTubeUrl share the same parser, so a
+    // parsed ID guarantees a canonical URL here.
+    const canonicalUrl = cleanUrl || `https://www.youtube.com/watch?v=${videoId}`;
+
     try {
       if (isNativeIOS) {
         // IMPORTANT: Do not change Capacitor/Xcode behavior.
         console.log("[YT TAP] Native iOS path selected");
 
         youtubeExternalOpenRef.current = true;
-        await NativeBridge.openYouTubeUrl(cleanUrl);
+        await NativeBridge.openYouTubeUrl(canonicalUrl);
       } else {
         console.log("[YT TAP] Web/PWA path selected");
 
@@ -1234,7 +1234,7 @@ export const LectureDetailView = function LectureDetailView({
           // with noopener/noreferrer some browsers legitimately return null even
           // when the new tab was opened successfully, which previously caused
           // a second navigation inside the PWA.
-          window.open(cleanUrl, "_blank", "noopener,noreferrer");
+          window.open(canonicalUrl, "_blank", "noopener,noreferrer");
         }
       }
     } catch (error) {
@@ -3109,7 +3109,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  ) : (
  getRelevantVideos().map((video) => {
-              const videoId = video.youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1];
+              const videoId = extractYouTubeVideoId(video.youtubeUrl) || undefined;
               return <VideoCard key={video.id} video={video} videoId={videoId} onWatch={handleWatchVideo} language={language} />;
             })
  )}

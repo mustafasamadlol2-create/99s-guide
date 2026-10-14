@@ -275,6 +275,23 @@ type ContentSyncMutation = {
 
 const CONTENT_SYNC_OUTBOX_PREFIX = "__content_sync_pending__:";
 const CONTENT_SYNC_BATCH_SIZE = 25;
+
+// Academic D1 rows are deliberately retained when the canonical Supabase row
+// is deleted. This makes D1 a recoverable copy instead of a second visibility
+// authority. Upserts continue to mirror normally; only destructive tombstones
+// are suppressed for these academic entities.
+const CONTENT_D1_ARCHIVE_ENTITIES = new Set<ContentSyncEntity>([
+  "Lecture",
+  "Material",
+  "ModuleResource",
+  "Mcq",
+  "Flashcard",
+]);
+
+function preserveD1ArchiveOnDelete(entity: ContentSyncEntity): boolean {
+  return CONTENT_D1_ARCHIVE_ENTITIES.has(entity);
+}
+
 let contentSyncDrainTimer: ReturnType<typeof setTimeout> | null = null;
 let contentSyncDrainInFlight = false;
 
@@ -290,33 +307,48 @@ function getContentSyncConfig(): { workerBaseUrl: string; secret: string } | nul
 }
 
 
-function contentD1ReadsEnabled(): boolean {
-  const value = String(process.env.CONTENT_D1_READS_ENABLED || "").trim().toLowerCase();
+function envFlagEnabled(name: string): boolean {
+  const value = String(process.env[name] || "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+// Academic rows in D1 are a recovery/archive mirror. Supabase remains the
+// visibility authority: a row manually removed from Supabase must disappear
+// from the app even when an older copy intentionally remains in D1.
+//
+// The old per-route D1 flags are still understood, but serving the archive as
+// a primary read source now requires an *additional* explicit opt-in. Leaving
+// CONTENT_D1_ALLOW_ARCHIVE_READS unset (the production-safe default) gives the
+// requested Supabase-authoritative behavior without any Render env change.
+function academicD1ArchiveReadsAllowed(): boolean {
+  return envFlagEnabled("CONTENT_D1_ALLOW_ARCHIVE_READS");
+}
+
+function academicContentMemoryCacheEnabled(): boolean {
+  // Direct edits/deletes made in the Supabase dashboard cannot invalidate a
+  // process-local cache. Keep it off by default so the very next API refresh
+  // reflects canonical Supabase state. It can be explicitly re-enabled later.
+  return envFlagEnabled("CONTENT_ACADEMIC_READ_CACHE_ENABLED");
+}
+
+function contentD1ReadsEnabled(): boolean {
+  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_READS_ENABLED");
+}
 
 function contentD1MaterialsReadsEnabled(): boolean {
-  const value = String(process.env.CONTENT_D1_MATERIALS_READS_ENABLED || "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_MATERIALS_READS_ENABLED");
 }
-
 
 function contentD1MottoReadsEnabled(): boolean {
-  const value = String(process.env.CONTENT_D1_MOTTO_READS_ENABLED || "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+  return envFlagEnabled("CONTENT_D1_MOTTO_READS_ENABLED");
 }
-
 
 function contentD1CalendarReadsEnabled(): boolean {
-  const value = String(process.env.CONTENT_D1_CALENDAR_READS_ENABLED || "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+  return envFlagEnabled("CONTENT_D1_CALENDAR_READS_ENABLED");
 }
 
-
 function contentD1SearchReadsEnabled(): boolean {
-  const value = String(process.env.CONTENT_D1_SEARCH_READS_ENABLED || "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_SEARCH_READS_ENABLED");
 }
 
 type ContentReadError = Error & { status?: number };
@@ -524,17 +556,6 @@ async function clearContentSyncOutbox(entity: ContentSyncEntity, id: string): Pr
   await getPrisma().systemSetting.deleteMany({ where: { key: contentSyncOutboxKey(entity, id) } });
 }
 
-async function clearContentSyncOutboxMany(
-  entries: Array<{ entity: ContentSyncEntity; id: string }>,
-): Promise<void> {
-  if (entries.length === 0) return;
-  await getPrisma().systemSetting.deleteMany({
-    where: {
-      key: { in: entries.map(({ entity, id }) => contentSyncOutboxKey(entity, id)) },
-    },
-  });
-}
-
 function scheduleContentSyncDrain(delayMs = 30_000): void {
   if (contentSyncDrainTimer) return;
   contentSyncDrainTimer = setTimeout(() => {
@@ -584,6 +605,13 @@ async function syncContentUpsert(
 }
 
 async function syncContentDelete(entity: ContentSyncEntity, id: string): Promise<void> {
+  if (preserveD1ArchiveOnDelete(entity)) {
+    logger.info(
+      "[ContentArchive]",
+      `Preserved D1 archive row for deleted canonical ${entity}/${id}.`,
+    );
+    return;
+  }
   await syncContentMutation(makeContentDelete(entity, id));
 }
 
@@ -615,6 +643,18 @@ async function drainContentSyncOutbox(): Promise<void> {
       } catch (parseError: any) {
         shouldRetryLater = true;
         logger.error("[ContentSync]", `Malformed pending mutation ${row.key}: ${parseError?.message ?? "unknown error"}`);
+        continue;
+      }
+
+      // A delete may have been queued by an older deployment before D1 became
+      // an academic archive. Discard that tombstone locally instead of replaying
+      // it and erasing the backup row after this fix is deployed.
+      if (mutation.operation === "delete" && preserveD1ArchiveOnDelete(mutation.entity)) {
+        await getPrisma().systemSetting.deleteMany({ where: { key: row.key } });
+        logger.info(
+          "[ContentArchive]",
+          `Discarded queued D1 delete for ${mutation.entity}/${mutation.id}.`,
+        );
         continue;
       }
 
@@ -2559,6 +2599,7 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
     const hasPathFilters = Object.keys(where).length > 0;
 
     if (
+      academicContentMemoryCacheEnabled() &&
       !hasPathFilters &&
       !forceRefresh &&
       lecturesCache &&
@@ -2579,7 +2620,7 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
           throw new Error("Content Worker lecture list returned an invalid payload.");
         }
 
-        if (!hasPathFilters) {
+        if (academicContentMemoryCacheEnabled() && !hasPathFilters) {
           lecturesCache = {
             data: lectures,
             expiresAt: Date.now() + 30_000,
@@ -2618,7 +2659,7 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
 
-    if (!hasPathFilters) {
+    if (academicContentMemoryCacheEnabled() && !hasPathFilters) {
       lecturesCache = {
         data: lectures,
         expiresAt: Date.now() + 30_000,
@@ -2753,8 +2794,6 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
     // Keep these administrative reads sequential so a rare content deletion
     // never opens multiple Supabase session-pool connections at once.
     const materials = await prismaClient.material.findMany({ where: { lectureId } });
-    const childMcqs = await prismaClient.mcq.findMany({ where: { lectureId }, select: { id: true } });
-    const childFlashcards = await prismaClient.flashcard.findMany({ where: { lectureId }, select: { id: true } });
     
     for (const mat of materials) {
       if (mat.fileUrlOrLink && mat.fileUrlOrLink.startsWith("/uploads/materials/")) {
@@ -2807,17 +2846,9 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
 
-    // D1 cascades Lecture deletion to Material/Mcq/Flashcard. Remove stale
-    // queued child upserts so they cannot keep retrying after the parent is gone.
-    try {
-      await clearContentSyncOutboxMany([
-        ...materials.map((mat: any) => ({ entity: "Material" as ContentSyncEntity, id: mat.id })),
-        ...childMcqs.map((row: any) => ({ entity: "Mcq" as ContentSyncEntity, id: row.id })),
-        ...childFlashcards.map((row: any) => ({ entity: "Flashcard" as ContentSyncEntity, id: row.id })),
-      ]);
-    } catch (clearError: any) {
-      logger.warn("[ContentSync]", `Failed to clear child outbox entries for deleted lecture ${lectureId}: ${clearError?.message ?? "unknown error"}`);
-    }
+    // Supabase deletion controls app visibility. Keep the lecture and all of its
+    // child rows in D1 as the requested recovery archive; pending child upserts
+    // are intentionally allowed to finish so the backup is as complete as possible.
     await syncContentDelete("Lecture", lectureId);
 
     invalidateMaterialsCache();
@@ -2859,8 +2890,8 @@ app.delete("/api/materials/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
     
-    // Idempotent mirror delete: even if the Supabase row was already absent,
-    // removing the same id from D1 is safe and converges stale replicas.
+    // Supabase is the visibility authority; D1 deliberately keeps this row as
+    // a recovery copy. syncContentDelete enforces that archive policy.
     await syncContentDelete("Material", materialId);
 
     invalidateMaterialsCache();
@@ -4599,7 +4630,13 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
 
     // The legacy full response cache must never satisfy a scoped request: doing so
     // would defeat the payload reduction and waste bandwidth on every dashboard load.
-    if (scope === "full" && materialsCache && materialsCache.group === currentUserGroup && !forceRefresh) {
+    if (
+      academicContentMemoryCacheEnabled() &&
+      scope === "full" &&
+      materialsCache &&
+      materialsCache.group === currentUserGroup &&
+      !forceRefresh
+    ) {
       res.setHeader("X-Content-Materials-Read-Source", "memory-cache");
       return res.json(materialsCache.data);
     }
@@ -4883,10 +4920,12 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
       });
     }
 
-    materialsCache = {
-      group: String(currentUserGroup || "").trim().toUpperCase(),
-      data: fullResponseData,
-    };
+    if (academicContentMemoryCacheEnabled()) {
+      materialsCache = {
+        group: String(currentUserGroup || "").trim().toUpperCase(),
+        data: fullResponseData,
+      };
+    }
 
     return res.json(fullResponseData);
   } catch (err) {

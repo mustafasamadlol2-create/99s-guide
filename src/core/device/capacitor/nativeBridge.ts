@@ -23,6 +23,7 @@ import { AppLauncher } from "@capacitor/app-launcher";
 import { Network } from "@capacitor/network";
 import { getApiBaseUrl } from "../../api/api";
 import CapExternalOpener from "./externalOpener";
+import { extractYouTubeVideoId, normalizeYouTubeUrl } from "../../utils/youtube";
 
 // --- Global Interface Declarations ---
 interface KeyboardState {
@@ -479,11 +480,14 @@ class NativeBridgeManager {
    *   falling back to Safari. The caller can surface an error to the user.
    */
   public async openYouTubeUrl(url: string): Promise<void> {
-    const safeUrl = this.sanitizeExternalUrl(url);
+    // Canonicalize first so every official YouTube share shape (including
+    // /live/ links) follows the exact same native/browser opening path.
+    const canonicalUrl = normalizeYouTubeUrl(url);
+    const safeUrl = canonicalUrl ? this.sanitizeExternalUrl(canonicalUrl) : null;
 
     if (!safeUrl) {
       const error = new Error("invalid_youtube_url");
-      console.error("[YT BRIDGE] URL rejected by sanitizer:", url);
+      console.error("[YT BRIDGE] URL rejected by YouTube parser/sanitizer:", url);
       throw error;
     }
 
@@ -499,7 +503,7 @@ class NativeBridgeManager {
       return;
     }
 
-    const videoId = this.extractYouTubeVideoId(safeUrl);
+    const videoId = extractYouTubeVideoId(safeUrl);
 
     if (!videoId) {
       console.error("[YT BRIDGE] Could not extract YouTube video ID:", safeUrl);
@@ -626,45 +630,6 @@ class NativeBridgeManager {
     "youtube-nocookie.com",
   ]);
 
-  /**
-   * Extract the canonical 11-character YouTube video ID from supported links.
-   */
-  private extractYouTubeVideoId(rawUrl: string): string | null {
-    try {
-      const parsed = new URL(rawUrl);
-      const host = parsed.hostname.toLowerCase();
-
-      let candidate: string | null = null;
-
-      if (host === "youtu.be") {
-        candidate = parsed.pathname.split("/").filter(Boolean)[0] ?? null;
-      } else if (
-        host === "youtube.com" ||
-        host === "www.youtube.com" ||
-        host === "m.youtube.com"
-      ) {
-        if (parsed.pathname === "/watch") {
-          candidate = parsed.searchParams.get("v");
-        } else if (parsed.pathname.startsWith("/shorts/")) {
-          candidate =
-            parsed.pathname.split("/").filter(Boolean)[1] ?? null;
-        } else if (parsed.pathname.startsWith("/embed/")) {
-          candidate =
-            parsed.pathname.split("/").filter(Boolean)[1] ?? null;
-        }
-      }
-
-      if (!candidate) return null;
-
-      const normalized = candidate.trim();
-
-      return /^[A-Za-z0-9_-]{11}$/.test(normalized)
-        ? normalized
-        : null;
-    } catch {
-      return null;
-    }
-  }
 
   private sanitizeExternalUrl(rawUrl: string): string | null {
     if (!rawUrl || typeof rawUrl !== "string") {
