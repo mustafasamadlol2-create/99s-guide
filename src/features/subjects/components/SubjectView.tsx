@@ -582,6 +582,7 @@ export const SubjectView = function SubjectView({
           if (dept.id === "Community Medicine") {
             return {
               ...dept,
+              id: "Surgery" as any,
               name: "Surgery",
               nameAr: "الجراحة السريرية",
               icon: Scissors,

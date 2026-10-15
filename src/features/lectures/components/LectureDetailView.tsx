@@ -81,6 +81,8 @@ interface LectureDetailViewProps {
  calendarEvents?: CalendarEvent[];
  initialTab?: "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa";
  muteStatus?: { isMuted: boolean; isPermanent: boolean; endTime: string | null; reason: string | null } | null;
+ /** Desktop/laptop only: keep just a small safety gap after the lecture content. */
+ compactDesktopBottomSpacing?: boolean;
 }
 
 type ResolvedPdfUrlCacheEntry = {
@@ -237,6 +239,7 @@ export const LectureDetailView = function LectureDetailView({
  calendarEvents = [],
  initialTab = "pdf",
  muteStatus = null,
+ compactDesktopBottomSpacing = false,
 }: LectureDetailViewProps) {
  const sessionStartRef = useRef<number>(Date.now());
   const [detailedLecture, setDetailedLecture] = useState<any>(lecture);
@@ -1818,7 +1821,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  return (
   <motion.div
-    className="lecture-detail-view space-y-6 animate-fadeIn pb-12 antialiased"
+    className={`lecture-detail-view space-y-6 animate-fadeIn antialiased ${
+      compactDesktopBottomSpacing ? "pb-2" : "pb-12"
+    }`}
   >
  {/* 1. Header Toolbar */}
   <div
@@ -2019,7 +2024,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
       the outer page or header participate in the horizontal motion. */}
   <div
     ref={lectureTabPager.surfaceRef}
-    className="relative w-full min-h-[calc(100svh-220px)]"
+    className={`relative w-full ${
+      compactDesktopBottomSpacing ? "" : "min-h-[calc(100svh-220px)]"
+    }`}
   >
   <div
     style={{ transformOrigin: "top center" }}

@@ -6569,6 +6569,20 @@ const handleSignOut = useCallback(async () => {
                       (activeHomeLecture === null || lectureDetailSource === "dashboard")
                         ? -navigationParentVisualScrollOffset
                         : 0,
+                    // Desktop drill-down pages must not inherit the Welcome dashboard's
+                    // intrinsic height. The dashboard stays mounted for instant Back
+                    // restoration, but once a Subject/Lecture is open it becomes an
+                    // absolute underlay so its long content cannot create a blank
+                    // scroll tail beneath the active page. iPhone/iPad navigation is
+                    // intentionally left unchanged.
+                    position:
+                      activeHomeSubjectId !== null && device.isDesktop
+                        ? "absolute"
+                        : undefined,
+                    inset:
+                      activeHomeSubjectId !== null && device.isDesktop
+                        ? 0
+                        : undefined,
                     willChange:
                       activeHomeSubjectId !== null || homeBackGesture.isInteracting
                         ? "transform"
@@ -6705,7 +6719,7 @@ const handleSignOut = useCallback(async () => {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 1 }}
                           transition={{ type: "spring", stiffness: 500, damping: 35, mass: 1 }}
-                           className="w-full min-h-full isolate bg-semantic-background-page shadow-elevation-1 rounded-xl"
+                           className={`w-full isolate bg-semantic-background-page shadow-elevation-1 rounded-xl ${device.isDesktop ? "" : "min-h-full"}`}
                         >
                           <Suspense fallback={iOSLoadingFallback}>
                             <ErrorBoundary>
@@ -6719,6 +6733,7 @@ const handleSignOut = useCallback(async () => {
                                 language={language}
                                 initialTab={activeLectureTab}
                                 calendarEvents={calendarEventsDb}
+                                compactDesktopBottomSpacing={device.isDesktop}
                               />
                             </ErrorBoundary>
                           </Suspense>
@@ -6919,6 +6934,7 @@ const handleSignOut = useCallback(async () => {
                                 language={language}
                                 calendarEvents={calendarEventsDb}
                                 initialTab={activeLectureTab}
+                                compactDesktopBottomSpacing={device.isDesktop}
                               />
                             </ErrorBoundary>
                           </Suspense>
