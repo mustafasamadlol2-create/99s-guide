@@ -70,6 +70,25 @@ import { getSwipeBackDirection, useSwipeBack } from "../../../core/hooks/useSwip
 import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motion/swipeMotion";
 
 // Department categories inside each Theory and Practical track
+// Normalize legacy/variant department values before comparing them with the
+// current hierarchy. Nutrition lectures were historically stored with both
+// the correct "Biochemistry" spelling and the legacy UI typo
+// "Biochemistery", which made valid lectures disappear from counts/lists.
+const canonicalDepartmentName = (value: unknown): string => {
+  const trimmed = String(value ?? "").trim().replace(/\s+/g, " ");
+  const key = trimmed.toLowerCase().replace(/[\s_-]+/g, "");
+
+  if (key === "biochemistry" || key === "biochemistery" || key === "biochem") {
+    return "Biochemistry";
+  }
+
+  return trimmed;
+};
+
+const departmentsMatch = (left: unknown, right: unknown): boolean =>
+  canonicalDepartmentName(left).toLowerCase() ===
+  canonicalDepartmentName(right).toLowerCase();
+
 const DEPARTMENTS = [
   {
     id: "Microbiology" as const,
@@ -358,7 +377,7 @@ export const SubjectView = function SubjectView({
         deepLinkedLecture.doctorName &&
         deepLinkedLecture.doctorName !== "Medical Staff"
       ) {
-        return deepLinkedLecture.doctorName;
+        return canonicalDepartmentName(deepLinkedLecture.doctorName);
       }
       return null;
     },
@@ -388,7 +407,7 @@ export const SubjectView = function SubjectView({
         deepLinkedLecture.doctorName &&
         deepLinkedLecture.doctorName !== "Medical Staff"
       ) {
-        setActiveDepartment(deepLinkedLecture.doctorName);
+        setActiveDepartment(canonicalDepartmentName(deepLinkedLecture.doctorName));
       } else {
         setActiveDepartment(null);
       }
@@ -443,7 +462,7 @@ export const SubjectView = function SubjectView({
 
       // Match department
       if (activeDepartment) {
-        if (dbL.department !== activeDepartment) return false;
+        if (!departmentsMatch(dbL.department, activeDepartment)) return false;
       }
 
       return true;
@@ -470,8 +489,8 @@ export const SubjectView = function SubjectView({
       let list = DEPARTMENTS.map((dept) => {
         if (dept.id === "Microbiology") {
           return {
-            id: "Biochemistery" as any,
-            name: "Biochemistery",
+            id: "Biochemistry" as any,
+            name: "Biochemistry",
             nameAr: "الكيمياء الحيوية السريرية",
             icon: FlaskConical,
             badge: "BIOC",
@@ -680,7 +699,7 @@ export const SubjectView = function SubjectView({
         }
 
         if (dept) {
-          if (dbL.department !== dept) return false;
+          if (!departmentsMatch(dbL.department, dept)) return false;
         }
 
         return true;
