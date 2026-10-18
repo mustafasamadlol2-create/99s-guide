@@ -1,5 +1,7 @@
 import { getPrisma } from "./prismaClient.js";
 import { getStudyPointsReadModel } from "../features/study-points/readModel.js";
+import { getStudyPointsCompetitiveEpoch } from "../features/study-points/epoch.js";
+import { safeStudyPointsAggregate } from "../features/study-points/aggregate.js";
 import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./privateD1Read.js";
 import { enqueueMasteryD1UserDeletion } from "./privateD1Sync.js";
 import crypto from "node:crypto";
@@ -49,7 +51,6 @@ interface CreateUserInput {
   avatar?: string | null;
   avatarUrl?: string;
   signature?: string;
-  totalPoints?: number;
   level?: string;
   levelBadge?: string;
   streakDays?: number;
@@ -74,13 +75,6 @@ interface ProgressRecord {
   lastAccessed: string;
 }
 
-interface PointsLogRecord {
-  id: string;
-  userId: string;
-  points: number;
-  reason: string;
-  createdAt: string;
-}
 
 interface CalendarEventRecord {
   id: string;
@@ -89,6 +83,38 @@ interface CalendarEventRecord {
   date: string;
   type?: string;
   completed: boolean;
+}
+
+async function withCanonicalStudyPointsTotals<T extends { id?: unknown; totalPoints?: unknown }>(
+  rows: T[],
+): Promise<T[]> {
+  const ids = rows
+    .map((row) => row.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  if (ids.length === 0) return rows;
+
+  const grouped = await getPrisma().studyPointsLedgerEntry.groupBy({
+    by: ["userId"],
+    where: {
+      userId: { in: ids },
+      effectiveAt: { gte: getStudyPointsCompetitiveEpoch() },
+      sourceType: { not: "LEGACY_POINTS_LOG" },
+      category: { not: "LEGACY" },
+    },
+    _sum: { amount: true },
+  });
+  const totals = new Map(
+    grouped.map((row) => [row.userId, safeStudyPointsAggregate(row._sum.amount)]),
+  );
+  const enriched = rows.map((row) => ({
+    ...row,
+    totalPoints: typeof row.id === "string" ? (totals.get(row.id) ?? 0) : 0,
+  }));
+  enriched.sort((a, b) =>
+    (Number(b.totalPoints || 0) - Number(a.totalPoints || 0))
+    || String(a.id || "").localeCompare(String(b.id || "")),
+  );
+  return enriched;
 }
 
 export class UserService {
@@ -106,7 +132,7 @@ export class UserService {
         where: { email: cleanEmail },
         select: {
           id: true, email: true, profileEmail: true, role: true, sessionVersion: true,
-          name: true, avatar: true, avatarUrl: true, signature: true, totalPoints: true,
+          name: true, avatar: true, avatarUrl: true, signature: true,
           level: true, levelBadge: true, streakDays: true, totalTimeSpent: true,
           lastActive: true, createdAt: true, accountStatus: true,
           isOnline: true, studentGroup: true, isPrimaryOwner: true,
@@ -114,6 +140,7 @@ export class UserService {
         },
       });
       if (!u) return null;
+      const points = await getStudyPointsReadModel({ userId: u.id });
 
       return {
         id: u.id,
@@ -125,7 +152,7 @@ export class UserService {
         avatar: u.avatar || "",
         avatarUrl: u.avatarUrl || u.avatar || "",
         signature: u.signature,
-        totalPoints: u.totalPoints,
+        totalPoints: points.totalPoints,
         level: u.level,
         levelBadge: u.levelBadge,
         streakDays: u.streakDays,
@@ -147,14 +174,17 @@ export class UserService {
   }
 
   // Find user by ID
-  static async findById(id: string): Promise<UserRecord | null> {
+  static async findById(
+    id: string,
+    options: { includePoints?: boolean } = {},
+  ): Promise<UserRecord | null> {
     const client = getPrisma();
     try {
       const u = await client.user.findUnique({
         where: { id },
         select: {
           id: true, email: true, profileEmail: true, role: true, sessionVersion: true,
-          name: true, avatar: true, avatarUrl: true, signature: true, totalPoints: true,
+          name: true, avatar: true, avatarUrl: true, signature: true,
           level: true, levelBadge: true, streakDays: true, totalTimeSpent: true,
           lastActive: true, createdAt: true, accountStatus: true,
           isOnline: true, studentGroup: true, isPrimaryOwner: true,
@@ -162,6 +192,9 @@ export class UserService {
         },
       });
       if (!u) return null;
+      const points = options.includePoints === false
+        ? null
+        : await getStudyPointsReadModel({ userId: u.id });
 
       return {
         id: u.id,
@@ -173,7 +206,7 @@ export class UserService {
         avatar: u.avatar || "",
         avatarUrl: u.avatarUrl || u.avatar || "",
         signature: u.signature,
-        totalPoints: u.totalPoints,
+        ...(points ? { totalPoints: points.totalPoints } : {}),
         level: u.level,
         levelBadge: u.levelBadge,
         streakDays: u.streakDays,
@@ -208,7 +241,6 @@ export class UserService {
         avatar: user.avatarUrl || user.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=150&q=80",
         avatarUrl: user.avatarUrl || user.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=150&q=80",
         signature: user.signature || "",
-        totalPoints: user.totalPoints || 0,
         level: user.level || "Rising (Resident) 🔬",
         levelBadge: user.levelBadge || "Lvl 1",
         streakDays: user.streakDays || 0,
@@ -232,7 +264,7 @@ export class UserService {
       avatar: u.avatar || "",
       avatarUrl: u.avatarUrl || u.avatar || "",
       signature: u.signature || "",
-      totalPoints: u.totalPoints,
+      totalPoints: 0,
       level: u.level,
       levelBadge: u.levelBadge,
       streakDays: u.streakDays,
@@ -425,6 +457,7 @@ export class UserService {
       });
     }
 
+    const points = await getStudyPointsReadModel({ userId: u.id });
     const updatedUserRecord = {
       id: u.id,
       email: u.email,
@@ -435,7 +468,7 @@ export class UserService {
       avatar: u.avatar || "",
       avatarUrl: u.avatarUrl || u.avatar || "",
       signature: u.signature,
-      totalPoints: u.totalPoints,
+      totalPoints: points.totalPoints,
       level: u.level,
       levelBadge: u.levelBadge,
       streakDays: u.streakDays,
@@ -464,7 +497,6 @@ export class UserService {
       // Atomic cascading deletes of dependent records
       await client.$transaction(async (tx) => {
         await tx.lectureProgress.deleteMany({ where: { userId } });
-        await tx.pointsLog.deleteMany({ where: { userId } });
         await tx.userProgress.deleteMany({ where: { userId } });
         await tx.notification.deleteMany({ where: { targetUserId: userId } });
         await enqueueMasteryD1UserDeletion(tx, userId);
@@ -498,7 +530,7 @@ export class UserService {
         if (!payload || !Array.isArray(payload.rows)) {
           throw new Error("Invalid admin roster payload.");
         }
-        return payload.rows;
+        return withCanonicalStudyPointsTotals(payload.rows);
       } catch (error) {
         logPrivateReadFallback("admin-roster", error);
       }
@@ -532,7 +564,7 @@ export class UserService {
         emailVerified: u.emailVerified !== false,
         avatar: u.avatar || "",
         avatarUrl: u.avatarUrl || u.avatar || "",
-        totalPoints: u.totalPoints,
+        totalPoints: 0,
         level: u.level,
         levelBadge: u.levelBadge,
         streakDays: u.streakDays,
@@ -555,11 +587,7 @@ export class UserService {
       });
     }
 
-    list.sort((a, b) =>
-      ((b.totalPoints || 0) - (a.totalPoints || 0)) ||
-      String(a.id).localeCompare(String(b.id))
-    );
-    return list;
+    return withCanonicalStudyPointsTotals(list);
   }
 
   // Get progress records for a user
@@ -646,49 +674,6 @@ export class UserService {
     });
   }
 
-  // Get academic points logs
-  static async getPointsLogs(
-    userId: string,
-    forceSupabase = false,
-  ): Promise<PointsLogRecord[]> {
-    if (
-      !forceSupabase &&
-      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
-      privateReadEnabled("PRIVATE_D1_POINTS_READS_ENABLED")
-    ) {
-      try {
-        const payload = await fetchPrivateReadJson<{ rows: any[] }>(
-          "/internal/private-read/points-logs",
-          { userId, limit: 50 },
-        );
-        if (!payload || !Array.isArray(payload.rows)) {
-          throw new Error("Invalid points log payload.");
-        }
-        return payload.rows.map((row: any) => ({
-          id: row.id,
-          userId: row.userId,
-          points: Number(row.points || 0),
-          reason: row.reason,
-          createdAt: row.createdAt || new Date().toISOString(),
-        }));
-      } catch (error) {
-        logPrivateReadFallback("full-user-points", error);
-      }
-    }
-
-    const logs = await getPrisma().pointsLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
-    return logs.map((row: any) => ({
-      id: row.id,
-      userId: row.userId,
-      points: row.points,
-      reason: row.reason,
-      createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
-    }));
-  }
 
   // Legacy response compatibility only. Personal planner rows remain stored
   // but are no longer read by normal application hydration or synchronization.
@@ -819,12 +804,13 @@ export class UserService {
   }
 
   // Lightweight user-only fetch for session validation — skips the expensive
-  // progress/pointsLogs/calendarEvents queries. Used by /api/auth/me on startup
+  // progress/calendarEvents queries. Used by /api/auth/me on startup
   // when the client only needs to confirm the session is alive.
   static async getLiteUserData(userId: string, knownUser?: UserRecord): Promise<any> {
     const userRow = knownUser || await UserService.findById(userId);
     if (!userRow) return null;
-    const points = await getStudyPointsReadModel({ userId });
+    const totalPoints = userRow.totalPoints
+      ?? (await getStudyPointsReadModel({ userId })).totalPoints;
 
     return {
       user: {
@@ -835,7 +821,7 @@ export class UserService {
         avatar: userRow.avatar || "",
         avatarUrl: userRow.avatarUrl || userRow.avatar || "",
         signature: userRow.signature,
-        totalPoints: points.totalPoints,
+        totalPoints,
         level: userRow.level || "Rising (Resident) 🔬",
         levelBadge: userRow.levelBadge || "Lvl 1",
         streakDays: userRow.streakDays || 0,
@@ -862,11 +848,13 @@ export class UserService {
     if (!userRow) return null;
 
     const forceSupabaseState = options.forceSupabaseState === true;
-    const [progress, pointsLogs, calendarEvents, points] = await Promise.all([
+    const pointsPromise = userRow.totalPoints === undefined
+      ? getStudyPointsReadModel({ userId }).then((points) => points.totalPoints)
+      : Promise.resolve(userRow.totalPoints);
+    const [progress, calendarEvents, totalPoints] = await Promise.all([
       UserService.getProgress(userId, forceSupabaseState),
-      UserService.getPointsLogs(userId, forceSupabaseState),
       UserService.getCalendarEvents(userId, forceSupabaseState),
-      getStudyPointsReadModel({ userId }),
+      pointsPromise,
     ]);
 
     const mappedUser = {
@@ -877,7 +865,7 @@ export class UserService {
       avatar: userRow.avatar || "",
       avatarUrl: userRow.avatarUrl || userRow.avatar || "",
       signature: userRow.signature,
-      totalPoints: points.totalPoints,
+      totalPoints,
       level: userRow.level || "Rising (Resident) 🔬",
       levelBadge: userRow.levelBadge || "Lvl 1",
       streakDays: userRow.streakDays || 0,
@@ -895,7 +883,6 @@ export class UserService {
     return {
       user: mappedUser,
       progress,
-      pointsLogs,
       calendarEvents
     };
   }

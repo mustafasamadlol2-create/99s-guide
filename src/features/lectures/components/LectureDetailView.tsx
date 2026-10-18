@@ -74,7 +74,6 @@ interface LectureDetailViewProps {
  lecture: Lecture;
  progress: UserProgress;
  onUpdateProgress: (updates: Partial<UserProgress>) => void;
- onAddPoints: (points: number, reason: string) => void;
  onBack: () => void;
  currentUser: { id?: string; name: string; email: string; avatar: string; role?: string };
  language?: Language;
@@ -232,7 +231,6 @@ export const LectureDetailView = function LectureDetailView({
  lecture,
  progress,
  onUpdateProgress,
- onAddPoints,
  onBack,
  currentUser,
  language = "en",
@@ -660,7 +658,6 @@ export const LectureDetailView = function LectureDetailView({
  setIsPdfCompleted(true);
  // Standard offline/online progress synchronization via state
  onUpdateProgress({ pdfCompleted: true });
- onAddPoints(5, `Read primary lecture document: ${lecture.title}`);
 
  if (!currentUser?.id) return;
  try {
@@ -681,7 +678,6 @@ export const LectureDetailView = function LectureDetailView({
  setIsNotesCompleted(true);
  // Standard offline/online progress synchronization via state
  onUpdateProgress({ notesCompleted: true });
- onAddPoints(5, `Reviewed cooperative clinical notes: ${lecture.title}`);
 
  if (!currentUser?.id) return;
  try {
@@ -944,10 +940,6 @@ export const LectureDetailView = function LectureDetailView({
 
     if (!progress.flashcardsCompleted) {
       onUpdateProgress({ flashcardsCompleted: true });
-      onAddPoints(
-        4,
-        `Completed active Flashcard session on ${lecture.title}`,
-      );
     }
     setUpdatedCardStatuses({});
   };
@@ -1142,18 +1134,8 @@ export const LectureDetailView = function LectureDetailView({
   setQuizScorePct(finalScore);
   setQuizSubmitted(true);
 
-  // Award Points
   if (!progress.quizCompleted) {
-  let earnedPoints = 5;
-  let reason = `Passed active MCQ module quiz for ${lecture.title} with scale ${finalScore}%`;
-
-  if (finalScore >= 80) {
-  earnedPoints += 3; // high score bonus as specified in guidelines
-  reason += " (+3 High Score Honors!)";
-  }
-
-  onUpdateProgress({ quizCompleted: true, quizScore: finalScore });
-  onAddPoints(earnedPoints, reason);
+    onUpdateProgress({ quizCompleted: true, quizScore: finalScore });
   }
   };
 
@@ -1259,10 +1241,6 @@ export const LectureDetailView = function LectureDetailView({
     if (!videoWatched) {
       setVideoWatched(true);
       onUpdateProgress({ videoCompleted: true });
-      onAddPoints(
-        3,
-        `Watched medical video tutorial for ${lecture.title}`,
-      );
     }
   };
 
@@ -1399,7 +1377,6 @@ export const LectureDetailView = function LectureDetailView({
      const newQ = await res.json();
      setLectureQuestions((prev) => [newQ, ...prev]);
      setNewQuestionContent("");
-     onAddPoints(1, `Posted lecture clinical inquiry inside ${lecture.title} forum`);
    } else if (res.status === 403) {
      const data = await res.json().catch(() => ({}));
      const msg = data.error || (isRtl ? "أنت محظور من المشاركة في النقاشات." : "You are currently muted and cannot participate in discussions.");
@@ -1512,7 +1489,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
        prev.map((q) => q.id === questionId ? { ...q, answers: [...q.answers, newAns] } : q)
      );
      setReplyTexts((prev) => ({ ...prev, [questionId]: "" }));
-     onAddPoints(2, "Replied to collaborative peer clinical query");
    } else if (res.status === 403) {
      const data = await res.json().catch(() => ({}));
      const msg = data.error || (isRtl ? "أنت محظور من المشاركة في النقاشات." : "You are currently muted and cannot participate in discussions.");
@@ -1605,7 +1581,6 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
          : q
        )
      );
-     onAddPoints(1, "Clinical answer nominated as Recommended Resolution");
    }
  } catch { /* ignore */ }
  };

@@ -8,10 +8,7 @@ import {
   STUDY_POINTS_TOTAL_DAILY_CAP,
   studyPointsBaghdadDate,
 } from "./caps.js";
-import {
-  LEGACY_POINTS_CATEGORY,
-  STUDY_POINTS_CATEGORIES,
-} from "./constants.js";
+import { STUDY_POINTS_CATEGORIES } from "./constants.js";
 import { safeStudyPointsSum } from "./aggregate.js";
 
 export type StudyPointsAuditCheck = {
@@ -56,10 +53,7 @@ export function auditStudyPointsLedger(
   const add = (code: string, count = 1) => {
     counts.set(code, (counts.get(code) ?? 0) + count);
   };
-  const validCategories = new Set<string>([
-    ...STUDY_POINTS_CATEGORIES,
-    LEGACY_POINTS_CATEGORY,
-  ]);
+  const validCategories = new Set<string>(STUDY_POINTS_CATEGORIES);
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   const reversalsByOriginal = new Map<string, StudyPointsAuditEntry[]>();
   const sourceAwards = new Map<string, number>();
@@ -100,23 +94,14 @@ export function auditStudyPointsLedger(
     if (
       entry.amount < 0
       && entry.reversalOfEntryId === null
-      && entry.sourceType !== "LEGACY_POINTS_LOG"
     ) {
       add("INVALID_REVERSAL_RELATION");
     }
 
-    if (
-      entry.sourceType === "LEGACY_POINTS_LOG"
-      && entry.reasonCode === "legacy.baseline_import"
-    ) {
-      baselineCount += 1;
-      baselinePoints = safeStudyPointsSum(baselinePoints, entry.amount);
-    }
 
     if (entry.amount > 0 && entry.sourceId) {
       const awardableSource =
         entry.sourceType !== "ADMIN_ADJUSTMENT"
-        && entry.sourceType !== "LEGACY_POINTS_LOG"
         && entry.sourceType !== "REVERSAL";
       if (awardableSource) {
         const sourceKey = JSON.stringify([
@@ -142,10 +127,7 @@ export function auditStudyPointsLedger(
       }
     }
 
-    if (
-      validCategories.has(entry.category)
-      && entry.sourceType !== "LEGACY_POINTS_LOG"
-    ) {
+    if (validCategories.has(entry.category)) {
       const dayCategoryKey = `${baghdadDate}:${entry.category}`;
       dailyCategoryNet.set(
         dayCategoryKey,
@@ -197,7 +179,6 @@ export function auditStudyPointsLedger(
   for (const occurrences of consistencyAwards.values()) {
     if (occurrences > 1) add("DUPLICATE_DAILY_CONSISTENCY_AWARD", occurrences - 1);
   }
-  if (baselineCount > 1) add("DUPLICATE_LEGACY_BASELINE", baselineCount - 1);
 
   for (const [key, net] of dailyCategoryNet) {
     const category = key.slice(key.lastIndexOf(":") + 1);
@@ -230,7 +211,6 @@ export function auditStudyPointsLedger(
     "INVALID_REVERSAL_RELATION",
     "DUPLICATE_SOURCE_AWARD",
     "DUPLICATE_DAILY_CONSISTENCY_AWARD",
-    "DUPLICATE_LEGACY_BASELINE",
     "CATEGORY_CAP_EXCEEDED",
     "TOTAL_DAILY_CAP_EXCEEDED",
     "SOCIAL_BONUS_DAILY_CAP_EXCEEDED",

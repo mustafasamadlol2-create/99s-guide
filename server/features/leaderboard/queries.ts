@@ -7,7 +7,7 @@ import {
 import { getPrisma } from "../../services/prismaClient.js";
 import { LeaderboardError } from "./errors.js";
 import { encodeLeaderboardCursor } from "./cursor.js";
-import { getLeaderboardSnapshotById, getReadableLeaderboardSnapshot, LEADERBOARD_LIVE_CURSOR_RETENTION_MS } from "./snapshots.js";
+import { getLeaderboardSnapshotById, getReadableLeaderboardSnapshot, isLeaderboardSnapshotScoringCurrent, LEADERBOARD_LIVE_CURSOR_RETENTION_MS } from "./snapshots.js";
 import { getLeaderboardSeasonById, getLeaderboardSeasonByKey, ensureLeaderboardSeason, leaderboardSeasonToWindow } from "./seasons.js";
 import { decodeLeaderboardScore, readUserLeaderboardScore } from "./scores.js";
 import {
@@ -191,10 +191,12 @@ export async function validateCursorSnapshot(input: {
     input.cursor.snapshotId,
     input.database,
   );
+  const seasonScope = leaderboardSeasonToWindow(input.season).scope;
   if (
     !snapshot
     || snapshot.seasonId !== input.season.id
     || snapshot.status !== "READY"
+    || !isLeaderboardSnapshotScoringCurrent(snapshot, seasonScope)
   ) {
     throw new LeaderboardError(
       "LEADERBOARD_CURSOR_EXPIRED",

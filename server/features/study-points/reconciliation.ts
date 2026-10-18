@@ -17,6 +17,7 @@ import { StudyPointsError } from "./errors.js";
 import { studyPointsBalanceProjectionLockKey, lockStudyPointsKeys } from "./locks.js";
 import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import { assertValidStudyPointsUserId } from "./validation.js";
+import { getStudyPointsCompetitiveEpoch } from "./epoch.js";
 
 export type StudyPointsReconciliationStatus =
   | "IN_SYNC"
@@ -114,8 +115,14 @@ async function snapshot(
     throw new StudyPointsError("POINTS_USER_NOT_FOUND", "Study Points user does not exist.");
   }
 
+  const competitiveEpoch = getStudyPointsCompetitiveEpoch();
   const entries = await tx.studyPointsLedgerEntry.findMany({
-    where: { userId },
+    where: {
+      userId,
+      effectiveAt: { gte: competitiveEpoch },
+      sourceType: { not: "LEGACY_POINTS_LOG" },
+      category: { not: "LEGACY" },
+    },
     select: LEDGER_AUDIT_SELECT,
     orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
   });
@@ -134,17 +141,11 @@ async function snapshot(
   );
   const audit = auditStudyPointsLedger(entries, originalMap);
 
-  const [canonical, projectionRow, legacyAggregate, legacyCountRows] = await Promise.all([
+  const [canonical, projectionRow] = await Promise.all([
     aggregateCanonicalStudyPointsLedgerBalance(tx, userId, {
       ignoreUnsupportedCategories: true,
     }),
     tx.studyPointsBalanceProjection.findUnique({ where: { userId } }),
-    tx.pointsLog.aggregate({ where: { userId }, _sum: { points: true } }),
-    tx.$queryRaw<Array<{ count: string }>>`
-      SELECT COUNT(*)::text AS count
-      FROM "PointsLog"
-      WHERE "userId" = ${userId}
-    `,
   ]);
   const projection = projectionRow ? toProjection(projectionRow) : undefined;
   const projectionDrift = projectionChanged(canonical, projection);
@@ -202,8 +203,8 @@ async function snapshot(
         ? "PROJECTION_DRIFT"
         : "IN_SYNC";
   const legacy = {
-    points: safeStudyPointsAggregate(legacyAggregate._sum.points),
-    rowCount: safeStudyPointsAggregate(legacyCountRows[0]?.count ?? "0"),
+    points: 0,
+    rowCount: 0,
   };
   const fingerprintPayload = {
     userId,

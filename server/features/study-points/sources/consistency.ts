@@ -6,6 +6,7 @@ import {
   type StudyPointsBaghdadDayBounds,
 } from "../caps.js";
 import { getStudyPointsIntegrityFailure } from "../integrityGate.js";
+import { clampStudyPointsRangeStart } from "../epoch.js";
 
 type DailyEvidenceEvent = {
   source: string;
@@ -199,9 +200,14 @@ export async function getEligibleBaghdadDayFocusSeconds(
   now: Date,
 ): Promise<number> {
   const bounds = await getStudyPointsBaghdadDayBounds(tx, baghdadDate);
+  const v2Bounds = {
+    start: clampStudyPointsRangeStart(bounds.start),
+    end: bounds.end,
+  };
+  if (v2Bounds.start >= v2Bounds.end) return 0;
   const [solo, group] = await Promise.all([
-    eligibleFocusSeconds(tx, userId, bounds, now),
-    eligibleGroupFocusSeconds(tx, userId, bounds, now),
+    eligibleFocusSeconds(tx, userId, v2Bounds, now),
+    eligibleGroupFocusSeconds(tx, userId, v2Bounds, now),
   ]);
   return solo + group;
 }

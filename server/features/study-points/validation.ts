@@ -93,6 +93,7 @@ export function normalizeStudyPointsLedgerInput(
   if (
     !(STUDY_POINTS_SOURCE_TYPES as readonly string[]).includes(input.sourceType)
     || input.sourceType === "REVERSAL"
+    || input.sourceType === "LEGACY_POINTS_LOG"
   ) {
     throw new StudyPointsError(
       "POINTS_INVALID_SOURCE",

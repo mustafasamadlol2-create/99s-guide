@@ -11,6 +11,7 @@ import {
 import { safeStudyPointsAggregate, safeStudyPointsSum } from "./aggregate.js";
 import { StudyPointsError } from "./errors.js";
 import { assertValidStudyPointsUserId } from "./validation.js";
+import { getStudyPointsCompetitiveEpoch } from "./epoch.js";
 
 export type CanonicalStudyPointsLedgerBalance = {
   focusPoints: number;
@@ -53,31 +54,40 @@ export async function aggregateCanonicalStudyPointsLedgerBalance(
   userId: string,
   options: { ignoreUnsupportedCategories?: boolean } = {},
 ): Promise<CanonicalStudyPointsLedgerBalance> {
+  const epoch = getStudyPointsCompetitiveEpoch();
   const [groups, countRows] = await Promise.all([
     tx.studyPointsLedgerEntry.groupBy({
       by: ["category"],
-      where: { userId },
+      where: {
+        userId,
+        effectiveAt: { gte: epoch },
+        sourceType: { not: "LEGACY_POINTS_LOG" },
+        category: { not: "LEGACY" },
+      },
       _sum: { amount: true },
     }),
     tx.$queryRaw<Array<{ count: string }>>`
       SELECT COUNT(*)::text AS count
       FROM "StudyPointsLedgerEntry"
       WHERE "userId" = ${userId}
+        AND "effectiveAt" >= ${epoch}
+        AND "sourceType" <> 'LEGACY_POINTS_LOG'
+        AND "category" <> 'LEGACY'
     `,
   ]);
   const balance = emptyBalance();
   for (const group of groups) {
-    if (
-      !(STUDY_POINTS_CATEGORIES as readonly string[]).includes(group.category)
-      && group.category !== "LEGACY"
-    ) {
+    // Legacy rows are permanently outside Points V2 even if malformed data
+    // happens to carry a post-epoch timestamp.
+    if (group.category === "LEGACY") continue;
+    if (!(STUDY_POINTS_CATEGORIES as readonly string[]).includes(group.category)) {
       if (options.ignoreUnsupportedCategories) continue;
       throw new StudyPointsError(
         "POINTS_INVALID_CATEGORY",
         "Canonical Study Points ledger contains an unsupported category.",
       );
     }
-    const category = group.category as StudyPointsLedgerCategory;
+    const category = group.category as StudyPointsCategory;
     const field = CATEGORY_FIELD[category] as keyof CanonicalStudyPointsLedgerBalance;
     balance[field] = safeStudyPointsAggregate(group._sum.amount);
     balance.totalPoints = safeStudyPointsSum(
@@ -85,6 +95,7 @@ export async function aggregateCanonicalStudyPointsLedgerBalance(
       balance[field] as number,
     );
   }
+  balance.legacyPoints = 0;
   balance.ledgerEntryCount = safeStudyPointsAggregate(countRows[0]?.count ?? "0");
   return balance;
 }
@@ -105,63 +116,54 @@ export async function getProjectedStudyPointsBalance(
   database: PrismaClient = getPrisma() as PrismaClient,
 ): Promise<ProjectedStudyPointsBalance | null> {
   assertValidStudyPointsUserId(userId);
-  const row = await database.studyPointsBalanceProjection.findUnique({
-    where: { userId },
-  });
-  if (!row) return null;
-  return {
-    focusPoints: safeStudyPointsAggregate(row.focusPoints),
-    masteryPoints: safeStudyPointsAggregate(row.masteryPoints),
-    progressPoints: safeStudyPointsAggregate(row.progressPoints),
-    consistencyPoints: safeStudyPointsAggregate(row.consistencyPoints),
-    legacyPoints: safeStudyPointsAggregate(row.legacyPoints),
-    totalPoints: safeStudyPointsAggregate(row.totalPoints),
-    ledgerEntryCount: safeStudyPointsAggregate(row.ledgerEntryCount),
-    projectionVersion: safeStudyPointsAggregate(row.projectionVersion),
-    lastReconciledAt: row.lastReconciledAt,
-  };
+  return database.$transaction(async (tx) => {
+    const row = await tx.studyPointsBalanceProjection.findUnique({
+      where: { userId },
+    });
+    if (!row) return null;
+    // The stored projection may predate the V2 competitive epoch. Reads are
+    // therefore canonicalized from the ledger window while retaining only
+    // projection metadata for diagnostics.
+    const canonical = await aggregateCanonicalStudyPointsLedgerBalance(tx, userId);
+    return {
+      ...canonical,
+      projectionVersion: safeStudyPointsAggregate(row.projectionVersion),
+      lastReconciledAt: row.lastReconciledAt,
+    };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }
 
 export async function updateStudyPointsBalanceProjectionAfterAppend(
   tx: Prisma.TransactionClient,
   userId: string,
-  category: StudyPointsLedgerCategory,
-  amount: number,
+  _category: StudyPointsLedgerCategory,
+  _amount: number,
 ): Promise<void> {
-  const existing = await tx.studyPointsBalanceProjection.findUnique({
+  // Rebuild the tiny per-user projection from the canonical V2 window instead
+  // of incrementing an older projection that may still contain pre-cutover or
+  // legacy balances. This also makes the first post-cutover award self-healing.
+  const canonical = await aggregateCanonicalStudyPointsLedgerBalance(tx, userId);
+  await tx.studyPointsBalanceProjection.upsert({
     where: { userId },
-    select: { userId: true },
-  });
-  if (!existing) {
-    const canonical = await aggregateCanonicalStudyPointsLedgerBalance(tx, userId);
-    await tx.studyPointsBalanceProjection.create({
-      data: {
-        userId,
-        focusPoints: BigInt(canonical.focusPoints),
-        masteryPoints: BigInt(canonical.masteryPoints),
-        progressPoints: BigInt(canonical.progressPoints),
-        consistencyPoints: BigInt(canonical.consistencyPoints),
-        legacyPoints: BigInt(canonical.legacyPoints),
-        totalPoints: BigInt(canonical.totalPoints),
-        ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
-        projectionVersion: 1n,
-      },
-    });
-    return;
-  }
-
-  const field = CATEGORY_FIELD[category] as
-    | "focusPoints"
-    | "masteryPoints"
-    | "progressPoints"
-    | "consistencyPoints"
-    | "legacyPoints";
-  await tx.studyPointsBalanceProjection.update({
-    where: { userId },
-    data: {
-      [field]: { increment: BigInt(amount) },
-      totalPoints: { increment: BigInt(amount) },
-      ledgerEntryCount: { increment: 1n },
+    create: {
+      userId,
+      focusPoints: BigInt(canonical.focusPoints),
+      masteryPoints: BigInt(canonical.masteryPoints),
+      progressPoints: BigInt(canonical.progressPoints),
+      consistencyPoints: BigInt(canonical.consistencyPoints),
+      legacyPoints: 0n,
+      totalPoints: BigInt(canonical.totalPoints),
+      ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
+      projectionVersion: 1n,
+    },
+    update: {
+      focusPoints: BigInt(canonical.focusPoints),
+      masteryPoints: BigInt(canonical.masteryPoints),
+      progressPoints: BigInt(canonical.progressPoints),
+      consistencyPoints: BigInt(canonical.consistencyPoints),
+      legacyPoints: 0n,
+      totalPoints: BigInt(canonical.totalPoints),
+      ledgerEntryCount: BigInt(canonical.ledgerEntryCount),
       projectionVersion: { increment: 1n },
     },
   });

@@ -165,7 +165,7 @@ export async function runReadinessPreflight(
   const featureFlags = [
     "PRIVATE_D1_WRITE_MIRROR_ENABLED",
     "MASTERY_D1_PROJECTION_ENABLED",
-    "STUDY_POINTS_READ_MODE",
+    "STUDY_POINTS_V2_EPOCH",
   ];
   check(checks, "feature_flag_configuration", "PASS", Object.fromEntries(featureFlags.map((flag) => [
     flag,

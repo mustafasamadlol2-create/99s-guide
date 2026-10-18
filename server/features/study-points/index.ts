@@ -120,3 +120,9 @@ export type {
   StudyPointsMutationResult,
   StudyPointsBalanceReadModel,
 } from "./types.js";
+export {
+  DEFAULT_STUDY_POINTS_V2_EPOCH_ISO,
+  clampStudyPointsRangeStart,
+  getStudyPointsCompetitiveEpoch,
+  isAtOrAfterStudyPointsCompetitiveEpoch,
+} from "./epoch.js";

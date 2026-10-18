@@ -7,6 +7,7 @@ import type { StudyPointsLedgerEntryRecord } from "./types.js";
 
 export type StudyPointsNoAwardReason =
   | "NOT_ELIGIBLE"
+  | "BEFORE_COMPETITIVE_EPOCH"
   | "INSUFFICIENT_EVIDENCE"
   | "INTEGRITY_BLOCKED"
   | "BELOW_MINIMUM"

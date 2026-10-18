@@ -6,6 +6,7 @@ import {
 import type { StudyPointsCategory } from "./constants.js";
 import { isStudyPointsCategory } from "./awardRules.js";
 import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
+import { clampStudyPointsRangeStart } from "./epoch.js";
 
 export const STUDY_POINTS_TOTAL_DAILY_CAP = 100;
 
@@ -66,6 +67,8 @@ export async function getStudyPointsBaghdadWeekUsage(
   reasonCode: string,
 ): Promise<number> {
   const period = getBaghdadWeekPeriod(asOf);
+  const rangeStart = clampStudyPointsRangeStart(period.startsAt);
+  if (rangeStart >= period.endsAt) return 0;
   const result = await tx.studyPointsLedgerEntry.aggregate({
     where: {
       userId,
@@ -73,7 +76,7 @@ export async function getStudyPointsBaghdadWeekUsage(
       category: "MASTERY",
       ruleVersion,
       reasonCode,
-      effectiveAt: { gte: period.startsAt, lt: period.endsAt },
+      effectiveAt: { gte: rangeStart, lt: period.endsAt },
     },
     _sum: { amount: true },
   });
@@ -92,6 +95,8 @@ export async function getStudyPointsBaghdadDailyRuleUsage(
   },
 ): Promise<number> {
   const bounds = await getStudyPointsBaghdadDayBounds(tx, baghdadDate);
+  const rangeStart = clampStudyPointsRangeStart(bounds.start);
+  if (rangeStart >= bounds.end) return 0;
   const result = await tx.studyPointsLedgerEntry.aggregate({
     where: {
       userId,
@@ -99,7 +104,7 @@ export async function getStudyPointsBaghdadDailyRuleUsage(
       reasonCode: rule.reasonCode,
       ruleVersion: rule.ruleVersion,
       sourceType: rule.sourceType,
-      effectiveAt: { gte: bounds.start, lt: bounds.end },
+      effectiveAt: { gte: rangeStart, lt: bounds.end },
     },
     _sum: { amount: true },
   });
@@ -145,12 +150,15 @@ export async function getStudyPointsDailyUsage(
     PROGRESS: 0,
     CONSISTENCY: 0,
   };
+  const rangeStart = clampStudyPointsRangeStart(bounds.start);
+  if (rangeStart >= bounds.end) return { byCategory, total: 0 };
   const rows = await tx.studyPointsLedgerEntry.groupBy({
     by: ["category"],
     where: {
       userId,
       sourceType: { not: "LEGACY_POINTS_LOG" },
-      effectiveAt: { gte: bounds.start, lt: bounds.end },
+      category: { not: "LEGACY" },
+      effectiveAt: { gte: rangeStart, lt: bounds.end },
     },
     _sum: { amount: true },
   });
@@ -171,6 +179,8 @@ export async function getGroupSocialBonusCount(
   userId: string,
   bounds: StudyPointsBaghdadDayBounds,
 ): Promise<number> {
+  const rangeStart = clampStudyPointsRangeStart(bounds.start);
+  if (rangeStart >= bounds.end) return 0;
   return tx.studyPointsLedgerEntry.count({
     where: {
       userId,
@@ -178,7 +188,7 @@ export async function getGroupSocialBonusCount(
       reasonCode: "group_focus.verified_social_bonus",
       sourceType: "GROUP_FOCUS_RUN",
       amount: { gt: 0 },
-      effectiveAt: { gte: bounds.start, lt: bounds.end },
+      effectiveAt: { gte: rangeStart, lt: bounds.end },
     },
   });
 }

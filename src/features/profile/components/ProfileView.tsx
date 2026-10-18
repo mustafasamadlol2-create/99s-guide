@@ -8,7 +8,7 @@ import { IOS_SWIPE_MOTION, getNativeSwipeLayerShadow } from "../../../core/motio
 
 import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { createPortal } from "react-dom";
-import { User, PointsLog, Subject, UserProgress } from "../../../core/types";
+import { User, Subject, UserProgress } from "../../../core/types";
 import { motion, AnimatePresence, useTransform } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
@@ -34,7 +34,6 @@ import {
 interface ProfileViewProps {
   isActive?: boolean;
  user: User;
- pointsLog: PointsLog[];
  subjects: Subject[];
  progress: UserProgress[];
  onUpdateProfile: (name: string, email: string, avatar: string, studentGroup?: string, signature?: string) => void;
@@ -176,7 +175,6 @@ SettingsItem.displayName = "SettingsItem";
 
 export const ProfileView = function ProfileView({
  user,
- pointsLog,
  subjects,
  progress,
  onUpdateProfile,

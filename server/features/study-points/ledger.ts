@@ -19,6 +19,7 @@ import {
   encodeStudyPointsHistoryCursor,
 } from "./cursor.js";
 import { StudyPointsError } from "./errors.js";
+import { getStudyPointsCompetitiveEpoch } from "./epoch.js";
 import { studyPointsSemanticPayload } from "./fingerprint.js";
 import {
   studyPointsBalanceProjectionLockKey,
@@ -194,6 +195,13 @@ export class StudyPointsLedgerService {
   ): Promise<StudyPointsMutationResult> {
     this.assertEnabled();
     const normalized = normalizeStudyPointsLedgerInput(input);
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
+    if (normalized.effectiveAt < competitiveEpoch) {
+      throw new StudyPointsError(
+        "POINTS_BEFORE_COMPETITIVE_EPOCH",
+        "Study Points V2 cannot append activity from before the competitive epoch.",
+      );
+    }
     const where = {
       userId_idempotencyKey: {
         userId: normalized.userId,
@@ -263,6 +271,13 @@ export class StudyPointsLedgerService {
   ): Promise<StudyPointsMutationResult> {
     this.assertEnabled();
     const normalized = normalizeReversalRequest(input);
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
+    if (normalized.effectiveAt < competitiveEpoch) {
+      throw new StudyPointsError(
+        "POINTS_BEFORE_COMPETITIVE_EPOCH",
+        "Study Points V2 cannot create a reversal before the competitive epoch.",
+      );
+    }
     if (!input.entryId || input.entryId.length > 128 || input.entryId.includes("\0")) {
       throw new StudyPointsError(
         "POINTS_INVALID_REVERSAL",
@@ -286,7 +301,13 @@ export class StudyPointsLedgerService {
       const result = await this.database.$transaction(async (tx) => {
         await lockStudyPointsKeys(tx, reverseKeys);
         const original = await tx.studyPointsLedgerEntry.findFirst({
-          where: { id: input.entryId, userId: normalized.userId },
+          where: {
+            id: input.entryId,
+            userId: normalized.userId,
+            effectiveAt: { gte: competitiveEpoch },
+            sourceType: { not: "LEGACY_POINTS_LOG" },
+            category: { not: "LEGACY" },
+          },
         });
         if (!original) {
           throw new StudyPointsError(
@@ -368,7 +389,13 @@ export class StudyPointsLedgerService {
           && existingReversal.idempotencyKey === normalized.idempotencyKey
         ) {
           const original = await this.database.studyPointsLedgerEntry.findFirst({
-            where: { id: input.entryId, userId: normalized.userId },
+            where: {
+              id: input.entryId,
+              userId: normalized.userId,
+              effectiveAt: { gte: competitiveEpoch },
+              sourceType: { not: "LEGACY_POINTS_LOG" },
+              category: { not: "LEGACY" },
+            },
           });
           if (!original) throw error;
           const replayInput = {
@@ -401,8 +428,14 @@ export class StudyPointsLedgerService {
   async getStudyPointsBalance(userId: string): Promise<number> {
     this.assertEnabled();
     assertValidStudyPointsUserId(userId);
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
     const result = await this.database.studyPointsLedgerEntry.aggregate({
-      where: { userId },
+      where: {
+        userId,
+        effectiveAt: { gte: competitiveEpoch },
+        sourceType: { not: "LEGACY_POINTS_LOG" },
+        category: { not: "LEGACY" },
+      },
       _sum: { amount: true },
     });
     return safeStudyPointsAggregate(result._sum.amount);
@@ -421,20 +454,19 @@ export class StudyPointsLedgerService {
       legacyPoints: 0,
       total: 0,
     };
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
     const grouped = await this.database.studyPointsLedgerEntry.groupBy({
       by: ["category"],
-      where: { userId },
+      where: {
+        userId,
+        effectiveAt: { gte: competitiveEpoch },
+        sourceType: { not: "LEGACY_POINTS_LOG" },
+        category: { not: "LEGACY" },
+      },
       _sum: { amount: true },
     });
     for (const row of grouped) {
-      if (row.category === "LEGACY") {
-        balances.legacyPoints = safeStudyPointsAggregate(row._sum.amount);
-        balances.total = safeStudyPointsSum(
-          balances.total,
-          balances.legacyPoints,
-        );
-        continue;
-      }
+      if (row.category === "LEGACY") continue;
       if (!(STUDY_POINTS_CATEGORIES as readonly string[]).includes(row.category)) {
         throw new StudyPointsError(
           "POINTS_INVALID_CATEGORY",
@@ -469,8 +501,12 @@ export class StudyPointsLedgerService {
     }
 
     const cursor = decodeStudyPointsHistoryCursor(input.cursor);
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
     const where: Prisma.StudyPointsLedgerEntryWhereInput = {
       userId: input.userId,
+      effectiveAt: { gte: competitiveEpoch },
+      sourceType: { not: "LEGACY_POINTS_LOG" },
+      category: { not: "LEGACY" },
     };
     if (cursor) {
       where.OR = [

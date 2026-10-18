@@ -202,13 +202,6 @@ interface PomodoroSession {
   createdAt: string;
 }
 
-export interface PointsLog {
-  id: string;
-  userId: string;
-  points: number;
-  reason: string;
-  createdAt: string;
-}
 
 
 export interface AppNotification {

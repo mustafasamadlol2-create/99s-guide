@@ -23,7 +23,6 @@ import {
 import {
   User,
   UserProgress,
-  PointsLog,
   CalendarEvent,
   Subject,
 } from "../../../core/types";
@@ -183,17 +182,9 @@ interface ControlCenterProps {
   isActive?: boolean;
   currentUser: User;
   progressDb: UserProgress[];
-  pointsLogDb: PointsLog[];
   calendarEventsDb: CalendarEvent[];
   subjects: Subject[];
-  onAddPoints: (amount: number, reason: string) => void;
   onUpdateLectureProgress: (updates: Partial<UserProgress>) => void;
-  onSync: (
-    user: User,
-    progress: UserProgress[],
-    logs: PointsLog[],
-    events: CalendarEvent[],
-  ) => Promise<void>;
   onForceLocalReset: () => void;
   language: Language;
   onRefreshSubjects?: () => void;

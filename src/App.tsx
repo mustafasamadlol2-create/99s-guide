@@ -91,7 +91,6 @@ import {
   Subject,
   Lecture,
   UserProgress,
-  PointsLog,
   CalendarEvent,
   SubjectId,
   DatabaseLecture,
@@ -1449,7 +1448,6 @@ function AppContent({
     "pdf" | "notes" | "mcqs" | "flashcards" | "videos" | "qa"
   >("pdf");
   const [progressDb, setProgressDb] = useState<UserProgress[]>([]);
-  const [pointsLogDb, setPointsLogDb] = useState<PointsLog[]>([]);
   const [calendarEventsDb, setCalendarEventsDb] = useState<CalendarEvent[]>([]);
   const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null);
   const [muteStatus, setMuteStatus] = useState<{
@@ -3091,14 +3089,12 @@ function AppContent({
   const syncWithBackend = async (
     userCtx: User | null = currentUser,
     prog: UserProgress[] = progressDb,
-    logs: PointsLog[] = pointsLogDb,
   ) => {
     if (!userCtx) return;
 
     // Always preserve locally first to ensure lightning-fast UI responses
     OfflineEngine.setCachedUser(userCtx);
     OfflineEngine.setCachedProgress(prog);
-    OfflineEngine.setCachedPointsLogs(logs);
 
     try {
       const response = await apiClient("/api/auth/sync", {
@@ -3108,9 +3104,7 @@ function AppContent({
           userId: userCtx.id,
           user: userCtx,
           progress: prog,
-          pointsLogs: logs,
-          // Retain the legacy response/request shape without sending any
-          // personal planner mutations to the server.
+          // Personal planner mutations are deliberately not part of this sync.
           calendarEvents: [],
         }),
         // Background sync: failures are queued locally for retry and surfaced
@@ -3139,10 +3133,6 @@ function AppContent({
           OfflineEngine.setCachedProgress(resolved);
           try { localStorage.setItem("progress_db", JSON.stringify(resolved)); } catch {}
         }
-        if (data.pointsLogs) {
-          setPointsLogDb(data.pointsLogs);
-          OfflineEngine.setCachedPointsLogs(data.pointsLogs);
-        }
         // Progress sync may return newly-created academic events. Personal
         // planner rows are never accepted into this reconciliation path.
         const incomingGlobal: CalendarEvent[] = data.globalCalendarEvents || [];
@@ -3166,7 +3156,6 @@ function AppContent({
         payload: {
           userId: userCtx.id,
           progress: prog,
-          pointsLogs: logs,
         },
       });
     }
@@ -3183,7 +3172,6 @@ function AppContent({
     sessionRestoreStartedRef.current = true;
 
     let localProgress: UserProgress[] = [];
-    let localLogs: PointsLog[] = [];
     let localEvents: CalendarEvent[] = [];
 
     // ── Step 1: Synchronously read ALL cached data from localStorage ────────
@@ -3209,17 +3197,6 @@ function AppContent({
       localProgress = [];
     }
 
-    const cachedLogs = localStorage.getItem("points_log");
-    if (cachedLogs) {
-      try {
-        localLogs = safeJsonParse(cachedLogs, []);
-      } catch {
-        localLogs = [];
-      }
-    } else {
-      localLogs = [];
-    }
-
     // ── Step 2: Instant hydration — render from cached data immediately ─────
     // Read the cached user profile and render the UI in < 16ms instead of
     // waiting for the /api/auth/me round-trip. The background restoreSession()
@@ -3230,6 +3207,14 @@ function AppContent({
       try {
         const cachedUser = safeJsonParse<User | null>(cachedUserStr, null);
         if (cachedUser && cachedUser.id && cachedUser.email) {
+          // Competitive points are server-authoritative in Points V2. Never
+          // render a pre-cutover cached total while the fresh ledger balance
+          // is loading (offline sessions deliberately show 0 until verified).
+          cachedUser.totalPoints = 0;
+          try {
+            localStorage.removeItem("points_log");
+            localStorage.removeItem(accountStorageKey("points_log", cachedUser.id));
+          } catch {}
           // Strip stale unsplash avatars (same check as the offline fallback)
           if (cachedUser.avatar && cachedUser.avatar.includes("unsplash.com")) {
             cachedUser.avatar = "";
@@ -3240,7 +3225,6 @@ function AppContent({
           setAuthState("AUTHENTICATED");
           setActiveAccountId(cachedUser.id);
           setProgressDb(localProgress);
-          setPointsLogDb(localLogs);
           setCalendarEventsDb(localEvents);
           // Unblock the render immediately — the LaunchScreen exit transition
           // begins in the same frame via the useLayoutEffect below.
@@ -3266,12 +3250,16 @@ function AppContent({
         try {
           const parsed = safeJsonParse<User | null>(cachedUserStr, null);
           if (parsed) {
+            parsed.totalPoints = 0;
+            try {
+              localStorage.removeItem("points_log");
+              localStorage.removeItem(accountStorageKey("points_log", parsed.id));
+            } catch {}
             if (parsed.avatar && parsed.avatar.includes("unsplash.com")) { parsed.avatar = ""; }
             setCurrentUser(parsed);
             setAuthState("AUTHENTICATED");
             setActiveAccountId(parsed.id);
             setProgressDb(localProgress);
-            setPointsLogDb(localLogs);
             setCalendarEventsDb(localEvents);
             optimisticallyRendered = true;
             setIsInitializing(false);
@@ -3298,12 +3286,10 @@ function AppContent({
               setCurrentUser(data.user);
               setActiveAccountId(data.user.id);
               setProgressDb(data.progress || localProgress);
-              setPointsLogDb(data.pointsLogs || localLogs);
             } else {
               // Update state in background
               setCurrentUser(data.user);
               setProgressDb(data.progress || localProgress);
-              setPointsLogDb(data.pointsLogs || localLogs);
             }
             
             if (data.needsEmailSelection) {
@@ -3332,10 +3318,6 @@ function AppContent({
               "progress_db",
               JSON.stringify(data.progress || localProgress),
             );
-            localStorage.setItem(
-              "points_log",
-              JSON.stringify(data.pointsLogs || localLogs),
-            );
             if (data.token) {
               await SecureStorage.set("auth_token", data.token);
             }
@@ -3348,7 +3330,6 @@ function AppContent({
           setAuthState("UNAUTHENTICATED");
           setActiveAccountId(null);
           setProgressDb(localProgress);
-          setPointsLogDb(localLogs);
           setCalendarEventsDb(localEvents);
           if (!optimisticallyRendered) setIsInitializing(false);
           return;
@@ -3360,7 +3341,6 @@ function AppContent({
           setCurrentUser(null);
           setAuthState("UNAUTHENTICATED");
           setProgressDb(localProgress);
-          setPointsLogDb(localLogs);
           setCalendarEventsDb(localEvents);
           if (!optimisticallyRendered) setIsInitializing(false);
           return;
@@ -3379,11 +3359,10 @@ function AppContent({
             return;
           }
           if (!optimisticallyRendered) {
-             setAuthState("AUTH_ERROR");
-             setProgressDb(localProgress);
-             setPointsLogDb(localLogs);
-             setCalendarEventsDb(localEvents);
-             setIsInitializing(false);
+            setAuthState("AUTH_ERROR");
+            setProgressDb(localProgress);
+            setCalendarEventsDb(localEvents);
+            setIsInitializing(false);
           }
           return;
         }
@@ -3397,26 +3376,28 @@ function AppContent({
             if (!parsed) {
               setAuthState("UNAUTHENTICATED");
               setProgressDb(localProgress);
-              setPointsLogDb(localLogs);
               setCalendarEventsDb(localEvents);
               setIsInitializing(false);
               return;
             }
+            parsed.totalPoints = 0;
+            try {
+              localStorage.removeItem("points_log");
+              localStorage.removeItem(accountStorageKey("points_log", parsed.id));
+            } catch {}
             if (parsed.avatar && parsed.avatar.includes("unsplash.com")) { parsed.avatar = ""; SecureStorage.set("logged_user", JSON.stringify(parsed)); }
-             setCurrentUser(parsed);
-             setAuthState("AUTHENTICATED");
+            setCurrentUser(parsed);
+            setAuthState("AUTHENTICATED");
             setActiveAccountId(parsed.id);
             setProgressDb(localProgress);
-            setPointsLogDb(localLogs);
             setCalendarEventsDb(localEvents);
-            syncWithBackend(parsed, localProgress, localLogs);
+            syncWithBackend(parsed, localProgress);
             setIsInitializing(false);
           } catch (e) {
           }
         } else {
           setAuthState("UNAUTHENTICATED");
           setProgressDb(localProgress);
-          setPointsLogDb(localLogs);
           setCalendarEventsDb(localEvents);
           setIsInitializing(false);
         }
@@ -3507,7 +3488,6 @@ function AppContent({
                 });
               }
               if (data.progress) setProgressDb(data.progress);
-              if (data.pointsLogs) setPointsLogDb(data.pointsLogs);
               // Append new global events without touching existing personal events
               if (data.globalCalendarEvents && data.globalCalendarEvents.length > 0) {
                 setCalendarEventsDb((prev: CalendarEvent[]) => {
@@ -3523,11 +3503,6 @@ function AppContent({
                 localStorage.setItem(
                   "progress_db",
                   JSON.stringify(data.progress),
-                );
-              if (data.pointsLogs)
-                localStorage.setItem(
-                  "points_log",
-                  JSON.stringify(data.pointsLogs),
                 );
                if (data.globalCalendarEvents || data.calendarEvents) {
                 localStorage.setItem(
@@ -3686,10 +3661,6 @@ function AppContent({
         setProgressDb(meData.progress);
         localStorage.setItem("progress_db", JSON.stringify(meData.progress));
       }
-      if (meData.pointsLogs) {
-        setPointsLogDb(meData.pointsLogs);
-        localStorage.setItem("points_log", JSON.stringify(meData.pointsLogs));
-      }
     })().catch(() => {
       setOauthRecoveryPending(false);
       setOauthRedirectError("Google authentication could not be completed. Please try again.");
@@ -3776,13 +3747,10 @@ function AppContent({
           setCurrentUser(data.user);
           setActiveAccountId(data.user.id);
           if (data.progress)    setProgressDb(data.progress);
-          if (data.pointsLogs)  setPointsLogDb(data.pointsLogs);
           SecureStorage.set("logged_user", JSON.stringify(data.user));
           if (data.token) await SecureStorage.set("auth_token", data.token);
           if (data.progress)
             localStorage.setItem("progress_db", JSON.stringify(data.progress));
-          if (data.pointsLogs)
-            localStorage.setItem("points_log", JSON.stringify(data.pointsLogs));
         } catch { /* network error — startup call already handled fallback */ }
       })();
     }
@@ -3807,13 +3775,10 @@ function AppContent({
           setCurrentUser(data.user);
           setActiveAccountId(data.user.id);
           if (data.progress)    setProgressDb(data.progress);
-          if (data.pointsLogs)  setPointsLogDb(data.pointsLogs);
           SecureStorage.set("logged_user", JSON.stringify(data.user));
           if (data.token) await SecureStorage.set("auth_token", data.token);
           if (data.progress)
             localStorage.setItem("progress_db", JSON.stringify(data.progress));
-          if (data.pointsLogs)
-            localStorage.setItem("points_log", JSON.stringify(data.pointsLogs));
         } catch { /* network error — startup call already handled fallback */ }
       })();
     }
@@ -4223,12 +4188,10 @@ function AppContent({
     setCurrentUser(data.user);
     setActiveAccountId(data.user.id);
     setProgressDb(data.progress || []);
-    setPointsLogDb(data.pointsLogs || []);
     setCalendarEventsDb(filterAcademicCalendarEvents(data.calendarEvents || []));
 
     SecureStorage.set("logged_user", JSON.stringify(data.user));
     localStorage.setItem("progress_db", JSON.stringify(data.progress || []));
-    localStorage.setItem("points_log", JSON.stringify(data.pointsLogs || []));
     localStorage.setItem("calendar_events", JSON.stringify(filterAcademicCalendarEvents(data.calendarEvents || [])));
   };
 
@@ -4477,11 +4440,6 @@ const handleSignOut = useCallback(async () => {
     }
   }, [language]);
 
-  // Incremental points reward engine (De-activated / Silent no-op for points removal)
-  const handleAddPoints = useCallback((amount: number, reason: string) => {
-    // Silent no-op under the points removal requirement
-       
-  }, []);
 
   // Update lecture specific study tasks completions
   const handleUpdateLectureProgress = useCallback(
@@ -4518,9 +4476,9 @@ const handleSignOut = useCallback(async () => {
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
       // Direct synchronization
-      syncWithBackend(currentUser, updatedDb, pointsLogDb);
+      syncWithBackend(currentUser, updatedDb);
     },
-    [activeLecture, currentUser, progressDb, pointsLogDb],
+    [activeLecture, currentUser, progressDb],
   );
 
   const handleDeleteEvent = useCallback(
@@ -4545,7 +4503,7 @@ const handleSignOut = useCallback(async () => {
         });
       }
     },
-    [calendarEventsDb, currentUser, progressDb, pointsLogDb],
+    [calendarEventsDb, currentUser, progressDb],
   );
 
   const handleEditEvent = useCallback((event: CalendarEvent) => {
@@ -4671,9 +4629,9 @@ const handleSignOut = useCallback(async () => {
       setTimeout(() => localStorage.setItem("progress_db", JSON.stringify(updatedDb)), 0);
 
       // Direct synchronization
-      syncWithBackend(currentUser, updatedDb, pointsLogDb);
+      syncWithBackend(currentUser, updatedDb);
     },
-    [activeHomeLecture, currentUser, progressDb, pointsLogDb],
+    [activeHomeLecture, currentUser, progressDb],
   );
 
   const activeLectureUser = useMemo(() => ({
@@ -6052,7 +6010,6 @@ const handleSignOut = useCallback(async () => {
             await SecureStorage.set("logged_user", JSON.stringify(completedUser));
             setActiveAccountId(completedUser.id);
             if (responseData.progress) setProgressDb(responseData.progress);
-            if (responseData.pointsLogs) setPointsLogDb(responseData.pointsLogs);
             if (responseData.calendarEvents) {
               setCalendarEventsDb(filterAcademicCalendarEvents(responseData.calendarEvents));
             }
@@ -6727,7 +6684,6 @@ const handleSignOut = useCallback(async () => {
                                 lecture={activeHomeLecture}
                                 progress={activeHomeLectureProgress}
                                 onUpdateProgress={handleUpdateHomeLectureProgress}
-                                onAddPoints={handleAddPoints}
                                 onBack={handleHomeLectureBack}
                                 currentUser={activeLectureUser}
                                 language={language}
@@ -6928,7 +6884,6 @@ const handleSignOut = useCallback(async () => {
                                 lecture={activeLecture}
                                 progress={activeLectureProgress}
                                 onUpdateProgress={handleUpdateLectureProgress}
-                                onAddPoints={handleAddPoints}
                                 onBack={handleLegacyLectureBack}
                                 currentUser={activeLectureUser}
                                 language={language}
@@ -7202,7 +7157,6 @@ const handleSignOut = useCallback(async () => {
 <ErrorBoundary>
                   <ProfileView
                     user={currentUser}
-                    pointsLog={pointsLogDb}
                     subjects={subjects}
                     progress={progressDb}
                     dbLectures={dbLectures}
@@ -7413,12 +7367,9 @@ const handleSignOut = useCallback(async () => {
                     <ControlCenterView
                       currentUser={currentUser}
                       progressDb={progressDb}
-                      pointsLogDb={pointsLogDb}
                       calendarEventsDb={calendarEventsDb}
                       subjects={subjects}
-                      onAddPoints={handleAddPoints}
                       onUpdateLectureProgress={handleUpdateLectureProgress}
-                      onSync={syncWithBackend}
                       onForceLocalReset={handleForceLocalReset}
                       language={language}
                       onRefreshSubjects={async () => {

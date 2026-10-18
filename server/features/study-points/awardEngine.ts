@@ -40,6 +40,7 @@ import { lockStudyPointsKeys } from "./locks.js";
 import { StudyPointsLedgerService } from "./ledger.js";
 import { notifyStudyPointsPostCommit } from "./postCommitHooks.js";
 import { StudyPointsError } from "./errors.js";
+import { getStudyPointsCompetitiveEpoch } from "./epoch.js";
 import { getEligibleBaghdadDayFocusSeconds } from "./sources/consistency.js";
 import { loadCompletedFocusSource } from "./sources/focus.js";
 import { loadGroupFocusSource } from "./sources/groupFocus.js";
@@ -458,6 +459,9 @@ export class StudyPointsAwardEngine {
     },
   ): Promise<StudyPointsAwardAttempt> {
     if (input.effectiveAt > input.now) return noAward("NOT_ELIGIBLE");
+    if (input.effectiveAt < getStudyPointsCompetitiveEpoch()) {
+      return noAward("BEFORE_COMPETITIVE_EPOCH");
+    }
     const idempotencyKey = input.consistencyIdempotencyKey
       ?? studyPointsAwardIdempotencyKey({
         userId: input.userId,

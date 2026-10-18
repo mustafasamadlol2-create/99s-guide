@@ -18,7 +18,6 @@ import {
   Lecture,
   UserProgress,
   CalendarEvent,
-  PointsLog,
 } from "../../core/types";
 
 interface UnsyncedMutation {
@@ -251,18 +250,7 @@ class OfflineEngineClass {
     try { localStorage.setItem(accountStorageKey("progress_db"), JSON.stringify(progress)); } catch(e){}
   }
 
-  public getCachedPointsLogs(): PointsLog[] {
-    try {
-      const saved = localStorage.getItem(accountStorageKey("points_log"));
-      return saved ? safeJsonParse<PointsLog[]>(saved, []) : [];
-    } catch {
-      return [];
-    }
-  }
 
-  public setCachedPointsLogs(logs: PointsLog[]): void {
-    try { localStorage.setItem(accountStorageKey("points_log"), JSON.stringify(logs)); } catch(e){}
-  }
 
   // --- Queue Failed Requests (Queue and Background Sync) ---
 
@@ -640,7 +628,6 @@ class OfflineEngineClass {
                 body: JSON.stringify({
                   userId: mutation.payload.userId,
                   progress: mutation.payload.progress,
-                  pointsLogs: mutation.payload.pointsLogs || [],
                 }),
                 silent: true,
               });

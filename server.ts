@@ -7512,7 +7512,7 @@ async function getAuthenticatedUser(userId: string): Promise<any> {
   if (cached && cached.expiresAt > Date.now()) return cached.user;
   authenticatedUserCache.delete(userId);
 
-  const user = await UserService.findById(userId);
+  const user = await UserService.findById(userId, { includePoints: false });
   if (user) {
     authenticatedUserCache.set(userId, {
       user,
@@ -10465,10 +10465,10 @@ app.post("/api/auth/track-time", requireUser, catchAsync(async (req, res) => {
 // Full state bidirectional sync (merges client databases with server-side nodes)
 app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
   try {
-    const { userId, user, progress = [], pointsLogs = [] } = req.body;
+    const { userId, user, progress = [] } = req.body;
     if (!userId) return res.status(400).json({ error: "User context ID is required." });
-    if (!Array.isArray(progress) || !Array.isArray(pointsLogs)) {
-      return res.status(400).json({ error: "progress and pointsLogs must be arrays." });
+    if (!Array.isArray(progress)) {
+      return res.status(400).json({ error: "progress must be an array." });
     }
 
     const authUser = (req as any).user;
@@ -10495,10 +10495,6 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
 
     const prismaClient = getPrisma();
     const ops = [];
-
-    if (pointsLogs.length > 100) {
-      return res.status(400).json({ error: "Too many points records in one synchronization request." });
-    }
 
     // Save/Sync Course progress items
     for (const p of progress) {
@@ -10529,8 +10525,8 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
       }));
     }
 
-    // Older clients still submit pointsLogs in their sync payload. Keep
-    // accepting that field, but never let clients create or edit point history.
+    // Points are never synchronized from the client. Study Points V2 is
+    // server-authoritative and is read from the canonical ledger only.
 
     // Legacy clients may still send `calendarEvents`. The field is accepted
     // only for response compatibility; it is deliberately ignored so stale

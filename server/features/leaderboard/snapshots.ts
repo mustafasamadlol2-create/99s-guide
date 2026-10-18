@@ -23,6 +23,7 @@ import {
   leaderboardSeasonToWindow,
 } from "./seasons.js";
 import { readRankedLeaderboardScores } from "./scores.js";
+import { getStudyPointsCompetitiveEpoch } from "../study-points/epoch.js";
 import { enqueueLeaderboardSnapshotProjection } from "./d1Outbox.js";
 import { LEADERBOARD_SCOPES } from "./types.js";
 import type {
@@ -454,7 +455,12 @@ export async function refreshActiveLeaderboardSnapshotsForUser(
       select: { updatedAt: true },
     }),
     database.studyPointsLedgerEntry.findFirst({
-      where: { userId: input.userId },
+      where: {
+        userId: input.userId,
+        effectiveAt: { gte: getStudyPointsCompetitiveEpoch() },
+        sourceType: { not: "LEGACY_POINTS_LOG" },
+        category: { not: "LEGACY" },
+      },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { createdAt: true },
     }),
@@ -546,13 +552,23 @@ export async function getReadableLeaderboardSnapshot(input: {
       "FINAL",
       database,
     );
-    if (!snapshot) {
+    if (snapshot && isLeaderboardSnapshotScoringCurrent(snapshot, scope)) {
+      return { snapshot, isStale: false };
+    }
+    // A final snapshot created by the retired legacy scoring model is not
+    // readable after the V2 cutover. Rebuild it once with ledger-only rules.
+    const rebuilt = await rebuildLeaderboardSnapshot({
+      seasonId: input.season.id,
+      now,
+      forceRevision: true,
+    }, database);
+    if (!isLeaderboardSnapshotScoringCurrent(rebuilt, scope)) {
       throw new LeaderboardError(
         "LEADERBOARD_SNAPSHOT_NOT_FOUND",
-        "Closed season does not have a final leaderboard snapshot.",
+        "Closed season scoring mode could not be refreshed.",
       );
     }
-    return { snapshot, isStale: false };
+    return { snapshot: rebuilt, isStale: false };
   }
   const initial = await getLatestLeaderboardSnapshot(
     input.season.id,
