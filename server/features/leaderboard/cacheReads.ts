@@ -409,9 +409,11 @@ export async function getLeaderboardPageWithCache(input: {
     }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
     // These reads are independent after resolving the canonical snapshot.
-    // Run the PostgreSQL roster check and both D1 reads together instead of
-    // serially adding a database/Worker round trip to every leaderboard open.
-    const [manifest, page, activeUserCount] = await Promise.all([
+    // Run the PostgreSQL roster/source checks and both D1 reads together instead
+    // of serially adding round trips to every leaderboard open. A LIVE D1
+    // snapshot must never hide a newly committed Points V2 ledger entry merely
+    // because its age is still inside the normal freshness window.
+    const [manifest, page, activeUserCount, ledgerChangeAfterSnapshot] = await Promise.all([
       input.cursor ? Promise.resolve(null) : getCurrentManifest(season),
       getPage(snapshot, limit, input.cursor),
       season.status === "CLOSED"
@@ -422,7 +424,21 @@ export async function getLeaderboardPageWithCache(input: {
             createdAt: { lte: now },
           },
         }),
+      input.cursor || snapshot.snapshotType === "FINAL"
+        ? Promise.resolve(null)
+        : database.studyPointsLedgerEntry.findFirst({
+          where: {
+            createdAt: { gt: snapshot.generatedAt },
+            sourceType: { not: "LEGACY_POINTS_LOG" },
+            category: { not: "LEGACY" },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { id: true },
+        }),
     ]);
+    if (!input.cursor && ledgerChangeAfterSnapshot) {
+      throw new CacheRejected("Canonical Points V2 ledger is newer than the cached leaderboard snapshot.");
+    }
     if (season.status !== "CLOSED" && snapshot.entryCount !== activeUserCount) {
       throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
     }
@@ -571,6 +587,20 @@ export async function getMyLeaderboardRankWithCache(input: {
       throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
     }
     if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
+    if (snapshot.snapshotType === "LIVE") {
+      const ledgerChangeAfterSnapshot = await database.studyPointsLedgerEntry.findFirst({
+        where: {
+          createdAt: { gt: snapshot.generatedAt },
+          sourceType: { not: "LEGACY_POINTS_LOG" },
+          category: { not: "LEGACY" },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true },
+      });
+      if (ledgerChangeAfterSnapshot) {
+        throw new CacheRejected("Canonical Points V2 ledger is newer than the cached leaderboard snapshot.");
+      }
+    }
     const manifest = await getCurrentManifest(season);
     validateManifestForSnapshot(manifest, season, snapshot);
     if (manifest.snapshotId !== snapshot.id) {

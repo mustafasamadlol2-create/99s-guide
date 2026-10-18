@@ -152,12 +152,16 @@ const policies: readonly IntegrityPolicy[] = [
     "SERVER_VALIDATED",
     backendOnly,
     serverTimestampPolicy,
+    ["SERVER_VALIDATED"],
+    "SERVER_VALIDATED",
   ),
   policy(
     INTEGRITY_ACTION_TYPES.FLASHCARD_REVIEW,
     "SERVER_VALIDATED",
     backendOnly,
     serverTimestampPolicy,
+    ["SERVER_VALIDATED"],
+    "SERVER_VALIDATED",
   ),
   policy(
     INTEGRITY_ACTION_TYPES.RECALL_ANSWER,
