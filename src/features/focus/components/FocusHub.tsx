@@ -804,11 +804,26 @@ export function FocusHub({
           return null;
         }
         if (!areFocusPlanDraftsEqual(draft, focusPlanToDraft(latest))) {
-          const updated = await focusApi.updateFocusPlan(latest.id, {
-            title: latest.title,
-            timezone: latest.timezone,
-            items: focusPlanItemsFromDraft(draft, true),
-          });
+          let updated: FocusPlanRecord;
+          try {
+            updated = await focusApi.updateFocusPlan(latest.id, {
+              title: latest.title,
+              timezone: latest.timezone,
+              items: focusPlanItemsFromDraft(draft, true),
+            });
+          } catch (error) {
+            // A plan item that already has Focus-session history is an immutable
+            // historical record. Editing the planner should transparently fork a
+            // fresh active plan rather than forcing the student to understand
+            // internal history constraints or surfacing a generic save failure.
+            if (getApiErrorCode(error) !== "PLAN_ITEM_HAS_HISTORY") throw error;
+            await focusApi.archiveFocusPlan(latest.id);
+            updated = await focusApi.createFocusPlan({
+              title: latest.title,
+              timezone: latest.timezone,
+              items: focusPlanItemsFromDraft(draft, false),
+            });
+          }
           setCanonical(updated);
           setDraft(focusPlanToDraft(updated));
           setServerConflict(null);

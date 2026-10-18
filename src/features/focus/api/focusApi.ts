@@ -142,6 +142,18 @@ function stringField(value: unknown, name: string, options: { uuid?: boolean; nu
   return value;
 }
 
+function opaqueIdentifierField(value: unknown, name: string): string {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.length > 500 ||
+    /[\u0000-\u001f\u007f]/u.test(value)
+  ) {
+    throw protocol(`Invalid Focus ${name}.`);
+  }
+  return value;
+}
+
 function cursorField(value: unknown): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(value)) {
     throw protocol("Invalid Focus history cursor.");
@@ -196,7 +208,7 @@ function planResource(value: unknown) {
   ) {
     throw protocol("Invalid Focus plan resource type.");
   }
-  stringField(item.resourceId, "plan resource ID", { uuid: true });
+  opaqueIdentifierField(item.resourceId, "plan resource ID");
   const sequence = numberField(item.sequence, "plan resource sequence");
   if (sequence === null || sequence < 1) throw protocol("Invalid Focus plan resource sequence.");
   return item;

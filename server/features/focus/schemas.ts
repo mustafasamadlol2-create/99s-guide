@@ -23,6 +23,11 @@ const timezone = z.string()
       return false;
     }
   }, "Timezone must be a valid IANA time zone.");
+const opaqueResourceId = z.string()
+  .trim()
+  .min(1)
+  .max(500)
+  .refine((value) => !/[\u0000-\u001f\u007f]/u.test(value), "Resource ID contains invalid control characters.");
 const idempotencyKey = z.string()
   .trim()
   .min(8)
@@ -48,7 +53,10 @@ export const focusPlanResourceTypeSchema = z.enum([
 
 export const focusPlanResourceSelectionSchema = z.object({
   resourceType: focusPlanResourceTypeSchema,
-  resourceId: uuid,
+  // Material IDs are historically opaque strings in this app. Older imported
+  // content can legitimately use non-UUID IDs, so validate ownership against
+  // PostgreSQL instead of rejecting the identifier shape at the API boundary.
+  resourceId: opaqueResourceId,
   sequence: z.number().int().min(1).max(500),
 }).strict();
 
@@ -140,7 +148,7 @@ export const abandonFocusSessionSchema = z.object({
 
 export const resourceHandoffStartSchema = z.object({
   resourceType: z.enum(["PDF", "VIDEO"]),
-  resourceId: uuid,
+  resourceId: opaqueResourceId,
   idempotencyKey,
   source: clientSource,
 }).strict();

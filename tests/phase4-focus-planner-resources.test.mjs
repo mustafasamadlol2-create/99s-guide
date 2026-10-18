@@ -66,6 +66,18 @@ const checks = [
     assert.match(model, /deriveLegacyFocusResourceFlags/u);
     assert.match(model, /resources\.some\(\(resource\) => resource\.resourceType === "VIDEO"\)/u);
   }],
+
+  ['legacy imported Material IDs remain valid Focus resource identifiers', () => {
+    assert.match(focusSchemas, /const opaqueResourceId = z\.string\(\)/u);
+    assert.match(focusSchemas, /resourceId:\s*opaqueResourceId/u);
+    assert.doesNotMatch(focusSchemas, /resourceId:\s*uuid,/u);
+    assert.match(api, /opaqueIdentifierField\(item\.resourceId, "plan resource ID"\)/u);
+  }],
+  ['editing a historical active plan forks a fresh plan instead of failing save', () => {
+    assert.match(hub, /getApiErrorCode\(error\) !== "PLAN_ITEM_HAS_HISTORY"/u);
+    assert.match(hub, /archiveFocusPlan\(latest\.id\)/u);
+    assert.match(hub, /createFocusPlan\(\{[\s\S]*focusPlanItemsFromDraft\(draft, false\)/u);
+  }],
   ['planner refuses to start a lecture with no selected study resources', () => {
     assert.match(model, /item\.resources\.length > 0/u);
     assert.match(hub, /focusHubChooseAtLeastOneResource/u);
