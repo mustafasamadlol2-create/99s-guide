@@ -20,7 +20,7 @@ test("MCQ points require a server-validated correct answer", async () => {
     id: "event-1",
     source: "backend",
     evidenceClass: "SERVER_VALIDATED",
-    occurredAt: new Date("2026-09-25T10:00:00.000Z"),
+    occurredAt: new Date("2026-10-18T13:00:00.000Z"),
     payload: { correct: true },
   };
   const tx = {
@@ -44,6 +44,53 @@ test("MCQ points require a server-validated correct answer", async () => {
   );
 });
 
+test("MCQ Points V2 ignores pre-cutover history when locating the first eligible correct answer", async () => {
+  let capturedArgs: any = null;
+  const currentEvent = {
+    id: "event-current",
+    source: "backend",
+    evidenceClass: "SERVER_VALIDATED",
+    occurredAt: new Date("2026-10-18T13:05:00.000Z"),
+    payload: { correct: true },
+  };
+  const tx = {
+    studyEvent: {
+      findFirst: async (args: any) => {
+        capturedArgs = args;
+        return currentEvent;
+      },
+    },
+  } as never;
+
+  const result = await loadFirstCorrectMcqSource(tx, "user-1", "mcq-existing-before-cutover");
+  assert.equal("source" in result, true);
+  assert.equal(
+    capturedArgs?.where?.occurredAt?.gte?.toISOString(),
+    "2026-10-18T12:32:00.000Z",
+  );
+  if ("source" in result) {
+    assert.equal(result.source.effectiveAt.toISOString(), "2026-10-18T13:05:00.000Z");
+  }
+});
+
+test("Points V2 rejects a historical learning event returned outside the competitive window", async () => {
+  const tx = {
+    studyEvent: {
+      findFirst: async () => ({
+        id: "event-old",
+        source: "backend",
+        evidenceClass: "SERVER_VALIDATED",
+        occurredAt: new Date("2026-10-18T12:31:59.999Z"),
+        payload: { correct: true },
+      }),
+    },
+  } as never;
+  assert.deepEqual(
+    await loadFirstCorrectMcqSource(tx, "user-1", "mcq-old"),
+    { reason: "INSUFFICIENT_EVIDENCE" },
+  );
+});
+
 test("flashcard points require a server-validated successful recall rating", async () => {
   const tx = {
     studyEvent: {
@@ -51,7 +98,7 @@ test("flashcard points require a server-validated successful recall rating", asy
         id: "event-1",
         source: "backend",
         evidenceClass: "SERVER_VALIDATED",
-        occurredAt: new Date("2026-09-25T10:00:00.000Z"),
+        occurredAt: new Date("2026-10-18T13:00:00.000Z"),
         payload: { quality: "GOOD" },
       }),
     },
@@ -142,6 +189,7 @@ test("source idempotency keys are stable and scoped to rule and source", () => {
     reasonCode: "focus.verified_completion",
   };
   const key = studyPointsAwardIdempotencyKey(base);
+  assert.match(key, /^points:v2:[a-f0-9]{64}$/);
   assert.equal(studyPointsAwardIdempotencyKey(base), key);
   assert.notEqual(studyPointsAwardIdempotencyKey({ ...base, sourceId: "session-2" }), key);
   assert.notEqual(studyPointsAwardIdempotencyKey({ ...base, userId: "user-2" }), key);
@@ -152,6 +200,7 @@ test("source idempotency keys are stable and scoped to rule and source", () => {
     baghdadDate: "2026-09-25",
     ruleVersion: "daily-consistency-v1",
   });
+  assert.match(dailyKey, /^points:v2:[a-f0-9]{64}$/);
   assert.equal(dailyKey, studyPointsConsistencyIdempotencyKey({
     userId: "user-1",
     baghdadDate: "2026-09-25",

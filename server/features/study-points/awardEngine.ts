@@ -462,6 +462,7 @@ export class StudyPointsAwardEngine {
     if (input.effectiveAt < getStudyPointsCompetitiveEpoch()) {
       return noAward("BEFORE_COMPETITIVE_EPOCH");
     }
+    const competitiveEpoch = getStudyPointsCompetitiveEpoch();
     const idempotencyKey = input.consistencyIdempotencyKey
       ?? studyPointsAwardIdempotencyKey({
         userId: input.userId,
@@ -479,6 +480,51 @@ export class StudyPointsAwardEngine {
         ? [studyPointsWeeklyCapLockKey(input.userId, weeklyPeriod.startsAt)]
         : []),
     ]);
+
+    // Phase 1 was deployed on top of historical V1 ledger rows. Some users
+    // may also have earned a legitimate post-cutover award during the first
+    // Phase 1 deployment before the epoch-scoped key fix. Detect a canonical
+    // V2-window award by its source/rule first so the corrective release never
+    // duplicates a valid post-cutover reward, while old pre-cutover rows cannot
+    // block a fresh V2 award.
+    const canonicalExisting = await tx.studyPointsLedgerEntry.findFirst({
+      where: {
+        userId: input.userId,
+        category: input.rule.category,
+        reasonCode: input.rule.reasonCode,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        ruleVersion: input.rule.ruleVersion,
+        effectiveAt: { gte: competitiveEpoch },
+      },
+      orderBy: [{ effectiveAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    });
+    if (canonicalExisting) {
+      if (!studyPointsExistingEntryMatchesRule(canonicalExisting, {
+        userId: input.userId,
+        category: input.rule.category,
+        reasonCode: input.rule.reasonCode,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        ruleVersion: input.rule.ruleVersion,
+        effectiveAt: input.effectiveAt,
+        baseRuleAmount: input.baseRuleAmount,
+        ...(input.canonicalDurationSeconds !== undefined
+          ? { canonicalDurationSeconds: input.canonicalDurationSeconds }
+          : {}),
+        baghdadDate: input.baghdadDate,
+      }, input.compareEffectiveAtOnReplay !== false)) {
+        throw new StudyPointsError(
+          "POINTS_IDEMPOTENCY_CONFLICT",
+          "Existing V2 Study Points entry conflicts with canonical reward data.",
+        );
+      }
+      return {
+        decision: decisionFromEntry(canonicalExisting),
+        entry: canonicalExisting,
+        replayed: true,
+      };
+    }
 
     const where = {
       userId_idempotencyKey: {

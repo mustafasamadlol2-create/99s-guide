@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { INTEGRITY_ACTION_TYPES } from "../../study-integrity/constants.js";
+import { getStudyPointsCompetitiveEpoch } from "../epoch.js";
 
 export type VerifiedLearningActivity = {
   userId: string;
@@ -42,6 +43,12 @@ async function loadVerifiedEvent(
   },
 ): Promise<LearningActivityLoadResult> {
   const field = input.kind === "mcq" ? "mcqId" : "flashcardId";
+  // Points V2 deliberately starts from the competitive epoch. A user may have
+  // answered/reviewed the same item before the cutover; those historical
+  // events must not shadow a new eligible event after T0. Query the first
+  // verified eligible event *inside* the V2 window rather than the first one
+  // across the user's entire history.
+  const competitiveEpoch = getStudyPointsCompetitiveEpoch();
   const event = await (tx as unknown as StudyEventReader).studyEvent.findFirst({
     where: {
       userId: input.userId,
@@ -49,6 +56,7 @@ async function loadVerifiedEvent(
       eventType: input.eventType,
       source: "backend",
       evidenceClass: "SERVER_VALIDATED",
+      occurredAt: { gte: competitiveEpoch },
       OR: input.kind === "mcq"
         ? [{ payload: { path: ["correct"], equals: true } }]
         : [
@@ -76,6 +84,7 @@ async function loadVerifiedEvent(
     || event.evidenceClass !== "SERVER_VALIDATED"
     || !(event.occurredAt instanceof Date)
     || !Number.isFinite(event.occurredAt.getTime())
+    || event.occurredAt < competitiveEpoch
   ) {
     return { reason: "INSUFFICIENT_EVIDENCE" };
   }

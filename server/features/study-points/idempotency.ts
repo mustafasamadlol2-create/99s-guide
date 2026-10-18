@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalJson } from "../study-core/canonicalJson.js";
 import type { StudyPointsCategory, StudyPointsSourceType } from "./constants.js";
+import { getStudyPointsCompetitiveEpoch } from "./epoch.js";
 
 function digest(parts: readonly string[]): string {
   return createHash("sha256")
@@ -15,7 +16,11 @@ export function studyPointsAwardIdempotencyKey(input: {
   ruleVersion: string;
   reasonCode: string;
 }): string {
-  return `points:v1:${digest([
+  // Scope canonical award keys to the Points V2 epoch. Historical V1 ledger
+  // entries intentionally remain in PostgreSQL, so reusing their key would
+  // make an old pre-cutover reward block a legitimate post-cutover reward.
+  return `points:v2:${digest([
+    getStudyPointsCompetitiveEpoch().toISOString(),
     input.userId,
     input.sourceType,
     input.sourceId,
@@ -29,7 +34,8 @@ export function studyPointsConsistencyIdempotencyKey(input: {
   baghdadDate: string;
   ruleVersion: string;
 }): string {
-  return `points:v1:${digest([
+  return `points:v2:${digest([
+    getStudyPointsCompetitiveEpoch().toISOString(),
     "daily-consistency",
     input.userId,
     input.baghdadDate,
