@@ -188,12 +188,29 @@ function session(value: unknown): FocusSessionDto {
   return item as unknown as FocusSessionDto;
 }
 
+function planResource(value: unknown) {
+  const item = record(value, "plan resource");
+  if (
+    typeof item.resourceType !== "string" ||
+    !["PDF", "NOTE", "MCQ_SET", "FLASHCARD_SET", "VIDEO"].includes(item.resourceType)
+  ) {
+    throw protocol("Invalid Focus plan resource type.");
+  }
+  stringField(item.resourceId, "plan resource ID", { uuid: true });
+  const sequence = numberField(item.sequence, "plan resource sequence");
+  if (sequence === null || sequence < 1) throw protocol("Invalid Focus plan resource sequence.");
+  return item;
+}
+
 function planItem(value: unknown): FocusPlanItemDto {
   const item = record(value, "plan item");
   stringField(item.id, "plan item ID", { uuid: true });
   stringField(item.lectureId, "lecture ID", { uuid: true });
   for (const name of ["sequence", "sessionCount", "focusDurationSeconds", "breakDurationSeconds"]) numberField(item[name], name);
   for (const name of ["includeMcq", "includeFlashcards", "includeVideo"]) booleanField(item[name], name);
+  if (item.resources === undefined) item.resources = [];
+  if (!Array.isArray(item.resources)) throw protocol("Invalid Focus plan resources.");
+  item.resources = item.resources.map(planResource);
   return item as unknown as FocusPlanItemDto;
 }
 
@@ -613,6 +630,7 @@ function itemBody(item: CreateFocusPlanInput["items"][number], includeId: boolea
     includeMcq: item.includeMcq,
     includeFlashcards: item.includeFlashcards,
     includeVideo: item.includeVideo,
+    resources: item.resources ?? [],
   };
 }
 

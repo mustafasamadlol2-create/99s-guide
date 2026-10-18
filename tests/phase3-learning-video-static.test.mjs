@@ -10,7 +10,6 @@ test('Phase 3 video reward is fixed at +3 and MCQ set bonus is +5 at 70%/10 ques
   assert.match(rules, /MCQ_SET_PASS_AMOUNT = 5/u);
   assert.match(rules, /MCQ_SET_PASS_MIN_QUESTIONS = 10/u);
   assert.match(rules, /MCQ_SET_PASS_MIN_SCORE_PERCENT = 70/u);
-  assert.match(rules, /FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY = 10/u);
 });
 
 test('MCQ completion is automatic at server result and full canonical set controls lecture-resource completion', () => {

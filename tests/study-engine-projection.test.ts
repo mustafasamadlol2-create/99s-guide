@@ -75,6 +75,7 @@ test("Focus Plan projection is bounded, canonical, and sequence ordered", () => 
     "includeMcq",
     "includeVideo",
     "lectureId",
+    "resources",
     "sequence",
     "sessionCount",
   ]);

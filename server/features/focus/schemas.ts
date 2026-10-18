@@ -37,6 +37,34 @@ const idempotencyKey = z.string()
 const clientSource = z.enum(["web", "pwa", "ios", "android", "offline_replay"]);
 const interruptionReason = z.enum(["background_absence", "user_confirmed_interruption", "system_interruption"]);
 
+
+export const focusPlanResourceTypeSchema = z.enum([
+  "PDF",
+  "NOTE",
+  "MCQ_SET",
+  "FLASHCARD_SET",
+  "VIDEO",
+]);
+
+export const focusPlanResourceSelectionSchema = z.object({
+  resourceType: focusPlanResourceTypeSchema,
+  resourceId: uuid,
+  sequence: z.number().int().min(1).max(500),
+}).strict();
+
+const focusPlanResources = z.array(focusPlanResourceSelectionSchema)
+  .min(1, "Choose at least one study resource for each Focus Plan lecture.")
+  .max(500)
+  .refine(
+    (values) =>
+      new Set(values.map((item) => `${item.resourceType}:${item.resourceId}`)).size === values.length,
+    { message: "Focus Plan resource selections must be unique." },
+  )
+  .refine(
+    (values) => new Set(values.map((item) => item.sequence)).size === values.length,
+    { message: "Focus Plan resource sequences must be unique." },
+  );
+
 export const focusPlanItemInputSchema = z.object({
   id: uuid.optional(),
   lectureId: uuid,
@@ -49,6 +77,9 @@ export const focusPlanItemInputSchema = z.object({
   includeMcq: z.boolean(),
   includeFlashcards: z.boolean(),
   includeVideo: z.boolean(),
+  // Optional for compatibility with pre-Phase-4 clients/plans. New clients
+  // always send the exact resource IDs selected in the planner.
+  resources: focusPlanResources.optional(),
 }).strict();
 
 const items = z.array(focusPlanItemInputSchema)
@@ -163,6 +194,8 @@ export const focusHistoryQuerySchema = z.object({
 
 export type CreateFocusPlanInput = z.infer<typeof createFocusPlanSchema>;
 export type UpdateFocusPlanInput = z.infer<typeof updateFocusPlanSchema>;
+export type FocusPlanResourceType = z.infer<typeof focusPlanResourceTypeSchema>;
+export type FocusPlanResourceSelectionInput = z.infer<typeof focusPlanResourceSelectionSchema>;
 export type FocusPlanItemInput = z.infer<typeof focusPlanItemInputSchema>;
 export type StartFocusSessionInput = z.infer<typeof startFocusSessionSchema>;
 export type FocusSessionTransitionInput = z.infer<typeof focusSessionTransitionSchema>;

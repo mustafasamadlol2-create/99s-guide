@@ -1,3 +1,5 @@
+import type { DatabaseLecture } from "../../core/types";
+import type { FocusPlanResourceSelectionDto } from "../../../server/features/focus/types";
 import type { FocusApi } from "./api/focusApi";
 
 export type FocusPlanRecord = Awaited<ReturnType<FocusApi["getFocusPlan"]>>;
@@ -32,6 +34,7 @@ export interface FocusPlanDraftItem {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
+  resources: FocusPlanResourceSelectionDto[];
 }
 
 export interface FocusPlanDraft {
@@ -64,6 +67,56 @@ export function createEmptyFocusPlanDraft(): FocusPlanDraft {
     studyMinutes: 25,
     breakMinutes: 5,
     items: [],
+  };
+}
+
+export function focusResourcesForLecture(
+  lecture: DatabaseLecture,
+): FocusPlanResourceSelectionDto[] {
+  const resources: FocusPlanResourceSelectionDto[] = [];
+  let sequence = 1;
+  const materials = Array.isArray(lecture.materials) ? lecture.materials : [];
+  for (const material of materials) {
+    const type = String(material.type || "").toUpperCase();
+    const resourceType = type === "NOTES" ? "NOTE" : type;
+    if (resourceType === "PDF" || resourceType === "NOTE" || resourceType === "VIDEO") {
+      resources.push({
+        resourceType: resourceType as FocusPlanResourceSelectionDto["resourceType"],
+        resourceId: material.id,
+        sequence: sequence++,
+      });
+    }
+  }
+  if ((lecture.mcqs?.length ?? 0) > 0) {
+    resources.push({
+      resourceType: "MCQ_SET",
+      resourceId: lecture.id,
+      sequence: sequence++,
+    });
+  }
+  if ((lecture.flashcards?.length ?? 0) > 0) {
+    resources.push({
+      resourceType: "FLASHCARD_SET",
+      resourceId: lecture.id,
+      sequence: sequence++,
+    });
+  }
+  return resources;
+}
+
+function normalizeResourceSequence(
+  resources: readonly FocusPlanResourceSelectionDto[],
+): FocusPlanResourceSelectionDto[] {
+  return resources.map((resource, index) => ({ ...resource, sequence: index + 1 }));
+}
+
+export function deriveLegacyFocusResourceFlags(
+  resources: readonly FocusPlanResourceSelectionDto[],
+) {
+  return {
+    includeMcq: resources.some((resource) => resource.resourceType === "MCQ_SET"),
+    includeFlashcards: resources.some((resource) => resource.resourceType === "FLASHCARD_SET"),
+    includeVideo: resources.some((resource) => resource.resourceType === "VIDEO"),
   };
 }
 
@@ -100,6 +153,7 @@ export function focusPlanToDraft(plan: FocusPlanRecord): FocusPlanDraft {
       includeMcq: item.includeMcq,
       includeFlashcards: item.includeFlashcards,
       includeVideo: item.includeVideo,
+      resources: normalizeResourceSequence(item.resources ?? []),
     })),
   };
 }
@@ -137,6 +191,8 @@ export function isValidFocusPlanDraft(draft: FocusPlanDraft): boolean {
     draft.items.every(
       (item) =>
         isValidFocusSessionCount(item.sessionCount) &&
+        item.resources.length > 0 &&
+        new Set(item.resources.map((resource) => `${resource.resourceType}:${resource.resourceId}`)).size === item.resources.length &&
         Number.isInteger(item.focusDurationSeconds ?? draft.studyMinutes * 60) &&
         (item.focusDurationSeconds ?? draft.studyMinutes * 60) >=
           FOCUS_PLAN_LIMITS.minStudySeconds &&
@@ -195,17 +251,20 @@ export function focusPlanItemsFromDraft(
   draft: FocusPlanDraft,
   includeExistingIds: boolean,
 ) {
-  return draft.items.map((item, index) => ({
-    ...(includeExistingIds && item.id ? { id: item.id } : {}),
-    lectureId: item.lectureId,
-    sequence: index + 1,
-    sessionCount: item.sessionCount,
-    focusDurationSeconds: item.focusDurationSeconds ?? draft.studyMinutes * 60,
-    breakDurationSeconds: item.breakDurationSeconds ?? draft.breakMinutes * 60,
-    includeMcq: item.includeMcq,
-    includeFlashcards: item.includeFlashcards,
-    includeVideo: item.includeVideo,
-  }));
+  return draft.items.map((item, index) => {
+    const resources = normalizeResourceSequence(item.resources);
+    const flags = deriveLegacyFocusResourceFlags(resources);
+    return {
+      ...(includeExistingIds && item.id ? { id: item.id } : {}),
+      lectureId: item.lectureId,
+      sequence: index + 1,
+      sessionCount: item.sessionCount,
+      focusDurationSeconds: item.focusDurationSeconds ?? draft.studyMinutes * 60,
+      breakDurationSeconds: item.breakDurationSeconds ?? draft.breakMinutes * 60,
+      ...flags,
+      resources,
+    };
+  });
 }
 
 export function areFocusPlanDraftsEqual(
@@ -231,7 +290,17 @@ export function areFocusPlanDraftsEqual(
       item.breakDurationSeconds === other.breakDurationSeconds &&
       item.includeMcq === other.includeMcq &&
       item.includeFlashcards === other.includeFlashcards &&
-      item.includeVideo === other.includeVideo
+      item.includeVideo === other.includeVideo &&
+      item.resources.length === other.resources.length &&
+      item.resources.every((resource, resourceIndex) => {
+        const otherResource = other.resources[resourceIndex];
+        return (
+          otherResource &&
+          resource.resourceType === otherResource.resourceType &&
+          resource.resourceId === otherResource.resourceId &&
+          resource.sequence === otherResource.sequence
+        );
+      })
     );
   });
 }

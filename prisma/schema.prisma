@@ -650,6 +650,10 @@ model FocusPlanItem {
   includeMcq           Boolean
   includeFlashcards    Boolean
   includeVideo         Boolean
+  /// Phase 4: ordered, exact study targets selected in the Focus planner.
+  /// Material resources store their real Material UUID; MCQ/Flashcard sets
+  /// use the owning Lecture UUID as their stable set identifier.
+  resourceSelections   Json     @default("[]")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

@@ -8,6 +8,12 @@ export type ProjectionMetadata = {
   cohortScope?: string | null;
 };
 
+export type FocusPlanProjectionResource = {
+  resourceType: "PDF" | "NOTE" | "MCQ_SET" | "FLASHCARD_SET" | "VIDEO";
+  resourceId: string;
+  sequence: number;
+};
+
 export type FocusPlanProjectionItem = {
   id: string;
   lectureId: string;
@@ -18,6 +24,7 @@ export type FocusPlanProjectionItem = {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
+  resources?: FocusPlanProjectionResource[];
 };
 
 export type FocusPlanProjection = ProjectionMetadata & {
@@ -143,6 +150,15 @@ function boundedItems(items: readonly FocusPlanProjectionItem[]): string {
       includeMcq: Boolean(item.includeMcq),
       includeFlashcards: Boolean(item.includeFlashcards),
       includeVideo: Boolean(item.includeVideo),
+      resources: Array.isArray(item.resources)
+        ? item.resources
+            .map((resource) => ({
+              resourceType: requiredString(resource.resourceType, "item.resource.resourceType") as FocusPlanProjectionResource["resourceType"],
+              resourceId: requiredString(resource.resourceId, "item.resource.resourceId"),
+              sequence: integer(resource.sequence, "item.resource.sequence", 1),
+            }))
+            .sort((left, right) => left.sequence - right.sequence || left.resourceId.localeCompare(right.resourceId))
+        : [],
     }))
     .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id));
   const json = JSON.stringify(sorted);
@@ -260,5 +276,37 @@ export function parseFocusPlanItems(itemsJson: string): FocusPlanProjectionItem[
   if (!Array.isArray(parsed) || parsed.length > MAX_FOCUS_PLAN_ITEMS) {
     throw new Error("Invalid Focus Plan items projection.");
   }
-  return parsed as FocusPlanProjectionItem[];
+  return parsed.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Invalid Focus Plan item projection.");
+    }
+    const item = value as Record<string, unknown>;
+    const resources = Array.isArray(item.resources)
+      ? item.resources.map((resourceValue) => {
+          if (!resourceValue || typeof resourceValue !== "object" || Array.isArray(resourceValue)) {
+            throw new Error("Invalid Focus Plan resource projection.");
+          }
+          const resource = resourceValue as Record<string, unknown>;
+          return {
+            resourceType: requiredString(resource.resourceType, "item.resource.resourceType") as FocusPlanProjectionResource["resourceType"],
+            resourceId: requiredString(resource.resourceId, "item.resource.resourceId"),
+            sequence: integer(resource.sequence, "item.resource.sequence", 1),
+          };
+        })
+      : [];
+    return {
+      id: requiredString(item.id, "item.id"),
+      lectureId: requiredString(item.lectureId, "item.lectureId"),
+      sequence: integer(item.sequence, "item.sequence", 1),
+      sessionCount: integer(item.sessionCount, "item.sessionCount", 1),
+      focusDurationSeconds: integer(item.focusDurationSeconds, "item.focusDurationSeconds", 1),
+      breakDurationSeconds: integer(item.breakDurationSeconds, "item.breakDurationSeconds"),
+      includeMcq: Boolean(item.includeMcq),
+      includeFlashcards: Boolean(item.includeFlashcards),
+      includeVideo: Boolean(item.includeVideo),
+      resources: resources.sort(
+        (left, right) => left.sequence - right.sequence || left.resourceId.localeCompare(right.resourceId),
+      ),
+    };
+  });
 }

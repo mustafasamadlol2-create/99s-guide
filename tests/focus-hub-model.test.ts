@@ -52,6 +52,7 @@ test("plan estimates include breaks between sessions but not after the final ses
       includeMcq: false,
       includeFlashcards: false,
       includeVideo: false,
+      resources: [{ resourceType: "MCQ_SET", resourceId: "lecture-a", sequence: 1 }],
     },
     {
       lectureId: "lecture-b",
@@ -59,6 +60,7 @@ test("plan estimates include breaks between sessions but not after the final ses
       includeMcq: false,
       includeFlashcards: false,
       includeVideo: false,
+      resources: [{ resourceType: "MCQ_SET", resourceId: "lecture-b", sequence: 1 }],
     },
   ];
 
@@ -108,6 +110,10 @@ test("canonical plans load in sequence order and retain planner-safe options", (
         includeMcq: true,
         includeFlashcards: false,
         includeVideo: true,
+        resources: [
+          { resourceType: "MCQ_SET", resourceId: "lecture-b", sequence: 1 },
+          { resourceType: "VIDEO", resourceId: "video-b", sequence: 2 },
+        ],
       },
       {
         id: "item-a",
@@ -119,6 +125,7 @@ test("canonical plans load in sequence order and retain planner-safe options", (
         includeMcq: false,
         includeFlashcards: true,
         includeVideo: false,
+        resources: [{ resourceType: "FLASHCARD_SET", resourceId: "lecture-a", sequence: 1 }],
       },
     ],
   } satisfies FocusPlanRecord;
@@ -166,6 +173,7 @@ test("editing estimates preserve canonical per-lecture durations and omit the fi
         includeMcq: false,
         includeFlashcards: false,
         includeVideo: false,
+        resources: [{ resourceType: "PDF", resourceId: "pdf-a", sequence: 1 }],
       },
       {
         id: "item-b",
@@ -177,6 +185,7 @@ test("editing estimates preserve canonical per-lecture durations and omit the fi
         includeMcq: false,
         includeFlashcards: false,
         includeVideo: false,
+        resources: [{ resourceType: "PDF", resourceId: "pdf-b", sequence: 1 }],
       },
     ],
   } satisfies FocusPlanRecord;

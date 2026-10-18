@@ -187,7 +187,7 @@ test("Focus plan methods validate envelopes and only send allowed fields", async
     createdAt: now, updatedAt: now, archivedAt: null,
     items: [{
       id: itemId, lectureId, sequence: 1, sessionCount: 1, focusDurationSeconds: 60,
-      breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true,
+      breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true, resources: [],
     }],
   };
   const api = createFocusApi(async (path, options = {}) => {
@@ -200,7 +200,7 @@ test("Focus plan methods validate envelopes and only send allowed fields", async
   });
   assert.deepEqual(JSON.parse(String(calls[0].options.body)), {
     title: "Plan", timezone: "UTC",
-    items: [{ lectureId, sequence: 1, sessionCount: 1, focusDurationSeconds: 60, breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true }],
+    items: [{ lectureId, sequence: 1, sessionCount: 1, focusDurationSeconds: 60, breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true, resources: [] }],
   });
 });
 

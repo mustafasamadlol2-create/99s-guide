@@ -13,6 +13,12 @@ import type {
 } from "./schemas.js";
 import type { FocusSessionState } from "../study-core/focus.js";
 
+export interface FocusPlanResourceSelectionDto {
+  resourceType: "PDF" | "NOTE" | "MCQ_SET" | "FLASHCARD_SET" | "VIDEO";
+  resourceId: string;
+  sequence: number;
+}
+
 export interface FocusPlanItemDto {
   id: string;
   lectureId: string;
@@ -23,6 +29,7 @@ export interface FocusPlanItemDto {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
+  resources: FocusPlanResourceSelectionDto[];
 }
 
 export interface FocusPlanDto {
@@ -69,6 +76,7 @@ export interface FocusSessionMutationResult {
     includeMcq: boolean;
     includeFlashcards: boolean;
     includeVideo: boolean;
+    resources?: FocusPlanResourceSelectionDto[];
   };
 }
 

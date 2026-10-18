@@ -68,6 +68,11 @@ export interface FocusPlanItem {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
+  resources?: Array<{
+    resourceType: "PDF" | "NOTE" | "MCQ_SET" | "FLASHCARD_SET" | "VIDEO";
+    resourceId: string;
+    sequence: number;
+  }>;
 }
 
 export const FOCUS_RESOURCE_TYPES = [

@@ -16,6 +16,12 @@ import {
   ShieldCheck,
   Target,
   Trash2,
+  FileText,
+  StickyNote,
+  Brain,
+  Layers3,
+  Video,
+  Check,
 } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
@@ -44,6 +50,8 @@ import {
   estimateFocusPlan,
   focusPlanItemsFromDraft,
   focusPlanToDraft,
+  focusResourcesForLecture,
+  deriveLegacyFocusResourceFlags,
   isValidFocusBreakMinutes,
   isValidFocusPlanDraft,
   isValidFocusSessionCount,
@@ -474,6 +482,51 @@ export function FocusHub({
     [subjects],
   );
 
+  // Upgrade pre-Phase-4 plans in-place in the editable draft. Existing plans
+  // had only coarse booleans; the new planner persists exact resource IDs.
+  useEffect(() => {
+    if (!lectureMap.size) return;
+    setDraft((previous) => {
+      let changed = false;
+      const items = previous.items.map((item) => {
+        const lecture = lectureMap.get(item.lectureId);
+        if (!lecture) return item;
+        const available = focusResourcesForLecture(lecture);
+        if (!available.length) return item;
+
+        if (item.resources.length === 0) {
+          changed = true;
+          return {
+            ...item,
+            ...deriveLegacyFocusResourceFlags(available),
+            resources: available,
+          };
+        }
+
+        const availableKeys = new Set(
+          available.map((resource) => `${resource.resourceType}:${resource.resourceId}`),
+        );
+        const current = item.resources.filter((resource) =>
+          availableKeys.has(`${resource.resourceType}:${resource.resourceId}`),
+        );
+        if (current.length !== item.resources.length) {
+          const normalized = current.map((resource, index) => ({
+            ...resource,
+            sequence: index + 1,
+          }));
+          changed = true;
+          return {
+            ...item,
+            ...deriveLegacyFocusResourceFlags(normalized),
+            resources: normalized,
+          };
+        }
+        return item;
+      });
+      return changed ? { ...previous, items } : previous;
+    });
+  }, [lectureMap]);
+
   const canonicalDraft = useMemo(
     () => (canonicalPlan ? focusPlanToDraft(canonicalPlan) : createEmptyFocusPlanDraft()),
     [canonicalPlan],
@@ -483,6 +536,18 @@ export function FocusHub({
   const hasInvalidLecture = draft.items.some(
     (item) => !lectureMap.has(item.lectureId),
   );
+  const hasInvalidResourceSelection = draft.items.some((item) => {
+    const lecture = lectureMap.get(item.lectureId);
+    if (!lecture || item.resources.length === 0) return true;
+    const availableKeys = new Set(
+      focusResourcesForLecture(lecture).map(
+        (resource) => `${resource.resourceType}:${resource.resourceId}`,
+      ),
+    );
+    return item.resources.some(
+      (resource) => !availableKeys.has(`${resource.resourceType}:${resource.resourceId}`),
+    );
+  });
   const validDurations =
     isValidFocusStudyMinutes(draft.studyMinutes) &&
     isValidFocusBreakMinutes(draft.breakMinutes);
@@ -492,6 +557,7 @@ export function FocusHub({
   const isValid =
     isValidFocusPlanDraft(draft) &&
     !hasInvalidLecture &&
+    !hasInvalidResourceSelection &&
     draft.items.length <= FOCUS_PLAN_LIMITS.maxItems;
   const canEdit =
     loadState === "ready" &&
@@ -577,6 +643,8 @@ export function FocusHub({
         showNotice("focusHubTooManyItems", "error");
         return;
       }
+      const resources = focusResourcesForLecture(lecture);
+      const flags = deriveLegacyFocusResourceFlags(resources);
       setNotice(null);
       setDraft((previous) => ({
         ...previous,
@@ -587,9 +655,8 @@ export function FocusHub({
             sessionCount: 1,
             focusDurationSeconds: draft.studyMinutes * 60,
             breakDurationSeconds: draft.breakMinutes * 60,
-            includeMcq: false,
-            includeFlashcards: false,
-            includeVideo: false,
+            ...flags,
+            resources,
           },
         ],
       }));
@@ -663,6 +730,47 @@ export function FocusHub({
       ...previous,
       items: previous.items.filter((item) => item.lectureId !== lectureId),
     }));
+  };
+
+  const setLectureResources = (
+    lectureId: string,
+    resources: FocusPlanDraftItem["resources"],
+  ) => {
+    const normalized = resources.map((resource, index) => ({
+      ...resource,
+      sequence: index + 1,
+    }));
+    const flags = deriveLegacyFocusResourceFlags(normalized);
+    setNotice(null);
+    setDraft((previous) => ({
+      ...previous,
+      items: previous.items.map((item) =>
+        item.lectureId === lectureId
+          ? { ...item, ...flags, resources: normalized }
+          : item,
+      ),
+    }));
+  };
+
+  const toggleLectureResource = (
+    lectureId: string,
+    resource: FocusPlanDraftItem["resources"][number],
+  ) => {
+    const item = draft.items.find((candidate) => candidate.lectureId === lectureId);
+    if (!item) return;
+    const exists = item.resources.some(
+      (candidate) =>
+        candidate.resourceType === resource.resourceType &&
+        candidate.resourceId === resource.resourceId,
+    );
+    const next = exists
+      ? item.resources.filter(
+          (candidate) =>
+            candidate.resourceType !== resource.resourceType ||
+            candidate.resourceId !== resource.resourceId,
+        )
+      : [...item.resources, resource];
+    setLectureResources(lectureId, next);
   };
 
   const loadSavedPlan = () => {
@@ -1282,6 +1390,111 @@ export function FocusHub({
                           </button>
                         </div>
                       </div>
+
+                      {lecture && (() => {
+                        const availableResources = focusResourcesForLecture(lecture);
+                        const selectedKeys = new Set(
+                          item.resources.map(
+                            (resource) => `${resource.resourceType}:${resource.resourceId}`,
+                          ),
+                        );
+                        const materialMap = new Map(
+                          (lecture.materials ?? []).map((material) => [material.id, material]),
+                        );
+                        const resourceLabel = (
+                          resource: FocusPlanDraftItem["resources"][number],
+                        ) => {
+                          if (resource.resourceType === "MCQ_SET") {
+                            return `${t("focusHubResourceMcqs")} (${lecture.mcqs?.length ?? 0})`;
+                          }
+                          if (resource.resourceType === "FLASHCARD_SET") {
+                            return `${t("focusHubResourceFlashcards")} (${lecture.flashcards?.length ?? 0})`;
+                          }
+                          const material = materialMap.get(resource.resourceId);
+                          if (material?.title) return material.title;
+                          if (resource.resourceType === "PDF") return t("focusHubResourcePdf");
+                          if (resource.resourceType === "NOTE") return t("focusHubResourceNotes");
+                          return t("focusHubResourceVideo");
+                        };
+                        const resourceIcon = (
+                          resource: FocusPlanDraftItem["resources"][number],
+                        ) => {
+                          if (resource.resourceType === "PDF") return <FileText className="h-3.5 w-3.5" aria-hidden="true" />;
+                          if (resource.resourceType === "NOTE") return <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />;
+                          if (resource.resourceType === "MCQ_SET") return <Brain className="h-3.5 w-3.5" aria-hidden="true" />;
+                          if (resource.resourceType === "FLASHCARD_SET") return <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />;
+                          return <Video className="h-3.5 w-3.5" aria-hidden="true" />;
+                        };
+                        return (
+                          <div className="mt-3 border-t border-slate-100 pt-3 dark:border-white/[0.07]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                  {t("focusHubStudyResources")}
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                  {item.resources.length} / {availableResources.length} {t("focusHubResourcesSelected")}
+                                </p>
+                              </div>
+                              {availableResources.length > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setLectureResources(item.lectureId, availableResources)}
+                                    disabled={!canEdit || item.resources.length === availableResources.length}
+                                    className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 disabled:opacity-40 dark:text-sky-200 dark:hover:bg-sky-300/10"
+                                  >
+                                    {t("focusHubSelectAllResources")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLectureResources(item.lectureId, [])}
+                                    disabled={!canEdit || item.resources.length === 0}
+                                    className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
+                                  >
+                                    {t("focusHubClearResources")}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {availableResources.length === 0 ? (
+                              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-300/10 dark:text-amber-200">
+                                {t("focusHubNoStudyResources")}
+                              </p>
+                            ) : (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {availableResources.map((resource) => {
+                                  const key = `${resource.resourceType}:${resource.resourceId}`;
+                                  const selected = selectedKeys.has(key);
+                                  return (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => toggleLectureResource(item.lectureId, resource)}
+                                      disabled={!canEdit}
+                                      aria-pressed={selected}
+                                      className={`inline-flex min-h-10 max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 ${
+                                        selected
+                                          ? "border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-300/30 dark:bg-sky-300/10 dark:text-sky-100"
+                                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300 dark:hover:bg-white/[0.06]"
+                                      }`}
+                                    >
+                                      {selected ? <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : resourceIcon(resource)}
+                                      <span className="truncate" dir="auto">{resourceLabel(resource)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {item.resources.length === 0 && availableResources.length > 0 && (
+                              <p role="alert" className="mt-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+                                {t("focusHubChooseAtLeastOneResource")}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       <div className="focus-hub-session-count mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-white/[0.07]">
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">

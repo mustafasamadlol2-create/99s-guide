@@ -76,6 +76,7 @@ import type {
   FocusCurrentSessionResult,
   FocusPlanDto,
   FocusPlanItemDto,
+  FocusPlanResourceSelectionDto,
   FocusSessionDto,
   FocusSessionMutationResult,
   FocusInterruptionResult,
@@ -180,6 +181,7 @@ type PlanItemRecord = {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
+  resourceSelections: Prisma.JsonValue;
 };
 
 type PlanRecord = {
@@ -284,6 +286,151 @@ function iso(value: Date | string | null | undefined): string | null {
   return date.toISOString();
 }
 
+const FOCUS_PLAN_RESOURCE_TYPES = new Set([
+  "PDF",
+  "NOTE",
+  "MCQ_SET",
+  "FLASHCARD_SET",
+  "VIDEO",
+] as const);
+
+function normalizePlanResourceSelections(value: unknown): FocusPlanResourceSelectionDto[] {
+  if (!Array.isArray(value)) return [];
+  const resources: FocusPlanResourceSelectionDto[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const candidate = raw as Record<string, unknown>;
+    const resourceType = candidate.resourceType;
+    const resourceId = candidate.resourceId;
+    const sequence = candidate.sequence;
+    if (
+      typeof resourceType !== "string" ||
+      !FOCUS_PLAN_RESOURCE_TYPES.has(resourceType as any) ||
+      typeof resourceId !== "string" ||
+      !resourceId ||
+      !Number.isInteger(sequence) ||
+      Number(sequence) < 1
+    ) {
+      continue;
+    }
+    const key = `${resourceType}:${resourceId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    resources.push({
+      resourceType: resourceType as FocusPlanResourceSelectionDto["resourceType"],
+      resourceId,
+      sequence: Number(sequence),
+    });
+  }
+  return resources.sort(
+    (left, right) => left.sequence - right.sequence || left.resourceId.localeCompare(right.resourceId),
+  );
+}
+
+function legacyFlagsFromResources(
+  resources: readonly FocusPlanResourceSelectionDto[],
+): { includeMcq: boolean; includeFlashcards: boolean; includeVideo: boolean } {
+  return {
+    includeMcq: resources.some((resource) => resource.resourceType === "MCQ_SET"),
+    includeFlashcards: resources.some((resource) => resource.resourceType === "FLASHCARD_SET"),
+    includeVideo: resources.some((resource) => resource.resourceType === "VIDEO"),
+  };
+}
+
+async function validatePlanResourceSelections(
+  tx: FocusTransaction,
+  items: readonly {
+    lectureId: string;
+    resources?: readonly {
+      resourceType: FocusPlanResourceSelectionDto["resourceType"];
+      resourceId: string;
+      sequence: number;
+    }[];
+  }[],
+): Promise<void> {
+  const materialSelections = items.flatMap((item) =>
+    (item.resources ?? [])
+      .filter((resource) =>
+        resource.resourceType === "PDF" ||
+        resource.resourceType === "NOTE" ||
+        resource.resourceType === "VIDEO"
+      )
+      .map((resource) => ({ ...resource, lectureId: item.lectureId })),
+  );
+  const mcqLectureIds = [...new Set(
+    items
+      .filter((item) => (item.resources ?? []).some((resource) => resource.resourceType === "MCQ_SET"))
+      .map((item) => item.lectureId),
+  )];
+  const flashcardLectureIds = [...new Set(
+    items
+      .filter((item) => (item.resources ?? []).some((resource) => resource.resourceType === "FLASHCARD_SET"))
+      .map((item) => item.lectureId),
+  )];
+
+  const [materials, mcqRows, flashcardRows] = await Promise.all([
+    materialSelections.length
+      ? tx.material.findMany({
+          where: { id: { in: [...new Set(materialSelections.map((resource) => resource.resourceId))] } },
+          select: { id: true, lectureId: true, type: true },
+        })
+      : Promise.resolve([]),
+    mcqLectureIds.length
+      ? tx.mcq.findMany({
+          where: { lectureId: { in: mcqLectureIds } },
+          select: { lectureId: true },
+        })
+      : Promise.resolve([]),
+    flashcardLectureIds.length
+      ? tx.flashcard.findMany({
+          where: { lectureId: { in: flashcardLectureIds } },
+          select: { lectureId: true },
+        })
+      : Promise.resolve([]),
+  ]) as [
+    Array<{ id: string; lectureId: string; type: string }>,
+    Array<{ lectureId: string }>,
+    Array<{ lectureId: string }>,
+  ];
+
+  const materialById = new Map(materials.map((material) => [material.id, material]));
+  for (const resource of materialSelections) {
+    const material = materialById.get(resource.resourceId);
+    const materialType = material?.type.toUpperCase();
+    const typeMatches = resource.resourceType === "NOTE"
+      ? materialType === "NOTE" || materialType === "NOTES"
+      : materialType === resource.resourceType;
+    if (!material || material.lectureId !== resource.lectureId || !typeMatches) {
+      throw new FocusError(
+        "RESOURCE_NOT_FOUND",
+        "One or more selected Focus resources are unavailable for this Lecture.",
+      );
+    }
+  }
+
+  const mcqLectures = new Set(mcqRows.map((row) => row.lectureId));
+  const flashcardLectures = new Set(flashcardRows.map((row) => row.lectureId));
+  for (const item of items) {
+    const resources = item.resources ?? [];
+    const mcqSets = resources.filter((resource) => resource.resourceType === "MCQ_SET");
+    if (
+      mcqSets.some((resource) => resource.resourceId !== item.lectureId) ||
+      (mcqSets.length > 0 && !mcqLectures.has(item.lectureId))
+    ) {
+      throw new FocusError("RESOURCE_NOT_FOUND", "The selected MCQ set is unavailable.");
+    }
+
+    const flashcardSets = resources.filter((resource) => resource.resourceType === "FLASHCARD_SET");
+    if (
+      flashcardSets.some((resource) => resource.resourceId !== item.lectureId) ||
+      (flashcardSets.length > 0 && !flashcardLectures.has(item.lectureId))
+    ) {
+      throw new FocusError("RESOURCE_NOT_FOUND", "The selected Flashcard set is unavailable.");
+    }
+  }
+}
+
 function planItemDto(item: PlanItemRecord): FocusPlanItemDto {
   return {
     id: item.id,
@@ -295,6 +442,7 @@ function planItemDto(item: PlanItemRecord): FocusPlanItemDto {
     includeMcq: item.includeMcq,
     includeFlashcards: item.includeFlashcards,
     includeVideo: item.includeVideo,
+    resources: normalizePlanResourceSelections(item.resourceSelections),
   };
 }
 
@@ -324,9 +472,9 @@ function d1PlanDto(plan: FocusPlanReadProjection): FocusPlanDto {
     createdAt: plan.createdAt,
     updatedAt: plan.updatedAt,
     archivedAt: plan.archivedAt,
-    items: [...plan.items].sort(
-      (left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id),
-    ),
+    items: [...plan.items]
+      .sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id))
+      .map((item) => ({ ...item, resources: item.resources ?? [] })),
   };
 }
 
@@ -463,7 +611,18 @@ async function ingestFocusEvent(
 async function enqueuePlanProjection(tx: FocusTransaction, plan: PlanRecord): Promise<void> {
   const projection = buildFocusPlanProjection({
     plan,
-    items: plan.items,
+    items: plan.items.map((item) => ({
+      id: item.id,
+      lectureId: item.lectureId,
+      sequence: item.sequence,
+      sessionCount: item.sessionCount,
+      focusDurationSeconds: item.focusDurationSeconds,
+      breakDurationSeconds: item.breakDurationSeconds,
+      includeMcq: item.includeMcq,
+      includeFlashcards: item.includeFlashcards,
+      includeVideo: item.includeVideo,
+      resources: normalizePlanResourceSelections(item.resourceSelections),
+    })),
     revision: "0",
     projectionVersion: PROJECTION_CONTRACT_VERSION,
   });
@@ -1243,6 +1402,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           if (lectureRows.length !== new Set(input.items.map((item) => item.lectureId)).size) {
             throw new FocusError("LECTURE_NOT_FOUND", "One or more Lectures were not found.");
           }
+          await validatePlanResourceSelections(tx, input.items);
           const created = await tx.focusPlan.create({
             data: {
               userId,
@@ -1256,9 +1416,20 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                   sessionCount: item.sessionCount,
                   focusDurationSeconds: item.focusDurationSeconds,
                   breakDurationSeconds: item.breakDurationSeconds,
-                  includeMcq: item.includeMcq,
-                  includeFlashcards: item.includeFlashcards,
-                  includeVideo: item.includeVideo,
+                  ...(() => {
+                    const resources = item.resources ?? [];
+                    const flags = resources.length
+                      ? legacyFlagsFromResources(resources)
+                      : {
+                          includeMcq: item.includeMcq,
+                          includeFlashcards: item.includeFlashcards,
+                          includeVideo: item.includeVideo,
+                        };
+                    return {
+                      ...flags,
+                      resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                    };
+                  })(),
                 })),
               },
             },
@@ -1364,6 +1535,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             if (lectureRows.length !== lectureIds.size) {
               throw new FocusError("LECTURE_NOT_FOUND", "One or more Lectures were not found.");
             }
+            await validatePlanResourceSelections(tx, input.items);
 
             const incomingIds = new Set(input.items.flatMap((item) => item.id ? [item.id] : []));
             const removed = current.items.filter((item) => !incomingIds.has(item.id));
@@ -1416,9 +1588,20 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                     sessionCount: item.sessionCount,
                     focusDurationSeconds: item.focusDurationSeconds,
                     breakDurationSeconds: item.breakDurationSeconds,
-                    includeMcq: item.includeMcq,
-                    includeFlashcards: item.includeFlashcards,
-                    includeVideo: item.includeVideo,
+                    ...(() => {
+                      const resources = item.resources ?? [];
+                      const flags = resources.length
+                        ? legacyFlagsFromResources(resources)
+                        : {
+                            includeMcq: item.includeMcq,
+                            includeFlashcards: item.includeFlashcards,
+                            includeVideo: item.includeVideo,
+                          };
+                      return {
+                        ...flags,
+                        resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                      };
+                    })(),
                   },
                 });
               } else {
@@ -1430,9 +1613,20 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                     sessionCount: item.sessionCount,
                     focusDurationSeconds: item.focusDurationSeconds,
                     breakDurationSeconds: item.breakDurationSeconds,
-                    includeMcq: item.includeMcq,
-                    includeFlashcards: item.includeFlashcards,
-                    includeVideo: item.includeVideo,
+                    ...(() => {
+                      const resources = item.resources ?? [];
+                      const flags = resources.length
+                        ? legacyFlagsFromResources(resources)
+                        : {
+                            includeMcq: item.includeMcq,
+                            includeFlashcards: item.includeFlashcards,
+                            includeVideo: item.includeVideo,
+                          };
+                      return {
+                        ...flags,
+                        resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                      };
+                    })(),
                   },
                 });
               }
@@ -1541,6 +1735,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         }
         const item = plan.items.find((candidate) => candidate.id === input.planItemId);
         if (!item) throw new FocusError("PLAN_ITEM_NOT_FOUND", "Focus Plan item was not found.");
+
+        const selectedResources = normalizePlanResourceSelections(item.resourceSelections);
+        if (selectedResources.length > 0) {
+          await validatePlanResourceSelections(tx, [{
+            lectureId: item.lectureId,
+            resources: selectedResources,
+          }]);
+        }
 
         if (nonterminalCount > 0) {
           throw new FocusError("ACTIVE_SESSION_EXISTS", "A solo Focus Session is already in progress.");
@@ -2448,6 +2650,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             includeMcq: updated.planItem.includeMcq,
             includeFlashcards: updated.planItem.includeFlashcards,
             includeVideo: updated.planItem.includeVideo,
+            resources: normalizePlanResourceSelections(updated.planItem.resourceSelections),
           },
         };
       }));
