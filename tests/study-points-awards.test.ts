@@ -168,6 +168,9 @@ test("the rule registry only activates verified, capped learning sources", () =>
     "mcq.first_verified_correct",
     "flashcard.first_verified_recall",
     "recall.objective_correct",
+    "lecture.pdf_completed",
+    "lecture.notes_completed",
+    "lecture.completed",
   ]);
   assert.deepEqual(inactive, []);
   assert.equal(

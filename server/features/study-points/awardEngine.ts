@@ -18,6 +18,12 @@ import {
   GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS,
   GROUP_FOCUS_SOCIAL_BONUS_RULE,
   GROUP_FOCUS_PARTICIPATION_RULE,
+  LECTURE_COMPLETION_AMOUNT,
+  LECTURE_COMPLETION_RULE,
+  LECTURE_NOTES_COMPLETION_AMOUNT,
+  LECTURE_NOTES_COMPLETION_RULE,
+  LECTURE_PDF_COMPLETION_AMOUNT,
+  LECTURE_PDF_COMPLETION_RULE,
   MCQ_FIRST_CORRECT_RULE,
   RECALL_MAX_POINTS_PER_DAY,
   RECALL_MAX_POINTS_PER_WEEK,
@@ -257,6 +263,98 @@ export class StudyPointsAwardEngine {
         })],
       } satisfies StudyPointsAwardSourceResult;
     };
+
+    const result = input.tx
+      ? await perform(input.tx)
+      : await this.database.$transaction(perform, TRANSACTION_OPTIONS);
+    if (
+      !input.tx
+      && result.attempts.some((attempt) =>
+        attempt.decision.outcome === "AWARD" && !attempt.replayed
+      )
+    ) {
+      await notifyStudyPointsPostCommit(input.userId);
+    }
+    return result;
+  }
+
+  /**
+   * Canonical completion rewards for lecture progress. The caller must first
+   * verify that the authenticated user owns the progress row and that the
+   * requested lecture/resource actually exists. This method only applies the
+   * fixed Points V2 rule, category caps, and immutable-ledger idempotency.
+   */
+  async awardServerVerifiedLectureProgress(input: {
+    userId: string;
+    lectureId: string;
+    completionType: "PDF" | "NOTES" | "LECTURE";
+    effectiveAt?: Date;
+    now?: Date;
+    tx?: Prisma.TransactionClient;
+  }): Promise<StudyPointsAwardSourceResult> {
+    if (!this.isStudyPointsEnabled()) {
+      throw new StudyPointsError("FEATURE_DISABLED", "Study Points are disabled.");
+    }
+    if (
+      !input
+      || typeof input.userId !== "string"
+      || input.userId.length < 1
+      || input.userId.length > 128
+      || input.userId.includes("\0")
+      || typeof input.lectureId !== "string"
+      || input.lectureId.length < 1
+      || input.lectureId.length > 96
+      || input.lectureId.includes("\0")
+      || !["PDF", "NOTES", "LECTURE"].includes(input.completionType)
+    ) {
+      throw new TypeError("Server-verified lecture completion source is invalid.");
+    }
+
+    const now = input.now ?? this.now();
+    const effectiveAt = input.effectiveAt ?? now;
+    if (
+      !(now instanceof Date)
+      || !Number.isFinite(now.getTime())
+      || !(effectiveAt instanceof Date)
+      || !Number.isFinite(effectiveAt.getTime())
+    ) {
+      throw new TypeError("Server-verified lecture completion time is invalid.");
+    }
+
+    const isLecture = input.completionType === "LECTURE";
+    const sourceType = isLecture ? "LECTURE_COMPLETION" as const : "LECTURE_RESOURCE" as const;
+    const sourceId = isLecture
+      ? input.lectureId
+      : `${input.completionType.toLowerCase()}:${input.lectureId}`;
+    const rule = input.completionType === "PDF"
+      ? LECTURE_PDF_COMPLETION_RULE
+      : input.completionType === "NOTES"
+        ? LECTURE_NOTES_COMPLETION_RULE
+        : LECTURE_COMPLETION_RULE;
+    const baseRuleAmount = input.completionType === "PDF"
+      ? LECTURE_PDF_COMPLETION_AMOUNT
+      : input.completionType === "NOTES"
+        ? LECTURE_NOTES_COMPLETION_AMOUNT
+        : LECTURE_COMPLETION_AMOUNT;
+
+    const perform = async (tx: Prisma.TransactionClient) => ({
+      sourceType,
+      sourceId,
+      attempts: [await this.appendCappedAward(tx, {
+        userId: input.userId,
+        sourceType,
+        sourceId,
+        effectiveAt,
+        rule,
+        baseRuleAmount,
+        baghdadDate: studyPointsBaghdadDate(effectiveAt),
+        now,
+        // Lecture/resource completion is a one-time canonical milestone.
+        // Retrying the same completion must replay the original entry even
+        // though the retry occurs at a later timestamp.
+        compareEffectiveAtOnReplay: false,
+      })],
+    } satisfies StudyPointsAwardSourceResult);
 
     const result = input.tx
       ? await perform(input.tx)

@@ -321,15 +321,21 @@ model SmartNotification {
 }
 
 model LectureProgress {
-  userId              String
-  lectureId           String
-  pdfCompleted        Boolean  @default(false)
-  notesCompleted      Boolean  @default(false)
-  videoCompleted      Boolean  @default(false)
-  flashcardsCompleted Boolean  @default(false)
-  quizCompleted       Boolean  @default(false)
-  quizScore           Int?
-  lastAccessed        DateTime @default(now())
+  userId                String
+  lectureId             String
+  pdfCompleted          Boolean   @default(false)
+  notesCompleted        Boolean   @default(false)
+  videoCompleted        Boolean   @default(false)
+  flashcardsCompleted   Boolean   @default(false)
+  quizCompleted         Boolean   @default(false)
+  quizScore             Int?
+  pdfCompletedAt        DateTime?
+  notesCompletedAt      DateTime?
+  videoCompletedAt      DateTime?
+  flashcardsCompletedAt DateTime?
+  quizCompletedAt       DateTime?
+  lectureCompletedAt    DateTime?
+  lastAccessed          DateTime  @default(now())
   lecture             Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -90,6 +90,11 @@ import {
 import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
 import { refreshActiveLeaderboardSnapshotsForUser } from "./server/features/leaderboard/snapshots.js";
 import { StudyPointsAwardEngine } from "./server/features/study-points/awardEngine.js";
+import {
+  LectureProgressCompletionService,
+  LECTURE_COMPLETION_RESOURCE_TYPES,
+  type LectureCompletionResourceType,
+} from "./server/features/lecture-progress/completion.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import {
   flashcardStudyQualityFromStatus,
@@ -2457,6 +2462,46 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
       }
     }
     const occurredAt = new Date();
+
+    // Flashcards are completed automatically when the submitted end-of-deck
+    // batch contains every canonical card in that lecture. Historical review
+    // rows alone are not backfilled into a new V2 completion timestamp.
+    const submittedIdsByLecture = new Map<string, Set<string>>();
+    for (const [flashcardId] of statusUpdates) {
+      const lectureId = lectureByFlashcard.get(flashcardId);
+      if (!lectureId) continue;
+      const ids = submittedIdsByLecture.get(lectureId) ?? new Set<string>();
+      ids.add(flashcardId);
+      submittedIdsByLecture.set(lectureId, ids);
+    }
+    for (const [lectureId, submittedIds] of submittedIdsByLecture) {
+      const canonicalIds = await prismaClient.flashcard.findMany({
+        where: { lectureId },
+        select: { id: true },
+      });
+      if (canonicalIds.length === 0 || !canonicalIds.every((card) => submittedIds.has(card.id))) {
+        continue;
+      }
+      const existingProgress = await prismaClient.lectureProgress.findUnique({
+        where: { userId_lectureId: { userId, lectureId } },
+        select: { flashcardsCompletedAt: true },
+      });
+      await prismaClient.lectureProgress.upsert({
+        where: { userId_lectureId: { userId, lectureId } },
+        update: {
+          flashcardsCompleted: true,
+          flashcardsCompletedAt: existingProgress?.flashcardsCompletedAt ?? occurredAt,
+          lastAccessed: occurredAt,
+        },
+        create: {
+          userId,
+          lectureId,
+          flashcardsCompleted: true,
+          flashcardsCompletedAt: occurredAt,
+          lastAccessed: occurredAt,
+        },
+      });
+    }
     const idempotencyPrefix = `flashcard-rating:${crypto.randomUUID()}`;
     const events = statusUpdates.flatMap(([flashcardId, status]) => {
       const lectureId = lectureByFlashcard.get(flashcardId);
@@ -4627,6 +4672,48 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
 
     const answerById = new Map(normalized.map(({ id, answer }) => [id, answer]));
     const occurredAt = new Date();
+
+    // A successful server submission is the canonical MCQ completion event.
+    // Completion is automatic when results are produced; there is deliberately
+    // no separate "Complete" button for MCQs. Persist a post-cutover timestamp
+    // so whole-lecture completion can distinguish new V2 study from historical
+    // boolean progress.
+    const resultsByLecture = new Map<string, { total: number; correct: number }>();
+    for (const result of results) {
+      const mcq = byId.get(result.id);
+      if (!mcq?.lectureId) continue;
+      const bucket = resultsByLecture.get(mcq.lectureId) ?? { total: 0, correct: 0 };
+      bucket.total += 1;
+      if (result.correct) bucket.correct += 1;
+      resultsByLecture.set(mcq.lectureId, bucket);
+    }
+    for (const [lectureId, summary] of resultsByLecture) {
+      const existingProgress = await prismaClient.lectureProgress.findUnique({
+        where: { userId_lectureId: { userId: (req as any).user.id, lectureId } },
+        select: { quizCompletedAt: true },
+      });
+      const score = summary.total > 0
+        ? Math.round((summary.correct / summary.total) * 100)
+        : 0;
+      await prismaClient.lectureProgress.upsert({
+        where: { userId_lectureId: { userId: (req as any).user.id, lectureId } },
+        update: {
+          quizCompleted: true,
+          quizScore: score,
+          quizCompletedAt: existingProgress?.quizCompletedAt ?? occurredAt,
+          lastAccessed: occurredAt,
+        },
+        create: {
+          userId: (req as any).user.id,
+          lectureId,
+          quizCompleted: true,
+          quizScore: score,
+          quizCompletedAt: occurredAt,
+          lastAccessed: occurredAt,
+        },
+      });
+    }
+
     const idempotencyPrefix = `mcq-submit:${crypto.randomUUID()}`;
     const events = results.flatMap((result) => {
       const answer = answerById.get(result.id);
@@ -10578,19 +10665,37 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     const prismaClient = getPrisma();
     const ops = [];
 
+    // Completion is monotonic. A stale device/client sync may add a completed
+    // flag, but it must never clear a completion that the canonical server has
+    // already accepted. Completion timestamps remain server-managed and are
+    // intentionally not populated by this compatibility sync path.
+    const syncLectureIds = Array.from(new Set(
+      progress
+        .map((item: any) => typeof item?.lectureId === "string" ? item.lectureId : "")
+        .filter(Boolean),
+    ));
+    const existingProgressRows = syncLectureIds.length > 0
+      ? await prismaClient.lectureProgress.findMany({
+          where: { userId, lectureId: { in: syncLectureIds } },
+        })
+      : [];
+    const existingProgressMap = new Map(existingProgressRows.map((row) => [row.lectureId, row]));
+
     // Save/Sync Course progress items
     for (const p of progress) {
       const score = Number(p.quizScore || 0);
       const safeScore = (score >= 0 && score <= 100) ? score : 0;
+      const currentProgress = existingProgressMap.get(p.lectureId);
+      const mergedQuizCompleted = !!currentProgress?.quizCompleted || !!p.quizCompleted;
       ops.push(prismaClient.lectureProgress.upsert({
         where: { userId_lectureId: { userId, lectureId: p.lectureId } },
         update: {
-          pdfCompleted: !!p.pdfCompleted,
-          notesCompleted: !!p.notesCompleted,
-          videoCompleted: !!p.videoCompleted,
-          flashcardsCompleted: !!p.flashcardsCompleted,
-          quizCompleted: !!p.quizCompleted,
-          quizScore: safeScore,
+          pdfCompleted: !!currentProgress?.pdfCompleted || !!p.pdfCompleted,
+          notesCompleted: !!currentProgress?.notesCompleted || !!p.notesCompleted,
+          videoCompleted: !!currentProgress?.videoCompleted || !!p.videoCompleted,
+          flashcardsCompleted: !!currentProgress?.flashcardsCompleted || !!p.flashcardsCompleted,
+          quizCompleted: mergedQuizCompleted,
+          quizScore: p.quizCompleted ? safeScore : (currentProgress?.quizScore ?? safeScore),
           lastAccessed: p.lastAccessed ? new Date(p.lastAccessed) : new Date()
         },
         create: {
@@ -10758,12 +10863,12 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
           ops.push(prismaClient.lectureProgress.upsert({
             where: { userId_lectureId: { userId, lectureId } },
             update: {
-              pdfCompleted: !!payload.pdfCompleted,
-              notesCompleted: !!payload.notesCompleted,
-              videoCompleted: !!payload.videoCompleted,
-              flashcardsCompleted: !!payload.flashcardsCompleted,
-              quizCompleted,
-              quizScore,
+              pdfCompleted: !!existingProg?.pdfCompleted || !!payload.pdfCompleted,
+              notesCompleted: !!existingProg?.notesCompleted || !!payload.notesCompleted,
+              videoCompleted: !!existingProg?.videoCompleted || !!payload.videoCompleted,
+              flashcardsCompleted: !!existingProg?.flashcardsCompleted || !!payload.flashcardsCompleted,
+              quizCompleted: !!existingProg?.quizCompleted || quizCompleted,
+              quizScore: type === 'mcq_score' ? quizScore : (existingProg?.quizScore ?? quizScore),
               lastAccessed: lastAccessedDate
             },
             create: {
@@ -10830,6 +10935,60 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
     console.error('[Offline Reconcile Error]:', error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     res.status(500).json({ error: "Internal Server Error" });
   }
+}));
+
+// Canonical lecture completion API. This is the single server-authoritative
+// completion path shared by the normal Lecture view today and Focus Hub later.
+app.get("/api/progress/lecture/:lectureId", requireUser, catchAsync(async (req, res) => {
+  const lectureId = String(req.params.lectureId || "").trim();
+  if (!lectureId) return res.status(400).json({ error: "lectureId is required." });
+  const userId = (req as any).user.id as string;
+  const service = new LectureProgressCompletionService(getPrisma());
+  const status = await service.getStatus(userId, lectureId);
+  if (!status) return res.status(404).json({ error: "Lecture not found.", code: "LECTURE_NOT_FOUND" });
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({ success: true, status });
+}));
+
+app.post("/api/progress/lecture/:lectureId/complete", requireUser, catchAsync(async (req, res) => {
+  const lectureId = String(req.params.lectureId || "").trim();
+  const rawResourceType = String(req.body?.resourceType || "").trim().toUpperCase();
+  if (!lectureId) return res.status(400).json({ error: "lectureId is required." });
+  if (!(LECTURE_COMPLETION_RESOURCE_TYPES as readonly string[]).includes(rawResourceType)) {
+    return res.status(400).json({
+      error: "resourceType must be PDF, NOTES, or LECTURE.",
+      code: "INVALID_COMPLETION_RESOURCE",
+    });
+  }
+  const materialId = req.body?.materialId == null
+    ? null
+    : String(req.body.materialId).trim();
+  if (materialId !== null && (!materialId || materialId.length > 128 || materialId.includes("\0"))) {
+    return res.status(400).json({ error: "materialId is invalid." });
+  }
+
+  const userId = (req as any).user.id as string;
+  const service = new LectureProgressCompletionService(getPrisma());
+  const outcome = await service.complete({
+    userId,
+    lectureId,
+    resourceType: rawResourceType as LectureCompletionResourceType,
+    materialId,
+  });
+  if (!outcome.ok) {
+    const message = outcome.code === "LECTURE_NOT_READY"
+      ? "Complete the remaining lecture resources before marking the whole lecture complete."
+      : outcome.code === "RESOURCE_NOT_FOUND"
+        ? "This lecture does not contain the requested resource."
+        : "Lecture not found.";
+    return res.status(outcome.status).json({
+      error: message,
+      code: outcome.code,
+      ...(outcome.missing ? { missing: outcome.missing } : {}),
+    });
+  }
+
+  return res.json({ success: true, ...outcome.result });
 }));
 
 // Material Progress persistent API paths

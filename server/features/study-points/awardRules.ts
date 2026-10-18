@@ -51,6 +51,27 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     sourceType: "RECALL_ATTEMPT",
     status: "ACTIVE",
   },
+  {
+    ruleVersion: "lecture-pdf-completion-v1",
+    category: "PROGRESS",
+    reasonCode: "lecture.pdf_completed",
+    sourceType: "LECTURE_RESOURCE",
+    status: "ACTIVE",
+  },
+  {
+    ruleVersion: "lecture-notes-completion-v1",
+    category: "PROGRESS",
+    reasonCode: "lecture.notes_completed",
+    sourceType: "LECTURE_RESOURCE",
+    status: "ACTIVE",
+  },
+  {
+    ruleVersion: "lecture-completion-v1",
+    category: "PROGRESS",
+    reasonCode: "lecture.completed",
+    sourceType: "LECTURE_COMPLETION",
+    status: "ACTIVE",
+  },
 ] as const satisfies readonly StudyPointsAwardRuleDescriptor[]);
 
 export const FOCUS_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[0];
@@ -60,6 +81,12 @@ export const DAILY_CONSISTENCY_RULE = STUDY_POINTS_AWARD_RULES[3];
 export const MCQ_FIRST_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[4];
 export const FLASHCARD_FIRST_RECALL_RULE = STUDY_POINTS_AWARD_RULES[5];
 export const RECALL_OBJECTIVE_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[6];
+export const LECTURE_PDF_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[7];
+export const LECTURE_NOTES_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[8];
+export const LECTURE_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[9];
+export const LECTURE_PDF_COMPLETION_AMOUNT = 5;
+export const LECTURE_NOTES_COMPLETION_AMOUNT = 3;
+export const LECTURE_COMPLETION_AMOUNT = 8;
 export const RECALL_OBJECTIVE_CORRECT_AMOUNT = 2;
 export const RECALL_MAX_POINTS_PER_DAY = 6;
 export const RECALL_MAX_POINTS_PER_WEEK = 20;

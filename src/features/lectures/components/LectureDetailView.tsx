@@ -486,8 +486,10 @@ export const LectureDetailView = function LectureDetailView({
  const [isPdfCompleted, setIsPdfCompleted] = useState(false);
  const [hasViewedNotes, setHasViewedNotes] = useState(false);
  const [isNotesCompleted, setIsNotesCompleted] = useState(false);
-
-
+ const [isLectureCompleted, setIsLectureCompleted] = useState(false);
+ const [isLectureReadyForCompletion, setIsLectureReadyForCompletion] = useState(false);
+ const [lectureCompletionMissing, setLectureCompletionMissing] = useState<string[]>([]);
+ const [isCompletingLecture, setIsCompletingLecture] = useState(false);
 
  // Enriched Notes Section
  const [personalNotes, setPersonalNotes] = useState("");
@@ -498,60 +500,74 @@ export const LectureDetailView = function LectureDetailView({
  });
 
  // Sync on lecture ID changes cleanly, avoiding any accidental deletions of localStorage items
+ const refreshCanonicalLectureProgress = useCallback(async () => {
+   if (!currentUser?.id || !lecture.id) return null;
+   try {
+     const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}`, {
+       cache: "no-store",
+       silent: true,
+     });
+     if (!response.ok) return null;
+     const payload = await response.json();
+     const status = payload?.status;
+     if (!status) return null;
+     setIsPdfCompleted(status.pdfCompleted === true);
+     setIsNotesCompleted(status.notesCompleted === true);
+     setIsLectureCompleted(status.lectureCompleted === true);
+     setIsLectureReadyForCompletion(status.readyForLectureCompletion === true);
+     setLectureCompletionMissing(Array.isArray(status.missing) ? status.missing : []);
+     return status;
+   } catch {
+     return null;
+   }
+ }, [currentUser?.id, lecture.id]);
+
  useEffect(() => {
- setHasOpenedPdf(
- localStorage.getItem(`uob_has_opened_pdf_${lecture.id}`) === "true",
- );
- setHasOpenedNotes(
- localStorage.getItem(`uob_has_opened_notes_${lecture.id}`) === "true",
- );
+   setHasOpenedPdf(
+     localStorage.getItem(`uob_has_opened_pdf_${lecture.id}`) === "true",
+   );
+   setHasOpenedNotes(
+     localStorage.getItem(`uob_has_opened_notes_${lecture.id}`) === "true",
+   );
 
- // Default states until db response
- setHasViewedPdf(
- localStorage.getItem(`uob_has_opened_pdf_${lecture.id}`) === "true",
- );
- setIsPdfCompleted(!!progress.pdfCompleted);
- setHasViewedNotes(
- localStorage.getItem(`uob_has_opened_notes_${lecture.id}`) === "true",
- );
- setIsNotesCompleted(!!progress.notesCompleted);
+   // Local progress is an immediate fallback while the canonical server row is
+   // loaded. Competitive completion and points remain server-authoritative.
+   setHasViewedPdf(
+     localStorage.getItem(`uob_has_opened_pdf_${lecture.id}`) === "true",
+   );
+   setIsPdfCompleted(!!progress.pdfCompleted);
+   setHasViewedNotes(
+     localStorage.getItem(`uob_has_opened_notes_${lecture.id}`) === "true",
+   );
+   setIsNotesCompleted(!!progress.notesCompleted);
+   setIsLectureCompleted(false);
+   setIsLectureReadyForCompletion(false);
+   setLectureCompletionMissing([]);
 
- if (!currentUser?.id || !lecture.id) return;
-
- let isMounted = true;
-    const fetchProgress = async () => {
- try {
- // Fetch Main PDF progress status
- const pdfRes = await apiClient(
- `/api/progress/${currentUser.id}/pdf_${lecture.id}`,
- );
- if (pdfRes.ok) {
- const pdfData = await pdfRes.json();
- if (!isMounted) return; setHasViewedPdf(pdfData.hasViewed);
- setIsPdfCompleted(pdfData.isCompleted);
- }
-
- // Fetch Notes progress status
- const notesRes = await apiClient(
- `/api/progress/${currentUser.id}/notes_${lecture.id}`,
- );
- if (notesRes.ok) {
- const notesData = await notesRes.json();
- if (!isMounted) return; setHasViewedNotes(notesData.hasViewed);
- setIsNotesCompleted(notesData.isCompleted);
- }
- } catch (err) {
- 
- }
- };
-
- fetchProgress(); return () => { isMounted = false; };
+   void refreshCanonicalLectureProgress();
  }, [
- lecture.id,
- currentUser?.id,
- progress.pdfCompleted,
- progress.notesCompleted,
+   lecture.id,
+   progress.pdfCompleted,
+   progress.notesCompleted,
+   progress.videoCompleted,
+   progress.flashcardsCompleted,
+   progress.quizCompleted,
+   refreshCanonicalLectureProgress,
  ]);
+
+ const invalidatePointsSurfaces = useCallback(() => {
+   const resources: GamificationSyncResource[] = [
+     "summary",
+     "achievements",
+     "challenges",
+     "leaderboard",
+     "rank",
+   ];
+   invalidateGamificationResources(resources);
+   window.dispatchEvent(new CustomEvent(GAMIFICATION_INVALIDATED_EVENT, {
+     detail: { resources },
+   }));
+ }, []);
 
  // Helper APIs to set hasViewed to true persistently in DB
  const triggerPdfViewed = async () => {
@@ -563,7 +579,7 @@ export const LectureDetailView = function LectureDetailView({
  headers: { "Content-Type": "application/json" },
  body: JSON.stringify({
  userId: currentUser.id,
- materialId: `pdf_${lecture.id}`,
+ materialId: primaryPdfMaterial?.id || `pdf_${lecture.id}`,
  }),
  });
  } catch (err) {
@@ -660,44 +676,107 @@ export const LectureDetailView = function LectureDetailView({
   };
 
   const handleMarkPdfCompleted = async () => {
- setIsPdfCompleted(true);
- // Standard offline/online progress synchronization via state
- onUpdateProgress({ pdfCompleted: true });
+    if (!currentUser?.id || isPdfCompleted) return;
+    try {
+      const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resourceType: "PDF",
+          materialId: primaryPdfMaterial?.id || null,
+        }),
+        silent: true,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "PDF completion failed");
+      setIsPdfCompleted(data?.status?.pdfCompleted === true);
+      setIsLectureCompleted(data?.status?.lectureCompleted === true);
+      setIsLectureReadyForCompletion(data?.status?.readyForLectureCompletion === true);
+      setLectureCompletionMissing(Array.isArray(data?.status?.missing) ? data.status.missing : []);
+      onUpdateProgress({ pdfCompleted: true });
+      if (data?.points?.changed === true) invalidatePointsSurfaces();
+    } catch (err) {
+      showiOSAlert({
+        title: isRtl ? "تعذر حفظ الإكمال" : "Could Not Save Completion",
+        message: isRtl
+          ? "لم يتم تسجيل إكمال ملف المحاضرة. تحقق من الاتصال وحاول مرة أخرى."
+          : "The PDF completion could not be saved. Check your connection and try again.",
+        actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
+      });
+    }
+  };
 
- if (!currentUser?.id) return;
- try {
- await apiClient("/api/progress/complete", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({
- userId: currentUser.id,
- materialId: `pdf_${lecture.id}`,
- }),
- });
- } catch (err) {
- 
- }
- };
+  const handleMarkNotesCompleted = async () => {
+    if (!currentUser?.id || isNotesCompleted) return;
+    try {
+      const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resourceType: "NOTES",
+          materialId: noteMaterials[0]?.id || null,
+        }),
+        silent: true,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Notes completion failed");
+      setIsNotesCompleted(data?.status?.notesCompleted === true);
+      setIsLectureCompleted(data?.status?.lectureCompleted === true);
+      setIsLectureReadyForCompletion(data?.status?.readyForLectureCompletion === true);
+      setLectureCompletionMissing(Array.isArray(data?.status?.missing) ? data.status.missing : []);
+      onUpdateProgress({ notesCompleted: true });
+      if (data?.points?.changed === true) invalidatePointsSurfaces();
+    } catch (err) {
+      showiOSAlert({
+        title: isRtl ? "تعذر حفظ الإكمال" : "Could Not Save Completion",
+        message: isRtl
+          ? "لم يتم تسجيل إكمال الملاحظات. تحقق من الاتصال وحاول مرة أخرى."
+          : "The notes completion could not be saved. Check your connection and try again.",
+        actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
+      });
+    }
+  };
 
- const handleMarkNotesCompleted = async () => {
- setIsNotesCompleted(true);
- // Standard offline/online progress synchronization via state
- onUpdateProgress({ notesCompleted: true });
-
- if (!currentUser?.id) return;
- try {
- await apiClient("/api/progress/complete", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({
- userId: currentUser.id,
- materialId: `notes_${lecture.id}`,
- }),
- });
- } catch (err) {
- 
- }
- };
+  const handleMarkLectureCompleted = async () => {
+    if (!currentUser?.id || isLectureCompleted || isCompletingLecture) return;
+    let missingForAlert = lectureCompletionMissing;
+    setIsCompletingLecture(true);
+    try {
+      const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resourceType: "LECTURE" }),
+        silent: true,
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 409 && Array.isArray(data?.missing)) {
+          missingForAlert = data.missing;
+          setLectureCompletionMissing(data.missing);
+          setIsLectureReadyForCompletion(false);
+        }
+        throw new Error(data?.error || "Lecture completion failed");
+      }
+      setIsLectureCompleted(data?.status?.lectureCompleted === true);
+      setIsLectureReadyForCompletion(data?.status?.readyForLectureCompletion === true);
+      setLectureCompletionMissing(Array.isArray(data?.status?.missing) ? data.status.missing : []);
+      if (data?.points?.changed === true) invalidatePointsSurfaces();
+    } catch (err) {
+      showiOSAlert({
+        title: isRtl ? "المحاضرة غير مكتملة بعد" : "Lecture Not Ready Yet",
+        message: missingForAlert.length > 0
+          ? (isRtl
+              ? `أكمل أولاً: ${missingForAlert.join("، ")}`
+              : `Complete first: ${missingForAlert.join(", ")}`)
+          : (isRtl
+              ? "تعذر تسجيل إكمال المحاضرة. تحقق من الاتصال وحاول مرة أخرى."
+              : "The lecture completion could not be saved. Check your connection and try again."),
+        actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
+      });
+    } finally {
+      setIsCompletingLecture(false);
+    }
+  };
 
  // MCQ Section
   const [quizSource, setQuizSource] = useState<MCQCategoryFilter>("ALL");
@@ -1924,6 +2003,25 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  </div>
  );
  })()}
+
+ {isLectureCompleted ? (
+   <div className="mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+     <CheckCircle className="h-4 w-4" />
+     {isRtl ? "المحاضرة مكتملة" : "Lecture Completed"}
+   </div>
+ ) : isLectureReadyForCompletion ? (
+   <button
+     type="button"
+     onClick={handleMarkLectureCompleted}
+     disabled={isCompletingLecture}
+     className="mt-3 inline-flex min-h-10 w-fit items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-elevation-1 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+   >
+     <CheckCircle className="h-4 w-4" />
+     {isCompletingLecture
+       ? (isRtl ? "جارٍ الحفظ..." : "Saving...")
+       : (isRtl ? "إكمال المحاضرة" : "Complete Lecture")}
+   </button>
+ ) : null}
  </div>
  </div>
 
