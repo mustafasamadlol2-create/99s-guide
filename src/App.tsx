@@ -1263,21 +1263,32 @@ function AppContent({
     };
 
     const handleOfflineStatus = (event: Event) => {
-      const detail = (event as CustomEvent<{ status?: string; rejectedCount?: number }>).detail;
+      const detail = (event as CustomEvent<{
+        status?: string;
+        rejectedCount?: number;
+        pendingCount?: number;
+        userVisibleRejectedCount?: number;
+        userVisiblePendingCount?: number;
+      }>).detail;
       const retryToastId = "offline-sync-retrying";
       const failureToastId = "offline-sync-failed";
+      const visibleRejected = detail?.userVisibleRejectedCount ?? detail?.rejectedCount ?? 0;
+      const visiblePending = detail?.userVisiblePendingCount ?? detail?.pendingCount ?? 0;
 
-      if (detail?.status === "Failed") {
+      if (detail?.status === "Failed" && visibleRejected > 0) {
         toast.dismiss(retryToastId);
         toast.error(
           language === "ar"
             ? t("offlineChangesFailed")
-            : `${detail.rejectedCount || 1} ${t("offlineChangesFailed")}`,
+            : `${visibleRejected} ${t("offlineChangesFailed")}`,
           { id: failureToastId },
         );
-      } else if (detail?.status === "Retrying") {
+      } else if (detail?.status === "Retrying" && visiblePending > 0) {
         toast.info(t("retryingOfflineChanges"), { id: retryToastId });
-      } else if (detail?.status === "Resolved") {
+      } else {
+        // Successful canonical study writes can still trigger a silent legacy
+        // progress reconciliation in the background. Never leave stale retry or
+        // failure banners visible once there is nothing user-actionable.
         toast.dismiss(retryToastId);
         toast.dismiss(failureToastId);
       }

@@ -10734,23 +10734,49 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
     // flag, but it must never clear a completion that the canonical server has
     // already accepted. Completion timestamps remain server-managed and are
     // intentionally not populated by this compatibility sync path.
-    const syncLectureIds = Array.from(new Set(
-      progress
-        .map((item: any) => typeof item?.lectureId === "string" ? item.lectureId : "")
-        .filter(Boolean),
-    ));
-    const existingProgressRows = syncLectureIds.length > 0
+    const normalizedProgressByLecture = new Map<string, any>();
+    for (const item of progress) {
+      const lectureId = typeof item?.lectureId === "string" ? item.lectureId.trim() : "";
+      if (!lectureId) continue;
+      const existingItem = normalizedProgressByLecture.get(lectureId);
+      const itemTime = Number.isNaN(new Date(item?.lastAccessed || 0).getTime())
+        ? 0
+        : new Date(item.lastAccessed).getTime();
+      const existingTime = Number.isNaN(new Date(existingItem?.lastAccessed || 0).getTime())
+        ? 0
+        : new Date(existingItem?.lastAccessed || 0).getTime();
+      if (!existingItem || itemTime >= existingTime) {
+        normalizedProgressByLecture.set(lectureId, { ...item, lectureId });
+      }
+    }
+
+    const syncLectureIds = Array.from(normalizedProgressByLecture.keys());
+    const existingLectures = syncLectureIds.length > 0
+      ? await prismaClient.lecture.findMany({
+          where: { id: { in: syncLectureIds } },
+          select: { id: true },
+        })
+      : [];
+    const validLectureIds = new Set(existingLectures.map((lecture) => lecture.id));
+    const prunedLectureIds = syncLectureIds.filter((lectureId) => !validLectureIds.has(lectureId));
+    const safeProgress = Array.from(normalizedProgressByLecture.values())
+      .filter((item) => validLectureIds.has(item.lectureId));
+
+    const existingProgressRows = safeProgress.length > 0
       ? await prismaClient.lectureProgress.findMany({
-          where: { userId, lectureId: { in: syncLectureIds } },
+          where: { userId, lectureId: { in: safeProgress.map((item) => item.lectureId) } },
         })
       : [];
     const existingProgressMap = new Map(existingProgressRows.map((row) => [row.lectureId, row]));
 
-    // Save/Sync Course progress items
-    for (const p of progress) {
+    // Save/Sync Course progress items. Stale progress rows for lectures that no
+    // longer exist are pruned instead of making the whole compatibility sync fail.
+    for (const p of safeProgress) {
       const score = Number(p.quizScore || 0);
       const safeScore = (score >= 0 && score <= 100) ? score : 0;
       const currentProgress = existingProgressMap.get(p.lectureId);
+      const parsedLastAccessed = p.lastAccessed ? new Date(p.lastAccessed) : new Date();
+      const safeLastAccessed = Number.isNaN(parsedLastAccessed.getTime()) ? new Date() : parsedLastAccessed;
       const mergedQuizCompleted = !!currentProgress?.quizCompleted || !!p.quizCompleted;
       ops.push(prismaClient.lectureProgress.upsert({
         where: { userId_lectureId: { userId, lectureId: p.lectureId } },
@@ -10761,7 +10787,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
           flashcardsCompleted: !!currentProgress?.flashcardsCompleted || !!p.flashcardsCompleted,
           quizCompleted: mergedQuizCompleted,
           quizScore: p.quizCompleted ? safeScore : (currentProgress?.quizScore ?? safeScore),
-          lastAccessed: p.lastAccessed ? new Date(p.lastAccessed) : new Date()
+          lastAccessed: safeLastAccessed
         },
         create: {
           userId,
@@ -10772,7 +10798,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
           flashcardsCompleted: !!p.flashcardsCompleted,
           quizCompleted: !!p.quizCompleted,
           quizScore: safeScore,
-          lastAccessed: p.lastAccessed ? new Date(p.lastAccessed) : new Date()
+          lastAccessed: safeLastAccessed
         }
       }));
     }
@@ -10809,6 +10835,7 @@ app.post("/api/auth/sync", requireUser, catchAsync(async (req, res) => {
         ...event,
         targetGroups: parseTargetGroups(event.targetGroups)
       })),
+      prunedLectureIds,
       globalMaterials: {
         subjects: mDb.subjects,
         mcqs: mDb.mcqs,

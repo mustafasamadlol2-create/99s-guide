@@ -37,6 +37,14 @@ interface UnsyncedMutation {
   lastError?: string;
 }
 
+// UPDATE_PROGRESS is a background compatibility mirror. Canonical PDF/notes,
+// MCQ, flashcard and video completion writes are already server-authoritative.
+// A retry of this mirror must never interrupt studying with scary offline toasts.
+// Profile/calendar mutations remain user-visible because a terminal rejection
+// there can represent a change the user still needs to know about.
+const isUserVisibleOfflineMutation = (mutation: UnsyncedMutation): boolean =>
+  mutation.type !== "UPDATE_PROGRESS";
+
 class OfflineEngineClass {
   private listeners: Set<(online: boolean) => void> = new Set();
   private isOnlineState: boolean = typeof navigator === "undefined" ? true : navigator.onLine;
@@ -593,7 +601,12 @@ class OfflineEngineClass {
       
       window.dispatchEvent(
         new CustomEvent("offline-sync-status", {
-          detail: { syncing: true, status: "Syncing", pendingCount: queue.length },
+          detail: {
+            syncing: true,
+            status: "Syncing",
+            pendingCount: queue.length,
+            userVisiblePendingCount: queue.filter(isUserVisibleOfflineMutation).length,
+          },
         }),
       );
 
@@ -706,26 +719,43 @@ class OfflineEngineClass {
 
       const fullyResolved = remaining.length === 0;
       const hasFailures = deadLettered.length > 0;
+      const userVisibleRemaining = remaining.filter(isUserVisibleOfflineMutation);
+      const userVisibleDeadLettered = deadLettered.filter(isUserVisibleOfflineMutation);
+      const hasUserVisibleFailures = userVisibleDeadLettered.length > 0;
+      const hasUserVisibleRetries = userVisibleRemaining.length > 0;
 
       window.dispatchEvent(
         new CustomEvent("offline-sync-status", {
           detail: {
             syncing: false,
-            status: hasFailures ? "Failed" : fullyResolved ? "Resolved" : "Retrying",
+            // Background progress reconciliation is intentionally silent. It can
+            // retry or be quarantined without implying that the successful
+            // server-authoritative study action itself failed.
+            status: hasUserVisibleFailures
+              ? "Failed"
+              : hasUserVisibleRetries
+                ? "Retrying"
+                : "Resolved",
             pendingCount: remaining.length,
             rejectedCount: deadLettered.length,
-            completed: fullyResolved && !hasFailures,
+            userVisiblePendingCount: userVisibleRemaining.length,
+            userVisibleRejectedCount: userVisibleDeadLettered.length,
+            backgroundPendingCount: remaining.length - userVisibleRemaining.length,
+            backgroundRejectedCount: deadLettered.length - userVisibleDeadLettered.length,
+            completed: fullyResolved && !hasUserVisibleFailures,
           },
         }),
       );
 
-      if (hasFailures) {
-        // Deterministic failure surfacing: DLQ contents stay queryable for review.
+      if (hasUserVisibleFailures) {
+        // Only surface terminal failures for user-authored changes that need
+        // attention. Background progress compatibility failures stay in the DLQ
+        // for diagnostics without producing misleading study-flow errors.
         window.dispatchEvent(
           new CustomEvent("offline-sync-error", {
             detail: {
-              message: `${deadLettered.length} saved change(s) were rejected and moved to the dead-letter queue for review.`,
-              rejectedCount: deadLettered.length,
+              message: `${userVisibleDeadLettered.length} saved change(s) were rejected and moved to the dead-letter queue for review.`,
+              rejectedCount: userVisibleDeadLettered.length,
             },
           }),
         );
