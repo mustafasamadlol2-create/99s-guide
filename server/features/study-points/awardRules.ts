@@ -66,6 +66,20 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     status: "ACTIVE",
   },
   {
+    ruleVersion: "lecture-video-completion-v1",
+    category: "PROGRESS",
+    reasonCode: "lecture.video_verified_completed",
+    sourceType: "LECTURE_RESOURCE",
+    status: "ACTIVE",
+  },
+  {
+    ruleVersion: "mcq-set-pass-v1",
+    category: "PROGRESS",
+    reasonCode: "mcq.set_verified_pass",
+    sourceType: "LECTURE_RESOURCE",
+    status: "ACTIVE",
+  },
+  {
     ruleVersion: "lecture-completion-v1",
     category: "PROGRESS",
     reasonCode: "lecture.completed",
@@ -83,9 +97,17 @@ export const FLASHCARD_FIRST_RECALL_RULE = STUDY_POINTS_AWARD_RULES[5];
 export const RECALL_OBJECTIVE_CORRECT_RULE = STUDY_POINTS_AWARD_RULES[6];
 export const LECTURE_PDF_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[7];
 export const LECTURE_NOTES_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[8];
-export const LECTURE_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[9];
+export const LECTURE_VIDEO_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[9];
+export const MCQ_SET_PASS_RULE = STUDY_POINTS_AWARD_RULES[10];
+export const LECTURE_COMPLETION_RULE = STUDY_POINTS_AWARD_RULES[11];
 export const LECTURE_PDF_COMPLETION_AMOUNT = 5;
 export const LECTURE_NOTES_COMPLETION_AMOUNT = 3;
+export const LECTURE_VIDEO_COMPLETION_AMOUNT = 3;
+export const MCQ_SET_PASS_AMOUNT = 5;
+export const MCQ_SET_PASS_MIN_QUESTIONS = 10;
+export const MCQ_SET_PASS_MIN_SCORE_PERCENT = 70;
+export const MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY = 20;
+export const FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY = 10;
 export const LECTURE_COMPLETION_AMOUNT = 8;
 export const RECALL_OBJECTIVE_CORRECT_AMOUNT = 2;
 export const RECALL_MAX_POINTS_PER_DAY = 6;

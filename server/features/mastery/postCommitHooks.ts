@@ -30,8 +30,8 @@ export function flashcardStudyQualityFromStatus(
     case "NOT_REMEMBERED":
       return "AGAIN";
     case "HARD":
-    case "MEDIUM":
       return "HARD";
+    case "MEDIUM":
     case "GOOD":
       return "GOOD";
     case "EASY":

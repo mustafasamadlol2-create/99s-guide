@@ -65,6 +65,7 @@ model User {
   lectureProgresses              LectureProgress[]
   pointsLogs                     PointsLog[]
   userProgresses                 UserProgress[]
+  videoWatchProgresses           VideoWatchProgress[]
   qaQuestions                    QaQuestion[]                   @relation("QaQuestions")
   qaAnswers                      QaAnswer[]                     @relation("QaAnswers")
   blocksMade                     UserBlock[]                    @relation("BlocksMade")
@@ -153,6 +154,7 @@ model Material {
   storagePath    String?
   lecture        Lecture        @relation(fields: [lectureId], references: [id], onDelete: Cascade)
   userProgresses UserProgress[]
+  videoWatchProgresses VideoWatchProgress[]
   studyEvents    StudyEvent[]
 
   @@index([lectureId])
@@ -356,6 +358,30 @@ model UserProgress {
 
   @@unique([userId, materialId])
   @@index([materialId])
+}
+
+
+model VideoWatchProgress {
+  id                   String   @id @default(uuid())
+  userId               String
+  materialId           String
+  sessionId            String   @default(uuid())
+  durationSeconds      Int
+  verifiedMilliseconds Int      @default(0)
+  lastPositionSeconds  Float    @default(0)
+  lastHeartbeatAt      DateTime?
+  lastPlayerState      String   @default("UNSTARTED")
+  lastPlaybackRate     Float    @default(1)
+  completedAt          DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId])
+  @@index([materialId, completedAt])
+  @@index([userId, completedAt])
+  @@index([userId, lastHeartbeatAt])
 }
 
 model Notification {

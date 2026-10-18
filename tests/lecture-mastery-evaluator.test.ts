@@ -189,7 +189,7 @@ test("same-timestamp outcomes use stable ID ordering", () => {
 
 test("existing Flashcard batch ratings map into Study Event quality values", () => {
   assert.equal(flashcardStudyQualityFromStatus("easy"), "EASY");
-  assert.equal(flashcardStudyQualityFromStatus("medium"), "HARD");
+  assert.equal(flashcardStudyQualityFromStatus("medium"), "GOOD");
   assert.equal(flashcardStudyQualityFromStatus("hard"), "HARD");
   assert.equal(flashcardStudyQualityFromStatus("unknown"), null);
 });

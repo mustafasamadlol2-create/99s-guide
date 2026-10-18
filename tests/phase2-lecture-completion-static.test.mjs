@@ -48,7 +48,8 @@ test('completion service rejects retroactive boolean-only progress and requires 
 
 test('MCQ and flashcard completion remain automatic', () => {
   const server = read('server.ts');
-  assert.match(server, /quizCompletedAt: existingProgress\?\.quizCompletedAt \?\? occurredAt/u);
+  assert.match(server, /const completedFullSet = canonicalQuestionCount > 0/u);
+  assert.match(server, /quizCompletedAt: completedFullSet \? occurredAt : null/u);
   assert.match(server, /flashcardsCompletedAt: existingProgress\?\.flashcardsCompletedAt \?\? occurredAt/u);
   assert.match(server, /app\.post\("\/api\/progress\/lecture\/:lectureId\/complete"/u);
 });

@@ -496,6 +496,17 @@ export const LectureDetailView = function LectureDetailView({
  const [isCompletingPdf, setIsCompletingPdf] = useState(false);
  const [isCompletingNotes, setIsCompletingNotes] = useState(false);
 
+ // Video completion/progress is canonical server state. Keep these declarations
+ // alongside the other lecture-progress state because canonical refreshes may
+ // update them before the Video tab is rendered.
+ const [videoWatched, setVideoWatched] = useState(progress.videoCompleted);
+ const [videoProgressById, setVideoProgressById] = useState<Record<string, {
+   completed: boolean;
+   verifiedSeconds: number;
+   durationSeconds: number;
+ }>>({});
+ const youtubeExternalOpenRef = useRef(false);
+
  // Enriched Notes Section
  const [personalNotes, setPersonalNotes] = useState("");
  const [hasOpenedNotes, setHasOpenedNotes] = useState(() => {
@@ -518,6 +529,7 @@ export const LectureDetailView = function LectureDetailView({
      if (!status) return null;
      setIsPdfCompleted(status.pdfCompleted === true);
      setIsNotesCompleted(status.notesCompleted === true);
+     setVideoWatched(status.videoCompleted === true);
      setIsLectureCompleted(status.lectureCompleted === true);
      setIsLectureReadyForCompletion(status.readyForLectureCompletion === true);
      setLectureCompletionMissing(Array.isArray(status.missing) ? status.missing : []);
@@ -545,6 +557,8 @@ export const LectureDetailView = function LectureDetailView({
      localStorage.getItem(`uob_has_opened_notes_${lecture.id}`) === "true",
    );
    setIsNotesCompleted(!!progress.notesCompleted);
+   setVideoWatched(!!progress.videoCompleted);
+   setVideoProgressById({});
    setIsLectureCompleted(false);
    setIsLectureReadyForCompletion(false);
    setLectureCompletionMissing([]);
@@ -854,9 +868,6 @@ export const LectureDetailView = function LectureDetailView({
  >(null);
 
   // Video Section
-  const [videoWatched, setVideoWatched] = useState(progress.videoCompleted);
-  const youtubeExternalOpenRef = useRef(false);
-
   // Close a still-present Capacitor browser sheet when iOS returns from the
   // external YouTube app, restoring the lecture card underneath it.
   useEffect(() => {
@@ -1053,6 +1064,7 @@ export const LectureDetailView = function LectureDetailView({
   const handleEndOfSession = async (finalUpdates: Record<string, "easy" | "medium" | "hard">) => {
     setDeckFinished(true);
     setCardStats((prev) => ({ ...prev, ...finalUpdates }));
+    let completedOnServer = false;
     
     try {
       const res = await apiClient("/api/flashcards/batch-progress", {
@@ -1061,7 +1073,13 @@ export const LectureDetailView = function LectureDetailView({
         body: JSON.stringify({ updates: finalUpdates })
       });
       const data = res.ok ? await res.json().catch(() => null) : null;
+      completedOnServer = Array.isArray(data?.completedLectureIds)
+        && data.completedLectureIds.includes(lecture.id);
       window.dispatchEvent(new Event("study:mastery-updated"));
+      const awarded = Number(data?.points?.awarded) || 0;
+      if (awarded > 0) {
+        settleOptimisticStudyPoints(`flashcard-deck:${lecture.id}:${Date.now()}`, awarded);
+      }
       if (data?.points?.changed === true) {
         const resources: GamificationSyncResource[] = [
           "summary",
@@ -1078,9 +1096,10 @@ export const LectureDetailView = function LectureDetailView({
     } catch (err) {
     }
 
-    if (!progress.flashcardsCompleted) {
+    if (!progress.flashcardsCompleted && (completedOnServer || !lecture.isDatabaseLecture)) {
       onUpdateProgress({ flashcardsCompleted: true });
     }
+    void refreshCanonicalLectureProgress();
     setUpdatedCardStatuses({});
   };
 
@@ -1230,6 +1249,7 @@ export const LectureDetailView = function LectureDetailView({
   explanation?: string;
   };
   } = {};
+  let serverQuizCompletion: { quizCompleted?: boolean; quizScore?: number } | null = null;
 
   try {
   const res = await apiClient("/api/mcqs/submit", {
@@ -1241,7 +1261,14 @@ export const LectureDetailView = function LectureDetailView({
   if (!res.ok) throw new Error("Submission rejected by server.");
 
   const data = await res.json();
+  serverQuizCompletion = data?.quizCompletion && typeof data.quizCompletion === "object"
+    ? data.quizCompletion
+    : null;
   window.dispatchEvent(new Event("study:mastery-updated"));
+  const awarded = Number(data?.points?.awarded) || 0;
+  if (awarded > 0) {
+    settleOptimisticStudyPoints(`mcq-submit:${lecture.id}:${Date.now()}`, awarded);
+  }
   if (data?.points?.changed === true) {
     const resources: GamificationSyncResource[] = [
       "summary",
@@ -1287,9 +1314,14 @@ export const LectureDetailView = function LectureDetailView({
   setQuizScorePct(finalScore);
   setQuizSubmitted(true);
 
-  if (!progress.quizCompleted) {
-    onUpdateProgress({ quizCompleted: true, quizScore: finalScore });
+  if (serverQuizCompletion?.quizCompleted === true) {
+    if (!progress.quizCompleted || progress.quizScore !== finalScore) {
+      onUpdateProgress({ quizCompleted: true, quizScore: finalScore });
+    }
+  } else if (progress.quizScore !== finalScore) {
+    onUpdateProgress({ quizScore: finalScore });
   }
+  void refreshCanonicalLectureProgress();
   };
 
   // Video watching
@@ -1391,11 +1423,64 @@ export const LectureDetailView = function LectureDetailView({
       return;
     }
 
-    if (!videoWatched) {
-      setVideoWatched(true);
-      onUpdateProgress({ videoCompleted: true });
-    }
+    // External YouTube playback is intentionally not a completion signal.
+    // Competitive video completion is granted only by the verified in-app
+    // player after 80% server-timed playback.
   };
+
+  const refreshVerifiedVideoProgress = useCallback(async () => {
+    if (!currentUser?.id || !lecture.id) return;
+    try {
+      const response = await apiClient(`/api/videos/progress/${encodeURIComponent(lecture.id)}`, {
+        cache: "no-store",
+        silent: true,
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const rows = Array.isArray(payload?.videos) ? payload.videos : [];
+      const next: Record<string, { completed: boolean; verifiedSeconds: number; durationSeconds: number }> = {};
+      for (const row of rows) {
+        if (!row || typeof row.materialId !== "string") continue;
+        next[row.materialId] = {
+          completed: row.completed === true,
+          verifiedSeconds: Number(row.verifiedSeconds) || 0,
+          durationSeconds: Number(row.durationSeconds) || 0,
+        };
+      }
+      setVideoProgressById(next);
+      if (rows.length > 0 && rows.every((row: any) => row?.completed === true)) {
+        setVideoWatched(true);
+      }
+    } catch {
+      // Verified video progress is server-authoritative; a transient read error
+      // must not synthesize a completion locally.
+    }
+  }, [currentUser?.id, lecture.id]);
+
+  useEffect(() => {
+    void refreshVerifiedVideoProgress();
+  }, [refreshVerifiedVideoProgress]);
+
+  const handleVerifiedVideoComplete = useCallback((result: {
+    materialId: string;
+    lectureVideoCompleted: boolean;
+    pointsAwarded: number;
+  }) => {
+    setVideoProgressById((previous) => ({
+      ...previous,
+      [result.materialId]: {
+        completed: true,
+        verifiedSeconds: previous[result.materialId]?.verifiedSeconds ?? 0,
+        durationSeconds: previous[result.materialId]?.durationSeconds ?? 0,
+      },
+    }));
+    if (result.lectureVideoCompleted) {
+      setVideoWatched(true);
+      if (!progress.videoCompleted) onUpdateProgress({ videoCompleted: true });
+    }
+    void refreshCanonicalLectureProgress();
+    void refreshVerifiedVideoProgress();
+  }, [onUpdateProgress, progress.videoCompleted, refreshCanonicalLectureProgress, refreshVerifiedVideoProgress]);
 
  // ── Q&A: fetch from API ──────────────────────────────────────────
  const fetchQA = useCallback(async () => {
@@ -3265,7 +3350,20 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  ) : (
  getRelevantVideos().map((video) => {
               const videoId = extractYouTubeVideoId(video.youtubeUrl) || undefined;
-              return <VideoCard key={video.id} video={video} videoId={videoId} onWatch={handleWatchVideo} language={language} />;
+              const verified = videoProgressById[String(video.id)];
+              return (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  videoId={videoId}
+                  onOpenExternal={handleWatchVideo}
+                  onVerifiedComplete={handleVerifiedVideoComplete}
+                  initialCompleted={verified?.completed === true}
+                  initialVerifiedSeconds={verified?.verifiedSeconds ?? 0}
+                  initialDurationSeconds={verified?.durationSeconds ?? 0}
+                  language={language}
+                />
+              );
             })
  )}
  </div>

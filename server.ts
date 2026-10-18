@@ -91,6 +91,15 @@ import { getPublicGamificationProfile } from "./server/features/gamification/pub
 import { refreshActiveLeaderboardSnapshotsForUser } from "./server/features/leaderboard/snapshots.js";
 import { StudyPointsAwardEngine } from "./server/features/study-points/awardEngine.js";
 import {
+  MCQ_SET_PASS_MIN_QUESTIONS,
+  MCQ_SET_PASS_MIN_SCORE_PERCENT,
+} from "./server/features/study-points/awardRules.js";
+import {
+  VideoWatchProgressService,
+  VIDEO_PLAYER_STATES,
+  type VideoPlayerState,
+} from "./server/features/video-progress/service.js";
+import {
   LectureProgressCompletionService,
   LECTURE_COMPLETION_RESOURCE_TYPES,
   type LectureCompletionResourceType,
@@ -1122,13 +1131,13 @@ app.use((req, res, next) => {
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'self'",
-      `script-src 'self' 'nonce-${nonce}'`,
+      `script-src 'self' 'nonce-${nonce}' https://www.youtube.com https://s.ytimg.com`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: wss:",
       "media-src 'self' blob:",
-      "frame-src 'self' https://www.youtube.com https://accounts.google.com",
+      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://accounts.google.com",
       "form-action 'self' https://appleid.apple.com",
     ].join("; "));
   }
@@ -2474,6 +2483,7 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
       ids.add(flashcardId);
       submittedIdsByLecture.set(lectureId, ids);
     }
+    const completedLectureIds: string[] = [];
     for (const [lectureId, submittedIds] of submittedIdsByLecture) {
       const canonicalIds = await prismaClient.flashcard.findMany({
         where: { lectureId },
@@ -2501,6 +2511,7 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
           lastAccessed: occurredAt,
         },
       });
+      completedLectureIds.push(lectureId);
     }
     const idempotencyPrefix = `flashcard-rating:${crypto.randomUUID()}`;
     const events = statusUpdates.flatMap(([flashcardId, status]) => {
@@ -2559,6 +2570,7 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
     res.json({
       success: true,
       points: { awarded: awardedPoints, changed: awardedPoints > 0 },
+      completedLectureIds,
     });
   } catch (err) {
     res.status(500).json({ error: "Internal Server Error" });
@@ -4678,40 +4690,57 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
     // no separate "Complete" button for MCQs. Persist a post-cutover timestamp
     // so whole-lecture completion can distinguish new V2 study from historical
     // boolean progress.
-    const resultsByLecture = new Map<string, { total: number; correct: number }>();
+    const resultsByLecture = new Map<string, { total: number; correct: number; ids: Set<string> }>();
     for (const result of results) {
       const mcq = byId.get(result.id);
       if (!mcq?.lectureId) continue;
-      const bucket = resultsByLecture.get(mcq.lectureId) ?? { total: 0, correct: 0 };
+      const bucket = resultsByLecture.get(mcq.lectureId) ?? { total: 0, correct: 0, ids: new Set<string>() };
       bucket.total += 1;
+      bucket.ids.add(result.id);
       if (result.correct) bucket.correct += 1;
       resultsByLecture.set(mcq.lectureId, bucket);
     }
+    const quizCompletionByLecture = new Map<string, { completed: boolean; score: number }>();
     for (const [lectureId, summary] of resultsByLecture) {
-      const existingProgress = await prismaClient.lectureProgress.findUnique({
-        where: { userId_lectureId: { userId: (req as any).user.id, lectureId } },
-        select: { quizCompletedAt: true },
-      });
+      const [existingProgress, canonicalQuestionCount] = await Promise.all([
+        prismaClient.lectureProgress.findUnique({
+          where: { userId_lectureId: { userId: (req as any).user.id, lectureId } },
+          select: { quizCompleted: true, quizCompletedAt: true, quizScore: true },
+        }),
+        prismaClient.mcq.count({ where: { lectureId } }),
+      ]);
       const score = summary.total > 0
         ? Math.round((summary.correct / summary.total) * 100)
         : 0;
+      const completedFullSet = canonicalQuestionCount > 0 && summary.ids.size >= canonicalQuestionCount;
+      const quizCompleted = !!existingProgress?.quizCompletedAt || completedFullSet;
+      // A partial/filtered retake must not overwrite the score of a canonical
+      // full-deck completion. Keep the stored full-set score once it exists.
+      const storedQuizScore = completedFullSet
+        ? score
+        : (existingProgress?.quizCompletedAt
+            ? (existingProgress.quizScore ?? score)
+            : score);
       await prismaClient.lectureProgress.upsert({
         where: { userId_lectureId: { userId: (req as any).user.id, lectureId } },
         update: {
-          quizCompleted: true,
-          quizScore: score,
-          quizCompletedAt: existingProgress?.quizCompletedAt ?? occurredAt,
+          quizCompleted,
+          quizScore: storedQuizScore,
+          ...(completedFullSet && !existingProgress?.quizCompletedAt
+            ? { quizCompletedAt: occurredAt }
+            : {}),
           lastAccessed: occurredAt,
         },
         create: {
           userId: (req as any).user.id,
           lectureId,
-          quizCompleted: true,
+          quizCompleted: completedFullSet,
           quizScore: score,
-          quizCompletedAt: occurredAt,
+          quizCompletedAt: completedFullSet ? occurredAt : null,
           lastAccessed: occurredAt,
         },
       });
+      quizCompletionByLecture.set(lectureId, { completed: quizCompleted, score });
     }
 
     const idempotencyPrefix = `mcq-submit:${crypto.randomUUID()}`;
@@ -4756,7 +4785,25 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
           now: occurredAt,
         })
       : [];
-    const awardedPoints = pointResults.reduce((sum, award) =>
+    const quizBonusResults = [];
+    for (const [lectureId, summary] of resultsByLecture) {
+      const score = summary.total > 0
+        ? Math.round((summary.correct / summary.total) * 100)
+        : 0;
+      if (
+        summary.ids.size >= MCQ_SET_PASS_MIN_QUESTIONS
+        && score >= MCQ_SET_PASS_MIN_SCORE_PERCENT
+      ) {
+        quizBonusResults.push(await pointsAwarder.awardServerVerifiedQuizSet({
+          userId: (req as any).user.id,
+          lectureId,
+          effectiveAt: occurredAt,
+          now: occurredAt,
+        }));
+      }
+    }
+    const allPointResults = [...pointResults, ...quizBonusResults];
+    const awardedPoints = allPointResults.reduce((sum, award) =>
       sum + award.attempts.reduce((inner, attempt) =>
         inner + (
           attempt.decision.outcome === "AWARD" && !attempt.replayed
@@ -4771,12 +4818,22 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
       events,
       awardPoints: false,
     });
+    const singleLectureCompletion = quizCompletionByLecture.size === 1
+      ? [...quizCompletionByLecture.entries()][0]
+      : null;
     res.json({
       results,
       points: {
         awarded: awardedPoints,
         changed: awardedPoints > 0,
       },
+      quizCompletion: singleLectureCompletion
+        ? {
+            lectureId: singleLectureCompletion[0],
+            quizCompleted: singleLectureCompletion[1].completed,
+            quizScore: singleLectureCompletion[1].score,
+          }
+        : null,
     });
   } catch (err: any) {
     console.error("[MCQ Submit Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
@@ -10934,6 +10991,83 @@ app.post("/api/offline/reconcile", requireUser, catchAsync(async (req, res) => {
   } catch (error: any) {
     console.error('[Offline Reconcile Error]:', error instanceof Error ? error.message.substring(0, 50) : "Sanitized");
     res.status(500).json({ error: "Internal Server Error" });
+  }
+}));
+
+// Verified in-app YouTube watch progress. Opening an external YouTube link is
+// intentionally not a completion signal; only server-timed in-app playback can
+// complete a video and earn competitive Points V2.
+app.get("/api/videos/progress/:lectureId", requireUser, catchAsync(async (req, res) => {
+  const lectureId = String(req.params.lectureId || "").trim();
+  if (!lectureId || lectureId.length > 96 || lectureId.includes("\0")) {
+    return res.status(400).json({ error: "lectureId is invalid." });
+  }
+  const userId = (req as any).user.id as string;
+  const service = new VideoWatchProgressService(getPrisma());
+  const videos = await service.getLectureStatuses(userId, lectureId);
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({ success: true, videos });
+}));
+
+app.post("/api/videos/watch/start", requireUser, catchAsync(async (req, res) => {
+  try {
+    const materialId = String(req.body?.materialId || "").trim();
+    if (!materialId || materialId.length > 128 || materialId.includes("\0")) {
+      return res.status(400).json({ error: "materialId is invalid." });
+    }
+    const service = new VideoWatchProgressService(getPrisma());
+    const result = await service.start({
+      userId: (req as any).user.id as string,
+      materialId,
+      durationSeconds: req.body?.durationSeconds,
+    });
+    if (!result) {
+      return res.status(404).json({ error: "Verified video material not found.", code: "VIDEO_NOT_FOUND" });
+    }
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return res.status(400).json({ error: error.message, code: "INVALID_VIDEO_WATCH_START" });
+    }
+    throw error;
+  }
+}));
+
+app.post("/api/videos/watch/heartbeat", requireUser, catchAsync(async (req, res) => {
+  try {
+    const materialId = String(req.body?.materialId || "").trim();
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const playerState = String(req.body?.playerState || "").trim().toUpperCase();
+    if (!materialId || materialId.length > 128 || materialId.includes("\0")) {
+      return res.status(400).json({ error: "materialId is invalid." });
+    }
+    if (!(VIDEO_PLAYER_STATES as readonly string[]).includes(playerState)) {
+      return res.status(400).json({ error: "playerState is invalid." });
+    }
+    const service = new VideoWatchProgressService(getPrisma());
+    const result = await service.heartbeat({
+      userId: (req as any).user.id as string,
+      materialId,
+      sessionId,
+      positionSeconds: req.body?.positionSeconds,
+      durationSeconds: req.body?.durationSeconds,
+      playerState: playerState as VideoPlayerState,
+      playbackRate: req.body?.playbackRate,
+    });
+    if (!result) {
+      return res.status(404).json({ error: "Verified video material not found.", code: "VIDEO_NOT_FOUND" });
+    }
+    if ("staleSession" in result) {
+      return res.status(409).json({ error: "Video watch session expired. Restart verified playback.", code: "VIDEO_WATCH_SESSION_STALE" });
+    }
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return res.status(400).json({ error: error.message, code: "INVALID_VIDEO_WATCH_HEARTBEAT" });
+    }
+    throw error;
   }
 }));
 

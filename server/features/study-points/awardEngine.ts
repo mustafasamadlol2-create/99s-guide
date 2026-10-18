@@ -24,7 +24,13 @@ import {
   LECTURE_NOTES_COMPLETION_RULE,
   LECTURE_PDF_COMPLETION_AMOUNT,
   LECTURE_PDF_COMPLETION_RULE,
+  LECTURE_VIDEO_COMPLETION_AMOUNT,
+  LECTURE_VIDEO_COMPLETION_RULE,
+  MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY,
   MCQ_FIRST_CORRECT_RULE,
+  MCQ_SET_PASS_AMOUNT,
+  MCQ_SET_PASS_RULE,
+  FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
   RECALL_MAX_POINTS_PER_DAY,
   RECALL_MAX_POINTS_PER_WEEK,
   RECALL_OBJECTIVE_CORRECT_AMOUNT,
@@ -254,7 +260,9 @@ export class StudyPointsAwardEngine {
           baseRuleAmount: 1,
           baghdadDate: studyPointsBaghdadDate(effectiveAt),
           now,
-          maxPointsPerDay: 20,
+          maxPointsPerDay: input.sourceType === "MCQ_ATTEMPT"
+            ? MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY
+            : FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
           specialDailyRule: rule,
           // First-success rewards are one-time per resource. A later retry of
           // the same MCQ/flashcard must replay the original award rather than
@@ -287,7 +295,8 @@ export class StudyPointsAwardEngine {
   async awardServerVerifiedLectureProgress(input: {
     userId: string;
     lectureId: string;
-    completionType: "PDF" | "NOTES" | "LECTURE";
+    completionType: "PDF" | "NOTES" | "VIDEO" | "LECTURE";
+    materialId?: string | null;
     effectiveAt?: Date;
     now?: Date;
     tx?: Prisma.TransactionClient;
@@ -305,7 +314,8 @@ export class StudyPointsAwardEngine {
       || input.lectureId.length < 1
       || input.lectureId.length > 96
       || input.lectureId.includes("\0")
-      || !["PDF", "NOTES", "LECTURE"].includes(input.completionType)
+      || !["PDF", "NOTES", "VIDEO", "LECTURE"].includes(input.completionType)
+      || (input.completionType === "VIDEO" && (typeof input.materialId !== "string" || !input.materialId || input.materialId.length > 128 || input.materialId.includes("\0")))
     ) {
       throw new TypeError("Server-verified lecture completion source is invalid.");
     }
@@ -325,17 +335,23 @@ export class StudyPointsAwardEngine {
     const sourceType = isLecture ? "LECTURE_COMPLETION" as const : "LECTURE_RESOURCE" as const;
     const sourceId = isLecture
       ? input.lectureId
-      : `${input.completionType.toLowerCase()}:${input.lectureId}`;
+      : input.completionType === "VIDEO"
+        ? `video:${input.materialId}`
+        : `${input.completionType.toLowerCase()}:${input.lectureId}`;
     const rule = input.completionType === "PDF"
       ? LECTURE_PDF_COMPLETION_RULE
       : input.completionType === "NOTES"
         ? LECTURE_NOTES_COMPLETION_RULE
-        : LECTURE_COMPLETION_RULE;
+        : input.completionType === "VIDEO"
+          ? LECTURE_VIDEO_COMPLETION_RULE
+          : LECTURE_COMPLETION_RULE;
     const baseRuleAmount = input.completionType === "PDF"
       ? LECTURE_PDF_COMPLETION_AMOUNT
       : input.completionType === "NOTES"
         ? LECTURE_NOTES_COMPLETION_AMOUNT
-        : LECTURE_COMPLETION_AMOUNT;
+        : input.completionType === "VIDEO"
+          ? LECTURE_VIDEO_COMPLETION_AMOUNT
+          : LECTURE_COMPLETION_AMOUNT;
 
     const perform = async (tx: Prisma.TransactionClient) => ({
       sourceType,
@@ -356,6 +372,70 @@ export class StudyPointsAwardEngine {
       })],
     } satisfies StudyPointsAwardSourceResult);
 
+    const result = input.tx
+      ? await perform(input.tx)
+      : await this.database.$transaction(perform, TRANSACTION_OPTIONS);
+    if (
+      !input.tx
+      && result.attempts.some((attempt) =>
+        attempt.decision.outcome === "AWARD" && !attempt.replayed
+      )
+    ) {
+      await notifyStudyPointsPostCommit(input.userId);
+    }
+    return result;
+  }
+
+  async awardServerVerifiedQuizSet(input: {
+    userId: string;
+    lectureId: string;
+    effectiveAt?: Date;
+    now?: Date;
+    tx?: Prisma.TransactionClient;
+  }): Promise<StudyPointsAwardSourceResult> {
+    if (!this.isStudyPointsEnabled()) {
+      throw new StudyPointsError("FEATURE_DISABLED", "Study Points are disabled.");
+    }
+    if (
+      !input
+      || typeof input.userId !== "string"
+      || input.userId.length < 1
+      || input.userId.length > 128
+      || input.userId.includes("\0")
+      || typeof input.lectureId !== "string"
+      || input.lectureId.length < 1
+      || input.lectureId.length > 96
+      || input.lectureId.includes("\0")
+    ) {
+      throw new TypeError("Verified MCQ set source is invalid.");
+    }
+    const now = input.now ?? this.now();
+    const effectiveAt = input.effectiveAt ?? now;
+    if (
+      !(now instanceof Date)
+      || !Number.isFinite(now.getTime())
+      || !(effectiveAt instanceof Date)
+      || !Number.isFinite(effectiveAt.getTime())
+    ) {
+      throw new TypeError("Verified MCQ set time is invalid.");
+    }
+    const sourceType = "LECTURE_RESOURCE" as const;
+    const sourceId = `mcq-set:${input.lectureId}`;
+    const perform = async (tx: Prisma.TransactionClient) => ({
+      sourceType,
+      sourceId,
+      attempts: [await this.appendCappedAward(tx, {
+        userId: input.userId,
+        sourceType,
+        sourceId,
+        effectiveAt,
+        rule: MCQ_SET_PASS_RULE,
+        baseRuleAmount: MCQ_SET_PASS_AMOUNT,
+        baghdadDate: studyPointsBaghdadDate(effectiveAt),
+        now,
+        compareEffectiveAtOnReplay: false,
+      })],
+    } satisfies StudyPointsAwardSourceResult);
     const result = input.tx
       ? await perform(input.tx)
       : await this.database.$transaction(perform, TRANSACTION_OPTIONS);
@@ -632,7 +712,9 @@ export class StudyPointsAwardEngine {
           baseRuleAmount: 1,
           baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
           now,
-          maxPointsPerDay: 20,
+          maxPointsPerDay: input.sourceType === "MCQ_ATTEMPT"
+            ? MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY
+            : FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
           specialDailyRule: rule,
           // First-success rewards are one-time per resource. A later retry of
           // the same MCQ/flashcard must replay the original award rather than
