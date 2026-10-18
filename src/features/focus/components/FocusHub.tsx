@@ -856,6 +856,15 @@ export function FocusHub({
       return created;
     } catch (error) {
       const errorCode = getApiErrorCode(error);
+      // Keep the user-facing message simple, but retain the exact backend code
+      // in diagnostics so a real persistence failure can never be mistaken for
+      // a generic planner/UI problem again.
+      console.warn("[FocusHub] Focus Plan save failed", {
+        code: errorCode,
+        status: error && typeof error === "object" && "status" in error
+          ? (error as { status?: unknown }).status
+          : undefined,
+      });
       if (errorCode === "LECTURE_NOT_FOUND") {
         try {
           await onRefreshLectures();

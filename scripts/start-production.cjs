@@ -26,6 +26,17 @@ if (!fs.existsSync(prismaCli)) {
   fail('The local Prisma CLI is unavailable. Run npm install before starting production.');
 }
 
+console.log('[STARTUP] Generating Prisma Client from the deployed schema...');
+const generate = spawnSync(process.execPath, [prismaCli, 'generate'], {
+  cwd: path.resolve(__dirname, '..'),
+  env: process.env,
+  stdio: 'inherit',
+});
+if (generate.error) fail('Prisma Client generation could not start.', generate.error);
+if (generate.status !== 0) {
+  fail(`Prisma Client generation failed with exit code ${generate.status ?? 'unknown'}.`);
+}
+
 console.log('[STARTUP] Applying pending Prisma migrations...');
 const migration = spawnSync(process.execPath, [prismaCli, 'migrate', 'deploy'], {
   cwd: path.resolve(__dirname, '..'),

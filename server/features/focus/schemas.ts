@@ -23,7 +23,7 @@ const timezone = z.string()
       return false;
     }
   }, "Timezone must be a valid IANA time zone.");
-const opaqueResourceId = z.string()
+const opaqueDatabaseId = z.string()
   .trim()
   .min(1)
   .max(500)
@@ -53,10 +53,10 @@ export const focusPlanResourceTypeSchema = z.enum([
 
 export const focusPlanResourceSelectionSchema = z.object({
   resourceType: focusPlanResourceTypeSchema,
-  // Material IDs are historically opaque strings in this app. Older imported
+  // Academic IDs are historically opaque strings in this app. Older imported
   // content can legitimately use non-UUID IDs, so validate ownership against
   // PostgreSQL instead of rejecting the identifier shape at the API boundary.
-  resourceId: opaqueResourceId,
+  resourceId: opaqueDatabaseId,
   sequence: z.number().int().min(1).max(500),
 }).strict();
 
@@ -75,7 +75,7 @@ const focusPlanResources = z.array(focusPlanResourceSelectionSchema)
 
 export const focusPlanItemInputSchema = z.object({
   id: uuid.optional(),
-  lectureId: uuid,
+  lectureId: opaqueDatabaseId,
   sequence: z.number().int().min(1).max(MAX_FOCUS_PLAN_ITEMS),
   sessionCount: z.number().int().min(1).max(MAX_FOCUS_SESSION_COUNT),
   focusDurationSeconds: z.number().int()
@@ -148,7 +148,7 @@ export const abandonFocusSessionSchema = z.object({
 
 export const resourceHandoffStartSchema = z.object({
   resourceType: z.enum(["PDF", "VIDEO"]),
-  resourceId: opaqueResourceId,
+  resourceId: opaqueDatabaseId,
   idempotencyKey,
   source: clientSource,
 }).strict();
@@ -197,7 +197,7 @@ export const focusHistoryQuerySchema = z.object({
   cursor: z.string().min(1).max(512).optional(),
   status: z.enum(FOCUS_SESSION_STATUSES).optional(),
   subject: z.string().trim().min(1).max(64).optional(),
-  lectureId: uuid.optional(),
+  lectureId: opaqueDatabaseId.optional(),
 }).strict();
 
 export type CreateFocusPlanInput = z.infer<typeof createFocusPlanSchema>;

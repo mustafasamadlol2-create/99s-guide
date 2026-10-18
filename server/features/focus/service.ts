@@ -637,6 +637,22 @@ async function enqueuePlanProjection(tx: FocusTransaction, plan: PlanRecord): Pr
   }
 }
 
+async function enqueuePlanProjectionBestEffort(
+  database: PrismaClient,
+  plan: PlanRecord,
+): Promise<void> {
+  try {
+    // D1 is a projection/cache. Canonical PostgreSQL plan persistence must not
+    // be rolled back because the projection outbox is temporarily unavailable.
+    // Reads already compare D1 planVersion with PostgreSQL and fall back to the
+    // canonical row when the projection is behind.
+    await enqueuePlanProjection(database as unknown as FocusTransaction, plan);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    console.warn(`[Focus] Plan projection enqueue deferred: ${reason}`);
+  }
+}
+
 async function enqueueSessionProjection(
   tx: FocusTransaction,
   session: SessionRecord,
@@ -1435,9 +1451,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             },
             include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
           }) as PlanRecord;
-          await enqueuePlanProjection(tx, created);
           return created;
         });
+        await enqueuePlanProjectionBestEffort(repository.database, plan);
         return planDto(plan);
       });
     },
@@ -1643,9 +1659,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
           }) as PlanRecord | null;
           if (!result) throw new FocusError("PLAN_NOT_FOUND", "Focus Plan was not found.");
-          await enqueuePlanProjection(tx, result);
           return result;
         });
+        await enqueuePlanProjectionBestEffort(repository.database, updated);
         return planDto(updated);
       });
     },
@@ -1669,9 +1685,9 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             },
             include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
           }) as PlanRecord;
-          await enqueuePlanProjection(tx, updated);
           return updated;
         });
+        await enqueuePlanProjectionBestEffort(repository.database, archived);
         return planDto(archived);
       });
     },

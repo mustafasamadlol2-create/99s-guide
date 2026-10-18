@@ -68,8 +68,8 @@ const checks = [
   }],
 
   ['legacy imported Material IDs remain valid Focus resource identifiers', () => {
-    assert.match(focusSchemas, /const opaqueResourceId = z\.string\(\)/u);
-    assert.match(focusSchemas, /resourceId:\s*opaqueResourceId/u);
+    assert.match(focusSchemas, /const opaqueDatabaseId = z\.string\(\)/u);
+    assert.match(focusSchemas, /resourceId:\s*opaqueDatabaseId/u);
     assert.doesNotMatch(focusSchemas, /resourceId:\s*uuid,/u);
     assert.match(api, /opaqueIdentifierField\(item\.resourceId, "plan resource ID"\)/u);
   }],

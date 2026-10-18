@@ -177,7 +177,7 @@ function session(value: unknown): FocusSessionDto {
   stringField(item.id, "session ID", { uuid: true });
   stringField(item.planId, "plan ID", { uuid: true });
   stringField(item.planItemId, "plan item ID", { uuid: true });
-  stringField(item.lectureId, "lecture ID", { uuid: true });
+  opaqueIdentifierField(item.lectureId, "lecture ID");
   if (typeof item.status !== "string" || !SESSION_STATES.has(item.status)) throw protocol("Invalid Focus session status.");
   for (const name of ["startedAt", "plannedEndAt", "actualEndedAt", "lastCheckpointAt"] as const) {
     stringField(item[name], name, { nullable: true });
@@ -217,7 +217,7 @@ function planResource(value: unknown) {
 function planItem(value: unknown): FocusPlanItemDto {
   const item = record(value, "plan item");
   stringField(item.id, "plan item ID", { uuid: true });
-  stringField(item.lectureId, "lecture ID", { uuid: true });
+  opaqueIdentifierField(item.lectureId, "lecture ID");
   for (const name of ["sequence", "sessionCount", "focusDurationSeconds", "breakDurationSeconds"]) numberField(item[name], name);
   for (const name of ["includeMcq", "includeFlashcards", "includeVideo"]) booleanField(item[name], name);
   if (item.resources === undefined) item.resources = [];
@@ -282,9 +282,10 @@ function focusMetrics(value: unknown): FocusMetricsDto {
 
 function postFocusActionContext(value: unknown): PostFocusActionContext {
   const item = record(value, "post-Focus action context");
-  for (const name of ["sessionId", "lectureId", "planId", "planItemId"] as const) {
+  for (const name of ["sessionId", "planId", "planItemId"] as const) {
     stringField(item[name], name, { uuid: true });
   }
+  opaqueIdentifierField(item.lectureId, "lectureId");
   for (const name of ["sessionNumber", "plannedSessionCount"] as const) numberField(item[name], name);
   booleanField(item.isLastPlannedSession, "isLastPlannedSession");
   booleanField(item.manualLectureCompletionRequired, "manualLectureCompletionRequired");
@@ -430,7 +431,7 @@ function focusSessionSummary(value: unknown): FocusSessionSummaryDto {
   textField(plan.title, "plan.title");
   textField(plan.status, "plan.status");
   const lecture = record(item.lecture, "summary lecture");
-  stringField(lecture.id, "lecture.id", { uuid: true });
+  opaqueIdentifierField(lecture.id, "lecture.id");
   textField(lecture.title, "lecture.title");
   textField(lecture.subject, "lecture.subject");
   const progress = record(item.progress, "summary progress");
@@ -466,7 +467,7 @@ function focusSessionSummary(value: unknown): FocusSessionSummaryDto {
   if (!Array.isArray(resources.items)) throw protocol("Invalid summary resources.");
   const resourceItems = resources.items.map((value) => {
     const entry = record(value, "resource summary item");
-    stringField(entry.resourceId, "resourceId", { uuid: true });
+    opaqueIdentifierField(entry.resourceId, "resourceId");
     if (entry.resourceType !== "PDF" && entry.resourceType !== "VIDEO") {
       throw protocol("Invalid resource type in summary.");
     }
@@ -483,8 +484,11 @@ function focusSessionSummary(value: unknown): FocusSessionSummaryDto {
   if (!["NEXT_SESSION", "NEXT_LECTURE", "PLAN_FINISHED", "UNAVAILABLE"].includes(String(nextAction.kind))) {
     throw protocol("Invalid summary next action.");
   }
-  for (const field of ["planItemId", "lectureId"] as const) {
-    if (nextAction[field] !== null) stringField(nextAction[field], `nextAction.${field}`, { uuid: true });
+  if (nextAction.planItemId !== null) {
+    stringField(nextAction.planItemId, "nextAction.planItemId", { uuid: true });
+  }
+  if (nextAction.lectureId !== null) {
+    opaqueIdentifierField(nextAction.lectureId, "nextAction.lectureId");
   }
   if (nextAction.lectureTitle !== null) textField(nextAction.lectureTitle, "nextAction.lectureTitle");
   return {
@@ -540,9 +544,10 @@ function focusHistoryPage(value: unknown): FocusHistoryPageDto {
     if (typeof row.status !== "string" || !SESSION_STATES.has(row.status)) {
       throw protocol("Invalid Focus history status.");
     }
-    for (const field of ["planId", "planItemId", "lectureId"] as const) {
+    for (const field of ["planId", "planItemId"] as const) {
       stringField(row[field], field, { uuid: true });
     }
+    opaqueIdentifierField(row.lectureId, "lectureId");
     for (const field of ["planTitle", "planStatus", "lectureTitle", "subject"] as const) {
       textField(row[field], field);
     }
