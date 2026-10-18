@@ -8,7 +8,10 @@ import { useTranslation, type Language } from "../../core/i18n/translations";
 import { gamificationApi } from "./api";
 import {
   GAMIFICATION_INVALIDATED_EVENT,
+  GAMIFICATION_OPTIMISTIC_POINTS_EVENT,
   GAMIFICATION_SOCKET_RECONNECTED_EVENT,
+  acknowledgeCommittedOptimisticStudyPoints,
+  getOptimisticStudyPointsDelta,
   resourcesForGamificationReconnect,
   setGamificationReadAccountScope,
   type GamificationInvalidationDetail,
@@ -223,6 +226,7 @@ export function GamificationFrontend({
   const [overviewRankLoading, setOverviewRankLoading] = useState(false);
   const [overviewRankError, setOverviewRankError] = useState(false);
   const [overviewRankRetrySerial, setOverviewRankRetrySerial] = useState(0);
+  const [optimisticPointDelta, setOptimisticPointDelta] = useState(() => getOptimisticStudyPointsDelta());
   const summaryGeneration = useRef(0);
   const achievementsGeneration = useRef(0);
   const challengesGeneration = useRef(0);
@@ -246,6 +250,17 @@ export function GamificationFrontend({
   currentOverviewRank.current = overviewRank;
   currentOwnRank.current = ownRank;
   currentAccountId.current = accountId;
+
+  useEffect(() => {
+    const syncOptimisticPoints = () => {
+      setOptimisticPointDelta(getOptimisticStudyPointsDelta());
+    };
+    syncOptimisticPoints();
+    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, syncOptimisticPoints);
+    return () => {
+      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, syncOptimisticPoints);
+    };
+  }, [accountId]);
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab]);
@@ -403,7 +418,10 @@ export function GamificationFrontend({
       if (
         overviewRankGeneration.current === requestId &&
         currentAccountId.current === account
-      ) setOverviewRank(result);
+      ) {
+        acknowledgeCommittedOptimisticStudyPoints();
+        setOverviewRank(result);
+      }
     } catch {
       if (
         overviewRankGeneration.current === requestId &&
@@ -755,7 +773,10 @@ export function GamificationFrontend({
           !cancelled &&
           rankGeneration.current === requestId &&
           currentAccountId.current === account
-        ) setOwnRank(rank);
+        ) {
+          acknowledgeCommittedOptimisticStudyPoints();
+          setOwnRank(rank);
+        }
       })
       .catch(() => {
         if (
@@ -936,6 +957,13 @@ export function GamificationFrontend({
     </div>
   );
 
+  const effectiveOverviewRank = overviewRank
+    ? { ...overviewRank, score: overviewRank.score + optimisticPointDelta }
+    : overviewRank;
+  const effectiveOwnRank = ownRank
+    ? { ...ownRank, score: ownRank.score + optimisticPointDelta }
+    : ownRank;
+
   const renderOverview = () => {
     if (loading.summary && !summary) return skeleton(3);
     if (disabled.summary && !summary) return renderDisabled(tx("gamificationDisabled", "Study engagement is disabled.", "التفاعل الدراسي معطل."));
@@ -1039,8 +1067,8 @@ export function GamificationFrontend({
               <h2 id="g-overview-rank-heading">
                 {tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")} · {tx("gamificationWeekly", "Weekly", "أسبوعي")}
               </h2>
-              {overviewRank && <p className="g-subtle">
-                {formatDate(overviewRank.season.startsAt, locale, { year: "numeric" })} – {formatDate(overviewRank.season.endsAt, locale, { year: "numeric" })}
+              {effectiveOverviewRank && <p className="g-subtle">
+                {formatDate(effectiveOverviewRank.season.startsAt, locale, { year: "numeric" })} – {formatDate(effectiveOverviewRank.season.endsAt, locale, { year: "numeric" })}
               </p>}
             </div>
             <button type="button" className="g-action" onClick={() => setTab("leaderboard")}>
@@ -1054,20 +1082,20 @@ export function GamificationFrontend({
           {overviewRankError && <div className="g-rank-error" role="alert">
             <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
           </div>}
-          {overviewRank && <div className="g-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
-            <div className="g-own-rank-badge">{overviewRank.notRanked || overviewRank.rank === null ? "—" : formatNumber(overviewRank.rank)}</div>
+          {effectiveOverviewRank && <div className="g-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
+            <div className="g-own-rank-badge">{effectiveOverviewRank.notRanked || effectiveOverviewRank.rank === null ? "—" : formatNumber(effectiveOverviewRank.rank)}</div>
             <div>
-              <strong>{overviewRank.notRanked || overviewRank.rank === null
+              <strong>{effectiveOverviewRank.notRanked || effectiveOverviewRank.rank === null
                 ? tx("gamificationNotRanked", "Not ranked in this snapshot", "غير مدرج في هذه اللقطة")
                 : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
-              <span>{overviewRank.notRanked || overviewRank.rank === null
-                ? overviewRank.score === 0
+              <span>{effectiveOverviewRank.notRanked || effectiveOverviewRank.rank === null
+                ? effectiveOverviewRank.score === 0
                   ? tx("gamificationNoRankScore", "No engagement points recorded for this season.", "لا توجد نقاط تفاعل مسجلة لهذا الموسم.")
                   : tx("gamificationUnrankedWithScore", "Your points are not ranked in this snapshot.", "نقاطك غير مدرجة في ترتيب هذه اللقطة.")
-                : `${formatNumber(overviewRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${overviewRank.tieSize && overviewRank.tieSize > 1 ? ` · ${formatNumber(overviewRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
+                : `${formatNumber(effectiveOverviewRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${effectiveOverviewRank.tieSize && effectiveOverviewRank.tieSize > 1 ? ` · ${formatNumber(effectiveOverviewRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
             </div>
             <div className="g-own-score">
-              {overviewRank.notRanked && overviewRank.score === 0 ? "—" : formatNumber(overviewRank.score)}
+              {effectiveOverviewRank.notRanked && effectiveOverviewRank.score === 0 ? "—" : formatNumber(effectiveOverviewRank.score)}
               <span style={{ fontSize: 10, display: "block", fontWeight: 500 }}>{tx("gamificationScore", "Points", "النقاط")}</span>
             </div>
           </div>}
@@ -1122,7 +1150,7 @@ export function GamificationFrontend({
         }}
         availableScopes={availableScopes}
         data={leaderboard}
-        ownRank={ownRank}
+        ownRank={effectiveOwnRank}
         loading={loading.leaderboard}
         rankLoading={rankLoading}
         rankError={rankError}

@@ -166,6 +166,36 @@ async function loadProgress(
   }) as Promise<ProgressRow | null>;
 }
 
+function mirrorLegacyMaterialCompletionBestEffort(input: {
+  database: PrismaClient;
+  userId: string;
+  materialId: string;
+}): void {
+  // LectureProgress is the canonical Phase-2 source. UserProgress is retained
+  // only as a compatibility mirror for older surfaces, so it must not sit on
+  // the latency-critical completion path.
+  setImmediate(() => {
+    void input.database.userProgress.upsert({
+      where: {
+        userId_materialId: {
+          userId: input.userId,
+          materialId: input.materialId,
+        },
+      },
+      update: { hasViewed: true, isCompleted: true },
+      create: {
+        userId: input.userId,
+        materialId: input.materialId,
+        hasViewed: true,
+        isCompleted: true,
+      },
+    }).catch((error) => {
+      const reason = error instanceof Error ? error.message : "unknown error";
+      console.warn(`[Lecture Progress] Compatibility material mirror failed: ${reason}`);
+    });
+  });
+}
+
 export class LectureProgressCompletionService {
   constructor(private readonly database: PrismaClient = getPrisma() as PrismaClient) {}
 
@@ -190,6 +220,7 @@ export class LectureProgressCompletionService {
     if (!Number.isFinite(now.getTime())) throw new TypeError("Completion time is invalid.");
 
     let shouldNotifyPoints = false;
+    let compatibilityMaterialId: string | null = null;
     const transactionResult = await this.database.$transaction(async (tx) => {
       const lecture = await loadLecture(tx, input.lectureId);
       if (!lecture) {
@@ -267,18 +298,7 @@ export class LectureProgressCompletionService {
         }) as ProgressRow;
 
         const materialId = input.materialId ?? matchingMaterials[0]?.id ?? null;
-        if (materialId) {
-          await tx.userProgress.upsert({
-            where: { userId_materialId: { userId: input.userId, materialId } },
-            update: { hasViewed: true, isCompleted: true },
-            create: {
-              userId: input.userId,
-              materialId,
-              hasViewed: true,
-              isCompleted: true,
-            },
-          });
-        }
+        if (materialId) compatibilityMaterialId = materialId;
 
         const pointResult = await pointsAwarder.awardServerVerifiedLectureProgress({
           userId: input.userId,
@@ -336,6 +356,13 @@ export class LectureProgressCompletionService {
       };
     }, TRANSACTION_OPTIONS);
 
+    if (compatibilityMaterialId && transactionResult.ok) {
+      mirrorLegacyMaterialCompletionBestEffort({
+        database: this.database,
+        userId: input.userId,
+        materialId: compatibilityMaterialId,
+      });
+    }
     if (shouldNotifyPoints) {
       await notifyStudyPointsPostCommit(input.userId);
     }

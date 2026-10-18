@@ -1,6 +1,7 @@
 export const GAMIFICATION_INVALIDATED_EVENT = "gamification-state-invalidated";
 export const GAMIFICATION_SOCKET_RECONNECTED_EVENT = "gamification-socket-reconnected";
 export const GAMIFICATION_UPDATE_EVENT = "gamification_updated";
+export const GAMIFICATION_OPTIMISTIC_POINTS_EVENT = "gamification-optimistic-points";
 
 export const GAMIFICATION_SYNC_RESOURCES = [
   "summary",
@@ -27,6 +28,74 @@ const readFlights = new Map<string, Promise<unknown>>();
 const readResults = new Map<string, { expiresAt: number; value: unknown }>();
 const seenEventIds = new Set<string>();
 let accountScope = "anonymous";
+
+type OptimisticStudyPointsEntry = {
+  delta: number;
+  committed: boolean;
+  createdAt: number;
+};
+
+const optimisticStudyPoints = new Map<string, OptimisticStudyPointsEntry>();
+const OPTIMISTIC_STUDY_POINTS_TTL_MS = 30_000;
+
+function emitOptimisticStudyPointsChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(GAMIFICATION_OPTIMISTIC_POINTS_EVENT));
+}
+
+function pruneOptimisticStudyPoints(now = Date.now()): void {
+  for (const [key, entry] of optimisticStudyPoints) {
+    if (now - entry.createdAt > OPTIMISTIC_STUDY_POINTS_TTL_MS) {
+      optimisticStudyPoints.delete(key);
+    }
+  }
+}
+
+export function beginOptimisticStudyPoints(token: string, delta: number): void {
+  if (!token || !Number.isFinite(delta) || delta <= 0) return;
+  pruneOptimisticStudyPoints();
+  if (!optimisticStudyPoints.has(token)) {
+    optimisticStudyPoints.set(token, { delta, committed: false, createdAt: Date.now() });
+    emitOptimisticStudyPointsChanged();
+  }
+}
+
+export function settleOptimisticStudyPoints(token: string, awarded: number): void {
+  if (!token) return;
+  pruneOptimisticStudyPoints();
+  if (!Number.isFinite(awarded) || awarded <= 0) {
+    if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged();
+    return;
+  }
+  optimisticStudyPoints.set(token, {
+    delta: awarded,
+    committed: true,
+    createdAt: Date.now(),
+  });
+  emitOptimisticStudyPointsChanged();
+}
+
+export function rollbackOptimisticStudyPoints(token: string): void {
+  if (!token) return;
+  if (optimisticStudyPoints.delete(token)) emitOptimisticStudyPointsChanged();
+}
+
+export function acknowledgeCommittedOptimisticStudyPoints(): void {
+  let changed = false;
+  for (const [key, entry] of optimisticStudyPoints) {
+    if (!entry.committed) continue;
+    optimisticStudyPoints.delete(key);
+    changed = true;
+  }
+  if (changed) emitOptimisticStudyPointsChanged();
+}
+
+export function getOptimisticStudyPointsDelta(): number {
+  pruneOptimisticStudyPoints();
+  let total = 0;
+  for (const entry of optimisticStudyPoints.values()) total += entry.delta;
+  return total;
+}
 
 function readEpoch(scope: string): number {
   return readEpochs.get(scope) ?? 0;

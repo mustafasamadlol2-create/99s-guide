@@ -1,7 +1,10 @@
 import { safeJsonParse } from "../../../core/utils/safeJson";
 import {
   GAMIFICATION_INVALIDATED_EVENT,
+  beginOptimisticStudyPoints,
   invalidateGamificationResources,
+  rollbackOptimisticStudyPoints,
+  settleOptimisticStudyPoints,
   type GamificationSyncResource,
 } from "../../gamification/realtime";
 import { UserAvatar } from "../../../features/profile/components/UserAvatar";
@@ -490,6 +493,8 @@ export const LectureDetailView = function LectureDetailView({
  const [isLectureReadyForCompletion, setIsLectureReadyForCompletion] = useState(false);
  const [lectureCompletionMissing, setLectureCompletionMissing] = useState<string[]>([]);
  const [isCompletingLecture, setIsCompletingLecture] = useState(false);
+ const [isCompletingPdf, setIsCompletingPdf] = useState(false);
+ const [isCompletingNotes, setIsCompletingNotes] = useState(false);
 
  // Enriched Notes Section
  const [personalNotes, setPersonalNotes] = useState("");
@@ -676,7 +681,14 @@ export const LectureDetailView = function LectureDetailView({
   };
 
   const handleMarkPdfCompleted = async () => {
-    if (!currentUser?.id || isPdfCompleted) return;
+    if (!currentUser?.id || isPdfCompleted || isCompletingPdf) return;
+
+    // Make completion feel native/instant. The server remains authoritative;
+    // this local state is rolled back if the canonical write fails.
+    const optimisticPointsToken = `lecture-resource:${currentUser.id}:${lecture.id}:PDF`;
+    setIsPdfCompleted(true);
+    setIsCompletingPdf(true);
+    beginOptimisticStudyPoints(optimisticPointsToken, 5);
     try {
       const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}/complete`, {
         method: "POST",
@@ -694,8 +706,19 @@ export const LectureDetailView = function LectureDetailView({
       setIsLectureReadyForCompletion(data?.status?.readyForLectureCompletion === true);
       setLectureCompletionMissing(Array.isArray(data?.status?.missing) ? data.status.missing : []);
       onUpdateProgress({ pdfCompleted: true });
-      if (data?.points?.changed === true) invalidatePointsSurfaces();
+      if (data?.points?.changed === true) {
+        settleOptimisticStudyPoints(optimisticPointsToken, Number(data?.points?.awarded) || 5);
+        invalidatePointsSurfaces();
+      } else {
+        rollbackOptimisticStudyPoints(optimisticPointsToken);
+      }
     } catch (err) {
+      rollbackOptimisticStudyPoints(optimisticPointsToken);
+      // Do not leave a false optimistic completion behind. A canonical refresh
+      // also covers the rare case where the write committed but the response
+      // was interrupted on the way back to the device.
+      setIsPdfCompleted(false);
+      void refreshCanonicalLectureProgress();
       showiOSAlert({
         title: isRtl ? "تعذر حفظ الإكمال" : "Could Not Save Completion",
         message: isRtl
@@ -703,11 +726,20 @@ export const LectureDetailView = function LectureDetailView({
           : "The PDF completion could not be saved. Check your connection and try again.",
         actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
       });
+    } finally {
+      setIsCompletingPdf(false);
     }
   };
 
   const handleMarkNotesCompleted = async () => {
-    if (!currentUser?.id || isNotesCompleted) return;
+    if (!currentUser?.id || isNotesCompleted || isCompletingNotes) return;
+
+    // Same optimistic interaction as PDF completion; persistence and points
+    // still come only from the canonical server endpoint.
+    const optimisticPointsToken = `lecture-resource:${currentUser.id}:${lecture.id}:NOTES`;
+    setIsNotesCompleted(true);
+    setIsCompletingNotes(true);
+    beginOptimisticStudyPoints(optimisticPointsToken, 3);
     try {
       const response = await apiClient(`/api/progress/lecture/${encodeURIComponent(lecture.id)}/complete`, {
         method: "POST",
@@ -725,8 +757,16 @@ export const LectureDetailView = function LectureDetailView({
       setIsLectureReadyForCompletion(data?.status?.readyForLectureCompletion === true);
       setLectureCompletionMissing(Array.isArray(data?.status?.missing) ? data.status.missing : []);
       onUpdateProgress({ notesCompleted: true });
-      if (data?.points?.changed === true) invalidatePointsSurfaces();
+      if (data?.points?.changed === true) {
+        settleOptimisticStudyPoints(optimisticPointsToken, Number(data?.points?.awarded) || 3);
+        invalidatePointsSurfaces();
+      } else {
+        rollbackOptimisticStudyPoints(optimisticPointsToken);
+      }
     } catch (err) {
+      rollbackOptimisticStudyPoints(optimisticPointsToken);
+      setIsNotesCompleted(false);
+      void refreshCanonicalLectureProgress();
       showiOSAlert({
         title: isRtl ? "تعذر حفظ الإكمال" : "Could Not Save Completion",
         message: isRtl
@@ -734,6 +774,8 @@ export const LectureDetailView = function LectureDetailView({
           : "The notes completion could not be saved. Check your connection and try again.",
         actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
       });
+    } finally {
+      setIsCompletingNotes(false);
     }
   };
 

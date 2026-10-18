@@ -413,7 +413,17 @@ export async function getMyLeaderboardRank(input: {
     database,
   });
   const blockedUserIds = await getBlockedUserIds(input.viewerId, database);
-  const [entry, totalRankedUsers] = await Promise.all([
+  const seasonWindow = leaderboardSeasonToWindow(season);
+  // Own-score display must reflect the canonical ledger immediately even when
+  // a LIVE ranking snapshot is still being rebuilt in the background. Use a
+  // 1 ms exclusive upper bound so a reward committed at `now` is included.
+  const liveScoreThrough = input.scope === "ALL_TIME"
+    ? new Date(now.getTime() + 1)
+    : new Date(Math.min(
+        now.getTime() + 1,
+        seasonWindow.endsAt?.getTime() ?? now.getTime() + 1,
+      ));
+  const [entry, totalRankedUsers, scoreResult] = await Promise.all([
     database.leaderboardSnapshotEntry.findFirst({
       where: {
         snapshotId: snapshot.id,
@@ -424,30 +434,26 @@ export async function getMyLeaderboardRank(input: {
     database.leaderboardSnapshotEntry.count({
       where: buildBaseEntryWhere(snapshot.id, blockedUserIds),
     }),
+    readUserLeaderboardScore({
+      userId: input.viewerId,
+      scope: input.scope,
+      season: seasonWindow,
+      scoreThrough: liveScoreThrough,
+    }, database),
   ]);
   if (entry) {
     return {
       scope: input.scope,
       season: seasonDto(season),
       rank: entry.rank,
-      score: decodeLeaderboardScore(entry.score),
+      // Rank/tie come from the current snapshot; the visible point total comes
+      // straight from the immutable ledger so it never lags behind completion.
+      score: scoreResult.score,
       tieSize: entry.tieSize,
       totalRankedUsers,
       notRanked: false,
       snapshotGeneratedAt: snapshot.generatedAt.toISOString(),
     };
-  }
-  const scoreResult = await readUserLeaderboardScore({
-    userId: input.viewerId,
-    scope: input.scope,
-    season: leaderboardSeasonToWindow(season),
-    scoreThrough: snapshot.scoreThrough,
-  }, database);
-  if (scoreResult.score > 0) {
-    throw new LeaderboardError(
-      "LEADERBOARD_SNAPSHOT_INCONSISTENT",
-      "Positive canonical score is missing from the leaderboard snapshot.",
-    );
   }
   return {
     scope: input.scope,
