@@ -1,15 +1,6 @@
 import type { StudyPointsLedgerEntry } from "@prisma/client";
-import {
-  GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY,
-  GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY,
-} from "./awardRules.js";
-import {
-  STUDY_POINTS_CATEGORY_DAILY_CAPS,
-  STUDY_POINTS_TOTAL_DAILY_CAP,
-  studyPointsBaghdadDate,
-} from "./caps.js";
+import { studyPointsBaghdadDate } from "./caps.js";
 import { STUDY_POINTS_CATEGORIES } from "./constants.js";
-import { safeStudyPointsSum } from "./aggregate.js";
 
 export type StudyPointsAuditCheck = {
   code: string;
@@ -58,9 +49,6 @@ export function auditStudyPointsLedger(
   const reversalsByOriginal = new Map<string, StudyPointsAuditEntry[]>();
   const sourceAwards = new Map<string, number>();
   const consistencyAwards = new Map<string, number>();
-  const dailyCategoryNet = new Map<string, number>();
-  const socialBonusAwards = new Map<string, number>();
-  const socialBonusNet = new Map<string, number>();
   let baselineCount = 0;
   let baselinePoints = 0;
 
@@ -127,44 +115,7 @@ export function auditStudyPointsLedger(
       }
     }
 
-    if (validCategories.has(entry.category)) {
-      const dayCategoryKey = `${baghdadDate}:${entry.category}`;
-      dailyCategoryNet.set(
-        dayCategoryKey,
-        safeStudyPointsSum(dailyCategoryNet.get(dayCategoryKey) ?? 0, entry.amount),
-      );
-      if (entry.category === "FOCUS"
-        && entry.sourceType === "GROUP_FOCUS_RUN"
-        && entry.reasonCode === "group_focus.verified_social_bonus") {
-        const socialKey = `${entry.userId}:${baghdadDate}`;
-        socialBonusNet.set(
-          socialKey,
-          safeStudyPointsSum(socialBonusNet.get(socialKey) ?? 0, entry.amount),
-        );
-        if (entry.amount > 0) {
-          socialBonusAwards.set(
-            socialKey,
-            (socialBonusAwards.get(socialKey) ?? 0) + 1,
-          );
-        }
-      }
-      if (entry.reversalOfEntryId) {
-        const original = reversalTargets.get(entry.reversalOfEntryId);
-        if (
-          original
-          && original.category === "FOCUS"
-          && original.sourceType === "GROUP_FOCUS_RUN"
-          && original.reasonCode === "group_focus.verified_social_bonus"
-          && studyPointsBaghdadDate(original.effectiveAt) === baghdadDate
-        ) {
-          const socialKey = `${entry.userId}:${baghdadDate}`;
-          socialBonusNet.set(
-            socialKey,
-            safeStudyPointsSum(socialBonusNet.get(socialKey) ?? 0, entry.amount),
-          );
-        }
-      }
-    }
+
   }
 
   for (const [originalId, reversals] of reversalsByOriginal) {
@@ -180,40 +131,12 @@ export function auditStudyPointsLedger(
     if (occurrences > 1) add("DUPLICATE_DAILY_CONSISTENCY_AWARD", occurrences - 1);
   }
 
-  for (const [key, net] of dailyCategoryNet) {
-    const category = key.slice(key.lastIndexOf(":") + 1);
-    if (net > STUDY_POINTS_CATEGORY_DAILY_CAPS[category as keyof typeof STUDY_POINTS_CATEGORY_DAILY_CAPS]) {
-      add("CATEGORY_CAP_EXCEEDED");
-    }
-  }
-  const dailyTotals = new Map<string, number>();
-  for (const [key, net] of dailyCategoryNet) {
-    const separator = key.lastIndexOf(":");
-    const date = key.slice(0, separator);
-    dailyTotals.set(date, safeStudyPointsSum(dailyTotals.get(date) ?? 0, net));
-  }
-  for (const total of dailyTotals.values()) {
-    if (total > STUDY_POINTS_TOTAL_DAILY_CAP) add("TOTAL_DAILY_CAP_EXCEEDED");
-  }
-  for (const [key, count] of socialBonusAwards) {
-    const net = socialBonusNet.get(key) ?? 0;
-    if (
-      count > GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY
-      || net > GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY
-    ) {
-      add("SOCIAL_BONUS_DAILY_CAP_EXCEEDED");
-    }
-  }
-
   const checks = [
     "ZERO_VALUE_LEDGER_ENTRY",
     "INVALID_LEDGER_CATEGORY",
     "INVALID_REVERSAL_RELATION",
     "DUPLICATE_SOURCE_AWARD",
     "DUPLICATE_DAILY_CONSISTENCY_AWARD",
-    "CATEGORY_CAP_EXCEEDED",
-    "TOTAL_DAILY_CAP_EXCEEDED",
-    "SOCIAL_BONUS_DAILY_CAP_EXCEEDED",
   ].map((code) => ({
     code,
     status: counts.has(code) ? "FAIL" as const : "PASS" as const,

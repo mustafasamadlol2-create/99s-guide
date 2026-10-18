@@ -1059,6 +1059,57 @@ export const LectureDetailView = function LectureDetailView({
   }, [lecture, detailedLecture]);
 
  // Flashcards self-rating
+
+  // Persist each real flashcard rating as soon as the student taps it. The card
+  // navigation stays instant, while the server can award the first GOOD/EASY
+  // recall immediately instead of waiting until the entire deck is finished.
+  const persistFlashcardRating = useCallback(async (
+    cardId: string,
+    rating: "easy" | "medium" | "hard",
+  ) => {
+    if (
+      !lecture.isDatabaseLecture
+      || !cardId
+      || cardId.startsWith("fallback_")
+      || cardId.startsWith("fc_temp_")
+    ) return;
+    try {
+      const res = await apiClient("/api/flashcards/batch-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: { [cardId]: rating },
+          completionCheck: false,
+        }),
+        silent: true,
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      const awarded = Number(data?.points?.awarded) || 0;
+      if (awarded > 0) {
+        settleOptimisticStudyPoints(
+          `flashcard-rating:${lecture.id}:${cardId}:${Date.now()}`,
+          awarded,
+        );
+      }
+      if (data?.points?.changed === true) {
+        const resources: GamificationSyncResource[] = [
+          "summary",
+          "achievements",
+          "challenges",
+          "leaderboard",
+          "rank",
+        ];
+        invalidateGamificationResources(resources);
+        window.dispatchEvent(new CustomEvent(GAMIFICATION_INVALIDATED_EVENT, {
+          detail: { resources },
+        }));
+      }
+    } catch {
+      // The end-of-deck batch remains a recovery path if an individual rating
+      // request is interrupted. Ledger idempotency prevents double awards.
+    }
+  }, [lecture.id, lecture.isDatabaseLecture]);
  
   // End of Session logic
   const handleEndOfSession = async (finalUpdates: Record<string, "easy" | "medium" | "hard">) => {
@@ -1142,6 +1193,10 @@ export const LectureDetailView = function LectureDetailView({
     
     const nextUpdates = { ...updatedCardStatuses, [cardId]: rating };
     setUpdatedCardStatuses(nextUpdates);
+
+    // Do not wait for the deck to end before persisting/awarding this recall.
+    // The visual card advance remains synchronous.
+    void persistFlashcardRating(cardId, rating);
 
     setIsFlipped(false);
 

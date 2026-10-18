@@ -102,6 +102,7 @@ export const VideoCard = ({
   const playerRef = useRef<any>(null);
   const sessionIdRef = useRef<string | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionProbeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatInFlightRef = useRef(false);
   const disposedRef = useRef(false);
   const completedRef = useRef(initialCompleted);
@@ -139,9 +140,19 @@ export const VideoCard = ({
     }
   }, []);
 
+  const clearCompletionProbeTimer = useCallback(() => {
+    if (completionProbeTimerRef.current) {
+      clearInterval(completionProbeTimerRef.current);
+      completionProbeTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
-    if (completed) clearHeartbeatTimer();
-  }, [clearHeartbeatTimer, completed]);
+    if (completed) {
+      clearHeartbeatTimer();
+      clearCompletionProbeTimer();
+    }
+  }, [clearCompletionProbeTimer, clearHeartbeatTimer, completed]);
 
   const emitPointsRefresh = useCallback((awarded: number) => {
     if (awarded > 0) {
@@ -267,6 +278,24 @@ export const VideoCard = ({
     }, 5_000);
   }, [clearHeartbeatTimer, sendHeartbeat]);
 
+  // Keep the normal low-frequency heartbeat for scalability, but probe the
+  // local player position cheaply. The moment playback crosses 80%, send one
+  // immediate verification heartbeat instead of waiting up to five seconds for
+  // the next scheduled tick. The server still decides completion/points.
+  const beginCompletionProbe = useCallback(() => {
+    clearCompletionProbeTimer();
+    completionProbeTimerRef.current = setInterval(() => {
+      const player = playerRef.current;
+      if (!player || completedRef.current || heartbeatInFlightRef.current) return;
+      const duration = Number(player.getDuration?.() || realDurationRef.current || 0);
+      const position = Number(player.getCurrentTime?.() || 0);
+      if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return;
+      if (position / duration >= 0.8) {
+        void sendHeartbeat("PLAYING");
+      }
+    }, 400);
+  }, [clearCompletionProbeTimer, sendHeartbeat]);
+
   // Preserve the quick duration label without creating hidden players until the
   // card is close to the viewport.
   useEffect(() => {
@@ -355,6 +384,7 @@ export const VideoCard = ({
               if (Number(event.target.getPlayerState?.()) === 1) {
                 await sendHeartbeat("PLAYING");
                 beginHeartbeatTimer();
+                beginCompletionProbe();
               }
             }
           },
@@ -363,9 +393,11 @@ export const VideoCard = ({
             if (state === "PLAYING") {
               void sendHeartbeat("PLAYING");
               beginHeartbeatTimer();
+              beginCompletionProbe();
             } else {
               void sendHeartbeat(state);
               clearHeartbeatTimer();
+              clearCompletionProbeTimer();
             }
           },
           onError: () => {
@@ -388,13 +420,14 @@ export const VideoCard = ({
       cancelled = true;
       disposedRef.current = true;
       clearHeartbeatTimer();
+      clearCompletionProbeTimer();
       try { playerRef.current?.pauseVideo?.(); } catch (_) {}
       try { playerRef.current?.destroy?.(); } catch (_) {}
       playerRef.current = null;
       sessionIdRef.current = null;
       setPlayerReady(false);
     };
-  }, [beginHeartbeatTimer, clearHeartbeatTimer, expanded, isRtl, sendHeartbeat, startVerification, videoId]);
+  }, [beginCompletionProbe, beginHeartbeatTimer, clearCompletionProbeTimer, clearHeartbeatTimer, expanded, isRtl, sendHeartbeat, startVerification, videoId]);
 
   const watchedPercent = useMemo(() => {
     const duration = realDuration ?? initialDurationSeconds;
@@ -410,6 +443,7 @@ export const VideoCard = ({
 
   const collapse = () => {
     try { playerRef.current?.pauseVideo?.(); } catch (_) {}
+    clearCompletionProbeTimer();
     void sendHeartbeat("PAUSED");
     setExpanded(false);
   };

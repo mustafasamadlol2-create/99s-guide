@@ -5,7 +5,7 @@ import { isStudyFeatureEnabled } from "../study-core/featureFlags.js";
 import type { StudyEventSource } from "../study-core/events.js";
 import { INTEGRITY_ACTION_TYPES } from "../study-integrity/constants.js";
 import type { StudyPointsCategory, StudyPointsSourceType } from "./constants.js";
-import { getStudyPointsBaghdadDayBounds, getStudyPointsDailyUsage, getGroupSocialBonusCount, getStudyPointsBaghdadWeekUsage, getStudyPointsBaghdadDailyRuleUsage, STUDY_POINTS_CATEGORY_DAILY_CAPS, STUDY_POINTS_TOTAL_DAILY_CAP, studyPointsBaghdadDate, studyPointsDailyCapLockKey, studyPointsWeeklyCapLockKey } from "./caps.js";
+import { studyPointsBaghdadDate, studyPointsDailyCapLockKey } from "./caps.js";
 import {
   DAILY_CONSISTENCY_AMOUNT,
   DAILY_CONSISTENCY_MINIMUM_SECONDS,
@@ -13,8 +13,6 @@ import {
   FOCUS_COMPLETION_RULE,
   FLASHCARD_FIRST_RECALL_RULE,
   GROUP_FOCUS_SOCIAL_BONUS_AMOUNT,
-  GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY,
-  GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY,
   GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS,
   GROUP_FOCUS_SOCIAL_BONUS_RULE,
   GROUP_FOCUS_PARTICIPATION_RULE,
@@ -26,13 +24,9 @@ import {
   LECTURE_PDF_COMPLETION_RULE,
   LECTURE_VIDEO_COMPLETION_AMOUNT,
   LECTURE_VIDEO_COMPLETION_RULE,
-  MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY,
   MCQ_FIRST_CORRECT_RULE,
   MCQ_SET_PASS_AMOUNT,
   MCQ_SET_PASS_RULE,
-  FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
-  RECALL_MAX_POINTS_PER_DAY,
-  RECALL_MAX_POINTS_PER_WEEK,
   RECALL_OBJECTIVE_CORRECT_AMOUNT,
   RECALL_OBJECTIVE_CORRECT_RULE,
   focusCompletionAmount,
@@ -61,7 +55,6 @@ import {
   loadFirstCorrectMcqSource,
   loadFirstRecalledFlashcardSource,
 } from "./sources/learningActivity.js";
-import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
 import type { StudyPointsLedgerEntryRecord } from "./types.js";
 
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
@@ -260,10 +253,6 @@ export class StudyPointsAwardEngine {
           baseRuleAmount: 1,
           baghdadDate: studyPointsBaghdadDate(effectiveAt),
           now,
-          maxPointsPerDay: input.sourceType === "MCQ_ATTEMPT"
-            ? MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY
-            : FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
-          specialDailyRule: rule,
           // First-success rewards are one-time per resource. A later retry of
           // the same MCQ/flashcard must replay the original award rather than
           // conflict because the later attempt has a different timestamp.
@@ -613,8 +602,6 @@ export class StudyPointsAwardEngine {
             baghdadDate,
             now,
             canonicalDurationSeconds: source.durationSeconds,
-            maxAwardsPerDay: GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY,
-            maxPointsPerDay: GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY,
           }),
       ];
       attempts.push(await this.evaluateConsistency(tx, source, now));
@@ -659,9 +646,6 @@ export class StudyPointsAwardEngine {
           baseRuleAmount: RECALL_OBJECTIVE_CORRECT_AMOUNT,
           baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
           now,
-          maxPointsPerDay: RECALL_MAX_POINTS_PER_DAY,
-          maxPointsPerWeek: RECALL_MAX_POINTS_PER_WEEK,
-          specialDailyRule: RECALL_OBJECTIVE_CORRECT_RULE,
         })],
       };
     }
@@ -712,10 +696,6 @@ export class StudyPointsAwardEngine {
           baseRuleAmount: 1,
           baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
           now,
-          maxPointsPerDay: input.sourceType === "MCQ_ATTEMPT"
-            ? MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY
-            : FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY,
-          specialDailyRule: rule,
           // First-success rewards are one-time per resource. A later retry of
           // the same MCQ/flashcard must replay the original award rather than
           // conflict because the later attempt has a different timestamp.
@@ -803,14 +783,11 @@ export class StudyPointsAwardEngine {
         ruleVersion: input.rule.ruleVersion,
         reasonCode: input.rule.reasonCode,
       });
-    const weeklyPeriod = input.maxPointsPerWeek === undefined
-      ? undefined
-      : getBaghdadWeekPeriod(input.effectiveAt);
+    // Points V2 is intentionally uncapped. Keep a lightweight per-user/day
+    // advisory lock only to serialize concurrent idempotency checks; it does
+    // not enforce any category, daily, weekly, or total point ceiling.
     await lockStudyPointsKeys(tx, [
       studyPointsDailyCapLockKey(input.userId, input.baghdadDate),
-      ...(weeklyPeriod
-        ? [studyPointsWeeklyCapLockKey(input.userId, weeklyPeriod.startsAt)]
-        : []),
     ]);
 
     // Phase 1 was deployed on top of historical V1 ledger rows. Some users
@@ -819,6 +796,39 @@ export class StudyPointsAwardEngine {
     // V2-window award by its source/rule first so the corrective release never
     // duplicates a valid post-cutover reward, while old pre-cutover rows cannot
     // block a fresh V2 award.
+    // Phase 3.1 moved MCQ/Flashcard rewards (and the MCQ set bonus) from
+    // PROGRESS to the intended MASTERY bucket. If this user already earned the
+    // same logical reward under the short-lived v1 category mapping, treat that
+    // row as the canonical one-time reward instead of awarding it again.
+    const priorCompatibleRuleVersion =
+      input.rule.ruleVersion === "mcq-first-correct-v2"
+        ? "mcq-first-correct-v1"
+        : input.rule.ruleVersion === "flashcard-first-recall-v2"
+          ? "flashcard-first-recall-v1"
+          : input.rule.ruleVersion === "mcq-set-pass-v2"
+            ? "mcq-set-pass-v1"
+            : null;
+    if (priorCompatibleRuleVersion) {
+      const compatibleExisting = await tx.studyPointsLedgerEntry.findFirst({
+        where: {
+          userId: input.userId,
+          reasonCode: input.rule.reasonCode,
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          ruleVersion: priorCompatibleRuleVersion,
+          effectiveAt: { gte: competitiveEpoch },
+        },
+        orderBy: [{ effectiveAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      });
+      if (compatibleExisting) {
+        return {
+          decision: decisionFromEntry(compatibleExisting),
+          entry: compatibleExisting,
+          replayed: true,
+        };
+      }
+    }
+
     const canonicalExisting = await tx.studyPointsLedgerEntry.findFirst({
       where: {
         userId: input.userId,
@@ -892,59 +902,15 @@ export class StudyPointsAwardEngine {
       };
     }
 
-    const bounds = await getStudyPointsBaghdadDayBounds(tx, input.baghdadDate);
-    if (input.maxAwardsPerDay !== undefined) {
-      const count = await getGroupSocialBonusCount(tx, input.userId, bounds);
-      if (count >= input.maxAwardsPerDay) return noAward("CAP_REACHED");
-    }
-    const usage = await getStudyPointsDailyUsage(tx, input.userId, bounds);
-    const dailyCap = STUDY_POINTS_CATEGORY_DAILY_CAPS[input.rule.category];
-    const categoryRemaining = dailyCap - usage.byCategory[input.rule.category];
-    const totalRemaining = STUDY_POINTS_TOTAL_DAILY_CAP - usage.total;
-    const specialDailyUsage = input.maxPointsPerDay === undefined
-      ? 0
-      : input.specialDailyRule
-        ? await getStudyPointsBaghdadDailyRuleUsage(
-            tx,
-            input.userId,
-            input.baghdadDate,
-            input.specialDailyRule,
-          )
-        : await this.groupSocialPointsUsed(tx, input.userId, bounds);
-    const specialRemaining = input.maxPointsPerDay === undefined
-      ? Number.POSITIVE_INFINITY
-      : input.maxPointsPerDay - specialDailyUsage;
-    const weeklySpecialRemaining = input.maxPointsPerWeek === undefined || !weeklyPeriod
-      ? Number.POSITIVE_INFINITY
-      : input.maxPointsPerWeek - await getStudyPointsBaghdadWeekUsage(
-        tx,
-        input.userId,
-        input.effectiveAt,
-        input.rule.ruleVersion,
-        input.rule.reasonCode,
-      );
-    const remainingBeforeAward = Math.min(
-      categoryRemaining,
-      totalRemaining,
-      specialRemaining,
-      weeklySpecialRemaining,
-    );
-    if (remainingBeforeAward <= 0) return noAward("CAP_REACHED");
-    const amount = Math.min(input.baseRuleAmount, remainingBeforeAward);
+    // Unlimited scoring: once a canonical source passes integrity and
+    // idempotency checks, award the rule amount in full. There are no daily,
+    // category, activity, weekly, or overall point caps.
+    const amount = input.baseRuleAmount;
     const metadata: SafePointsMetadata = {
       baseRuleAmount: input.baseRuleAmount,
       awardedAmount: amount,
       capAdjustedAmount: amount,
-      dailyCap,
-      remainingBeforeAward,
-      totalDailyCap: STUDY_POINTS_TOTAL_DAILY_CAP,
-      remainingTotalBeforeAward: totalRemaining,
-      ...(input.specialDailyRule !== undefined
-        ? { recallDailyRemainingBeforeAward: specialRemaining }
-        : {}),
-      ...(input.maxPointsPerWeek !== undefined
-        ? { recallWeeklyRemainingBeforeAward: weeklySpecialRemaining }
-        : {}),
+      pointsLimitMode: "UNLIMITED",
       BaghdadDate: input.baghdadDate,
       ...(input.canonicalDurationSeconds !== undefined
         ? { canonicalDurationSeconds: input.canonicalDurationSeconds }

@@ -344,6 +344,7 @@ export async function getLeaderboardPage(input: {
       score: decodeLeaderboardScore(row.score),
       displayName: safePublicDisplayName(row.user?.name),
       avatarUrl: safePublicAvatarUrl(row.user?.avatarUrl || row.user?.avatar),
+      isViewer: row.userId === input.viewerId,
     }];
   });
   let nextCursor: string | null = null;

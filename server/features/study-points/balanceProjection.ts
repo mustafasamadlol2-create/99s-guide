@@ -56,16 +56,24 @@ export async function aggregateCanonicalStudyPointsLedgerBalance(
 ): Promise<CanonicalStudyPointsLedgerBalance> {
   const epoch = getStudyPointsCompetitiveEpoch();
   const [groups, countRows] = await Promise.all([
-    tx.studyPointsLedgerEntry.groupBy({
-      by: ["category"],
-      where: {
-        userId,
-        effectiveAt: { gte: epoch },
-        sourceType: { not: "LEGACY_POINTS_LOG" },
-        category: { not: "LEGACY" },
-      },
-      _sum: { amount: true },
-    }),
+    tx.$queryRaw<Array<{ category: string; amount: string }>>`
+      SELECT
+        CASE
+          WHEN "reasonCode" IN (
+            'mcq.first_verified_correct',
+            'flashcard.first_verified_recall',
+            'mcq.set_verified_pass'
+          ) THEN 'MASTERY'
+          ELSE "category"
+        END AS category,
+        COALESCE(SUM("amount"), 0)::text AS amount
+      FROM "StudyPointsLedgerEntry"
+      WHERE "userId" = ${userId}
+        AND "effectiveAt" >= ${epoch}
+        AND "sourceType" <> 'LEGACY_POINTS_LOG'
+        AND "category" <> 'LEGACY'
+      GROUP BY 1
+    `,
     tx.$queryRaw<Array<{ count: string }>>`
       SELECT COUNT(*)::text AS count
       FROM "StudyPointsLedgerEntry"

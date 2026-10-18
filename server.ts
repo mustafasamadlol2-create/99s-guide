@@ -2436,6 +2436,7 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
     const prismaClient = getPrisma();
     const userId = (req as any).user.id;
     const { updates } = req.body;
+    const completionCheck = req.body?.completionCheck !== false;
     if (!updates || typeof updates !== "object") {
       return res.status(400).json({ error: "Invalid updates payload" });
     }
@@ -2475,43 +2476,45 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
     // Flashcards are completed automatically when the submitted end-of-deck
     // batch contains every canonical card in that lecture. Historical review
     // rows alone are not backfilled into a new V2 completion timestamp.
-    const submittedIdsByLecture = new Map<string, Set<string>>();
-    for (const [flashcardId] of statusUpdates) {
-      const lectureId = lectureByFlashcard.get(flashcardId);
-      if (!lectureId) continue;
-      const ids = submittedIdsByLecture.get(lectureId) ?? new Set<string>();
-      ids.add(flashcardId);
-      submittedIdsByLecture.set(lectureId, ids);
-    }
     const completedLectureIds: string[] = [];
-    for (const [lectureId, submittedIds] of submittedIdsByLecture) {
-      const canonicalIds = await prismaClient.flashcard.findMany({
-        where: { lectureId },
-        select: { id: true },
-      });
-      if (canonicalIds.length === 0 || !canonicalIds.every((card) => submittedIds.has(card.id))) {
-        continue;
+    if (completionCheck) {
+      const submittedIdsByLecture = new Map<string, Set<string>>();
+      for (const [flashcardId] of statusUpdates) {
+        const lectureId = lectureByFlashcard.get(flashcardId);
+        if (!lectureId) continue;
+        const ids = submittedIdsByLecture.get(lectureId) ?? new Set<string>();
+        ids.add(flashcardId);
+        submittedIdsByLecture.set(lectureId, ids);
       }
-      const existingProgress = await prismaClient.lectureProgress.findUnique({
-        where: { userId_lectureId: { userId, lectureId } },
-        select: { flashcardsCompletedAt: true },
-      });
-      await prismaClient.lectureProgress.upsert({
-        where: { userId_lectureId: { userId, lectureId } },
-        update: {
-          flashcardsCompleted: true,
-          flashcardsCompletedAt: existingProgress?.flashcardsCompletedAt ?? occurredAt,
-          lastAccessed: occurredAt,
-        },
-        create: {
-          userId,
-          lectureId,
-          flashcardsCompleted: true,
-          flashcardsCompletedAt: occurredAt,
-          lastAccessed: occurredAt,
-        },
-      });
-      completedLectureIds.push(lectureId);
+      for (const [lectureId, submittedIds] of submittedIdsByLecture) {
+        const canonicalIds = await prismaClient.flashcard.findMany({
+          where: { lectureId },
+          select: { id: true },
+        });
+        if (canonicalIds.length === 0 || !canonicalIds.every((card) => submittedIds.has(card.id))) {
+          continue;
+        }
+        const existingProgress = await prismaClient.lectureProgress.findUnique({
+          where: { userId_lectureId: { userId, lectureId } },
+          select: { flashcardsCompletedAt: true },
+        });
+        await prismaClient.lectureProgress.upsert({
+          where: { userId_lectureId: { userId, lectureId } },
+          update: {
+            flashcardsCompleted: true,
+            flashcardsCompletedAt: existingProgress?.flashcardsCompletedAt ?? occurredAt,
+            lastAccessed: occurredAt,
+          },
+          create: {
+            userId,
+            lectureId,
+            flashcardsCompleted: true,
+            flashcardsCompletedAt: occurredAt,
+            lastAccessed: occurredAt,
+          },
+        });
+        completedLectureIds.push(lectureId);
+      }
     }
     const idempotencyPrefix = `flashcard-rating:${crypto.randomUUID()}`;
     const events = statusUpdates.flatMap(([flashcardId, status]) => {
@@ -2562,7 +2565,10 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
             : 0
         ), 0), 0);
 
-    await recordMasteryStudyEventsAndRefreshBestEffort({
+    // Points and UI completion are already committed at this point. Mastery /
+    // retention projections are secondary analytics work and must not keep the
+    // interaction spinner visible for seconds. Run them after the response path.
+    void recordMasteryStudyEventsAndRefreshBestEffort({
       userId,
       events,
       awardPoints: false,
@@ -4813,7 +4819,9 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
 
     // Analytics/mastery ingestion remains best-effort. It must never be the
     // gate that decides whether a verified MCQ earns Points V2.
-    await recordMasteryStudyEventsAndRefreshBestEffort({
+    // The grading verdict and Points V2 ledger writes are already canonical.
+    // Do not delay the result screen on mastery/retention projection work.
+    void recordMasteryStudyEventsAndRefreshBestEffort({
       userId: (req as any).user.id,
       events,
       awardPoints: false,

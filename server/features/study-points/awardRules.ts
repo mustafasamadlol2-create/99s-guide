@@ -31,15 +31,15 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     status: "ACTIVE",
   },
   {
-    ruleVersion: "mcq-first-correct-v1",
-    category: "PROGRESS",
+    ruleVersion: "mcq-first-correct-v2",
+    category: "MASTERY",
     reasonCode: "mcq.first_verified_correct",
     sourceType: "MCQ_ATTEMPT",
     status: "ACTIVE",
   },
   {
-    ruleVersion: "flashcard-first-recall-v1",
-    category: "PROGRESS",
+    ruleVersion: "flashcard-first-recall-v2",
+    category: "MASTERY",
     reasonCode: "flashcard.first_verified_recall",
     sourceType: "FLASHCARD_REVIEW",
     status: "ACTIVE",
@@ -73,8 +73,8 @@ export const STUDY_POINTS_AWARD_RULES = Object.freeze([
     status: "ACTIVE",
   },
   {
-    ruleVersion: "mcq-set-pass-v1",
-    category: "PROGRESS",
+    ruleVersion: "mcq-set-pass-v2",
+    category: "MASTERY",
     reasonCode: "mcq.set_verified_pass",
     sourceType: "LECTURE_RESOURCE",
     status: "ACTIVE",
@@ -106,18 +106,12 @@ export const LECTURE_VIDEO_COMPLETION_AMOUNT = 3;
 export const MCQ_SET_PASS_AMOUNT = 5;
 export const MCQ_SET_PASS_MIN_QUESTIONS = 10;
 export const MCQ_SET_PASS_MIN_SCORE_PERCENT = 70;
-export const MCQ_FIRST_CORRECT_MAX_POINTS_PER_DAY = 20;
-export const FLASHCARD_FIRST_RECALL_MAX_POINTS_PER_DAY = 10;
 export const LECTURE_COMPLETION_AMOUNT = 8;
 export const RECALL_OBJECTIVE_CORRECT_AMOUNT = 2;
-export const RECALL_MAX_POINTS_PER_DAY = 6;
-export const RECALL_MAX_POINTS_PER_WEEK = 20;
 
 export const FOCUS_MINIMUM_SECONDS = 600;
 export const GROUP_FOCUS_SOCIAL_BONUS_MINIMUM_SECONDS = 1_500;
 export const GROUP_FOCUS_SOCIAL_BONUS_AMOUNT = 2;
-export const GROUP_FOCUS_SOCIAL_BONUS_MAX_AWARDS_PER_DAY = 3;
-export const GROUP_FOCUS_SOCIAL_BONUS_MAX_POINTS_PER_DAY = 6;
 export const DAILY_CONSISTENCY_MINIMUM_SECONDS = 1_500;
 export const DAILY_CONSISTENCY_AMOUNT = 5;
 

@@ -28,6 +28,7 @@ export interface LeaderboardViewProps {
   locale: string;
   isRtl: boolean;
   tx: (key: string, en: string, ar: string) => string;
+  optimisticPointDelta?: number;
 }
 
 const SCOPE_COPY: Record<LeaderboardScope, [string, string, string]> = {
@@ -91,6 +92,7 @@ export function LeaderboardView({
   locale,
   isRtl,
   tx,
+  optimisticPointDelta = 0,
 }: LeaderboardViewProps) {
   const formatNumber = (value: number) => new Intl.NumberFormat(locale).format(value);
   const scopeTitle = (value: LeaderboardScope) => {
@@ -224,12 +226,20 @@ export function LeaderboardView({
                 || tx("gamificationParticipant", "Student", "طالب");
               const tied = entry.tieSize > 1;
               const podium = entry.rank >= 1 && entry.rank <= 3;
+              // Snapshot ordering can take a moment to rebuild, but the
+              // authenticated user's score should never visually lag. The
+              // own-rank endpoint reads the canonical ledger directly; while
+              // that request is in flight, use the local committed optimistic
+              // delta as a temporary overlay on this user's row only.
+              const displayedScore = entry.isViewer
+                ? (currentRank?.score ?? (entry.score + optimisticPointDelta))
+                : entry.score;
               return (
                 <div
                   className={`lv-row${podium ? ` lv-podium lv-podium-${entry.rank}` : ""}`}
                   key={`${entry.rank}-${index}`}
                   role="listitem"
-                  aria-label={`${publicLabel}. ${tx("gamificationYourPlace", "Rank", "الترتيب")} ${formatNumber(entry.rank)}${tied ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${formatNumber(entry.score)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}
+                  aria-label={`${publicLabel}. ${tx("gamificationYourPlace", "Rank", "الترتيب")} ${formatNumber(entry.rank)}${tied ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${formatNumber(displayedScore)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}
                 >
                   <span className="lv-rank">
                     {podium ? <Medal size={17} aria-hidden="true" /> : null}
@@ -243,7 +253,7 @@ export function LeaderboardView({
                       : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}${tied ? ` · ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
                   </span>
                   <span className="lv-score">
-                    <strong>{formatNumber(entry.score)}</strong>
+                    <strong>{formatNumber(displayedScore)}</strong>
                     <span>{tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
                   </span>
                 </div>

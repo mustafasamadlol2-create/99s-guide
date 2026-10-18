@@ -984,7 +984,7 @@ export function GamificationFrontend({
         <div className="g-overview-grid">
           {studyPointsEnabled && <section className="g-card g-points-card" aria-labelledby="g-points-heading">
             <div className="g-points-label" id="g-points-heading">{tx("gamificationPoints", "Study Points", "نقاط الدراسة")}</div>
-            <div className="g-total" aria-label={`${formatNumber(summary.points.totalPoints)} ${tx("gamificationScore", "Points", "النقاط")}`}>{formatNumber(summary.points.totalPoints)}</div>
+            <div className="g-total" aria-label={`${formatNumber(summary.points.totalPoints + optimisticPointDelta)} ${tx("gamificationScore", "Points", "النقاط")}`}>{formatNumber(summary.points.totalPoints + optimisticPointDelta)}</div>
             <div className="g-point-bar" role="img" aria-label={tx("gamificationCategoryDistribution", "Canonical points by category", "توزيع النقاط حسب الفئة")}>
               {pointsCategory.map(([category], index) => (
                 <span
@@ -1160,6 +1160,7 @@ export function GamificationFrontend({
         locale={locale}
         isRtl={isRtl}
         tx={tx}
+        optimisticPointDelta={optimisticPointDelta}
       />
     );
   };

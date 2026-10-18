@@ -503,6 +503,7 @@ export async function getLeaderboardPageWithCache(input: {
           score: entry.score,
           displayName: visibleUserIds.get(entry.userId)?.displayName ?? null,
           avatarUrl: visibleUserIds.get(entry.userId)?.avatarUrl ?? null,
+          isViewer: entry.userId === input.viewerId,
         }]
         : []);
     const expiresAt = snapshot.snapshotType === "LIVE"

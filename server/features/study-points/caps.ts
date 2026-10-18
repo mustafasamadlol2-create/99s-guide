@@ -8,17 +8,9 @@ import { isStudyPointsCategory } from "./awardRules.js";
 import { getBaghdadWeekPeriod } from "../gamification/challengePeriods.js";
 import { clampStudyPointsRangeStart } from "./epoch.js";
 
-export const STUDY_POINTS_TOTAL_DAILY_CAP = 100;
-
-export const STUDY_POINTS_CATEGORY_DAILY_CAPS: Readonly<
-  Record<StudyPointsCategory, number>
-> = Object.freeze({
-  FOCUS: 60,
-  MASTERY: 40,
-  PROGRESS: 30,
-  CONSISTENCY: 5,
-});
-
+// Points V2 uses unlimited scoring. Historical cap helpers remain in this
+// module only for date/range calculations and backward-compatible imports;
+// no award path enforces a category, daily, weekly, or total ceiling.
 export type StudyPointsBaghdadDayBounds = {
   start: Date;
   end: Date;
@@ -97,15 +89,29 @@ export async function getStudyPointsBaghdadDailyRuleUsage(
   const bounds = await getStudyPointsBaghdadDayBounds(tx, baghdadDate);
   const rangeStart = clampStudyPointsRangeStart(bounds.start);
   if (rangeStart >= bounds.end) return 0;
+  const isLearningReward =
+    rule.reasonCode === "mcq.first_verified_correct"
+    || rule.reasonCode === "flashcard.first_verified_recall";
   const result = await tx.studyPointsLedgerEntry.aggregate({
-    where: {
-      userId,
-      category: rule.category,
-      reasonCode: rule.reasonCode,
-      ruleVersion: rule.ruleVersion,
-      sourceType: rule.sourceType,
-      effectiveAt: { gte: rangeStart, lt: bounds.end },
-    },
+    where: isLearningReward
+      ? {
+          userId,
+          // Phase 3.1 corrected MCQ/Flashcard rewards from PROGRESS to
+          // MASTERY. Count both the old and new rule rows toward the same
+          // per-activity cap so the correction cannot create extra farming
+          // headroom on the deployment day.
+          reasonCode: rule.reasonCode,
+          sourceType: rule.sourceType,
+          effectiveAt: { gte: rangeStart, lt: bounds.end },
+        }
+      : {
+          userId,
+          category: rule.category,
+          reasonCode: rule.reasonCode,
+          ruleVersion: rule.ruleVersion,
+          sourceType: rule.sourceType,
+          effectiveAt: { gte: rangeStart, lt: bounds.end },
+        },
     _sum: { amount: true },
   });
   return safeStudyPointsAggregate(result._sum.amount);
@@ -152,22 +158,31 @@ export async function getStudyPointsDailyUsage(
   };
   const rangeStart = clampStudyPointsRangeStart(bounds.start);
   if (rangeStart >= bounds.end) return { byCategory, total: 0 };
-  const rows = await tx.studyPointsLedgerEntry.groupBy({
-    by: ["category"],
-    where: {
-      userId,
-      sourceType: { not: "LEGACY_POINTS_LOG" },
-      category: { not: "LEGACY" },
-      effectiveAt: { gte: rangeStart, lt: bounds.end },
-    },
-    _sum: { amount: true },
-  });
+  const rows = await tx.$queryRaw<Array<{ category: string; amount: string }>>`
+    SELECT
+      CASE
+        WHEN "reasonCode" IN (
+          'mcq.first_verified_correct',
+          'flashcard.first_verified_recall',
+          'mcq.set_verified_pass'
+        ) THEN 'MASTERY'
+        ELSE "category"
+      END AS category,
+      COALESCE(SUM("amount"), 0)::text AS amount
+    FROM "StudyPointsLedgerEntry"
+    WHERE "userId" = ${userId}
+      AND "sourceType" <> 'LEGACY_POINTS_LOG'
+      AND "category" <> 'LEGACY'
+      AND "effectiveAt" >= ${rangeStart}
+      AND "effectiveAt" < ${bounds.end}
+    GROUP BY 1
+  `;
   let total = 0;
   for (const row of rows) {
     if (!isStudyPointsCategory(row.category)) {
       throw new Error("Stored Study Points category is invalid.");
     }
-    const amount = safeStudyPointsAggregate(row._sum.amount);
+    const amount = safeStudyPointsAggregate(row.amount);
     byCategory[row.category] = amount;
     total = safeStudyPointsSum(total, amount);
   }

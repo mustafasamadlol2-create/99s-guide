@@ -28,6 +28,9 @@ export type PublicLeaderboardEntry = {
   score: number;
   displayName: string | null;
   avatarUrl: string | null;
+  // Safe viewer-local marker so the frontend can immediately overlay the
+  // authenticated user's fresh ledger score onto a still-rebuilding snapshot.
+  isViewer: boolean;
 };
 
 export type LeaderboardCursorPayload = {

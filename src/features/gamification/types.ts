@@ -112,6 +112,7 @@ export interface LeaderboardEntry {
   score: number;
   displayName: string | null;
   avatarUrl: string | null;
+  isViewer?: boolean;
 }
 
 export interface LeaderboardResponse {
