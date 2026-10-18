@@ -178,6 +178,14 @@ export class StudyPointsLedgerService {
     private readonly database: PrismaClient = getPrisma() as PrismaClient,
     private readonly isEnabled: () => boolean = () =>
       isStudyFeatureEnabled("STUDY_POINTS_ENABLED"),
+    /**
+     * The balance projection is rebuildable and must never be allowed to make
+     * the canonical append-only ledger unavailable. Server-authoritative V2
+     * award paths can disable synchronous projection maintenance and rely on
+     * canonical ledger reads plus the normal post-commit refresh/reconciliation
+     * path.
+     */
+    private readonly maintainBalanceProjection = true,
   ) {}
 
   private assertEnabled(): void {
@@ -238,12 +246,14 @@ export class StudyPointsLedgerService {
       const entry = await tx.studyPointsLedgerEntry.create({
         data: createRowData(normalized),
       });
-      await updateStudyPointsBalanceProjectionAfterAppend(
-        tx,
-        normalized.userId,
-        normalized.category,
-        normalized.amount,
-      );
+      if (this.maintainBalanceProjection) {
+        await updateStudyPointsBalanceProjectionAfterAppend(
+          tx,
+          normalized.userId,
+          normalized.category,
+          normalized.amount,
+        );
+      }
       return { entry, replayed: false };
     };
 
@@ -366,12 +376,14 @@ export class StudyPointsLedgerService {
             reversalOfEntryId: original.id,
           }),
         });
-        await updateStudyPointsBalanceProjectionAfterAppend(
-          tx,
-          normalized.userId,
-          original.category as StudyPointsCategory,
-          -original.amount,
-        );
+        if (this.maintainBalanceProjection) {
+          await updateStudyPointsBalanceProjectionAfterAppend(
+            tx,
+            normalized.userId,
+            original.category as StudyPointsCategory,
+            -original.amount,
+          );
+        }
         return { entry: reversal, replayed: false };
       }, { maxWait: 5_000, timeout: 15_000 });
       if (!result.replayed) {

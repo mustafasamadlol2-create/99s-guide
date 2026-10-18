@@ -121,8 +121,13 @@ export class StudyPointsAwardEngine {
     private readonly now: () => Date = () => new Date(),
     private readonly isStudyPointsEnabled: () => boolean = () =>
       isStudyFeatureEnabled("STUDY_POINTS_ENABLED"),
+    maintainBalanceProjection = true,
   ) {
-    this.ledger = new StudyPointsLedgerService(database, isStudyPointsEnabled);
+    this.ledger = new StudyPointsLedgerService(
+      database,
+      isStudyPointsEnabled,
+      maintainBalanceProjection,
+    );
   }
 
   async awardStudyPointsForSource(
@@ -162,6 +167,148 @@ export class StudyPointsAwardEngine {
       await notifyStudyPointsPostCommit(input.userId);
     }
     return result;
+  }
+
+  /**
+   * Canonical award path for learning actions whose verdict was produced by
+   * the backend itself (for example /api/mcqs/submit). This deliberately does
+   * not depend on a secondary StudyEvent lookup: the grading endpoint is the
+   * authoritative evidence and must not silently lose points when analytics or
+   * D1 projection work is disabled/unavailable.
+   */
+  async awardServerVerifiedLearningActivity(input: {
+    userId: string;
+    sourceType: "MCQ_ATTEMPT" | "FLASHCARD_REVIEW";
+    sourceId: string;
+    effectiveAt?: Date;
+    now?: Date;
+    tx?: Prisma.TransactionClient;
+  }): Promise<StudyPointsAwardSourceResult> {
+    if (!this.isStudyPointsEnabled()) {
+      throw new StudyPointsError("FEATURE_DISABLED", "Study Points are disabled.");
+    }
+    if (
+      !input
+      || typeof input.userId !== "string"
+      || input.userId.length < 1
+      || input.userId.length > 128
+      || input.userId.includes("\0")
+      || typeof input.sourceId !== "string"
+      || input.sourceId.length < 1
+      || input.sourceId.length > 128
+      || input.sourceId.includes("\0")
+      || !["MCQ_ATTEMPT", "FLASHCARD_REVIEW"].includes(input.sourceType)
+    ) {
+      throw new TypeError("Server-verified Study Points source is invalid.");
+    }
+    const now = input.now ?? this.now();
+    const effectiveAt = input.effectiveAt ?? now;
+    if (
+      !(now instanceof Date)
+      || !Number.isFinite(now.getTime())
+      || !(effectiveAt instanceof Date)
+      || !Number.isFinite(effectiveAt.getTime())
+    ) {
+      throw new TypeError("Server-verified Study Points time is invalid.");
+    }
+
+    const perform = async (tx: Prisma.TransactionClient) => {
+      const actionType = input.sourceType === "MCQ_ATTEMPT"
+        ? INTEGRITY_ACTION_TYPES.MCQ_ANSWER
+        : INTEGRITY_ACTION_TYPES.FLASHCARD_REVIEW;
+      const kind = input.sourceType === "MCQ_ATTEMPT" ? "mcq" : "flashcard";
+      const integrityFailure = await getStudyPointsIntegrityFailure(tx, {
+        userId: input.userId,
+        actionType,
+        source: "backend",
+        evidenceClass: "SERVER_VALIDATED",
+        occurredAt: effectiveAt,
+        now,
+        resource: { kind, id: input.sourceId },
+      });
+      if (integrityFailure) {
+        return {
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          attempts: [noAward(integrityFailure)],
+        } satisfies StudyPointsAwardSourceResult;
+      }
+      const rule = input.sourceType === "MCQ_ATTEMPT"
+        ? MCQ_FIRST_CORRECT_RULE
+        : FLASHCARD_FIRST_RECALL_RULE;
+      return {
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        attempts: [await this.appendCappedAward(tx, {
+          userId: input.userId,
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          effectiveAt,
+          rule,
+          baseRuleAmount: 1,
+          baghdadDate: studyPointsBaghdadDate(effectiveAt),
+          now,
+          maxPointsPerDay: 20,
+          specialDailyRule: rule,
+          // First-success rewards are one-time per resource. A later retry of
+          // the same MCQ/flashcard must replay the original award rather than
+          // conflict because the later attempt has a different timestamp.
+          compareEffectiveAtOnReplay: false,
+        })],
+      } satisfies StudyPointsAwardSourceResult;
+    };
+
+    const result = input.tx
+      ? await perform(input.tx)
+      : await this.database.$transaction(perform, TRANSACTION_OPTIONS);
+    if (
+      !input.tx
+      && result.attempts.some((attempt) =>
+        attempt.decision.outcome === "AWARD" && !attempt.replayed
+      )
+    ) {
+      await notifyStudyPointsPostCommit(input.userId);
+    }
+    return result;
+  }
+
+  async awardServerVerifiedLearningActivities(input: {
+    userId: string;
+    activities: readonly {
+      sourceType: "MCQ_ATTEMPT" | "FLASHCARD_REVIEW";
+      sourceId: string;
+      effectiveAt?: Date;
+    }[];
+    now?: Date;
+  }): Promise<StudyPointsAwardSourceResult[]> {
+    if (!Array.isArray(input.activities) || input.activities.length === 0) return [];
+    if (input.activities.length > 200) {
+      throw new TypeError("Too many server-verified Study Points activities.");
+    }
+    const now = input.now ?? this.now();
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+      throw new TypeError("Server-verified Study Points batch time is invalid.");
+    }
+    const results = await this.database.$transaction(async (tx) => {
+      const output: StudyPointsAwardSourceResult[] = [];
+      for (const activity of input.activities) {
+        output.push(await this.awardServerVerifiedLearningActivity({
+          userId: input.userId,
+          sourceType: activity.sourceType,
+          sourceId: activity.sourceId,
+          effectiveAt: activity.effectiveAt ?? now,
+          now,
+          tx,
+        }));
+      }
+      return output;
+    }, TRANSACTION_OPTIONS);
+    if (results.some((result) => result.attempts.some((attempt) =>
+      attempt.decision.outcome === "AWARD" && !attempt.replayed
+    ))) {
+      await notifyStudyPointsPostCommit(input.userId);
+    }
+    return results;
   }
 
   private async awardWithinTransaction(
@@ -388,6 +535,11 @@ export class StudyPointsAwardEngine {
           baghdadDate: studyPointsBaghdadDate(source.effectiveAt),
           now,
           maxPointsPerDay: 20,
+          specialDailyRule: rule,
+          // First-success rewards are one-time per resource. A later retry of
+          // the same MCQ/flashcard must replay the original award rather than
+          // conflict because the later attempt has a different timestamp.
+          compareEffectiveAtOnReplay: false,
         })],
       };
     }

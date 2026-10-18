@@ -44,6 +44,13 @@ export function flashcardStudyQualityFromStatus(
 export async function recordMasteryStudyEventsAndRefreshBestEffort(input: {
   userId: string;
   events: readonly IngestStudyEventInput[];
+  /**
+   * Some server-authoritative routes award Points V2 directly before analytics
+   * ingestion so a disabled/broken analytics projection can never discard a
+   * legitimate reward. Those callers set this to false to avoid a redundant
+   * second award attempt.
+   */
+  awardPoints?: boolean;
 }): Promise<void> {
   if (input.events.length === 0) return;
   if (!isStudyFeatureEnabled("STUDY_EVENTS_ENABLED")) return;
@@ -76,7 +83,7 @@ export async function recordMasteryStudyEventsAndRefreshBestEffort(input: {
             ? "FLASHCARD_REVIEW"
             : null;
         const sourceId = event.mcqId ?? event.flashcardId;
-        if (sourceType && sourceId) {
+        if (input.awardPoints !== false && sourceType && sourceId) {
           try {
             await studyPointsAwarder.awardStudyPointsForSource({
               userId: input.userId,

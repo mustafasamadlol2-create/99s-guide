@@ -575,19 +575,35 @@ export async function getReadableLeaderboardSnapshot(input: {
     "LIVE",
     database,
   );
-  const eligibleAccountCount = await database.user.count({
-    where: {
-      accountStatus: "ACTIVE",
-      createdAt: { lte: now },
-    },
-  });
+  const [eligibleAccountCount, ledgerChangeAfterSnapshot] = await Promise.all([
+    database.user.count({
+      where: {
+        accountStatus: "ACTIVE",
+        createdAt: { lte: now },
+      },
+    }),
+    initial
+      ? database.studyPointsLedgerEntry.findFirst({
+          where: {
+            createdAt: { gt: initial.generatedAt },
+            effectiveAt: { gte: getStudyPointsCompetitiveEpoch(), lte: now },
+            sourceType: { not: "LEGACY_POINTS_LOG" },
+            category: { not: "LEGACY" },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
   const scoringCurrent = !initial
     || isLeaderboardSnapshotScoringCurrent(initial, scope);
   const rosterCurrent = !initial || initial.entryCount === eligibleAccountCount;
+  const sourceCurrent = !initial || ledgerChangeAfterSnapshot === null;
   if (
     initial
     && scoringCurrent
     && rosterCurrent
+    && sourceCurrent
     && now.getTime() - initial.generatedAt.getTime()
       <= LEADERBOARD_LIVE_FRESHNESS_MS
   ) {
@@ -598,7 +614,8 @@ export async function getReadableLeaderboardSnapshot(input: {
     snapshotType: "LIVE",
     now,
     tryLock: true,
-    skipIfFresh: scoringCurrent,
+    // A fresh-by-age snapshot is still stale if canonical ledger data changed.
+    skipIfFresh: scoringCurrent && rosterCurrent && sourceCurrent,
   }, database);
   if (build.snapshot) {
     if (!isLeaderboardSnapshotScoringCurrent(build.snapshot, scope)) {

@@ -89,6 +89,7 @@ import {
 } from "./server/features/gamification/realtime.js";
 import { getPublicGamificationProfile } from "./server/features/gamification/publicProfile.js";
 import { refreshActiveLeaderboardSnapshotsForUser } from "./server/features/leaderboard/snapshots.js";
+import { StudyPointsAwardEngine } from "./server/features/study-points/awardEngine.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
 import {
   flashcardStudyQualityFromStatus,
@@ -2473,8 +2474,47 @@ app.post("/api/flashcards/batch-progress", requireUser, catchAsync(async (req, r
         payload: { quality },
       }];
     });
-    await recordMasteryStudyEventsAndRefreshBestEffort({ userId, events });
-    res.json({ success: true });
+    const rewardActivities = events
+      .filter((event) =>
+        event.eventType === "flashcard_reviewed"
+        && (event.payload.quality === "GOOD" || event.payload.quality === "EASY")
+        && typeof event.flashcardId === "string"
+      )
+      .map((event) => ({
+        sourceType: "FLASHCARD_REVIEW" as const,
+        sourceId: event.flashcardId as string,
+        effectiveAt: occurredAt,
+      }));
+    const pointsAwarder = new StudyPointsAwardEngine(
+      prismaClient,
+      () => occurredAt,
+      () => true,
+      false,
+    );
+    const pointResults = rewardActivities.length > 0
+      ? await pointsAwarder.awardServerVerifiedLearningActivities({
+          userId,
+          activities: rewardActivities,
+          now: occurredAt,
+        })
+      : [];
+    const awardedPoints = pointResults.reduce((sum, award) =>
+      sum + award.attempts.reduce((inner, attempt) =>
+        inner + (
+          attempt.decision.outcome === "AWARD" && !attempt.replayed
+            ? attempt.decision.amount
+            : 0
+        ), 0), 0);
+
+    await recordMasteryStudyEventsAndRefreshBestEffort({
+      userId,
+      events,
+      awardPoints: false,
+    });
+    res.json({
+      success: true,
+      points: { awarded: awardedPoints, changed: awardedPoints > 0 },
+    });
   } catch (err) {
     res.status(500).json({ error: "Internal Server Error" });
   }
@@ -4604,11 +4644,53 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
         payload: { correct: result.correct },
       }];
     });
+    // MCQ grading is already server-authoritative, so Points V2 is awarded
+    // directly from this canonical verdict. Do not make the reward depend on
+    // the secondary StudyEvent/D1 analytics pipeline or stale rollout flags.
+    // The immutable ledger remains the source of truth and idempotency is
+    // scoped by user + MCQ + rule, so a retry cannot double-award.
+    const correctActivities = results
+      .filter((result) => result.correct === true)
+      .map((result) => ({
+        sourceType: "MCQ_ATTEMPT" as const,
+        sourceId: result.id,
+        effectiveAt: occurredAt,
+      }));
+    const pointsAwarder = new StudyPointsAwardEngine(
+      prismaClient,
+      () => occurredAt,
+      () => true,
+      false, // the balance projection is rebuildable; never block canonical ledger writes
+    );
+    const pointResults = correctActivities.length > 0
+      ? await pointsAwarder.awardServerVerifiedLearningActivities({
+          userId: (req as any).user.id,
+          activities: correctActivities,
+          now: occurredAt,
+        })
+      : [];
+    const awardedPoints = pointResults.reduce((sum, award) =>
+      sum + award.attempts.reduce((inner, attempt) =>
+        inner + (
+          attempt.decision.outcome === "AWARD" && !attempt.replayed
+            ? attempt.decision.amount
+            : 0
+        ), 0), 0);
+
+    // Analytics/mastery ingestion remains best-effort. It must never be the
+    // gate that decides whether a verified MCQ earns Points V2.
     await recordMasteryStudyEventsAndRefreshBestEffort({
       userId: (req as any).user.id,
       events,
+      awardPoints: false,
     });
-    res.json({ results });
+    res.json({
+      results,
+      points: {
+        awarded: awardedPoints,
+        changed: awardedPoints > 0,
+      },
+    });
   } catch (err: any) {
     console.error("[MCQ Submit Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
     res.status(500).json({ error: "Internal Server Error" });

@@ -1,4 +1,9 @@
 import { safeJsonParse } from "../../../core/utils/safeJson";
+import {
+  GAMIFICATION_INVALIDATED_EVENT,
+  invalidateGamificationResources,
+  type GamificationSyncResource,
+} from "../../gamification/realtime";
 import { UserAvatar } from "../../../features/profile/components/UserAvatar";
 import { apiClient } from "../../../core/api/apiClient";
 import { ReportSheet, ReportTarget } from "../../../features/moderation/components/ReportSheet";
@@ -929,12 +934,26 @@ export const LectureDetailView = function LectureDetailView({
     setCardStats((prev) => ({ ...prev, ...finalUpdates }));
     
     try {
-      await apiClient("/api/flashcards/batch-progress", {
+      const res = await apiClient("/api/flashcards/batch-progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates: finalUpdates })
       });
+      const data = res.ok ? await res.json().catch(() => null) : null;
       window.dispatchEvent(new Event("study:mastery-updated"));
+      if (data?.points?.changed === true) {
+        const resources: GamificationSyncResource[] = [
+          "summary",
+          "achievements",
+          "challenges",
+          "leaderboard",
+          "rank",
+        ];
+        invalidateGamificationResources(resources);
+        window.dispatchEvent(new CustomEvent(GAMIFICATION_INVALIDATED_EVENT, {
+          detail: { resources },
+        }));
+      }
     } catch (err) {
     }
 
@@ -1101,7 +1120,20 @@ export const LectureDetailView = function LectureDetailView({
   if (!res.ok) throw new Error("Submission rejected by server.");
 
   const data = await res.json();
-   window.dispatchEvent(new Event("study:mastery-updated"));
+  window.dispatchEvent(new Event("study:mastery-updated"));
+  if (data?.points?.changed === true) {
+    const resources: GamificationSyncResource[] = [
+      "summary",
+      "achievements",
+      "challenges",
+      "leaderboard",
+      "rank",
+    ];
+    invalidateGamificationResources(resources);
+    window.dispatchEvent(new CustomEvent(GAMIFICATION_INVALIDATED_EVENT, {
+      detail: { resources },
+    }));
+  }
   const serverResults: any[] = Array.isArray(data?.results) ? data.results : [];
   verifiedResults = {};
   serverResults.forEach((r: any) => {
