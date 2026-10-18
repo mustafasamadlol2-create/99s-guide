@@ -102,12 +102,14 @@ function pointsProvider(
   database: PrismaClient,
 ): GamificationMetricProvider {
   return {
-    async readValue(userId, asOf) {
+    async readValue(userId, asOf, tx) {
       assertValidStudyPointsUserId(userId);
       assertValidAsOf(asOf);
-      // The Study Points service owns compatibility-mode and cutover safety
-      // checks. Gamification uses its unified balance and never writes points.
-      const balance = await getUnifiedStudyPointsReadModel({ userId }, database);
+      // When Achievements/Overview are refreshing inside a transaction, read
+      // Study Points through that same transaction. Opening a second Prisma
+      // transaction while advisory locks are held can time out the Overview and
+      // Achievements reads even though Challenges (a different path) succeeds.
+      const balance = await getUnifiedStudyPointsReadModel({ userId }, tx ?? database);
       switch (metricId) {
         case GAMIFICATION_METRIC_IDS.pointsTotal:
           return assertCanonicalCount(balance.totalPoints);

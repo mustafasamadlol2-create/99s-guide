@@ -63,7 +63,7 @@ export async function refreshUserGamificationState(
     const [{ now: asOf }] = await tx.$queryRaw<Array<{ now: Date }>>`
       SELECT CURRENT_TIMESTAMP AS now
     `;
-    const points = await getUnifiedStudyPointsReadModel({ userId }, database);
+    const points = await getUnifiedStudyPointsReadModel({ userId }, tx);
     const row = await refreshUserGamificationLevelInTransaction(
       tx,
       userId,

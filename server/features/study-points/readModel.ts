@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../services/prismaClient.js";
 import { aggregateCanonicalStudyPointsLedgerBalance } from "./balanceProjection.js";
 import { assertValidStudyPointsUserId } from "./validation.js";
@@ -23,17 +23,27 @@ export function resolveUnifiedStudyPointsReadMode(
   return "LEDGER_ONLY";
 }
 
+type StudyPointsReadDatabase = PrismaClient | Prisma.TransactionClient;
+
+function isPrismaTransactionClient(
+  database: StudyPointsReadDatabase,
+): database is Prisma.TransactionClient {
+  return !("$transaction" in database);
+}
+
 export async function getStudyPointsReadModel(
   input: {
     userId: string;
     compatibilityMode?: StudyPointsCompatibilityMode;
   },
-  database: PrismaClient = getPrisma() as PrismaClient,
+  database: StudyPointsReadDatabase = getPrisma() as PrismaClient,
 ): Promise<StudyPointsBalanceReadModel> {
   assertValidStudyPointsUserId(input.userId);
 
-  const ledger = await database.$transaction((tx) =>
-    aggregateCanonicalStudyPointsLedgerBalance(tx, input.userId));
+  const ledger = isPrismaTransactionClient(database)
+    ? await aggregateCanonicalStudyPointsLedgerBalance(database, input.userId)
+    : await database.$transaction((tx) =>
+        aggregateCanonicalStudyPointsLedgerBalance(tx, input.userId));
 
   return {
     focusPoints: ledger.focusPoints,
@@ -53,7 +63,7 @@ export async function getStudyPointsReadModel(
 
 export async function getUnifiedStudyPointsReadModel(
   input: { userId: string },
-  database: PrismaClient = getPrisma() as PrismaClient,
+  database: StudyPointsReadDatabase = getPrisma() as PrismaClient,
 ): Promise<StudyPointsBalanceReadModel> {
   return getStudyPointsReadModel({ userId: input.userId }, database);
 }

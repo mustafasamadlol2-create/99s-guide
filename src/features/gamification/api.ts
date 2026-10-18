@@ -52,7 +52,7 @@ export const gamificationApi = {
       "leaderboard",
       `${scope}:${limit}:${cursor ?? "first"}`,
       `/api/leaderboards/${scope}?${params.toString()}`,
-      cursor ? 0 : 60_000,
+      0,
     );
   },
   leaderboardAvailability: async () => {

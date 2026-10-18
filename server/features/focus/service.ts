@@ -338,99 +338,6 @@ function legacyFlagsFromResources(
   };
 }
 
-async function validatePlanResourceSelections(
-  tx: FocusTransaction,
-  items: readonly {
-    lectureId: string;
-    resources?: readonly {
-      resourceType: FocusPlanResourceSelectionDto["resourceType"];
-      resourceId: string;
-      sequence: number;
-    }[];
-  }[],
-): Promise<void> {
-  const materialSelections = items.flatMap((item) =>
-    (item.resources ?? [])
-      .filter((resource) =>
-        resource.resourceType === "PDF" ||
-        resource.resourceType === "NOTE" ||
-        resource.resourceType === "VIDEO"
-      )
-      .map((resource) => ({ ...resource, lectureId: item.lectureId })),
-  );
-  const mcqLectureIds = [...new Set(
-    items
-      .filter((item) => (item.resources ?? []).some((resource) => resource.resourceType === "MCQ_SET"))
-      .map((item) => item.lectureId),
-  )];
-  const flashcardLectureIds = [...new Set(
-    items
-      .filter((item) => (item.resources ?? []).some((resource) => resource.resourceType === "FLASHCARD_SET"))
-      .map((item) => item.lectureId),
-  )];
-
-  const [materials, mcqRows, flashcardRows] = await Promise.all([
-    materialSelections.length
-      ? tx.material.findMany({
-          where: { id: { in: [...new Set(materialSelections.map((resource) => resource.resourceId))] } },
-          select: { id: true, lectureId: true, type: true },
-        })
-      : Promise.resolve([]),
-    mcqLectureIds.length
-      ? tx.mcq.findMany({
-          where: { lectureId: { in: mcqLectureIds } },
-          select: { lectureId: true },
-        })
-      : Promise.resolve([]),
-    flashcardLectureIds.length
-      ? tx.flashcard.findMany({
-          where: { lectureId: { in: flashcardLectureIds } },
-          select: { lectureId: true },
-        })
-      : Promise.resolve([]),
-  ]) as [
-    Array<{ id: string; lectureId: string; type: string }>,
-    Array<{ lectureId: string }>,
-    Array<{ lectureId: string }>,
-  ];
-
-  const materialById = new Map(materials.map((material) => [material.id, material]));
-  for (const resource of materialSelections) {
-    const material = materialById.get(resource.resourceId);
-    const materialType = material?.type.toUpperCase();
-    const typeMatches = resource.resourceType === "NOTE"
-      ? materialType === "NOTE" || materialType === "NOTES"
-      : materialType === resource.resourceType;
-    if (!material || material.lectureId !== resource.lectureId || !typeMatches) {
-      throw new FocusError(
-        "RESOURCE_NOT_FOUND",
-        "One or more selected Focus resources are unavailable for this Lecture.",
-      );
-    }
-  }
-
-  const mcqLectures = new Set(mcqRows.map((row) => row.lectureId));
-  const flashcardLectures = new Set(flashcardRows.map((row) => row.lectureId));
-  for (const item of items) {
-    const resources = item.resources ?? [];
-    const mcqSets = resources.filter((resource) => resource.resourceType === "MCQ_SET");
-    if (
-      mcqSets.some((resource) => resource.resourceId !== item.lectureId) ||
-      (mcqSets.length > 0 && !mcqLectures.has(item.lectureId))
-    ) {
-      throw new FocusError("RESOURCE_NOT_FOUND", "The selected MCQ set is unavailable.");
-    }
-
-    const flashcardSets = resources.filter((resource) => resource.resourceType === "FLASHCARD_SET");
-    if (
-      flashcardSets.some((resource) => resource.resourceId !== item.lectureId) ||
-      (flashcardSets.length > 0 && !flashcardLectures.has(item.lectureId))
-    ) {
-      throw new FocusError("RESOURCE_NOT_FOUND", "The selected Flashcard set is unavailable.");
-    }
-  }
-}
-
 function planItemDto(item: PlanItemRecord): FocusPlanItemDto {
   return {
     id: item.id,
@@ -1418,7 +1325,6 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           if (lectureRows.length !== new Set(input.items.map((item) => item.lectureId)).size) {
             throw new FocusError("LECTURE_NOT_FOUND", "One or more Lectures were not found.");
           }
-          await validatePlanResourceSelections(tx, input.items);
           const created = await tx.focusPlan.create({
             data: {
               userId,
@@ -1551,8 +1457,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             if (lectureRows.length !== lectureIds.size) {
               throw new FocusError("LECTURE_NOT_FOUND", "One or more Lectures were not found.");
             }
-            await validatePlanResourceSelections(tx, input.items);
-
+  
             const incomingIds = new Set(input.items.flatMap((item) => item.id ? [item.id] : []));
             const removed = current.items.filter((item) => !incomingIds.has(item.id));
             if (removed.length) {
@@ -1752,13 +1657,11 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         const item = plan.items.find((candidate) => candidate.id === input.planItemId);
         if (!item) throw new FocusError("PLAN_ITEM_NOT_FOUND", "Focus Plan item was not found.");
 
-        const selectedResources = normalizePlanResourceSelections(item.resourceSelections);
-        if (selectedResources.length > 0) {
-          await validatePlanResourceSelections(tx, [{
-            lectureId: item.lectureId,
-            resources: selectedResources,
-          }]);
-        }
+        // Resource selections are study-workspace metadata, not an authority
+        // boundary. A resource may be renamed/removed between planning and
+        // starting a timer; that must not prevent the Focus session itself from
+        // starting. Resource-opening endpoints enforce canonical ownership and
+        // availability when a resource is actually used.
 
         if (nonterminalCount > 0) {
           throw new FocusError("ACTIVE_SESSION_EXISTS", "A solo Focus Session is already in progress.");

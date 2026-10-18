@@ -792,95 +792,46 @@ export function FocusHub({
     setSaving(true);
     setNotice(null);
     try {
-      const currentPlan = canonicalPlanRef.current;
-      if (currentPlan) {
-        const latest = await focusApi.getFocusPlan(currentPlan.id, { canonical: true });
-        if (
-          latest.status !== "ACTIVE" ||
-          latest.planVersion !== currentPlan.planVersion
-        ) {
-          setCanonical(latest);
-          setServerConflict(latest);
-          return null;
-        }
-        if (!areFocusPlanDraftsEqual(draft, focusPlanToDraft(latest))) {
-          let updated: FocusPlanRecord;
-          try {
-            updated = await focusApi.updateFocusPlan(latest.id, {
-              title: latest.title,
-              timezone: latest.timezone,
-              items: focusPlanItemsFromDraft(draft, true),
-            });
-          } catch (error) {
-            // A plan item that already has Focus-session history is an immutable
-            // historical record. Editing the planner should transparently fork a
-            // fresh active plan rather than forcing the student to understand
-            // internal history constraints or surfacing a generic save failure.
-            if (getApiErrorCode(error) !== "PLAN_ITEM_HAS_HISTORY") throw error;
-            await focusApi.archiveFocusPlan(latest.id);
-            updated = await focusApi.createFocusPlan({
-              title: latest.title,
-              timezone: latest.timezone,
-              items: focusPlanItemsFromDraft(draft, false),
-            });
-          }
-          setCanonical(updated);
-          setDraft(focusPlanToDraft(updated));
-          setServerConflict(null);
-          showNotice("focusHubSaved", "success");
-          return updated;
-        }
-        setCanonical(latest);
-        return latest;
-      }
-
-      const latestOpenPlan = currentOpenPlan(await focusApi.listFocusPlans(1, {
-        status: "ACTIVE",
-        canonical: true,
-      }));
-      if (latestOpenPlan) {
-        setCanonical(latestOpenPlan);
-        setServerConflict(latestOpenPlan);
-        return null;
-      }
-
+      // A dirty planner draft is intentionally persisted as a fresh canonical
+      // plan. This avoids coupling Start Focus to historical plan-item IDs,
+      // completed-session history, stale plan versions, or an older ACTIVE plan
+      // left behind by a previous client. Focus plans are tiny immutable study
+      // intentions; creating the new plan first is safer than mutating history.
+      const previousPlan = canonicalPlanRef.current;
       const created = await focusApi.createFocusPlan({
-        title: t("focusHubTitle"),
-        timezone: getBrowserTimezone(),
+        title: previousPlan?.title ?? t("focusHubTitle"),
+        timezone: previousPlan?.timezone ?? getBrowserTimezone(),
         items: focusPlanItemsFromDraft(draft, false),
       });
+
       setCanonical(created);
       setDraft(focusPlanToDraft(created));
       setServerConflict(null);
       showNotice("focusHubSaved", "success");
+
+      // Archiving the superseded draft is cleanup only. It must never make a
+      // successfully-created current plan look like a save failure. A plan with
+      // historical/nonterminal sessions may legitimately be non-archivable.
+      if (previousPlan && previousPlan.id !== created.id) {
+        void focusApi.archiveFocusPlan(previousPlan.id).catch(() => {});
+      }
       return created;
     } catch (error) {
       const errorCode = getApiErrorCode(error);
-      // Keep the user-facing message simple, but retain the exact backend code
-      // in diagnostics so a real persistence failure can never be mistaken for
-      // a generic planner/UI problem again.
       console.warn("[FocusHub] Focus Plan save failed", {
         code: errorCode,
         status: error && typeof error === "object" && "status" in error
           ? (error as { status?: unknown }).status
+          : undefined,
+        body: error && typeof error === "object" && "body" in error
+          ? (error as { body?: unknown }).body
           : undefined,
       });
       if (errorCode === "LECTURE_NOT_FOUND") {
         try {
           await onRefreshLectures();
         } catch {
-          // Keep the draft; the next render will still allow a safe retry.
-        }
-      }
-      if (
-        isConflictStatus(error) ||
-        isNotFoundStatus(error) ||
-        errorCode === "LECTURE_NOT_FOUND"
-      ) {
-        try {
-          await loadCanonical({ applyDraft: false, silent: true });
-        } catch {
-          // Keep the editable draft visible; the error notice below remains.
+          // Keep the draft; the next retry can use the refreshed catalog.
         }
       }
       showNotice("focusHubSaveError", "error");
@@ -891,7 +842,6 @@ export function FocusHub({
   }, [
     draft,
     hasInvalidLecture,
-    loadCanonical,
     onRefreshLectures,
     setCanonical,
     showNotice,

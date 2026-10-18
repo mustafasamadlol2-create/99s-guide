@@ -376,6 +376,10 @@ export async function getLeaderboardPageWithCache(input: {
   entries: PublicLeaderboardEntry[];
   nextCursor: string | null;
 }> {
+  // First-page leaderboard reads are student-facing correctness paths.
+  // Use canonical PostgreSQL so a lagging D1 projection cannot display stale
+  // zero scores. Cursor pages remain snapshot-bound and may still use D1.
+  if (!input.cursor) return getLeaderboardPage(input);
   if (!cacheIsEnabled()) return getLeaderboardPage(input);
   const database = input.database ?? getPrisma() as PrismaClient;
   const now = input.now ? new Date(input.now) : new Date();
@@ -554,113 +558,8 @@ export async function getMyLeaderboardRankWithCache(input: {
   notRanked: boolean;
   snapshotGeneratedAt: string;
 }> {
-  if (!cacheIsEnabled()) return getMyLeaderboardRank(input);
-  const database = input.database ?? getPrisma() as PrismaClient;
-  const now = input.now ? new Date(input.now) : new Date();
-  try {
-    const season = await resolveSeason({
-      scope: input.scope,
-      ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
-      now,
-      database,
-    });
-    const snapshot = await getLatestLeaderboardSnapshot(
-      season.id,
-      season.status === "CLOSED" ? "FINAL" : "LIVE",
-      database,
-    );
-    if (
-      snapshot
-      && !isLeaderboardSnapshotScoringCurrent(snapshot, input.scope)
-    ) {
-      throw new CacheRejected("PostgreSQL snapshot uses an obsolete scoring mode.");
-    }
-    if (
-      snapshot
-      && season.status !== "CLOSED"
-      && snapshot.entryCount !== await database.user.count({
-        where: {
-          accountStatus: "ACTIVE",
-          createdAt: { lte: now },
-        },
-      })
-    ) {
-      throw new CacheRejected("PostgreSQL snapshot does not include the active account roster.");
-    }
-    if (!snapshot || snapshot.status !== "READY") throw new CacheRejected("Canonical snapshot is not cached.");
-    if (snapshot.snapshotType === "LIVE") {
-      const ledgerChangeAfterSnapshot = await database.studyPointsLedgerEntry.findFirst({
-        where: {
-          createdAt: { gt: snapshot.generatedAt },
-          sourceType: { not: "LEGACY_POINTS_LOG" },
-          category: { not: "LEGACY" },
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { id: true },
-      });
-      if (ledgerChangeAfterSnapshot) {
-        throw new CacheRejected("Canonical Points V2 ledger is newer than the cached leaderboard snapshot.");
-      }
-    }
-    const manifest = await getCurrentManifest(season);
-    validateManifestForSnapshot(manifest, season, snapshot);
-    if (manifest.snapshotId !== snapshot.id) {
-      throw new CacheRejected("D1 current pointer is behind PostgreSQL.");
-    }
-    validateFreshness(manifest, now);
-    const params = new URLSearchParams({
-      snapshotId: snapshot.id,
-      userId: input.viewerId,
-    });
-    const result = await requestLeaderboardD1<CacheRank>(
-      `${CACHE_RANK_PATH}?${params.toString()}`,
-      undefined,
-      { method: "GET" },
-    );
-    if (!isRecord(result) || result.ok !== true) {
-      throw new CacheRejected("Cache rank response is invalid.");
-    }
-    const pageManifest = parseManifest(result.manifest);
-    validateManifestForSnapshot(pageManifest, season, snapshot);
-    if (!compareManifests(manifest, pageManifest)) {
-      throw new CacheRejected("Current pointer and rank metadata differ.");
-    }
-    if (result.entry === null || result.entry === undefined) {
-      return getMyLeaderboardRank({ ...input, database });
-    }
-    const entry = parseEntry(result.entry);
-    if (entry.userId !== input.viewerId) throw new CacheRejected("Cache rank user is invalid.");
-    const [canonical, blockedUserIds] = await Promise.all([
-      database.leaderboardSnapshotEntry.findFirst({
-        where: { snapshotId: snapshot.id, userId: input.viewerId },
-        select: { rank: true, tieSize: true, score: true },
-      }),
-      getBlockedUserIds(input.viewerId, database),
-    ]);
-    if (
-      !canonical
-      || canonical.rank !== entry.rank
-      || canonical.tieSize !== entry.tieSize
-      || canonical.score.toString() !== String(entry.score)
-    ) {
-      throw new CacheRejected("Cached own-rank row differs from PostgreSQL.");
-    }
-    const totalRankedUsers = await database.leaderboardSnapshotEntry.count({
-      where: buildBaseEntryWhere(snapshot.id, blockedUserIds),
-    });
-    return {
-      scope: input.scope,
-      season: seasonDto(season),
-      rank: entry.rank,
-      score: entry.score,
-      tieSize: entry.tieSize,
-      totalRankedUsers,
-      notRanked: false,
-      snapshotGeneratedAt: snapshot.generatedAt.toISOString(),
-    };
-  } catch (error) {
-    if (error instanceof LeaderboardError) throw error;
-    warnFallback();
-    return getMyLeaderboardRank({ ...input, database });
-  }
+  // Overview and the highlighted student row must reflect the immutable
+  // Points V2 ledger immediately. D1 remains a projection for paged rows, but
+  // it is not authoritative for a student's current score/rank.
+  return getMyLeaderboardRank(input);
 }
