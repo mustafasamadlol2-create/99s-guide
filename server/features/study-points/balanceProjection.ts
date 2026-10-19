@@ -97,7 +97,11 @@ export async function aggregateCanonicalStudyPointsLedgerBalance(
     }
     const category = group.category as StudyPointsCategory;
     const field = CATEGORY_FIELD[category] as keyof CanonicalStudyPointsLedgerBalance;
-    balance[field] = safeStudyPointsAggregate(group._sum.amount);
+    // Raw SQL above aliases the aggregate directly as `amount`; this is not a
+    // Prisma aggregate result and therefore has no `_sum` wrapper. Reading
+    // `group._sum.amount` throws at runtime and breaks every canonical Points
+    // consumer (Engagement Overview, achievements, auth/profile sync, etc.).
+    balance[field] = safeStudyPointsAggregate(group.amount);
     balance.totalPoints = safeStudyPointsSum(
       balance.totalPoints,
       balance[field] as number,
