@@ -68,17 +68,19 @@ function querySource(query: unknown): string {
 }
 
 test("Baghdad weekly and monthly boundaries are exact and half-open", () => {
-  const beforeMonday = getLeaderboardSeasonWindow(
+  const beforeSunday = getLeaderboardSeasonWindow(
     "WEEKLY",
-    new Date("2026-09-27T20:59:59.999Z"),
+    new Date("2026-09-26T20:59:59.999Z"),
   );
-  const monday = getLeaderboardSeasonWindow(
+  const sunday = getLeaderboardSeasonWindow(
     "WEEKLY",
-    new Date("2026-09-27T21:00:00.000Z"),
+    new Date("2026-09-26T21:00:00.000Z"),
   );
-  assert.equal(beforeMonday.seasonKey, "weekly:2026-W39");
-  assert.equal(monday.seasonKey, "weekly:2026-W40");
-  assert.equal(beforeMonday.endsAt?.getTime(), monday.startsAt?.getTime());
+  assert.equal(beforeSunday.seasonKey, "weekly:2026-09-20");
+  assert.equal(sunday.seasonKey, "weekly:2026-09-27");
+  assert.equal(beforeSunday.endsAt?.getTime(), sunday.startsAt?.getTime());
+  assert.equal(sunday.startsAt?.toISOString(), "2026-09-26T21:00:00.000Z");
+  assert.equal(sunday.endsAt?.toISOString(), "2026-10-03T21:00:00.000Z");
 
   const beforeMonth = getLeaderboardSeasonWindow(
     "MONTHLY",
@@ -91,6 +93,19 @@ test("Baghdad weekly and monthly boundaries are exact and half-open", () => {
   assert.equal(beforeMonth.seasonKey, "monthly:2026-09");
   assert.equal(october.seasonKey, "monthly:2026-10");
   assert.equal(beforeMonth.endsAt?.getTime(), october.startsAt?.getTime());
+});
+
+
+test("Tuesday remains in the Sunday-start Baghdad week and includes Sunday", () => {
+  const window = getLeaderboardSeasonWindow(
+    "WEEKLY",
+    new Date("2026-10-19T21:30:00.000Z"),
+  );
+  assert.equal(window.seasonKey, "weekly:2026-10-18");
+  assert.equal(window.startsAt?.toISOString(), "2026-10-17T21:00:00.000Z");
+  assert.equal(window.endsAt?.toISOString(), "2026-10-24T21:00:00.000Z");
+  assert.ok(window.startsAt! < new Date("2026-10-18T12:32:00.000Z"));
+  assert.ok(window.endsAt! > new Date("2026-10-19T21:30:00.000Z"));
 });
 
 test("configured semester ranges use Baghdad-local inclusive dates and half-open instants", () => {
@@ -146,6 +161,9 @@ test("configured semester ranges use Baghdad-local inclusive dates and half-open
   assert.equal(fall.endsAt?.getTime(), spring.startsAt?.getTime());
   assert.equal(validateSeasonKey("SEMESTER", "semester:fall-2026"), true);
   assert.equal(validateSeasonKey("WEEKLY", "weekly:2026-W00"), false);
+  assert.equal(validateSeasonKey("WEEKLY", "weekly:2026-10-18"), true);
+  assert.equal(validateSeasonKey("WEEKLY", "weekly:2026-10-19"), false);
+  assert.equal(validateSeasonKey("WEEKLY", "weekly:2026-W42"), true);
 });
 
 test("semester availability hides the scope when no configured term is active", () => {
@@ -344,7 +362,7 @@ test("fingerprints ignore input row order but change when canonical score inputs
     season: {
       id: "season-1",
       scope: "WEEKLY",
-      seasonKey: "weekly:2026-W39",
+      seasonKey: "weekly:2026-09-20",
       startsAt: weekly.startsAt,
       endsAt: weekly.endsAt,
     },

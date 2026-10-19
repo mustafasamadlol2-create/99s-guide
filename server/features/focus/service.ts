@@ -599,14 +599,47 @@ async function enqueueSessionProjection(
     revision: "0",
     projectionVersion: PROJECTION_CONTRACT_VERSION,
   });
+  await enqueuePrivateD1Projection(tx, {
+    entity: "FocusSession",
+    key: { id: session.id },
+    data: projection as unknown as Record<string, unknown>,
+  });
+}
+
+const FOCUS_SESSION_PROJECTION_SAVEPOINT = "focus_session_projection_enqueue";
+
+/**
+ * FocusSession/PostgreSQL + StudyEvent are canonical. Private D1 is a
+ * rebuildable read projection and current-session reads already fall back to
+ * PostgreSQL when D1 is unavailable or behind. A projection enqueue failure
+ * must therefore never roll back a valid Focus lifecycle mutation.
+ *
+ * PostgreSQL marks a transaction failed after a statement error, so simply
+ * catching the enqueue exception is not enough. Isolate the projection write
+ * behind a savepoint, roll only that optional work back, and let the canonical
+ * Focus transaction commit. Maintenance can rebuild the missing projection.
+ */
+async function enqueueSessionProjectionBestEffort(
+  tx: FocusTransaction,
+  session: SessionRecord,
+): Promise<void> {
+  await tx.$executeRawUnsafe(`SAVEPOINT ${FOCUS_SESSION_PROJECTION_SAVEPOINT}`);
   try {
-    await enqueuePrivateD1Projection(tx, {
-      entity: "FocusSession",
-      key: { id: session.id },
-      data: projection as unknown as Record<string, unknown>,
-    });
-  } catch {
-    throw new FocusError("OUTBOX_FAILURE", "Focus Session projection could not be queued.");
+    await enqueueSessionProjection(tx, session);
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${FOCUS_SESSION_PROJECTION_SAVEPOINT}`);
+  } catch (error) {
+    try {
+      await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${FOCUS_SESSION_PROJECTION_SAVEPOINT}`);
+      await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${FOCUS_SESSION_PROJECTION_SAVEPOINT}`);
+    } catch (recoveryError) {
+      const reason = recoveryError instanceof Error ? recoveryError.message : "unknown savepoint recovery error";
+      throw new FocusError(
+        "OUTBOX_FAILURE",
+        `Focus Session projection recovery failed: ${reason}`,
+      );
+    }
+    const reason = error instanceof Error ? error.message : "unknown projection enqueue error";
+    console.warn(`[Focus] Session projection enqueue deferred for ${session.id}: ${reason}`);
   }
 }
 
@@ -1225,7 +1258,7 @@ async function startAutomaticNextSession(
       "The automatic Focus Session start event unexpectedly replayed.",
     );
   }
-  await enqueueSessionProjection(tx, created);
+  await enqueueSessionProjectionBestEffort(tx, created);
   return sessionDto(created, now, sessionNumber);
 }
 
@@ -1766,7 +1799,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (idempotency !== "FIRST_SEEN") {
           throw new FocusError("RECONCILIATION_REQUIRED", "A new session unexpectedly replayed its start event.");
         }
-        await enqueueSessionProjection(tx, session);
+        await enqueueSessionProjectionBestEffort(tx, session);
         return {
           session: sessionDto(session, clock, priorCompletedCount),
           idempotency: "FIRST_SEEN" as const,
@@ -1837,7 +1870,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           evidenceClass: "CLIENT_OBSERVED",
           payload: {},
         });
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         return {
           session: await getSessionDto(tx, updated, clock),
           idempotency,
@@ -1907,7 +1940,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           evidenceClass: "CLIENT_OBSERVED",
           payload: {},
         });
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         return {
           session: await getSessionDto(tx, updated, clock),
           idempotency,
@@ -1972,7 +2005,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           payload: { resourceType: input.resourceType, resourceId: material.id, status: "STARTED" },
         });
         if (idempotency !== "FIRST_SEEN") throw new FocusError("RECONCILIATION_REQUIRED", "Handoff event unexpectedly replayed.");
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         return { session: await getSessionDto(tx, updated, clock), idempotency };
       }));
     },
@@ -2032,7 +2065,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           },
         });
         if (idempotency !== "FIRST_SEEN") throw new FocusError("RECONCILIATION_REQUIRED", "Return event unexpectedly replayed.");
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         return { session: await getSessionDto(tx, updated, clock), idempotency };
       }));
     },
@@ -2305,7 +2338,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             evidenceClass: "CLIENT_OBSERVED",
             payload: {},
           });
-          await enqueueSessionProjection(tx, session);
+          await enqueueSessionProjectionBestEffort(tx, session);
         }
 
         const durationSeconds = session.planItem.breakDurationSeconds;
@@ -2435,7 +2468,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             evidenceClass: "CLIENT_OBSERVED",
             payload: {},
           });
-          await enqueueSessionProjection(tx, session);
+          await enqueueSessionProjectionBestEffort(tx, session);
         }
         return {
           session: await getSessionDto(tx, session, clock),
@@ -2575,7 +2608,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             tx,
           });
         }
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         let nextSession: FocusSessionDto | undefined;
         const nextPlanItemId = await nextUncompletedPlanItemId(
           tx,
@@ -2706,7 +2739,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         if (idempotency !== "FIRST_SEEN") {
           throw new FocusError("RECONCILIATION_REQUIRED", "A new abandonment unexpectedly replayed its event.");
         }
-        await enqueueSessionProjection(tx, updated);
+        await enqueueSessionProjectionBestEffort(tx, updated);
         return {
           session: await getSessionDto(tx, updated, clock),
           idempotency,

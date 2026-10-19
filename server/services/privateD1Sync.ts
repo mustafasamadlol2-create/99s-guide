@@ -80,13 +80,190 @@ export async function enqueuePrivateD1Projection(
     throw new Error("Unsupported private D1 projection entity.");
   }
 
-  const rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
-    `WITH allocated_revision AS (
-       SELECT nextval(
-         pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
-       )::bigint AS value
-     ),
-     inserted AS (
+  const userId = String(
+    input.data.user_id
+      ?? input.data.userId
+      ?? input.key.user_id
+      ?? input.key.userId
+      ?? "",
+  );
+  const entityId = String(input.data.id ?? input.key.id ?? "");
+  const revisionPath = input.entity === "LectureMastery" || input.entity === "LectureRetention"
+    ? "projection_revision"
+    : "revision";
+
+  // Keep each projection domain isolated. The previous shared statement
+  // referenced MasteryD1ProjectionState, FocusSession and StudyDailyMetric in
+  // one WITH query even when the requested entity belonged to only one of
+  // those domains. PostgreSQL must resolve every referenced relation before it
+  // can execute the statement, so one unavailable/stale projection table could
+  // prevent an unrelated FocusSession outbox enqueue. Each branch below keeps
+  // the outbox insert plus its own canonical watermark update atomic without
+  // coupling Focus to Mastery or daily metrics.
+  let rows: Array<{ id: string; revision: string }>;
+
+  if (input.entity === "LectureMastery" || input.entity === "LectureRetention") {
+    rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+      `WITH allocated_revision AS (
+         SELECT nextval(
+           pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+         )::bigint AS value
+       ),
+       inserted AS (
+         INSERT INTO "PrivateD1SyncOutbox"
+         ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+         SELECT
+           allocated_revision.value,
+           $1,
+           'upsert',
+           $2::jsonb,
+           allocated_revision.value,
+           jsonb_set(
+             $3::jsonb,
+             ARRAY[$4]::text[],
+             to_jsonb(allocated_revision.value::text),
+             true
+           ),
+           0,
+           NULL,
+           NOW(),
+           NOW()
+         FROM allocated_revision
+         RETURNING "id", "revision"
+       ),
+       updated_projection_state AS (
+         INSERT INTO "MasteryD1ProjectionState"
+           ("userId", "masteryWatermark", "retentionWatermark", "updatedAt")
+         SELECT
+           $5,
+           CASE WHEN $1 = 'LectureMastery' THEN inserted."revision" ELSE NULL END,
+           CASE WHEN $1 = 'LectureRetention' THEN inserted."revision" ELSE NULL END,
+           NOW()
+         FROM inserted
+         ON CONFLICT ("userId") DO UPDATE SET
+           "masteryWatermark" = CASE
+             WHEN $1 = 'LectureMastery'
+               THEN GREATEST(
+                 COALESCE("MasteryD1ProjectionState"."masteryWatermark", 0),
+                 EXCLUDED."masteryWatermark"
+               )
+             ELSE "MasteryD1ProjectionState"."masteryWatermark"
+           END,
+           "retentionWatermark" = CASE
+             WHEN $1 = 'LectureRetention'
+               THEN GREATEST(
+                 COALESCE("MasteryD1ProjectionState"."retentionWatermark", 0),
+                 EXCLUDED."retentionWatermark"
+               )
+             ELSE "MasteryD1ProjectionState"."retentionWatermark"
+           END,
+           "updatedAt" = NOW()
+         RETURNING "userId"
+       )
+       SELECT inserted."id"::text AS "id",
+              inserted."revision"::text AS "revision"
+       FROM inserted`,
+      input.entity,
+      JSON.stringify(input.key),
+      JSON.stringify(input.data),
+      revisionPath,
+      userId,
+    );
+  } else if (input.entity === "FocusSession") {
+    rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+      `WITH allocated_revision AS (
+         SELECT nextval(
+           pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+         )::bigint AS value
+       ),
+       inserted AS (
+         INSERT INTO "PrivateD1SyncOutbox"
+         ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+         SELECT
+           allocated_revision.value,
+           $1,
+           'upsert',
+           $2::jsonb,
+           allocated_revision.value,
+           jsonb_set(
+             $3::jsonb,
+             ARRAY['revision']::text[],
+             to_jsonb(allocated_revision.value::text),
+             true
+           ),
+           0,
+           NULL,
+           NOW(),
+           NOW()
+         FROM allocated_revision
+         RETURNING "id", "revision"
+       ),
+       updated_focus_session AS (
+         UPDATE "FocusSession" AS session
+         SET "projectionRevision" = inserted."revision"
+         FROM inserted
+         WHERE session."id" = $4
+         RETURNING session."id"
+       )
+       SELECT inserted."id"::text AS "id",
+              inserted."revision"::text AS "revision"
+       FROM inserted`,
+      input.entity,
+      JSON.stringify(input.key),
+      JSON.stringify(input.data),
+      entityId,
+    );
+  } else if (input.entity === "StudyDailyMetric") {
+    rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+      `WITH allocated_revision AS (
+         SELECT nextval(
+           pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+         )::bigint AS value
+       ),
+       inserted AS (
+         INSERT INTO "PrivateD1SyncOutbox"
+         ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
+         SELECT
+           allocated_revision.value,
+           $1,
+           'upsert',
+           $2::jsonb,
+           allocated_revision.value,
+           jsonb_set(
+             $3::jsonb,
+             ARRAY['revision']::text[],
+             to_jsonb(allocated_revision.value::text),
+             true
+           ),
+           0,
+           NULL,
+           NOW(),
+           NOW()
+         FROM allocated_revision
+         RETURNING "id", "revision"
+       ),
+       updated_study_daily_metric AS (
+         UPDATE "StudyDailyMetric" AS metric
+         SET "projectionRevision" = inserted."revision"
+         FROM inserted
+         WHERE metric."id" = $4
+         RETURNING metric."id"
+       )
+       SELECT inserted."id"::text AS "id",
+              inserted."revision"::text AS "revision"
+       FROM inserted`,
+      input.entity,
+      JSON.stringify(input.key),
+      JSON.stringify(input.data),
+      entityId,
+    );
+  } else {
+    rows = await executor.$queryRawUnsafe<Array<{ id: string; revision: string }>>(
+      `WITH allocated_revision AS (
+         SELECT nextval(
+           pg_get_serial_sequence('"PrivateD1SyncOutbox"', 'id')
+         )::bigint AS value
+       )
        INSERT INTO "PrivateD1SyncOutbox"
        ("id", "entity", "operation", "key", "revision", "data", "attempts", "lastError", "nextAttemptAt", "updatedAt")
        SELECT
@@ -97,11 +274,7 @@ export async function enqueuePrivateD1Projection(
          allocated_revision.value,
          jsonb_set(
            $3::jsonb,
-           CASE
-             WHEN $1 IN ('LectureMastery', 'LectureRetention')
-               THEN ARRAY['projection_revision']::text[]
-             ELSE ARRAY['revision']::text[]
-           END,
+           ARRAY['revision']::text[],
            to_jsonb(allocated_revision.value::text),
            true
          ),
@@ -110,63 +283,13 @@ export async function enqueuePrivateD1Projection(
          NOW(),
          NOW()
        FROM allocated_revision
-       RETURNING "id", "revision"
-     ),
-     updated_projection_state AS (
-       INSERT INTO "MasteryD1ProjectionState"
-         ("userId", "masteryWatermark", "retentionWatermark", "updatedAt")
-       SELECT
-         $4,
-         CASE WHEN $1 = 'LectureMastery' THEN inserted."revision" ELSE NULL END,
-         CASE WHEN $1 = 'LectureRetention' THEN inserted."revision" ELSE NULL END,
-         NOW()
-       FROM inserted
-       WHERE $1 IN ('LectureMastery', 'LectureRetention')
-       ON CONFLICT ("userId") DO UPDATE SET
-         "masteryWatermark" = CASE
-           WHEN $1 = 'LectureMastery'
-             THEN GREATEST(
-               COALESCE("MasteryD1ProjectionState"."masteryWatermark", 0),
-               EXCLUDED."masteryWatermark"
-             )
-           ELSE "MasteryD1ProjectionState"."masteryWatermark"
-         END,
-         "retentionWatermark" = CASE
-           WHEN $1 = 'LectureRetention'
-             THEN GREATEST(
-               COALESCE("MasteryD1ProjectionState"."retentionWatermark", 0),
-               EXCLUDED."retentionWatermark"
-             )
-           ELSE "MasteryD1ProjectionState"."retentionWatermark"
-         END,
-         "updatedAt" = NOW()
-       RETURNING "userId"
-      ),
-       updated_focus_session AS (
-         UPDATE "FocusSession" AS session
-         SET "projectionRevision" = inserted."revision"
-         FROM inserted
-         WHERE $1 = 'FocusSession'
-           AND session."id" = $5
-         RETURNING session."id"
-      ),
-      updated_study_daily_metric AS (
-        UPDATE "StudyDailyMetric" AS metric
-        SET "projectionRevision" = inserted."revision"
-        FROM inserted
-        WHERE $1 = 'StudyDailyMetric'
-          AND metric."id" = $5
-        RETURNING metric."id"
-     )
-     SELECT inserted."id"::text AS "id",
-            inserted."revision"::text AS "revision"
-     FROM inserted`,
-    input.entity,
-    JSON.stringify(input.key),
-    JSON.stringify(input.data),
-    String(input.data.user_id ?? input.data.userId ?? input.key.user_id ?? input.key.userId ?? ""),
-    String(input.data.id ?? input.key.id ?? ""),
-  );
+       RETURNING "id"::text AS "id", "revision"::text AS "revision"`,
+      input.entity,
+      JSON.stringify(input.key),
+      JSON.stringify(input.data),
+    );
+  }
+
   const row = Array.isArray(rows) ? rows[0] : undefined;
   const revision = row?.revision;
   if (

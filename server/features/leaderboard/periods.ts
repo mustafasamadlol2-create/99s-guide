@@ -184,17 +184,23 @@ export function getBaghdadCalendarMidnightDaysBefore(
   ));
 }
 
-function isoWeekKey(monday: CalendarDate): string {
-  const thursday = addCalendarDays(monday, 3);
-  const weekYear = thursday.year;
-  const jan4: CalendarDate = { year: weekYear, month: 1, day: 4 };
-  const jan4Weekday = utcCalendarDate(jan4).getUTCDay();
-  const weekOneMonday = addCalendarDays(jan4, jan4Weekday === 0 ? -6 : 1 - jan4Weekday);
-  const week = Math.floor(
-    (utcCalendarDate(monday).getTime() - utcCalendarDate(weekOneMonday).getTime())
-      / (7 * 24 * 60 * 60 * 1000),
-  ) + 1;
-  return `weekly:${String(weekYear).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
+function weeklySundayKey(sunday: CalendarDate): string {
+  return `weekly:${String(sunday.year).padStart(4, "0")}-${String(sunday.month).padStart(2, "0")}-${String(sunday.day).padStart(2, "0")}`;
+}
+
+function isValidSundayWeeklyKey(seasonKey: string): boolean {
+  const match = /^weekly:(\d{4})-(\d{2})-(\d{2})$/u.exec(seasonKey);
+  if (!match) return false;
+  const date = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+  const normalized = utcCalendarDate(date);
+  return normalized.getUTCFullYear() === date.year
+    && normalized.getUTCMonth() + 1 === date.month
+    && normalized.getUTCDate() === date.day
+    && normalized.getUTCDay() === 0;
 }
 
 export function validateSeasonKey(
@@ -203,8 +209,12 @@ export function validateSeasonKey(
 ): boolean {
   if (typeof seasonKey !== "string" || seasonKey.length > 64) return false;
   if (scope === "WEEKLY") {
-    const match = /^weekly:(\d{4})-W(\d{2})$/u.exec(seasonKey);
-    return Boolean(match && Number(match[2]) >= 1 && Number(match[2]) <= 53);
+    // New canonical weekly seasons are Sunday 00:00 through the following
+    // Sunday 00:00 in Asia/Baghdad. Keep legacy ISO-Monday keys readable so
+    // previously finalized snapshots/cursors remain valid history.
+    if (isValidSundayWeeklyKey(seasonKey)) return true;
+    const legacy = /^weekly:(\d{4})-W(\d{2})$/u.exec(seasonKey);
+    return Boolean(legacy && Number(legacy[2]) >= 1 && Number(legacy[2]) <= 53);
   }
   if (scope === "MONTHLY") {
     const match = /^monthly:(\d{4})-(\d{2})$/u.exec(seasonKey);
@@ -224,13 +234,16 @@ export function getLeaderboardSeasonWindow(
   if (scope === "WEEKLY") {
     const localDate = { year: local.year, month: local.month, day: local.day };
     const weekday = utcCalendarDate(localDate).getUTCDay();
-    const monday = addCalendarDays(localDate, weekday === 0 ? -6 : 1 - weekday);
-    const nextMonday = addCalendarDays(monday, 7);
+    const sunday = addCalendarDays(localDate, -weekday);
+    const nextSunday = addCalendarDays(sunday, 7);
     return {
       scope,
-      seasonKey: isoWeekKey(monday),
-      startsAt: atBaghdadMidnight(monday),
-      endsAt: atBaghdadMidnight(nextMonday),
+      // Date-based key deliberately avoids colliding with already-persisted
+      // ISO/Monday seasons created by earlier releases. This lets the corrected
+      // Sunday-to-Saturday week become active without mutating historical rows.
+      seasonKey: weeklySundayKey(sunday),
+      startsAt: atBaghdadMidnight(sunday),
+      endsAt: atBaghdadMidnight(nextSunday),
     };
   }
   if (scope === "MONTHLY") {

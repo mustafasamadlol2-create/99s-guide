@@ -259,39 +259,38 @@ test("real PostgreSQL interruption conflict and projection budget are exact", { 
   }
 });
 
-test("real PostgreSQL handoff start and return projection failures roll back atomically", { skip: skipped }, async () => {
+test("real PostgreSQL handoff lifecycle survives optional Focus Session projection failures", { skip: skipped }, async () => {
   let clock = new Date(T0);
   const f = await fixture(() => new Date(clock));
   try {
     await db().$executeRawUnsafe(`CREATE OR REPLACE FUNCTION "prompt11_fail_handoff_projection"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."entity" = 'FocusSession' THEN RAISE EXCEPTION 'prompt11 handoff projection failure'; END IF; RETURN NEW; END; $$`);
     await db().$executeRawUnsafe(`CREATE TRIGGER "prompt11_fail_handoff_projection" BEFORE INSERT ON "PrivateD1SyncOutbox" FOR EACH ROW EXECUTE FUNCTION "prompt11_fail_handoff_projection"()`);
     try {
-      await assert.rejects(f.focus.startResourceHandoff(f.userId, f.sessionId, {
-        resourceType: "PDF", resourceId: f.materialId, idempotencyKey: "prompt11-rollback-start", source: "web",
-      }), { code: "OUTBOX_FAILURE" });
-    } finally {
-      await db().$executeRawUnsafe(`DROP TRIGGER "prompt11_fail_handoff_projection" ON "PrivateD1SyncOutbox"`);
-      await db().$executeRawUnsafe(`DROP FUNCTION "prompt11_fail_handoff_projection"()`);
-    }
-    assert.equal((await db().focusSession.findUnique({ where: { id: f.sessionId } }))?.status, "ACTIVE");
-    assert.equal(await db().studyEvent.count({ where: { userId: f.userId, eventType: "focus_resource_handoff_started" } }), 0);
-
-    await f.focus.startResourceHandoff(f.userId, f.sessionId, {
-      resourceType: "PDF", resourceId: f.materialId, idempotencyKey: "prompt11-rollback-return-start", source: "web",
-    });
-    clock = new Date(T0.getTime() + 10 * 60_000);
-    await db().$executeRawUnsafe(`CREATE OR REPLACE FUNCTION "prompt11_fail_handoff_projection"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."entity" = 'FocusSession' THEN RAISE EXCEPTION 'prompt11 handoff projection failure'; END IF; RETURN NEW; END; $$`);
-    await db().$executeRawUnsafe(`CREATE TRIGGER "prompt11_fail_handoff_projection" BEFORE INSERT ON "PrivateD1SyncOutbox" FOR EACH ROW EXECUTE FUNCTION "prompt11_fail_handoff_projection"()`);
-    try {
-      await assert.rejects(f.focus.returnFromResourceHandoff(f.userId, f.sessionId, {
-        targetState: "ACTIVE", idempotencyKey: "prompt11-rollback-return", source: "web",
-      }), { code: "OUTBOX_FAILURE" });
+      const started = await f.focus.startResourceHandoff(f.userId, f.sessionId, {
+        resourceType: "PDF", resourceId: f.materialId, idempotencyKey: "prompt11-tolerant-start", source: "web",
+      });
+      assert.equal(started.session.status, "RESOURCE_HANDOFF");
     } finally {
       await db().$executeRawUnsafe(`DROP TRIGGER "prompt11_fail_handoff_projection" ON "PrivateD1SyncOutbox"`);
       await db().$executeRawUnsafe(`DROP FUNCTION "prompt11_fail_handoff_projection"()`);
     }
     assert.equal((await db().focusSession.findUnique({ where: { id: f.sessionId } }))?.status, "RESOURCE_HANDOFF");
-    assert.equal(await db().studyEvent.count({ where: { userId: f.userId, eventType: "focus_resource_handoff_returned" } }), 0);
+    assert.equal(await db().studyEvent.count({ where: { userId: f.userId, eventType: "focus_resource_handoff_started" } }), 1);
+
+    clock = new Date(T0.getTime() + 10 * 60_000);
+    await db().$executeRawUnsafe(`CREATE OR REPLACE FUNCTION "prompt11_fail_handoff_projection"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."entity" = 'FocusSession' THEN RAISE EXCEPTION 'prompt11 handoff projection failure'; END IF; RETURN NEW; END; $$`);
+    await db().$executeRawUnsafe(`CREATE TRIGGER "prompt11_fail_handoff_projection" BEFORE INSERT ON "PrivateD1SyncOutbox" FOR EACH ROW EXECUTE FUNCTION "prompt11_fail_handoff_projection"()`);
+    try {
+      const returned = await f.focus.returnFromResourceHandoff(f.userId, f.sessionId, {
+        targetState: "ACTIVE", idempotencyKey: "prompt11-tolerant-return", source: "web",
+      });
+      assert.equal(returned.session.status, "ACTIVE");
+    } finally {
+      await db().$executeRawUnsafe(`DROP TRIGGER "prompt11_fail_handoff_projection" ON "PrivateD1SyncOutbox"`);
+      await db().$executeRawUnsafe(`DROP FUNCTION "prompt11_fail_handoff_projection"()`);
+    }
+    assert.equal((await db().focusSession.findUnique({ where: { id: f.sessionId } }))?.status, "ACTIVE");
+    assert.equal(await db().studyEvent.count({ where: { userId: f.userId, eventType: "focus_resource_handoff_returned" } }), 1);
   } finally {
     await cleanup(f.userId, f.sessionId, f.lectureId, f.otherLectureId);
   }

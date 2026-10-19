@@ -558,14 +558,14 @@ test("real PostgreSQL rejects paused completion without side effects, then resum
   });
 });
 
-test("real PostgreSQL rolls back completion state, Study Event, metric and projections on Focus outbox failure", { skip: skipped }, async () => {
+test("real PostgreSQL keeps canonical completion when the optional Focus Session projection enqueue fails", { skip: skipped }, async () => {
   await withFixture(async (fixture) => {
     let clock = new Date(T0);
     const focus = makeService(() => new Date(clock));
     const plan = await createPlan(focus, fixture, 1);
     const started = await focus.startSession(
       fixture.userId,
-      startInput(plan, "prompt9-rollback-start-key"),
+      startInput(plan, "prompt9-projection-tolerant-start-key"),
     );
     await client().$executeRawUnsafe(`
       CREATE OR REPLACE FUNCTION "prompt9_fail_focus_session_projection"()
@@ -585,12 +585,10 @@ test("real PostgreSQL rolls back completion state, Study Event, metric and proje
     `);
     try {
       clock = new Date(T0.getTime() + 50 * 60_000);
-      await assert.rejects(
-        focus.completeSession(fixture.userId, started.session.id, {
-          idempotencyKey: "prompt9-rollback-completion-key",
-        }),
-        { code: "OUTBOX_FAILURE" },
-      );
+      const completed = await focus.completeSession(fixture.userId, started.session.id, {
+        idempotencyKey: "prompt9-projection-tolerant-completion-key",
+      });
+      assert.equal(completed.session.status, "COMPLETED");
     } finally {
       await client().$executeRawUnsafe(
         'DROP TRIGGER IF EXISTS "prompt9_fail_focus_session_projection" ON "PrivateD1SyncOutbox"',
@@ -602,14 +600,17 @@ test("real PostgreSQL rolls back completion state, Study Event, metric and proje
 
     const stored = await client().focusSession.findUnique({ where: { id: started.session.id } });
     const metric = await client().studyDailyMetric.findFirst({ where: { userId: fixture.userId } });
-    assert.equal(stored?.status, "ACTIVE");
-    assert.equal(await client().studyEvent.count({ where: { userId: fixture.userId } }), 1);
-    assert.equal(metric, null);
+    assert.equal(stored?.status, "COMPLETED");
+    assert.equal(await client().studyEvent.count({ where: { userId: fixture.userId } }), 2);
+    assert.equal(metric?.sessionsCompleted, 1);
+    assert.equal(metric?.focusSeconds, 2_700);
     assert.deepEqual(await counts(fixture.userId), {
       sessions: 1,
-      events: 1,
-      metrics: 0,
-      outbox: 2,
+      events: 2,
+      metrics: 1,
+      // Plan + initial session + completion daily metric. The failed
+      // completion-session projection is deliberately absent and rebuildable.
+      outbox: 3,
     });
   });
 });
