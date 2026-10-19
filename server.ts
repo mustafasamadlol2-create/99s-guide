@@ -69,7 +69,7 @@ import { createAchievementsRouter } from "./server/routes/achievements.js";
 import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
 import { GamificationError } from "./server/features/gamification/errors.js";
-import { getActiveGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
+import { bootstrapCurrentGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
 import {
   getMyAchievements,
 } from "./server/features/gamification/achievementService.js";
@@ -11625,30 +11625,44 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 
 async function verifyDatabaseHealth() {
+  const client = getPrisma();
   try {
-    const client = getPrisma();
     await client.user.findFirst();
     logger.info("DATABASE", "Database health check passed");
-    try {
-      const active = await getActiveGamificationRuleSet(client);
-      logger.info(
-        "[Gamification]",
-        `Verified active RuleSet ${active.ruleSet.version}.`,
-      );
-    } catch (error) {
-      const code = error instanceof GamificationError
-        ? error.code
-        : "GAMIFICATION_RULE_SET_CHECK_FAILED";
-      const message = error instanceof Error
-        ? error.message.slice(0, 240)
-        : "The active Gamification ruleset could not be verified.";
-      logger.error(
-        "[Gamification]",
-        `Active RuleSet verification failed (${code}): ${message}`,
-      );
-    }
   } catch (err: any) {
     dbMonitor.logHealthCheckFailed(err);
+    return;
+  }
+
+  if (!isGamificationEnabled()) return;
+
+  try {
+    // The ruleset tables are created by Prisma migrations, but historical
+    // migrations intentionally did not seed/activate a row. A fresh production
+    // database therefore had GAMIFICATION_ENABLED=true while every Overview
+    // read failed with GAMIFICATION_ACTIVE_RULE_SET_NOT_CONFIGURED. The
+    // bootstrap primitive is transaction-safe and idempotent: it creates and
+    // activates the current source-controlled bundle only when no ACTIVE row
+    // exists, and validates an already-active row without rewriting it.
+    const bootstrap = await bootstrapCurrentGamificationRuleSet(client);
+    logger.info(
+      "[Gamification]",
+      `${bootstrap.outcome === "ACTIVATED" ? "Activated" : "Verified"} active RuleSet ${bootstrap.ruleSet.version}.`,
+    );
+  } catch (error) {
+    const code = error instanceof GamificationError
+      ? error.code
+      : "GAMIFICATION_RULE_SET_BOOTSTRAP_FAILED";
+    const message = error instanceof Error
+      ? error.message.slice(0, 240)
+      : "The active Gamification ruleset could not be bootstrapped.";
+    logger.error(
+      "[Gamification]",
+      `Active RuleSet bootstrap failed (${code}): ${message}`,
+    );
+    // Do not silently open production traffic with Study Engagement guaranteed
+    // to return 503. Render will keep the previous healthy deployment instead.
+    if (process.env.NODE_ENV === "production") throw error;
   }
 }
 
@@ -11794,15 +11808,15 @@ async function startServer() {
     }
   }
 
-  // Start DB initialization in the background so it doesn't block the server from listening
-  verifyDatabaseHealth().then(() => {
-    if (process.env.NODE_ENV === "development" && process.env.INITIALIZE_SYSTEM === "true") {
-      return initializeSystem();
-    }
+  // Complete the small database/readiness check before accepting traffic.
+  // In particular, Study Engagement must have an ACTIVE source-controlled
+  // ruleset before /api/me/gamification can serve Overview.
+  await verifyDatabaseHealth();
+  if (process.env.NODE_ENV === "development" && process.env.INITIALIZE_SYSTEM === "true") {
+    await initializeSystem();
+  } else {
     logger.info("[Startup]", "Skipping system initialization; set INITIALIZE_SYSTEM=true for explicit local setup.");
-  }).catch((err: unknown) => {
-    logger.error("[Startup]", `Database initialization failed: ${err instanceof Error ? err.message : String(err)}`);
-  });
+  }
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
