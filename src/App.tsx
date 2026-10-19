@@ -212,11 +212,16 @@ function AppContent({
 }) {
   const device = useDeviceProfile();
   const {
+    GROUP_FOCUS_ENABLED,
     GAMIFICATION_ENABLED,
     STUDY_POINTS_ENABLED,
     status: studyFeatureFlagsStatus,
     reload: reloadStudyFeatureFlags,
   } = useStudyFeatureFlags();
+  const groupFocusAvailable =
+    GROUP_FOCUS_FRONTEND_ENABLED
+    && GROUP_FOCUS_ENABLED
+    && GROUP_FOCUS_WORKER_URL.length > 0;
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
   // important on the 13-inch iPad Pro where short screens can otherwise end
@@ -414,6 +419,16 @@ function AppContent({
     setFocusHistoryDetailId(null);
     setActiveTab("focus");
   }, []);
+
+  useEffect(() => {
+    if (
+      studyFeatureFlagsStatus === "ready"
+      && !groupFocusAvailable
+      && groupFocusRoute !== null
+    ) {
+      setGroupFocusRoute(null);
+    }
+  }, [groupFocusAvailable, groupFocusRoute, studyFeatureFlagsStatus]);
   const [oauthRedirectError, setOauthRedirectError] = useState<string | null>(null);
   const [verificationRedirectError, setVerificationRedirectError] = useState<string | null>(null);
   const [oauthRecoveryPending, setOauthRecoveryPending] = useState(() => {
@@ -2379,6 +2394,16 @@ function AppContent({
 
   // Sync state variables -> URL hash (prevents page reloads, keeps standard state synchronization)
   useEffect(() => {
+    // Do not erase a Group Focus deep link while the server-owned rollout
+    // flag is still being resolved. Once readiness is known, the same effect
+    // either preserves the route or safely falls back to Solo Focus.
+    if (
+      activeTab === "focus"
+      && groupFocusRoute !== null
+      && GROUP_FOCUS_FRONTEND_ENABLED
+      && studyFeatureFlagsStatus === "loading"
+    ) return;
+
     let hashStr = `#${activeTab}`;
     if (activeTab === "home") {
       if (activeHomeSubjectId) {
@@ -2397,7 +2422,7 @@ function AppContent({
         }
       }
     } else if (activeTab === "focus") {
-      if (GROUP_FOCUS_FRONTEND_ENABLED && groupFocusRoute !== null) {
+      if (groupFocusAvailable && groupFocusRoute !== null) {
         hashStr += `/group${groupFocusRoute ? `/${groupFocusRoute}` : ""}`;
       } else if (focusSessionRouteId) {
         hashStr += `/session/${focusSessionRouteId}`;
@@ -2423,6 +2448,8 @@ function AppContent({
     focusHistoryOpen,
     focusHistoryDetailId,
     groupFocusRoute,
+    groupFocusAvailable,
+    studyFeatureFlagsStatus,
   ]);
 
   // Sync URL hash -> state variables (handles back/forward browser controls, deep/universal links)
@@ -2450,7 +2477,7 @@ function AppContent({
 
       setActiveTab(tab);
       if (tab === "focus" && FOCUS_HUB_V2_ENABLED) {
-        if (GROUP_FOCUS_FRONTEND_ENABLED && parts[1] === "group") {
+        if (groupFocusAvailable && parts[1] === "group") {
           setGroupFocusRoute(parts.slice(2).join("/"));
           setFocusSessionRouteId(null);
           setFocusSummaryRouteId(null);
@@ -2519,7 +2546,7 @@ function AppContent({
       window.removeEventListener("hashchange", handleHashChange);
     };
        
-  }, []);
+  }, [groupFocusAvailable, studyFeatureFlagsStatus]);
 
   useEffect(() => {
     if (activeSubjectId !== null && activeModuleId !== null) {
@@ -6952,7 +6979,7 @@ const handleSignOut = useCallback(async () => {
                 }}
                 className={`w-full min-h-full ${useFocusPlannerViewport ? "focus-planner-route-content" : ""}`}
               >
-                {GROUP_FOCUS_FRONTEND_ENABLED && (
+                {groupFocusAvailable && (
                   <nav
                     aria-label={language === "ar" ? "أقسام التركيز" : "Focus sections"}
                     className={`mx-auto flex w-full max-w-7xl gap-2 px-4 pt-4 sm:px-8 lg:px-12 ${useFocusPlannerViewport ? "shrink-0" : ""}`}
@@ -6986,7 +7013,7 @@ const handleSignOut = useCallback(async () => {
                 <div
                   className={useFocusPlannerViewport ? "focus-planner-hub-host" : undefined}
                   style={{
-                    display: groupFocusRoute === null ? "block" : "none",
+                    display: !groupFocusAvailable || groupFocusRoute === null ? "block" : "none",
                     minHeight: useFocusPlannerViewport ? 0 : undefined,
                   }}
                 >
@@ -7049,7 +7076,7 @@ const handleSignOut = useCallback(async () => {
                     </ErrorBoundary>
                   </Suspense>
                 </div>
-                {GROUP_FOCUS_FRONTEND_ENABLED
+                {groupFocusAvailable
                   && groupFocusRoute !== null
                   && activeTab === "focus" && (
                   <Suspense fallback={iOSLoadingFallback}>

@@ -26,6 +26,7 @@ export type StudyFeatureFlagState = Readonly<
 >;
 
 export const CLIENT_VISIBLE_STUDY_FEATURE_FLAGS = [
+  "GROUP_FOCUS_ENABLED",
   "STUDY_POINTS_ENABLED",
   "GAMIFICATION_ENABLED",
   "FOCUS_RESOURCE_HANDOFF_ENABLED",
@@ -101,6 +102,7 @@ export function getClientVisibleStudyFeatureFlags(
 ): ClientVisibleStudyFeatureFlags {
   const flags = getStudyFeatureFlags(environment);
   return {
+    GROUP_FOCUS_ENABLED: flags.GROUP_FOCUS_ENABLED,
     STUDY_POINTS_ENABLED: flags.STUDY_POINTS_ENABLED,
     GAMIFICATION_ENABLED: flags.GAMIFICATION_ENABLED,
     FOCUS_RESOURCE_HANDOFF_ENABLED: flags.FOCUS_RESOURCE_HANDOFF_ENABLED,
