@@ -181,8 +181,23 @@ type PlanItemRecord = {
   includeMcq: boolean;
   includeFlashcards: boolean;
   includeVideo: boolean;
-  resourceSelections: Prisma.JsonValue;
+  // Phase-4 exact resource selections are optional enrichment. Core Focus
+  // planning/session persistence must remain usable while a deployment is
+  // rolling across schema versions.
+  resourceSelections?: Prisma.JsonValue;
 };
+
+const FOCUS_PLAN_ITEM_CORE_SELECT = {
+  id: true,
+  lectureId: true,
+  sequence: true,
+  sessionCount: true,
+  focusDurationSeconds: true,
+  breakDurationSeconds: true,
+  includeMcq: true,
+  includeFlashcards: true,
+  includeVideo: true,
+} as const;
 
 type PlanRecord = {
   id: string;
@@ -911,7 +926,12 @@ async function ownedPlan(
 ): Promise<PlanRecord> {
   const plan = await tx.focusPlan.findFirst({
     where: { id: planId, userId },
-    include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+    include: {
+      items: {
+        select: FOCUS_PLAN_ITEM_CORE_SELECT,
+        orderBy: [{ sequence: "asc" }, { id: "asc" }],
+      },
+    },
   }) as PlanRecord | null;
   if (!plan) throw new FocusError("PLAN_NOT_FOUND", "Focus Plan was not found.");
   return plan;
@@ -924,7 +944,7 @@ async function ownedSession(
 ): Promise<SessionRecord> {
   const session = await tx.focusSession.findFirst({
     where: { id: sessionId, userId },
-    include: { planItem: true },
+    include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
   }) as SessionRecord | null;
   if (!session) throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
   return session;
@@ -1108,7 +1128,7 @@ async function findAutomaticNextSession(
         idempotencyKey: automaticNextSessionKey(completedSessionId),
       },
     },
-    include: { planItem: true },
+    include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
   }) as SessionRecord | null;
   if (!session) return null;
   const count = await completedCount(tx, userId, session.planItemId);
@@ -1125,7 +1145,7 @@ async function startAutomaticNextSession(
   const idempotencyKey = automaticNextSessionKey(completedSession.id);
   const existing = await tx.focusSession.findUnique({
     where: { userId_idempotencyKey: { userId, idempotencyKey } },
-    include: { planItem: true },
+    include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
   }) as SessionRecord | null;
   if (existing) {
     if (existing.planId !== completedSession.planId ||
@@ -1181,7 +1201,7 @@ async function startAutomaticNextSession(
       pauseSeconds: 0,
       idempotencyKey,
     },
-    include: { planItem: true },
+    include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
   }) as SessionRecord;
   const startEventIdempotencyKey = focusEventKey(
     "started",
@@ -1362,7 +1382,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                 })),
               },
             },
-            include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+            include: {
+              items: {
+                select: FOCUS_PLAN_ITEM_CORE_SELECT,
+                orderBy: [{ sequence: "asc" }, { id: "asc" }],
+              },
+            },
           }) as PlanRecord;
           return created;
         });
@@ -1397,7 +1422,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       return safely(async () => {
         const rows = await repository.database.focusPlan.findMany({
           where: { userId, ...(options.status ? { status: options.status } : {}) },
-          include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+          include: {
+            items: {
+              select: FOCUS_PLAN_ITEM_CORE_SELECT,
+              orderBy: [{ sequence: "asc" }, { id: "asc" }],
+            },
+          },
           orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
           take: boundedLimit,
         }) as PlanRecord[];
@@ -1428,7 +1458,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       return safely(async () => {
         const plan = await repository.database.focusPlan.findFirst({
           where: { id: planId, userId },
-          include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+          include: {
+            items: {
+              select: FOCUS_PLAN_ITEM_CORE_SELECT,
+              orderBy: [{ sequence: "asc" }, { id: "asc" }],
+            },
+          },
         }) as PlanRecord | null;
         if (!plan) throw new FocusError("PLAN_NOT_FOUND", "Focus Plan was not found.");
         return planDto(plan);
@@ -1486,6 +1521,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               await tx.focusPlanItem.update({
                 where: { id: item.id },
                 data: { sequence: -(index + 1) },
+                select: { id: true },
               });
             }
             if (removed.length) {
@@ -1527,10 +1563,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                           };
                       return {
                         ...flags,
-                        resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                        ...(item.resources !== undefined
+                          ? { resourceSelections: resources as unknown as Prisma.InputJsonValue }
+                          : {}),
                       };
                     })(),
                   },
+                  select: { id: true },
                 });
               } else {
                 await tx.focusPlanItem.create({
@@ -1552,10 +1591,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                           };
                       return {
                         ...flags,
-                        resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                        ...(item.resources !== undefined
+                          ? { resourceSelections: resources as unknown as Prisma.InputJsonValue }
+                          : {}),
                       };
                     })(),
                   },
+                  select: { id: true },
                 });
               }
             }
@@ -1568,7 +1610,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
 
           const result = await tx.focusPlan.findFirst({
             where: { id: scalarUpdated.id, userId },
-            include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+            include: {
+              items: {
+                select: FOCUS_PLAN_ITEM_CORE_SELECT,
+                orderBy: [{ sequence: "asc" }, { id: "asc" }],
+              },
+            },
           }) as PlanRecord | null;
           if (!result) throw new FocusError("PLAN_NOT_FOUND", "Focus Plan was not found.");
           return result;
@@ -1595,7 +1642,12 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               archivedAt: assertValidClock(now()),
               planVersion: { increment: 1 },
             },
-            include: { items: { orderBy: [{ sequence: "asc" }, { id: "asc" }] } },
+            include: {
+              items: {
+                select: FOCUS_PLAN_ITEM_CORE_SELECT,
+                orderBy: [{ sequence: "asc" }, { id: "asc" }],
+              },
+            },
           }) as PlanRecord;
           return updated;
         });
@@ -1696,7 +1748,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             pauseSeconds: 0,
             idempotencyKey: input.idempotencyKey,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
 
         const key = focusEventKey("started", session.id, input.idempotencyKey);
@@ -1772,7 +1824,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             activeSeconds: action.activeSeconds as number,
             lastCheckpointAt: clock,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_session_paused",
@@ -1842,7 +1894,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             plannedEndAt: new Date(action.plannedEndAt as string | Date),
             lastCheckpointAt: clock,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_session_resumed",
@@ -1911,7 +1963,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             activeSeconds: action.elapsedActiveSeconds,
             lastCheckpointAt: clock,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_resource_handoff_started", userId, occurredAt: clock,
@@ -1967,7 +2019,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             activeSeconds: timer.elapsedActiveSeconds,
             lastCheckpointAt: clock,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_resource_handoff_returned", userId, occurredAt: clock,
@@ -2119,7 +2171,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
 
         const sessions = await repository.database.focusSession.findMany({
           where: { userId, status: { in: [...NONTERMINAL_STATES] } },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
           orderBy: [{ startedAt: "desc" }, { id: "asc" }],
           take: 2,
         }) as SessionRecord[];
@@ -2240,7 +2292,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               activeSeconds: action.activeSeconds as number,
               lastCheckpointAt: clock,
             },
-            include: { planItem: true },
+            include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
           }) as SessionRecord;
           await ingestFocusEvent(tx, {
             eventType: "focus_session_paused",
@@ -2370,7 +2422,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               plannedEndAt: new Date(action.plannedEndAt as string | Date),
               lastCheckpointAt: clock,
             },
-            include: { planItem: true },
+            include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
           }) as SessionRecord;
           await ingestFocusEvent(tx, {
             eventType: "focus_session_resumed",
@@ -2494,7 +2546,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             activeSeconds: activeSeconds as number,
             completionReason,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         const idempotency = await ingestFocusEvent(tx, {
           eventType: "focus_session_completed",
@@ -2631,7 +2683,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             activeSeconds: activeSeconds as number,
             completionReason: reason,
           },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as SessionRecord;
         await tx.focusBreak.updateMany({
           where: { userId, focusSessionId: session.id, endedAt: null },
@@ -2742,12 +2794,17 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         const session = await tx.focusSession.findFirst({
           where: { id: sessionId, userId },
           include: {
-            planItem: true,
+            planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT },
             plan: {
               include: {
                 items: {
                   orderBy: [{ sequence: "asc" }, { id: "asc" }],
-                  include: { lecture: true },
+                  select: {
+                    ...FOCUS_PLAN_ITEM_CORE_SELECT,
+                    lecture: {
+                      select: { id: true, name: true, mainSubject: true },
+                    },
+                  },
                 },
               },
             },
@@ -3076,7 +3133,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       return safely(async () => repository.database.$transaction(async (tx) => {
         const session = await tx.focusSession.findFirst({
           where: { id: sessionId, userId },
-          include: { planItem: true },
+          include: { planItem: { select: FOCUS_PLAN_ITEM_CORE_SELECT } },
         }) as (SessionRecord & { planItem: PlanItemRecord }) | null;
         if (!session) throw new FocusError("SESSION_NOT_FOUND", "Focus Session was not found.");
         if (session.status !== "COMPLETED") {

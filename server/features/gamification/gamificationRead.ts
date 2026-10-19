@@ -148,17 +148,34 @@ export async function getMyGamificationSummary(
     ruleSetVersion: rules.ruleSet.version,
     lastEvaluatedAt: asOf.toISOString(),
   };
-  const achievements = await getMyAchievements(userId, database, {
-    // Supply a lightweight verified context so the achievement reader reuses
-    // this exact active rule set without triggering projection refreshes.
-    refreshResult: {
+  let achievements: Awaited<ReturnType<typeof getMyAchievements>>;
+  try {
+    achievements = await getMyAchievements(userId, database, {
+      // Supply a lightweight verified context so the achievement reader reuses
+      // this exact active rule set without triggering projection refreshes.
+      refreshResult: {
+        ruleSetVersion: rules.ruleSet.version,
+        asOf,
+        achievementCount: rules.definitions.achievementDefinitions.length,
+        newlyUnlockedCount: 0,
+      },
+      currentRules: rules,
+      // The Summary request already paid for the canonical Points read. Reuse
+      // it instead of opening another ledger transaction for points.total.
+      metricValueOverrides: pointMetricOverrides(points),
+    });
+  } catch (error) {
+    // Overview must still show the user's canonical Points + Level if an
+    // optional achievement provider/history read is temporarily unavailable.
+    console.warn(
+      `[Gamification] Achievement section degraded during Overview read: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+    achievements = {
       ruleSetVersion: rules.ruleSet.version,
-      asOf,
-      achievementCount: rules.definitions.achievementDefinitions.length,
-      newlyUnlockedCount: 0,
-    },
-    currentRules: rules,
-  });
+      achievements: [],
+      unlockHistory: [],
+    };
+  }
 
   return {
     ruleSetVersion: rules.ruleSet.version,
@@ -168,6 +185,7 @@ export async function getMyGamificationSummary(
       masteryPoints: points.masteryPoints,
       progressPoints: points.progressPoints,
       consistencyPoints: points.consistencyPoints,
+      legacyLedgerPoints: points.legacyLedgerPoints,
       ledgerPoints: points.ledgerPoints,
       legacyPoints: points.legacyPoints,
     },

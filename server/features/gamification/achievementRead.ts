@@ -27,6 +27,11 @@ type AchievementDatabase = PrismaClient;
 export type MyAchievementsReadOptions = {
   refreshResult?: AchievementRefreshResult;
   currentRules?: GamificationRuleSetWithDefinition;
+  /**
+   * Values already read by a parent request (notably Overview). Reusing these
+   * prevents duplicate ledger transactions and keeps Engagement reads bounded.
+   */
+  metricValueOverrides?: ReadonlyMap<string, number | boolean>;
 };
 
 /**
@@ -62,13 +67,19 @@ export async function getMyAchievements(
   const definitions = achievementDefinitionsFor(rules);
 
   const metricValues = new Map<string, number | boolean>();
-  for (const metricId of uniqueAchievementMetricIds(definitions)) {
+  const metricIds = uniqueAchievementMetricIds(definitions);
+  await Promise.all(metricIds.map(async (metricId) => {
     const definition = getGamificationMetricDefinition(metricId);
+    const override = options?.metricValueOverrides?.get(metricId);
+    if (override !== undefined) {
+      metricValues.set(metricId, override);
+      return;
+    }
     if (!definition.available) {
       // An unavailable optional metric should not make the entire private
       // Engagement page unusable. Its milestone simply remains at zero/false.
       metricValues.set(metricId, definition.valueType === "BOOLEAN" ? false : 0);
-      continue;
+      return;
     }
     try {
       const metric = await getGamificationMetricValue(
@@ -84,11 +95,20 @@ export async function getMyAchievements(
       );
       metricValues.set(metricId, definition.valueType === "BOOLEAN" ? false : 0);
     }
-  }
+  }));
 
+  // Unlock history is durable enhancement data, not a prerequisite for
+  // rendering canonical progress. During a rolling migration or temporary DB
+  // issue, keep Overview/Achievements usable and reconstruct visible progress
+  // from server-owned metrics instead of failing the whole page.
   const unlockRows = await database.userAchievement.findMany({
     where: { userId },
     orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
+  }).catch((error) => {
+    console.warn(
+      `[Achievements] Unlock history could not be read; continuing without history: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+    return [];
   });
   const activeUnlockById = new Map(unlockRows.map((row) => [row.achievementId, row]));
 

@@ -47,6 +47,7 @@ export type MyGamificationSummary = {
     masteryPoints: number;
     progressPoints: number;
     consistencyPoints: number;
+    legacyLedgerPoints: number;
     ledgerPoints: number;
     legacyPoints: number;
   };

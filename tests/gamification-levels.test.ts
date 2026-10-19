@@ -376,6 +376,7 @@ test("Gamification routes separate private self-summary from public profile read
           masteryPoints: 0,
           progressPoints: 500,
           consistencyPoints: 0,
+          legacyLedgerPoints: 0,
           ledgerPoints: 0,
           legacyPoints: 500,
         },
