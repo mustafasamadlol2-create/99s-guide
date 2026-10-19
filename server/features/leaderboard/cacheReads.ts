@@ -25,6 +25,7 @@ import {
 } from "./queries.js";
 import {
   getLatestLeaderboardSnapshot,
+  rebuildLeaderboardSnapshot,
   isLeaderboardSnapshotScoringCurrent,
   LEADERBOARD_LIVE_FRESHNESS_MS,
   LEADERBOARD_LIVE_CURSOR_RETENTION_MS,
@@ -39,6 +40,30 @@ import type {
 const CACHE_CURRENT_PATH = "/internal/leaderboard-cache/current";
 const CACHE_PAGE_PATH = "/internal/leaderboard-cache/page";
 const CACHE_RANK_PATH = "/internal/leaderboard-cache/rank";
+
+const liveSnapshotRebuilds = new Map<string, Promise<void>>();
+
+async function ensureCurrentLiveSnapshot(input: {
+  seasonId: string;
+  now: Date;
+  database: PrismaClient;
+}): Promise<void> {
+  const existing = liveSnapshotRebuilds.get(input.seasonId);
+  if (existing) return existing;
+  const task = rebuildLeaderboardSnapshot({
+    seasonId: input.seasonId,
+    now: input.now,
+    forceRevision: true,
+  }, input.database).then(() => undefined);
+  liveSnapshotRebuilds.set(input.seasonId, task);
+  try {
+    await task;
+  } finally {
+    if (liveSnapshotRebuilds.get(input.seasonId) === task) {
+      liveSnapshotRebuilds.delete(input.seasonId);
+    }
+  }
+}
 
 type CacheManifest = {
   snapshotId: string;
@@ -376,10 +401,26 @@ export async function getLeaderboardPageWithCache(input: {
   entries: PublicLeaderboardEntry[];
   nextCursor: string | null;
 }> {
-  // First-page leaderboard reads are student-facing correctness paths.
-  // Use canonical PostgreSQL so a lagging D1 projection cannot display stale
-  // zero scores. Cursor pages remain snapshot-bound and may still use D1.
-  if (!input.cursor) return getLeaderboardPage(input);
+  // Current first-page reads must be based on a snapshot generated AFTER the
+  // latest canonical ledger commits. The prior read path could legitimately
+  // reuse an older LIVE snapshot (or a lock-busy snapshot) whose rows were all
+  // zero even while the Points V2 ledger already contained rewards. Rebuild the
+  // tiny cohort snapshot synchronously before serving the first page; cursor
+  // pages remain frozen to that snapshot for stable pagination.
+  if (!input.cursor) {
+    const database = input.database ?? getPrisma() as PrismaClient;
+    const now = input.now ? new Date(input.now) : new Date();
+    const season = await resolveSeason({
+      scope: input.scope,
+      ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
+      now,
+      database,
+    });
+    if (season.status !== "CLOSED") {
+      await ensureCurrentLiveSnapshot({ seasonId: season.id, now, database });
+    }
+    return getLeaderboardPage({ ...input, now, database });
+  }
   if (!cacheIsEnabled()) return getLeaderboardPage(input);
   const database = input.database ?? getPrisma() as PrismaClient;
   const now = input.now ? new Date(input.now) : new Date();
@@ -558,8 +599,20 @@ export async function getMyLeaderboardRankWithCache(input: {
   notRanked: boolean;
   snapshotGeneratedAt: string;
 }> {
-  // Overview and the highlighted student row must reflect the immutable
-  // Points V2 ledger immediately. D1 remains a projection for paged rows, but
-  // it is not authoritative for a student's current score/rank.
-  return getMyLeaderboardRank(input);
+  // Keep rank/tie and the visible list on the same freshly rebuilt canonical
+  // snapshot. Previously own score could be live while rank/list still came
+  // from an older zero-score snapshot, which produced the visibly inconsistent
+  // Weekly view reported by students.
+  const database = input.database ?? getPrisma() as PrismaClient;
+  const now = input.now ? new Date(input.now) : new Date();
+  const season = await resolveSeason({
+    scope: input.scope,
+    ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
+    now,
+    database,
+  });
+  if (season.status !== "CLOSED") {
+    await ensureCurrentLiveSnapshot({ seasonId: season.id, now, database });
+  }
+  return getMyLeaderboardRank({ ...input, now, database });
 }

@@ -1349,7 +1349,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
                         };
                     return {
                       ...flags,
-                      resourceSelections: resources as unknown as Prisma.InputJsonValue,
+                      // Keep the core Focus Plan create path backwards-compatible.
+                      // If a client omitted exact resources, do not reference the
+                      // Phase-4 JSON column at all. This lets plan creation/start work
+                      // even while a deployment is rolling between schema/client
+                      // versions; exact selections are an enrichment, not a timer gate.
+                      ...(item.resources !== undefined
+                        ? { resourceSelections: resources as unknown as Prisma.InputJsonValue }
+                        : {}),
                     };
                   })(),
                 })),

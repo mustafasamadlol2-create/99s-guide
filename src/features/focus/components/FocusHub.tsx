@@ -61,6 +61,10 @@ import {
   type FocusPlanRecord,
   type FocusSessionRecord,
 } from "../focusHubModel";
+import {
+  hydrateFocusPlanResourceSelections,
+  rememberFocusPlanDraftResources,
+} from "../focusPlanResourceStore";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
 import { FocusLecturePicker } from "./FocusLecturePicker";
 import {
@@ -242,6 +246,7 @@ export function FocusHub({
             canonical: options.canonical,
           });
         }
+        plan = hydrateFocusPlanResourceSelections(accountId, plan);
 
         if (!mountedRef.current || generation !== requestGenerationRef.current) {
           return { plan, session };
@@ -283,7 +288,7 @@ export function FocusHub({
         throw error;
       }
     },
-    [runtimeController, setCanonical, setSession],
+    [accountId, runtimeController, setCanonical, setSession],
   );
   loadCanonicalRef.current = loadCanonical;
 
@@ -306,6 +311,7 @@ export function FocusHub({
       ) {
         latestPlan = await focusApi.getFocusPlan(previousPlan.id, { canonical: true });
       }
+      latestPlan = hydrateFocusPlanResourceSelections(accountId, latestPlan);
       if (!mountedRef.current || generation !== planRequestGenerationRef.current) return;
 
       setCanonical(latestPlan);
@@ -320,7 +326,7 @@ export function FocusHub({
     } catch (error) {
       throw error;
     }
-  }, [runtimeController, setCanonical]);
+  }, [accountId, runtimeController, setCanonical]);
   refreshPlanRef.current = refreshCanonicalPlan;
 
   useEffect(() => {
@@ -798,11 +804,16 @@ export function FocusHub({
       // left behind by a previous client. Focus plans are tiny immutable study
       // intentions; creating the new plan first is safer than mutating history.
       const previousPlan = canonicalPlanRef.current;
-      const created = await focusApi.createFocusPlan({
+      const createdRaw = await focusApi.createFocusPlan({
         title: previousPlan?.title ?? t("focusHubTitle"),
         timezone: previousPlan?.timezone ?? getBrowserTimezone(),
         items: focusPlanItemsFromDraft(draft, false),
       });
+      // Exact resource selection is Phase-4 planner metadata. The core Focus
+      // Plan is deliberately saved through the stable pre-Phase-4 contract so
+      // a rolling backend/schema deployment can never block Start Focus.
+      rememberFocusPlanDraftResources(accountId, createdRaw.id, draft);
+      const created = hydrateFocusPlanResourceSelections(accountId, createdRaw) ?? createdRaw;
 
       setCanonical(created);
       setDraft(focusPlanToDraft(created));
@@ -840,6 +851,7 @@ export function FocusHub({
       setSaving(false);
     }
   }, [
+    accountId,
     draft,
     hasInvalidLecture,
     onRefreshLectures,

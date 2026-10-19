@@ -4,12 +4,16 @@ import { getGamificationMetricDefinition } from "./metricRegistry.js";
 import { isGamificationThresholdMet } from "./thresholds.js";
 import { GamificationError } from "./errors.js";
 import { assertGamificationEnabled } from "./featureGate.js";
-import { getGamificationRuleSetVersion } from "./ruleSetService.js";
-import { refreshUserAchievementProgress } from "./achievementRefresh.js";
+import {
+  getActiveGamificationRuleSet,
+  getGamificationRuleSetVersion,
+} from "./ruleSetService.js";
+import { getGamificationMetricValue } from "./metrics.js";
 import {
   achievementDefinitionsFor,
   assertDefinitionFitsUnlock,
   decodeMetricValue,
+  uniqueAchievementMetricIds,
 } from "./achievementValues.js";
 import type {
   MyAchievementUnlockView,
@@ -25,6 +29,17 @@ export type MyAchievementsReadOptions = {
   currentRules?: GamificationRuleSetWithDefinition;
 };
 
+/**
+ * Student-facing Achievement reads must never depend on a rebuildable
+ * UserAchievementProgress projection being present or perfectly synchronized.
+ *
+ * The previous implementation refreshed/persisted that projection on every GET
+ * and then threw if a progress row was missing or drifted. Challenges use
+ * canonical metric reads instead, which is why Challenges could keep working
+ * while Overview/Achievements failed. This reader now follows the same model:
+ * compute progress from canonical server-owned metrics and use permanent unlock
+ * rows only as history. Projection refresh remains a background optimization.
+ */
 export async function getMyAchievements(
   userId: string,
   database: AchievementDatabase = getPrisma() as AchievementDatabase,
@@ -41,88 +56,46 @@ export async function getMyAchievements(
       "Pre-refreshed achievement reads require both the refresh result and verified rules.",
     );
   }
-  const refreshed = options?.refreshResult
-    ?? await refreshUserAchievementProgress(userId, database);
-  const rules = options?.currentRules
-    ?? await getGamificationRuleSetVersion(refreshed.ruleSetVersion, database);
-  if (rules.ruleSet.version !== refreshed.ruleSetVersion) {
-    throw new GamificationError(
-      "GAMIFICATION_ACTIVE_RULE_SET_INVARIANT_FAILED",
-      "Achievement refresh and read rule-set versions do not match.",
-    );
-  }
+
+  const rules = options?.currentRules ?? await getActiveGamificationRuleSet(database);
+  const asOf = options?.refreshResult?.asOf ?? new Date();
   const definitions = achievementDefinitionsFor(rules);
-  const [progressRows, unlockRows] = await Promise.all([
-    database.userAchievementProgress.findMany({
-      where: { userId, ruleSetVersion: refreshed.ruleSetVersion },
-      orderBy: [{ achievementId: "asc" }],
-    }),
-    database.userAchievement.findMany({
-      where: { userId },
-      orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
-    }),
-  ]);
-  const progressById = new Map(progressRows.map((row) => [row.achievementId, row]));
-  const ruleSetVersions = [...new Set(
-    unlockRows.map((row) => row.unlockedUnderRuleSetVersion),
-  )];
-  const historicalRuleSets = new Map<string, GamificationRuleSetWithDefinition>();
-  for (const version of ruleSetVersions) {
-    historicalRuleSets.set(version, await getGamificationRuleSetVersion(version, database));
-  }
 
-  const unlockDefinitions = new Map<string, {
-    definition: (typeof definitions)[number];
-  }>();
-  for (const unlock of unlockRows) {
-    const unlockRules = historicalRuleSets.get(unlock.unlockedUnderRuleSetVersion);
-    if (!unlockRules) {
-      throw new GamificationError(
-        "GAMIFICATION_ACHIEVEMENT_RECORD_INVALID",
-        `Unlock ${unlock.achievementId} has no verified rule-set version.`,
-      );
+  const metricValues = new Map<string, number | boolean>();
+  for (const metricId of uniqueAchievementMetricIds(definitions)) {
+    const definition = getGamificationMetricDefinition(metricId);
+    if (!definition.available) {
+      // An unavailable optional metric should not make the entire private
+      // Engagement page unusable. Its milestone simply remains at zero/false.
+      metricValues.set(metricId, definition.valueType === "BOOLEAN" ? false : 0);
+      continue;
     }
-    const definition = assertDefinitionFitsUnlock(unlock, unlockRules);
-    unlockDefinitions.set(
-      `${unlock.unlockedUnderRuleSetVersion}:${unlock.achievementId}`,
-      { definition },
-    );
+    try {
+      const metric = await getGamificationMetricValue(
+        { userId, metricId, asOf },
+        database,
+      );
+      metricValues.set(metricId, metric.value);
+    } catch (error) {
+      // Keep independent achievements isolated. A Focus/Group-Focus provider
+      // rollout issue must not hide Points-based achievements or Overview.
+      console.warn(
+        `[Achievements] Canonical metric ${metricId} could not be read: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+      metricValues.set(metricId, definition.valueType === "BOOLEAN" ? false : 0);
+    }
   }
 
-  const activeUnlockById = new Map(
-    unlockRows.map((row) => [row.achievementId, row]),
-  );
+  const unlockRows = await database.userAchievement.findMany({
+    where: { userId },
+    orderBy: [{ unlockedAt: "asc" }, { achievementId: "asc" }],
+  });
+  const activeUnlockById = new Map(unlockRows.map((row) => [row.achievementId, row]));
+
   const achievements = definitions.map((definition): MyAchievementView => {
-    const progress = progressById.get(definition.id);
-    if (!progress) {
-      throw new GamificationError(
-        "GAMIFICATION_ACHIEVEMENT_PROGRESS_MISSING",
-        `Active progress for ${definition.id} was not persisted.`,
-      );
-    }
-    const metric = getGamificationMetricDefinition(definition.metricId);
-    const currentValue = decodeMetricValue(
-      progress.currentValue,
-      progress.valueType,
-      definition.id,
-    );
-    const targetValue = decodeMetricValue(
-      progress.targetValue,
-      progress.valueType,
-      definition.id,
-    );
-    if (
-      progress.metricId !== definition.metricId
-      || progress.valueType !== metric.valueType
-      || isGamificationThresholdMet(currentValue, definition.threshold)
-        !== progress.completed
-      || targetValue !== definition.threshold
-    ) {
-      throw new GamificationError(
-        "GAMIFICATION_ACHIEVEMENT_PROGRESS_INVALID",
-        `Active progress for ${definition.id} does not match its verified definition.`,
-      );
-    }
+    const currentValue = metricValues.get(definition.metricId)
+      ?? (typeof definition.threshold === "boolean" ? false : 0);
+    const completed = isGamificationThresholdMet(currentValue, definition.threshold);
     const unlock = activeUnlockById.get(definition.id);
     return {
       achievementId: definition.id,
@@ -134,33 +107,53 @@ export async function getMyAchievements(
       ...(definition.tier ? { tier: definition.tier } : {}),
       sortOrder: definition.sortOrder,
       currentValue,
-      targetValue,
-      progressCompleted: progress.completed,
-      unlocked: Boolean(unlock),
-      lastEvaluatedAt: progress.lastEvaluatedAt.toISOString(),
-      unlockedAt: unlock?.unlockedAt.toISOString() ?? null,
-      unlockedUnderRuleSetVersion: unlock?.unlockedUnderRuleSetVersion ?? null,
+      targetValue: definition.threshold,
+      progressCompleted: completed,
+      // Canonical verified completion is enough for the private UI to show the
+      // milestone immediately; permanent unlock rows remain the durable history.
+      unlocked: Boolean(unlock) || completed,
+      lastEvaluatedAt: asOf.toISOString(),
+      unlockedAt: unlock?.unlockedAt.toISOString() ?? (completed ? asOf.toISOString() : null),
+      unlockedUnderRuleSetVersion:
+        unlock?.unlockedUnderRuleSetVersion ?? (completed ? rules.ruleSet.version : null),
     };
   });
 
-  const unlockHistory = unlockRows.map((unlock): MyAchievementUnlockView => {
-    const resolved = unlockDefinitions.get(
-      `${unlock.unlockedUnderRuleSetVersion}:${unlock.achievementId}`,
-    );
-    if (!resolved) {
-      throw new GamificationError(
-        "GAMIFICATION_ACHIEVEMENT_RECORD_INVALID",
-        `Unlock ${unlock.achievementId} could not be resolved.`,
+  const ruleSetVersions = [...new Set(
+    unlockRows.map((row) => row.unlockedUnderRuleSetVersion),
+  )];
+  const historicalRuleSets = new Map<string, GamificationRuleSetWithDefinition>();
+  for (const version of ruleSetVersions) {
+    try {
+      historicalRuleSets.set(version, await getGamificationRuleSetVersion(version, database));
+    } catch (error) {
+      console.warn(
+        `[Achievements] Historical rule set ${version} could not be resolved: ${error instanceof Error ? error.message : "unknown error"}`,
       );
     }
-    return {
+  }
+
+  const unlockHistory: MyAchievementUnlockView[] = [];
+  for (const unlock of unlockRows) {
+    const unlockRules = historicalRuleSets.get(unlock.unlockedUnderRuleSetVersion);
+    if (!unlockRules) continue;
+    let definition: ReturnType<typeof achievementDefinitionsFor>[number];
+    try {
+      definition = assertDefinitionFitsUnlock(unlock, unlockRules);
+    } catch (error) {
+      console.warn(
+        `[Achievements] Invalid unlock ${unlock.achievementId} was skipped: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+      continue;
+    }
+    unlockHistory.push({
       achievementId: unlock.achievementId,
       unlockedUnderRuleSetVersion: unlock.unlockedUnderRuleSetVersion,
       metricId: unlock.metricId,
-      titleKey: resolved.definition.titleKey,
-      descriptionKey: resolved.definition.descriptionKey,
-      visibility: resolved.definition.visibility,
-      ...(resolved.definition.tier ? { tier: resolved.definition.tier } : {}),
+      titleKey: definition.titleKey,
+      descriptionKey: definition.descriptionKey,
+      visibility: definition.visibility,
+      ...(definition.tier ? { tier: definition.tier } : {}),
       metricValueAtUnlock: decodeMetricValue(
         unlock.metricValueAtUnlock,
         unlock.valueType,
@@ -172,10 +165,11 @@ export async function getMyAchievements(
         unlock.achievementId,
       ),
       unlockedAt: unlock.unlockedAt.toISOString(),
-    };
-  });
+    });
+  }
+
   return {
-    ruleSetVersion: refreshed.ruleSetVersion,
+    ruleSetVersion: rules.ruleSet.version,
     achievements,
     unlockHistory,
   };

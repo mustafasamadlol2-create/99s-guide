@@ -6,6 +6,7 @@ import { getPrisma } from "../../services/prismaClient.js";
 import { getUnifiedStudyPointsReadModel } from "../study-points/readModel.js";
 import { assertValidStudyPointsUserId } from "../study-points/validation.js";
 import { getMyAchievements } from "./achievementRead.js";
+import { evaluateLifetimeLevel } from "./levelMath.js";
 import { refreshUserAchievementProgressInTransaction } from "./achievementRefresh.js";
 import { GAMIFICATION_METRIC_IDS } from "./constants.js";
 import { GamificationError } from "./errors.js";
@@ -104,29 +105,73 @@ export async function getMyGamificationSummary(
   userId: string,
   database: GamificationDatabase = getPrisma() as GamificationDatabase,
 ): Promise<MyGamificationSummary> {
-  const refreshed = await refreshUserGamificationState(userId, database);
+  assertGamificationEnabled();
+  assertValidStudyPointsUserId(userId);
+
+  // Overview is a read path. Do not make it acquire advisory locks or mutate
+  // rebuildable projections before it can render. Challenges already read
+  // canonical metrics directly; Overview/Achievements now do the same.
+  const [rules, points] = await Promise.all([
+    getActiveGamificationRuleSet(database),
+    getUnifiedStudyPointsReadModel({ userId }, database),
+  ]);
+  const asOf = new Date();
+  const evaluated = evaluateLifetimeLevel(
+    points.totalPoints,
+    rules.definitions.levelDefinitions,
+  );
+  const level = {
+    level: evaluated.definition.level,
+    ...(evaluated.definition.titleKey
+      ? { titleKey: evaluated.definition.titleKey }
+      : {}),
+    lifetimePoints: points.totalPoints,
+    currentLevelMinimumPoints: evaluated.definition.minimumLifetimePoints,
+    nextLevelMinimumPoints: evaluated.nextDefinition?.minimumLifetimePoints ?? null,
+    pointsIntoLevel:
+      points.totalPoints - evaluated.definition.minimumLifetimePoints,
+    pointsToNextLevel: evaluated.nextDefinition
+      ? evaluated.nextDefinition.minimumLifetimePoints - points.totalPoints
+      : null,
+    levelProgressRatio: evaluated.nextDefinition
+      ? Math.min(
+          1,
+          Math.max(
+            0,
+            (points.totalPoints - evaluated.definition.minimumLifetimePoints)
+              / (evaluated.nextDefinition.minimumLifetimePoints
+                - evaluated.definition.minimumLifetimePoints),
+          ),
+        )
+      : null,
+    maxLevelReached: evaluated.maxLevelReached,
+    ruleSetVersion: rules.ruleSet.version,
+    lastEvaluatedAt: asOf.toISOString(),
+  };
   const achievements = await getMyAchievements(userId, database, {
-    refreshResult: refreshed.achievementRefresh,
-    currentRules: refreshed.rules,
-  });
-  if (achievements.ruleSetVersion !== refreshed.ruleSetVersion) {
-    throw new GamificationError(
-      "GAMIFICATION_ACTIVE_RULE_SET_INVARIANT_FAILED",
-      "The private Gamification summary combines different rule-set versions.",
-    );
-  }
-  return {
-    ruleSetVersion: refreshed.ruleSetVersion,
-    points: {
-      totalPoints: refreshed.points.totalPoints,
-      focusPoints: refreshed.points.focusPoints,
-      masteryPoints: refreshed.points.masteryPoints,
-      progressPoints: refreshed.points.progressPoints,
-      consistencyPoints: refreshed.points.consistencyPoints,
-      ledgerPoints: refreshed.points.ledgerPoints,
-      legacyPoints: refreshed.points.legacyPoints,
+    // Supply a lightweight verified context so the achievement reader reuses
+    // this exact active rule set without triggering projection refreshes.
+    refreshResult: {
+      ruleSetVersion: rules.ruleSet.version,
+      asOf,
+      achievementCount: rules.definitions.achievementDefinitions.length,
+      newlyUnlockedCount: 0,
     },
-    level: refreshed.level,
+    currentRules: rules,
+  });
+
+  return {
+    ruleSetVersion: rules.ruleSet.version,
+    points: {
+      totalPoints: points.totalPoints,
+      focusPoints: points.focusPoints,
+      masteryPoints: points.masteryPoints,
+      progressPoints: points.progressPoints,
+      consistencyPoints: points.consistencyPoints,
+      ledgerPoints: points.ledgerPoints,
+      legacyPoints: points.legacyPoints,
+    },
+    level,
     achievements: achievements.achievements,
     unlockHistory: achievements.unlockHistory,
   };

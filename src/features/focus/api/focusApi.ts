@@ -636,7 +636,11 @@ const requestOptions = (method?: string, body?: unknown): FocusApiRequestOptions
   timeoutMs: 15_000,
 });
 
-function itemBody(item: CreateFocusPlanInput["items"][number], includeId: boolean): Record<string, unknown> {
+function itemBody(
+  item: CreateFocusPlanInput["items"][number],
+  includeId: boolean,
+  includeResources = true,
+): Record<string, unknown> {
   return {
     ...(includeId && item.id ? { id: item.id } : {}),
     lectureId: item.lectureId,
@@ -647,7 +651,7 @@ function itemBody(item: CreateFocusPlanInput["items"][number], includeId: boolea
     includeMcq: item.includeMcq,
     includeFlashcards: item.includeFlashcards,
     includeVideo: item.includeVideo,
-    resources: item.resources ?? [],
+    ...(includeResources ? { resources: item.resources ?? [] } : {}),
   };
 }
 
@@ -671,10 +675,14 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     validate: (value: unknown) => T,
   ) => readFocusResource(scope, variant, (requestKey) =>
     json(request, path, { ...options, requestKey }, validate));
-  const planBody = (input: CreateFocusPlanInput | UpdateFocusPlanInput, includeId: boolean) => ({
+  const planBody = (
+    input: CreateFocusPlanInput | UpdateFocusPlanInput,
+    includeId: boolean,
+    includeResources = true,
+  ) => ({
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
-    ...(input.items !== undefined ? { items: input.items.map((item) => itemBody(item, includeId)) } : {}),
+    ...(input.items !== undefined ? { items: input.items.map((item) => itemBody(item, includeId, includeResources)) } : {}),
   });
   return {
     getCurrentFocusSession: () => read(
@@ -729,7 +737,16 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       observedAwaySeconds: input.observedAwaySeconds, reason: input.reason,
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), interruption),
-    createFocusPlan: (input) => call("/api/focus/plans", requestOptions("POST", planBody(input, false)), (body) => plan(record(body, "plan response").plan)),
+    // Phase-4 resource selections are intentionally NOT part of the core plan-create
+    // contract. Start Focus must remain compatible with the proven pre-Phase-4 plan
+    // API; exact resource selections are hydrated by the planner and may be synced
+    // separately. This prevents a resource-selection schema / Prisma rollout mismatch
+    // from blocking the timer itself.
+    createFocusPlan: (input) => call(
+      "/api/focus/plans",
+      requestOptions("POST", planBody(input, false, false)),
+      (body) => plan(record(body, "plan response").plan),
+    ),
     listFocusPlans: (limit, options = {}) => {
       const params = new URLSearchParams();
       if (limit !== undefined) params.set("limit", String(limit));
