@@ -1032,15 +1032,6 @@ export function FocusHub({
           {t("focusHubLoadError")}
         </div>
       )}
-      {notice && (
-        <div
-          role={notice.tone === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`mt-5 rounded-2xl border px-4 py-3 text-sm leading-6 ${messageToneClass}`}
-        >
-          {t(notice.key)}
-        </div>
-      )}
 
       {canonicalPlan && runtimeState.sessionAuthority !== "CANONICAL" && (
         <div
@@ -1094,6 +1085,15 @@ export function FocusHub({
               <h1 className="truncate text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-[28px]">
                 {t("focusHubNav")}
               </h1>
+              {notice && (
+                <div
+                  role={notice.tone === "error" ? "alert" : "status"}
+                  aria-live="polite"
+                  className={`focus-hub-inline-notice mt-2 inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-semibold leading-5 shadow-sm ${messageToneClass}`}
+                >
+                  <span className="truncate">{t(notice.key)}</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">

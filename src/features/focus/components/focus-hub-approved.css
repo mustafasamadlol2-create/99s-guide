@@ -2593,3 +2593,95 @@
     transition-duration: .01ms !important;
   }
 }
+
+
+/* Phase 6 polish fixes */
+.focus-hub-current-root .focus-hub-inline-notice {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.focus-active-screen {
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
+}
+
+.focus-active-screen .focus-active-layout {
+  align-items: start;
+}
+
+.focus-active-screen .focus-active-timer-card,
+.focus-active-screen aside > section,
+.focus-active-screen .focus-active-summary > section,
+.focus-active-screen .focus-active-side-card,
+.focus-active-screen .focus-active-plan-panel {
+  border-color: rgba(185, 209, 238, 0.78) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow:
+    0 18px 42px rgba(52, 96, 148, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.86) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.dark .focus-active-screen .focus-active-timer-card,
+.dark .focus-active-screen aside > section,
+.dark .focus-active-screen .focus-active-summary > section,
+.dark .focus-active-screen .focus-active-side-card,
+.dark .focus-active-screen .focus-active-plan-panel {
+  border-color: rgba(132, 165, 206, 0.14) !important;
+  background: rgba(18, 29, 44, 0.78) !important;
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+
+.focus-active-screen .focus-active-audio-card {
+  position: relative;
+  align-self: start;
+  overflow: hidden;
+}
+
+.focus-active-screen .focus-active-audio-card .focus-audio-card {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.focus-active-screen .focus-active-audio-card .focus-audio-card-planner {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.focus-active-screen .focus-active-audio-card .focus-audio-source {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.focus-active-screen .focus-active-audio-card .focus-audio-artwork {
+  min-height: 170px;
+}
+
+.focus-active-screen .focus-active-audio-card .focus-audio-source-details {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .focus-active-screen .focus-active-audio-card {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .focus-active-screen .focus-active-audio-card .focus-audio-source {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-active-screen .focus-active-audio-card .focus-audio-artwork {
+    min-height: 196px;
+  }
+}

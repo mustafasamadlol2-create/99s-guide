@@ -1,511 +1,68 @@
+
 .focus-immersive-layer {
-  --focus-immersive-ink: #10213d;
-  --focus-immersive-muted: #667895;
-  --focus-immersive-accent: #397fe9;
-  --focus-immersive-accent-2: #53b8ee;
   position: fixed;
-  z-index: 90;
+  z-index: 100;
   inset: 0;
-  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  color: var(--focus-immersive-ink);
-  background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.98), transparent 34%),
-    radial-gradient(circle at 82% 78%, rgba(167, 205, 255, 0.48), transparent 42%),
-    linear-gradient(145deg, #eaf4ff 0%, #f9fcff 46%, #e4efff 100%);
+  background: #000;
+  color: #fff;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-}
-
-.focus-immersive-atmosphere,
-.focus-immersive-grid,
-.focus-immersive-glow {
-  position: absolute;
-  pointer-events: none;
-}
-
-.focus-immersive-atmosphere {
-  z-index: -1;
-  inset: 0;
-  overflow: hidden;
-}
-
-.focus-immersive-grid {
-  inset: -12%;
-  opacity: 0.34;
-  background-image:
-    linear-gradient(rgba(94, 141, 209, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(94, 141, 209, 0.055) 1px, transparent 1px);
-  background-size: 42px 42px;
-  transform: perspective(800px) rotateX(70deg) translateY(28%);
-  transform-origin: center bottom;
-  mask-image: linear-gradient(to bottom, transparent 10%, #000 58%, transparent 100%);
-}
-
-.focus-immersive-glow {
-  width: min(56vw, 680px);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  filter: blur(58px);
-  opacity: 0.42;
-}
-
-.focus-immersive-glow--one {
-  top: -24%;
-  left: -10%;
-  background: rgba(119, 201, 247, 0.5);
-}
-
-.focus-immersive-glow--two {
-  right: -12%;
-  bottom: -30%;
-  background: rgba(78, 104, 230, 0.28);
-}
-
-.focus-immersive-topbar {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 64px;
-  padding:
-    max(14px, env(safe-area-inset-top))
-    max(18px, env(safe-area-inset-right))
-    8px
-    max(18px, env(safe-area-inset-left));
-  transition: opacity 320ms cubic-bezier(.22,1,.36,1), transform 320ms cubic-bezier(.22,1,.36,1);
-}
-
-.focus-immersive-context {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  color: var(--focus-immersive-muted);
-  font-size: clamp(0.76rem, 1.4vw, 0.9rem);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.focus-immersive-status-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  box-shadow: 0 0 0 5px rgba(57, 127, 233, 0.09);
-}
-
-.focus-immersive-status-dot.is-active {
-  background: #2f7fea;
-}
-
-.focus-immersive-status-dot.is-paused {
-  background: #f59e0b;
-  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.09);
-}
-
-.focus-immersive-round {
-  overflow: hidden;
-  max-width: min(34vw, 280px);
-  padding-inline-start: 9px;
-  border-inline-start: 1px solid rgba(93, 116, 151, 0.18);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.focus-immersive-lecture {
-  overflow: hidden;
-  max-width: min(42vw, 420px);
-  margin: 0;
-  color: var(--focus-immersive-muted);
-  font-size: clamp(0.72rem, 1.3vw, 0.86rem);
-  font-weight: 560;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: none;
 }
 
 .focus-immersive-stage {
   position: absolute;
-  z-index: 1;
   inset: 0;
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  padding: clamp(72px, 10vh, 112px) 24px clamp(108px, 17vh, 170px);
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  outline: none;
-}
-
-.focus-immersive-ring {
-  position: absolute;
-  width: min(62vmin, 590px);
-  aspect-ratio: 1;
-  border-radius: 999px;
   background:
-    conic-gradient(
-      from -90deg,
-      rgba(59, 128, 235, 0.9) 0deg,
-      rgba(83, 184, 238, 0.82) var(--focus-immersive-progress),
-      rgba(110, 139, 178, 0.11) var(--focus-immersive-progress),
-      rgba(110, 139, 178, 0.11) 360deg
-    );
-  box-shadow:
-    0 38px 100px rgba(59, 103, 172, 0.12),
-    0 0 0 1px rgba(255,255,255,0.48);
-  opacity: 0.72;
-  transform: rotate(0.001deg);
-}
-
-.focus-immersive-ring::before {
-  position: absolute;
-  inset: 5px;
-  border-radius: inherit;
-  background: rgba(240, 247, 255, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.72);
-  content: "";
-}
-
-.focus-immersive-ring-inner {
-  position: absolute;
-  inset: 12%;
-  border: 1px solid rgba(90, 139, 205, 0.1);
-  border-radius: inherit;
-  box-shadow:
-    inset 0 0 48px rgba(94, 147, 220, 0.07),
-    0 0 70px rgba(255,255,255,0.56);
+    radial-gradient(circle at 50% 50%, rgba(40, 88, 172, 0.09), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.025), transparent 48%),
+    #000;
 }
 
 .focus-immersive-clock-wrap {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(6px, 1.2vh, 12px);
+  min-width: 0;
+  padding: max(16px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
 }
 
 .focus-immersive-clock {
-  color: var(--focus-immersive-ink);
-  font-size: clamp(5rem, 17vw, 13.5rem);
+  font-family: var(--font-display, var(--font-sans));
+  font-size: clamp(88px, 19vw, 320px);
+  line-height: 0.9;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  color: #ffffff;
+  text-shadow: 0 0 42px rgba(75, 129, 235, 0.12);
   font-variant-numeric: tabular-nums;
-  font-weight: 720;
-  letter-spacing: -0.075em;
-  line-height: 0.82;
-  text-shadow: 0 12px 42px rgba(42, 81, 136, 0.1);
 }
 
-.focus-immersive-caption {
-  color: var(--focus-immersive-muted);
-  font-size: clamp(0.78rem, 1.55vw, 1rem);
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.focus-immersive-layer.is-paused .focus-immersive-clock {
+  color: #f6c766;
+  text-shadow: 0 0 36px rgba(246, 199, 102, 0.18);
 }
 
-.focus-immersive-dock {
-  position: absolute;
-  z-index: 4;
-  right: 50%;
-  bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px));
-  display: grid;
-  grid-template-columns: repeat(4, minmax(74px, 1fr));
-  gap: 8px;
-  width: min(calc(100vw - 32px), 520px);
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.76);
-  border-radius: 28px;
-  background: rgba(248, 252, 255, 0.76);
-  box-shadow:
-    0 22px 60px rgba(39, 76, 127, 0.18),
-    inset 0 1px 0 rgba(255,255,255,0.8);
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-  transform: translateX(50%) translateY(0);
-  transition:
-    opacity 280ms cubic-bezier(.22,1,.36,1),
-    transform 360ms cubic-bezier(.22,1,.36,1);
-}
-
-.focus-immersive-control {
-  display: flex;
-  min-width: 0;
-  min-height: 66px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 8px 6px;
-  border: 1px solid rgba(101, 131, 170, 0.1);
-  border-radius: 21px;
-  background: rgba(255, 255, 255, 0.66);
-  color: #31506f;
-  font-size: 0.69rem;
-  font-weight: 650;
-  line-height: 1.1;
-  transition:
-    transform 160ms cubic-bezier(.22,1,.36,1),
-    background 160ms ease,
-    opacity 160ms ease;
-}
-
-.focus-immersive-control svg {
-  width: 20px;
-  height: 20px;
-}
-
-.focus-immersive-control:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.focus-immersive-control:focus-visible {
-  outline: 3px solid rgba(53, 125, 232, 0.38);
-  outline-offset: 2px;
-}
-
-.focus-immersive-control:disabled {
-  opacity: 0.38;
-}
-
-.focus-immersive-control--primary {
-  border-color: rgba(71, 136, 237, 0.18);
-  background: linear-gradient(145deg, #438def, #516ee5);
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(63, 116, 211, 0.2);
-}
-
-.focus-immersive-control--danger {
-  color: #b94455;
-  background: rgba(255, 247, 248, 0.8);
-}
-
-.focus-immersive-hint {
-  position: absolute;
-  z-index: 3;
-  right: 50%;
-  bottom: max(26px, calc(env(safe-area-inset-bottom) + 18px));
-  max-width: calc(100vw - 48px);
-  padding: 9px 14px;
-  border: 1px solid rgba(255,255,255,0.6);
-  border-radius: 999px;
-  background: rgba(248,252,255,0.58);
-  color: var(--focus-immersive-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  opacity: 0;
-  pointer-events: none;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transform: translateX(50%) translateY(8px);
-  transition: opacity 300ms ease 260ms, transform 360ms cubic-bezier(.22,1,.36,1) 260ms;
-}
-
-.focus-immersive-fullscreen-mark {
-  position: absolute;
-  right: max(14px, env(safe-area-inset-right));
-  bottom: max(14px, env(safe-area-inset-bottom));
-  display: none;
-  color: var(--focus-immersive-muted);
-  opacity: 0.18;
-}
-
-.focus-immersive-fullscreen-mark svg {
-  width: 18px;
-  height: 18px;
-}
-
-.focus-immersive-layer.is-controls-hidden .focus-immersive-dock {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(50%) translateY(28px) scale(0.97);
-}
-
-.focus-immersive-layer.is-controls-hidden .focus-immersive-topbar {
-  opacity: 0.38;
-  transform: translateY(-4px);
-}
-
-.focus-immersive-layer.is-controls-hidden .focus-immersive-hint {
-  opacity: 0.72;
-  transform: translateX(50%) translateY(0);
-}
-
-.dark .focus-immersive-layer {
-  --focus-immersive-ink: #f3f7ff;
-  --focus-immersive-muted: #a6b5cd;
-  --focus-immersive-accent: #62a8ff;
-  --focus-immersive-accent-2: #65d2ee;
-  background:
-    radial-gradient(circle at 16% 16%, rgba(57, 91, 142, 0.28), transparent 34%),
-    radial-gradient(circle at 82% 78%, rgba(34, 75, 139, 0.34), transparent 42%),
-    linear-gradient(145deg, #121d31 0%, #0b1424 52%, #101a2d 100%);
-}
-
-.dark .focus-immersive-grid {
-  opacity: 0.18;
-}
-
-.dark .focus-immersive-ring {
-  background:
-    conic-gradient(
-      from -90deg,
-      rgba(98, 168, 255, 0.9) 0deg,
-      rgba(101, 210, 238, 0.78) var(--focus-immersive-progress),
-      rgba(135, 162, 202, 0.12) var(--focus-immersive-progress),
-      rgba(135, 162, 202, 0.12) 360deg
-    );
-  box-shadow:
-    0 38px 100px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(168, 198, 242, 0.08);
-}
-
-.dark .focus-immersive-ring::before {
-  background: rgba(13, 24, 42, 0.96);
-  box-shadow: inset 0 0 0 1px rgba(198, 218, 249, 0.06);
-}
-
-.dark .focus-immersive-ring-inner {
-  border-color: rgba(163, 196, 240, 0.08);
-  box-shadow:
-    inset 0 0 48px rgba(87, 142, 220, 0.08),
-    0 0 70px rgba(30, 63, 110, 0.16);
-}
-
-.dark .focus-immersive-dock {
-  border-color: rgba(190, 211, 243, 0.12);
-  background: rgba(17, 30, 50, 0.78);
-  box-shadow:
-    0 26px 70px rgba(0,0,0,0.34),
-    inset 0 1px 0 rgba(222,235,255,0.08);
-}
-
-.dark .focus-immersive-control {
-  border-color: rgba(189, 211, 246, 0.08);
-  background: rgba(255,255,255,0.055);
-  color: #d4e0f3;
-}
-
-.dark .focus-immersive-control--primary {
-  border-color: rgba(113, 171, 255, 0.16);
-  background: linear-gradient(145deg, #397ccf, #4d63cd);
-  color: #fff;
-}
-
-.dark .focus-immersive-control--danger {
-  color: #ff9cab;
-  background: rgba(125, 43, 56, 0.2);
-}
-
-.dark .focus-immersive-hint {
-  border-color: rgba(190, 211, 243, 0.1);
-  background: rgba(15, 27, 46, 0.62);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .focus-immersive-control:hover:not(:disabled) {
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.86);
-  }
-
-  .dark .focus-immersive-control:hover:not(:disabled) {
-    background: rgba(255,255,255,0.1);
-  }
-
-  .focus-immersive-control--primary:hover:not(:disabled) {
-    background: linear-gradient(145deg, #367fe7, #4b62da);
-  }
-}
-
-@media (orientation: landscape) and (max-height: 620px) {
-  .focus-immersive-stage {
-    padding-top: 48px;
-    padding-bottom: 76px;
-  }
-
-  .focus-immersive-ring {
-    width: min(58vmin, 390px);
-  }
-
+@media (max-width: 900px) {
   .focus-immersive-clock {
-    font-size: clamp(4rem, 16vh, 8.5rem);
-  }
-
-  .focus-immersive-caption {
-    font-size: 0.7rem;
-  }
-
-  .focus-immersive-topbar {
-    min-height: 46px;
-    padding-top: max(8px, env(safe-area-inset-top));
-  }
-
-  .focus-immersive-dock {
-    bottom: max(8px, env(safe-area-inset-bottom));
-    width: min(calc(100vw - 24px), 480px);
-    padding: 6px;
-  }
-
-  .focus-immersive-control {
-    min-height: 54px;
-  }
-}
-
-@media (max-width: 520px) {
-  .focus-immersive-topbar {
-    align-items: flex-start;
-  }
-
-  .focus-immersive-lecture {
-    max-width: 42vw;
-  }
-
-  .focus-immersive-ring {
-    width: min(78vw, 420px);
-  }
-
-  .focus-immersive-clock {
-    font-size: clamp(4.7rem, 23vw, 8rem);
-  }
-
-  .focus-immersive-dock {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    width: calc(100vw - 20px);
-    padding: 6px;
-    border-radius: 24px;
-  }
-
-  .focus-immersive-control {
-    min-height: 62px;
-    border-radius: 19px;
-    font-size: 0.63rem;
-  }
-
-  .focus-immersive-control svg {
-    width: 19px;
-    height: 19px;
+    font-size: clamp(72px, 22vw, 180px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .focus-immersive-layer *,
-  .focus-immersive-layer *::before,
-  .focus-immersive-layer *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.001ms !important;
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
+  .focus-immersive-layer,
+  .focus-immersive-stage,
+  .focus-immersive-clock {
+    transition: none !important;
+    animation: none !important;
   }
 }

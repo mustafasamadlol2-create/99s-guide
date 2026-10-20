@@ -1532,7 +1532,7 @@ function ActiveFocusScreenCore({
             <button
               type="button"
               onClick={() => onOpenSummary(completedRoute.context.sessionId)}
-              className="min-h-11 w-full rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
+              className="min-h-12 w-full rounded-[18px] border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-300/15 dark:bg-sky-200/[0.06] dark:text-sky-100"
             >
               {t.focusSummaryTitle}
             </button>
@@ -1984,11 +1984,9 @@ function ActiveFocusScreenCore({
           ) : null}
 
           {FOCUS_AUDIO_ENABLED && (
-            <div className="focus-hub-page focus-hub-current-root min-w-0">
-              <div className="focus-hub-audio min-w-0">
-                <FocusAudioPlanningCard language={language} plannerPresentation />
-              </div>
-            </div>
+            <section className="focus-active-side-card focus-active-audio-card min-w-0 overflow-hidden rounded-[28px] border border-white/70 bg-white/70 p-3 shadow-[0_18px_44px_rgba(61,104,157,0.08)] backdrop-blur-[18px] dark:border-white/10 dark:bg-white/[0.04] sm:p-4">
+              <FocusAudioPlanningCard language={language} plannerPresentation />
+            </section>
           )}
         </aside>
       </main>
@@ -2213,9 +2211,9 @@ function TerminalHandoff({
   return (
     <div
       dir={language === "ar" ? "rtl" : "ltr"}
-      className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-8 sm:px-6"
+      className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center bg-gradient-to-b from-[#eef6ff] via-white to-[#f8fbff] px-4 py-8 dark:from-[#0d151a] dark:via-[#101821] dark:to-[#0d151b] sm:px-6"
     >
-      <section className="w-full rounded-[30px] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-[#eaf5f8] p-6 text-center shadow-[0_18px_48px_rgba(54,99,119,0.08)] dark:border-sky-300/15 dark:from-[#121720] dark:via-[#111923] dark:to-[#131e2c] sm:p-10">
+      <section className="w-full max-w-2xl rounded-[34px] border border-white/80 bg-white/82 p-6 text-center shadow-[0_24px_60px_rgba(54,99,119,0.10)] backdrop-blur-[20px] dark:border-white/10 dark:bg-white/[0.05] sm:p-10">
         <span
           className={`mx-auto flex size-14 items-center justify-center rounded-2xl border dark:border-white/10 dark:bg-white/[0.06] ${
             isSuccess
@@ -2234,7 +2232,7 @@ function TerminalHandoff({
           <button
             type="button"
             onClick={onReturn}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#315f75] px-5 font-semibold text-white transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:flex-1"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-[#315f75] px-5 font-semibold text-white shadow-[0_10px_24px_rgba(49,95,117,0.18)] transition hover:bg-[#264f64] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:flex-1"
           >
             {t.focusActiveReturn}
           </button>
