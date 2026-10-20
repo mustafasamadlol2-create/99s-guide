@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, Check, Search, X } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
@@ -118,8 +119,6 @@ export function FocusLecturePicker({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const getSubjectName = (id: string) => {
     const subject = subjectMap.get(id as Subject["id"]);
     return subject
@@ -142,23 +141,34 @@ export function FocusLecturePicker({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 backdrop-blur-sm md:items-center md:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="focus-lecture-picker-title"
-        dir={isRtl ? "rtl" : "ltr"}
-        className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/70 bg-white shadow-2xl dark:border-white/10 dark:bg-[#17191f] md:rounded-[28px]"
-        style={{
-          paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
-        }}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-700/[0.16] backdrop-blur-[3px] dark:bg-black/35 md:items-center md:p-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="focus-lecture-picker-title"
+            dir={isRtl ? "rtl" : "ltr"}
+            className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/80 bg-white/95 shadow-[0_28px_80px_rgba(46,70,108,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#17191f]/95 md:rounded-[28px]"
+            initial={{ opacity: 0, y: 28, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.99 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.78 }}
+            style={{
+              paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
+              transformOrigin: "50% 100%",
+            }}
+          >
         <div className="flex items-center justify-between gap-4 border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e7f2f5] text-[#285a73] dark:bg-sky-300/10 dark:text-sky-200">
@@ -197,7 +207,7 @@ export function FocusLecturePicker({
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("focusHubSearchLectures")}
               dir="auto"
-              className={`h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-500/15 dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
+              className={`h-12 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/15 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
             />
           </label>
           <label className="block">
@@ -301,7 +311,9 @@ export function FocusLecturePicker({
             </ul>
           )}
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

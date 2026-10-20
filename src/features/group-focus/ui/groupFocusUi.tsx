@@ -303,9 +303,46 @@ export function GroupFocusShell({
       dir={isRtl ? "rtl" : "ltr"}
       lang={language}
       data-group-focus-shell="true"
-      className={`min-h-0 w-full bg-transparent text-slate-900 dark:text-slate-100 ${className}`}
+      className={`group-focus-ios-surface min-h-0 w-full bg-transparent text-slate-900 dark:text-slate-100 ${className}`}
     >
       <style>{`
+        [data-group-focus-shell="true"] {
+          --gf-ios-ease: cubic-bezier(.22, 1, .36, 1);
+          --gf-ios-press: cubic-bezier(.2, .9, .25, 1);
+          animation: gf-ios-surface-in 460ms var(--gf-ios-ease) both;
+          transform-origin: 50% 24%;
+        }
+        [data-group-focus-shell="true"] button,
+        [data-group-focus-shell="true"] a,
+        [data-group-focus-shell="true"] input,
+        [data-group-focus-shell="true"] select {
+          -webkit-tap-highlight-color: transparent;
+        }
+        [data-group-focus-shell="true"] button {
+          transition-property: transform, box-shadow, background-color, border-color, color, filter !important;
+          transition-duration: 260ms !important;
+          transition-timing-function: var(--gf-ios-ease) !important;
+          will-change: transform;
+        }
+        [data-group-focus-shell="true"] button:active:not(:disabled) {
+          transform: scale(.965);
+          transition-duration: 110ms !important;
+          transition-timing-function: var(--gf-ios-press) !important;
+        }
+        [data-group-focus-shell="true"] section,
+        [data-group-focus-shell="true"] article {
+          transition: transform 340ms var(--gf-ios-ease), box-shadow 340ms var(--gf-ios-ease), border-color 260ms ease, background-color 260ms ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+          [data-group-focus-shell="true"] article:hover {
+            transform: translateY(-2px) scale(1.002);
+          }
+        }
+        @keyframes gf-ios-surface-in {
+          0% { opacity: 0; transform: translate3d(0, 12px, 0) scale(.992); }
+          62% { opacity: 1; }
+          100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+        }
         @media (prefers-reduced-motion: reduce) {
           [data-group-focus-shell="true"] *,
           [data-group-focus-shell="true"] *::before,

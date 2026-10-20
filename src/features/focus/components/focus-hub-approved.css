@@ -2427,3 +2427,81 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Native iOS-style motion language shared across Focus Hub surfaces. */
+.focus-hub-page.focus-hub-current-root,
+.focus-active-screen,
+.focus-history-page {
+  --focus-ios-ease: cubic-bezier(.22, 1, .36, 1);
+  --focus-ios-press: cubic-bezier(.2, .9, .25, 1);
+  animation: focus-ios-surface-in 460ms var(--focus-ios-ease) both;
+  transform-origin: 50% 22%;
+}
+
+.focus-hub-current-root button,
+.focus-active-screen button,
+.focus-history-page button {
+  -webkit-tap-highlight-color: transparent;
+  transition-property: transform, box-shadow, background-color, border-color, color, filter !important;
+  transition-duration: 260ms !important;
+  transition-timing-function: var(--focus-ios-ease) !important;
+  will-change: transform;
+}
+
+.focus-hub-current-root button:active:not(:disabled),
+.focus-active-screen button:active:not(:disabled),
+.focus-history-page button:active:not(:disabled) {
+  transform: scale(.965);
+  transition-duration: 105ms !important;
+  transition-timing-function: var(--focus-ios-press) !important;
+}
+
+.focus-hub-current-root .focus-hub-setup,
+.focus-hub-current-root .focus-hub-queue,
+.focus-hub-current-root .focus-hub-timer-scene,
+.focus-active-screen .focus-active-timer-card,
+.focus-history-page .focus-history-hero,
+.focus-history-page .focus-history-filters,
+.focus-history-page .focus-history-row {
+  transition: transform 360ms var(--focus-ios-ease), box-shadow 360ms var(--focus-ios-ease), border-color 240ms ease, background-color 240ms ease !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .focus-hub-current-root .focus-hub-setup:hover,
+  .focus-hub-current-root .focus-hub-queue:hover,
+  .focus-history-page .focus-history-row:hover {
+    transform: translateY(-2px) scale(1.0015);
+  }
+}
+
+.focus-hub-current-root .focus-hub-queue-item {
+  transition: transform 280ms var(--focus-ios-ease), background-color 220ms ease, border-color 220ms ease, box-shadow 280ms var(--focus-ios-ease) !important;
+}
+
+.focus-hub-current-root .focus-hub-queue-item:active {
+  transform: scale(.987);
+}
+
+@keyframes focus-ios-surface-in {
+  0% { opacity: 0; transform: translate3d(0, 12px, 0) scale(.992); }
+  62% { opacity: 1; }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-hub-page.focus-hub-current-root,
+  .focus-active-screen,
+  .focus-history-page { animation: none !important; }
+  .focus-hub-current-root button,
+  .focus-active-screen button,
+  .focus-history-page button,
+  .focus-hub-current-root .focus-hub-setup,
+  .focus-hub-current-root .focus-hub-queue,
+  .focus-hub-current-root .focus-hub-timer-scene,
+  .focus-active-screen .focus-active-timer-card,
+  .focus-history-page .focus-history-hero,
+  .focus-history-page .focus-history-filters,
+  .focus-history-page .focus-history-row {
+    transition-duration: .01ms !important;
+  }
+}

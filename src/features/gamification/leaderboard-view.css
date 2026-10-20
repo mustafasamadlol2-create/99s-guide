@@ -54,7 +54,10 @@
   border: 1px solid var(--g-line);
   border-radius: 25px;
   background: var(--g-paper);
-  box-shadow: 0 12px 36px color-mix(in srgb, var(--g-ink) 5%, transparent);
+  box-shadow:0 16px 42px color-mix(in srgb,var(--g-ink) 6%,transparent), inset 0 1px 0 color-mix(in srgb,#fff 62%,transparent);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  animation:lv-board-in .44s var(--g-ios-ease, cubic-bezier(.22,1,.36,1)) both;
 }
 .lv-board-top {
   display: flex;
@@ -136,13 +139,15 @@
   border: 1px solid color-mix(in srgb, var(--g-line) 86%, transparent);
   border-radius: 17px;
   background: var(--g-paper-strong);
-  transition: transform .18s ease, border-color .18s ease, background-color .18s ease;
-  animation: lv-row-enter .32s ease both;
+  transition:transform .3s var(--g-ios-ease, cubic-bezier(.22,1,.36,1)), border-color .22s ease, background-color .22s ease, box-shadow .3s var(--g-ios-ease, cubic-bezier(.22,1,.36,1));
+  animation:lv-row-enter .38s var(--g-ios-ease, cubic-bezier(.22,1,.36,1)) both;
+  will-change:transform;
 }
 .lv-row:nth-child(1) { animation-delay: 0ms; }
 .lv-row:nth-child(2) { animation-delay: 35ms; }
 .lv-row:nth-child(3) { animation-delay: 70ms; }
-.lv-row:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--g-accent) 34%, var(--g-line)); }
+@media (hover:hover) and (pointer:fine) { .lv-row:hover { transform:translateY(-2px) scale(1.001); border-color:color-mix(in srgb,var(--g-accent) 34%,var(--g-line)); box-shadow:0 9px 22px color-mix(in srgb,var(--g-ink) 5%,transparent); } }
+.lv-row:active { transform:scale(.985); transition-duration:.11s; }
 .lv-row.lv-podium-1 { border-color: color-mix(in srgb, var(--g-warm) 39%, var(--g-line)); background: color-mix(in srgb, var(--g-warm-soft) 34%, var(--g-paper-strong)); }
 .lv-rank {
   width: 34px;
@@ -194,7 +199,8 @@
 .lv-own-skeleton-score { width: 48px; height: 17px; margin-inline-start: auto; }
 
 @keyframes lv-shimmer { to { background-position: -220% 0; } }
-@keyframes lv-row-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes lv-row-enter { from { opacity:0; transform:translate3d(0,7px,0) scale(.994); } to { opacity:1; transform:translate3d(0,0,0) scale(1); } }
+@keyframes lv-board-in { from { opacity:0; transform:translate3d(0,9px,0) scale(.994); } to { opacity:1; transform:translate3d(0,0,0) scale(1); } }
 
 @media (max-width: 700px) {
   .g-leaderboard-view { padding-bottom: 12px; }

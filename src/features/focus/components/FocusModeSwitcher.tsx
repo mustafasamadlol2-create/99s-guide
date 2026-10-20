@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { motion } from "framer-motion";
 import { Target } from "lucide-react";
 import type { Language } from "../../../core/i18n/translations";
 
@@ -15,31 +16,42 @@ export function FocusModeSwitcher({
 }) {
   const solo = language === "ar" ? "تركيز فردي" : "Solo Focus";
   const group = language === "ar" ? "تركيز جماعي" : "Group Focus";
+  const layoutId = useId();
+  const tab = (value: "solo" | "group", label: string, onClick: () => void) => {
+    const selected = mode === value;
+    return (
+      <motion.button
+        type="button"
+        role="tab"
+        aria-selected={selected}
+        onClick={onClick}
+        whileTap={{ scale: 0.965 }}
+        transition={{ type: "spring", stiffness: 560, damping: 36, mass: 0.55 }}
+        className={`relative isolate min-h-8 overflow-hidden rounded-xl px-3.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:px-4 sm:text-sm ${selected ? "text-white" : "text-slate-500 hover:text-sky-700 dark:text-slate-300 dark:hover:text-white"}`}
+      >
+        {selected && (
+          <motion.span
+            layoutId={`focus-mode-pill-${layoutId}`}
+            className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-[0_5px_15px_rgba(59,130,246,0.28)]"
+            transition={{ type: "spring", stiffness: 470, damping: 34, mass: 0.62 }}
+          />
+        )}
+        <span className="relative z-10">{label}</span>
+      </motion.button>
+    );
+  };
   return (
-    <div
+    <motion.div
       role="tablist"
       aria-label={language === "ar" ? "نوع جلسة التركيز" : "Focus mode"}
       className="inline-flex min-h-10 shrink-0 items-center rounded-2xl border border-sky-100/90 bg-white/75 p-1 shadow-[0_6px_20px_rgba(58,116,173,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]"
+      initial={false}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 500, damping: 38 }}
     >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mode === "solo"}
-        onClick={onSolo}
-        className={`min-h-8 rounded-xl px-3.5 text-xs font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:px-4 sm:text-sm ${mode === "solo" ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm" : "text-slate-500 hover:bg-sky-50 dark:text-slate-300 dark:hover:bg-white/10"}`}
-      >
-        {solo}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mode === "group"}
-        onClick={onGroup}
-        className={`min-h-8 rounded-xl px-3.5 text-xs font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 sm:px-4 sm:text-sm ${mode === "group" ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm" : "text-slate-500 hover:bg-sky-50 dark:text-slate-300 dark:hover:bg-white/10"}`}
-      >
-        {group}
-      </button>
-    </div>
+      {tab("solo", solo, onSolo)}
+      {tab("group", group, onGroup)}
+    </motion.div>
   );
 }
 
