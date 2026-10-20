@@ -2505,3 +2505,84 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Phase 5 native-motion repair: dependency-free iOS motion primitives. */
+.focus-mode-switcher {
+  transform: translateZ(0);
+}
+
+.focus-mode-tab {
+  transition:
+    transform 105ms cubic-bezier(.2, .72, .2, 1),
+    color 180ms ease,
+    background 260ms cubic-bezier(.22, 1, .36, 1),
+    box-shadow 260ms cubic-bezier(.22, 1, .36, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.focus-mode-tab[aria-selected="true"] {
+  background: linear-gradient(108deg, #50aaf5 0%, #347fea 58%, #4d55d8 100%);
+  box-shadow:
+    0 5px 15px rgba(59, 130, 246, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .28);
+  animation: focus-mode-selection-in 360ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.focus-mode-tab:active {
+  transform: scale(.965);
+}
+
+@keyframes focus-mode-selection-in {
+  0% { transform: scale(.965); filter: saturate(.9); }
+  58% { transform: scale(1.018); }
+  100% { transform: scale(1); filter: saturate(1); }
+}
+
+.focus-lecture-picker-overlay {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 180ms cubic-bezier(.22, 1, .36, 1),
+    visibility 0s linear 260ms;
+}
+
+.focus-lecture-picker-overlay[data-state="open"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.focus-lecture-picker-sheet {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0) scale(.985);
+  transition:
+    transform 430ms cubic-bezier(.22, 1, .36, 1),
+    opacity 210ms cubic-bezier(.22, 1, .36, 1);
+  will-change: transform, opacity;
+}
+
+.focus-lecture-picker-overlay[data-state="open"] .focus-lecture-picker-sheet {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+@media (min-width: 768px) {
+  .focus-lecture-picker-sheet {
+    transform: translate3d(0, 14px, 0) scale(.982);
+  }
+
+  .focus-lecture-picker-overlay[data-state="open"] .focus-lecture-picker-sheet {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-mode-tab,
+  .focus-lecture-picker-overlay,
+  .focus-lecture-picker-sheet {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+}
