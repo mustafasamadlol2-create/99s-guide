@@ -1,4 +1,3 @@
-
 .focus-immersive-layer {
   position: fixed;
   z-index: 100;
@@ -15,7 +14,7 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   cursor: none;
-  animation: focus-immersive-layer-in 300ms cubic-bezier(.22,1,.36,1) both;
+  animation: focus-immersive-layer-in 260ms cubic-bezier(.22,1,.36,1) both;
 }
 
 .focus-immersive-atmosphere {
@@ -30,10 +29,10 @@
   position: absolute;
   inset: -18%;
   background:
-    radial-gradient(circle at 50% 48%, rgba(28, 74, 152, 0.10) 0%, rgba(8, 24, 58, 0.045) 25%, transparent 51%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.018), transparent 34%);
+    radial-gradient(circle at 50% 48%, rgba(34, 78, 160, 0.09) 0%, rgba(8, 24, 58, 0.04) 26%, transparent 52%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.016), transparent 35%);
   content: "";
-  animation: focus-immersive-atmosphere-drift 12s ease-in-out infinite alternate;
+  animation: focus-immersive-atmosphere-drift 14s ease-in-out infinite alternate;
   transform: translateZ(0);
 }
 
@@ -48,17 +47,17 @@
 }
 
 .focus-immersive-breath--outer {
-  width: min(74vw, 980px);
-  background: radial-gradient(circle, rgba(61, 111, 214, 0.055), rgba(24, 50, 104, 0.018) 42%, transparent 70%);
-  filter: blur(30px);
-  animation: focus-immersive-breathe 8s cubic-bezier(.45,0,.55,1) infinite;
+  width: min(70vw, 940px);
+  background: radial-gradient(circle, rgba(61, 111, 214, 0.045), rgba(24, 50, 104, 0.015) 44%, transparent 72%);
+  filter: blur(34px);
+  animation: focus-immersive-breathe 9s cubic-bezier(.45,0,.55,1) infinite;
 }
 
 .focus-immersive-breath--inner {
-  width: min(46vw, 620px);
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.026), transparent 66%);
-  filter: blur(16px);
-  animation: focus-immersive-breathe 8s cubic-bezier(.45,0,.55,1) 1.15s infinite reverse;
+  width: min(42vw, 590px);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.022), transparent 68%);
+  filter: blur(18px);
+  animation: focus-immersive-breathe 9s cubic-bezier(.45,0,.55,1) 1.35s infinite reverse;
 }
 
 .focus-immersive-clock-wrap {
@@ -77,45 +76,82 @@
 
 .focus-immersive-clock {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  font-family: var(--font-display, var(--font-sans));
-  font-size: clamp(92px, 19vw, 320px);
-  line-height: 0.88;
-  font-weight: 800;
-  letter-spacing: -0.075em;
-  color: #f8fbff;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "SF Pro Text",
+    "Inter",
+    system-ui,
+    sans-serif;
+  font-size: clamp(90px, 18.25vw, 300px);
+  line-height: 0.94;
+  font-weight: 560;
+  letter-spacing: -0.055em;
+  color: #f7f7f9;
   text-shadow:
-    0 0 1px rgba(255, 255, 255, 0.7),
-    0 0 38px rgba(72, 119, 215, 0.10);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+    0 0 1px rgba(255, 255, 255, 0.54),
+    0 0 34px rgba(64, 112, 205, 0.075);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-synthesis: none;
   user-select: none;
-  animation: focus-immersive-clock-in 520ms cubic-bezier(.22,1,.36,1) both;
+  animation: focus-immersive-clock-in 470ms cubic-bezier(.22,1,.36,1) both;
 }
 
-.focus-immersive-minutes,
-.focus-immersive-seconds {
+.focus-immersive-number-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-immersive-digit-slot {
+  position: relative;
   display: inline-block;
-  min-width: 1.92ch;
-  text-align: center;
+  width: 0.62em;
+  height: 0.98em;
+  overflow: hidden;
+  vertical-align: middle;
+  contain: layout paint;
+}
+
+.focus-immersive-digit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform, opacity, filter;
+}
+
+.focus-immersive-digit--incoming {
+  animation: focus-immersive-digit-in 380ms cubic-bezier(.22,1,.36,1) both;
+}
+
+.focus-immersive-digit--outgoing {
+  animation: focus-immersive-digit-out 330ms cubic-bezier(.4,0,.2,1) both;
 }
 
 .focus-immersive-colon {
-  display: inline-block;
-  margin-inline: 0.015em 0.025em;
-  transform: translateY(-0.035em);
-  animation: focus-immersive-colon-breathe 2s ease-in-out infinite;
-}
-
-.focus-immersive-seconds {
-  animation: focus-immersive-second-tick 360ms cubic-bezier(.22,1,.36,1) both;
-  transform-origin: center 66%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.38em;
+  margin-inline: 0.01em;
+  transform: translateY(-0.025em);
+  opacity: 0.9;
+  animation: focus-immersive-colon-breathe 3.4s ease-in-out infinite;
 }
 
 .focus-immersive-layer.is-paused .focus-immersive-clock {
-  color: #f4cc73;
-  text-shadow: 0 0 34px rgba(244, 204, 115, 0.12);
+  color: #f3c96c;
+  text-shadow: 0 0 30px rgba(243, 201, 108, 0.11);
 }
 
 .focus-immersive-layer.is-paused .focus-immersive-colon,
@@ -124,64 +160,88 @@
   animation-play-state: paused;
 }
 
-
 @keyframes focus-immersive-layer-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
 
 @keyframes focus-immersive-clock-in {
-  0% { opacity: 0; transform: scale(0.94) translateY(10px); filter: blur(8px); }
-  62% { opacity: 1; }
-  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
-}
-
-@keyframes focus-immersive-second-tick {
   0% {
-    opacity: 0.42;
-    transform: translateY(0.055em) scale(0.985);
-    filter: blur(2px);
+    opacity: 0;
+    transform: scale(0.965) translateY(7px);
+    filter: blur(6px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1) translateY(0);
     filter: blur(0);
   }
 }
 
+@keyframes focus-immersive-digit-in {
+  0% {
+    opacity: 0.34;
+    transform: translate3d(0, 23%, 0) scale(0.985);
+    filter: blur(3px);
+  }
+  58% {
+    opacity: 1;
+    filter: blur(0.25px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes focus-immersive-digit-out {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -22%, 0) scale(0.985);
+    filter: blur(3px);
+  }
+}
+
 @keyframes focus-immersive-colon-breathe {
-  0%, 100% { opacity: 0.58; }
+  0%, 100% { opacity: 0.72; }
   50% { opacity: 1; }
 }
 
 @keyframes focus-immersive-breathe {
-  0%, 100% { opacity: 0.48; transform: translate(-50%, -50%) scale(0.94); }
-  50% { opacity: 0.92; transform: translate(-50%, -50%) scale(1.08); }
+  0%, 100% { opacity: 0.44; transform: translate(-50%, -50%) scale(0.96); }
+  50% { opacity: 0.82; transform: translate(-50%, -50%) scale(1.055); }
 }
 
 @keyframes focus-immersive-atmosphere-drift {
-  0% { transform: translate3d(-1.2%, -0.7%, 0) scale(0.99); opacity: 0.78; }
-  100% { transform: translate3d(1.1%, 0.8%, 0) scale(1.025); opacity: 1; }
+  0% { transform: translate3d(-0.9%, -0.55%, 0) scale(0.995); opacity: 0.8; }
+  100% { transform: translate3d(0.9%, 0.65%, 0) scale(1.018); opacity: 1; }
 }
 
 @media (max-width: 900px) {
   .focus-immersive-clock {
-    font-size: clamp(74px, 22vw, 190px);
+    font-size: clamp(72px, 21vw, 182px);
+    letter-spacing: -0.048em;
   }
 
   .focus-immersive-breath--outer {
-    width: min(105vw, 760px);
+    width: min(103vw, 740px);
   }
 
   .focus-immersive-breath--inner {
-    width: min(72vw, 520px);
+    width: min(70vw, 500px);
   }
 }
 
 @media (max-width: 480px) {
   .focus-immersive-clock {
-    font-size: clamp(68px, 24vw, 126px);
-    letter-spacing: -0.065em;
+    font-size: clamp(64px, 23vw, 122px);
+    letter-spacing: -0.042em;
   }
 }
 
@@ -191,7 +251,7 @@
   .focus-immersive-atmosphere::before,
   .focus-immersive-breath,
   .focus-immersive-colon,
-  .focus-immersive-seconds {
+  .focus-immersive-digit {
     animation: none !important;
   }
 }

@@ -12,13 +12,73 @@ export interface FocusImmersiveModeProps {
   onExit: () => void;
 }
 
+function RollingDigit({ value }: { value: string }) {
+  const [frame, setFrame] = useState<{
+    current: string;
+    previous: string | null;
+    serial: number;
+  }>(() => ({ current: value, previous: null, serial: 0 }));
+
+  useEffect(() => {
+    setFrame((currentFrame) => {
+      if (currentFrame.current === value) return currentFrame;
+      return {
+        current: value,
+        previous: currentFrame.current,
+        serial: currentFrame.serial + 1,
+      };
+    });
+  }, [value]);
+
+  useEffect(() => {
+    if (frame.previous === null) return;
+    const serial = frame.serial;
+    const timer = window.setTimeout(() => {
+      setFrame((currentFrame) =>
+        currentFrame.serial === serial
+          ? { ...currentFrame, previous: null }
+          : currentFrame,
+      );
+    }, 420);
+    return () => window.clearTimeout(timer);
+  }, [frame.previous, frame.serial]);
+
+  return (
+    <span className="focus-immersive-digit-slot" aria-hidden="true">
+      {frame.previous !== null && (
+        <span
+          key={`out-${frame.serial}`}
+          className="focus-immersive-digit focus-immersive-digit--outgoing"
+        >
+          {frame.previous}
+        </span>
+      )}
+      <span
+        key={`in-${frame.serial}`}
+        className={`focus-immersive-digit ${frame.previous !== null ? "focus-immersive-digit--incoming" : ""}`}
+      >
+        {frame.current}
+      </span>
+    </span>
+  );
+}
+
+function RollingNumberGroup({ value }: { value: string }) {
+  return (
+    <span className="focus-immersive-number-group" aria-hidden="true">
+      {Array.from(value).map((digit, index) => (
+        <RollingDigit key={index} value={digit} />
+      ))}
+    </span>
+  );
+}
+
 /**
  * Distraction-free fullscreen Focus surface.
  *
- * The fullscreen intentionally renders no controls, labels, rings, lecture names,
- * or secondary UI. It subscribes directly to FocusRuntimeController so the clock
- * keeps ticking even though ActiveFocusScreen deliberately suppresses per-second
- * parent re-renders.
+ * It deliberately contains only the live canonical timer. The clock subscribes
+ * directly to FocusRuntimeController, while each changed digit gets a short
+ * iOS-style numeric roll/fade without adding controls or distracting content.
  */
 export function FocusImmersiveMode({
   direction,
@@ -103,9 +163,9 @@ export function FocusImmersiveMode({
 
       <div className="focus-immersive-clock-wrap" aria-live="off">
         <time className="focus-immersive-clock" dir="ltr" aria-label={clockText}>
-          <span className="focus-immersive-minutes">{minutes}</span>
+          <RollingNumberGroup value={minutes} />
           <span className="focus-immersive-colon" aria-hidden="true">:</span>
-          <span key={remainingSeconds ?? "unknown"} className="focus-immersive-seconds">{seconds}</span>
+          <RollingNumberGroup value={seconds} />
         </time>
       </div>
     </section>,

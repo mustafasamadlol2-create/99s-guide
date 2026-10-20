@@ -23,7 +23,7 @@ test("immersive surface stays black and distraction free", () => {
 });
 
 test("immersive timer has dependency-free native motion", () => {
-  assert.match(css, /focus-immersive-second-tick/);
+  assert.match(css, /focus-immersive-digit-in/);
   assert.match(css, /focus-immersive-breathe/);
   assert.match(css, /prefers-reduced-motion/);
   assert.doesNotMatch(immersive, /framer-motion/);

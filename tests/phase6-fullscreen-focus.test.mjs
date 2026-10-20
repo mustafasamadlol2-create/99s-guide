@@ -37,7 +37,7 @@ test("Phase 6 fullscreen timer subscribes directly to canonical runtime ticks", 
 });
 
 test("Phase 6 fullscreen has subtle native motion while respecting reduced motion", () => {
-  assert.match(css, /focus-immersive-second-tick/);
+  assert.match(css, /focus-immersive-digit-in/);
   assert.match(css, /focus-immersive-breathe/);
   assert.match(css, /focus-immersive-clock-in/);
   assert.match(css, /@media \(max-width: 900px\)/);

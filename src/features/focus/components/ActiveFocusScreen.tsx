@@ -275,6 +275,11 @@ function ActiveFocusScreenCore({
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
+    // Fullscreen is always opt-in for every newly opened Focus session.
+    setImmersiveMode(false);
+  }, [sessionRouteId]);
+
+  useEffect(() => {
     setRuntime(controller.getState());
     const unsubscribe = controller.subscribe((next) => {
       setRuntime((previous) =>
