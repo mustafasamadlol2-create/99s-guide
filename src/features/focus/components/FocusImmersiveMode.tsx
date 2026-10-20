@@ -1,44 +1,41 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
+import type { FocusRuntimeController } from "../runtime/controller";
+import { formatFocusClock } from "../focusActiveModel";
 import "./focus-immersive.css";
 
 export interface FocusImmersiveModeProps {
   direction: "ltr" | "rtl";
-  clockText: string;
-  progress: number;
-  statusLabel: string;
-  timerLabel: string;
-  lectureTitle?: string | null;
-  roundText?: string | null;
+  controller: FocusRuntimeController;
   paused: boolean;
-  busy: boolean;
-  canMutate: boolean;
-  audioAvailable: boolean;
-  audioPlaying: boolean;
-  pauseLabel: string;
-  resumeLabel: string;
-  endLabel: string;
-  soundLabel: string;
-  exitLabel: string;
-  controlsHint: string;
-  onPauseResume: () => void;
-  onEnd: () => void;
-  onToggleAudio: () => void;
   onExit: () => void;
 }
 
 /**
- * Minimal true-focus fullscreen surface.
- * The user requested a pure black distraction-free timer only.
- * We therefore hide every secondary control and use tap / Escape only to return.
+ * Distraction-free fullscreen Focus surface.
+ *
+ * The fullscreen intentionally renders no controls, labels, rings, lecture names,
+ * or secondary UI. It subscribes directly to FocusRuntimeController so the clock
+ * keeps ticking even though ActiveFocusScreen deliberately suppresses per-second
+ * parent re-renders.
  */
 export function FocusImmersiveMode({
   direction,
-  clockText,
+  controller,
   paused,
   onExit,
 }: FocusImmersiveModeProps) {
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(
+    () => controller.getState().displayRemainingSeconds,
+  );
+
+  useEffect(() => controller.subscribe((state) => {
+    setRemainingSeconds((current) =>
+      current === state.displayRemainingSeconds ? current : state.displayRemainingSeconds,
+    );
+  }), [controller]);
+
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -80,6 +77,14 @@ export function FocusImmersiveMode({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onExit]);
 
+  const clockText = remainingSeconds === null
+    ? "--:--"
+    : formatFocusClock(remainingSeconds);
+  const [minutes, seconds] = useMemo(() => {
+    const [left = "--", right = "--"] = clockText.split(":");
+    return [left, right];
+  }, [clockText]);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -88,13 +93,19 @@ export function FocusImmersiveMode({
       className={`focus-immersive-layer ${paused ? "is-paused" : "is-active"}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Focus fullscreen timer"
+      aria-label={`Focus timer ${clockText}`}
       onPointerDown={onExit}
     >
-      <div className="focus-immersive-stage" aria-hidden="true" />
+      <div className="focus-immersive-atmosphere" aria-hidden="true">
+        <span className="focus-immersive-breath focus-immersive-breath--outer" />
+        <span className="focus-immersive-breath focus-immersive-breath--inner" />
+      </div>
+
       <div className="focus-immersive-clock-wrap" aria-live="off">
-        <time className="focus-immersive-clock" dir="ltr">
-          {clockText}
+        <time className="focus-immersive-clock" dir="ltr" aria-label={clockText}>
+          <span className="focus-immersive-minutes">{minutes}</span>
+          <span className="focus-immersive-colon" aria-hidden="true">:</span>
+          <span key={remainingSeconds ?? "unknown"} className="focus-immersive-seconds">{seconds}</span>
         </time>
       </div>
     </section>,

@@ -264,7 +264,7 @@ function ActiveFocusScreenCore({
   const [resourceError, setResourceError] = useState(false);
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
-  const [immersiveMode, setImmersiveMode] = useState(true);
+  const [immersiveMode, setImmersiveMode] = useState(false);
   const [dismissedInterruption, setDismissedInterruption] = useState<string | null>(null);
   const [interruptionPending, setInterruptionPending] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -740,18 +740,6 @@ function ActiveFocusScreenCore({
       () => controller.resume(),
       () => notifyAudioSafely(() => audio?.onFocusResumed()),
     );
-  };
-
-  const handleImmersiveAudioToggle = () => {
-    if (!audio || audio.audio.sourceType === "NONE") return;
-    if (audio.audio.state === "PLAYING") {
-      audio.pause();
-      return;
-    }
-    notifyAudioSafely(() =>
-      audio.audio.state === "PAUSED" || audio.audio.state === "INTERRUPTED"
-        ? audio.resume()
-        : audio.play());
   };
 
   const handlePauseBreak = () => {
@@ -1584,18 +1572,6 @@ function ActiveFocusScreenCore({
     !isResourceHandoff &&
     !isReconciliationRequired;
   const immersiveVisible = immersiveMode && immersiveAvailable;
-  const immersiveClockText = runtime.displayRemainingSeconds === null
-    ? "--:--"
-    : formatFocusClock(runtime.displayRemainingSeconds);
-  const immersiveDurationSeconds = currentPlanItem?.focusDurationSeconds ?? null;
-  const immersiveProgress = immersiveDurationSeconds && runtime.displayRemainingSeconds !== null
-    ? Math.max(0, Math.min(1, runtime.displayRemainingSeconds / immersiveDurationSeconds))
-    : 0;
-  const immersiveAudioAvailable = Boolean(
-    audio && audio.initialized && audio.audio.sourceType !== "NONE",
-  );
-  const immersiveAudioPlaying = audio?.audio.state === "PLAYING";
-  const immersiveRoundText = `${t.focusActiveRound} ${canonicalSession.sessionNumber}/${canonicalSession.plannedSessionCount}`;
 
   const openResource = (material: Material) => {
     if (materialKind(material) === "PDF") void openPdf(material);
@@ -1607,26 +1583,8 @@ function ActiveFocusScreenCore({
       {immersiveVisible && (
         <FocusImmersiveMode
           direction={language === "ar" ? "rtl" : "ltr"}
-          clockText={immersiveClockText}
-          progress={immersiveProgress}
-          statusLabel={runtimeStatusLabel}
-          timerLabel={t.focusActiveTimerLabel}
-          lectureTitle={lecture?.name ?? null}
-          roundText={immersiveRoundText}
+          controller={controller}
           paused={isPaused}
-          busy={isRuntimeBusy}
-          canMutate={mayChangeSession}
-          audioAvailable={immersiveAudioAvailable}
-          audioPlaying={immersiveAudioPlaying}
-          pauseLabel={t.focusActivePause}
-          resumeLabel={t.focusActiveResume}
-          endLabel={t.focusActiveEnd}
-          soundLabel={t.focusImmersiveSound}
-          exitLabel={t.focusImmersiveExit}
-          controlsHint={t.focusImmersiveControlsHint}
-          onPauseResume={isPaused ? handleResume : handlePause}
-          onEnd={() => setConfirmType("end")}
-          onToggleAudio={handleImmersiveAudioToggle}
           onExit={() => setImmersiveMode(false)}
         />
       )}
