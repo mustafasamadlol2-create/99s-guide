@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseLecture, Subject } from "../../core/types.js";
 import type { Language } from "../../core/i18n/translations.js";
+import type { GroupFocusStudyPlanItem } from "../../../shared/group-focus-study-plan/contract.js";
 import {
   createGroupFocusRoom,
   getGroupFocusRoom,
@@ -349,7 +350,7 @@ export function GroupFocusFrontend({
 
   const joinRoom = useCallback(async (input: {
     roomLinkOrInvite: string;
-    lectureId?: string;
+    studyPlan?: GroupFocusStudyPlanItem[];
   }): Promise<boolean> => {
     if (!accountId) return false;
     if (!workerUrl) {
@@ -377,7 +378,10 @@ export function GroupFocusFrontend({
     try {
       const result = await joinGroupFocusRoom(parsed.roomId, {
         ...(parsed.inviteToken ? { inviteToken: parsed.inviteToken } : {}),
-        ...(input.lectureId ? { lectureId: input.lectureId } : {}),
+        ...(input.studyPlan?.length ? {
+          studyPlan: input.studyPlan,
+          lectureId: input.studyPlan[0]?.lectureId,
+        } : {}),
       });
       setJoinPrefill(undefined);
       setInviteToken(null);
@@ -391,7 +395,7 @@ export function GroupFocusFrontend({
       ));
       return error instanceof GroupFocusApiError
         && error.code === "INVALID_MEMBER_LECTURE"
-        && !input.lectureId;
+        && !input.studyPlan?.length;
     } finally {
       formSubmissionLock.current = false;
       if (mountedRef.current) setFormSubmitting(false);
@@ -543,7 +547,7 @@ export function GroupFocusFrontend({
 
   const handleJoin = useCallback((input: {
     roomLinkOrInvite: string;
-    lectureId?: string;
+    studyPlan?: GroupFocusStudyPlanItem[];
   }) => joinRoom(input), [joinRoom]);
 
   const runHostCommand = useCallback((

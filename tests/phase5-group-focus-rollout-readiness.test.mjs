@@ -27,7 +27,7 @@ test("Group Focus stays fail-closed in the client when feature discovery is unav
 test("Group Focus UI requires frontend opt-in, backend approval, runtime readiness, and a Worker URL", async () => {
   const source = await read("src/App.tsx");
   assert.match(source, /const groupFocusAvailable\s*=\s*[\s\S]*GROUP_FOCUS_FRONTEND_ENABLED[\s\S]*&& GROUP_FOCUS_ENABLED[\s\S]*&& GROUP_FOCUS_RUNTIME_READY[\s\S]*&& GROUP_FOCUS_WORKER_URL\.length > 0/u);
-  assert.match(source, /\{groupFocusAvailable && \(/u);
+  assert.match(source, /headerAction=\{groupFocusAvailable \? \(/u);
   assert.match(source, /\{groupFocusAvailable[\s\S]*&& groupFocusRoute !== null/u);
   assert.match(source, /!groupFocusAvailable \|\| groupFocusRoute === null \? "block" : "none"/u);
   assert.match(source, /const groupRouteRequested =[\s\S]*parts\[1\] === "group"[\s\S]*studyFeatureFlagsStatus === "loading"/u);

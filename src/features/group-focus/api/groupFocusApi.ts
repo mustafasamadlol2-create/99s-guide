@@ -1,3 +1,9 @@
+import { apiClient } from "../../../core/api/apiClient.js";
+import {
+  GROUP_FOCUS_STUDY_RESOURCE_TYPES,
+  type GroupFocusStudyPlanItem,
+  type GroupFocusStudyResourceSelection,
+} from "../../../../shared/group-focus-study-plan/contract.js";
 import type {
   GroupFocusCapabilityMode,
   GroupFocusCapabilityRole,
@@ -27,6 +33,7 @@ export type GroupFocusRoomDto = {
   visibility: GroupFocusVisibility;
   mode: GroupFocusMode;
   sharedLectureId: string | null;
+  sharedStudyPlan: GroupFocusStudyPlanItem[];
   focusDurationSeconds: number;
   breakDurationSeconds: number;
   roundCount: number;
@@ -45,6 +52,7 @@ export type GroupFocusMembershipDto = {
   role: GroupFocusRole;
   status: GroupFocusMembershipStatus;
   selectedLectureId: string | null;
+  studyPlan: GroupFocusStudyPlanItem[];
   joinedAt: string;
   leftAt: string | null;
   createdAt: string;
@@ -69,6 +77,8 @@ export type CreateGroupFocusRoomInput = {
   mode: GroupFocusMode;
   sharedLectureId?: string;
   hostLectureId?: string;
+  sharedStudyPlan?: GroupFocusStudyPlanItem[];
+  hostStudyPlan?: GroupFocusStudyPlanItem[];
   focusDurationSeconds: number;
   breakDurationSeconds: number;
   roundCount: number;
@@ -104,6 +114,8 @@ export class GroupFocusApiError extends Error {
 }
 
 type Fetcher = typeof fetch;
+const defaultGroupFocusFetcher: Fetcher = (input, init) =>
+  apiClient(input, { ...(init ?? {}), bypassCache: true });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -177,6 +189,34 @@ function requireOneOf<T extends string>(
   return value as T;
 }
 
+function parseStudyResource(value: unknown): GroupFocusStudyResourceSelection {
+  const resource = requireRecord(value, "study resource");
+  return {
+    resourceType: requireOneOf(
+      resource.resourceType,
+      GROUP_FOCUS_STUDY_RESOURCE_TYPES,
+      "study resource type",
+    ),
+    resourceId: requireString(resource.resourceId, "study resource ID"),
+    sequence: requireInteger(resource.sequence, "study resource sequence"),
+  };
+}
+
+function parseStudyPlan(value: unknown, label: string): GroupFocusStudyPlanItem[] {
+  if (!Array.isArray(value)) throw new Error(`Invalid Group Focus ${label} response.`);
+  return value.map((raw) => {
+    const item = requireRecord(raw, `${label} item`);
+    if (!Array.isArray(item.resources)) {
+      throw new Error(`Invalid Group Focus ${label} resources response.`);
+    }
+    return {
+      lectureId: requireString(item.lectureId, `${label} Lecture ID`),
+      sequence: requireInteger(item.sequence, `${label} sequence`),
+      resources: item.resources.map(parseStudyResource),
+    };
+  });
+}
+
 function parseRoom(value: unknown): GroupFocusRoomDto {
   const room = requireRecord(value, "Room");
   if ("inviteTokenHash" in room || "createIdempotencyKey" in room || "inviteToken" in room) {
@@ -189,6 +229,7 @@ function parseRoom(value: unknown): GroupFocusRoomDto {
     visibility: requireOneOf(room.visibility, ["PUBLIC", "PRIVATE"], "visibility"),
     mode: requireOneOf(room.mode, ["SHARED_LECTURE", "STUDY_TOGETHER"], "mode"),
     sharedLectureId,
+    sharedStudyPlan: parseStudyPlan(room.sharedStudyPlan ?? [], "shared study plan"),
     focusDurationSeconds: requireInteger(room.focusDurationSeconds, "focus duration"),
     breakDurationSeconds: requireInteger(room.breakDurationSeconds, "break duration"),
     roundCount: requireInteger(room.roundCount, "round count"),
@@ -216,6 +257,7 @@ function parseMembership(value: unknown): GroupFocusMembershipDto {
       membership.selectedLectureId,
       "selected Lecture",
     ),
+    studyPlan: parseStudyPlan(membership.studyPlan ?? [], "member study plan"),
     joinedAt: requireIsoDate(membership.joinedAt, "membership joinedAt"),
     leftAt: membership.leftAt === null ? null : requireIsoDate(membership.leftAt, "membership leftAt"),
     createdAt: requireIsoDate(membership.createdAt, "membership createdAt"),
@@ -362,7 +404,7 @@ function queryString(values: Record<string, string | number | undefined>): strin
 
 export async function createGroupFocusRoom(
   input: CreateGroupFocusRoomInput,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{
   room: GroupFocusRoomDto;
   membership: GroupFocusMembershipDto;
@@ -385,7 +427,7 @@ export async function createGroupFocusRoom(
 
 export async function listPublicGroupFocusRooms(
   query: GroupFocusRoomQuery = {},
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ rooms: GroupFocusRoomDto[]; nextCursor: string | null }> {
   const path = `/api/group-focus/rooms/public${queryString(query)}`;
   return requestJson(path, { method: "GET" }, fetcher, (value) => {
@@ -400,7 +442,7 @@ export async function listPublicGroupFocusRooms(
 
 export async function listMyGroupFocusRooms(
   query: MyGroupFocusRoomsQuery = {},
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ rooms: GroupFocusMyRoomDto[] }> {
   const path = `/api/group-focus/rooms/mine${queryString(query)}`;
   return requestJson(path, { method: "GET" }, fetcher, (value) => {
@@ -424,7 +466,7 @@ export async function listMyGroupFocusRooms(
 
 export async function getGroupFocusRoom(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<GroupFocusRoomDetail> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}`,
@@ -436,7 +478,7 @@ export async function getGroupFocusRoom(
 
 export async function listGroupFocusMembers(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ members: GroupFocusMembershipDto[] }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/members`,
@@ -452,7 +494,7 @@ export async function listGroupFocusMembers(
 
 export async function rotateGroupFocusInvite(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ inviteToken: string; inviteVersion: number }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/invite/rotate`,
@@ -470,8 +512,8 @@ export async function rotateGroupFocusInvite(
 
 export async function joinGroupFocusRoom(
   roomId: string,
-  input: { inviteToken?: string; lectureId?: string } = {},
-  fetcher: Fetcher = fetch,
+  input: { inviteToken?: string; lectureId?: string; studyPlan?: GroupFocusStudyPlanItem[] } = {},
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ room: GroupFocusRoomDto; membership: GroupFocusMembershipDto }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/join`,
@@ -489,7 +531,7 @@ export async function joinGroupFocusRoom(
 
 export async function leaveGroupFocusRoom(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ membership: GroupFocusMembershipDto }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/leave`,
@@ -505,7 +547,7 @@ export async function leaveGroupFocusRoom(
 export async function removeGroupFocusMember(
   roomId: string,
   userId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ membership: GroupFocusMembershipDto }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/remove`,
@@ -521,7 +563,7 @@ export async function removeGroupFocusMember(
 export async function updateMyGroupFocusLecture(
   roomId: string,
   lectureId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ membership: GroupFocusMembershipDto; effectiveLectureId: string }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/me/lecture`,
@@ -537,9 +579,28 @@ export async function updateMyGroupFocusLecture(
   );
 }
 
+export async function updateMyGroupFocusStudyPlan(
+  roomId: string,
+  studyPlan: GroupFocusStudyPlanItem[],
+  fetcher: Fetcher = defaultGroupFocusFetcher,
+): Promise<{ membership: GroupFocusMembershipDto; effectiveLectureId: string }> {
+  return requestJson(
+    `/api/group-focus/rooms/${encodeURIComponent(roomId)}/me/study-plan`,
+    { method: "PUT", body: JSON.stringify({ studyPlan }) },
+    fetcher,
+    (value) => {
+      const result = requireRecord(value, "study plan update");
+      return {
+        membership: parseMembership(result.membership),
+        effectiveLectureId: requireString(result.effectiveLectureId, "effective Lecture"),
+      };
+    },
+  );
+}
+
 export async function closeGroupFocusRoom(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<{ room: GroupFocusRoomDto; membershipsClosed: number }> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/close`,
@@ -557,7 +618,7 @@ export async function closeGroupFocusRoom(
 
 export async function requestGroupFocusCapability(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<GroupFocusCapabilityResponse> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/capability`,
@@ -569,7 +630,7 @@ export async function requestGroupFocusCapability(
 
 export async function getMyGroupFocusRuntimeSummary(
   roomId: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = defaultGroupFocusFetcher,
 ): Promise<GroupFocusMyRuntimeSummary> {
   return requestJson(
     `/api/group-focus/rooms/${encodeURIComponent(roomId)}/summary`,

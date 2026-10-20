@@ -747,6 +747,7 @@ model GroupFocusRoom {
   visibility           String
   mode                 String
   sharedLectureId      String?
+  sharedStudyPlan       Json?
   focusDurationSeconds Int
   breakDurationSeconds Int
   roundCount           Int
@@ -777,6 +778,7 @@ model GroupFocusMembership {
   role              String
   status            String    @default("ACTIVE")
   selectedLectureId String?
+  studyPlan         Json?
   joinedAt          DateTime  @default(now())
   leftAt            DateTime?
   createdAt         DateTime  @default(now())

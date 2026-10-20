@@ -28,11 +28,11 @@ export const groupFocusCopy = {
     public: "Open to everyone",
     private: "Invite only",
     mode: "Study format",
-    sharedLecture: "Study one shared lecture",
+    sharedLecture: "Study the same plan together",
     studyTogether: "Study independently together",
-    sharedLectureDescription: "Everyone works from the same lecture.",
+    sharedLectureDescription: "Everyone follows the same lectures and study resources.",
     studyTogetherDescription: "Bring your own material; keep the same rhythm.",
-    lecture: "Shared lecture",
+    lecture: "Shared study plan",
     optionalLecture: "Your lecture (optional)",
     chooseLecture: "Choose a lecture",
     lecturesLoadError: "The lecture catalog could not be loaded.",
@@ -135,7 +135,7 @@ export const groupFocusCopy = {
     roomStatus: "Room status",
     open: "Open",
     privateRoom: "Invite only",
-    sharedLectureMode: "Shared lecture",
+    sharedLectureMode: "Shared study plan",
     minuteCount: "min",
     accessibleTimer: "Remaining session time",
   },
@@ -164,11 +164,11 @@ export const groupFocusCopy = {
     public: "مفتوحة للجميع",
     private: "بالدعوة فقط",
     mode: "طريقة الدراسة",
-    sharedLecture: "دراسة محاضرة مشتركة",
+    sharedLecture: "دراسة نفس الخطة معًا",
     studyTogether: "دراسة مستقلة معًا",
-    sharedLectureDescription: "يدرس الجميع من المحاضرة نفسها.",
+    sharedLectureDescription: "يدرس الجميع نفس المحاضرات ومصادر الدراسة بالترتيب نفسه.",
     studyTogetherDescription: "اختر موادك وشارك الآخرين إيقاع الدراسة.",
-    lecture: "المحاضرة المشتركة",
+    lecture: "خطة الدراسة المشتركة",
     optionalLecture: "محاضرتك (اختياري)",
     chooseLecture: "اختر محاضرة",
     lecturesLoadError: "تعذر تحميل قائمة المحاضرات.",
@@ -271,7 +271,7 @@ export const groupFocusCopy = {
     roomStatus: "حالة الغرفة",
     open: "مفتوحة",
     privateRoom: "بالدعوة فقط",
-    sharedLectureMode: "محاضرة مشتركة",
+    sharedLectureMode: "خطة دراسة مشتركة",
     minuteCount: "د",
     accessibleTimer: "الوقت المتبقي في الجلسة",
   },
@@ -303,7 +303,7 @@ export function GroupFocusShell({
       dir={isRtl ? "rtl" : "ltr"}
       lang={language}
       data-group-focus-shell="true"
-      className={`min-h-[100dvh] bg-[#f3f5f1] text-[#22312f] ${className}`}
+      className={`min-h-0 w-full bg-transparent text-slate-900 dark:text-slate-100 ${className}`}
     >
       <style>{`
         @media (prefers-reduced-motion: reduce) {
@@ -337,18 +337,18 @@ export function GroupFocusPageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header dir={language === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-5 border-b border-[#dce3dd] pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <header dir={language === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-4 border-b border-sky-100/80 pb-5 sm:flex-row sm:items-end sm:justify-between dark:border-white/10">
       <div className="max-w-2xl">
         {eyebrow && (
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#63827b]">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
             {eyebrow}
           </p>
         )}
-        <h1 className="font-display text-3xl font-semibold tracking-[-0.04em] text-[#203330] sm:text-[2.65rem]">
+        <h1 className="font-display text-2xl font-bold tracking-[-0.035em] text-slate-950 dark:text-white sm:text-[2rem]">
           {title}
         </h1>
         {description && (
-          <p className="mt-3 max-w-xl text-sm leading-6 text-[#657672] sm:text-base">
+          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400 sm:text-base">
             {description}
           </p>
         )}
@@ -374,17 +374,17 @@ export function GroupFocusButton({
   className?: string;
 }) {
   const variants = {
-    primary: "bg-[#285c52] text-white hover:bg-[#214d45]",
-    secondary: "border border-[#cbd8d1] bg-[#f8faf7] text-[#29463f] hover:bg-[#eaf1ec]",
-    quiet: "text-[#45645d] hover:bg-[#e6ede8]",
-    danger: "bg-[#a5453c] text-white hover:bg-[#923b34]",
+    primary: "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-[0_8px_22px_rgba(59,130,246,0.20)] hover:brightness-[1.04]",
+    secondary: "border border-sky-100/90 bg-white/80 text-slate-700 shadow-sm hover:bg-sky-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-100 dark:hover:bg-white/10",
+    quiet: "text-slate-600 hover:bg-sky-50 dark:text-slate-300 dark:hover:bg-white/10",
+    danger: "bg-rose-600 text-white hover:bg-rose-700",
   };
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39796b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f3f5f1] disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-[0.98] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -422,7 +422,7 @@ export function GroupFocusSkeleton({ rows = 2, label }: { rows?: number; label: 
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="h-28 animate-pulse motion-reduce:animate-none rounded-2xl border border-[#e2e8e2] bg-[#e9eee9]"
+          className="h-28 animate-pulse motion-reduce:animate-none rounded-2xl border border-sky-100/80 bg-sky-50/70 dark:border-white/10 dark:bg-white/[0.05]"
         />
       ))}
     </div>
@@ -440,8 +440,8 @@ export function GroupFocusPanel({
   className?: string;
 } & Omit<ComponentPropsWithoutRef<"section">, "title" | "children" | "className">) {
   return (
-    <section {...sectionProps} className={`rounded-[1.4rem] border border-[#dfe7e0] bg-[#fbfcf9] p-5 shadow-[0_12px_35px_rgba(35,65,55,0.045)] sm:p-6 ${className}`}>
-      {title && <h2 className="mb-4 text-sm font-semibold text-[#38534c]">{title}</h2>}
+    <section {...sectionProps} className={`rounded-[24px] border border-sky-100/90 bg-white/78 p-5 shadow-[0_14px_40px_rgba(52,105,160,0.07)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.045] sm:p-6 ${className}`}>
+      {title && <h2 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h2>}
       {children}
     </section>
   );

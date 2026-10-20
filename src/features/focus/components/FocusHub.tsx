@@ -98,6 +98,7 @@ interface FocusHubProps {
   summaryRouteId: string | null;
   historyOpen: boolean;
   historyDetailId: string | null;
+  headerAction?: ReactNode;
   onRefreshLectures: () => Promise<void>;
   onBackToHome: () => void;
   onReturnToPlanner: () => void;
@@ -155,6 +156,7 @@ export function FocusHub({
   summaryRouteId,
   historyOpen,
   historyDetailId,
+  headerAction,
   onRefreshLectures,
   onReturnToPlanner,
   onOpenSession,
@@ -1018,7 +1020,7 @@ export function FocusHub({
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="focus-hub-page focus-hub-current-root mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
+      className="focus-hub-page focus-hub-current-root relative mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-2 sm:px-6 lg:px-8"
     >
       {loadState === "loading" && (
         <p role="status" aria-live="polite" className="sr-only">
@@ -1094,6 +1096,7 @@ export function FocusHub({
               </h1>
             </div>
           </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
           {currentSession && (
             <section
               aria-labelledby="focus-current-session-title"
@@ -1132,6 +1135,12 @@ export function FocusHub({
               </button>
             </section>
           )}
+          {headerAction && (
+            <div className="focus-hub-mode-switcher-slot shrink-0 md:absolute md:right-6 md:top-5 md:z-20 lg:right-8">
+              {headerAction}
+            </div>
+          )}
+          </div>
         </header>
 
         <div

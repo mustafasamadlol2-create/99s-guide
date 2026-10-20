@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, BookOpen, Clock3, Copy, LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Share2, UserMinus, UsersRound } from "lucide-react";
+import { AlertCircle, ArrowLeft, BookOpen, Clock3, Copy, FileText, Layers3, LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Share2, UserMinus, UsersRound, Video } from "lucide-react";
 import type { GroupFocusMembershipDto, GroupFocusRoomDto } from "../api/groupFocusApi";
 import type { GroupFocusRealtimeSnapshot } from "../runtime/groupFocusRealtime";
 import type { DatabaseLecture, Subject } from "../../../core/types";
+import type { GroupFocusStudyResourceSelection } from "../../../../shared/group-focus-study-plan/contract";
 import { FOCUS_AUDIO_ENABLED } from "../../../config/featureFlags";
 import { FocusLecturePicker } from "../../focus/components/FocusLecturePicker";
 import { FocusAudioPlanningCard } from "../../focus/components/FocusAudioPlanningCard";
@@ -17,8 +18,6 @@ import {
   useGroupFocusCopy,
   type GroupFocusLanguage,
 } from "./groupFocusUi";
-
-const EMPTY_QUEUED_LECTURES: FocusPlanDraftItem[] = [];
 
 export interface GroupFocusRoomProps {
   language: GroupFocusLanguage;
@@ -97,14 +96,14 @@ function RoomCountdownTimer({
     ? sample
     : { value: remainingMilliseconds, sampledAt: Date.now() };
   if (currentSample.value === null) {
-    return <p className="mt-8 text-lg font-medium text-[#60766d]">{unavailableLabel}</p>;
+    return <p className="mt-8 text-lg font-medium text-[#64748b]">{unavailableLabel}</p>;
   }
 
   const elapsedMilliseconds = Math.max(0, now - currentSample.sampledAt);
   const displayedMilliseconds = Math.max(0, currentSample.value - elapsedMilliseconds);
   return (
     <div
-      className="mt-5 font-mono text-[clamp(4rem,13vw,8.5rem)] font-medium leading-none tracking-[-0.075em] text-[#284a41] tabular-nums"
+      className="mt-5 font-mono text-[clamp(4rem,13vw,8.5rem)] font-medium leading-none tracking-[-0.075em] text-[#0f2744] tabular-nums"
       dir="ltr"
       role="timer"
       aria-label={accessibleLabel}
@@ -133,6 +132,28 @@ function connectionTitle(status: GroupFocusRealtimeSnapshot["status"], t: Return
   if (status === "RECONNECTING") return t("reconnecting");
   if (status === "TERMINAL") return t("terminal");
   return t("disconnected");
+}
+
+function studyResourceLabel(
+  lecture: DatabaseLecture | undefined,
+  resource: GroupFocusStudyResourceSelection,
+  language: GroupFocusLanguage,
+): string {
+  if (resource.resourceType === "MCQ_SET") return language === "ar" ? "أسئلة MCQ" : "MCQs";
+  if (resource.resourceType === "FLASHCARD_SET") return language === "ar" ? "البطاقات" : "Flashcards";
+  const material = lecture?.materials?.find((candidate) => candidate.id === resource.resourceId);
+  if (material?.title) return material.title;
+  if (resource.resourceType === "VIDEO") return language === "ar" ? "فيديو" : "Video";
+  if (resource.resourceType === "NOTE") return language === "ar" ? "الملاحظات" : "Notes";
+  return language === "ar" ? "ملف PDF" : "PDF";
+}
+
+function StudyResourceIcon({ type }: { type: GroupFocusStudyResourceSelection["resourceType"] }) {
+  if (type === "VIDEO") return <Video className="h-3.5 w-3.5" aria-hidden="true" />;
+  if (type === "MCQ_SET" || type === "FLASHCARD_SET") {
+    return <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />;
+  }
+  return <FileText className="h-3.5 w-3.5" aria-hidden="true" />;
 }
 
 export function GroupFocusRoom({
@@ -221,11 +242,24 @@ export function GroupFocusRoom({
     && membership?.status === "ACTIVE"
     && !terminal;
   const selectedLecture = lectures.find((lecture) => lecture.id === selectedLectureId);
+  const visibleStudyPlan = room.mode === "SHARED_LECTURE"
+    ? room.sharedStudyPlan
+    : membership?.studyPlan ?? [];
+  const studyPlanLectureIds = new Set(visibleStudyPlan.map((item) => item.lectureId));
+  const selectableLectures = lectures.filter((lecture) => studyPlanLectureIds.has(lecture.id));
+  const queuedStudyPlanItems: FocusPlanDraftItem[] = visibleStudyPlan.map((item) => ({
+    lectureId: item.lectureId,
+    sessionCount: 1,
+    includeMcq: item.resources.some((resource) => resource.resourceType === "MCQ_SET"),
+    includeFlashcards: item.resources.some((resource) => resource.resourceType === "FLASHCARD_SET"),
+    includeVideo: item.resources.some((resource) => resource.resourceType === "VIDEO"),
+    resources: item.resources,
+  }));
 
   return (
     <GroupFocusShell language={language}>
-      <div className="mx-auto max-w-6xl px-4 pb-14 pt-6 sm:px-8 sm:pt-9 lg:px-12">
-        <button type="button" onClick={onBack} className="mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#54736a] hover:bg-[#e7eee8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39796b]">
+      <div className="mx-auto w-full max-w-[1440px] px-4 pb-14 pt-4 sm:px-7 sm:pt-5 lg:px-10">
+        <button type="button" onClick={onBack} className="mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#475569] hover:bg-[#f0f9ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9]">
           <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{t("backToRooms")}
         </button>
         <GroupFocusPageHeader
@@ -235,8 +269,8 @@ export function GroupFocusRoom({
           description={roomMode}
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-xs font-semibold ${connectionReady ? "bg-[#e4f1e8] text-[#3c7059]" : "bg-[#f4eee3] text-[#826a42]"}`}>
-                <span className={`h-2 w-2 rounded-full ${connectionReady ? "bg-[#5d9874]" : "bg-[#bb9855]"}`} aria-hidden="true" />
+              <span className={`inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-xs font-semibold ${connectionReady ? "bg-[#e0f2fe] text-[#0369a1]" : "bg-[#f4eee3] text-[#826a42]"}`}>
+                <span className={`h-2 w-2 rounded-full ${connectionReady ? "bg-[#0ea5e9]" : "bg-[#bb9855]"}`} aria-hidden="true" />
                 {connectionTitle(snapshot.status, t)}
               </span>
               {!connectionReady && !terminal && (
@@ -251,10 +285,10 @@ export function GroupFocusRoom({
         {roomError && <div className="mt-5"><GroupFocusError message={roomError} /></div>}
         <div className="mt-6 grid gap-5 sm:grid-cols-[minmax(0,1.6fr)_minmax(270px,0.8fr)]">
           <div className="space-y-5">
-            <section className="relative overflow-hidden rounded-[1.8rem] border border-[#d7e3dc] bg-[#e9f0e9] px-5 py-8 text-center sm:px-10 sm:py-12">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_at_top,rgba(116,161,139,0.17),transparent_72%)]" aria-hidden="true" />
+            <section className="relative overflow-hidden rounded-[1.8rem] border border-[#dbeafe] bg-[#eef6ff] px-5 py-8 text-center sm:px-10 sm:py-12">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_at_top,rgba(96,165,250,0.20),transparent_72%)]" aria-hidden="true" />
               <div className="relative mx-auto max-w-lg">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#d0dfd5] bg-[#f8faf6]/80 px-3 py-1.5 text-xs font-semibold text-[#55736a]">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#dbeafe] bg-[#ffffff]/80 px-3 py-1.5 text-xs font-semibold text-[#475569]">
                   {active ? <Clock3 className="h-3.5 w-3.5" aria-hidden="true" /> : <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />}
                   {active ? phaseLabel : terminal ? t("terminal") : visibleStage === "lobby" ? t("lobby") : phaseLabel}
                 </div>
@@ -265,7 +299,7 @@ export function GroupFocusRoom({
                       unavailableLabel={t("timeUnavailable")}
                       accessibleLabel={t("accessibleTimer")}
                     />
-                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#6e8178]">
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#64748b]">
                       <span>{progressCaption}</span>
                       <span aria-hidden="true">·</span>
                       <span>{(roomState?.focusDurationSeconds ?? room.focusDurationSeconds) / 60} {t("minutesShort")}</span>
@@ -273,10 +307,10 @@ export function GroupFocusRoom({
                   </>
                 ) : (
                   <>
-                    <h2 className="mt-5 text-2xl font-semibold tracking-[-0.035em] text-[#2c4c42] sm:text-3xl">
+                    <h2 className="mt-5 text-2xl font-semibold tracking-[-0.035em] text-[#0f172a] sm:text-3xl">
                       {terminal ? t("terminal") : visibleStage === "lobby" && confirmedLobby ? t("waitingForHost") : t("waitingForState")}
                     </h2>
-                    <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#6e8178]">
+                    <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#64748b]">
                       {terminal ? t("summarySubtitle") : snapshot.roomState ? phaseLabel : t("waitingForState")}
                     </p>
                     {!snapshot.roomState && connectionReady && !terminal && (
@@ -306,29 +340,46 @@ export function GroupFocusRoom({
                 <PlanMetric label={t("rounds")} value={`${room.roundCount}`} />
                 <PlanMetric label={t("peopleHere")} value={`${room.participantCount}/${room.maxParticipants}`} />
               </div>
-              {room.mode === "SHARED_LECTURE" && (
-                <div className="mt-4 flex items-center gap-3 rounded-xl bg-[#f1f5f0] p-3">
-                  <BookOpen className="h-4 w-4 shrink-0 text-[#67887b]" aria-hidden="true" />
+              <div className="mt-4 space-y-2">
+                {visibleStudyPlan.map((item, index) => {
+                  const lecture = lectures.find((candidate) => candidate.id === item.lectureId);
+                  const activeLecture = item.lectureId === selectedLectureId;
+                  return (
+                    <div key={item.lectureId} className={`rounded-2xl border px-3 py-3 ${activeLecture ? "border-sky-300 bg-sky-50/90 dark:border-sky-300/30 dark:bg-sky-300/10" : "border-slate-200/80 bg-slate-50/70 dark:border-white/10 dark:bg-white/[0.035]"}`}>
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-bold text-blue-600 shadow-sm dark:bg-white/[0.07] dark:text-sky-200">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100" dir="auto">{lecture?.name || t("selectedLectureUnavailable")}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{item.resources.length} {language === "ar" ? "مصادر دراسة" : "study resources"}</p>
+                        </div>
+                        {activeLecture && <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-semibold text-white">{language === "ar" ? "الحالية" : "Current"}</span>}
+                      </div>
+                      {item.resources.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5 ps-12">
+                          {item.resources.map((resource) => (
+                            <span
+                              key={`${resource.resourceType}:${resource.resourceId}`}
+                              className="inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-lg border border-sky-100 bg-white/80 px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300"
+                            >
+                              <StudyResourceIcon type={resource.resourceType} />
+                              <span className="max-w-[220px] truncate" dir="auto">{studyResourceLabel(lecture, resource, language)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {canChooseLecture && visibleStudyPlan.length > 1 && (
+                <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-300/15 dark:bg-sky-300/[0.06] sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-[#73847c]">{t("lecture")}</p>
-                    <p className="truncate text-sm font-semibold text-[#38534b]" dir="auto">{lectureName || t("selectedLectureUnavailable")}</p>
-                  </div>
-                </div>
-              )}
-              {canChooseLecture && (
-                <div className="mt-4 flex flex-col gap-3 rounded-xl bg-[#f1f5f0] p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-[#73847c]">{t("yourStudyLecture")}</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-[#38534b]" dir="auto">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("yourStudyLecture")}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100" dir="auto">
                       {selectedLecture?.name || (selectedLectureId ? t("selectedLectureUnavailable") : t("noneSelected"))}
                     </p>
                   </div>
-                  <GroupFocusButton
-                    variant="secondary"
-                    onClick={() => setLecturePickerOpen(true)}
-                    disabled={lectureChangePending || lectureCatalogStatus === "loading"}
-                    className="shrink-0"
-                  >
+                  <GroupFocusButton variant="secondary" onClick={() => setLecturePickerOpen(true)} disabled={lectureChangePending || lectureCatalogStatus === "loading"} className="shrink-0">
                     <BookOpen className="h-4 w-4" aria-hidden="true" />
                     {lectureChangePending ? t("savingLecture") : t("changeLecture")}
                   </GroupFocusButton>
@@ -341,20 +392,20 @@ export function GroupFocusRoom({
             <GroupFocusPanel>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#779087]">{t("roomStatus")}</p>
-                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[#2b4840]">{room.status === "OPEN" ? (terminal ? t("terminal") : visibleStage === "lobby" ? t("waiting") : phaseLabel) : t("closed")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">{t("roomStatus")}</p>
+                  <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[#0f172a]">{room.status === "OPEN" ? (terminal ? t("terminal") : visibleStage === "lobby" ? t("waiting") : phaseLabel) : t("closed")}</p>
                 </div>
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#edf3ed] text-[#658779]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eff6ff] text-[#0284c7]">
                   {room.visibility === "PRIVATE" ? <LockKeyhole className="h-5 w-5" aria-hidden="true" /> : <UsersRound className="h-5 w-5" aria-hidden="true" />}
                 </span>
               </div>
-              <div className="mt-5 border-t border-[#e7ece7] pt-4">
+              <div className="mt-5 border-t border-[#e2e8f0] pt-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#798982]">{t("peopleHere")}</span>
-                  <span className="font-semibold tabular-nums text-[#405951]" dir="ltr">{room.participantCount} / {room.maxParticipants}</span>
+                  <span className="text-[#64748b]">{t("peopleHere")}</span>
+                  <span className="font-semibold tabular-nums text-[#334155]" dir="ltr">{room.participantCount} / {room.maxParticipants}</span>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e6ece6]" role="meter" aria-label={t("peopleHere")} aria-valuemin={0} aria-valuemax={room.maxParticipants} aria-valuenow={Math.min(room.participantCount, room.maxParticipants)}>
-                  <div className="h-full rounded-full bg-[#77a18e]" style={{ width: `${Math.min(100, (room.participantCount / room.maxParticipants) * 100)}%` }} />
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e2e8f0]" role="meter" aria-label={t("peopleHere")} aria-valuemin={0} aria-valuemax={room.maxParticipants} aria-valuenow={Math.min(room.participantCount, room.maxParticipants)}>
+                  <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${Math.min(100, (room.participantCount / room.maxParticipants) * 100)}%` }} />
                 </div>
                 {membership && (
                   <p className="mt-3 text-xs text-[#7c8a83]">
@@ -366,8 +417,8 @@ export function GroupFocusRoom({
 
             <GroupFocusPanel title={t("liveParticipants")}>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-xs leading-5 text-[#788981]">{t("presenceHelp")}</p>
-                <span className="rounded-full bg-[#edf3ee] px-2.5 py-1 text-xs font-semibold tabular-nums text-[#55746b]" dir="ltr">
+                <p className="text-xs leading-5 text-[#64748b]">{t("presenceHelp")}</p>
+                <span className="rounded-full bg-[#eff6ff] px-2.5 py-1 text-xs font-semibold tabular-nums text-[#475569]" dir="ltr">
                   {snapshot.presence.length}/{room.maxParticipants}
                 </span>
               </div>
@@ -375,7 +426,7 @@ export function GroupFocusRoom({
                 {t("liveParticipants")}: {snapshot.presence.length}
               </p>
               {snapshot.presence.length === 0 ? (
-                <p className="rounded-xl bg-[#f5f8f4] p-3 text-sm leading-6 text-[#718078]">
+                <p className="rounded-xl bg-[#f8fafc] p-3 text-sm leading-6 text-[#64748b]">
                   {t("presenceEmpty")}
                 </p>
               ) : (
@@ -390,25 +441,25 @@ export function GroupFocusRoom({
                     return (
                       <li
                         key={participant.userId}
-                        className="flex min-w-0 items-center gap-3 rounded-xl bg-[#f5f8f4] p-3"
+                        className="flex min-w-0 items-center gap-3 rounded-xl bg-[#f8fafc] p-3"
                       >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e4eee6] text-[#5d8172]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e0f2fe] text-[#0284c7]">
                           <UsersRound className="h-4 w-4" aria-hidden="true" />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-[#38534b]" dir="auto">
+                          <p className="truncate text-sm font-semibold text-[#334155]" dir="auto">
                             {isSelf ? `${t("you")} · ${roleLabel}` : roleLabel}
                           </p>
                           {participantLecture && (
-                            <p className="mt-0.5 truncate text-xs text-[#75847c]" dir="auto">
+                            <p className="mt-0.5 truncate text-xs text-[#64748b]" dir="auto">
                               {participantLecture.name}
                             </p>
                           )}
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 text-xs ${isReconnecting ? "text-[#8a7145]" : "text-[#638271]"}`}>
+                          <span className={`inline-flex items-center gap-1.5 text-xs ${isReconnecting ? "text-[#8a7145]" : "text-[#0284c7]"}`}>
                             <span
-                              className={`h-1.5 w-1.5 rounded-full ${isReconnecting ? "bg-[#c3a365]" : "bg-[#76a28a]"}`}
+                              className={`h-1.5 w-1.5 rounded-full ${isReconnecting ? "bg-[#c3a365]" : "bg-[#3b82f6]"}`}
                               aria-hidden="true"
                             />
                             {isReconnecting ? t("reconnecting") : t("connected")}
@@ -446,7 +497,7 @@ export function GroupFocusRoom({
                       {actionPending === "start" ? t("starting") : t("start")}
                     </GroupFocusButton>
                   )}
-                  {visibleStage === "lobby" && confirmedLobby && !host && <p className="rounded-xl bg-[#f2f6f1] p-3 text-sm leading-6 text-[#718078]">{t("waitingForHost")}</p>}
+                  {visibleStage === "lobby" && confirmedLobby && !host && <p className="rounded-xl bg-[#f8fafc] p-3 text-sm leading-6 text-[#64748b]">{t("waitingForHost")}</p>}
                   {active && host && phase !== "PAUSED" && (
                     <GroupFocusButton variant="secondary" onClick={onPause} disabled={!connectionReady || actionPending !== null} className="w-full">
                       {actionPending === "pause" ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
@@ -481,7 +532,7 @@ export function GroupFocusRoom({
             )}
             {room.visibility === "PRIVATE" && inviteManagementAllowed && room.status === "OPEN" && !terminal && (
               <GroupFocusPanel title={t("inviteLink")}>
-                <p className="text-sm leading-6 text-[#718078]">{t("inviteHelp")}</p>
+                <p className="text-sm leading-6 text-[#64748b]">{t("inviteHelp")}</p>
                 {safeInviteLinkOrCode && (
                   <>
                     <label className="mt-4 block">
@@ -490,7 +541,7 @@ export function GroupFocusRoom({
                         readOnly
                         value={safeInviteLinkOrCode}
                         dir="ltr"
-                        className="min-h-12 w-full rounded-xl border border-[#d3dfd8] bg-[#f5f8f4] px-3 text-sm text-[#38534b] outline-none focus-visible:ring-2 focus-visible:ring-[#39796b]"
+                        className="min-h-12 w-full rounded-xl border border-[#cbd5e1] bg-[#f8fafc] px-3 text-sm text-[#334155] outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9]"
                       />
                     </label>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -516,7 +567,7 @@ export function GroupFocusRoom({
                   </>
                 )}
                 {inviteFeedback && (
-                  <p className={`mt-3 text-sm ${inviteFeedback.kind === "error" ? "text-[#8c5546]" : "text-[#47745d]"}`} role={inviteFeedback.kind === "error" ? "alert" : "status"}>
+                  <p className={`mt-3 text-sm ${inviteFeedback.kind === "error" ? "text-[#8c5546]" : "text-[#0284c7]"}`} role={inviteFeedback.kind === "error" ? "alert" : "status"}>
                     {inviteFeedback.message}
                   </p>
                 )}
@@ -542,9 +593,9 @@ export function GroupFocusRoom({
       </div>
       <FocusLecturePicker
         isOpen={lecturePickerOpen && canChooseLecture}
-        lectures={lectures}
+        lectures={selectableLectures}
         subjects={subjects}
-        queuedItems={EMPTY_QUEUED_LECTURES}
+        queuedItems={queuedStudyPlanItems}
         language={language}
         catalogStatus={lectureCatalogStatus}
         onClose={closeLecturePicker}
@@ -560,10 +611,10 @@ export function GroupFocusRoom({
 
 function PlanMetric({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
   return (
-    <div className="rounded-xl bg-[#f1f5f0] p-3">
-      <p className="text-xs leading-5 text-[#7a8982]">{label}</p>
-      <p className="mt-1 text-lg font-semibold tracking-[-0.025em] text-[#38554c]" dir="ltr">
-        {value}{suffix ? <span className="ms-1 text-xs font-medium text-[#718078]">{suffix}</span> : null}
+    <div className="rounded-xl bg-[#f8fafc] p-3">
+      <p className="text-xs leading-5 text-[#64748b]">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-[-0.025em] text-[#334155]" dir="ltr">
+        {value}{suffix ? <span className="ms-1 text-xs font-medium text-[#64748b]">{suffix}</span> : null}
       </p>
     </div>
   );

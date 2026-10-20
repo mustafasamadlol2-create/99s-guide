@@ -13,8 +13,10 @@ import {
   myGroupFocusRoomsQuerySchema,
   publicGroupFocusRoomsQuerySchema,
   updateGroupFocusLectureSchema,
+  updateGroupFocusStudyPlanSchema,
   type CreateGroupFocusRoomInput,
   type JoinGroupFocusRoomInput,
+  type GroupFocusStudyPlanInput,
   type MyGroupFocusRoomsQuery,
   type PublicGroupFocusRoomsQuery,
 } from "./schemas.js";
@@ -36,6 +38,11 @@ import {
   type GroupFocusRoomStatus,
   type GroupFocusVisibility,
 } from "./types.js";
+import {
+  GROUP_FOCUS_STUDY_RESOURCE_TYPES,
+  type GroupFocusStudyPlanItem,
+  type GroupFocusStudyResourceSelection,
+} from "../../../shared/group-focus-study-plan/contract.js";
 
 type GroupFocusTransaction = Prisma.TransactionClient;
 
@@ -46,6 +53,7 @@ type RoomRecord = {
   visibility: string;
   mode: string;
   sharedLectureId: string | null;
+  sharedStudyPlan: Prisma.JsonValue | null;
   focusDurationSeconds: number;
   breakDurationSeconds: number;
   roundCount: number;
@@ -66,6 +74,7 @@ type MembershipRecord = {
   role: string;
   status: string;
   selectedLectureId: string | null;
+  studyPlan: Prisma.JsonValue | null;
   joinedAt: Date;
   leftAt: Date | null;
   createdAt: Date;
@@ -98,6 +107,8 @@ export type GroupFocusLectureUpdateResult = {
   membership: GroupFocusMembershipDto;
   effectiveLectureId: string;
 };
+
+export type GroupFocusStudyPlanUpdateResult = GroupFocusLectureUpdateResult;
 
 export interface GroupFocusService {
   createRoom(
@@ -132,6 +143,11 @@ export interface GroupFocusService {
     roomId: string,
     lectureId: string,
   ): Promise<GroupFocusLectureUpdateResult>;
+  updateMyStudyPlan(
+    userId: string,
+    roomId: string,
+    studyPlan: GroupFocusStudyPlanInput,
+  ): Promise<GroupFocusStudyPlanUpdateResult>;
   getGroupFocusAuthorizationContext(
     userId: string,
     roomId: string,
@@ -202,6 +218,153 @@ function iso(value: Date | null): string | null {
   return value.toISOString();
 }
 
+
+const STUDY_RESOURCE_TYPES = new Set<string>(GROUP_FOCUS_STUDY_RESOURCE_TYPES);
+
+function normalizeStoredStudyPlan(value: unknown): GroupFocusStudyPlanItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: GroupFocusStudyPlanItem[] = [];
+  const lectureIds = new Set<string>();
+  const itemSequences = new Set<number>();
+  for (const rawItem of value) {
+    if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) continue;
+    const item = rawItem as Record<string, unknown>;
+    if (
+      typeof item.lectureId !== "string"
+      || !item.lectureId
+      || !Number.isInteger(item.sequence)
+      || Number(item.sequence) < 1
+      || lectureIds.has(item.lectureId)
+      || itemSequences.has(Number(item.sequence))
+    ) continue;
+    const resources: GroupFocusStudyResourceSelection[] = [];
+    const resourceKeys = new Set<string>();
+    const resourceSequences = new Set<number>();
+    if (Array.isArray(item.resources)) {
+      for (const rawResource of item.resources) {
+        if (!rawResource || typeof rawResource !== "object" || Array.isArray(rawResource)) continue;
+        const resource = rawResource as Record<string, unknown>;
+        if (
+          typeof resource.resourceType !== "string"
+          || !STUDY_RESOURCE_TYPES.has(resource.resourceType)
+          || typeof resource.resourceId !== "string"
+          || !resource.resourceId
+          || !Number.isInteger(resource.sequence)
+          || Number(resource.sequence) < 1
+        ) continue;
+        const key = `${resource.resourceType}:${resource.resourceId}`;
+        if (resourceKeys.has(key) || resourceSequences.has(Number(resource.sequence))) continue;
+        resourceKeys.add(key);
+        resourceSequences.add(Number(resource.sequence));
+        resources.push({
+          resourceType: resource.resourceType as GroupFocusStudyResourceSelection["resourceType"],
+          resourceId: resource.resourceId,
+          sequence: Number(resource.sequence),
+        });
+      }
+    }
+    lectureIds.add(item.lectureId);
+    itemSequences.add(Number(item.sequence));
+    items.push({
+      lectureId: item.lectureId,
+      sequence: Number(item.sequence),
+      resources: resources.sort((a, b) => a.sequence - b.sequence),
+    });
+  }
+  return items.sort((a, b) => a.sequence - b.sequence || a.lectureId.localeCompare(b.lectureId));
+}
+
+function fallbackStudyPlan(lectureId: string | null): GroupFocusStudyPlanItem[] {
+  return lectureId ? [{ lectureId, sequence: 1, resources: [] }] : [];
+}
+
+function planFromInput(
+  plan: GroupFocusStudyPlanInput | undefined,
+  fallbackLectureId: string | undefined,
+): GroupFocusStudyPlanItem[] {
+  if (plan?.length) return normalizeStoredStudyPlan(plan);
+  return fallbackStudyPlan(fallbackLectureId ?? null);
+}
+
+function primaryLectureId(plan: readonly GroupFocusStudyPlanItem[]): string | null {
+  return [...plan].sort((a, b) => a.sequence - b.sequence)[0]?.lectureId ?? null;
+}
+
+function stablePlanJson(plan: readonly GroupFocusStudyPlanItem[]): string {
+  return JSON.stringify(
+    [...plan]
+      .sort((a, b) => a.sequence - b.sequence || a.lectureId.localeCompare(b.lectureId))
+      .map((item) => ({
+        lectureId: item.lectureId,
+        sequence: item.sequence,
+        resources: [...item.resources]
+          .sort((a, b) => a.sequence - b.sequence || a.resourceId.localeCompare(b.resourceId)),
+      })),
+  );
+}
+
+function sameStudyPlan(left: unknown, right: readonly GroupFocusStudyPlanItem[]): boolean {
+  return stablePlanJson(normalizeStoredStudyPlan(left)) === stablePlanJson(right);
+}
+
+function toInputJson(plan: readonly GroupFocusStudyPlanItem[]): Prisma.InputJsonValue {
+  return plan as unknown as Prisma.InputJsonValue;
+}
+
+async function validateStudyPlan(
+  tx: GroupFocusTransaction,
+  plan: readonly GroupFocusStudyPlanItem[],
+): Promise<void> {
+  if (plan.length === 0) {
+    throw new GroupFocusError("INVALID_MEMBER_LECTURE", "Choose at least one Lecture.");
+  }
+  const lectureIds = [...new Set(plan.map((item) => item.lectureId))];
+  const lectures = await tx.lecture.findMany({
+    where: { id: { in: lectureIds } },
+    select: { id: true },
+  });
+  if (lectures.length !== lectureIds.length) {
+    throw new GroupFocusError("INVALID_MEMBER_LECTURE", "One or more selected Lectures do not exist.");
+  }
+
+  const materialSelections = plan.flatMap((item) => item.resources
+    .filter((resource) => resource.resourceType === "PDF" || resource.resourceType === "NOTE" || resource.resourceType === "VIDEO")
+    .map((resource) => ({ lectureId: item.lectureId, resource })));
+  const materialIds = [...new Set(materialSelections.map(({ resource }) => resource.resourceId))];
+  if (materialIds.length > 0) {
+    const materialRows = await tx.material.findMany({
+      where: { id: { in: materialIds } },
+      select: { id: true, lectureId: true, type: true },
+    });
+    const materialMap = new Map(materialRows.map((row) => [row.id, row]));
+    for (const { lectureId, resource } of materialSelections) {
+      const material = materialMap.get(resource.resourceId);
+      const type = material?.type.trim().toUpperCase() === "NOTES"
+        ? "NOTE"
+        : material?.type.trim().toUpperCase();
+      if (!material || material.lectureId !== lectureId || type !== resource.resourceType) {
+        throw new GroupFocusError(
+          "INVALID_ROOM_CONFIGURATION",
+          "A selected Group Focus study resource does not belong to its Lecture.",
+        );
+      }
+    }
+  }
+  for (const item of plan) {
+    for (const resource of item.resources) {
+      if (
+        (resource.resourceType === "MCQ_SET" || resource.resourceType === "FLASHCARD_SET")
+        && resource.resourceId !== item.lectureId
+      ) {
+        throw new GroupFocusError(
+          "INVALID_ROOM_CONFIGURATION",
+          "MCQ and Flashcard study resources must reference their Lecture.",
+        );
+      }
+    }
+  }
+}
+
 function toRoomDto(room: RoomRecord, participantCount: number): GroupFocusRoomDto {
   const createdAt = iso(room.createdAt);
   const updatedAt = iso(room.updatedAt);
@@ -217,6 +380,9 @@ function toRoomDto(room: RoomRecord, participantCount: number): GroupFocusRoomDt
     visibility: requireVisibility(room.visibility),
     mode: requireMode(room.mode),
     sharedLectureId: room.sharedLectureId,
+    sharedStudyPlan: normalizeStoredStudyPlan(room.sharedStudyPlan).length > 0
+      ? normalizeStoredStudyPlan(room.sharedStudyPlan)
+      : fallbackStudyPlan(room.sharedLectureId),
     focusDurationSeconds: room.focusDurationSeconds,
     breakDurationSeconds: room.breakDurationSeconds,
     roundCount: room.roundCount,
@@ -246,6 +412,9 @@ function toMembershipDto(membership: MembershipRecord): GroupFocusMembershipDto 
     role: requireRole(membership.role),
     status: requireMembershipStatus(membership.status),
     selectedLectureId: membership.selectedLectureId,
+    studyPlan: normalizeStoredStudyPlan(membership.studyPlan).length > 0
+      ? normalizeStoredStudyPlan(membership.studyPlan)
+      : fallbackStudyPlan(membership.selectedLectureId),
     joinedAt,
     leftAt: iso(membership.leftAt),
     createdAt,
@@ -267,13 +436,21 @@ function sameCreatePayload(
   hostMembership: MembershipRecord,
   input: CreateGroupFocusRoomInput,
 ): boolean {
+  const sharedPlan = input.mode === "SHARED_LECTURE"
+    ? planFromInput(input.sharedStudyPlan, input.sharedLectureId)
+    : [];
+  const hostPlan = input.mode === "STUDY_TOGETHER"
+    ? planFromInput(input.hostStudyPlan, input.hostLectureId)
+    : [];
   return room.name === input.name
     && room.visibility === input.visibility
     && room.mode === input.mode
-    && room.sharedLectureId === (input.mode === "SHARED_LECTURE" ? input.sharedLectureId : null)
+    && room.sharedLectureId === (input.mode === "SHARED_LECTURE" ? primaryLectureId(sharedPlan) : null)
     && hostMembership.selectedLectureId === (
-      input.mode === "STUDY_TOGETHER" ? input.hostLectureId ?? null : null
+      input.mode === "STUDY_TOGETHER" ? primaryLectureId(hostPlan) : null
     )
+    && (input.mode !== "SHARED_LECTURE" || sameStudyPlan(room.sharedStudyPlan, sharedPlan))
+    && (input.mode !== "STUDY_TOGETHER" || sameStudyPlan(hostMembership.studyPlan, hostPlan))
     && room.focusDurationSeconds === input.focusDurationSeconds
     && room.breakDurationSeconds === input.breakDurationSeconds
     && room.roundCount === input.roundCount
@@ -316,6 +493,14 @@ function parseLectureId(lectureId: string): string {
     throw new GroupFocusError("INVALID_MEMBER_LECTURE", "A valid canonical Lecture is required.");
   }
   return parsed.data.lectureId;
+}
+
+function parseStudyPlan(input: GroupFocusStudyPlanInput): GroupFocusStudyPlanInput {
+  const parsed = updateGroupFocusStudyPlanSchema.safeParse({ studyPlan: input });
+  if (!parsed.success) {
+    throw new GroupFocusError("INVALID_MEMBER_LECTURE", "A valid Group Focus study plan is required.");
+  }
+  return parsed.data.studyPlan;
 }
 
 function parsePublicQuery(query: PublicGroupFocusRoomsQuery): PublicGroupFocusRoomsQuery {
@@ -454,13 +639,18 @@ export function createGroupFocusService(
     async createRoom(userId, rawInput) {
       ensureEnabled();
       const input = parseCreateInput(rawInput);
-      const lectureId = input.mode === "SHARED_LECTURE"
-        ? input.sharedLectureId
-        : input.hostLectureId;
+      const sharedPlan = input.mode === "SHARED_LECTURE"
+        ? planFromInput(input.sharedStudyPlan, input.sharedLectureId)
+        : [];
+      const hostPlan = input.mode === "STUDY_TOGETHER"
+        ? planFromInput(input.hostStudyPlan, input.hostLectureId)
+        : [];
+      const plan = input.mode === "SHARED_LECTURE" ? sharedPlan : hostPlan;
+      const lectureId = primaryLectureId(plan);
       if (!lectureId) {
         throw new GroupFocusError(
           "INVALID_ROOM_MODE",
-          "A canonical Lecture is required for this Room mode.",
+          "A canonical Group Focus study plan is required for this Room mode.",
         );
       }
 
@@ -495,7 +685,7 @@ export function createGroupFocusService(
           };
         }
 
-        await requireLecture(tx, lectureId);
+        await validateStudyPlan(tx, plan);
         const createdAt = parseTimestamp(now);
         const room = await tx.groupFocusRoom.create({
           data: {
@@ -503,9 +693,8 @@ export function createGroupFocusService(
             name: input.name,
             visibility: input.visibility,
             mode: input.mode,
-            sharedLectureId: input.mode === "SHARED_LECTURE"
-              ? input.sharedLectureId ?? null
-              : null,
+            sharedLectureId: input.mode === "SHARED_LECTURE" ? lectureId : null,
+            sharedStudyPlan: input.mode === "SHARED_LECTURE" ? toInputJson(sharedPlan) : undefined,
             focusDurationSeconds: input.focusDurationSeconds,
             breakDurationSeconds: input.breakDurationSeconds,
             roundCount: input.roundCount,
@@ -520,9 +709,8 @@ export function createGroupFocusService(
             userId,
             role: "HOST",
             status: "ACTIVE",
-            selectedLectureId: input.mode === "STUDY_TOGETHER"
-              ? input.hostLectureId ?? null
-              : null,
+            selectedLectureId: input.mode === "STUDY_TOGETHER" ? lectureId : null,
+            studyPlan: input.mode === "STUDY_TOGETHER" ? toInputJson(hostPlan) : undefined,
             joinedAt: createdAt,
           },
         });
@@ -692,11 +880,18 @@ export function createGroupFocusService(
               "RECONCILIATION_REQUIRED",
               "The STUDY_TOGETHER membership has no selected Lecture.",
             );
-          } else if (input.lectureId && input.lectureId !== existing.selectedLectureId) {
-            throw new GroupFocusError(
-              "INVALID_MEMBER_LECTURE",
-              "Use the member Lecture update route to change an active selection.",
-            );
+          } else {
+            const requestedPlan = input.studyPlan
+              ? planFromInput(input.studyPlan, input.lectureId)
+              : input.lectureId
+                ? fallbackStudyPlan(input.lectureId)
+                : null;
+            if (requestedPlan && !sameStudyPlan(existing.studyPlan, requestedPlan)) {
+              throw new GroupFocusError(
+                "INVALID_MEMBER_LECTURE",
+                "Use the member study-plan update route to change an active selection.",
+              );
+            }
           }
           return {
             room: toRoomDto(room, await countActiveMembers(tx, roomId)),
@@ -714,11 +909,21 @@ export function createGroupFocusService(
 
         const mode = requireMode(room.mode);
         let selectedLectureId: string | null = null;
+        let memberStudyPlan: GroupFocusStudyPlanItem[] = [];
         if (mode === "SHARED_LECTURE") {
-          if (!room.sharedLectureId) {
+          const sharedPlan = normalizeStoredStudyPlan(room.sharedStudyPlan).length > 0
+            ? normalizeStoredStudyPlan(room.sharedStudyPlan)
+            : fallbackStudyPlan(room.sharedLectureId);
+          if (!room.sharedLectureId || sharedPlan.length === 0) {
             throw new GroupFocusError(
               "RECONCILIATION_REQUIRED",
-              "The shared Lecture is missing from this Room.",
+              "The shared study plan is missing from this Room.",
+            );
+          }
+          if (input.studyPlan) {
+            throw new GroupFocusError(
+              "INVALID_MEMBER_LECTURE",
+              "A SHARED_LECTURE Room uses the Host's shared study plan.",
             );
           }
           if (input.lectureId && input.lectureId !== room.sharedLectureId) {
@@ -728,14 +933,21 @@ export function createGroupFocusService(
             );
           }
         } else {
-          if (!input.lectureId) {
+          memberStudyPlan = planFromInput(input.studyPlan, input.lectureId);
+          if (memberStudyPlan.length === 0) {
             throw new GroupFocusError(
               "INVALID_MEMBER_LECTURE",
-              "Choose a canonical Lecture before joining this Room.",
+              "Choose at least one Lecture and study resource before joining this Room.",
             );
           }
-          await requireLecture(tx, input.lectureId);
-          selectedLectureId = input.lectureId;
+          await validateStudyPlan(tx, memberStudyPlan);
+          selectedLectureId = primaryLectureId(memberStudyPlan);
+          if (!selectedLectureId) {
+            throw new GroupFocusError(
+              "INVALID_MEMBER_LECTURE",
+              "The Group Focus study plan has no active Lecture.",
+            );
+          }
         }
 
         if (await countActiveMembers(tx, roomId) >= room.maxParticipants) {
@@ -750,6 +962,7 @@ export function createGroupFocusService(
               joinedAt,
               leftAt: null,
               selectedLectureId,
+              studyPlan: mode === "STUDY_TOGETHER" ? toInputJson(memberStudyPlan) : undefined,
             },
           })
           : await tx.groupFocusMembership.create({
@@ -759,6 +972,7 @@ export function createGroupFocusService(
               role: "MEMBER",
               status: "ACTIVE",
               selectedLectureId,
+              studyPlan: mode === "STUDY_TOGETHER" ? toInputJson(memberStudyPlan) : undefined,
               joinedAt,
             },
           });
@@ -922,9 +1136,21 @@ export function createGroupFocusService(
           throw new GroupFocusError("NOT_ROOM_MEMBER", "Active Room membership is required.");
         }
         await requireLecture(tx, lectureId);
+        const storedPlan = normalizeStoredStudyPlan(membership.studyPlan);
+        const legacySingleLecturePlan = storedPlan.length === 1 && storedPlan[0]?.resources.length === 0;
+        if (storedPlan.length > 0 && !legacySingleLecturePlan
+          && !storedPlan.some((item) => item.lectureId === lectureId)) {
+          throw new GroupFocusError(
+            "INVALID_MEMBER_LECTURE",
+            "The selected Lecture is not part of your Group Focus study plan.",
+          );
+        }
         const updated = await tx.groupFocusMembership.update({
           where: { id: membership.id },
-          data: { selectedLectureId: lectureId },
+          data: {
+            selectedLectureId: lectureId,
+            ...(legacySingleLecturePlan ? { studyPlan: toInputJson(fallbackStudyPlan(lectureId)) } : {}),
+          },
         });
         const effectiveLectureId = effectiveLecture(room, updated);
         if (!effectiveLectureId) {
@@ -936,6 +1162,49 @@ export function createGroupFocusService(
         return {
           membership: toMembershipDto(updated),
           effectiveLectureId,
+        };
+      }, { maxWait: 5_000, timeout: 15_000 });
+    },
+
+    async updateMyStudyPlan(userId, roomId, rawStudyPlan) {
+      ensureEnabled();
+      const studyPlan = normalizeStoredStudyPlan(parseStudyPlan(rawStudyPlan));
+      return prisma.$transaction(async (tx: GroupFocusTransaction) => {
+        await lockKey(tx, `group-focus:room:${roomId}`);
+        const room = await roomOrThrow(tx, roomId);
+        if (requireRoomStatus(room.status) !== "OPEN") {
+          throw new GroupFocusError("ROOM_CLOSED", "This Group Focus Room is closed.");
+        }
+        if (requireMode(room.mode) !== "STUDY_TOGETHER") {
+          throw new GroupFocusError(
+            "INVALID_ROOM_MODE",
+            "Personal study plans can only be changed in STUDY_TOGETHER rooms.",
+          );
+        }
+        const membership = await tx.groupFocusMembership.findUnique({
+          where: { roomId_userId: { roomId, userId } },
+        });
+        if (!membership || membership.status !== "ACTIVE") {
+          throw new GroupFocusError("NOT_ROOM_MEMBER", "Active Room membership is required.");
+        }
+        await validateStudyPlan(tx, studyPlan);
+        const selectedLectureId = primaryLectureId(studyPlan);
+        if (!selectedLectureId) {
+          throw new GroupFocusError(
+            "INVALID_MEMBER_LECTURE",
+            "The Group Focus study plan has no active Lecture.",
+          );
+        }
+        const updated = await tx.groupFocusMembership.update({
+          where: { id: membership.id },
+          data: {
+            studyPlan: toInputJson(studyPlan),
+            selectedLectureId,
+          },
+        });
+        return {
+          membership: toMembershipDto(updated),
+          effectiveLectureId: selectedLectureId,
         };
       }, { maxWait: 5_000, timeout: 15_000 });
     },

@@ -124,6 +124,7 @@ import {
   EditCalendarEvent,
   AppleEmailSelectionScreen,
 } from "./core/routing/appLazyRoutes";
+import { FocusHubRouteHeader, FocusModeSwitcher } from "./features/focus/components/FocusModeSwitcher";
 
 // Warm and decode all seven module artworks as soon as the main app bundle evaluates.
 // This runs before the user can navigate to Modules, so WKWebView does not first-paint
@@ -6988,37 +6989,6 @@ const handleSignOut = useCallback(async () => {
                 }}
                 className={`w-full min-h-full ${useFocusPlannerViewport ? "focus-planner-route-content" : ""}`}
               >
-                {groupFocusAvailable && (
-                  <nav
-                    aria-label={language === "ar" ? "أقسام التركيز" : "Focus sections"}
-                    className={`mx-auto flex w-full max-w-7xl gap-2 px-4 pt-4 sm:px-8 lg:px-12 ${useFocusPlannerViewport ? "shrink-0" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      aria-current={groupFocusRoute === null ? "page" : undefined}
-                      onClick={() => setGroupFocusRoute(null)}
-                      className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                        groupFocusRoute === null
-                          ? "bg-[#315f75] text-white"
-                          : "bg-sky-50 text-[#35566a] hover:bg-sky-100"
-                      }`}
-                    >
-                      {language === "ar" ? "التركيز الفردي" : "Solo Focus"}
-                    </button>
-                    <button
-                      type="button"
-                      aria-current={groupFocusRoute !== null ? "page" : undefined}
-                      onClick={() => handleGroupFocusRouteChange("")}
-                      className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                        groupFocusRoute !== null
-                          ? "bg-[#315f75] text-white"
-                          : "bg-sky-50 text-[#35566a] hover:bg-sky-100"
-                      }`}
-                    >
-                      {language === "ar" ? "التركيز الجماعي" : "Group Focus"}
-                    </button>
-                  </nav>
-                )}
                 <div
                   className={useFocusPlannerViewport ? "focus-planner-hub-host" : undefined}
                   style={{
@@ -7039,6 +7009,14 @@ const handleSignOut = useCallback(async () => {
                       summaryRouteId={focusSummaryRouteId}
                       historyOpen={focusHistoryOpen}
                       historyDetailId={focusHistoryDetailId}
+                      headerAction={groupFocusAvailable ? (
+                        <FocusModeSwitcher
+                          language={language}
+                          mode="solo"
+                          onSolo={() => setGroupFocusRoute(null)}
+                          onGroup={() => handleGroupFocusRouteChange("")}
+                        />
+                      ) : undefined}
                       onRefreshLectures={() => fetchDbLectures(true)}
                       onBackToHome={() => handleSidebarTabClick("home")}
                       onReturnToPlanner={() => {
@@ -7090,6 +7068,18 @@ const handleSignOut = useCallback(async () => {
                   && activeTab === "focus" && (
                   <Suspense fallback={iOSLoadingFallback}>
                     <ErrorBoundary>
+                      <>
+                        <FocusHubRouteHeader
+                          language={language}
+                          action={
+                            <FocusModeSwitcher
+                              language={language}
+                              mode="group"
+                              onSolo={() => setGroupFocusRoute(null)}
+                              onGroup={() => handleGroupFocusRouteChange("")}
+                            />
+                          }
+                        />
                       <GroupFocusFrontend
                         accountId={currentUser?.id ?? null}
                         language={language}
@@ -7101,6 +7091,7 @@ const handleSignOut = useCallback(async () => {
                         routePath={groupFocusRoute}
                         onRouteChange={handleGroupFocusRouteChange}
                       />
+                      </>
                     </ErrorBoundary>
                   </Suspense>
                 )}

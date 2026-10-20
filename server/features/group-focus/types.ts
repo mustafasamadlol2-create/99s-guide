@@ -1,3 +1,4 @@
+import type { GroupFocusStudyPlanItem } from "../../../shared/group-focus-study-plan/contract.js";
 import type {
   GROUP_FOCUS_MODES,
   GROUP_FOCUS_PARTICIPANT_ROLES,
@@ -29,6 +30,7 @@ export type GroupFocusRoomDto = {
   visibility: GroupFocusVisibility;
   mode: GroupFocusMode;
   sharedLectureId: string | null;
+  sharedStudyPlan: GroupFocusStudyPlanItem[];
   focusDurationSeconds: number;
   breakDurationSeconds: number;
   roundCount: number;
@@ -47,6 +49,7 @@ export type GroupFocusMembershipDto = {
   role: GroupFocusRole;
   status: GroupFocusMembershipStatus;
   selectedLectureId: string | null;
+  studyPlan: GroupFocusStudyPlanItem[];
   joinedAt: string;
   leftAt: string | null;
   createdAt: string;

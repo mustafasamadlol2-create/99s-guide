@@ -10,6 +10,7 @@ import {
   myGroupFocusRoomsQuerySchema,
   publicGroupFocusRoomsQuerySchema,
   updateGroupFocusLectureSchema,
+  updateGroupFocusStudyPlanSchema,
 } from "../features/group-focus/schemas.js";
 import type { GroupFocusService } from "../features/group-focus/service.js";
 import {
@@ -279,6 +280,20 @@ export function createGroupFocusRouter(
     if (!validEmptyBody(req)) return invalid(res, "Invite rotation accepts no request fields.");
     try {
       return res.json(await dependencies.service.rotateInvite(userId(req), roomId));
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }));
+
+  router.put("/rooms/:roomId/me/study-plan", route(async (req, res) => {
+    const roomId = parseRoomId(req.params.roomId);
+    const parsed = updateGroupFocusStudyPlanSchema.safeParse(req.body);
+    if (!roomId) return invalid(res, "Group Focus Room ID is invalid.");
+    if (!parsed.success) return invalid(res, "A valid Group Focus study plan is required.");
+    try {
+      return res.json(
+        await dependencies.service.updateMyStudyPlan(userId(req), roomId, parsed.data.studyPlan),
+      );
     } catch (error) {
       return sendError(res, error);
     }
