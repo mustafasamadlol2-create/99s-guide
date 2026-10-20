@@ -47,6 +47,7 @@ import {
   BarChart3,
   Activity,
   ShieldAlert,
+  Headphones,
 } from "lucide-react";
 
 // ── Sidebar nav button (md+ vertical list) ──────────────────────────────────
@@ -164,6 +165,7 @@ const loadModerationHistoryView = () => import("../../moderation/components/Mode
 const loadOwnerAnalyticsDashboard = () => import("../../owner-analytics/components/OwnerAnalyticsDashboard");
 const loadSystemHealthDashboard = () => import("../../system-health/components/SystemHealthDashboard");
 const loadStudyIntegrityDashboard = () => import("../../study-integrity/components/StudyIntegrityDashboard");
+const loadManageFocusSounds = () => import("./ManageFocusSounds");
 
 const UploadMaterial = lazy(loadUploadMaterial);
 const UploadModuleResource = lazy(loadUploadModuleResource);
@@ -180,6 +182,7 @@ const ModerationHistoryView = lazy(loadModerationHistoryView);
 const OwnerAnalyticsDashboard = lazy(loadOwnerAnalyticsDashboard);
 const SystemHealthDashboard = lazy(loadSystemHealthDashboard);
 const StudyIntegrityDashboard = lazy(loadStudyIntegrityDashboard);
+const ManageFocusSounds = lazy(loadManageFocusSounds);
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -217,7 +220,8 @@ type SubTab =
   | "moderation-history"
   | "owner-analytics"
   | "system-health"
-  | "study-integrity";
+  | "study-integrity"
+  | "focus-sounds";
 
 const ControlCenterView = function ControlCenterView({
   currentUser,
@@ -291,6 +295,9 @@ const ControlCenterView = function ControlCenterView({
         : Promise.resolve(),
       currentUser.role === "owner"
         ? loadStudyIntegrityDashboard()
+        : Promise.resolve(),
+      currentUser.role === "owner"
+        ? loadManageFocusSounds()
         : Promise.resolve(),
     ]);
   }, [currentUser.role, isPhone]);
@@ -473,6 +480,15 @@ const ControlCenterView = function ControlCenterView({
 
     // Owner-only items
     ...(isOwner ? ([
+      {
+        id: "focus-sounds" as SubTab,
+        sidebarLabel: isRtl ? "أصوات التركيز" : "Focus Sounds",
+        pillLabel: isRtl ? "الأصوات" : "Sounds",
+        Icon: Headphones,
+        iconColorClass: "text-blue-600 dark:text-blue-300",
+        sidebarCategory: "System Operations",
+        sidebarCategoryAr: "عمليات النظام",
+      },
       {
         id: "study-integrity" as SubTab,
         sidebarLabel: isRtl ? "سلامة الدراسة" : "Study Integrity",
@@ -896,6 +912,10 @@ const ControlCenterView = function ControlCenterView({
       case "owner-analytics":
         return currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
           ? <div className={panelClassName}><OwnerAnalyticsDashboard language={language} subjects={subjects} /></div>
+          : null;
+      case "focus-sounds":
+        return currentUser.role === "owner"
+          ? <div className={panelClassName}><ManageFocusSounds language={language === "ar" ? "ar" : "en"} /></div>
           : null;
       case "study-integrity":
         return currentUser.role === "owner"

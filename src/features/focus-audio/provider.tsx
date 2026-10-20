@@ -11,11 +11,13 @@ import type {
   AmbientTrackId,
   FocusAudioResult,
   FocusAudioStoreSnapshot,
+  FocusSharedSound,
 } from "./types";
 
 export interface FocusAudioContextValue extends FocusAudioStoreSnapshot {
   readonly store: FocusAudioStore;
   selectAmbient(trackId: AmbientTrackId): Promise<FocusAudioResult>;
+  selectSharedAudio(track: FocusSharedSound): Promise<FocusAudioResult>;
   selectUserAudio(file: File): Promise<FocusAudioResult>;
   pickUserAudio(): Promise<FocusAudioResult | { readonly ok: true; readonly cancelled: true }>;
   play(): Promise<FocusAudioResult>;
@@ -60,6 +62,7 @@ export function FocusAudioProvider({ children }: FocusAudioProviderProps) {
     ...snapshot,
     store,
     selectAmbient: (trackId) => store.selectAmbient(trackId),
+    selectSharedAudio: (track) => store.selectSharedAudio(track),
     selectUserAudio: (file) => store.selectUserAudio(file),
     pickUserAudio: async () => {
       const file = await pickLocalAudioFile();

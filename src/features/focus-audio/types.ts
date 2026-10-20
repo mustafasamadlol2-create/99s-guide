@@ -19,6 +19,18 @@ export type FocusAudioErrorCode =
 
 export type AmbientTrackId = string;
 
+export interface FocusSharedSound {
+  readonly id: string;
+  readonly name: string;
+  readonly playbackUrl: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly sortOrder: number;
+  readonly isEnabled: boolean;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+}
+
 export interface FocusAmbientTrack {
   readonly id: AmbientTrackId;
   readonly labelKey: string;
@@ -33,6 +45,8 @@ export interface FocusAudioSnapshot {
   readonly ambientTrackId?: AmbientTrackId;
   /** Basename only. Never persisted or sent to a server. */
   readonly userAudioDisplayName?: string;
+  /** Display label for any selected source, including shared owner-managed sounds. */
+  readonly sourceDisplayName?: string;
   /** Temporary object URL for embedded local artwork; never persisted or sent to a server. */
   readonly userAudioArtworkUrl?: string;
   readonly volume: number;

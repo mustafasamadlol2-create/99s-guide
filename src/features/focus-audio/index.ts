@@ -9,4 +9,5 @@ export * from "./localFile";
 export * from "./preferences";
 export * from "./provider";
 export * from "./store";
-export * from "./types";
+export * from "./types";export * from "./sharedSoundsApi";
+export * from "./adminApi";

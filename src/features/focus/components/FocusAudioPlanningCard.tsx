@@ -1,9 +1,11 @@
-import { useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { Headphones, Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { AUDIO_FILE_PICKER_ACCEPT } from "../../focus-audio/constants";
 import { useFocusAudio } from "../../focus-audio/hooks";
 import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
+import { listFocusSharedSounds } from "../../focus-audio/sharedSoundsApi";
+import type { FocusSharedSound } from "../../focus-audio/types";
 
 interface FocusAudioPlanningCardProps {
   language: Language;
@@ -24,6 +26,8 @@ export function FocusAudioPlanningCard({
   const [selectingFile, setSelectingFile] = useState(false);
   const [localError, setLocalError] = useState(false);
   const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
+  const [sharedSounds, setSharedSounds] = useState<FocusSharedSound[]>([]);
+  const [sharedSoundBusyId, setSharedSoundBusyId] = useState<string | null>(null);
   const audio = audioContext.audio;
   const hasSelection = audio.sourceType !== "NONE";
   const isPlaying = audio.state === "PLAYING";
@@ -33,6 +37,40 @@ export function FocusAudioPlanningCard({
     audio.userAudioArtworkUrl,
     failedArtworkUrl,
   );
+  const sourceDisplayName = audio.sourceDisplayName ?? audio.userAudioDisplayName;
+
+  useEffect(() => {
+    let active = true;
+    void listFocusSharedSounds().then((sounds) => {
+      if (active) setSharedSounds(sounds);
+    }).catch(() => {
+      if (active) setSharedSounds([]);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const chooseSharedSound = async (sound: FocusSharedSound) => {
+    const wasPlaying = audio.state === "PLAYING";
+    setSharedSoundBusyId(sound.id);
+    setLocalError(false);
+    try {
+      const result = await audioContext.selectSharedAudio(sound);
+      if (!result.ok) {
+        setLocalError(true);
+        return;
+      }
+      // A user-initiated shared-sound switch during an active Focus session
+      // continues playback seamlessly; initial selection still waits for Preview.
+      if (wasPlaying) {
+        const playResult = await audioContext.play();
+        if (!playResult.ok) setLocalError(true);
+      }
+    } catch {
+      setLocalError(true);
+    } finally {
+      setSharedSoundBusyId(null);
+    }
+  };
 
   const chooseFile = async (file: File) => {
     setBusy(true);
@@ -97,6 +135,41 @@ export function FocusAudioPlanningCard({
         </div>
       </div>
 
+      {sharedSounds.length > 0 && (
+        <div className="focus-audio-shared-library mt-3 min-w-0">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+              {isRtl ? "أصوات التركيز" : "Focus sounds"}
+            </p>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              {isRtl ? "مشتركة" : "Shared"}
+            </span>
+          </div>
+          <div className="focus-audio-shared-list flex gap-2 overflow-x-auto pb-1">
+            {sharedSounds.map((sound) => {
+              const selected = audio.sourceType === "AMBIENT" && audio.ambientTrackId === sound.id;
+              return (
+                <button
+                  key={sound.id}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={busy || sharedSoundBusyId !== null}
+                  onClick={() => void chooseSharedSound(sound)}
+                  className={`focus-audio-shared-chip inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition active:scale-[0.97] disabled:opacity-50 ${
+                    selected
+                      ? "border-blue-400 bg-blue-500 text-white shadow-[0_5px_14px_rgba(59,130,246,0.22)]"
+                      : "border-sky-100 bg-white/70 text-slate-700 hover:bg-sky-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                  }`}
+                >
+                  <Music2 className="size-3.5" aria-hidden="true" />
+                  <span className="max-w-36 truncate" dir="auto">{sound.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div
         className={`focus-audio-source min-w-0 ${
           plannerPresentation ? "" : "flex items-start gap-3"
@@ -133,7 +206,7 @@ export function FocusAudioPlanningCard({
             dir="auto"
             aria-live="polite"
           >
-            {audio.userAudioDisplayName ?? t("focusHubAudioNoSource")}
+            {sourceDisplayName ?? t("focusHubAudioNoSource")}
           </p>
           {hasSelection && (
             <p className="text-[11px] leading-4 text-slate-500 dark:text-slate-400">

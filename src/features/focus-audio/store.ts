@@ -15,6 +15,7 @@ import type {
   FocusAudioResult,
   FocusAudioSnapshot,
   FocusAudioStoreSnapshot,
+  FocusSharedSound,
 } from "./types";
 
 export interface FocusAudioStoreOptions {
@@ -83,6 +84,19 @@ export class FocusAudioStore {
     return result;
   }
 
+  async selectSharedAudio(track: FocusSharedSound): Promise<FocusAudioResult> {
+    const result = await this.engine.selectSharedAudio(track);
+    if (!result.ok) return result;
+    // Shared URLs are signed and intentionally not persisted as a selected source.
+    this.preferences = {
+      ...this.preferences,
+      ambientTrackId: null,
+      lastSourceType: "AMBIENT",
+    };
+    this.persistAndPublish();
+    return result;
+  }
+
   async selectUserAudio(file: File): Promise<FocusAudioResult> {
     const result = await this.engine.selectUserAudio(file);
     if (!result.ok) return result;
@@ -127,10 +141,7 @@ export class FocusAudioStore {
     this.engine.setLoop(enabled);
     this.preferences = {
       ...this.preferences,
-      userAudioLoop: this.engine.getSnapshot().loop &&
-        this.engine.getSnapshot().sourceType !== "AMBIENT"
-        ? true
-        : enabled,
+      userAudioLoop: enabled,
     };
     this.persistAndPublish();
   }

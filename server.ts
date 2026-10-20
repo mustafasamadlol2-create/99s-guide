@@ -141,6 +141,10 @@ import {
   createOwnerAnalyticsRouter,
   ownerAnalyticsNoStore,
 } from "./server/routes/ownerAnalytics.js";
+import {
+  createFocusSoundsRouter,
+  createOwnerFocusSoundsRouter,
+} from "./server/routes/focusSounds.js";
 
 // ── Monitoring & Logging ──────────────────────────────────────────────────────
 import { logger, getRecentLogs } from "./server/services/logger.js";
@@ -1060,13 +1064,7 @@ app.use(cors({
     "Cache-Control",
     "Pragma",
     "X-Session-Delivery",
-    "X-OAuth-State",
-    // Focus mutations are cross-origin in production (Cloudflare PWA ->
-    // Render API). The Focus client sends this identifier on POST/PATCH/DELETE
-    // requests for realtime invalidation. If it is absent from the CORS allow
-    // list, the browser blocks the preflight before /api/focus/plans is ever
-    // reached, making every plan save look like a backend persistence failure.
-    "X-Focus-Client-ID"
+    "X-OAuth-State"
   ],
   exposedHeaders: ["Content-Range", "X-Content-Range", "Content-Disposition", "Content-Length"]
 }));
@@ -8074,6 +8072,15 @@ app.use(
     requireOwner,
     database: getPrisma(),
   }),
+);
+
+app.use(
+  "/api/focus-sounds",
+  createFocusSoundsRouter({ requireUser, database: getPrisma() }),
+);
+app.use(
+  "/api/admin/focus-sounds",
+  createOwnerFocusSoundsRouter({ requireOwner, database: getPrisma() }),
 );
 
 const clientErrorCodes = new Set(["CLIENT_RENDER_ERROR", "CLIENT_RUNTIME_ERROR"]);

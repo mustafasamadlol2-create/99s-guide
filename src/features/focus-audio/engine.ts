@@ -13,6 +13,7 @@ import type {
   FocusAudioResult,
   FocusAudioSnapshot,
   FocusAudioSourceType,
+  FocusSharedSound,
 } from "./types";
 
 interface ActiveSource {
@@ -22,6 +23,7 @@ interface ActiveSource {
   readonly displayName?: string;
   readonly artworkUrl?: string;
   readonly loop: boolean;
+  readonly loopLocked?: boolean;
 }
 
 type MediaListener = (event: Event) => void;
@@ -116,7 +118,29 @@ export class FocusAudioEngine {
       type: "AMBIENT",
       url: track.source,
       ambientTrackId: track.id,
+      displayName: track.labelKey,
       loop: true,
+      loopLocked: true,
+    });
+  }
+
+  async selectSharedAudio(track: FocusSharedSound): Promise<FocusAudioResult> {
+    let parsed: URL;
+    try {
+      parsed = new URL(track.playbackUrl, typeof window !== "undefined" ? window.location.href : "https://invalid.local");
+    } catch {
+      return this.failAndClear("SOURCE_MISSING");
+    }
+    if (parsed.protocol !== "https:" && parsed.origin !== (typeof window !== "undefined" ? window.location.origin : "")) {
+      return this.failAndClear("SOURCE_MISSING");
+    }
+    return this.loadSource({
+      type: "AMBIENT",
+      url: parsed.toString(),
+      ambientTrackId: track.id,
+      displayName: track.name,
+      loop: this.userAudioLoop,
+      loopLocked: false,
     });
   }
 
@@ -236,7 +260,7 @@ export class FocusAudioEngine {
 
   setLoop(enabled: boolean): void {
     this.userAudioLoop = enabled;
-    const loop = this.activeSource?.type === "AMBIENT" ? true : enabled;
+    const loop = this.activeSource?.loopLocked ? true : enabled;
     if (this.audio && this.activeSource) this.audio.loop = loop;
     this.update({ loop });
   }
@@ -259,7 +283,7 @@ export class FocusAudioEngine {
     this.userAudioLoop = preferences.userAudioLoop;
     this.setVolume(preferences.volume);
     this.update({
-      loop: this.activeSource?.type === "AMBIENT" ? true : this.userAudioLoop,
+      loop: this.activeSource?.loopLocked ? true : this.userAudioLoop,
     });
   }
 
@@ -297,7 +321,8 @@ export class FocusAudioEngine {
       state: "LOADING",
       sourceType: source.type,
       ambientTrackId: source.ambientTrackId,
-      userAudioDisplayName: source.displayName,
+      userAudioDisplayName: source.type === "USER_AUDIO" ? source.displayName : undefined,
+      sourceDisplayName: source.displayName,
       userAudioArtworkUrl: source.artworkUrl,
       volume: this.snapshot.volume,
       loop: source.loop,

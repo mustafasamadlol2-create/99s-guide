@@ -86,6 +86,7 @@ model User {
   focusSessions                  FocusSession[]
   focusBreaks                    FocusBreak[]
   focusBreakCommands             FocusBreakCommand[]
+  focusSoundsCreated             FocusSound[]                    @relation("FocusSoundCreator")
   studyEvents                    StudyEvent[]
   studyDailyMetrics              StudyDailyMetric[]
   recallAttempts                 RecallAttempt[]
@@ -738,6 +739,25 @@ model FocusBreakCommand {
 
   @@unique([userId, idempotencyKey])
   @@index([focusBreakId, createdAt])
+}
+
+
+model FocusSound {
+  id          String   @id @default(uuid())
+  name        String
+  storagePath String   @unique
+  mimeType    String
+  sizeBytes   BigInt
+  sortOrder   Int      @default(0)
+  isEnabled   Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User @relation("FocusSoundCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([isEnabled, sortOrder, createdAt])
+  @@index([createdById, createdAt])
 }
 
 model GroupFocusRoom {
