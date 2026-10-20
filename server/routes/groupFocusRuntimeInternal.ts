@@ -8,6 +8,7 @@ import {
   type GroupFocusReconciliationEnvironment,
 } from "../../shared/group-focus-reconciliation/signing.js";
 import { isStudyFeatureEnabled } from "../features/study-core/featureFlags.js";
+import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
 import {
   createGroupFocusRuntimeSummaryService,
   GroupFocusRuntimeSummaryError,
@@ -76,17 +77,26 @@ export function createGroupFocusRuntimeInternalRouter(dependencies: {
   service?: GroupFocusRuntimeInternalService;
   environment?: () => GroupFocusReconciliationEnvironment;
   isEnabled?: () => boolean;
+  isRuntimeReady?: () => boolean;
 } = {}): express.Router {
   const router = express.Router();
   const service = dependencies.service ?? createGroupFocusRuntimeSummaryService();
   const isEnabled = dependencies.isEnabled
     ?? (() => isStudyFeatureEnabled("GROUP_FOCUS_ENABLED"));
+  const isRuntimeReady = dependencies.isRuntimeReady
+    ?? (dependencies.isEnabled ? (() => true) : (() => isGroupFocusRuntimeReady()));
 
   router.use((_req, res, next) => {
     if (!isEnabled()) {
       return res.status(404).json({
         error: "Group Focus is not available.",
         code: "FEATURE_DISABLED",
+      });
+    }
+    if (!isRuntimeReady()) {
+      return res.status(503).json({
+        error: "Group Focus realtime is not configured.",
+        code: "RUNTIME_NOT_READY",
       });
     }
     next();

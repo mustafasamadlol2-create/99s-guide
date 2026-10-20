@@ -21,14 +21,24 @@ import {
 import { refreshUserChallenges } from "../server/features/gamification/challengeRefresh.js";
 import { createStudyFeatureFlagsRouter } from "../server/routes/studyFeatureFlags.js";
 
-test("the public feature flag response exposes only the three client flags", async () => {
+test("the public feature flag response exposes client flags plus Group Focus runtime readiness", async () => {
   const previous = new Map(
     [
+      "GROUP_FOCUS_ENABLED",
+      "GROUP_FOCUS_CAPABILITY_KEYS_JSON",
+      "GROUP_FOCUS_CAPABILITY_ACTIVE_KID",
+      "GROUP_FOCUS_RECONCILIATION_KEYS_JSON",
+      "GROUP_FOCUS_RECONCILIATION_ACTIVE_KID",
       "STUDY_POINTS_ENABLED",
       "GAMIFICATION_ENABLED",
       "FOCUS_RESOURCE_HANDOFF_ENABLED",
     ].map((name) => [name, process.env[name]]),
   );
+  process.env.GROUP_FOCUS_ENABLED = "false";
+  delete process.env.GROUP_FOCUS_CAPABILITY_KEYS_JSON;
+  delete process.env.GROUP_FOCUS_CAPABILITY_ACTIVE_KID;
+  delete process.env.GROUP_FOCUS_RECONCILIATION_KEYS_JSON;
+  delete process.env.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
   process.env.STUDY_POINTS_ENABLED = "true";
   process.env.GAMIFICATION_ENABLED = "false";
   process.env.FOCUS_RESOURCE_HANDOFF_ENABLED = "yes";
@@ -44,9 +54,11 @@ test("the public feature flag response exposes only the three client flags", asy
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(await response.json(), {
+      GROUP_FOCUS_ENABLED: false,
       STUDY_POINTS_ENABLED: true,
       GAMIFICATION_ENABLED: false,
       FOCUS_RESOURCE_HANDOFF_ENABLED: true,
+      GROUP_FOCUS_RUNTIME_READY: false,
     });
   } finally {
     server.close();
@@ -64,6 +76,7 @@ test("the public feature flag response exposes only the three client flags", asy
       RECALL_POINTS_ENABLED: "true",
     }),
     {
+      GROUP_FOCUS_ENABLED: false,
       STUDY_POINTS_ENABLED: true,
       GAMIFICATION_ENABLED: true,
       FOCUS_RESOURCE_HANDOFF_ENABLED: false,

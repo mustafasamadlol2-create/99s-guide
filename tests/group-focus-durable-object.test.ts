@@ -176,6 +176,9 @@ async function withLocalWorker(
   const persistencePath = join(directory, "state");
   const key = randomBytes(32);
   const keyring = JSON.stringify({ "test-a": key.toString("base64url") });
+  const reconciliationKeyring = JSON.stringify({
+    "test-r": randomBytes(32).toString("base64url"),
+  });
   const baseUrl = new URL(`http://127.0.0.1:${await unusedPort()}`);
   let child: ChildProcessWithoutNullStreams | null = null;
   let childOutput = "";
@@ -214,6 +217,12 @@ async function withLocalWorker(
       persistencePath,
       "--var",
       `GROUP_FOCUS_CAPABILITY_KEYS_JSON:${keyring}`,
+      "--var",
+      `GROUP_FOCUS_RECONCILIATION_KEYS_JSON:${reconciliationKeyring}`,
+      "--var",
+      "GROUP_FOCUS_RECONCILIATION_ACTIVE_KID:test-r",
+      "--var",
+      `GROUP_FOCUS_API_BASE_URL:${baseUrl.origin}`,
       "--log-level",
       "error",
     ], {
@@ -238,7 +247,10 @@ async function withLocalWorker(
       }
       try {
         const response = await fetch(new URL("/health", baseUrl));
-        if (response.ok) return;
+        if (response.ok) {
+          const readiness = await fetch(new URL("/ready", baseUrl));
+          if (readiness.ok) return;
+        }
       } catch {
         // The local server is still starting.
       }

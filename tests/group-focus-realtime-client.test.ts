@@ -107,11 +107,13 @@ test("headless realtime runtime uses the browser-safe subprotocol handshake", as
   assert.equal(runtime.getSnapshot().status, "CONNECTED");
 
   runtime.requestRoomState();
+  runtime.syncCanonical();
   runtime.start();
   assert.deepEqual(
     socket.sent.map((message) => JSON.parse(message)),
     [
       { v: 1, type: "ROOM_STATE_REQUEST" },
+      { v: 1, type: "CANONICAL_SYNC_REQUEST" },
       { v: 1, type: "HOST_START" },
     ],
   );

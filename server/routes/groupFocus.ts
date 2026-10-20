@@ -18,6 +18,7 @@ import {
 } from "../features/group-focus/runtimeSummary.js";
 import { issueGroupFocusCapability } from "../features/group-focus/capability.js";
 import type { GroupFocusCapabilityEnvironment } from "../../shared/group-focus-capability/keyring.js";
+import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
 
 export interface GroupFocusRouteDependencies {
   requireUser: RequestHandler;
@@ -26,6 +27,7 @@ export interface GroupFocusRouteDependencies {
   isEnabled?: () => boolean;
   capabilityEnvironment?: () => GroupFocusCapabilityEnvironment;
   capabilityNow?: () => Date;
+  isRuntimeReady?: () => boolean;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -96,6 +98,8 @@ export function createGroupFocusRouter(
     ?? createGroupFocusRuntimeSummaryService();
   const isEnabled = dependencies.isEnabled
     ?? (() => isStudyFeatureEnabled("GROUP_FOCUS_ENABLED"));
+  const isRuntimeReady = dependencies.isRuntimeReady
+    ?? (dependencies.isEnabled ? (() => true) : (() => isGroupFocusRuntimeReady()));
 
   // Keep disabled requests out of authentication and all Group Focus reads.
   router.use((_req, res, next) => {
@@ -103,6 +107,12 @@ export function createGroupFocusRouter(
       return res.status(404).json({
         error: "Group Focus is not available.",
         code: "FEATURE_DISABLED",
+      });
+    }
+    if (!isRuntimeReady()) {
+      return res.status(503).json({
+        error: "Group Focus realtime is not configured.",
+        code: "RUNTIME_NOT_READY",
       });
     }
     return next();

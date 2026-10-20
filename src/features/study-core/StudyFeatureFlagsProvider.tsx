@@ -3,6 +3,7 @@ import { apiClient } from "../../core/api/apiClient";
 
 export interface StudyFeatureFlags {
   GROUP_FOCUS_ENABLED: boolean;
+  GROUP_FOCUS_RUNTIME_READY: boolean;
   STUDY_POINTS_ENABLED: boolean;
   GAMIFICATION_ENABLED: boolean;
   FOCUS_RESOURCE_HANDOFF_ENABLED: boolean;
@@ -12,11 +13,12 @@ export interface StudyFeatureFlags {
 
 type StudyFeatureFlagValues = Pick<
   StudyFeatureFlags,
-  "GROUP_FOCUS_ENABLED" | "STUDY_POINTS_ENABLED" | "GAMIFICATION_ENABLED" | "FOCUS_RESOURCE_HANDOFF_ENABLED"
+  "GROUP_FOCUS_ENABLED" | "GROUP_FOCUS_RUNTIME_READY" | "STUDY_POINTS_ENABLED" | "GAMIFICATION_ENABLED" | "FOCUS_RESOURCE_HANDOFF_ENABLED"
 >;
 
 const RELEASE_DEFAULT_FLAGS: StudyFeatureFlagValues = {
   GROUP_FOCUS_ENABLED: false,
+  GROUP_FOCUS_RUNTIME_READY: false,
   STUDY_POINTS_ENABLED: true,
   GAMIFICATION_ENABLED: true,
   FOCUS_RESOURCE_HANDOFF_ENABLED: true,
@@ -33,6 +35,7 @@ function parseStudyFeatureFlags(value: unknown): StudyFeatureFlagValues | null {
   const flags = value as Record<string, unknown>;
   if (
     typeof flags.GROUP_FOCUS_ENABLED !== "boolean"
+    || typeof flags.GROUP_FOCUS_RUNTIME_READY !== "boolean"
     || typeof flags.STUDY_POINTS_ENABLED !== "boolean"
     || typeof flags.GAMIFICATION_ENABLED !== "boolean"
     || typeof flags.FOCUS_RESOURCE_HANDOFF_ENABLED !== "boolean"
@@ -41,6 +44,7 @@ function parseStudyFeatureFlags(value: unknown): StudyFeatureFlagValues | null {
   }
   return {
     GROUP_FOCUS_ENABLED: flags.GROUP_FOCUS_ENABLED,
+    GROUP_FOCUS_RUNTIME_READY: flags.GROUP_FOCUS_RUNTIME_READY,
     STUDY_POINTS_ENABLED: flags.STUDY_POINTS_ENABLED,
     GAMIFICATION_ENABLED: flags.GAMIFICATION_ENABLED,
     FOCUS_RESOURCE_HANDOFF_ENABLED: flags.FOCUS_RESOURCE_HANDOFF_ENABLED,

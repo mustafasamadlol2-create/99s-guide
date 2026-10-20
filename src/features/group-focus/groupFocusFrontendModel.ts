@@ -118,6 +118,10 @@ export function groupFocusErrorMessage(
       : "";
   const arabic = language === "ar";
   switch (code) {
+    case "RUNTIME_NOT_READY":
+      return arabic
+        ? "التركيز الجماعي غير جاهز على الخادم حالياً. حاول مرة أخرى بعد اكتمال إعداد الاتصال المباشر."
+        : "Group Focus realtime is not ready on the server yet.";
     case "FEATURE_DISABLED":
       return arabic
         ? "خدمة التركيز الجماعي غير متاحة حالياً."

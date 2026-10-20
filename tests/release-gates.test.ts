@@ -71,6 +71,10 @@ test("Prompt 52 frontend flags require matching backend gates and Group Focus co
       VITE_FOCUS_HUB_V2_ENABLED: "true",
       VITE_GROUP_FOCUS_FRONTEND_ENABLED: "true",
       VITE_GROUP_FOCUS_WORKER_URL: "https://focus-worker.example.test",
+      GROUP_FOCUS_CAPABILITY_KEYS_JSON: JSON.stringify({ k1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+      GROUP_FOCUS_CAPABILITY_ACTIVE_KID: "k1",
+      GROUP_FOCUS_RECONCILIATION_KEYS_JSON: JSON.stringify({ k1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+      GROUP_FOCUS_RECONCILIATION_ACTIVE_KID: "k1",
       VITE_SPACED_RECALL_FRONTEND_ENABLED: "true",
       VITE_STUDY_ANALYZER_FRONTEND_ENABLED: "true",
       VITE_STUDY_INSIGHTS_FRONTEND_ENABLED: "true",
@@ -79,6 +83,25 @@ test("Prompt 52 frontend flags require matching backend gates and Group Focus co
     },
   );
   assert.equal(enabledResult.status, "PASS");
+
+  const invalidWorkerResult = validateFeatureConfiguration(
+    {
+      ...DEFAULT_STUDY_FEATURE_FLAGS,
+      FOCUS_HUB_ENABLED: true,
+      GROUP_FOCUS_ENABLED: true,
+    },
+    {
+      VITE_FOCUS_HUB_V2_ENABLED: "true",
+      VITE_GROUP_FOCUS_FRONTEND_ENABLED: "true",
+      VITE_GROUP_FOCUS_WORKER_URL: "https://focus-worker.example.test/rooms?bad=1",
+      GROUP_FOCUS_CAPABILITY_KEYS_JSON: JSON.stringify({ k1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+      GROUP_FOCUS_CAPABILITY_ACTIVE_KID: "k1",
+      GROUP_FOCUS_RECONCILIATION_KEYS_JSON: JSON.stringify({ k1: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+      GROUP_FOCUS_RECONCILIATION_ACTIVE_KID: "k1",
+    },
+  );
+  assert.equal(invalidWorkerResult.status, "FAIL");
+  assert.match(invalidWorkerResult.message, /clean HTTP\(S\) origin/u);
 });
 
 test("database target validation accepts only explicit local or staging addresses", () => {

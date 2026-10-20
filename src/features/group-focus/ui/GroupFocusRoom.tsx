@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, BookOpen, Clock3, Copy, LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Share2, UsersRound } from "lucide-react";
+import { AlertCircle, ArrowLeft, BookOpen, Clock3, Copy, LoaderCircle, LockKeyhole, Pause, Play, RefreshCw, Share2, UserMinus, UsersRound } from "lucide-react";
 import type { GroupFocusMembershipDto, GroupFocusRoomDto } from "../api/groupFocusApi";
 import type { GroupFocusRealtimeSnapshot } from "../runtime/groupFocusRealtime";
 import type { DatabaseLecture, Subject } from "../../../core/types";
@@ -38,6 +38,9 @@ export interface GroupFocusRoomProps {
   onChooseLecture: (lectureId: string) => void;
   onRefreshLectures: () => Promise<void>;
   inviteManagementAllowed: boolean;
+  memberManagementAllowed: boolean;
+  memberRemovalPendingUserId?: string | null;
+  onRemoveMember: (userId: string) => void;
   safeInviteLinkOrCode: string | null;
   inviteActionPending?: "rotate" | "copy" | "share" | null;
   inviteFeedback?: { kind: "success" | "error"; message: string } | null;
@@ -150,6 +153,9 @@ export function GroupFocusRoom({
   onChooseLecture,
   onRefreshLectures,
   inviteManagementAllowed,
+  memberManagementAllowed,
+  memberRemovalPendingUserId = null,
+  onRemoveMember,
   safeInviteLinkOrCode,
   inviteActionPending = null,
   inviteFeedback,
@@ -399,13 +405,31 @@ export function GroupFocusRoom({
                             </p>
                           )}
                         </div>
-                        <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs ${isReconnecting ? "text-[#8a7145]" : "text-[#638271]"}`}>
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${isReconnecting ? "bg-[#c3a365]" : "bg-[#76a28a]"}`}
-                            aria-hidden="true"
-                          />
-                          {isReconnecting ? t("reconnecting") : t("connected")}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs ${isReconnecting ? "text-[#8a7145]" : "text-[#638271]"}`}>
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${isReconnecting ? "bg-[#c3a365]" : "bg-[#76a28a]"}`}
+                              aria-hidden="true"
+                            />
+                            {isReconnecting ? t("reconnecting") : t("connected")}
+                          </span>
+                          {memberManagementAllowed && !isSelf && participant.role !== "HOST" && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveMember(participant.userId)}
+                              disabled={memberRemovalPendingUserId !== null}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#8a5749] hover:bg-[#f7ebe6] disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a6557]"
+                              aria-label={t("removeMember")}
+                            >
+                              {memberRemovalPendingUserId === participant.userId
+                                ? <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                                : <UserMinus className="h-3.5 w-3.5" aria-hidden="true" />}
+                              <span className="hidden sm:inline">
+                                {memberRemovalPendingUserId === participant.userId ? t("removingMember") : t("removeMember")}
+                              </span>
+                            </button>
+                          )}
+                        </div>
                       </li>
                     );
                   })}

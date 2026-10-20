@@ -62,6 +62,7 @@ export type GroupFocusRealtimeSocketAttachment = GroupFocusRealtimeParticipant &
 
 export type GroupFocusRealtimeClientMessageType =
   | "ROOM_STATE_REQUEST"
+  | "CANONICAL_SYNC_REQUEST"
   | "CLIENT_LEAVE"
   | "HOST_START"
   | "HOST_PAUSE"
@@ -94,6 +95,7 @@ export type GroupFocusRealtimeServerMessage = {
 
 const CLIENT_MESSAGE_TYPES: readonly string[] = [
   "ROOM_STATE_REQUEST",
+  "CANONICAL_SYNC_REQUEST",
   "CLIENT_LEAVE",
   "HOST_START",
   "HOST_PAUSE",

@@ -53,6 +53,7 @@ import {
 } from "./roomState.js";
 import {
   GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES,
+  type VerifiedGroupFocusCapability,
 } from "../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER,
@@ -676,6 +677,40 @@ export class GroupFocusRoom {
     }
   }
 
+  private async participantCapabilityIsCanonicallyCurrent(
+    capability: VerifiedGroupFocusCapability,
+    state: GroupFocusRoomState,
+    runtime: GroupFocusRuntimeData,
+  ): Promise<boolean> {
+    try {
+      const { response, value } = await this.postMachineJson<unknown>(
+        "/api/internal/group-focus/runtime/snapshot",
+        {
+          roomId: state.roomId,
+          userIds: [capability.userId],
+          runtimeInstanceId: runtime.runtimeInstanceId,
+          runtimeRevision: state.revision,
+        },
+        32 * 1024,
+      );
+      if (!response.ok || !this.isCanonicalSnapshot(value)) return false;
+      if (value.room.roomId !== state.roomId || value.room.status !== "OPEN") return false;
+      const membership = value.memberships.find((item) => item.userId === capability.userId);
+      if (!membership || membership.status !== "ACTIVE") return false;
+      const expectedLectureId = value.room.mode === "SHARED_LECTURE"
+        ? value.room.sharedLectureId
+        : membership.effectiveLectureId;
+      return (
+        membership.membershipId === capability.membershipId
+        && membership.role === capability.role
+        && membership.updatedAt === capability.membershipUpdatedAt
+        && expectedLectureId === capability.effectiveLectureId
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private async invalidateParticipant(
     state: GroupFocusRoomState,
     runtime: GroupFocusRuntimeData,
@@ -1049,6 +1084,32 @@ export class GroupFocusRoom {
 
     if (
       participant
+      && (participant.connectionState === "CANONICALLY_INVALIDATED"
+        || participant.connectionState === "DISCONNECTED")
+    ) {
+      // A disconnected participant may still possess a short-lived capability
+      // that was issued before they left or were removed canonically. Re-check
+      // membership state before allowing that stale credential to resurrect the
+      // realtime participant. This also keeps explicit canonical invalidation
+      // fail-closed until a genuinely current backend-issued capability exists.
+      const currentAuthorization = await this.participantCapabilityIsCanonicallyCurrent(
+        capability,
+        state,
+        runtime,
+      );
+      if (!currentAuthorization) {
+        return jsonError(403, "AUTHORIZATION_REFRESH_REQUIRED");
+      }
+      participant.connectionState = "DISCONNECTED";
+      participant.connectionId = null;
+      participant.resumeTokenHash = null;
+      participant.resumeTokenExpiresAt = null;
+      participant.reconnectDeadlineAt = null;
+      await this.persistRuntimeState(state, runtime);
+    }
+
+    if (
+      participant
       && participant.connectionState === "CONNECTED"
       && !currentSocket
     ) {
@@ -1073,8 +1134,13 @@ export class GroupFocusRoom {
         now,
         "AUTHORIZATION_REFRESH_REQUIRED",
       );
-      await this.persistRuntimeState(invalidated, runtime);
-      return jsonError(403, "AUTHORIZATION_REFRESH_REQUIRED");
+      state = invalidated;
+      await this.persistRuntimeState(state, runtime);
+      // A new backend-issued capability without a resume token is an explicit
+      // authorization refresh (for example after a Study Together lecture
+      // change). The old socket has just been invalidated above, so the same
+      // handshake can safely continue with the fresh canonical claims.
+      if (resumeToken) return jsonError(403, "AUTHORIZATION_REFRESH_REQUIRED");
     }
 
     let reconnecting = false;
@@ -1370,6 +1436,38 @@ export class GroupFocusRoom {
           { roomState: roomStateSnapshot(state) },
         ),
       );
+      return;
+    }
+    if (message.type === "CANONICAL_SYNC_REQUEST") {
+      if (attachment.role !== "HOST") {
+        this.send(socket, messageEnvelope(
+          "ERROR",
+          state.revision,
+          now,
+          { code: "HOST_ONLY_ACTION" },
+        ));
+        return;
+      }
+      const synced = await this.syncCanonicalRoom(state, runtime, now);
+      state = synced.state;
+      runtime = synced.runtime;
+      if (!synced.ok) {
+        this.send(socket, messageEnvelope(
+          "ERROR",
+          state.revision,
+          now,
+          { code: "CANONICAL_RECONCILIATION_REQUIRED" },
+        ));
+        return;
+      }
+      if (state.phase !== "CLOSED" && state.phase !== "COMPLETED" && socket.readyState === 1) {
+        this.send(socket, messageEnvelope(
+          "ROOM_STATE",
+          state.revision,
+          now,
+          { roomState: roomStateSnapshot(state) },
+        ));
+      }
       return;
     }
     if (message.type === "CLIENT_LEAVE") {

@@ -7,6 +7,8 @@ import {
   getMyGroupFocusRuntimeSummary,
   joinGroupFocusRoom,
   leaveGroupFocusRoom,
+  removeGroupFocusMember,
+  closeGroupFocusRoom,
   listMyGroupFocusRooms,
   listPublicGroupFocusRooms,
   rotateGroupFocusInvite,
@@ -44,9 +46,9 @@ import {
 
 const PUBLIC_ROOM_PAGE_SIZE = 20;
 const HOME_REFRESH_MILLISECONDS = 25_000;
-const SUMMARY_FINALIZATION_RETRIES = 8;
+const SUMMARY_FINALIZATION_RETRIES = 28;
 const SUMMARY_FINALIZATION_DELAY_MILLISECONDS = 2_500;
-const CANONICAL_LECTURE_ID =
+const CANONICAL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type GroupFocusFrontendProps = {
@@ -131,7 +133,7 @@ export function GroupFocusFrontend({
   const mountedRef = useRef(true);
 
   const accessibleLectures = useMemo(
-    () => lectures.filter((lecture) => CANONICAL_LECTURE_ID.test(lecture.id)),
+    () => lectures.filter((lecture) => CANONICAL_UUID.test(lecture.id)),
     [lectures],
   );
 
@@ -165,6 +167,7 @@ export function GroupFocusFrontend({
   );
   const [actionPending, setActionPending] =
     useState<"start" | "pause" | "resume" | "leave" | "close" | null>(null);
+  const [memberRemovalPendingUserId, setMemberRemovalPendingUserId] = useState<string | null>(null);
   const [lectureChangePending, setLectureChangePending] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [inviteActionPending, setInviteActionPending] =
@@ -406,6 +409,7 @@ export function GroupFocusFrontend({
     setInviteToken(null);
     setInviteFeedback(null);
     setActionPending(null);
+    setMemberRemovalPendingUserId(null);
 
     void getGroupFocusRoom(route.roomId).then((detail) => {
       if (cancelled || !mountedRef.current) return;
@@ -543,7 +547,7 @@ export function GroupFocusFrontend({
   }) => joinRoom(input), [joinRoom]);
 
   const runHostCommand = useCallback((
-    action: "start" | "pause" | "resume" | "close",
+    action: "start" | "pause" | "resume",
   ) => {
     if (!runtimeEntry || !hostAuthorized) {
       setRoomError(localized(language, "Reconnect to the room before using host controls.", "أعد الاتصال بالغرفة قبل استخدام أدوات المضيف."));
@@ -554,7 +558,6 @@ export function GroupFocusFrontend({
       (action === "start" && phase !== "LOBBY")
       || (action === "pause" && !["COUNTDOWN", "FOCUS", "BREAK"].includes(phase ?? ""))
       || (action === "resume" && phase !== "PAUSED")
-      || (action === "close" && isTerminalPhase(phase))
     ) return;
 
     setActionPending(action);
@@ -562,8 +565,7 @@ export function GroupFocusFrontend({
     try {
       if (action === "start") runtimeEntry.runtime.start();
       else if (action === "pause") runtimeEntry.runtime.pause();
-      else if (action === "resume") runtimeEntry.runtime.resume();
-      else runtimeEntry.runtime.closeRoom();
+      else runtimeEntry.runtime.resume();
       window.setTimeout(() => {
         setActionPending((pending) => pending === action ? null : pending);
       }, 8_000);
@@ -685,7 +687,7 @@ export function GroupFocusFrontend({
       || visibleMembership.status !== "ACTIVE"
       || visibleRoom.status !== "OPEN"
       || visibleRoom.mode !== "STUDY_TOGETHER"
-      || !CANONICAL_LECTURE_ID.test(lectureId)
+      || !CANONICAL_UUID.test(lectureId)
     ) return;
     setLectureChangePending(true);
     setRoomError(undefined);
@@ -698,6 +700,21 @@ export function GroupFocusFrontend({
           effectiveLectureId: result.effectiveLectureId,
         }
         : current);
+      if (runtimeEntry) {
+        try {
+          await runtimeEntry.runtime.refreshAuthorization();
+        } catch (error) {
+          setRoomError(groupFocusErrorMessage(
+            error,
+            language,
+            localized(
+              language,
+              "Your lecture was saved, but the realtime room needs a reconnect to use it.",
+              "تم حفظ محاضرتك، لكن الاتصال المباشر بالغرفة يحتاج إلى إعادة اتصال لتطبيقها.",
+            ),
+          ));
+        }
+      }
     } catch (error) {
       setRoomError(groupFocusErrorMessage(
         error,
@@ -707,7 +724,93 @@ export function GroupFocusFrontend({
     } finally {
       setLectureChangePending(false);
     }
-  }, [language, visibleMembership, visibleRoom]);
+  }, [language, runtimeEntry, visibleMembership, visibleRoom]);
+
+  const removeMember = useCallback(async (targetUserId: string) => {
+    if (
+      !visibleRoom
+      || !hostAuthorized
+      || targetUserId === accountId
+      || !CANONICAL_UUID.test(targetUserId)
+      || memberRemovalPendingUserId
+    ) return;
+    setMemberRemovalPendingUserId(targetUserId);
+    setRoomError(undefined);
+    try {
+      await removeGroupFocusMember(visibleRoom.id, targetUserId);
+      setRoomDetail((current) => current
+        ? {
+          ...current,
+          room: {
+            ...current.room,
+            participantCount: Math.max(0, current.room.participantCount - 1),
+          },
+        }
+        : current);
+      if (runtimeEntry && visibleSnapshot.status === "CONNECTED") {
+        try {
+          runtimeEntry.runtime.syncCanonical();
+        } catch {
+          runtimeEntry.runtime.retryConnection();
+        }
+      }
+    } catch (error) {
+      setRoomError(groupFocusErrorMessage(
+        error,
+        language,
+        localized(language, "This member could not be removed from the room.", "تعذر إزالة هذا العضو من الغرفة."),
+      ));
+    } finally {
+      setMemberRemovalPendingUserId(null);
+    }
+  }, [
+    accountId,
+    hostAuthorized,
+    language,
+    memberRemovalPendingUserId,
+    runtimeEntry,
+    visibleRoom,
+    visibleSnapshot.status,
+  ]);
+
+  const closeRoom = useCallback(async () => {
+    if (!visibleRoom || visibleMembership?.role !== "HOST" || visibleMembership.status !== "ACTIVE") return;
+    setActionPending("close");
+    setRoomError(undefined);
+    if (runtimeEntry && hostAuthorized && visibleSnapshot.status === "CONNECTED") {
+      try {
+        runtimeEntry.runtime.closeRoom();
+        window.setTimeout(() => {
+          setActionPending((pending) => pending === "close" ? null : pending);
+        }, 8_000);
+        return;
+      } catch {
+        // Fall back to the canonical backend close below.
+      }
+    }
+    try {
+      const result = await closeGroupFocusRoom(visibleRoom.id);
+      setRoomDetail((current) => current
+        ? { ...current, room: result.room }
+        : current);
+      navigateToSummary(visibleRoom.id, true);
+    } catch (error) {
+      setActionPending(null);
+      setRoomError(groupFocusErrorMessage(
+        error,
+        language,
+        localized(language, "The room could not be closed. Reconnect and try again.", "تعذر إغلاق الغرفة. أعد الاتصال وحاول مرة أخرى."),
+      ));
+    }
+  }, [
+    hostAuthorized,
+    language,
+    navigateToSummary,
+    runtimeEntry,
+    visibleMembership,
+    visibleRoom,
+    visibleSnapshot.status,
+  ]);
 
   const requestRoomState = useCallback(() => {
     if (!runtimeEntry || visibleSnapshot.status !== "CONNECTED") return;
@@ -857,6 +960,9 @@ export function GroupFocusFrontend({
           && visibleRoom?.status === "OPEN"
           && visibleRoom.visibility === "PRIVATE"
         }
+        memberManagementAllowed={hostAuthorized && visibleRoom?.status === "OPEN"}
+        memberRemovalPendingUserId={memberRemovalPendingUserId}
+        onRemoveMember={(targetUserId) => void removeMember(targetUserId)}
         safeInviteLinkOrCode={
           hostAuthorized && visibleRoom?.visibility === "PRIVATE"
             ? safeInviteLink
@@ -872,7 +978,7 @@ export function GroupFocusFrontend({
         onPause={() => runHostCommand("pause")}
         onResume={() => runHostCommand("resume")}
         onLeave={() => void leaveRoom()}
-        onCloseRoom={() => runHostCommand("close")}
+        onCloseRoom={() => void closeRoom()}
         onReconnect={reconnect}
         onRequestRoomState={requestRoomState}
         onRetryRoom={retryRoom}

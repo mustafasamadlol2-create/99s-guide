@@ -6,6 +6,7 @@ import {
   runStudyCohortAudit,
   type StudyCohortAuditCounts,
 } from "./cohortAudit.js";
+import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
 import type {
   ReleaseCheckReport,
   ReleaseGateResult,
@@ -125,11 +126,33 @@ export function validateFeatureConfiguration(
       );
     }
   }
+  if (environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true") {
+    const workerUrl = environment.VITE_GROUP_FOCUS_WORKER_URL?.trim();
+    if (!workerUrl) {
+      impossible.push("Group Focus frontend is enabled without its realtime Worker URL");
+    } else {
+      try {
+        const parsedWorkerUrl = new URL(workerUrl);
+        if (
+          !["https:", "http:"].includes(parsedWorkerUrl.protocol)
+          || parsedWorkerUrl.username.length > 0
+          || parsedWorkerUrl.password.length > 0
+          || parsedWorkerUrl.search.length > 0
+          || parsedWorkerUrl.hash.length > 0
+          || (parsedWorkerUrl.pathname !== "/" && parsedWorkerUrl.pathname !== "")
+        ) {
+          impossible.push("Group Focus Worker URL must be a clean HTTP(S) origin");
+        }
+      } catch {
+        impossible.push("Group Focus Worker URL is invalid");
+      }
+    }
+  }
   if (
-    environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true" &&
-    !environment.VITE_GROUP_FOCUS_WORKER_URL?.trim()
+    (flags.GROUP_FOCUS_ENABLED || environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true")
+    && !isGroupFocusRuntimeReady(environment)
   ) {
-    impossible.push("Group Focus frontend is enabled without its realtime Worker URL");
+    impossible.push("Group Focus is enabled without valid capability and reconciliation signing configuration");
   }
 
   return impossible.length > 0

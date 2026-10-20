@@ -213,6 +213,7 @@ function AppContent({
   const device = useDeviceProfile();
   const {
     GROUP_FOCUS_ENABLED,
+    GROUP_FOCUS_RUNTIME_READY,
     GAMIFICATION_ENABLED,
     STUDY_POINTS_ENABLED,
     status: studyFeatureFlagsStatus,
@@ -221,6 +222,7 @@ function AppContent({
   const groupFocusAvailable =
     GROUP_FOCUS_FRONTEND_ENABLED
     && GROUP_FOCUS_ENABLED
+    && GROUP_FOCUS_RUNTIME_READY
     && GROUP_FOCUS_WORKER_URL.length > 0;
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
@@ -2477,7 +2479,14 @@ function AppContent({
 
       setActiveTab(tab);
       if (tab === "focus" && FOCUS_HUB_V2_ENABLED) {
-        if (groupFocusAvailable && parts[1] === "group") {
+        const groupRouteRequested =
+          GROUP_FOCUS_FRONTEND_ENABLED
+          && parts[1] === "group"
+          && (groupFocusAvailable || studyFeatureFlagsStatus === "loading");
+        if (groupRouteRequested) {
+          // Preserve Group Focus deep links while server-owned feature/runtime
+          // readiness is loading. The rollout guard above will clear the route
+          // only after a resolved, unavailable configuration is known.
           setGroupFocusRoute(parts.slice(2).join("/"));
           setFocusSessionRouteId(null);
           setFocusSummaryRouteId(null);

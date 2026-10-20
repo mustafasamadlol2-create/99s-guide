@@ -5,7 +5,12 @@ import {
 } from "./capability.js";
 import {
   GroupFocusCapabilityConfigurationError,
+  parseGroupFocusCapabilityKeyring,
 } from "../../shared/group-focus-capability/keyring.js";
+import {
+  parseGroupFocusReconciliationKeyring,
+  type GroupFocusReconciliationEnvironment,
+} from "../../shared/group-focus-reconciliation/signing.js";
 import {
   GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES,
 } from "../../shared/group-focus-capability/contract.js";
@@ -26,6 +31,8 @@ const UUID_ROOM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export type GroupFocusWorkerEnvironment =
   & GroupFocusCapabilityWorkerEnvironment
+  & GroupFocusReconciliationEnvironment
+  & { GROUP_FOCUS_API_BASE_URL?: string }
   & Env;
 
 type CredentialResult =
@@ -47,6 +54,29 @@ function jsonError(status: number, code: string): Response {
 
 function bytesLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
+}
+
+function groupFocusWorkerRuntimeReady(environment: GroupFocusWorkerEnvironment): boolean {
+  try {
+    parseGroupFocusCapabilityKeyring(environment.GROUP_FOCUS_CAPABILITY_KEYS_JSON);
+    const reconciliation = parseGroupFocusReconciliationKeyring(
+      environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON,
+    );
+    const activeKid = environment.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
+    if (!activeKid || !reconciliation.has(activeKid)) return false;
+    if (!environment.GROUP_FOCUS_API_BASE_URL) return false;
+    const base = new URL(environment.GROUP_FOCUS_API_BASE_URL);
+    return (
+      (base.protocol === "https:" || base.protocol === "http:")
+      && base.username.length === 0
+      && base.password.length === 0
+      && base.search.length === 0
+      && base.hash.length === 0
+      && (base.pathname === "/" || base.pathname === "")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function parseCredentials(request: Request): CredentialResult {
@@ -173,8 +203,25 @@ export default {
         { headers: { "Cache-Control": "no-store" } },
       );
     }
+    if (request.method === "GET" && url.pathname === "/ready") {
+      const runtimeReady = groupFocusWorkerRuntimeReady(environment);
+      return Response.json(
+        { status: runtimeReady ? "ready" : "not_ready", runtimeReady },
+        {
+          status: runtimeReady ? 200 : 503,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
     if (request.method === "GET" && url.pathname === "/rooms") {
       return jsonError(404, "NOT_FOUND");
+    }
+    // A Worker that can verify a capability but cannot reconcile canonical
+    // membership/room state or deliver a terminal summary is not a usable
+    // Group Focus runtime. Fail closed before opening any WebSocket so an
+    // operational misconfiguration cannot create an unpersistable room.
+    if (!groupFocusWorkerRuntimeReady(environment)) {
+      return jsonError(503, "WORKER_RUNTIME_NOT_READY");
     }
     const match = url.pathname.match(ROOM_PATH);
     if (!match?.[1] || !UUID_ROOM_ID.test(match[1])) {

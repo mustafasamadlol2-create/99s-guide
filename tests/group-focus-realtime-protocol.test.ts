@@ -15,6 +15,10 @@ test("Group Focus realtime protocol accepts only the frozen client controls", ()
     parseGroupFocusRealtimeClientMessage('{"v":1,"type":"HOST_PAUSE"}'),
     { v: 1, type: "HOST_PAUSE" },
   );
+  assert.deepEqual(
+    parseGroupFocusRealtimeClientMessage('{"v":1,"type":"CANONICAL_SYNC_REQUEST"}'),
+    { v: 1, type: "CANONICAL_SYNC_REQUEST" },
+  );
   assert.equal(
     parseGroupFocusRealtimeClientMessage('{"v":1,"type":"CHAT_SEND"}'),
     null,

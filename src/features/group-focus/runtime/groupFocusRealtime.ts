@@ -480,6 +480,47 @@ export class GroupFocusRealtimeRuntime {
     this.send("ROOM_STATE_REQUEST");
   }
 
+  syncCanonical(): void {
+    this.send("CANONICAL_SYNC_REQUEST");
+  }
+
+  async refreshAuthorization(): Promise<void> {
+    if (this.snapshot.status === "TERMINAL" || this.disposed) {
+      throw new GroupFocusRealtimeRuntimeError(
+        "ROOM_TERMINAL",
+        "This Group Focus Room is no longer available for authorization refresh.",
+      );
+    }
+    this.reconnectEnabled = false;
+    this.clearReconnectTimer();
+    this.reconnectAttempts = 0;
+    this.reconnectStartedAt = null;
+    this.clearStoredResumeToken();
+    this.generation += 1;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      try {
+        socket.close(1000, "Refreshing room authorization");
+      } catch {
+        // The previous socket may already be closed.
+      }
+    }
+    this.reconnectEnabled = true;
+    this.update({ status: "RECONNECTING", error: null });
+    const attempt = this.connectWithFreshCapability(true);
+    this.connectionAttempt = attempt;
+    try {
+      await attempt;
+    } finally {
+      if (this.connectionAttempt === attempt) this.connectionAttempt = null;
+    }
+  }
+
   start(): void {
     this.send("HOST_START");
   }
@@ -764,7 +805,7 @@ export class GroupFocusRealtimeRuntime {
     this.listeners.clear();
   }
 
-  private send(type: "ROOM_STATE_REQUEST" | "HOST_START" | "HOST_PAUSE" | "HOST_RESUME" | "HOST_CLOSE"): void {
+  private send(type: "ROOM_STATE_REQUEST" | "CANONICAL_SYNC_REQUEST" | "HOST_START" | "HOST_PAUSE" | "HOST_RESUME" | "HOST_CLOSE"): void {
     if (!this.socket || this.socket.readyState !== 1) {
       throw new GroupFocusRealtimeRuntimeError(
         "NOT_CONNECTED",
