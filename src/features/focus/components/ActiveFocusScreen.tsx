@@ -15,6 +15,7 @@ import {
   Clock3,
   ExternalLink,
   FileText,
+  Maximize2,
   Pause,
   Play,
   RefreshCw,
@@ -38,6 +39,7 @@ import { NativeBridge } from "../../../core/device/capacitor/nativeBridge";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { FOCUS_AUDIO_ENABLED } from "../../../config/featureFlags";
 import { FocusAudioPlanningCard } from "./FocusAudioPlanningCard";
+import { FocusImmersiveMode } from "./FocusImmersiveMode";
 import { FocusRuntimeController } from "../runtime/controller";
 import type { FocusRuntimeState } from "../runtime/types";
 import { getFocusClientSource } from "../runtime/source";
@@ -128,6 +130,10 @@ const ACTIVE_FOCUS_COPY_KEYS = [
   "focusActiveStudyPhase",
   "focusActiveSubtitle",
   "focusActiveTimerLabel",
+  "focusImmersiveEnter",
+  "focusImmersiveExit",
+  "focusImmersiveSound",
+  "focusImmersiveControlsHint",
   "focusActiveTitle",
   "focusActiveUpcoming",
 ] as const;
@@ -258,6 +264,7 @@ function ActiveFocusScreenCore({
   const [resourceError, setResourceError] = useState(false);
   const [openingResourceId, setOpeningResourceId] = useState<string | null>(null);
   const [confirmType, setConfirmType] = useState<"end" | "exit" | null>(null);
+  const [immersiveMode, setImmersiveMode] = useState(true);
   const [dismissedInterruption, setDismissedInterruption] = useState<string | null>(null);
   const [interruptionPending, setInterruptionPending] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -388,6 +395,7 @@ function ActiveFocusScreenCore({
   useEffect(() => {
     setBreakSnapshot(null);
     setActivePhase("focus");
+    setImmersiveMode(true);
     breakStartKeyRef.current = null;
     breakReturnKeyRef.current = null;
   }, [sessionRouteId]);
@@ -582,6 +590,27 @@ function ActiveFocusScreenCore({
   ]);
 
   useEffect(() => {
+    if (runtime.completionEligible === true) {
+      setImmersiveMode(false);
+    }
+  }, [runtime.completionEligible]);
+
+  useEffect(() => {
+    if (
+      activePhase !== "focus" ||
+      canonicalSession?.status === "RESOURCE_HANDOFF" ||
+      canonicalSession?.status === "RECONCILIATION_REQUIRED" ||
+      canonicalSession?.reconciliationRequired
+    ) {
+      setImmersiveMode(false);
+    }
+  }, [
+    activePhase,
+    canonicalSession?.reconciliationRequired,
+    canonicalSession?.status,
+  ]);
+
+  useEffect(() => {
     if (!activeBreak || !routeBreakSnapshot) {
       setBreakClock(null);
       return;
@@ -711,6 +740,18 @@ function ActiveFocusScreenCore({
       () => controller.resume(),
       () => notifyAudioSafely(() => audio?.onFocusResumed()),
     );
+  };
+
+  const handleImmersiveAudioToggle = () => {
+    if (!audio || audio.audio.sourceType === "NONE") return;
+    if (audio.audio.state === "PLAYING") {
+      audio.pause();
+      return;
+    }
+    notifyAudioSafely(() =>
+      audio.audio.state === "PAUSED" || audio.audio.state === "INTERRUPTED"
+        ? audio.resume()
+        : audio.play());
   };
 
   const handlePauseBreak = () => {
@@ -1538,6 +1579,24 @@ function ActiveFocusScreenCore({
         ? t.focusActiveStudyPhase
         : t.focusActiveChecking;
 
+  const immersiveAvailable = activePhase === "focus" &&
+    (isActive || isPaused) &&
+    !isResourceHandoff &&
+    !isReconciliationRequired;
+  const immersiveVisible = immersiveMode && immersiveAvailable;
+  const immersiveClockText = runtime.displayRemainingSeconds === null
+    ? "--:--"
+    : formatFocusClock(runtime.displayRemainingSeconds);
+  const immersiveDurationSeconds = currentPlanItem?.focusDurationSeconds ?? null;
+  const immersiveProgress = immersiveDurationSeconds && runtime.displayRemainingSeconds !== null
+    ? Math.max(0, Math.min(1, runtime.displayRemainingSeconds / immersiveDurationSeconds))
+    : 0;
+  const immersiveAudioAvailable = Boolean(
+    audio && audio.initialized && audio.audio.sourceType !== "NONE",
+  );
+  const immersiveAudioPlaying = audio?.audio.state === "PLAYING";
+  const immersiveRoundText = `${t.focusActiveRound} ${canonicalSession.sessionNumber}/${canonicalSession.plannedSessionCount}`;
+
   const openResource = (material: Material) => {
     if (materialKind(material) === "PDF") void openPdf(material);
     else if (materialKind(material) === "VIDEO") void openVideo(material);
@@ -1545,6 +1604,32 @@ function ActiveFocusScreenCore({
 
   return (
     <div dir={language === "ar" ? "rtl" : "ltr"} className="focus-active-screen mx-auto min-h-screen max-w-7xl bg-gradient-to-b from-[#eef6ff] via-white to-white px-4 pb-8 pt-4 dark:from-[#0d151a] dark:to-transparent sm:px-6 sm:pt-6 lg:px-8">
+      {immersiveVisible && (
+        <FocusImmersiveMode
+          direction={language === "ar" ? "rtl" : "ltr"}
+          clockText={immersiveClockText}
+          progress={immersiveProgress}
+          statusLabel={runtimeStatusLabel}
+          timerLabel={t.focusActiveTimerLabel}
+          lectureTitle={lecture?.name ?? null}
+          roundText={immersiveRoundText}
+          paused={isPaused}
+          busy={isRuntimeBusy}
+          canMutate={mayChangeSession}
+          audioAvailable={immersiveAudioAvailable}
+          audioPlaying={immersiveAudioPlaying}
+          pauseLabel={t.focusActivePause}
+          resumeLabel={t.focusActiveResume}
+          endLabel={t.focusActiveEnd}
+          soundLabel={t.focusImmersiveSound}
+          exitLabel={t.focusImmersiveExit}
+          controlsHint={t.focusImmersiveControlsHint}
+          onPauseResume={isPaused ? handleResume : handlePause}
+          onEnd={() => setConfirmType("end")}
+          onToggleAudio={handleImmersiveAudioToggle}
+          onExit={() => setImmersiveMode(false)}
+        />
+      )}
       <header className="mb-4 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -1654,9 +1739,21 @@ function ActiveFocusScreenCore({
                 }`} aria-hidden="true" />
                 {runtimeStatusLabel}
               </span>
-              <span className="rounded-full border border-sky-100 bg-white/70 px-3 py-1 text-xs font-semibold text-sky-800 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
-                {timerPhaseLabel}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-sky-100 bg-white/70 px-3 py-1 text-xs font-semibold text-sky-800 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100">
+                  {timerPhaseLabel}
+                </span>
+                {immersiveAvailable && !immersiveVisible && (
+                  <button
+                    type="button"
+                    onClick={() => setImmersiveMode(true)}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-sky-100 bg-white/80 px-3 text-xs font-semibold text-sky-800 shadow-sm transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-100"
+                  >
+                    <Maximize2 className="size-3.5" aria-hidden="true" />
+                    {t.focusImmersiveEnter}
+                  </button>
+                )}
+              </div>
             </div>
 
             <FocusCycleStrip

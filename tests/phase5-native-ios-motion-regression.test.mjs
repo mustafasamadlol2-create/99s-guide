@@ -16,7 +16,7 @@ test("native motion has no external animation dependency", async () => {
 test("lecture picker uses light iOS backdrop and dependency-free spring-like sheet motion", async () => {
   const source = await read("src/features/focus/components/FocusLecturePicker.tsx");
   const css = await read("src/features/focus/components/focus-hub-approved.css");
-  assert.match(source, /bg-slate-700\/\[0\.16\]/);
+  assert.match(source, /bg-slate-700\/\[0\.28\]/);
   assert.doesNotMatch(source, /bg-slate-950\/55/);
   assert.match(source, /focus-visible:outline-none/);
   assert.match(css, /focus-lecture-picker-sheet/);
