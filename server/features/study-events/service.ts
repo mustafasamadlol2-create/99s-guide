@@ -13,6 +13,7 @@ import type { StudyEventType } from "../study-core/events.js";
 import { StudyEventError } from "./errors.js";
 import { evidenceMeetsPolicy, getMetricDelta, getStudyEventPolicy } from "./eventPolicy.js";
 import { studyEventRepository } from "./repository.js";
+import { enforceStudyEventIntegrity } from "../study-integrity/studyEventGuard.js";
 import { parseStudyEventPayload, studyEventInputSchema } from "./schemas.js";
 import type {
   IngestStudyEventInput,
@@ -326,6 +327,22 @@ export function createStudyEventIngestionService(options: ServiceOptions = {}) {
           if (existing) return { replay: existing as Record<string, unknown> };
 
           await validateReferences(repository, tx, semanticEvent, policy);
+          await enforceStudyEventIntegrity(tx, {
+            eventType: value.eventType,
+            userId: value.userId,
+            source: value.source,
+            evidenceClass: value.evidenceClass,
+            occurredAt,
+            receivedAt: clockNow,
+            idempotencyKey: value.idempotencyKey,
+            lectureId: value.lectureId ?? null,
+            materialId: value.materialId ?? null,
+            mcqId: value.mcqId ?? null,
+            flashcardId: value.flashcardId ?? null,
+            focusSessionId: value.focusSessionId ?? null,
+            groupFocusRoomId: value.groupFocusRoomId ?? null,
+            payload,
+          });
           const event = await tx.studyEvent.create({ data: eventData }) as StudyEventRecord;
 
           if (!metricDelta || !metricDateValue || !metricDate) {

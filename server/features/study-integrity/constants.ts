@@ -1,6 +1,6 @@
 import type { PrivacyClass } from "../study-core/privacy.js";
 
-export const STUDY_INTEGRITY_RULE_VERSION = "study-integrity-v1";
+export const STUDY_INTEGRITY_RULE_VERSION = "study-integrity-v2";
 export const DEFAULT_INTEGRITY_PRIVACY: PrivacyClass = "ADMIN_SECURITY";
 export const INTEGRITY_SIGNAL_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const INTEGRITY_SIGNAL_SAFE_DETAILS_MAX_BYTES = 8 * 1024;
@@ -148,6 +148,9 @@ export type IntegrityObservationSeverity = "INFO" | "REVIEW" | "BLOCK";
 export const INTEGRITY_ACTION_TYPES = Object.freeze({
   CLIENT_OBSERVATION: "study.client_observation",
   FOCUS_SESSION_START: "focus.session.start",
+  FOCUS_SESSION_PAUSE: "focus.session.pause",
+  FOCUS_SESSION_RESUME: "focus.session.resume",
+  FOCUS_SESSION_ABANDON: "focus.session.abandon",
   FOCUS_SESSION_COMPLETE: "focus.session.complete",
   FOCUS_INTERRUPTION_RECORD: "focus.interruption.record",
   FOCUS_RESOURCE_HANDOFF_START: "focus.resource_handoff.start",

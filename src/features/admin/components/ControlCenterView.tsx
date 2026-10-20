@@ -46,6 +46,7 @@ import {
   BookOpen,
   BarChart3,
   Activity,
+  ShieldAlert,
 } from "lucide-react";
 
 // ── Sidebar nav button (md+ vertical list) ──────────────────────────────────
@@ -162,6 +163,7 @@ const loadBannedUsersView = () => import("../../moderation/components/BannedUser
 const loadModerationHistoryView = () => import("../../moderation/components/ModerationHistoryView");
 const loadOwnerAnalyticsDashboard = () => import("../../owner-analytics/components/OwnerAnalyticsDashboard");
 const loadSystemHealthDashboard = () => import("../../system-health/components/SystemHealthDashboard");
+const loadStudyIntegrityDashboard = () => import("../../study-integrity/components/StudyIntegrityDashboard");
 
 const UploadMaterial = lazy(loadUploadMaterial);
 const UploadModuleResource = lazy(loadUploadModuleResource);
@@ -177,6 +179,7 @@ const BannedUsersView = lazy(loadBannedUsersView);
 const ModerationHistoryView = lazy(loadModerationHistoryView);
 const OwnerAnalyticsDashboard = lazy(loadOwnerAnalyticsDashboard);
 const SystemHealthDashboard = lazy(loadSystemHealthDashboard);
+const StudyIntegrityDashboard = lazy(loadStudyIntegrityDashboard);
 
 interface ControlCenterProps {
   isActive?: boolean;
@@ -213,7 +216,8 @@ type SubTab =
   | "banned-users"
   | "moderation-history"
   | "owner-analytics"
-  | "system-health";
+  | "system-health"
+  | "study-integrity";
 
 const ControlCenterView = function ControlCenterView({
   currentUser,
@@ -284,6 +288,9 @@ const ControlCenterView = function ControlCenterView({
         : Promise.resolve(),
       currentUser.role === "owner" && SYSTEM_HEALTH_FRONTEND_ENABLED
         ? loadSystemHealthDashboard()
+        : Promise.resolve(),
+      currentUser.role === "owner"
+        ? loadStudyIntegrityDashboard()
         : Promise.resolve(),
     ]);
   }, [currentUser.role, isPhone]);
@@ -466,6 +473,15 @@ const ControlCenterView = function ControlCenterView({
 
     // Owner-only items
     ...(isOwner ? ([
+      {
+        id: "study-integrity" as SubTab,
+        sidebarLabel: isRtl ? "سلامة الدراسة" : "Study Integrity",
+        pillLabel: isRtl ? "السلامة" : "Integrity",
+        Icon: ShieldAlert,
+        iconColorClass: "text-amber-600 dark:text-amber-300",
+        sidebarCategory: "System Operations",
+        sidebarCategoryAr: "عمليات النظام",
+      },
       ...(SYSTEM_HEALTH_FRONTEND_ENABLED ? ([{
         id: "system-health" as SubTab,
         sidebarLabel: isRtl ? "صحة النظام" : "System Health",
@@ -880,6 +896,10 @@ const ControlCenterView = function ControlCenterView({
       case "owner-analytics":
         return currentUser.role === "owner" && OWNER_ANALYTICS_FRONTEND_ENABLED
           ? <div className={panelClassName}><OwnerAnalyticsDashboard language={language} subjects={subjects} /></div>
+          : null;
+      case "study-integrity":
+        return currentUser.role === "owner"
+          ? <div className={panelClassName}><StudyIntegrityDashboard language={language} /></div>
           : null;
       case "system-health":
         return currentUser.role === "owner" && SYSTEM_HEALTH_FRONTEND_ENABLED

@@ -37,8 +37,11 @@ export class StudyIntegrityService {
     this.queries = new IntegritySignalQueries(database, now);
   }
 
-  recordIntegrityDecision(input: IntegritySignalRecordInput) {
-    return this.recorder.recordIntegrityDecision(input);
+  recordIntegrityDecision(
+    input: IntegritySignalRecordInput,
+    options: { transaction?: import("@prisma/client").Prisma.TransactionClient } = {},
+  ) {
+    return this.recorder.recordIntegrityDecision(input, options);
   }
 
   reviewSignal(input: IntegrityReviewInput): Promise<IntegrityReviewResult> {

@@ -13,4 +13,4 @@ export * from "./policy.js";
 export * from "./rateWindow.js";
 export * from "./timing.js";
 export * from "./types.js";
-export * from "./validation.js";
+export * from "./validation.js";export * from "./studyEventGuard.js";

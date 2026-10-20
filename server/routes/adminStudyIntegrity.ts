@@ -12,6 +12,9 @@ import {
   type IntegrityReviewActionType,
   type IntegritySignalStatus,
 } from "../features/study-integrity/persistence/index.js";
+import { StudyPointsLedgerService } from "../features/study-points/ledger.js";
+import { StudyPointsError } from "../features/study-points/errors.js";
+import { getPrisma } from "../services/prismaClient.js";
 
 const BODY_LIMIT_BYTES = 16 * 1024;
 const MAX_PAGE_SIZE = 100;
@@ -342,6 +345,81 @@ export function createAdminStudyIntegrityRouter(dependencies: {
       return res.status(500).json({
         error: "Integrity signal review is unavailable.",
         code: "SIGNAL_REVIEW_FAILED",
+      });
+    }
+  });
+
+
+  router.post("/signals/:signalId/reverse-focus-points", async (req, res) => {
+    if (!UUID.test(req.params.signalId)) {
+      return res.status(400).json({ error: "Signal ID is invalid.", code: "INVALID_SIGNAL_ID" });
+    }
+    const requestUser = (req as AdminRequest).user;
+    if (requestUser?.role !== "owner" || typeof requestUser.id !== "string") {
+      return res.status(403).json({
+        error: "Only the primary owner can reverse Study Points from integrity review.",
+        code: "OWNER_REQUIRED",
+      });
+    }
+    try {
+      const detail = await service.getSignalDetail(req.params.signalId);
+      if (!detail) {
+        return res.status(404).json({ error: "Integrity signal was not found.", code: "SIGNAL_NOT_FOUND" });
+      }
+      const signal = detail.signal;
+      if (signal.severity !== "BLOCK" || signal.resourceKind !== "focus_session" || !signal.resourceId) {
+        return res.status(409).json({
+          error: "This integrity signal is not eligible for Focus points reversal.",
+          code: "REVERSAL_NOT_ELIGIBLE",
+        });
+      }
+      const database = getPrisma();
+      const original = await database.studyPointsLedgerEntry.findFirst({
+        where: {
+          userId: signal.userId,
+          sourceType: "FOCUS_SESSION",
+          sourceId: signal.resourceId,
+          amount: { gt: 0 },
+          reversalOfEntryId: null,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      });
+      if (!original) {
+        return res.status(404).json({
+          error: "No reversible Focus Study Points entry was found for this signal.",
+          code: "NO_REVERSIBLE_POINTS",
+        });
+      }
+      const ledger = new StudyPointsLedgerService(database);
+      const reversed = await ledger.reverseStudyPointsLedgerEntry({
+        userId: signal.userId,
+        entryId: original.id,
+        reasonCode: "integrity.focus.block_reversal",
+        ruleVersion: signal.ruleVersion,
+        idempotencyKey: `integrity:${signal.id}:reverse:${original.id}`,
+        effectiveAt: new Date(),
+        metadata: {
+          integritySignalId: signal.id,
+          observationCode: signal.observationCode,
+          reviewerUserId: requestUser.id,
+        },
+      });
+      return res.set("Cache-Control", "no-store, private").json({
+        signalId: signal.id,
+        originalEntryId: original.id,
+        reversalEntryId: reversed.entry.id,
+        amount: reversed.entry.amount,
+        replayed: reversed.replayed,
+      });
+    } catch (error) {
+      if (error instanceof StudyPointsError) {
+        const status = error.code === "POINTS_ALREADY_REVERSED" ? 409 : 400;
+        return res.status(status).json({ error: error.message, code: error.code });
+      }
+      console.error("[StudyIntegrityAdmin] Focus points reversal failed.");
+      return res.status(500).json({
+        error: "Focus points reversal is unavailable.",
+        code: "INTEGRITY_POINTS_REVERSAL_FAILED",
       });
     }
   });

@@ -11,6 +11,9 @@ import type {
 
 const STUDY_EVENT_ACTIONS: Partial<Record<StudyEventType, string>> = {
   focus_session_started: INTEGRITY_ACTION_TYPES.FOCUS_SESSION_START,
+  focus_session_paused: INTEGRITY_ACTION_TYPES.FOCUS_SESSION_PAUSE,
+  focus_session_resumed: INTEGRITY_ACTION_TYPES.FOCUS_SESSION_RESUME,
+  focus_session_abandoned: INTEGRITY_ACTION_TYPES.FOCUS_SESSION_ABANDON,
   focus_session_completed: INTEGRITY_ACTION_TYPES.FOCUS_SESSION_COMPLETE,
   focus_interruption_recorded: INTEGRITY_ACTION_TYPES.FOCUS_INTERRUPTION_RECORD,
   focus_resource_handoff_started:
@@ -29,6 +32,16 @@ const STUDY_EVENT_ACTIONS: Partial<Record<StudyEventType, string>> = {
   spaced_recall_answered: INTEGRITY_ACTION_TYPES.RECALL_ANSWER,
 };
 
+
+export function integrityActionTypeForStudyEvent(
+  eventType: StudyEventType,
+): string | null {
+  return STUDY_EVENT_ACTIONS[eventType] ?? null;
+}
+
+export function isStudyEventIntegrityMapped(eventType: StudyEventType): boolean {
+  return integrityActionTypeForStudyEvent(eventType) !== null;
+}
 export type StudyEventIntegrityInput = {
   eventType: StudyEventType;
   userId: string;

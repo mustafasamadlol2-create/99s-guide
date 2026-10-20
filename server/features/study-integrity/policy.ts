@@ -17,6 +17,7 @@ const realtimeMembershipSources = [
 ] as const satisfies readonly StudyEventSource[];
 
 const backendOnly = ["backend"] as const satisfies readonly StudyEventSource[];
+const focusStartSources = [...clientSources, "backend"] as const satisfies readonly StudyEventSource[];
 const securityPrivacy = [DEFAULT_INTEGRITY_PRIVACY] as const;
 
 /**
@@ -79,8 +80,26 @@ const policies: readonly IntegrityPolicy[] = [
   policy(
     INTEGRITY_ACTION_TYPES.FOCUS_SESSION_START,
     "CLIENT_OBSERVED",
+    focusStartSources,
+    clientTimestampPolicy,
+  ),
+  policy(
+    INTEGRITY_ACTION_TYPES.FOCUS_SESSION_PAUSE,
+    "CLIENT_OBSERVED",
     clientSources,
     clientTimestampPolicy,
+  ),
+  policy(
+    INTEGRITY_ACTION_TYPES.FOCUS_SESSION_RESUME,
+    "CLIENT_OBSERVED",
+    clientSources,
+    clientTimestampPolicy,
+  ),
+  policy(
+    INTEGRITY_ACTION_TYPES.FOCUS_SESSION_ABANDON,
+    "SERVER_VALIDATED",
+    backendOnly,
+    serverTimestampPolicy,
   ),
   policy(
     INTEGRITY_ACTION_TYPES.FOCUS_SESSION_COMPLETE,
@@ -88,12 +107,17 @@ const policies: readonly IntegrityPolicy[] = [
     backendOnly,
     serverTimestampPolicy,
     ["SERVER_VALIDATED"],
+    undefined,
+    { durationBounds: { minSeconds: 60, maxSeconds: 6 * 60 * 60 } },
   ),
   policy(
     INTEGRITY_ACTION_TYPES.FOCUS_INTERRUPTION_RECORD,
     "SERVER_VALIDATED",
     backendOnly,
     serverTimestampPolicy,
+    [],
+    undefined,
+    { durationBounds: { minSeconds: 1, maxSeconds: 6 * 60 * 60 } },
   ),
   policy(
     INTEGRITY_ACTION_TYPES.FOCUS_RESOURCE_HANDOFF_START,
@@ -154,6 +178,15 @@ const policies: readonly IntegrityPolicy[] = [
     serverTimestampPolicy,
     ["SERVER_VALIDATED"],
     "SERVER_VALIDATED",
+    {
+      rateRule: {
+        ruleId: "integrity.mcq.answer.rate.v2",
+        windowSeconds: 5 * 60,
+        maxActions: 90,
+        burstAllowance: 20,
+        exceededBehavior: "ALLOW_WITH_OBSERVATION",
+      },
+    },
   ),
   policy(
     INTEGRITY_ACTION_TYPES.FLASHCARD_REVIEW,
@@ -162,6 +195,15 @@ const policies: readonly IntegrityPolicy[] = [
     serverTimestampPolicy,
     ["SERVER_VALIDATED"],
     "SERVER_VALIDATED",
+    {
+      rateRule: {
+        ruleId: "integrity.flashcard.review.rate.v2",
+        windowSeconds: 5 * 60,
+        maxActions: 180,
+        burstAllowance: 30,
+        exceededBehavior: "ALLOW_WITH_OBSERVATION",
+      },
+    },
   ),
   policy(
     INTEGRITY_ACTION_TYPES.RECALL_ANSWER,

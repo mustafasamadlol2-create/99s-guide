@@ -283,6 +283,7 @@ export class StudyIntegrityPersistenceService {
 
   async recordIntegrityDecision(
     input: IntegritySignalRecordInput,
+    options: { transaction?: Prisma.TransactionClient } = {},
   ): Promise<RecordedIntegrityDecision> {
     if (!input || typeof input !== "object" || !input.envelope || !input.decision) {
       throw new StudyIntegrityPersistenceError(
@@ -330,7 +331,7 @@ export class StudyIntegrityPersistenceService {
     }
 
     const persistedResults = new Map<number, RecordedIntegrityObservation>();
-    await this.database.$transaction(async (tx) => {
+    const persistWithinTransaction = async (tx: Prisma.TransactionClient) => {
       const ordered = [...toPersist].sort((left, right) =>
         left.userId.localeCompare(right.userId)
         || left.signalFingerprint.localeCompare(right.signalFingerprint)
@@ -341,7 +342,15 @@ export class StudyIntegrityPersistenceService {
         const result = await this.recordOne(tx, item);
         persistedResults.set(item.index, result);
       }
-    }, { maxWait: 5_000, timeout: 15_000 });
+    };
+    if (options.transaction) {
+      await persistWithinTransaction(options.transaction);
+    } else {
+      await this.database.$transaction(
+        persistWithinTransaction,
+        { maxWait: 5_000, timeout: 15_000 },
+      );
+    }
 
     const observations: RecordedIntegrityObservation[] =
       input.decision.observations.map((observation, index) => {

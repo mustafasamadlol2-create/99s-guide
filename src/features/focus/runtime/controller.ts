@@ -695,6 +695,11 @@ export class FocusRuntimeController {
           authority: "CLIENT_OBSERVED",
         };
         this.setState({ potentialInterruption: candidate });
+        // Phase 7: background absence is a technical integrity signal, not a
+        // user confession. Record it automatically after the canonical
+        // foreground reconciliation. A failed request leaves the candidate in
+        // state so the existing UI can retry without changing Focus timing.
+        void this.recordInterruption("background_absence").catch(() => {});
       }
     }
   }
