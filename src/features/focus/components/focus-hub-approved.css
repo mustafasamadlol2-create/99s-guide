@@ -2539,6 +2539,10 @@
 }
 
 .focus-lecture-picker-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  isolation: isolate;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -2555,6 +2559,9 @@
 }
 
 .focus-lecture-picker-sheet {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   opacity: 0;
   transform: translate3d(0, 28px, 0) scale(.985);
   transition:

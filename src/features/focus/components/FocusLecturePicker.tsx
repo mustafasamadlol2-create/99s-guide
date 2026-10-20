@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BookOpen, Check, Search, X } from "lucide-react";
 import type { DatabaseLecture, Subject } from "../../../core/types";
 import { useTranslation, type Language } from "../../../core/i18n/translations";
@@ -139,9 +140,11 @@ export function FocusLecturePicker({
     }
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="focus-lecture-picker-overlay fixed inset-0 z-[80] flex items-end justify-center bg-slate-700/[0.16] backdrop-blur-[3px] dark:bg-black/35 md:items-center md:p-6"
+      className="focus-lecture-picker-overlay fixed inset-0 z-[2147483000] flex items-end justify-center bg-slate-700/[0.28] backdrop-blur-[7px] dark:bg-black/50 md:items-center md:p-6"
       data-state={isOpen ? "open" : "closed"}
       aria-hidden={!isOpen}
       onMouseDown={(event) => {
@@ -303,6 +306,7 @@ export function FocusLecturePicker({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
