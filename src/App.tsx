@@ -39,6 +39,7 @@ import {
   GAMIFICATION_UPDATE_EVENT,
   setGamificationReadAccountScope,
 } from "./features/gamification/realtime";
+import { warmStudyStreakCache } from "./features/gamification/studyStreakCache";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
@@ -225,6 +226,14 @@ function AppContent({
     && GROUP_FOCUS_ENABLED
     && GROUP_FOCUS_RUNTIME_READY
     && GROUP_FOCUS_WORKER_URL.length > 0;
+
+  // Phase 10 profile polish: prefetch the canonical study streak immediately
+  // after authentication, before the lazy Profile route is opened. This makes
+  // the avatar badge available on Profile's first painted frame.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    void warmStudyStreakCache(currentUser.id);
+  }, [currentUser?.id]);
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
   // important on the 13-inch iPad Pro where short screens can otherwise end
@@ -1017,9 +1026,6 @@ function AppContent({
     });
     socket.on("motto_updated", () => {
       window.dispatchEvent(new CustomEvent("socket-motto-updated"));
-    });
-    socket.on("focus_sounds_updated", () => {
-      window.dispatchEvent(new CustomEvent("socket-focus-sounds-updated"));
     });
 
     // ── Real-time profile sync: update currentUser instantly when profile changes ──

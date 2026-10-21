@@ -11,7 +11,12 @@ import { createPortal } from "react-dom";
 import { User, Subject, UserProgress } from "../../../core/types";
 import { motion, AnimatePresence, useTransform } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
-import { gamificationApi } from "../../gamification/api";
+import {
+  readStudyStreakCache,
+  STUDY_STREAK_CACHE_EVENT,
+  warmStudyStreakCache,
+  type StudyStreakCacheEntry,
+} from "../../gamification/studyStreakCache";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
@@ -238,26 +243,37 @@ export const ProfileView = function ProfileView({
 
  // Compact profile streak: the full analytics/heatmap remain in Study Engagement.
  // Profile intentionally surfaces only the current streak count.
- const [profileStreakDays, setProfileStreakDays] = useState<number | null>(null);
- const profileStreakRequestRef = useRef(0);
+ const profileUserId = String((user as any).id ?? user.email);
+ const [profileStreakDays, setProfileStreakDays] = useState<number | null>(() =>
+   typeof window === "undefined"
+     ? null
+     : readStudyStreakCache(profileUserId)?.currentStreakDays ?? null,
+ );
 
  const refreshProfileStreak = useCallback(async () => {
-   const requestId = ++profileStreakRequestRef.current;
-   try {
-     const result = await gamificationApi.studyStreak();
-     if (profileStreakRequestRef.current !== requestId) return;
-     setProfileStreakDays(Math.max(0, Math.trunc(result.currentStreakDays)));
-   } catch {
-     // The compact badge is decorative/secondary. A transient analytics read
-     // failure must never turn the Profile page into an error state.
-     if (profileStreakRequestRef.current === requestId) setProfileStreakDays(null);
-   }
- }, []);
+   const entry = await warmStudyStreakCache(profileUserId);
+   if (entry) setProfileStreakDays(entry.currentStreakDays);
+ }, [profileUserId]);
+
+ // The app shell warms this cache immediately after authentication. Profile
+ // consumes it synchronously, so the badge is already painted on first frame.
+ // This local warm is a fallback for unusual navigation/startup paths.
+ useEffect(() => {
+   const cached = readStudyStreakCache(profileUserId);
+   if (cached) setProfileStreakDays(cached.currentStreakDays);
+   void refreshProfileStreak();
+
+   const handleCacheUpdate = (event: Event) => {
+     const detail = (event as CustomEvent<StudyStreakCacheEntry>).detail;
+     if (!detail || detail.accountId !== profileUserId) return;
+     setProfileStreakDays(detail.currentStreakDays);
+   };
+   window.addEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
+   return () => window.removeEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
+ }, [profileUserId, refreshProfileStreak]);
 
  useEffect(() => {
    if (!isActive) return;
-
-   void refreshProfileStreak();
 
    const handleWindowFocus = () => void refreshProfileStreak();
    const handleVisibilityChange = () => {
@@ -364,13 +380,54 @@ export const ProfileView = function ProfileView({
     >
       {/* Large Profile Header (Apple ID Style) */}
       <div className="flex flex-col items-center mb-10 relative">
-        <InteractiveAvatar
-          avatarUrl={isEditing ? editAvatar : user.avatar}
-          name={isEditing ? editName : user.name}
-          onAvatarChange={handleAvatarChange}
-          onAvatarRemove={handleAvatarRemove}
-          isEditable={true}
-        />
+        <div className="relative inline-flex items-center justify-center">
+          <InteractiveAvatar
+            avatarUrl={isEditing ? editAvatar : user.avatar}
+            name={isEditing ? editName : user.name}
+            onAvatarChange={handleAvatarChange}
+            onAvatarRemove={handleAvatarRemove}
+            isEditable={true}
+          />
+
+          {!isEditing && profileStreakDays !== null && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.82, y: 5 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 560, damping: 30, mass: 0.72 }}
+              whileHover={{ y: -1, scale: 1.025 }}
+              className="absolute -bottom-2 -left-8 z-20 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-amber-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(255,247,226,0.94))] px-2.5 py-1.5 shadow-[0_10px_28px_rgba(190,120,24,0.16),0_2px_8px_rgba(23,38,61,0.08),inset_0_1px_0_rgba(255,255,255,0.98)] backdrop-blur-xl dark:border-amber-300/15 dark:bg-[linear-gradient(145deg,rgba(54,43,25,0.94),rgba(31,31,32,0.94))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]"
+              aria-label={tr(`${profileStreakDays} day study streak`, `سلسلة دراسة ${profileStreakDays} يوم`)}
+              title={tr(`${profileStreakDays} day study streak`, `سلسلة دراسة ${profileStreakDays} يوم`)}
+            >
+              <motion.span
+                animate={profileStreakDays > 0 ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                transition={profileStreakDays > 0 ? { duration: 2.8, repeat: Infinity, ease: "easeInOut" } : undefined}
+                className={`flex size-7 items-center justify-center rounded-full ${
+                  profileStreakDays > 0
+                    ? "bg-gradient-to-br from-amber-400 via-orange-500 to-orange-600 text-white shadow-[0_4px_12px_rgba(249,115,22,0.28)]"
+                    : "bg-amber-50 text-amber-500 ring-1 ring-amber-200/80 dark:bg-amber-300/10 dark:text-amber-300 dark:ring-amber-300/15"
+                }`}
+              >
+                <Flame
+                  className="h-[15px] w-[15px]"
+                  fill={profileStreakDays > 0 ? "currentColor" : "none"}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+              </motion.span>
+              <span
+                className={`min-w-[1ch] pe-0.5 text-[15px] font-bold tabular-nums tracking-[-0.025em] ${
+                  profileStreakDays > 0
+                    ? "text-amber-950 dark:text-amber-100"
+                    : "text-neutral-700 dark:text-neutral-200"
+                }`}
+                dir="ltr"
+              >
+                {new Intl.NumberFormat(isRtl ? "ar-IQ" : "en").format(profileStreakDays)}
+              </span>
+            </motion.div>
+          )}
+        </div>
 
         {!isEditing ? (
           <AnimatePresence>
@@ -399,26 +456,7 @@ export const ProfileView = function ProfileView({
                 {(user as any).profileEmail || user.email}
               </p>
 
-              {profileStreakDays !== null && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.92, y: 4 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 520, damping: 31, mass: 0.8 }}
-                  className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-orange-200/80 bg-gradient-to-br from-orange-50/95 via-amber-50/90 to-white/90 px-3.5 py-1.5 shadow-[0_6px_18px_rgba(245,158,11,0.12),inset_0_1px_0_rgba(255,255,255,0.92)] backdrop-blur-md dark:border-orange-300/15 dark:from-orange-300/[0.10] dark:via-amber-300/[0.06] dark:to-white/[0.035]"
-                  aria-label={tr(`${profileStreakDays} day study streak`, `سلسلة دراسة ${profileStreakDays} يوم`)}
-                  title={tr(`${profileStreakDays} day study streak`, `سلسلة دراسة ${profileStreakDays} يوم`)}
-                >
-                  <Flame
-                    className={`h-[18px] w-[18px] ${profileStreakDays > 0 ? "text-orange-500" : "text-neutral-400 dark:text-neutral-500"}`}
-                    fill={profileStreakDays > 0 ? "currentColor" : "none"}
-                    strokeWidth={profileStreakDays > 0 ? 1.8 : 2}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-[1ch] text-[15px] font-bold tabular-nums tracking-[-0.02em] text-orange-700 dark:text-orange-200" dir="ltr">
-                    {new Intl.NumberFormat(isRtl ? "ar-IQ" : "en").format(profileStreakDays)}
-                  </span>
-                </motion.div>
-              )}
+
 
               <button
                 onClick={startEditing}
