@@ -16,6 +16,10 @@ import { formatToBaghdadISO, parseBaghdadDate } from "../../../core/utils/timezo
 import { showiOSAlert } from "../../../core/device/alert";
 import CalendarScheduleImporter from "../import/CalendarScheduleImporter";
 import { CALENDAR_TARGET_GROUPS } from "../../../../shared/calendarContracts";
+import {
+ buildYear3TermOne2026Events,
+ YEAR3_TERM_ONE_2026_COUNTS,
+} from "../data/year3TermOne2026";
 
 interface ManageCalendarProps {
  language?: "en" | "ar";
@@ -58,6 +62,11 @@ export default function ManageCalendar({
  type: "success" | "error";
  message: string;
  } | null>(null);
+ const [officialImportProgress, setOfficialImportProgress] = useState({
+ running: false,
+ processed: 0,
+ failed: 0,
+ });
 
  // Database-enrolled lectures list for selective bidirectional synchronization
  const [dbLectures, setDbLectures] = useState<any[]>([]);
@@ -109,6 +118,90 @@ export default function ManageCalendar({
  }
  setSelectedGroups(updated);
  }
+ };
+
+ const runOfficialTermImport = async () => {
+ if (officialImportProgress.running) return;
+
+ const importEvents = buildYear3TermOne2026Events();
+ let nextIndex = 0;
+ let processed = 0;
+ let failed = 0;
+ const failureMessages: string[] = [];
+
+ setFeedback(null);
+ setOfficialImportProgress({ running: true, processed: 0, failed: 0 });
+
+ const worker = async () => {
+ while (true) {
+ const index = nextIndex++;
+ if (index >= importEvents.length) return;
+ const event = importEvents[index];
+
+ try {
+ const response = await apiClient("/api/calendar/events", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(event),
+ retries: 2,
+ });
+ const payload = await response.json().catch(() => null);
+ if (!response.ok) {
+ throw new Error(payload?.error || `HTTP ${response.status}`);
+ }
+ } catch (error: any) {
+ failed += 1;
+ if (failureMessages.length < 3) {
+ failureMessages.push(`${event.startDateTime.slice(0, 10)} — ${event.title}: ${error?.message || "Unknown error"}`);
+ }
+ } finally {
+ processed += 1;
+ setOfficialImportProgress({ running: true, processed, failed });
+ }
+ }
+ };
+
+ try {
+ await Promise.all(Array.from({ length: 6 }, () => worker()));
+
+ if (failed === 0) {
+ setFeedback({
+ type: "success",
+ message: isRtl
+ ? `تم استيراد ${importEvents.length} فعالية من الجدول الرسمي بنجاح، من دون إرسال أي إشعارات للطلاب.`
+ : `Imported all ${importEvents.length} official timetable events successfully with student notifications disabled.`,
+ });
+ } else {
+ const details = failureMessages.length ? ` ${failureMessages.join(" | ")}` : "";
+ setFeedback({
+ type: "error",
+ message: isRtl
+ ? `اكتمل الاستيراد مع فشل ${failed} من أصل ${importEvents.length} فعالية. لم تُرسل أي إشعارات.${details}`
+ : `Import completed with ${failed} failures out of ${importEvents.length} events. No student notifications were sent.${details}`,
+ });
+ }
+
+ if (onEventCreated) onEventCreated();
+ } finally {
+ setOfficialImportProgress({ running: false, processed, failed });
+ }
+ };
+
+ const confirmOfficialTermImport = () => {
+ showiOSAlert({
+ title: isRtl ? "استيراد جدول المرحلة الثالثة" : "Import Year 3 Timetable",
+ message: isRtl
+ ? `سيتم إدخال ${YEAR3_TERM_ONE_2026_COUNTS.total} فعالية من 27/9/2026 إلى 1/12/2026: ${YEAR3_TERM_ONE_2026_COUNTS.lectures} محاضرة/جلسة، ${YEAR3_TERM_ONE_2026_COUNTS.weekendHolidays} عطلة Weekend، و${YEAR3_TERM_ONE_2026_COUNTS.importantExams} امتحان مهم. لن يتم إرسال أي Notification.`
+ : `This will import ${YEAR3_TERM_ONE_2026_COUNTS.total} events from 27 Sep to 1 Dec 2026: ${YEAR3_TERM_ONE_2026_COUNTS.lectures} lecture/session events, ${YEAR3_TERM_ONE_2026_COUNTS.weekendHolidays} Weekend holidays, and ${YEAR3_TERM_ONE_2026_COUNTS.importantExams} important exams. Student notifications are disabled.`,
+ actions: [
+ { label: isRtl ? "إلغاء" : "Cancel", style: "cancel" },
+ {
+ label: isRtl ? "ابدأ الاستيراد" : "Start Import",
+ style: "default",
+ onClick: () => { void runOfficialTermImport(); },
+ },
+ ],
+ });
  };
 
  const handleSubmit = async (e: React.FormEvent) => {
@@ -194,6 +287,64 @@ export default function ManageCalendar({
  id="manage_calendar_form_container"
  className="space-y-section max-w-2xl mx-auto"
  >
+  <div className="rounded-xl border border-indigo-200/70 dark:border-indigo-400/20 bg-indigo-50/70 dark:bg-indigo-500/5 p-4 space-y-3">
+   <div className="flex items-start justify-between gap-3">
+    <div>
+     <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">
+      {isRtl ? "استيراد الجدول الرسمي — المرحلة الثالثة" : "Official Year 3 Timetable Import"}
+     </h4>
+     <p className="mt-1 text-xs leading-5 text-neutral-600 dark:text-[#EBEBF599]">
+      {isRtl
+       ? "27/9/2026 → 1/12/2026 · المجاميع A–E · بدون القاعات وبدون Notifications"
+       : "27 Sep 2026 → 1 Dec 2026 · Groups A–E · rooms excluded · notifications disabled"}
+     </p>
+    </div>
+    <Calendar className="w-icon-md h-icon-md text-indigo-500 shrink-0" />
+   </div>
+
+   <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="rounded-lg bg-white/80 dark:bg-white/[0.05] border border-black/5 dark:border-white/[0.08] px-2 py-2">
+     <div className="text-sm font-semibold text-neutral-900 dark:text-white">{YEAR3_TERM_ONE_2026_COUNTS.lectures}</div>
+     <div className="text-[11px] text-neutral-500 dark:text-[#EBEBF599]">{isRtl ? "محاضرات/جلسات" : "Lectures"}</div>
+    </div>
+    <div className="rounded-lg bg-white/80 dark:bg-white/[0.05] border border-black/5 dark:border-white/[0.08] px-2 py-2">
+     <div className="text-sm font-semibold text-neutral-900 dark:text-white">{YEAR3_TERM_ONE_2026_COUNTS.weekendHolidays}</div>
+     <div className="text-[11px] text-neutral-500 dark:text-[#EBEBF599]">Weekend</div>
+    </div>
+    <div className="rounded-lg bg-white/80 dark:bg-white/[0.05] border border-black/5 dark:border-white/[0.08] px-2 py-2">
+     <div className="text-sm font-semibold text-neutral-900 dark:text-white">{YEAR3_TERM_ONE_2026_COUNTS.importantExams}</div>
+     <div className="text-[11px] text-neutral-500 dark:text-[#EBEBF599]">{isRtl ? "امتحانات مهمة" : "Important Exams"}</div>
+    </div>
+   </div>
+
+   {officialImportProgress.running && (
+    <div className="space-y-1.5">
+     <div className="flex justify-between text-[11px] text-neutral-600 dark:text-[#EBEBF599]">
+      <span>{isRtl ? "جاري الاستيراد..." : "Importing..."}</span>
+      <span>{officialImportProgress.processed}/{YEAR3_TERM_ONE_2026_COUNTS.total}</span>
+     </div>
+     <div className="h-2 overflow-hidden rounded-full bg-black/5 dark:bg-white/[0.08]">
+      <div
+       className="h-full rounded-full bg-indigo-500 transition-[width] duration-200"
+       style={{ width: `${Math.min(100, (officialImportProgress.processed / YEAR3_TERM_ONE_2026_COUNTS.total) * 100)}%` }}
+      />
+     </div>
+    </div>
+   )}
+
+   <button
+    type="button"
+    onClick={confirmOfficialTermImport}
+    disabled={officialImportProgress.running}
+    className="w-full px-4 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+   >
+    <Plus className="w-icon-sm h-icon-sm" />
+    {officialImportProgress.running
+     ? (isRtl ? "جاري إضافة الجدول..." : "Importing timetable...")
+     : (isRtl ? "إضافة الجدول كاملًا بنقرة واحدة" : "Import full timetable in one click")}
+   </button>
+  </div>
+
   <CalendarScheduleImporter language={language} onImported={onEventCreated} />
  <div className="border-b border-neutral-100 dark:border-white/[0.12] pb-3 flex items-center gap-2 group relative">
  <h3 className="text-headline font-display font-semibold text-neutral-800 dark:text-white flex items-center gap-2">

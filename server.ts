@@ -7156,7 +7156,7 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
 
 app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
   try {
-    const { title, eventType, startDateTime, endDateTime, targetGroups, sendNotification, description, subjectId, lectureId, room, doctor, notes, isPinned, isCompleted } = req.body;
+    const { title, eventType, startDateTime, endDateTime, targetGroups, sendNotification, description, subjectId, lectureId, room, doctor, notes, isPinned, isCompleted, allDay } = req.body;
     
     // Core payload validation
     if (!title || !eventType || !startDateTime || !endDateTime || !targetGroups || !Array.isArray(targetGroups)) {
@@ -7260,7 +7260,8 @@ app.post("/api/calendar/events", requireAdmin, catchAsync(async (req, res) => {
         doctor: doctor || null,
         notes: notes || null,
         isPinned: isPinned || false,
-        isCompleted: isCompleted || false
+        isCompleted: isCompleted || false,
+        allDay: Boolean(allDay)
       }
     });
 
