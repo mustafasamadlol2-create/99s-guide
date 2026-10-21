@@ -173,6 +173,6 @@ export interface StudyStreakSummary {
   activeDaysInRange: number;
   historyDays: number;
   streakCappedByHistory: boolean;
-  activityRuleVersion: "study-day-v1";
+  activityRuleVersion: "study-day-v3";
   days: StudyStreakDay[];
 }

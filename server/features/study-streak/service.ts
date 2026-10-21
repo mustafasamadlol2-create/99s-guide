@@ -4,8 +4,26 @@ import { getBaghdadMetricDate, metricDateAsUtcDate } from "../study-events/date.
 export const STUDY_STREAK_TIME_ZONE = "Asia/Baghdad";
 export const STUDY_STREAK_HISTORY_DAYS = 365;
 
-const ACTIVE_PROGRESS_EVENT_TYPES = ["lecture_progress_recorded"] as const;
-const ACTIVE_EVIDENCE_CLASSES = ["SERVER_VALIDATED", "REALTIME_VERIFIED", "ADMIN_VERIFIED"] as const;
+const ACTIVE_STUDY_EVENT_TYPES = [
+  "focus_session_completed",
+  "lecture_progress_recorded",
+  "lecture_completion_confirmed",
+  "mcq_attempted",
+  "flashcard_reviewed",
+  "spaced_recall_answered",
+  "group_focus_round_completed",
+  "group_focus_summary_completed",
+] as const;
+const ACTIVE_STUDY_POINT_SOURCE_TYPES = [
+  "FOCUS_SESSION",
+  "GROUP_FOCUS_RUN",
+  "MCQ_ATTEMPT",
+  "FLASHCARD_REVIEW",
+  "RECALL_ATTEMPT",
+  "LECTURE_RESOURCE",
+  "LECTURE_COMPLETION",
+] as const;
+const ACTIVE_EVIDENCE_CLASSES = ["SERVER_VALIDATED", "SERVER_DERIVED", "REALTIME_VERIFIED", "ADMIN_VERIFIED"] as const;
 
 export type StudyStreakDay = {
   date: string;
@@ -33,7 +51,7 @@ export type StudyStreakSummary = {
   activeDaysInRange: number;
   historyDays: number;
   streakCappedByHistory: boolean;
-  activityRuleVersion: "study-day-v1";
+  activityRuleVersion: "study-day-v3";
   days: StudyStreakDay[];
 };
 
@@ -47,13 +65,15 @@ type MetricRow = {
   lectureCompletions: number;
 };
 
-type ProgressEventRow = { occurredAt: Date };
+type ProgressEventRow = { occurredAt: Date; receivedAt: Date; eventType?: string };
 type GroupFocusRow = { verifiedFocusSeconds: number; run: { runtimeEndedAt: Date | null } };
+type PointsActivityRow = { effectiveAt: Date; createdAt: Date; amount: number; sourceType: string };
 
 export type StudyStreakDatabase = {
   studyDailyMetric: { findMany(args: unknown): Promise<MetricRow[]> };
   studyEvent: { findMany(args: unknown): Promise<ProgressEventRow[]> };
   groupFocusParticipantSummary: { findMany(args: unknown): Promise<GroupFocusRow[]> };
+  studyPointsLedgerEntry: { findMany(args: unknown): Promise<PointsActivityRow[]> };
 };
 
 function shiftDateKey(dateKey: string, deltaDays: number): string {
@@ -141,7 +161,16 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
       const metricEnd = metricDateAsUtcDate(today);
       const instantStart = baghdadDayStart(rangeStart);
 
-      const [metrics, progressEvents, groupFocus] = await Promise.all([
+      // IMPORTANT: a study streak is about the day the server accepted the study
+      // action, not necessarily the historical/economic effectiveAt carried by a
+      // reward row. Legacy progress can legitimately create a new Points V2 row
+      // today whose effectiveAt points at an older completion timestamp. Using
+      // effectiveAt made a student earn points today while still seeing streak=0.
+      //
+      // Reads are also deliberately fail-soft. StudyDailyMetric and Group Focus
+      // are projections/secondary sources; one unavailable source must never make
+      // the entire streak endpoint fail and leave the Profile stuck on cached 0.
+      const reads = await Promise.allSettled([
         database.studyDailyMetric.findMany({
           where: { userId, metricDate: { gte: metricStart, lte: metricEnd } },
           select: {
@@ -158,12 +187,12 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
         database.studyEvent.findMany({
           where: {
             userId,
-            eventType: { in: [...ACTIVE_PROGRESS_EVENT_TYPES] },
+            eventType: { in: [...ACTIVE_STUDY_EVENT_TYPES] },
             evidenceClass: { in: [...ACTIVE_EVIDENCE_CLASSES] },
-            occurredAt: { gte: instantStart, lte: asOf },
+            receivedAt: { gte: instantStart, lte: asOf },
           },
-          select: { occurredAt: true },
-          orderBy: { occurredAt: "asc" },
+          select: { occurredAt: true, receivedAt: true, eventType: true },
+          orderBy: { receivedAt: "asc" },
         }),
         database.groupFocusParticipantSummary.findMany({
           where: {
@@ -173,7 +202,37 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
           },
           select: { verifiedFocusSeconds: true, run: { select: { runtimeEndedAt: true } } },
         }),
-      ]);
+        database.studyPointsLedgerEntry.findMany({
+          where: {
+            userId,
+            amount: { gt: 0 },
+            sourceType: { in: [...ACTIVE_STUDY_POINT_SOURCE_TYPES] },
+            createdAt: { gte: instantStart, lte: asOf },
+          },
+          select: { effectiveAt: true, createdAt: true, amount: true, sourceType: true },
+          orderBy: { createdAt: "asc" },
+        }),
+      ] as const);
+
+      const [metricRead, eventRead, groupRead, pointRead] = reads;
+      const metrics = metricRead.status === "fulfilled" ? metricRead.value : [];
+      const verifiedEvents = eventRead.status === "fulfilled" ? eventRead.value : [];
+      const groupFocus = groupRead.status === "fulfilled" ? groupRead.value : [];
+      const pointActivity = pointRead.status === "fulfilled" ? pointRead.value : [];
+
+      if (reads.every((read) => read.status === "rejected")) {
+        throw new Error("All study streak activity sources are unavailable.");
+      }
+      for (const [source, read] of [
+        ["daily_metric", metricRead],
+        ["study_event", eventRead],
+        ["group_focus", groupRead],
+        ["points_ledger", pointRead],
+      ] as const) {
+        if (read.status === "rejected") {
+          console.warn(`[StudyStreak] ${source} source unavailable; continuing with canonical fallbacks.`);
+        }
+      }
 
       const byDate = new Map<string, Omit<StudyStreakDay, "active" | "intensity">>();
       const ensure = (date: string) => {
@@ -206,9 +265,29 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
         target.lectureCompletions += safeCounter(row.lectureCompletions);
       }
 
-      for (const row of progressEvents) {
-        const date = getBaghdadMetricDate(row.occurredAt);
-        if (date >= rangeStart && date <= today) ensure(date).progressEvents += 1;
+      const canonicalActivityDates = new Set<string>();
+
+      for (const row of verifiedEvents) {
+        // receivedAt is server-owned and represents when the verified study
+        // action was accepted. occurredAt remains useful analytical metadata,
+        // but must not make a just-completed action appear on an older day.
+        const date = getBaghdadMetricDate(row.receivedAt);
+        if (date < rangeStart || date > today) continue;
+        canonicalActivityDates.add(date);
+        if ((row.eventType ?? "") === "lecture_progress_recorded") {
+          ensure(date).progressEvents += 1;
+        }
+      }
+
+      // Points V2 is canonical, append-only proof that a server-verified study
+      // action earned credit. Use createdAt (server commit time) for the streak
+      // day. effectiveAt is intentionally allowed to be historical for replay /
+      // legacy-completion correctness and therefore is not a valid "studied today"
+      // timestamp.
+      for (const row of pointActivity) {
+        if (safeCounter(row.amount) <= 0) continue;
+        const date = getBaghdadMetricDate(row.createdAt);
+        if (date >= rangeStart && date <= today) canonicalActivityDates.add(date);
       }
 
       for (const row of groupFocus) {
@@ -223,7 +302,8 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
       const scores = new Map<string, number>();
       let maxScore = 0;
       for (const key of keys) {
-        const score = activityScore(ensure(key));
+        const metricScore = activityScore(ensure(key));
+        const score = canonicalActivityDates.has(key) ? Math.max(1, metricScore) : metricScore;
         scores.set(key, score);
         maxScore = Math.max(maxScore, score);
       }
@@ -231,7 +311,8 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
       const days: StudyStreakDay[] = keys.map((key) => {
         const entry = ensure(key);
         const score = scores.get(key) ?? 0;
-        return { ...entry, active: score > 0, intensity: computeIntensity(score, maxScore) };
+        const active = canonicalActivityDates.has(key) || score > 0;
+        return { ...entry, active, intensity: active ? computeIntensity(Math.max(1, score), Math.max(1, maxScore)) : 0 };
       });
       const activeKeys = new Set(days.filter((day) => day.active).map((day) => day.date));
       const yesterday = shiftDateKey(today, -1);
@@ -252,7 +333,7 @@ export function createStudyStreakService(options: { database?: StudyStreakDataba
         activeDaysInRange: activeKeys.size,
         historyDays: STUDY_STREAK_HISTORY_DAYS,
         streakCappedByHistory: current.capped,
-        activityRuleVersion: "study-day-v1",
+        activityRuleVersion: "study-day-v3",
         days,
       };
     },
