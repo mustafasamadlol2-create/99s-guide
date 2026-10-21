@@ -77,6 +77,7 @@ import {
   prefetchFocusHistory,
   FocusSessionSummaryScreen,
 } from "./FocusHistoryScreens";
+import { useFocusLiveActivitySync } from "../liveActivity/useFocusLiveActivitySync";
 
 type LectureCatalogStatus = "loading" | "ready" | "error";
 type FocusHubNoticeKey =
@@ -179,6 +180,13 @@ export function FocusHub({
     [accountId],
   );
   const [runtimeState, setRuntimeState] = useState(() => runtimeController.getState());
+  useFocusLiveActivitySync({
+    accountId,
+    runtimeController,
+    runtimeState,
+    lectures,
+    language,
+  });
   const [canonicalPlan, setCanonicalPlan] = useState<FocusPlanRecord | null>(null);
   const canonicalPlanRef = useRef<FocusPlanRecord | null>(null);
   const [currentSession, setCurrentSession] = useState<FocusSessionRecord | null>(null);

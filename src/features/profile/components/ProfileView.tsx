@@ -11,15 +11,6 @@ import { createPortal } from "react-dom";
 import { User, Subject, UserProgress } from "../../../core/types";
 import { motion, AnimatePresence, useTransform } from "motion/react";
 import InteractiveAvatar from "./InteractiveAvatar";
-import { TodayStudyCard } from "./TodayStudyCard";
-import {
-  readTodayStudyCache,
-  TODAY_STUDY_CACHE_EVENT,
-  warmTodayStudyCache,
-  type TodayStudyCacheEntry,
-  type TodayStudySummary,
-} from "../todayStudyCache";
-import { GAMIFICATION_INVALIDATED_EVENT } from "../../gamification/realtime";
 import {
   readStudyStreakCache,
   STUDY_STREAK_CACHE_EVENT,
@@ -302,53 +293,6 @@ export const ProfileView = function ProfileView({
    };
  }, [isActive, refreshProfileStreak]);
 
- // Phase 11 Today Study card. The app shell prefetches this immediately after
- // authentication, so Profile paints a last-known current-day snapshot on its
- // first frame and silently reconciles with the canonical server read.
- const [todayStudy, setTodayStudy] = useState<TodayStudySummary | null>(() =>
-   typeof window === "undefined"
-     ? null
-     : readTodayStudyCache(profileUserId)?.summary ?? null,
- );
-
- const refreshTodayStudy = useCallback(async () => {
-   const entry = await warmTodayStudyCache(profileUserId);
-   if (entry) setTodayStudy(entry.summary);
- }, [profileUserId]);
-
- useEffect(() => {
-   const cached = readTodayStudyCache(profileUserId);
-   setTodayStudy(cached?.summary ?? null);
-   void refreshTodayStudy();
-
-   const onCacheUpdate = (event: Event) => {
-     const detail = (event as CustomEvent<TodayStudyCacheEntry>).detail;
-     if (!detail || detail.accountId !== profileUserId) return;
-     setTodayStudy(detail.summary);
-   };
-   const onActivityInvalidated = () => void refreshTodayStudy();
-   window.addEventListener(TODAY_STUDY_CACHE_EVENT, onCacheUpdate);
-   window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, onActivityInvalidated);
-   return () => {
-     window.removeEventListener(TODAY_STUDY_CACHE_EVENT, onCacheUpdate);
-     window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, onActivityInvalidated);
-   };
- }, [profileUserId, refreshTodayStudy]);
-
- useEffect(() => {
-   if (!isActive) return;
-   const onFocus = () => void refreshTodayStudy();
-   const onVisibility = () => {
-     if (document.visibilityState === "visible") void refreshTodayStudy();
-   };
-   window.addEventListener("focus", onFocus);
-   document.addEventListener("visibilitychange", onVisibility);
-   return () => {
-     window.removeEventListener("focus", onFocus);
-     document.removeEventListener("visibilitychange", onVisibility);
-   };
- }, [isActive, refreshTodayStudy]);
-
  // Keep the compact profile label tied to the user's Academic Group (A-E),
  // not the fixed Batch value. Normalize defensively in case persisted data
  // ever contains a prefixed value such as "Group D".
@@ -620,7 +564,6 @@ export const ProfileView = function ProfileView({
 
  {!isEditing && (
  <>
- <TodayStudyCard language={language} summary={todayStudy} />
  {/* Academic Information */}
  <SettingsGroup title={tr("Academic Information", "المعلومات الأكاديمية")} isRtl={isRtl}>
  <SettingsItem Icon={GraduationCap}

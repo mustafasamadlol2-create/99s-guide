@@ -20,6 +20,12 @@
 		A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000010 /* CapExternalOpener.swift */; };
 		A9A1B0012F00000100000021 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A1B0012F00000100000020 /* AppIcon.swift */; };
 B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D6B0A10000000000000002 /* BridgeViewController.swift */; };
+		C12000010000000000000002 /* FocusLiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12000010000000000000001 /* FocusLiveActivityPlugin.swift */; };
+		C12000010000000000000004 /* FocusActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12000010000000000000003 /* FocusActivityAttributes.swift */; };
+		C12000010000000000000005 /* FocusActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12000010000000000000003 /* FocusActivityAttributes.swift */; };
+		C12000010000000000000007 /* FocusLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12000010000000000000006 /* FocusLiveActivityWidget.swift */; };
+		C12000010000000000000009 /* FocusLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12000010000000000000008 /* FocusLiveActivityBundle.swift */; };
+		C12000010000000000000016 /* FocusLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C1200001000000000000000B /* FocusLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,7 +45,37 @@ B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */ = {isa = PB
 		A9A1B0012F00000100000010 /* CapExternalOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapExternalOpener.swift; sourceTree = "<group>"; };
 		A9A1B0012F00000100000020 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
 B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
+		C12000010000000000000001 /* FocusLiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusLiveActivityPlugin.swift; sourceTree = "<group>"; };
+		C12000010000000000000003 /* FocusActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusActivityAttributes.swift; sourceTree = "<group>"; };
+		C12000010000000000000006 /* FocusLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusLiveActivityWidget.swift; sourceTree = "<group>"; };
+		C12000010000000000000008 /* FocusLiveActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusLiveActivityBundle.swift; sourceTree = "<group>"; };
+		C1200001000000000000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C1200001000000000000000B /* FocusLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FocusLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		C12000010000000000000017 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C1200001000000000000000F;
+			remoteInfo = FocusLiveActivity;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C12000010000000000000015 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C12000010000000000000016 /* FocusLiveActivity.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		504EC3011FED79650016851F /* Frameworks */ = {
@@ -47,6 +83,13 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileRefere
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1200001000000000000000C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +101,8 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileRefere
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				C12000010000000000000013 /* Shared */,
+				C12000010000000000000014 /* FocusLiveActivity */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,6 +111,7 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileRefere
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				C1200001000000000000000B /* FocusLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +123,7 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */ = {isa = PBXFileRefere
 B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 				A9A1B0012F00000100000010 /* CapExternalOpener.swift */,
 				A9A1B0012F00000100000020 /* AppIcon.swift */,
+				C12000010000000000000001 /* FocusLiveActivityPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -91,6 +138,24 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 			path = App;
 			sourceTree = "<group>";
 		};
+		C12000010000000000000013 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C12000010000000000000003 /* FocusActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		C12000010000000000000014 /* FocusLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				C12000010000000000000008 /* FocusLiveActivityBundle.swift */,
+				C12000010000000000000006 /* FocusLiveActivityWidget.swift */,
+				C1200001000000000000000A /* Info.plist */,
+			);
+			path = FocusLiveActivity;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -101,10 +166,12 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				C12000010000000000000015 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C12000010000000000000018 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -113,6 +180,23 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C1200001000000000000000F /* FocusLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C12000010000000000000012 /* Build configuration list for PBXNativeTarget "FocusLiveActivity" */;
+			buildPhases = (
+				C1200001000000000000000E /* Sources */,
+				C1200001000000000000000C /* Frameworks */,
+				C1200001000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FocusLiveActivity;
+			productName = FocusLiveActivity;
+			productReference = C1200001000000000000000B /* FocusLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -126,6 +210,10 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					C1200001000000000000000F = {
+						CreatedOnToolsVersion = 16.0;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -147,6 +235,7 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				C1200001000000000000000F /* FocusLiveActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -166,6 +255,13 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C1200001000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -178,10 +274,30 @@ B1D6B0A10000000000000002 /* BridgeViewController.swift */,
 B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */,
 				A9A1B0012F00000100000011 /* CapExternalOpener.swift in Sources */,
 				A9A1B0012F00000100000021 /* AppIcon.swift in Sources */,
+				C12000010000000000000002 /* FocusLiveActivityPlugin.swift in Sources */,
+				C12000010000000000000004 /* FocusActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1200001000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C12000010000000000000005 /* FocusActivityAttributes.swift in Sources */,
+				C12000010000000000000007 /* FocusLiveActivityWidget.swift in Sources */,
+				C12000010000000000000009 /* FocusLiveActivityBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C12000010000000000000018 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C1200001000000000000000F /* FocusLiveActivity */;
+			targetProxy = C12000010000000000000017 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -424,6 +540,55 @@ B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */,
 			};
 			name = Release;
 		};
+		C12000010000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FocusLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nine9sguide.app.FocusLiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C12000010000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FocusLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nine9sguide.app.FocusLiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -441,6 +606,15 @@ B1D6B0A10000000000000001 /* BridgeViewController.swift in Sources */,
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C12000010000000000000012 /* Build configuration list for PBXNativeTarget "FocusLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C12000010000000000000010 /* Debug */,
+				C12000010000000000000011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

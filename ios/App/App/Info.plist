@@ -38,6 +38,8 @@
 
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 
 	<!-- Allow iPhone ProMotion devices to use refresh rates above the system default. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>

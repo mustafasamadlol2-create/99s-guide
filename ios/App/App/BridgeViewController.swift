@@ -10,5 +10,6 @@ final class BridgeViewController: CAPBridgeViewController {
         // explicitly with the bridge.
         bridge?.registerPluginInstance(AppIconPlugin())
         bridge?.registerPluginInstance(CapExternalOpener())
+        bridge?.registerPluginInstance(FocusLiveActivityPlugin())
     }
 }

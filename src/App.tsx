@@ -41,10 +41,6 @@ import {
   setGamificationReadAccountScope,
 } from "./features/gamification/realtime";
 import { warmStudyStreakCache } from "./features/gamification/studyStreakCache";
-import {
-  millisecondsUntilNextBaghdadMidnight,
-  warmTodayStudyCache,
-} from "./features/profile/todayStudyCache";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
@@ -258,44 +254,6 @@ function AppContent({
     window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
     return () => {
       if (timer !== null) window.clearTimeout(timer);
-      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
-      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
-    };
-  }, [currentUser?.id]);
-
-  // Phase 11: prefetch Today's study card at authentication time, then keep it
-  // synchronized from the same canonical activity invalidations that refresh
-  // Points/Gamification. A Baghdad-midnight timer forces an immediate zero-day
-  // refresh even if the app stays open across the date boundary.
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    const accountId = currentUser.id;
-    let debounceTimer: number | null = null;
-    let midnightTimer: number | null = null;
-
-    const refresh = () => {
-      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => {
-        debounceTimer = null;
-        void warmTodayStudyCache(accountId);
-      }, 90);
-    };
-
-    const scheduleMidnight = () => {
-      if (midnightTimer !== null) window.clearTimeout(midnightTimer);
-      midnightTimer = window.setTimeout(() => {
-        midnightTimer = null;
-        void warmTodayStudyCache(accountId).finally(scheduleMidnight);
-      }, millisecondsUntilNextBaghdadMidnight() + 50);
-    };
-
-    void warmTodayStudyCache(accountId);
-    scheduleMidnight();
-    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
-    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
-    return () => {
-      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
-      if (midnightTimer !== null) window.clearTimeout(midnightTimer);
       window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
       window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
     };
@@ -1092,6 +1050,9 @@ function AppContent({
     });
     socket.on("motto_updated", () => {
       window.dispatchEvent(new CustomEvent("socket-motto-updated"));
+    });
+    socket.on("focus_sounds_updated", () => {
+      window.dispatchEvent(new CustomEvent("socket-focus-sounds-updated"));
     });
 
     // ── Real-time profile sync: update currentUser instantly when profile changes ──
