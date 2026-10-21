@@ -147,3 +147,32 @@ export interface PublicProfile {
   maxLevelReached: boolean;
   achievements: { achievementId: string; titleKey: string; descriptionKey: string; unlockedAt: string }[];
 }
+export interface StudyStreakDay {
+  date: string;
+  active: boolean;
+  intensity: 0 | 1 | 2 | 3 | 4;
+  focusSeconds: number;
+  groupFocusSeconds: number;
+  sessionsCompleted: number;
+  mcqAttempts: number;
+  flashcardReviews: number;
+  recallAttempts: number;
+  lectureCompletions: number;
+  progressEvents: number;
+}
+
+export interface StudyStreakSummary {
+  timeZone: "Asia/Baghdad";
+  rangeStart: string;
+  rangeEnd: string;
+  currentStreakDays: number;
+  longestStreakDays: number;
+  activeToday: boolean;
+  activeDaysLast7: number;
+  activeDaysLast30: number;
+  activeDaysInRange: number;
+  historyDays: number;
+  streakCappedByHistory: boolean;
+  activityRuleVersion: "study-day-v1";
+  days: StudyStreakDay[];
+}

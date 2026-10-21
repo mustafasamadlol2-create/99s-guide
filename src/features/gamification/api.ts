@@ -12,6 +12,7 @@ import type {
   LeaderboardScope,
   OwnRankResponse,
   PublicProfile,
+  StudyStreakSummary,
 } from "./types";
 
 async function readJson<T>(
@@ -82,4 +83,16 @@ export const gamificationApi = {
       userId,
       `/api/users/${encodeURIComponent(userId)}/gamification`,
     ),
+  studyStreak: async () => {
+    const response = await apiClient("/api/me/study-streak", {
+      method: "GET",
+      bypassCache: true,
+      ttl: 0,
+      cache: "no-store",
+      silent: true,
+      timeoutMs: 10_000,
+      retries: 0,
+    });
+    return response.json() as Promise<StudyStreakSummary>;
+  },
 };

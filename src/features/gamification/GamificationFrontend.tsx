@@ -19,9 +19,10 @@ import {
 } from "./realtime";
 import type {
   Achievement, AchievementsResponse, ChallengesResponse, ChallengeItem, GamificationSummary, UnlockHistory,
-  GamificationTab, LeaderboardResponse, LeaderboardScope, OwnRankResponse,
+  GamificationTab, LeaderboardResponse, LeaderboardScope, OwnRankResponse, StudyStreakSummary,
 } from "./types";
 import { LeaderboardView } from "./LeaderboardView";
+import { StudyStreakCard } from "./StudyStreakCard";
 import { GamificationFeatureState } from "./GamificationFeatureState";
 import "./gamification.css";
 
@@ -226,6 +227,9 @@ export function GamificationFrontend({
   const [overviewRankLoading, setOverviewRankLoading] = useState(false);
   const [overviewRankError, setOverviewRankError] = useState(false);
   const [overviewRankRetrySerial, setOverviewRankRetrySerial] = useState(0);
+  const [studyStreak, setStudyStreak] = useState<StudyStreakSummary | null>(null);
+  const [studyStreakLoading, setStudyStreakLoading] = useState(false);
+  const [studyStreakError, setStudyStreakError] = useState(false);
   const [optimisticPointDelta, setOptimisticPointDelta] = useState(() => getOptimisticStudyPointsDelta());
   const summaryGeneration = useRef(0);
   const achievementsGeneration = useRef(0);
@@ -234,6 +238,7 @@ export function GamificationFrontend({
   const leaderboardRequestingScope = useRef<LeaderboardScope | null>(null);
   const rankGeneration = useRef(0);
   const overviewRankGeneration = useRef(0);
+  const studyStreakGeneration = useRef(0);
   const warnedPointMismatch = useRef(false);
   const currentTab = useRef(tab);
   const currentScope = useRef(scope);
@@ -405,6 +410,28 @@ export function GamificationFrontend({
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
     await loadSummary();
   }, [featureFlagsStatus, gamificationEnabled, loadSummary]);
+
+  const loadStudyStreak = useCallback(async () => {
+    if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
+    const account = currentAccountId.current;
+    const requestId = ++studyStreakGeneration.current;
+    setStudyStreakLoading(true);
+    setStudyStreakError(false);
+    try {
+      const result = await gamificationApi.studyStreak();
+      if (studyStreakGeneration.current === requestId && currentAccountId.current === account) {
+        setStudyStreak(result);
+      }
+    } catch {
+      if (studyStreakGeneration.current === requestId && currentAccountId.current === account) {
+        setStudyStreakError(true);
+      }
+    } finally {
+      if (studyStreakGeneration.current === requestId && currentAccountId.current === account) {
+        setStudyStreakLoading(false);
+      }
+    }
+  }, [featureFlagsStatus, gamificationEnabled]);
 
   const loadOverviewRank = useCallback(async () => {
     if (featureFlagsStatus !== "ready" || !gamificationEnabled) return;
@@ -611,9 +638,11 @@ export function GamificationFrontend({
         }, 350);
       }
       queueResourceRefresh(detail.resources);
+      if (currentTab.current === "overview" || studyStreak !== null) void loadStudyStreak();
     };
     const onReconnect = () => {
       void warmLeaderboardScopes();
+      if (currentTab.current === "overview" || studyStreak !== null) void loadStudyStreak();
       queueResourceRefresh(resourcesForGamificationReconnect(currentTab.current, {
         leaderboard: currentLeaderboard.current !== null,
         rank: currentOwnRank.current !== null || currentOverviewRank.current !== null,
@@ -630,7 +659,7 @@ export function GamificationFrontend({
       window.removeEventListener(GAMIFICATION_SOCKET_RECONNECTED_EVENT, onReconnect);
       pendingResources.current.clear();
     };
-  }, [queueResourceRefresh, warmLeaderboardScopes]);
+  }, [loadStudyStreak, queueResourceRefresh, studyStreak, warmLeaderboardScopes]);
 
   const refresh = useCallback(async () => {
     const activeTab = currentTab.current;
@@ -644,13 +673,14 @@ export function GamificationFrontend({
         : loadLeaderboard(activeScope);
       await Promise.all([privatePromise, leaderboardPromise]);
     } else if (activeTab === "overview") {
-      await Promise.all([privatePromise, loadOverviewRank(), availabilityPromise]);
+      await Promise.all([privatePromise, loadOverviewRank(), loadStudyStreak(), availabilityPromise]);
     } else await Promise.all([privatePromise, availabilityPromise]);
   }, [
     loadLeaderboard,
     loadLeaderboardAvailability,
     loadOverviewRank,
     loadPrivateData,
+    loadStudyStreak,
   ]);
 
   useEffect(() => {
@@ -661,6 +691,9 @@ export function GamificationFrontend({
     setLeaderboard(null);
     setOwnRank(null);
     setOverviewRank(null);
+    setStudyStreak(null);
+    setStudyStreakLoading(false);
+    setStudyStreakError(false);
     setAvailableScopes(SCOPES.filter((item) => item !== "SEMESTER"));
     setCursorHasExpired(false);
     setErrors({});
@@ -682,6 +715,7 @@ export function GamificationFrontend({
       void loadAchievements();
       void loadChallenges();
       void loadOverviewRank();
+      void loadStudyStreak();
       void warmLeaderboardScopes();
     }
     return () => {
@@ -691,6 +725,7 @@ export function GamificationFrontend({
       leaderboardGeneration.current += 1;
       rankGeneration.current += 1;
       overviewRankGeneration.current += 1;
+      studyStreakGeneration.current += 1;
     };
   }, [
     accountId,
@@ -700,8 +735,29 @@ export function GamificationFrontend({
     loadAchievements,
     loadOverviewRank,
     loadPrivateData,
+    loadStudyStreak,
     warmLeaderboardScopes,
   ]);
+  useEffect(() => {
+    if (featureFlagsStatus !== "ready" || !gamificationEnabled || tab !== "overview") return;
+    if (!studyStreak && !studyStreakLoading && !studyStreakError) void loadStudyStreak();
+
+    const handleStudyStreakVisibility = () => {
+      if (document.visibilityState === "visible") void loadStudyStreak();
+    };
+    const handleStudyStreakFocus = () => void loadStudyStreak();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadStudyStreak();
+    }, 60_000);
+    document.addEventListener("visibilitychange", handleStudyStreakVisibility);
+    window.addEventListener("focus", handleStudyStreakFocus);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleStudyStreakVisibility);
+      window.removeEventListener("focus", handleStudyStreakFocus);
+    };
+  }, [featureFlagsStatus, gamificationEnabled, loadStudyStreak, studyStreak, studyStreakError, studyStreakLoading, tab]);
+
   useEffect(() => {
     if (navigationRequest > 0) setTab("leaderboard");
   }, [navigationRequest]);
@@ -1041,6 +1097,21 @@ export function GamificationFrontend({
             </div>
           </section>
         </div>
+        {studyStreak ? (
+          <StudyStreakCard data={studyStreak} language={language} />
+        ) : studyStreakLoading ? (
+          <div className="g-card g-streak-loading" aria-busy="true"><div className="g-skeleton g-skeleton-card" /></div>
+        ) : studyStreakError ? (
+          <section className="g-card g-streak-unavailable" role="status">
+            <div>
+              <h2>{tx("studyStreakTitle", "Study streak", "سلسلة الدراسة")}</h2>
+              <p>{tx("studyStreakUnavailable", "Your study streak could not be refreshed just now.", "تعذر تحديث سلسلة الدراسة الآن.")}</p>
+            </div>
+            <button type="button" className="g-action" onClick={() => void loadStudyStreak()}>
+              {tx("gamificationRetry", "Try again", "حاول مجددًا")}
+            </button>
+          </section>
+        ) : null}
         <div className="g-split">
           <section className="g-card" aria-labelledby="g-recent-heading">
             <div className="g-section-head">
