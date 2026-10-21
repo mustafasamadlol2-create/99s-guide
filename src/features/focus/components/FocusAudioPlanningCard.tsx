@@ -4,7 +4,11 @@ import { useTranslation, type Language } from "../../../core/i18n/translations";
 import { AUDIO_FILE_PICKER_ACCEPT } from "../../focus-audio/constants";
 import { useFocusAudio } from "../../focus-audio/hooks";
 import { resolveFocusAudioArtworkUrl } from "./focusAudioArtwork";
-import { listFocusSharedSounds } from "../../focus-audio/sharedSoundsApi";
+import {
+  FOCUS_SOUNDS_LIBRARY_CHANGED_EVENT,
+  FOCUS_SOUNDS_SOCKET_UPDATED_EVENT,
+  listFocusSharedSounds,
+} from "../../focus-audio/sharedSoundsApi";
 import type { FocusSharedSound } from "../../focus-audio/types";
 
 interface FocusAudioPlanningCardProps {
@@ -28,6 +32,9 @@ export function FocusAudioPlanningCard({
   const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
   const [sharedSounds, setSharedSounds] = useState<FocusSharedSound[]>([]);
   const [sharedSoundBusyId, setSharedSoundBusyId] = useState<string | null>(null);
+  const sharedLoadGenerationRef = useRef(0);
+  const audioContextRef = useRef(audioContext);
+  audioContextRef.current = audioContext;
   const audio = audioContext.audio;
   const hasSelection = audio.sourceType !== "NONE";
   const isPlaying = audio.state === "PLAYING";
@@ -41,12 +48,45 @@ export function FocusAudioPlanningCard({
 
   useEffect(() => {
     let active = true;
-    void listFocusSharedSounds().then((sounds) => {
-      if (active) setSharedSounds(sounds);
-    }).catch(() => {
-      if (active) setSharedSounds([]);
-    });
-    return () => { active = false; };
+
+    const refreshSharedSounds = () => {
+      const generation = ++sharedLoadGenerationRef.current;
+      void listFocusSharedSounds({ bypassCache: true }).then((sounds) => {
+        if (!active || generation !== sharedLoadGenerationRef.current) return;
+        setSharedSounds(sounds);
+
+        // If an owner disables/deletes the sound currently selected on this
+        // device, stop it immediately instead of leaving a revoked sound alive.
+        const currentAudio = audioContextRef.current.audio;
+        if (currentAudio.sourceType === "AMBIENT" && currentAudio.ambientTrackId &&
+            !sounds.some((sound) => sound.id === currentAudio.ambientTrackId)) {
+          audioContextRef.current.clear();
+        }
+      }).catch(() => {
+        // Keep the last known UI on transient errors. A realtime event, focus,
+        // visibility change, or manual navigation will retry a canonical read.
+      });
+    };
+
+    const handleLibraryChanged = () => refreshSharedSounds();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshSharedSounds();
+    };
+
+    refreshSharedSounds();
+    window.addEventListener(FOCUS_SOUNDS_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
+    window.addEventListener(FOCUS_SOUNDS_SOCKET_UPDATED_EVENT, handleLibraryChanged);
+    window.addEventListener("focus", handleLibraryChanged);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      active = false;
+      sharedLoadGenerationRef.current += 1;
+      window.removeEventListener(FOCUS_SOUNDS_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
+      window.removeEventListener(FOCUS_SOUNDS_SOCKET_UPDATED_EVENT, handleLibraryChanged);
+      window.removeEventListener("focus", handleLibraryChanged);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const chooseSharedSound = async (sound: FocusSharedSound) => {

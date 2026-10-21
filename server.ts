@@ -1064,7 +1064,8 @@ app.use(cors({
     "Cache-Control",
     "Pragma",
     "X-Session-Delivery",
-    "X-OAuth-State"
+    "X-OAuth-State",
+    "X-Focus-Client-ID"
   ],
   exposedHeaders: ["Content-Range", "X-Content-Range", "Content-Disposition", "Content-Length"]
 }));
@@ -8080,7 +8081,13 @@ app.use(
 );
 app.use(
   "/api/admin/focus-sounds",
-  createOwnerFocusSoundsRouter({ requireOwner, database: getPrisma() }),
+  createOwnerFocusSoundsRouter({
+    requireOwner,
+    database: getPrisma(),
+    onLibraryChanged: () => {
+      io.to("authenticated").emit("focus_sounds_updated", { at: Date.now() });
+    },
+  }),
 );
 
 const clientErrorCodes = new Set(["CLIENT_RENDER_ERROR", "CLIENT_RUNTIME_ERROR"]);

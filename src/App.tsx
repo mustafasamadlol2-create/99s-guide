@@ -1018,6 +1018,9 @@ function AppContent({
     socket.on("motto_updated", () => {
       window.dispatchEvent(new CustomEvent("socket-motto-updated"));
     });
+    socket.on("focus_sounds_updated", () => {
+      window.dispatchEvent(new CustomEvent("socket-focus-sounds-updated"));
+    });
 
     // ── Real-time profile sync: update currentUser instantly when profile changes ──
     socket.on("userUpdated", (updatedUser: any) => {

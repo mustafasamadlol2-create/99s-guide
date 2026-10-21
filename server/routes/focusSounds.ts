@@ -46,7 +46,11 @@ export function createFocusSoundsRouter(dependencies: {
   router.get("/", async (_req, res) => {
     try {
       const sounds = await service.listEnabled();
-      res.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
+      // Availability changes must be visible immediately. Do not let browser,
+      // CDN, or generic client caches retain enabled/disabled sounds.
+      res.set("Cache-Control", "private, no-store, no-cache, max-age=0, must-revalidate");
+      res.set("Pragma", "no-cache");
+      res.set("Vary", "Authorization");
       return res.json({ sounds });
     } catch (error) {
       return errorResponse(res, error);
@@ -58,6 +62,7 @@ export function createFocusSoundsRouter(dependencies: {
 export function createOwnerFocusSoundsRouter(dependencies: {
   requireOwner: RequestHandler;
   database: PrismaClient;
+  onLibraryChanged?: () => void;
 }): express.Router {
   const router = express.Router();
   const service = new FocusSoundService(dependencies.database);
@@ -87,6 +92,7 @@ export function createOwnerFocusSoundsRouter(dependencies: {
           buffer: req.file.buffer,
         },
       });
+      dependencies.onLibraryChanged?.();
       return res.status(201).json({ sound });
     } catch (error) {
       return errorResponse(res, error);
@@ -100,6 +106,7 @@ export function createOwnerFocusSoundsRouter(dependencies: {
         isEnabled: req.body?.isEnabled,
         sortOrder: req.body?.sortOrder,
       });
+      dependencies.onLibraryChanged?.();
       return res.json({ sound });
     } catch (error) {
       return errorResponse(res, error);
@@ -109,6 +116,7 @@ export function createOwnerFocusSoundsRouter(dependencies: {
   router.post("/reorder", express.json({ limit: "16kb" }), async (req, res) => {
     try {
       await service.reorder(req.body?.ids);
+      dependencies.onLibraryChanged?.();
       return res.json({ ok: true });
     } catch (error) {
       return errorResponse(res, error);
@@ -118,6 +126,7 @@ export function createOwnerFocusSoundsRouter(dependencies: {
   router.delete("/:id", async (req, res) => {
     try {
       await service.remove(req.params.id);
+      dependencies.onLibraryChanged?.();
       return res.status(204).send();
     } catch (error) {
       return errorResponse(res, error);

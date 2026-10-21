@@ -1,5 +1,13 @@
-import { apiClient } from "../../core/api/apiClient";
+import { apiClient, clearApiCache } from "../../core/api/apiClient";
+import { FOCUS_SOUNDS_LIBRARY_CHANGED_EVENT } from "./sharedSoundsApi";
 import type { FocusSharedSound } from "./types";
+
+function announceFocusSoundsChanged(): void {
+  clearApiCache("/api/focus-sounds");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(FOCUS_SOUNDS_LIBRARY_CHANGED_EVENT));
+  }
+}
 
 async function parseOne(response: Response): Promise<FocusSharedSound> {
   const body = await response.json() as { sound?: FocusSharedSound };
@@ -26,7 +34,9 @@ export async function uploadOwnerFocusSound(input: { name: string; file: File })
     body: form,
     timeoutMs: 120_000,
   });
-  return parseOne(response);
+  const sound = await parseOne(response);
+  announceFocusSoundsChanged();
+  return sound;
 }
 
 export async function updateOwnerFocusSound(
@@ -38,7 +48,9 @@ export async function updateOwnerFocusSound(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  return parseOne(response);
+  const sound = await parseOne(response);
+  announceFocusSoundsChanged();
+  return sound;
 }
 
 export async function reorderOwnerFocusSounds(ids: string[]): Promise<void> {
@@ -47,10 +59,12 @@ export async function reorderOwnerFocusSounds(ids: string[]): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
   });
+  announceFocusSoundsChanged();
 }
 
 export async function deleteOwnerFocusSound(id: string): Promise<void> {
   await apiClient(`/api/admin/focus-sounds/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+  announceFocusSoundsChanged();
 }
