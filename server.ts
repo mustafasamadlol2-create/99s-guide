@@ -69,6 +69,7 @@ import { createAchievementsRouter } from "./server/routes/achievements.js";
 import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
 import { createStudyStreakRouter } from "./server/routes/studyStreak.js";
+import { createTodayStudyRouter } from "./server/routes/todayStudy.js";
 import { GamificationError } from "./server/features/gamification/errors.js";
 import { getActiveGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
 import {
@@ -8223,6 +8224,7 @@ app.use(
   }),
 );
 app.use("/api", createStudyStreakRouter({ requireUser }));
+app.use("/api", createTodayStudyRouter({ requireUser }));
 app.use(
   "/api",
   createLeaderboardRouter({

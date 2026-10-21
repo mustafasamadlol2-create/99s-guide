@@ -35,11 +35,16 @@ import {
 import {
   acceptGamificationUpdate,
   GAMIFICATION_INVALIDATED_EVENT,
+  GAMIFICATION_OPTIMISTIC_POINTS_EVENT,
   GAMIFICATION_SOCKET_RECONNECTED_EVENT,
   GAMIFICATION_UPDATE_EVENT,
   setGamificationReadAccountScope,
 } from "./features/gamification/realtime";
 import { warmStudyStreakCache } from "./features/gamification/studyStreakCache";
+import {
+  millisecondsUntilNextBaghdadMidnight,
+  warmTodayStudyCache,
+} from "./features/profile/todayStudyCache";
 import { PersonalizationProvider } from "./features/personalization/PersonalizationProvider";
 import { PersonalizationThemeBridge } from "./features/personalization/PersonalizationThemeBridge";
 import { PersonalizationPresentationBridge } from "./features/personalization/PersonalizationPresentationBridge";
@@ -233,6 +238,67 @@ function AppContent({
   useEffect(() => {
     if (!currentUser?.id) return;
     void warmStudyStreakCache(currentUser.id);
+  }, [currentUser?.id]);
+
+  // Keep the profile badge and Study Engagement streak synchronized with the
+  // canonical server state as soon as verified study activity/points change.
+  // The local event only triggers a fresh no-store read; it never increments
+  // the streak client-side. This prevents duplicate or speculative streak days.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let timer: number | null = null;
+    const refresh = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        void warmStudyStreakCache(currentUser.id);
+      }, 120);
+    };
+    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
+    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
+      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+    };
+  }, [currentUser?.id]);
+
+  // Phase 11: prefetch Today's study card at authentication time, then keep it
+  // synchronized from the same canonical activity invalidations that refresh
+  // Points/Gamification. A Baghdad-midnight timer forces an immediate zero-day
+  // refresh even if the app stays open across the date boundary.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const accountId = currentUser.id;
+    let debounceTimer: number | null = null;
+    let midnightTimer: number | null = null;
+
+    const refresh = () => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        void warmTodayStudyCache(accountId);
+      }, 90);
+    };
+
+    const scheduleMidnight = () => {
+      if (midnightTimer !== null) window.clearTimeout(midnightTimer);
+      midnightTimer = window.setTimeout(() => {
+        midnightTimer = null;
+        void warmTodayStudyCache(accountId).finally(scheduleMidnight);
+      }, millisecondsUntilNextBaghdadMidnight() + 50);
+    };
+
+    void warmTodayStudyCache(accountId);
+    scheduleMidnight();
+    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
+    window.addEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+    return () => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      if (midnightTimer !== null) window.clearTimeout(midnightTimer);
+      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, refresh);
+      window.removeEventListener(GAMIFICATION_OPTIMISTIC_POINTS_EVENT, refresh);
+    };
   }, [currentUser?.id]);
   const shouldReduceMotion = useReducedMotion();
   // Keep every pushed iPad page as a real, full-height sheet. This is especially
