@@ -17,6 +17,7 @@ import {
   warmStudyStreakCache,
   type StudyStreakCacheEntry,
 } from "../../gamification/studyStreakCache";
+import { GAMIFICATION_INVALIDATED_EVENT } from "../../gamification/realtime";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
