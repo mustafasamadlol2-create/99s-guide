@@ -51,6 +51,9 @@ function createReadOnlyDatabase() {
         throw new Error("Metric evaluation must not create Focus sessions.");
       },
     },
+    studyPointsLedgerEntry: {
+      count: async () => 7,
+    },
     groupFocusParticipantSummary: {
       count: async ({ where }: { where: Record<string, unknown> }) => {
         seen.groupWhere = where;
@@ -129,29 +132,28 @@ test("providers read canonical points, personal Focus, and Group Focus values", 
   }
 });
 
-test("unavailable and unknown metrics fail before accessing database state", async () => {
+test("ledger-backed learning metrics are available and unknown metrics fail early", async () => {
+  const { database } = createReadOnlyDatabase();
+  const asOf = new Date("2026-09-25T10:00:00.000Z");
+  const consistency = await getGamificationMetricValue(
+    { userId: "user-1", metricId: GAMIFICATION_METRIC_IDS.consistencyQualifyingDays, asOf },
+    database,
+  );
+  const lectures = await getGamificationMetricValue(
+    { userId: "user-1", metricId: GAMIFICATION_METRIC_IDS.lectureCompletions, asOf },
+    database,
+  );
+  assert.equal(consistency.value, 7);
+  assert.equal(lectures.value, 7);
+  assert.equal(consistency.sourceVersion, "study-points-ledger-metrics-v1");
+
   let databaseTouched = false;
   const forbiddenDatabase = new Proxy({}, {
     get() {
       databaseTouched = true;
-      throw new Error("Database should not be read for unavailable metrics.");
+      throw new Error("Database should not be read for unknown metrics.");
     },
   }) as PrismaClient;
-  const asOf = new Date("2026-09-25T10:00:00.000Z");
-
-  await assert.rejects(
-    getGamificationMetricValue(
-      {
-        userId: "user-1",
-        metricId: GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
-        asOf,
-      },
-      forbiddenDatabase,
-    ),
-    (error: unknown) =>
-      error instanceof GamificationError
-      && error.code === "GAMIFICATION_METRIC_PROVIDER_UNAVAILABLE",
-  );
   await assert.rejects(
     getGamificationMetricValue(
       { userId: "user-1", metricId: "metrics.unknown", asOf },

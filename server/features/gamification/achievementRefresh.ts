@@ -15,6 +15,7 @@ import {
 } from "./achievementProgress.js";
 import type { AchievementRefreshResult } from "./achievementTypes.js";
 import type { GamificationRuleSetWithDefinition } from "./types.js";
+import { awardAchievementRewardInTransaction } from "./rewards.js";
 
 type AchievementDatabase = PrismaClient;
 type AchievementTransaction = Prisma.TransactionClient;
@@ -70,12 +71,28 @@ export async function refreshUserAchievementProgressInTransaction(input: {
       createdAt: asOf,
     }));
   let newlyUnlockedCount = 0;
+  let rewardPointsAwarded = 0;
   if (unlocksToCreate.length > 0) {
     const createdUnlocks = await tx.userAchievement.createMany({
       data: unlocksToCreate,
       skipDuplicates: true,
     });
     newlyUnlockedCount = createdUnlocks.count;
+
+    // Achievement rewards are canonical Study Points ledger entries with their
+    // own idempotency key. This makes reward repair safe even if two refreshes
+    // race or a request is retried after the unlock row was committed.
+    for (const entry of snapshot.entries) {
+      if (!entry.completed || entry.unlocked) continue;
+      const reward = await awardAchievementRewardInTransaction({
+        userId,
+        definition: entry.definition,
+        effectiveAt: asOf,
+        tx,
+        database: input.database,
+      });
+      if (reward.awardedNow) rewardPointsAwarded += reward.rewardPoints;
+    }
   }
 
   await persistAchievementProgressInTransaction({
@@ -89,6 +106,7 @@ export async function refreshUserAchievementProgressInTransaction(input: {
     asOf,
     achievementCount: snapshot.entries.length,
     newlyUnlockedCount,
+    rewardPointsAwarded,
   };
 }
 

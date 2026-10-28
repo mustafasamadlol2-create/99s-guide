@@ -26,6 +26,7 @@ const ACHIEVEMENT_KEYS = [
   "ruleSetVersion",
   "metricId",
   "threshold",
+  "rewardPoints",
   "tier",
   "titleKey",
   "descriptionKey",
@@ -39,6 +40,7 @@ const CHALLENGE_KEYS = [
   "ruleSetVersion",
   "metricId",
   "target",
+  "rewardPoints",
   "enrollmentPolicy",
   "windowPolicy",
   "titleKey",
@@ -65,6 +67,8 @@ const CHALLENGE_WINDOW_METRIC_IDS = new Set<string>([
   GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
   GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
   GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
+  GAMIFICATION_METRIC_IDS.lectureCompletions,
+  GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
 ]);
 const LEADERBOARD_PERIODS = new Set(["WEEKLY", "MONTHLY", "ALL_TIME"]);
 
@@ -188,6 +192,13 @@ function validateAchievementDefinitions(
     ) {
       invalid(`${label}.threshold must be a positive safe integer.`);
     }
+    if (candidate.rewardPoints !== undefined && (
+      !Number.isSafeInteger(candidate.rewardPoints)
+      || (candidate.rewardPoints as number) < 1
+      || (candidate.rewardPoints as number) > 10_000
+    )) {
+      invalid(`${label}.rewardPoints must be a positive safe integer up to 10000.`);
+    }
     if (candidate.tier !== undefined && !TIERS.has(String(candidate.tier))) {
       invalid(`${label}.tier is unsupported.`);
     }
@@ -282,6 +293,13 @@ function validateChallengeContracts(
       || (candidate.target as number) < 1
     ) {
       invalid(`${label}.target must be a positive safe integer.`);
+    }
+    if (candidate.rewardPoints !== undefined && (
+      !Number.isSafeInteger(candidate.rewardPoints)
+      || (candidate.rewardPoints as number) < 1
+      || (candidate.rewardPoints as number) > 10_000
+    )) {
+      invalid(`${label}.rewardPoints must be a positive safe integer up to 10000.`);
     }
     if (!CHALLENGE_ENROLLMENT_POLICIES.has(String(candidate.enrollmentPolicy))) {
       invalid(`${label}.enrollmentPolicy is unsupported.`);

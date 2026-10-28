@@ -70,7 +70,12 @@ import { createChallengesRouter } from "./server/routes/challenges.js";
 import { createGamificationRouter } from "./server/routes/gamification.js";
 import { createStudyStreakRouter } from "./server/routes/studyStreak.js";
 import { GamificationError } from "./server/features/gamification/errors.js";
-import { getActiveGamificationRuleSet } from "./server/features/gamification/ruleSetService.js";
+import {
+  activateGamificationRuleSet,
+  ensureGamificationRuleSetDraft,
+  getActiveGamificationRuleSet,
+} from "./server/features/gamification/ruleSetService.js";
+import { GAMIFICATION_CURRENT_RULE_SET_VERSION, GAMIFICATION_V1_RULE_SET_VERSION } from "./server/features/gamification/definitions.js";
 import {
   getMyAchievements,
 } from "./server/features/gamification/achievementService.js";
@@ -2090,6 +2095,48 @@ async function initializeSystem() {
     // Force database verification
     const client = getPrisma();
     await client.$connect();
+
+    // Source-controlled gamification definitions are versioned. When a new
+    // production bundle ships, promote it during normal boot so deployments do
+    // not depend on a manual maintenance command. Activation is idempotent and
+    // keeps rule definitions versioned so deployed data can be migrated deliberately.
+    if (isGamificationEnabled()) {
+      await ensureGamificationRuleSetDraft(
+        GAMIFICATION_CURRENT_RULE_SET_VERSION,
+        client,
+      );
+      await activateGamificationRuleSet(
+        GAMIFICATION_CURRENT_RULE_SET_VERSION,
+        client,
+      );
+
+      // v1 shipped with placeholder/demo Achievements and Challenges. They did
+      // not grant reward points, so removing their projection/history rows is
+      // safe and prevents stale demo cards from leaking into the production v2
+      // experience. Study Points ledger data is intentionally untouched.
+      if (GAMIFICATION_CURRENT_RULE_SET_VERSION !== GAMIFICATION_V1_RULE_SET_VERSION) {
+        await client.$transaction(async (tx) => {
+          const demoInstances = await tx.challengeInstance.findMany({
+            where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+            select: { id: true },
+          });
+          if (demoInstances.length > 0) {
+            await tx.userChallengeProgress.deleteMany({
+              where: { challengeInstanceId: { in: demoInstances.map(({ id }) => id) } },
+            });
+            await tx.challengeInstance.deleteMany({
+              where: { id: { in: demoInstances.map(({ id }) => id) } },
+            });
+          }
+          await tx.userAchievementProgress.deleteMany({
+            where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+          });
+          await tx.userAchievement.deleteMany({
+            where: { unlockedUnderRuleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+          });
+        });
+      }
+    }
 
     // Optimize Search Performance with pg_trgm
     if (process.env.DATABASE_URL?.startsWith("postgres") || process.env.DATABASE_URL?.startsWith("postgresql")) {
@@ -8158,6 +8205,14 @@ const scheduleGamificationProjectionRefresh = (
 ) => {
   setImmediate(() => {
     void (async () => {
+      // Keep all production challenges current for every verified Study Points
+      // activity (MCQs, lecture completion, Focus, etc.), not only Focus routes.
+      try {
+        await refreshUserChallenges({ userId });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "unknown error";
+        console.warn(`[Gamification] Post-commit Challenge refresh failed: ${reason}`);
+      }
       await refreshUserGamificationBestEffort(userId);
       try {
         await refreshActiveLeaderboardSnapshotsForUser({ userId });

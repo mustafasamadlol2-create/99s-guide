@@ -25,12 +25,16 @@ export const GAMIFICATION_METRIC_IDS = {
   groupFocusCompletedRuns: "group_focus.completed_runs",
   groupFocusVerifiedSeconds: "group_focus.verified_seconds",
   consistencyQualifyingDays: "consistency.qualifying_days",
+  lectureCompletions: "learning.lecture_completions",
+  mcqFirstCorrect: "learning.mcq_first_correct",
+  flashcardFirstRecalls: "learning.flashcard_first_recalls",
 } as const;
 
 export const GAMIFICATION_METRIC_SOURCE_VERSIONS = {
   studyPoints: "study-points-read-model-v1",
   focusSession: "focus-session-canonical-v1",
   groupFocus: "group-focus-participant-summary-v1",
+  studyLedger: "study-points-ledger-metrics-v1",
 } as const;
 
 export const GAMIFICATION_PRIVACY_CLASSES = [

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Award, CalendarDays, Check, ChevronDown,
   CircleHelp, Clock3, LoaderCircle, Medal,
-  Sparkles, Target, Trophy, UsersRound, LockKeyhole,
+  Target, Trophy, UsersRound, LockKeyhole,
 } from "lucide-react";
 import { useTranslation, type Language } from "../../core/i18n/translations";
 import { gamificationApi } from "./api";
@@ -24,6 +24,7 @@ import type {
 import { LeaderboardView } from "./LeaderboardView";
 import { StudyStreakCard } from "./StudyStreakCard";
 import { GamificationFeatureState } from "./GamificationFeatureState";
+import { GAMIFICATION_LEVEL_COUNT, getAllLevelPresentations, getLevelPresentation } from "./levelPresentation";
 import "./gamification.css";
 
 export interface GamificationFrontendProps {
@@ -59,6 +60,28 @@ const BACKEND_COPY: Record<string, string> = {
   "gamification.challenge.weekly_consistency_days.description": "gamificationChallengeWeeklyConsistencyDaysDescription",
   "gamification.challenge.weekly_group_focus_runs.title": "gamificationChallengeWeeklyGroupFocusRunsTitle",
   "gamification.challenge.weekly_group_focus_runs.description": "gamificationChallengeWeeklyGroupFocusRunsDescription",
+  "gamification.achievement.first_lecture.title": "gamificationAchievementFirstLectureTitle",
+  "gamification.achievement.first_lecture.description": "gamificationAchievementFirstLectureDescription",
+  "gamification.achievement.ten_lectures.title": "gamificationAchievementTenLecturesTitle",
+  "gamification.achievement.ten_lectures.description": "gamificationAchievementTenLecturesDescription",
+  "gamification.achievement.fifty_mcq.title": "gamificationAchievementFiftyMcqTitle",
+  "gamification.achievement.fifty_mcq.description": "gamificationAchievementFiftyMcqDescription",
+  "gamification.achievement.two_hundred_mcq.title": "gamificationAchievementTwoHundredMcqTitle",
+  "gamification.achievement.two_hundred_mcq.description": "gamificationAchievementTwoHundredMcqDescription",
+  "gamification.achievement.flashcard_25.title": "gamificationAchievementFlashcard25Title",
+  "gamification.achievement.flashcard_25.description": "gamificationAchievementFlashcard25Description",
+  "gamification.achievement.focus_10.title": "gamificationAchievementFocus10Title",
+  "gamification.achievement.focus_10.description": "gamificationAchievementFocus10Description",
+  "gamification.achievement.consistency_7.title": "gamificationAchievementConsistency7Title",
+  "gamification.achievement.consistency_7.description": "gamificationAchievementConsistency7Description",
+  "gamification.challenge.consistency_4.title": "gamificationChallengeConsistency4Title",
+  "gamification.challenge.consistency_4.description": "gamificationChallengeConsistency4Description",
+  "gamification.challenge.focus_90.title": "gamificationChallengeFocus90Title",
+  "gamification.challenge.focus_90.description": "gamificationChallengeFocus90Description",
+  "gamification.challenge.lectures_3.title": "gamificationChallengeLectures3Title",
+  "gamification.challenge.lectures_3.description": "gamificationChallengeLectures3Description",
+  "gamification.challenge.mcq_25.title": "gamificationChallengeMcq25Title",
+  "gamification.challenge.mcq_25.description": "gamificationChallengeMcq25Description",
 };
 
 function pickLocalized(language: Language, en: string, ar: string): string {
@@ -145,6 +168,7 @@ function preserveUnlockHistory(
       visibility: item.visibility,
       tier: item.tier,
       sortOrder: result.length,
+      rewardPoints: item.rewardPoints,
       currentValue: item.metricValueAtUnlock,
       targetValue: item.targetValueAtUnlock,
       progressCompleted: true,
@@ -184,6 +208,15 @@ function formatChallengeAmount(
   }
   if (metricId === "group_focus.completed_runs") {
     return `${exact} ${tx("gamificationUnitRuns", "runs", "جلسات جماعية")}`;
+  }
+  if (metricId === "learning.lecture_completions") {
+    return `${exact} ${tx("gamificationUnitLectures", "lectures", "محاضرات")}`;
+  }
+  if (metricId === "learning.mcq_first_correct") {
+    return `${exact} ${tx("gamificationUnitQuestions", "questions", "أسئلة")}`;
+  }
+  if (metricId === "learning.flashcard_first_recalls") {
+    return `${exact} ${tx("gamificationUnitRecalls", "recalls", "مراجعات")}`;
   }
   return exact;
 }
@@ -956,10 +989,15 @@ export function GamificationFrontend({
                 : statusText}
           </div>}
         </div>
-        <span className={`g-status-pill ${status === "locked" ? "muted" : ""}`}>
-          {status === "unlocked" ? <Check size={13} /> : status === "in-progress" ? <Clock3 size={13} /> : <LockKeyhole size={13} />}
-          {statusText}
-        </span>
+        <div className="g-card-actions">
+          {item.rewardPoints > 0 && (
+            <span className="g-reward-pill">+{formatNumber(item.rewardPoints)} {tx("gamificationRewardPointsShort", "pts", "نقطة")}</span>
+          )}
+          <span className={`g-status-pill ${status === "locked" ? "muted" : ""}`}>
+            {status === "unlocked" ? <Check size={13} /> : status === "in-progress" ? <Clock3 size={13} /> : <LockKeyhole size={13} />}
+            {statusText}
+          </span>
+        </div>
       </div>
     );
   };
@@ -975,7 +1013,12 @@ export function GamificationFrontend({
               <h3>{localizedBackendText(item.titleKey, "challengeTitle")}</h3>
               <p>{localizedBackendText(item.descriptionKey, "challengeDescription")}</p>
             </div>
-            <span className={`g-status-pill ${item.status === "ACTIVE" ? "" : "muted"}`}>{statusCopy(item.status)}</span>
+            <div className="g-card-actions">
+              {item.rewardPoints > 0 && (
+                <span className="g-reward-pill">+{formatNumber(item.rewardPoints)} {tx("gamificationRewardPointsShort", "pts", "نقطة")}</span>
+              )}
+              <span className={`g-status-pill ${item.status === "ACTIVE" ? "" : "muted"}`}>{statusCopy(item.status)}</span>
+            </div>
           </div>
           <div className="g-challenge-progress">
             <div className="g-progress-track" role="progressbar" aria-label={tx("gamificationProgressLabel", "Server-verified progress", "التقدم الموثّق من الخادم")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}>
@@ -1026,6 +1069,15 @@ export function GamificationFrontend({
     if (errors.summary && !summary) return renderError(tx("gamificationOverviewError", "Your engagement summary could not be loaded.", "تعذر تحميل ملخص التفاعل."));
     if (!summary) return null;
     const level = summary.level;
+    const levelPresentation = getLevelPresentation(level.level);
+    const LevelIcon = levelPresentation.Icon;
+    const levelName = tx(levelPresentation.titleKey, levelPresentation.fallbackEn, levelPresentation.fallbackAr);
+    const nextLevelPresentation = level.level < GAMIFICATION_LEVEL_COUNT
+      ? getLevelPresentation(level.level + 1)
+      : null;
+    const nextLevelName = nextLevelPresentation
+      ? tx(nextLevelPresentation.titleKey, nextLevelPresentation.fallbackEn, nextLevelPresentation.fallbackAr)
+      : null;
     const progress = level.levelProgressRatio === null ? null : safeFraction(level.levelProgressRatio);
     const pointsCategory: ["focusPoints" | "masteryPoints" | "progressPoints" | "consistencyPoints", string, string, string][] = [
       ["focusPoints", "gamificationFocusPoints", "Focus", "التركيز"],
@@ -1065,10 +1117,11 @@ export function GamificationFrontend({
             <div>
               <div className="g-level-top">
                 <div>
-                  <div className="g-level-caption" id="g-level-heading">{tx("gamificationLevel", "Current level", "المستوى الحالي")}</div>
-                  <div className="g-level-title">{tx("gamificationLevelLabel", "Level", "المستوى")} {formatNumber(level.level)}</div>
+                  <div className="g-level-caption" id="g-level-heading">{tx("gamificationLevel", "Current rank", "الرتبة الحالية")}</div>
+                  <div className="g-level-title">{levelName}</div>
+                  <div className="g-level-number">{tx("gamificationLevelLabel", "Level", "المستوى")} {formatNumber(level.level)} / {formatNumber(GAMIFICATION_LEVEL_COUNT)}</div>
                 </div>
-                <div className="g-level-mark" aria-hidden="true"><Sparkles size={24} /></div>
+                <div className={`g-level-mark level-${level.level}`} aria-hidden="true"><LevelIcon size={25} /></div>
               </div>
             </div>
             <div>
@@ -1079,21 +1132,49 @@ export function GamificationFrontend({
                 {level.maxLevelReached
                   ? tx("gamificationMaxLevel", "Highest level reached", "تم بلوغ أعلى مستوى")
                   : level.pointsToNextLevel !== null
-                    ? `${formatNumber(level.pointsToNextLevel)} ${tx("gamificationPointsToNext", "points to next level", "نقطة للمستوى التالي")}`
+                    ? `${formatNumber(level.pointsToNextLevel)} ${tx("gamificationPointsToNext", "points to", "نقطة للوصول إلى")} ${nextLevelName ?? tx("gamificationNextLevel", "next rank", "الرتبة التالية")}`
                     : tx("gamificationNextThresholdUnavailable", "Next level threshold unavailable", "حد المستوى التالي غير متاح")}
               </div>
               <div className="g-level-thresholds">
                 <div>
-                  <span>{tx("gamificationCurrentThreshold", "Current level starts at", "يبدأ المستوى الحالي عند")}</span>
+                  <span>{levelName} · {tx("gamificationStartsAt", "starts at", "تبدأ عند")}</span>
                   <strong>{formatNumber(level.currentLevelMinimumPoints)} {tx("gamificationScore", "Points", "النقاط")}</strong>
                 </div>
                 {!level.maxLevelReached && <div>
-                  <span>{tx("gamificationNextThreshold", "Next level starts at", "يبدأ المستوى التالي عند")}</span>
+                  <span>{nextLevelName
+                    ? <>{nextLevelName} · {tx("gamificationStartsAt", "starts at", "تبدأ عند")}</>
+                    : tx("gamificationNextThreshold", "Next rank starts at", "تبدأ الرتبة التالية عند")}</span>
                   <strong>{level.nextLevelMinimumPoints === null
                     ? tx("gamificationNextThresholdUnavailable", "Unavailable", "غير متاح")
                     : `${formatNumber(level.nextLevelMinimumPoints)} ${tx("gamificationScore", "Points", "النقاط")}`}</strong>
                 </div>}
               </div>
+              <div className="g-level-system-note">
+                {tx("gamificationLevelSystemNote", "10 ranks · Lifetime Study Points determine your rank", "10 رتب · مجموع نقاط الدراسة مدى الحياة يحدد رتبتك")}
+              </div>
+              <details className="g-level-path">
+                <summary>{tx("gamificationViewAllRanks", "View all ranks & point thresholds", "عرض جميع الرتب وحدود النقاط")}</summary>
+                <div className="g-level-path-grid">
+                  {getAllLevelPresentations().map((rank) => {
+                    const RankIcon = rank.Icon;
+                    const rankName = tx(rank.titleKey, rank.fallbackEn, rank.fallbackAr);
+                    return (
+                      <div
+                        className={`g-level-path-item${rank.level === level.level ? " is-current" : ""}`}
+                        key={rank.level}
+                        aria-current={rank.level === level.level ? "step" : undefined}
+                      >
+                        <span className={`g-level-path-icon level-${rank.level}`} aria-hidden="true"><RankIcon size={15} /></span>
+                        <span className="g-level-path-copy">
+                          <strong>{rankName}</strong>
+                          <small>{tx("gamificationLevelLabel", "Level", "المستوى")} {formatNumber(rank.level)}</small>
+                        </span>
+                        <span className="g-level-path-points">{formatNumber(rank.minimumPoints)}+</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
             </div>
           </section>
         </div>
@@ -1128,7 +1209,7 @@ export function GamificationFrontend({
               <button type="button" className="g-action" onClick={() => setTab("challenges")}>{tx("gamificationViewAll", "View all", "عرض الكل")} <ChevronDown size={14} /></button>
             </div>
             {loading.challenges && !challenges ? skeleton(2) : errors.challenges && !challenges ? <p className="g-subtle">{tx("gamificationChallengesError", "Challenges could not be loaded.", "تعذر تحميل التحديات.")}</p>
-              : currentChallenges.length ? <div className="g-list">{currentChallenges.slice(0, 2).map((item) => <div className="g-mini-row" key={item.instanceId}><div className="g-medallion"><Target size={17} /></div><div className="g-row-copy"><strong>{localizedBackendText(item.titleKey, "challengeTitle")}</strong><span>{formatChallengeAmount(item.current, item.metricId, locale, tx)} / {formatChallengeAmount(item.target, item.metricId, locale, tx)}</span></div><span className="g-row-end">{Math.round(safeFraction(item.progressRatio) * 100)}%</span></div>)}</div>
+              : currentChallenges.length ? <div className="g-list">{currentChallenges.slice(0, 2).map((item) => <div className="g-mini-row" key={item.instanceId}><div className="g-medallion"><Target size={17} /></div><div className="g-row-copy"><strong>{localizedBackendText(item.titleKey, "challengeTitle")}</strong><span>{formatChallengeAmount(item.current, item.metricId, locale, tx)} / {formatChallengeAmount(item.target, item.metricId, locale, tx)}</span></div><span className="g-row-end">+{formatNumber(item.rewardPoints)} {tx("gamificationRewardPointsShort", "pts", "نقطة")} · {Math.round(safeFraction(item.progressRatio) * 100)}%</span></div>)}</div>
                 : <div className="g-empty"><div className="g-empty-mark"><Target size={20} /></div><h3>{tx("gamificationNoChallenges", "No active challenges right now", "لا توجد تحديات نشطة حاليًا")}</h3><p>{tx("gamificationNoChallengesHint", "When a challenge is available, its server-verified progress will appear here.", "عند توفر تحدٍ، سيظهر تقدمه الموثّق من الخادم هنا.")}</p></div>}
           </section>
         </div>

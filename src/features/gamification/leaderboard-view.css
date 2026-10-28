@@ -231,3 +231,7 @@
     transition-duration: .01ms !important;
   }
 }
+
+.lv-student > .lv-level-line { display:flex; align-items:center; gap:4px; min-width:0; }
+.lv-level-line > svg { flex:0 0 auto; color:var(--g-accent-strong, var(--g-accent)); }
+.lv-level-line > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

@@ -45,6 +45,7 @@ export type AchievementDefinition = {
   ruleSetVersion: string;
   metricId: string;
   threshold: number | boolean;
+  rewardPoints?: number;
   tier?: AchievementTier;
   titleKey: string;
   descriptionKey: string;
@@ -67,6 +68,7 @@ export type ChallengeDefinitionContract = {
   ruleSetVersion: string;
   metricId: string;
   target: number;
+  rewardPoints?: number;
   enrollmentPolicy: ChallengeEnrollmentPolicy;
   windowPolicy: ChallengeWindowPolicy;
   titleKey: string;

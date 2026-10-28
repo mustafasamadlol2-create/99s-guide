@@ -18,7 +18,11 @@ import {
 import { getBaghdadWeekPeriod } from "./challengePeriods.js";
 import { getChallengeMetricValueForWindow } from "./challengeMetrics.js";
 import { GamificationError } from "./errors.js";
+import { GAMIFICATION_METRIC_IDS } from "./constants.js";
 import { assertGamificationEnabled } from "./featureGate.js";
+import { getGamificationDefinitionBundle } from "./definitions.js";
+import { awardChallengeRewardInTransaction } from "./rewards.js";
+import { notifyStudyPointsPostCommit } from "../study-points/postCommitHooks.js";
 import type {
   ChallengeSummaryItem,
   MyChallengesResponse,
@@ -31,10 +35,12 @@ type ChallengeTransaction = Prisma.TransactionClient;
 
 const RECENT_HISTORY_LIMIT = 8;
 const SUPPORTED_CHALLENGE_METRICS = new Set([
-  "focus.completed_sessions",
-  "focus.verified_seconds",
-  "consistency.qualifying_days",
-  "group_focus.completed_runs",
+  GAMIFICATION_METRIC_IDS.focusCompletedSessions,
+  GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
+  GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
+  GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
+  GAMIFICATION_METRIC_IDS.lectureCompletions,
+  GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
 ]);
 const PROGRESS_STATUSES = new Set(["ACTIVE", "COMPLETED", "EXPIRED", "LEFT"]);
 
@@ -191,7 +197,7 @@ async function evaluateProgress(
   asOf: Date,
   rulesCache: Map<string, Awaited<ReturnType<typeof getChallengeRuleSetVersion>>>,
   metricCache: Map<string, number>,
-): Promise<void> {
+): Promise<number> {
   const existingRules = rulesCache.get(instance.ruleSetVersion);
   const rules = existingRules
     ?? await getChallengeRuleSetVersion(instance.ruleSetVersion, tx);
@@ -209,7 +215,7 @@ async function evaluateProgress(
   assertChallengeInstanceDefinitionMatches(instance, definition, period);
   assertProgressSnapshot(progress, instance);
 
-  if (progress.status === "LEFT") return;
+  if (progress.status === "LEFT") return 0;
   const isCompleted = progress.status === "COMPLETED";
   if (isCompleted) {
     const metadataNeedsRepair =
@@ -227,7 +233,14 @@ async function evaluateProgress(
         },
       });
     }
-    return;
+    const reward = await awardChallengeRewardInTransaction({
+      userId: progress.userId,
+      challengeInstanceId: instance.id,
+      definition,
+      effectiveAt: progress.completedAt ?? asOf,
+      tx,
+    });
+    return reward.awardedNow ? reward.rewardPoints : 0;
   }
 
   const metricKey = [
@@ -278,7 +291,7 @@ async function evaluateProgress(
     || !sameDate(progress.completedAt, completedAt)
     || !sameDate(progress.expiredAt, expiredAt);
 
-  if (!needsWrite) return;
+  if (!needsWrite) return 0;
   await tx.userChallengeProgress.update({
     where: { id: progress.id },
     data: {
@@ -293,6 +306,15 @@ async function evaluateProgress(
       updatedAt: asOf,
     },
   });
+  if (nextStatus !== "COMPLETED") return 0;
+  const reward = await awardChallengeRewardInTransaction({
+    userId: progress.userId,
+    challengeInstanceId: instance.id,
+    definition,
+    effectiveAt: completedAt ?? asOf,
+    tx,
+  });
+  return reward.awardedNow ? reward.rewardPoints : 0;
 }
 
 export type RefreshUserChallengesInput = {
@@ -307,6 +329,7 @@ export type RefreshedUserChallenges = {
   period: ReturnType<typeof getBaghdadWeekPeriod>;
   instances: ChallengeInstance[];
   progress: UserChallengeProgressWithInstance[];
+  rewardPointsAwarded: number;
 };
 
 export async function refreshUserChallenges(
@@ -339,7 +362,7 @@ export async function refreshUserChallenges(
     ? null
     : new Set(input.metricIds);
 
-  return database.$transaction(async (tx) => {
+  const result = await database.$transaction(async (tx) => {
     await acquireActiveGamificationRuleSetLock(tx);
     await acquireUserChallengesLock(tx, input.userId);
     const asOf = input.asOf ?? await databaseNow(tx);
@@ -393,11 +416,12 @@ export async function refreshUserChallenges(
       tx,
     )]]);
     const metricCache = new Map<string, number>();
+    let rewardPointsAwarded = 0;
     for (const progress of candidates) {
       if (metricFilter && !metricFilter.has(progress.instance.metricId)) continue;
       if (progress.instance.status === "CANCELLED") continue;
       if (asOf < progress.instance.startsAt) continue;
-      await evaluateProgress(
+      rewardPointsAwarded += await evaluateProgress(
         tx,
         progress,
         progress.instance,
@@ -420,12 +444,17 @@ export async function refreshUserChallenges(
       period,
       instances: currentInstances,
       progress: currentProgress,
+      rewardPointsAwarded,
     };
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     maxWait: 5_000,
     timeout: 60_000,
   });
+  if (result.rewardPointsAwarded > 0) {
+    await notifyStudyPointsPostCommit(input.userId);
+  }
+  return result;
 }
 
 export async function evaluateUserChallenge(
@@ -451,7 +480,7 @@ export async function evaluateUserChallenge(
   if (input.asOf !== undefined && !isValidDate(input.asOf)) {
     throw new GamificationError("GAMIFICATION_INVALID_INPUT", "asOf is invalid.");
   }
-  return database.$transaction(async (tx) => {
+  const result = await database.$transaction(async (tx) => {
     await acquireUserChallengesLock(tx, input.userId);
     await requireUser(tx, input.userId);
     const asOf = input.asOf ?? await databaseNow(tx);
@@ -470,7 +499,7 @@ export async function evaluateUserChallenge(
         "User is not enrolled in this Challenge instance.",
       );
     }
-    await evaluateProgress(
+    const rewardPointsAwarded = await evaluateProgress(
       tx,
       progress,
       progress.instance,
@@ -487,12 +516,16 @@ export async function evaluateUserChallenge(
         "Challenge progress disappeared during evaluation.",
       );
     }
-    return refreshed;
+    return { refreshed, rewardPointsAwarded };
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     maxWait: 5_000,
     timeout: 30_000,
   });
+  if (result.rewardPointsAwarded > 0) {
+    await notifyStudyPointsPostCommit(input.userId);
+  }
+  return result.refreshed;
 }
 
 function toSummaryItem(
@@ -510,6 +543,11 @@ function toSummaryItem(
     );
   }
   const current = Math.min(currentValue, targetValue);
+  const definition = getGamificationDefinitionBundle(
+    progress.instance.ruleSetVersion,
+  ).challengeDefinitionContracts.find(
+    (candidate) => candidate.id === progress.instance.challengeDefinitionId,
+  );
   return {
     instanceId: progress.challengeInstanceId,
     definitionId: progress.instance.challengeDefinitionId,
@@ -520,6 +558,7 @@ function toSummaryItem(
     metricId: progress.metricId,
     current,
     target: targetValue,
+    rewardPoints: definition?.rewardPoints ?? 0,
     progressRatio: Math.min(currentValue / targetValue, 1),
     status: progress.status as UserChallengeStatus,
     startsAt: progress.instance.startsAt,

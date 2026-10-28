@@ -35,6 +35,7 @@ export interface Achievement {
   visibility: string;
   tier?: string;
   sortOrder: number;
+  rewardPoints: number;
   currentValue: number | boolean;
   targetValue: number | boolean;
   progressCompleted: boolean;
@@ -52,6 +53,7 @@ export interface UnlockHistory {
   descriptionKey: string;
   visibility: string;
   tier?: string;
+  rewardPoints: number;
   metricValueAtUnlock: number | boolean;
   targetValueAtUnlock: number | boolean;
   unlockedAt: string;
@@ -81,6 +83,7 @@ export interface ChallengeItem {
   metricId: string;
   current: number;
   target: number;
+  rewardPoints: number;
   progressRatio: number;
   status: "ACTIVE" | "COMPLETED" | "EXPIRED" | "LEFT";
   startsAt: string;

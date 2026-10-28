@@ -11,6 +11,7 @@ import type {
   LeaderboardScope,
   OwnRankResponse,
 } from "./types";
+import { getLevelPresentation } from "./levelPresentation";
 import "./leaderboard-view.css";
 
 export interface LeaderboardViewProps {
@@ -234,6 +235,13 @@ export function LeaderboardView({
               const displayedScore = entry.isViewer
                 ? (currentRank?.score ?? (entry.score + optimisticPointDelta))
                 : entry.score;
+              const levelPresentation = entry.level === null
+                ? null
+                : getLevelPresentation(entry.level);
+              const LevelIcon = levelPresentation?.Icon;
+              const levelName = levelPresentation
+                ? tx(levelPresentation.titleKey, levelPresentation.fallbackEn, levelPresentation.fallbackAr)
+                : null;
               return (
                 <div
                   className={`lv-row${podium ? ` lv-podium lv-podium-${entry.rank}` : ""}`}
@@ -248,9 +256,13 @@ export function LeaderboardView({
                   <LeaderboardAvatar key={entry.avatarUrl ?? "no-avatar"} url={entry.avatarUrl} />
                   <span className="lv-student">
                     <strong>{publicLabel}</strong>
-                    <span>{entry.level === null
+                    <span className="lv-level-line">{entry.level === null
                       ? (tied ? `${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : tx("gamificationVerifiedPoints", "Verified activity", "نشاط موثّق"))
-                      : `${tx("gamificationLevelShort", "Level", "المستوى")} ${formatNumber(entry.level)}${tied ? ` · ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
+                      : <>
+                          {LevelIcon ? <LevelIcon size={12} aria-hidden="true" /> : null}
+                          <span>{levelName} · {tx("gamificationLevelShort", "Level", "المستوى")} {formatNumber(entry.level)}</span>
+                          {tied ? <span> · {formatNumber(entry.tieSize)} {tx("gamificationTie", "tied", "تعادل")}</span> : null}
+                        </>}</span>
                   </span>
                   <span className="lv-score">
                     <strong>{formatNumber(displayedScore)}</strong>

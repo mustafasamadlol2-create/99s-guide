@@ -18,6 +18,9 @@ import {
   type StudyStreakCacheEntry,
 } from "../../gamification/studyStreakCache";
 import { GAMIFICATION_INVALIDATED_EVENT } from "../../gamification/realtime";
+import { gamificationApi } from "../../gamification/api";
+import type { LevelSummary } from "../../gamification/types";
+import { getLevelPresentation } from "../../gamification/levelPresentation";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
@@ -250,6 +253,17 @@ export const ProfileView = function ProfileView({
      ? null
      : readStudyStreakCache(profileUserId)?.currentStreakDays ?? null,
  );
+ const [profileLevel, setProfileLevel] = useState<LevelSummary | null>(null);
+
+ const refreshProfileLevel = useCallback(async () => {
+   try {
+     const summary = await gamificationApi.summary();
+     setProfileLevel(summary.level);
+   } catch {
+     // Profile remains usable when gamification is disabled or temporarily
+     // unavailable. Never fall back to the legacy user.level projection.
+   }
+ }, []);
 
  const refreshProfileStreak = useCallback(async () => {
    const entry = await warmStudyStreakCache(profileUserId);
@@ -260,30 +274,43 @@ export const ProfileView = function ProfileView({
  // consumes it synchronously, so the badge is already painted on first frame.
  // This local warm is a fallback for unusual navigation/startup paths.
  useEffect(() => {
+   // Avoid briefly showing the previous account's rank if Profile switches
+   // between users without remounting this view.
+   setProfileLevel(null);
    const cached = readStudyStreakCache(profileUserId);
    if (cached) setProfileStreakDays(cached.currentStreakDays);
    void refreshProfileStreak();
+   void refreshProfileLevel();
 
    const handleCacheUpdate = (event: Event) => {
      const detail = (event as CustomEvent<StudyStreakCacheEntry>).detail;
      if (!detail || detail.accountId !== profileUserId) return;
      setProfileStreakDays(detail.currentStreakDays);
    };
-   const handleGamificationInvalidation = () => void refreshProfileStreak();
+   const handleGamificationInvalidation = () => {
+     void refreshProfileStreak();
+     void refreshProfileLevel();
+   };
    window.addEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
    window.addEventListener(GAMIFICATION_INVALIDATED_EVENT, handleGamificationInvalidation);
    return () => {
      window.removeEventListener(STUDY_STREAK_CACHE_EVENT, handleCacheUpdate);
      window.removeEventListener(GAMIFICATION_INVALIDATED_EVENT, handleGamificationInvalidation);
    };
- }, [profileUserId, refreshProfileStreak]);
+ }, [profileUserId, refreshProfileStreak, refreshProfileLevel]);
 
  useEffect(() => {
    if (!isActive) return;
 
-   const handleWindowFocus = () => void refreshProfileStreak();
+   const handleWindowFocus = () => {
+     void refreshProfileStreak();
+     void refreshProfileLevel();
+   };
    const handleVisibilityChange = () => {
-     if (document.visibilityState === "visible") void refreshProfileStreak();
+     if (document.visibilityState === "visible") {
+       void refreshProfileStreak();
+       void refreshProfileLevel();
+     }
    };
 
    window.addEventListener("focus", handleWindowFocus);
@@ -292,7 +319,7 @@ export const ProfileView = function ProfileView({
      window.removeEventListener("focus", handleWindowFocus);
      document.removeEventListener("visibilitychange", handleVisibilityChange);
    };
- }, [isActive, refreshProfileStreak]);
+ }, [isActive, refreshProfileStreak, refreshProfileLevel]);
 
  // Keep the compact profile label tied to the user's Academic Group (A-E),
  // not the fixed Batch value. Normalize defensively in case persisted data
@@ -379,6 +406,14 @@ export const ProfileView = function ProfileView({
   };
  }, [subjects, progress, dbLectures]);
 
+  const profileLevelPresentation = profileLevel
+    ? getLevelPresentation(profileLevel.level)
+    : null;
+  const ProfileLevelIcon = profileLevelPresentation?.Icon;
+  const profileLevelName = profileLevelPresentation
+    ? tr(profileLevelPresentation.fallbackEn, profileLevelPresentation.fallbackAr)
+    : null;
+
   const profileRoot = (
     <div
       className="profile-view-root w-full max-w-2xl mx-auto pb-24 pt-6 px-4 sm:px-6 animate-fadeIn"
@@ -458,7 +493,21 @@ export const ProfileView = function ProfileView({
               >
                 {academicGroupLabel}
               </p>
-              <p className="text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mt-0.5 font-mono">
+              {profileLevel && profileLevelName && ProfileLevelIcon && (
+                <div
+                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-emerald-50/75 px-3 py-1.5 text-emerald-950 shadow-[0_4px_14px_rgba(15,92,74,0.07)] dark:border-emerald-200/10 dark:bg-emerald-300/10 dark:text-emerald-100"
+                  aria-label={tr(`${profileLevelName}, Level ${profileLevel.level}`, `${profileLevelName}، المستوى ${profileLevel.level}`)}
+                >
+                  <span className="flex size-6 items-center justify-center rounded-full bg-white/80 text-emerald-700 shadow-sm dark:bg-white/10 dark:text-emerald-200">
+                    <ProfileLevelIcon className="size-3.5" aria-hidden="true" />
+                  </span>
+                  <span className="text-[13px] font-semibold tracking-[-0.01em]">{profileLevelName}</span>
+                  <span className="text-[11px] font-medium text-emerald-800/65 dark:text-emerald-100/60">
+                    {tr(`Level ${profileLevel.level}`, `المستوى ${profileLevel.level}`)}
+                  </span>
+                </div>
+              )}
+              <p className="text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mt-2 font-mono">
                 {(user as any).profileEmail || user.email}
               </p>
 

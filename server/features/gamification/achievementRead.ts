@@ -126,6 +126,7 @@ export async function getMyAchievements(
       visibility: definition.visibility,
       ...(definition.tier ? { tier: definition.tier } : {}),
       sortOrder: definition.sortOrder,
+      rewardPoints: definition.rewardPoints ?? 0,
       currentValue,
       targetValue: definition.threshold,
       progressCompleted: completed,
@@ -174,6 +175,7 @@ export async function getMyAchievements(
       descriptionKey: definition.descriptionKey,
       visibility: definition.visibility,
       ...(definition.tier ? { tier: definition.tier } : {}),
+      rewardPoints: definition.rewardPoints ?? 0,
       metricValueAtUnlock: decodeMetricValue(
         unlock.metricValueAtUnlock,
         unlock.valueType,

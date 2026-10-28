@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   GAMIFICATION_METRIC_IDS,
   GAMIFICATION_V1_RULE_SET_VERSION,
+  GAMIFICATION_V2_RULE_SET_VERSION,
   GamificationError,
   checksumGamificationChallengeDefinitions,
   checksumGamificationDefinitionBundle,
@@ -30,10 +31,10 @@ function assertDefinitionInvalid(callback: () => unknown): void {
     && error.code === "GAMIFICATION_DEFINITION_INVALID");
 }
 
-test("v1 bundle is immutable, deterministic, and excludes unavailable lifetime consistency", () => {
+test("v1 remains immutable while v2 is the production definition bundle", () => {
   const bundle = getGamificationDefinitionBundle(GAMIFICATION_V1_RULE_SET_VERSION);
   assert.equal(bundle.version, "gamification-v1");
-  assert.deepEqual(getGamificationDefinitionVersions(), ["gamification-v1"]);
+  assert.deepEqual(getGamificationDefinitionVersions(), ["gamification-v1", "gamification-v2"]);
   assert.equal(Object.isFrozen(bundle), true);
   assert.equal(Object.isFrozen(bundle.achievementDefinitions), true);
   assert.equal(bundle.achievementDefinitions.length, 3);
@@ -46,11 +47,23 @@ test("v1 bundle is immutable, deterministic, and excludes unavailable lifetime c
   );
   validateGamificationDefinitionBundle(bundle);
 
-  const unavailable = getGamificationMetricDefinitions().find(
+  const consistency = getGamificationMetricDefinitions().find(
     (metric) => metric.id === GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
   );
-  assert.equal(unavailable?.available, false);
-  assert.ok(unavailable?.unavailableReason);
+  assert.equal(consistency?.available, true);
+
+  const v2 = getGamificationDefinitionBundle(GAMIFICATION_V2_RULE_SET_VERSION);
+  assert.equal(v2.levelDefinitions.length, 10);
+  assert.equal(v2.achievementDefinitions.length, 7);
+  assert.equal(v2.challengeDefinitionContracts.length, 4);
+  assert.deepEqual(
+    v2.levelDefinitions.map(({ minimumLifetimePoints }) => minimumLifetimePoints),
+    [0, 100, 250, 500, 900, 1400, 2100, 3000, 4200, 5600],
+  );
+  assert.ok(v2.levelDefinitions.every(({ titleKey }) => Boolean(titleKey)));
+  assert.ok(v2.achievementDefinitions.every(({ rewardPoints }) => Number(rewardPoints) > 0));
+  assert.ok(v2.challengeDefinitionContracts.every(({ rewardPoints }) => Number(rewardPoints) > 0));
+  validateGamificationDefinitionBundle(v2);
 
   const checksum = checksumGamificationDefinitionBundle(bundle);
   const reordered = Object.fromEntries(
@@ -76,7 +89,7 @@ test("v1 bundle is immutable, deterministic, and excludes unavailable lifetime c
   );
 });
 
-test("definition validation rejects unknown reward fields and unavailable metrics", () => {
+test("definition validation accepts canonical rewards and rejects malformed reward fields", () => {
   const withRewardField = cloneBundle() as unknown as Record<string, unknown>;
   const achievements = withRewardField.achievementDefinitions as Record<string, unknown>[];
   achievements[0]!.pointsReward = 100;
@@ -84,24 +97,15 @@ test("definition validation rejects unknown reward fields and unavailable metric
     validateGamificationDefinitionBundle(withRewardField),
   );
 
-  const withUnavailableMetric = cloneBundle();
-  (
-    withUnavailableMetric.achievementDefinitions as unknown as Array<
-      GamificationDefinitionBundle["achievementDefinitions"][number]
-    >
-  ).push({
-    id: "achievement.consistency.unverified",
-    ruleSetVersion: withUnavailableMetric.version,
-    metricId: GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
-    threshold: 1,
-    titleKey: "gamification.achievement.consistency.title",
-    descriptionKey: "gamification.achievement.consistency.description",
-    visibility: "PRIVATE",
-    sortOrder: 40,
-  });
+  const malformedReward = cloneBundle();
+  malformedReward.achievementDefinitions[0]!.rewardPoints = 0;
   assertDefinitionInvalid(() =>
-    validateGamificationDefinitionBundle(withUnavailableMetric),
+    validateGamificationDefinitionBundle(malformedReward),
   );
+
+  const validReward = cloneBundle();
+  validReward.achievementDefinitions[0]!.rewardPoints = 25;
+  validateGamificationDefinitionBundle(validReward);
 });
 
 test("definition validation enforces namespaced unique IDs, point categories, and privacy", () => {

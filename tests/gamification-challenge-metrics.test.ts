@@ -29,6 +29,12 @@ function fakeTx(overrides: Record<string, unknown> = {}) {
       findMany: async () => [],
     },
     $queryRaw: async () => [{ start, end }],
+    studyPointsLedgerEntry: {
+      count: async ({ where }: { where: unknown }) => {
+        calls.ledger = where;
+        return 3;
+      },
+    },
     studyEvent: { findMany: async () => [] },
     integritySignal: { count: async () => 0, findMany: async () => [] },
     ...overrides,
@@ -117,6 +123,33 @@ test("qualifying days use the canonical Baghdad-day authority and threshold", as
   assert.equal(days.length, 1);
 });
 
+
+test("weekly lecture and MCQ challenges use canonical ledger activity in the requested window", async () => {
+  const { tx, calls } = fakeTx();
+  assert.equal(await getChallengeMetricValueForWindow({
+    userId: "u1", metricId: "learning.lecture_completions", startsAt: start, endsAt: end, asOf, tx,
+  }), 3);
+  assert.deepEqual(calls.ledger, {
+    userId: "u1",
+    amount: { gt: 0 },
+    reasonCode: "lecture.completed",
+    sourceType: "LECTURE_COMPLETION",
+    effectiveAt: { gte: start, lt: asOf },
+    reversedBy: null,
+  });
+
+  assert.equal(await getChallengeMetricValueForWindow({
+    userId: "u1", metricId: "learning.mcq_first_correct", startsAt: start, endsAt: end, asOf, tx,
+  }), 3);
+  assert.deepEqual(calls.ledger, {
+    userId: "u1",
+    amount: { gt: 0 },
+    reasonCode: "mcq.first_verified_correct",
+    sourceType: "MCQ_ATTEMPT",
+    effectiveAt: { gte: start, lt: asOf },
+    reversedBy: null,
+  });
+});
 test("invalid windows and source failures propagate", async () => {
   const { tx } = fakeTx({
     focusSession: { count: async () => { throw new Error("source failed"); } },

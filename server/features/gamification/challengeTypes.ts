@@ -22,6 +22,7 @@ export type ChallengeSummaryItem = {
   metricId: string;
   current: number;
   target: number;
+  rewardPoints: number;
   progressRatio: number;
   status: UserChallengeStatus;
   startsAt: Date;

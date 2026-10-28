@@ -64,7 +64,18 @@ export async function refreshUserGamificationState(
     const [{ now: asOf }] = await tx.$queryRaw<Array<{ now: Date }>>`
       SELECT CURRENT_TIMESTAMP AS now
     `;
-    const points = await getUnifiedStudyPointsReadModel({ userId }, tx);
+    const pointsBeforeRewards = await getUnifiedStudyPointsReadModel({ userId }, tx);
+    const achievementRefresh = await refreshUserAchievementProgressInTransaction({
+      userId,
+      database,
+      tx,
+      rules,
+      asOf,
+      metricValueOverrides: pointMetricOverrides(pointsBeforeRewards),
+    });
+    const points = achievementRefresh.rewardPointsAwarded > 0
+      ? await getUnifiedStudyPointsReadModel({ userId }, tx)
+      : pointsBeforeRewards;
     const row = await refreshUserGamificationLevelInTransaction(
       tx,
       userId,
@@ -79,14 +90,6 @@ export async function refreshUserGamificationState(
         "The refreshed Level projection failed source-definition validation.",
       );
     }
-    const achievementRefresh = await refreshUserAchievementProgressInTransaction({
-      userId,
-      database,
-      tx,
-      rules,
-      asOf,
-      metricValueOverrides: pointMetricOverrides(points),
-    });
     return {
       ruleSetVersion: rules.ruleSet.version,
       rules,
@@ -158,6 +161,7 @@ export async function getMyGamificationSummary(
         asOf,
         achievementCount: rules.definitions.achievementDefinitions.length,
         newlyUnlockedCount: 0,
+        rewardPointsAwarded: 0,
       },
       currentRules: rules,
       // The Summary request already paid for the canonical Points read. Reuse

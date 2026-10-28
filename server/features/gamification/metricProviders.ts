@@ -97,6 +97,54 @@ function groupFocusProvider(
   };
 }
 
+function ledgerCountProvider(
+  metricId: string,
+  database: PrismaClient,
+): GamificationMetricProvider {
+  const filters: Record<string, { reasonCode: string; sourceType: string }> = {
+    [GAMIFICATION_METRIC_IDS.consistencyQualifyingDays]: {
+      reasonCode: "consistency.verified_study_day",
+      sourceType: "DAILY_CONSISTENCY",
+    },
+    [GAMIFICATION_METRIC_IDS.lectureCompletions]: {
+      reasonCode: "lecture.completed",
+      sourceType: "LECTURE_COMPLETION",
+    },
+    [GAMIFICATION_METRIC_IDS.mcqFirstCorrect]: {
+      reasonCode: "mcq.first_verified_correct",
+      sourceType: "MCQ_ATTEMPT",
+    },
+    [GAMIFICATION_METRIC_IDS.flashcardFirstRecalls]: {
+      reasonCode: "flashcard.first_verified_recall",
+      sourceType: "FLASHCARD_REVIEW",
+    },
+  };
+  return {
+    async readValue(userId, asOf, tx) {
+      assertValidStudyPointsUserId(userId);
+      assertValidAsOf(asOf);
+      const filter = filters[metricId];
+      if (!filter) {
+        throw new GamificationError(
+          "GAMIFICATION_METRIC_PROVIDER_UNAVAILABLE",
+          `No ledger-count provider is registered for ${metricId}.`,
+        );
+      }
+      const source: GamificationMetricDatabase = tx ?? database;
+      return assertCanonicalCount(await source.studyPointsLedgerEntry.count({
+        where: {
+          userId,
+          amount: { gt: 0 },
+          reasonCode: filter.reasonCode,
+          sourceType: filter.sourceType,
+          effectiveAt: { lte: asOf },
+          reversedBy: null,
+        },
+      }));
+    },
+  };
+}
+
 function pointsProvider(
   metricId: string,
   database: PrismaClient,
@@ -155,6 +203,14 @@ export function createGamificationMetricProviders(
     GAMIFICATION_METRIC_IDS.groupFocusVerifiedSeconds,
   ]) {
     providers.set(metricId, groupFocusProvider(metricId, database));
+  }
+  for (const metricId of [
+    GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
+    GAMIFICATION_METRIC_IDS.lectureCompletions,
+    GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
+    GAMIFICATION_METRIC_IDS.flashcardFirstRecalls,
+  ]) {
+    providers.set(metricId, ledgerCountProvider(metricId, database));
   }
   return providers;
 }

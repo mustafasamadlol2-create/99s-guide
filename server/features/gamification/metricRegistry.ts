@@ -83,13 +83,38 @@ const definitions: readonly GamificationMetricDefinition[] = [
   {
     id: GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
     valueType: "INTEGER",
-    aggregation: "Lifetime count of qualifying study days.",
+    aggregation: "Lifetime count of canonically rewarded qualifying study days.",
     sourceAuthority:
-      "Requires an all-time, integrity-verifiable source spanning personal and Group Focus evidence.",
+      "Study Points ledger entries for consistency.verified_study_day with reversals excluded.",
     privacyClass: "PRIVATE_STUDY",
-    available: false,
-    unavailableReason:
-      "No all-time source currently proves every qualifying day across personal and Group Focus history.",
+    available: true,
+  },
+  {
+    id: GAMIFICATION_METRIC_IDS.lectureCompletions,
+    valueType: "INTEGER",
+    aggregation: "Lifetime count of canonically rewarded completed lectures.",
+    sourceAuthority:
+      "Study Points ledger entries for lecture.completed with reversals excluded.",
+    privacyClass: "PRIVATE_STUDY",
+    available: true,
+  },
+  {
+    id: GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
+    valueType: "INTEGER",
+    aggregation: "Lifetime count of first verified correct MCQ answers.",
+    sourceAuthority:
+      "Study Points ledger entries for mcq.first_verified_correct with reversals excluded.",
+    privacyClass: "PRIVATE_STUDY",
+    available: true,
+  },
+  {
+    id: GAMIFICATION_METRIC_IDS.flashcardFirstRecalls,
+    valueType: "INTEGER",
+    aggregation: "Lifetime count of first verified flashcard recalls.",
+    sourceAuthority:
+      "Study Points ledger entries for flashcard.first_verified_recall with reversals excluded.",
+    privacyClass: "PRIVATE_STUDY",
+    available: true,
   },
 ];
 for (const definition of definitions) Object.freeze(definition);

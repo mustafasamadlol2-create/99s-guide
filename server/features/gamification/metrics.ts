@@ -48,6 +48,8 @@ export async function getGamificationMetricValue(input: {
       ? GAMIFICATION_METRIC_SOURCE_VERSIONS.studyPoints
       : definition.id.startsWith("focus.")
         ? GAMIFICATION_METRIC_SOURCE_VERSIONS.focusSession
-        : GAMIFICATION_METRIC_SOURCE_VERSIONS.groupFocus,
+        : definition.id.startsWith("group_focus.")
+          ? GAMIFICATION_METRIC_SOURCE_VERSIONS.groupFocus
+          : GAMIFICATION_METRIC_SOURCE_VERSIONS.studyLedger,
   };
 }

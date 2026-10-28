@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { getEligibleBaghdadDayFocusSeconds } from "../study-points/sources/consistency.js";
 import { studyPointsBaghdadDate } from "../study-points/caps.js";
 import { GamificationError } from "./errors.js";
+import { GAMIFICATION_METRIC_IDS } from "./constants.js";
 
 export type ChallengeMetricWindowInput = {
   userId: string;
@@ -13,10 +14,12 @@ export type ChallengeMetricWindowInput = {
 };
 
 const SUPPORTED = new Set([
-  "focus.completed_sessions",
-  "focus.verified_seconds",
-  "group_focus.completed_runs",
-  "consistency.qualifying_days",
+  GAMIFICATION_METRIC_IDS.focusCompletedSessions,
+  GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
+  GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
+  GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
+  GAMIFICATION_METRIC_IDS.lectureCompletions,
+  GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
 ]);
 
 function validDate(value: unknown): value is Date {
@@ -80,7 +83,7 @@ export async function getChallengeMetricValueForWindow(
   const { tx, userId, metricId, startsAt, endsAt, asOf } = input;
   const end = windowEnd(startsAt, endsAt, asOf);
 
-  if (metricId === "consistency.qualifying_days") {
+  if (metricId === GAMIFICATION_METRIC_IDS.consistencyQualifyingDays) {
     const dates = baghdadDatesTouched(startsAt, end);
     let qualifying = 0;
     for (const baghdadDate of dates) {
@@ -97,14 +100,14 @@ export async function getChallengeMetricValueForWindow(
   }
 
   const window = { gte: startsAt, lt: end };
-  if (metricId === "focus.completed_sessions" || metricId === "focus.verified_seconds") {
+  if (metricId === GAMIFICATION_METRIC_IDS.focusCompletedSessions || metricId === GAMIFICATION_METRIC_IDS.focusVerifiedSeconds) {
     const where = {
       userId,
       status: "COMPLETED",
       activeSeconds: { gt: 0 },
       actualEndedAt: window,
     };
-    if (metricId === "focus.completed_sessions") {
+    if (metricId === GAMIFICATION_METRIC_IDS.focusCompletedSessions) {
       return assertResult(await tx.focusSession.count({ where }));
     }
     const result = await tx.focusSession.aggregate({
@@ -112,6 +115,23 @@ export async function getChallengeMetricValueForWindow(
       _sum: { activeSeconds: true },
     });
     return assertResult(result._sum.activeSeconds ?? 0);
+  }
+
+  if (metricId === GAMIFICATION_METRIC_IDS.lectureCompletions
+      || metricId === GAMIFICATION_METRIC_IDS.mcqFirstCorrect) {
+    const filter = metricId === GAMIFICATION_METRIC_IDS.lectureCompletions
+      ? { reasonCode: "lecture.completed", sourceType: "LECTURE_COMPLETION" }
+      : { reasonCode: "mcq.first_verified_correct", sourceType: "MCQ_ATTEMPT" };
+    return assertResult(await tx.studyPointsLedgerEntry.count({
+      where: {
+        userId,
+        amount: { gt: 0 },
+        reasonCode: filter.reasonCode,
+        sourceType: filter.sourceType,
+        effectiveAt: window,
+        reversedBy: null,
+      },
+    }));
   }
 
   const where = {

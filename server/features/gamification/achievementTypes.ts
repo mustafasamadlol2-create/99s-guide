@@ -5,6 +5,7 @@ export type AchievementRefreshResult = {
   asOf: Date;
   achievementCount: number;
   newlyUnlockedCount: number;
+  rewardPointsAwarded: number;
 };
 
 export type MyAchievementView = {
@@ -16,6 +17,7 @@ export type MyAchievementView = {
   visibility: AchievementDefinition["visibility"];
   tier?: AchievementDefinition["tier"];
   sortOrder: number;
+  rewardPoints: number;
   currentValue: number | boolean;
   targetValue: number | boolean;
   progressCompleted: boolean;
@@ -33,6 +35,7 @@ export type MyAchievementUnlockView = {
   descriptionKey: string;
   visibility: AchievementDefinition["visibility"];
   tier?: AchievementDefinition["tier"];
+  rewardPoints: number;
   metricValueAtUnlock: number | boolean;
   targetValueAtUnlock: number | boolean;
   unlockedAt: string;
