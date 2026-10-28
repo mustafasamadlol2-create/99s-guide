@@ -4,6 +4,7 @@ import {
   GAMIFICATION_METRIC_IDS,
   GAMIFICATION_V1_RULE_SET_VERSION,
   GAMIFICATION_V2_RULE_SET_VERSION,
+  GAMIFICATION_V3_RULE_SET_VERSION,
   GamificationError,
   checksumGamificationChallengeDefinitions,
   checksumGamificationDefinitionBundle,
@@ -12,6 +13,7 @@ import {
   getGamificationDefinitionVersions,
   getGamificationMetricDefinitions,
   isGamificationThresholdMet,
+  selectWeeklyChallengeDefinitions,
   validateGamificationDefinitionBundle,
 } from "../server/features/gamification/index.js";
 import type {
@@ -31,10 +33,10 @@ function assertDefinitionInvalid(callback: () => unknown): void {
     && error.code === "GAMIFICATION_DEFINITION_INVALID");
 }
 
-test("v1 remains immutable while v2 is the production definition bundle", () => {
+test("historical bundles remain immutable while v3 is the production definition bundle", () => {
   const bundle = getGamificationDefinitionBundle(GAMIFICATION_V1_RULE_SET_VERSION);
   assert.equal(bundle.version, "gamification-v1");
-  assert.deepEqual(getGamificationDefinitionVersions(), ["gamification-v1", "gamification-v2"]);
+  assert.deepEqual(getGamificationDefinitionVersions(), ["gamification-v1", "gamification-v2", "gamification-v3"]);
   assert.equal(Object.isFrozen(bundle), true);
   assert.equal(Object.isFrozen(bundle.achievementDefinitions), true);
   assert.equal(bundle.achievementDefinitions.length, 3);
@@ -64,6 +66,21 @@ test("v1 remains immutable while v2 is the production definition bundle", () => 
   assert.ok(v2.achievementDefinitions.every(({ rewardPoints }) => Number(rewardPoints) > 0));
   assert.ok(v2.challengeDefinitionContracts.every(({ rewardPoints }) => Number(rewardPoints) > 0));
   validateGamificationDefinitionBundle(v2);
+
+  const v3 = getGamificationDefinitionBundle(GAMIFICATION_V3_RULE_SET_VERSION);
+  assert.equal(v3.levelDefinitions.length, 10);
+  assert.equal(v3.achievementDefinitions.length, 20);
+  assert.equal(v3.challengeDefinitionContracts.length, 10);
+  assert.ok(v3.achievementDefinitions.every(({ rewardPoints }) => Number(rewardPoints) > 0));
+  assert.ok(v3.challengeDefinitionContracts.every(({ rewardPoints }) => Number(rewardPoints) > 0));
+  assert.equal(v3.achievementDefinitions.filter(({ hiddenUntilUnlocked }) => hiddenUntilUnlocked).length, 5);
+  const selectedWeekA = selectWeeklyChallengeDefinitions(v3, "2026-10-25");
+  const selectedWeekB = selectWeeklyChallengeDefinitions(v3, "2026-11-01");
+  assert.equal(selectedWeekA.length, 4);
+  assert.equal(new Set(selectedWeekA.map(({ metricId }) => metricId)).size, 4);
+  assert.equal(selectedWeekB.length, 4);
+  assert.notDeepEqual(selectedWeekA.map(({ id }) => id), selectedWeekB.map(({ id }) => id));
+  validateGamificationDefinitionBundle(v3);
 
   const checksum = checksumGamificationDefinitionBundle(bundle);
   const reordered = Object.fromEntries(

@@ -28,6 +28,7 @@ export const GAMIFICATION_METRIC_IDS = {
   lectureCompletions: "learning.lecture_completions",
   mcqFirstCorrect: "learning.mcq_first_correct",
   flashcardFirstRecalls: "learning.flashcard_first_recalls",
+  weeklyStudyMix: "learning.weekly_study_mix",
 } as const;
 
 export const GAMIFICATION_METRIC_SOURCE_VERSIONS = {

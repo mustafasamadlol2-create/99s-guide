@@ -47,6 +47,7 @@ export type AchievementDefinition = {
   threshold: number | boolean;
   rewardPoints?: number;
   tier?: AchievementTier;
+  hiddenUntilUnlocked?: boolean;
   titleKey: string;
   descriptionKey: string;
   visibility: AchievementVisibility;

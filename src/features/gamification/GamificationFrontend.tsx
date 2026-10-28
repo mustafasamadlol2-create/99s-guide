@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Award, CalendarDays, Check, ChevronDown,
-  CircleHelp, Clock3, LoaderCircle, Medal,
+  Award, BookOpen, Brain, CalendarCheck2, CalendarDays, Check, ChevronDown,
+  CircleHelp, Clock3, Flame, Layers3, LoaderCircle, Medal, Sparkles,
   Target, Trophy, UsersRound, LockKeyhole,
 } from "lucide-react";
 import { useTranslation, type Language } from "../../core/i18n/translations";
@@ -74,6 +74,32 @@ const BACKEND_COPY: Record<string, string> = {
   "gamification.achievement.focus_10.description": "gamificationAchievementFocus10Description",
   "gamification.achievement.consistency_7.title": "gamificationAchievementConsistency7Title",
   "gamification.achievement.consistency_7.description": "gamificationAchievementConsistency7Description",
+  "gamification.achievement.twenty_five_lectures.title": "gamificationAchievementTwentyFiveLecturesTitle",
+  "gamification.achievement.twenty_five_lectures.description": "gamificationAchievementTwentyFiveLecturesDescription",
+  "gamification.achievement.fifty_lectures.title": "gamificationAchievementFiftyLecturesTitle",
+  "gamification.achievement.fifty_lectures.description": "gamificationAchievementFiftyLecturesDescription",
+  "gamification.achievement.ten_mcq.title": "gamificationAchievementTenMcqTitle",
+  "gamification.achievement.ten_mcq.description": "gamificationAchievementTenMcqDescription",
+  "gamification.achievement.one_hundred_mcq.title": "gamificationAchievementOneHundredMcqTitle",
+  "gamification.achievement.one_hundred_mcq.description": "gamificationAchievementOneHundredMcqDescription",
+  "gamification.achievement.two_hundred_fifty_mcq.title": "gamificationAchievementTwoHundredFiftyMcqTitle",
+  "gamification.achievement.two_hundred_fifty_mcq.description": "gamificationAchievementTwoHundredFiftyMcqDescription",
+  "gamification.achievement.five_hundred_mcq.title": "gamificationAchievementFiveHundredMcqTitle",
+  "gamification.achievement.five_hundred_mcq.description": "gamificationAchievementFiveHundredMcqDescription",
+  "gamification.achievement.flashcard_100.title": "gamificationAchievementFlashcard100Title",
+  "gamification.achievement.flashcard_100.description": "gamificationAchievementFlashcard100Description",
+  "gamification.achievement.flashcard_250.title": "gamificationAchievementFlashcard250Title",
+  "gamification.achievement.flashcard_250.description": "gamificationAchievementFlashcard250Description",
+  "gamification.achievement.focus_25.title": "gamificationAchievementFocus25Title",
+  "gamification.achievement.focus_25.description": "gamificationAchievementFocus25Description",
+  "gamification.achievement.focus_50.title": "gamificationAchievementFocus50Title",
+  "gamification.achievement.focus_50.description": "gamificationAchievementFocus50Description",
+  "gamification.achievement.consistency_3.title": "gamificationAchievementConsistency3Title",
+  "gamification.achievement.consistency_3.description": "gamificationAchievementConsistency3Description",
+  "gamification.achievement.consistency_14.title": "gamificationAchievementConsistency14Title",
+  "gamification.achievement.consistency_14.description": "gamificationAchievementConsistency14Description",
+  "gamification.achievement.consistency_30.title": "gamificationAchievementConsistency30Title",
+  "gamification.achievement.consistency_30.description": "gamificationAchievementConsistency30Description",
   "gamification.challenge.consistency_4.title": "gamificationChallengeConsistency4Title",
   "gamification.challenge.consistency_4.description": "gamificationChallengeConsistency4Description",
   "gamification.challenge.focus_90.title": "gamificationChallengeFocus90Title",
@@ -82,6 +108,26 @@ const BACKEND_COPY: Record<string, string> = {
   "gamification.challenge.lectures_3.description": "gamificationChallengeLectures3Description",
   "gamification.challenge.mcq_25.title": "gamificationChallengeMcq25Title",
   "gamification.challenge.mcq_25.description": "gamificationChallengeMcq25Description",
+  "gamification.challenge.consistency_3.title": "gamificationChallengeConsistency3Title",
+  "gamification.challenge.consistency_3.description": "gamificationChallengeConsistency3Description",
+  "gamification.challenge.consistency_5.title": "gamificationChallengeConsistency5Title",
+  "gamification.challenge.consistency_5.description": "gamificationChallengeConsistency5Description",
+  "gamification.challenge.focus_60.title": "gamificationChallengeFocus60Title",
+  "gamification.challenge.focus_60.description": "gamificationChallengeFocus60Description",
+  "gamification.challenge.focus_120.title": "gamificationChallengeFocus120Title",
+  "gamification.challenge.focus_120.description": "gamificationChallengeFocus120Description",
+  "gamification.challenge.lectures_2.title": "gamificationChallengeLectures2Title",
+  "gamification.challenge.lectures_2.description": "gamificationChallengeLectures2Description",
+  "gamification.challenge.lectures_5.title": "gamificationChallengeLectures5Title",
+  "gamification.challenge.lectures_5.description": "gamificationChallengeLectures5Description",
+  "gamification.challenge.mcq_20.title": "gamificationChallengeMcq20Title",
+  "gamification.challenge.mcq_20.description": "gamificationChallengeMcq20Description",
+  "gamification.challenge.mcq_50.title": "gamificationChallengeMcq50Title",
+  "gamification.challenge.mcq_50.description": "gamificationChallengeMcq50Description",
+  "gamification.challenge.flashcards_40.title": "gamificationChallengeFlashcards40Title",
+  "gamification.challenge.flashcards_40.description": "gamificationChallengeFlashcards40Description",
+  "gamification.challenge.study_mix.title": "gamificationChallengeStudyMixTitle",
+  "gamification.challenge.study_mix.description": "gamificationChallengeStudyMixDescription",
 };
 
 function pickLocalized(language: Language, en: string, ar: string): string {
@@ -169,6 +215,7 @@ function preserveUnlockHistory(
       tier: item.tier,
       sortOrder: result.length,
       rewardPoints: item.rewardPoints,
+      hidden: false,
       currentValue: item.metricValueAtUnlock,
       targetValue: item.targetValueAtUnlock,
       progressCompleted: true,
@@ -218,6 +265,11 @@ function formatChallengeAmount(
   if (metricId === "learning.flashcard_first_recalls") {
     return `${exact} ${tx("gamificationUnitRecalls", "recalls", "مراجعات")}`;
   }
+  if (metricId === "learning.weekly_study_mix") {
+    return value >= 1
+      ? tx("gamificationStudyMixComplete", "complete", "مكتمل")
+      : tx("gamificationStudyMixPending", "pending", "قيد التنفيذ");
+  }
   return exact;
 }
 
@@ -242,6 +294,7 @@ export function GamificationFrontend({
   );
   const [summary, setSummary] = useState<GamificationSummary | null>(null);
   const [achievements, setAchievements] = useState<AchievementsResponse | null>(null);
+  const [achievementCelebration, setAchievementCelebration] = useState<Achievement | null>(null);
   const [challenges, setChallenges] = useState<ChallengesResponse | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
   const [ownRank, setOwnRank] = useState<OwnRankResponse | null>(null);
@@ -273,6 +326,7 @@ export function GamificationFrontend({
   const overviewRankGeneration = useRef(0);
   const studyStreakGeneration = useRef(0);
   const warnedPointMismatch = useRef(false);
+  const knownAchievementUnlocks = useRef<Set<string> | null>(null);
   const currentTab = useRef(tab);
   const currentScope = useRef(scope);
   const currentLeaderboard = useRef(leaderboard);
@@ -329,6 +383,34 @@ export function GamificationFrontend({
   }, [tGlobal, tx]);
   const formatNumber = useCallback((value: number) => new Intl.NumberFormat(locale).format(value), [locale]);
 
+  const applyAchievementPayload = useCallback((data: AchievementsResponse) => {
+    const nextUnlocks = new Set(data.unlockHistory.map((item) => item.achievementId));
+    const known = knownAchievementUnlocks.current;
+    if (known) {
+      const newlyUnlocked = data.unlockHistory
+        .filter((item) => !known.has(item.achievementId))
+        .sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt));
+      const latest = newlyUnlocked[0];
+      if (latest) {
+        const achievement = data.achievements.find((item) => item.achievementId === latest.achievementId);
+        if (achievement) setAchievementCelebration(achievement);
+      }
+    }
+    knownAchievementUnlocks.current = nextUnlocks;
+    setAchievements(data);
+  }, []);
+
+  useEffect(() => {
+    knownAchievementUnlocks.current = null;
+    setAchievementCelebration(null);
+  }, [accountId]);
+
+  useEffect(() => {
+    if (!achievementCelebration) return;
+    const timer = window.setTimeout(() => setAchievementCelebration(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [achievementCelebration]);
+
   const loadSummary = useCallback(async () => {
     const account = currentAccountId.current;
     const requestId = ++summaryGeneration.current;
@@ -342,7 +424,7 @@ export function GamificationFrontend({
         currentAccountId.current === account
       ) {
         setSummary(data);
-        setAchievements({
+        applyAchievementPayload({
           ruleSetVersion: data.ruleSetVersion,
           achievements: data.achievements,
           unlockHistory: data.unlockHistory,
@@ -371,7 +453,7 @@ export function GamificationFrontend({
         currentAccountId.current === account
       ) setLoading((old) => ({ ...old, summary: false, achievements: false }));
     }
-  }, []);
+  }, [applyAchievementPayload]);
 
   const loadAchievements = useCallback(async () => {
     const account = currentAccountId.current;
@@ -385,7 +467,7 @@ export function GamificationFrontend({
         achievementsGeneration.current === requestId &&
         currentAccountId.current === account
       ) {
-        setAchievements(data);
+        applyAchievementPayload(data);
         setDisabled((old) => ({ ...old, achievements: false }));
       }
     } catch (error) {
@@ -404,7 +486,7 @@ export function GamificationFrontend({
         currentAccountId.current === account
       ) setLoading((old) => ({ ...old, achievements: false }));
     }
-  }, []);
+  }, [applyAchievementPayload]);
 
   const loadChallenges = useCallback(async () => {
     const account = currentAccountId.current;
@@ -966,20 +1048,31 @@ export function GamificationFrontend({
     const unlocked = status === "unlocked";
     const statusKey = status === "unlocked" ? "gamificationUnlocked"
       : status === "in-progress" ? "gamificationInProgress" : "gamificationLocked";
-    const statusText = status === "unlocked"
-      ? tx(statusKey, "Unlocked", "مفتوح")
-      : status === "in-progress"
-        ? tx(statusKey, "In progress", "قيد التقدم")
-        : tx(statusKey, "Not yet unlocked", "لم يُفتح بعد");
+    const statusText = item.hidden
+      ? tx("gamificationHidden", "Hidden", "مخفي")
+      : status === "unlocked"
+        ? tx(statusKey, "Unlocked", "مفتوح")
+        : status === "in-progress"
+          ? tx(statusKey, "In progress", "قيد التقدم")
+          : tx(statusKey, "Not yet unlocked", "لم يُفتح بعد");
+    const AchievementIcon = item.hidden
+      ? Sparkles
+      : item.metricId === "learning.lecture_completions" ? BookOpen
+        : item.metricId === "learning.mcq_first_correct" ? Brain
+          : item.metricId === "learning.flashcard_first_recalls" ? Layers3
+            : item.metricId === "focus.completed_sessions" ? Flame
+              : item.metricId === "consistency.qualifying_days" ? CalendarCheck2
+                : Award;
+    const tierClass = item.tier ? ` tier-${item.tier.toLowerCase()}` : "";
     return (
-      <div className={`g-achievement ${status === "locked" ? "is-locked" : ""}`} key={`${item.achievementId}-${item.sortOrder}`}>
+      <div className={`g-achievement ${status === "locked" ? "is-locked" : ""}${item.hidden ? " is-hidden" : ""}${tierClass}`} key={`${item.achievementId}-${item.sortOrder}`}>
         <div className="g-medallion" aria-hidden="true">
-          {status === "unlocked" ? <Award size={20} /> : status === "in-progress" ? <Clock3 size={18} /> : <LockKeyhole size={18} />}
+          <AchievementIcon size={item.hidden ? 18 : 20} />
         </div>
         <div className="g-achievement-body">
-          <h3>{localizedBackendText(item.titleKey, "title")}</h3>
-          {!compact && <p>{localizedBackendText(item.descriptionKey, "description")}</p>}
-          {!compact && <div className="g-inline-meta">
+          <h3>{item.hidden ? tx("gamificationHiddenAchievementTitle", "Hidden Achievement", "إنجاز مخفي") : localizedBackendText(item.titleKey, "title")}</h3>
+          {!compact && <p>{item.hidden ? tx("gamificationHiddenAchievementDescription", "Keep studying to discover this achievement.", "استمر بالدراسة لاكتشاف هذا الإنجاز.") : localizedBackendText(item.descriptionKey, "description")}</p>}
+          {!compact && !item.hidden && <div className="g-inline-meta">
             {unlocked
               ? `${statusText}${item.unlockedAt ? ` · ${formatDate(item.unlockedAt, locale)}` : ""}`
               : isBoolNumber(item.currentValue) && isBoolNumber(item.targetValue)
@@ -990,7 +1083,9 @@ export function GamificationFrontend({
           </div>}
         </div>
         <div className="g-card-actions">
-          {item.rewardPoints > 0 && (
+          {item.hidden ? (
+            <span className="g-reward-pill mystery">{tx("gamificationHiddenReward", "Mystery reward", "مكافأة مفاجئة")}</span>
+          ) : item.rewardPoints > 0 && (
             <span className="g-reward-pill">+{formatNumber(item.rewardPoints)} {tx("gamificationRewardPointsShort", "pts", "نقطة")}</span>
           )}
           <span className={`g-status-pill ${status === "locked" ? "muted" : ""}`}>
@@ -1273,7 +1368,13 @@ export function GamificationFrontend({
     <div className="g-tab-panel">
       <div className="g-section-head"><div><h2>{tx("gamificationChallenges", "Challenges", "التحديات")}</h2><p>{tx("gamificationRuleInfo", "Progress is verified by the server.", "يتم التحقق من التقدم بواسطة الخادم.")}</p></div></div>
         {privateStaleNotice}
-      {challenges?.currentPeriod && <div className="g-period-note">{tx("gamificationPeriod", "Current period", "الفترة الحالية")}: {formatDate(challenges.currentPeriod.startsAt, locale, { year: "numeric" })} – {formatDate(challenges.currentPeriod.endsAt, locale, { year: "numeric" })}</div>}
+      {challenges?.currentPeriod && <>
+        <div className="g-period-note">{tx("gamificationPeriod", "Current period", "الفترة الحالية")}: {formatDate(challenges.currentPeriod.startsAt, locale, { year: "numeric" })} – {formatDate(challenges.currentPeriod.endsAt, locale, { year: "numeric" })}</div>
+        <div className="g-rotation-note">
+          <Sparkles size={15} aria-hidden="true" />
+          <span>{tx("gamificationWeeklyRotationNote", "Four challenges are selected from a larger pool each week, so your goals stay fresh.", "يتم اختيار أربعة تحديات من مجموعة أكبر كل أسبوع لتبقى أهدافك متجددة.")}</span>
+        </div>
+      </>}
       {loading.challenges && !challenges ? skeleton(4)
         : disabled.challenges && !challenges ? renderDisabled(tx("gamificationDisabled", "Challenges are disabled.", "التحديات معطلة."))
           : errors.challenges && !challenges ? renderError(tx("gamificationChallengesError", "Challenges could not be loaded.", "تعذر تحميل التحديات."))
@@ -1325,6 +1426,16 @@ export function GamificationFrontend({
   ];
   return (
     <main className="gamification" dir={isRtl ? "rtl" : "ltr"}>
+      {achievementCelebration && (
+        <div className="g-achievement-celebration" role="status" aria-live="polite">
+          <div className="g-celebration-icon"><Trophy size={22} /></div>
+          <div className="g-celebration-copy">
+            <span>{tx("gamificationAchievementUnlockedCelebration", "Achievement Unlocked", "تم فتح إنجاز")}</span>
+            <strong>{localizedBackendText(achievementCelebration.titleKey, "title")}</strong>
+          </div>
+          <div className="g-celebration-points">+{formatNumber(achievementCelebration.rewardPoints)} {tx("gamificationRewardPointsShort", "pts", "نقطة")}</div>
+        </div>
+      )}
       <div className="g-shell">
         <header className="g-hero">
           <div>

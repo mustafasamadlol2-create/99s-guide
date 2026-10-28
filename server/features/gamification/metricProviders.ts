@@ -145,6 +145,33 @@ function ledgerCountProvider(
   };
 }
 
+function mixedStudyProvider(
+  database: PrismaClient,
+): GamificationMetricProvider {
+  return {
+    async readValue(userId, asOf, tx) {
+      assertValidStudyPointsUserId(userId);
+      assertValidAsOf(asOf);
+      const source: GamificationMetricDatabase = tx ?? database;
+      const [lectures, mcqs, recalls] = await Promise.all([
+        source.studyPointsLedgerEntry.count({
+          where: { userId, amount: { gt: 0 }, reasonCode: "lecture.completed", sourceType: "LECTURE_COMPLETION", effectiveAt: { lte: asOf }, reversedBy: null },
+        }),
+        source.studyPointsLedgerEntry.count({
+          where: { userId, amount: { gt: 0 }, reasonCode: "mcq.first_verified_correct", sourceType: "MCQ_ATTEMPT", effectiveAt: { lte: asOf }, reversedBy: null },
+        }),
+        source.studyPointsLedgerEntry.count({
+          where: { userId, amount: { gt: 0 }, reasonCode: "flashcard.first_verified_recall", sourceType: "FLASHCARD_REVIEW", effectiveAt: { lte: asOf }, reversedBy: null },
+        }),
+      ]);
+      // One mixed-study unit means: 1 completed lecture + 10 correct MCQs +
+      // 10 first verified flashcard recalls. Lifetime value is deterministic
+      // and only exists so the metric registry has a complete provider.
+      return assertCanonicalCount(Math.min(lectures, Math.floor(mcqs / 10), Math.floor(recalls / 10)));
+    },
+  };
+}
+
 function pointsProvider(
   metricId: string,
   database: PrismaClient,
@@ -212,6 +239,7 @@ export function createGamificationMetricProviders(
   ]) {
     providers.set(metricId, ledgerCountProvider(metricId, database));
   }
+  providers.set(GAMIFICATION_METRIC_IDS.weeklyStudyMix, mixedStudyProvider(database));
   return providers;
 }
 

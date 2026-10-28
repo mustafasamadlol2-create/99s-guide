@@ -2106,8 +2106,8 @@ async function prepareGamificationRuntime() {
   const client = getPrisma();
   await client.$connect();
 
-  // Registration + activation are both idempotent. If v1 is still ACTIVE after
-  // a production deploy, this promotes the immutable v2 bundle before the HTTP
+  // Registration + activation are both idempotent. Any older ACTIVE version is
+  // promoted to the immutable source-controlled current bundle before the HTTP
   // server begins accepting requests.
   await ensureGamificationRuleSetDraft(
     GAMIFICATION_CURRENT_RULE_SET_VERSION,
@@ -2118,66 +2118,73 @@ async function prepareGamificationRuntime() {
     client,
   );
 
-  // v1 contained demo Achievements/Challenges only. Remove those frozen demo
-  // projections after v2 is active so the current week can be recreated using
-  // the real production definitions. Study Points ledger rows are never touched.
-  if (GAMIFICATION_CURRENT_RULE_SET_VERSION !== GAMIFICATION_V1_RULE_SET_VERSION) {
-    const cleanup = await client.$transaction(async (tx) => {
-      const demoInstances = await tx.challengeInstance.findMany({
-        where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
-        select: { id: true },
+  // Remove only active/upcoming Challenge instances from older rule versions.
+  // Historical completed/expired weeks stay intact, while the current Baghdad
+  // week is immediately recreated from the newly activated rotating v3 pool.
+  const cleanup = await client.$transaction(async (tx) => {
+    const obsoleteInstances = await tx.challengeInstance.findMany({
+      where: {
+        ruleSetVersion: { not: active.version },
+        status: { in: ["ACTIVE", "UPCOMING"] },
+      },
+      select: { id: true, ruleSetVersion: true },
+    });
+
+    let challengeProgressDeleted = 0;
+    let challengeInstancesDeleted = 0;
+    if (obsoleteInstances.length > 0) {
+      const instanceIds = obsoleteInstances.map(({ id }) => id);
+      const progressDelete = await tx.userChallengeProgress.deleteMany({
+        where: { challengeInstanceId: { in: instanceIds } },
       });
+      const instanceDelete = await tx.challengeInstance.deleteMany({
+        where: { id: { in: instanceIds } },
+      });
+      challengeProgressDeleted = progressDelete.count;
+      challengeInstancesDeleted = instanceDelete.count;
+    }
 
-      let challengeProgressDeleted = 0;
-      let challengeInstancesDeleted = 0;
-      if (demoInstances.length > 0) {
-        const instanceIds = demoInstances.map(({ id }) => id);
-        const progressDelete = await tx.userChallengeProgress.deleteMany({
-          where: { challengeInstanceId: { in: instanceIds } },
-        });
-        const instanceDelete = await tx.challengeInstance.deleteMany({
-          where: { id: { in: instanceIds } },
-        });
-        challengeProgressDeleted = progressDelete.count;
-        challengeInstancesDeleted = instanceDelete.count;
-      }
-
+    // v1 achievements were demo-only. Keep v2/v3 durable unlock history, but
+    // remove the old demo unlock/projection rows once and only once.
+    let achievementProgressDeleted = 0;
+    let achievementUnlocksDeleted = 0;
+    if (active.version !== GAMIFICATION_V1_RULE_SET_VERSION) {
       const achievementProgressDelete = await tx.userAchievementProgress.deleteMany({
         where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
       });
       const achievementUnlockDelete = await tx.userAchievement.deleteMany({
         where: { unlockedUnderRuleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
       });
+      achievementProgressDeleted = achievementProgressDelete.count;
+      achievementUnlocksDeleted = achievementUnlockDelete.count;
+    }
 
-      // Level thresholds are intentionally unchanged between v1 and v2. Rebind
-      // existing rebuildable Level projections to the new immutable checksums so
-      // My Profile and Leaderboard can display the new rank name/icon immediately
-      // after deployment, even before the student's next study event.
-      const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`
-        SELECT CURRENT_TIMESTAMP AS now
-      `;
-      const levelProjectionUpdate = await tx.userGamificationLevel.updateMany({
-        where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
-        data: {
-          ruleSetVersion: active.version,
-          definitionChecksum: active.definitionChecksum,
-          levelDefinitionChecksum: active.levelDefinitionChecksum,
-          lastEvaluatedAt: now,
-          updatedAt: now,
-        },
-      });
-
-      return {
-        challengeProgressDeleted,
-        challengeInstancesDeleted,
-        achievementProgressDeleted: achievementProgressDelete.count,
-        achievementUnlocksDeleted: achievementUnlockDelete.count,
-        levelProjectionsRebound: levelProjectionUpdate.count,
-      };
+    // Level thresholds remain unchanged. Rebind every older rebuildable Level
+    // projection so Profile/Leaderboard immediately use the active rank identity.
+    const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`
+      SELECT CURRENT_TIMESTAMP AS now
+    `;
+    const levelProjectionUpdate = await tx.userGamificationLevel.updateMany({
+      where: { ruleSetVersion: { not: active.version } },
+      data: {
+        ruleSetVersion: active.version,
+        definitionChecksum: active.definitionChecksum,
+        levelDefinitionChecksum: active.levelDefinitionChecksum,
+        lastEvaluatedAt: now,
+        updatedAt: now,
+      },
     });
 
-    logger.info("[Gamification]", `Legacy v1 demo state cleanup complete: ${JSON.stringify(cleanup)}`);
-  }
+    return {
+      challengeProgressDeleted,
+      challengeInstancesDeleted,
+      achievementProgressDeleted,
+      achievementUnlocksDeleted,
+      levelProjectionsRebound: levelProjectionUpdate.count,
+    };
+  });
+
+  logger.info("[Gamification]", `Runtime migration cleanup complete: ${JSON.stringify(cleanup)}`);
 
   const verified = await getActiveGamificationRuleSet(client);
   logger.info(
@@ -11946,8 +11953,8 @@ async function startServer() {
     if (process.env.NODE_ENV === "production") throw err;
   }
 
-  // Verify the final post-migration state. This now runs after v2 activation, so
-  // it no longer emits a misleading GAMIFICATION_ACTIVE_RULE_SET_STALE error.
+  // Verify the final post-migration state after current RuleSet activation so it
+  // never emits a misleading GAMIFICATION_ACTIVE_RULE_SET_STALE error.
   void verifyDatabaseHealth();
 
   if (process.env.NODE_ENV === "development" && process.env.INITIALIZE_SYSTEM === "true") {

@@ -100,13 +100,58 @@ export function assertChallengeInstanceDefinitionMatches(
   }
 }
 
-function getChallengeDefinitions(
+export const WEEKLY_CHALLENGE_SELECTION_COUNT = 4;
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function challengeFamily(definition: ChallengeDefinitionContract): string {
+  return definition.metricId;
+}
+
+/**
+ * Picks four weekly Challenges deterministically from the active rule-set pool.
+ * Selection is shared by every student for the same Baghdad week, changes with
+ * the period key, and favors different metric families so one week never turns
+ * into four near-identical tasks.
+ */
+export function selectWeeklyChallengeDefinitions(
   bundle: GamificationDefinitionBundle,
+  periodKey: string,
 ): ChallengeDefinitionContract[] {
-  return bundle.challengeDefinitionContracts
+  const weekly = bundle.challengeDefinitionContracts
     .filter((definition) => definition.windowPolicy === "WEEKLY")
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  if (weekly.length <= WEEKLY_CHALLENGE_SELECTION_COUNT) return weekly;
+
+  const byFamily = new Map<string, ChallengeDefinitionContract[]>();
+  for (const definition of weekly) {
+    const family = challengeFamily(definition);
+    const group = byFamily.get(family) ?? [];
+    group.push(definition);
+    byFamily.set(family, group);
+  }
+  const families = [...byFamily.keys()];
+  families.sort((left, right) => {
+    const leftHash = stableHash(`${bundle.version}:${periodKey}:family:${left}`);
+    const rightHash = stableHash(`${bundle.version}:${periodKey}:family:${right}`);
+    return leftHash - rightHash || left.localeCompare(right);
+  });
+
+  const selected: ChallengeDefinitionContract[] = [];
+  for (const family of families.slice(0, WEEKLY_CHALLENGE_SELECTION_COUNT)) {
+    const candidates = byFamily.get(family)!;
+    const index = stableHash(`${bundle.version}:${periodKey}:variant:${family}`) % candidates.length;
+    selected.push(candidates[index]);
+  }
+  return selected.sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
 function nextInstanceStatus(
@@ -166,7 +211,7 @@ export async function ensureChallengeInstancesInTransaction(
     : requestedRuleSetVersion
       ? await getChallengeRuleSetVersion(requestedRuleSetVersion, tx)
       : await getActiveChallengeRuleSet(tx);
-  const definitions = getChallengeDefinitions(rules.definitions);
+  const definitions = selectWeeklyChallengeDefinitions(rules.definitions, period.periodKey);
   const byId = new Map(definitions.map((definition) => [definition.id, definition]));
   const existingById = new Map(
     existing.map((instance) => [instance.challengeDefinitionId, instance]),

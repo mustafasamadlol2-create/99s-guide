@@ -13,13 +13,15 @@ export type ChallengeMetricWindowInput = {
   tx: Prisma.TransactionClient;
 };
 
-const SUPPORTED = new Set([
+const SUPPORTED = new Set<string>([
   GAMIFICATION_METRIC_IDS.focusCompletedSessions,
   GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
   GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
   GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
   GAMIFICATION_METRIC_IDS.lectureCompletions,
   GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
+  GAMIFICATION_METRIC_IDS.flashcardFirstRecalls,
+  GAMIFICATION_METRIC_IDS.weeklyStudyMix,
 ]);
 
 function validDate(value: unknown): value is Date {
@@ -118,10 +120,13 @@ export async function getChallengeMetricValueForWindow(
   }
 
   if (metricId === GAMIFICATION_METRIC_IDS.lectureCompletions
-      || metricId === GAMIFICATION_METRIC_IDS.mcqFirstCorrect) {
+      || metricId === GAMIFICATION_METRIC_IDS.mcqFirstCorrect
+      || metricId === GAMIFICATION_METRIC_IDS.flashcardFirstRecalls) {
     const filter = metricId === GAMIFICATION_METRIC_IDS.lectureCompletions
       ? { reasonCode: "lecture.completed", sourceType: "LECTURE_COMPLETION" }
-      : { reasonCode: "mcq.first_verified_correct", sourceType: "MCQ_ATTEMPT" };
+      : metricId === GAMIFICATION_METRIC_IDS.mcqFirstCorrect
+        ? { reasonCode: "mcq.first_verified_correct", sourceType: "MCQ_ATTEMPT" }
+        : { reasonCode: "flashcard.first_verified_recall", sourceType: "FLASHCARD_REVIEW" };
     return assertResult(await tx.studyPointsLedgerEntry.count({
       where: {
         userId,
@@ -132,6 +137,26 @@ export async function getChallengeMetricValueForWindow(
         reversedBy: null,
       },
     }));
+  }
+
+  if (metricId === GAMIFICATION_METRIC_IDS.weeklyStudyMix) {
+    const countLedger = (reasonCode: string, sourceType: string) =>
+      tx.studyPointsLedgerEntry.count({
+        where: {
+          userId,
+          amount: { gt: 0 },
+          reasonCode,
+          sourceType,
+          effectiveAt: window,
+          reversedBy: null,
+        },
+      });
+    const [lectures, mcqs, recalls] = await Promise.all([
+      countLedger("lecture.completed", "LECTURE_COMPLETION"),
+      countLedger("mcq.first_verified_correct", "MCQ_ATTEMPT"),
+      countLedger("flashcard.first_verified_recall", "FLASHCARD_REVIEW"),
+    ]);
+    return lectures >= 1 && mcqs >= 10 && recalls >= 10 ? 1 : 0;
   }
 
   const where = {

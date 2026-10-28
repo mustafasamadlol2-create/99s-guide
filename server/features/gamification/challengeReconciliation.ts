@@ -9,6 +9,7 @@ import {
 } from "./challengeRuleSets.js";
 import { getBaghdadWeekPeriod } from "./challengePeriods.js";
 import { getChallengeMetricValueForWindow } from "./challengeMetrics.js";
+import { selectWeeklyChallengeDefinitions } from "./challengeInstances.js";
 import { deriveChallengeProgressStatus, refreshUserChallenges } from "./challengeRefresh.js";
 import { GamificationError } from "./errors.js";
 import { assertGamificationEnabled } from "./featureGate.js";
@@ -112,10 +113,10 @@ async function inspectPeriod(
     const rules = instances[0]
       ? await getChallengeRuleSetVersion(instances[0].ruleSetVersion, tx)
       : await getActiveChallengeRuleSet(tx);
-    const definitions = rules.definitions.challengeDefinitionContracts
-      .filter((definition) => definition.windowPolicy === "WEEKLY")
-      .slice()
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    const definitions = selectWeeklyChallengeDefinitions(
+      rules.definitions,
+      period.periodKey,
+    );
     const instanceById = new Map(
       instances.map((instance) => [instance.challengeDefinitionId, instance]),
     );

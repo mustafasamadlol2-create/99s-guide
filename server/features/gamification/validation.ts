@@ -28,6 +28,7 @@ const ACHIEVEMENT_KEYS = [
   "threshold",
   "rewardPoints",
   "tier",
+  "hiddenUntilUnlocked",
   "titleKey",
   "descriptionKey",
   "visibility",
@@ -69,6 +70,8 @@ const CHALLENGE_WINDOW_METRIC_IDS = new Set<string>([
   GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
   GAMIFICATION_METRIC_IDS.lectureCompletions,
   GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
+  GAMIFICATION_METRIC_IDS.flashcardFirstRecalls,
+  GAMIFICATION_METRIC_IDS.weeklyStudyMix,
 ]);
 const LEADERBOARD_PERIODS = new Set(["WEEKLY", "MONTHLY", "ALL_TIME"]);
 
@@ -201,6 +204,9 @@ function validateAchievementDefinitions(
     }
     if (candidate.tier !== undefined && !TIERS.has(String(candidate.tier))) {
       invalid(`${label}.tier is unsupported.`);
+    }
+    if (candidate.hiddenUntilUnlocked !== undefined && typeof candidate.hiddenUntilUnlocked !== "boolean") {
+      invalid(`${label}.hiddenUntilUnlocked must be a boolean when provided.`);
     }
     requireLocalizationKey(candidate.titleKey, `${label}.titleKey`);
     requireLocalizationKey(candidate.descriptionKey, `${label}.descriptionKey`);

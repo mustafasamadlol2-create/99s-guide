@@ -116,6 +116,15 @@ const definitions: readonly GamificationMetricDefinition[] = [
     privacyClass: "PRIVATE_STUDY",
     available: true,
   },
+  {
+    id: GAMIFICATION_METRIC_IDS.weeklyStudyMix,
+    valueType: "INTEGER",
+    aggregation: "Canonical mixed-study completion units derived from lecture completions, correct MCQs, and flashcard recalls.",
+    sourceAuthority:
+      "Study Points ledger entries for lecture.completed, mcq.first_verified_correct, and flashcard.first_verified_recall with reversals excluded.",
+    privacyClass: "PRIVATE_STUDY",
+    available: true,
+  },
 ];
 for (const definition of definitions) Object.freeze(definition);
 Object.freeze(definitions);

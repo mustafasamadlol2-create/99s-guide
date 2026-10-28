@@ -501,3 +501,42 @@
 .g-level-path-copy small { color:var(--g-muted); font-size:9px; }
 .g-level-path-points { color:var(--g-muted); font-size:9.5px; font-weight:700; font-variant-numeric:tabular-nums; }
 @media (max-width:640px) { .g-level-path-grid { grid-template-columns:1fr; } }
+
+/* Gamification v3 — richer achievements + subtle unlock celebration */
+.g-achievement.tier-bronze .g-medallion { background:color-mix(in srgb,#c98a4a 12%,var(--g-paper)); color:#9a642d; }
+.g-achievement.tier-silver .g-medallion { background:color-mix(in srgb,#8b98a8 13%,var(--g-paper)); color:#627080; }
+.g-achievement.tier-gold .g-medallion { background:color-mix(in srgb,#d7a52b 13%,var(--g-paper)); color:#a7790d; }
+.g-achievement.is-hidden { border-style:dashed; background:color-mix(in srgb,var(--g-paper) 82%,#f0ece4); }
+.g-achievement.is-hidden .g-medallion { background:color-mix(in srgb,var(--g-paper) 70%,#eee7d8); color:var(--g-muted); }
+.g-reward-pill.mystery { background:color-mix(in srgb,var(--g-paper) 72%,#eee7d8); color:var(--g-muted); }
+.g-achievement-celebration {
+  position:fixed; z-index:1300; top:max(18px,env(safe-area-inset-top)); left:50%;
+  transform:translateX(-50%); width:min(430px,calc(100vw - 28px));
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border:1px solid color-mix(in srgb,var(--g-accent) 28%,var(--g-line));
+  border-radius:18px; background:color-mix(in srgb,var(--g-paper) 94%,transparent);
+  box-shadow:0 16px 46px color-mix(in srgb,var(--g-ink) 14%,transparent);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  animation:g-achievement-pop .42s var(--g-ios-ease) both;
+}
+.g-celebration-icon { width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,#d7a52b 16%,var(--g-paper));color:#a7790d; }
+.g-celebration-copy { min-width:0;flex:1;display:flex;flex-direction:column;gap:2px; }
+.g-celebration-copy span { color:var(--g-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase; }
+.g-celebration-copy strong { font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.g-celebration-points { flex:0 0 auto;font-size:12px;font-weight:800;color:var(--g-accent-strong); }
+@keyframes g-achievement-pop { from { opacity:0;transform:translate(-50%,-12px) scale(.98); } to { opacity:1;transform:translate(-50%,0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .g-achievement-celebration { animation:none; } }
+
+.g-rotation-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: -2px 0 14px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--g-accent, #2f7d6d) 7%, transparent);
+  color: var(--text-secondary, #667a76);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.g-rotation-note svg { flex: 0 0 auto; color: var(--g-accent, #2f7d6d); }

@@ -34,13 +34,15 @@ type ChallengeDatabase = PrismaClient;
 type ChallengeTransaction = Prisma.TransactionClient;
 
 const RECENT_HISTORY_LIMIT = 8;
-const SUPPORTED_CHALLENGE_METRICS = new Set([
+const SUPPORTED_CHALLENGE_METRICS = new Set<string>([
   GAMIFICATION_METRIC_IDS.focusCompletedSessions,
   GAMIFICATION_METRIC_IDS.focusVerifiedSeconds,
   GAMIFICATION_METRIC_IDS.consistencyQualifyingDays,
   GAMIFICATION_METRIC_IDS.groupFocusCompletedRuns,
   GAMIFICATION_METRIC_IDS.lectureCompletions,
   GAMIFICATION_METRIC_IDS.mcqFirstCorrect,
+  GAMIFICATION_METRIC_IDS.flashcardFirstRecalls,
+  GAMIFICATION_METRIC_IDS.weeklyStudyMix,
 ]);
 const PROGRESS_STATUSES = new Set(["ACTIVE", "COMPLETED", "EXPIRED", "LEFT"]);
 

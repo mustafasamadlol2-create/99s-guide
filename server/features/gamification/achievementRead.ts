@@ -117,6 +117,7 @@ export async function getMyAchievements(
       ?? (typeof definition.threshold === "boolean" ? false : 0);
     const completed = isGamificationThresholdMet(currentValue, definition.threshold);
     const unlock = activeUnlockById.get(definition.id);
+    const hidden = Boolean(definition.hiddenUntilUnlocked && !unlock && !completed);
     return {
       achievementId: definition.id,
       ruleSetVersion: definition.ruleSetVersion,
@@ -127,6 +128,7 @@ export async function getMyAchievements(
       ...(definition.tier ? { tier: definition.tier } : {}),
       sortOrder: definition.sortOrder,
       rewardPoints: definition.rewardPoints ?? 0,
+      hidden,
       currentValue,
       targetValue: definition.threshold,
       progressCompleted: completed,

@@ -36,6 +36,7 @@ export interface Achievement {
   tier?: string;
   sortOrder: number;
   rewardPoints: number;
+  hidden: boolean;
   currentValue: number | boolean;
   targetValue: number | boolean;
   progressCompleted: boolean;

@@ -18,6 +18,7 @@ export type MyAchievementView = {
   tier?: AchievementDefinition["tier"];
   sortOrder: number;
   rewardPoints: number;
+  hidden: boolean;
   currentValue: number | boolean;
   targetValue: number | boolean;
   progressCompleted: boolean;
