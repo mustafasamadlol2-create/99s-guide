@@ -20,7 +20,7 @@ import {
 import { GAMIFICATION_INVALIDATED_EVENT } from "../../gamification/realtime";
 import { gamificationApi } from "../../gamification/api";
 import type { LevelSummary } from "../../gamification/types";
-import { getLevelPresentation } from "../../gamification/levelPresentation";
+import { GAMIFICATION_LEVEL_COUNT, getLevelPresentation } from "../../gamification/levelPresentation";
 import { SignaturePad } from "../../../components/ui/SignaturePad";
 import { BlockedUsersView } from "../../moderation/components/BlockedUsersView";
 import { MyReportsView } from "../../moderation/components/MyReportsView";
@@ -40,6 +40,8 @@ import {
   Flag,
   Settings,
   Flame,
+  Users,
+  Mail,
 } from "lucide-react";
 
 interface ProfileViewProps {
@@ -413,6 +415,15 @@ export const ProfileView = function ProfileView({
   const profileLevelName = profileLevelPresentation
     ? tr(profileLevelPresentation.fallbackEn, profileLevelPresentation.fallbackAr)
     : null;
+  const nextProfileLevelPresentation = profileLevel?.nextLevelMinimumPoints != null
+    ? getLevelPresentation(profileLevel.level + 1)
+    : null;
+  const nextProfileLevelName = nextProfileLevelPresentation
+    ? tr(nextProfileLevelPresentation.fallbackEn, nextProfileLevelPresentation.fallbackAr)
+    : null;
+  const profileLevelProgressPercent = profileLevel
+    ? Math.max(0, Math.min(100, Math.round((profileLevel.levelProgressRatio ?? 1) * 100)))
+    : 0;
 
   const profileRoot = (
     <div
@@ -487,28 +498,86 @@ export const ProfileView = function ProfileView({
                   <UserIcon className="w-5 h-5 text-neutral-500 drop-shadow-sm" />
                 )}
               </h1>
-              <p
-                className="text-[15px] text-semantic-chrome-content-secondary mt-1 font-medium"
+              <div
+                className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-full bg-neutral-100/85 px-3.5 py-1.5 text-neutral-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:bg-white/[0.07] dark:text-neutral-200"
                 aria-label={tr(`Academic Group ${academicGroupLabel}`, `المجموعة الدراسية ${academicGroupLabel}`)}
               >
-                {academicGroupLabel}
-              </p>
+                <Users className="size-4 text-neutral-500 dark:text-neutral-400" strokeWidth={1.9} aria-hidden="true" />
+                <span className="text-[14px] font-semibold tracking-[-0.015em]" dir="ltr">
+                  {tr(`Group: ${academicGroupLabel}`, `Group: ${academicGroupLabel}`)}
+                </span>
+              </div>
+
               {profileLevel && profileLevelName && ProfileLevelIcon && (
                 <div
-                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-emerald-50/75 px-3 py-1.5 text-emerald-950 shadow-[0_4px_14px_rgba(15,92,74,0.07)] dark:border-emerald-200/10 dark:bg-emerald-300/10 dark:text-emerald-100"
-                  aria-label={tr(`${profileLevelName}, Level ${profileLevel.level}`, `${profileLevelName}، المستوى ${profileLevel.level}`)}
+                  className="mt-4 w-full max-w-[360px] rounded-[22px] border border-emerald-900/[0.09] bg-[linear-gradient(145deg,rgba(244,253,249,0.96),rgba(237,249,245,0.82))] px-4 py-3 shadow-[0_8px_24px_rgba(15,92,74,0.07),inset_0_1px_0_rgba(255,255,255,0.92)] backdrop-blur-xl dark:border-emerald-200/10 dark:bg-[linear-gradient(145deg,rgba(19,45,39,0.72),rgba(24,31,30,0.82))] dark:shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  aria-label={tr(
+                    `${profileLevelName}, Level ${profileLevel.level} of ${GAMIFICATION_LEVEL_COUNT}`,
+                    `${profileLevelName}، المستوى ${profileLevel.level} من ${GAMIFICATION_LEVEL_COUNT}`,
+                  )}
                 >
-                  <span className="flex size-6 items-center justify-center rounded-full bg-white/80 text-emerald-700 shadow-sm dark:bg-white/10 dark:text-emerald-200">
-                    <ProfileLevelIcon className="size-3.5" aria-hidden="true" />
-                  </span>
-                  <span className="text-[13px] font-semibold tracking-[-0.01em]">{profileLevelName}</span>
-                  <span className="text-[11px] font-medium text-emerald-800/65 dark:text-emerald-100/60">
-                    {tr(`Level ${profileLevel.level}`, `المستوى ${profileLevel.level}`)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-[54px] shrink-0 items-center justify-center rounded-[18px] border border-emerald-700/10 bg-white/75 text-emerald-700 shadow-[0_5px_16px_rgba(16,120,93,0.10)] dark:border-emerald-200/10 dark:bg-white/[0.08] dark:text-emerald-200">
+                      <ProfileLevelIcon className="size-[25px]" strokeWidth={1.8} aria-hidden="true" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-baseline gap-x-3 gap-y-0.5">
+                        <span className="truncate text-[18px] font-bold tracking-[-0.025em] text-emerald-950 dark:text-emerald-50">
+                          {profileLevelName}
+                        </span>
+                        <span className="shrink-0 text-[12px] font-medium text-emerald-900/55 dark:text-emerald-100/55">
+                          {tr(
+                            `Level ${profileLevel.level} of ${GAMIFICATION_LEVEL_COUNT}`,
+                            `المستوى ${profileLevel.level} من ${GAMIFICATION_LEVEL_COUNT}`,
+                          )}
+                        </span>
+                      </div>
+
+                      <div
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-950/[0.08] dark:bg-white/[0.10]"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={profileLevelProgressPercent}
+                      >
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${profileLevelProgressPercent}%` }}
+                          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500"
+                        />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-3 text-[12px] leading-none">
+                        <span className="min-w-0 truncate font-medium text-neutral-500 dark:text-neutral-400">
+                          {profileLevel.pointsToNextLevel != null && nextProfileLevelName
+                            ? tr(
+                                `${profileLevel.pointsToNextLevel} points to reach ${nextProfileLevelName}`,
+                                `${profileLevel.pointsToNextLevel} نقطة للوصول إلى ${nextProfileLevelName}`,
+                              )
+                            : tr("Highest rank reached", "تم الوصول إلى أعلى رتبة")}
+                        </span>
+                        <span className="shrink-0 font-bold tabular-nums text-neutral-700 dark:text-neutral-200" dir="ltr">
+                          {profileLevel.nextLevelMinimumPoints != null
+                            ? `${profileLevel.lifetimePoints} / ${profileLevel.nextLevelMinimumPoints}`
+                            : profileLevel.lifetimePoints}
+                        </span>
+                      </div>
+                    </div>
+
+                    <ChevronRight
+                      className="size-[18px] shrink-0 text-neutral-400 dark:text-neutral-500"
+                      style={{ transform: isRtl ? "rotate(180deg)" : "none" }}
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
               )}
-              <p className="text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.3)] mt-2 font-mono">
-                {(user as any).profileEmail || user.email}
+
+              <p className="mt-4 flex max-w-full items-center justify-center gap-2 text-[14px] text-neutral-500 dark:text-[rgba(235,235,245,0.38)]">
+                <Mail className="size-4 shrink-0 text-neutral-400 dark:text-neutral-500" strokeWidth={1.8} aria-hidden="true" />
+                <span className="truncate font-mono">{(user as any).profileEmail || user.email}</span>
               </p>
 
 
