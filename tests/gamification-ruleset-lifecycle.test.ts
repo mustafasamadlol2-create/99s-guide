@@ -153,7 +153,7 @@ test("bootstrap is idempotent and does not rewrite an already-active ruleset", a
 
 test("an active source version older than the current pointer is reported as stale", async () => {
   const store = new MemoryRuleSetDatabase([
-    activeRow({ version: "gamification-v2" }),
+    activeRow({ version: "gamification-v1" }),
   ]);
   await assert.rejects(
     getActiveGamificationRuleSet(store.database),

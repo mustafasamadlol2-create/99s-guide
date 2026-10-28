@@ -2089,6 +2089,103 @@ async function readMaterialsDb() {
   }
 }
 
+/**
+ * Production-safe Gamification bootstrap.
+ *
+ * This is intentionally separate from initializeSystem(): production does not
+ * run the optional local/system initializer, while the active source-controlled
+ * Gamification RuleSet MUST still match the deployed code before any
+ * Gamification API starts serving requests.
+ */
+async function prepareGamificationRuntime() {
+  if (!isGamificationEnabled()) {
+    logger.info("[Gamification]", "Runtime bootstrap skipped because Gamification is disabled.");
+    return;
+  }
+
+  const client = getPrisma();
+  await client.$connect();
+
+  // Registration + activation are both idempotent. If v1 is still ACTIVE after
+  // a production deploy, this promotes the immutable v2 bundle before the HTTP
+  // server begins accepting requests.
+  await ensureGamificationRuleSetDraft(
+    GAMIFICATION_CURRENT_RULE_SET_VERSION,
+    client,
+  );
+  const active = await activateGamificationRuleSet(
+    GAMIFICATION_CURRENT_RULE_SET_VERSION,
+    client,
+  );
+
+  // v1 contained demo Achievements/Challenges only. Remove those frozen demo
+  // projections after v2 is active so the current week can be recreated using
+  // the real production definitions. Study Points ledger rows are never touched.
+  if (GAMIFICATION_CURRENT_RULE_SET_VERSION !== GAMIFICATION_V1_RULE_SET_VERSION) {
+    const cleanup = await client.$transaction(async (tx) => {
+      const demoInstances = await tx.challengeInstance.findMany({
+        where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+        select: { id: true },
+      });
+
+      let challengeProgressDeleted = 0;
+      let challengeInstancesDeleted = 0;
+      if (demoInstances.length > 0) {
+        const instanceIds = demoInstances.map(({ id }) => id);
+        const progressDelete = await tx.userChallengeProgress.deleteMany({
+          where: { challengeInstanceId: { in: instanceIds } },
+        });
+        const instanceDelete = await tx.challengeInstance.deleteMany({
+          where: { id: { in: instanceIds } },
+        });
+        challengeProgressDeleted = progressDelete.count;
+        challengeInstancesDeleted = instanceDelete.count;
+      }
+
+      const achievementProgressDelete = await tx.userAchievementProgress.deleteMany({
+        where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+      });
+      const achievementUnlockDelete = await tx.userAchievement.deleteMany({
+        where: { unlockedUnderRuleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+      });
+
+      // Level thresholds are intentionally unchanged between v1 and v2. Rebind
+      // existing rebuildable Level projections to the new immutable checksums so
+      // My Profile and Leaderboard can display the new rank name/icon immediately
+      // after deployment, even before the student's next study event.
+      const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`
+        SELECT CURRENT_TIMESTAMP AS now
+      `;
+      const levelProjectionUpdate = await tx.userGamificationLevel.updateMany({
+        where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
+        data: {
+          ruleSetVersion: active.version,
+          definitionChecksum: active.definitionChecksum,
+          levelDefinitionChecksum: active.levelDefinitionChecksum,
+          lastEvaluatedAt: now,
+          updatedAt: now,
+        },
+      });
+
+      return {
+        challengeProgressDeleted,
+        challengeInstancesDeleted,
+        achievementProgressDeleted: achievementProgressDelete.count,
+        achievementUnlocksDeleted: achievementUnlockDelete.count,
+        levelProjectionsRebound: levelProjectionUpdate.count,
+      };
+    });
+
+    logger.info("[Gamification]", `Legacy v1 demo state cleanup complete: ${JSON.stringify(cleanup)}`);
+  }
+
+  const verified = await getActiveGamificationRuleSet(client);
+  logger.info(
+    "[Gamification]",
+    `Runtime RuleSet ready: ${verified.ruleSet.version}.`,
+  );
+}
+
 // System initialization to boost schemas and seed credentials
 async function initializeSystem() {
   try {
@@ -2096,47 +2193,8 @@ async function initializeSystem() {
     const client = getPrisma();
     await client.$connect();
 
-    // Source-controlled gamification definitions are versioned. When a new
-    // production bundle ships, promote it during normal boot so deployments do
-    // not depend on a manual maintenance command. Activation is idempotent and
-    // keeps rule definitions versioned so deployed data can be migrated deliberately.
-    if (isGamificationEnabled()) {
-      await ensureGamificationRuleSetDraft(
-        GAMIFICATION_CURRENT_RULE_SET_VERSION,
-        client,
-      );
-      await activateGamificationRuleSet(
-        GAMIFICATION_CURRENT_RULE_SET_VERSION,
-        client,
-      );
-
-      // v1 shipped with placeholder/demo Achievements and Challenges. They did
-      // not grant reward points, so removing their projection/history rows is
-      // safe and prevents stale demo cards from leaking into the production v2
-      // experience. Study Points ledger data is intentionally untouched.
-      if (GAMIFICATION_CURRENT_RULE_SET_VERSION !== GAMIFICATION_V1_RULE_SET_VERSION) {
-        await client.$transaction(async (tx) => {
-          const demoInstances = await tx.challengeInstance.findMany({
-            where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
-            select: { id: true },
-          });
-          if (demoInstances.length > 0) {
-            await tx.userChallengeProgress.deleteMany({
-              where: { challengeInstanceId: { in: demoInstances.map(({ id }) => id) } },
-            });
-            await tx.challengeInstance.deleteMany({
-              where: { id: { in: demoInstances.map(({ id }) => id) } },
-            });
-          }
-          await tx.userAchievementProgress.deleteMany({
-            where: { ruleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
-          });
-          await tx.userAchievement.deleteMany({
-            where: { unlockedUnderRuleSetVersion: GAMIFICATION_V1_RULE_SET_VERSION },
-          });
-        });
-      }
-    }
+    // Gamification runtime activation is handled by prepareGamificationRuntime()
+    // for every environment before the server starts listening.
 
     // Optimize Search Performance with pg_trgm
     if (process.env.DATABASE_URL?.startsWith("postgres") || process.env.DATABASE_URL?.startsWith("postgresql")) {
@@ -11872,15 +11930,31 @@ async function startServer() {
     }
   }
 
-  // Start DB initialization in the background so it doesn't block the server from listening
-  verifyDatabaseHealth().then(() => {
-    if (process.env.NODE_ENV === "development" && process.env.INITIALIZE_SYSTEM === "true") {
-      return initializeSystem();
-    }
-    logger.info("[Startup]", "Skipping system initialization; set INITIALIZE_SYSTEM=true for explicit local setup.");
-  }).catch((err: unknown) => {
-    logger.error("[Startup]", `Database initialization failed: ${err instanceof Error ? err.message : String(err)}`);
-  });
+  // Gamification RuleSet promotion is part of normal runtime startup and must
+  // complete BEFORE the HTTP server listens. Production intentionally skips the
+  // optional local initializeSystem() routine, so putting this migration there
+  // would leave a stale RuleSet active and break Overview/Achievements/Challenges.
+  try {
+    await prepareGamificationRuntime();
+  } catch (err: unknown) {
+    logger.error(
+      "[Startup]",
+      `Gamification runtime bootstrap failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    // Do not knowingly serve a production deployment with an incompatible active
+    // RuleSet. Render/production will restart the process after the failure.
+    if (process.env.NODE_ENV === "production") throw err;
+  }
+
+  // Verify the final post-migration state. This now runs after v2 activation, so
+  // it no longer emits a misleading GAMIFICATION_ACTIVE_RULE_SET_STALE error.
+  void verifyDatabaseHealth();
+
+  if (process.env.NODE_ENV === "development" && process.env.INITIALIZE_SYSTEM === "true") {
+    void initializeSystem();
+  } else {
+    logger.info("[Startup]", "Skipping optional system initialization; Gamification runtime bootstrap already completed.");
+  }
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -11973,7 +12047,11 @@ async function startServer() {
 }
 
 if (process.env.DISABLE_SERVER_START !== "1") {
-  startServer();
+  void startServer().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("[Startup]", `Fatal startup failure: ${message}`);
+    process.exit(1);
+  });
 }
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
