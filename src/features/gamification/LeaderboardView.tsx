@@ -148,6 +148,33 @@ export function LeaderboardView({
               <h2>{scopeTitle(scope)}</h2>
             </div>
           </div>
+
+          <div className="lv-place-slot">
+            {rankLoading ? (
+              <div className="lv-place-chip lv-place-loading" role="status" aria-live="polite">
+                <span className="lv-place-rank"><span className="lv-skeleton lv-rank-skeleton" /></span>
+                <span className="lv-skeleton lv-place-skeleton-copy" />
+              </div>
+            ) : currentRank ? (
+              <div className="lv-place-chip" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
+                <span className="lv-place-rank" aria-hidden="true">
+                  {currentRank.notRanked || currentRank.rank === null
+                    ? "—"
+                    : formatNumber(currentRank.rank)}
+                </span>
+                <span className="lv-place-copy">
+                  <strong>{currentRank.notRanked || currentRank.rank === null
+                    ? tx("gamificationNotRanked", "Not ranked", "غير مدرج")
+                    : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
+                  <span>{formatNumber(currentRank.score)} {tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
+                </span>
+              </div>
+            ) : rankError ? (
+              <div className="lv-place-error" role="status">
+                {tx("gamificationRankError", "Your position is unavailable.", "ترتيبك غير متاح حاليًا.")}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {showError && (
@@ -163,42 +190,6 @@ export function LeaderboardView({
             </div>
           </div>
         )}
-
-        <div className="lv-own-wrap">
-          {rankLoading ? (
-            <div className="lv-own-rank lv-own-loading" role="status" aria-live="polite">
-              <span className="lv-own-rank-mark"><span className="lv-skeleton lv-rank-skeleton" /></span>
-              <span className="lv-skeleton lv-own-skeleton-copy" />
-              <span className="lv-skeleton lv-own-skeleton-score" />
-            </div>
-          ) : currentRank ? (
-            <div className="lv-own-rank" aria-label={tx("gamificationYourPlace", "Your place", "ترتيبك")}>
-              <span className="lv-own-rank-mark" aria-hidden="true">
-                {currentRank.notRanked || currentRank.rank === null
-                  ? <UsersRound size={18} />
-                  : formatNumber(currentRank.rank)}
-              </span>
-              <span className="lv-own-copy">
-                <strong>{currentRank.notRanked || currentRank.rank === null
-                  ? tx("gamificationNotRanked", "Not ranked in this snapshot", "غير مدرج في هذه اللقطة")
-                  : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
-                <span>{currentRank.notRanked || currentRank.rank === null
-                  ? currentRank.score === 0
-                    ? tx("gamificationNoRankScore", "No engagement points recorded for this season.", "لا توجد نقاط تفاعل مسجلة لهذا الموسم.")
-                    : tx("gamificationUnrankedWithScore", "Your points are not ranked in this snapshot.", "نقاطك غير مدرجة في ترتيب هذه اللقطة.")
-                  : `${formatNumber(currentRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${currentRank.tieSize && currentRank.tieSize > 1 ? ` · ${formatNumber(currentRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
-              </span>
-              <span className="lv-own-score">
-                <strong>{formatNumber(currentRank.score)}</strong>
-                <span>{tx("gamificationScore", "Study Points", "نقاط الدراسة")}</span>
-              </span>
-            </div>
-          ) : rankError ? (
-            <div className="lv-rank-error" role="alert">
-              <span>{tx("gamificationRankError", "Your position could not be loaded.", "تعذر تحميل ترتيبك.")}</span>
-            </div>
-          ) : null}
-        </div>
 
         {loading && !currentData
           ? <SkeletonRows label={tx("gamificationLoadingLeaderboard", "Loading leaderboard", "جارٍ تحميل لوحة النقاط")} />
@@ -216,7 +207,7 @@ export function LeaderboardView({
           <div className="g-empty lv-empty">
             <div className="g-empty-mark"><Trophy size={20} aria-hidden="true" /></div>
             <h3>{tx("gamificationNoLeaderboardEntries", "No leaderboard entries", "لا توجد نتائج في لوحة النقاط")}</h3>
-            <p>{tx("gamificationNoRankedParticipants", "There are no ranked participants in this snapshot.", "لا يوجد مشاركون مدرجون في ترتيب هذه اللقطة.")}</p>
+            <p>{tx("gamificationNoLeaderboardActivity", "No students have Study Points in this period yet.", "لا توجد نقاط دراسة مسجلة للطلاب في هذه الفترة بعد.")}</p>
           </div>
         )}
 
@@ -225,7 +216,6 @@ export function LeaderboardView({
             {entries.map((entry, index) => {
               const publicLabel = entry.displayName?.trim()
                 || tx("gamificationParticipant", "Student", "طالب");
-              const tied = entry.tieSize > 1;
               const podium = entry.rank >= 1 && entry.rank <= 3;
               // Snapshot ordering can take a moment to rebuild, but the
               // authenticated user's score should never visually lag. The
@@ -247,7 +237,7 @@ export function LeaderboardView({
                   className={`lv-row${podium ? ` lv-podium lv-podium-${entry.rank}` : ""}`}
                   key={`${entry.rank}-${index}`}
                   role="listitem"
-                  aria-label={`${publicLabel}. ${tx("gamificationYourPlace", "Rank", "الترتيب")} ${formatNumber(entry.rank)}${tied ? `, ${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}. ${formatNumber(displayedScore)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}
+                  aria-label={`${publicLabel}. ${tx("gamificationYourPlace", "Rank", "الترتيب")} ${formatNumber(entry.rank)}. ${formatNumber(displayedScore)} ${tx("gamificationScore", "Study Points", "نقاط الدراسة")}`}
                 >
                   <span className="lv-rank">
                     {podium ? <Medal size={17} aria-hidden="true" /> : null}
@@ -257,11 +247,10 @@ export function LeaderboardView({
                   <span className="lv-student">
                     <strong>{publicLabel}</strong>
                     <span className="lv-level-line">{entry.level === null
-                      ? (tied ? `${formatNumber(entry.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : tx("gamificationVerifiedPoints", "Verified activity", "نشاط موثّق"))
+                      ? tx("gamificationVerifiedPoints", "Verified activity", "نشاط موثّق")
                       : <>
                           {LevelIcon ? <LevelIcon size={12} aria-hidden="true" /> : null}
                           <span>{levelName} · {tx("gamificationLevelShort", "Level", "المستوى")} {formatNumber(entry.level)}</span>
-                          {tied ? <span> · {formatNumber(entry.tieSize)} {tx("gamificationTie", "tied", "تعادل")}</span> : null}
                         </>}</span>
                   </span>
                   <span className="lv-score">

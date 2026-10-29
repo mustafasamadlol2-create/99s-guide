@@ -540,3 +540,28 @@
   line-height: 1.35;
 }
 .g-rotation-note svg { flex: 0 0 auto; color: var(--g-accent, #2f7d6d); }
+
+/* Compact personal leaderboard placement: intentionally smaller than ranked rows. */
+.g-overview-rank .g-own-rank {
+  display: inline-flex;
+  width: auto;
+  max-width: min(100%, 340px);
+  min-width: 250px;
+  min-height: 54px;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 16px;
+}
+.g-overview-rank .g-own-rank-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+.g-overview-rank .g-own-rank strong { font-size: 12px; }
+.g-overview-rank .g-own-rank span { margin-top: 2px; font-size: 10px; }
+.g-overview-rank .g-own-score { font-size: 12px; }
+@media (max-width: 520px) {
+  .g-overview-rank .g-own-rank { min-width: 0; width: 100%; max-width: 100%; }
+}

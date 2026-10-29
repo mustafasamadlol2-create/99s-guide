@@ -42,7 +42,7 @@ type ApiFailure = Error & { status?: number; body?: { error?: unknown; code?: un
 type LoadingSet = { summary: boolean; achievements: boolean; challenges: boolean; leaderboard: boolean };
 type AchievementStatus = "unlocked" | "in-progress" | "locked";
 
-const SCOPES: LeaderboardScope[] = ["WEEKLY", "MONTHLY", "SEMESTER", "ALL_TIME"];
+const SCOPES: LeaderboardScope[] = ["MONTHLY", "SEMESTER", "ALL_TIME"];
 const INITIAL_LEADERBOARD_PAGE_SIZE = 50;
 const loggedUnknownDisplayKinds = new Set<string>();
 const BACKEND_COPY: Record<string, string> = {
@@ -288,7 +288,7 @@ export function GamificationFrontend({
   const isRtl = language === "ar";
   const locale = language === "ar" ? "ar-IQ" : "en";
   const [tab, setTab] = useState<GamificationTab>(initialTab);
-  const [scope, setScope] = useState<LeaderboardScope>("WEEKLY");
+  const [scope, setScope] = useState<LeaderboardScope>("MONTHLY");
   const [availableScopes, setAvailableScopes] = useState<LeaderboardScope[]>(
     () => SCOPES.filter((item) => item !== "SEMESTER"),
   );
@@ -556,7 +556,7 @@ export function GamificationFrontend({
     setOverviewRankError(false);
     setOverviewRankLoading(true);
     try {
-      const result = await gamificationApi.ownRank("WEEKLY");
+      const result = await gamificationApi.ownRank("MONTHLY");
       if (
         overviewRankGeneration.current === requestId &&
         currentAccountId.current === account
@@ -593,7 +593,7 @@ export function GamificationFrontend({
       item !== "SEMESTER" || semesterAvailable);
     setAvailableScopes(nextScopes);
     if (!semesterAvailable && currentScope.current === "SEMESTER") {
-      setScope("WEEKLY");
+      setScope("MONTHLY");
       setLeaderboard(null);
       setOwnRank(null);
       setRankLoading(false);
@@ -661,7 +661,7 @@ export function GamificationFrontend({
         && isSemesterConfigurationUnavailable(error)
       ) {
         setAvailableScopes((old) => old.filter((item) => item !== "SEMESTER"));
-        if (currentScope.current === "SEMESTER") setScope("WEEKLY");
+        if (currentScope.current === "SEMESTER") setScope("MONTHLY");
         setLeaderboard(null);
         setOwnRank(null);
         setRankLoading(false);
@@ -825,7 +825,7 @@ export function GamificationFrontend({
     if (featureFlagsStatus === "ready" && gamificationEnabled) {
       // Prime every first-view resource immediately after authentication.
       // These are independent reads; the shared API cache deduplicates the
-      // weekly leaderboard request also started by the selected-tab effect.
+      // monthly leaderboard request also started by the selected-tab effect.
       void loadPrivateData();
       void loadAchievements();
       void loadChallenges();
@@ -1312,7 +1312,7 @@ export function GamificationFrontend({
           <div className="g-section-head">
             <div>
               <h2 id="g-overview-rank-heading">
-                {tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")} · {tx("gamificationWeekly", "Weekly", "أسبوعي")}
+                {tx("gamificationLeaderboard", "Leaderboard", "لوحة النقاط")} · {tx("gamificationMonthly", "Monthly", "شهري")}
               </h2>
               {effectiveOverviewRank && <p className="g-subtle">
                 {formatDate(effectiveOverviewRank.season.startsAt, locale, { year: "numeric" })} – {formatDate(effectiveOverviewRank.season.endsAt, locale, { year: "numeric" })}
@@ -1337,9 +1337,9 @@ export function GamificationFrontend({
                 : tx("gamificationYourPlace", "Your place", "ترتيبك")}</strong>
               <span>{effectiveOverviewRank.notRanked || effectiveOverviewRank.rank === null
                 ? effectiveOverviewRank.score === 0
-                  ? tx("gamificationNoRankScore", "No engagement points recorded for this season.", "لا توجد نقاط تفاعل مسجلة لهذا الموسم.")
-                  : tx("gamificationUnrankedWithScore", "Your points are not ranked in this snapshot.", "نقاطك غير مدرجة في ترتيب هذه اللقطة.")
-                : `${formatNumber(effectiveOverviewRank.totalRankedUsers)} ${tx("gamificationRankedUsers", "ranked participants", "مشاركًا مدرجًا")}${effectiveOverviewRank.tieSize && effectiveOverviewRank.tieSize > 1 ? ` · ${formatNumber(effectiveOverviewRank.tieSize)} ${tx("gamificationTie", "tied", "تعادل")}` : ""}`}</span>
+                  ? tx("gamificationNoPeriodRankScore", "No Study Points in this period yet.", "لا توجد نقاط دراسة في هذه الفترة بعد.")
+                  : tx("gamificationUnrankedPeriodScore", "Your Study Points are not ranked in this period yet.", "نقاط دراستك غير مدرجة في ترتيب هذه الفترة بعد.")
+                : tx("gamificationMonthlyRanking", "Monthly ranking", "الترتيب الشهري")}</span>
             </div>
             <div className="g-own-score">
               {effectiveOverviewRank.notRanked && effectiveOverviewRank.score === 0 ? "—" : formatNumber(effectiveOverviewRank.score)}
