@@ -950,9 +950,6 @@ export function createGroupFocusService(
           }
         }
 
-        if (await countActiveMembers(tx, roomId) >= room.maxParticipants) {
-          throw new GroupFocusError("ROOM_FULL", "This Group Focus Room is full.");
-        }
         const joinedAt = parseTimestamp(now);
         const membership = existing
           ? await tx.groupFocusMembership.update({

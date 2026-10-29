@@ -113,7 +113,6 @@ export function GroupFocusCreateJoin({
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [roundCount, setRoundCount] = useState(4);
-  const [maxParticipants, setMaxParticipants] = useState(6);
   const [joinValue, setJoinValue] = useState(initialJoinValue ?? "");
   const [joinNeedsLecture, setJoinNeedsLecture] = useState(false);
   const createTabRef = useRef<HTMLButtonElement>(null);
@@ -164,7 +163,6 @@ export function GroupFocusCreateJoin({
       focusDurationSeconds: focusMinutes * 60,
       breakDurationSeconds: breakMinutes * 60,
       roundCount,
-      maxParticipants,
     });
   };
 
@@ -264,7 +262,10 @@ export function GroupFocusCreateJoin({
                 <NativeStepper label={t("focusLength")} value={focusMinutes} min={1} max={360} suffix={t("minutesShort")} onChange={setFocusMinutes} />
                 <NativeStepper label={t("breakLength")} value={breakMinutes} min={0} max={180} suffix={t("minutesShort")} onChange={setBreakMinutes} />
                 <NativeStepper label={t("rounds")} value={roundCount} min={1} max={20} onChange={setRoundCount} />
-                <NativeStepper label={t("participants")} value={maxParticipants} min={2} max={25} suffix={t("people")} onChange={setMaxParticipants} />
+                <div className="flex min-h-[76px] flex-col items-center justify-center rounded-2xl border border-sky-100/90 bg-sky-50/55 px-3 text-center shadow-sm dark:border-sky-300/15 dark:bg-sky-300/[0.055]">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("participants")}</span>
+                  <span className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-900 dark:text-white">{t("unlimited")}</span>
+                </div>
               </div>
 
               {catalogStatus === "error" && <GroupFocusError message={t("lecturesLoadError")} onRetry={onRetryLectures} retryLabel={t("retry")} />}

@@ -53,6 +53,7 @@ import {
 } from "./roomState.js";
 import {
   GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES,
+  isGroupFocusPrincipalId,
   type VerifiedGroupFocusCapability,
 } from "../../shared/group-focus-capability/contract.js";
 import {
@@ -135,8 +136,7 @@ function isSocketAttachment(value: unknown): value is GroupFocusRealtimeSocketAt
     && actualKeys.every((key, index) => key === ATTACHMENT_KEYS[index])
     && typeof value.connectionId === "string"
     && UUID.test(value.connectionId)
-    && typeof value.userId === "string"
-    && UUID.test(value.userId)
+    && isGroupFocusPrincipalId(value.userId)
     && typeof value.membershipId === "string"
     && UUID.test(value.membershipId)
     && (value.role === "HOST" || value.role === "MEMBER")
@@ -532,12 +532,10 @@ export class GroupFocusRoom {
       || !Number.isSafeInteger(room.maxParticipants)
       || typeof room.updatedAt !== "string"
       || !Number.isFinite(Date.parse(room.updatedAt))
-      || value.memberships.length > 25
     ) return false;
     return value.memberships.every((membership) =>
       isRecord(membership)
-      && typeof membership.userId === "string"
-      && UUID.test(membership.userId)
+      && isGroupFocusPrincipalId(membership.userId)
       && typeof membership.membershipId === "string"
       && UUID.test(membership.membershipId)
       && ["ACTIVE", "LEFT", "REMOVED"].includes(String(membership.status))
@@ -569,7 +567,7 @@ export class GroupFocusRoom {
       const { response, value } = await this.postMachineJson<unknown>(
         "/api/internal/group-focus/runtime/snapshot",
         request,
-        32 * 1024,
+        GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
       );
       if (!response.ok || !this.isCanonicalSnapshot(value)) {
         throw new Error(`CANONICAL_SNAPSHOT_HTTP_${response.status}`);
@@ -1189,17 +1187,6 @@ export class GroupFocusRoom {
 
     if (!participant && resumeToken) {
       return jsonError(401, "INVALID_RESUME_TOKEN");
-    }
-    if (
-      !participant
-      && runtime.participants.length >= 25
-    ) {
-      return jsonError(409, "ROOM_PARTICIPANT_LIMIT_REACHED");
-    }
-    const otherLiveConnections = liveConnections.filter((item) =>
-      item.userId !== capability.userId);
-    if (otherLiveConnections.length >= state.maxParticipants) {
-      return jsonError(409, "ROOM_CAPACITY_REACHED");
     }
 
     const attachment: GroupFocusRealtimeSocketAttachment = {

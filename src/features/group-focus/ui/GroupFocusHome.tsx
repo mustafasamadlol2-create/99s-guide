@@ -42,7 +42,6 @@ function RoomCard({
   actionLabel: string;
 }) {
   const { t } = useGroupFocusCopy(language);
-  const isFull = room.participantCount >= room.maxParticipants;
   const modeLabel = room.mode === "SHARED_LECTURE" ? t("sharedLectureMode") : t("studyTogether");
   const lectureCount = room.mode === "SHARED_LECTURE" ? room.sharedStudyPlan.length : null;
   return (
@@ -59,11 +58,11 @@ function RoomCard({
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" />{modeLabel}{lectureCount ? ` · ${lectureCount}` : ""}</span>
             <span className="tabular-nums" dir="ltr">{room.focusDurationSeconds / 60} {t("minuteCount")} · {room.roundCount} {t("rounds")}</span>
-            <span className="tabular-nums" dir="ltr">{room.participantCount}/{room.maxParticipants} {t("participantsCount")}</span>
+            <span className="tabular-nums" dir="ltr">{room.participantCount} {t("participantsCount")}</span>
           </div>
         </div>
-        <GroupFocusButton variant="secondary" disabled={room.status !== "OPEN" || isFull} onClick={action} className="w-full shrink-0 sm:w-auto">
-          {room.status !== "OPEN" ? t("closed") : isFull ? t("full") : actionLabel}<ArrowUpRight className="h-4 w-4" />
+        <GroupFocusButton variant="secondary" disabled={room.status !== "OPEN"} onClick={action} className="w-full shrink-0 sm:w-auto">
+          {room.status !== "OPEN" ? t("closed") : actionLabel}<ArrowUpRight className="h-4 w-4" />
         </GroupFocusButton>
       </div>
     </article>

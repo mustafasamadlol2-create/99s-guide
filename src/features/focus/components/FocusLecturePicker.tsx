@@ -40,6 +40,11 @@ export function FocusLecturePicker({
   const dialogRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const { t } = useTranslation(language);
 
   const canonicalLectures = useMemo(
@@ -90,7 +95,7 @@ export function FocusLecturePicker({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -117,7 +122,7 @@ export function FocusLecturePicker({
       window.removeEventListener("keydown", handleKeyDown);
       triggerRef.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const getSubjectName = (id: string) => {
     const subject = subjectMap.get(id as Subject["id"]);
@@ -201,7 +206,7 @@ export function FocusLecturePicker({
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("focusHubSearchLectures")}
               dir="auto"
-              className={`h-12 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/15 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
+              className={`h-12 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-900 outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-500/20 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"}`}
             />
           </label>
           <label className="block">

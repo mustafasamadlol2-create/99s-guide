@@ -240,6 +240,21 @@ test("Node issuer creates a compact token verified by the Worker Web Crypto modu
   assert.notEqual(decodeToken(second.capabilityToken).payload.jti, payload.jti);
 });
 
+test("legacy opaque user principals can receive and verify Group Focus capabilities", async () => {
+  const legacyUserId = "legacy-user-24001";
+  const issued = issueGroupFocusCapability(
+    authorizationContext({ userId: legacyUserId }),
+    issuerEnvironment(),
+    fixedNow,
+  );
+  const verified = await verifyGroupFocusCapability(
+    issued.capabilityToken,
+    workerEnvironment(),
+    fixedNow,
+  );
+  assert.equal(verified.userId, legacyUserId);
+});
+
 test("key rotation accepts overlap and rejects removed keys", async () => {
   const oldOnly = issuerEnvironment({ "test-a": keyA }, "test-a");
   const oldToken = issueGroupFocusCapability(authorizationContext(), oldOnly, fixedNow);

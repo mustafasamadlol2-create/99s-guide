@@ -461,8 +461,8 @@ test("local workerd enforces capability admission, presence, commands, and alarm
       roomId,
       `gf-v1, gf-auth.${thirdToken}`,
     );
-    assert.equal(capacityResponse.status, 409);
-    assert.equal((await capacityResponse.json()).code, "ROOM_CAPACITY_REACHED");
+    // maxParticipants is a legacy wire field only; it no longer caps live room admission.
+    assert.equal(capacityResponse.status, 101);
 
     const inconsistentToken = createToken(key, {
       roomId,

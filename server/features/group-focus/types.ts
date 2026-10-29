@@ -9,6 +9,7 @@ export const GROUP_FOCUS_VISIBILITIES = GROUP_FOCUS_CAPABILITY_VISIBILITIES;
 export const GROUP_FOCUS_ROOM_STATUSES = ["OPEN", "CLOSED"] as const;
 export const GROUP_FOCUS_MEMBERSHIP_STATUSES = ["ACTIVE", "LEFT", "REMOVED"] as const;
 export const GROUP_FOCUS_MIN_PARTICIPANTS = 2;
+// Legacy database/API field retained for rolling compatibility. It is not enforced as room capacity.
 export const GROUP_FOCUS_DEFAULT_MAX_PARTICIPANTS = 12;
 export const GROUP_FOCUS_MAX_PARTICIPANTS = 25;
 export const GROUP_FOCUS_MIN_ROUNDS = 1;

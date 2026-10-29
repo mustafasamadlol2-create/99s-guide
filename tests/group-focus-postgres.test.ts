@@ -1172,7 +1172,7 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
   });
 });
 
-test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow", {
+test("real PostgreSQL Room admission is not capped by the legacy maxParticipants field", {
   skip: skipped,
 }, async () => {
   await withFixture(21, async (fixture) => {
@@ -1182,8 +1182,9 @@ test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow",
     const focus = createService();
     const created = await focus.createRoom(
       hostId!,
-      createGroupFocusRoomSchema.parse(sharedInput(lectureId!, `prompt13-capacity-${randomUUID()}`, {
-        name: "Capacity test",
+      createGroupFocusRoomSchema.parse(sharedInput(lectureId!, `prompt13-unlimited-${randomUUID()}`, {
+        name: "Unlimited room test",
+        // Kept deliberately small to prove this legacy field is no longer an admission cap.
         maxParticipants: 5,
       })),
     );
@@ -1192,16 +1193,9 @@ test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow",
     const attempts = await Promise.allSettled(
       joinerIds.map((userId) => focus.joinRoom(userId, created.room.id, {})),
     );
-    const succeeded = attempts.filter((result) => result.status === "fulfilled");
     const failed = attempts.filter((result) => result.status === "rejected");
-    assert.equal(succeeded.length, 4);
     assert.equal(joinerIds.length, 20);
-    assert.equal(failed.length, 16);
-    for (const result of failed) {
-      assert.ok(result.status === "rejected");
-      assert.ok(result.reason instanceof GroupFocusError);
-      assert.equal(result.reason.code, "ROOM_FULL");
-    }
+    assert.equal(failed.length, 0);
 
     const activeCount = await db().groupFocusMembership.count({
       where: { roomId: created.room.id, status: "ACTIVE" },
@@ -1209,46 +1203,28 @@ test("real PostgreSQL Room advisory lock prevents concurrent capacity overflow",
     const rowCount = await db().groupFocusMembership.count({
       where: { roomId: created.room.id },
     });
-    assert.equal(activeCount, 5);
-    assert.equal(rowCount, 5);
+    assert.equal(activeCount, 21);
+    assert.equal(rowCount, 21);
 
-    const firstWinner = succeeded[0];
-    assert.ok(firstWinner?.status === "fulfilled");
-    const repeated = await focus.joinRoom(firstWinner.value.membership.userId, created.room.id, {});
-    assert.equal(repeated.membership.membershipId, firstWinner.value.membership.membershipId);
+    const firstJoiner = joinerIds[0]!;
+    const firstMembership = await db().groupFocusMembership.findUniqueOrThrow({
+      where: { roomId_userId: { roomId: created.room.id, userId: firstJoiner } },
+    });
+    const repeated = await focus.joinRoom(firstJoiner, created.room.id, {});
+    assert.equal(repeated.membership.membershipId, firstMembership.id);
     assert.equal(await db().groupFocusMembership.count({
       where: { roomId: created.room.id, status: "ACTIVE" },
-    }), 5);
+    }), 21);
 
-    await focus.leaveRoom(firstWinner.value.membership.userId, created.room.id);
-    const loserIndex = attempts.findIndex((result) => result.status === "rejected");
-    assert.ok(loserIndex >= 0);
-    const rejoined = await focus.joinRoom(joinerIds[loserIndex]!, created.room.id, {});
+    await focus.leaveRoom(firstJoiner, created.room.id);
+    assert.equal(await db().groupFocusMembership.count({
+      where: { roomId: created.room.id, status: "ACTIVE" },
+    }), 20);
+    const rejoined = await focus.joinRoom(firstJoiner, created.room.id, {});
     assert.equal(rejoined.membership.status, "ACTIVE");
     assert.equal(await db().groupFocusMembership.count({
       where: { roomId: created.room.id, status: "ACTIVE" },
-    }), 5);
-    await assert.rejects(
-      focus.joinRoom(firstWinner.value.membership.userId, created.room.id, {}),
-      (error: unknown) => error instanceof GroupFocusError && error.code === "ROOM_FULL",
-    );
-    const formerWinnerRow = await db().groupFocusMembership.findUniqueOrThrow({
-      where: {
-        roomId_userId: {
-          roomId: created.room.id,
-          userId: firstWinner.value.membership.userId,
-        },
-      },
-      select: { status: true, leftAt: true },
-    });
-    assert.equal(formerWinnerRow.status, "LEFT");
-    assert.ok(formerWinnerRow.leftAt instanceof Date);
-    assert.equal(await db().groupFocusMembership.count({
-      where: { roomId: created.room.id },
-    }), 6);
-    assert.equal(await db().groupFocusMembership.count({
-      where: { roomId: created.room.id, status: "ACTIVE" },
-    }), 5);
+    }), 21);
 
     const hostRows = await db().groupFocusMembership.findMany({
       where: { roomId: created.room.id, role: "HOST" },

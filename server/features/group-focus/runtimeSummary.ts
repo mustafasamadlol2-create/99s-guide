@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
   GROUP_FOCUS_SUMMARY_TERMINAL_REASONS,
@@ -28,7 +29,7 @@ const isoTimestamp = z.string().refine((value) => {
 });
 
 const participantSchema = z.object({
-  userId: UUID,
+  userId: z.string().min(1).max(160).refine(isGroupFocusPrincipalId),
   membershipId: UUID,
   role: z.enum(["HOST", "MEMBER"]),
   effectiveLectureId: UUID,
@@ -56,7 +57,7 @@ const runtimeSummarySchema = z.object({
   terminalReason: z.enum(GROUP_FOCUS_SUMMARY_TERMINAL_REASONS),
   completedRounds: z.number().int().min(0).max(20),
   finalRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  participants: z.array(participantSchema).max(25),
+  participants: z.array(participantSchema),
 }).strict().superRefine((summary, context) => {
   if (Date.parse(summary.runtimeEndedAt) < Date.parse(summary.runtimeStartedAt)) {
     context.addIssue({

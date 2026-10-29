@@ -127,7 +127,6 @@ function isRuntimeSummary(value: unknown): value is GroupFocusRuntimeSummary {
     && isSafeInteger(summary.completedRounds)
     && isSafeInteger(summary.finalRevision)
     && Array.isArray(summary.participants)
-    && summary.participants.length <= 25
     && summary.participants.every(isSummaryParticipant);
 }
 
@@ -195,7 +194,6 @@ export function isValidGroupFocusRuntimeData(value: unknown): value is GroupFocu
       && data.summary.body.roomId === data.roomId
     ))
     || !Array.isArray(data.participants)
-    || data.participants.length > 25
   ) return false;
   return data.participants.every((item) => {
     if (typeof item !== "object" || item === null || Array.isArray(item)) return false;

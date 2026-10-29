@@ -123,7 +123,6 @@ export function isValidGroupFocusRoomState(value: unknown): value is GroupFocusR
     && integer(state.currentRound)
     && state.currentRound <= state.roundCount
     && Array.isArray(state.connections)
-    && state.connections.length <= state.maxParticipants
     && state.connections.every((participant) => {
       if (
         typeof participant !== "object"

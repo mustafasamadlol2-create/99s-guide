@@ -1,4 +1,5 @@
 import express, { type RequestHandler } from "express";
+import { isGroupFocusPrincipalId } from "../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
   type GroupFocusRuntimeSnapshotRequest,
@@ -34,8 +35,7 @@ const snapshotRequestSchema = {
       || !Number.isSafeInteger(body.runtimeRevision)
       || body.runtimeRevision < 0
       || !Array.isArray(body.userIds)
-      || body.userIds.length > 25
-      || body.userIds.some((userId) => typeof userId !== "string" || !UUID.test(userId))
+      || body.userIds.some((userId) => !isGroupFocusPrincipalId(userId))
       || new Set(body.userIds).size !== body.userIds.length
     ) return { success: false };
     return { success: true, data: body as GroupFocusRuntimeSnapshotRequest };

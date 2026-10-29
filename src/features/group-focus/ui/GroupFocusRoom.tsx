@@ -338,7 +338,7 @@ export function GroupFocusRoom({
                 <PlanMetric label={t("focusLength")} value={`${room.focusDurationSeconds / 60}`} suffix={t("minutesShort")} />
                 <PlanMetric label={t("breakLength")} value={`${room.breakDurationSeconds / 60}`} suffix={t("minutesShort")} />
                 <PlanMetric label={t("rounds")} value={`${room.roundCount}`} />
-                <PlanMetric label={t("peopleHere")} value={`${room.participantCount}/${room.maxParticipants}`} />
+                <PlanMetric label={t("peopleHere")} value={`${room.participantCount}`} />
               </div>
               <div className="mt-4 space-y-2">
                 {visibleStudyPlan.map((item, index) => {
@@ -402,10 +402,7 @@ export function GroupFocusRoom({
               <div className="mt-5 border-t border-[#e2e8f0] pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#64748b]">{t("peopleHere")}</span>
-                  <span className="font-semibold tabular-nums text-[#334155]" dir="ltr">{room.participantCount} / {room.maxParticipants}</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e2e8f0]" role="meter" aria-label={t("peopleHere")} aria-valuemin={0} aria-valuemax={room.maxParticipants} aria-valuenow={Math.min(room.participantCount, room.maxParticipants)}>
-                  <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${Math.min(100, (room.participantCount / room.maxParticipants) * 100)}%` }} />
+                  <span className="font-semibold tabular-nums text-[#334155]" dir="ltr">{room.participantCount}</span>
                 </div>
                 {membership && (
                   <p className="mt-3 text-xs text-[#7c8a83]">
@@ -419,7 +416,7 @@ export function GroupFocusRoom({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-xs leading-5 text-[#64748b]">{t("presenceHelp")}</p>
                 <span className="rounded-full bg-[#eff6ff] px-2.5 py-1 text-xs font-semibold tabular-nums text-[#475569]" dir="ltr">
-                  {snapshot.presence.length}/{room.maxParticipants}
+                  {snapshot.presence.length}
                 </span>
               </div>
               <p className="sr-only" role="status" aria-live="polite">

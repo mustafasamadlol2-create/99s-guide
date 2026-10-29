@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseLecture, Subject } from "../../core/types.js";
 import type { Language } from "../../core/i18n/translations.js";
 import type { GroupFocusStudyPlanItem } from "../../../shared/group-focus-study-plan/contract.js";
+import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
 import {
   createGroupFocusRoom,
   getGroupFocusRoom,
@@ -735,7 +736,7 @@ export function GroupFocusFrontend({
       !visibleRoom
       || !hostAuthorized
       || targetUserId === accountId
-      || !CANONICAL_UUID.test(targetUserId)
+      || !isGroupFocusPrincipalId(targetUserId)
       || memberRemovalPendingUserId
     ) return;
     setMemberRemovalPendingUserId(targetUserId);

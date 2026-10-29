@@ -6,7 +6,8 @@ import type {
 export const GROUP_FOCUS_REALTIME_PROTOCOL = "gf-v1";
 export const GROUP_FOCUS_REALTIME_AUTH_PREFIX = "gf-auth.";
 export const GROUP_FOCUS_REALTIME_RESUME_PREFIX = "gf-resume.";
-export const GROUP_FOCUS_REALTIME_MAX_MESSAGE_BYTES = 16 * 1024;
+// Transport safety bound only; Group Focus no longer has a product-level participant cap.
+export const GROUP_FOCUS_REALTIME_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
 export const GROUP_FOCUS_REALTIME_COUNTDOWN_SECONDS = 3;
 export const GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER =
   "x-group-focus-internal-capability";

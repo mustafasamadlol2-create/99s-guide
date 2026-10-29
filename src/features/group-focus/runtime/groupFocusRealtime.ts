@@ -14,6 +14,7 @@ import {
   type GroupFocusRealtimeRoomState,
 } from "../../../../shared/group-focus-realtime/protocol.js";
 import { decodeBase64Url } from "../../../../shared/group-focus-capability/encoding.js";
+import { isGroupFocusPrincipalId } from "../../../../shared/group-focus-capability/contract.js";
 
 export type GroupFocusRealtimeStatus =
   | "IDLE"
@@ -135,8 +136,7 @@ function capabilitySubject(token: string): string | null {
       typeof value === "object"
       && value !== null
       && !Array.isArray(value)
-      && typeof (value as Record<string, unknown>).sub === "string"
-      && UUID.test((value as Record<string, unknown>).sub as string)
+      && isGroupFocusPrincipalId((value as Record<string, unknown>).sub)
     ) return (value as Record<string, unknown>).sub as string;
   } catch {
     return null;
@@ -332,7 +332,7 @@ export class GroupFocusRealtimeRuntime {
     const accountId = capabilitySubject(capability.capabilityToken)
       ?? this.options.accountId
       ?? this.currentAccountId;
-    if (accountId && UUID.test(accountId)) {
+    if (isGroupFocusPrincipalId(accountId)) {
       if (this.currentAccountId !== null && this.currentAccountId !== accountId) {
         this.clearStoredResumeToken();
       }
@@ -661,7 +661,7 @@ export class GroupFocusRealtimeRuntime {
     if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return;
     this.resumeToken = value;
     const accountId = this.snapshot.userId ?? this.options.accountId;
-    if (!accountId || !UUID.test(accountId)) return;
+    if (!isGroupFocusPrincipalId(accountId)) return;
     this.currentAccountId = accountId;
     const key = resumeStorageKey(accountId, this.options.roomId);
     this.resumeStorageKey = key;

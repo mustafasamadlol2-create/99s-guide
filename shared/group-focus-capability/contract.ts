@@ -25,6 +25,7 @@ export const GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS = {
   focusDurationSeconds: { min: 60, max: 6 * 60 * 60 },
   breakDurationSeconds: { min: 0, max: 3 * 60 * 60 },
   roundCount: { min: 1, max: 20 },
+  // maxParticipants is retained for wire/backward compatibility only. Room capacity is no longer enforced.
   maxParticipants: { min: 2, max: 25 },
 } as const;
 
@@ -114,6 +115,19 @@ function isUuid(value: unknown): value is string {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
 }
 
+/**
+ * User IDs are internal principals, not a public UUID contract. Legacy accounts
+ * may predate the UUID-backed User model, so Group Focus treats them as bounded
+ * opaque identifiers while room/membership/lecture IDs remain UUIDs.
+ */
+export function isGroupFocusPrincipalId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 160 || value.trim() !== value) return false;
+  return !Array.from(value).some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+  });
+}
+
 function isCanonicalIsoTimestamp(value: unknown): value is string {
   if (typeof value !== "string" || value.length !== 24) return false;
   const time = Date.parse(value);
@@ -140,7 +154,7 @@ export function parseGroupFocusCapabilityClaims(
     || value.iss !== GROUP_FOCUS_CAPABILITY_ISSUER
     || value.aud !== GROUP_FOCUS_CAPABILITY_AUDIENCE
     || value.purpose !== GROUP_FOCUS_CAPABILITY_PURPOSE
-    || !isUuid(value.sub)
+    || !isGroupFocusPrincipalId(value.sub)
     || !isUuid(value.roomId)
     || !isUuid(value.membershipId)
     || !isUuid(value.effectiveLectureId)

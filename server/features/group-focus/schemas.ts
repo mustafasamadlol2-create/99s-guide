@@ -19,6 +19,7 @@ import {
   GROUP_FOCUS_ROOM_STATUSES,
   GROUP_FOCUS_VISIBILITIES,
 } from "./types.js";
+import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_STUDY_PLAN_MAX_ITEMS,
   GROUP_FOCUS_STUDY_PLAN_MAX_RESOURCES_PER_ITEM,
@@ -216,7 +217,10 @@ export const myGroupFocusRoomsQuerySchema = z.object({
 }).strict();
 
 export const groupFocusRoomIdSchema = uuid;
-export const groupFocusUserIdSchema = uuid;
+export const groupFocusUserIdSchema = z.string()
+  .min(1)
+  .max(160)
+  .refine(isGroupFocusPrincipalId, "Group Focus user ID is invalid.");
 export const emptyGroupFocusBodySchema = z.object({}).strict();
 
 export type CreateGroupFocusRoomInput = z.infer<typeof createGroupFocusRoomSchema>;
