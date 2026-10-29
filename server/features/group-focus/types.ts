@@ -3,15 +3,20 @@ import type {
   GROUP_FOCUS_MODES,
   GROUP_FOCUS_PARTICIPANT_ROLES,
 } from "../study-core/groupFocus.js";
-import { GROUP_FOCUS_CAPABILITY_VISIBILITIES } from "../../../shared/group-focus-capability/contract.js";
+import {
+  GROUP_FOCUS_CAPABILITY_VISIBILITIES,
+  GROUP_FOCUS_MAX_FINITE_PARTICIPANTS,
+  GROUP_FOCUS_MIN_FINITE_PARTICIPANTS,
+  GROUP_FOCUS_UNLIMITED_PARTICIPANTS,
+} from "../../../shared/group-focus-capability/contract.js";
 
 export const GROUP_FOCUS_VISIBILITIES = GROUP_FOCUS_CAPABILITY_VISIBILITIES;
 export const GROUP_FOCUS_ROOM_STATUSES = ["OPEN", "CLOSED"] as const;
 export const GROUP_FOCUS_MEMBERSHIP_STATUSES = ["ACTIVE", "LEFT", "REMOVED"] as const;
-export const GROUP_FOCUS_MIN_PARTICIPANTS = 2;
-// Legacy database/API field retained for rolling compatibility. It is not enforced as room capacity.
+export const GROUP_FOCUS_MIN_PARTICIPANTS = GROUP_FOCUS_MIN_FINITE_PARTICIPANTS;
 export const GROUP_FOCUS_DEFAULT_MAX_PARTICIPANTS = 12;
-export const GROUP_FOCUS_MAX_PARTICIPANTS = 25;
+export const GROUP_FOCUS_MAX_PARTICIPANTS = GROUP_FOCUS_MAX_FINITE_PARTICIPANTS;
+export { GROUP_FOCUS_UNLIMITED_PARTICIPANTS };
 export const GROUP_FOCUS_MIN_ROUNDS = 1;
 export const GROUP_FOCUS_MAX_ROUNDS = 20;
 export const GROUP_FOCUS_ROOM_NAME_MAX_CODEPOINTS = 100;

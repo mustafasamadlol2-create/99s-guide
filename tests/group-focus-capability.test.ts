@@ -406,7 +406,7 @@ test("time, TTL, enum, identifier, numeric, and timestamp claims are bounded", a
     validClaims({ roundCount: 0 }),
     validClaims({ roundCount: 21 }),
     validClaims({ maxParticipants: 1 }),
-    validClaims({ maxParticipants: 26 }),
+    validClaims({ maxParticipants: 1_000_001 }),
     validClaims({ roomUpdatedAt: "not-a-date" }),
     validClaims({ membershipUpdatedAt: "2026-02-30T10:00:00.000Z" }),
     validClaims({ jti: "too-short" }),
@@ -418,6 +418,16 @@ test("time, TTL, enum, identifier, numeric, and timestamp claims are bounded", a
       GroupFocusCapabilityVerificationError,
     );
   }
+  assert.equal(
+    (await verifyGroupFocusCapability(signToken(validClaims({ maxParticipants: 0 })), env, fixedNow))
+      .maxParticipants,
+    0,
+  );
+  assert.equal(
+    (await verifyGroupFocusCapability(signToken(validClaims({ maxParticipants: 250 })), env, fixedNow))
+      .maxParticipants,
+    250,
+  );
 });
 
 test("malformed, noncanonical, oversized, and extra-segment compact tokens are rejected", async () => {

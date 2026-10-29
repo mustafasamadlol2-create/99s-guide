@@ -14,6 +14,7 @@ import {
 
 export type GroupFocusCapabilityWorkerEnvironment = {
   GROUP_FOCUS_CAPABILITY_KEYS_JSON?: string;
+  GROUP_FOCUS_CAPABILITY_ACTIVE_KID?: string;
 };
 
 export class GroupFocusCapabilityVerificationError extends Error {

@@ -461,8 +461,24 @@ test("local workerd enforces capability admission, presence, commands, and alarm
       roomId,
       `gf-v1, gf-auth.${thirdToken}`,
     );
-    // maxParticipants is a legacy wire field only; it no longer caps live room admission.
-    assert.equal(capacityResponse.status, 101);
+    assert.equal(capacityResponse.status, 409);
+    assert.equal((await capacityResponse.json()).code, "ROOM_FULL");
+
+    // Losing the browser-side resume credential must not strand a legitimate
+    // member forever. Once the old socket is gone, a freshly issued canonical
+    // capability can reclaim that participant without the old resume token.
+    member.socket.close(1000, "simulate browser losing session storage");
+    await new Promise<void>((resolve) => {
+      if (member.socket.readyState === WebSocket.CLOSED) return resolve();
+      member.socket.addEventListener("close", () => resolve(), { once: true });
+    });
+    await delay(50);
+    const freshCapabilityReconnect = connect(baseUrl, roomId, memberToken);
+    await freshCapabilityReconnect.opened;
+    await freshCapabilityReconnect.messages.next("CONNECTED");
+    await freshCapabilityReconnect.messages.next("RESUME_TOKEN");
+    await freshCapabilityReconnect.messages.next("ROOM_STATE");
+    freshCapabilityReconnect.socket.close(1000, "fresh capability recovery verified");
 
     const inconsistentToken = createToken(key, {
       roomId,
@@ -531,8 +547,6 @@ test("local workerd enforces capability admission, presence, commands, and alarm
     );
     assert.equal(terminalResponse.status, 410);
     assert.equal((await terminalResponse.json()).code, "ROOM_UNAVAILABLE");
-
-    member.socket.close(1000, "test complete");
   });
 });
 

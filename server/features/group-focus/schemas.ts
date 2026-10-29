@@ -17,6 +17,7 @@ import {
   GROUP_FOCUS_MIN_ROUNDS,
   GROUP_FOCUS_ROOM_NAME_MAX_CODEPOINTS,
   GROUP_FOCUS_ROOM_STATUSES,
+  GROUP_FOCUS_UNLIMITED_PARTICIPANTS,
   GROUP_FOCUS_VISIBILITIES,
 } from "./types.js";
 import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
@@ -114,8 +115,13 @@ export const createGroupFocusRoomSchema = z.object({
   breakDurationSeconds: z.number().int().min(0).max(MAX_BREAK_DURATION_SECONDS),
   roundCount: z.number().int().min(GROUP_FOCUS_MIN_ROUNDS).max(GROUP_FOCUS_MAX_ROUNDS),
   maxParticipants: z.number().int()
-    .min(GROUP_FOCUS_MIN_PARTICIPANTS)
+    .min(GROUP_FOCUS_UNLIMITED_PARTICIPANTS)
     .max(GROUP_FOCUS_MAX_PARTICIPANTS)
+    .refine(
+      (value) => value === GROUP_FOCUS_UNLIMITED_PARTICIPANTS
+        || value >= GROUP_FOCUS_MIN_PARTICIPANTS,
+      { message: "Room size must be unlimited or at least two people." },
+    )
     .default(GROUP_FOCUS_DEFAULT_MAX_PARTICIPANTS),
   idempotencyKey,
 }).strict().superRefine((value, context) => {

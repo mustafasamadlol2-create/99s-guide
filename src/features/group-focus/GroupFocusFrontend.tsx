@@ -469,6 +469,7 @@ export function GroupFocusFrontend({
         accountId,
         roomId: route.roomId,
         workerUrl,
+        readinessFetcher: (input, init) => fetch(input, init),
       });
     } catch (error) {
       setRoomError(groupFocusErrorMessage(

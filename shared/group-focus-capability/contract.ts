@@ -15,6 +15,11 @@ export const GROUP_FOCUS_CAPABILITY_MAX_KEY_BYTES = 128;
 export const GROUP_FOCUS_CAPABILITY_ROLES = ["HOST", "MEMBER"] as const;
 export const GROUP_FOCUS_CAPABILITY_MODES = ["SHARED_LECTURE", "STUDY_TOGETHER"] as const;
 export const GROUP_FOCUS_CAPABILITY_VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
+export const GROUP_FOCUS_UNLIMITED_PARTICIPANTS = 0 as const;
+export const GROUP_FOCUS_MIN_FINITE_PARTICIPANTS = 2;
+// Product-level finite rooms can be very large; 0 remains the explicit unlimited sentinel.
+// Keeping a bounded integer protects the PostgreSQL/JSON/wire contract from absurd inputs.
+export const GROUP_FOCUS_MAX_FINITE_PARTICIPANTS = 1_000_000;
 
 export type GroupFocusCapabilityRole = (typeof GROUP_FOCUS_CAPABILITY_ROLES)[number];
 export type GroupFocusCapabilityMode = (typeof GROUP_FOCUS_CAPABILITY_MODES)[number];
@@ -25,8 +30,10 @@ export const GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS = {
   focusDurationSeconds: { min: 60, max: 6 * 60 * 60 },
   breakDurationSeconds: { min: 0, max: 3 * 60 * 60 },
   roundCount: { min: 1, max: 20 },
-  // maxParticipants is retained for wire/backward compatibility only. Room capacity is no longer enforced.
-  maxParticipants: { min: 2, max: 25 },
+  maxParticipants: {
+    min: GROUP_FOCUS_MIN_FINITE_PARTICIPANTS,
+    max: GROUP_FOCUS_MAX_FINITE_PARTICIPANTS,
+  },
 } as const;
 
 export const GROUP_FOCUS_CAPABILITY_CLAIM_KEYS = [
@@ -141,6 +148,15 @@ function isIntegerInRange(value: unknown, min: number, max: number): value is nu
     && value <= max;
 }
 
+export function isValidGroupFocusParticipantLimit(value: unknown): value is number {
+  return value === GROUP_FOCUS_UNLIMITED_PARTICIPANTS
+    || isIntegerInRange(
+      value,
+      GROUP_FOCUS_MIN_FINITE_PARTICIPANTS,
+      GROUP_FOCUS_MAX_FINITE_PARTICIPANTS,
+    );
+}
+
 export function parseGroupFocusCapabilityClaims(
   value: unknown,
   now: Date = new Date(),
@@ -178,11 +194,7 @@ export function parseGroupFocusCapabilityClaims(
       GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS.roundCount.min,
       GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS.roundCount.max,
     )
-    || !isIntegerInRange(
-      value.maxParticipants,
-      GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS.maxParticipants.min,
-      GROUP_FOCUS_CAPABILITY_NUMERIC_BOUNDS.maxParticipants.max,
-    )
+    || !isValidGroupFocusParticipantLimit(value.maxParticipants)
     || !isCanonicalIsoTimestamp(value.roomUpdatedAt)
     || !isCanonicalIsoTimestamp(value.membershipUpdatedAt)
     || typeof value.jti !== "string"

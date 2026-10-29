@@ -8,7 +8,8 @@ import {
   parseGroupFocusCapabilityKeyring,
 } from "../../shared/group-focus-capability/keyring.js";
 import {
-  parseGroupFocusReconciliationKeyring,
+  resolveGroupFocusReconciliationActiveKid,
+  resolveGroupFocusReconciliationKeyring,
   type GroupFocusReconciliationEnvironment,
 } from "../../shared/group-focus-reconciliation/signing.js";
 import {
@@ -28,6 +29,7 @@ const ROOM_PATH = /^\/rooms\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 const MAX_PROTOCOL_HEADER_BYTES = GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES + 128;
 const MAX_AUTHORIZATION_HEADER_BYTES = GROUP_FOCUS_CAPABILITY_MAX_TOKEN_BYTES + 16;
 const UUID_ROOM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const PRODUCTION_GROUP_FOCUS_API_BASE_URL = "https://nine9s-guide.onrender.com";
 
 export type GroupFocusWorkerEnvironment =
   & GroupFocusCapabilityWorkerEnvironment
@@ -59,13 +61,16 @@ function bytesLength(value: string): number {
 function groupFocusWorkerRuntimeReady(environment: GroupFocusWorkerEnvironment): boolean {
   try {
     parseGroupFocusCapabilityKeyring(environment.GROUP_FOCUS_CAPABILITY_KEYS_JSON);
-    const reconciliation = parseGroupFocusReconciliationKeyring(
-      environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON,
+    const reconciliation = resolveGroupFocusReconciliationKeyring(environment);
+    const activeKid = resolveGroupFocusReconciliationActiveKid(
+      environment,
+      reconciliation,
     );
-    const activeKid = environment.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
-    if (!activeKid || !reconciliation.has(activeKid)) return false;
-    if (!environment.GROUP_FOCUS_API_BASE_URL) return false;
-    const base = new URL(environment.GROUP_FOCUS_API_BASE_URL);
+    if (!reconciliation.has(activeKid)) return false;
+    const base = new URL(
+      environment.GROUP_FOCUS_API_BASE_URL?.trim()
+        || PRODUCTION_GROUP_FOCUS_API_BASE_URL,
+    );
     return (
       (base.protocol === "https:" || base.protocol === "http:")
       && base.username.length === 0
@@ -200,7 +205,12 @@ export default {
     if (request.method === "GET" && url.pathname === "/health") {
       return Response.json(
         { status: "ok" },
-        { headers: { "Cache-Control": "no-store" } },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
+          },
+        },
       );
     }
     if (request.method === "GET" && url.pathname === "/ready") {
@@ -209,7 +219,10 @@ export default {
         { status: runtimeReady ? "ready" : "not_ready", runtimeReady },
         {
           status: runtimeReady ? 200 : 503,
-          headers: { "Cache-Control": "no-store" },
+          headers: {
+            "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
+          },
         },
       );
     }

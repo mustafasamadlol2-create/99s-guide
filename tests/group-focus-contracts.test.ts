@@ -49,6 +49,12 @@ test("Group Focus schemas enforce bounded canonical room configuration", () => {
   const parsed = createGroupFocusRoomSchema.parse(createPayload());
   assert.equal(parsed.name, "Histology Focus");
   assert.equal(parsed.maxParticipants, 12);
+  assert.equal(createGroupFocusRoomSchema.safeParse(createPayload({
+    maxParticipants: 0,
+  })).success, true);
+  assert.equal(createGroupFocusRoomSchema.safeParse(createPayload({
+    maxParticipants: 26,
+  })).success, true);
 
   assert.equal(createGroupFocusRoomSchema.safeParse(createPayload({
     name: " \t ",
@@ -60,7 +66,7 @@ test("Group Focus schemas enforce bounded canonical room configuration", () => {
     maxParticipants: 1,
   })).success, false);
   assert.equal(createGroupFocusRoomSchema.safeParse(createPayload({
-    maxParticipants: 26,
+    maxParticipants: 1_000_001,
   })).success, false);
   assert.equal(createGroupFocusRoomSchema.safeParse(createPayload({
     roundCount: 21,

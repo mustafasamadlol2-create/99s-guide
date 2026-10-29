@@ -72,6 +72,7 @@ const ROOM_STATE_KEY = "group-focus-room-state-v1";
 const RUNTIME_STATE_KEY = "group-focus-runtime-state-v1";
 const ROOM_PATH = /^\/rooms\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/connect$/iu;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const PRODUCTION_GROUP_FOCUS_API_BASE_URL = "https://nine9s-guide.onrender.com";
 const ATTACHMENT_KEYS = [
   "connectionId",
   "userId",
@@ -470,8 +471,8 @@ export class GroupFocusRoom {
     body: unknown,
     maximumBytes: number,
   ): Promise<{ response: Response; value: T | null }> {
-    const base = this.env.GROUP_FOCUS_API_BASE_URL;
-    if (!base) throw new Error("RECONCILIATION_ENDPOINT_NOT_CONFIGURED");
+    const base = this.env.GROUP_FOCUS_API_BASE_URL?.trim()
+      || PRODUCTION_GROUP_FOCUS_API_BASE_URL;
     const baseUrl = new URL(base);
     if (
       !["https:", "http:"].includes(baseUrl.protocol)
@@ -1053,21 +1054,43 @@ export class GroupFocusRoom {
     const now = Date.now();
     let state: GroupFocusRoomState;
     let runtime: GroupFocusRuntimeData;
+    const socketsBeforeHandshake = this.ctx.getWebSockets();
+    const canSelfHealFreshLobby = !resumeToken && socketsBeforeHandshake.length === 0;
     try {
       const stored = await this.readState();
       if (stored) {
         if (!groupFocusRoomConfigurationMatches(stored, capability)) {
-          return jsonError(409, "ROOM_CONFIGURATION_MISMATCH");
+          if (canSelfHealFreshLobby && stored.phase === "LOBBY") {
+            await this.ctx.storage.delete(ROOM_STATE_KEY);
+            await this.ctx.storage.delete(RUNTIME_STATE_KEY);
+            state = createInitialGroupFocusRoomState(capability, now);
+            runtime = createGroupFocusRuntimeData(roomId, now);
+          } else {
+            return jsonError(409, "ROOM_CONFIGURATION_MISMATCH");
+          }
+        } else {
+          runtime = await this.ensureRuntime(stored, now);
+          state = await this.normalizeDueState(stored, runtime, now);
         }
-        runtime = await this.ensureRuntime(stored, now);
-        state = await this.normalizeDueState(stored, runtime, now);
       } else {
         state = createInitialGroupFocusRoomState(capability, now);
         runtime = createGroupFocusRuntimeData(roomId, now);
       }
     } catch (error) {
-      if (error instanceof RoomRuntimeError) return jsonError(error.status, error.code);
-      return jsonError(503, "ROOM_STATE_UNAVAILABLE");
+      if (
+        canSelfHealFreshLobby
+        && error instanceof RoomRuntimeError
+        && (error.code === "ROOM_STATE_VERSION_UNSUPPORTED"
+          || error.code === "RUNTIME_STATE_VERSION_UNSUPPORTED")
+      ) {
+        await this.ctx.storage.delete(ROOM_STATE_KEY);
+        await this.ctx.storage.delete(RUNTIME_STATE_KEY);
+        state = createInitialGroupFocusRoomState(capability, now);
+        runtime = createGroupFocusRuntimeData(roomId, now);
+      } else {
+        if (error instanceof RoomRuntimeError) return jsonError(error.status, error.code);
+        return jsonError(503, "ROOM_STATE_UNAVAILABLE");
+      }
     }
 
     if (state.phase === "CLOSED" || state.phase === "COMPLETED") {
@@ -1182,11 +1205,39 @@ export class GroupFocusRoom {
       && (participant.connectionState === "CONNECTED"
         || participant.connectionState === "RECONNECTING")
     ) {
-      return jsonError(409, "RESUME_REQUIRED");
+      // A resume token is an optimization, not the only safe way to recover a
+      // room. Browsers can legitimately lose sessionStorage (new tab, WebView
+      // recreation, app process eviction) while the Durable Object still has a
+      // RECONNECTING participant. If there is no live socket for this user, a
+      // freshly issued backend capability can reclaim the participant after a
+      // canonical membership check. This prevents an otherwise valid member
+      // from being trapped in an endless reconnect loop until the old resume
+      // credential expires.
+      if (currentSocket) return jsonError(409, "RESUME_REQUIRED");
+      const currentAuthorization = await this.participantCapabilityIsCanonicallyCurrent(
+        capability,
+        state,
+        runtime,
+      );
+      if (!currentAuthorization) {
+        return jsonError(403, "AUTHORIZATION_REFRESH_REQUIRED");
+      }
+      reconnecting = true;
+      participant.resumeTokenHash = null;
+      participant.resumeTokenExpiresAt = null;
+      participant.reconnectDeadlineAt = null;
     }
 
     if (!participant && resumeToken) {
       return jsonError(401, "INVALID_RESUME_TOKEN");
+    }
+
+    if (!participant && state.maxParticipants > 0) {
+      const admittedParticipants = runtime.participants.filter((item) =>
+        item.connectionState === "CONNECTED" || item.connectionState === "RECONNECTING");
+      if (admittedParticipants.length >= state.maxParticipants) {
+        return jsonError(409, "ROOM_FULL");
+      }
     }
 
     const attachment: GroupFocusRealtimeSocketAttachment = {

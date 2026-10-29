@@ -167,6 +167,18 @@ export function groupFocusErrorMessage(
       return arabic
         ? "انقطع الاتصال المباشر بالغرفة. أعد الاتصال للمزامنة مع حالتها الحالية."
         : "The realtime room connection needs attention. Reconnect to sync with its current state.";
+    case "WORKER_RUNTIME_NOT_READY":
+      return arabic
+        ? "خدمة الاتصال المباشر تعمل، لكن إعداد Group Focus Worker غير مكتمل بعد. أعد نشر الـWorker ثم حاول مجددًا."
+        : "The Group Focus Worker is online, but its realtime runtime is not ready yet. Redeploy the Worker and try again.";
+    case "WORKER_UNREACHABLE":
+      return arabic
+        ? "تعذر الوصول إلى Group Focus Worker. تحقق من رابط الـWorker أو النشر ثم أعد المحاولة."
+        : "The Group Focus Worker could not be reached. Check the Worker URL/deployment and try again.";
+    case "WORKER_ENDPOINT_INVALID":
+      return arabic
+        ? "رابط Group Focus Worker يشير إلى خدمة غير صحيحة. استخدم رابط Worker الخاص بـ Group Focus."
+        : "The configured Group Focus Worker URL points to the wrong service. Use the dedicated Group Focus Worker origin.";
     case "SUMMARY_NOT_FOUND":
       return arabic
         ? "لم يكتمل ملخص الغرفة بعد."

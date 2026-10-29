@@ -44,6 +44,10 @@ function RoomCard({
   const { t } = useGroupFocusCopy(language);
   const modeLabel = room.mode === "SHARED_LECTURE" ? t("sharedLectureMode") : t("studyTogether");
   const lectureCount = room.mode === "SHARED_LECTURE" ? room.sharedStudyPlan.length : null;
+  const roomFull = room.maxParticipants > 0 && room.participantCount >= room.maxParticipants;
+  const capacityLabel = room.maxParticipants === 0
+    ? `${room.participantCount} · ${t("unlimited")}`
+    : `${room.participantCount} / ${room.maxParticipants}`;
   return (
     <article className="group overflow-hidden rounded-[24px] border border-sky-100/90 bg-white/78 p-4 shadow-[0_12px_34px_rgba(50,105,160,0.07)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_16px_42px_rgba(50,105,160,0.12)] dark:border-white/10 dark:bg-white/[0.04] sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -58,11 +62,11 @@ function RoomCard({
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" />{modeLabel}{lectureCount ? ` · ${lectureCount}` : ""}</span>
             <span className="tabular-nums" dir="ltr">{room.focusDurationSeconds / 60} {t("minuteCount")} · {room.roundCount} {t("rounds")}</span>
-            <span className="tabular-nums" dir="ltr">{room.participantCount} {t("participantsCount")}</span>
+            <span className="tabular-nums" dir="ltr">{capacityLabel} {t("participantsCount")}</span>
           </div>
         </div>
-        <GroupFocusButton variant="secondary" disabled={room.status !== "OPEN"} onClick={action} className="w-full shrink-0 sm:w-auto">
-          {room.status !== "OPEN" ? t("closed") : actionLabel}<ArrowUpRight className="h-4 w-4" />
+        <GroupFocusButton variant="secondary" disabled={room.status !== "OPEN" || roomFull} onClick={action} className="w-full shrink-0 sm:w-auto">
+          {room.status !== "OPEN" ? t("closed") : roomFull ? t("full") : actionLabel}<ArrowUpRight className="h-4 w-4" />
         </GroupFocusButton>
       </div>
     </article>

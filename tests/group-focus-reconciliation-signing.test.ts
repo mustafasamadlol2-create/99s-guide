@@ -91,3 +91,55 @@ test("reconciliation keyrings require at least 256 bits of key material", () => 
     /not configured/,
   );
 });
+
+test("machine authentication can safely fall back to the capability keyring", async () => {
+  const fallbackEnvironment = {
+    GROUP_FOCUS_CAPABILITY_KEYS_JSON: JSON.stringify({
+      "gf-cap-v1": Buffer.from(new Uint8Array(32).fill(0x33)).toString("base64url"),
+    }),
+    GROUP_FOCUS_CAPABILITY_ACTIVE_KID: "gf-cap-v1",
+  };
+  const signed = await signGroupFocusMachineRequest(fallbackEnvironment, {
+    method: "POST",
+    path,
+    body,
+    now,
+    nonce,
+  });
+  assert.equal(signed.kid, "gf-cap-v1");
+
+  const verified = await verifyGroupFocusMachineRequest(fallbackEnvironment, {
+    method: "POST",
+    path,
+    body,
+    now,
+    headers: headersFor(signed),
+  });
+  assert.deepEqual(verified, { ok: true, kid: "gf-cap-v1" });
+});
+
+test("blank optional reconciliation variables also fall back to capability keys", async () => {
+  const fallbackEnvironment = {
+    GROUP_FOCUS_CAPABILITY_KEYS_JSON: JSON.stringify({
+      "gf-cap-v1": Buffer.from(new Uint8Array(32).fill(0x44)).toString("base64url"),
+    }),
+    GROUP_FOCUS_CAPABILITY_ACTIVE_KID: "gf-cap-v1",
+    GROUP_FOCUS_RECONCILIATION_KEYS_JSON: "   ",
+    GROUP_FOCUS_RECONCILIATION_ACTIVE_KID: "",
+  };
+  const signed = await signGroupFocusMachineRequest(fallbackEnvironment, {
+    method: "POST",
+    path,
+    body,
+    now,
+    nonce,
+  });
+  assert.equal(signed.kid, "gf-cap-v1");
+  assert.deepEqual(await verifyGroupFocusMachineRequest(fallbackEnvironment, {
+    method: "POST",
+    path,
+    body,
+    now,
+    headers: headersFor(signed),
+  }), { ok: true, kid: "gf-cap-v1" });
+});

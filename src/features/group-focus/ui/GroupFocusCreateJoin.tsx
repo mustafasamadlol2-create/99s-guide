@@ -3,6 +3,11 @@ import { ArrowLeft, DoorOpen, Minus, Plus, UsersRound } from "lucide-react";
 import type { CreateGroupFocusRoomInput } from "../api/groupFocusApi";
 import type { DatabaseLecture, Subject } from "../../../core/types";
 import type { GroupFocusStudyPlanItem } from "../../../../shared/group-focus-study-plan/contract";
+import {
+  GROUP_FOCUS_MAX_FINITE_PARTICIPANTS,
+  GROUP_FOCUS_MIN_FINITE_PARTICIPANTS,
+  GROUP_FOCUS_UNLIMITED_PARTICIPANTS,
+} from "../../../../shared/group-focus-capability/contract";
 import { GroupFocusStudyPlanEditor } from "./GroupFocusStudyPlanEditor";
 import {
   GroupFocusButton,
@@ -83,6 +88,89 @@ function NativeStepper({
   );
 }
 
+function RoomSizeControl({
+  label,
+  peopleLabel,
+  unlimitedLabel,
+  value,
+  unlimited,
+  onValueChange,
+  onUnlimitedChange,
+}: {
+  label: string;
+  peopleLabel: string;
+  unlimitedLabel: string;
+  value: number;
+  unlimited: boolean;
+  onValueChange: (value: number) => void;
+  onUnlimitedChange: (value: boolean) => void;
+}) {
+  const clamp = (candidate: number) => Math.max(
+    GROUP_FOCUS_MIN_FINITE_PARTICIPANTS,
+    Math.min(GROUP_FOCUS_MAX_FINITE_PARTICIPANTS, Math.trunc(candidate)),
+  );
+  const update = (candidate: number) => onValueChange(clamp(candidate));
+  return (
+    <div className="min-w-0">
+      <span className={`${labelClass} min-h-10 text-xs leading-5`}>{label}</span>
+      <div className="rounded-2xl border border-slate-200/90 bg-white/85 p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
+        <div className="flex min-h-12 items-center">
+          <button
+            type="button"
+            onClick={() => update(value - 1)}
+            disabled={unlimited || value <= GROUP_FOCUS_MIN_FINITE_PARTICIPANTS}
+            aria-label={`Decrease ${label}`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition active:scale-95 disabled:opacity-30 dark:bg-white/[0.07] dark:text-slate-200"
+          >
+            <Minus className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <label className="min-w-0 flex-1 px-1 text-center">
+            <span className="sr-only">{label}</span>
+            {unlimited ? (
+              <span className="block text-sm font-bold text-slate-900 dark:text-white">{unlimitedLabel}</span>
+            ) : (
+              <input
+                type="number"
+                inputMode="numeric"
+                min={GROUP_FOCUS_MIN_FINITE_PARTICIPANTS}
+                max={GROUP_FOCUS_MAX_FINITE_PARTICIPANTS}
+                value={value}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (Number.isFinite(next)) update(next);
+                }}
+                className="mx-auto block w-full max-w-[92px] bg-transparent text-center text-base font-bold tabular-nums text-slate-900 outline-none dark:text-white"
+                dir="ltr"
+              />
+            )}
+            {!unlimited && (
+              <span className="block truncate text-[10px] font-medium text-slate-400 dark:text-slate-500">{peopleLabel}</span>
+            )}
+          </label>
+          <button
+            type="button"
+            onClick={() => update(value + 1)}
+            disabled={unlimited || value >= GROUP_FOCUS_MAX_FINITE_PARTICIPANTS}
+            aria-label={`Increase ${label}`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-blue-600 transition active:scale-95 disabled:opacity-30 dark:bg-sky-300/10 dark:text-sky-200"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-pressed={unlimited}
+          onClick={() => onUnlimitedChange(!unlimited)}
+          className={`mt-1 flex min-h-8 w-full items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold transition ${unlimited ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-sky-50 hover:text-sky-700 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-sky-300/10"}`}
+        >
+          <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
+          {unlimitedLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function planIsReady(plan: readonly GroupFocusStudyPlanItem[]) {
   return plan.length > 0 && plan.every((item) => item.resources.length > 0);
 }
@@ -113,6 +201,8 @@ export function GroupFocusCreateJoin({
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [roundCount, setRoundCount] = useState(4);
+  const [maxParticipants, setMaxParticipants] = useState(6);
+  const [unlimitedParticipants, setUnlimitedParticipants] = useState(false);
   const [joinValue, setJoinValue] = useState(initialJoinValue ?? "");
   const [joinNeedsLecture, setJoinNeedsLecture] = useState(false);
   const createTabRef = useRef<HTMLButtonElement>(null);
@@ -163,6 +253,9 @@ export function GroupFocusCreateJoin({
       focusDurationSeconds: focusMinutes * 60,
       breakDurationSeconds: breakMinutes * 60,
       roundCount,
+      maxParticipants: unlimitedParticipants
+        ? GROUP_FOCUS_UNLIMITED_PARTICIPANTS
+        : maxParticipants,
     });
   };
 
@@ -262,10 +355,15 @@ export function GroupFocusCreateJoin({
                 <NativeStepper label={t("focusLength")} value={focusMinutes} min={1} max={360} suffix={t("minutesShort")} onChange={setFocusMinutes} />
                 <NativeStepper label={t("breakLength")} value={breakMinutes} min={0} max={180} suffix={t("minutesShort")} onChange={setBreakMinutes} />
                 <NativeStepper label={t("rounds")} value={roundCount} min={1} max={20} onChange={setRoundCount} />
-                <div className="flex min-h-[76px] flex-col items-center justify-center rounded-2xl border border-sky-100/90 bg-sky-50/55 px-3 text-center shadow-sm dark:border-sky-300/15 dark:bg-sky-300/[0.055]">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("participants")}</span>
-                  <span className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-900 dark:text-white">{t("unlimited")}</span>
-                </div>
+                <RoomSizeControl
+                  label={t("participants")}
+                  peopleLabel={t("people")}
+                  unlimitedLabel={t("unlimited")}
+                  value={maxParticipants}
+                  unlimited={unlimitedParticipants}
+                  onValueChange={setMaxParticipants}
+                  onUnlimitedChange={setUnlimitedParticipants}
+                />
               </div>
 
               {catalogStatus === "error" && <GroupFocusError message={t("lecturesLoadError")} onRetry={onRetryLectures} retryLabel={t("retry")} />}

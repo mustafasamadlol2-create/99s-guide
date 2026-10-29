@@ -4,7 +4,7 @@ This Worker/Durable Object is the realtime runtime for Group Focus. PostgreSQL o
 
 ## Required configuration
 
-Generate the two independent 32-byte signing keyrings locally:
+Generate the signing keyrings locally:
 
 ```bash
 node scripts/generate-group-focus-runtime-secrets.mjs
@@ -20,20 +20,33 @@ Set:
 GROUP_FOCUS_ENABLED=true
 GROUP_FOCUS_CAPABILITY_KEYS_JSON=<generated capability keyring>
 GROUP_FOCUS_CAPABILITY_ACTIVE_KID=gf-cap-v1
+```
+
+The capability keyring is required. A dedicated reconciliation keyring is
+recommended for key separation, but it is optional. If the two reconciliation
+variables are omitted, the runtime uses the capability keyring for machine
+requests with a separate `gf-reconcile-v1` signing domain.
+
+Optional dedicated keys:
+
+```text
 GROUP_FOCUS_RECONCILIATION_KEYS_JSON=<generated reconciliation keyring>
 GROUP_FOCUS_RECONCILIATION_ACTIVE_KID=gf-rec-v1
 ```
 
-The capability keyring and reconciliation keyring are different secrets.
-
 ### Cloudflare Group Focus Worker
 
-Set the same capability keyring and reconciliation keyring as Worker secrets/variables, plus the canonical API origin:
+Set the same capability keyring as a Worker secret/variable. If Render uses a
+dedicated reconciliation keyring, set that same reconciliation keyring here as
+well:
 
 ```text
 GROUP_FOCUS_CAPABILITY_KEYS_JSON=<same capability keyring as Render>
+GROUP_FOCUS_CAPABILITY_ACTIVE_KID=gf-cap-v1
+# Optional when Render also omits these:
 GROUP_FOCUS_RECONCILIATION_KEYS_JSON=<same reconciliation keyring as Render>
 GROUP_FOCUS_RECONCILIATION_ACTIVE_KID=gf-rec-v1
+# Optional for this production app; defaults to https://nine9s-guide.onrender.com
 GROUP_FOCUS_API_BASE_URL=https://<your-render-api-origin>
 ```
 

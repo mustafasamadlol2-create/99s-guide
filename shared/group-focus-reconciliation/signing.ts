@@ -5,6 +5,11 @@ import {
   GROUP_FOCUS_CAPABILITY_MIN_KEY_BYTES,
   isPlainRecord,
 } from "../group-focus-capability/contract.js";
+import {
+  isValidGroupFocusCapabilityKid,
+  parseGroupFocusCapabilityKeyring,
+  type GroupFocusCapabilityEnvironment,
+} from "../group-focus-capability/keyring.js";
 
 export const GROUP_FOCUS_RECONCILIATION_KEYRING_ENV = "GROUP_FOCUS_RECONCILIATION_KEYS_JSON";
 export const GROUP_FOCUS_RECONCILIATION_ACTIVE_KID_ENV =
@@ -18,7 +23,7 @@ export const GROUP_FOCUS_RECONCILIATION_CLOCK_SKEW_SECONDS = 60;
 const KID_PATTERN = /^[A-Za-z0-9._-]{1,32}$/u;
 const SIGNATURE_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
-export type GroupFocusReconciliationEnvironment = {
+export type GroupFocusReconciliationEnvironment = GroupFocusCapabilityEnvironment & {
   GROUP_FOCUS_RECONCILIATION_KEYS_JSON?: string;
   GROUP_FOCUS_RECONCILIATION_ACTIVE_KID?: string;
 };
@@ -72,16 +77,67 @@ export function parseGroupFocusReconciliationKeyring(
   return keys;
 }
 
+/**
+ * Resolve the machine-auth keyring used by the Group Focus Worker and API.
+ *
+ * Dedicated reconciliation keys remain preferred whenever they are configured.
+ * For production installations that already share the short-lived capability
+ * keyring but have not provisioned a second keyring yet, we intentionally fall
+ * back to that keyring. The signed reconciliation payload uses its own
+ * `gf-reconcile-v1` domain separator, so capability JWTs and machine requests
+ * cannot be confused even when they share key material.
+ *
+ * This fallback removes an unnecessary "feature looks enabled but realtime can
+ * never connect" deployment trap while preserving the ability to rotate to a
+ * dedicated reconciliation keyring later without a database migration.
+ */
+export function resolveGroupFocusReconciliationKeyring(
+  environment: GroupFocusReconciliationEnvironment,
+): ReadonlyMap<string, Uint8Array> {
+  const dedicatedKeyring = environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON?.trim();
+  if (dedicatedKeyring) {
+    return parseGroupFocusReconciliationKeyring(
+      dedicatedKeyring,
+    );
+  }
+  try {
+    return parseGroupFocusCapabilityKeyring(
+      environment.GROUP_FOCUS_CAPABILITY_KEYS_JSON,
+    );
+  } catch {
+    throw new GroupFocusReconciliationConfigurationError();
+  }
+}
+
+export function resolveGroupFocusReconciliationActiveKid(
+  environment: GroupFocusReconciliationEnvironment,
+  keyring: ReadonlyMap<string, Uint8Array> = resolveGroupFocusReconciliationKeyring(environment),
+): string {
+  if (environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON?.trim()) {
+    const kid = environment.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
+    if (!kid || !KID_PATTERN.test(kid) || !keyring.has(kid)) {
+      throw new GroupFocusReconciliationConfigurationError();
+    }
+    return kid;
+  }
+
+  const capabilityKid = environment.GROUP_FOCUS_CAPABILITY_ACTIVE_KID;
+  if (
+    isValidGroupFocusCapabilityKid(capabilityKid)
+    && keyring.has(capabilityKid)
+  ) return capabilityKid;
+
+  const firstKid = [...keyring.keys()].sort()[0];
+  if (!firstKid) throw new GroupFocusReconciliationConfigurationError();
+  return firstKid;
+}
+
 function activeKey(
   environment: GroupFocusReconciliationEnvironment,
 ): { kid: string; bytes: Uint8Array } {
-  const kid = environment.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
-  if (!kid || !KID_PATTERN.test(kid)) {
-    throw new GroupFocusReconciliationConfigurationError();
-  }
-  const bytes = parseGroupFocusReconciliationKeyring(
-    environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON,
-  ).get(kid);
+  const keyring = resolveGroupFocusReconciliationKeyring(environment);
+  const kid = resolveGroupFocusReconciliationActiveKid(environment, keyring);
+  const bytes = keyring.get(kid);
   if (!bytes) throw new GroupFocusReconciliationConfigurationError();
   return { kid, bytes };
 }
@@ -158,9 +214,7 @@ export async function verifyGroupFocusMachineRequest(
 ): Promise<{ ok: true; kid: string } | { ok: false; code: string }> {
   let keyring: ReadonlyMap<string, Uint8Array>;
   try {
-    keyring = parseGroupFocusReconciliationKeyring(
-      environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON,
-    );
+    keyring = resolveGroupFocusReconciliationKeyring(environment);
   } catch {
     return { ok: false, code: "RECONCILIATION_NOT_CONFIGURED" };
   }

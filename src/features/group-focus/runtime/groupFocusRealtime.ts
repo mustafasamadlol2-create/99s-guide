@@ -58,6 +58,7 @@ export type GroupFocusRealtimeRuntimeOptions = {
   roomId: string;
   workerUrl: string;
   accountId?: string;
+  readinessFetcher?: typeof fetch;
   capabilityFetcher?: (roomId: string) => Promise<GroupFocusCapabilityResponse>;
   webSocketFactory?: (
     url: string,
@@ -108,6 +109,36 @@ function resolveWebSocketUrl(workerUrl: string, roomId: string): string {
   return url.toString();
 }
 
+function resolveWorkerReadinessUrl(workerUrl: string): string {
+  const url = new URL(workerUrl);
+  url.protocol = url.protocol === "wss:" ? "https:"
+    : url.protocol === "ws:" ? "http:"
+      : url.protocol;
+  url.pathname = "/ready";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function deriveDedicatedGroupFocusWorkerOrigin(workerUrl: string): string | null {
+  try {
+    const url = new URL(workerUrl);
+    const labels = url.hostname.split(".");
+    if (
+      labels.length < 4
+      || labels.slice(-2).join(".") !== "workers.dev"
+      || labels[0] === "99sguide-group-focus"
+    ) return null;
+    url.hostname = ["99sguide-group-focus", ...labels.slice(1)].join(".");
+    url.pathname = "/";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function defaultWebSocketFactory(
   url: string,
   protocols: string[],
@@ -154,12 +185,15 @@ function phaseHasDeadline(phase: GroupFocusRealtimePhase): boolean {
 
 export class GroupFocusRealtimeRuntime {
   private readonly capabilityFetcher: (roomId: string) => Promise<GroupFocusCapabilityResponse>;
+  private readonly readinessFetcher: typeof fetch | null;
   private readonly webSocketFactory: (
     url: string,
     protocols: string[],
   ) => GroupFocusRealtimeSocket;
   private readonly monotonicNow: () => number;
-  private readonly webSocketUrl: string;
+  private webSocketUrl: string;
+  private workerReadinessUrl: string;
+  private readonly workerOrigins: string[];
   private listeners = new Set<(snapshot: GroupFocusRealtimeSnapshot) => void>();
   private socket: GroupFocusRealtimeSocket | null = null;
   private snapshot: GroupFocusRealtimeSnapshot;
@@ -189,9 +223,14 @@ export class GroupFocusRealtimeRuntime {
 
   constructor(private readonly options: GroupFocusRealtimeRuntimeOptions) {
     this.capabilityFetcher = options.capabilityFetcher ?? requestGroupFocusCapability;
+    this.readinessFetcher = options.readinessFetcher ?? null;
     this.webSocketFactory = options.webSocketFactory ?? defaultWebSocketFactory;
     this.monotonicNow = options.monotonicNow ?? defaultMonotonicNow;
+    const derivedWorkerOrigin = deriveDedicatedGroupFocusWorkerOrigin(options.workerUrl);
+    this.workerOrigins = [options.workerUrl, derivedWorkerOrigin]
+      .filter((value): value is string => Boolean(value));
     this.webSocketUrl = resolveWebSocketUrl(options.workerUrl, options.roomId);
+    this.workerReadinessUrl = resolveWorkerReadinessUrl(options.workerUrl);
     this.snapshot = {
       status: "IDLE",
       roomId: options.roomId,
@@ -281,7 +320,70 @@ export class GroupFocusRealtimeRuntime {
     }
   }
 
-  private async connectWithFreshCapability(reconnecting: boolean): Promise<void> {
+  private async assertWorkerReady(): Promise<void> {
+    if (!this.readinessFetcher) return;
+    let sawRuntimeNotReady = false;
+    let sawReachableWrongEndpoint = false;
+    for (const origin of this.workerOrigins) {
+      const readinessUrl = resolveWorkerReadinessUrl(origin);
+      let response: Response;
+      try {
+        response = await this.readinessFetcher(readinessUrl, {
+          method: "GET",
+          cache: "no-store",
+          credentials: "omit",
+          signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+            ? AbortSignal.timeout(5_000)
+            : undefined,
+        });
+      } catch {
+        continue;
+      }
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      const runtimeReady = typeof payload === "object"
+        && payload !== null
+        && !Array.isArray(payload)
+        && typeof (payload as { runtimeReady?: unknown }).runtimeReady === "boolean"
+        ? (payload as { runtimeReady: boolean }).runtimeReady
+        : null;
+      if (runtimeReady === true && response.ok) {
+        this.workerReadinessUrl = readinessUrl;
+        this.webSocketUrl = resolveWebSocketUrl(origin, this.options.roomId);
+        return;
+      }
+      if (runtimeReady === false || response.status === 503) {
+        sawRuntimeNotReady = true;
+      } else {
+        sawReachableWrongEndpoint = true;
+      }
+    }
+    if (sawRuntimeNotReady) {
+      throw new GroupFocusRealtimeRuntimeError(
+        "WORKER_RUNTIME_NOT_READY",
+        "The Group Focus realtime Worker is running but its runtime configuration is not ready.",
+      );
+    }
+    if (sawReachableWrongEndpoint) {
+      throw new GroupFocusRealtimeRuntimeError(
+        "WORKER_ENDPOINT_INVALID",
+        "The configured Group Focus Worker URL does not expose the expected realtime service.",
+      );
+    }
+    throw new GroupFocusRealtimeRuntimeError(
+      "WORKER_UNREACHABLE",
+      "The Group Focus realtime Worker could not be reached.",
+    );
+  }
+
+  private async connectWithFreshCapability(
+    reconnecting: boolean,
+    allowResumeRecovery = true,
+  ): Promise<void> {
     if (this.snapshot.status === "TERMINAL" || this.disposed) return;
     if (this.socket) {
       const previous = this.socket;
@@ -311,6 +413,23 @@ export class GroupFocusRealtimeRuntime {
       estimatedServerNow: null,
       error: null,
     });
+
+    try {
+      await this.assertWorkerReady();
+    } catch (error) {
+      if (generation !== this.generation) return;
+      const failure = error instanceof GroupFocusRealtimeRuntimeError
+        ? error
+        : new GroupFocusRealtimeRuntimeError(
+          "WORKER_UNREACHABLE",
+          "The Group Focus realtime Worker could not be reached.",
+        );
+      this.update({
+        status: reconnecting ? "RECONNECTING" : "ERROR",
+        error: { code: failure.code, message: failure.message },
+      });
+      throw failure;
+    }
 
     let capability: GroupFocusCapabilityResponse;
     try {
@@ -346,6 +465,7 @@ export class GroupFocusRealtimeRuntime {
       this.currentAccountId = null;
     }
     let resumeToken = this.resumeToken;
+    const usedResumeToken = Boolean(resumeToken);
     let socket: GroupFocusRealtimeSocket;
     try {
       const protocols = [
@@ -375,7 +495,8 @@ export class GroupFocusRealtimeRuntime {
     }
 
     this.socket = socket;
-    await new Promise<void>((resolve, reject) => {
+    try {
+      await new Promise<void>((resolve, reject) => {
       let settled = false;
       let transportError: GroupFocusRealtimeError | null = null;
       const fail = (failure: GroupFocusRealtimeRuntimeError) => {
@@ -472,8 +593,24 @@ export class GroupFocusRealtimeRuntime {
           this.update({ status: "DISCONNECTED", error: transportError });
         }
       };
-      this.pendingConnectionReject = fail;
-    });
+        this.pendingConnectionReject = fail;
+      });
+    } catch (error) {
+      // A deployment/restart can invalidate the Durable Object's stored resume
+      // credential while the browser still has a perfectly valid old token in
+      // sessionStorage. Recover immediately with a fresh capability instead of
+      // leaving the user in a long reconnect loop waiting for the token TTL.
+      if (
+        usedResumeToken
+        && allowResumeRecovery
+        && !this.disposed
+        && this.snapshot.status !== "TERMINAL"
+      ) {
+        this.clearStoredResumeToken();
+        return this.connectWithFreshCapability(reconnecting, false);
+      }
+      throw error;
+    }
   }
 
   requestRoomState(): void {

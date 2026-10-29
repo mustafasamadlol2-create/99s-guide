@@ -3,7 +3,8 @@ import {
   type GroupFocusCapabilityEnvironment,
 } from "../../../shared/group-focus-capability/keyring.js";
 import {
-  parseGroupFocusReconciliationKeyring,
+  resolveGroupFocusReconciliationActiveKid,
+  resolveGroupFocusReconciliationKeyring,
   type GroupFocusReconciliationEnvironment,
 } from "../../../shared/group-focus-reconciliation/signing.js";
 
@@ -19,7 +20,8 @@ export type GroupFocusRuntimeReadiness = Readonly<{
 /**
  * Group Focus must not be exposed merely because its feature flag is on.
  * A usable runtime requires both capability signing (browser -> Worker) and
- * reconciliation signing (Worker <-> canonical backend) to be configured.
+ * reconciliation signing (Worker <-> canonical backend). Reconciliation may
+ * use its own keyring or safely fall back to the shared capability keyring.
  * This helper never returns secret material and is safe to use for readiness
  * gating / client-visible availability hints.
  */
@@ -37,11 +39,9 @@ export function getGroupFocusRuntimeReadiness(
   }
 
   try {
-    const keyring = parseGroupFocusReconciliationKeyring(
-      environment.GROUP_FOCUS_RECONCILIATION_KEYS_JSON,
-    );
-    const activeKid = environment.GROUP_FOCUS_RECONCILIATION_ACTIVE_KID;
-    reconciliationReady = typeof activeKid === "string" && keyring.has(activeKid);
+    const keyring = resolveGroupFocusReconciliationKeyring(environment);
+    const activeKid = resolveGroupFocusReconciliationActiveKid(environment, keyring);
+    reconciliationReady = keyring.has(activeKid);
   } catch {
     reconciliationReady = false;
   }

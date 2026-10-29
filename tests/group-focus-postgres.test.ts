@@ -1172,7 +1172,7 @@ test("real PostgreSQL canonical rooms, membership, invitations and HTTP authoriz
   });
 });
 
-test("real PostgreSQL Room admission is not capped by the legacy maxParticipants field", {
+test("real PostgreSQL Room admission supports explicit unlimited capacity", {
   skip: skipped,
 }, async () => {
   await withFixture(21, async (fixture) => {
@@ -1184,8 +1184,7 @@ test("real PostgreSQL Room admission is not capped by the legacy maxParticipants
       hostId!,
       createGroupFocusRoomSchema.parse(sharedInput(lectureId!, `prompt13-unlimited-${randomUUID()}`, {
         name: "Unlimited room test",
-        // Kept deliberately small to prove this legacy field is no longer an admission cap.
-        maxParticipants: 5,
+        maxParticipants: 0,
       })),
     );
     assert.equal(created.membership.role, "HOST");

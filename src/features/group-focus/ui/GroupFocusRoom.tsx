@@ -236,6 +236,12 @@ export function GroupFocusRoom({
     ? `${t("round")} ${currentRound} ${t("of")} ${roundCount}`
     : `${roundCount} ${t("rounds")}`;
   const roomMode = room.mode === "SHARED_LECTURE" ? t("sharedLectureMode") : t("studyTogether");
+  const roomCapacityLabel = room.maxParticipants === 0
+    ? t("unlimited")
+    : String(room.maxParticipants);
+  const activeMembersLabel = room.maxParticipants === 0
+    ? String(room.participantCount)
+    : `${room.participantCount} / ${room.maxParticipants}`;
   const shouldShowActions = !terminal && room.status === "OPEN";
   const confirmedLobby = authoritativePhase === "LOBBY";
   const canChooseLecture = room.mode === "STUDY_TOGETHER"
@@ -338,7 +344,7 @@ export function GroupFocusRoom({
                 <PlanMetric label={t("focusLength")} value={`${room.focusDurationSeconds / 60}`} suffix={t("minutesShort")} />
                 <PlanMetric label={t("breakLength")} value={`${room.breakDurationSeconds / 60}`} suffix={t("minutesShort")} />
                 <PlanMetric label={t("rounds")} value={`${room.roundCount}`} />
-                <PlanMetric label={t("peopleHere")} value={`${room.participantCount}`} />
+                <PlanMetric label={t("participants")} value={roomCapacityLabel} />
               </div>
               <div className="mt-4 space-y-2">
                 {visibleStudyPlan.map((item, index) => {
@@ -402,7 +408,7 @@ export function GroupFocusRoom({
               <div className="mt-5 border-t border-[#e2e8f0] pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#64748b]">{t("peopleHere")}</span>
-                  <span className="font-semibold tabular-nums text-[#334155]" dir="ltr">{room.participantCount}</span>
+                  <span className="font-semibold tabular-nums text-[#334155]" dir="ltr">{activeMembersLabel}</span>
                 </div>
                 {membership && (
                   <p className="mt-3 text-xs text-[#7c8a83]">
