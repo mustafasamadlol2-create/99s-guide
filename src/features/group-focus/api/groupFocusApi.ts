@@ -25,6 +25,7 @@ export type GroupFocusCapabilityResponse = {
   capabilityToken: string;
   expiresAt: string;
   expiresInSeconds: number;
+  workerUrl?: string;
 };
 
 export type GroupFocusRoomDto = {
@@ -154,11 +155,11 @@ function requireIsoDate(value: unknown, label: string): string {
 
 function parseCapabilityResponse(value: unknown): GroupFocusCapabilityResponse {
   const result = requireRecord(value, "capability");
-  const expectedKeys = ["capabilityToken", "expiresAt", "expiresInSeconds"];
-  const actualKeys = Object.keys(result).sort();
+  const allowedKeys = new Set(["capabilityToken", "expiresAt", "expiresInSeconds", "workerUrl"]);
+  const actualKeys = Object.keys(result);
   if (
-    actualKeys.length !== expectedKeys.length
-    || !actualKeys.every((key, index) => key === [...expectedKeys].sort()[index])
+    actualKeys.some((key) => !allowedKeys.has(key))
+    || !["capabilityToken", "expiresAt", "expiresInSeconds"].every((key) => actualKeys.includes(key))
   ) {
     throw new Error("Invalid Group Focus capability response.");
   }
@@ -175,7 +176,28 @@ function parseCapabilityResponse(value: unknown): GroupFocusCapabilityResponse {
   ) {
     throw new Error("Invalid Group Focus capability response.");
   }
-  return { capabilityToken, expiresAt, expiresInSeconds };
+  const workerUrl = result.workerUrl === undefined
+    ? undefined
+    : requireString(result.workerUrl, "Worker URL");
+  if (workerUrl !== undefined) {
+    let parsed: URL;
+    try {
+      parsed = new URL(workerUrl);
+    } catch {
+      throw new Error("Invalid Group Focus capability response.");
+    }
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+      || parsed.username.length > 0
+      || parsed.password.length > 0
+      || parsed.search.length > 0
+      || parsed.hash.length > 0
+      || (parsed.pathname !== "/" && parsed.pathname !== "")
+    ) throw new Error("Invalid Group Focus capability response.");
+  }
+  return workerUrl === undefined
+    ? { capabilityToken, expiresAt, expiresInSeconds }
+    : { capabilityToken, expiresAt, expiresInSeconds, workerUrl };
 }
 
 function requireOneOf<T extends string>(

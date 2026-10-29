@@ -15,6 +15,7 @@ import {
 } from "../../../../shared/group-focus-realtime/protocol.js";
 import { decodeBase64Url } from "../../../../shared/group-focus-capability/encoding.js";
 import { isGroupFocusPrincipalId } from "../../../../shared/group-focus-capability/contract.js";
+import { groupFocusWorkerOriginCandidates } from "../../../../shared/group-focus-realtime/workerOrigin.js";
 
 export type GroupFocusRealtimeStatus =
   | "IDLE"
@@ -120,24 +121,6 @@ function resolveWorkerReadinessUrl(workerUrl: string): string {
   return url.toString();
 }
 
-function deriveDedicatedGroupFocusWorkerOrigin(workerUrl: string): string | null {
-  try {
-    const url = new URL(workerUrl);
-    const labels = url.hostname.split(".");
-    if (
-      labels.length < 4
-      || labels.slice(-2).join(".") !== "workers.dev"
-      || labels[0] === "99sguide-group-focus"
-    ) return null;
-    url.hostname = ["99sguide-group-focus", ...labels.slice(1)].join(".");
-    url.pathname = "/";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
 
 function defaultWebSocketFactory(
   url: string,
@@ -193,7 +176,7 @@ export class GroupFocusRealtimeRuntime {
   private readonly monotonicNow: () => number;
   private webSocketUrl: string;
   private workerReadinessUrl: string;
-  private readonly workerOrigins: string[];
+  private workerOrigins: string[];
   private listeners = new Set<(snapshot: GroupFocusRealtimeSnapshot) => void>();
   private socket: GroupFocusRealtimeSocket | null = null;
   private snapshot: GroupFocusRealtimeSnapshot;
@@ -226,11 +209,13 @@ export class GroupFocusRealtimeRuntime {
     this.readinessFetcher = options.readinessFetcher ?? null;
     this.webSocketFactory = options.webSocketFactory ?? defaultWebSocketFactory;
     this.monotonicNow = options.monotonicNow ?? defaultMonotonicNow;
-    const derivedWorkerOrigin = deriveDedicatedGroupFocusWorkerOrigin(options.workerUrl);
-    this.workerOrigins = [options.workerUrl, derivedWorkerOrigin]
-      .filter((value): value is string => Boolean(value));
-    this.webSocketUrl = resolveWebSocketUrl(options.workerUrl, options.roomId);
-    this.workerReadinessUrl = resolveWorkerReadinessUrl(options.workerUrl);
+    this.workerOrigins = groupFocusWorkerOriginCandidates({
+      configured: options.workerUrl,
+      currentAppOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+    });
+    const initialWorkerOrigin = this.workerOrigins[0] ?? options.workerUrl;
+    this.webSocketUrl = resolveWebSocketUrl(initialWorkerOrigin, options.roomId);
+    this.workerReadinessUrl = resolveWorkerReadinessUrl(initialWorkerOrigin);
     this.snapshot = {
       status: "IDLE",
       roomId: options.roomId,
@@ -320,8 +305,20 @@ export class GroupFocusRealtimeRuntime {
     }
   }
 
-  private async assertWorkerReady(): Promise<void> {
-    if (!this.readinessFetcher) return;
+  private async assertWorkerReady(preferredWorkerUrl?: string): Promise<void> {
+    this.workerOrigins = groupFocusWorkerOriginCandidates({
+      preferred: preferredWorkerUrl,
+      configured: this.options.workerUrl,
+      currentAppOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+    });
+    if (!this.readinessFetcher) {
+      const origin = this.workerOrigins[0];
+      if (origin) {
+        this.workerReadinessUrl = resolveWorkerReadinessUrl(origin);
+        this.webSocketUrl = resolveWebSocketUrl(origin, this.options.roomId);
+      }
+      return;
+    }
     let sawRuntimeNotReady = false;
     let sawReachableWrongEndpoint = false;
     for (const origin of this.workerOrigins) {
@@ -414,23 +411,6 @@ export class GroupFocusRealtimeRuntime {
       error: null,
     });
 
-    try {
-      await this.assertWorkerReady();
-    } catch (error) {
-      if (generation !== this.generation) return;
-      const failure = error instanceof GroupFocusRealtimeRuntimeError
-        ? error
-        : new GroupFocusRealtimeRuntimeError(
-          "WORKER_UNREACHABLE",
-          "The Group Focus realtime Worker could not be reached.",
-        );
-      this.update({
-        status: reconnecting ? "RECONNECTING" : "ERROR",
-        error: { code: failure.code, message: failure.message },
-      });
-      throw failure;
-    }
-
     let capability: GroupFocusCapabilityResponse;
     try {
       capability = await this.capabilityFetcher(this.options.roomId);
@@ -447,6 +427,23 @@ export class GroupFocusRealtimeRuntime {
       throw failure;
     }
     if (generation !== this.generation) return;
+
+    try {
+      await this.assertWorkerReady(capability.workerUrl);
+    } catch (error) {
+      if (generation !== this.generation) return;
+      const failure = error instanceof GroupFocusRealtimeRuntimeError
+        ? error
+        : new GroupFocusRealtimeRuntimeError(
+          "WORKER_UNREACHABLE",
+          "The Group Focus realtime Worker could not be reached.",
+        );
+      this.update({
+        status: reconnecting ? "RECONNECTING" : "ERROR",
+        error: { code: failure.code, message: failure.message },
+      });
+      throw failure;
+    }
 
     const accountId = capabilitySubject(capability.capabilityToken)
       ?? this.options.accountId

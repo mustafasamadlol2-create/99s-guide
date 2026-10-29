@@ -44,10 +44,14 @@ test("Phase 5 Group Focus runtime secret generator emits independent valid keyri
 test("Phase 5 deployment guide requires Worker readiness before frontend exposure", async () => {
   const guide = await read("cloudflare-group-focus-worker/README.md");
   const env = await read(".env.example");
+  const packageJson = JSON.parse(await read("package.json"));
   assert.match(guide, /GROUP_FOCUS_API_BASE_URL/u);
   assert.match(guide, /\/ready[\s\S]*runtimeReady/u);
   assert.match(guide, /VITE_GROUP_FOCUS_FRONTEND_ENABLED=true/u);
   assert.match(guide, /VITE_GROUP_FOCUS_WORKER_URL/u);
   assert.match(env, /generate-group-focus-runtime-secrets\.mjs/u);
   assert.match(env, /\/ready returns runtimeReady=true/u);
+  assert.match(packageJson.scripts["deploy:group-focus"], /cloudflare-group-focus-worker\/wrangler\.jsonc/u);
+  assert.match(packageJson.scripts.deploy, /deploy:group-focus/u);
+  assert.match(packageJson.scripts["verify:group-focus-worker"], /verify-group-focus-worker\.mjs/u);
 });

@@ -12,7 +12,7 @@ test("Phase 5 fails closed unless Group Focus server runtime signing is ready", 
   const provider = await read("src/features/study-core/StudyFeatureFlagsProvider.tsx");
   const app = await read("src/App.tsx");
   assert.match(readiness, /getActiveGroupFocusCapabilityKey/u);
-  assert.match(readiness, /parseGroupFocusReconciliationKeyring/u);
+  assert.match(readiness, /resolveGroupFocusReconciliationKeyring/u);
   assert.match(readiness, /ready:\s*capabilityReady && reconciliationReady/u);
   assert.match(publicRoutes, /RUNTIME_NOT_READY/u);
   assert.match(internalRoutes, /RUNTIME_NOT_READY/u);

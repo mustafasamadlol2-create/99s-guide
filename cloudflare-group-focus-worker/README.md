@@ -55,8 +55,12 @@ GROUP_FOCUS_API_BASE_URL=https://<your-render-api-origin>
 Deploy with the repository config:
 
 ```bash
-npx wrangler deploy --config cloudflare-group-focus-worker/wrangler.jsonc
+npm run deploy:group-focus
 ```
+
+The root `npm run deploy` command now deploys this Group Focus Worker first and
+then deploys the main application, so a normal production deploy cannot leave
+the frontend pointing at an older or missing realtime Worker.
 
 Then verify:
 
@@ -74,9 +78,13 @@ After the Worker `/ready` endpoint returns 200, build the frontend with:
 ```text
 VITE_GROUP_FOCUS_FRONTEND_ENABLED=true
 VITE_GROUP_FOCUS_WORKER_URL=https://<worker-origin>
+GROUP_FOCUS_WORKER_URL=https://<worker-origin>
 ```
 
-Use only the Worker origin for `VITE_GROUP_FOCUS_WORKER_URL`; do not append `/rooms/...`.
+Use only the Worker origin for either Worker URL variable; do not append `/rooms/...`.
+The API now returns its canonical Worker origin with every realtime capability,
+so `GROUP_FOCUS_WORKER_URL` on the backend is authoritative and the Vite value
+is only a browser-side fallback.
 
 ## Runtime safety contract
 

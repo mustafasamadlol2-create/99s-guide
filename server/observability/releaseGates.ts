@@ -128,9 +128,7 @@ export function validateFeatureConfiguration(
   }
   if (environment.VITE_GROUP_FOCUS_FRONTEND_ENABLED === "true") {
     const workerUrl = environment.VITE_GROUP_FOCUS_WORKER_URL?.trim();
-    if (!workerUrl) {
-      impossible.push("Group Focus frontend is enabled without its realtime Worker URL");
-    } else {
+    if (workerUrl) {
       try {
         const parsedWorkerUrl = new URL(workerUrl);
         if (

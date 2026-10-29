@@ -485,3 +485,44 @@ test("presence snapshot and events remain revision and sequence aware", async ()
   assert.equal(runtime.getSnapshot().presence[0]?.role, "MEMBER");
   runtime.dispose();
 });
+test("backend capability Worker origin overrides a stale frontend Worker URL", async () => {
+  const readinessRequests: string[] = [];
+  let createdUrl = "";
+  let socket: FakeSocket | null = null;
+  const runtime = createGroupFocusRealtimeRuntime({
+    roomId,
+    workerUrl: "https://stale.example",
+    readinessFetcher: (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      readinessRequests.push(url);
+      if (url === "https://canonical.example/ready") {
+        return new Response(JSON.stringify({ status: "ready", runtimeReady: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error("stale origin must not be required");
+    }) as typeof fetch,
+    capabilityFetcher: async () => ({
+      capabilityToken: "header.payload.signature",
+      expiresAt: "2026-09-25T11:01:30.000Z",
+      expiresInSeconds: 90,
+      workerUrl: "https://canonical.example",
+    }),
+    webSocketFactory: (url, protocols) => {
+      createdUrl = url;
+      socket = new FakeSocket(protocols);
+      return socket;
+    },
+  });
+
+  const connecting = runtime.connect();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(socket);
+  socket.open();
+  await connecting;
+
+  assert.equal(readinessRequests[0], "https://canonical.example/ready");
+  assert.equal(createdUrl, `wss://canonical.example/rooms/${roomId}/connect`);
+  runtime.dispose();
+});

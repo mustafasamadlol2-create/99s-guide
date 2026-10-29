@@ -1,3 +1,5 @@
+import { GROUP_FOCUS_DEFAULT_WORKER_ORIGIN } from "../../shared/group-focus-realtime/workerOrigin.js";
+
 const buildFlags = (
   import.meta as ImportMeta & {
     env?: Record<string, string | boolean | undefined>;
@@ -49,5 +51,6 @@ export const SYSTEM_HEALTH_FRONTEND_ENABLED =
 
 export const GROUP_FOCUS_WORKER_URL =
   typeof buildFlags.VITE_GROUP_FOCUS_WORKER_URL === "string"
+  && buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim().length > 0
     ? buildFlags.VITE_GROUP_FOCUS_WORKER_URL.trim()
-    : "";
+    : GROUP_FOCUS_DEFAULT_WORKER_ORIGIN;

@@ -14,6 +14,7 @@ import {
 } from "../server/observability/releaseGates.js";
 import { loadStudyReleaseProfile } from "../server/observability/releaseProfile.js";
 import type { ReleaseGateResult } from "../server/observability/types.js";
+import { GROUP_FOCUS_DEFAULT_WORKER_ORIGIN } from "../shared/group-focus-realtime/workerOrigin.js";
 
 type Options = {
   json: boolean;
@@ -184,7 +185,8 @@ function featureDependencyGates(
 ): ReleaseGateResult[] {
   const gates: ReleaseGateResult[] = [];
   const groupWorkerUrl = environment.GROUP_FOCUS_WORKER_URL
-    || environment.VITE_GROUP_FOCUS_WORKER_URL;
+    || environment.VITE_GROUP_FOCUS_WORKER_URL
+    || GROUP_FOCUS_DEFAULT_WORKER_ORIGIN;
   gates.push(flags.GROUP_FOCUS_ENABLED
     ? groupWorkerUrl
       ? releaseGate("group_runtime_config", "WARN", "GROUP_RUNTIME_NOT_PROBED", "Group Focus is enabled; worker configuration exists but runtime reachability was not probed.")

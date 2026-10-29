@@ -524,6 +524,7 @@ test("authenticated capability endpoint uses canonical context and non-cacheable
     isEnabled: () => true,
     capabilityEnvironment: () => issuerEnvironment(),
     capabilityNow: () => fixedNow,
+    workerOrigin: () => "https://focus.example",
   }));
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
@@ -545,8 +546,10 @@ test("authenticated capability endpoint uses canonical context and non-cacheable
       "capabilityToken",
       "expiresAt",
       "expiresInSeconds",
+      "workerUrl",
     ].sort());
     assert.equal(body.expiresInSeconds, 90);
+    assert.equal(body.workerUrl, "https://focus.example");
     assert.deepEqual(calls, [{ userId: ids.userId, roomId: ids.roomId }]);
     const verified = await verifyGroupFocusCapability(
       body.capabilityToken as string,

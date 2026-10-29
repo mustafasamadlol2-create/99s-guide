@@ -20,6 +20,7 @@ import {
 import { issueGroupFocusCapability } from "../features/group-focus/capability.js";
 import type { GroupFocusCapabilityEnvironment } from "../../shared/group-focus-capability/keyring.js";
 import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
+import { resolveGroupFocusWorkerOrigin } from "../../shared/group-focus-realtime/workerOrigin.js";
 
 export interface GroupFocusRouteDependencies {
   requireUser: RequestHandler;
@@ -29,6 +30,7 @@ export interface GroupFocusRouteDependencies {
   capabilityEnvironment?: () => GroupFocusCapabilityEnvironment;
   capabilityNow?: () => Date;
   isRuntimeReady?: () => boolean;
+  workerOrigin?: () => string;
 }
 
 type AuthenticatedRequest = express.Request & { user: { id: string } };
@@ -152,11 +154,15 @@ export function createGroupFocusRouter(
       ) {
         throw new GroupFocusError("ROOM_NOT_FOUND", "Group Focus Room was not found.");
       }
-      return res.json(issueGroupFocusCapability(
-        context,
-        dependencies.capabilityEnvironment?.() ?? process.env,
-        dependencies.capabilityNow?.() ?? new Date(),
-      ));
+      const capabilityEnvironment = dependencies.capabilityEnvironment?.() ?? process.env;
+      return res.json({
+        ...issueGroupFocusCapability(
+          context,
+          capabilityEnvironment,
+          dependencies.capabilityNow?.() ?? new Date(),
+        ),
+        workerUrl: dependencies.workerOrigin?.() ?? resolveGroupFocusWorkerOrigin(process.env),
+      });
     } catch (error) {
       return sendError(res, error);
     }
