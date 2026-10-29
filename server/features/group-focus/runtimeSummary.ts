@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
-import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
+  GROUP_FOCUS_RUNTIME_MAX_PARTICIPANTS,
   GROUP_FOCUS_SUMMARY_TERMINAL_REASONS,
   GROUP_FOCUS_SUMMARY_VERSION,
   type GroupFocusMyRuntimeSummary,
@@ -12,6 +12,7 @@ import {
   type GroupFocusRuntimeSummaryAck,
 } from "../../../shared/group-focus-reconciliation/contract.js";
 import { getPrisma } from "../../services/prismaClient.js";
+import { isGroupFocusPrincipalId } from "../../../shared/group-focus-capability/contract.js";
 import { MASTERY_MEANINGFUL_FOCUS_SECONDS } from "../mastery/constants.js";
 import { ingestStudyEvent } from "../study-events/service.js";
 import { StudyEventError } from "../study-events/errors.js";
@@ -29,7 +30,7 @@ const isoTimestamp = z.string().refine((value) => {
 });
 
 const participantSchema = z.object({
-  userId: z.string().min(1).max(160).refine(isGroupFocusPrincipalId),
+  userId: z.string().refine(isGroupFocusPrincipalId),
   membershipId: UUID,
   role: z.enum(["HOST", "MEMBER"]),
   effectiveLectureId: UUID,
@@ -57,7 +58,7 @@ const runtimeSummarySchema = z.object({
   terminalReason: z.enum(GROUP_FOCUS_SUMMARY_TERMINAL_REASONS),
   completedRounds: z.number().int().min(0).max(20),
   finalRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  participants: z.array(participantSchema),
+  participants: z.array(participantSchema).max(GROUP_FOCUS_RUNTIME_MAX_PARTICIPANTS),
 }).strict().superRefine((summary, context) => {
   if (Date.parse(summary.runtimeEndedAt) < Date.parse(summary.runtimeStartedAt)) {
     context.addIssue({

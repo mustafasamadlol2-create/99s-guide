@@ -324,7 +324,7 @@ test("real PostgreSQL issuance follows canonical authorization and has no study/
         expiresAt: string;
         expiresInSeconds: number;
       };
-      assert.equal(hostBody.expiresInSeconds, 90);
+      assert.equal(hostBody.expiresInSeconds, 12 * 60 * 60);
       assert.ok(hostBody.capabilityToken.length < 4 * 1024);
       const hostClaims = await verifyGroupFocusCapability(
         hostBody.capabilityToken,

@@ -184,7 +184,7 @@ test("keyring parsing is bounded, strict, and requires an explicit active key", 
 test("Node issuer creates a compact token verified by the Worker Web Crypto module", async () => {
   const environment = issuerEnvironment();
   const issued = issueGroupFocusCapability(authorizationContext(), environment, fixedNow);
-  assert.equal(issued.expiresInSeconds, 90);
+  assert.equal(issued.expiresInSeconds, 12 * 60 * 60);
   assert.ok(issued.capabilityToken.length < 4 * 1024);
   assert.equal(issued.expiresAt, "2026-09-25T12:01:30.000Z");
 
@@ -393,7 +393,7 @@ test("time, TTL, enum, identifier, numeric, and timestamp claims are bounded", a
     validClaims({ iat: iat + 11, nbf: iat + 11, exp: iat + 101 }),
     validClaims({ iat: iat + 11, nbf: iat + 11, exp: iat + 12 }),
     validClaims({ nbf: iat - 1 }),
-    validClaims({ exp: iat + 121 }),
+    validClaims({ exp: iat + 12 * 60 * 60 + 61 }),
     validClaims({ role: "ADMIN" }),
     validClaims({ mode: "UNKNOWN" }),
     validClaims({ visibility: "UNLISTED" }),
@@ -548,7 +548,7 @@ test("authenticated capability endpoint uses canonical context and non-cacheable
       "expiresInSeconds",
       "workerUrl",
     ].sort());
-    assert.equal(body.expiresInSeconds, 90);
+    assert.equal(body.expiresInSeconds, 12 * 60 * 60);
     assert.equal(body.workerUrl, "https://focus.example");
     assert.deepEqual(calls, [{ userId: ids.userId, roomId: ids.roomId }]);
     const verified = await verifyGroupFocusCapability(
@@ -719,7 +719,7 @@ test("client requests a capability without claim overrides or browser storage", 
 
   for (const invalidPayload of [
     { ...token, expiresAt: "2026" },
-    { ...token, expiresInSeconds: 121 },
+    { ...token, expiresInSeconds: 12 * 60 * 60 + 61 },
     { ...token, capabilityToken: "x".repeat(8 * 1024 + 1) },
   ]) {
     const invalidFetch = (async () => new Response(JSON.stringify(invalidPayload), {

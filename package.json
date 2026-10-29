@@ -52,11 +52,11 @@
     "cap:add:android": "npx cap add android",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
-    "deploy": "npm run build && npm run deploy:group-focus && wrangler deploy",
+    "deploy": "npm run build && wrangler deploy && npm run verify:group-focus-worker",
     "migrate:deploy": "prisma migrate deploy",
     "start:server": "node dist/server.cjs",
     "prebuild": "prisma generate",
-    "deploy:group-focus": "wrangler deploy --config cloudflare-group-focus-worker/wrangler.jsonc && npm run verify:group-focus-worker",
+    "deploy:group-focus": "npm run build && wrangler deploy && npm run verify:group-focus-worker",
     "verify:group-focus-worker": "node scripts/verify-group-focus-worker.mjs"
   },
   "dependencies": {

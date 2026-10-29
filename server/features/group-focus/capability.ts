@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { GroupFocusAuthorizationContext } from "./types.js";
 import { GroupFocusError } from "./errors.js";
 import {
@@ -8,10 +8,12 @@ import {
   GROUP_FOCUS_CAPABILITY_PURPOSE,
   GROUP_FOCUS_CAPABILITY_VERSION,
   parseGroupFocusCapabilityClaims,
+  type VerifiedGroupFocusCapability,
 } from "../../../shared/group-focus-capability/contract.js";
-import { encodeBase64Url } from "../../../shared/group-focus-capability/encoding.js";
+import { decodeBase64Url, encodeBase64Url } from "../../../shared/group-focus-capability/encoding.js";
 import {
   getActiveGroupFocusCapabilityKey,
+  parseGroupFocusCapabilityKeyring,
   GroupFocusCapabilityConfigurationError,
   type GroupFocusCapabilityEnvironment,
 } from "../../../shared/group-focus-capability/keyring.js";
@@ -97,5 +99,78 @@ export function issueGroupFocusCapability(
     capabilityToken: `${signingInput}.${signature}`,
     expiresAt: new Date(exp * 1000).toISOString(),
     expiresInSeconds: GROUP_FOCUS_CAPABILITY_DEFAULT_TTL_SECONDS,
+  };
+}
+
+export function verifyIssuedGroupFocusCapability(
+  token: string,
+  environment: GroupFocusCapabilityEnvironment = process.env,
+  now: Date = new Date(),
+): VerifiedGroupFocusCapability {
+  if (typeof token !== "string" || token.length === 0 || token.length > 8 * 1024) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  const segments = token.split(".");
+  if (segments.length !== 3) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  const [headerSegment, payloadSegment, signatureSegment] = segments;
+  const headerBytes = decodeBase64Url(headerSegment);
+  const payloadBytes = decodeBase64Url(payloadSegment);
+  const signature = decodeBase64Url(signatureSegment);
+  if (!headerBytes || !payloadBytes || !signature || signature.byteLength !== 32) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  let header: unknown;
+  let payload: unknown;
+  try {
+    header = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(headerBytes)) as unknown;
+    payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes)) as unknown;
+  } catch {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  if (typeof header !== "object" || header === null || Array.isArray(header)) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  const headerRecord = header as Record<string, unknown>;
+  const keyring = parseGroupFocusCapabilityKeyring(environment.GROUP_FOCUS_CAPABILITY_KEYS_JSON);
+  const kid = typeof headerRecord.kid === "string" ? headerRecord.kid : null;
+  const key = kid ? keyring.get(kid) : undefined;
+  if (
+    headerRecord.alg !== "HS256"
+    || headerRecord.typ !== "GF-CAP"
+    || !key
+  ) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  const expected = createHmac("sha256", key)
+    .update(`${headerSegment}.${payloadSegment}`, "ascii")
+    .digest();
+  const supplied = Buffer.from(signature);
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid.");
+  }
+  const claims = parseGroupFocusCapabilityClaims(payload, now);
+  if (!claims) {
+    throw new GroupFocusError("RECONCILIATION_REQUIRED", "Group Focus capability is invalid or expired.");
+  }
+  return {
+    version: claims.version,
+    userId: claims.sub,
+    roomId: claims.roomId,
+    membershipId: claims.membershipId,
+    role: claims.role,
+    mode: claims.mode,
+    visibility: claims.visibility,
+    effectiveLectureId: claims.effectiveLectureId,
+    focusDurationSeconds: claims.focusDurationSeconds,
+    breakDurationSeconds: claims.breakDurationSeconds,
+    roundCount: claims.roundCount,
+    maxParticipants: claims.maxParticipants,
+    roomUpdatedAt: claims.roomUpdatedAt,
+    membershipUpdatedAt: claims.membershipUpdatedAt,
+    issuedAt: new Date(claims.iat * 1000).toISOString(),
+    expiresAt: new Date(claims.exp * 1000).toISOString(),
+    jti: claims.jti,
   };
 }

@@ -1,4 +1,6 @@
 export const GROUP_FOCUS_DEFAULT_WORKER_ORIGIN =
+  "https://99s-guide.mustafasamadlol2.workers.dev";
+export const GROUP_FOCUS_LEGACY_WORKER_ORIGIN =
   "https://99sguide-group-focus.mustafasamadlol2.workers.dev";
 
 export function normalizeGroupFocusWorkerOrigin(value: unknown): string | null {
@@ -16,7 +18,14 @@ export function normalizeGroupFocusWorkerOrigin(value: unknown): string | null {
     url.pathname = "/";
     url.search = "";
     url.hash = "";
-    return url.toString().replace(/\/$/u, "");
+    const normalized = url.toString().replace(/\/$/u, "");
+    // The old dedicated Worker is intentionally retired. Mapping it to the main
+    // app origin keeps stale Render/Vite environment values from breaking Group
+    // Focus after the realtime Durable Object moved into the primary Worker.
+    if (normalized === GROUP_FOCUS_LEGACY_WORKER_ORIGIN) {
+      return GROUP_FOCUS_DEFAULT_WORKER_ORIGIN;
+    }
+    return normalized;
   } catch {
     return null;
   }
@@ -29,8 +38,9 @@ export function deriveSiblingGroupFocusWorkerOrigin(value: unknown): string | nu
     const url = new URL(normalized);
     const labels = url.hostname.split(".");
     if (labels.length < 4 || labels.slice(-2).join(".") !== "workers.dev") return null;
-    if (labels[0] === "99sguide-group-focus") return normalized;
-    url.hostname = ["99sguide-group-focus", ...labels.slice(1)].join(".");
+    if (labels[0] === "99s-guide") return normalized;
+    // All current deployments use the main 99s-guide Worker for realtime.
+    url.hostname = ["99s-guide", ...labels.slice(1)].join(".");
     return url.toString().replace(/\/$/u, "");
   } catch {
     return null;
@@ -44,6 +54,7 @@ export function groupFocusWorkerOriginCandidates(input: {
 }): string[] {
   const candidates = [
     normalizeGroupFocusWorkerOrigin(input.preferred),
+    normalizeGroupFocusWorkerOrigin(input.currentAppOrigin),
     normalizeGroupFocusWorkerOrigin(input.configured),
     deriveSiblingGroupFocusWorkerOrigin(input.configured),
     deriveSiblingGroupFocusWorkerOrigin(input.currentAppOrigin),

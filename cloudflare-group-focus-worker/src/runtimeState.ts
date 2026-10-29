@@ -14,7 +14,7 @@ import type {
 } from "../../shared/group-focus-realtime/protocol.js";
 import type { GroupFocusRoomState } from "./roomState.js";
 
-export const GROUP_FOCUS_RUNTIME_RECORD_VERSION = 1 as const;
+export const GROUP_FOCUS_RUNTIME_RECORD_VERSION = 2 as const;
 export const GROUP_FOCUS_RECONNECT_GRACE_MILLISECONDS =
   GROUP_FOCUS_RECONNECT_GRACE_SECONDS * 1000;
 export const GROUP_FOCUS_RESUME_TOKEN_TTL_MILLISECONDS =
@@ -77,6 +77,8 @@ export type GroupFocusRuntimeData = {
   terminalReason: GroupFocusSummaryTerminalReason | null;
   terminalAt: number | null;
   summary: GroupFocusFrozenSummary | null;
+  canonicalCapabilityToken: string | null;
+  canonicalCapabilityExpiresAt: number | null;
 };
 
 function isSafeInteger(value: unknown): value is number {
@@ -127,6 +129,7 @@ function isRuntimeSummary(value: unknown): value is GroupFocusRuntimeSummary {
     && isSafeInteger(summary.completedRounds)
     && isSafeInteger(summary.finalRevision)
     && Array.isArray(summary.participants)
+    && summary.participants.length <= 10_000
     && summary.participants.every(isSummaryParticipant);
 }
 
@@ -164,6 +167,8 @@ export function isValidGroupFocusRuntimeData(value: unknown): value is GroupFocu
     "terminalReason",
     "terminalAt",
     "summary",
+    "canonicalCapabilityToken",
+    "canonicalCapabilityExpiresAt",
   ].sort();
   const actual = Object.keys(data).sort();
   const integer = isSafeInteger;
@@ -187,6 +192,8 @@ export function isValidGroupFocusRuntimeData(value: unknown): value is GroupFocu
       || ["COMPLETED", "HOST_CLOSED", "CANONICAL_ROOM_CLOSED",
         "LOBBY_IDLE_TIMEOUT", "PAUSED_IDLE_TIMEOUT"].includes(String(data.terminalReason)))
     || !(data.terminalAt === null || integer(data.terminalAt))
+    || !(data.canonicalCapabilityToken === null || (typeof data.canonicalCapabilityToken === "string" && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(data.canonicalCapabilityToken)))
+    || !(data.canonicalCapabilityExpiresAt === null || integer(data.canonicalCapabilityExpiresAt))
     || !(data.summary === null || (
       isFrozenSummary(data.summary)
       && data.summary.body.summaryId === data.summaryId
@@ -194,6 +201,7 @@ export function isValidGroupFocusRuntimeData(value: unknown): value is GroupFocu
       && data.summary.body.roomId === data.roomId
     ))
     || !Array.isArray(data.participants)
+    || data.participants.length > 10_000
   ) return false;
   return data.participants.every((item) => {
     if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
@@ -253,6 +261,8 @@ export function createGroupFocusRuntimeData(roomId: string, now: number): GroupF
     terminalReason: null,
     terminalAt: null,
     summary: null,
+    canonicalCapabilityToken: null,
+    canonicalCapabilityExpiresAt: null,
   };
 }
 

@@ -1,7 +1,7 @@
 import express, { type RequestHandler } from "express";
-import { isGroupFocusPrincipalId } from "../../shared/group-focus-capability/contract.js";
 import {
   GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
+  GROUP_FOCUS_RUNTIME_MAX_PARTICIPANTS,
   type GroupFocusRuntimeSnapshotRequest,
 } from "../../shared/group-focus-reconciliation/contract.js";
 import {
@@ -9,6 +9,7 @@ import {
   type GroupFocusReconciliationEnvironment,
 } from "../../shared/group-focus-reconciliation/signing.js";
 import { isStudyFeatureEnabled } from "../features/study-core/featureFlags.js";
+import { isGroupFocusPrincipalId } from "../../shared/group-focus-capability/contract.js";
 import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
 import {
   createGroupFocusRuntimeSummaryService,
@@ -35,6 +36,7 @@ const snapshotRequestSchema = {
       || !Number.isSafeInteger(body.runtimeRevision)
       || body.runtimeRevision < 0
       || !Array.isArray(body.userIds)
+      || body.userIds.length > GROUP_FOCUS_RUNTIME_MAX_PARTICIPANTS
       || body.userIds.some((userId) => !isGroupFocusPrincipalId(userId))
       || new Set(body.userIds).size !== body.userIds.length
     ) return { success: false };

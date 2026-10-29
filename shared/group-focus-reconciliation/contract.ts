@@ -10,8 +10,8 @@ export const GROUP_FOCUS_RESUME_TOKEN_TTL_SECONDS = 10 * 60;
 export const GROUP_FOCUS_RUNTIME_IDLE_TIMEOUT_SECONDS = 30 * 60;
 export const GROUP_FOCUS_SUMMARY_ACK_RETENTION_SECONDS = 15 * 60;
 export const GROUP_FOCUS_SUMMARY_RETRY_RETENTION_SECONDS = 24 * 60 * 60;
-// No product-level room-size cap. This is a transport/body safety bound, not a participant limit.
-export const GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES = 8 * 1024 * 1024;
+export const GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES = 2 * 1024 * 1024;
+export const GROUP_FOCUS_RUNTIME_MAX_PARTICIPANTS = 10_000;
 export const GROUP_FOCUS_SUMMARY_VERSION = 1 as const;
 export const GROUP_FOCUS_SUMMARY_TERMINAL_REASONS = [
   "COMPLETED",

@@ -56,6 +56,7 @@ import {
   isGroupFocusPrincipalId,
   type VerifiedGroupFocusCapability,
 } from "../../shared/group-focus-capability/contract.js";
+import { decodeBase64Url } from "../../shared/group-focus-capability/encoding.js";
 import {
   GROUP_FOCUS_REALTIME_INTERNAL_CAPABILITY_HEADER,
   GROUP_FOCUS_REALTIME_INTERNAL_RESUME_HEADER,
@@ -71,6 +72,9 @@ import {
 const ROOM_STATE_KEY = "group-focus-room-state-v1";
 const RUNTIME_STATE_KEY = "group-focus-runtime-state-v1";
 const ROOM_PATH = /^\/rooms\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/connect$/iu;
+const SUMMARY_PATH = /^\/rooms\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/summary$/iu;
+const VERIFIED_CAPABILITY_HEADER = "X-Group-Focus-Verified-Capability";
+const SUMMARY_READ_HEADER = "X-Group-Focus-Internal-Summary-Read";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PRODUCTION_GROUP_FOCUS_API_BASE_URL = "https://nine9s-guide.onrender.com";
 const ATTACHMENT_KEYS = [
@@ -128,6 +132,40 @@ function jsonError(status: number, code: string): Response {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function trustedVerifiedCapability(request: Request): VerifiedGroupFocusCapability | null {
+  const encoded = request.headers.get(VERIFIED_CAPABILITY_HEADER);
+  if (!encoded) return null;
+  const bytes = decodeBase64Url(encoded);
+  if (!bytes) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+  } catch {
+    return null;
+  }
+  if (!isRecord(value)) return null;
+  if (
+    value.version !== 1
+    || !isGroupFocusPrincipalId(value.userId)
+    || typeof value.roomId !== "string" || !UUID.test(value.roomId)
+    || typeof value.membershipId !== "string" || !UUID.test(value.membershipId)
+    || (value.role !== "HOST" && value.role !== "MEMBER")
+    || (value.mode !== "SHARED_LECTURE" && value.mode !== "STUDY_TOGETHER")
+    || (value.visibility !== "PUBLIC" && value.visibility !== "PRIVATE")
+    || typeof value.effectiveLectureId !== "string" || !UUID.test(value.effectiveLectureId)
+    || !Number.isSafeInteger(value.focusDurationSeconds)
+    || !Number.isSafeInteger(value.breakDurationSeconds)
+    || !Number.isSafeInteger(value.roundCount)
+    || !Number.isSafeInteger(value.maxParticipants)
+    || typeof value.roomUpdatedAt !== "string"
+    || typeof value.membershipUpdatedAt !== "string"
+    || typeof value.issuedAt !== "string"
+    || typeof value.expiresAt !== "string"
+    || typeof value.jti !== "string"
+  ) return null;
+  return value as unknown as VerifiedGroupFocusCapability;
 }
 
 function isSocketAttachment(value: unknown): value is GroupFocusRealtimeSocketAttachment {
@@ -470,6 +508,7 @@ export class GroupFocusRoom {
     path: string,
     body: unknown,
     maximumBytes: number,
+    capabilityToken: string | null = null,
   ): Promise<{ response: Response; value: T | null }> {
     const base = this.env.GROUP_FOCUS_API_BASE_URL?.trim()
       || PRODUCTION_GROUP_FOCUS_API_BASE_URL;
@@ -486,20 +525,30 @@ export class GroupFocusRoom {
     const serialized = JSON.stringify(body);
     const bytes = new TextEncoder().encode(serialized);
     if (bytes.byteLength > maximumBytes) throw new Error("RECONCILIATION_BODY_TOO_LARGE");
-    const signed = await signGroupFocusMachineRequest(this.env, {
-      method: "POST",
-      path,
-      body: bytes,
-    });
     const headers = new Headers({
       "Content-Type": "application/json",
       "X-Requested-With": "group-focus-worker",
     });
-    headers.set("X-GF-Kid", signed.kid);
-    headers.set("X-GF-Timestamp", signed.timestamp);
-    headers.set("X-GF-Nonce", signed.nonce);
-    headers.set("X-GF-Signature", signed.signature);
-    const response = await fetch(url.toString(), {
+    let requestUrl = url;
+    try {
+      const signed = await signGroupFocusMachineRequest(this.env, {
+        method: "POST",
+        path,
+        body: bytes,
+      });
+      headers.set("X-GF-Kid", signed.kid);
+      headers.set("X-GF-Timestamp", signed.timestamp);
+      headers.set("X-GF-Nonce", signed.nonce);
+      headers.set("X-GF-Signature", signed.signature);
+    } catch {
+      if (path.endsWith("/snapshot") && capabilityToken) {
+        requestUrl = new URL("/api/group-focus/runtime/snapshot", baseUrl.origin);
+        headers.set("Authorization", `Bearer ${capabilityToken}`);
+      } else {
+        throw new Error("RECONCILIATION_AUTH_UNAVAILABLE");
+      }
+    }
+    const response = await fetch(requestUrl.toString(), {
       method: "POST",
       headers,
       body: serialized,
@@ -569,6 +618,7 @@ export class GroupFocusRoom {
         "/api/internal/group-focus/runtime/snapshot",
         request,
         GROUP_FOCUS_SUMMARY_MAX_BODY_BYTES,
+        runtime.canonicalCapabilityToken,
       );
       if (!response.ok || !this.isCanonicalSnapshot(value)) {
         throw new Error(`CANONICAL_SNAPSHOT_HTTP_${response.status}`);
@@ -691,6 +741,7 @@ export class GroupFocusRoom {
           runtimeRevision: state.revision,
         },
         32 * 1024,
+        runtime.canonicalCapabilityToken,
       );
       if (!response.ok || !this.isCanonicalSnapshot(value)) return false;
       if (value.room.roomId !== state.roomId || value.room.status !== "OPEN") return false;
@@ -898,13 +949,18 @@ export class GroupFocusRoom {
           pending.retentionUntil = now + GROUP_FOCUS_SUMMARY_ACK_RETENTION_SECONDS * 1000;
         }
       }
-    } catch {
+    } catch (error) {
       pending.attempts += 1;
       pending.nextAttemptAt = now + nextRetryDelay(pending.attempts - 1);
-      console.error("[GroupFocusRuntime] Terminal summary delivery failed.", {
-        errorCode: "TERMINAL_SUMMARY_DELIVERY_FAILED",
-        attemptsBucket: pending.attempts >= 5 ? "5_PLUS" : String(pending.attempts),
-      });
+      // Same-origin deployments intentionally do not require Cloudflare to hold
+      // the backend reconciliation secret. In that mode the authenticated API
+      // pulls this frozen summary from the Durable Object and persists it.
+      if (!(error instanceof Error && error.message === "RECONCILIATION_AUTH_UNAVAILABLE")) {
+        console.error("[GroupFocusRuntime] Terminal summary delivery failed.", {
+          errorCode: "TERMINAL_SUMMARY_DELIVERY_FAILED",
+          attemptsBucket: pending.attempts >= 5 ? "5_PLUS" : String(pending.attempts),
+        });
+      }
     }
     await this.persistRuntimeState(state, runtime);
   }
@@ -996,10 +1052,23 @@ export class GroupFocusRoom {
 
   private async handleFetch(request: Request): Promise<Response> {
     if (request.method !== "GET") return jsonError(405, "METHOD_NOT_ALLOWED");
+    const url = new URL(request.url);
+
+    const summaryMatch = url.pathname.match(SUMMARY_PATH);
+    if (summaryMatch?.[1] && request.headers.get(SUMMARY_READ_HEADER) === "1") {
+      const capability = trustedVerifiedCapability(request);
+      if (!capability || capability.roomId !== summaryMatch[1]) {
+        return jsonError(401, "INVALID_CAPABILITY");
+      }
+      const runtime = await this.readRuntime();
+      if (!runtime?.summary?.body) return jsonError(404, "SUMMARY_NOT_READY");
+      return Response.json(runtime.summary.body, {
+        headers: { "Cache-Control": "no-store, private" },
+      });
+    }
+
     if (!isUpgradeRequest(request)) return jsonError(426, "WEBSOCKET_UPGRADE_REQUIRED");
     if (request.headers.get("authorization")) return jsonError(401, "UNAUTHORIZED");
-
-    const url = new URL(request.url);
     if (
       url.searchParams.has("token")
       || url.searchParams.has("capability")
@@ -1032,17 +1101,19 @@ export class GroupFocusRoom {
       return jsonError(401, "UNAUTHORIZED");
     }
 
-    let capability;
-    try {
-      capability = await verifyGroupFocusCapability(token, this.env);
-    } catch (error) {
-      if (error instanceof GroupFocusCapabilityConfigurationError) {
-        return jsonError(503, "CAPABILITY_NOT_CONFIGURED");
-      }
-      if (error instanceof GroupFocusCapabilityVerificationError) {
+    let capability = trustedVerifiedCapability(request);
+    if (!capability) {
+      try {
+        capability = await verifyGroupFocusCapability(token, this.env);
+      } catch (error) {
+        if (error instanceof GroupFocusCapabilityConfigurationError) {
+          return jsonError(503, "CAPABILITY_NOT_CONFIGURED");
+        }
+        if (error instanceof GroupFocusCapabilityVerificationError) {
+          return jsonError(401, "INVALID_CAPABILITY");
+        }
         return jsonError(401, "INVALID_CAPABILITY");
       }
-      return jsonError(401, "INVALID_CAPABILITY");
     }
     if (capability.roomId !== roomId) return jsonError(403, "ROOM_CAPABILITY_MISMATCH");
 
@@ -1093,12 +1164,17 @@ export class GroupFocusRoom {
       }
     }
 
+    runtime.canonicalCapabilityToken = token;
+    runtime.canonicalCapabilityExpiresAt = Date.parse(capability.expiresAt);
+
     if (state.phase === "CLOSED" || state.phase === "COMPLETED") {
       return jsonError(410, "ROOM_UNAVAILABLE");
     }
 
     const existingSockets = this.ctx.getWebSockets();
     const liveConnections = this.liveConnections();
+    const otherLiveConnections = liveConnections.filter((connection) =>
+      connection.userId !== capability.userId);
     let participant = runtime.participants.find((item) => item.userId === capability.userId);
     const currentSocket = existingSockets.find((socket) =>
       this.attachmentFor(socket)?.userId === capability.userId && socket.readyState === 1);

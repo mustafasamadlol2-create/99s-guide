@@ -1,11 +1,32 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "99sguide",
+  "main": "cloudflare-main-worker.ts",
   "compatibility_date": "2026-08-31",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "not_found_handling": "single-page-application"
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/group-focus/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GROUP_FOCUS_ROOMS",
+        "class_name": "GroupFocusRoom"
+      }
+    ]
+  },
+  "exports": {
+    "GroupFocusRoom": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "vars": {
+    "GROUP_FOCUS_API_BASE_URL": "https://nine9s-guide.onrender.com"
   }
 }

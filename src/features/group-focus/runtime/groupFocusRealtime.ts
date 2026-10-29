@@ -106,7 +106,7 @@ function resolveWebSocketUrl(workerUrl: string, roomId: string): string {
   url.protocol = url.protocol === "https:" ? "wss:"
     : url.protocol === "http:" ? "ws:"
       : url.protocol;
-  url.pathname = `/rooms/${encodeURIComponent(roomId)}/connect`;
+  url.pathname = `/group-focus/rooms/${encodeURIComponent(roomId)}/connect`;
   return url.toString();
 }
 
@@ -115,7 +115,7 @@ function resolveWorkerReadinessUrl(workerUrl: string): string {
   url.protocol = url.protocol === "wss:" ? "https:"
     : url.protocol === "ws:" ? "http:"
       : url.protocol;
-  url.pathname = "/ready";
+  url.pathname = "/group-focus/ready";
   url.search = "";
   url.hash = "";
   return url.toString();

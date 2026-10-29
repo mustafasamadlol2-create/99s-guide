@@ -17,8 +17,9 @@ import {
   createGroupFocusRuntimeSummaryService,
   type GroupFocusRuntimeSummaryService,
 } from "../features/group-focus/runtimeSummary.js";
-import { issueGroupFocusCapability } from "../features/group-focus/capability.js";
+import { issueGroupFocusCapability, verifyIssuedGroupFocusCapability } from "../features/group-focus/capability.js";
 import type { GroupFocusCapabilityEnvironment } from "../../shared/group-focus-capability/keyring.js";
+import { isGroupFocusPrincipalId } from "../../shared/group-focus-capability/contract.js";
 import { isGroupFocusRuntimeReady } from "../features/group-focus/readiness.js";
 import { resolveGroupFocusWorkerOrigin } from "../../shared/group-focus-realtime/workerOrigin.js";
 
@@ -71,7 +72,7 @@ function validEmptyBody(req: express.Request): boolean {
 }
 
 export function createGroupFocusJsonParser(): RequestHandler {
-  const parser = express.json({ limit: "32kb" });
+  const parser = express.json({ limit: "2mb" });
   return (req, res, next) => {
     parser(req, res, (error: unknown) => {
       if (!error) return next();
@@ -120,6 +121,97 @@ export function createGroupFocusRouter(
     }
     return next();
   });
+  // Cloudflare realtime verification is deliberately capability-based instead of
+  // sharing signing secrets with the Worker. The short-lived token is verified
+  // here (where the signing keys already live) and then reconciled against the
+  // current canonical membership before the Worker can open a socket.
+  router.post("/runtime/verify-capability", route(async (req, res) => {
+    const body = req.body as Record<string, unknown> | undefined;
+    const token = typeof body?.capabilityToken === "string" ? body.capabilityToken : null;
+    const requestedRoomId = parseRoomId(body?.roomId);
+    if (!token || !requestedRoomId) {
+      return res.status(400).json({ error: "Capability verification request is invalid.", code: "INVALID_REQUEST" });
+    }
+    try {
+      const capabilityEnvironment = dependencies.capabilityEnvironment?.() ?? process.env;
+      const capability = verifyIssuedGroupFocusCapability(
+        token,
+        capabilityEnvironment,
+        dependencies.capabilityNow?.() ?? new Date(),
+      );
+      if (capability.roomId !== requestedRoomId) {
+        return res.status(403).json({ error: "Capability room does not match.", code: "ROOM_CAPABILITY_MISMATCH" });
+      }
+      const context = await dependencies.service.getGroupFocusAuthorizationContext(
+        capability.userId,
+        capability.roomId,
+      );
+      if (
+        !context
+        || context.userId !== capability.userId
+        || context.roomId !== capability.roomId
+        || context.membershipId !== capability.membershipId
+        || context.role !== capability.role
+        || context.mode !== capability.mode
+        || context.visibility !== capability.visibility
+        || context.effectiveLectureId !== capability.effectiveLectureId
+        || context.focusDurationSeconds !== capability.focusDurationSeconds
+        || context.breakDurationSeconds !== capability.breakDurationSeconds
+        || context.roundCount !== capability.roundCount
+        || context.maxParticipants !== capability.maxParticipants
+      ) {
+        return res.status(403).json({ error: "Capability no longer matches canonical membership.", code: "AUTHORIZATION_REFRESH_REQUIRED" });
+      }
+      return res.set("Cache-Control", "no-store, private").json({ capability });
+    } catch {
+      return res.status(401).json({ error: "Capability verification failed.", code: "INVALID_CAPABILITY" });
+    }
+  }));
+
+  // Capability-authenticated canonical reads are safe to expose to the realtime
+  // Worker: a room member can only request the room encoded in their signed token,
+  // and canonical membership is re-checked before returning data. This removes a
+  // second Cloudflare secret as a hard dependency while retaining fail-closed auth.
+  router.post("/runtime/snapshot", route(async (req, res) => {
+    const authorization = req.get("authorization") ?? "";
+    const match = authorization.match(/^\s*Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\s*$/iu);
+    const token = match?.[1];
+    const body = req.body as Record<string, unknown> | undefined;
+    const roomId = parseRoomId(body?.roomId);
+    const userIds = Array.isArray(body?.userIds) ? body?.userIds : null;
+    if (
+      !token
+      || !roomId
+      || !userIds
+      || userIds.length > 10_000
+      || userIds.some((value) => !isGroupFocusPrincipalId(value))
+      || new Set(userIds as string[]).size !== userIds.length
+    ) {
+      return res.status(400).json({ error: "Canonical snapshot request is invalid.", code: "INVALID_SNAPSHOT" });
+    }
+    try {
+      const capability = verifyIssuedGroupFocusCapability(
+        token,
+        dependencies.capabilityEnvironment?.() ?? process.env,
+        dependencies.capabilityNow?.() ?? new Date(),
+      );
+      if (capability.roomId !== roomId) {
+        return res.status(403).json({ error: "Capability room does not match.", code: "ROOM_CAPABILITY_MISMATCH" });
+      }
+      const context = await dependencies.service.getGroupFocusAuthorizationContext(
+        capability.userId,
+        roomId,
+      );
+      if (!context || context.membershipId !== capability.membershipId) {
+        return res.status(403).json({ error: "Membership is no longer active.", code: "AUTHORIZATION_REFRESH_REQUIRED" });
+      }
+      const snapshot = await runtimeSummaries.getCanonicalSnapshot(roomId, userIds as string[]);
+      return res.set("Cache-Control", "no-store, private").json(snapshot);
+    } catch {
+      return res.status(401).json({ error: "Capability verification failed.", code: "INVALID_CAPABILITY" });
+    }
+  }));
+
   router.use(dependencies.requireUser);
 
   router.post("/rooms", route(async (req, res) => {
@@ -175,7 +267,49 @@ export function createGroupFocusRouter(
     });
     const roomId = parseRoomId(req.params.roomId);
     if (!roomId) return invalid(res, "Group Focus Room ID is invalid.");
-    const summary = await runtimeSummaries.getMySummary(userId(req), roomId);
+    const authenticatedUserId = userId(req);
+    let summary = await runtimeSummaries.getMySummary(authenticatedUserId, roomId);
+
+    // In the same-origin Worker architecture the Durable Object keeps the frozen
+    // terminal summary and the authenticated API pulls it on demand. This avoids
+    // requiring a second Cloudflare machine secret while preserving server-side
+    // validation, Study Events and Study Points as the final source of truth.
+    if (!summary) {
+      try {
+        const context = await dependencies.service.getGroupFocusAuthorizationContext(
+          authenticatedUserId,
+          roomId,
+        );
+        if (context) {
+          const capability = issueGroupFocusCapability(
+            context,
+            dependencies.capabilityEnvironment?.() ?? process.env,
+            dependencies.capabilityNow?.() ?? new Date(),
+          );
+          const workerOrigin = dependencies.workerOrigin?.()
+            ?? resolveGroupFocusWorkerOrigin(process.env);
+          const response = await fetch(
+            `${workerOrigin.replace(/\/$/u, "")}/group-focus/rooms/${encodeURIComponent(roomId)}/summary`,
+            {
+              method: "GET",
+              headers: { Authorization: `Bearer ${capability.capabilityToken}` },
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
+          if (response.ok) {
+            const frozenSummary = await response.json() as unknown;
+            await runtimeSummaries.persistTerminalSummary(frozenSummary);
+            summary = await runtimeSummaries.getMySummary(authenticatedUserId, roomId);
+          }
+        }
+      } catch (error) {
+        console.warn("[Group Focus] Terminal summary pull is not ready yet.", {
+          errorCode: "GROUP_FOCUS_SUMMARY_PULL_PENDING",
+          reason: error instanceof Error ? error.message : "unknown",
+        });
+      }
+    }
+
     if (!summary) {
       return res.status(404).json({
         error: "Group Focus summary was not found.",

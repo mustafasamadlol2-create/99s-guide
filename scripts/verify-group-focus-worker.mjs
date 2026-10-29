@@ -1,9 +1,11 @@
-const DEFAULT_ORIGIN = "https://99sguide-group-focus.mustafasamadlol2.workers.dev";
-const configured = (
+const DEFAULT_ORIGIN = "https://99s-guide.mustafasamadlol2.workers.dev";
+const LEGACY_ORIGIN = "https://99sguide-group-focus.mustafasamadlol2.workers.dev";
+const rawConfigured = (
   process.env.GROUP_FOCUS_WORKER_URL
   || process.env.VITE_GROUP_FOCUS_WORKER_URL
   || DEFAULT_ORIGIN
 ).trim().replace(/\/$/u, "");
+const configured = rawConfigured === LEGACY_ORIGIN ? DEFAULT_ORIGIN : rawConfigured;
 
 let origin;
 try {
@@ -22,7 +24,7 @@ try {
   process.exit(1);
 }
 
-const readyUrl = `${origin}/ready`;
+const readyUrl = `${origin}/group-focus/ready`;
 let lastFailure = "unknown error";
 for (let attempt = 1; attempt <= 12; attempt += 1) {
   try {
