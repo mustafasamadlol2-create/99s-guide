@@ -11992,6 +11992,23 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    const frontendIndexPath = path.join(distPath, "index.html");
+
+    // Render is commonly deployed as the API backend only while the frontend is
+    // served by Cloudflare. In that setup dist/index.html is intentionally absent.
+    // Detect that once at startup so unmatched requests never call sendFile() on a
+    // non-existent file (which previously produced noisy ENOENT errors in Render).
+    let hasProductionFrontendBuild = false;
+    try {
+      await fs.access(frontendIndexPath);
+      hasProductionFrontendBuild = true;
+    } catch {
+      logger.info(
+        "[Startup]",
+        "No production frontend build found in dist/; running in API-backend-only mode.",
+      );
+    }
+
     // Unmatched /api routes must return JSON 404, never SPA HTML.
     app.use("/api", (req, res) => {
       res.status(404).json({ error: "API endpoint not found" });
@@ -12004,13 +12021,33 @@ async function startServer() {
       }
       next();
     });
-    app.use(express.static(distPath));
-    app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/uploads/") || req.path.endsWith(".pdf")) {
-        return res.status(404).send("404 - PDF / File Not Found (It may have been deleted or the container restarted).");
-      }
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+
+    if (hasProductionFrontendBuild) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        if (req.path.startsWith("/uploads/") || req.path.endsWith(".pdf")) {
+          return res.status(404).send("404 - PDF / File Not Found (It may have been deleted or the container restarted).");
+        }
+        return res.sendFile(frontendIndexPath);
+      });
+    } else {
+      // Keep Render's backend root/health probes quiet and explicit when the SPA
+      // lives on Cloudflare. Do not attempt to serve a missing dist/index.html.
+      app.get("/", (_req, res) => {
+        res.status(200).json({
+          ok: true,
+          service: "99s-guide-backend",
+          mode: "api-only",
+        });
+      });
+
+      app.get("*", (req, res) => {
+        if (req.path.startsWith("/uploads/") || req.path.endsWith(".pdf")) {
+          return res.status(404).send("404 - PDF / File Not Found (It may have been deleted or the container restarted).");
+        }
+        return res.status(404).json({ error: "Route not found" });
+      });
+    }
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
