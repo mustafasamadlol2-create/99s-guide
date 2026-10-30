@@ -301,22 +301,6 @@ type ContentSyncMutation = {
 const CONTENT_SYNC_OUTBOX_PREFIX = "__content_sync_pending__:";
 const CONTENT_SYNC_BATCH_SIZE = 25;
 
-// Academic D1 rows are deliberately retained when the canonical Supabase row
-// is deleted. This makes D1 a recoverable copy instead of a second visibility
-// authority. Upserts continue to mirror normally; only destructive tombstones
-// are suppressed for these academic entities.
-const CONTENT_D1_ARCHIVE_ENTITIES = new Set<ContentSyncEntity>([
-  "Lecture",
-  "Material",
-  "ModuleResource",
-  "Mcq",
-  "Flashcard",
-]);
-
-function preserveD1ArchiveOnDelete(entity: ContentSyncEntity): boolean {
-  return CONTENT_D1_ARCHIVE_ENTITIES.has(entity);
-}
-
 let contentSyncDrainTimer: ReturnType<typeof setTimeout> | null = null;
 let contentSyncDrainInFlight = false;
 
@@ -337,16 +321,12 @@ function envFlagEnabled(name: string): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-// Academic rows in D1 are a recovery/archive mirror. Supabase remains the
-// visibility authority: a row manually removed from Supabase must disappear
-// from the app even when an older copy intentionally remains in D1.
-//
-// The old per-route D1 flags are still understood, but serving the archive as
-// a primary read source now requires an *additional* explicit opt-in. Leaving
-// CONTENT_D1_ALLOW_ARCHIVE_READS unset (the production-safe default) gives the
-// requested Supabase-authoritative behavior without any Render env change.
-function academicD1ArchiveReadsAllowed(): boolean {
-  return envFlagEnabled("CONTENT_D1_ALLOW_ARCHIVE_READS");
+// One switch completes Phase 1 after the initial D1 backfill has been verified.
+// In cutover mode academic GET routes use D1 as their read source and MUST NOT
+// fall back to Supabase/PostgreSQL when D1 is unavailable. This is what prevents
+// student traffic from silently restoring Supabase egress.
+function contentD1Phase1CutoverEnabled(): boolean {
+  return envFlagEnabled("CONTENT_D1_PHASE1_CUTOVER_ENABLED");
 }
 
 function academicContentMemoryCacheEnabled(): boolean {
@@ -357,23 +337,41 @@ function academicContentMemoryCacheEnabled(): boolean {
 }
 
 function contentD1ReadsEnabled(): boolean {
-  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_READS_ENABLED");
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_READS_ENABLED");
 }
 
 function contentD1MaterialsReadsEnabled(): boolean {
-  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_MATERIALS_READS_ENABLED");
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_MATERIALS_READS_ENABLED");
 }
 
 function contentD1MottoReadsEnabled(): boolean {
-  return envFlagEnabled("CONTENT_D1_MOTTO_READS_ENABLED");
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_MOTTO_READS_ENABLED");
 }
 
 function contentD1CalendarReadsEnabled(): boolean {
-  return envFlagEnabled("CONTENT_D1_CALENDAR_READS_ENABLED");
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_CALENDAR_READS_ENABLED");
 }
 
 function contentD1SearchReadsEnabled(): boolean {
-  return academicD1ArchiveReadsAllowed() && envFlagEnabled("CONTENT_D1_SEARCH_READS_ENABLED");
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_SEARCH_READS_ENABLED");
+}
+
+function contentD1ModuleResourceReadsEnabled(): boolean {
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_MODULE_RESOURCES_READS_ENABLED");
+}
+
+function contentD1FlashcardReadsEnabled(): boolean {
+  return contentD1Phase1CutoverEnabled() || envFlagEnabled("CONTENT_D1_FLASHCARD_READS_ENABLED");
+}
+
+
+function sendStrictContentReadFailure(res: express.Response, area: string, error: any) {
+  const status = Number(error?.status) === 404 ? 404 : 503;
+  return res.status(status).json({
+    error: status === 404 ? `${area} not found.` : `${area} is temporarily unavailable.`,
+    code: status === 404 ? "CONTENT_NOT_FOUND" : "CONTENT_D1_UNAVAILABLE",
+    retryable: status !== 404,
+  });
 }
 
 type ContentReadError = Error & { status?: number };
@@ -630,13 +628,7 @@ async function syncContentUpsert(
 }
 
 async function syncContentDelete(entity: ContentSyncEntity, id: string): Promise<void> {
-  if (preserveD1ArchiveOnDelete(entity)) {
-    logger.info(
-      "[ContentArchive]",
-      `Preserved D1 archive row for deleted canonical ${entity}/${id}.`,
-    );
-    return;
-  }
+  // Phase 1 requires D1 to match canonical Supabase visibility exactly.
   await syncContentMutation(makeContentDelete(entity, id));
 }
 
@@ -671,18 +663,6 @@ async function drainContentSyncOutbox(): Promise<void> {
         continue;
       }
 
-      // A delete may have been queued by an older deployment before D1 became
-      // an academic archive. Discard that tombstone locally instead of replaying
-      // it and erasing the backup row after this fix is deployed.
-      if (mutation.operation === "delete" && preserveD1ArchiveOnDelete(mutation.entity)) {
-        await getPrisma().systemSetting.deleteMany({ where: { key: row.key } });
-        logger.info(
-          "[ContentArchive]",
-          `Discarded queued D1 delete for ${mutation.entity}/${mutation.id}.`,
-        );
-        continue;
-      }
-
       try {
         await postContentSyncMutation(mutation, 5_000);
         await getPrisma().systemSetting.deleteMany({ where: { key: row.key } });
@@ -706,8 +686,15 @@ async function drainContentSyncOutbox(): Promise<void> {
   if (shouldRetryLater) scheduleContentSyncDrain(2 * 60_000);
 }
 
+if (contentD1Phase1CutoverEnabled()) {
+  logger.info(
+    "[ContentRead]",
+    "PHASE 1 CUTOVER is ENABLED: academic content reads are D1-only and will not fall back to Supabase.",
+  );
+}
+
 if (getContentSyncConfig()) {
-  logger.info("[ContentSync]", "Cloudflare D1 content mirror is configured.");
+  logger.info("[ContentSync]", "Cloudflare D1 content replica is configured.");
 } else {
   logger.warn(
     "[ContentSync]",
@@ -720,7 +707,9 @@ if (contentD1ReadsEnabled()) {
   if (getContentSyncConfig()) {
     logger.info(
       "[ContentRead]",
-      "D1 lecture reads are ENABLED. Render authentication/API contracts remain in front; Supabase is automatic fallback.",
+      contentD1Phase1CutoverEnabled()
+        ? "D1 lecture reads are ENABLED in strict Phase 1 mode; Supabase fallback is disabled."
+        : "D1 lecture reads are ENABLED in verification mode; Supabase fallback remains available.",
     );
   } else {
     logger.warn(
@@ -740,7 +729,9 @@ if (contentD1MaterialsReadsEnabled()) {
   if (getContentSyncConfig()) {
     logger.info(
       "[ContentRead]",
-      "D1 /api/materials reads are ENABLED. Legacy materials_db.json merge and Supabase fallback remain active.",
+      contentD1Phase1CutoverEnabled()
+        ? "D1 /api/materials reads are ENABLED in strict Phase 1 mode; Supabase fallback is disabled."
+        : "D1 /api/materials reads are ENABLED in verification mode; Supabase fallback remains available.",
     );
   } else {
     logger.warn(
@@ -760,7 +751,9 @@ if (contentD1MottoReadsEnabled()) {
   if (getContentSyncConfig()) {
     logger.info(
       "[ContentRead]",
-      "D1 /api/mottos/active reads are ENABLED. Render authentication remains in front; Supabase is automatic fallback.",
+      contentD1Phase1CutoverEnabled()
+        ? "D1 /api/mottos/active reads are ENABLED in strict Phase 1 mode; Supabase fallback is disabled."
+        : "D1 /api/mottos/active reads are ENABLED in verification mode; Supabase fallback remains available.",
     );
   } else {
     logger.warn(
@@ -780,7 +773,9 @@ if (contentD1CalendarReadsEnabled()) {
   if (getContentSyncConfig()) {
     logger.info(
       "[ContentRead]",
-      "D1 global calendar reads are ENABLED. Personal calendar rows remain Supabase-only; Supabase is automatic fallback.",
+      contentD1Phase1CutoverEnabled()
+        ? "D1 global calendar reads are ENABLED in strict Phase 1 mode; Supabase fallback is disabled for global rows."
+        : "D1 global calendar reads are ENABLED in verification mode; Supabase fallback remains available.",
     );
   } else {
     logger.warn(
@@ -800,7 +795,9 @@ if (contentD1SearchReadsEnabled()) {
   if (getContentSyncConfig()) {
     logger.info(
       "[ContentRead]",
-      "D1 /api/search reads are ENABLED. Render authentication/validation remain in front; Supabase is automatic fallback.",
+      contentD1Phase1CutoverEnabled()
+        ? "D1 /api/search reads are ENABLED in strict Phase 1 mode; Supabase fallback is disabled."
+        : "D1 /api/search reads are ENABLED in verification mode; Supabase fallback remains available.",
     );
   } else {
     logger.warn(
@@ -812,6 +809,24 @@ if (contentD1SearchReadsEnabled()) {
   logger.info(
     "[ContentRead]",
     "D1 /api/search reads are available but DISABLED. Current Supabase /api/search path is unchanged.",
+  );
+}
+
+if (contentD1ModuleResourceReadsEnabled()) {
+  logger.info(
+    "[ContentRead]",
+    contentD1Phase1CutoverEnabled()
+      ? "D1 Module Resource reads are ENABLED in strict Phase 1 mode."
+      : "D1 Module Resource reads are ENABLED in verification mode.",
+  );
+}
+
+if (contentD1FlashcardReadsEnabled()) {
+  logger.info(
+    "[ContentRead]",
+    contentD1Phase1CutoverEnabled()
+      ? "D1 flashcard content reads are ENABLED in strict Phase 1 mode."
+      : "D1 flashcard content reads are ENABLED in verification mode.",
   );
 }
 
@@ -2354,17 +2369,41 @@ app.get("/api/content", requireUser, catchAsync(async (req, res) => {
       })))
     );
 
-    // Prisma is authoritative for mutable lecture/material records. The legacy
-    // JSON catalog remains a read-only compatibility source during migration.
-    const prismaClient = getPrisma();
-    const dbLectures = await prismaClient.lecture.findMany({
-      select: {
-        id: true,
-        name: true,
-        materials: { select: { type: true, fileUrlOrLink: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    // The legacy JSON catalog remains a read-only presentation compatibility
+    // source. During Phase 1 cutover mutable lecture/material metadata is read
+    // from the Cloudflare D1 replica instead of Supabase.
+    let dbLectures: any[] = [];
+    if (contentD1ReadsEnabled()) {
+      try {
+        const payload = await fetchContentReadJson<any[]>("/lectures");
+        if (!Array.isArray(payload)) throw new Error("Content Worker lecture list returned an invalid payload.");
+        dbLectures = payload;
+        res.setHeader("X-Content-Legacy-Read-Source", "d1");
+      } catch (error: any) {
+        logger.warn(
+          "[ContentRead]",
+          `D1 /api/content read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
+        );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Content", error);
+        }
+      }
+    }
+    if (dbLectures.length === 0 && !contentD1Phase1CutoverEnabled()) {
+      const prismaClient = getPrisma();
+      dbLectures = await prismaClient.lecture.findMany({
+        select: {
+          id: true,
+          name: true,
+          materials: { select: { type: true, fileUrlOrLink: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      res.setHeader(
+        "X-Content-Legacy-Read-Source",
+        contentD1ReadsEnabled() ? "supabase-fallback" : "supabase",
+      );
+    }
     const contentById = new Map(legacyContent.map((item: any) => [item.id, item]));
     for (const lecture of dbLectures) {
       const pdf = lecture.materials.find((m: any) => m.type.toUpperCase() === "PDF");
@@ -2454,7 +2493,39 @@ app.get("/api/content/:id", requireUser, catchAsync(async (req, res) => {
     );
     let lecture = contentList.find((c: any) => c.id === req.params.id);
 
-    if (!lecture) {
+    if (!lecture && contentD1ReadsEnabled()) {
+      try {
+        const dbLecture = await fetchContentReadJson<any>(
+          `/lectures/${encodeURIComponent(req.params.id)}`,
+        );
+        if (dbLecture) {
+          const pdf = dbLecture.materials?.find((m: any) => String(m.type).toUpperCase() === "PDF");
+          const note = dbLecture.materials?.find((m: any) => String(m.type).toUpperCase() === "NOTE");
+          lecture = {
+            id: dbLecture.id,
+            title: dbLecture.name,
+            youtubeUrl: "",
+            pdfUrl: pdf?.fileUrlOrLink || "",
+            notesPdfUrl: note?.fileUrlOrLink || "",
+            doctorName: "",
+            description: "",
+          };
+          res.setHeader("X-Content-Legacy-Read-Source", "d1");
+        }
+      } catch (error: any) {
+        if (Number(error?.status) !== 404) {
+          logger.warn(
+            "[ContentRead]",
+            `D1 /api/content/:id read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
+          );
+          if (contentD1Phase1CutoverEnabled()) {
+            return sendStrictContentReadFailure(res, "Content", error);
+          }
+        }
+      }
+    }
+
+    if (!lecture && !contentD1Phase1CutoverEnabled()) {
       const prismaClient = getPrisma();
       const dbLecture = await prismaClient.lecture.findUnique({
         where: { id: req.params.id },
@@ -2476,6 +2547,10 @@ app.get("/api/content/:id", requireUser, catchAsync(async (req, res) => {
           doctorName: "",
           description: "",
         };
+        res.setHeader(
+          "X-Content-Legacy-Read-Source",
+          contentD1ReadsEnabled() ? "supabase-fallback" : "supabase",
+        );
       }
     }
     
@@ -2716,8 +2791,17 @@ app.get("/api/flashcards", requireUser, catchAsync(async (req, res) => {
 
     let sqlCards: any[] = [];
     try {
-      const prismaClient = getPrisma();
-      const dbCards = await prismaClient.flashcard.findMany({ take: 2000 });
+      let dbCards: any[] = [];
+      if (contentD1FlashcardReadsEnabled()) {
+        const payload = await fetchContentReadJson<any[]>("/flashcards");
+        if (!Array.isArray(payload)) throw new Error("Content Worker flashcard payload is invalid.");
+        dbCards = payload;
+        res.setHeader("X-Content-Flashcards-Read-Source", "d1");
+      } else {
+        const prismaClient = getPrisma();
+        dbCards = await prismaClient.flashcard.findMany({ take: 2000 });
+        res.setHeader("X-Content-Flashcards-Read-Source", "supabase");
+      }
       sqlCards = dbCards.map((f: any) => ({
         id: f.id,
         lectureId: f.lectureId,
@@ -2728,8 +2812,28 @@ app.get("/api/flashcards", requireUser, catchAsync(async (req, res) => {
         front: f.clinicalConcept,
         back: f.explanation
       }));
-    } catch (sqlErr) {
-      console.warn("Could not query SQL flashcards table:", "[REDACTED_ERROR]");
+    } catch (readError: any) {
+      if (contentD1Phase1CutoverEnabled()) {
+        logger.warn("[ContentRead]", `D1 flashcard read failed during strict cutover: ${readError?.message ?? "unknown error"}`);
+        return sendStrictContentReadFailure(res, "Flashcards", readError);
+      }
+      console.warn("Could not query D1 flashcards; falling back to Supabase:", "[REDACTED_ERROR]");
+      try {
+        const dbCards = await getPrisma().flashcard.findMany({ take: 2000 });
+        sqlCards = dbCards.map((f: any) => ({
+          id: f.id,
+          lectureId: f.lectureId,
+          clinicalConcept: f.clinicalConcept,
+          explanation: f.explanation,
+          frontText: f.clinicalConcept,
+          backText: f.explanation,
+          front: f.clinicalConcept,
+          back: f.explanation
+        }));
+        res.setHeader("X-Content-Flashcards-Read-Source", "supabase-fallback");
+      } catch (_) {
+        console.warn("Could not query SQL flashcards table:", "[REDACTED_ERROR]");
+      }
     }
 
     // Merge lists, avoiding duplicates by id
@@ -2853,8 +2957,11 @@ app.get("/api/lectures", requireUser, catchAsync(async (req, res) => {
       } catch (error: any) {
         logger.warn(
           "[ContentRead]",
-          `D1 lecture list read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 lecture list read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Lecture list", error);
+        }
       }
     }
 
@@ -2942,13 +3049,13 @@ app.get("/api/lectures/:id", requireUser, catchAsync(async (req, res) => {
           mcqs: normalizeMcqReadRows(lecture?.mcqs),
         });
       } catch (error: any) {
-        // A 404 can occur briefly after a successful authoritative Supabase write
-        // if the D1 mirror is queued for retry. Falling back keeps the public API
-        // strongly correct while Stage 4's outbox repairs the replica.
         logger.warn(
           "[ContentRead]",
-          `D1 lecture detail read failed for ${req.params.id}; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 lecture detail read failed for ${req.params.id}${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Lecture", error);
+        }
       }
     }
 
@@ -3067,9 +3174,7 @@ app.delete("/api/lectures/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
 
-    // Supabase deletion controls app visibility. Keep the lecture and all of its
-    // child rows in D1 as the requested recovery archive; pending child upserts
-    // are intentionally allowed to finish so the backup is as complete as possible.
+    // Mirror the canonical delete so D1 remains a safe student-read replica.
     await syncContentDelete("Lecture", lectureId);
 
     invalidateMaterialsCache();
@@ -3111,8 +3216,7 @@ app.delete("/api/materials/:id", requireAdmin, catchAsync(async (req, res) => {
       }
     }
     
-    // Supabase is the visibility authority; D1 deliberately keeps this row as
-    // a recovery copy. syncContentDelete enforces that archive policy.
+    // Mirror the canonical delete so D1 cannot serve a stale material.
     await syncContentDelete("Material", materialId);
 
     invalidateMaterialsCache();
@@ -4098,6 +4202,28 @@ app.get(
     if (!isModuleResourceModuleId(moduleId)) {
       return res.status(400).json({ error: "Invalid module." });
     }
+
+    if (contentD1ModuleResourceReadsEnabled()) {
+      try {
+        const payload = await fetchContentReadJson<any>(
+          `/module-resources/${encodeURIComponent(moduleId)}`,
+        );
+        if (!payload || !Array.isArray(payload.resources)) {
+          throw new Error("Content Worker module-resource list returned an invalid payload.");
+        }
+        res.setHeader("X-Content-Module-Resources-Read-Source", "d1");
+        return res.json({ resources: payload.resources.map(serializeModuleResource) });
+      } catch (error: any) {
+        logger.warn(
+          "[ContentRead]",
+          `D1 module-resource list failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
+        );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Module resources", error);
+        }
+      }
+    }
+
     const resources = await getPrisma().moduleResource.findMany({
       where: { moduleId, status: "READY" },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -4109,6 +4235,10 @@ app.get(
         createdAt: true,
       },
     });
+    res.setHeader(
+      "X-Content-Module-Resources-Read-Source",
+      contentD1ModuleResourceReadsEnabled() ? "supabase-fallback" : "supabase",
+    );
     return res.json({ resources: resources.map(serializeModuleResource) });
   }),
 );
@@ -4119,10 +4249,46 @@ app.get(
   pdfLimiter,
   catchAsync(async (req, res) => {
     const resourceId = String(req.params.resourceId || "");
-    const resource = await getPrisma().moduleResource.findUnique({
-      where: { id: resourceId },
-      select: { storagePath: true, status: true },
-    });
+    let resource: { storagePath: string; status: string } | null = null;
+
+    if (contentD1ModuleResourceReadsEnabled()) {
+      try {
+        const payload = await fetchContentReadJson<any>(
+          `/module-resource/${encodeURIComponent(resourceId)}`,
+        );
+        if (!payload?.resource || typeof payload.resource.storagePath !== "string") {
+          throw new Error("Content Worker module-resource detail returned an invalid payload.");
+        }
+        resource = {
+          storagePath: payload.resource.storagePath,
+          status: String(payload.resource.status || ""),
+        };
+        res.setHeader("X-Content-Module-Resource-Read-Source", "d1");
+      } catch (error: any) {
+        if (Number(error?.status) === 404) {
+          return res.status(404).json({ error: "PDF not found." });
+        }
+        logger.warn(
+          "[ContentRead]",
+          `D1 module-resource detail failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
+        );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Module resource", error);
+        }
+      }
+    }
+
+    if (!resource) {
+      resource = await getPrisma().moduleResource.findUnique({
+        where: { id: resourceId },
+        select: { storagePath: true, status: true },
+      });
+      res.setHeader(
+        "X-Content-Module-Resource-Read-Source",
+        contentD1ModuleResourceReadsEnabled() ? "supabase-fallback" : "supabase",
+      );
+    }
+
     if (!resource || resource.status !== "READY") {
       return res.status(404).json({ error: "PDF not found." });
     }
@@ -5035,8 +5201,11 @@ app.get("/api/materials", requireUser, catchAsync(async (req, res) => {
         relationalReadSource = "supabase-fallback";
         logger.warn(
           "[ContentRead]",
-          `D1 /api/materials read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 /api/materials read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Academic materials", error);
+        }
       }
     }
 
@@ -5330,8 +5499,11 @@ app.get("/api/search", requireUser, catchAsync(async (req, res) => {
       } catch (error: any) {
         logger.warn(
           "[ContentRead]",
-          `D1 /api/search read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 /api/search read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Search", error);
+        }
       }
     }
 
@@ -7229,8 +7401,11 @@ app.get("/api/calendar/events", requireUser, catchAsync(async (req, res) => {
         readSource = "supabase-fallback";
         logger.warn(
           "[ContentRead]",
-          `D1 global calendar read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 global calendar read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Calendar", error);
+        }
       }
     }
 
@@ -11651,8 +11826,11 @@ app.get("/api/mottos/active", requireUser, catchAsync(async (req, res) => {
       } catch (error: any) {
         logger.warn(
           "[ContentRead]",
-          `D1 /api/mottos/active read failed; falling back to Supabase: ${error?.message ?? "unknown error"}`,
+          `D1 /api/mottos/active read failed${contentD1Phase1CutoverEnabled() ? " during strict cutover" : "; falling back to Supabase"}: ${error?.message ?? "unknown error"}`,
         );
+        if (contentD1Phase1CutoverEnabled()) {
+          return sendStrictContentReadFailure(res, "Today's Message", error);
+        }
       }
     }
 

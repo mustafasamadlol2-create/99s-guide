@@ -138,6 +138,12 @@ CREATE TABLE IF NOT EXISTS "CalendarEvent" (
   "notes" TEXT,
   "isPinned" INTEGER NOT NULL DEFAULT 0 CHECK ("isPinned" IN (0, 1)),
   "isCompleted" INTEGER NOT NULL DEFAULT 0 CHECK ("isCompleted" IN (0, 1)),
+  "allDay" INTEGER NOT NULL DEFAULT 0 CHECK ("allDay" IN (0, 1)),
+  "importSource" TEXT,
+  "sourceDocumentName" TEXT,
+  "sourceDocumentSha256" TEXT,
+  "sourcePage" INTEGER,
+  "importFingerprint" TEXT,
   FOREIGN KEY ("lectureId")
     REFERENCES "Lecture" ("id")
     ON UPDATE CASCADE
@@ -149,6 +155,13 @@ CREATE INDEX IF NOT EXISTS "CalendarEvent_start_idx"
 
 CREATE INDEX IF NOT EXISTS "CalendarEvent_group_start_idx"
   ON "CalendarEvent" ("targetGroups", "startDateTime");
+
+CREATE INDEX IF NOT EXISTS "CalendarEvent_sourceDocumentSha256_idx"
+  ON "CalendarEvent" ("sourceDocumentSha256");
+
+CREATE UNIQUE INDEX IF NOT EXISTS "CalendarEvent_importFingerprint_key"
+  ON "CalendarEvent" ("importFingerprint")
+  WHERE "importFingerprint" IS NOT NULL;
 
 -- Guardrail: D1 is only for shared/global calendar events.
 CREATE TRIGGER IF NOT EXISTS "CalendarEvent_global_only_insert"

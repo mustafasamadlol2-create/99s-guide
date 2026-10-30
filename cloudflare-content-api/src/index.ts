@@ -311,8 +311,9 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
       await env.DB.prepare(`
         INSERT INTO "CalendarEvent"
           ("id","userId","title","eventType","startDateTime","endDateTime","targetGroups",
-           "description","subjectId","lectureId","room","doctor","notes","isPinned","isCompleted")
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           "description","subjectId","lectureId","room","doctor","notes","isPinned","isCompleted",
+           "allDay","importSource","sourceDocumentName","sourceDocumentSha256","sourcePage","importFingerprint")
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT("id") DO UPDATE SET
           "userId"=excluded."userId",
           "title"=excluded."title",
@@ -327,7 +328,13 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
           "doctor"=excluded."doctor",
           "notes"=excluded."notes",
           "isPinned"=excluded."isPinned",
-          "isCompleted"=excluded."isCompleted"
+          "isCompleted"=excluded."isCompleted",
+          "allDay"=excluded."allDay",
+          "importSource"=excluded."importSource",
+          "sourceDocumentName"=excluded."sourceDocumentName",
+          "sourceDocumentSha256"=excluded."sourceDocumentSha256",
+          "sourcePage"=excluded."sourcePage",
+          "importFingerprint"=excluded."importFingerprint"
       `).bind(
         id,
         null,
@@ -344,6 +351,12 @@ async function upsertContentRow(env: any, entity: ContentEntity, data: Record<st
         optionalText(data, "notes"),
         booleanToInteger(data, "isPinned"),
         booleanToInteger(data, "isCompleted"),
+        data.allDay === undefined ? 0 : booleanToInteger(data, "allDay"),
+        optionalText(data, "importSource"),
+        optionalText(data, "sourceDocumentName"),
+        optionalText(data, "sourceDocumentSha256"),
+        data.sourcePage === null || data.sourcePage === undefined ? null : Number(data.sourcePage),
+        optionalText(data, "importFingerprint"),
       ).run();
       return;
     }
@@ -480,6 +493,464 @@ async function handleInternalContentSync(request: Request, env: any): Promise<Re
   }
 }
 
+
+type D1Row = Record<string, any>;
+
+function rowsFromResult(result: any): D1Row[] {
+  return Array.isArray(result?.results) ? result.results as D1Row[] : [];
+}
+
+function integerBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === "1";
+}
+
+function normalizeCalendarReadRow(row: D1Row): D1Row {
+  return {
+    ...row,
+    isPinned: integerBoolean(row.isPinned),
+    isCompleted: integerBoolean(row.isCompleted),
+    allDay: integerBoolean(row.allDay),
+  };
+}
+
+function normalizeMottoReadRow(row: D1Row): D1Row {
+  return {
+    ...row,
+    isActive: integerBoolean(row.isActive),
+    isFeatured: integerBoolean(row.isFeatured),
+  };
+}
+
+async function authorizeInternalContentRequest(request: Request, env: any): Promise<Response | null> {
+  const configuredSecret = typeof env.CONTENT_SYNC_SECRET === "string"
+    ? env.CONTENT_SYNC_SECRET
+    : "";
+  if (!configuredSecret) {
+    return jsonNoStore({ ok: false, error: "Content service is not configured." }, 503);
+  }
+  const suppliedSecret = request.headers.get("X-Content-Sync-Secret") || "";
+  if (!suppliedSecret || !(await secretsEqual(suppliedSecret, configuredSecret))) {
+    return jsonNoStore({ ok: false, error: "Unauthorized." }, 401);
+  }
+  return null;
+}
+
+function buildLectureFilter(url: URL): { sql: string; binds: string[] } {
+  const allowed = ["mainSubject", "subSubject", "trackMode", "department"] as const;
+  const clauses: string[] = [];
+  const binds: string[] = [];
+  for (const field of allowed) {
+    const value = url.searchParams.get(field)?.trim();
+    if (!value) continue;
+    clauses.push(`LOWER("${field}") = LOWER(?)`);
+    binds.push(value);
+  }
+  return {
+    sql: clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "",
+    binds,
+  };
+}
+
+async function readLectures(env: any, url: URL): Promise<D1Row[]> {
+  const filter = buildLectureFilter(url);
+  const lectures = rowsFromResult(await env.DB.prepare(`
+    SELECT "id","name","mainSubject","subSubject","trackMode","department","createdAt"
+    FROM "Lecture"${filter.sql}
+    ORDER BY "createdAt" ASC, "id" ASC
+    LIMIT 2000
+  `).bind(...filter.binds).all());
+  if (lectures.length === 0) return [];
+
+  const wanted = new Set(lectures.map((row) => String(row.id)));
+  const [materialsResult, mcqsResult, flashcardsResult] = await Promise.all([
+    env.DB.prepare(`
+      SELECT "id","title","type","fileUrlOrLink","lectureId","createdAt","storagePath"
+      FROM "Material" ORDER BY "createdAt" ASC, "id" ASC LIMIT 10000
+    `).all(),
+    env.DB.prepare(`SELECT "id","lectureId" FROM "Mcq" ORDER BY "createdAt" ASC, "id" ASC LIMIT 20000`).all(),
+    env.DB.prepare(`SELECT "id","lectureId" FROM "Flashcard" ORDER BY "createdAt" ASC, "id" ASC LIMIT 20000`).all(),
+  ]);
+
+  const materialsByLecture = new Map<string, D1Row[]>();
+  for (const row of rowsFromResult(materialsResult)) {
+    const lectureId = String(row.lectureId || "");
+    if (!wanted.has(lectureId)) continue;
+    const list = materialsByLecture.get(lectureId) ?? [];
+    list.push(row);
+    materialsByLecture.set(lectureId, list);
+  }
+  const mcqsByLecture = new Map<string, D1Row[]>();
+  for (const row of rowsFromResult(mcqsResult)) {
+    const lectureId = String(row.lectureId || "");
+    if (!wanted.has(lectureId)) continue;
+    const list = mcqsByLecture.get(lectureId) ?? [];
+    list.push({ id: row.id });
+    mcqsByLecture.set(lectureId, list);
+  }
+  const flashcardsByLecture = new Map<string, D1Row[]>();
+  for (const row of rowsFromResult(flashcardsResult)) {
+    const lectureId = String(row.lectureId || "");
+    if (!wanted.has(lectureId)) continue;
+    const list = flashcardsByLecture.get(lectureId) ?? [];
+    list.push({ id: row.id });
+    flashcardsByLecture.set(lectureId, list);
+  }
+
+  return lectures.map((lecture) => ({
+    ...lecture,
+    materials: materialsByLecture.get(String(lecture.id)) ?? [],
+    mcqs: mcqsByLecture.get(String(lecture.id)) ?? [],
+    flashcards: flashcardsByLecture.get(String(lecture.id)) ?? [],
+  }));
+}
+
+async function readLectureDetail(env: any, id: string): Promise<D1Row | null> {
+  const lecture = await env.DB.prepare(`
+    SELECT "id","name","mainSubject","subSubject","trackMode","department","createdAt"
+    FROM "Lecture" WHERE "id" = ? LIMIT 1
+  `).bind(id).first();
+  if (!lecture) return null;
+
+  const [materialsResult, mcqsResult, flashcardsResult] = await Promise.all([
+    env.DB.prepare(`
+      SELECT "id","title","type","fileUrlOrLink","lectureId","createdAt","storagePath"
+      FROM "Material" WHERE "lectureId" = ? ORDER BY "createdAt" ASC, "id" ASC
+    `).bind(id).all(),
+    env.DB.prepare(`
+      SELECT "id","question","optionA","optionB","optionC","optionD","hint","explanation",
+             "sourceType","sourceRef","difficulty","lectureId","createdAt"
+      FROM "Mcq" WHERE "lectureId" = ? ORDER BY "createdAt" ASC, "id" ASC
+    `).bind(id).all(),
+    env.DB.prepare(`
+      SELECT "id","clinicalConcept","explanation","lectureId","createdAt"
+      FROM "Flashcard" WHERE "lectureId" = ? ORDER BY "createdAt" ASC, "id" ASC
+    `).bind(id).all(),
+  ]);
+
+  return {
+    ...lecture,
+    materials: rowsFromResult(materialsResult),
+    mcqs: rowsFromResult(mcqsResult),
+    flashcards: rowsFromResult(flashcardsResult),
+  };
+}
+
+async function readMaterialsData(env: any, scope: string): Promise<Record<string, D1Row[]>> {
+  const normalizedScope = scope === "subjects" || scope === "offline" ? scope : "full";
+  const needsSubjects = normalizedScope === "full" || normalizedScope === "subjects";
+  const needsOffline = normalizedScope === "full" || normalizedScope === "offline";
+  const needsCalendar = normalizedScope === "full";
+
+  const lectures = needsSubjects ? await readLectures(env, new URL("https://internal/lectures")) : [];
+  const [mcqsResult, flashcardsResult, materialsResult, eventsResult] = await Promise.all([
+    needsOffline ? env.DB.prepare(`
+      SELECT "id","question","optionA","optionB","optionC","optionD","correctAnswer","hint","explanation",
+             "sourceType","sourceRef","difficulty","lectureId","createdAt"
+      FROM "Mcq" ORDER BY "createdAt" ASC, "id" ASC LIMIT 20000
+    `).all() : Promise.resolve({ results: [] }),
+    needsOffline ? env.DB.prepare(`
+      SELECT "id","clinicalConcept","explanation","lectureId","createdAt"
+      FROM "Flashcard" ORDER BY "createdAt" ASC, "id" ASC LIMIT 20000
+    `).all() : Promise.resolve({ results: [] }),
+    needsSubjects ? env.DB.prepare(`
+      SELECT "id","title","type","fileUrlOrLink","lectureId","createdAt","storagePath"
+      FROM "Material" ORDER BY "createdAt" ASC, "id" ASC LIMIT 10000
+    `).all() : Promise.resolve({ results: [] }),
+    needsCalendar ? env.DB.prepare(`
+      SELECT "id","userId","title","eventType","startDateTime","endDateTime","targetGroups","description",
+             "subjectId","lectureId","room","doctor","notes","isPinned","isCompleted","allDay",
+             "importSource","sourceDocumentName","sourceDocumentSha256","sourcePage","importFingerprint"
+      FROM "CalendarEvent" WHERE "userId" IS NULL
+      ORDER BY "startDateTime" ASC, "id" ASC LIMIT 2000
+    `).all() : Promise.resolve({ results: [] }),
+  ]);
+
+  return {
+    lectures,
+    mcqs: rowsFromResult(mcqsResult),
+    flashcards: rowsFromResult(flashcardsResult),
+    materials: rowsFromResult(materialsResult),
+    events: rowsFromResult(eventsResult).map(normalizeCalendarReadRow),
+  };
+}
+
+function searchConditions(columns: string[], terms: string[]): { sql: string; binds: string[] } {
+  const clauses: string[] = [];
+  const binds: string[] = [];
+  for (const term of terms) {
+    const inner = columns.map((column) => `LOWER(${column}) LIKE ?`);
+    clauses.push(`(${inner.join(" OR ")})`);
+    for (let i = 0; i < columns.length; i += 1) binds.push(`%${term.toLowerCase()}%`);
+  }
+  return { sql: clauses.length > 0 ? clauses.join(" OR ") : "1=0", binds };
+}
+
+async function readSearch(env: any, query: string): Promise<D1Row[]> {
+  const terms = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  if (terms.length === 0) return [];
+  const lectureWhere = searchConditions([`"name"`, `"mainSubject"`], terms);
+  const materialWhere = searchConditions([`"title"`], terms);
+  const mcqWhere = searchConditions([`"question"`], terms);
+  const flashcardWhere = searchConditions([`"clinicalConcept"`, `"explanation"`], terms);
+
+  const [lecturesResult, materialsResult, mcqsResult, flashcardsResult] = await Promise.all([
+    env.DB.prepare(`
+      SELECT "id","name","mainSubject","subSubject" FROM "Lecture"
+      WHERE ${lectureWhere.sql} ORDER BY "createdAt" ASC LIMIT 10
+    `).bind(...lectureWhere.binds).all(),
+    env.DB.prepare(`
+      SELECT "id","title","type","lectureId" FROM "Material"
+      WHERE ${materialWhere.sql} ORDER BY "createdAt" ASC LIMIT 10
+    `).bind(...materialWhere.binds).all(),
+    env.DB.prepare(`
+      SELECT "id","question","lectureId","sourceType","difficulty" FROM "Mcq"
+      WHERE ${mcqWhere.sql} ORDER BY "createdAt" ASC LIMIT 10
+    `).bind(...mcqWhere.binds).all(),
+    env.DB.prepare(`
+      SELECT "id","clinicalConcept","lectureId" FROM "Flashcard"
+      WHERE ${flashcardWhere.sql} ORDER BY "createdAt" ASC LIMIT 10
+    `).bind(...flashcardWhere.binds).all(),
+  ]);
+
+  const lectures = rowsFromResult(lecturesResult);
+  const materials = rowsFromResult(materialsResult);
+  const mcqs = rowsFromResult(mcqsResult);
+  const flashcards = rowsFromResult(flashcardsResult);
+  const subjectByLecture = new Map<string, string>();
+  for (const lecture of lectures) subjectByLecture.set(String(lecture.id), String(lecture.mainSubject));
+
+  const missingLectureIds = Array.from(new Set([
+    ...materials.map((row) => String(row.lectureId || "")),
+    ...mcqs.map((row) => String(row.lectureId || "")),
+    ...flashcards.map((row) => String(row.lectureId || "")),
+  ].filter((id) => id && !subjectByLecture.has(id))));
+
+  if (missingLectureIds.length > 0) {
+    const placeholders = missingLectureIds.map(() => "?").join(",");
+    const related = rowsFromResult(await env.DB.prepare(`
+      SELECT "id","mainSubject" FROM "Lecture" WHERE "id" IN (${placeholders})
+    `).bind(...missingLectureIds).all());
+    for (const row of related) subjectByLecture.set(String(row.id), String(row.mainSubject));
+  }
+
+  const results = new Map<string, D1Row>();
+  for (const row of lectures) {
+    const key = `db-lecture-${row.id}`;
+    results.set(key, {
+      id: key,
+      title: row.name,
+      subtitle: row.subSubject || row.mainSubject,
+      type: "lecture",
+      lectureId: row.id,
+      subjectId: row.mainSubject,
+      raw: row,
+    });
+  }
+  for (const row of materials) {
+    const typeMap: Record<string, string> = { PDF: "pdf", NOTE: "notes", VIDEO: "video" };
+    const resultType = typeMap[String(row.type || "").toUpperCase()] || "pdf";
+    const key = `db-${resultType}-${row.id}`;
+    results.set(key, {
+      id: key,
+      title: `${row.title} (${resultType === "video" ? "Video" : resultType === "notes" ? "Notes" : "PDF"})`,
+      subtitle: row.title,
+      type: resultType,
+      lectureId: row.lectureId,
+      subjectId: subjectByLecture.get(String(row.lectureId)),
+      raw: row,
+    });
+  }
+  for (const row of mcqs) {
+    const key = `db-mcq-${row.id}`;
+    results.set(key, {
+      id: key,
+      title: row.question,
+      subtitle: "Quiz Question",
+      type: "mcq",
+      lectureId: row.lectureId,
+      subjectId: subjectByLecture.get(String(row.lectureId)),
+      raw: row,
+    });
+  }
+  for (const row of flashcards) {
+    const key = `db-flashcard-${row.id}`;
+    results.set(key, {
+      id: key,
+      title: row.clinicalConcept,
+      subtitle: "Flashcard",
+      type: "flashcard",
+      lectureId: row.lectureId,
+      subjectId: subjectByLecture.get(String(row.lectureId)),
+      raw: row,
+    });
+  }
+
+  const queryLower = query.toLowerCase();
+  const subjects = new Set(subjectByLecture.values());
+  for (const subject of subjects) {
+    if (!subject.toLowerCase().includes(queryLower)) continue;
+    const key = `subject-${subject}`;
+    if (!results.has(key)) {
+      results.set(key, { id: key, title: subject, subtitle: "Subject", type: "subject", subjectId: subject });
+    }
+  }
+  return Array.from(results.values());
+}
+
+async function contentTableCounts(env: any): Promise<Record<string, number>> {
+  const tables = ["Lecture", "Material", "ModuleResource", "Mcq", "Flashcard", "DailyMotto", "CalendarEvent"];
+  const counts: Record<string, number> = {};
+  for (const table of tables) {
+    const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM "${table}"`).first();
+    counts[table] = Number(row?.count || 0);
+  }
+  return counts;
+}
+
+async function contentEntityIds(env: any, entity: string): Promise<string[] | null> {
+  const allowed = new Set(["Lecture", "Material", "ModuleResource", "Mcq", "Flashcard", "DailyMotto", "CalendarEvent"]);
+  if (!allowed.has(entity)) return null;
+  const rows = rowsFromResult(await env.DB.prepare(`SELECT "id" FROM "${entity}" ORDER BY "id" ASC`).all());
+  return rows.map((row) => String(row.id));
+}
+
+async function handleInternalContentRead(request: Request, env: any, url: URL): Promise<Response> {
+  if (request.method !== "GET") {
+    return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
+  }
+  const authFailure = await authorizeInternalContentRequest(request, env);
+  if (authFailure) return authFailure;
+
+  const prefix = "/internal/content-read";
+  const path = url.pathname.slice(prefix.length) || "/";
+  try {
+    if (path === "/lectures") {
+      return jsonNoStore(await readLectures(env, url));
+    }
+    if (path.startsWith("/lectures/")) {
+      const id = decodeURIComponent(path.slice("/lectures/".length));
+      if (!id) return jsonNoStore({ error: "Lecture id is required." }, 400);
+      const lecture = await readLectureDetail(env, id);
+      return lecture ? jsonNoStore(lecture) : jsonNoStore({ error: "Lecture not found." }, 404);
+    }
+    if (path === "/materials-data") {
+      return jsonNoStore(await readMaterialsData(env, url.searchParams.get("scope") || "full"));
+    }
+    if (path === "/search") {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) return jsonNoStore([]);
+      return jsonNoStore(await readSearch(env, q));
+    }
+    if (path === "/calendar/global") {
+      const rows = rowsFromResult(await env.DB.prepare(`
+        SELECT "id","userId","title","eventType","startDateTime","endDateTime","targetGroups","description",
+               "subjectId","lectureId","room","doctor","notes","isPinned","isCompleted","allDay",
+               "importSource","sourceDocumentName","sourceDocumentSha256","sourcePage","importFingerprint"
+        FROM "CalendarEvent" WHERE "userId" IS NULL
+        ORDER BY "startDateTime" ASC, "id" ASC LIMIT 2000
+      `).all()).map(normalizeCalendarReadRow);
+      return jsonNoStore({ events: rows });
+    }
+    if (path === "/mottos/active") {
+      const rows = rowsFromResult(await env.DB.prepare(`
+        SELECT "id","message","isActive","isFeatured","createdBy","createdAt","updatedAt"
+        FROM "DailyMotto" WHERE "isActive" = 1
+        ORDER BY "createdAt" DESC, "id" ASC LIMIT 100
+      `).all()).map(normalizeMottoReadRow);
+      return jsonNoStore({ mottos: rows });
+    }
+    if (path === "/flashcards") {
+      const rows = rowsFromResult(await env.DB.prepare(`
+        SELECT "id","clinicalConcept","explanation","lectureId","createdAt"
+        FROM "Flashcard" ORDER BY "createdAt" ASC, "id" ASC LIMIT 20000
+      `).all());
+      return jsonNoStore(rows);
+    }
+    if (path.startsWith("/module-resources/")) {
+      const moduleId = decodeURIComponent(path.slice("/module-resources/".length));
+      if (!moduleId) return jsonNoStore({ error: "Module id is required." }, 400);
+      const rows = rowsFromResult(await env.DB.prepare(`
+        SELECT "id","moduleId","title","fileSizeBytes","status","createdAt","storagePath"
+        FROM "ModuleResource" WHERE "moduleId" = ? AND "status" = 'READY'
+        ORDER BY "createdAt" ASC, "id" ASC
+      `).bind(moduleId).all());
+      return jsonNoStore({ resources: rows });
+    }
+    if (path.startsWith("/module-resource/")) {
+      const id = decodeURIComponent(path.slice("/module-resource/".length));
+      const row = await env.DB.prepare(`
+        SELECT "id","moduleId","title","fileSizeBytes","status","createdAt","storagePath"
+        FROM "ModuleResource" WHERE "id" = ? LIMIT 1
+      `).bind(id).first();
+      return row ? jsonNoStore({ resource: row }) : jsonNoStore({ error: "Module resource not found." }, 404);
+    }
+    if (path === "/counts") {
+      return jsonNoStore({ counts: await contentTableCounts(env) });
+    }
+    if (path === "/ids") {
+      const entity = url.searchParams.get("entity") || "";
+      const ids = await contentEntityIds(env, entity);
+      return ids ? jsonNoStore({ entity, ids }) : jsonNoStore({ error: "Unsupported entity." }, 400);
+    }
+    return jsonNoStore({ error: "Content read route not found." }, 404);
+  } catch (error) {
+    console.error("[ContentRead]", {
+      path,
+      message: error instanceof Error ? error.message.slice(0, 200) : "Unknown error",
+    });
+    return jsonNoStore({ error: "Content read failed." }, 500);
+  }
+}
+
+async function applyContentMutation(env: any, payload: unknown): Promise<{ entity: ContentEntity; operation: "upsert" | "delete"; id: string }> {
+  if (!isRecord(payload)) throw new Error("Invalid content sync payload.");
+  const entity = payload.entity;
+  const operation = payload.operation;
+  const version = payload.version;
+  const validEntities: ContentEntity[] = ["Lecture", "Material", "ModuleResource", "Mcq", "Flashcard", "DailyMotto", "CalendarEvent"];
+  const id = validateMutationId(payload.id);
+  if (version !== 1 || !validEntities.includes(entity as ContentEntity)) {
+    throw new Error("Unsupported content sync payload.");
+  }
+  if (operation !== "upsert" && operation !== "delete") {
+    throw new Error("Unsupported content sync operation.");
+  }
+  if (operation === "delete") {
+    await deleteContentRow(env, entity as ContentEntity, id);
+  } else {
+    if (!isRecord(payload.data)) throw new Error("Upsert data is required.");
+    if (payload.data.id !== id) throw new Error("Payload id mismatch.");
+    await upsertContentRow(env, entity as ContentEntity, payload.data);
+  }
+  return { entity: entity as ContentEntity, operation, id };
+}
+
+async function handleInternalContentSyncBatch(request: Request, env: any): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } });
+  }
+  const authFailure = await authorizeInternalContentRequest(request, env);
+  if (authFailure) return authFailure;
+  const rawBody = await request.text();
+  if (rawBody.length > 4 * 1024 * 1024) return jsonNoStore({ ok: false, error: "Payload too large." }, 413);
+  let payload: unknown;
+  try { payload = JSON.parse(rawBody); } catch { return jsonNoStore({ ok: false, error: "Invalid JSON." }, 400); }
+  if (!isRecord(payload) || !Array.isArray(payload.mutations)) {
+    return jsonNoStore({ ok: false, error: "mutations array is required." }, 400);
+  }
+  if (payload.mutations.length < 1 || payload.mutations.length > 200) {
+    return jsonNoStore({ ok: false, error: "Batch must contain 1 to 200 mutations." }, 400);
+  }
+  const applied: Array<{ entity: ContentEntity; operation: "upsert" | "delete"; id: string }> = [];
+  try {
+    for (const mutation of payload.mutations) applied.push(await applyContentMutation(env, mutation));
+    return jsonNoStore({ ok: true, applied: applied.length, syncedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("[ContentSyncBatch]", { applied: applied.length, message: error instanceof Error ? error.message.slice(0, 200) : "Unknown error" });
+    return jsonNoStore({ ok: false, applied: applied.length, error: error instanceof Error ? error.message : "Content sync batch failed." }, 400);
+  }
+}
+
 export default {
   async fetch(request: Request, env: any): Promise<Response> {
     const url = new URL(request.url);
@@ -540,6 +1011,14 @@ export default {
     // ---------------------------------------------------------
     if (url.pathname === "/internal/content-sync") {
       return handleInternalContentSync(request, env);
+    }
+
+    if (url.pathname === "/internal/content-sync/batch") {
+      return handleInternalContentSyncBatch(request, env);
+    }
+
+    if (url.pathname.startsWith("/internal/content-read")) {
+      return handleInternalContentRead(request, env, url);
     }
 
     // ---------------------------------------------------------
