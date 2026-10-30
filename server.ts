@@ -329,6 +329,13 @@ function contentD1Phase1CutoverEnabled(): boolean {
   return envFlagEnabled("CONTENT_D1_PHASE1_CUTOVER_ENABLED");
 }
 
+// Phase 2 removes all runtime PDF/NOTE byte reads from Supabase/PostgreSQL.
+// Once enabled, file delivery is R2-only and a missing R2 object is treated as
+// a controlled migration/storage error instead of falling back to fileData.
+function filesR2Phase2CutoverEnabled(): boolean {
+  return envFlagEnabled("FILES_R2_PHASE2_CUTOVER_ENABLED");
+}
+
 function academicContentMemoryCacheEnabled(): boolean {
   // Direct edits/deletes made in the Supabase dashboard cannot invalidate a
   // process-local cache. Keep it off by default so the very next API refresh
@@ -1819,6 +1826,7 @@ function isApprovedExternalUrl(rawUrl: string): boolean {
 // once a row has fileData it is skipped on subsequent boots.
 async function migrateLegacyLocalFilesToDb(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
+  if (filesR2Phase2CutoverEnabled()) return;
   let prismaClient;
   try {
     prismaClient = getPrisma();
@@ -4662,12 +4670,38 @@ app.post("/api/materials/video", requireAdmin, catchAsync(async (req, res) => {
 app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsync(async (req, res) => {
   try {
     const materialId = normalizePdfMaterialId(req.params.id);
-    const prismaClient = getPrisma();
-    const material = await prismaClient.material.findUnique({
-      where: { id: materialId },
-      // Never select the large fileData blob on this latency-sensitive path.
-      select: { type: true, storagePath: true },
-    });
+    let material: { type: string; storagePath: string | null } | null = null;
+
+    if (contentD1Phase1CutoverEnabled() || filesR2Phase2CutoverEnabled()) {
+      try {
+        const payload = await fetchContentReadJson<any>(
+          `/material/${encodeURIComponent(materialId)}`,
+        );
+        if (!payload?.material) return res.status(404).json({ error: "PDF not found." });
+        material = {
+          type: String(payload.material.type || ""),
+          storagePath: typeof payload.material.storagePath === "string" && payload.material.storagePath
+            ? payload.material.storagePath
+            : null,
+        };
+        res.setHeader("X-Material-Metadata-Read-Source", "d1");
+      } catch (error: any) {
+        if (Number(error?.status) === 404) return res.status(404).json({ error: "PDF not found." });
+        logger.warn(
+          "[ContentRead]",
+          `D1 material file metadata failed during strict content cutover: ${error?.message ?? "unknown error"}`,
+        );
+        return sendStrictContentReadFailure(res, "Material", error);
+      }
+    } else {
+      const prismaClient = getPrisma();
+      material = await prismaClient.material.findUnique({
+        where: { id: materialId },
+        // Never select the large fileData blob on this latency-sensitive path.
+        select: { type: true, storagePath: true },
+      });
+      res.setHeader("X-Material-Metadata-Read-Source", "supabase");
+    }
 
     if (!material || !["PDF", "NOTE"].includes(String(material.type || "").toUpperCase())) {
       return res.status(404).json({ error: "PDF not found." });
@@ -4695,6 +4729,15 @@ app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsy
         // Deliberately shorter than the actual 5-minute signature lifetime so
         // clients never reuse a URL near its expiry boundary.
         expiresAt: Date.now() + 240_000,
+      });
+    }
+
+    if (filesR2Phase2CutoverEnabled()) {
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.status(503).json({
+        error: "PDF is not available in Cloudflare R2.",
+        code: "R2_FILE_MIGRATION_REQUIRED",
+        retryable: false,
       });
     }
 
@@ -4732,8 +4775,52 @@ app.get("/api/materials/pdf/:id/external-url", requireUser, pdfLimiter, catchAsy
 // Endpoint to serve PDF directly from PostgreSQL
 app.get("/api/materials/pdf/:id", requirePdfUser, pdfLimiter, catchAsync(async (req, res) => {
   try {
-    const prismaClient = getPrisma();
     const idToFind = normalizePdfMaterialId(req.params.id);
+
+    // Phase 2 strict cutover: metadata comes from D1 and bytes come from R2.
+    // PostgreSQL fileData is intentionally never selected on this path.
+    if (filesR2Phase2CutoverEnabled()) {
+      let material: { type: string; storagePath: string | null } | null = null;
+      try {
+        const payload = await fetchContentReadJson<any>(
+          `/material/${encodeURIComponent(idToFind)}`,
+        );
+        if (payload?.material) {
+          material = {
+            type: String(payload.material.type || ""),
+            storagePath: typeof payload.material.storagePath === "string" && payload.material.storagePath
+              ? payload.material.storagePath
+              : null,
+          };
+        }
+      } catch (error: any) {
+        if (Number(error?.status) === 404) return res.status(404).send("PDF not found.");
+        logger.warn(
+          "[ContentRead]",
+          `D1 PDF metadata failed during Phase 2 strict cutover: ${error?.message ?? "unknown error"}`,
+        );
+        return res.status(503).send("PDF metadata is temporarily unavailable.");
+      }
+
+      if (!material || !["PDF", "NOTE"].includes(String(material.type || "").toUpperCase())) {
+        return res.status(404).send("PDF not found.");
+      }
+      if (!material.storagePath) {
+        return res.status(503).send("PDF is not available in Cloudflare R2.");
+      }
+      try {
+        const signedUrl = await createSupabaseSignedUrl(material.storagePath, 300);
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("X-Material-Metadata-Read-Source", "d1");
+        res.setHeader("X-File-Delivery-Source", "r2");
+        return res.redirect(302, signedUrl);
+      } catch (storageError: any) {
+        logger.error("[Storage]", `Could not create R2 PDF URL: ${storageError?.message ?? "unknown error"}`);
+        return res.status(502).send("PDF file storage is temporarily unavailable.");
+      }
+    }
+
+    const prismaClient = getPrisma();
     const material = await prismaClient.material.findUnique({
       where: { id: idToFind },
       select: { fileData: true, storagePath: true, fileUrlOrLink: true, title: true, type: true, createdAt: true }

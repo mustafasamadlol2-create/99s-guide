@@ -22,6 +22,17 @@ function testEnv() {
             async first() {
               if (sql.includes("COUNT(*)")) return { count: 0 };
               if (sql.includes("SELECT 1 AS ok")) return { ok: 1 };
+              if (sql.includes('FROM "Material"')) {
+                return {
+                  id: "material-1",
+                  title: "Lecture PDF",
+                  type: "PDF",
+                  fileUrlOrLink: "/api/materials/pdf/material-1",
+                  lectureId: "lecture-1",
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  storagePath: "materials/lecture-1/material-1.pdf",
+                };
+              }
               return null;
             },
             async all() {
@@ -120,4 +131,19 @@ test("Phase 1 batch sync accepts multiple canonical upserts", async () => {
   const payload = await response.json() as any;
   assert.equal(payload.applied, 2);
   assert.equal(writes.length, 2);
+});
+
+
+test("Phase 2 material detail read returns R2 metadata from D1", async () => {
+  const { env } = testEnv();
+  const response = await contentWorker.fetch(
+    new Request("https://worker.test/internal/content-read/material/material-1", {
+      headers: { "X-Content-Sync-Secret": "test-secret" },
+    }),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const payload = await response.json() as any;
+  assert.equal(payload.material.id, "material-1");
+  assert.equal(payload.material.storagePath, "materials/lecture-1/material-1.pdf");
 });

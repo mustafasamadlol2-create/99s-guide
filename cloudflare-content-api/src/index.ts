@@ -866,6 +866,15 @@ async function handleInternalContentRead(request: Request, env: any, url: URL): 
       `).all());
       return jsonNoStore(rows);
     }
+    if (path.startsWith("/material/")) {
+      const id = decodeURIComponent(path.slice("/material/".length));
+      if (!id) return jsonNoStore({ error: "Material id is required." }, 400);
+      const row = await env.DB.prepare(`
+        SELECT "id","title","type","fileUrlOrLink","lectureId","createdAt","storagePath"
+        FROM "Material" WHERE "id" = ? LIMIT 1
+      `).bind(id).first();
+      return row ? jsonNoStore({ material: row }) : jsonNoStore({ error: "Material not found." }, 404);
+    }
     if (path.startsWith("/module-resources/")) {
       const moduleId = decodeURIComponent(path.slice("/module-resources/".length));
       if (!moduleId) return jsonNoStore({ error: "Module id is required." }, 400);
