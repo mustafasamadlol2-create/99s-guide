@@ -1,5 +1,5 @@
 import { handleLeaderboardCache } from "./leaderboardCache";
-type PrivateEntity = "User" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
+type PrivateEntity = "User" | "UserAuthReplica" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
 const MAX_PROJECTION_DATA_BYTES = 64 * 1024;
@@ -18,6 +18,36 @@ type TableConfig = {
 };
 
 const TABLES: Record<PrivateEntity, TableConfig> = {
+  "UserAuthReplica": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "email": "TEXT",
+      "profileEmail": "TEXT",
+      "role": "TEXT",
+      "sessionVersion": "INTEGER",
+      "name": "TEXT",
+      "avatar": "TEXT",
+      "avatarUrl": "TEXT",
+      "signature": "TEXT",
+      "totalPoints": "INTEGER",
+      "level": "TEXT",
+      "levelBadge": "TEXT",
+      "streakDays": "INTEGER",
+      "totalTimeSpent": "INTEGER",
+      "lastActive": "TEXT",
+      "lastSeen": "TEXT",
+      "createdAt": "TEXT",
+      "updatedAt": "TEXT",
+      "accountStatus": "TEXT",
+      "isOnline": "INTEGER",
+      "studentGroup": "TEXT",
+      "isPrimaryOwner": "INTEGER",
+      "emailVerified": "INTEGER",
+      "hasAppleIdentity": "INTEGER",
+      "preferences": "TEXT"
+    }
+  },
   "User": {
     "primaryKey": [
       "id"
@@ -1521,6 +1551,64 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
          LIMIT ?`
       ).bind(...bindings).all();
       return jsonNoStore({ rows: result.results || [] });
+    }
+
+    if (path === "/internal/private-read/auth-user-v2") {
+      const id = readStringParam(url, "id");
+      const email = readStringParam(url, "email");
+      if ((!id && !email) || (id && email)) {
+        return jsonNoStore({ ok: false, error: "Provide exactly one of id or email." }, 400);
+      }
+
+      const where = id ? `"id" = ?` : `lower("email") = lower(?)`;
+      const value = id || email || "";
+      const row = await env.DB.prepare(
+        `SELECT * FROM "UserAuthReplica" WHERE ${where} LIMIT 1`
+      ).bind(value).first();
+
+      return jsonNoStore({
+        row: mapIntegerBooleans(
+          row || null,
+          ["isOnline","isPrimaryOwner","emailVerified","hasAppleIdentity"],
+        ),
+      });
+    }
+
+    if (path === "/internal/private-read/users-v2") {
+      const limit = readLimit(url, 200, 2000);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "UserAuthReplica"
+         ORDER BY "isOnline" DESC, lower(COALESCE("name", "")) ASC, "id" ASC
+         LIMIT ?`
+      ).bind(limit).all();
+      return jsonNoStore({
+        rows: mapManyIntegerBooleans(
+          result.results || [],
+          ["isOnline","isPrimaryOwner","emailVerified","hasAppleIdentity"],
+        ),
+      });
+    }
+
+    if (path === "/internal/private-read/phase3-keys") {
+      const [users, bans] = await env.DB.batch([
+        env.DB.prepare(`SELECT "id" FROM "UserAuthReplica" ORDER BY "id" ASC`),
+        env.DB.prepare(`SELECT "id" FROM "UserBan" ORDER BY "id" ASC`),
+      ]);
+      return jsonNoStore({
+        userIds: (users.results || []).map((row: any) => String(row.id)),
+        banIds: (bans.results || []).map((row: any) => String(row.id)),
+      });
+    }
+
+    if (path === "/internal/private-read/phase3-counts") {
+      const [users, bans] = await env.DB.batch([
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "UserAuthReplica"`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "UserBan"`),
+      ]);
+      return jsonNoStore({
+        users: Number((users.results || [])[0]?.count || 0),
+        bans: Number((bans.results || [])[0]?.count || 0),
+      });
     }
 
     if (path === "/internal/private-read/auth-user") {

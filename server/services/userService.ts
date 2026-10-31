@@ -2,7 +2,12 @@ import { getPrisma } from "./prismaClient.js";
 import { getStudyPointsReadModel } from "../features/study-points/readModel.js";
 import { getStudyPointsCompetitiveEpoch } from "../features/study-points/epoch.js";
 import { safeStudyPointsAggregate } from "../features/study-points/aggregate.js";
-import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./privateD1Read.js";
+import {
+  fetchPrivateReadJson,
+  logPrivateReadFallback,
+  phase3UserReadCutoverEnabled,
+  privateReadEnabled,
+} from "./privateD1Read.js";
 import { enqueueMasteryD1UserDeletion } from "./privateD1Sync.js";
 import crypto from "node:crypto";
 import {
@@ -39,6 +44,8 @@ export interface UserRecord {
   isPrimaryOwner?: boolean;
   emailVerified?: boolean;
   isOnline?: boolean;
+  hasAppleIdentity?: boolean;
+  preferences?: Record<string, unknown> | string | null;
 }
 
 /** Input type for createUser — includes the password hash that must never appear in UserRecord. */
@@ -117,6 +124,55 @@ async function withCanonicalStudyPointsTotals<T extends { id?: unknown; totalPoi
   return enriched;
 }
 
+
+function mapPrivateUserRow(row: any): UserRecord {
+  const accountStatus = String(row?.accountStatus || "ACTIVE");
+  return {
+    id: String(row.id),
+    email: String(row.email || ""),
+    profileEmail: row.profileEmail ?? null,
+    role: (row.role === "admin" || row.role === "owner" ? row.role : "user") as "admin" | "user" | "owner",
+    sessionVersion: Number(row.sessionVersion || 0),
+    name: String(row.name || ""),
+    avatar: String(row.avatar || ""),
+    avatarUrl: String(row.avatarUrl || row.avatar || ""),
+    signature: row.signature == null ? "" : String(row.signature),
+    totalPoints: Number(row.totalPoints || 0),
+    level: row.level == null ? undefined : String(row.level),
+    levelBadge: row.levelBadge == null ? undefined : String(row.levelBadge),
+    streakDays: Number(row.streakDays || 0),
+    totalTimeSpent: Number(row.totalTimeSpent || 0),
+    lastActive: row.lastActive ? String(row.lastActive) : new Date().toISOString(),
+    created_at: row.createdAt ? String(row.createdAt) : new Date().toISOString(),
+    accountStatus: accountStatus.toLowerCase() === "banned"
+      ? "banned"
+      : accountStatus === "PENDING_PROFILE"
+        ? "pending_profile"
+        : accountStatus === "PENDING"
+          ? "pending"
+          : "active",
+    isPrimaryOwner: row.isPrimaryOwner === true,
+    emailVerified: row.emailVerified !== false,
+    isOnline: row.isOnline === true,
+    studentGroup: String(row.studentGroup || "A"),
+    hasAppleIdentity: row.hasAppleIdentity === true,
+    preferences: (() => {
+      if (row.preferences == null || row.preferences === "") return null;
+      if (typeof row.preferences !== "string") return row.preferences;
+      try { return JSON.parse(row.preferences); } catch { return null; }
+    })(),
+  };
+}
+
+async function readPhase3User(params: { id?: string; email?: string }): Promise<UserRecord | null> {
+  const payload = await fetchPrivateReadJson<{ row: any | null }>(
+    "/internal/private-read/auth-user-v2",
+    params,
+  );
+  if (!payload || payload.row == null) return null;
+  return mapPrivateUserRow(payload.row);
+}
+
 export class UserService {
   // Callbacks for real-time socket events
   static onUpdate?: (user: any) => void;
@@ -125,8 +181,11 @@ export class UserService {
 
   // Find user by email
   static async findByEmail(email: string): Promise<UserRecord | null> {
-    const client = getPrisma();
     const cleanEmail = email.trim().toLowerCase();
+    if (phase3UserReadCutoverEnabled()) {
+      return readPhase3User({ email: cleanEmail });
+    }
+    const client = getPrisma();
     try {
       const u = await client.user.findUnique({
         where: { email: cleanEmail },
@@ -178,6 +237,15 @@ export class UserService {
     id: string,
     options: { includePoints?: boolean } = {},
   ): Promise<UserRecord | null> {
+    if (phase3UserReadCutoverEnabled()) {
+      const row = await readPhase3User({ id });
+      if (!row) return null;
+      if (options.includePoints === false) {
+        const { totalPoints: _ignored, ...withoutPoints } = row;
+        return withoutPoints as UserRecord;
+      }
+      return row;
+    }
     const client = getPrisma();
     try {
       const u = await client.user.findUnique({
@@ -519,6 +587,17 @@ export class UserService {
 
   // Fetch all users with basic metrics
   static async listAllUsers(): Promise<any[]> {
+    if (phase3UserReadCutoverEnabled()) {
+      const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+        "/internal/private-read/users-v2",
+        { limit: 1000 },
+      );
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid Phase 3 user roster payload.");
+      }
+      return payload.rows;
+    }
+
     if (
       privateReadEnabled("PRIVATE_D1_ROSTER_READS_ENABLED")
     ) {

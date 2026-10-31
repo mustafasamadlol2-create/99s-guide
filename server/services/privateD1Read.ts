@@ -27,6 +27,10 @@ export function privateReadEnabled(flagName: string): boolean {
     PRIVATE_DATA_SYNC_SECRET.length > 0;
 }
 
+export function phase3UserReadCutoverEnabled(): boolean {
+  return envFlag("PRIVATE_D1_PHASE3_CUTOVER_ENABLED");
+}
+
 export async function fetchPrivateReadJson<T>(
   path: string,
   params: Record<string, string | number | null | undefined> = {},

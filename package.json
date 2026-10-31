@@ -64,7 +64,11 @@
     "files:r2:verify": "tsx scripts/files-r2-phase2.ts --verify-only",
     "deploy:content-worker": "cd cloudflare-content-api && wrangler deploy",
     "d1:content:migrate": "cd cloudflare-content-api && wrangler d1 migrations apply 99s-guide-content --remote",
-    "test:content-d1": "tsx --test tests/cloudflare-mcq-sync.test.ts tests/content-d1-phase1-worker.test.ts"
+    "test:content-d1": "tsx --test tests/cloudflare-mcq-sync.test.ts tests/content-d1-phase1-worker.test.ts",
+    "deploy:private-worker": "node scripts/clean-generated-wrangler-config.cjs && cd cloudflare-private-data-api && wrangler deploy",
+    "d1:private:migrate": "node scripts/clean-generated-wrangler-config.cjs && cd cloudflare-private-data-api && wrangler d1 migrations apply 99s-guide-content --remote",
+    "users:d1:backfill": "tsx scripts/users-d1-phase3.ts",
+    "users:d1:verify": "tsx scripts/users-d1-phase3.ts --verify-only"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

@@ -49,7 +49,12 @@ import {
   stopPrivateD1SyncDrainer,
 } from "./server/services/privateD1Sync.js";
 import { startLeaderboardD1OutboxDrainer, stopLeaderboardD1OutboxDrainer } from "./server/features/leaderboard/d1Outbox.js";
-import { fetchPrivateReadJson, logPrivateReadFallback, privateReadEnabled } from "./server/services/privateD1Read.js";
+import {
+  fetchPrivateReadJson,
+  logPrivateReadFallback,
+  phase3UserReadCutoverEnabled,
+  privateReadEnabled,
+} from "./server/services/privateD1Read.js";
 import { execFile } from "child_process";
 import {
   getPersonalizationFromCloud,
@@ -1882,6 +1887,28 @@ async function migrateLegacyLocalFilesToDb(): Promise<void> {
 
 // Real-Time Socket Presence state storage
 
+function currentSocketPresence(): Array<{ userId: string; name: string; status: string; lastActive: string }> {
+  const byUser = new Map<string, { userId: string; name: string; status: string; lastActive: string }>();
+  for (const liveSocket of io.sockets.sockets.values()) {
+    const userId = typeof liveSocket.data.userId === "string" ? liveSocket.data.userId : "";
+    if (!userId || liveSocket.data.verified !== true || liveSocket.connected !== true) continue;
+    const email = typeof liveSocket.data.userEmail === "string" ? liveSocket.data.userEmail : "";
+    const name = typeof liveSocket.data.userName === "string" && liveSocket.data.userName.trim()
+      ? liveSocket.data.userName.trim()
+      : (email ? email.split("@")[0] : "Student");
+    byUser.set(userId, {
+      userId,
+      name,
+      status: "Online",
+      lastActive: new Date().toISOString(),
+    });
+  }
+  return [...byUser.values()];
+}
+
+function emitSocketPresenceUpdate(): void {
+  io.to("authenticated").emit("presence-update", currentSocketPresence());
+}
 
 io.on("connection", (socket) => {
 
@@ -1904,9 +1931,10 @@ io.on("connection", (socket) => {
         const updatedUser = await client.user.update({
           where: { id: handshakeUserId },
           data: { isOnline: true, lastActive: new Date(), lastSeen: new Date(), socketId: socket.id },
-          select: { email: true, studentGroup: true },
+          select: { email: true, name: true, studentGroup: true },
         });
         socket.data.userEmail = updatedUser.email;
+        socket.data.userName = updatedUser.name || updatedUser.email.split("@")[0];
         // Join the user's group room so targeted announcements can be scoped
         if (updatedUser.studentGroup) {
           socket.join("group:" + updatedUser.studentGroup);
@@ -1916,14 +1944,8 @@ io.on("connection", (socket) => {
         io.to("authenticated").emit('userStatusChanged', { email: updatedUser.email, isOnline: true });
         io.to("authenticated").emit('userStatusUpdate', { email: updatedUser.email, isOnline: true });
 
-        // Notify other connected clients of presence status update
-        const liveOnline = await client.user.findMany({ where: { isOnline: true }, select: { id: true, name: true, email: true, lastActive: true } });
-        io.to("authenticated").emit("presence-update", liveOnline.map(u => ({
-          userId: u.id,
-          name: u.name || u.email.split("@")[0],
-          status: "Online",
-          lastActive: u.lastActive.toISOString()
-        })));
+        // Presence is derived from authenticated live sockets; no Supabase read is needed.
+        emitSocketPresenceUpdate();
       } catch (err: any) {
         // P2025 = user not found (handshake with stale/invalid userId) — safe to ignore
         if (err?.code !== 'P2025') {
@@ -1969,12 +1991,13 @@ io.on("connection", (socket) => {
           lastSeen: new Date(),
           socketId: socket.id,
         },
-        select: { email: true, studentGroup: true },
+        select: { email: true, name: true, studentGroup: true },
       });
 
       // Attach tracking data to the socket instance
       socket.data.userId = userId;
       socket.data.userEmail = u.email;
+      socket.data.userName = u.name || u.email.split("@")[0];
       socket.data.verified = true;
 
       // Immediately use io.emit('userStatusChanged' / 'userStatusUpdate') to broadcast this change to ALL connected clients.
@@ -1993,14 +2016,8 @@ io.on("connection", (socket) => {
         logger.error("[Socket registerUser]", `UserService sync failed for ${userId.substring(0, 8)}: ${err instanceof Error ? err.message.substring(0, 50) : 'Unknown'}`);
       }
 
-      // Emit update lists query directly and physically from the database
-      const liveOnline = await client.user.findMany({ where: { isOnline: true }, select: { id: true, name: true, email: true, lastActive: true } });
-      io.to("authenticated").emit("presence-update", liveOnline.map(onlineUser => ({
-        userId: onlineUser.id,
-        name: onlineUser.name || onlineUser.email.split("@")[0],
-        status: "Online",
-        lastActive: onlineUser.lastActive ? onlineUser.lastActive.toISOString() : new Date().toISOString()
-      })));
+      // Emit the authenticated live-socket roster without a Supabase read.
+      emitSocketPresenceUpdate();
     } catch (err) {
       logger.error("[Socket registerUser]", `Database error: ${err instanceof Error ? err.message.substring(0, 50) : "Sanitized"}`);
     }
@@ -2014,16 +2031,7 @@ io.on("connection", (socket) => {
     try {
       const client = getPrisma();
       
-      // Look up candidate users with this specific socketId or matching details to broadcast correct offline notifications
-      const candidateUsers = await client.user.findMany({
-        where: {
-          OR: [
-            { socketId: socketId },
-            userId ? { id: userId } : null
-          ].filter(Boolean) as any
-        }
-      });
-
+      // Secure updateMany write flags the disconnected identity offline. No user read is required.
       // Secure updateMany update to flag disconnected users as offline
       await client.user.updateMany({
         where: {
@@ -2038,16 +2046,11 @@ io.on("connection", (socket) => {
         }
       });
 
-      // Broadcast offline changes
-      const loggedEmails = new Set<string>();
-      if (userEmail) loggedEmails.add(userEmail.toLowerCase());
-      for (const u of candidateUsers) {
-        loggedEmails.add(u.email.toLowerCase());
-      }
-
-      for (const email of loggedEmails) {
-        io.to("authenticated").emit('userStatusChanged', { email: email, isOnline: false });
-        io.to("authenticated").emit('userStatusUpdate', { email: email, isOnline: false });
+      // Broadcast offline changes using the already-verified socket identity.
+      if (userEmail) {
+        const email = userEmail.toLowerCase();
+        io.to("authenticated").emit('userStatusChanged', { email, isOnline: false });
+        io.to("authenticated").emit('userStatusUpdate', { email, isOnline: false });
       }
 
       // Maintain backward compatibility with the JSON legacy database fallback if needed
@@ -2059,14 +2062,8 @@ io.on("connection", (socket) => {
         }
       }
 
-      // Emit updated online presence lists directly and query physically from database
-      const liveOnline = await client.user.findMany({ where: { isOnline: true }, select: { id: true, name: true, email: true, lastActive: true } });
-      io.to("authenticated").emit("presence-update", liveOnline.map(onlineUser => ({
-        userId: onlineUser.id,
-        name: onlineUser.name || onlineUser.email.split("@")[0],
-        status: "Online",
-        lastActive: onlineUser.lastActive ? onlineUser.lastActive.toISOString() : new Date().toISOString()
-      })));
+      // Emit updated live-socket presence without a Supabase read.
+      emitSocketPresenceUpdate();
     } catch (err) {
       logger.error("[Socket disconnect]", `Failed to update offline status: ${err instanceof Error ? err.message.substring(0, 80) : '[REDACTED_ERROR]'}`);
     }
@@ -2293,7 +2290,17 @@ app.get("/api/users", requireUser, catchAsync(async (req, res) => {
     let rows: any[] | null = null;
     let readSource = "supabase";
 
-    if (privateReadEnabled("PRIVATE_D1_USERS_READS_ENABLED")) {
+    if (phase3UserReadCutoverEnabled()) {
+      const payload = await fetchPrivateReadJson<{ rows: any[] }>(
+        "/internal/private-read/users-v2",
+        { limit },
+      );
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid Phase 3 user roster payload.");
+      }
+      rows = payload.rows;
+      readSource = "d1-phase3";
+    } else if (privateReadEnabled("PRIVATE_D1_USERS_READS_ENABLED")) {
       try {
         const payload = await fetchPrivateReadJson<{ rows: any[] }>(
           "/internal/private-read/users",
@@ -8079,6 +8086,16 @@ function oauthRedirectUri(req: express.Request, provider: string): string {
 
 async function isUserCurrentlyBanned(user: any): Promise<boolean> {
   if (!user || String(user.accountStatus || "").toLowerCase() !== "banned") return false;
+
+  if (phase3UserReadCutoverEnabled()) {
+    const payload = await fetchPrivateReadJson<{ row: any | null }>(
+      "/internal/private-read/ban",
+      { userId: user.id },
+    );
+    const ban = payload?.row || null;
+    return !ban || ban.isPermanent === true || !ban.endTime || new Date(String(ban.endTime)) > new Date();
+  }
+
   const client = getPrisma();
   const ban = await client.userBan.findUnique({ where: { userId: user.id } });
   return !ban || ban.isPermanent || !ban.endTime || ban.endTime > new Date();
@@ -8091,7 +8108,7 @@ function isInfrastructureError(error: unknown): boolean {
   const code = String(candidate?.code || "");
   const message = String(candidate?.message || error || "").toLowerCase();
   return /^(P1001|P1008|P1017|P2024|DATABASE_UNAVAILABLE)$/.test(code) ||
-    /database|prisma|connection|connection pool|pool timeout|max clients|too many clients|can't reach|timed out|econn|socket hang up/.test(message);
+    /database|prisma|private d1|private data worker|fetch failed|aborted|connection|connection pool|pool timeout|max clients|too many clients|can't reach|timed out|econn|socket hang up/.test(message);
 }
 
 function sendAuthFailure(
@@ -8776,10 +8793,11 @@ app.get("/api/auth/me", catchAsync(async (req, res) => {
     const fullData = await UserService.getFullUserData(user.id, user);
     // Check if this is an Apple user who hasn't selected their profile email yet
     failurePhase = "oauth_identity";
-    const prisma = getPrisma();
-    const appleIdentity = await prisma.oAuthIdentity.findFirst({
-      where: { provider: "apple", userId: user.id },
-    });
+    const appleIdentity = phase3UserReadCutoverEnabled()
+      ? user.hasAppleIdentity === true
+      : !!(await getPrisma().oAuthIdentity.findFirst({
+          where: { provider: "apple", userId: user.id },
+        }));
     const needsEmailSelection = !!appleIdentity && !user.profileEmail;
     // Return the token in the response body so the frontend can persist it
     // for Bearer auth (bypasses ITP cookie partitioning on iOS Safari).
@@ -12145,18 +12163,23 @@ app.patch("/api/user/preferences", requireUser, catchAsync(async (req, res) => {
 
     const client = getPrisma();
 
-    // Get existing preferences
-    const user = await client.user.findUnique({
-      where: { id: userId },
-      select: { preferences: true }
-    });
-
-    let currentPrefs = {};
-    if (user?.preferences) {
-      try {
-        currentPrefs = typeof user.preferences === 'string' ? JSON.parse(user.preferences) : user.preferences;
-      } catch (e) {
-        logger.warn("[Preferences]", `Malformed preferences JSON for user ${userId.substring(0, 8)} — using empty defaults`);
+    // Under Phase 3 the authenticated D1 user replica already contains the
+    // current preferences, so updating settings does not require a Supabase read.
+    const currentUser = (req as any).user as { preferences?: unknown };
+    let currentPrefs: Record<string, unknown> = {};
+    if (currentUser?.preferences && typeof currentUser.preferences === "object") {
+      currentPrefs = currentUser.preferences as Record<string, unknown>;
+    } else if (!phase3UserReadCutoverEnabled()) {
+      const user = await client.user.findUnique({
+        where: { id: userId },
+        select: { preferences: true }
+      });
+      if (user?.preferences) {
+        try {
+          currentPrefs = typeof user.preferences === 'string' ? JSON.parse(user.preferences) : user.preferences as Record<string, unknown>;
+        } catch {
+          logger.warn("[Preferences]", `Malformed preferences JSON for user ${userId.substring(0, 8)} — using empty defaults`);
+        }
       }
     }
 

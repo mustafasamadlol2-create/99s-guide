@@ -9,6 +9,7 @@ import {
 
 type PrivateMirrorEntity =
   | "User"
+  | "UserAuthReplica"
   | "FlashcardProgress"
   | "LectureProgress"
   | "ModerationHistory"
@@ -433,6 +434,12 @@ export async function enqueueMasteryD1RowDeletion(
 
 const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
   "User": [
+    "lastActive",
+    "lastSeen",
+    "createdAt",
+    "updatedAt"
+  ],
+  "UserAuthReplica": [
     "lastActive",
     "lastSeen",
     "createdAt",
