@@ -39,6 +39,10 @@ export function phase5StudyEngineReadCutoverEnabled(): boolean {
   return envFlag("PRIVATE_D1_PHASE5_STUDY_ENGINE_CUTOVER_ENABLED");
 }
 
+export function phase6GamificationReadCutoverEnabled(): boolean {
+  return envFlag("PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED");
+}
+
 const PHASE5_PROJECTION_FLAGS = new Set([
   "PRIVATE_D1_FOCUS_PLAN_READS_ENABLED",
   "PRIVATE_D1_FOCUS_SESSION_READS_ENABLED",

@@ -73,7 +73,9 @@
     "progress:d1:verify": "tsx scripts/progress-d1-phase4.ts --verify-only",
     "study-engine:d1:backfill": "tsx scripts/study-engine-d1-phase5.ts",
     "study-engine:d1:verify": "tsx scripts/study-engine-d1-phase5.ts --verify-only",
-    "study-engine:d1:diagnose": "tsx scripts/study-engine-d1-phase5-diagnose.ts"
+    "study-engine:d1:diagnose": "tsx scripts/study-engine-d1-phase5-diagnose.ts",
+    "gamification:d1:backfill": "tsx scripts/gamification-d1-phase6.ts",
+    "gamification:d1:verify": "tsx scripts/gamification-d1-phase6.ts --verify-only"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
