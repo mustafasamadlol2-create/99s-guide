@@ -6,6 +6,7 @@ import {
   fetchPrivateReadJson,
   logPrivateReadFallback,
   phase3UserReadCutoverEnabled,
+  phase4ProgressReadCutoverEnabled,
   privateReadEnabled,
 } from "./privateD1Read.js";
 import { enqueueMasteryD1UserDeletion } from "./privateD1Sync.js";
@@ -674,10 +675,13 @@ export class UserService {
     userId: string,
     forceSupabase = false,
   ): Promise<ProgressRecord[]> {
+    const strictProgressCutover = !forceSupabase && phase4ProgressReadCutoverEnabled();
     if (
       !forceSupabase &&
-      privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
-      privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")
+      (strictProgressCutover || (
+        privateReadEnabled("PRIVATE_D1_PROFILE_BUNDLE_READS_ENABLED") &&
+        privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")
+      ))
     ) {
       try {
         const payload = await fetchPrivateReadJson<{ rows: any[] }>(
@@ -699,6 +703,9 @@ export class UserService {
           lastAccessed: row.lastAccessed || new Date().toISOString(),
         }));
       } catch (error) {
+        if (strictProgressCutover) {
+          throw new Error("Private D1 progress replica is unavailable during Phase 4 cutover.");
+        }
         logPrivateReadFallback("full-user-progress", error);
       }
     }

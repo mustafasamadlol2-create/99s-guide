@@ -53,6 +53,7 @@ import {
   fetchPrivateReadJson,
   logPrivateReadFallback,
   phase3UserReadCutoverEnabled,
+  phase4ProgressReadCutoverEnabled,
   privateReadEnabled,
 } from "./server/services/privateD1Read.js";
 import { execFile } from "child_process";
@@ -107,6 +108,8 @@ import {
 } from "./server/features/study-points/awardRules.js";
 import {
   VideoWatchProgressService,
+  VERIFIED_VIDEO_COMPLETION_RATIO,
+  VERIFIED_VIDEO_MIN_DURATION_SECONDS,
   VIDEO_PLAYER_STATES,
   type VideoPlayerState,
 } from "./server/features/video-progress/service.js";
@@ -420,6 +423,75 @@ async function fetchContentReadJson<T = unknown>(
   }
 
   return await response.json() as T;
+}
+
+function sendStrictPrivateProgressReadFailure(res: express.Response, area: string) {
+  return res.status(503).json({
+    error: `${area} is temporarily unavailable.`,
+    code: "PRIVATE_D1_PROGRESS_UNAVAILABLE",
+    retryable: true,
+  });
+}
+
+function phase4LectureStatus(lecture: any, progress: any | null) {
+  const materialTypes = new Set(
+    Array.isArray(lecture?.materials)
+      ? lecture.materials.map((material: any) => String(material?.type || "").trim().toUpperCase())
+      : [],
+  );
+  const requirements = {
+    pdf: materialTypes.has("PDF"),
+    notes: materialTypes.has("NOTE") || materialTypes.has("NOTES"),
+    video: materialTypes.has("VIDEO"),
+    quiz: Array.isArray(lecture?.mcqs) && lecture.mcqs.length > 0,
+    flashcards: Array.isArray(lecture?.flashcards) && lecture.flashcards.length > 0,
+  };
+  const missing: string[] = [];
+  if (requirements.pdf && !progress?.pdfCompletedAt) missing.push("PDF");
+  if (requirements.notes && !progress?.notesCompletedAt) missing.push("NOTES");
+  if (requirements.video && !progress?.videoCompletedAt) missing.push("VIDEO");
+  if (requirements.quiz && !progress?.quizCompletedAt) missing.push("MCQ");
+  if (requirements.flashcards && !progress?.flashcardsCompletedAt) missing.push("FLASHCARDS");
+  const hasAnyStudyResource = Object.values(requirements).some(Boolean);
+  return {
+    lectureId: String(lecture?.id || ""),
+    pdfCompleted: !!progress?.pdfCompleted,
+    notesCompleted: !!progress?.notesCompleted,
+    videoCompleted: !!progress?.videoCompleted,
+    flashcardsCompleted: !!progress?.flashcardsCompleted,
+    quizCompleted: !!progress?.quizCompleted,
+    lectureCompleted: !!progress?.lectureCompletedAt,
+    pdfCompletedAt: progress?.pdfCompletedAt || null,
+    notesCompletedAt: progress?.notesCompletedAt || null,
+    videoCompletedAt: progress?.videoCompletedAt || null,
+    flashcardsCompletedAt: progress?.flashcardsCompletedAt || null,
+    quizCompletedAt: progress?.quizCompletedAt || null,
+    lectureCompletedAt: progress?.lectureCompletedAt || null,
+    readyForLectureCompletion: hasAnyStudyResource && missing.length === 0,
+    missing,
+  };
+}
+
+function phase4VideoStatuses(lecture: any, rows: any[]) {
+  const videos = Array.isArray(lecture?.materials)
+    ? lecture.materials.filter((material: any) => String(material?.type || "").trim().toUpperCase() === "VIDEO")
+    : [];
+  const byMaterial = new Map(rows.map((row: any) => [String(row?.materialId || ""), row]));
+  return videos.map((video: any) => {
+    const row = byMaterial.get(String(video.id));
+    const durationSeconds = Math.max(1, Number(row?.durationSeconds || VERIFIED_VIDEO_MIN_DURATION_SECONDS));
+    const verifiedMilliseconds = Math.max(0, Number(row?.verifiedMilliseconds || 0));
+    const thresholdMs = Math.max(1, Math.ceil(durationSeconds * VERIFIED_VIDEO_COMPLETION_RATIO * 1000));
+    return {
+      materialId: String(video.id),
+      lectureId: String(lecture.id),
+      completed: !!row?.completedAt,
+      completedAt: row?.completedAt || null,
+      durationSeconds,
+      verifiedSeconds: Math.floor(verifiedMilliseconds / 1000),
+      completionRatio: Math.min(1, Math.max(0, verifiedMilliseconds / thresholdMs)),
+    };
+  });
 }
 
 function toLectureContentRow(row: any): Record<string, unknown> {
@@ -2607,8 +2679,9 @@ app.get("/api/flashcards/progress", requireUser, catchAsync(async (req, res) => 
 
     let progress: any[] | null = null;
     let readSource = "supabase";
+    const strictProgressCutover = phase4ProgressReadCutoverEnabled();
 
-    if (privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+    if (strictProgressCutover || privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
       try {
         const payload = await fetchPrivateReadJson<{ rows: any[] }>(
           "/internal/private-read/flashcard-progress",
@@ -2620,12 +2693,15 @@ app.get("/api/flashcards/progress", requireUser, catchAsync(async (req, res) => 
         progress = payload.rows;
         readSource = "d1";
       } catch (error) {
+        if (strictProgressCutover) {
+          return sendStrictPrivateProgressReadFailure(res, "Flashcard progress");
+        }
         readSource = "supabase-fallback";
         logPrivateReadFallback("flashcard-progress", error);
       }
     }
 
-    if (!progress) {
+    if (!progress && !strictProgressCutover) {
       progress = await getPrisma().flashcardProgress.findMany({ where: { userId } });
     }
 
@@ -11461,9 +11537,36 @@ app.get("/api/videos/progress/:lectureId", requireUser, catchAsync(async (req, r
     return res.status(400).json({ error: "lectureId is invalid." });
   }
   const userId = (req as any).user.id as string;
+  const strictProgressCutover = phase4ProgressReadCutoverEnabled();
+
+  if (strictProgressCutover || privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+    try {
+      const [lecture, payload] = await Promise.all([
+        fetchContentReadJson<any>(`/lectures/${encodeURIComponent(lectureId)}`),
+        fetchPrivateReadJson<{ rows: any[] }>(
+          "/internal/private-read/video-progress",
+          { userId, lectureId },
+        ),
+      ]);
+      if (!payload || !Array.isArray(payload.rows)) {
+        throw new Error("Invalid video progress payload.");
+      }
+      const videos = phase4VideoStatuses(lecture, payload.rows);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Private-Progress-Read-Source", "d1");
+      return res.json({ success: true, videos });
+    } catch (error) {
+      if (strictProgressCutover) {
+        return sendStrictPrivateProgressReadFailure(res, "Video progress");
+      }
+      logPrivateReadFallback("video-progress", error);
+    }
+  }
+
   const service = new VideoWatchProgressService(getPrisma());
   const videos = await service.getLectureStatuses(userId, lectureId);
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Private-Progress-Read-Source", "supabase");
   return res.json({ success: true, videos });
 }));
 
@@ -11535,10 +11638,37 @@ app.get("/api/progress/lecture/:lectureId", requireUser, catchAsync(async (req, 
   const lectureId = String(req.params.lectureId || "").trim();
   if (!lectureId) return res.status(400).json({ error: "lectureId is required." });
   const userId = (req as any).user.id as string;
+  const strictProgressCutover = phase4ProgressReadCutoverEnabled();
+
+  if (strictProgressCutover || privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+    try {
+      const [lecture, payload] = await Promise.all([
+        fetchContentReadJson<any>(`/lectures/${encodeURIComponent(lectureId)}`),
+        fetchPrivateReadJson<{ row: any | null }>(
+          "/internal/private-read/lecture-progress-one",
+          { userId, lectureId },
+        ),
+      ]);
+      const status = phase4LectureStatus(lecture, payload?.row ?? null);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Private-Progress-Read-Source", "d1");
+      return res.json({ success: true, status });
+    } catch (error: any) {
+      if (Number(error?.status) === 404) {
+        return res.status(404).json({ error: "Lecture not found.", code: "LECTURE_NOT_FOUND" });
+      }
+      if (strictProgressCutover) {
+        return sendStrictPrivateProgressReadFailure(res, "Lecture progress");
+      }
+      logPrivateReadFallback("lecture-progress", error);
+    }
+  }
+
   const service = new LectureProgressCompletionService(getPrisma());
   const status = await service.getStatus(userId, lectureId);
   if (!status) return res.status(404).json({ error: "Lecture not found.", code: "LECTURE_NOT_FOUND" });
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Private-Progress-Read-Source", "supabase");
   return res.json({ success: true, status });
 }));
 
@@ -11680,8 +11810,9 @@ app.get("/api/progress/:userId/:materialId", requireUser, catchAsync(async (req,
 
     let progress: any | null = null;
     let readSource = "supabase";
+    const strictProgressCutover = phase4ProgressReadCutoverEnabled();
 
-    if (privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
+    if (strictProgressCutover || privateReadEnabled("PRIVATE_D1_PROGRESS_READS_ENABLED")) {
       try {
         const payload = await fetchPrivateReadJson<{ row: any | null }>(
           "/internal/private-read/material-progress",
@@ -11690,12 +11821,15 @@ app.get("/api/progress/:userId/:materialId", requireUser, catchAsync(async (req,
         progress = payload?.row ?? null;
         readSource = "d1";
       } catch (error) {
+        if (strictProgressCutover) {
+          return sendStrictPrivateProgressReadFailure(res, "Material progress");
+        }
         readSource = "supabase-fallback";
         logPrivateReadFallback("material-progress", error);
       }
     }
 
-    if (readSource !== "d1") {
+    if (readSource !== "d1" && !strictProgressCutover) {
       progress = await getPrisma().userProgress.findUnique({
         where: { userId_materialId: { userId, materialId } },
       });

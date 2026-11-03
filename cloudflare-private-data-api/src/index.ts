@@ -1,5 +1,5 @@
 import { handleLeaderboardCache } from "./leaderboardCache";
-type PrivateEntity = "User" | "UserAuthReplica" | "FlashcardProgress" | "LectureProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
+type PrivateEntity = "User" | "UserAuthReplica" | "FlashcardProgress" | "LectureProgress" | "VideoWatchProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
 const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
 const MAX_PROJECTION_DATA_BYTES = 64 * 1024;
@@ -104,7 +104,32 @@ const TABLES: Record<PrivateEntity, TableConfig> = {
       "flashcardsCompleted": "INTEGER",
       "quizCompleted": "INTEGER",
       "quizScore": "INTEGER",
+      "pdfCompletedAt": "TEXT",
+      "notesCompletedAt": "TEXT",
+      "videoCompletedAt": "TEXT",
+      "flashcardsCompletedAt": "TEXT",
+      "quizCompletedAt": "TEXT",
+      "lectureCompletedAt": "TEXT",
       "lastAccessed": "TEXT"
+    }
+  },
+  "VideoWatchProgress": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "userId": "TEXT",
+      "materialId": "TEXT",
+      "lectureId": "TEXT",
+      "sessionId": "TEXT",
+      "durationSeconds": "INTEGER",
+      "verifiedMilliseconds": "INTEGER",
+      "lastPositionSeconds": "REAL",
+      "lastHeartbeatAt": "TEXT",
+      "lastPlayerState": "TEXT",
+      "lastPlaybackRate": "REAL",
+      "completedAt": "TEXT",
+      "createdAt": "TEXT",
+      "updatedAt": "TEXT"
     }
   },
   "ModerationHistory": {
@@ -1611,6 +1636,36 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
       });
     }
 
+    if (path === "/internal/private-read/phase4-keys") {
+      const [lectureProgress, flashcards, materialProgress, videoProgress] = await env.DB.batch([
+        env.DB.prepare(`SELECT "userId","lectureId" FROM "LectureProgress" ORDER BY "userId","lectureId"`),
+        env.DB.prepare(`SELECT "id" FROM "FlashcardProgress" ORDER BY "id"`),
+        env.DB.prepare(`SELECT "id" FROM "UserProgress" ORDER BY "id"`),
+        env.DB.prepare(`SELECT "id" FROM "VideoWatchProgress" ORDER BY "id"`),
+      ]);
+      return jsonNoStore({
+        lectureProgress: (lectureProgress.results || []).map((row: any) => ({ userId: String(row.userId), lectureId: String(row.lectureId) })),
+        flashcardProgressIds: (flashcards.results || []).map((row: any) => String(row.id)),
+        materialProgressIds: (materialProgress.results || []).map((row: any) => String(row.id)),
+        videoProgressIds: (videoProgress.results || []).map((row: any) => String(row.id)),
+      });
+    }
+
+    if (path === "/internal/private-read/phase4-counts") {
+      const [lectureProgress, flashcards, materialProgress, videoProgress] = await env.DB.batch([
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "LectureProgress"`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "FlashcardProgress"`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "UserProgress"`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "VideoWatchProgress"`),
+      ]);
+      return jsonNoStore({
+        lectureProgress: Number((lectureProgress.results || [])[0]?.count || 0),
+        flashcardProgress: Number((flashcards.results || [])[0]?.count || 0),
+        materialProgress: Number((materialProgress.results || [])[0]?.count || 0),
+        videoProgress: Number((videoProgress.results || [])[0]?.count || 0),
+      });
+    }
+
     if (path === "/internal/private-read/auth-user") {
       const id = readStringParam(url, "id");
       const email = readStringParam(url, "email");
@@ -1663,6 +1718,35 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
           ["pdfCompleted","notesCompleted","videoCompleted","flashcardsCompleted","quizCompleted"],
         ),
       });
+    }
+
+    if (path === "/internal/private-read/lecture-progress-one") {
+      const userId = readStringParam(url, "userId");
+      const lectureId = readStringParam(url, "lectureId");
+      if (!userId || !lectureId) {
+        return jsonNoStore({ ok: false, error: "userId and lectureId are required." }, 400);
+      }
+      const row = await env.DB.prepare(
+        `SELECT * FROM "LectureProgress" WHERE "userId" = ? AND "lectureId" = ? LIMIT 1`
+      ).bind(userId, lectureId).first();
+      return jsonNoStore({
+        row: mapIntegerBooleans(
+          row || null,
+          ["pdfCompleted","notesCompleted","videoCompleted","flashcardsCompleted","quizCompleted"],
+        ),
+      });
+    }
+
+    if (path === "/internal/private-read/video-progress") {
+      const userId = readStringParam(url, "userId");
+      const lectureId = readStringParam(url, "lectureId");
+      if (!userId || !lectureId) {
+        return jsonNoStore({ ok: false, error: "userId and lectureId are required." }, 400);
+      }
+      const result = await env.DB.prepare(
+        `SELECT * FROM "VideoWatchProgress" WHERE "userId" = ? AND "lectureId" = ? ORDER BY "createdAt" ASC, "id" ASC`
+      ).bind(userId, lectureId).all();
+      return jsonNoStore({ rows: result.results || [] });
     }
 
     if (path === "/internal/private-read/flashcard-progress") {

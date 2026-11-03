@@ -31,6 +31,10 @@ export function phase3UserReadCutoverEnabled(): boolean {
   return envFlag("PRIVATE_D1_PHASE3_CUTOVER_ENABLED");
 }
 
+export function phase4ProgressReadCutoverEnabled(): boolean {
+  return envFlag("PRIVATE_D1_PHASE4_PROGRESS_CUTOVER_ENABLED");
+}
+
 export async function fetchPrivateReadJson<T>(
   path: string,
   params: Record<string, string | number | null | undefined> = {},

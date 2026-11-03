@@ -24,6 +24,7 @@ type PrivateMirrorEntity =
   | "UserBlock"
   | "UserMute"
   | "UserProgress"
+  | "VideoWatchProgress"
   | "UserCalendarEvent"
   | "FocusPlan"
   | "FocusSession"
@@ -449,6 +450,12 @@ const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
     "updatedAt"
   ],
   "LectureProgress": [
+    "pdfCompletedAt",
+    "notesCompletedAt",
+    "videoCompletedAt",
+    "flashcardsCompletedAt",
+    "quizCompletedAt",
+    "lectureCompletedAt",
     "lastAccessed"
   ],
   "ModerationHistory": [
@@ -493,6 +500,12 @@ const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
     "createdAt"
   ],
   "UserProgress": [
+    "createdAt",
+    "updatedAt"
+  ],
+  "VideoWatchProgress": [
+    "lastHeartbeatAt",
+    "completedAt",
     "createdAt",
     "updatedAt"
   ],

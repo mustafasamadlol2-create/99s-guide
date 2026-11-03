@@ -68,7 +68,9 @@
     "deploy:private-worker": "node scripts/clean-generated-wrangler-config.cjs && cd cloudflare-private-data-api && wrangler deploy",
     "d1:private:migrate": "node scripts/clean-generated-wrangler-config.cjs && cd cloudflare-private-data-api && wrangler d1 migrations apply 99s-guide-content --remote",
     "users:d1:backfill": "tsx scripts/users-d1-phase3.ts",
-    "users:d1:verify": "tsx scripts/users-d1-phase3.ts --verify-only"
+    "users:d1:verify": "tsx scripts/users-d1-phase3.ts --verify-only",
+    "progress:d1:backfill": "tsx scripts/progress-d1-phase4.ts",
+    "progress:d1:verify": "tsx scripts/progress-d1-phase4.ts --verify-only"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
