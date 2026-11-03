@@ -119,6 +119,8 @@ import {
   type LectureCompletionResourceType,
 } from "./server/features/lecture-progress/completion.js";
 import { setStudyPointsPostCommitHook } from "./server/features/study-points/postCommitHooks.js";
+import { publishGamificationD1Snapshot, readGamificationD1Snapshot } from "./server/features/gamification/d1Replica.js";
+import { phase6GamificationReadCutoverEnabled } from "./server/services/privateD1Read.js";
 import {
   flashcardStudyQualityFromStatus,
   recordMasteryStudyEventsAndRefreshBestEffort,
@@ -8635,6 +8637,11 @@ const scheduleGamificationProjectionRefresh = (
       }
       await refreshUserGamificationBestEffort(userId);
       try {
+        await publishGamificationD1Snapshot(userId);
+      } catch (error) {
+        console.warn(`[Phase6] Gamification projection enqueue failed: ${error instanceof Error ? error.message : "unknown"}`);
+      }
+      try {
         await refreshActiveLeaderboardSnapshotsForUser({ userId });
       } catch (error) {
         const reason = error instanceof Error ? error.message : "unknown error";
@@ -8669,6 +8676,8 @@ const refreshChallengesAndNotify = async (
         const reason = error instanceof Error ? error.message : "unknown error";
         console.warn(`[Gamification] Post-commit Challenge refresh failed: ${reason}`);
       })
+      .then(() => publishGamificationD1Snapshot(userId))
+      .catch((error) => console.warn(`[Phase6] Challenge projection enqueue failed: ${error instanceof Error ? error.message : "unknown"}`))
       .finally(() => notifyGamificationUpdate(userId, ["challenges"]));
   });
 };
@@ -8694,7 +8703,9 @@ app.use(
   "/api",
   createGamificationRouter({
     requireUser,
-    getMyGamificationSummary,
+    getMyGamificationSummary: async (userId) => phase6GamificationReadCutoverEnabled()
+      ? (await readGamificationD1Snapshot(userId)).summary
+      : getMyGamificationSummary(userId),
     getPublicGamificationProfile,
   }),
 );
@@ -8710,14 +8721,20 @@ app.use(
   "/api/me/achievements",
   createAchievementsRouter({
     requireUser,
-    getMyAchievements,
+    getMyAchievements: async (userId) => {
+      if (!phase6GamificationReadCutoverEnabled()) return getMyAchievements(userId);
+      const summary = (await readGamificationD1Snapshot(userId)).summary;
+      return { ruleSetVersion: summary.ruleSetVersion, achievements: summary.achievements, unlockHistory: summary.unlockHistory };
+    },
   }),
 );
 app.use(
   "/api/me/challenges",
   createChallengesRouter({
     requireUser,
-    getMyChallenges,
+    getMyChallenges: async (userId) => phase6GamificationReadCutoverEnabled()
+      ? (await readGamificationD1Snapshot(userId, { requireCurrentChallengeWeek: true })).challenges
+      : getMyChallenges(userId),
   }),
 );
 app.use(

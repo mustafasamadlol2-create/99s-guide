@@ -1,7 +1,7 @@
 import { handleLeaderboardCache } from "./leaderboardCache";
-type PrivateEntity = "User" | "UserAuthReplica" | "FlashcardProgress" | "LectureProgress" | "VideoWatchProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric";
-type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric";
-const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric"]);
+type PrivateEntity = "User" | "UserAuthReplica" | "FlashcardProgress" | "LectureProgress" | "VideoWatchProgress" | "ModerationHistory" | "Notification" | "PointsLog" | "QaAnswer" | "QaQuestion" | "QaVote" | "Report" | "SmartNotification" | "UserBan" | "UserBlock" | "UserMute" | "UserProgress" | "UserCalendarEvent" | "FocusPlan" | "FocusSession" | "StudyDailyMetric" | "GamificationSnapshot";
+type ProjectionEntity = "FocusPlan" | "FocusSession" | "StudyDailyMetric" | "GamificationSnapshot";
+const PROJECTION_ENTITIES = new Set<ProjectionEntity>(["FocusPlan", "FocusSession", "StudyDailyMetric", "GamificationSnapshot"]);
 const MAX_PROJECTION_DATA_BYTES = 64 * 1024;
 const MAX_PROJECTION_REVISION_DIGITS = 40;
 const MASTERY_ENTITIES = new Set(["LectureMastery", "LectureRetention", "MasteryProjectionUser"]);
@@ -405,7 +405,25 @@ const TABLES: Record<PrivateEntity, TableConfig> = {
       "revision": "TEXT",
       "deletedAt": "TEXT"
     }
+  },
+  "GamificationSnapshot": {
+    "primaryKey": ["id"],
+    "columns": {
+      "id": "TEXT",
+      "canonicalId": "TEXT",
+      "userId": "TEXT",
+      "userScope": "TEXT",
+      "ruleSetVersion": "TEXT",
+      "summaryJson": "TEXT",
+      "challengesJson": "TEXT",
+      "challengePeriodEndsAt": "TEXT",
+      "updatedAt": "TEXT",
+      "projectionVersion": "INTEGER",
+      "revision": "TEXT",
+      "deletedAt": "TEXT"
+    }
   }
+
 } as Record<PrivateEntity, TableConfig>;
 
 function jsonNoStore(body: unknown, status = 200): Response {
@@ -806,6 +824,25 @@ async function handlePhase5StudyEngineReset(request: Request, env: any): Promise
       error: message.slice(0, 300),
     }, 500);
   }
+}
+
+// Phase 6 snapshots contain only server-generated private read views.
+// They are never accepted from the browser or published as rule definitions.
+async function ensurePhase6GamificationSchema(env: any): Promise<void> {
+  await ensurePhase4Table(env, "GamificationSnapshot");
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS "GamificationSnapshot_userScope_idx" ` +
+    `ON "GamificationSnapshot" ("userScope", "deletedAt")`,
+  ).run();
+}
+
+async function handlePhase6GamificationReset(request: Request, env: any): Promise<Response> {
+  if (request.method !== "POST") return jsonNoStore({ error: "Method Not Allowed" }, 405);
+  const authError = await authenticate(request, env);
+  if (authError) return authError;
+  await env.DB.prepare(`DROP TABLE IF EXISTS "GamificationSnapshot"`).run();
+  await ensurePhase6GamificationSchema(env);
+  return jsonNoStore({ ok: true, reset: ["GamificationSnapshot"] });
 }
 
 async function syncProjectionRow(
@@ -1372,6 +1409,7 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
     if (PHASE4_PROGRESS_ENTITIES.has(entity)) {
       await ensurePhase4ProgressSchema(env);
     }
+    if (entity === "GamificationSnapshot") await ensurePhase6GamificationSchema(env);
 
     if (payload.operation !== "upsert" && payload.operation !== "delete") {
       throw new Error("Unsupported private sync operation.");
@@ -1696,6 +1734,26 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
         subjectAggregates: [...subjectAggregates.values()],
         state: state || { user_id: userId, mastery_watermark: "0", retention_watermark: "0" },
       });
+    }
+
+    if (path === "/internal/private-read/gamification-snapshot") {
+      const userId = projectionReadUser(url);
+      if (!userId) return jsonNoStore({ ok: false, code: "INVALID_USER_SCOPE" }, 400);
+      await ensurePhase6GamificationSchema(env);
+      const row = await env.DB.prepare(
+        `SELECT * FROM "GamificationSnapshot" ` +
+        `WHERE "userScope" = ? AND "userId" = ? AND "id" = ? AND "deletedAt" IS NULL LIMIT 1`,
+      ).bind(userId, userId, userId).first();
+      if (!row) return jsonNoStore({ ok: false, code: "PHASE6_SNAPSHOT_MISSING" }, 503);
+      return jsonNoStore({ ok: true, row });
+    }
+
+    if (path === "/internal/private-read/phase6-counts") {
+      await ensurePhase6GamificationSchema(env);
+      const result = await env.DB.prepare(
+        `SELECT COUNT(*) AS count FROM "GamificationSnapshot" WHERE "deletedAt" IS NULL`,
+      ).first();
+      return jsonNoStore({ snapshots: Number((result as any)?.count || 0) });
     }
 
     if (path === "/internal/private-read/focus-plans") {
@@ -2289,6 +2347,9 @@ export default {
 
     if (url.pathname === "/internal/private-maintenance/phase5-study-engine-reset") {
       return handlePhase5StudyEngineReset(request, env);
+    }
+    if (url.pathname === "/internal/private-maintenance/phase6-gamification-reset") {
+      return handlePhase6GamificationReset(request, env);
     }
 
     if (url.pathname.startsWith("/internal/leaderboard-cache/")) {

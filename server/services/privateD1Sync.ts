@@ -29,6 +29,7 @@ type PrivateMirrorEntity =
   | "FocusPlan"
   | "FocusSession"
   | "StudyDailyMetric"
+  | "GamificationSnapshot"
   | "LectureMastery"
   | "LectureRetention"
   | "MasteryProjectionUser";
@@ -37,6 +38,7 @@ const PROJECTION_ENTITIES = new Set<PrivateMirrorEntity>([
   "FocusPlan",
   "FocusSession",
   "StudyDailyMetric",
+  "GamificationSnapshot",
   "LectureMastery",
   "LectureRetention",
   "MasteryProjectionUser",
@@ -72,6 +74,7 @@ export async function enqueuePrivateD1Projection(
       | "FocusPlan"
       | "FocusSession"
       | "StudyDailyMetric"
+      | "GamificationSnapshot"
       | "LectureMastery"
       | "LectureRetention";
     key: Record<string, unknown>;
@@ -528,6 +531,11 @@ const DATE_FIELDS: Record<PrivateMirrorEntity, string[]> = {
     "deletedAt"
   ],
   "StudyDailyMetric": [
+    "updatedAt",
+    "deletedAt"
+  ],
+  "GamificationSnapshot": [
+    "challengePeriodEndsAt",
     "updatedAt",
     "deletedAt"
   ],
