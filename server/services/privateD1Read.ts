@@ -39,10 +39,6 @@ export function phase5StudyEngineReadCutoverEnabled(): boolean {
   return envFlag("PRIVATE_D1_PHASE5_STUDY_ENGINE_CUTOVER_ENABLED");
 }
 
-export function phase6GamificationReadCutoverEnabled(): boolean {
-  return envFlag("PRIVATE_D1_PHASE6_GAMIFICATION_CUTOVER_ENABLED");
-}
-
 const PHASE5_PROJECTION_FLAGS = new Set([
   "PRIVATE_D1_FOCUS_PLAN_READS_ENABLED",
   "PRIVATE_D1_FOCUS_SESSION_READS_ENABLED",
@@ -177,6 +173,39 @@ function metadataRow(row: Record<string, unknown>, userId: string): void {
   }
 }
 
+/** Retrying a read is safe; retry only network, timeout or transient HTTP failures. */
+function isTransientProjectionFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError" || error.name === "TimeoutError") return true;
+  if (error.name === "TypeError" && /fetch|network|socket/i.test(error.message)) return true;
+  const statusMatch = error.message.match(/(?:HTTP|non-JSON HTTP)\s+(\d{3})/i);
+  if (!statusMatch) return false;
+  const status = Number(statusMatch[1]);
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+/** Classify failures without logging secrets, user identifiers or Worker payloads. */
+export function logPhase5StrictReadFailure(scope: string, error: unknown): void {
+  let failureCode = "UNKNOWN";
+  if (error instanceof PrivateD1ProjectionReadError) {
+    if (error.code !== "unavailable") {
+      failureCode = error.code.toUpperCase().replace(/[^A-Z0-9_]/gu, "_");
+    } else {
+      const status = error.message.match(/(?:HTTP|non-JSON HTTP)\s+(\d{3})/i);
+      if (status) failureCode = `HTTP_${status[1]}`;
+      else if (/abort|timeout/i.test(error.message)) failureCode = "TIMEOUT";
+      else if (/not configured/i.test(error.message)) failureCode = "CONFIG_MISSING";
+      else failureCode = "NETWORK_OR_WORKER_ERROR";
+    }
+  } else if (error instanceof Error) {
+    failureCode = error.name === "AbortError" ? "TIMEOUT" : "UNEXPECTED_ERROR";
+  }
+  logger.error("[Phase5StudyEngine]", `Strict D1 ${scope} read failed`, {
+    errorCode: "STUDY_D1_PROJECTION_STALE",
+    details: { failureCode, source: "cloudflare_d1", postgresFallback: false },
+  });
+}
+
 async function projectionRows<T>(
   flagName: string,
   path: string,
@@ -191,12 +220,22 @@ async function projectionRows<T>(
 
   let payload: unknown;
   try {
-    const timeoutMs = flagName.startsWith("PRIVATE_D1_FOCUS_") ? 600 : 4_000;
-    payload = await fetchPrivateReadJson<unknown>(
-      path,
-      { ...params, userId: scope },
-      timeoutMs,
-    );
+    // 600 ms was too short for Workers cold starts after Phase 5 cutover.
+    // Safe read-only retry: no write, no PostgreSQL fallback and no cross-user scope.
+    const timeoutMs = 4_000;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        payload = await fetchPrivateReadJson<unknown>(
+          path,
+          { ...params, userId: scope },
+          timeoutMs,
+        );
+        break;
+      } catch (error) {
+        if (attempt !== 0 || !isTransientProjectionFailure(error)) throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, 120));
+      }
+    }
   } catch (error) {
     throw new PrivateD1ProjectionReadError(
       error instanceof Error ? error.message : "Private projection read failed.",

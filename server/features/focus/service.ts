@@ -60,6 +60,7 @@ import {
   fetchFocusPlanProjections,
   fetchStudyDailyMetricProjections,
   logPrivateReadFallback,
+  logPhase5StrictReadFailure,
   privateReadEnabled,
   phase5StudyEngineReadCutoverEnabled,
   type FocusPlanReadProjection,
@@ -1456,6 +1457,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           return projections.map(d1PlanDto);
         } catch (error) {
           if (strictD1) {
+            logPhase5StrictReadFailure("focus-plan", error);
             throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
           }
           logPrivateReadFallback("Focus Plan projection read", error);
@@ -1504,6 +1506,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
         } catch (error) {
           if (strictD1 && error instanceof FocusError) throw error;
           if (strictD1) {
+            logPhase5StrictReadFailure("focus-plan", error);
             throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
           }
           logPrivateReadFallback("Focus Plan detail projection read", error);
@@ -2199,6 +2202,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             };
           } catch (error) {
             if (error instanceof FocusError) throw error;
+            logPhase5StrictReadFailure("current-session", error);
             throw new FocusError(
               "DEPENDENCY_DISABLED",
               "Cloudflare study-engine read replica is unavailable.",
@@ -2894,6 +2898,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             }
           } catch (error) {
             if (strictStudyEngineCutover()) {
+              logPhase5StrictReadFailure("daily-metrics", error);
               throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
             }
             logPrivateReadFallback("Focus metrics projection read", error);
