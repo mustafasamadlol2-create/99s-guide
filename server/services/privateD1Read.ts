@@ -35,6 +35,25 @@ export function phase4ProgressReadCutoverEnabled(): boolean {
   return envFlag("PRIVATE_D1_PHASE4_PROGRESS_CUTOVER_ENABLED");
 }
 
+export function phase5StudyEngineReadCutoverEnabled(): boolean {
+  return envFlag("PRIVATE_D1_PHASE5_STUDY_ENGINE_CUTOVER_ENABLED");
+}
+
+const PHASE5_PROJECTION_FLAGS = new Set([
+  "PRIVATE_D1_FOCUS_PLAN_READS_ENABLED",
+  "PRIVATE_D1_FOCUS_SESSION_READS_ENABLED",
+  "PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED",
+]);
+
+function projectionReadEnabled(flagName: string): boolean {
+  return privateReadEnabled(flagName) || (
+    phase5StudyEngineReadCutoverEnabled() &&
+    PHASE5_PROJECTION_FLAGS.has(flagName) &&
+    PRIVATE_DATA_WORKER_BASE_URL.length > 0 &&
+    PRIVATE_DATA_SYNC_SECRET.length > 0
+  );
+}
+
 export async function fetchPrivateReadJson<T>(
   path: string,
   params: Record<string, string | number | null | undefined> = {},
@@ -162,7 +181,7 @@ async function projectionRows<T>(
   parse: (row: Record<string, unknown>, userId: string) => T,
 ): Promise<T[]> {
   const scope = boundedUserId(userId);
-  if (!privateReadEnabled(flagName)) {
+  if (!projectionReadEnabled(flagName)) {
     throw new PrivateD1ProjectionReadError("Private projection reads are disabled.", "disabled");
   }
 
@@ -232,13 +251,13 @@ export function fetchFocusPlanProjections(
 
 export function fetchFocusSessionProjections(
   userId: string,
-  options: { status?: string; limit?: number } = {},
+  options: { status?: string; planItemId?: string; nonterminal?: boolean; limit?: number } = {},
 ): Promise<FocusSessionProjection[]> {
   return projectionRows(
     "PRIVATE_D1_FOCUS_SESSION_READS_ENABLED",
     "/internal/private-read/focus-sessions",
     userId,
-    { status: options.status, limit: options.limit },
+    { status: options.status, planItemId: options.planItemId, nonterminal: options.nonterminal ? 1 : undefined, limit: options.limit },
     (row, scope) => {
       metadataRow(row, scope);
       const integerFields = [

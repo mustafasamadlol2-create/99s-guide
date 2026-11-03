@@ -145,6 +145,10 @@ async function main(): Promise<void> {
   const rows = await canonical();
 
   if (!verifyOnly) {
+    console.log("[Phase4] rebuilding disposable D1 progress replica schema...");
+    await workerJson("/internal/private-maintenance/phase4-reset", { method: "POST" });
+    console.log("[Phase4] D1 progress replica schema rebuilt successfully.");
+
     await syncRows("LectureProgress", "LectureProgress", rows.lectureProgress, (row) => ({ userId: row.userId, lectureId: row.lectureId }));
     await syncRows("FlashcardProgress", "FlashcardProgress", rows.flashcardProgress, (row) => ({ id: row.id }));
     await syncRows("UserProgress", "UserProgress", rows.materialProgress, (row) => ({ id: row.id }));

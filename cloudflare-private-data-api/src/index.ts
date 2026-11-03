@@ -619,6 +619,195 @@ async function upsertRow(
   await prepareUpsertRow(env, entity, key, data).run();
 }
 
+const PHASE4_PROGRESS_ENTITIES = new Set<PrivateEntity>([
+  "LectureProgress",
+  "FlashcardProgress",
+  "UserProgress",
+  "VideoWatchProgress",
+]);
+let phase4SchemaReadyPromise: Promise<void> | null = null;
+
+async function ensurePhase4Table(env: any, entity: PrivateEntity): Promise<void> {
+  const cfg = TABLES[entity];
+  const columnSql = Object.entries(cfg.columns)
+    .map(([name, type]) => `${q(name)} ${type}`)
+    .join(", ");
+  const primaryKeySql = cfg.primaryKey.length
+    ? `, PRIMARY KEY (${cfg.primaryKey.map(q).join(", ")})`
+    : "";
+
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS ${q(entity)} (${columnSql}${primaryKeySql})`,
+  ).run();
+
+  const info = await env.DB.prepare(`PRAGMA table_info(${q(entity)})`).all();
+  const existing = new Set(
+    ((info?.results || []) as Array<Record<string, unknown>>)
+      .map((row) => String(row.name || ""))
+      .filter(Boolean),
+  );
+
+  for (const [column, type] of Object.entries(cfg.columns)) {
+    if (existing.has(column)) continue;
+    await env.DB.prepare(
+      `ALTER TABLE ${q(entity)} ADD COLUMN ${q(column)} ${type}`,
+    ).run();
+  }
+}
+
+async function ensurePhase4ProgressSchema(env: any): Promise<void> {
+  if (!phase4SchemaReadyPromise) {
+    phase4SchemaReadyPromise = (async () => {
+      for (const entity of PHASE4_PROGRESS_ENTITIES) {
+        await ensurePhase4Table(env, entity);
+      }
+      await env.DB.prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "FlashcardProgress_userId_flashcardId_key" ` +
+        `ON "FlashcardProgress" ("userId", "flashcardId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE INDEX IF NOT EXISTS "FlashcardProgress_userId_idx" ` +
+        `ON "FlashcardProgress" ("userId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "UserProgress_userId_materialId_key" ` +
+        `ON "UserProgress" ("userId", "materialId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE INDEX IF NOT EXISTS "UserProgress_materialId_idx" ` +
+        `ON "UserProgress" ("materialId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE INDEX IF NOT EXISTS "LectureProgress_lectureId_idx" ` +
+        `ON "LectureProgress" ("lectureId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "VideoWatchProgress_userId_materialId_key" ` +
+        `ON "VideoWatchProgress" ("userId", "materialId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE INDEX IF NOT EXISTS "VideoWatchProgress_userId_lectureId_idx" ` +
+        `ON "VideoWatchProgress" ("userId", "lectureId")`,
+      ).run();
+      await env.DB.prepare(
+        `CREATE INDEX IF NOT EXISTS "VideoWatchProgress_materialId_idx" ` +
+        `ON "VideoWatchProgress" ("materialId")`,
+      ).run();
+    })().catch((error) => {
+      phase4SchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  await phase4SchemaReadyPromise;
+}
+
+async function handlePhase4ProgressReset(request: Request, env: any): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { Allow: "POST", "Cache-Control": "no-store" },
+    });
+  }
+
+  const authError = await authenticate(request, env);
+  if (authError) return authError;
+
+  try {
+    // These four tables are disposable read replicas. PostgreSQL/Supabase remains canonical.
+    // Rebuilding is safer than trying to mutate unknown legacy primary-key layouts in-place.
+    await env.DB.batch([
+      env.DB.prepare(`DROP TABLE IF EXISTS "LectureProgress"`),
+      env.DB.prepare(`DROP TABLE IF EXISTS "FlashcardProgress"`),
+      env.DB.prepare(`DROP TABLE IF EXISTS "UserProgress"`),
+      env.DB.prepare(`DROP TABLE IF EXISTS "VideoWatchProgress"`),
+    ]);
+
+    phase4SchemaReadyPromise = null;
+    await ensurePhase4ProgressSchema(env);
+
+    return jsonNoStore({
+      ok: true,
+      reset: ["LectureProgress", "FlashcardProgress", "UserProgress", "VideoWatchProgress"],
+      message: "Phase 4 progress replica schema rebuilt from canonical definition.",
+      resetAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Phase4ProgressReset]", message.slice(0, 300));
+    return jsonNoStore({
+      ok: false,
+      code: "PHASE4_PROGRESS_RESET_FAILED",
+      error: message.slice(0, 300),
+    }, 500);
+  }
+}
+
+const PHASE5_STUDY_ENGINE_ENTITIES: PrivateEntity[] = [
+  "FocusPlan",
+  "FocusSession",
+  "StudyDailyMetric",
+];
+
+async function ensurePhase5StudyEngineSchema(env: any): Promise<void> {
+  for (const entity of PHASE5_STUDY_ENGINE_ENTITIES) {
+    await ensurePhase4Table(env, entity);
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `CREATE INDEX IF NOT EXISTS "FocusPlan_userScope_status_updatedAt_idx" ` +
+      `ON "FocusPlan" ("userScope", "status", "updatedAt")`,
+    ),
+    env.DB.prepare(
+      `CREATE INDEX IF NOT EXISTS "FocusSession_userScope_status_updatedAt_idx" ` +
+      `ON "FocusSession" ("userScope", "status", "updatedAt")`,
+    ),
+    env.DB.prepare(
+      `CREATE INDEX IF NOT EXISTS "FocusSession_userScope_planItem_status_idx" ` +
+      `ON "FocusSession" ("userScope", "planItemId", "status")`,
+    ),
+    env.DB.prepare(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "StudyDailyMetric_userScope_metricDate_key" ` +
+      `ON "StudyDailyMetric" ("userScope", "metricDate")`,
+    ),
+  ]);
+}
+
+async function handlePhase5StudyEngineReset(request: Request, env: any): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { Allow: "POST", "Cache-Control": "no-store" },
+    });
+  }
+
+  const authError = await authenticate(request, env);
+  if (authError) return authError;
+
+  try {
+    // D1 is a disposable read replica. Supabase/PostgreSQL remains canonical.
+    await env.DB.batch([
+      env.DB.prepare(`DROP TABLE IF EXISTS "FocusPlan"`),
+      env.DB.prepare(`DROP TABLE IF EXISTS "FocusSession"`),
+      env.DB.prepare(`DROP TABLE IF EXISTS "StudyDailyMetric"`),
+    ]);
+    await ensurePhase5StudyEngineSchema(env);
+    return jsonNoStore({
+      ok: true,
+      reset: PHASE5_STUDY_ENGINE_ENTITIES,
+      message: "Phase 5 study-engine replica schema rebuilt from canonical definition.",
+      resetAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Phase5StudyEngineReset]", message.slice(0, 300));
+    return jsonNoStore({
+      ok: false,
+      code: "PHASE5_STUDY_ENGINE_RESET_FAILED",
+      error: message.slice(0, 300),
+    }, 500);
+  }
+}
+
 async function syncProjectionRow(
   env: any,
   entity: ProjectionEntity,
@@ -1180,6 +1369,10 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
     assertEntity(payload.entity);
     const entity = payload.entity;
 
+    if (PHASE4_PROGRESS_ENTITIES.has(entity)) {
+      await ensurePhase4ProgressSchema(env);
+    }
+
     if (payload.operation !== "upsert" && payload.operation !== "delete") {
       throw new Error("Unsupported private sync operation.");
     }
@@ -1218,7 +1411,7 @@ async function handlePrivateSync(request: Request, env: any): Promise<Response> 
       message.includes("empty") ||
       message.includes("conflict");
     const schemaIncompatible =
-      /no such (?:table|column)|schema.{0,20}(?:version|incompatib|missing)/iu.test(message);
+      /no such (?:table|column)|has no column named|unknown column|not null constraint failed|on conflict clause does not match|unique constraint failed|schema.{0,20}(?:version|incompatib|missing)/iu.test(message);
     const missingTarget = /(?:target|canonical row|projection).{0,40}not found/iu.test(message);
     const code = schemaIncompatible
       ? "PRIVATE_SYNC_SCHEMA_INCOMPATIBLE"
@@ -1530,20 +1723,31 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
       const userId = projectionReadUser(url);
       if (!userId) return jsonNoStore({ ok: false, error: "userId is required." }, 400);
       const status = readStringParam(url, "status", 80);
+      const planItemId = readStringParam(url, "planItemId", 200);
+      const nonterminal = url.searchParams.get("nonterminal") === "1";
+      if (status && nonterminal) {
+        return jsonNoStore({ ok: false, error: "status and nonterminal cannot be combined." }, 400);
+      }
       const limit = readLimit(url, 100, 500);
-      const result = status
-        ? await env.DB.prepare(
-          `SELECT * FROM "FocusSession"
-           WHERE "userScope" = ? AND "deletedAt" IS NULL AND "status" = ?
-           ORDER BY "updatedAt" DESC, "id" ASC
-           LIMIT ?`
-        ).bind(userId, status, limit).all()
-        : await env.DB.prepare(
-          `SELECT * FROM "FocusSession"
-           WHERE "userScope" = ? AND "deletedAt" IS NULL
-           ORDER BY "updatedAt" DESC, "id" ASC
-           LIMIT ?`
-        ).bind(userId, limit).all();
+      const predicates = ['"userScope" = ?', '"deletedAt" IS NULL'];
+      const bindings: unknown[] = [userId];
+      if (status) {
+        predicates.push('"status" = ?');
+        bindings.push(status);
+      } else if (nonterminal) {
+        predicates.push("\"status\" IN ('CREATED','ACTIVE','PAUSED','RESOURCE_HANDOFF','RECONCILIATION_REQUIRED')");
+      }
+      if (planItemId) {
+        predicates.push('"planItemId" = ?');
+        bindings.push(planItemId);
+      }
+      bindings.push(limit);
+      const result = await env.DB.prepare(
+        `SELECT * FROM "FocusSession"
+         WHERE ${predicates.join(" AND ")}
+         ORDER BY "updatedAt" DESC, "id" ASC
+         LIMIT ?`
+      ).bind(...bindings).all();
       return jsonNoStore({ rows: result.results || [] });
     }
 
@@ -1663,6 +1867,19 @@ async function handlePrivateRead(request: Request, env: any, url: URL): Promise<
         flashcardProgress: Number((flashcards.results || [])[0]?.count || 0),
         materialProgress: Number((materialProgress.results || [])[0]?.count || 0),
         videoProgress: Number((videoProgress.results || [])[0]?.count || 0),
+      });
+    }
+
+    if (path === "/internal/private-read/phase5-counts") {
+      const [plans, sessions, metrics] = await env.DB.batch([
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "FocusPlan" WHERE "deletedAt" IS NULL`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "FocusSession" WHERE "deletedAt" IS NULL`),
+        env.DB.prepare(`SELECT COUNT(*) AS count FROM "StudyDailyMetric" WHERE "deletedAt" IS NULL`),
+      ]);
+      return jsonNoStore({
+        focusPlans: Number((plans.results || [])[0]?.count || 0),
+        focusSessions: Number((sessions.results || [])[0]?.count || 0),
+        studyDailyMetrics: Number((metrics.results || [])[0]?.count || 0),
       });
     }
 
@@ -2064,6 +2281,14 @@ export default {
 
     if (url.pathname === "/internal/private-sync") {
       return handlePrivateSync(request, env);
+    }
+
+    if (url.pathname === "/internal/private-maintenance/phase4-reset") {
+      return handlePhase4ProgressReset(request, env);
+    }
+
+    if (url.pathname === "/internal/private-maintenance/phase5-study-engine-reset") {
+      return handlePhase5StudyEngineReset(request, env);
     }
 
     if (url.pathname.startsWith("/internal/leaderboard-cache/")) {

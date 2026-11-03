@@ -61,6 +61,7 @@ import {
   fetchStudyDailyMetricProjections,
   logPrivateReadFallback,
   privateReadEnabled,
+  phase5StudyEngineReadCutoverEnabled,
   type FocusPlanReadProjection,
   fetchFocusSessionProjections,
 } from "../../services/privateD1Read.js";
@@ -285,9 +286,10 @@ type FocusServiceOptions = {
   d1SessionReadsEnabled?: () => boolean;
   fetchSessionsFromD1?: (
     userId: string,
-    options?: { status?: string; limit?: number },
+    options?: { status?: string; planItemId?: string; nonterminal?: boolean; limit?: number },
   ) => Promise<FocusSessionProjection[]>;
   d1MetricReadsEnabled?: () => boolean;
+  phase5StudyEngineReadCutoverEnabled?: () => boolean;
   fetchMetricsFromD1?: (
     userId: string,
     options: { from?: string; to?: string; limit?: number },
@@ -1279,14 +1281,16 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
   const now = options.now ?? (() => new Date());
   const studyPointsAwarder = options.studyPointsAwarder
     ?? new StudyPointsAwardEngine(repository.database, now);
+  const strictStudyEngineCutover = options.phase5StudyEngineReadCutoverEnabled ??
+    phase5StudyEngineReadCutoverEnabled;
   const d1PlanReadsEnabled = options.d1PlanReadsEnabled ??
-    (() => privateReadEnabled("PRIVATE_D1_FOCUS_PLAN_READS_ENABLED"));
+    (() => strictStudyEngineCutover() || privateReadEnabled("PRIVATE_D1_FOCUS_PLAN_READS_ENABLED"));
   const fetchPlansFromD1 = options.fetchPlansFromD1 ?? fetchFocusPlanProjections;
   const d1SessionReadsEnabled = options.d1SessionReadsEnabled ??
-    (() => privateReadEnabled("PRIVATE_D1_FOCUS_SESSION_READS_ENABLED"));
+    (() => strictStudyEngineCutover() || privateReadEnabled("PRIVATE_D1_FOCUS_SESSION_READS_ENABLED"));
   const fetchSessionsFromD1 = options.fetchSessionsFromD1 ?? fetchFocusSessionProjections;
   const d1MetricReadsEnabled = options.d1MetricReadsEnabled ??
-    (() => privateReadEnabled("PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED"));
+    (() => strictStudyEngineCutover() || privateReadEnabled("PRIVATE_D1_STUDY_DAILY_METRIC_READS_ENABLED"));
   const fetchMetricsFromD1 = options.fetchMetricsFromD1 ?? fetchStudyDailyMetricProjections;
 
   function requireFocus(): void {
@@ -1432,12 +1436,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
     async listPlans(userId, limit = 100, options = {}) {
       requireFocus();
       const boundedLimit = Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 100;
+      const strictD1 = !options.canonical && strictStudyEngineCutover();
       if (!options.canonical && d1PlanReadsEnabled()) {
         try {
           const projections = await fetchPlansFromD1(userId, {
             limit: boundedLimit,
             status: options.status,
           });
+          if (strictD1) return projections.map(d1PlanDto);
           const canonical = await repository.database.focusPlan.findMany({
             where: { userId, ...(options.status ? { status: options.status } : {}) },
             select: { id: true, planVersion: true },
@@ -1449,8 +1455,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           }
           return projections.map(d1PlanDto);
         } catch (error) {
+          if (strictD1) {
+            throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
+          }
           logPrivateReadFallback("Focus Plan projection read", error);
         }
+      }
+      if (strictD1) {
+        throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
       }
       return safely(async () => {
         const rows = await repository.database.focusPlan.findMany({
@@ -1470,10 +1482,15 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
 
     async getPlan(userId, planId, options = {}) {
       requireFocus();
+      const strictD1 = !options.canonical && strictStudyEngineCutover();
       if (!options.canonical && d1PlanReadsEnabled()) {
         try {
           const projections = await fetchPlansFromD1(userId, { limit: 100 });
           const projection = projections.find((plan) => plan.id === planId);
+          if (strictD1) {
+            if (!projection) throw new FocusError("PLAN_NOT_FOUND", "Focus Plan was not found.");
+            return d1PlanDto(projection);
+          }
           if (projection) {
             const canonical = await repository.database.focusPlan.findFirst({
               where: { id: planId, userId },
@@ -1485,8 +1502,15 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             return d1PlanDto(projection);
           }
         } catch (error) {
+          if (strictD1 && error instanceof FocusError) throw error;
+          if (strictD1) {
+            throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
+          }
           logPrivateReadFallback("Focus Plan detail projection read", error);
         }
+      }
+      if (strictD1) {
+        throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
       }
       return safely(async () => {
         const plan = await repository.database.focusPlan.findFirst({
@@ -2118,6 +2142,70 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       requireSessionDependencies();
       const clock = assertValidClock(now());
       return safely(async () => {
+        if (strictStudyEngineCutover()) {
+          try {
+            const projections = await fetchSessionsFromD1(userId, { nonterminal: true, limit: 2 });
+            if (
+              !Array.isArray(projections) ||
+              projections.length > 2 ||
+              projections.some((projection) => !isValidFocusSessionProjection(projection, userId))
+            ) {
+              throw new Error("Private Focus Session projection is malformed or out of scope.");
+            }
+            const current = projections.filter((projection) =>
+              NONTERMINAL_STATES.some((status) => status === projection.status)
+            );
+            if (current.length > 1) {
+              throw new FocusError(
+                "RECONCILIATION_REQUIRED",
+                "More than one nonterminal solo session exists for this user.",
+              );
+            }
+            if (!current.length) return { session: null, serverNow: clock.toISOString() };
+
+            const projection = current[0];
+            const plans = await fetchPlansFromD1(userId, { limit: 100 });
+            const plan = plans.find((candidate) => candidate.id === projection.planId);
+            const planItem = plan?.items.find((candidate) => candidate.id === projection.planItemId);
+            if (!plan || !planItem) {
+              throw new FocusError(
+                "RECONCILIATION_REQUIRED",
+                "Cloudflare Focus Plan projection is incomplete for the current session.",
+              );
+            }
+            const completed = await fetchSessionsFromD1(userId, {
+              status: "COMPLETED",
+              planItemId: projection.planItemId,
+              limit: Math.max(1, Math.min(500, planItem.sessionCount + 5)),
+            });
+            const session: SessionDtoInput = {
+              id: projection.id,
+              planId: projection.planId,
+              planItemId: projection.planItemId,
+              lectureId: projection.lectureId,
+              status: projection.status as FocusSessionState,
+              startedAt: projection.startedAt === null ? null : new Date(projection.startedAt),
+              plannedEndAt: projection.plannedEndAt === null ? null : new Date(projection.plannedEndAt),
+              actualEndedAt: projection.actualEndedAt === null ? null : new Date(projection.actualEndedAt),
+              lastCheckpointAt: projection.lastCheckpointAt === null ? null : new Date(projection.lastCheckpointAt),
+              activeSeconds: projection.activeSeconds,
+              pauseSeconds: projection.pauseSeconds,
+              completionReason: projection.completionReason,
+              planItem: { sessionCount: planItem.sessionCount },
+            };
+            return {
+              session: sessionDto(session, clock, completed.length),
+              serverNow: clock.toISOString(),
+            };
+          } catch (error) {
+            if (error instanceof FocusError) throw error;
+            throw new FocusError(
+              "DEPENDENCY_DISABLED",
+              "Cloudflare study-engine read replica is unavailable.",
+            );
+          }
+        }
+
         let d1Snapshot: {
           projected: FocusSessionProjection[];
           canonical: FocusSessionProjectionState[];
@@ -2770,6 +2858,14 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
             ) {
               throw new Error("Private Study Daily Metric projection is malformed or out of scope.");
             }
+            if (strictStudyEngineCutover()) {
+              rows = projected.map((row) => ({
+                metricDate: row.metricDate,
+                focusSeconds: row.focusSeconds,
+                sessionsCompleted: row.sessionsCompleted,
+                interruptionCount: row.interruptionCount,
+              }));
+            } else {
             const canonical = await repository.database.studyDailyMetric.findMany({
               where: {
                 userId,
@@ -2795,9 +2891,16 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
               sessionsCompleted: row.sessionsCompleted,
               interruptionCount: row.interruptionCount,
             }));
+            }
           } catch (error) {
+            if (strictStudyEngineCutover()) {
+              throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
+            }
             logPrivateReadFallback("Focus metrics projection read", error);
           }
+        }
+        if (!rows && strictStudyEngineCutover()) {
+          throw new FocusError("DEPENDENCY_DISABLED", "Cloudflare study-engine read replica is unavailable.");
         }
         if (!rows) {
           rows = await repository.database.studyDailyMetric.findMany({
