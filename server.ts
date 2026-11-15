@@ -5311,7 +5311,20 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
       ? err.code : "UNKNOWN";
     const kind = typeof err?.name === "string" && /^[A-Za-z]{1,70}$/.test(err.name)
       ? err.name : "Error";
-    console.error(`[MCQ Submit Error] stage=${submitStage} code=${code} type=${kind}`);
+    // P2011 is a PostgreSQL NOT NULL violation. Prisma's sanitized constraint
+    // metadata identifies the column/constraint without logging row data.
+    const rawConstraint = err?.meta?.constraint;
+    const rawModel = err?.meta?.modelName;
+    const safeIdentifier = (value: unknown): string => typeof value === "string"
+      ? value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 96)
+      : "unknown";
+    const constraintLabel = Array.isArray(rawConstraint)
+      ? rawConstraint.slice(0, 6).map(safeIdentifier).join(",")
+      : safeIdentifier(rawConstraint);
+    const extra = code === "P2011"
+      ? ` constraint=${constraintLabel} model=${safeIdentifier(rawModel)}`
+      : "";
+    console.error(`[MCQ Submit Error] stage=${submitStage} code=${code} type=${kind}${extra}`);
     const transient = ["P1001", "P1002", "P1017", "P2024"].includes(code);
     res.status(transient ? 503 : 500).json({
       error: "MCQ_SUBMISSION_FAILED",
