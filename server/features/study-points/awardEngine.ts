@@ -456,24 +456,42 @@ export class StudyPointsAwardEngine {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
       throw new TypeError("Server-verified Study Points batch time is invalid.");
     }
-    const results = await this.database.$transaction(async (tx) => {
-      const output: StudyPointsAwardSourceResult[] = [];
-      for (const activity of input.activities) {
-        output.push(await this.awardServerVerifiedLearningActivity({
-          userId: input.userId,
-          sourceType: activity.sourceType,
-          sourceId: activity.sourceId,
-          effectiveAt: activity.effectiveAt ?? now,
-          now,
-          tx,
-        }));
+    // MCQ decks can contain many correctly answered questions. The previous
+    // implementation placed *every* award in one 15-second Prisma transaction,
+    // causing P2028/timeouts while the UI had a 15-second request timeout.
+    // Commit small, durable chunks; each entry keeps its existing immutable
+    // ledger/idempotency semantics, so replay does not double-award points.
+    // No daily cap or scoring rule is changed by this operation.
+    const RESULTS_PER_TRANSACTION = 6;
+    const results: StudyPointsAwardSourceResult[] = [];
+    let awardedAny = false;
+    try {
+      for (let offset = 0; offset < input.activities.length; offset += RESULTS_PER_TRANSACTION) {
+        const batch = input.activities.slice(offset, offset + RESULTS_PER_TRANSACTION);
+        const batchResults = await this.database.$transaction(async (tx) => {
+          const output: StudyPointsAwardSourceResult[] = [];
+          for (const activity of batch) {
+            output.push(await this.awardServerVerifiedLearningActivity({
+              userId: input.userId,
+              sourceType: activity.sourceType,
+              sourceId: activity.sourceId,
+              effectiveAt: activity.effectiveAt ?? now,
+              now,
+              tx,
+            }));
+          }
+          return output;
+        }, TRANSACTION_OPTIONS);
+        if (batchResults.some((result) => result.attempts.some((attempt) =>
+          attempt.decision.outcome === "AWARD" && !attempt.replayed
+        ))) awardedAny = true;
+        results.push(...batchResults);
       }
-      return output;
-    }, TRANSACTION_OPTIONS);
-    if (results.some((result) => result.attempts.some((attempt) =>
-      attempt.decision.outcome === "AWARD" && !attempt.replayed
-    ))) {
-      await notifyStudyPointsPostCommit(input.userId);
+    } finally {
+      // If a later batch fails, already committed awards remain canonical;
+      // still refresh post-commit listeners once. On a retry, canonical
+      // idempotency prevents duplicate awards for the earlier chunks.
+      if (awardedAny) await notifyStudyPointsPostCommit(input.userId);
     }
     return results;
   }

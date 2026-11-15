@@ -5101,6 +5101,9 @@ app.post("/api/mcqs", requireAdmin, catchAsync(async (req, res) => {
 // the per-question verdict plus the post-submission explanation/reference
 // answer needed to render the review screen.
 app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
+  // Phase 6 MCQ diagnostics: only stage and error code are logged; no answers,
+  // account identifiers, SQL, credentials, or detailed Prisma error messages.
+  let submitStage = "validation";
   try {
     const rawAnswers = Array.isArray(req.body?.answers) ? req.body.answers : [];
     if (rawAnswers.length === 0) {
@@ -5127,6 +5130,7 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
     }
 
     const prismaClient = getPrisma();
+    submitStage = "mcq_lookup";
     const mcqs = await prismaClient.mcq.findMany({
       where: { id: { in: ids } },
       select: { id: true, lectureId: true, correctAnswer: true, explanation: true, hint: true },
@@ -5163,6 +5167,7 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
       resultsByLecture.set(mcq.lectureId, bucket);
     }
     const quizCompletionByLecture = new Map<string, { completed: boolean; score: number }>();
+    submitStage = "quiz_progress";
     for (const [lectureId, summary] of resultsByLecture) {
       const [existingProgress, canonicalQuestionCount] = await Promise.all([
         prismaClient.lectureProgress.findUnique({
@@ -5240,6 +5245,7 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
       () => true,
       false, // the balance projection is rebuildable; never block canonical ledger writes
     );
+    submitStage = "mcq_points";
     const pointResults = correctActivities.length > 0
       ? await pointsAwarder.awardServerVerifiedLearningActivities({
           userId: (req as any).user.id,
@@ -5248,6 +5254,7 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
         })
       : [];
     const quizBonusResults = [];
+    submitStage = "quiz_bonus";
     for (const [lectureId, summary] of resultsByLecture) {
       const score = summary.total > 0
         ? Math.round((summary.correct / summary.total) * 100)
@@ -5300,8 +5307,18 @@ app.post("/api/mcqs/submit", requireUser, catchAsync(async (req, res) => {
         : null,
     });
   } catch (err: any) {
-    console.error("[MCQ Submit Error]:", err instanceof Error ? err.message.substring(0, 50) : "Sanitized");
-    res.status(500).json({ error: "Internal Server Error" });
+    const code = typeof err?.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(err.code)
+      ? err.code : "UNKNOWN";
+    const kind = typeof err?.name === "string" && /^[A-Za-z]{1,70}$/.test(err.name)
+      ? err.name : "Error";
+    console.error(`[MCQ Submit Error] stage=${submitStage} code=${code} type=${kind}`);
+    const transient = ["P1001", "P1002", "P1017", "P2024"].includes(code);
+    res.status(transient ? 503 : 500).json({
+      error: "MCQ_SUBMISSION_FAILED",
+      code,
+      stage: submitStage,
+      retryable: transient,
+    });
   }
 }));
 

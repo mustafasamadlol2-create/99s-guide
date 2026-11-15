@@ -843,6 +843,8 @@ export const LectureDetailView = function LectureDetailView({
  }>({});
   const [showHint, setShowHint] = useState(false);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizSubmitting, setQuizSubmitting] = useState(false);
+  const quizSubmitPendingRef = useRef(false);
   const [quizScorePct, setQuizScorePct] = useState(0);
   // Server-verified per-question results (filled only after submission).
   const [quizResults, setQuizResults] = useState<{
@@ -1289,8 +1291,12 @@ export const LectureDetailView = function LectureDetailView({
  // Quiz submission — grading is authoritative on the server so the correct
  // answer key is never shipped to the client before submission.
  const handleQuizSubmit = async () => {
+   // Guard rapid double clicks while a slow database/points request is pending.
+   if (quizSubmitPendingRef.current) return;
    const total = filteredQuizQuestions.length;
-  if (total === 0) return;
+   if (total === 0) return;
+   quizSubmitPendingRef.current = true;
+   setQuizSubmitting(true);
 
    const answers = filteredQuizQuestions.map((q) => ({
   id: q.id,
@@ -1312,6 +1318,8 @@ export const LectureDetailView = function LectureDetailView({
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ answers }),
   silent: true,
+  timeoutMs: 90_000, // grading + canonical points may require several PG transactions
+  retries: 0, // never silently re-submit a non-idempotent analytics request
   });
   if (!res.ok) throw new Error("Submission rejected by server.");
 
@@ -1348,14 +1356,30 @@ export const LectureDetailView = function LectureDetailView({
   };
   }
   });
-  } catch {
+  } catch (error: unknown) {
+  const failure = error as {
+    status?: number;
+    body?: { code?: unknown; stage?: unknown };
+    message?: string;
+  };
+  const stage = typeof failure?.body?.stage === "string"
+    && /^[a-z_]{1,40}$/.test(failure.body.stage)
+      ? failure.body.stage : "request";
+  const code = typeof failure?.body?.code === "string"
+    && /^[A-Z0-9_]{1,64}$/.test(failure.body.code)
+      ? failure.body.code : (failure?.status ? `HTTP_${failure.status}` : "NETWORK_TIMEOUT");
+  const diagnosis = `${stage}/${code}`;
   showiOSAlert({
-  title: "Submission Failed",
-  message:
-  "Your answers could not be verified right now. Please check your connection and try again.",
-  actions: [{ label: "OK", style: "default" }],
+    title: isRtl ? "تعذر تسليم الإجابات" : "Submission Failed",
+    message: isRtl
+      ? `تعذر تأكيد الإجابات حالياً. إجاباتك ما زالت محددة. لا تعِد الإرسال المتكرر إذا كان الاتصال بطيئاً. رمز التشخيص: ${diagnosis}`
+      : `Your answers could not be confirmed. They remain selected. Avoid repeated submissions if the network is slow. Diagnostic: ${diagnosis}`,
+    actions: [{ label: isRtl ? "حسناً" : "OK", style: "default" }],
   });
   return;
+  } finally {
+    quizSubmitPendingRef.current = false;
+    setQuizSubmitting(false);
   }
 
   setQuizResults(verifiedResults);
@@ -2759,6 +2783,7 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
 
  <button
  type="button"
+ disabled={quizSubmitting}
  onClick={() => {
  if (
  safeCurrentQuestionIndex <
@@ -2767,10 +2792,10 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
  setCurrentQuestionIndex(safeCurrentQuestionIndex + 1);
  setShowHint(false);
  } else {
- handleQuizSubmit();
+ void handleQuizSubmit();
  }
  }}
- className="quiz-nav-btn quiz-nav-btn-next h-btn px-6 py-2 text-caption font-semibold rounded-md border min-w-[124px] cursor-pointer transition-[background-color,border-color,color,box-shadow] duration-200"
+ className="quiz-nav-btn quiz-nav-btn-next h-btn px-6 py-2 text-caption font-semibold rounded-md border min-w-[124px] cursor-pointer disabled:opacity-60 disabled:cursor-wait transition-[background-color,border-color,color,box-shadow] duration-200"
  style={{
    color: flashcardTheme.accent,
    backgroundColor: `rgba(${flashcardTheme.rgb}, 0.10)`,
@@ -2778,7 +2803,9 @@ const handleDeleteAnswer = async (qId: string, ansId: string) => {
    boxShadow: `0 1px 2px rgba(${flashcardTheme.rgb}, 0.08)`,
  }}
  >
- {safeCurrentQuestionIndex === filteredQuizQuestions.length - 1
+ {quizSubmitting
+ ? (isRtl ? "جارٍ تدقيق الإجابات..." : "Checking answers...")
+ : safeCurrentQuestionIndex === filteredQuizQuestions.length - 1
  ? isRtl
  ? "تسليم الإجابات ✓"
  : "Submit Answers ✓"
