@@ -1,6 +1,8 @@
 /** Phase 6 — explicit canonical-to-D1 backfill and per-user parity check. */
 import "dotenv/config";
 import { getPrisma, disconnectPrisma } from "../server/services/prismaClient.js";
+import { getMyGamificationSummary } from "../server/features/gamification/gamificationRead.js";
+import { getBaghdadWeekPeriod } from "../server/features/gamification/challengePeriods.js";
 import {
   buildCanonicalGamificationD1Snapshot,
   gamificationD1Projection,
@@ -91,6 +93,8 @@ async function main(): Promise<void> {
     await worker("/internal/private-maintenance/phase6-gamification-reset", { method: "POST" });
   }
   let mismatches = 0;
+  const expectedPeriod = getBaghdadWeekPeriod(new Date());
+  console.log(`[Phase6] Read-only verification target: Baghdad week ${expectedPeriod.periodKey}; no Challenge refresh/reward writes in --verify-only.`);
   for (let index = 0; index < users.length; index++) {
     const userId = users[index].id;
     let canonical: GamificationD1Snapshot | undefined;
@@ -115,22 +119,48 @@ async function main(): Promise<void> {
     const row = replica.row;
     if (!row || row.userScope !== userId) {
       mismatches++;
-      console.error(`[Phase6] verify ${userId}: missing or wrong scope`);
+      console.error(`[Phase6] account ${index + 1}/${users.length}: missing or wrong scope`);
       continue;
     }
-    if (!canonical) canonical = await withDatabaseRetry(
-      `account ${index + 1}/${users.length} canonical verification`,
-      () => buildCanonicalGamificationD1Snapshot(userId),
-    );
+    // IMPORTANT: --verify-only must never call buildCanonicalGamificationD1Snapshot.
+    // That method refreshes/awards Challenges and may open a 60-second write
+    // transaction per user, producing false mismatches at week rollover.
     const summary = JSON.parse(String(row.summaryJson || "null")) as GamificationD1Snapshot["summary"];
     const challenges = JSON.parse(String(row.challengesJson || "null")) as GamificationD1Snapshot["challenges"];
-    const same = summary?.points?.totalPoints === canonical.summary.points.totalPoints
-      && summary?.ruleSetVersion === canonical.summary.ruleSetVersion
-      && summary?.achievements?.length === canonical.summary.achievements.length
-      && challenges?.currentPeriod?.periodKey === canonical.challenges.currentPeriod.periodKey;
-    if (!same) {
+    const canonicalSummary = canonical?.summary ?? await withDatabaseRetry(
+      `account ${index + 1}/${users.length} read-only summary`,
+      () => getMyGamificationSummary(userId),
+    );
+    const reasons: string[] = [];
+    if (summary?.points?.totalPoints !== canonicalSummary.points.totalPoints) reasons.push("points.totalPoints");
+    if (summary?.points?.focusPoints !== canonicalSummary.points.focusPoints) reasons.push("points.focusPoints");
+    if (summary?.points?.masteryPoints !== canonicalSummary.points.masteryPoints) reasons.push("points.masteryPoints");
+    if (summary?.points?.progressPoints !== canonicalSummary.points.progressPoints) reasons.push("points.progressPoints");
+    if (summary?.points?.consistencyPoints !== canonicalSummary.points.consistencyPoints) reasons.push("points.consistencyPoints");
+    if (summary?.ruleSetVersion !== canonicalSummary.ruleSetVersion) reasons.push("ruleSetVersion");
+    if (summary?.achievements?.length !== canonicalSummary.achievements.length) reasons.push("achievements.length");
+    const targetPeriodKey = canonical?.challenges?.currentPeriod?.periodKey ?? expectedPeriod.periodKey;
+    if (challenges?.currentPeriod?.periodKey !== targetPeriodKey) reasons.push("challenge.week rollover / stale D1 snapshot");
+    if (Date.parse(String(row.challengePeriodEndsAt || "")) <= Date.now()) reasons.push("challenge.period expired");
+    // Read-only canonical current-week rows; this never creates enrollments or rewards.
+    if (verifyOnly && challenges?.currentPeriod?.periodKey === expectedPeriod.periodKey) {
+      const progress = await withDatabaseRetry(
+        `account ${index + 1}/${users.length} read-only Challenge progress`,
+        () => db.userChallengeProgress.findMany({
+          where: { userId, instance: { logicalPeriodKey: expectedPeriod.periodKey } },
+          select: { challengeInstanceId: true, status: true, currentValue: true },
+        }),
+      );
+      const canonicalActive = new Map(progress.filter((x) => x.status === "ACTIVE").map((x) => [x.challengeInstanceId, x]));
+      const replicaActive = new Map((challenges?.active ?? []).map((x) => [x.instanceId, x]));
+      if (canonicalActive.size !== replicaActive.size || [...canonicalActive].some(([id, item]) => {
+        const replicaItem = replicaActive.get(id);
+        return !replicaItem || replicaItem.current !== Number(item.currentValue);
+      })) reasons.push("challenge.active progress");
+    }
+    if (reasons.length) {
       mismatches++;
-      console.error(`[Phase6] verify ${userId}: MISMATCH`);
+      console.error(`[Phase6] account ${index + 1}/${users.length}: MISMATCH (${reasons.join(", ")})`);
     }
     if ((index + 1) % 25 === 0 || index + 1 === users.length) {
       console.log(`[Phase6] verified ${index + 1}/${users.length}`);
@@ -140,7 +170,7 @@ async function main(): Promise<void> {
   const parity = counts.snapshots === users.length && mismatches === 0;
   console.log(`[Phase6] verify snapshot accounts: Supabase=${users.length} D1=${counts.snapshots} ${parity ? "OK" : "MISMATCH"}`);
   console.log(`[Phase6] per-account parity: ${users.length - mismatches}/${users.length}`);
-  if (!parity) throw new Error("Phase 6 reconciliation failed; do not activate cutover.");
+  if (!parity) throw new Error("Phase 6 reconciliation failed. Diagnose stale snapshots/outbox before cutover; do not re-run destructive backfill by default.");
   console.log("[Phase6] Replica backfill verified. Cutover NOT automatically approved.");
 }
 
