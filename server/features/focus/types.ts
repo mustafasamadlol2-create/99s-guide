@@ -242,7 +242,7 @@ export interface FocusBackendService {
   startSession(userId: string, input: StartFocusSessionInput): Promise<FocusSessionMutationResult>;
   pauseSession(userId: string, sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   resumeSession(userId: string, sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
-  currentSession(userId: string): Promise<FocusCurrentSessionResult>;
+  currentSession(userId: string, options?: { canonical?: boolean }): Promise<FocusCurrentSessionResult>;
   getBreak(userId: string, sessionId: string): Promise<FocusBreakSnapshot>;
   startBreak(
     userId: string,

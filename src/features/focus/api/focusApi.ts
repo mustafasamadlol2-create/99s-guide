@@ -92,7 +92,7 @@ export function isRetryableFocusReadError(error: unknown): boolean {
 }
 
 export interface FocusApi {
-  getCurrentFocusSession(): Promise<FocusCurrentSessionResult>;
+  getCurrentFocusSession(options?: { canonical?: boolean }): Promise<FocusCurrentSessionResult>;
   startFocusSession(input: StartFocusSessionInput): Promise<FocusSessionMutationResult>;
   pauseFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
   resumeFocusSession(sessionId: string, input: FocusSessionTransitionInput): Promise<FocusSessionMutationResult>;
@@ -686,10 +686,10 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
     ...(input.items !== undefined ? { items: input.items.map((item) => itemBody(item, includeId, includeResources)) } : {}),
   });
   return {
-    getCurrentFocusSession: () => read(
+    getCurrentFocusSession: (options = {}) => read(
       "current-session",
-      "current",
-      "/api/focus/sessions/current",
+      options.canonical ? "canonical" : "current",
+      options.canonical ? "/api/focus/sessions/current?canonical=1" : "/api/focus/sessions/current",
       requestOptions(),
       current,
     ),
@@ -736,9 +736,13 @@ export function createFocusApi(request: Requester = apiClient): FocusApi {
       resourceType: input.resourceType, resourceId: input.resourceId,
       idempotencyKey: input.idempotencyKey, source: input.source,
     }), mutation),
-    returnFromResourceHandoff: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/handoff/return`, requestOptions("POST", {
-      idempotencyKey: input.idempotencyKey, source: input.source, targetState: input.targetState,
-    }), mutation),
+    returnFromResourceHandoff: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/handoff/return`, {
+      ...requestOptions("POST", {
+        idempotencyKey: input.idempotencyKey, source: input.source, targetState: input.targetState,
+      }),
+      // An overlapping foreground return is reconciled by the runtime, not a global error toast.
+      silent: true,
+    }, mutation),
     recordInterruption: (id, input) => call(`/api/focus/sessions/${encodeURIComponent(id)}/interruptions`, requestOptions("POST", {
       observedAwaySeconds: input.observedAwaySeconds, reason: input.reason,
       idempotencyKey: input.idempotencyKey, source: input.source,

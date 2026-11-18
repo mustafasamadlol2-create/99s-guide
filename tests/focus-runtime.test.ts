@@ -904,3 +904,148 @@ test("idempotency keys require secure randomness and remain bounded", () => {
   assert.ok(key.length >= 8 && key.length <= 160);
   assert.throws(() => createFocusIdempotencyKey({}), /secure random generation/i);
 });
+test("a terminal End cannot be resurrected by a delayed D1 current-session response", async () => {
+  const api = makeApi({
+    getCurrentFocusSession: async () => currentResult(makeSession()),
+    abandonFocusSession: async () => mutation(makeSession({
+      status: "ABANDONED", actualEndedAt: SERVER_NOW, completionReason: "USER_ABANDONED",
+    })),
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  await controller.abandon();
+  assert.equal(controller.getState().session, null);
+  await controller.reconcile(); // Simulate stale D1 still reporting ACTIVE
+  assert.equal(controller.getState().session, null);
+  controller.dispose();
+});
+
+test("a canonical current read supersedes an in-flight D1 response", async () => {
+  let resolveStale!: (data: FocusCurrentSessionResult) => void;
+  const calls: Array<boolean> = [];
+  const api = makeApi({
+    getCurrentFocusSession: async (options) => {
+      calls.push(options?.canonical === true);
+      if (calls.length === 1) return currentResult(makeSession());
+      if (!options?.canonical) return new Promise((resolve) => { resolveStale = resolve; });
+      return currentResult(null);
+    },
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  const stale = controller.reconcile();
+  await new Promise((resolve) => setImmediate(resolve));
+  const confirmed = await controller.reconcile({ canonical: true });
+  assert.equal(confirmed.session, null);
+  resolveStale(currentResult(makeSession()));
+  await stale;
+  assert.equal(controller.getState().session, null);
+  assert.deepEqual(calls, [false, false, true]);
+  controller.dispose();
+});
+
+test("resource return from UI and lifecycle is single-flight and never doubles its POST", async () => {
+  let resolveReturn!: (result: FocusSessionMutationResult) => void;
+  let calls = 0;
+  let canonicalStatus: FocusSessionDto["status"] = "RESOURCE_HANDOFF";
+  const api = makeApi({
+    getCurrentFocusSession: async () => currentResult(makeSession({ status: canonicalStatus })),
+    returnFromResourceHandoff: () => {
+      calls += 1;
+      return new Promise((resolve) => { resolveReturn = resolve; });
+    },
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  const first = controller.restoreResourceHandoff();
+  const second = controller.restoreResourceHandoff();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 1);
+  canonicalStatus = "ACTIVE";
+  resolveReturn(mutation(makeSession({ status: "ACTIVE" })));
+  await Promise.all([first, second]);
+  await controller.restoreResourceHandoff();
+  assert.equal(calls, 1);
+  assert.equal(controller.getState().session?.status, "ACTIVE");
+  controller.dispose();
+});
+
+test("a handoff return conflict is harmless only if Supabase confirms ACTIVE", async () => {
+  let canonicalStatus: FocusSessionDto["status"] = "RESOURCE_HANDOFF";
+  const api = makeApi({
+    getCurrentFocusSession: async (options) => currentResult(makeSession({
+      status: options?.canonical ? canonicalStatus : "RESOURCE_HANDOFF",
+    })),
+    returnFromResourceHandoff: async () => {
+      canonicalStatus = "ACTIVE";
+      throw new FocusApiError("http", "This Focus Session is not in resource handoff.", "INVALID_SESSION_STATE", 409);
+    },
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  await controller.restoreResourceHandoff();
+  assert.equal(controller.getState().session?.status, "ACTIVE");
+  assert.equal(controller.getState().error, null);
+  controller.dispose();
+});
+
+test("visual countdown keeps ticking through handoff mutations without fabricating completion", async () => {
+  let resolveHandoff!: (result: FocusSessionMutationResult) => void;
+  const api = makeApi({
+    startResourceHandoff: async () => new Promise((resolve) => { resolveHandoff = resolve; }),
+  });
+  const { controller, clock, timers } = makeController({ api });
+  await controller.initialize();
+  const unsubscribe = controller.subscribe(() => {});
+  const initialRemaining = controller.getState().displayRemainingSeconds;
+  const transition = controller.startResourceHandoff({ resourceType: "PDF", resourceId: "test-pdf" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(controller.getState().runtimeStatus, "MUTATING");
+  assert.ok(timers.size > 0);
+  clock.value += 1_000;
+  timers.fireNext();
+  assert.equal(controller.getState().displayRemainingSeconds, (initialRemaining ?? 0) - 1);
+  assert.equal(controller.getState().displayMayBeComplete, false);
+  resolveHandoff(mutation(makeSession({ status: "RESOURCE_HANDOFF", remainingSeconds: (initialRemaining ?? 0) - 1 })));
+  await transition;
+  assert.equal(controller.getState().session?.status, "RESOURCE_HANDOFF");
+  unsubscribe();
+  controller.dispose();
+});
+
+test("a just-returned handoff never regresses to a stale D1 HANDOFF", async () => {
+  let callsToStrong = 0;
+  const api = makeApi({
+    getCurrentFocusSession: async (options) => {
+      if (options?.canonical) {
+        callsToStrong += 1;
+        return currentResult(makeSession({ status: "ACTIVE" }));
+      }
+      return currentResult(makeSession({ status: "RESOURCE_HANDOFF" }));
+    },
+    returnFromResourceHandoff: async () => mutation(makeSession({ status: "ACTIVE" })),
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  await controller.restoreResourceHandoff();
+  assert.equal(controller.getState().session?.status, "ACTIVE");
+  await controller.reconcile();
+  assert.equal(controller.getState().session?.status, "ACTIVE");
+  assert.equal(callsToStrong, 1);
+  controller.dispose();
+});
+
+test("a failed handoff return remains an error when canonical database still reports HANDOFF", async () => {
+  const api = makeApi({
+    getCurrentFocusSession: async () => currentResult(makeSession({ status: "RESOURCE_HANDOFF" })),
+    returnFromResourceHandoff: async () => {
+      throw new FocusApiError("http", "Not in resource handoff", "INVALID_SESSION_STATE", 409);
+    },
+  });
+  const { controller } = makeController({ api });
+  await controller.initialize();
+  await assert.rejects(controller.restoreResourceHandoff(), (e: unknown) =>
+    e instanceof FocusApiError && e.code === "INVALID_SESSION_STATE");
+  assert.equal(controller.getState().session?.status, "RESOURCE_HANDOFF");
+  controller.dispose();
+});

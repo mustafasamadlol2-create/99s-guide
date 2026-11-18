@@ -200,7 +200,7 @@ test("Focus plan methods validate envelopes and only send allowed fields", async
   });
   assert.deepEqual(JSON.parse(String(calls[0].options.body)), {
     title: "Plan", timezone: "UTC",
-    items: [{ lectureId, sequence: 1, sessionCount: 1, focusDurationSeconds: 60, breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true, resources: [] }],
+    items: [{ lectureId, sequence: 1, sessionCount: 1, focusDurationSeconds: 60, breakDurationSeconds: 0, includeMcq: true, includeFlashcards: false, includeVideo: true }],
   });
 });
 
@@ -347,4 +347,17 @@ test("Focus history and terminal summaries validate canonical responses and pres
   const malformed = createFocusApi(async () => response({ ...summary, status: "UNKNOWN" }));
   await assert.rejects(malformed.getSessionSummary(itemId), (error: unknown) =>
     error instanceof FocusApiError && error.kind === "protocol");
+});
+test("canonical Resume verification reads PostgreSQL route separately from D1 route", async () => {
+  const calls: string[] = [];
+  const api = createFocusApi(async (path) => {
+    calls.push(String(path));
+    return response({ session: null, serverNow: now });
+  });
+  await api.getCurrentFocusSession({ canonical: true });
+  await api.getCurrentFocusSession();
+  assert.deepEqual(calls, [
+    "/api/focus/sessions/current?canonical=1",
+    "/api/focus/sessions/current",
+  ]);
 });

@@ -2156,11 +2156,13 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
       }));
     },
 
-    async currentSession(userId): Promise<FocusCurrentSessionResult> {
+    async currentSession(userId, options = {}): Promise<FocusCurrentSessionResult> {
       requireSessionDependencies();
       const clock = assertValidClock(now());
       return safely(async () => {
-        if (strictStudyEngineCutover()) {
+        // An explicit read-after-write verification must consult Supabase. The
+        // ordinary Phase-5 D1 read path remains unchanged for normal views.
+        if (!options.canonical && strictStudyEngineCutover()) {
           try {
             const projections = await fetchSessionsFromD1(userId, { nonterminal: true, limit: 2 });
             if (
@@ -2229,7 +2231,7 @@ export function createFocusService(options: FocusServiceOptions = {}): FocusBack
           projected: FocusSessionProjection[];
           canonical: FocusSessionProjectionState[];
         } | null = null;
-        if (d1SessionReadsEnabled()) {
+        if (!options.canonical && d1SessionReadsEnabled()) {
           try {
             // The Worker sorts by updatedAt DESC. Two rows are enough to detect
             // duplicate current sessions; if the current row falls outside that

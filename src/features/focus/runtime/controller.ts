@@ -85,6 +85,7 @@ interface MutationFlight {
 
 interface ReconcileFlight {
   generation: number;
+  canonical: boolean;
   promise: Promise<FocusRuntimeState>;
 }
 
@@ -182,6 +183,11 @@ export class FocusRuntimeController {
   private backgroundAt: number | null = null;
   private backgroundSession: { id: string; status: FocusSessionDto["status"]; remainingSeconds: number | null } | null = null;
   private handoffReturnKey: string | null = null;
+  private handoffRestoreFlight: Promise<void> | null = null;
+  private resourceOpening = false;
+  // Read-your-writes guard: a lagging D1 snapshot cannot revive an ended id.
+  private readonly terminalSessionIds = new Set<string>();
+  private returnedHandoffSessionId: string | null = null;
   private interruptionKey: string | null = null;
   private interruptionFlight: Promise<void> | null = null;
   private static readonly INTERRUPTION_THRESHOLD_SECONDS = 20;
@@ -241,21 +247,25 @@ export class FocusRuntimeController {
   /**
    * Fetch the canonical current session. Concurrent triggers share one request.
    */
-  reconcile(): Promise<FocusRuntimeState> {
+  reconcile(options: { canonical?: boolean } = {}): Promise<FocusRuntimeState> {
     this.assertNotDisposed();
+    const canonical = options.canonical === true;
     const existing = this.reconcileFlight;
-    if (existing && existing.generation === this.requestGeneration) {
+    if (existing && existing.generation === this.requestGeneration &&
+        (existing.canonical || !canonical)) {
       return existing.promise;
     }
 
+    // A strong confirmation supersedes a concurrently running replica read.
+    if (existing && canonical && !existing.canonical) this.requestGeneration += 1;
     const generation = this.requestGeneration;
-    const promise = Promise.resolve().then(() => this.fetchCanonicalCurrent(generation));
+    const promise = Promise.resolve().then(() => this.fetchCanonicalCurrent(generation, canonical));
     const trackedPromise = promise.finally(() => {
       if (this.reconcileFlight?.promise === trackedPromise) {
         this.reconcileFlight = null;
       }
     });
-    this.reconcileFlight = { generation, promise: trackedPromise };
+    this.reconcileFlight = { generation, canonical, promise: trackedPromise };
     this.setState({
       runtimeStatus: this.currentState.sessionAuthority === null ? "LOADING" : "RECONCILING",
       error: null,
@@ -393,6 +403,38 @@ export class FocusRuntimeController {
     );
   }
 
+  /**
+   * Single, best-effort transition when an external Resource returns to Focus.
+   * Multiple browser foreground signals and UI effects share one in-flight write.
+   * A 409 is only benign when a fresh canonical check confirms ACTIVE for this id.
+   */
+  restoreResourceHandoff(): Promise<void> {
+    if (this.handoffRestoreFlight) return this.handoffRestoreFlight;
+    const flight = (async () => {
+      if (this.reconcileFlight) await this.reconcileFlight.promise;
+      const snapshot = this.getState();
+      if (snapshot.sessionAuthority !== "CANONICAL" ||
+          snapshot.session?.status !== "RESOURCE_HANDOFF" ||
+          this.resourceOpening) return;
+      const sessionId = snapshot.session.id;
+      try {
+        await this.returnFromResourceHandoff();
+      } catch (error) {
+        const canonical = await this.reconcile({ canonical: true });
+        if (canonical.sessionAuthority === "CANONICAL" &&
+            canonical.session?.id === sessionId &&
+            canonical.session.status === "ACTIVE") return;
+        throw error;
+      }
+    })();
+    const tracked = flight.finally(() => {
+      if (this.handoffRestoreFlight === tracked) this.handoffRestoreFlight = null;
+    });
+    void tracked.catch(() => {});
+    this.handoffRestoreFlight = tracked;
+    return tracked;
+  }
+
   async recordInterruption(reason = "background_absence"): Promise<void> {
     const candidate = this.currentState.potentialInterruption;
     if (!candidate) throw new FocusRuntimeOperationError("NO_INTERRUPTION_CANDIDATE", "No potential interruption is available.");
@@ -421,17 +463,25 @@ export class FocusRuntimeController {
     input: Omit<ResourceHandoffStartInput, "idempotencyKey" | "source">,
     opener: () => void | Promise<void>,
   ): Promise<FocusSessionMutationResult> {
-    const started = await this.startResourceHandoff(input);
+    this.resourceOpening = true;
+    let started: FocusSessionMutationResult;
     try {
+      started = await this.startResourceHandoff(input);
       await opener();
     } catch (error) {
-      try {
-        await this.returnFromResourceHandoff();
-      } catch {
-        await this.reconcile().catch(() => {});
-      }
+      this.resourceOpening = false;
+      // A failed resource launch must not strand the session in HANDOFF.
+      await this.restoreResourceHandoff().catch(() => {});
       throw error;
     }
+    this.resourceOpening = false;
+    // Restore promptly when possible. If the browser suspends background JS,
+    // the foreground lifecycle will perform the same single-flight restoration.
+    // Confirm the latest PostgreSQL state before restoring. The default D1
+    // session read may still be ACTIVE while the new HANDOFF awaits delivery.
+    void this.reconcile({ canonical: true })
+      .then(() => this.restoreResourceHandoff())
+      .catch(() => {});
     return started;
   }
 
@@ -460,6 +510,7 @@ export class FocusRuntimeController {
     this.reconcileFlight = null;
     const isTerminal = TERMINAL_STATES.has(session.status);
     if (isTerminal) {
+      this.terminalSessionIds.add(session.id);
       this.timerBaseline = null;
       this.setState({
         runtimeStatus: "IDLE",
@@ -472,6 +523,7 @@ export class FocusRuntimeController {
         completionEligible: null,
         pendingOperation: null,
         semanticResult: null,
+        potentialInterruption: null,
         error: null,
         lastSyncedAt: session.serverNow,
       });
@@ -525,9 +577,15 @@ export class FocusRuntimeController {
     this.listeners.clear();
   }
 
-  private async fetchCanonicalCurrent(generation: number): Promise<FocusRuntimeState> {
+  private async fetchCanonicalCurrent(generation: number, canonical: boolean): Promise<FocusRuntimeState> {
     try {
-      const result = await this.api.getCurrentFocusSession();
+      let result = await this.api.getCurrentFocusSession({ canonical });
+      if (!canonical && result.session?.id === this.returnedHandoffSessionId &&
+          result.session.status === "RESOURCE_HANDOFF") {
+        // A just-returned session may still be in HANDOFF on D1. Refuse a
+        // backward state change without checking its canonical status.
+        result = await this.api.getCurrentFocusSession({ canonical: true });
+      }
       if (this.disposed || generation !== this.requestGeneration) {
         return this.getState();
       }
@@ -535,7 +593,8 @@ export class FocusRuntimeController {
       this.retryAttempt = 0;
       const syncedAt = result.serverNow;
       this.timerBaseline = null;
-      const currentSession = result.session && !TERMINAL_STATES.has(result.session.status)
+      const currentSession = result.session && !TERMINAL_STATES.has(result.session.status) &&
+          !this.terminalSessionIds.has(result.session.id)
         ? result.session
         : null;
       if (currentSession?.status !== "RESOURCE_HANDOFF") this.handoffReturnKey = null;
@@ -672,9 +731,11 @@ export class FocusRuntimeController {
     const background = this.backgroundSession;
     this.backgroundAt = null;
     this.backgroundSession = null;
-    const reconciled = await this.reconcile();
+    // Foreground is a read-after-write boundary. A replica-only read can
+    // temporarily conceal a just-started handoff or a just-ended session.
+    const reconciled = await this.reconcile({ canonical: true });
     if (reconciled.session?.status === "RESOURCE_HANDOFF") {
-      await this.returnFromResourceHandoff().catch(() => {});
+      await this.restoreResourceHandoff().catch(() => {});
       return;
     }
     if (background?.status === "ACTIVE" &&
@@ -872,10 +933,16 @@ export class FocusRuntimeController {
       if (this.disposed) return result;
 
       this.pendingMutation = null;
-      if (operation === "handoff-return") this.handoffReturnKey = null;
+      if (operation === "handoff-return") {
+        this.handoffReturnKey = null;
+        this.returnedHandoffSessionId = result.session.id;
+      } else if (operation === "handoff-start") {
+        this.returnedHandoffSessionId = null;
+      }
       const session = result.session;
       const isTerminal = sessionStatusAfterTerminalResult(session);
       if (isTerminal) {
+        this.terminalSessionIds.add(session.id);
         this.timerBaseline = null;
         this.setState({
           runtimeStatus: "IDLE",
@@ -888,6 +955,7 @@ export class FocusRuntimeController {
           completionEligible: null,
           pendingOperation: null,
           semanticResult: null,
+          potentialInterruption: null,
           error: null,
           lastSyncedAt: session.serverNow,
         });
@@ -1083,14 +1151,20 @@ export class FocusRuntimeController {
     }
   }
 
+  private mayDisplayTick(): boolean {
+    // The server continues charging wall time while a read or resource
+    // transition is pending. Do not freeze-and-jump the visual countdown.
+    return this.currentState.sessionAuthority === "CANONICAL" &&
+      ["READY", "MUTATING", "RECONCILING"].includes(this.currentState.runtimeStatus) &&
+      isServerCountedFocusStatus(this.currentState.session?.status);
+  }
+
   private ensureRenderTick(): void {
     if (
       this.disposed ||
       this.renderTimer !== null ||
       this.listeners.size === 0 ||
-      this.currentState.runtimeStatus !== "READY" ||
-      this.currentState.sessionAuthority !== "CANONICAL" ||
-      !isServerCountedFocusStatus(this.currentState.session?.status)
+      !this.mayDisplayTick()
     ) {
       return;
     }
@@ -1100,6 +1174,8 @@ export class FocusRuntimeController {
       this.recomputeDisplay();
       this.ensureRenderTick();
     }, this.renderTickMs);
+    // A Node test or SSR render must not be kept alive by a display-only tick.
+    (this.renderTimer as unknown as { unref?: () => void }).unref?.();
   }
 
   private stopRenderTick(): void {
@@ -1118,8 +1194,7 @@ export class FocusRuntimeController {
         // Keep one consumer from preventing delivery to other subscribers.
       }
     });
-    if (this.currentState.runtimeStatus !== "READY" ||
-        !isServerCountedFocusStatus(this.currentState.session?.status)) {
+    if (!this.mayDisplayTick()) {
       this.stopRenderTick();
     } else {
       this.ensureRenderTick();

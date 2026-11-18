@@ -555,10 +555,10 @@ function ActiveFocusScreenCore({
           latest.runtimeStatus === "MUTATING" ||
           handoffAutoReturnAttemptRef.current === sessionRouteId) return;
       handoffAutoReturnAttemptRef.current = sessionRouteId;
-      void controller.returnFromResourceHandoff().catch(() => {
-        // Preserve the canonical resource-handoff timer on network failure.
-        // Foreground/reconnect can retry; never invent ACTIVE locally.
-        void controller.reconcile().catch(() => {});
+      void controller.restoreResourceHandoff().catch(() => {
+        // A genuine network failure remains recoverable; do not emit a stale
+        // handoff-state toast or assume server success.
+        void controller.reconcile({ canonical: true }).catch(() => {});
       });
     };
     const onForeground = () => {

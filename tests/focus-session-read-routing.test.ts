@@ -210,3 +210,19 @@ test("an invalid D1 timer snapshot falls back to PostgreSQL and preserves reconc
   assert.equal(queries.length, 1);
   assert.ok(queries[0]?.include);
 });
+
+test("explicit canonical current-session check bypasses D1 after terminal mutation", async () => {
+  let projectionRequests = 0;
+  const { service, queries } = makeService({
+    projections: async () => {
+      projectionRequests += 1;
+      return [makeProjection({ status: "ACTIVE" })];
+    },
+    canonicalSession: null,
+  });
+  const current = await service.currentSession(userId, { canonical: true });
+  assert.equal(current.session, null);
+  assert.equal(projectionRequests, 0);
+  assert.equal(queries.length, 1);
+  assert.ok(queries[0]?.include);
+});

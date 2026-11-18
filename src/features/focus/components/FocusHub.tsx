@@ -192,9 +192,9 @@ export function FocusHub({
   const canonicalPlanRef = useRef<FocusPlanRecord | null>(null);
   // The live server-confirmed runtime owns Resume. Do not keep a separate
   // session snapshot that may outlive a confirmed End/abandon operation.
-  const currentSession = confirmedCurrentFocusSession(runtimeState);
   const [draft, setDraft] = useState<FocusPlanDraft>(createEmptyFocusPlanDraft);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const currentSession = loadState === "ready" ? confirmedCurrentFocusSession(runtimeState) : null;
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [summaryStarting, setSummaryStarting] = useState(false);
@@ -238,7 +238,9 @@ export function FocusHub({
       if (!options.silent) setLoadState("loading");
       try {
         const [currentState, plans] = await Promise.all([
-          runtimeController.reconcile(),
+          // A planner/Resume decision must use PostgreSQL authority, not a
+          // possibly delayed Phase-5 D1 read after an End mutation.
+          runtimeController.reconcile({ canonical: true }),
           focusApi.listFocusPlans(1, {
             status: "ACTIVE",
             canonical: options.canonical,
@@ -606,6 +608,30 @@ export function FocusHub({
     },
     [],
   );
+
+  const resumeValidationRef = useRef(false);
+  const [validatingResume, setValidatingResume] = useState(false);
+  const openVerifiedSession = async (sessionId: string) => {
+    if (resumeValidationRef.current) return;
+    resumeValidationRef.current = true;
+    setValidatingResume(true);
+    try {
+      // Never navigate using a potentially lagging D1 read after End Focus.
+      const checked = await runtimeController.reconcile({ canonical: true });
+      if (checked.sessionAuthority === "CANONICAL" && checked.session?.id === sessionId) {
+        onOpenSession(sessionId);
+      } else if (checked.sessionAuthority === "CANONICAL") {
+        void loadCanonicalRef.current({ applyDraft: false, silent: true, canonical: true });
+      } else {
+        showNotice("focusHubStartError", "error");
+      }
+    } catch {
+      showNotice("focusHubStartError", "error");
+    } finally {
+      resumeValidationRef.current = false;
+      setValidatingResume(false);
+    }
+  };
 
   const applyPreset = (presetId: (typeof FOCUS_PRESETS)[number]["id"]) => {
     setNotice(null);
@@ -1153,7 +1179,8 @@ export function FocusHub({
               </div>
               <button
                 type="button"
-                onClick={() => onOpenSession(currentSession.id)}
+                onClick={() => { void openVerifiedSession(currentSession.id); }}
+                disabled={validatingResume}
                 className="flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 px-3 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 dark:bg-emerald-300 dark:text-emerald-950 dark:hover:bg-emerald-200"
               >
                 {t("focusHubResume")}
@@ -1602,10 +1629,10 @@ export function FocusHub({
             <button
               type="button"
               onClick={() => {
-                if (currentSession) onOpenSession(currentSession.id);
+                if (currentSession) void openVerifiedSession(currentSession.id);
                 else void startFocus();
               }}
-              disabled={currentSession ? false : !canStart}
+              disabled={validatingResume || (currentSession ? false : !canStart)}
               className="focus-hub-start-button flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#438fe9] via-[#4778e8] to-[#594fe5] px-6 text-base font-semibold text-white shadow-[0_10px_24px_rgba(59,111,223,0.24)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-offset-slate-950"
             >
               <Play className="size-5 fill-current" aria-hidden="true" />

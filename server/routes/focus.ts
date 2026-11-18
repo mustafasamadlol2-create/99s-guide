@@ -283,7 +283,11 @@ export function createFocusRouter(dependencies: FocusRouteDependencies): express
 
   router.get("/sessions/current", route(async (req, res) => {
     try {
-      return res.json(await dependencies.service.currentSession(userId(req)));
+      // Canonical confirmation is used for an explicit Resume decision only.
+      // It remains user-scoped; a stale D1 replica must never resurrect an ended session.
+      return res.json(await dependencies.service.currentSession(userId(req), {
+        canonical: req.query.canonical === "1",
+      }));
     } catch (error) {
       return sendError(res, error);
     }
